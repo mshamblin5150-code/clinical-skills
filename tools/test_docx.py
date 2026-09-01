@@ -31,6 +31,114 @@ from repo_root import ForeignCheckout
 SOURCE = Path(__file__).resolve().parent / "docx_write.py"
 
 
+class OwnLineHtmlCommentsAreMarkup(unittest.TestCase):
+    """#673: working comments stay in Markdown and never become Word paragraphs."""
+
+    def rendered_lines(self, markdown: str) -> list[str]:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "post.docx"
+            docx_write.write_docx(markdown, path)
+            lines = docx_read.read_docx(path)
+            return lines[:-1] if lines and lines[-1] == "" else lines
+
+    def test_an_own_line_comment_is_not_a_rendered_paragraph(self):
+        lines = self.rendered_lines(
+            "Before.\n\n<!-- INVOKED: gravity | attracts mass -->\n\nAfter.\n"
+        )
+
+        self.assertEqual(lines, ["Before.", "", "After."])
+
+    def test_a_line_carrying_only_multiple_comments_is_dropped(self):
+        lines = self.rendered_lines("Before.\n<!-- first --><!-- second -->\nAfter.\n")
+
+        self.assertEqual(lines, ["Before.", "After."])
+
+    def test_mid_line_and_multi_line_comments_remain_visible(self):
+        markdown = (
+            "<!-- one --> visible words <!-- two -->\n"
+            "<!-- INVOKED: gravity\n"
+            "| attracts mass -->\n"
+        )
+
+        self.assertEqual(
+            self.rendered_lines(markdown),
+            [
+                "<!-- one --> visible words <!-- two -->",
+                "<!-- INVOKED: gravity",
+                "| attracts mass -->",
+            ],
+        )
+
+    def test_the_command_reports_dropped_lines_and_warns_about_visible_residue(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "post.md"
+            destination = root / "post.docx"
+            source.write_text(
+                "<!-- dropped -->\n"
+                "Visible <!-- mid-line --> words.\n"
+                "<!-- multi-line\n"
+                "comment -->\n",
+                encoding="utf-8",
+            )
+            stdout, stderr = io.StringIO(), io.StringIO()
+            with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+                status = docx_write.main([str(source), str(destination)])
+
+        self.assertEqual(0, status)
+        self.assertIn("1 own-line HTML comment line(s) omitted", stdout.getvalue())
+        self.assertIn("1 mid-line HTML comment", stderr.getvalue())
+        self.assertIn("1 multi-line HTML comment", stderr.getvalue())
+        self.assertNotIn("Visible", stderr.getvalue())
+
+    def test_a_mid_line_form_after_a_multi_line_close_is_also_reported(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "post.md"
+            destination = root / "post.docx"
+            source.write_text(
+                "<!-- first\n"
+                "ends --> visible <!-- second --> prose\n",
+                encoding="utf-8",
+            )
+            stdout, stderr = io.StringIO(), io.StringIO()
+            with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+                status = docx_write.main([str(source), str(destination)])
+
+        self.assertEqual(0, status)
+        self.assertIn("1 mid-line HTML comment", stderr.getvalue())
+        self.assertIn("1 multi-line HTML comment", stderr.getvalue())
+
+
+class CommentStrippingDeclaredLimits(unittest.TestCase):
+    def test_the_residue_has_two_coverage_rows(self):
+        keys = {key for key, _reason in docx_write.NOT_STRIPPED}
+
+        self.assertEqual(keys, {"mid-line HTML comments", "multi-line HTML comments"})
+
+    def test_every_residue_row_still_reaches_the_page(self):
+        controls = {
+            "mid-line HTML comments": "Words <!-- note --> remain.\n",
+            "multi-line HTML comments": "<!-- note\ncontinues -->\n",
+        }
+
+        self.assertEqual(set(controls), {key for key, _ in docx_write.NOT_STRIPPED})
+        for key, markdown in controls.items():
+            with self.subTest(key=key):
+                self.assertIn("&lt;!--", docx_write.body_xml(markdown))
+
+    def test_the_fenced_block_cost_is_a_rationale_not_a_limit(self):
+        reasons = " ".join(reason for _key, reason in docx_write.NOT_STRIPPED)
+
+        self.assertIn("fenced", docx_write.WHY_FENCED_COMMENTS_ARE_STRIPPED)
+        self.assertNotIn(docx_write.WHY_FENCED_COMMENTS_ARE_STRIPPED, reasons)
+
+    def test_the_docstring_and_claude_md_point_at_the_limit_object(self):
+        self.assertIn("NOT_STRIPPED", docx_write.__doc__)
+        claude = (SOURCE.parent.parent / "CLAUDE.md").read_text(encoding="utf-8")
+        self.assertIn("NOT_STRIPPED", claude)
+
+
 class TheArchiveHasTheRequiredParts(unittest.TestCase):
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()

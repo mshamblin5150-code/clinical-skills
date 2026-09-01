@@ -121,8 +121,19 @@ class TheWorkflowCarriesEveryRatifiedGate(unittest.TestCase):
         post = read(POST)
         self.assertRegex(post, r"docx_write\.py[^\n]+--bold-headings")
         self.assertRegex(post, r"discussion_post_scan\.py[^\n]+--docx")
+        self.assertIn("rendered-comments", post)
         self.assertNotRegex(post, r"(?i)manually demote|heading demotion")
         self.assertNotRegex(post, r"carries the hanging indent.*heading structure")
+
+    def test_the_post_workflow_relies_on_rendering_while_the_reply_still_omits_comments(self):
+        post = read(POST)
+        reply = read(REPLY)
+
+        self.assertIn("`docx_write.py` drops own-line HTML comments", post)
+        retired_instruction = "omit every " + "`INVOKED` comment"
+        self.assertNotIn(retired_instruction, post)
+        self.assertIn("omitting the `INVOKED` comments", reply)
+        self.assertIn("pastes from Markdown", post)
 
     def test_the_post_claim_set_is_derived_from_citations_and_body_numbers(self):
         post = read(POST)
@@ -207,7 +218,15 @@ class EachSkillStatesTheLabelItsPipelineAccepts(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             run = PostRun(Path(temp))
             run.draft.write_text(
-                POST_BODY.replace("## References", label),
+                POST_BODY.replace(
+                    "# Access Is More Than Availability",
+                    "# Access Is More Than Availability\n\n"
+                    "<!-- INVOKED: gravity | attracts mass -->",
+                ).replace(
+                    "Quill, R. (2024). Measuring usable access. Journal of Care, 4(2), 10-18.",
+                    "Quill, R. (2024). Measuring usable access. Journal of Care, 4(2), 10-18.\n\n"
+                    "<!-- INVOKED: gravity | attracts mass -->",
+                ).replace("## References", label),
                 encoding="utf-8",
             )
             document = run.root / "post.docx"
@@ -239,6 +258,8 @@ class EachSkillStatesTheLabelItsPipelineAccepts(unittest.TestCase):
             render_status,
             rendered_post_status,
         ))
+        rendered_text = "".join(text.text or "" for text in xml.iter(self.W + "t"))
+        self.assertNotIn("INVOKED", rendered_text)
         paragraph = next(
             node
             for node in xml.iter(self.W + "p")

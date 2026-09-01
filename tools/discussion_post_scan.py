@@ -62,6 +62,7 @@ REFERENCE_MINIMUM = "reference-minimum"
 UNTRACED_NUMBER = "untraced-number"
 UNTRACED_CITATION = "untraced-citation"
 BOLD_HEADINGS = "bold-headings"
+RENDERED_COMMENTS = "rendered-comments"
 LEGAL_REFERENCE_NAME = "legal-reference-name"
 MISSING_POSTED_READING = "missing-posted-reading"
 UNKNOWN_VERDICT = "unknown-verdict"
@@ -74,6 +75,7 @@ ROWS = {
     UNTRACED_NUMBER: "every graded body number traces to claims.md",
     UNTRACED_CITATION: "every in-text citation has its own claim record",
     BOLD_HEADINGS: "the rendered document carries no named heading style",
+    RENDERED_COMMENTS: "the rendered document carries no HTML comment delimiter",
     LEGAL_REFERENCE_NAME: "every legal reference entry names its regulation",
     MISSING_POSTED_READING: "a posted initial entry has a complete posted reading",
     UNKNOWN_VERDICT: "the posted reading uses a declared verdict",
@@ -84,7 +86,7 @@ ROWS = {
 KINDS = tuple(ROWS)
 
 GATED_ROW_SETS = {
-    "docx_graded": ((BOLD_HEADINGS,), ()),
+    "docx_graded": ((BOLD_HEADINGS, RENDERED_COMMENTS), ()),
     "reference_boundary_graded": (
         (
             WORD_FLOOR,
@@ -138,8 +140,8 @@ DECLARED_LIMITS = (
         EvidenceDisposition.DECLARED_READING,
     ),
     (
-        "whether named heading styles were graded when --docx was omitted",
-        "Without --docx, the command does not inspect document XML, so the bold-headings row is not graded even when the remaining report exits cleanly.",
+        "whether rendered-document rows were graded when --docx was omitted",
+        "Without --docx, the command does not inspect document XML, so the bold-headings and rendered-comments rows are not graded even when the remaining report exits cleanly.",
         EvidenceDisposition.BEHAVIOR,
     ),
     (
@@ -189,6 +191,7 @@ class RunSource:
     bar: Bar
     docx: Path | None
     named_heading_styles: tuple[str, ...]
+    rendered_comment_paragraphs: int
     refused_label: str | None
     post_url: str | None
     post_posted: str | None
@@ -360,7 +363,7 @@ W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
 HEADING_STYLE = re.compile(r"Heading\d+")
 
 
-def _docx_heading_styles(path: Path) -> tuple[str, ...]:
+def _docx_properties(path: Path) -> tuple[tuple[str, ...], int]:
     if not path.is_file():
         raise run_grader.SourceError(f"no rendered document at {path}")
     try:
@@ -370,12 +373,18 @@ def _docx_heading_styles(path: Path) -> tuple[str, ...]:
         raise run_grader.SourceError(
             f"could not read the rendered document: {failure}"
         ) from failure
-    return tuple(
+    heading_styles = tuple(
         value
         for node in document.iter(W + "pStyle")
         if (value := node.get(W + "val")) is not None
         and HEADING_STYLE.fullmatch(value)
     )
+    comment_paragraphs = sum(
+        "<!--" in text or "-->" in text
+        for paragraph in document.iter(W + "p")
+        if (text := "".join(node.text or "" for node in paragraph.iter(W + "t")))
+    )
+    return heading_styles, comment_paragraphs
 
 
 def load(parsed: run_grader.Parsed) -> RunSource:
@@ -433,7 +442,9 @@ def load(parsed: run_grader.Parsed) -> RunSource:
         )
     except (OSError, UnicodeError, ValueError) as failure:
         raise run_grader.SourceError(f"could not read the discussion-post run: {failure}") from failure
-    named_heading_styles = _docx_heading_styles(docx) if docx is not None else ()
+    named_heading_styles, rendered_comment_paragraphs = (
+        _docx_properties(docx) if docx is not None else ((), 0)
+    )
     return RunSource(
         root,
         draft,
@@ -443,6 +454,7 @@ def load(parsed: run_grader.Parsed) -> RunSource:
         bar,
         docx,
         named_heading_styles,
+        rendered_comment_paragraphs,
         section.refused_label,
         post_fields.get("POST-URL"),
         post_fields.get("POSTED"),
@@ -497,6 +509,20 @@ def _posted_reading_findings(source: RunSource) -> tuple[Finding, ...]:
     return tuple(findings)
 
 
+def _rendered_comment_findings(source: RunSource) -> tuple[Finding, ...]:
+    if not source.rendered_comment_paragraphs:
+        return ()
+    assert source.docx is not None
+    return tuple(
+        Finding(
+            RENDERED_COMMENTS,
+            source.docx.name,
+            "paragraph carries an HTML comment delimiter",
+        )
+        for _ in range(source.rendered_comment_paragraphs)
+    )
+
+
 def survey(source: RunSource) -> Scan:
     if source.refused_label is not None:
         findings = (
@@ -509,7 +535,7 @@ def survey(source: RunSource) -> Scan:
             )
             if source.named_heading_styles
             else ()
-        )
+        ) + _rendered_comment_findings(source)
         return Scan(
             words=None,
             word_floor=source.bar.word_floor,
@@ -523,7 +549,7 @@ def survey(source: RunSource) -> Scan:
             pre_496_markers=None,
             docx_graded=source.docx is not None,
             reference_boundary_graded=False,
-        findings=findings + _posted_reading_findings(source),
+            findings=findings + _posted_reading_findings(source),
         )
     words = len(WORD.findall(_countable_body(source.body)))
     records = _claim_records(source.claims)
@@ -561,6 +587,7 @@ def survey(source: RunSource) -> Scan:
                 "named heading styles: " + ", ".join(source.named_heading_styles),
             )
         )
+    findings.extend(_rendered_comment_findings(source))
     requirements: list[tuple[str, str, tuple[int, ...]]] = []
     number_occurrences: Counter[str] = Counter()
     for value in numbers:
@@ -666,6 +693,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
     for kind in ROWS:
         if kind not in {
             BOLD_HEADINGS,
+            RENDERED_COMMENTS,
             MISSING_POSTED_READING,
             UNKNOWN_VERDICT,
             BARE_VERDICT,
@@ -673,7 +701,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
             BORROWED_LOCATOR,
         } and not scan.reference_boundary_graded:
             lines.append(f"{kind}: not graded")
-        elif kind == BOLD_HEADINGS and not scan.docx_graded:
+        elif kind in {BOLD_HEADINGS, RENDERED_COMMENTS} and not scan.docx_graded:
             lines.append(f"{kind}: not graded")
         else:
             lines.append(

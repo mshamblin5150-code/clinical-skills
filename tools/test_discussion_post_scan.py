@@ -139,6 +139,7 @@ class ACompletePostPasses(unittest.TestCase):
 
         self.assertEqual(0, status)
         self.assertIn("bold-headings: not graded", stdout)
+        self.assertIn("rendered-comments: not graded", stdout)
 
 
     def test_a_named_heading_style_fails_the_docx_row(self):
@@ -160,6 +161,40 @@ class ACompletePostPasses(unittest.TestCase):
 
         self.assertEqual(0, status)
         self.assertIn("bold-headings: 0", stdout)
+
+    def test_a_rendered_mid_line_comment_fails_the_docx_row(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            document = run.root / "post.docx"
+            docx_write.write_docx(
+                BODY.replace(
+                    "The practical test",
+                    "<!-- INVOKED: gravity | attracts mass --> The practical test",
+                ),
+                document,
+                bold_headings=True,
+            )
+            status, stdout, _ = run.grade("--docx", str(document))
+
+        self.assertEqual(1, status)
+        self.assertIn("rendered-comments: 1", stdout)
+
+    def test_both_lines_of_a_rendered_multi_line_comment_are_counted(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            document = run.root / "post.docx"
+            docx_write.write_docx(
+                BODY.replace(
+                    "The practical test",
+                    "<!-- INVOKED: gravity\n| attracts mass -->\nThe practical test",
+                ),
+                document,
+                bold_headings=True,
+            )
+            status, stdout, _ = run.grade("--docx", str(document))
+
+        self.assertEqual(1, status)
+        self.assertIn("rendered-comments: 2", stdout)
 
     def test_an_nd_citation_and_reference_are_traced(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -1282,7 +1317,7 @@ class ProseBarElementsStayDeclaredReadings(unittest.TestCase):
 
 class EveryBehaviorLimitHasALiveHandler(unittest.TestCase):
     HANDLERS = {
-        "whether named heading styles were graded when --docx was omitted": (
+        "whether rendered-document rows were graded when --docx was omitted": (
             "ACompletePostPasses.test_the_docx_row_is_not_graded_when_no_archive_is_supplied",
             "ACompletePostPasses.test_a_directly_formatted_heading_passes_the_docx_row",
         ),

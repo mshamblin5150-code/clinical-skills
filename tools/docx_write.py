@@ -20,7 +20,13 @@ why three tools here are allowed a dependency and the rest are not: all three op
 ``*italic*``            italic run
 blank line              paragraph break
 ``---``                 ignored -- a Markdown rule is not a Word construct
+own-line HTML comment   ignored -- markup is not document content
 ======================  ====================================================
+
+The comment rule is deliberately narrower than HTML parsing. What remains visible is
+declared by ``NOT_STRIPPED`` below rather than copied into this prose. A fenced comment
+is still dropped; ``WHY_FENCED_COMMENTS_ARE_STRIPPED`` records why that cost is a
+declared rationale rather than a coverage limit.
 
 **The References heading switches the body style, and that is APA 7 rather than a
 nicety.** Every paragraph after a heading whose text begins ``References`` -- or the
@@ -238,6 +244,35 @@ NOT_GUARDED = (
         "assumed -- see ``TheDestinationHeldOpen`` in ``tools/test_docx.py``. On POSIX "
         "it succeeds, and the holder keeps the old inode.",
     ),
+)
+
+
+# What the own-line comment rule does **not** strip. These are coverage sentences: a
+# clean render covers less than a reader might infer from "HTML comments are ignored."
+# Each row has a positive control in ``tools/test_docx.py`` proving the form still
+# reaches ``word/document.xml``. Mid-line stripping would edit an author's sentence;
+# multi-line stripping would require a second, stateful HTML parser at this boundary.
+NOT_STRIPPED = (
+    (
+        "mid-line HTML comments",
+        "A comment sharing a line with visible prose remains on the rendered page, "
+        "because removing it would reach inside and edit an author's paragraph.",
+    ),
+    (
+        "multi-line HTML comments",
+        "A comment whose delimiters occupy different lines remains on the rendered "
+        "page, because the renderer recognizes only a complete comment-only line.",
+    ),
+)
+
+
+# A rationale for a declined option, not a claim that a clean result covers less than
+# it appears to. ``blocks`` deliberately has no fenced-code mode, so exempting a comment
+# inside a fence would invent one solely for this rule and make scanners disagree with
+# the renderer about the block stream.
+WHY_FENCED_COMMENTS_ARE_STRIPPED = (
+    "A fenced comment is stripped because blocks deliberately does not recognize fenced "
+    "code as a separate mode; adding that exemption would create a second block grammar."
 )
 
 
@@ -816,6 +851,50 @@ HEADING = re.compile(r"(#{1,4})\s+(.*)")
 BULLET = re.compile(r"([ \t]*)[-*+]\s+(.*)")
 NUMBERED = re.compile(r"([ \t]*)(\d+)[.)]\s+(.*)")
 SEPARATORS = ("---", "***", "___")
+OWN_LINE_COMMENT = re.compile(
+    r"^(?:\s*<!--(?:(?!-->|<!--).)*-->\s*)+$"
+)
+
+
+def comment_report(markdown: str) -> tuple[int, int, int]:
+    """Return ``(stripped lines, mid-line forms, multi-line forms)``.
+
+    Counts and fixed form names are the command's whole reporting surface; no source
+    text is returned, so a patient-bearing draft cannot leak through diagnostics.
+    """
+    stripped = mid_line = multi_line = 0
+    in_multi_line = False
+    for line in markdown.replace("\r\n", "\n").split("\n"):
+        if OWN_LINE_COMMENT.fullmatch(line):
+            stripped += 1
+            continue
+        cursor = 0
+        while cursor < len(line):
+            if in_multi_line:
+                closing = line.find("-->", cursor)
+                if closing < 0:
+                    break
+                in_multi_line = False
+                cursor = closing + 3
+                continue
+            opening = line.find("<!--", cursor)
+            closing = line.find("-->", cursor)
+            if closing >= 0 and (opening < 0 or closing < opening):
+                # A closing delimiter without an opener is the artifact-side shape of
+                # a multi-line comment whose opening line was outside this read.
+                multi_line += 1
+                cursor = closing + 3
+                continue
+            if opening < 0:
+                break
+            closing = line.find("-->", opening + 4)
+            if closing < 0:
+                multi_line += 1
+                in_multi_line = True
+                break
+            mid_line += 1
+            cursor = closing + 3
+    return stripped, mid_line, multi_line
 
 
 class Block:
@@ -865,8 +944,24 @@ def blocks(markdown: str):
     for one, where ``spelling_scan.py`` reading a skill file does.
     """
     lines = markdown.replace("\r\n", "\n").split("\n")
+    omitted = {
+        index for index, line in enumerate(lines) if OWN_LINE_COMMENT.fullmatch(line)
+    }
+    # A removed comment takes one adjacent blank with it. Prefer the following blank,
+    # so ``paragraph / blank / comment / blank / paragraph`` retains the first and
+    # produces the one paragraph break the source intended. No other blank run moves.
+    for comment_index in tuple(sorted(omitted)):
+        following = comment_index + 1
+        preceding = comment_index - 1
+        if following < len(lines) and not lines[following].strip():
+            omitted.add(following)
+        elif preceding >= 0 and not lines[preceding].strip():
+            omitted.add(preceding)
     index = 0
     while index < len(lines):
+        if index in omitted:
+            index += 1
+            continue
         line = lines[index]
         stripped = line.strip()
         number = index + 1
@@ -1276,6 +1371,25 @@ def main(argv: list) -> int:
         )
         return 2
     print("wrote {p} ({n} bytes)".format(p=written, n=written.stat().st_size))
+    stripped_comments, mid_line_comments, multi_line_comments = comment_report(markdown)
+    if stripped_comments:
+        print(
+            "{n} own-line HTML comment line(s) omitted from the document".format(
+                n=stripped_comments
+            )
+        )
+    for count, form in (
+        (mid_line_comments, "mid-line HTML comment"),
+        (multi_line_comments, "multi-line HTML comment"),
+    ):
+        if count:
+            sys.stdout.flush()
+            print(
+                "warning: {n} {form} form(s) remain visible in the document".format(
+                    n=count, form=form
+                ),
+                file=sys.stderr,
+            )
     # **Warn, never refuse** -- ruled by the clinician on 2026-08-19. #280's second
     # comment is why the command warns at all rather than the suite alone binding the
     # sheet: ``style.md`` section 8 is copied by *runs*, and a run executes commands.
