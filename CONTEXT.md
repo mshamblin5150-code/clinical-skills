@@ -121,7 +121,7 @@ A filled forward action, such as a drug started, a test ordered, or a referral m
 _Avoid_: recommendation, suggestion
 
 **Declared**:
-A value fixed by a stated rule rather than observed. Either a constant, which always holds, or a default, which is overridable on sight.
+A value fixed by a stated rule rather than observed. Either a constant, which always holds, or a default, which is overridable on sight. Distinct from **Declared non-source**, **Declared limit**, **Declared rationale**, and **Declared no-binding**: each is something stated on purpose and held as a named thing, and none is a value in a note.
 _Avoid_: assumed, hardcoded
 
 ### Defects
@@ -336,7 +336,7 @@ What a Download address rests on, one of four: `stated`, seeded from the documen
 _Avoid_: confidence, verification, provenance, mode
 
 **Corpus drift**:
-The corpus and the tree's record of it having come apart — a document added, removed, or reissued under an unchanged filename. It is not a defect and nothing refuses it; what is a defect is a tree that carries on answering without saying it happened.
+The corpus and the tree's record of it having come apart — a document added, removed, or reissued under an unchanged filename. It is not a defect and nothing refuses it; what is a defect is a tree that carries on answering without saying it happened. Distinct from **Drift**, the clinical finding carried into the Objective and absent from the Assessment and the Plan.
 _Avoid_: staleness, desync, corpus change, mismatch
 
 **Threshold sheet**:
@@ -570,7 +570,7 @@ A statement in a merged pull request's artifact text that the merge changes a na
 _Avoid_: reference, link, mention, tag
 
 **Citation**:
-A ticket reference naming a precedent, a ruling or a defect shape, making no claim on that ticket. Most references in this repo's prose are citations, so their presence is not evidence that a merge meant to bind anything.
+A ticket reference naming a precedent, a ruling or a defect shape, making no claim on that ticket. Most references in this repo's prose are citations, so their presence is not evidence that a merge meant to bind anything. Distinct from **Citation key**, **Legal citation**, and **Stated citation**, which are bibliographic rather than tracker references.
 _Avoid_: reference, mention, cross-reference
 
 **Closing hazard**:
