@@ -215,7 +215,7 @@ direction on finding 6, and its Done-when rows rewritten.
 **Three findings are their own tickets rather than folded in**, because none is about a pre-publish
 hook: the two unignored files under `.claude/`; `tracker_branch_scope`'s fourth trigger being absent
 from every account of that module in #670; and one machine's `autoMode` environment block asserting
-this repository is private, which `gh repo view` contradicts.
+private visibility for this repository, which `gh repo view` contradicts.
 
 **Ruling 1 is the one to read before touching any of it.** A body-only pre-publish check is the shape
 the ticket's own comment specifies, it is what a rebuild reaches for first because `grade_text`
