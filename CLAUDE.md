@@ -826,6 +826,8 @@ scan, which is ADR 0083 ruling 5's non-registration limb.
 
 **Exit status distinguishes not having scanned from having found nothing** — 0 clean, 1 for a finding, **2 for every way of not having scanned**: no surface named, a harvest file absent or not a JSON list, no record in any surface, a git command that failed, no persistent pull-head refspec, no pull-head ref without the acknowledgment, and no corpus without `--allow-no-corpus` or `clinical.phiAllowNoCorpus`. **Where a finding and a not-scanned limb both hold, 1 wins**, on `phi_scan.py`'s own ordering — and **the first version got that backwards for the corpus limb**, returning 2 before scanning at all, so a real `dob` hit was suppressed and reported as *did not scan*. Its own test class stubbed the corpus check out, so nothing in the suite could see it; `/code-review` found it. A `git` failure gets its own exception for the same reason: `for-each-ref` returning nothing because it failed reads exactly like a repository nobody has fetched the pull heads into.
 
+Covered by `tools/test_tracker_scan.py`, which builds synthetic harvest files and throwaway checkouts in a temp directory on `test_skills_mirror.py`'s arrangement. **The real tracker is deliberately not a fixture** — it is fetched over the network and changes every time anybody comments, and #212 carries three sweeps whose surface figures disagree with each other for exactly that reason. A test keyed on it would be measuring the day it ran, so no count of issues, pull requests or blobs is asserted anywhere in it.
+
 ### Implementation map disagreement scan
 
 `map_scan.py` reads the complete issues REST harvest offline and grades both
@@ -845,7 +847,10 @@ result failing. The full boundary is `map_scan.DECLARED_LIMITS`; this section
 points to that object and copies none of its rows. A clean scan is a clean
 readiness-and-obligation gate, not a checked implementation map.
 
-Covered by `tools/test_tracker_scan.py`, which builds synthetic harvest files and throwaway checkouts in a temp directory on `test_skills_mirror.py`'s arrangement. **The real tracker is deliberately not a fixture** — it is fetched over the network and changes every time anybody comments, and #212 carries three sweeps whose surface figures disagree with each other for exactly that reason. A test keyed on it would be measuring the day it ran, so no count of issues, pull requests or blobs is asserted anywhere in it.
+Covered by `tools/test_map_scan.py`, which builds synthetic issue harvests and
+throwaway checkouts in a temp directory. **The real tracker is deliberately not
+a fixture** — the suite reads no live tracker state and opens no socket, on the
+scanner's own offline boundary.
 
 ### Tracker bodies
 
