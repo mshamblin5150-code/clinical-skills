@@ -678,10 +678,39 @@ REFUTATION: stands - the page addresses the cited proposition.
     def test_the_shared_section_grammar_reads_subsections_without_taking_a_spaced_year(self):
         section = re.compile(artifact.LEGAL_SECTION_NUMBER)
 
-        for written in ("1.501(c)(3)-1", "164.512(b)(1)(v)", "414.56"):
+        for written in (
+            "414.56",
+            "1.501(c)(3)-1",
+            "164.512(b)(1)(v)",
+            "53.4958-4",
+            "1910.1030",
+            "1395dd",
+            "30-7-15b",
+            "15-1-17",
+            "19-7",
+            "16-54-4",
+            "60A-9-5a",
+            "21-5F-1",
+            "30-5-12b",
+            "54.1-2957",
+            "6B-2-5",
+            "16-29B-19",
+            "16-3C",
+            "19-8-3.7",
+            "414.56-414.60",
+        ):
             with self.subTest(written=written):
                 self.assertIsNotNone(section.fullmatch(written))
         self.assertEqual("414.56", section.match("414.56 (2025)").group())
+
+    def test_the_wider_section_tail_keeps_the_ruled_bare_section_residue(self):
+        for body, expected_numbers in (
+            ("Section 3 of the plan sets § 5 as the floor.", ("3",)),
+            ("The schedule calls this § 5-year planning.", ()),
+        ):
+            with self.subTest(body=body):
+                self.assertEqual((), artifact.read_citations(body))
+                self.assertEqual(expected_numbers, scan._numeric_values(body))
 
     def test_subsectioned_section_forms_drive_both_readers_independently(self):
         cases = (
@@ -706,6 +735,52 @@ REFUTATION: stands - the page addresses the cited proposition.
                         body[citations[0].start : citations[0].end],
                     )
                 self.assertEqual((), scan._numeric_values(body, citations))
+
+    def test_the_ruled_legal_sources_drive_both_readers_independently(self):
+        cases = (
+            ("42 CFR", "482.23"),
+            ("29 U.S.C.", "794"),
+            ("16 CCR", "1481"),
+            ("W. Va. Code", "60A-9-5a"),
+            ("W. Va. Code R.", "19-8-3.7"),
+        )
+
+        for source, section in cases:
+            body = f"The rule applies ({source} § {section}, 2024)."
+            with self.subTest(source=source):
+                citations = artifact.read_citations(body)
+                self.assertEqual(1, len(citations))
+                self.assertEqual(
+                    f"({source} § {section}, 2024)",
+                    body[citations[0].start : citations[0].end],
+                )
+                self.assertEqual((), scan._numeric_values(body, citations))
+
+    def test_an_unlisted_or_bare_source_does_not_become_a_legal_citation(self):
+        for body in ("The Code § 5 (2024).", "§ 5 (2024)."):
+            with self.subTest(body=body):
+                self.assertEqual((), artifact.read_citations(body))
+
+    def test_a_legal_and_ordinary_citation_share_one_parenthetical_without_a_double_read(self):
+        for inside in (
+            "W. Va. Code § 60A-9-5a, 2021; Smith, 2020",
+            "Smith, 2020; W. Va. Code § 60A-9-5a, 2021",
+        ):
+            body = f"The rule applies ({inside})."
+            with self.subTest(inside=inside):
+                citations = artifact.read_citations(body)
+                self.assertEqual(2, len(citations))
+                self.assertEqual(
+                    {
+                        (artifact.author_key("W. Va. Code § 60A-9-5a"), "2021"),
+                        (artifact.author_key("Smith"), "2020"),
+                    },
+                    {
+                        pair
+                        for occurrence in artifact.citation_occurrence_keys(citations)
+                        for pair in occurrence
+                    },
+                )
 
     def test_a_section_only_legal_record_is_a_post_finding(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -1625,6 +1700,17 @@ class CountedPreferencesNeverBecomeFindings(unittest.TestCase):
         self.assertIn("word ceiling exceeded: yes (counted, never graded)", stdout)
         self.assertIn("pre-#496 markers: 1 (counted, not graded)", stdout)
         self.assertNotIn("amplifications:", stdout)
+
+    def test_the_closed_legal_source_vocabulary_prints_on_every_run(self):
+        with tempfile.TemporaryDirectory() as temp:
+            status, stdout, _ = Run(Path(temp)).grade()
+
+        self.assertEqual(0, status)
+        self.assertIn(scan.legal_source_vocabulary_covered(), stdout)
+
+        widened = (*scan.LEGAL_SOURCE_VOCABULARY, "Example Code")
+        with mock.patch.object(scan, "LEGAL_SOURCE_VOCABULARY", widened):
+            self.assertIn(str(len(widened)), scan.legal_source_vocabulary_covered())
 
 
 class ProseBarElementsStayDeclaredReadings(unittest.TestCase):

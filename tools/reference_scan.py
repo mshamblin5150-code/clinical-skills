@@ -82,7 +82,7 @@ list would otherwise be found by neither.
 
 *Retrieval dates, section 4:*
 
-- **An UpToDate entry takes one.**
+- **A class whose ``takes_retrieval_date`` column is true takes one.**
 - **An entry carrying a DOI does not.** A DOI is the work stating that an archived
   version of itself exists, which is APA's own test failing. **This is the narrow
   form of the rule deliberately**: a society guideline PDF also takes no retrieval
@@ -105,9 +105,9 @@ list would otherwise be found by neither.
 
 *Legal reference entries, section 8:*
 
-- **A federal-regulation entry carries the regulation name.** A section alone is
+- **A legal entry carries the legal source name.** A section alone is
   reported as a malformed entry.
-- **A legal entry resolves on its C.F.R. section, with or without a citation year.**
+- **A legal entry resolves on its Source and section, with or without a citation year.**
   It is outside ``uncited-entry`` because the canonical narrative name needs a
   whole-phrase key this module does not have.
 
@@ -241,9 +241,103 @@ from datetime import date
 from pathlib import Path
 
 import run_grader
-from discussion_artifact import LEGAL_CITATION, legal_reference_lacks_name
+from discussion_artifact import (
+    LEGAL_CITATION,
+    LEGAL_SOURCE_VOCABULARY,
+    legal_citation_spans,
+    legal_reference_lacks_name,
+)
 from docx_write import REFERENCE_HEADING as RENDERER_HEADING
 from docx_write import blocks as renderer_blocks
+
+
+@dataclass(frozen=True)
+class ApaSourceClass:
+    """One item of APA's Nursing Student References vocabulary."""
+
+    item: int
+    name: str
+    has_form: bool
+    takes_retrieval_date: bool
+
+
+# One table owns both answers. The sheet headings bind ``has_form`` in both
+# directions in ``TheNursingSourceClassTableIsBoundToTheSheet``; consumers derive
+# the requires-one set from the final column rather than copying it.
+APA_SOURCE_CLASSES = (
+    ApaSourceClass(1, "Journal article", False, False),
+    ApaSourceClass(2, "Journal article with an article number", False, False),
+    ApaSourceClass(3, "UpToDate article", True, True),
+    ApaSourceClass(4, "Cochrane review", False, False),
+    ApaSourceClass(5, "StatPearls", False, True),
+    ApaSourceClass(6, "Authored or edited book", False, False),
+    ApaSourceClass(7, "Chapter in an edited book", False, False),
+    ApaSourceClass(8, "Report by a government agency or other group author", False, False),
+    ApaSourceClass(9, "Clinical practice guideline with a group author", False, False),
+    ApaSourceClass(
+        10,
+        "Clinical practice guideline by individual authors at a government agency, published as part of a series",
+        False,
+        False,
+    ),
+    ApaSourceClass(11, "Ethics code", False, False),
+    ApaSourceClass(12, "Position statement", False, False),
+    ApaSourceClass(13, "Fact sheet", False, False),
+    ApaSourceClass(14, "State nursing practice act (NPA)", True, False),
+    ApaSourceClass(15, "Drug information", False, False),
+    ApaSourceClass(16, "Lab or diagnostic manual", False, False),
+    ApaSourceClass(17, "Medical dictionary", False, False),
+    ApaSourceClass(18, "Entry in a medical dictionary", False, False),
+    ApaSourceClass(19, "YouTube video", False, False),
+    ApaSourceClass(20, "Podcast or podcast episode", False, False),
+    ApaSourceClass(21, "Doctor of nursing practice (DNP) project", False, False),
+    ApaSourceClass(22, "PowerPoint slides or lecture notes", False, False),
+    ApaSourceClass(23, "Webpage on a website", False, False),
+)
+_APA_CLASS_BY_NAME = {item.name: item for item in APA_SOURCE_CLASSES}
+RETRIEVAL_DATE_REQUIRED_CLASSES = frozenset(
+    item.name for item in APA_SOURCE_CLASSES if item.takes_retrieval_date
+)
+
+COVERAGE_CLEAN = "clean"
+COVERAGE_FINDING = "finding"
+COVERAGE_UNDECIDABLE = "undecidable"
+
+
+@dataclass(frozen=True)
+class ReferenceBucket:
+    """Signals an entry can carry and the sheet classes those signals span."""
+
+    name: str
+    classes: tuple[str, ...]
+    spans_outside_set: bool = False
+
+    @property
+    def state(self) -> str:
+        if self.spans_outside_set:
+            return COVERAGE_UNDECIDABLE
+        forms = tuple(_APA_CLASS_BY_NAME[name].has_form for name in self.classes)
+        if all(forms):
+            return COVERAGE_CLEAN
+        if not any(forms):
+            return COVERAGE_FINDING
+        return COVERAGE_UNDECIDABLE
+
+
+@dataclass(frozen=True)
+class BucketCount:
+    name: str
+    state: str
+    population: int
+
+
+@dataclass(frozen=True)
+class CoverageFinding:
+    """Advisory sheet coverage keyed only by bucket and entry line."""
+
+    kind: str
+    detail: str
+    line: int
 
 # The two labels APA permits, section 1. Both are matched as a whole heading here;
 # the renderer is looser on the plural and this file does not copy that looseness,
@@ -311,7 +405,18 @@ CANVAS = re.compile(r"Links to an external site\.?", re.I)
 # element, so ``UpToDate.`` followed by ``Retrieved`` is exactly the ordinary form
 # and a lookahead refusing any period read the compliant entry as no entry at all.
 UPTODATE_NAME = re.compile(r"(?<![\w/\-])UpToDate(?!\w|\.[a-z]{2,})", re.I)
-UPTODATE_HOST = re.compile(r"uptodate\.com", re.I)
+UPTODATE_HOST = re.compile(
+    r"(?<![\w.-])(?:https?://)?(?:www\.)?uptodate\.com(?=[/:?#]|\s|$)", re.I
+)
+STATPEARLS_HOST = re.compile(
+    r"(?<![\w.-])(?:https?://)?(?:www\.)?statpearls\.com(?=[/:?#]|\s|$)", re.I
+)
+COCHRANE_SIGNAL = re.compile(r"(?:cochranelibrary\.com|10\.1002/14651858)", re.I)
+YOUTUBE_SIGNAL = re.compile(r"(?:youtube\.com|youtu\.be)", re.I)
+PODCAST_SIGNAL = re.compile(r"\[(?:Audio|Video) podcast(?: episode)?\]", re.I)
+DNP_SIGNAL = re.compile(r"\[Doctor of nursing practice(?: final)? project", re.I)
+SLIDES_SIGNAL = re.compile(r"\[(?:PowerPoint slides|Lecture notes)\]", re.I)
+WEB_SIGNAL = re.compile(r"https?://", re.I)
 # Italic, and **not bold**. ``**UpToDate**`` contains ``*UpToDate*``, so a matcher
 # that only pairs the delimiters reads a bold database name as an italicized one
 # and passes an entry the renderer will set in bold.
@@ -370,7 +475,7 @@ CANVAS_ARTIFACT = "canvas-artifact"
 LIST_NOT_SORTED = "list-not-sorted"
 MISSING_AB = "missing-ab"
 AB_OUT_OF_TITLE_ORDER = "ab-out-of-title-order"
-UPTODATE_NO_RETRIEVAL_DATE = "uptodate-no-retrieval-date"
+REQUIRES_RETRIEVAL_DATE = "requires-retrieval-date"
 RETRIEVAL_DATE_ON_ARCHIVED = "retrieval-date-on-archived"
 RETRIEVAL_DATE_BEFORE_EXAM = "retrieval-date-before-exam"
 MALFORMED_DATE = "malformed-date"
@@ -379,6 +484,35 @@ INTEXT_YEAR_MISMATCH = "intext-year-mismatch"
 UNCITED_ENTRY = "uncited-entry"
 UNLISTED_CITATION = "unlisted-citation"
 LEGAL_REFERENCE_LACKS_NAME = "legal-reference-lacks-name"
+UNCOVERED_CLASS = "uncovered-class"
+
+REFERENCE_BUCKETS = (
+    ReferenceBucket("uptodate", ("UpToDate article",)),
+    ReferenceBucket("statpearls", ("StatPearls",)),
+    ReferenceBucket("legal", ("State nursing practice act (NPA)",)),
+    ReferenceBucket("cochrane", ("Cochrane review",)),
+    ReferenceBucket(
+        "doi-work", tuple(item.name for item in APA_SOURCE_CLASSES), spans_outside_set=True
+    ),
+    ReferenceBucket(
+        "identified-media",
+        (
+            "YouTube video",
+            "Podcast or podcast episode",
+            "Doctor of nursing practice (DNP) project",
+            "PowerPoint slides or lecture notes",
+        ),
+    ),
+    ReferenceBucket(
+        "identified-web",
+        tuple(item.name for item in APA_SOURCE_CLASSES),
+        spans_outside_set=True,
+    ),
+    ReferenceBucket(
+        "unresolved", tuple(item.name for item in APA_SOURCE_CLASSES), spans_outside_set=True
+    ),
+)
+_REFERENCE_BUCKET_BY_NAME = {bucket.name: bucket for bucket in REFERENCE_BUCKETS}
 
 # The rows that read the draft's **body** rather than its reference list, declared
 # so that a fifth one cannot arrive quietly. #218's decision 1 was ruled on a
@@ -425,7 +559,7 @@ ROWS = {
     LIST_NOT_SORTED: "apa7 1",
     MISSING_AB: "apa7 3",
     AB_OUT_OF_TITLE_ORDER: "apa7 3",
-    UPTODATE_NO_RETRIEVAL_DATE: "apa7 4",
+    REQUIRES_RETRIEVAL_DATE: "apa7 4",
     RETRIEVAL_DATE_ON_ARCHIVED: "apa7 4",
     RETRIEVAL_DATE_BEFORE_EXAM: "apa7 4",
     MALFORMED_DATE: "apa7 4",
@@ -562,9 +696,14 @@ def year_key(token: str) -> str:
 
 
 def _legal_section_text(match: re.Match[str]) -> str:
-    """The C.F.R. locator captured by the shared legal-citation grammar."""
+    """The locator captured by the shared legal-citation grammar."""
 
-    return match.group("parenthesized_author") or match.group("author") or ""
+    return (
+        match.group("parenthesized_author")
+        or match.group("continued_author")
+        or match.group("author")
+        or ""
+    )
 
 
 def citation_key(author: str) -> str:
@@ -707,6 +846,46 @@ class Entry:
         return " ".join(words)
 
 
+def classify_entry(entry: Entry) -> ReferenceBucket:
+    """Return the narrowest bucket the entry string itself can support."""
+
+    if entry.is_uptodate:
+        name = "uptodate"
+    elif STATPEARLS_HOST.search(entry.text):
+        name = "statpearls"
+    elif entry.is_legal:
+        name = "legal"
+    elif COCHRANE_SIGNAL.search(entry.text):
+        name = "cochrane"
+    elif DOI.search(entry.text):
+        name = "doi-work"
+    elif any(
+        signal.search(entry.text)
+        for signal in (YOUTUBE_SIGNAL, PODCAST_SIGNAL, DNP_SIGNAL, SLIDES_SIGNAL)
+    ):
+        name = "identified-media"
+    elif WEB_SIGNAL.search(entry.text):
+        name = "identified-web"
+    else:
+        name = "unresolved"
+    return _REFERENCE_BUCKET_BY_NAME[name]
+
+
+def summarize_buckets(
+    classified: tuple[ReferenceBucket, ...],
+) -> tuple[BucketCount, ...]:
+    """Count one classifier result set over the declared bucket vocabulary."""
+
+    return tuple(
+        BucketCount(
+            bucket.name,
+            bucket.state,
+            sum(found == bucket for found in classified),
+        )
+        for bucket in REFERENCE_BUCKETS
+    )
+
+
 @dataclass(frozen=True)
 class Citation:
     """One in-text citation, reduced to the two things a string test can compare."""
@@ -759,6 +938,9 @@ class Scan:
     with_doi: int
     legal: int
     citations: int
+    bucket_counts: tuple[BucketCount, ...]
+    coverage_findings: tuple[CoverageFinding, ...]
+    undecidable_remainder: int
     counts: tuple[tuple[str, int], ...]
     entries_at_fault: int
     findings: tuple[Finding, ...]
@@ -790,6 +972,7 @@ def read_citations(body: str) -> tuple[Citation, ...]:
     row reports one finding rather than nine.
     """
     seen: dict[tuple[str, str], Citation] = {}
+    legal_spans = legal_citation_spans(body)
 
     def add(author: str, token: str) -> None:
         key = citation_key(author)
@@ -799,27 +982,56 @@ def read_citations(body: str) -> tuple[Citation, ...]:
         seen.setdefault(pair, Citation(key=pair[0], year=pair[1]))
 
     for match in LEGAL_CITATION.finditer(body):
-        token = match.group("parenthesized_year") or match.group("year") or ""
+        token = (
+            match.group("parenthesized_year")
+            or match.group("continued_year")
+            or match.group("year")
+            or ""
+        )
         pair = (normalize(_legal_section_text(match)), year_key(token))
         seen.setdefault(pair, Citation(key=pair[0], year=pair[1]))
 
     for block in PAREN_BLOCK.finditer(body):
+        if any(
+            start <= block.start() and block.end() <= end
+            for start, end in legal_spans
+        ):
+            continue
         # One set of parentheses, several works. Splitting first is what makes the
         # second work in ``(A, 2025; B, 2021)`` visible at all.
+        offset = block.start(1)
+        cursor = 0
         for part in block.group(1).split(";"):
-            match = CITATION_PART.match(part)
+            leading = len(part) - len(part.lstrip())
+            stripped = part.strip()
+            start = offset + cursor + leading
+            end = start + len(stripped)
+            if any(
+                start < legal_end and legal_start < end
+                for legal_start, legal_end in legal_spans
+            ):
+                cursor += len(part) + 1
+                continue
+            match = CITATION_PART.match(stripped)
             if not match:
+                cursor += len(part) + 1
                 continue
             author = match.group(1)
             add(author, match.group(2))
-            rest = part[match.end() :]
+            rest = stripped[match.end() :]
             while True:
                 extra = EXTRA_YEAR.match(rest)
                 if not extra:
                     break
                 add(author, extra.group(1))
                 rest = rest[extra.end() :]
+            cursor += len(part) + 1
     for match in NARRATIVE.finditer(body):
+        if any(
+            start <= match.start() and match.end() <= end
+            for start, end in legal_spans
+        ):
+            continue
         add(match.group(1), match.group(2))
     return tuple(seen.values())
 
@@ -930,8 +1142,12 @@ def _entry_findings(entry: Entry, as_of: date | None) -> list[Finding]:
     stamp, _present, malformed = _retrieval(entry)
     if malformed:
         found.append(Finding(MALFORMED_DATE, where, entry.text, at))
-    if entry.is_uptodate and stamp is None:
-        found.append(Finding(UPTODATE_NO_RETRIEVAL_DATE, where, entry.text, at))
+    bucket = classify_entry(entry)
+    source_class = (
+        _APA_CLASS_BY_NAME[bucket.classes[0]] if len(bucket.classes) == 1 else None
+    )
+    if source_class is not None and source_class.takes_retrieval_date and stamp is None:
+        found.append(Finding(REQUIRES_RETRIEVAL_DATE, where, entry.text, at))
     if entry.is_uptodate and UPTODATE_NAME.search(entry.text) and not ITALIC_UPTODATE.search(entry.text):
         found.append(
             Finding(UPTODATE_ITALICS, where, "the database name is not italicized in the entry", at)
@@ -1068,6 +1284,17 @@ def survey(document: Document, as_of: date | None) -> Scan:
     ``format_report`` the way every sibling prints a run directory's."""
     found = findings(document, as_of)
     at_fault = {f.line for f in found if f.line is not None}
+    classified = tuple((entry, classify_entry(entry)) for entry in document.entries)
+    bucket_counts = summarize_buckets(tuple(bucket for _, bucket in classified))
+    coverage_findings = tuple(
+        CoverageFinding(
+            UNCOVERED_CLASS,
+            bucket.name,
+            entry.line,
+        )
+        for entry, bucket in classified
+        if bucket.state == COVERAGE_FINDING
+    )
     return Scan(
         as_of=as_of,
         heading=document.heading,
@@ -1076,9 +1303,26 @@ def survey(document: Document, as_of: date | None) -> Scan:
         with_doi=sum(1 for e in document.entries if DOI.search(e.text)),
         legal=sum(1 for e in document.entries if e.is_legal),
         citations=len(document.citations),
+        bucket_counts=bucket_counts,
+        coverage_findings=coverage_findings,
+        undecidable_remainder=sum(
+            count.population
+            for count in bucket_counts
+            if count.state == COVERAGE_UNDECIDABLE
+        ),
         counts=tuple((kind, sum(1 for f in found if f.kind == kind)) for kind in KINDS),
         entries_at_fault=len(at_fault),
         findings=tuple(found),
+    )
+
+
+def legal_source_vocabulary_covered() -> str:
+    """State the closed mixed-case Source vocabulary this reader holds."""
+
+    return (
+        "legal Source vocabulary: closed at "
+        f"{len(LEGAL_SOURCE_VOCABULARY)} listed mixed-case forms; "
+        "title-number uppercase codes are read by shape."
     )
 
 
@@ -1098,7 +1342,18 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         f"    legal entries                  {scan.legal}",
         f"  in-text citations read           {scan.citations}",
         "",
+        "  source-class coverage (advisory)",
+    ]
+    for count in scan.bucket_counts:
+        lines.append(
+            f"    {count.name:<22} {count.state:<11} {count.population}"
+        )
+    lines += [
+        f"  {UNCOVERED_CLASS:<34} {len(scan.coverage_findings)}",
+        f"  {'undecidable remainder':<34} {scan.undecidable_remainder}",
+        "",
         "  A legal entry is outside uncited-entry.",
+        f"  {legal_source_vocabulary_covered()}",
         "",
     ]
     for kind, count in scan.counts:
@@ -1110,6 +1365,11 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         for finding in scan.findings:
             lines.append(f"    {finding.kind:<28} {finding.where}")
             lines.append(f"      {finding.detail}")
+        lines += ["", "  coverage observations (safe to paste):"]
+        for finding in scan.coverage_findings:
+            lines.append(
+                f"    {finding.kind:<28} line {finding.line}: {finding.detail}"
+            )
     return "\n".join(lines)
 
 

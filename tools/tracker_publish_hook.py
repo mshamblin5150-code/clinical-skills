@@ -36,6 +36,7 @@ import sys
 from typing import NamedTuple
 
 import phi_scan
+import tracker_bodies
 import tracker_branch_scope
 from console_codec import use_utf8
 
@@ -85,6 +86,12 @@ NOT_REACHED = (
         "A variable assigned in an earlier command, an exported one, and "
         "anything a subshell computes are not resolvable here. Each is refused "
         "rather than guessed at, so the floor does not become a silent pass.",
+    ),
+    (
+        "the refusing hook covers one of two publishers",
+        "This Claude Code hook prevents a damaged publication from this "
+        "publisher only. The GitHub workflow reaches both known publishers "
+        "after publication and reports rather than prevents.",
     ),
 )
 
@@ -575,6 +582,10 @@ def analyze(
         Finding(f"phi:{rule}", count, publication.field, "advise")
         for rule, count in sorted(phi_counts.items())
     ]
+    if tracker_bodies.has_c0_control_character(publication.text):
+        findings.append(Finding(
+            "body:c0-control-character", 1, publication.field, "deny"
+        ))
 
     if publication.field == "title":
         branch = tracker_branch_scope.grade(

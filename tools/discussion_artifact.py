@@ -45,16 +45,37 @@ NARRATIVE_CITATION = re.compile(
     r"\((?P<year>" + YEAR + r")"
     r"(?:,\s*(?:p{1,2}\.|para\.)\s*\d+(?:[-–]\d+)?)?\)"
 )
-# A range such as ``§§ 414.56-414.60`` consumes ``-414``. ADR 0085
-# deliberately declares that unwritten residue rather than guarding it.
-LEGAL_SECTION_NUMBER = r"\d+(?:\.\d+)*(?:\([\w]+\))*(?:-\d+)?"
+LEGAL_SECTION_NUMBER = (
+    r"\d+[A-Za-z]*(?:\.\d+)*(?:\([\w]+\))*"
+    r"(?:-\d+[A-Za-z]?(?:\.\d+)*(?:\([\w]+\))*)*"
+)
+LEGAL_SOURCE_VOCABULARY = (
+    "W. Va. Code R.",
+    "W. Va. Code",
+)
+_MIXED_CASE_LEGAL_SOURCE = "|".join(
+    re.escape(source).replace(r"\ ", r"\s+")
+    for source in LEGAL_SOURCE_VOCABULARY
+)
+LEGAL_SOURCE = (
+    r"(?:\b\d+\s+(?-i:(?:[A-Z](?:\.\s*)?){2,})"
+    r"|(?-i:" + _MIXED_CASE_LEGAL_SOURCE + r"))"
+)
+LEGAL_SOURCE_NOT_REACHED = (
+    (
+        "unlisted legal Source",
+        "An unlisted code reads as non-legal even when it is a valid legal source.",
+    ),
+)
 LEGAL_AUTHOR = (
-    r"(?:\b\d+\s+)?C\.\s*F\.\s*R\.\s*(?:§+|sections?\s+)\s*"
+    LEGAL_SOURCE + r"\s*(?:§+|sections?\s+)\s*"
     + LEGAL_SECTION_NUMBER
 )
 LEGAL_CITATION = re.compile(
     r"(?:\(\s*(?P<parenthesized_author>" + LEGAL_AUTHOR + r")\s*,\s*"
-    r"(?P<parenthesized_year>" + YEAR + r")\s*\)"
+    r"(?P<parenthesized_year>" + YEAR + r")(?:\s*\)|(?=\s*;))"
+    r"|(?<=;)\s*(?P<continued_author>" + LEGAL_AUTHOR + r")\s*,\s*"
+    r"(?P<continued_year>" + YEAR + r")(?=\s*(?:;|\)))"
     r"|(?P<author>" + LEGAL_AUTHOR + r")"
     r"(?:\s*\((?P<year>" + YEAR + r")\))?)",
     re.IGNORECASE,
@@ -467,7 +488,7 @@ def read_citations(
 
     found: list[Citation] = []
     legal_citations = tuple(LEGAL_CITATION.finditer(body))
-    legal_spans = tuple((match.start(), match.end()) for match in legal_citations)
+    legal_spans = legal_citation_spans(body)
     found.extend(
         Citation(
             _legal_author(match),
@@ -492,26 +513,40 @@ def read_citations(
         for match in definitions
     )
     for block in PAREN_BLOCK.finditer(body):
-        if any(start <= block.start() and block.end() <= end for start, end in definition_spans + legal_spans):
+        if any(
+            start <= block.start() and block.end() <= end
+            for start, end in (*definition_spans, *legal_spans)
+        ):
             continue
         offset = block.start("inside")
         cursor = 0
         for part in block.group("inside").split(";"):
             leading = len(part) - len(part.lstrip())
-            match = PAREN_PAIR.match(part.strip())
+            stripped = part.strip()
+            start = offset + cursor + leading
+            end = start + len(stripped)
+            if any(
+                start < legal_end and legal_start < end
+                for legal_start, legal_end in legal_spans
+            ):
+                cursor += len(part) + 1
+                continue
+            match = PAREN_PAIR.match(stripped)
             if match:
-                start = offset + cursor + leading
                 found.append(
                     Citation(
                         match.group("author"),
                         match.group("year").casefold(),
                         start,
-                        start + len(part.strip()),
+                        end,
                     )
                 )
             cursor += len(part) + 1
     for match in NARRATIVE_CITATION.finditer(body):
-        if any(start <= match.start() and match.end() <= end for start, end in definition_spans + legal_spans):
+        if any(
+            start <= match.start() and match.end() <= end
+            for start, end in (*definition_spans, *legal_spans)
+        ):
             continue
         found.append(
             Citation(
@@ -550,16 +585,33 @@ def read_citations(
     return tuple(sorted(found, key=lambda citation: citation.start))
 
 
+def legal_citation_spans(body: str) -> frozenset[tuple[int, int]]:
+    """Return spans already consumed by the shared legal-citation reader."""
+
+    return frozenset(
+        (match.start(), match.end()) for match in LEGAL_CITATION.finditer(body)
+    )
+
+
 def _without_signal_word(author: str) -> str:
     return re.sub(r"^(?:As|In|By|See)\s+", "", author).strip()
 
 
 def _legal_author(match: re.Match[str]) -> str:
-    return match.group("parenthesized_author") or match.group("author")
+    return (
+        match.group("parenthesized_author")
+        or match.group("continued_author")
+        or match.group("author")
+    )
 
 
 def _legal_year(match: re.Match[str]) -> str:
-    value = match.group("parenthesized_year") or match.group("year") or ""
+    value = (
+        match.group("parenthesized_year")
+        or match.group("continued_year")
+        or match.group("year")
+        or ""
+    )
     return value.casefold()
 
 

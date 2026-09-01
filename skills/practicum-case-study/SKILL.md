@@ -832,7 +832,7 @@ what this exists to replace.
 **APA 7, alphabetized — [reference/apa7.md](reference/apa7.md) is the rule, and it is checked
 rather than recalled.** That sheet carries the `a`/`b` disambiguation ordering, the UpToDate entry
 form, when a retrieval date belongs and when it is a defect, and the mechanics of the list itself.
-It also carries the legal-entry form and its `C.F.R.`-only limit.
+It also carries the legal-entry form and points to the code-owned configured-reader boundary.
 An APA question it does not answer is looked up at apastyle.apa.org, never guessed.
 
 **`Roughly alphabetical` was a description of the corpus and never the standard.** Sorted is
@@ -849,13 +849,13 @@ sorted.
 | Two entries out of alphabetical order | sort the list — sorted is sorted, [apa7.md](reference/apa7.md) §1 |
 | `Links to an external site.` welded to a URL | strip it — it is a Canvas paste artifact |
 | Retrieval year behind the exam year | the retrieval date must be on or after the exam date |
-| An UpToDate entry with no retrieval date | add one — the content is designed to change and the version cited is unarchived, [apa7.md](reference/apa7.md) §4 |
+| An entry whose declared source class requires a retrieval date but carries none | add one — the content is designed to change and the version cited is unarchived, [apa7.md](reference/apa7.md) §4 |
 | A retrieval date on a guideline, article or textbook | remove it — [apa7.md](reference/apa7.md) §4. **The command reaches this only where the entry carries a DOI**; on a guideline PDF or a textbook nothing in the URL says so, and it stays a reading — ruled permanent on [#241](https://github.com/mshamblin5150-code/clinical-skills/issues/241), and it is the reading step 9's `the reference list, the part no command reaches` row is graded on |
 | In-text year not matching the reference list year | reconcile |
 | Two entries with the same authors and year and no `a`/`b` | disambiguate, in both places — and the letters are assigned by **title order**, [apa7.md](reference/apa7.md) §3. **The same *authors*, not the same first author**: `Hsu, K.` and `Hsu, K., & Khosropour, C.` in one year take no letters, and adding them is the defect |
 | An UpToDate entry with the database name unitalicized | italicize it in the entry, not in the text |
 | An UpToDate year that is the year it was read | use the topic's **last update** year |
-| A federal-regulation entry carrying only its C.F.R. section | add the regulation name in [apa7.md](reference/apa7.md) §8's form |
+| A legal entry carrying only its section | add the legal source name in [apa7.md](reference/apa7.md) §8's form |
 | An entry in the list that is cited nowhere in the body | delete it |
 | A citation in the body with no entry in the list | add it |
 | A missing space in a date | `February 19, 2026` |

@@ -176,16 +176,20 @@ _Avoid_: reference id, source id, match key
 The single word a reference entry is alphabetized and letter-disambiguated by. Deliberately not a **Citation key**, which one entry may yield several of and which answers whether a citation resolved: the two are different questions, and keying the `a`/`b` rows on the resolution key refuses a correct list while teaching the next run to write a wrong one. A key derived so a further citation form resolves is added beside it, never in place of it.
 _Avoid_: entry key, author key, sort key, match key
 
+**Reference bucket**:
+The narrowest source shape a reference entry's own signals support, declaring every APA nursing source class that shape can span rather than guessing one class. The vocabulary is `uptodate`, `statpearls`, `legal`, `cochrane`, `doi-work`, `identified-media`, `identified-web`, and `unresolved`. Coverage is **clean** when every spanned class has a form in the local APA sheet, a **finding** when none does, and **undecidable** when the bucket spans both; undecidable entries report and never fail a draft.
+_Avoid_: source class, reference type, guessed class, citation kind
+
 **Legal reference entry**:
-A reference for a regulation. Its name is the name of the regulation and its section is the locator, so an entry carrying only a section names nothing and is not one.
-_Avoid_: statute reference, citation entry, regulation cite
+A reference for codified law, including a statute or regulation. Its name is the name of the legal source and its section is the locator, so an entry carrying only a section names nothing and is not one.
+_Avoid_: citation entry, code cite, regulation cite
 
 **Legal citation**:
-An in-text reference to a regulation, spelled with the regulation's name and year. The section is a locator and may stand in the same slot, but it is not what names the source.
-_Avoid_: statute citation, section reference
+An in-text reference to codified law, spelled with the legal source's name and year. The section is a locator and may stand in the same slot, but it is not what names the source.
+_Avoid_: code citation, section reference
 
 **Section number**:
-The locator inside a legal citation — the provision the regulation's name is being cited *at*. It is a whole identifier and never a number with decoration around it, so `1.501(c)(3)-1` and `1.501` name different provisions and the second is the broader one. **Its `section` is not the one in Section read**, which is a span of a guideline document being read for decision points; these are two senses of the word and neither term is a narrowing of the other.
+The locator inside a legal citation — the provision the legal source's name is being cited *at*. It is a whole identifier and never a number with decoration around it, so `1.501(c)(3)-1` and `1.501` name different provisions and the second is the broader one. **Its `section` is not the one in Section read**, which is a span of a guideline document being read for decision points; these are two senses of the word and neither term is a narrowing of the other.
 _Avoid_: section, cite number, paragraph number
 
 **Subsection suffix**:
@@ -581,6 +585,10 @@ _Avoid_: reference, link, mention, tag
 A ticket reference naming a precedent, a ruling or a defect shape, making no claim on that ticket. Most references in this repo's prose are citations, so their presence is not evidence that a merge meant to bind anything. Distinct from **Citation key**, **Legal citation**, and **Stated citation**, which are bibliographic rather than tracker references.
 _Avoid_: reference, mention, cross-reference
 
+**Citation set**:
+Every record one publication names, together with the record it is published to. It is derived from the publication's own text at the moment of publication, so no session has to have recorded what it read. Its members are counted wherever they sit — inside a fenced block, inside inline code, inside a blockquote — because the population feeds a readback that makes no claim, so an over-included member costs a line and an under-included one loses a finding in silence. A member that resolves to nothing is reported as unresolved and never dropped. Distinct from a **Citation**, which is one reference; this is the population a single publication depends on, and it is narrower than that dependence: a verdict that names no record belongs to no citation set and is reached by nothing.
+_Avoid_: references, mentions, cited tickets, dependencies
+
 **Closing hazard**:
 Text on a surface GitHub scans — a commit message, a pull request title or body — that its measured closing grammar would act on. Accidental by nature: the author was writing prose and the parser found an instruction. Distinct from a **binding**, which is deliberate and owns its line, and from a **citation**, which the grammar never reaches. The same bytes on a non-surface — an issue comment, a committed file — are not a hazard until they migrate.
 _Avoid_: binding, false positive, accidental close, match
@@ -612,6 +620,14 @@ _Avoid_: no body, empty, skipped, not scanned
 **Escape collapse**:
 A published body whose backslash escapes were interpreted by some stage of its **publish route** rather than preserved, so the text on the page is not the text its author wrote. One cause with several visible symptoms — a control character standing where `\b` or `\r` was written, a backtick replaced by a backslash, a literal `\n` where a line break belonged, a doubled path separator. Only the control-character symptom is recognizable without firing on correct text, because a Windows path and a doubled separator are both things an author legitimately writes, so a check named for the cause and a check that can be built are different widths. Distinct from an **unreadable body**, which a checker never obtained, and from a lost body, which never landed: this one landed and is wrong.
 _Avoid_: corruption, mojibake, encoding error, mangled, damage
+
+**Base freshness**:
+Whether a checkout's `HEAD` contains the freshly fetched default branch. It is a claim about commits and about no tracker record, so a publication can be current on it and stale in every fact it states — the two move independently, and a tracker record moves without a commit. Distinct from a **Record fingerprint**, which is the tracker half of the same moment: this one asserts a relationship and is a finding when it fails, and that one asserts nothing at all.
+_Avoid_: freshness, currency, up to date, staleness
+
+**Record fingerprint**:
+One record's state, labels, last-updated time and body length, read back at the moment a publication naming it goes out. It reports and never compares: it carries no baseline, so it says what is true now and never that anything moved — which is what keeps it honest where a sweep moves the very records it later cites. It says a record moved only in the sense that a reader can see it did; it never says what changed inside one, so a verdict about a body's content is sent to look rather than told it is wrong.
+_Avoid_: readback, snapshot, diff, staleness check
 
 **Packet**:
 The map's unit of work: the tickets built together on one branch, carrying one outcome. A packet is not a ticket — a ruling may combine two tickets into one packet or leave a ticket in none — so the count of packets and the count of open tickets answer different questions.
