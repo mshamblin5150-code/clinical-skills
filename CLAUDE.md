@@ -344,10 +344,33 @@ proposes ten codes and refuses one is not a note with eleven refusals.
 
 **What it cannot reach is whether the descriptor text is official.** That is a comparison to the
 tabular and belongs to `icd10_lookup.py`; the row here is that a refusal says something rather than
-that what it says is right. `refusal_scan.ROWS` owns the row vocabulary and this section copies no
-row from it. **The module carries no declared-limits object**, so unlike its siblings the sentence
-above is the whole of what a clean run does not establish — stated here because an absent object is
-easy to read as an oversight when it has simply never been written.
+that what it says is right. `refusal_scan.ROWS` owns the row vocabulary and
+`refusal_scan.DECLARED_LIMITS` owns the complete coverage boundary; this section copies no row from
+either.
+
+**Corrected 2026-09-01, hours after this section was written.** It read *"The module carries no
+declared-limits object, so unlike its siblings the sentence above is the whole of what a clean run
+does not establish."* **That was false, and it was measured rather than argued.** Five distinct
+shapes come back clean, and only one of them is the descriptor sentence:
+
+```
+one refusal, four coded with nothing establishing them   findings 0
+needs: more                                              findings 0
+proposed instead: names an unrelated code                findings 0
+an invented descriptor                                   findings 0
+a needs clause conceding the note documents the finding  findings 0
+```
+
+**The first is the one that is not a narrower descriptor limit.** The scanner reads only the refusal
+block, so a code sitting in the coded section with nothing establishing it is outside every row — the
+command grades the refusals a run wrote and never the refusals it owed. That is
+[ADR 0093](docs/adr/0093-the-tracker-gate-section-population-is-derived-from-three-sources-and-a-ratified-limit-is-lifted-into-the-module-it-governs.md)
+ruling 4 answered for this module: a section does not oblige a limits object, and **this one earned
+one on a measurement**.
+
+**The second is worth knowing beside its sibling.** `specificity_scan` enforces substance on its own
+flag — a bare `complete` fails — and this scanner does not, so `needs: more` passes. That asymmetry
+is declared rather than left for a reader to discover by trusting the family.
 
 **Counts only by default, and `--show` is PHI** on `specificity_scan.py`'s terms and for its reason:
 a refused code with its reason is a diagnosis considered and rejected for one encounter.
