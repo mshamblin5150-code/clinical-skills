@@ -96,7 +96,7 @@
 | hepatitis B screening | sheet | hepatitis-b-screening.md | all 14 source pages accounted for on 2026-08-30; six null spans blindly corroborated |
 | hepatitis C in chronic kidney disease | unread |  | no recommendation record; full-document read pending |
 | hepatitis C screening | sheet | hepatitis-c-screening.md | full-document read complete; exact recommendation index accounted |
-| babesiosis | unread |  | no recommendation record; full-document read pending |
+| babesiosis | sheet | babesiosis.md | bound recommendation record available; full document distilled |
 | hepatitis C virus infection | unread |  | no recommendation record; full-document read pending |
 | high blood pressure | sheet | hypertension.md | clinical-content spans on pp. 1-74 read 2026-08-29 |
 | high blood pressure screening | sheet | high-blood-pressure-screening.md | full-document read complete; exact recommendation index accounted |
@@ -128,11 +128,11 @@
 | Lyme disease | unread |  | bound recommendation record available; full-document read pending |
 | maternal immunization | sheet | maternal-immunization.md | no recommendation record; full document distilled |
 | microbiology laboratory utilization for infectious disease diagnosis | unread |  | no recommendation record; full-document read pending |
-| native vertebral osteomyelitis | unread |  | bound recommendation record available; full-document read pending |
+| native vertebral osteomyelitis | sheet | native-vertebral-osteomyelitis.md | bound recommendation record available; full document distilled |
 | nephrotic syndrome | unread |  | bound recommendation record available; full-document read pending |
 | neural tube defect prevention, folic acid | sheet | neural-tube-defect-prevention-folic-acid.md | full-document read complete; exact recommendation index accounted |
-| neurocysticercosis | unread |  | bound recommendation record available; full-document read pending |
-| new fever in the intensive care unit | unread |  | bound recommendation record available; full-document read pending |
+| neurocysticercosis | sheet | neurocysticercosis.md | bound recommendation record available; full document distilled |
+| new fever in the intensive care unit | sheet | new-fever-in-intensive-care-unit.md | bound recommendation record available; full document distilled |
 | nontuberculous mycobacterial pulmonary disease | unread |  | bound recommendation record available; full-document read pending |
 | obesity, behavioral weight loss intervention | sheet | obesity-behavioral-weight-loss-intervention.md | exact recommendation index available; full document distilled |
 | obstructive sleep apnea screening | sheet | obstructive-sleep-apnea-screening.md | full-document read complete; exact recommendation index accounted |
