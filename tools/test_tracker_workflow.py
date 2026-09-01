@@ -49,17 +49,13 @@ class EveryTrackerGateHasASection(unittest.TestCase):
         return set(re.findall(r"tools/([a-z0-9_]+)\.py", text))
 
     @staticmethod
-    def sectioned_modules():
-        sections = re.split(r"(?m)^### ", CLAUDE_MD.read_text(encoding="utf-8"))[1:]
-        found = set()
-        for section in sections:
-            heading, _, body = section.partition("\n")
-            normalized_heading = heading.strip().lower()
-            found.add(normalized_heading.replace(" ", "_"))
-            if normalized_heading.endswith("scan"):
-                if match := re.search(r"(?:tools/)?([a-z0-9_]+)\.py", body):
-                    found.add(match.group(1))
-        return found
+    def sectioned_modules(text=None):
+        source = CLAUDE_MD.read_text(encoding="utf-8") if text is None else text
+        sections = re.split(r"(?m)^### ", source)[1:]
+        return {
+            section.partition("\n")[0].strip().lower().replace(" ", "_")
+            for section in sections
+        }
 
     @staticmethod
     def missing_gates(contributions, sectioned):
@@ -97,9 +93,17 @@ class EveryTrackerGateHasASection(unittest.TestCase):
             "documented command": set(),
             "configured invocation": set(),
         }
+        prose_with_only_a_cross_section_mention = (
+            "### Existing scan\n\n"
+            "This section mentions `tools/synthetic_tracker_gate.py` but does "
+            "not give that gate its own section.\n"
+        )
 
         self.assertEqual(
-            self.missing_gates(contributions, set()),
+            self.missing_gates(
+                contributions,
+                self.sectioned_modules(prose_with_only_a_cross_section_mention),
+            ),
             {"synthetic_tracker_gate"},
         )
 
