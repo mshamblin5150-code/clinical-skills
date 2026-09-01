@@ -9,6 +9,7 @@ phi-scan: synthetic
 from __future__ import annotations
 
 import io
+import re
 import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
@@ -365,6 +366,38 @@ class ACompletePostPasses(unittest.TestCase):
         self.assertEqual("(42 C.F.R. § 482.13, 2024)", body[citations[0].start:citations[0].end])
         self.assertEqual((), scan._numeric_values(body))
 
+    def test_the_shared_section_grammar_reads_subsections_without_taking_a_spaced_year(self):
+        section = re.compile(artifact.LEGAL_SECTION_NUMBER)
+
+        for written in ("1.501(c)(3)-1", "164.512(b)(1)(v)", "414.56"):
+            with self.subTest(written=written):
+                self.assertIsNotNone(section.fullmatch(written))
+        self.assertEqual("414.56", section.match("414.56 (2025)").group())
+
+    def test_subsectioned_section_forms_drive_both_readers_independently(self):
+        cases = (
+            (
+                "The rule applies (26 C.F.R. § 1.501(c)(3)-1, 2026).",
+                "(26 C.F.R. § 1.501(c)(3)-1, 2026)",
+            ),
+            (
+                "Under 26 C.F.R. § 1.501(c)(3)-1 (2026), the rule applies.",
+                "26 C.F.R. § 1.501(c)(3)-1 (2026)",
+            ),
+            ("Under § 1.501(c)(3)-1, the rule applies.", None),
+        )
+
+        for body, legal_span in cases:
+            with self.subTest(body=body):
+                citations = artifact.read_citations(body)
+                self.assertEqual(1 if legal_span else 0, len(citations))
+                if legal_span is not None:
+                    self.assertEqual(
+                        legal_span,
+                        body[citations[0].start : citations[0].end],
+                    )
+                self.assertEqual((), scan._numeric_values(body, citations))
+
     def test_a_section_only_legal_record_is_a_post_finding(self):
         with tempfile.TemporaryDirectory() as temp:
             run = Run(Path(temp))
@@ -372,6 +405,22 @@ class ACompletePostPasses(unittest.TestCase):
                 CLAIMS.replace(
                     "Patient rights, 42 C.F.R. § 482.13 (2024).",
                     "42 C.F.R. § 482.13 (2024). Patient rights.",
+                ),
+                encoding="utf-8",
+            )
+
+            status, stdout, _ = run.grade()
+
+        self.assertEqual(1, status)
+        self.assertIn("legal-reference-name: 1", stdout)
+
+    def test_a_subsectioned_section_only_legal_record_is_a_post_finding(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            (run.root / "claims.md").write_text(
+                CLAIMS.replace(
+                    "Patient rights, 42 C.F.R. § 482.13 (2024).",
+                    "26 C.F.R. § 1.501(c)(3)-1 (2026).",
                 ),
                 encoding="utf-8",
             )

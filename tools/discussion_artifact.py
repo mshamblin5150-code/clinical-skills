@@ -45,7 +45,13 @@ NARRATIVE_CITATION = re.compile(
     r"\((?P<year>" + YEAR + r")"
     r"(?:,\s*(?:p{1,2}\.|para\.)\s*\d+(?:[-–]\d+)?)?\)"
 )
-LEGAL_AUTHOR = r"(?:\b\d+\s+)?C\.\s*F\.\s*R\.\s*(?:§+|sections?\s+)\s*\d+(?:\.\d+)*"
+# A range such as ``§§ 414.56-414.60`` consumes ``-414``. ADR 0085
+# deliberately declares that unwritten residue rather than guarding it.
+LEGAL_SECTION_NUMBER = r"\d+(?:\.\d+)*(?:\([\w]+\))*(?:-\d+)?"
+LEGAL_AUTHOR = (
+    r"(?:\b\d+\s+)?C\.\s*F\.\s*R\.\s*(?:§+|sections?\s+)\s*"
+    + LEGAL_SECTION_NUMBER
+)
 LEGAL_CITATION = re.compile(
     r"(?:\(\s*(?P<parenthesized_author>" + LEGAL_AUTHOR + r")\s*,\s*"
     r"(?P<parenthesized_year>" + YEAR + r")\s*\)"
