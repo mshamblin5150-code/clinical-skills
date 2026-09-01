@@ -30,11 +30,24 @@ class FakeDocument:
     def __len__(self):
         return self.pages
 
+    def __iter__(self):
+        return iter(FakePage() for _ in range(self.pages))
+
+
+class FakePage:
+    def get_pixmap(self, *, dpi: int):
+        if dpi != 120:
+            raise ValueError("unexpected raster resolution")
+        return object()
+
 
 class FakePyMuPDF:
     @staticmethod
     def open(path):
-        marker = Path(path).read_text(encoding="ascii")
+        payload = Path(path).read_bytes()
+        if payload == b"\x89PNG\r\n\x1a\nretained pixels":
+            return FakeDocument(1)
+        marker = payload.decode("ascii")
         if not marker.startswith("pages:"):
             raise ValueError("not synthetic export data")
         return FakeDocument(int(marker.removeprefix("pages:")))
@@ -59,7 +72,9 @@ class Run:
                 f"pages:{pages}", encoding="ascii"
             )
         for page in range(1, pixels + 1):
-            (render_pass / f"page-{page}.png").write_bytes(b"retained pixels")
+            (render_pass / f"page-{page}.png").write_bytes(
+                b"\x89PNG\r\n\x1a\nretained pixels"
+            )
         return render_pass
 
     def grade(self, *extra: str) -> tuple[int, str, str]:
@@ -107,6 +122,8 @@ class ACompleteFinalPassIsClean(unittest.TestCase):
         self.assertEqual(0, status)
         self.assertIn("incomplete earlier passes", stdout)
         self.assertIn("1", stdout)
+        self.assertIn("pass-1: 1 of 3 readable page images", stdout)
+        self.assertIn("pass-2: 2 of 2 readable page images", stdout)
 
 
 class AMeasuredShortFinalPassIsAFinding(unittest.TestCase):
@@ -120,18 +137,67 @@ class AMeasuredShortFinalPassIsAFinding(unittest.TestCase):
         self.assertIn("final-page-coverage: 1", stdout)
         self.assertIn("final render pass is short", stderr)
 
-    def test_show_names_the_pass_but_default_output_does_not(self):
+    def test_default_reports_pass_counts_and_show_adds_finding_detail(self):
         with tempfile.TemporaryDirectory() as temp:
             run = Run(Path(temp))
             run.add_pass(1, pages=2, pixels=1)
             _, default, _ = run.grade()
             _, shown, _ = run.grade("--show")
 
-        self.assertNotIn("pass-1", default)
+        self.assertIn("pass-1: 1 of 2 readable page images", default)
+        self.assertNotIn("keeps 1 page image", default)
         self.assertIn("pass-1", shown)
+        self.assertIn("keeps 1 page image", shown)
+
+    def test_a_nominal_png_that_cannot_be_decoded_is_not_counted(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            render_pass = run.add_pass(1, pages=2, pixels=2)
+            (render_pass / "page-2.png").write_bytes(b"not a PNG")
+            status, stdout, stderr = run.grade()
+
+        self.assertEqual(1, status)
+        self.assertIn("pass-1: 1 of 2 readable page images", stdout)
+        self.assertIn("1 unreadable page image", stderr)
+        self.assertNotIn("page-2.png", stderr)
 
 
 class MissingEvidenceDidNotScan(unittest.TestCase):
+    def test_numbered_passes_must_start_at_one_and_have_no_gaps(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            run.add_pass(2, pages=1, pixels=1)
+            status, _, stderr = run.grade()
+
+        self.assertEqual(2, status)
+        self.assertIn("canonical uninterrupted", stderr)
+
+    def test_numeric_aliases_do_not_create_two_versions_of_one_pass(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            run.add_pass(1, pages=1, pixels=1)
+            alias = Path(temp) / "render" / "pass-01"
+            alias.mkdir()
+            (alias / "case-study.pdf").write_text("pages:1", encoding="ascii")
+            (alias / "page-1.png").write_bytes(
+                b"\x89PNG\r\n\x1a\nretained pixels"
+            )
+            status, _, stderr = run.grade()
+
+        self.assertEqual(2, status)
+        self.assertIn("canonical uninterrupted", stderr)
+
+    def test_a_short_final_pass_outranks_a_noncanonical_history(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            run.add_pass(1, pages=1, pixels=1)
+            run.add_pass(3, pages=2, pixels=1)
+            status, stdout, stderr = run.grade()
+
+        self.assertEqual(1, status)
+        self.assertIn("final-page-coverage: 1", stdout)
+        self.assertIn("canonical uninterrupted", stderr)
+
     def test_no_render_directory_exits_two(self):
         with tempfile.TemporaryDirectory() as temp:
             status, _, stderr = Run(Path(temp)).grade()
@@ -193,6 +259,12 @@ class TheSkillSaysWhatThisGrades(unittest.TestCase):
     def test_only_the_last_pass_must_be_complete(self):
         self.assertIn("Only the last pass must be complete", self.skill)
         self.assertIn("Earlier passes are counted and reported", self.skill)
+
+    def test_pass_history_and_readable_pixel_contract_are_written_out(self):
+        normalized = " ".join(self.skill.split())
+        self.assertIn("canonical uninterrupted pass-1 through pass-N", normalized)
+        self.assertIn("count only PNGs that decode as one readable image", normalized)
+        self.assertIn("report each pass's readable-image and exported-page counts", normalized)
 
     def test_exit_one_and_exit_two_are_distinguished_in_prose(self):
         self.assertIn("fewer PNGs than exported pages is exit 1", self.skill)

@@ -30,7 +30,8 @@ Agent-agnostic skills for a nurse practitioner student's written work — clinic
 coverage.** `practicum-case-study` step 9 writes the retained-pass layout, route order, numerator, denominator, final-pass
 rule and exit meanings in full, so a consumer without Python can walk the same evidence by eye; it
 cannot call that coverage mechanically verified. The command does not replace
-`tools/checks_ledger.py`: one grades that the final exported pages have retained pixels and the
+`tools/checks_ledger.py`: one grades that canonical retained passes contain readable pixels for
+the final export's pages and the
 other grades the reader's substantiated `the rendered document` verdict.
 
 **`discussion-reply` depends on `tools/discussion_reply_scan.py`.** The CLI is the deterministic

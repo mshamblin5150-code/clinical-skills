@@ -182,9 +182,9 @@ Stdlib only — no package manager and no lockfile, and the census is not worth 
 
 **That sentence used to bundle a third thing, and the three were never coupled.** It read *"no package manager, no lockfile, no CI in this repo"*, and the reason written down was about dependency machinery — which CI here carries none of. [#86](https://github.com/mshamblin5150-code/clinical-skills/issues/86) reversed the CI clause and left the other two standing; see *Continuous integration* below and [ADR 0002](docs/adr/0002-ci-runs-the-suite-at-the-merge.md).
 
-**Three tools are exceptions, and they are the three that open a PDF.** `tools/guidelines_extract.py`, `tools/guidelines_recs.py` and `tools/threshold_sheet.py`'s citation tier 2 need PyMuPDF. Reading a PDF is not something the standard library does, so `tools/icd10_build.py`'s *"Stdlib only, like everything in `tools/`"* is no longer true of the directory.
+**The PDF-opening exceptions need PyMuPDF.** They are `tools/guidelines_extract.py`, `tools/guidelines_recs.py`, `tools/threshold_sheet.py`'s citation tier 2, and `tools/render_scan.py`. Reading a PDF is not something the standard library does, so `tools/icd10_build.py`'s *"Stdlib only, like everything in `tools/`"* is no longer true of the directory.
 
-**It read five until [#108](https://github.com/mshamblin5150-code/clinical-skills/issues/108) removed the two duplicate text readers.** `uspstf_table.py` and `guidelines_catalog.py` now consume #80's extracted text and manifest; `pypdf` has left the tree, and one module owns page decoding, glyph repair and boilerplate stripping. `guidelines_recs.py` still opens PDFs for table geometry and `threshold_sheet.py` still renders the cited page through an independent path, so neither is a duplicate of the text extractor. Each PyMuPDF import sits inside the function that opens the file rather than at module scope, so the test suite needs nothing installed — and **nothing a consumer runs imports any of them.**
+**It read five until [#108](https://github.com/mshamblin5150-code/clinical-skills/issues/108) removed the two duplicate text readers.** `uspstf_table.py` and `guidelines_catalog.py` now consume #80's extracted text and manifest; `pypdf` has left the tree, and one module owns page decoding, glyph repair and boilerplate stripping. `guidelines_recs.py` still opens PDFs for table geometry and `threshold_sheet.py` still renders the cited page through an independent path, so neither is a duplicate of the text extractor. Each PyMuPDF import sits inside the function that opens the file rather than at module scope, so importing the modules still needs nothing installed. The consumer-required `render_scan.py` command does need PyMuPDF at runtime; its tests install a fake public interface instead.
 
 **That sentence was false for one class, and the first CI run is what found it.** `tools/test_threshold_sheet.py`'s `TheRenderedPageEscapeHatch` calls `gate_citation_tier2`, which returns early with `pymupdf is not installed` — so on a clean machine one test failed outright and **two others passed for the wrong reason**, asserting `rendered == 0` against a gate that short-circuited before it could count anything. The maintainer's machine has PyMuPDF, so no local run could ever have shown it; #86's very first run on a bare Windows runner did, at 1,126 tests. The class now skips as a whole rather than in part, because a partial run here reads as a pass. **The honest form of the claim is that the suite runs with nothing installed and four tests skip when it is absent**, not that it needs nothing.
 
@@ -398,7 +398,7 @@ python tools/docx_word_probe.py --word
 calibration in [ADR 0008](docs/adr/0008-word-is-a-one-time-calibration-instrument.md), and is
 never on the consumer or CI path.
 
-**PyMuPDF was the obvious guess and it is the wrong tool**, asked and answered once so it is not re-litigated: PyMuPDF reads and writes PDFs, and no PDF library authors a Word document. The three tools here that carry a dependency all open a PDF; this is not a fourth. **That matters because a consumer runs Python on this path** — [AGENTS.md](AGENTS.md)'s point about `icd10_lookup.py`, arriving at a second skill.
+**PyMuPDF was the obvious guess and it is the wrong tool**, asked and answered once so it is not re-litigated: PyMuPDF reads and writes PDFs, and no PDF library authors a Word document. The tools here that carry that dependency open a PDF; document authorship is not another such use. **That matters because a consumer runs Python on this path** — [AGENTS.md](AGENTS.md)'s point about `icd10_lookup.py`, arriving at a second skill.
 
 **`--normalize` is the limb worth knowing about, and it exists because the evidence dump is booby-trapped.** UpToDate salts its rendered pages with homoglyphs — a Cyrillic `с` inside `cervicitis`, a Greek `ο` inside `infection` — so a paste of a topic is not searchable by the words it visibly contains. A `grep` for `cervicitis` over a paste of the cervicitis topic misses most of its occurrences **and reports a clean zero rather than an error**, which is this repo's recurring shape one more time: a search that could not have worked, answering like a settled negative. The map is deliberately narrow — letters only, and only the ones observed in the corpus — because folding every confusable would corrupt genuine non-Latin text.
 
@@ -687,19 +687,21 @@ Covered by `tools/test_reference_scan.py`, which builds synthetic drafts in that
 ### Render scan
 
 `tools/render_scan.py` grades the retained page evidence for a `practicum-case-study` run. It reads
-`<run-directory>/render/pass-N/`; each pass keeps one Word-exported PDF or XPS and the PNG pages
-rasterized from it. The export's own page count is the denominator and the PNG-file count is the
-numerator, so neither half is a line a reader self-reports.
+`<run-directory>/render/pass-N/`; the directories must be the canonical uninterrupted sequence
+from `pass-1` through `pass-N`. Each pass keeps one Word-exported PDF or XPS and the PNG pages
+rasterized from it. The export's own page count is the denominator and the count of PNGs that
+decode as one readable image is the numerator, so neither half is a line a reader self-reports.
 
 ```bash
 python tools/render_scan.py <a run directory> [--show]
 ```
 
 Only the last pass is graded for completeness. An earlier pass may stop when its reader finds a
-layout defect; the report counts that short pass without failing it. A measurable short final pass
-is exit 1. Missing render evidence or a pass with no single readable retained export is exit 2, and
-a final-pass finding wins when both states occur in one run. Default output is counts only;
-`--show` adds only fixed `pass-N` labels and count detail, so both forms are pasteable.
+layout defect; the report gives each pass's readable-image and exported-page counts without failing
+that historical short pass. A measurable short final pass is exit 1. Missing render evidence, a
+pass with no single readable retained export, or a noncanonical or interrupted pass sequence is exit
+2, and a final-pass finding wins when both states occur in one run. Default output is counts only;
+`--show` adds only fixed `pass-N` labels and finding detail, so both forms are pasteable.
 
 This is coverage, not the visual judgment. It cannot establish that the PNG files are the pages a
 reader opened or that the comparison was careful. The separate, substantiated `the rendered
@@ -708,8 +710,9 @@ document` record remains owned by `tools/checks_ledger.py`, and
 
 Covered by `tools/test_render_scan.py`, which uses synthetic retained exports behind a fake
 PyMuPDF public interface and temp run directories. The suite therefore exercises PDF and XPS page
-counts, historical short passes, final short coverage, missing evidence, exit precedence, report
-redaction, the shared grader contract, and the prose binding without requiring Word or PyMuPDF.
+counts, readable image validation, canonical pass history, per-pass reporting, historical short
+passes, final short coverage, missing evidence, exit precedence, report redaction, the shared
+grader contract, and the prose binding without requiring Word or PyMuPDF.
 
 ### Post-draft checks
 
@@ -1924,7 +1927,7 @@ That was the sharpest risk in the ticket and it is answered rather than closed: 
 
 **`windows-latest` because a red run has to mean the maintainer's machine would go red.** The platform-shaped code here is Windows-shaped — #150's cp1252 console, and `skills_mirror.py`'s `mklink /J` branch, which is the one this repo executes. A Linux runner would exercise the `os.symlink` branch nobody uses. Python 3.14 for the same reason: it matches the machine every commit here is made from.
 
-**"No consumer runs these tools" was written here and in ADR 0002 and it is false.** [AGENTS.md](AGENTS.md) says `icd10-cpt` and — since #46 — `clinical-note` both look codes up by running `tools/icd10_lookup.py`, so *"an agent that cannot run the script is working from recall."* **A consumer runs Python on the critical path.** The three modules a consumer reaches — `icd10_lookup.py`, `icd10_build.py`, `console_codec.py` — are cleaner than the tooling around them: all three take the future import, none calls `zip(strict=)`, and all three parse at 3.7. So **there are two floors here, the consumer path's and the tooling's, and this job measures neither.**
+**"No consumer runs these tools" was written here and in ADR 0002 and it is false.** [AGENTS.md](AGENTS.md) says `icd10-cpt` and — since #46 — `clinical-note` both look codes up by running `tools/icd10_lookup.py`, so *"an agent that cannot run the script is working from recall."* **A consumer runs Python on the critical path.** On the ICD lookup path, `icd10_lookup.py`, `icd10_build.py`, and `console_codec.py` take the future import, do not call `zip(strict=)`, and parse at 3.7. `practicum-case-study` also requires the separate `render_scan.py` path through `run_grader` and runtime PyMuPDF. So **there are consumer and tooling floors here, and this job measures neither.**
 
 **The floor is 3.10, and the reason first published here was wrong.** This sentence read *"`int | None` is PEP 604 and there is no 3.11-or-later syntax anywhere in `tools/`, checked rather than assumed."* PEP 604 binds almost nowhere: **almost every module in `tools/` carries `from __future__ import annotations`**, so their annotations are never evaluated. **How many is deliberately not stated, and the figure that used to stand here is why** — it read *29 of the 39 modules*, in this file and in [ADR 0002](docs/adr/0002-ci-runs-the-suite-at-the-merge.md), and by 2026-08-19 both halves were wrong by twenty: the directory holds more modules than that and more of them carry the line. Nothing re-derived it, and it decayed without either copy being edited — [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143) by accretion, which is the generator [#180](https://github.com/mshamblin5150-code/clinical-skills/issues/180)'s list does not name. **The clause beside it survived intact**, because it counts the exceptions rather than the total: the modules without the line are test modules, and `test_console_codec.py` is one of them. What pins 3.10 is `zip(COLUMNS, cells, strict=True)` at `tools/guidelines_catalog.py:148` — a runtime API no future import can defuse — and one evaluated `-> ast.If | None` at `tools/test_console_codec.py:105`. **And *checked rather than assumed* was overstated**: the check was a grep over a hand-picked list, which is [#137](https://github.com/mshamblin5150-code/clinical-skills/issues/137)'s partial instrument, and `ast.parse(feature_version=(3, 9))` is blind here because `int | None` is valid grammar everywhere and fails only at runtime. **The only interpreter on this machine is 3.14**, so the suite has never run on 3.10 and the floor is inferred rather than measured. See [ADR 0002](docs/adr/0002-ci-runs-the-suite-at-the-merge.md).
 

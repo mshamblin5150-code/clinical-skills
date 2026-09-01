@@ -3,12 +3,13 @@
 
     python tools/render_scan.py <a run directory> [--show]
 
-Each ``render/pass-N`` keeps exactly one page-faithful PDF or XPS and one PNG
-per imaged page. The export supplies the page-count denominator; the PNG count
-supplies the numerator. Earlier passes are reported and may be incomplete after
+Each canonical uninterrupted ``render/pass-N`` keeps exactly one page-faithful
+PDF or XPS and one readable PNG per imaged page. The export supplies the
+page-count denominator; the readable-PNG count supplies the numerator. Earlier passes are reported and may be incomplete after
 a reader stopped on a defect. Only the last pass must cover every exported page.
 
-Default output is counts only. ``--show`` names pass-level findings. Exit 0
+Default output reports aggregate and per-pass counts only. ``--show`` adds
+pass-level finding detail. Exit 0
 means the final pass is complete, 1 means its measurable page coverage is short,
 and 2 means the evidence needed to measure coverage was unavailable. A measured
 finding outranks unavailable evidence elsewhere in the run.
@@ -45,12 +46,14 @@ INVALID_INVOCATION = "invalid invocation"
 NO_RUN_DIRECTORY = "no run directory"
 NO_RENDER_DIRECTORY = "no render directory"
 NO_RENDER_PASSES = "no numbered render passes"
+NONCANONICAL_PASSES = "render passes are not canonical and uninterrupted"
 UNREADABLE_EXPORT = "render pass has no readable retained export"
 EXIT_2_LIMBS = (
     INVALID_INVOCATION,
     NO_RUN_DIRECTORY,
     NO_RENDER_DIRECTORY,
     NO_RENDER_PASSES,
+    NONCANONICAL_PASSES,
     UNREADABLE_EXPORT,
 )
 
@@ -72,6 +75,14 @@ class RenderPass:
     exports: tuple[Path, ...]
     exported_pages: int | None
     read_error: str = ""
+    unreadable_pixels: int = 0
+
+
+@dataclass(frozen=True)
+class PassCoverage:
+    pass_name: str
+    exported_pages: int | None
+    page_images: int
 
 
 @dataclass(frozen=True)
@@ -88,6 +99,7 @@ class Scan:
     page_images: int
     incomplete_earlier_passes: int
     unscanned_passes: int
+    pass_coverage: tuple[PassCoverage, ...]
     findings: tuple[Finding, ...] = ()
 
 
@@ -98,6 +110,14 @@ def _numbered_passes(render_root: Path) -> tuple[tuple[int, Path], ...]:
         if child.is_dir() and match:
             found.append((int(match.group(1)), child))
     return tuple(sorted(found))
+
+
+def _pass_history_is_canonical(numbered: tuple[tuple[int, Path], ...]) -> bool:
+    expected = tuple(range(1, len(numbered) + 1))
+    actual = tuple(number for number, _path in numbered)
+    return actual == expected and all(
+        path.name == f"pass-{number}" for number, path in numbered
+    )
 
 
 def _read_export_pages(exports: tuple[Path, ...]) -> tuple[int | None, str]:
@@ -117,6 +137,21 @@ def _read_export_pages(exports: tuple[Path, ...]) -> tuple[int | None, str]:
     if pages < 1:
         return None, "the retained export contains no pages"
     return pages, ""
+
+
+def _pixel_read_error(path: Path) -> str:
+    try:
+        import pymupdf
+    except ImportError:
+        return "PyMuPDF is unavailable"
+    try:
+        with pymupdf.open(str(path)) as document:
+            if len(document) != 1:
+                return "does not decode as one image page"
+            next(iter(document)).get_pixmap(dpi=120)
+    except Exception:
+        return "could not decode the retained page image"
+    return ""
 
 
 def _load(parsed: run_grader.Parsed) -> Source:
@@ -139,7 +174,13 @@ def _load(parsed: run_grader.Parsed) -> Source:
 
     passes = []
     for number, path in numbered:
-        pixels = tuple(sorted(item for item in path.glob("*.png") if item.is_file()))
+        nominal_pixels = tuple(
+            sorted(item for item in path.glob("*.png") if item.is_file())
+        )
+        pixel_errors = tuple(_pixel_read_error(item) for item in nominal_pixels)
+        pixels = tuple(
+            item for item, error in zip(nominal_pixels, pixel_errors) if not error
+        )
         exports = tuple(
             sorted(
                 item
@@ -149,14 +190,22 @@ def _load(parsed: run_grader.Parsed) -> Source:
         )
         exported_pages, read_error = _read_export_pages(exports)
         passes.append(
-            RenderPass(number, path, pixels, exports, exported_pages, read_error)
+            RenderPass(
+                number,
+                path,
+                pixels,
+                exports,
+                exported_pages,
+                read_error,
+                sum(bool(error) for error in pixel_errors),
+            )
         )
-    limbs = (
-        (UNREADABLE_EXPORT,)
-        if any(render_pass.exported_pages is None for render_pass in passes)
-        else ()
-    )
-    return Source(root, tuple(passes), limbs)
+    limbs = []
+    if not _pass_history_is_canonical(numbered):
+        limbs.append(NONCANONICAL_PASSES)
+    if any(render_pass.exported_pages is None for render_pass in passes):
+        limbs.append(UNREADABLE_EXPORT)
+    return Source(root, tuple(passes), tuple(limbs))
 
 
 def survey(passes: tuple[RenderPass, ...]) -> Scan:
@@ -185,6 +234,10 @@ def survey(passes: tuple[RenderPass, ...]) -> Scan:
             and len(item.pixels) < item.exported_pages
         ),
         unscanned_passes=sum(item.exported_pages is None for item in passes),
+        pass_coverage=tuple(
+            PassCoverage(item.path.name, item.exported_pages, len(item.pixels))
+            for item in passes
+        ),
         findings=tuple(findings),
     )
 
@@ -198,6 +251,16 @@ def format_report(scan: Scan, _source: str, show: bool = False) -> str:
         f"  page images                 {scan.page_images}",
         f"  incomplete earlier passes   {scan.incomplete_earlier_passes}",
         f"  unscanned passes            {scan.unscanned_passes}",
+        "",
+        "pass coverage:",
+    ]
+    lines.extend(
+        f"  {item.pass_name}: {item.page_images} of {item.exported_pages} readable page images"
+        if item.exported_pages is not None
+        else f"  {item.pass_name}: unmeasured"
+        for item in scan.pass_coverage
+    )
+    lines += [
         "",
         f"{FINAL_PAGE_COVERAGE}: {len(scan.findings)}",
     ]
@@ -213,9 +276,18 @@ def format_report(scan: Scan, _source: str, show: bool = False) -> str:
 def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
     scan = survey(source.passes)
     diagnostics = []
+    if NONCANONICAL_PASSES in source.coverage_limbs:
+        diagnostics.append(
+            "render passes must use canonical uninterrupted pass-1 through pass-N directories"
+        )
     for render_pass in source.passes:
         if render_pass.read_error:
             diagnostics.append(f"{render_pass.path.name}: {render_pass.read_error}")
+        if render_pass.unreadable_pixels:
+            noun = "image" if render_pass.unreadable_pixels == 1 else "images"
+            diagnostics.append(
+                f"{render_pass.path.name}: {render_pass.unreadable_pixels} unreadable page {noun}"
+            )
     if scan.findings:
         diagnostics.append("final render pass is short of its exported page count")
     return run_grader.Grade(
