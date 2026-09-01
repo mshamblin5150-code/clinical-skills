@@ -24,6 +24,13 @@ sentence rather than matched as a substring:
 | safe to paste | 1 |
 | no verdict at all | 2 |
 
+**Re-derived unchanged at `f05cedf`.** `main` advanced twice while this record was being written,
+and the second advance landed [#678](https://github.com/mshamblin5150-code/clinical-skills/issues/678)'s
+legal-reference work **inside `tools/reference_scan.py`** — one of the modules the table above
+classifies. Its declared class did not move. The re-derivation is recorded because a table measured
+at a base the branch has left is a measurement about a tree that no longer exists, which is
+[#180](https://github.com/mshamblin5150-code/clinical-skills/issues/180).
+
 **The counts are dated and are deliberately restated nowhere else**, on
 [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143)'s terms. They move the day
 a tool lands, and ruling 1 below is what stops them mattering.
@@ -99,6 +106,13 @@ asserts both directions against it, so a fifth body row cannot arrive quietly an
 aperture the blessing was measured through. **The default needs no check and the exception already
 has one**, which is the correct distribution: the safe answer is silent and the dangerous one is
 guarded.
+
+**And the guard fired in the wild while this record was being written, which is worth more than the
+argument for it.** #678's work merged at `f05cedf` on 2026-09-01, hours after the measurement above,
+and it added a finding kind to `reference_scan.py`. The test that arrived with it asserts that kind
+is **not** in `BODY_ROWS` — the new row does not read the draft's prose, **declared in the diff that
+introduced it** rather than found by a later sweep. A blessing that survives a change written by
+somebody who had never read this record is the only kind worth resting a ruling on.
 
 **Ruling 5. The class vocabulary is `CONTEXT.md`'s and is named there rather than here.** Four
 classes were observed and the glossary held a term for none of them. The record of *what the classes
