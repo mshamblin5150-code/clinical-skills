@@ -563,6 +563,10 @@ _Avoid_: citation, URL, cross-reference
 What a tool's `--show` output may do once it leaves the process. Declared by that tool's own module docstring and by nothing else, so a roster of classes kept anywhere but the modules is a second copy rather than a record. Four are in use: *patient data*, read and never pasted; *private working material*, which names real people who are not patients and is equally unpasteable, though the PHI firewall will never flag it; *copyright-restrained*, a third party's expression where a line may be quoted into a ticket and a table may not; and *pasteable*, which is only ever a ruling and never an inference from silence. Where a module declares nothing the class is unpasteable, so forgetting refuses an output rather than clearing one. It is a property of an **output** and not of the data behind it, which is why it stopped tracking patient-data-or-not the moment a tool began naming people the firewall does not know.
 _Avoid_: PHI, sensitivity, redaction, safe to paste, output policy
 
+**Render pass**:
+One rasterization of a submission, kept whole — the page-faithful export and one image per page of it, written together under the run directory. It is the unit coverage is measured over, and keeping both halves is what stops either half being a claim: the images are the numerator and the export's own page count is the denominator, where the `.docx` archive has neither. A run has as many as it has renders and only the last must be whole, because a pass abandoned on a defect found at page 2 did what it should. Distinct from a **sitting**, which is a person's occasion of working on a graded artifact, and from the check's own verdict, which records what a reader looked for rather than which pages exist.
+_Avoid_: render, screenshot, page dump, pass
+
 ### Tracker
 
 **Binding**:
