@@ -9,12 +9,12 @@ hook's public command and JSON boundaries; they do not publish tracker text.
 from __future__ import annotations
 
 import unittest
+from pathlib import Path
 import tempfile
 import io
 import json
 import contextlib
 import sys
-from pathlib import Path
 from unittest import mock
 
 import tracker_publish_hook as hook
@@ -595,6 +595,39 @@ class ProjectSettingsRegisterTheHook(unittest.TestCase):
             [("body", "Assigned body", str(body))],
         )
         self.assertEqual(result.unreadable, ())
+
+
+class DeclaredLimitsHaveOneOwner(unittest.TestCase):
+    CLAUDE_MD = Path(__file__).resolve().parents[1] / "CLAUDE.md"
+
+    def test_the_ratified_population_is_present_in_both_directions(self):
+        self.assertEqual(
+            set(dict(hook.NOT_REACHED)),
+            {
+                "the GitHub web UI bypasses the hook",
+                "disabled or overridden hooks bypass the check",
+                "retained pre-edit revisions remain readable",
+                "workspace trust can silently suppress registration",
+            },
+        )
+
+    def test_the_module_and_claude_point_at_the_object_and_copy_no_row(self):
+        module_doc = hook.__doc__ or ""
+        claude = self.CLAUDE_MD.read_text(encoding="utf-8")
+
+        self.assertIn("NOT_REACHED", module_doc)
+        self.assertIn("tracker_publish_hook.NOT_REACHED", claude)
+        for key, reason in hook.NOT_REACHED:
+            with self.subTest(key=key):
+                self.assertNotIn(key, module_doc)
+                self.assertNotIn(key, claude)
+                self.assertNotIn(reason, module_doc)
+                self.assertNotIn(reason, claude)
+
+    def test_every_limit_carries_a_reason(self):
+        for key, reason in hook.NOT_REACHED:
+            with self.subTest(key=key):
+                self.assertGreater(len(reason.split()), 8)
 
 
 if __name__ == "__main__":

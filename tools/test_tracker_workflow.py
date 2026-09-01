@@ -10,6 +10,7 @@ import unittest
 from pathlib import Path
 
 import phi_scan
+import tracker_freshness
 import tracker_merge_receipt
 
 
@@ -17,10 +18,69 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 WORKFLOW = REPO_ROOT / ".github" / "workflows" / "tracker.yml"
 CLAUDE_MD = REPO_ROOT / "CLAUDE.md"
 ISSUE_TRACKER = REPO_ROOT / "docs" / "agents" / "issue-tracker.md"
+SETTINGS = REPO_ROOT / ".claude" / "settings.json"
 
 
 def workflow_text():
     return WORKFLOW.read_text(encoding="utf-8")
+
+
+class EveryTrackerGateHasASection(unittest.TestCase):
+    """Derive a floor from three sources and require a ``CLAUDE.md`` section.
+
+    A tracker gate reachable by none of the module-prefix, documented-command,
+    or configured-invocation sources is outside this walk.
+    """
+
+    @staticmethod
+    def module_prefix_contribution():
+        return {path.stem for path in (REPO_ROOT / "tools").glob("tracker_*.py")}
+
+    @staticmethod
+    def documented_command_contribution():
+        text = ISSUE_TRACKER.read_text(encoding="utf-8")
+        return set(re.findall(r"tools/([a-z0-9_]+)\.py", text))
+
+    @staticmethod
+    def configured_invocation_contribution():
+        text = workflow_text() + "\n" + SETTINGS.read_text(encoding="utf-8")
+        return set(re.findall(r"tools/([a-z0-9_]+)\.py", text))
+
+    @staticmethod
+    def sectioned_modules():
+        sections = re.split(r"(?m)^### ", CLAUDE_MD.read_text(encoding="utf-8"))[1:]
+        found = set()
+        for section in sections:
+            heading, _, body = section.partition("\n")
+            normalized_heading = heading.strip().lower()
+            found.add(normalized_heading.replace(" ", "_"))
+            if normalized_heading.endswith("scan"):
+                if match := re.search(r"(?:tools/)?([a-z0-9_]+)\.py", body):
+                    found.add(match.group(1))
+        return found
+
+    def test_every_derived_gate_has_a_section(self):
+        contributions = {
+            "module prefix": self.module_prefix_contribution(),
+            "documented command": self.documented_command_contribution(),
+            "configured invocation": self.configured_invocation_contribution(),
+        }
+        population = set().union(*contributions.values())
+        missing = population - self.sectioned_modules()
+        report = "; ".join(
+            f"{source}: {', '.join(sorted(modules)) or '(none)'}"
+            for source, modules in contributions.items()
+        )
+
+        self.assertFalse(
+            missing,
+            f"derived tracker gates without CLAUDE.md sections: "
+            f"{', '.join(sorted(missing))}; source contributions: {report}",
+        )
+
+    def test_a_section_does_not_require_a_limits_object(self):
+        self.assertIn("tracker_freshness", self.sectioned_modules())
+        self.assertFalse(hasattr(tracker_freshness, "NOT_REACHED"))
 
 
 class EveryChangedTrackerRecordTriggersTheShapeScan(unittest.TestCase):

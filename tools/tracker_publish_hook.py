@@ -4,6 +4,9 @@ The command is a Claude Code ``PreToolUse`` hook: it reads one hook payload as
 JSON from stdin and writes one hook response as JSON to stdout. It never prints
 the text it scans. Counts, rule names, and the field to edit are the complete
 reporting surface.
+
+What a clean run does not establish is owned by ``NOT_REACHED`` below rather
+than copied into this docstring or ``CLAUDE.md``.
 """
 
 from __future__ import annotations
@@ -35,6 +38,29 @@ PUBLISH_ROUTES = (
     ("api",),
 )
 PUBLISH_MARKER = phi_scan.TRACKER_PUBLISH_MARKER
+
+NOT_REACHED = (
+    (
+        "the GitHub web UI bypasses the hook",
+        "Tracker text published through the GitHub web UI never crosses this "
+        "Claude Code pre-publication boundary.",
+    ),
+    (
+        "disabled or overridden hooks bypass the check",
+        "A session started with hooks disabled or with overriding settings can "
+        "publish without this hook running.",
+    ),
+    (
+        "retained pre-edit revisions remain readable",
+        "GitHub retains earlier revisions of edited tracker records, and this "
+        "hook cannot read or remove those preserved versions.",
+    ),
+    (
+        "workspace trust can silently suppress registration",
+        "An unaccepted workspace trust prompt can silently prevent the project "
+        "hook from registering in a new worktree.",
+    ),
+)
 
 
 class Publication(NamedTuple):

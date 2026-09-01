@@ -29,7 +29,10 @@ GitHub issues on `mshamblin5150-code/clinical-skills`, via the `gh` CLI. See `do
 python tools/tracker_freshness.py
 ```
 
-It fetches `origin/main` rather than trusting the local remote-tracking ref, then exits 2 unless `HEAD` contains that fetched commit. Bring the branch forward by rebasing or merging, resolve any conflict, rerun the work's checks, and repeat the command until it reports `FRESH`. It never changes the branch itself.
+The **Tracker freshness** section below owns what this gate reads and what its
+statuses distinguish. If it stops, bring the branch forward by rebasing or
+merging, resolve any conflict, rerun the work's checks, and repeat the command
+until it reports `FRESH`. It never changes the branch itself.
 
 **Immediately before posting** any sweep finding, run the gate again:
 
@@ -769,18 +772,8 @@ the corpus layer is live; if its name index is present but short,
 `tracker_scan` prints the same shortfall and remedy as `phi_scan`. A pre-push
 hook was declined as the trigger: a comment is published without a push, and a
 push can happen before the finishing sweep writes its comments. This is #260's
-ruling, 2026-08-20. **The pre-publish `PreToolUse` hook is registered in
-`.claude/settings.json` and implemented by `tools/tracker_publish_hook.py`.**
-`PUBLISH_ROUTES` owns the recognized command families; the settings `if` is a
-cost guard and never a second verb list. The hook scans each title and body
-through `phi_scan` and `tracker_branch_scope`, reports counts and rule names
-without matched values, keeps PHI findings advisory, and refuses the local
-branch-scope triggers ruled by
-[ADR 0083](docs/adr/0083-the-pre-publish-hook-grades-the-record-rather-than-the-body-and-the-branch-scope-rule-refuses-per-trigger.md).
-That is [ADR 0077](docs/adr/0077-a-digest-is-a-redaction-only-where-its-keyspace-is-large-and-a-date-literal-s-is-not.md)
-ruling 5's build, and not what #260 declined: that reasoning is about a **git**
-hook, while a comment published without a push is still published by a tool
-call.
+ruling, 2026-08-20. The separate pre-publication path is documented under
+**Tracker publish hook** below; it is not the git hook #260 declined.
 
 **When a full harvest last really ran, and what it found, is what
 `python tools/tracker_scan.py --harvest` records and prints; the bare
@@ -798,15 +791,6 @@ prose reported absent, and
 [#646](https://github.com/mshamblin5150-code/clinical-skills/issues/646) found
 it nine days after the harvest rather than four. A dated result in prose reads
 as a current property of the tracker, and no edit to a sentence fails.
-
-**The pre-publish hook writes a separate counts-free marker at
-`scratch/runs/tracker-publish-hook.json`, and the same bare
-`python tools/phi_scan.py` commit path states its exact age.** The accounted
-`runs` root is deliberate: creating a new top-level scratch entry would move
-the global scratch census and could refuse every checkout's commits.
-No age becomes a stale verdict: publication volume, not elapsed days, decides
-what an old marker means. An absent or invalid marker is distinct from a clean
-scan, which is ADR 0083 ruling 5's non-registration limb.
 
 **`tracker_scan` opens no socket**, which is `research_ledger.py`'s ruling adopted whole rather than a fresh one: the fetch is a documented `gh` command whose output is a file, so the scanner stays offline, stdlib-only and testable, and the harvest is a thing a reader can keep and re-scan.
 
@@ -827,6 +811,89 @@ scan, which is ADR 0083 ruling 5's non-registration limb.
 **Exit status distinguishes not having scanned from having found nothing** — 0 clean, 1 for a finding, **2 for every way of not having scanned**: no surface named, a harvest file absent or not a JSON list, no record in any surface, a git command that failed, no persistent pull-head refspec, no pull-head ref without the acknowledgment, and no corpus without `--allow-no-corpus` or `clinical.phiAllowNoCorpus`. **Where a finding and a not-scanned limb both hold, 1 wins**, on `phi_scan.py`'s own ordering — and **the first version got that backwards for the corpus limb**, returning 2 before scanning at all, so a real `dob` hit was suppressed and reported as *did not scan*. Its own test class stubbed the corpus check out, so nothing in the suite could see it; `/code-review` found it. A `git` failure gets its own exception for the same reason: `for-each-ref` returning nothing because it failed reads exactly like a repository nobody has fetched the pull heads into.
 
 Covered by `tools/test_tracker_scan.py`, which builds synthetic harvest files and throwaway checkouts in a temp directory on `test_skills_mirror.py`'s arrangement. **The real tracker is deliberately not a fixture** — it is fetched over the network and changes every time anybody comments, and #212 carries three sweeps whose surface figures disagree with each other for exactly that reason. A test keyed on it would be measuring the day it ran, so no count of issues, pull requests or blobs is asserted anywhere in it.
+
+### Tracker branch scope
+
+`tools/tracker_branch_scope.py` reads one GitHub event record and the checked-out
+default-branch tree. It grades the dated branch provenance and repository-path
+citations required by `docs/agents/issue-tracker.md` without printing the
+record body. Exit 0 means the record is scoped or outside the gate, 1 means a
+branch-state or path-citation rule failed, and 2 means the event could not be
+graded.
+
+A clean run establishes only what that bounded event and tree can establish.
+The complete boundary belongs to `tracker_branch_scope.NOT_REACHED`; this
+section points to the object and copies none of its rows.
+
+Covered by `tools/test_tracker_branch_scope.py`, which drives synthetic issue,
+pull-request, comment, and review events through the public grader and uses
+throwaway trees for path resolution. It opens no live tracker record.
+
+### Tracker merge receipt
+
+`tools/tracker_merge_receipt.py` reads the pull-request JSON already fetched by
+the workflow, grades the explicitly authored ticket plan, and emits one bounded
+receipt row per accepted binding. In normal mode, exit 0 means a binding or a
+reasoned no-ticket declaration was found, 1 means the plan is empty or contains
+a declined reference-shaped line, and 2 means the input cannot establish a
+completed merge into `main`; `--check-plan` applies the same plan verdict before
+merge.
+
+A clean plan is not proof that its binding is semantically correct. The full
+boundary belongs to `tracker_merge_receipt.NOT_REACHED`; this section points to
+the object and copies none of its rows.
+
+Covered by `tools/test_tracker_merge_receipt.py`, which builds synthetic pull
+request and commit JSON and round-trips the canonical receipt grammar. It
+publishes no tracker comment.
+
+### Tracker freshness
+
+`tools/tracker_freshness.py` fetches `origin/main` without trusting a cached
+remote-tracking reference, then asks whether the current `HEAD` contains the
+fetched commit. Exit 0 means that containment check is fresh; exit 2 means the
+fetch failed or the branch is stale. The complete workflow contract remains in
+`docs/agents/issue-tracker.md`, and #728 owns the still-open question of this
+gate's coverage boundary.
+
+A clean run neither rebases the branch nor reruns evidence gathered before the
+check. It establishes the base relationship only at the moment it runs, which
+is why the tracker sweep invokes it again immediately before publishing.
+
+Covered by `tools/test_tracker_freshness.py`, which uses throwaway Git
+repositories to exercise fresh, stale, and failed-fetch states without reading
+the live tracker.
+
+### Tracker publish hook
+
+The pre-publication `PreToolUse` hook is registered in
+`.claude/settings.json` and implemented by
+`tools/tracker_publish_hook.py`. It extracts publishable title and body fields
+from one `gh` command, reads record context when available, and sends each field
+through `phi_scan` and `tracker_branch_scope` without returning matched values.
+`PUBLISH_ROUTES` owns command classification; the settings condition is only a
+cost guard.
+
+The hook protocol returns exit 0 with an allow-or-deny decision in its JSON
+response. Its manual `--text` mode returns 0 when no refusing finding exists, 1
+when one does, and 2 when the input cannot be read. PHI findings remain
+advisory; the branch-scope posture follows
+[ADR 0083](docs/adr/0083-the-pre-publish-hook-grades-the-record-rather-than-the-body-and-the-branch-scope-rule-refuses-per-trigger.md).
+A clean response reaches neither every publication route nor every retained
+version. The complete boundary belongs to `tracker_publish_hook.NOT_REACHED`;
+this section points to the object and copies none of its rows.
+
+The hook writes a separate counts-free marker at
+`scratch/runs/tracker-publish-hook.json`, and the bare
+`python tools/phi_scan.py` commit path states its exact age. The accounted
+`runs` root avoids creating a new top-level scratch entry. No age becomes a
+stale verdict: publication volume rather than elapsed time decides what an old
+marker means, and an absent or invalid marker remains distinct from a clean
+scan.
+
+Covered by `tools/test_tracker_publish_hook.py`, which drives synthetic command
+strings and hook payloads through the extractor, grader, and JSON protocol with
+temporary body files. It performs no publication.
 
 ### Implementation map disagreement scan
 
