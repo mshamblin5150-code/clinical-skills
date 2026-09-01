@@ -824,6 +824,25 @@ scan, which is ADR 0083 ruling 5's non-registration limb.
 
 **Exit status distinguishes not having scanned from having found nothing** — 0 clean, 1 for a finding, **2 for every way of not having scanned**: no surface named, a harvest file absent or not a JSON list, no record in any surface, a git command that failed, no persistent pull-head refspec, no pull-head ref without the acknowledgment, and no corpus without `--allow-no-corpus` or `clinical.phiAllowNoCorpus`. **Where a finding and a not-scanned limb both hold, 1 wins**, on `phi_scan.py`'s own ordering — and **the first version got that backwards for the corpus limb**, returning 2 before scanning at all, so a real `dob` hit was suppressed and reported as *did not scan*. Its own test class stubbed the corpus check out, so nothing in the suite could see it; `/code-review` found it. A `git` failure gets its own exception for the same reason: `for-each-ref` returning nothing because it failed reads exactly like a repository nobody has fetched the pull heads into.
 
+### Implementation map disagreement scan
+
+`map_scan.py` reads the complete issues REST harvest offline and grades both
+readiness directions, the reconciliation anchor against committed ADRs, and
+the coordination issue's pointer back to the grader. The fetch remains the
+caller's operation; the scanner opens no socket:
+
+```powershell
+$harvest = Join-Path $env:RUNNER_TEMP 'implementation-map-issues.json'
+gh api --paginate 'repos/OWNER/REPO/issues?state=all&per_page=100' |
+  Out-File -FilePath $harvest -Encoding utf8
+python tools/map_scan.py $harvest --advisory
+```
+
+The flag makes findings advisory after a merge while leaving every did-not-scan
+result failing. The full boundary is `map_scan.DECLARED_LIMITS`; this section
+points to that object and copies none of its rows. A clean scan is a clean
+readiness-and-obligation gate, not a checked implementation map.
+
 Covered by `tools/test_tracker_scan.py`, which builds synthetic harvest files and throwaway checkouts in a temp directory on `test_skills_mirror.py`'s arrangement. **The real tracker is deliberately not a fixture** — it is fetched over the network and changes every time anybody comments, and #212 carries three sweeps whose surface figures disagree with each other for exactly that reason. A test keyed on it would be measuring the day it ran, so no count of issues, pull requests or blobs is asserted anywhere in it.
 
 ### Tracker bodies
@@ -1445,7 +1464,7 @@ recs-*.json
 
 ### Continuous integration
 
-`.github/workflows/checks.yml`, one job, on `windows-latest` at Python `3.14` — [#86](https://github.com/mshamblin5150-code/clinical-skills/issues/86), extended by [#190](https://github.com/mshamblin5150-code/clinical-skills/issues/190) and ruled in [ADR 0002](docs/adr/0002-ci-runs-the-suite-at-the-merge.md). It runs the suite, `phi_scan --all`, `python tools/threshold_sheet.py --all`, and the advisory closing-keyword check, and it installs nothing. The threshold step puts its gate report in the job summary; external evidence unavailable on the runner remains visibly `NOT RUN` rather than reading as coverage.
+`.github/workflows/checks.yml`, one job, on `windows-latest` at Python `3.14` — [#86](https://github.com/mshamblin5150-code/clinical-skills/issues/86), extended by [#190](https://github.com/mshamblin5150-code/clinical-skills/issues/190) and ruled in [ADR 0002](docs/adr/0002-ci-runs-the-suite-at-the-merge.md). It runs the suite, `phi_scan --all`, `python tools/threshold_sheet.py --all`, the advisory closing-keyword check, and the post-merge `map_scan.py` gate, and it installs nothing. The threshold and map steps put their reports in the job summary; external evidence unavailable on the runner remains visibly `NOT RUN` rather than reading as coverage.
 
 **The subject is the merge, not the commit.** Everything else here fires at `git commit` in one clone. Git does not run `pre-commit` for an automatic merge commit **at all**, and where a merge is hand-resolved the result is a tree neither parent ever had — so `main` can hold a combination nobody ran the suite against. **Two branches have already broken it that way**, both recorded under *Console codec* above: `anchor_scan.py` against #150's rule, and `block_scan.py` one merge later against the mechanism built to stop it. A third came close — #179's merged tree ran tests neither side had run and was green, and nothing required anyone to look. That near-miss is recorded in [#86](https://github.com/mshamblin5150-code/clinical-skills/issues/86)'s comments and **not** in *Console codec*; this sentence claimed it was, one commit after being written, which is the cross-reference going stale faster than the figure beside it.
 
