@@ -163,12 +163,12 @@
 | syphilis screening | sheet | syphilis-screening.md | all 14 source pages accounted for on 2026-08-30; four null spans blindly corroborated |
 | testicular cancer screening | sheet | testicular-cancer-screening.md | full-document read complete; exact recommendation index accounted |
 | thyroid cancer screening | unread |  | exact recommendation index available; full-document read pending |
-| thyroid dysfunction screening | unread |  | exact recommendation index available; full-document read pending |
+| thyroid dysfunction screening | sheet | thyroid-dysfunction-screening.md | exact recommendation index available; full document distilled |
 | tobacco smoking cessation | unread |  | exact recommendation index available; full-document read pending |
-| tobacco use prevention and cessation | unread |  | exact recommendation index available; full-document read pending |
+| tobacco use prevention and cessation | sheet | tobacco-use-prevention-and-cessation.md | exact recommendation index available; full document distilled |
 | tuberculosis diagnosis | unread |  | bound recommendation record available; full-document read pending |
-| unhealthy alcohol use screening and counseling | unread |  | exact recommendation index available; full-document read pending |
-| unhealthy drug use screening | unread |  | exact recommendation index available; full-document read pending |
+| unhealthy alcohol use screening and counseling | sheet | unhealthy-alcohol-use-screening-and-counseling.md | exact recommendation index available; full document distilled |
+| unhealthy drug use screening | sheet | unhealthy-drug-use-screening.md | exact recommendation index available; full document distilled |
 | valvular heart disease | unread |  | exact recommendation index available; full-document read pending |
 | vision screening, amblyopia | sheet | vision-screening-amblyopia.md | exact recommendation index available; full document distilled |
 | vitamin and mineral supplementation for cardiovascular disease and cancer prevention | sheet | vitamin-and-mineral-supplementation-for-cardiovascular-disease-and-cancer-prevention.md | exact recommendation index available; full document distilled |
