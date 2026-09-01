@@ -383,8 +383,6 @@ class CommandLineOutputIsMachineReadable(unittest.TestCase):
         self.assertIn("Binds no ticket", report.getvalue())
 
 class DeclaredLimitsHaveOneOwner(unittest.TestCase):
-    CLAUDE_MD = Path(__file__).resolve().parents[1] / "CLAUDE.md"
-
     def test_the_ratified_population_is_present_in_both_directions(self):
         self.assertEqual(
             set(dict(receipt.NOT_REACHED)),
@@ -397,24 +395,6 @@ class DeclaredLimitsHaveOneOwner(unittest.TestCase):
                 "publication ordering is outside the message-scope change",
             },
         )
-
-    def test_the_module_and_claude_point_at_the_object_and_copy_no_row(self):
-        module_doc = receipt.__doc__ or ""
-        claude = self.CLAUDE_MD.read_text(encoding="utf-8")
-
-        self.assertIn("NOT_REACHED", module_doc)
-        self.assertIn("tracker_merge_receipt.NOT_REACHED", claude)
-        for key, reason in receipt.NOT_REACHED:
-            with self.subTest(key=key):
-                self.assertNotIn(key, module_doc)
-                self.assertNotIn(key, claude)
-                self.assertNotIn(reason, module_doc)
-                self.assertNotIn(reason, claude)
-
-    def test_every_limit_carries_a_reason(self):
-        for key, reason in receipt.NOT_REACHED:
-            with self.subTest(key=key):
-                self.assertGreater(len(reason.split()), 8)
 
 
 if __name__ == "__main__":

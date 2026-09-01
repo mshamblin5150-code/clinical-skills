@@ -839,9 +839,9 @@ a declined reference-shaped line, and 2 means the input cannot establish a
 completed merge into `main`; `--check-plan` applies the same plan verdict before
 merge.
 
-A clean plan is not proof that its binding is semantically correct. The full
-boundary belongs to `tracker_merge_receipt.NOT_REACHED`; this section points to
-the object and copies none of its rows.
+A clean run establishes only the bounded plan verdict above. The full boundary
+belongs to `tracker_merge_receipt.NOT_REACHED`; this section points to the
+object and copies none of its rows.
 
 Covered by `tools/test_tracker_merge_receipt.py`, which builds synthetic pull
 request and commit JSON and round-trips the canonical receipt grammar. It
@@ -879,9 +879,9 @@ response. Its manual `--text` mode returns 0 when no refusing finding exists, 1
 when one does, and 2 when the input cannot be read. PHI findings remain
 advisory; the branch-scope posture follows
 [ADR 0083](docs/adr/0083-the-pre-publish-hook-grades-the-record-rather-than-the-body-and-the-branch-scope-rule-refuses-per-trigger.md).
-A clean response reaches neither every publication route nor every retained
-version. The complete boundary belongs to `tracker_publish_hook.NOT_REACHED`;
-this section points to the object and copies none of its rows.
+A clean response establishes only the verdicts reported for that run. The
+complete boundary belongs to `tracker_publish_hook.NOT_REACHED`; this section
+points to the object and copies none of its rows.
 
 The hook writes a separate counts-free marker at
 `scratch/runs/tracker-publish-hook.json`, and the bare
