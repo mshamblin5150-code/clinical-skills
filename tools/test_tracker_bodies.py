@@ -184,6 +184,40 @@ class TheDoubleEncodedRow(unittest.TestCase):
                 )
 
 
+class TheC0ControlCharacterRow(unittest.TestCase):
+    """#723 grades the raw body, including code spans and body edges."""
+
+    def test_every_c0_control_except_tab_line_feed_and_carriage_return_fails(self):
+        excluded = {"\t", "\n", "\r"}
+        for point in range(0x20):
+            character = chr(point)
+            if character in excluded:
+                continue
+            with self.subTest(code_point=f"U+{point:04X}"):
+                records = read(harvest(issue(723, f"before{character}after")))
+                self.assertEqual(kinds_of(records), [tb.C0_CONTROL_CHARACTER])
+
+    def test_a_control_character_inside_a_code_span_fails(self):
+        records = read(harvest(issue(723, "copy `word\bword` exactly")))
+
+        self.assertEqual(kinds_of(records), [tb.C0_CONTROL_CHARACTER])
+
+    def test_python_whitespace_at_the_raw_body_edge_is_not_stripped(self):
+        records = read(harvest(issue(723, "ordinary body\v")))
+
+        self.assertEqual(kinds_of(records), [tb.C0_CONTROL_CHARACTER])
+
+    def test_tab_line_feed_and_carriage_return_remain_clean(self):
+        records = read(harvest(issue(723, "tab\tline\ncarriage\rreturn")))
+
+        self.assertEqual(kinds_of(records), [])
+
+    def test_del_and_replacement_character_remain_outside_the_row(self):
+        records = read(harvest(issue(723, "DEL\x7f replacement\ufffd")))
+
+        self.assertEqual(kinds_of(records), [])
+
+
 class ACleanHarvest(unittest.TestCase):
     def test_ordinary_bodies_produce_nothing(self):
         records = read(harvest(issue(6, "A real body.\n\nWith paragraphs."),
@@ -492,6 +526,85 @@ class TheCommandLine(unittest.TestCase):
         with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
             self.assertEqual(tb.main(["-"], stdin=payload), tb.CLEAN)
 
+    def test_a_github_comment_event_is_a_first_class_surface(self):
+        event = {
+            "action": "created",
+            "comment": {
+                "id": 7,
+                "html_url": "https://github.com/O/R/issues/723#issuecomment-7",
+                "body": "damaged\bbody",
+            },
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            path = self.write(Path(tmp), "event.json", event)
+            status, out, _ = self.run_main(
+                "--github-event", str(path), "--event-name", "issue_comment"
+            )
+
+        self.assertEqual(status, tb.FOUND)
+        self.assertIn(tb.C0_CONTROL_CHARACTER, out)
+
+    def test_an_edited_event_grades_only_a_changed_body(self):
+        event = {
+            "action": "edited",
+            "changes": {"body": {"from": "old body"}},
+            "issue": {
+                "number": 723,
+                "title": "unchanged\btitle",
+                "body": "clean body",
+            },
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            path = self.write(Path(tmp), "event.json", event)
+            status, _, _ = self.run_main(
+                "--github-event", str(path), "--event-name", "issues"
+            )
+
+        self.assertEqual(status, tb.CLEAN)
+
+    def test_each_workflow_event_selects_its_body_record(self):
+        cases = (
+            ("issues", "issue", {"number": 723}),
+            ("issue_comment", "comment", {"id": 1}),
+            ("pull_request_target", "pull_request", {"number": 12}),
+            ("pull_request_review", "review", {"id": 2}),
+            ("pull_request_review_comment", "comment", {"id": 3}),
+        )
+
+        for event_name, key, identity in cases:
+            with self.subTest(event_name=event_name):
+                item = {**identity, "body": "damaged\bbody"}
+                records = tb.records_from_github_event(
+                    {"action": "created", key: item}, event_name, "event.json"
+                )
+                self.assertEqual(kinds_of(records), [tb.C0_CONTROL_CHARACTER])
+
+    def test_clearing_an_event_body_is_an_empty_body_finding(self):
+        records = tb.records_from_github_event(
+            {
+                "action": "edited",
+                "changes": {"body": {"from": "old body"}},
+                "issue": {"number": 723, "body": None},
+            },
+            "issues",
+            "event.json",
+        )
+
+        self.assertEqual(kinds_of(records), [tb.EMPTY_BODY])
+
+    def test_github_event_and_event_name_are_required_together(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = self.write(
+                Path(tmp),
+                "event.json",
+                {"action": "created", "comment": {"id": 7, "body": "clean"}},
+            )
+            event_only = self.run_main("--github-event", str(path))[0]
+            name_only = self.run_main("--event-name", "issue_comment")[0]
+
+        self.assertEqual(event_only, tb.NOT_SCANNED)
+        self.assertEqual(name_only, tb.NOT_SCANNED)
+
     def test_clean_utf8_bytes_have_the_same_verdict_through_file_and_pipe(self):
         """#389's real boundary: a pipe, not a codec-free ``StringIO``."""
         payload = json.dumps(
@@ -586,6 +699,28 @@ class TheDocSaysWhatThisChecks(unittest.TestCase):
         self.assertIn("fourth row", self.doc)
         self.assertIn("cp1252", self.doc)
         self.assertIn(r"`\uXXXX`", self.doc)
+
+    def test_the_doc_names_the_raw_c0_row(self):
+        self.assertIn("fifth row", self.doc)
+        self.assertIn("raw body", self.doc)
+
+
+class DeclaredLimitsHaveOneOwner(unittest.TestCase):
+    def test_the_ruled_exclusions_and_wider_class_are_declared(self):
+        limits = dict(tb.NOT_REACHED)
+
+        self.assertIn("other escape-collapse damage without a C0 control character", limits)
+        self.assertIn("DEL U+007F", limits)
+        self.assertIn("replacement character U+FFFD", limits)
+
+    def test_the_module_points_at_the_object_without_copying_it(self):
+        module_doc = tb.__doc__ or ""
+
+        self.assertIn("NOT_REACHED", module_doc)
+        for key, reason in tb.NOT_REACHED:
+            self.assertNotIn(key, module_doc)
+            self.assertNotIn(reason, module_doc)
+            self.assertGreater(len(reason.split()), 8)
 
 
 if __name__ == "__main__":
