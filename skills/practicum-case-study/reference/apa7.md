@@ -338,8 +338,14 @@ narrative citation is `Professional and Vocational Regulations (2023)`. The entr
 Name of the Statute, Title number Source § Section number(s) (Year)
 ```
 
-The regulation name is required; a section-only entry is not this form.
+The legal source name is required; a section-only entry is not this form.
 
-**`C.F.R.`-only limit.** APA's `Source` slot can hold any code, including the example's state
-`CCR`. This repository's legal readers currently recognize `C.F.R.` alone, so this sheet does not
-claim that the scanner reaches state or foreign codes.
+A corpus instance follows APA's pattern with West Virginia's codification:
+
+```text
+Eligibility for prescriptive authority, W. Va. Code § 30-7-15b (2016). https://...
+```
+
+**Configured reader boundary.** The implemented limit is owned by
+`discussion_artifact.LEGAL_SOURCE_NOT_REACHED`; this sheet points to that object and does not
+restate its entries.
