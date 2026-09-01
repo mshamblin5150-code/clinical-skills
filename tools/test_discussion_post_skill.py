@@ -130,7 +130,8 @@ class TheWorkflowCarriesEveryRatifiedGate(unittest.TestCase):
         reply = read(REPLY)
 
         self.assertIn("`docx_write.py` drops own-line HTML comments", post)
-        self.assertNotIn("omit every `INVOKED` comment", post)
+        retired_instruction = "omit every " + "`INVOKED` comment"
+        self.assertNotIn(retired_instruction, post)
         self.assertIn("omitting the `INVOKED` comments", reply)
         self.assertIn("pastes from Markdown", post)
 
