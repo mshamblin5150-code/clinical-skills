@@ -22,7 +22,6 @@ from __future__ import annotations
 import re
 import sys
 import zipfile
-from collections import Counter
 from collections.abc import Collection, Iterator
 from dataclasses import dataclass
 from datetime import date
@@ -65,6 +64,7 @@ WORD_FLOOR = "word-floor"
 REFERENCE_MINIMUM = "reference-minimum"
 UNTRACED_NUMBER = "untraced-number"
 UNTRACED_CITATION = "untraced-citation"
+RESPENT_RECORD = "respent-record"
 BOLD_HEADINGS = "bold-headings"
 RENDERED_COMMENTS = "rendered-comments"
 RENDERED_TEXT = "rendered-text"
@@ -79,7 +79,8 @@ ROWS = {
     WORD_FLOOR: "the post reaches the signed word floor",
     REFERENCE_MINIMUM: "the post reaches the signed reference minimum",
     UNTRACED_NUMBER: "every graded body number traces to claims.md",
-    UNTRACED_CITATION: "every in-text citation has its own claim record",
+    UNTRACED_CITATION: "every in-text citation has a claim record for its source",
+    RESPENT_RECORD: "every in-text citation has its own claim record",
     BOLD_HEADINGS: "the rendered document carries no named heading style",
     RENDERED_COMMENTS: "the rendered document carries no HTML comment delimiter",
     RENDERED_PAGES: "every rendered pass has a complete page reading backed by kept pixels",
@@ -103,12 +104,14 @@ GATED_ROW_SETS = {
             REFERENCE_MINIMUM,
             UNTRACED_NUMBER,
             UNTRACED_CITATION,
+            RESPENT_RECORD,
             LEGAL_REFERENCE_NAME,
         ),
         (
             "words",
             "references",
             "numeric_claims",
+            "claim_records",
             "citations",
             "invoked_sources",
             "unfilled_invoked_properties",
@@ -143,6 +146,11 @@ DECLARED_LIMITS = (
         "whether a claim record describes the cited sentence",
         "A source-and-year join establishes record presence but cannot decide whether the claim heading faithfully describes that sentence.",
         EvidenceDisposition.DECLARED_READING,
+    ),
+    (
+        "whether equal numeric values always describe one fact",
+        "Distinct-value tracing lets one claim record cover repeated equal values, even when two occurrences are different facts that happen to share a number.",
+        EvidenceDisposition.BEHAVIOR,
     ),
     (
         "whether posted replies have posted readings",
@@ -291,6 +299,7 @@ class Scan:
     references: int | None
     reference_minimum: int
     numeric_claims: int | None
+    claim_records: int | None
     citations: int | None
     invoked_sources: tuple[InvokedSource, ...] | None
     unfilled_invoked_properties: int | None
@@ -387,7 +396,9 @@ def _claim_records(claims: str) -> tuple[ClaimRecord, ...]:
     return tuple(records)
 
 
-def _maximum_record_matching(candidates: tuple[tuple[int, ...], ...]) -> set[int]:
+def _maximum_record_assignment(
+    candidates: tuple[tuple[int, ...], ...],
+) -> dict[int, int]:
     record_to_requirement: dict[int, int] = {}
 
     def assign(requirement: int, seen: set[int]) -> bool:
@@ -401,11 +412,48 @@ def _maximum_record_matching(candidates: tuple[tuple[int, ...], ...]) -> set[int
                 return True
         return False
 
-    matched: set[int] = set()
     for requirement in range(len(candidates)):
-        if assign(requirement, set()):
-            matched.add(requirement)
-    return matched
+        assign(requirement, set())
+    return record_to_requirement
+
+
+def _citation_deficiency(
+    candidates: tuple[tuple[int, ...], ...],
+) -> tuple[frozenset[int], frozenset[int]] | None:
+    record_to_requirement = _maximum_record_assignment(candidates)
+    requirement_to_record = {
+        requirement: record for record, requirement in record_to_requirement.items()
+    }
+    unmatched = set(range(len(candidates))) - set(requirement_to_record)
+    if not unmatched:
+        return None
+    reached_requirements = set(unmatched)
+    reached_records: set[int] = set()
+    pending = list(unmatched)
+    while pending:
+        requirement = pending.pop()
+        for record in candidates[requirement]:
+            if requirement_to_record.get(requirement) == record:
+                continue
+            if record in reached_records:
+                continue
+            reached_records.add(record)
+            matched_requirement = record_to_requirement.get(record)
+            if (
+                matched_requirement is not None
+                and matched_requirement not in reached_requirements
+            ):
+                reached_requirements.add(matched_requirement)
+                pending.append(matched_requirement)
+    return frozenset(reached_requirements), frozenset(reached_records)
+
+
+def _citation_label(citation: Citation) -> str:
+    return (
+        f"{citation.author.strip()} ({citation.year})"
+        if citation.year
+        else citation.author.strip()
+    )
 
 
 W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
@@ -803,6 +851,7 @@ def survey(source: RunSource) -> Scan:
             references=None,
             reference_minimum=source.bar.reference_minimum,
             numeric_claims=None,
+            claim_records=None,
             citations=None,
             invoked_sources=None,
             unfilled_invoked_properties=None,
@@ -830,7 +879,7 @@ def survey(source: RunSource) -> Scan:
             findings.append(
                 Finding(
                     LEGAL_REFERENCE_NAME,
-                    source.draft.name,
+                    "claims.md",
                     "legal claim record has a section but no regulation name",
                 )
             )
@@ -854,50 +903,66 @@ def survey(source: RunSource) -> Scan:
         )
     findings.extend(_rendered_comment_findings(source))
     findings.extend(_rendered_page_findings(source))
-    requirements: list[tuple[str, str, tuple[int, ...]]] = []
-    number_occurrences: Counter[str] = Counter()
-    for value in numbers:
-        folded = value.casefold()
-        number_occurrences[folded] += 1
-        requirements.append(
-            (
-                UNTRACED_NUMBER,
-                f"{folded} occurrence {number_occurrences[folded]} has no claim record",
-                tuple(
-                    index
-                    for index, record in enumerate(records)
-                    if folded in record.numbers
-                ),
-            )
-        )
-    for occurrence, keys in enumerate(citations, start=1):
-        requirements.append(
-            (
-                UNTRACED_CITATION,
-                f"citation occurrence {occurrence} has no source-matched claim record",
-                reference_key_set.matching_record_indices(keys),
-            )
-        )
-    matched = _maximum_record_matching(
-        tuple(candidates for _, _, candidates in requirements)
+    traced_numbers = frozenset(
+        value for record in records for value in record.numbers
     )
-    for index, (kind, detail, _) in enumerate(requirements):
-        if index not in matched:
-            if kind == UNTRACED_NUMBER:
-                findings.append(
-                    Finding(UNTRACED_NUMBER, source.draft.name, detail)
+    distinct_numbers = tuple(dict.fromkeys(value.casefold() for value in numbers))
+    for value in distinct_numbers:
+        if value not in traced_numbers:
+            findings.append(
+                Finding(
+                    UNTRACED_NUMBER,
+                    source.draft.name,
+                    f"{value} is absent from claims.md",
                 )
-            else:
-                findings.append(
-                    Finding(UNTRACED_CITATION, source.draft.name, detail)
+            )
+    citation_requirements: list[tuple[Citation, tuple[int, ...]]] = []
+    for occurrence, (citation, keys) in enumerate(
+        zip(body_citations, citations, strict=True), start=1
+    ):
+        candidates = reference_key_set.matching_record_indices(keys)
+        if not candidates:
+            findings.append(
+                Finding(
+                    UNTRACED_CITATION,
+                    source.draft.name,
+                    f"citation occurrence {occurrence} has no source-matched claim record",
                 )
+            )
+        else:
+            citation_requirements.append((citation, candidates))
+    deficiency = _citation_deficiency(
+        tuple(candidates for _, candidates in citation_requirements)
+    )
+    if deficiency is not None:
+        reached_requirements, reached_records = deficiency
+        citation_count = len(reached_requirements)
+        record_count = len(reached_records)
+        shortfall = citation_count - record_count
+        labels = tuple(
+            dict.fromkeys(
+                _citation_label(citation_requirements[index][0])
+                for index in sorted(reached_requirements)
+            )
+        )
+        subject = labels[0] if len(labels) == 1 else ", ".join(labels)
+        findings.append(
+            Finding(
+                RESPENT_RECORD,
+                source.draft.name,
+                f"{citation_count} citations of {subject} share {record_count} "
+                f"claim record{'s' if record_count != 1 else ''} — "
+                f"{shortfall} short",
+            )
+        )
     return Scan(
         words=words,
         word_floor=source.bar.word_floor,
         word_ceiling=source.bar.word_ceiling,
         references=len(source.references),
         reference_minimum=source.bar.reference_minimum,
-        numeric_claims=len(numbers),
+        numeric_claims=len(distinct_numbers),
+        claim_records=len(records),
         citations=len(citations),
         invoked_sources=read_invoked_sources(source.body),
         unfilled_invoked_properties=sum(
@@ -942,6 +1007,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
             else "references: not graded"
         ),
         f"numeric claims: {scan.numeric_claims if scan.reference_boundary_graded else 'not graded'}",
+        f"claim records: {scan.claim_records if scan.reference_boundary_graded else 'not graded'}",
         f"citations: {scan.citations if scan.reference_boundary_graded else 'not graded'}",
         (
             f"invoked sources: {len(scan.invoked_sources or ())}"

@@ -256,10 +256,15 @@ python tools/discussion_post_scan.py scratch/runs/<course>-<module>-discussion -
 ```
 
 `reference_scan.py` walks the APA list and citation resolution unchanged. Its exit must be 0.
-`discussion_post_scan.py` grades the signed word floor and reference minimum, then requires every
-body-number occurrence and every in-text citation occurrence to have its own claim record. It
-counts the word ceiling, invoked sources, and unfilled invoked properties without grading them. Its default output is
-counts only; `--show` includes private finding detail and must not be pasted.
+`discussion_post_scan.py` grades the signed word floor and reference minimum. Its
+`untraced-number` row requires every distinct body-number value to appear in a claim record;
+repeating a value does not spend another record. Its `untraced-citation` row requires every
+in-text citation to have a claim record for its source, while `respent-record` requires each
+citation to carry its own record. One record may therefore trace a number and carry the citation
+beside it, but two citations may not spend that record. The report counts distinct numeric values
+and claim records, along with the word ceiling, invoked sources, and unfilled invoked properties;
+the latter fields remain counted without grading. Its default output is counts only; `--show`
+includes private finding detail and must not be pasted.
 The `bold-headings`, `rendered-comments`, `rendered-text`, and `rendered-pages` rows report `not graded` at this
 stage because the document does not exist yet; step 7 renders it and reruns this grader with
 `--docx`.
@@ -386,7 +391,8 @@ belong to the sibling grader.
 
 Report the board key, signed-bar date, research-ledger exit, reference-scan exit,
 discussion-post-scan exit, body word count, stated ceiling and whether it was exceeded, reference
-count, invoked-source count, unfilled-property count, pre-#496 marker count, paywalled-claim count,
+count, claim-record count, invoked-source count, unfilled-property count, pre-#496 marker count,
+paywalled-claim count,
 rendered-page verdict, and the recorded posted-reading verdict.
 Keep `board-<date>.md`, `posts/`, `bar.md`, `claims.md`, `post.md`, `differentiation.md`,
 `reread.md`, and `render/`, plus `voice-status.md` when present, together under the board-keyed run. Remove every
