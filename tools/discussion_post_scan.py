@@ -57,6 +57,9 @@ from discussion_artifact import (
     strip_discussion_markers,
 )
 import run_grader
+import aar_scan
+
+EXPECTED_COMPLETION_CHECKS = (aar_scan.EXPECTED_ROW,)
 import coursework_run
 from case_study_scan import EvidenceDisposition
 import docx_write
@@ -1080,24 +1083,28 @@ def grade(source: RunSource, _parsed: run_grader.Parsed) -> run_grader.Grade[Sca
     rendered_page_failed = any(
         finding.kind == RENDERED_PAGES for finding in scanned.findings
     )
+    aar_failed, aar_report = aar_scan.completion_gate(
+        source.path, _parsed.value("--submission")
+    )
     return run_grader.Grade(
         scan=scanned,
         source=str(source.path),
-        findings_failed=bool(scanned.findings)
-        and (scanned.reference_boundary_graded or rendered_page_failed),
+        findings_failed=(bool(scanned.findings)
+        and (scanned.reference_boundary_graded or rendered_page_failed)) or aar_failed,
         coverage_failed=not scanned.reference_boundary_graded,
         diagnostics=(
             (f"refused reference label in {source.draft.name}: {source.refused_label}",)
             if source.refused_label is not None
             else ()
         ),
+        reports=(aar_report,),
     )
 
 
 GRADER = run_grader.Grader(
     usage=(
         "usage: discussion_post_scan.py <run directory> --draft <Markdown file> "
-        "[--docx <Word file>] [--show]"
+        "[--docx <Word file>] [--show] [--submission <key>]"
     ),
     load=load,
     grade=grade,
@@ -1106,6 +1113,7 @@ GRADER = run_grader.Grader(
         run_grader.Option("--draft", takes_value=True, missing_value="--draft needs a Markdown file", repeatable=False),
         run_grader.Option("--docx", takes_value=True, missing_value="--docx needs a Word file", repeatable=False),
         run_grader.Option("--show", repeatable=False),
+        run_grader.Option("--submission", takes_value=True, missing_value="--submission needs a key", repeatable=False),
     ),
     allow_extra_positionals=False,
 )

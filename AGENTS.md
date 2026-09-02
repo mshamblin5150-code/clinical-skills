@@ -15,6 +15,7 @@ Agent-agnostic skills for a nurse practitioner student's written work — clinic
 | practicum-case-study | [skills/practicum-case-study/SKILL.md](skills/practicum-case-study/SKILL.md) | A graded course case study needs writing up from faculty material, and submitting as a `.docx` |
 | discussion-post | [skills/discussion-post/SKILL.md](skills/discussion-post/SKILL.md) | One live LMS board needs a researched, evidence-backed initial post, except when its prompt asks for a worked clinical case |
 | discussion-reply | [skills/discussion-reply/SKILL.md](skills/discussion-reply/SKILL.md) | One live LMS discussion topic needs ranking, evidence-backed classmate replies, and explicit approval before each post |
+| aar | [skills/aar/SKILL.md](skills/aar/SKILL.md) | A scoped clinical skill has reached a submission and its mandatory after-action review must classify and land observed corrections |
 
 <!-- Additional skills are appended here as they are written. -->
 

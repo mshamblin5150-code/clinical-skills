@@ -234,3 +234,11 @@ What stays out, and this is the whole point of the step:
 **Write it into `output/notes/`.** Standing rule 1: `output/` is the gitignored home for finished work, as `scratch/` is for working material, and `.gitignore` excludes both along with `*.docx`. Name it by date; a filename is text like any other and carries no patient name and no Patient Reference.
 
 Completion: every confirmed encounter from step 4 appears in the document exactly once, and no tier block, Medatrax block, schedule row or summary line appears in it at all.
+
+**Then invoke `/AAR`; the shift is not complete without it.** Use `shift-<date>` as the submission key and this shift's run directory. After `/AAR` exits clean, rerun the completion grader with its expected review row enabled:
+
+```bash
+python tools/filled_vitals_census.py <the run directory> --submission shift-<date>
+```
+
+An exit of 0 must include `the after-action review: clean`. An absent or malformed review is a finding, not an optional reflection.

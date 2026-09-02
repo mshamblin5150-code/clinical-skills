@@ -392,9 +392,11 @@ artifact. Rerun `discussion_post_scan.py` with the same `--draft` and `--docx`; 
 Then walk `discussion_post_scan.NOT_REACHED`, whose posted-reading row declares that reply records
 belong to the sibling grader.
 
+Now invoke `/AAR` with the output Markdown stem as the submission key. After it exits clean, rerun the same grader one final time with `--submission <output-Markdown-stem>`. Its report must include `the after-action review: clean`; the earlier pre-post and rendered passes deliberately report that row as not graded.
+
 ## Completion
 
-Report the board key, signed-bar date, research-ledger exit, reference-scan exit,
+Do not report completion until the final `discussion_post_scan.py ... --submission <output-Markdown-stem>` exits 0. Report the board key, signed-bar date, research-ledger exit, reference-scan exit,
 discussion-post-scan exit, body word count, stated ceiling and whether it was exceeded, reference
 count, claim-record count, invoked-source count, unfilled-property count, pre-#496 marker count,
 paywalled-claim count,

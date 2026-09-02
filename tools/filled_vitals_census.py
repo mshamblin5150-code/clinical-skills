@@ -1,6 +1,6 @@
 """Measure which values a run of ``clinical-note`` chose for its filled vitals.
 
-    python tools/filled_vitals_census.py <directory of finished notes> [--show]
+    python tools/filled_vitals_census.py <directory of finished notes> [--show] [--submission <key>]
 
 ``fixtures/day-b`` B1 forces a filled vital to exist and B3 forces an abnormal one
 to be worked up. Neither asks **which value was chosen**, which is the license's
@@ -170,6 +170,9 @@ from pathlib import Path
 
 from console_codec import use_utf8
 from corpus_census import Reading, is_normal_bp
+import aar_scan
+
+EXPECTED_COMPLETION_CHECKS = (aar_scan.EXPECTED_ROW,)
 
 # A tier key at column 0 opens the block; the next key at column 0 closes it.
 # The separator between FILLED and asserted is the middle dot in every note this
@@ -662,7 +665,20 @@ def read_notes(directory: Path) -> list[str]:
 
 def main(argv: list[str]) -> int:
     """``argv`` is the argument list without the program name."""
-    args = [a for a in argv if not a.startswith("--")]
+    args: list[str] = []
+    submission: str | None = None
+    index = 0
+    while index < len(argv):
+        if argv[index] == "--submission":
+            if index + 1 >= len(argv):
+                print("--submission needs a key", file=sys.stderr)
+                return 2
+            submission = argv[index + 1]
+            index += 2
+            continue
+        if not argv[index].startswith("--"):
+            args.append(argv[index])
+        index += 1
     show = "--show" in argv
     if not args:
         print("usage: filled_vitals_census.py <directory> [--show]", file=sys.stderr)
@@ -679,6 +695,8 @@ def main(argv: list[str]) -> int:
         return 2
     census = survey(notes)
     print(format_report(census, source=directory.name, show=show))
+    aar_failed, aar_report = aar_scan.completion_gate(directory, submission)
+    print(aar_report)
 
     findings = []
     if census.repeated_bodies:
@@ -709,7 +727,7 @@ def main(argv: list[str]) -> int:
         if census.asserted_keys_unread
         else ""
     )
-    if findings:
+    if findings or aar_failed:
         # 1 outranks 2 deliberately: returning 2 where something was graded and
         # failed would file the strongest thing known about the run under the
         # heading that means nothing was measured.
@@ -718,7 +736,7 @@ def main(argv: list[str]) -> int:
         # ordering: a count printed ahead of its caveat is read as the verdict,
         # and every finding below is a count.
         print(
-            "\n" + unread + "\n".join(findings) + "\nRe-run with --show to see"
+            "\n" + unread + "\n".join(findings) + ("\n" if findings else "") + "Re-run with --show to see"
             " which values, and do not paste that output.",
             file=sys.stderr,
         )

@@ -45,6 +45,9 @@ from discussion_artifact import (
     strip_discussion_markers,
 )
 import run_grader
+import aar_scan
+
+EXPECTED_COMPLETION_CHECKS = (aar_scan.EXPECTED_ROW,)
 from case_study_scan import EvidenceDisposition
 
 
@@ -688,21 +691,35 @@ def grade(source: RunSource, _parsed: run_grader.Parsed) -> run_grader.Grade[Sca
         for reply in source.replies
         if reply.refused_label is not None
     )
+    submission = _parsed.value("--submission")
+    submissions = tuple(value.strip() for value in submission.split(",") if value.strip()) if submission else ()
+    if submissions:
+        aar_finding = aar_scan.completion_finding(source.path, submissions)
+        aar_failed = aar_finding is not None
+        aar_report = f"{aar_scan.EXPECTED_ROW}: " + (
+            f"finding - {aar_finding}" if aar_finding else "clean"
+        )
+    else:
+        aar_failed, aar_report = aar_scan.completion_gate(source.path, None)
     return run_grader.Grade(
         scan=scanned,
         source=str(source.path),
-        findings_failed=bool(scanned.findings) and scanned.reference_boundary_graded,
+        findings_failed=(bool(scanned.findings) and scanned.reference_boundary_graded) or aar_failed,
         coverage_failed=not scanned.reference_boundary_graded,
         diagnostics=refused,
+        reports=(aar_report,),
     )
 
 
 GRADER = run_grader.Grader(
-    usage="usage: discussion_reply_scan.py <run directory> [--show]",
+    usage="usage: discussion_reply_scan.py <run directory> [--show] [--submission <key[,key]>]",
     load=load,
     grade=grade,
     format_report=format_report,
-    options=(run_grader.Option("--show", repeatable=False),),
+    options=(
+        run_grader.Option("--show", repeatable=False),
+        run_grader.Option("--submission", takes_value=True, missing_value="--submission needs a key", repeatable=False),
+    ),
     allow_extra_positionals=False,
 )
 

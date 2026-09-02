@@ -83,6 +83,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import run_grader
+import aar_scan
+
+EXPECTED_COMPLETION_CHECKS = (aar_scan.EXPECTED_ROW,)
 from icd10_lookup import CATEGORY_LENGTH, describe, normalize, notes_for, open_database
 
 # ``ICD-10  M19.90  Unspecified osteoarthritis, unspecified site``. The trailing
@@ -728,20 +731,23 @@ def _grade(
         )
     if second_gate and second_gate.uncovered:
         coverage_failed = True
+    aar_failed, aar_report = aar_scan.completion_gate(
+        source.directory, parsed.value("--submission")
+    )
     return run_grader.Grade(
         scan=scan,
         source=source.directory.name,
-        findings_failed=findings_failed,
+        findings_failed=findings_failed or aar_failed,
         coverage_failed=coverage_failed,
         diagnostics=tuple(diagnostics),
-        reports=tuple(reports),
+        reports=tuple(reports) + (aar_report,),
     )
 
 
 GRADER = run_grader.Grader(
     usage=(
         "usage: specificity_scan.py <a run directory> "
-        "[--show | --brief | --second-read <record.json>]"
+        "[--show | --brief | --second-read <record.json>] [--submission <key>]"
     ),
     options=(
         run_grader.Option("--show"),
@@ -752,6 +758,7 @@ GRADER = run_grader.Grader(
             missing_value="--second-read needs a JSON path",
             repeatable=False,
         ),
+        run_grader.Option("--submission", takes_value=True, missing_value="--submission needs a key", repeatable=False),
     ),
     load=_load,
     grade=_grade,
