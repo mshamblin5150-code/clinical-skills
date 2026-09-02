@@ -78,7 +78,11 @@ DECLARED_CANDIDATES = (
     Candidate(
         "Publish",
         Verdict.NARROWING,
-        "A Publish route is one command form that performs a publish.",
+        "A Publish route is one command form that performs a publish. Ruled again "
+        "2026-09-01: the reason held only after Publish was widened to cover a "
+        "tracker record, which the entry had previously excluded outright, so a "
+        "Publish route did not perform a publish and the narrowing was between two "
+        "senses that denied each other.",
     ),
     Candidate(
         "Corpus",

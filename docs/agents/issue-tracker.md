@@ -254,6 +254,8 @@ python tools/tracker_freshness.py
 
 The command exits **0** for `FRESH`, **1** for `STALE` — `HEAD` does not contain the fetched `origin/main` — and **2** for `DID NOT CHECK`, which is every way of reaching no verdict about the base at all: a failed fetch, an unrunnable `git`, or an ancestry question git declines to answer. It does not merge or rebase. Bring the branch forward, resolve any conflicts, rerun the work's checks, and repeat the gate until it reports `FRESH`.
 
+The complete coverage boundary belongs to `tracker_freshness.NOT_REACHED`; this section points to the object and copies none of its rows. Read that tuple before publishing tracker-derived conclusions: it also names the aggregate class that record-level readback cannot reach.
+
 **Read 1 and 2 differently.** A 1 is the gate working: the base is behind and you know it. A 2 is the gate having established nothing, so anything you were about to publish rests on an unmeasured base — treat it exactly as you would a stale one, and do not read it as permission to proceed with a banner. Both non-zero limbs were 2 until [#744](https://github.com/mshamblin5150-code/clinical-skills/issues/744).
 
 **Immediately before posting** a sweep finding, run it again:

@@ -273,7 +273,7 @@ A domain the writer reaches outside the immediate subject for -- a mechanism, a 
 _Avoid_: metaphor, figure, imagery, amplification, craft metaphor
 
 **Publish**:
-Writing a build-derived artifact to a path inside a git checkout, as against writing one outside every checkout. Only a publish can reach a commit, so it is the step a trust rule attaches to; writing the same bytes elsewhere is not one.
+Writing bytes to a durable place other people read — a path inside a git checkout, or a tracker record. It is the irreversible step a gate attaches to, which is why the trust rules on build artifacts and the PHI and branch-scope rules on tracker text both attach here and nowhere else; writing the same bytes to a build directory outside every checkout is not one, because nothing there reaches a reader. The two destinations are not equally retractable and the difference is not cosmetic: a checkout path can be rewritten before the commit that carries it, while a tracker publication cannot be withdrawn at all, since GitHub retains a pre-edit revision the API exposes no way to read or delete. This entry read *a path inside a git checkout* alone until 2026-09-01, which made **Publish route** — one command form that puts text on the tracker — a compound whose head term excluded it.
 _Avoid_: write, output, emit, save
 
 **Trust floor**:
@@ -633,12 +633,16 @@ _Avoid_: readback, snapshot, diff, staleness check
 The map's unit of work: the tickets built together on one branch, carrying one outcome. A packet is not a ticket — a ruling may combine two tickets into one packet or leave a ticket in none — so the count of packets and the count of open tickets answer different questions.
 _Avoid_: task, item, issue, ticket, story
 
+**Collision group**:
+A named set of packets that touch the same file, carrying one of two obligations, which are different enough that one name for both misleads. A **sequence** group's packets are ordered and violating that order destroys work — a rebuild lands against a state its predecessor has not established yet. An **exclusion** group's packets carry no order at all and must simply not be in flight together; whoever merges second re-runs the first's tests. A group whose kind nobody has ruled is **unclassified** and is treated as a sequence, because the two errors are not symmetric: reading an exclusion as ordered costs a delay, and reading a sequence as unordered costs the destroyed rebuild the groups exist to prevent. Membership is many-to-many rather than chain-shaped — a packet sits in as many groups as it has shared files — which is why a drawing cannot say which constraint a link belongs to and the map renders these as a table. An exclusion group's members are emitted sorted, since the field is a list and would otherwise keep looking ordered. Distinct from a **hard blocker**, which is semantic and holds whatever files the packets touch.
+_Avoid_: collision, chain, conflict group, file lock, serialization
+
 **Ready ticket**:
 An open ticket carrying `ready-for-agent`: a promise that an unattended agent can build it without guessing. A claim about the **specification**, made by whoever respec'd it, and revocable — a ticket relabeled `grilling` stops being one. Distinct from a **startable packet**, which is a claim about sequencing and never reads this label.
 _Avoid_: ready, startable, claimable, unblocked
 
 **Startable packet**:
-A packet with no open hard blocker, no uncleared gate, no unmet rebuild-saving predecessor and nothing in flight. A claim about **sequencing**, derived on every read and never stored. Orthogonal to readiness in both directions: a packet of ready tickets can be unstartable, and a startable packet can hold a ticket that has stopped being ready — which is a defect rather than an edge case, so the map derives readiness separately and refuses the disagreement at its claim, check and frontier surfaces.
+A packet with no open hard blocker, no uncleared gate, no unmet rebuild-saving predecessor, no unmet sequence predecessor in any **collision group** it belongs to, and nothing in flight. An exclusion peer never bears on it: that is a claim about concurrency rather than about sequencing, and folding it in would refuse work that is genuinely startable. A claim about **sequencing**, derived on every read and never stored. Orthogonal to readiness in both directions: a packet of ready tickets can be unstartable, and a startable packet can hold a ticket that has stopped being ready — which is a defect rather than an edge case, so the map derives readiness separately and refuses the disagreement at its claim, check and frontier surfaces.
 _Avoid_: ready, available, open, next
 
 **Reconciliation**:

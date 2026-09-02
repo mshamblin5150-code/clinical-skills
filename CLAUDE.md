@@ -1082,8 +1082,9 @@ publishes no tracker comment.
 `tools/tracker_freshness.py` fetches `origin/main` without trusting a cached
 remote-tracking reference, then asks whether the current `HEAD` contains the
 fetched commit. The complete workflow contract remains in
-`docs/agents/issue-tracker.md`, and #728 owns the still-open question of this
-gate's coverage boundary.
+`docs/agents/issue-tracker.md`. The complete coverage boundary belongs to
+`tracker_freshness.NOT_REACHED`; this section points to the object and copies
+none of its rows.
 
 **Exit status distinguishes not having checked from having checked and found
 nothing wrong**, on the convention every graded command here states — 0
