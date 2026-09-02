@@ -105,9 +105,9 @@ list would otherwise be found by neither.
 
 *Legal reference entries, section 8:*
 
-- **A federal-regulation entry carries the regulation name.** A section alone is
+- **A legal entry carries the legal source name.** A section alone is
   reported as a malformed entry.
-- **A legal entry resolves on its C.F.R. section, with or without a citation year.**
+- **A legal entry resolves on its Source and section, with or without a citation year.**
   It is outside ``uncited-entry`` because the canonical narrative name needs a
   whole-phrase key this module does not have.
 
@@ -241,7 +241,12 @@ from datetime import date
 from pathlib import Path
 
 import run_grader
-from discussion_artifact import LEGAL_CITATION, legal_reference_lacks_name
+from discussion_artifact import (
+    LEGAL_CITATION,
+    LEGAL_SOURCE_VOCABULARY,
+    legal_citation_spans,
+    legal_reference_lacks_name,
+)
 from docx_write import REFERENCE_HEADING as RENDERER_HEADING
 from docx_write import blocks as renderer_blocks
 
@@ -691,9 +696,14 @@ def year_key(token: str) -> str:
 
 
 def _legal_section_text(match: re.Match[str]) -> str:
-    """The C.F.R. locator captured by the shared legal-citation grammar."""
+    """The locator captured by the shared legal-citation grammar."""
 
-    return match.group("parenthesized_author") or match.group("author") or ""
+    return (
+        match.group("parenthesized_author")
+        or match.group("continued_author")
+        or match.group("author")
+        or ""
+    )
 
 
 def citation_key(author: str) -> str:
@@ -962,6 +972,7 @@ def read_citations(body: str) -> tuple[Citation, ...]:
     row reports one finding rather than nine.
     """
     seen: dict[tuple[str, str], Citation] = {}
+    legal_spans = legal_citation_spans(body)
 
     def add(author: str, token: str) -> None:
         key = citation_key(author)
@@ -971,27 +982,56 @@ def read_citations(body: str) -> tuple[Citation, ...]:
         seen.setdefault(pair, Citation(key=pair[0], year=pair[1]))
 
     for match in LEGAL_CITATION.finditer(body):
-        token = match.group("parenthesized_year") or match.group("year") or ""
+        token = (
+            match.group("parenthesized_year")
+            or match.group("continued_year")
+            or match.group("year")
+            or ""
+        )
         pair = (normalize(_legal_section_text(match)), year_key(token))
         seen.setdefault(pair, Citation(key=pair[0], year=pair[1]))
 
     for block in PAREN_BLOCK.finditer(body):
+        if any(
+            start <= block.start() and block.end() <= end
+            for start, end in legal_spans
+        ):
+            continue
         # One set of parentheses, several works. Splitting first is what makes the
         # second work in ``(A, 2025; B, 2021)`` visible at all.
+        offset = block.start(1)
+        cursor = 0
         for part in block.group(1).split(";"):
-            match = CITATION_PART.match(part)
+            leading = len(part) - len(part.lstrip())
+            stripped = part.strip()
+            start = offset + cursor + leading
+            end = start + len(stripped)
+            if any(
+                start < legal_end and legal_start < end
+                for legal_start, legal_end in legal_spans
+            ):
+                cursor += len(part) + 1
+                continue
+            match = CITATION_PART.match(stripped)
             if not match:
+                cursor += len(part) + 1
                 continue
             author = match.group(1)
             add(author, match.group(2))
-            rest = part[match.end() :]
+            rest = stripped[match.end() :]
             while True:
                 extra = EXTRA_YEAR.match(rest)
                 if not extra:
                     break
                 add(author, extra.group(1))
                 rest = rest[extra.end() :]
+            cursor += len(part) + 1
     for match in NARRATIVE.finditer(body):
+        if any(
+            start <= match.start() and match.end() <= end
+            for start, end in legal_spans
+        ):
+            continue
         add(match.group(1), match.group(2))
     return tuple(seen.values())
 
@@ -1276,6 +1316,16 @@ def survey(document: Document, as_of: date | None) -> Scan:
     )
 
 
+def legal_source_vocabulary_covered() -> str:
+    """State the closed mixed-case Source vocabulary this reader holds."""
+
+    return (
+        "legal Source vocabulary: closed at "
+        f"{len(LEGAL_SOURCE_VOCABULARY)} listed mixed-case forms; "
+        "title-number uppercase codes are read by shape."
+    )
+
+
 def format_report(scan: Scan, source: str, show: bool = False) -> str:
     """The report, as one string. Carries no entry text unless ``show``."""
     # Plain ASCII throughout, on ``icd10_lookup.py``'s reasoning: this prints to a
@@ -1303,6 +1353,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         f"  {'undecidable remainder':<34} {scan.undecidable_remainder}",
         "",
         "  A legal entry is outside uncited-entry.",
+        f"  {legal_source_vocabulary_covered()}",
         "",
     ]
     for kind, count in scan.counts:

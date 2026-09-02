@@ -26,6 +26,7 @@ import io
 import re
 import tempfile
 import unittest
+from unittest import mock
 from contextlib import redirect_stderr, redirect_stdout
 from datetime import date
 from pathlib import Path
@@ -34,6 +35,7 @@ import ast
 
 import checks_ledger
 import docx_write
+import discussion_artifact as artifact
 import research_ledger
 import reference_scan as scan
 from grader_conformance import for_module
@@ -451,6 +453,16 @@ class LegalEntriesResolveBySectionOrAreExplicitlyExcluded(unittest.TestCase):
         self.assertIn("legal-reference-lacks-name", kinds(draft(NAMELESS_LEGAL, body="# Case\n")))
         self.assertNotIn("legal-reference-lacks-name", kinds(draft(NAMED_LEGAL, body="# Case\n")))
 
+    def test_only_a_section_only_state_entry_fires_the_entry_row(self):
+        section_only = "W. Va. Code § 30-7-15b (2016)."
+        named = (
+            "Eligibility for prescriptive authority, "
+            "W. Va. Code § 30-7-15b (2016)."
+        )
+
+        self.assertIn(scan.LEGAL_REFERENCE_LACKS_NAME, kinds(draft(section_only, body="# Case\n")))
+        self.assertNotIn(scan.LEGAL_REFERENCE_LACKS_NAME, kinds(draft(named, body="# Case\n")))
+
     def test_the_nameless_entry_row_does_not_join_the_body_rows(self):
         self.assertNotIn("legal-reference-lacks-name", scan.BODY_ROWS)
 
@@ -507,6 +519,17 @@ class TheCitationParserReadsTheShapesAPAActuallyWrites(unittest.TestCase):
     def test_a_parenthesis_that_is_not_a_citation_yields_nothing(self):
         self.assertEqual(self._keys("The cohort (n = 40) was small (see Table 1)."), set())
 
+    def test_a_legal_span_is_read_once_without_hiding_an_ordinary_parenthetical(self):
+        for inside in (
+            "W. Va. Code § 60A-9-5a, 2021; Smith, 2020",
+            "Smith, 2020; W. Va. Code § 60A-9-5a, 2021",
+        ):
+            with self.subTest(inside=inside):
+                self.assertEqual(
+                    self._keys(f"The rule applies ({inside})."),
+                    {("w va code 60a 9 5a", "2021"), ("smith", "2020")},
+                )
+
     def test_a_signal_phrase_does_not_become_the_author(self):
         """``(e.g., Hooton, 2024)`` alphabetizes under ``e`` without this, and the
         unlisted-citation row fires on a compliant draft."""
@@ -552,6 +575,14 @@ class TheReportCarriesNoDocumentTextWithoutShow(unittest.TestCase):
         self.assertIn("legal entries", report)
         self.assertIn("legal entries                  0", report)
         self.assertIn("A legal entry is outside uncited-entry.", report)
+
+    def test_the_closed_legal_source_vocabulary_prints_on_every_run(self):
+        report = scan.format_report(self.scan, source="case.md")
+        self.assertIn(scan.legal_source_vocabulary_covered(), report)
+
+        widened = (*scan.LEGAL_SOURCE_VOCABULARY, "Example Code")
+        with mock.patch.object(scan, "LEGAL_SOURCE_VOCABULARY", widened):
+            self.assertIn(str(len(widened)), scan.legal_source_vocabulary_covered())
 
 
 class EntriesAtFaultCountsEntries(unittest.TestCase):
@@ -753,7 +784,7 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
         scan.UPTODATE_ITALICS: "database name unitalicized",
         scan.INTEXT_YEAR_MISMATCH: "In-text year not matching the reference list year",
         scan.LEGAL_REFERENCE_LACKS_NAME: (
-            "A federal-regulation entry carrying only its C.F.R. section"
+            "A legal entry carrying only its section"
         ),
         scan.UNCITED_ENTRY: "An entry in the list that is cited nowhere in the body",
         scan.UNLISTED_CITATION: "A citation in the body with no entry in the list",
@@ -1315,15 +1346,19 @@ class LegalReferenceRulesArePublished(unittest.TestCase):
         self.assertIn("Nursing Student References", section)
         self.assertIn("2026-08-30", section)
 
-    def test_section_eight_carries_the_official_form_and_cfr_only_limit(self):
+    def test_section_eight_carries_the_official_form_and_code_owned_limit(self):
         section = self.section_eight()
         self.assertIn("Professional and Vocational Regulations, 16 CCR § 1481 (2023)", section)
         self.assertIn("Name of the Statute, Title number Source § Section number(s) (Year)", section)
-        self.assertIn("C.F.R.", section)
-        # #751: the limit is C.F.R.-only, not federal-only. A federal *statute*
-        # in the U.S.C. is as invisible to the reader as a state code, so the
-        # label must not say "federal" -- and this assertion used to require it.
-        self.assertNotIn("federal", section.lower())
+        self.assertIn("discussion_artifact.LEGAL_SOURCE_NOT_REACHED", section)
+
+    def test_section_eight_enumerates_no_copy_of_the_code_owned_limit(self):
+        section = self.section_eight()
+        self.assertTrue(artifact.LEGAL_SOURCE_NOT_REACHED)
+        for subject, reason in artifact.LEGAL_SOURCE_NOT_REACHED:
+            with self.subTest(subject=subject):
+                self.assertNotIn(subject, section)
+                self.assertNotIn(reason, section)
 
     def test_discussion_post_points_to_the_apa_sheet(self):
         self.assertIn(

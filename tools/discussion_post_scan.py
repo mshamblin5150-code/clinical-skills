@@ -34,6 +34,8 @@ from discussion_artifact import (
     CLAIM_REFERENCE,
     Citation,
     LEGAL_SECTION_NUMBER,
+    LEGAL_SOURCE,
+    LEGAL_SOURCE_VOCABULARY,
     NUMBER,
     INVOKED,
     InvokedSource,
@@ -84,7 +86,7 @@ ROWS = {
     BOLD_HEADINGS: "the rendered document carries no named heading style",
     RENDERED_COMMENTS: "the rendered document carries no HTML comment delimiter",
     RENDERED_PAGES: "every rendered pass has a complete page reading backed by kept pixels",
-    LEGAL_REFERENCE_NAME: "every legal reference entry names its regulation",
+    LEGAL_REFERENCE_NAME: "every legal reference entry names its legal source",
     MISSING_POSTED_READING: "a posted initial entry has a complete posted reading",
     UNKNOWN_VERDICT: "the posted reading uses a declared verdict",
     BARE_VERDICT: "the posted reading says what it found",
@@ -186,7 +188,7 @@ MARKDOWN_HEADING = re.compile(r"(?m)^\s*#{1,6}\s+.*$")
 # This stays looser than the citation reader: over-stripping a number is cheaper
 # than manufacturing a citation from ordinary prose such as ``§ 5``.
 STATUTE = re.compile(
-    r"(?i)(?:\b\d+\s+)?C\.\s*F\.\s*R\.\s*(?:§+|sections?\s+)?\s*"
+    r"(?i)" + LEGAL_SOURCE + r"\s*(?:§+|sections?\s+)?\s*"
     + LEGAL_SECTION_NUMBER
     + r"|§+\s*"
     + LEGAL_SECTION_NUMBER
@@ -880,7 +882,7 @@ def survey(source: RunSource) -> Scan:
                 Finding(
                     LEGAL_REFERENCE_NAME,
                     "claims.md",
-                    "legal claim record has a section but no regulation name",
+                    "legal claim record has a section but no legal source name",
                 )
             )
     if words < source.bar.word_floor:
@@ -981,6 +983,16 @@ def survey(source: RunSource) -> Scan:
     )
 
 
+def legal_source_vocabulary_covered() -> str:
+    """State the closed mixed-case Source vocabulary this reader holds."""
+
+    return (
+        "legal Source vocabulary: closed at "
+        f"{len(LEGAL_SOURCE_VOCABULARY)} listed mixed-case forms; "
+        "title-number uppercase codes are read by shape."
+    )
+
+
 def format_report(scan: Scan, source: str, show: bool = False) -> str:
     exceeded = (
         scan.reference_boundary_graded
@@ -1030,6 +1042,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
             if scan.docx_graded
             else f"{RENDERED_TEXT}: not graded"
         ),
+        legal_source_vocabulary_covered(),
         f"findings: {len(scan.findings)}",
     ]
     for kind in ROWS:

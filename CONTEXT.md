@@ -181,15 +181,15 @@ The narrowest source shape a reference entry's own signals support, declaring ev
 _Avoid_: source class, reference type, guessed class, citation kind
 
 **Legal reference entry**:
-A reference for a regulation. Its name is the name of the regulation and its section is the locator, so an entry carrying only a section names nothing and is not one.
-_Avoid_: statute reference, citation entry, regulation cite
+A reference for codified law, including a statute or regulation. Its name is the name of the legal source and its section is the locator, so an entry carrying only a section names nothing and is not one.
+_Avoid_: citation entry, code cite, regulation cite
 
 **Legal citation**:
-An in-text reference to a regulation, spelled with the regulation's name and year. The section is a locator and may stand in the same slot, but it is not what names the source.
-_Avoid_: statute citation, section reference
+An in-text reference to codified law, spelled with the legal source's name and year. The section is a locator and may stand in the same slot, but it is not what names the source.
+_Avoid_: code citation, section reference
 
 **Section number**:
-The locator inside a legal citation — the provision the regulation's name is being cited *at*. It is a whole identifier and never a number with decoration around it, so `1.501(c)(3)-1` and `1.501` name different provisions and the second is the broader one. **Its `section` is not the one in Section read**, which is a span of a guideline document being read for decision points; these are two senses of the word and neither term is a narrowing of the other.
+The locator inside a legal citation — the provision the legal source's name is being cited *at*. It is a whole identifier and never a number with decoration around it, so `1.501(c)(3)-1` and `1.501` name different provisions and the second is the broader one. **Its `section` is not the one in Section read**, which is a span of a guideline document being read for decision points; these are two senses of the word and neither term is a narrowing of the other.
 _Avoid_: section, cite number, paragraph number
 
 **Subsection suffix**:
@@ -356,7 +356,7 @@ The subject a threshold sheet is keyed to, such as hypertension. The unit a clin
 _Avoid_: condition, subject, area
 
 **Catalog topic**:
-The guideline catalog's `topic` cell — the subject *that document* states it is about, in the society's wording, one cell per document. It is the population every per-topic figure in this repo is counted over: the coverage registry's rows, the sweep's denominator, and the set a threshold-sheet draft is seeded from. It is **not** the clinical topic and does not group: a subject a clinician names once is routinely several cells, and most cells own exactly one document. The relation runs both ways and is not a hierarchy: a cell may name one condition inside another, so `blood pressure in chronic kidney disease` is a document of high blood pressure's and of chronic kidney disease's at once, and a cell belongs to as many clinical topics as its document addresses. An equivalence over cells therefore cannot hold the grouping — transitivity would merge every subject a shared cell touches — so if the grouping is ever authored it is named subjects listing their member cells ([#689](https://github.com/mshamblin5150-code/clinical-skills/issues/689)). **Nothing in this tree derives which cells are one clinical topic**, which is why no gate joins a sheet's sources to its own topic ([ADR 0064](docs/adr/0064-a-threshold-sheet-s-sources-are-not-joined-to-its-topic-because-the-catalog-cell-is-the-guideline-s-wording.md)) and why the only bridge between the two senses is a hand-kept alias table with one entry.
+The guideline catalog's `topic` cell — the subject *that document* states it is about, in the society's wording, one cell per document. It is the population every per-topic figure in this repo is counted over: the coverage registry's rows, the sweep's denominator, and the set a threshold-sheet draft is seeded from. It is **not** the clinical topic and does not group: a subject a clinician names once is routinely several cells, and most cells own exactly one document. The relation runs both ways and is not a hierarchy: a cell may name one condition inside another, so `blood pressure in chronic kidney disease` is a document of high blood pressure's and of chronic kidney disease's at once, and a cell belongs to as many clinical topics as its document addresses. An equivalence over cells therefore cannot hold the grouping — transitivity would merge every subject a shared cell touches — so the authored grouping is named subjects listing their member cells ([#689](https://github.com/mshamblin5150-code/clinical-skills/issues/689)). **Nothing in this tree derives which cells are one clinical topic**: `coverage.md`'s `subject` column records authored, refutable memberships and currently leaves every cell unruled as `?`. No gate joins a sheet's sources to its own topic ([ADR 0064](docs/adr/0064-a-threshold-sheet-s-sources-are-not-joined-to-its-topic-because-the-catalog-cell-is-the-guideline-s-wording.md)); the column is the clinical-subject bridge, while `artifact` is the separate one-way join from a sheet filename to its catalog topic.
 _Avoid_: topic — unqualified, that word means the clinical subject here; say which.
 
 **Recommendation record**:
@@ -585,6 +585,10 @@ _Avoid_: reference, link, mention, tag
 A ticket reference naming a precedent, a ruling or a defect shape, making no claim on that ticket. Most references in this repo's prose are citations, so their presence is not evidence that a merge meant to bind anything. Distinct from **Citation key**, **Legal citation**, and **Stated citation**, which are bibliographic rather than tracker references.
 _Avoid_: reference, mention, cross-reference
 
+**Citation set**:
+Every record one publication names, together with the record it is published to. It is derived from the publication's own text at the moment of publication, so no session has to have recorded what it read. Its members are counted wherever they sit — inside a fenced block, inside inline code, inside a blockquote — because the population feeds a readback that makes no claim, so an over-included member costs a line and an under-included one loses a finding in silence. A member that resolves to nothing is reported as unresolved and never dropped. Distinct from a **Citation**, which is one reference; this is the population a single publication depends on, and it is narrower than that dependence: a verdict that names no record belongs to no citation set and is reached by nothing.
+_Avoid_: references, mentions, cited tickets, dependencies
+
 **Closing hazard**:
 Text on a surface GitHub scans — a commit message, a pull request title or body — that its measured closing grammar would act on. Accidental by nature: the author was writing prose and the parser found an instruction. Distinct from a **binding**, which is deliberate and owns its line, and from a **citation**, which the grammar never reaches. The same bytes on a non-surface — an issue comment, a committed file — are not a hazard until they migrate.
 _Avoid_: binding, false positive, accidental close, match
@@ -616,6 +620,14 @@ _Avoid_: no body, empty, skipped, not scanned
 **Escape collapse**:
 A published body whose backslash escapes were interpreted by some stage of its **publish route** rather than preserved, so the text on the page is not the text its author wrote. One cause with several visible symptoms — a control character standing where `\b` or `\r` was written, a backtick replaced by a backslash, a literal `\n` where a line break belonged, a doubled path separator. Only the control-character symptom is recognizable without firing on correct text, because a Windows path and a doubled separator are both things an author legitimately writes, so a check named for the cause and a check that can be built are different widths. Distinct from an **unreadable body**, which a checker never obtained, and from a lost body, which never landed: this one landed and is wrong.
 _Avoid_: corruption, mojibake, encoding error, mangled, damage
+
+**Base freshness**:
+Whether a checkout's `HEAD` contains the freshly fetched default branch. It is a claim about commits and about no tracker record, so a publication can be current on it and stale in every fact it states — the two move independently, and a tracker record moves without a commit. Distinct from a **Record fingerprint**, which is the tracker half of the same moment: this one asserts a relationship and is a finding when it fails, and that one asserts nothing at all.
+_Avoid_: freshness, currency, up to date, staleness
+
+**Record fingerprint**:
+One record's state, labels, last-updated time and body length, read back at the moment a publication naming it goes out. It reports and never compares: it carries no baseline, so it says what is true now and never that anything moved — which is what keeps it honest where a sweep moves the very records it later cites. It says a record moved only in the sense that a reader can see it did; it never says what changed inside one, so a verdict about a body's content is sent to look rather than told it is wrong.
+_Avoid_: readback, snapshot, diff, staleness check
 
 **Packet**:
 The map's unit of work: the tickets built together on one branch, carrying one outcome. A packet is not a ticket — a ruling may combine two tickets into one packet or leave a ticket in none — so the count of packets and the count of open tickets answer different questions.

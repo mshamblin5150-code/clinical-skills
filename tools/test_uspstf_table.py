@@ -759,12 +759,12 @@ class ThresholdSheetJoinTests(unittest.TestCase):
 """
         coverage = """# Threshold-sheet coverage
 
-<!-- schema: threshold-coverage/2 -->
+<!-- schema: threshold-coverage/3 -->
 
-| topic | state | artifact | record |
-| --- | --- | --- | --- |
-| breast cancer screening | unread |  | full-document read pending |
-| cervical cancer screening | unread | cervical-cancer.md | partial artifact |
+| topic | subject | state | artifact | record |
+| --- | --- | --- | --- | --- |
+| breast cancer screening | ? | unread |  | full-document read pending |
+| cervical cancer screening | ? | unread | cervical-cancer.md | partial artifact |
 """
 
         self.assertEqual(
