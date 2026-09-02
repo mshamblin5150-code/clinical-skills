@@ -3595,7 +3595,7 @@ def main(argv: list[str]) -> int:
         sheets = [
             path
             for path in sheets
-            if path.name.lower() not in {"readme.md", "coverage.md"}
+            if path.name.lower() not in {"readme.md", "coverage.md", "subjects.md"}
         ]
         if not sheets:
             print(f"no sheet under {SHEET_ROOT}", file=sys.stderr)

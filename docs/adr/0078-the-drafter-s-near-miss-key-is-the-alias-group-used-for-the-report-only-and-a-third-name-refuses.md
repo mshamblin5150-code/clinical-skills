@@ -174,10 +174,10 @@ hypothetical into a refusal that names the ticket.
 
 ## Consequences
 
-`TOPIC_ALIASES` stays at one entry and is now load-bearing in two directions rather than one. The
-near-miss report reaches one clinical subject of 169 and says so on every run; the other 168 are as
-blind as they are today, and ruling 2's sentence is the only thing standing between that and a reader
-reading a short list as a checked topic join.
+`TOPIC_ALIASES` has been retired. `coverage.md`'s `artifact` column now supplies the one-way seed
+canonicalization, and its `subject` column supplies the report-only near-miss key. The bound derives
+its ruled-cell numerator from that column and states when the drafted topic remains `?`, so an empty
+list cannot read as a checked negative while the subject is unruled.
 
 **Rulings 3 and 5 are both pinned against shapes the tree does not contain**, because at one alias
 entry and this catalog neither fork is observable. Those two tests are the whole of what keeps the
@@ -206,3 +206,5 @@ it awkward.
 **Reading the widened report as coverage.** ADR 0064's Consequences stand: nothing in this repo
 derives which catalog cells are one clinical topic, and widening a string match to a second authored
 name changes that for one subject and for nothing else.
+
+*(Corrected in place 2026-09-01, on [ADR 0016](0016-an-adr-number-is-claimed-when-it-is-handed-out-and-a-ratified-records-facts-may-be-corrected-in-place.md)'s terms. The Consequences originally said `TOPIC_ALIASES` stayed at one entry and was load-bearing in two directions. ADR 0102 and #689 superseded rulings 1, 2, and 5: `artifact` now owns the seed join, `subject` owns the report key, and the third-name refusal retired with the dict. Rulings 3, 4, and 6 stand.)*

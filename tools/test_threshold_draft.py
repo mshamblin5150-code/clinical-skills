@@ -3,20 +3,18 @@
 from __future__ import annotations
 
 import hashlib
-import io
 import json
 import subprocess
 import sys
 import tempfile
 import unittest
-from contextlib import redirect_stderr
 from pathlib import Path
-from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import threshold_sheet  # noqa: E402
 import threshold_draft as draft  # noqa: E402
+import threshold_coverage  # noqa: E402
 import guidelines_recs  # noqa: E402
 from guidelines_recs_test_support import trust_recommendation_record  # noqa: E402
 from guidelines_manifest_test_support import (  # noqa: E402
@@ -38,6 +36,38 @@ def catalog_row(
         "| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n"
         f"| AHA ACC | guideline.pdf | Guideline title | {topic} | adult | 2025 | 12 | guideline | {citation} |\n"
     )
+
+
+def coverage_row(
+    topic: str = "high blood pressure",
+    subject: str = "?",
+    artifact: str = "hypertension.md",
+) -> str:
+    return f"""# Threshold-sheet coverage
+
+<!-- schema: threshold-coverage/3 -->
+
+| topic | subject | state | artifact | record |
+| --- | --- | --- | --- | --- |
+| {topic} | {subject} | unread | {artifact} | pending |
+"""
+
+
+def registry_entries(*rows: tuple[str, str, str]) -> list[threshold_coverage.Entry]:
+    text = """# Threshold-sheet coverage
+
+<!-- schema: threshold-coverage/3 -->
+
+| topic | subject | state | artifact | record |
+| --- | --- | --- | --- | --- |
+""" + "".join(
+        f"| {topic} | {subject} | unread | {artifact} | pending |\n"
+        for topic, subject, artifact in rows
+    )
+    entries, problems = threshold_coverage.parse_registry(text)
+    if problems:
+        raise AssertionError(problems)
+    return entries
 
 
 def recommendation_record() -> dict:
@@ -113,12 +143,14 @@ class ThresholdDraftCli(unittest.TestCase):
         catalog_citation: str = "10.1000/example",
     ) -> subprocess.CompletedProcess[str]:
         catalog = root / "catalog.md"
+        coverage = root / "coverage.md"
         recs = root / "recs"
         sheets = root / "sheets"
         text_root = root / "text"
         catalog.write_text(
             catalog_row(citation=catalog_citation), encoding="utf-8"
         )
+        coverage.write_text(coverage_row(), encoding="utf-8")
         recs.mkdir()
         sheets.mkdir(exist_ok=True)
         text_root.mkdir()
@@ -146,6 +178,8 @@ class ThresholdDraftCli(unittest.TestCase):
                 "hypertension",
                 "--catalog",
                 str(catalog),
+                "--coverage",
+                str(coverage),
                 "--recs-root",
                 str(recs),
                 "--recs-alias",
@@ -334,16 +368,27 @@ class ThresholdDraftCli(unittest.TestCase):
 
             resolutions = [
                 draft.resolve_sources(
-                    topic, catalog, recs, None, root / "recs-alias"
+                    topic,
+                    catalog,
+                    recs,
+                    None,
+                    root / "recs-alias",
+                    registry_entries(
+                        ("high blood pressure", "high blood pressure", "hypertension.md"),
+                        ("hypertension", "high blood pressure", "synthetic.md"),
+                        ("hypertension screening", "?", "adults.md"),
+                        ("high blood pressure screening", "?", "children.md"),
+                    ),
                 )
                 for topic in ("hypertension", "high blood pressure")
             ]
 
-        for sources, rejected, errors, named_subjects, topic_count in resolutions:
+        for sources, rejected, errors, ruled_cells, topic_count, subject_ruled in resolutions:
             self.assertEqual(sources, [])
             self.assertIn("AHA ACC/guideline.pdf", "\n".join(errors))
-            self.assertEqual(named_subjects, 1)
+            self.assertEqual(ruled_cells, 2)
             self.assertEqual(topic_count, 4)
+            self.assertTrue(subject_ruled)
             self.assertEqual(
                 {line.split(":", 1)[0] for line in rejected},
                 {
@@ -375,50 +420,39 @@ class ThresholdDraftCli(unittest.TestCase):
             seeded = threshold_sheet.parse(seed_text, root / "seed.md")
             self.assertTrue(seeded.ok, seeded.why_not)
 
-            _, rejected, _, _, _ = draft.resolve_sources(
-                "high blood pressure", catalog, recs, seeded, root / "recs-alias"
+            _, rejected, _, _, _, _ = draft.resolve_sources(
+                "high blood pressure",
+                catalog,
+                recs,
+                seeded,
+                root / "recs-alias",
+                registry_entries(
+                    ("high blood pressure", "high blood pressure", "hypertension.md"),
+                    ("hypertension screening", "?", "adults.md"),
+                    ("high blood pressure screening", "?", "children.md"),
+                ),
             )
 
         report = "\n".join(rejected)
         self.assertNotIn("USPSTF/adults.pdf", report)
         self.assertIn("USPSTF/children.pdf", report)
 
-    def test_a_third_alias_name_refuses_the_cli_and_names_the_grouping_ticket(self):
+    def test_an_unreadable_registry_refuses_with_the_auditor_remedy(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            catalog = root / "catalog.md"
-            catalog.write_text(catalog_row(), encoding="utf-8")
-            error_output = io.StringIO()
-            with (
-                mock.patch.object(
-                    draft,
-                    "TOPIC_ALIASES",
-                    {
-                        "hypertension": "high blood pressure",
-                        "high blood pressure": "elevated blood pressure",
-                    },
-                ),
-                redirect_stderr(error_output),
-            ):
-                status = draft.main(
-                    [
-                        "hypertension",
-                        "--catalog",
-                        str(catalog),
-                        "--recs-root",
-                        str(root / "recs"),
-                        "--recs-alias",
-                        str(root / "recs-alias"),
-                        "--sheet-root",
-                        str(root / "sheets"),
-                        "--text-root",
-                        str(root / "text"),
-                    ]
-                )
+            result = self.run_cli(root, "--coverage", str(root / "missing.md"))
 
-        self.assertEqual(status, 2)
-        self.assertIn("third alias name", error_output.getvalue())
-        self.assertIn("#689", error_output.getvalue())
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("threshold coverage registry", result.stderr)
+        self.assertIn("python tools/threshold_coverage.py", result.stderr)
+        self.assertNotIn("no catalog row has topic", result.stderr)
+
+    def test_an_unruled_subject_is_stated_in_the_existing_bound_sentence(self):
+        with tempfile.TemporaryDirectory() as directory:
+            result = self.run_cli(Path(directory))
+
+        self.assertIn("subject for 'high blood pressure' is unruled", result.stdout)
+        self.assertIn("0 of the catalog's 1 topics has a subject ruling", result.stdout)
 
     def test_the_sweep_alias_wins_and_the_draft_reports_that_root(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -503,8 +537,12 @@ class ThresholdDraftCli(unittest.TestCase):
         self.assertNotIn("A drafted bound sheet intentionally fails structure", result.stdout)
         self.assertIn("## Rejected candidates", result.stdout)
         bound = draft.NEARBY_REPORT_BOUND.format(
-            named_subject_count=1,
+            ruled_cell_count=0,
             catalog_topic_count=1,
+            subject_status=(
+                "The subject for 'high blood pressure' is unruled (`?`), so an "
+                "empty list does not mean nothing further to consider."
+            ),
         )
         rejected_section = result.stdout.split("## Rejected candidates", 1)[1]
         self.assertIn(bound, rejected_section)

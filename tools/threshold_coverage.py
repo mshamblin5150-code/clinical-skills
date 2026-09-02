@@ -18,13 +18,14 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_CATALOG = REPO_ROOT / "reference" / "guidelines-catalog.md"
 DEFAULT_COVERAGE = REPO_ROOT / "reference" / "thresholds" / "coverage.md"
 DEFAULT_SHEET_ROOT = REPO_ROOT / "reference" / "thresholds"
-SCHEMA_MARKER = "<!-- schema: threshold-coverage/2 -->"
+SCHEMA_MARKER = "<!-- schema: threshold-coverage/3 -->"
 STATES = ("sheet", "none", "non-source", "unread")
 
 
 @dataclass(frozen=True)
 class Entry:
     topic: str
+    subject: str
     state: str
     artifact: str
     record: str
@@ -34,6 +35,30 @@ class Entry:
 def catalog_topics(rows: list[guidelines_catalog.Row]) -> list[str]:
     topics = sorted({" ".join(row.topic.split()) for row in rows}, key=str.casefold)
     return topics
+
+
+def parse_subject_cell(value: str, topics: list[str]) -> tuple[str, ...] | None:
+    """Segment one subject cell against catalog strings, including comma-bearing topics."""
+    if value == "?":
+        return ()
+    normalized = {" ".join(topic.split()).casefold(): topic for topic in topics}
+    ordered = sorted(normalized, key=len, reverse=True)
+    subject = " ".join(value.split())
+
+    def walk(remaining: str) -> tuple[str, ...] | None:
+        key = remaining.casefold()
+        if key in normalized:
+            return (normalized[key],)
+        for topic_key in ordered:
+            separator = topic_key + ", "
+            if not key.startswith(separator):
+                continue
+            tail = walk(remaining[len(separator) :])
+            if tail is not None:
+                return (normalized[topic_key], *tail)
+        return None
+
+    return walk(subject) if subject else None
 
 
 def render_source_class_topics(
@@ -61,7 +86,7 @@ def parse_registry(text: str) -> tuple[list[Entry], list[str]]:
     in_table = False
     for number, line in enumerate(text.splitlines(), start=1):
         if re.match(
-            r"^\|\s*topic\s*\|\s*state\s*\|\s*artifact\s*\|\s*record\s*\|\s*$",
+            r"^\|\s*topic\s*\|\s*subject\s*\|\s*state\s*\|\s*artifact\s*\|\s*record\s*\|\s*$",
             line,
             re.I,
         ):
@@ -70,19 +95,21 @@ def parse_registry(text: str) -> tuple[list[Entry], list[str]]:
         if not in_table or not line.startswith("|"):
             continue
         cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
-        if len(cells) != 4 or all(set(cell) <= set("-: ") and cell for cell in cells):
+        if len(cells) != 5 or all(set(cell) <= set("-: ") and cell for cell in cells):
             continue
-        entries.append(Entry(cells[0], cells[1].casefold(), cells[2], cells[3], number))
+        entries.append(
+            Entry(cells[0], cells[1], cells[2].casefold(), cells[3], cells[4], number)
+        )
     return entries, problems
 
 
 def render_draft(topics: list[str]) -> str:
-    rows = "\n".join(f"| {topic} |  |  |  |" for topic in topics)
+    rows = "\n".join(f"| {topic} | ? |  |  |  |" for topic in topics)
     return (
         "# Threshold-sheet coverage\n\n"
         f"{SCHEMA_MARKER}\n\n"
-        "| topic | state | artifact | record |\n"
-        "| --- | --- | --- | --- |\n"
+        "| topic | subject | state | artifact | record |\n"
+        "| --- | --- | --- | --- | --- |\n"
         f"{rows}\n"
     )
 
@@ -100,8 +127,23 @@ def audit(
     by_topic: dict[str, list[Entry]] = {}
     page_counts = page_counts or {}
     source_classes = source_classes or {}
+    wanted = {topic.casefold(): topic for topic in topics}
+    ruled_subjects: set[str] = set()
     for entry in entries:
         by_topic.setdefault(entry.topic.casefold(), []).append(entry)
+        if not entry.subject:
+            failures.append(
+                f"coverage.md:{entry.line} topic '{entry.topic}' has no subject"
+            )
+        elif entry.subject != "?":
+            subjects = parse_subject_cell(entry.subject, topics)
+            if subjects is None:
+                failures.append(
+                    f"coverage.md:{entry.line} topic '{entry.topic}' has unknown "
+                    f"subject '{entry.subject}'"
+                )
+            else:
+                ruled_subjects.update(subject.casefold() for subject in subjects)
         if entry.state not in STATES:
             failures.append(
                 f"coverage.md:{entry.line} topic '{entry.topic}' has unknown state '{entry.state}'"
@@ -187,7 +229,6 @@ def audit(
                         f"from artifact '{entry.artifact}'"
                     )
 
-    wanted = {topic.casefold(): topic for topic in topics}
     for key, display in wanted.items():
         matches = by_topic.get(key, [])
         if not matches:
@@ -199,13 +240,26 @@ def audit(
             for entry in matches:
                 failures.append(f"coverage.md:{entry.line} unknown topic '{entry.topic}'")
 
+    for key in sorted(ruled_subjects):
+        subject_row = by_topic.get(key, [])
+        if len(subject_row) != 1:
+            continue
+        carried = {
+            subject.casefold()
+            for subject in (parse_subject_cell(subject_row[0].subject, topics) or ())
+        }
+        if key not in carried:
+            failures.append(
+                f"elected subject '{wanted[key]}' is not carried by its own topic row"
+            )
+
     registered = {
         entry.artifact.casefold()
         for entry in entries
         if entry.artifact
     }
     for path in sorted(sheet_root.glob("*.md")):
-        if path.name.casefold() in {"readme.md", "coverage.md"}:
+        if path.name.casefold() in {"readme.md", "coverage.md", "subjects.md"}:
             continue
         if path.name.casefold() not in registered:
             failures.append(f"sheet '{path.name}' has no registry artifact")
