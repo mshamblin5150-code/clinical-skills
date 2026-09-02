@@ -35,7 +35,7 @@ answer to a patient-centered one. But here's the thing: access should be judged
 at the point where care becomes usable, not where a service merely exists. Your
 post opens the right door by treating availability as necessary while refusing
 to treat it as sufficient. I would carry that distinction into the evaluation
-plan and measure completed visits rather than scheduled appointments.
+plan and measure actual completed primary care visits rather than scheduled appointments.
 
 **References**
 
@@ -300,10 +300,10 @@ class AddressedNameIsCheckedAgainstTheRoster(unittest.TestCase):
 
 
 class TheCliniciansWordFloorIsEnforced(unittest.TestCase):
-    def test_ninety_nine_words_fail(self):
+    def test_one_hundred_forty_nine_words_fail(self):
         with tempfile.TemporaryDirectory() as temp:
             run = Run(Path(temp))
-            words = ["Maren,"] + ["word"] * 98
+            words = ["Maren,"] + ["word"] * 148
             (run.root / "response-maren.md").write_text(
                 " ".join(words) + "\n\n**References**\n\nQuill, R. (2024). Title. Journal.\n",
                 encoding="utf-8",
@@ -531,7 +531,7 @@ class AdvisoryAndCoverageBehavior(unittest.TestCase):
                 status = scan.main([temp])
 
         self.assertEqual(0, status)
-        self.assertIn("words: 147", stdout.getvalue())
+        self.assertIn("words: 150", stdout.getvalue())
         self.assertIn("invoked sources: 1", stdout.getvalue())
 
     def test_an_invoked_marker_without_a_property_separator_fails(self):
@@ -690,7 +690,7 @@ class AdvisoryAndCoverageBehavior(unittest.TestCase):
                 status = scan.main([temp])
 
         self.assertEqual(0, status)
-        self.assertIn("words: 147", stdout.getvalue())
+        self.assertIn("words: 150", stdout.getvalue())
         self.assertIn("pre-#496 markers: 1 (counted, not graded)", stdout.getvalue())
         self.assertNotIn("amplifications:", stdout.getvalue())
 

@@ -17,7 +17,7 @@ import discussion_reply_scan
 import discussion_artifact
 import docx_write
 import reference_scan
-from prose_bind import ProseBind
+from prose_bind import ProseBind, normalized
 from test_discussion_post_scan import BODY as POST_BODY, Run as PostRun
 from test_discussion_reply_scan import BODY as REPLY_BODY, Run as ReplyRun
 
@@ -155,6 +155,63 @@ class TheWorkflowCarriesEveryRatifiedGate(unittest.TestCase):
 
         self.assertIn("does not see the classmate posts", post)
         self.assertIn("differentiation", post)
+
+
+class TheCliniciansReplyLengthBarIsBound(ProseBind, unittest.TestCase):
+    CEILING_RULE = (
+        "No stated maximum is honored. Never trim a drafted reply to fit a word ceiling: "
+        "the clauses a ceiling removes first are the ones that bound a claim, because "
+        "those are the clauses that read as optional. Where a reply genuinely runs long, "
+        "cut a whole point rather than the qualifiers on a point you are keeping."
+    )
+
+    def test_both_reply_floor_restatements_carry_the_scanner_constant(self):
+        reply = read(REPLY)
+        introduction = reply.split("## Inputs and private run state", 1)[0]
+        step_four = reply.split("## 4. Independently grade, show, and post reply one", 1)[1].split(
+            "## 5. Draft and post reply two sequentially", 1
+        )[0]
+
+        self.assertProseIn(f"at least {discussion_reply_scan.WORD_FLOOR_COUNT} words", introduction)
+        self.assertProseIn(f"the {discussion_reply_scan.WORD_FLOOR_COUNT}-word floor", step_four)
+
+    def test_the_ceiling_rule_is_identical_and_each_skill_names_its_artifact(self):
+        for path in (POST, REPLY):
+            with self.subTest(skill=path.parent.name):
+                self.assertEqual(1, normalized(read(path)).count(normalized(self.CEILING_RULE)))
+        self.assertProseIn(
+            "The artifact governed by that rule in this skill is the initial post.",
+            read(POST),
+        )
+
+    def test_reply_step_four_states_the_enforced_count_scope(self):
+        reply = read(REPLY)
+        step_four = reply.split("## 4. Independently grade, show, and post reply one", 1)[1].split(
+            "## 5. Draft and post reply two sequentially", 1
+        )[0]
+
+        self.assertProseIn(
+            "The enforced word count excludes the reference list and the invisible working markers.",
+            step_four,
+        )
+
+    def test_reply_step_one_surfaces_an_impossible_ceiling_without_an_extra_gate(self):
+        reply = read(REPLY)
+        step_one = reply.split("## 1. Read and rank the whole board", 1)[1].split(
+            "## 2. Build and verify the claim ledger", 1
+        )[0]
+
+        self.assertProseIn(
+            "Where the board states a maximum below the house floor, tell the clinician both numbers "
+            "and that the reply will be written past the maximum, then draft.",
+            step_one,
+        )
+        self.assertProseIn("No additional approval gate is added", step_one)
+
+    def test_reply_frontmatter_does_not_call_the_artifact_short(self):
+        frontmatter = read(REPLY).split("---", 2)[1]
+
+        self.assertNotRegex(frontmatter, r"(?i)\bshort\b")
 
 
 class EachDiscussionSkillStatesTheInvokedSourceForm(ProseBind, unittest.TestCase):
