@@ -8,6 +8,21 @@
 > `UNSEEN: none`, and end clean. This supersedes rulings 3, 6, 7, and 8 where their original text
 > conflicts. The original record below is preserved as the decision history.
 
+> **Ruling 5's rationale is falsified, 2026-09-02.** Its route stands and is now measured working;
+> its stated reason does not. Ruling 5 says in bold that *"freshly spawned is load-bearing rather
+> than hygiene"* and that what differed between hanging and working calls *"was the process they
+> were made in."* Measured on [#768](https://github.com/mshamblin5150-code/clinical-skills/issues/768):
+> a freshly spawned process with no Word on the machine hangs, and the variable is the **invocation
+> mechanism** — PowerShell's dynamic binder against `ExportAsFixedFormat2` and `SaveAs2`, where a
+> typed late-bound `InvokeMember` call to the same method exports in about a second. Freshly spawned
+> survives as hygiene: it keeps the automation off an open document and keeps `Quit` off a shared
+> instance. **Ruling 5 also names only a method and its arguments**, so an implementer who follows
+> it exactly writes the dynamic call and reproduces the defect. The missing half of the route is
+> ruled in
+> [ADR 0111](0111-the-word-export-route-names-its-invocation-mechanism-and-the-hanging-methods-are-a-declared-list.md),
+> which completes ruling 5 rather than superseding it. The original text below is preserved as the
+> decision history.
+
 [#676](https://github.com/mshamblin5150-code/clinical-skills/issues/676) was filed over
 `skills/discussion-post/SKILL.md` step 7 requiring *"a vision-capable, non-authoring context"* to
 compare **every rendered page** with the Markdown while naming no way to rasterize the `.docx`. It
