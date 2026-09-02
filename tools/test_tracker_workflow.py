@@ -13,7 +13,6 @@ import phi_scan
 import test_module_sections
 import tracker_branch_scope
 import tracker_bodies
-import tracker_freshness
 import tracker_merge_receipt
 import tracker_publish_hook
 
@@ -124,11 +123,6 @@ class EveryTrackerGateHasASection(unittest.TestCase):
             ),
             {"synthetic_tracker_gate"},
         )
-
-    def test_a_section_does_not_require_a_limits_object(self):
-        self.assertIn("tracker_freshness", self.sectioned_modules())
-        self.assertFalse(hasattr(tracker_freshness, "NOT_REACHED"))
-
 
 class TheTriggerCountIsBoundToTheModule(unittest.TestCase):
     """ADR 0083's prose said four triggers while its own table listed five.

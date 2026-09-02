@@ -207,8 +207,8 @@ class AnAncestryQuestionGitDeclinesToAnswer(unittest.TestCase):
         replacement = "sentinel scope rendered from row one"
         original = tracker_freshness.NOT_REACHED
         tracker_freshness.NOT_REACHED = (
-            (original[0][0], replacement),
             *original[1:],
+            (tracker_freshness.COMMIT_BASE_SCOPE, replacement),
         )
         try:
             for status in (0, 1, 128):
@@ -222,6 +222,25 @@ class AnAncestryQuestionGitDeclinesToAnswer(unittest.TestCase):
 
 
 class DocumentationRequiresBothCheckpoints(unittest.TestCase):
+    def test_the_owned_boundary_is_the_three_ruled_rows(self) -> None:
+        self.assertEqual(
+            tracker_freshness.NOT_REACHED,
+            (
+                (
+                    "tracker records",
+                    "The gate reads the commit base and no tracker record.",
+                ),
+                (
+                    "record verdict currency",
+                    "A verdict about a tracker record is current only as of when it was read.",
+                ),
+                (
+                    "aggregate verdicts",
+                    "A verdict naming no record number is reached by no mechanism, permanently.",
+                ),
+            ),
+        )
+
     def test_agent_and_tracker_instructions_require_start_and_publication_checks(self) -> None:
         command = "python tools/tracker_freshness.py"
         for relative in ("CLAUDE.md", "docs/agents/issue-tracker.md"):

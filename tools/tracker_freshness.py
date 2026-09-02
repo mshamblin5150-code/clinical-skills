@@ -42,9 +42,10 @@ FRESH = 0
 STALE = 1
 DID_NOT_CHECK = 2
 
+COMMIT_BASE_SCOPE = "tracker records"
 NOT_REACHED = (
     (
-        "tracker records",
+        COMMIT_BASE_SCOPE,
         "The gate reads the commit base and no tracker record.",
     ),
     (
@@ -71,7 +72,8 @@ class DidNotCheck(RuntimeError):
 def scope_clause() -> str:
     """Render the command-line qualifier from the declaration it exposes."""
 
-    return f"Scope: {NOT_REACHED[0][1]}"
+    scope = next(reason for subject, reason in NOT_REACHED if subject == COMMIT_BASE_SCOPE)
+    return f"Scope: {scope}"
 
 
 def run_git(*args: str) -> subprocess.CompletedProcess[str]:
