@@ -15,6 +15,7 @@ Agent-agnostic skills for a nurse practitioner student's written work — clinic
 | practicum-case-study | [skills/practicum-case-study/SKILL.md](skills/practicum-case-study/SKILL.md) | A graded course case study needs writing up from faculty material, and submitting as a `.docx` |
 | discussion-post | [skills/discussion-post/SKILL.md](skills/discussion-post/SKILL.md) | One live LMS board needs a researched, evidence-backed initial post, except when its prompt asks for a worked clinical case |
 | discussion-reply | [skills/discussion-reply/SKILL.md](skills/discussion-reply/SKILL.md) | One live LMS discussion topic needs ranking, evidence-backed classmate replies, and explicit approval before each post |
+| course-assignment | [skills/course-assignment/SKILL.md](skills/course-assignment/SKILL.md) | A live course assignment declares its own artifact form; currently the supported artifact is a graded PowerPoint deck |
 | aar | [skills/aar/SKILL.md](skills/aar/SKILL.md) | A scoped clinical skill has reached a submission and its mandatory after-action review must classify and land observed corrections |
 
 <!-- Additional skills are appended here as they are written. -->
@@ -51,6 +52,13 @@ that cannot run the new command can walk the same rows
 from [discussion-post](skills/discussion-post/SKILL.md) step 6, but cannot call the run mechanically
 verified. Its declared limits remain reader-owned and live in
 `discussion_post_scan.NOT_REACHED` rather than in a second prose copy.
+
+**`course-assignment` depends on committed graders.** `tools/deck_scan.py` grades its signed
+container and cost-record rows, `tools/deck_render.py` retains PowerPoint's page-faithful export and
+slide pixels, `tools/render_scan.py` grades final-pass coverage, and `tools/research_ledger.py`
+grades the per-run source-class and recency policy. A consumer without those commands can walk the
+same rows written in [course-assignment](skills/course-assignment/SKILL.md), but cannot call the run
+mechanically verified.
 
 **Run `/setup-clinical-skills` before the others.** Everything about *which* clinician — courses, hour targets, preceptors, sites, payer distribution, and which patient is which — is per-account and lives in `scratch/`, gitignored. `reference/medatrax-fields.md` holds how Medatrax behaves; the profile holds who you are. Where they disagree, the profile wins.
 

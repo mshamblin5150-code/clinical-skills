@@ -92,6 +92,8 @@ SIGNED: <ISO date after clinician approval>
 WORD-FLOOR: <integer, or 0 when none is stated>
 WORD-CEILING: <integer, or none>
 REFERENCE-MINIMUM: <integer, or 0 when none is stated>
+SOURCE-CLASSES: society guideline | peer-reviewed | government | tertiary reference
+RECENCY-WINDOW-YEARS: 5
 
 ## Topic bar
 

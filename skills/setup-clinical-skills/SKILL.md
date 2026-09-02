@@ -143,6 +143,7 @@ Write the map's format and location into `scratch/medatrax-profile.md` so the ot
 ### 8. Writing samples — for the graded-writing voice model
 
 [practicum-case-study](../practicum-case-study/SKILL.md),
+[course-assignment](../course-assignment/SKILL.md),
 [discussion-post](../discussion-post/SKILL.md), and
 [discussion-reply](../discussion-reply/SKILL.md) write graded work that has to sound like the person
 submitting it, and a run that satisfied every mechanic in the house style still read as a competent
@@ -251,6 +252,7 @@ Following the same split as [ADR 0001](../../docs/adr/0001-fixture-asserts-on-na
 
 **Soft, and the failure is visible rather than silent** —
 [practicum-case-study](../practicum-case-study/SKILL.md),
+[course-assignment](../course-assignment/SKILL.md),
 [discussion-post](../discussion-post/SKILL.md), and
 [discussion-reply](../discussion-reply/SKILL.md), for step 8's voice model. Graded work written
 without one can be substantively correct and still read as a stranger's, which is a real cost and

@@ -36,6 +36,7 @@ MEMBERS: set[str] = {
     "differential_scan",
     "discussion_post_scan",
     "discussion_reply_scan",
+    "deck_scan",
     "reference_scan",
     "refusal_scan",
     "render_scan",

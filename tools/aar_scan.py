@@ -40,6 +40,7 @@ SCOPED_SKILLS = frozenset(
     {
         "batch-shift",
         "clinical-note",
+        "course-assignment",
         "discussion-post",
         "discussion-reply",
         "icd10-cpt",

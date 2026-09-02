@@ -101,6 +101,9 @@ FIELD = re.compile(
     r"|RESOLVED|PAGE-YEAR|REFUTATION|SECOND-ROUTE|STATED-EXPIRY)"
     r"[ \t]*:[ \t]*(.*?)[ \t]*$"
 )
+BAR_FIELD = re.compile(
+    r"(?mi)^(?P<name>SOURCE-CLASSES|RECENCY-WINDOW-YEARS)\s*:\s*(?P<value>[^\n]+?)\s*$"
+)
 # The day the paper is written. Recency is measured against it and never against
 # the clock -- a ledger graded twice a year apart has to grade the same both times.
 DATE_HEADER = re.compile(r"(?mi)^[ \t]*DATE[ \t]*:[ \t]*(\d{4})-(\d{2})-(\d{2})[ \t]*$")
@@ -109,10 +112,16 @@ DATE_HEADER = re.compile(r"(?mi)^[ \t]*DATE[ \t]*:[ \t]*(\d{4})-(\d{2})-(\d{2})[
 # form ``reference/apa7.md`` section 3 requires, so the letter is allowed and dropped.
 YEAR = re.compile(r"\((\d{4})[a-z]?(?:,[^)]*)?\)")
 
-# The four source classes #214 names, and nothing else. A fixed vocabulary is
-# ``threshold_sheet.py``'s population key for the same reason: a machine can only
-# compare strings, and a mis-keyed value is a wrong *word* a reader can see.
-SOURCE_CLASSES = ("society guideline", "peer-reviewed", "government", "tertiary reference")
+# The closed vocabulary spans both coursework pipelines. Which members a run
+# permits is signed in its own bar, so admitting market evidence for a deck does
+# not make it sourceable for a clinical paper.
+SOURCE_CLASS_VOCABULARY = (
+    "society guideline",
+    "peer-reviewed",
+    "government",
+    "tertiary reference",
+    "market source",
+)
 
 # #215's four dispositions. The last two are the ones that excuse an old source,
 # and both have to say why.
@@ -180,9 +189,6 @@ STATED_EXPIRY_ESCAPE = re.compile(
 SOURCED = "sourced"
 UNSOURCED = "unsourced"
 STATUSES = (SOURCED, UNSOURCED)
-
-# #215's "ordinarily expected" window. Past it a record has to say why it stands.
-ORDINARY_WINDOW_YEARS = 5
 
 # ``specificity_scan.py`` R2's alphanumeric substance predicate.
 SUBSTANCE = re.compile(r"[0-9A-Za-z]")
@@ -346,7 +352,38 @@ def normalize(text: str) -> str:
 # Built once rather than per record. ``SOURCE`` can afford this and ``RECENCY``
 # cannot: there the whole value is the keyword, here the keyword is a prefix with a
 # reason after it, and normalizing destroys the boundary between them.
-_CLASS_KEYS = frozenset(normalize(name) for name in SOURCE_CLASSES)
+_VOCABULARY_KEYS = frozenset(normalize(name) for name in SOURCE_CLASS_VOCABULARY)
+
+
+@dataclass(frozen=True)
+class LedgerBar:
+    source_classes: tuple[str, ...]
+    recency_window_years: int
+
+
+def read_bar(text: str) -> LedgerBar:
+    """Read the two per-run research decisions from a signed bar."""
+    matches = tuple(BAR_FIELD.finditer(text))
+    fields = {match.group("name"): match.group("value").strip() for match in matches}
+    for name in ("SOURCE-CLASSES", "RECENCY-WINDOW-YEARS"):
+        count = sum(match.group("name") == name for match in matches)
+        if count > 1:
+            raise run_grader.SourceError(f"bar.md has a duplicate {name} field")
+        if count == 0:
+            raise run_grader.SourceError(f"bar.md needs a {name} field")
+    classes = tuple(item.strip().casefold() for item in fields["SOURCE-CLASSES"].split("|"))
+    if not classes or any(not item for item in classes) or len(set(classes)) != len(classes):
+        raise run_grader.SourceError("bar.md SOURCE-CLASSES must be distinct values separated by |")
+    unknown = tuple(item for item in classes if normalize(item) not in _VOCABULARY_KEYS)
+    if unknown:
+        accepted = " | ".join(SOURCE_CLASS_VOCABULARY)
+        raise run_grader.SourceError(
+            f"bar.md SOURCE-CLASSES has an unknown value; accepted values are {accepted}"
+        )
+    window = fields["RECENCY-WINDOW-YEARS"]
+    if not window.isdigit() or int(window) < 1:
+        raise run_grader.SourceError("bar.md RECENCY-WINDOW-YEARS must be a positive integer")
+    return LedgerBar(classes, int(window))
 
 
 def keyword_of(value: str, vocabulary: tuple[str, ...]) -> tuple[str, str]:
@@ -389,7 +426,7 @@ def keyword_of(value: str, vocabulary: tuple[str, ...]) -> tuple[str, str]:
     opens with a welded hyphenated form -- checked against the tree, not assumed,
     and ``test_research_ledger`` reads which vocabularies those are off this
     module rather than listing them. ``SOURCE`` is outside this helper, matched by
-    normalized equality against ``_CLASS_KEYS``, which is also where the corpus's
+    normalized equality against ``_VOCABULARY_KEYS``, which is also where the corpus's
     only hyphen *inside* a vocabulary word lives: ``peer-reviewed``.
 
     **This adopted the sibling's rule rather than sharing its code.** The copy is
@@ -511,7 +548,8 @@ class Scan:
     unrecognized_status: int
     by_class: tuple[tuple[str, int], ...]
     outside_vocabulary: int
-    standing_past_five: int
+    recency_window_years: int
+    standing_past_window: int
     # #231's visible paywall population.
     behind_a_paywall: int
     # #498's two always-printed expiry populations.
@@ -643,7 +681,7 @@ def _unsourced_findings(record: Record) -> list[Finding]:
     return found
 
 
-def _contract_findings(record: Record) -> list[Finding]:
+def _contract_findings(record: Record, source_classes: tuple[str, ...]) -> list[Finding]:
     """#214's rows for a sourced record: the fields, the class, the restatement.
 
     Takes no ``as_of``. Nothing #214 asks of a record is measured against a date,
@@ -657,7 +695,8 @@ def _contract_findings(record: Record) -> list[Finding]:
             found.append(Finding(MISSING_FIELD, claim, name))
 
     source = normalize(record.value("SOURCE"))
-    if source and source not in _CLASS_KEYS:
+    class_keys = frozenset(normalize(name) for name in source_classes)
+    if source and source not in class_keys:
         found.append(Finding(UNKNOWN_SOURCE_CLASS, claim, record.value("SOURCE")))
 
     restatement = record.value("RESTATEMENT")
@@ -669,7 +708,9 @@ def _contract_findings(record: Record) -> list[Finding]:
     return found
 
 
-def _recency_findings(record: Record, as_of: date | None) -> list[Finding]:
+def _recency_findings(
+    record: Record, as_of: date | None, recency_window_years: int
+) -> list[Finding]:
     """#215's four rows: the disposition, the excuse, the year, the window.
 
     **The two blocks are one helper because they are one rule read twice.** The
@@ -704,7 +745,7 @@ def _recency_findings(record: Record, as_of: date | None) -> list[Finding]:
             # rather than a blanket rule he never made.
             if not excused:
                 found.append(Finding(UNDATED_REFERENCE, claim, record.value("REFERENCE")))
-        elif as_of is not None and as_of.year - year > ORDINARY_WINDOW_YEARS and excuse not in EXCUSES:
+        elif as_of is not None and as_of.year - year > recency_window_years and excuse not in EXCUSES:
             detail = f"{year}, RECENCY: {recency}"
             found.append(Finding(STALE_UNEXCUSED, claim, detail))
     return found
@@ -837,7 +878,13 @@ def _stated_expiry_findings(record: Record, as_of: date | None) -> list[Finding]
     return found
 
 
-def record_findings(record: Record, as_of: date | None) -> list[Finding]:
+def record_findings(
+    record: Record,
+    as_of: date | None,
+    *,
+    source_classes: tuple[str, ...] | None = None,
+    recency_window_years: int | None = None,
+) -> list[Finding]:
     """Every row this record fails, in ``KINDS`` order. A record can fail several.
 
     ``as_of`` of ``None`` means the ledger stated no date, so the window row and the
@@ -864,6 +911,10 @@ def record_findings(record: Record, as_of: date | None) -> list[Finding]:
     """
     found: list[Finding] = []
     claim = record.claim
+    if source_classes is None:
+        source_classes = SOURCE_CLASS_VOCABULARY[:-1]
+    if recency_window_years is None:
+        recency_window_years = 5
 
     if not SUBSTANCE.search(claim):
         found.append(Finding(MISSING_FIELD, claim, "CLAIM"))
@@ -877,8 +928,8 @@ def record_findings(record: Record, as_of: date | None) -> list[Finding]:
     elif status == UNSOURCED:
         found += _unsourced_findings(record)
     else:
-        found += _contract_findings(record)
-        found += _recency_findings(record, as_of)
+        found += _contract_findings(record, source_classes)
+        found += _recency_findings(record, as_of, recency_window_years)
         found += _citation_findings(record, as_of)
         found += _second_route_findings(record)
         found += _stated_expiry_findings(record, as_of)
@@ -1110,6 +1161,9 @@ def survey(
     half_anchored: int = 0,
     carried: set[str] | None = None,
     entries: tuple[str, ...] = (),
+    *,
+    source_classes: tuple[str, ...] | None = None,
+    recency_window_years: int | None = None,
 ) -> Scan:
     """Count across one ledger.
 
@@ -1117,7 +1171,22 @@ def survey(
     their own. The ledger's **name** is printed by ``format_report`` the way every
     sibling prints a run directory's -- the name, never the path.
     """
-    graded = [(record, record_findings(record, as_of)) for record in records]
+    if source_classes is None:
+        source_classes = SOURCE_CLASS_VOCABULARY[:-1]
+    if recency_window_years is None:
+        recency_window_years = 5
+    graded = [
+        (
+            record,
+            record_findings(
+                record,
+                as_of,
+                source_classes=source_classes,
+                recency_window_years=recency_window_years,
+            ),
+        )
+        for record in records
+    ]
     sourced = [record for record in records if record.status == SOURCED]
     stated_expiry_unscanned = _stated_expiry_unscanned(sourced)
     if stated_expiry_unscanned:
@@ -1163,10 +1232,16 @@ def survey(
         unrecognized_status=sum(1 for r in records if not r.status),
         by_class=tuple(
             (name, sum(1 for r in sourced if normalize(r.value("SOURCE")) == normalize(name)))
-            for name in SOURCE_CLASSES
+            for name in source_classes
         ),
-        outside_vocabulary=sum(1 for r in sourced if normalize(r.value("SOURCE")) not in _CLASS_KEYS),
-        standing_past_five=sum(
+        outside_vocabulary=sum(
+            1
+            for r in sourced
+            if normalize(r.value("SOURCE"))
+            not in frozenset(normalize(name) for name in source_classes)
+        ),
+        recency_window_years=recency_window_years,
+        standing_past_window=sum(
             1 for r in sourced if keyword_of(r.value("RECENCY"), RECENCY_VALUES)[0] in EXCUSES
         ),
         behind_a_paywall=sum(
@@ -1219,7 +1294,10 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         lines.append(f"    {name:<30} {count}")
     lines.append(f"    {'outside the vocabulary':<30} {scan.outside_vocabulary}")
     lines.append("")
-    lines.append(f"  standing past five years         {scan.standing_past_five}")
+    lines.append(
+        f"  standing past {scan.recency_window_years} years"
+        f"         {scan.standing_past_window}"
+    )
     lines.append(f"  citations behind a paywall       {scan.behind_a_paywall}")
     lines.append(
         "  stated expiry                     "
@@ -1324,12 +1402,18 @@ class Source:
     stated_expiry_unscanned: bool
     draft_name: str | None
     evidence_name: str | None
+    source_classes: tuple[str, ...]
+    recency_window_years: int
 
 
 def _load(parsed: run_grader.Parsed) -> Source:
     path = Path(parsed.source)
     if not path.is_file():
         raise run_grader.SourceError(f"no ledger file named {path.name}")
+    bar_path = path.with_name("bar.md")
+    if not bar_path.is_file():
+        raise run_grader.SourceError("the ledger run needs bar.md")
+    bar = read_bar(bar_path.read_text(encoding="utf-8", errors="replace"))
     text = path.read_text(encoding="utf-8", errors="replace")
     records = tuple(read_records(text))
     if not records:
@@ -1389,6 +1473,8 @@ def _load(parsed: run_grader.Parsed) -> Source:
         stated_expiry_unscanned,
         draft_name,
         evidence_name,
+        bar.source_classes,
+        bar.recency_window_years,
     )
 
 
@@ -1400,6 +1486,8 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
         source.half_anchored,
         source.carried,
         source.entries,
+        source_classes=source.source_classes,
+        recency_window_years=source.recency_window_years,
     )
     diagnostics: list[str] = []
     if source.evidence_unreadable:
@@ -1410,7 +1498,7 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
     if source.as_of is None:
         diagnostics.append(
             f"{source.path.name} carries no DATE: <YYYY-MM-DD> header, so neither the"
-            " five-year window, read-date check, nor stated-expiry check was applied"
+            f" {source.recency_window_years}-year window, read-date check, nor stated-expiry check was applied"
             " to any record in it."
         )
     if source.stated_expiry_unscanned:

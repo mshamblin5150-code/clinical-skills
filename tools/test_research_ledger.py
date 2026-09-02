@@ -76,6 +76,16 @@ def ledger_text(*records: str, stamp: str = "2026-08-19") -> str:
     return header + "\n".join(records)
 
 
+CLINICAL_BAR = """\
+SOURCE-CLASSES: society guideline | peer-reviewed | government | tertiary reference
+RECENCY-WINDOW-YEARS: 5
+"""
+
+
+def write_bar(root: Path) -> None:
+    (root / "bar.md").write_text(CLINICAL_BAR, encoding="utf-8")
+
+
 def kinds(text: str, as_of: date | None = AS_OF) -> list[str]:
     """The finding kinds one ledger produces, in order."""
     records = ledger.read_records(text)
@@ -541,6 +551,7 @@ REFERENCE: Author, A. (2026). Some topic. Retrieved August 20, 2026.
             evidence = root / "evidence.txt"
             claims.write_text(ledger_text(CLEAN), encoding="utf-8")
             evidence.write_text(topic("A carried topic"), encoding="utf-8")
+            write_bar(root)
             parsed = run_grader.Parsed(
                 str(claims), values={"--evidence": str(evidence)}
             )
@@ -558,6 +569,7 @@ REFERENCE: Author, A. (2026). Some topic. Retrieved August 20, 2026.
             claims.write_text(ledger_text(CLEAN), encoding="utf-8")
             evidence.write_text(topic("A carried topic"), encoding="utf-8")
             draft.write_text("## References\nAn entry.\n", encoding="utf-8")
+            write_bar(root)
             parsed = run_grader.Parsed(
                 str(claims),
                 values={"--evidence": str(evidence), "--draft": str(draft)},
@@ -577,6 +589,7 @@ REFERENCE: Author, A. (2026). Some topic. Retrieved August 20, 2026.
             reply = root / "reply.md"
             claims.write_text(ledger_text(CLEAN), encoding="utf-8")
             reply.write_text("# Reply\n\n## Refrences\n\nAn entry.\n", encoding="utf-8")
+            write_bar(root)
             out, err = io.StringIO(), io.StringIO()
             with redirect_stdout(out), redirect_stderr(err):
                 status = ledger.main([str(claims)])
@@ -701,7 +714,7 @@ class TheSourceClassComesFromTheVocabulary(unittest.TestCase):
     reader can see rather than a silent miss."""
 
     def test_every_declared_class_passes(self):
-        for name in ledger.SOURCE_CLASSES:
+        for name in ledger.SOURCE_CLASS_VOCABULARY[:-1]:
             with self.subTest(source=name):
                 self.assertEqual(kinds(ledger_text(replace_field(CLEAN, "SOURCE", name))), [])
 
@@ -1440,8 +1453,10 @@ class ASourceCanStateItsPublishedExpiry(unittest.TestCase):
 
     def run_main(self, *records: str) -> tuple[int, str, str]:
         with tempfile.TemporaryDirectory() as temp:
-            path = Path(temp) / "claims.md"
+            root = Path(temp)
+            path = root / "claims.md"
             path.write_text(ledger_text(*records), encoding="utf-8")
+            write_bar(root)
             out, err = io.StringIO(), io.StringIO()
             with redirect_stdout(out), redirect_stderr(err):
                 status = ledger.main([str(path)])
@@ -1554,8 +1569,10 @@ class TheReportCarriesNoClaimTextWithoutShow(unittest.TestCase):
 class TheCommandExitsOnWhatItFound(unittest.TestCase):
     def _run(self, text: str, name: str = "claims.md") -> int:
         with tempfile.TemporaryDirectory() as temp:
-            path = Path(temp) / name
+            root = Path(temp)
+            path = root / name
             path.write_text(text, encoding="utf-8")
+            write_bar(root)
             out, err = io.StringIO(), io.StringIO()
             with redirect_stdout(out), redirect_stderr(err):
                 return ledger.main([str(path)])
@@ -1598,18 +1615,20 @@ class TheCommandExitsOnWhatItFound(unittest.TestCase):
     def test_the_missing_date_banner_prints_beside_the_exit_one(self):
         """So the finding reads as a floor rather than as the whole."""
         with tempfile.TemporaryDirectory() as temp:
-            path = Path(temp) / "claims.md"
+            root = Path(temp)
+            path = root / "claims.md"
             path.write_text(
                 ledger_text(replace_field(CLEAN, "SOURCE", "a blog post"), stamp=""),
                 encoding="utf-8",
             )
+            write_bar(root)
             out, err = io.StringIO(), io.StringIO()
             with redirect_stdout(out), redirect_stderr(err):
                 ledger.main([str(path)])
         self.assertIn("no DATE:", err.getvalue())
         # Both rows measured against the date, not just the window. A banner
         # naming one of two understates the floor it exists to establish.
-        self.assertIn("five-year window", err.getvalue())
+        self.assertIn("5-year window", err.getvalue())
         self.assertIn("read-date", err.getvalue())
         self.assertIn("NO DATE HEADER", out.getvalue())
 
@@ -1619,12 +1638,64 @@ class TheCommandExitsOnWhatItFound(unittest.TestCase):
 
     def test_the_exit_one_message_names_no_claim(self):
         with tempfile.TemporaryDirectory() as temp:
-            path = Path(temp) / "claims.md"
+            root = Path(temp)
+            path = root / "claims.md"
             path.write_text(ledger_text(replace_field(CLEAN, "SOURCE", "a blog post")), encoding="utf-8")
+            write_bar(root)
             out, err = io.StringIO(), io.StringIO()
             with redirect_stdout(out), redirect_stderr(err):
                 ledger.main([str(path)])
         self.assertNotIn("white count", out.getvalue() + err.getvalue())
+
+
+class TheSignedBarOwnsSourceClassesAndRecency(unittest.TestCase):
+    def run_with(self, record: str, bar: str) -> tuple[int, str, str]:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            claims = root / "claims.md"
+            claims.write_text(ledger_text(record), encoding="utf-8")
+            (root / "bar.md").write_text(bar, encoding="utf-8")
+            stdout, stderr = io.StringIO(), io.StringIO()
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                status = ledger.main([str(claims)])
+        return status, stdout.getvalue(), stderr.getvalue()
+
+    def test_a_market_source_is_allowed_only_when_this_run_signs_it(self):
+        market = replace_field(CLEAN, "SOURCE", "market source")
+        clinical = "SOURCE-CLASSES: society guideline | peer-reviewed | government | tertiary reference\nRECENCY-WINDOW-YEARS: 5\n"
+        deck = clinical.replace("tertiary reference", "tertiary reference | market source")
+
+        clinical_status, _, _ = self.run_with(market, clinical)
+        deck_status, _, _ = self.run_with(market, deck)
+
+        self.assertEqual(1, clinical_status)
+        self.assertEqual(0, deck_status)
+
+    def test_the_signed_window_changes_the_stale_source_verdict(self):
+        recent = with_reference(CLEAN, "Example, A. (2022). Example. *Journal*, 1(1), 1-2.")
+        recent = replace_field(recent, "RECENCY", "within five")
+        wide = "SOURCE-CLASSES: peer-reviewed\nRECENCY-WINDOW-YEARS: 5\n"
+        narrow = wide.replace("YEARS: 5", "YEARS: 2")
+
+        wide_status, _, _ = self.run_with(recent, wide)
+        narrow_status, _, _ = self.run_with(recent, narrow)
+
+        self.assertEqual(0, wide_status)
+        self.assertEqual(1, narrow_status)
+
+    def test_a_missing_or_unknown_bar_field_is_exit_two(self):
+        missing_status, _, missing_error = self.run_with(
+            CLEAN, "RECENCY-WINDOW-YEARS: 5\n"
+        )
+        unknown_status, _, unknown_error = self.run_with(
+            CLEAN,
+            "SOURCE-CLASSES: peer-reviewed | blog\nRECENCY-WINDOW-YEARS: 5\n",
+        )
+
+        self.assertEqual(2, missing_status)
+        self.assertIn("SOURCE-CLASSES", missing_error)
+        self.assertEqual(2, unknown_status)
+        self.assertIn("market source", unknown_error)
 
 
 class TheSkillSaysWhatThisChecks(ProseBind, unittest.TestCase):
@@ -1702,7 +1773,7 @@ class TheSkillSaysWhatThisChecks(ProseBind, unittest.TestCase):
                 self.assertIn(self.ROW_PHRASES[kind], self.skill)
 
     def test_the_skill_declares_the_source_vocabulary(self):
-        for name in ledger.SOURCE_CLASSES:
+        for name in ledger.SOURCE_CLASS_VOCABULARY[:-1]:
             with self.subTest(source=name):
                 self.assertIn(f"`{name}`", self.skill)
 
@@ -2420,8 +2491,10 @@ class TheDraftFlagIsGradedAndItsAbsenceIsDeclared(unittest.TestCase):
 
     def _run(self, ledger_body: str, draft: str | None, *flags: str) -> tuple[int, str, str]:
         with tempfile.TemporaryDirectory() as temp:
-            path = Path(temp) / "claims.md"
+            root = Path(temp)
+            path = root / "claims.md"
             path.write_text(ledger_body, encoding="utf-8")
+            write_bar(root)
             argv = [str(path), *flags]
             if draft is not None:
                 draft_path = Path(temp) / "draft.md"
@@ -2559,8 +2632,10 @@ class TheDraftFlagIsGradedAndItsAbsenceIsDeclared(unittest.TestCase):
 
     def test_a_missing_draft_file_exits_two(self):
         with tempfile.TemporaryDirectory() as temp:
-            path = Path(temp) / "claims.md"
+            root = Path(temp)
+            path = root / "claims.md"
             path.write_text(ledger_text(CLEAN), encoding="utf-8")
+            write_bar(root)
             err = io.StringIO()
             with redirect_stdout(io.StringIO()), redirect_stderr(err):
                 status = ledger.main([str(path), "--draft", str(Path(temp) / "gone.md")])
@@ -2616,6 +2691,7 @@ class ASubmissionDraftJoinsTheLedgerRun(unittest.TestCase):
             run.mkdir(parents=True)
             claims = run / "claims.md"
             claims.write_text(ledger_text(CLEAN), encoding="utf-8")
+            write_bar(run)
             draft = root / "output" / "case-studies" / "nur5144-m2-case-study-2026-08-20.md"
             draft.parent.mkdir(parents=True)
             draft.write_text("# Draft\n", encoding="utf-8")
@@ -3612,6 +3688,7 @@ class EveryGatedRowSetFollowsTheSentinelConvention(unittest.TestCase):
                 else ledger_text(CLEAN)
             )
             ledger_path.write_text(body, encoding="utf-8")
+            write_bar(root)
             argv = [str(ledger_path)]
             if enabled:
                 optional_path = root / f"{flag[2:]}.md"
@@ -3746,6 +3823,7 @@ class TheCommandReadsTheEvidenceFile(unittest.TestCase):
     def write(self, name: str, text: str) -> str:
         path = self.root / name
         path.write_text(text, encoding="utf-8")
+        write_bar(self.root)
         return str(path)
 
     def test_a_cited_topic_the_dump_carries_exits_clean(self):

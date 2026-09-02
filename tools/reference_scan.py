@@ -614,9 +614,9 @@ KINDS = tuple(ROWS)
 #
 # **The class strings are literals here and are not imported**, which is the ruling
 # showing up in the dependency graph: declining option 2 means this module does not
-# reach for the ledger. ``tools/test_reference_scan.py`` asserts these keys are exactly
-# ``research_ledger.SOURCE_CLASSES``, so a fifth class fails the suite rather than
-# quietly leaving a ruling that was made over four.
+# reach for the ledger. ADR 0110 deliberately moved the test onto the ledger's
+# closed vocabulary when it admitted market evidence for a deck; the mapping remains
+# a literal here so this module still does not import the ledger.
 SOURCE_CLASS_SETTLES_RETRIEVAL_DATE = {
     # A journal article is archived, always. Section 4 names it outright.
     "peer-reviewed": True,
@@ -626,6 +626,8 @@ SOURCE_CLASS_SETTLES_RETRIEVAL_DATE = {
     "government": False,
     # UpToDate takes one and a textbook takes none, and both are this class.
     "tertiary reference": False,
+    # A live listing changes and takes one; a dated vendor quote is archived and does not.
+    "market source": False,
 }
 
 NOT_REACHED = (
