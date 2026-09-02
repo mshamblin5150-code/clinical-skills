@@ -21,6 +21,20 @@ import tracker_publish_hook as hook
 import phi_scan
 
 
+def fetched_records(number: int, labels: tuple[str, ...] = ()) -> dict:
+    """Return one complete invented GraphQL record keyed by its request number."""
+    return {
+        number: {
+            "number": number,
+            "state": "OPEN",
+            "labels": {"nodes": [{"name": label} for label in labels]},
+            "updatedAt": "2026-09-01T12:34:56Z",
+            "body": "invented record body",
+            "url": f"https://github.com/example/project/issues/{number}",
+        }
+    }
+
+
 class TheRecognizedPublishSetIsDeclared(unittest.TestCase):
     def test_every_ruled_command_family_is_named(self) -> None:
         self.assertEqual(
@@ -441,8 +455,8 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
             mock.patch.object(hook, "refresh_default_branch", return_value=True),
             mock.patch.object(
                 hook,
-                "fetch_issue",
-                return_value={"number": 670, "labels": [], "url": "draft record"},
+                "fetch_readback",
+                return_value=fetched_records(670),
             ),
             mock.patch.object(hook, "write_marker") as write_marker,
         ):
@@ -464,8 +478,8 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
             mock.patch.object(hook, "refresh_default_branch", return_value=True),
             mock.patch.object(
                 hook,
-                "fetch_issue",
-                return_value={"number": 670, "labels": [], "url": "draft record"},
+                "fetch_readback",
+                return_value=fetched_records(670),
             ),
             mock.patch.object(hook, "write_marker"),
         ):
@@ -490,16 +504,16 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
         ):
             with mock.patch.object(
                 hook,
-                "fetch_issue",
-                return_value={"number": 670, "labels": ["in flight"]},
+                "fetch_readback",
+                return_value=fetched_records(670, ("in flight",)),
             ):
                 denied = hook.handle(
                     self.payload("gh issue comment 670 --body 'Ordinary body'")
                 )
             with mock.patch.object(
                 hook,
-                "fetch_issue",
-                return_value={"number": 670, "labels": []},
+                "fetch_readback",
+                return_value=fetched_records(670),
             ):
                 advised = hook.handle(
                     self.payload(
@@ -526,8 +540,8 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
             mock.patch.object(hook, "refresh_default_branch", return_value=True),
             mock.patch.object(
                 hook,
-                "fetch_issue",
-                return_value={"number": 723, "labels": [], "url": "draft record"},
+                "fetch_readback",
+                return_value=fetched_records(723),
             ),
             mock.patch.object(hook, "write_marker"),
         ):
@@ -604,6 +618,157 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
         self.assertIn("branch:repo-relative-link", stdout.getvalue())
         self.assertNotIn("[record]", stdout.getvalue())
 
+    def test_title_and_body_share_one_batched_record_readback(self) -> None:
+        index = phi_scan.build_index(set(), set())
+        fetched = {
+            17: {
+                "number": 17,
+                "state": "OPEN",
+                "labels": {"nodes": []},
+                "updatedAt": "2026-09-01T12:34:56Z",
+                "body": "seventeen",
+                "url": "https://github.com/example/project/issues/17",
+            },
+            18: None,
+            670: {
+                "number": 670,
+                "state": "OPEN",
+                "labels": {"nodes": []},
+                "updatedAt": "2026-09-01T12:34:56Z",
+                "body": "target",
+                "url": "https://github.com/example/project/issues/670",
+            },
+        }
+        with (
+            mock.patch.object(hook, "current_index", return_value=(index, ())),
+            mock.patch.object(hook, "refresh_default_branch", return_value=True),
+            mock.patch.object(hook, "fetch_readback", return_value=fetched) as fetch,
+            mock.patch.object(hook, "write_marker"),
+        ):
+            response = hook.handle(
+                self.payload(
+                    "gh issue edit 670 --title 'Title cites #17' "
+                    "--body 'Body cites #18 and #17'"
+                )
+            )
+
+        fetch.assert_called_once_with(frozenset({17, 18, 670}))
+        report = response["hookSpecificOutput"]["additionalContext"]
+        self.assertEqual(report.count("tracker readback: #17 "), 1)
+        self.assertIn("tracker readback: #18 unresolved", report)
+        self.assertIn("tracker readback: #670 state=OPEN", report)
+        self.assertNotIn("seventeen", report)
+
+    def test_a_text_bearing_create_with_no_citation_names_class_c(self) -> None:
+        index = phi_scan.build_index(set(), set())
+        with (
+            mock.patch.object(hook, "current_index", return_value=(index, ())),
+            mock.patch.object(hook, "refresh_default_branch", return_value=True),
+            mock.patch.object(hook, "fetch_readback") as fetch,
+            mock.patch.object(hook, "write_marker"),
+        ):
+            response = hook.handle(
+                self.payload(
+                    "gh issue create --title 'A title' --body 'No record named'"
+                )
+            )
+
+        fetch.assert_not_called()
+        self.assertIn(
+            "no cited record number; class (c) is reached by no mechanism",
+            response["hookSpecificOutput"]["additionalContext"],
+        )
+
+    def test_a_failed_readback_degrades_context_blind_and_says_so(self) -> None:
+        index = phi_scan.build_index(set(), set())
+        with (
+            mock.patch.object(hook, "current_index", return_value=(index, ())),
+            mock.patch.object(hook, "refresh_default_branch", return_value=True),
+            mock.patch.object(hook, "fetch_readback", side_effect=OSError("offline")),
+            mock.patch.object(hook, "write_marker"),
+        ):
+            response = hook.handle(
+                self.payload("gh issue comment 670 --body 'Cites #17'")
+            )
+
+        report = response["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("tracker readback: FETCH FAILED; context-blind", report)
+        self.assertIn("record number and labels were not read", report)
+
+    def test_a_malformed_fetched_record_uses_the_same_context_blind_path(self) -> None:
+        index = phi_scan.build_index(set(), set())
+        malformed = fetched_records(670)
+        del malformed[670]["updatedAt"]
+        with (
+            mock.patch.object(hook, "current_index", return_value=(index, ())),
+            mock.patch.object(hook, "refresh_default_branch", return_value=True),
+            mock.patch.object(hook, "fetch_readback", return_value=malformed),
+            mock.patch.object(hook, "write_marker"),
+        ):
+            response = hook.handle(
+                self.payload("gh issue comment 670 --body 'Cites #17'")
+            )
+
+        report = response["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("tracker readback: FETCH FAILED; context-blind", report)
+        self.assertIn("record number and labels were not read", report)
+        self.assertNotIn("HOOK FAILURE", report)
+
+    def test_a_target_record_without_a_url_is_context_blind(self) -> None:
+        index = phi_scan.build_index(set(), set())
+        malformed = fetched_records(670)
+        del malformed[670]["url"]
+        with (
+            mock.patch.object(hook, "current_index", return_value=(index, ())),
+            mock.patch.object(hook, "refresh_default_branch", return_value=True),
+            mock.patch.object(hook, "fetch_readback", return_value=malformed),
+            mock.patch.object(hook, "write_marker"),
+        ):
+            response = hook.handle(
+                self.payload("gh issue comment 670 --body 'Cites #17'")
+            )
+
+        report = response["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("tracker readback: FETCH FAILED; context-blind", report)
+        self.assertNotIn("HOOK FAILURE", report)
+
+
+class BatchedGraphqlReadback(unittest.TestCase):
+    def test_a_nonzero_exit_with_a_payload_is_parsed(self) -> None:
+        payload = {
+            "data": {
+                "repository": {
+                    "record_17": {
+                        "number": 17,
+                        "state": "OPEN",
+                        "labels": {"nodes": []},
+                        "updatedAt": "2026-09-01T12:34:56Z",
+                        "body": "record body",
+                        "url": "https://github.com/example/project/issues/17",
+                    },
+                    "record_18": None,
+                }
+            },
+            "errors": [{"message": "Could not resolve record 18"}],
+        }
+        completed = mock.Mock(returncode=1, stdout=json.dumps(payload), stderr="error")
+        with mock.patch.object(hook.subprocess, "run", return_value=completed) as run:
+            records = hook.fetch_readback(frozenset({17, 18}))
+
+        self.assertEqual(records[17]["number"], 17)
+        self.assertIsNone(records[18])
+        self.assertNotIn("check", run.call_args.kwargs)
+        command = run.call_args.args[0]
+        self.assertEqual(command[:3], ["gh", "api", "graphql"])
+        self.assertEqual(command.count("graphql"), 1)
+
+    def test_an_omitted_alias_is_not_misreported_as_an_explicit_null(self) -> None:
+        payload = {"data": {"repository": {}}}
+        completed = mock.Mock(returncode=1, stdout=json.dumps(payload), stderr="error")
+        with mock.patch.object(hook.subprocess, "run", return_value=completed):
+            with self.assertRaisesRegex(ValueError, "omitted requested record"):
+                hook.fetch_readback(frozenset({17}))
+
 
 class ProjectSettingsRegisterTheHook(unittest.TestCase):
     def test_the_cost_guard_is_not_the_publish_route_list(self) -> None:
@@ -648,9 +813,10 @@ class DeclaredLimitsHaveOneOwner(unittest.TestCase):
         """Two rulings own this object, and each row belongs to exactly one.
 
         ADR 0089 ratified the four bypass rows -- ways the hook never runs at
-        all. ADR 0096 added the two that describe what a run it *did* perform
-        does not establish, on the rule this object already carried: a limit
-        lives here rather than in the docstring or ``CLAUDE.md``.
+        all. ADR 0096 added the three that describe what a run it *did* perform
+        does not establish, and ADR 0104 adds the failed-readback path, on the
+        rule this object already carried: a limit lives here rather than in the
+        docstring or ``CLAUDE.md``.
         """
         self.assertEqual(
             set(dict(hook.NOT_REACHED)),
@@ -662,6 +828,7 @@ class DeclaredLimitsHaveOneOwner(unittest.TestCase):
                 "a file rewritten after the scan is graded on its earlier text",
                 "expansion is reconstructed and reaches only the same command",
                 "the refusing hook covers one of two publishers",
+                "a failed tracker readback leaves the publication context-blind",
             },
         )
 
