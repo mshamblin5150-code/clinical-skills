@@ -108,6 +108,11 @@ and grades its own transcription without this checkpoint is grading its own inte
 
 The word floor is graded. The ceiling is counted and never graded: the clinician deliberately
 exceeds stated maxima. A clean mechanical scan therefore never means the post obeyed the ceiling.
+The reply skill's ceiling rule also binds this artifact; quoted verbatim, it reads: No stated
+maximum is honored. Never trim a drafted reply to fit a word ceiling: the clauses a
+ceiling removes first are the ones that bound a claim, because those are the clauses that read as
+optional. Where a reply genuinely runs long, cut a whole point rather than the qualifiers on a
+point you are keeping. The artifact governed by that rule in this skill is the initial post.
 Every prose bar element remains a reader's check; `discussion_post_scan.NOT_REACHED` is the single
 inventory of what that command cannot decide.
 
