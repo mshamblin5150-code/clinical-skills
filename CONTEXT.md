@@ -652,3 +652,7 @@ _Avoid_: update, refresh, sync, rebuild
 **Map disagreement**:
 A disagreement between the implementation map and the tracker. It has directions and they are named separately, because each was found by a different instrument and one was invisible to the check built for the other: a **ready ticket** in no packet, and a packeted ticket that has stopped being ready. A gate that grades one direction certifies nothing about the others, and the `blocked` label carries a third disagreement that is held by the sweep in prose rather than by any gate.
 _Avoid_: staleness, mismatch, error, out of date
+
+**In flight**:
+The state a ticket is in while an agent is working it, marked by the label of that name: work is going on now, so unmerged work may exist on the ticket. A claim about **the ticket**, never about any one comment on it — `docs/agents/issue-tracker.md` says in as many words not to read the label as a claim's provenance, which is what the dated branch state block is for. It has a documented add-time and no stated end: nothing removes it, at close or ever, so a ticket carrying it is not necessarily one an agent is working.
+_Avoid_: active, in progress, WIP, assigned, unmerged

@@ -1,6 +1,6 @@
 ---
 name: discussion-reply
-description: Read one LMS discussion topic live, rank classmates the clinician can substantively answer, and draft and post short evidence-backed replies in the clinician's confirmed voice. Use for conversational discussion-board replies, not an initial post or the practicum peer-critique deliverable.
+description: Read one LMS discussion topic live, rank classmates the clinician can substantively answer, and draft and post evidence-backed replies in the clinician's confirmed voice. Use for conversational discussion-board replies, not an initial post or the practicum peer-critique deliverable.
 ---
 
 # Discussion reply
@@ -9,7 +9,12 @@ Write a short conversational answer to a classmate's discussion post. This is no
 discussion post and not the eight-heading peer critique in
 [practicum-case-study/reference/rubric.md](../practicum-case-study/reference/rubric.md). A reply has
 no Markdown heading at any level, opens with the classmate's exact first name, contains at least
-100 words, and carries at least one source in its own reference list.
+150 words, and carries at least one source in its own reference list.
+
+No stated maximum is honored. Never trim a drafted reply to fit a word ceiling: the clauses a
+ceiling removes first are the ones that bound a claim, because those are the clauses that read as
+optional. Where a reply genuinely runs long, cut a whole point rather than the qualifiers on a
+point you are keeping.
 
 The clinician reads every draft and makes the final call. Draft, show, and post only after an
 explicit go-ahead for that reply. Authorization to read the board or draft a reply is not posting
@@ -80,6 +85,10 @@ targets are chosen.
 Where a classmate's claim contradicts a reputable source, flag the contradiction every time. Do
 not draft an admonition or switch to an adversarial register unless the clinician asks for it; that
 is a social judgment about a named classmate.
+
+Where the board states a maximum below the house floor, tell the clinician both numbers and that
+the reply will be written past the maximum, then draft. No additional approval gate is added; the
+existing approval before each post still applies.
 
 ## 2. Build and verify the claim ledger
 
@@ -215,12 +224,13 @@ python tools/discussion_reply_scan.py scratch/runs/<run-key>
 
 The default report is counts only. It reports how many `posts/*.md` files supplied an `AUTHOR:` and
 refuses partial roster coverage, then verifies the response filename and addressed first name
-against that roster, the 100-word floor, one APA author-year reference backed by the corresponding
+against that roster, the 150-word floor, one APA author-year reference backed by the corresponding
 tagged claim record, every recognized APA narrative or parenthetical author-year citation resolving
 to that response's own list, every Arabic numeral in the body tracing to an exact token in that
 response's tagged `CLAIM` heading or `RESTATEMENT`, and no source appearing in more than one
 response. Citation years and page locators, and the reference list, are excluded from the
-numeric-claim walk. Reference entries must be separated by blank lines and copied from the ledger's
+numeric-claim walk. The enforced word count excludes the reference list and the invisible working
+markers. Reference entries must be separated by blank lines and copied from the ledger's
 `REFERENCE` field. `--show` prints names and finding detail, so its output is private working
 material and must not be pasted.
 
