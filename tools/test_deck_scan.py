@@ -45,6 +45,15 @@ def notes_xml(*paragraphs: str, points: int = 12) -> str:
 </p:spTree></p:cSld></p:notes>'''
 
 
+def table_slide_xml(text: str, *, points: int = 28) -> str:
+    return f'''<?xml version="1.0" encoding="UTF-8"?>
+<p:sld xmlns:p="{P}" xmlns:a="{A}"><p:cSld><p:spTree>
+  <p:graphicFrame><a:graphic><a:graphicData><a:tbl><a:tr><a:tc><a:txBody>
+    <a:bodyPr/><a:lstStyle/>{paragraph(text, points=points)}
+  </a:txBody></a:tc></a:tr></a:tbl></a:graphicData></a:graphic></p:graphicFrame>
+</p:spTree></p:cSld></p:sld>'''
+
+
 BAR = """\
 ASSIGNMENT: https://example.test/assignment
 SIGNED: 2026-09-02
@@ -147,6 +156,42 @@ class CostedClaimsReadSlidesAndSpeakerNotes(unittest.TestCase):
             status, _, _ = run.grade()
 
         self.assertEqual(0, status)
+
+    def test_a_cost_outside_a_claim_heading_does_not_trace_the_deck(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            (run.root / "claims.md").write_text(
+                "DATE: 2026-09-02\n\n## CLAIM: The site needs renovation.\nRESTATEMENT: Costs $47,000.\n",
+                encoding="utf-8",
+            )
+            run.write_deck((slide_xml("Plan", "Build-out $47,000"),))
+            status, stdout, _ = run.grade()
+
+        self.assertEqual(1, status)
+        self.assertIn(f"{scan.UNTRACED_COST}: 1", stdout)
+
+    def test_ungrouped_costs_are_not_truncated_to_three_digits(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            (run.root / "claims.md").write_text(
+                "DATE: 2026-09-02\n\n## CLAIM: Initial fee is $470.\n",
+                encoding="utf-8",
+            )
+            run.write_deck((slide_xml("Plan", "Build-out $47000"),))
+            status, stdout, _ = run.grade()
+
+        self.assertEqual(1, status)
+        self.assertIn(f"{scan.UNTRACED_COST}: 1", stdout)
+
+    def test_table_text_is_in_the_container_and_claim_populations(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            run.write_deck((table_slide_xml("one two three four five six seven costs $19,500"),))
+            status, stdout, _ = run.grade()
+
+        self.assertEqual(1, status)
+        self.assertIn(f"{scan.WORDS_PER_BULLET}: 1", stdout)
+        self.assertIn(f"{scan.UNTRACED_COST}: 1", stdout)
 
 
 class AnUnreadableOrUnsignedBarDidNotScan(unittest.TestCase):

@@ -27,7 +27,10 @@ FIELD = re.compile(r"(?mi)^(?P<name>[A-Z][A-Z-]+)\s*:\s*(?P<value>[^\n]+?)\s*$")
 SLIDE_PART = re.compile(r"^ppt/slides/slide(?P<number>[1-9]\d*)\.xml$")
 NOTES_PART = re.compile(r"^ppt/notesSlides/notesSlide(?P<number>[1-9]\d*)\.xml$")
 WORD = re.compile(r"(?:\$?\d[\d,.]*|[A-Za-z]+(?:[-'][A-Za-z]+)*)")
-COST = re.compile(r"(?<![\w$])\$\s*(?P<amount>\d{1,3}(?:,\d{3})*(?:\.\d{2})?|\d+(?:\.\d{2})?)")
+COST = re.compile(
+    r"(?<![\w$])\$\s*(?P<amount>(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d{2})?)(?![\d,])"
+)
+CLAIM_HEADING = re.compile(r"(?mi)^## CLAIM:\s*(?P<claim>[^\n]*)$")
 
 SLIDE_COUNT = "slide-count"
 BULLETS_PER_SLIDE = "bullets-per-slide"
@@ -201,6 +204,14 @@ def _read_slide(number: int, payload: bytes) -> Slide:
             if not title:
                 bullets.append(text)
             font_sizes.extend(_paragraph_font_sizes(paragraph))
+    for frame in root.iter(P + "graphicFrame"):
+        for paragraph in frame.iter(A + "p"):
+            text = _text(paragraph)
+            if not text:
+                continue
+            all_text.append(text)
+            bullets.append(text)
+            font_sizes.extend(_paragraph_font_sizes(paragraph))
     return Slide(number, "\n".join(all_text), tuple(bullets), tuple(font_sizes))
 
 
@@ -255,6 +266,14 @@ def _costs(text: str) -> set[str]:
     return {match.group("amount").replace(",", "") for match in COST.finditer(text)}
 
 
+def _claim_costs(text: str) -> set[str]:
+    return {
+        amount
+        for match in CLAIM_HEADING.finditer(text)
+        for amount in _costs(match.group("claim"))
+    }
+
+
 def survey(source: Source) -> Scan:
     findings: list[Finding] = []
     if len(source.slides) > source.bar.slide_max:
@@ -283,7 +302,7 @@ def survey(source: Source) -> Scan:
         if font_failures:
             findings.append(Finding(FONT_POINTS, slide.number, font_failures[0]))
     artifact_costs = _costs("\n".join([*(slide.text for slide in source.slides), *source.notes]))
-    recorded_costs = _costs(source.claims)
+    recorded_costs = _claim_costs(source.claims)
     for amount in sorted(artifact_costs - recorded_costs):
         findings.append(Finding(UNTRACED_COST, None, f"${amount} has no claim record"))
     return Scan(

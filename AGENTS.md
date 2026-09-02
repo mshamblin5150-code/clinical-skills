@@ -57,8 +57,9 @@ verified. Its declared limits remain reader-owned and live in
 container and cost-record rows, `tools/deck_render.py` retains PowerPoint's page-faithful export and
 slide pixels, `tools/render_scan.py` grades final-pass coverage, and `tools/research_ledger.py`
 grades the per-run source-class and recency policy. A consumer without those commands can walk the
-same rows written in [course-assignment](skills/course-assignment/SKILL.md), but cannot call the run
-mechanically verified.
+deck rows and the documented research-record contract in
+[course-assignment](skills/course-assignment/SKILL.md), but cannot call either run mechanically
+verified.
 
 **Run `/setup-clinical-skills` before the others.** Everything about *which* clinician — courses, hour targets, preceptors, sites, payer distribution, and which patient is which — is per-account and lives in `scratch/`, gitignored. `reference/medatrax-fields.md` holds how Medatrax behaves; the profile holds who you are. Where they disagree, the profile wins.
 

@@ -13,6 +13,7 @@ import json
 import sys
 import tempfile
 import unittest
+import zipfile
 from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
@@ -72,7 +73,9 @@ class TheDeckRenderCommand(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         self.deck = self.root / "deck.pptx"
-        self.deck.write_bytes(b"synthetic deck")
+        with zipfile.ZipFile(self.deck, "w") as archive:
+            archive.writestr("ppt/slides/slide1.xml", "synthetic slide 1")
+            archive.writestr("ppt/slides/slide2.xml", "synthetic slide 2")
 
     @staticmethod
     def powerpoint_export(command, **_kwargs):
@@ -153,6 +156,29 @@ class TheDeckRenderCommand(unittest.TestCase):
         self.assertIn("SOURCE: clinician", stdout.getvalue())
         self.assertEqual(clinician.read_bytes(), (self.root / "render" / "pass-1" / "deck.pdf").read_bytes())
 
+    def test_a_truncated_clinician_pdf_retains_no_pass(self):
+        class OnePagePyMuPDF(FakePyMuPDF):
+            @staticmethod
+            def open(path):
+                return FakeDocument(pages=1)
+
+        clinician = self.root / "clinician.pdf"
+        clinician.write_bytes(b"truncated clinician PDF")
+        failed = SimpleNamespace(returncode=1, stdout="", stderr="PowerPoint unavailable")
+        stderr = io.StringIO()
+        with (
+            mock.patch.dict(sys.modules, {"pymupdf": OnePagePyMuPDF()}),
+            mock.patch.object(render.subprocess, "run", return_value=failed),
+            contextlib.redirect_stderr(stderr),
+        ):
+            status = render.main(
+                [str(self.root), "--pptx", str(self.deck), "--clinician-export", str(clinician)]
+            )
+
+        self.assertEqual(2, status)
+        self.assertIn("2 slides", stderr.getvalue())
+        self.assertEqual([], list((self.root / "render").iterdir()))
+
     def test_the_script_quits_only_a_freshly_owned_powerpoint_process(self):
         script = Path(render.__file__).with_suffix(".ps1").read_text(encoding="utf-8")
         self.assertIn("$ownershipEstablished = $false", script)
@@ -164,6 +190,11 @@ class TheDeckRenderCommand(unittest.TestCase):
         script = Path(render.__file__).with_suffix(".ps1").read_text(encoding="utf-8")
         self.assertIn("$presentation.SaveAs($OutputPdf, 32)", script)
         self.assertNotIn("ExportAsFixedFormat", script)
+
+    def test_the_script_emits_utf8_json(self):
+        script = Path(render.__file__).with_suffix(".ps1").read_text(encoding="utf-8")
+        self.assertIn("[Console]::OutputEncoding", script)
+        self.assertIn("UTF8Encoding", script)
 
 
 if __name__ == "__main__":

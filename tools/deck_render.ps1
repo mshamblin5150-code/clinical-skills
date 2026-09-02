@@ -5,6 +5,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 $powerpoint = $null
 $presentation = $null
 $ownedPid = $null

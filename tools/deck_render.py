@@ -4,10 +4,12 @@
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import subprocess
 import sys
 import tempfile
+import zipfile
 from pathlib import Path
 
 from console_codec import use_utf8
@@ -15,6 +17,7 @@ from console_codec import use_utf8
 
 RASTER_DPI = 120
 EXPORT_TIMEOUT_SECONDS = 30
+SLIDE_PART = re.compile(r"^ppt/slides/slide[1-9]\d*\.xml$")
 
 
 class RenderError(Exception):
@@ -115,6 +118,17 @@ def _rasterize(export: Path, destination: Path) -> int:
     return pages
 
 
+def _slide_count(deck: Path) -> int:
+    try:
+        with zipfile.ZipFile(deck) as archive:
+            count = sum(bool(SLIDE_PART.fullmatch(name)) for name in archive.namelist())
+    except (OSError, zipfile.BadZipFile) as failure:
+        raise RenderError(f"could not read PowerPoint slide count: {failure}") from failure
+    if count < 1:
+        raise RenderError("the PowerPoint contains no slides")
+    return count
+
+
 def _discard_building(path: Path, render_root: Path) -> None:
     resolved = path.resolve()
     if resolved.parent != render_root.resolve() or not resolved.name.startswith(".building-"):
@@ -136,6 +150,7 @@ def render(
         not clinician_export.is_file() or clinician_export.suffix.casefold() != ".pdf"
     ):
         raise RenderError("clinician export must be an existing PDF")
+    slide_count = _slide_count(deck)
     render_root = run / "render"
     render_root.mkdir(exist_ok=True)
     building = Path(tempfile.mkdtemp(prefix=".building-", dir=render_root))
@@ -151,6 +166,10 @@ def render(
             shutil.copyfile(clinician_export, export)
             source = "clinician"
         pages = _rasterize(export, building)
+        if pages != slide_count:
+            raise RenderError(
+                f"retained PDF has {pages} pages for {slide_count} slides"
+            )
         ownership.unlink(missing_ok=True)
         destination = render_root / f"pass-{_next_pass(render_root)}"
         building.rename(destination)
