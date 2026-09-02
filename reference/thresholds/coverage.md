@@ -12,7 +12,7 @@
 | acute kidney injury and acute kidney disease | acute kidney injury and acute kidney disease | sheet | acute-kidney-injury-and-acute-kidney-disease.md | all source pages accounted for on 2026-08-31; independent checks passed |
 | acute pulmonary embolism | acute pulmonary embolism | sheet | acute-pulmonary-embolism.md | all source pages accounted for on 2026-08-31; independent checks passed |
 | adolescent idiopathic scoliosis screening | adolescent idiopathic scoliosis screening | sheet | adolescent-idiopathic-scoliosis-screening.md | source pages accounted for on 2026-08-30; independent checks passed |
-| adult immunization schedule | childhood and adolescent immunization schedule, maternal immunization | sheet | adult-immunization-schedule.md | all source pages accounted for on 2026-08-31; independent checks passed |
+| adult immunization schedule | childhood and adolescent immunization schedule | sheet | adult-immunization-schedule.md | all source pages accounted for on 2026-08-31; independent checks passed |
 | ANCA-associated vasculitis | ANCA-associated vasculitis | sheet | anca-associated-vasculitis.md | all source pages accounted for on 2026-08-31; independent checks passed |
 | anemia in chronic kidney disease | anemia in chronic kidney disease | sheet | anemia-in-chronic-kidney-disease.md | bound recommendation record fully accounted; full document read |
 | antibiotic stewardship program implementation | antibiotic stewardship program implementation | sheet | antibiotic-stewardship-program-implementation.md | bound recommendation record fully accounted; full document read |
@@ -52,7 +52,7 @@
 | chest pain evaluation | chest pain evaluation | sheet | chest-pain-evaluation.md | exact recommendation index fully accounted; full document read |
 | child maltreatment prevention | child maltreatment prevention | sheet | child-maltreatment-prevention.md | all source pages accounted for on 2026-08-31; independent checks passed |
 | childhood and adolescent immunization schedule | childhood and adolescent immunization schedule | sheet | childhood-and-adolescent-immunization-schedule.md | recommendation sweep reported `nothing-found`; full document read |
-| childhood immunization schedule | childhood and adolescent immunization schedule, maternal immunization | sheet | childhood-immunization-schedule.md | recommendation sweeps reported `nothing-found`; full documents read |
+| childhood immunization schedule | childhood and adolescent immunization schedule | sheet | childhood-immunization-schedule.md | recommendation sweeps reported `nothing-found`; full documents read |
 | chlamydia and gonorrhea screening | chlamydia and gonorrhea screening | sheet | chlamydia-and-gonorrhea-screening.md | all source pages accounted for on 2026-08-31; independent checks passed |
 | chronic coronary disease | chronic coronary disease | sheet | chronic-coronary-disease.md | exact recommendation index fully accounted; full document read |
 | chronic hepatitis B | chronic hepatitis B | sheet | chronic-hepatitis-b.md | recommendation sweep reported `nothing-found`; manual recommendation inventory fully accounted; full document read |
@@ -160,7 +160,7 @@
 | skin cancer screening | skin cancer prevention counseling | sheet | skin-cancer-screening.md | full-document read complete; exact recommendation index accounted |
 | speech and language delay screening | speech and language delay screening | sheet | speech-language-delay-screening.md | full-document read complete; exact recommendation index accounted |
 | stroke primary prevention | acute ischemic stroke, early management | sheet | stroke-primary-prevention.md | exact recommendation index available; full document distilled |
-| syphilis screening | sexually transmitted infection prevention counseling | sheet | syphilis-screening.md | all 14 source pages accounted for on 2026-08-30; four null spans blindly corroborated |
+| syphilis screening | syphilis screening | sheet | syphilis-screening.md | all 14 source pages accounted for on 2026-08-30; four null spans blindly corroborated |
 | testicular cancer screening | testicular cancer screening | sheet | testicular-cancer-screening.md | full-document read complete; exact recommendation index accounted |
 | thyroid cancer screening | thyroid cancer screening | sheet | thyroid-cancer-screening.md | exact recommendation index available; full document distilled |
 | thyroid dysfunction screening | thyroid dysfunction screening | sheet | thyroid-dysfunction-screening.md | exact recommendation index available; full document distilled |

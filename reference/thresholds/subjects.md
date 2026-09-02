@@ -12,7 +12,7 @@ rather than a connected component.
 DATE: 2026-09-01
 ELECTED: abdominal aortic aneurysm screening
 ELECTION: The member-authored key "abdominal aortic aneurysm screening" was selected uniquely to preserve overlapping maximal-clique identity; it is a key, not a clinical-priority label.
-REFUTATION: All 1 pairwise merge proposals survived independent refutation. abdominal aortic aneurysm screening / aortic disease: The aortic-disease sheet substantively covers aneurysm definition, surveillance, and intervention, while the USPSTF sheet covers detection of the abdominal aneurysm subtype; broader management versus screening does not separate the aortic aneurysm subject.
+REFUTATION: Independent refutation findings: abdominal aortic aneurysm screening / aortic disease: The aortic-disease sheet substantively covers aneurysm definition, surveillance, and intervention, while the USPSTF sheet covers detection of the abdominal aneurysm subtype; broader management versus screening does not separate the aortic aneurysm subject.
 
 ### MEMBERS
 - abdominal aortic aneurysm screening
@@ -26,7 +26,7 @@ REFUTATION: All 1 pairwise merge proposals survived independent refutation. abdo
 DATE: 2026-09-01
 ELECTED: acute ischemic stroke, early management
 ELECTION: The member-authored key "acute ischemic stroke, early management" was selected uniquely to preserve overlapping maximal-clique identity; it is a key, not a clinical-priority label.
-REFUTATION: All 3 pairwise merge proposals survived independent refutation. acute ischemic stroke, early management / secondary stroke prevention: Both AHA/ASA sheets concern ischemic stroke in patients, covering acute management and prevention after stroke or TIA; care phase does not create a different stroke subject. acute ischemic stroke, early management / stroke primary prevention: The sheets govern the same stroke outcome before and after onset, with primary prevention versus acute ischemic management as explicit phases; the stroke subject remains substantive in both. secondary stroke prevention / stroke primary prevention: Both AHA/ASA sheets prevent stroke, separated by absence versus presence of prior stroke or TIA; that population distinction does not create a different stroke-prevention subject.
+REFUTATION: Independent refutation findings: acute ischemic stroke, early management / secondary stroke prevention: Both AHA/ASA sheets concern ischemic stroke in patients, covering acute management and prevention after stroke or TIA; care phase does not create a different stroke subject. acute ischemic stroke, early management / stroke primary prevention: The sheets govern the same stroke outcome before and after onset, with primary prevention versus acute ischemic management as explicit phases; the stroke subject remains substantive in both. secondary stroke prevention / stroke primary prevention: Both AHA/ASA sheets prevent stroke, separated by absence versus presence of prior stroke or TIA; that population distinction does not create a different stroke-prevention subject.
 
 ### MEMBERS
 - acute ischemic stroke, early management
@@ -42,7 +42,7 @@ REFUTATION: All 3 pairwise merge proposals survived independent refutation. acut
 DATE: 2026-09-01
 ELECTED: childhood and adolescent immunization schedule
 ELECTION: The member-authored key "childhood and adolescent immunization schedule" was selected uniquely to preserve overlapping maximal-clique identity; it is a key, not a clinical-priority label.
-REFUTATION: All 3 pairwise merge proposals survived independent refutation. adult immunization schedule / childhood and adolescent immunization schedule: Both CDC schedule sheets govern routine vaccine timing and catch-up by age; adult versus older-child population is the substantive distinction within immunization. adult immunization schedule / childhood immunization schedule: The complete CDC schedule captures address the same routine immunization subject across adult versus young-child age bands. childhood and adolescent immunization schedule / childhood immunization schedule: The two CDC schedule captures govern contiguous pediatric age bands and the same routine vaccine series, so age population does not split the immunization subject.
+REFUTATION: Independent refutation findings: adult immunization schedule / childhood and adolescent immunization schedule: Both CDC schedule sheets govern routine vaccine timing and catch-up by age; adult versus older-child population is the substantive distinction within immunization. adult immunization schedule / childhood immunization schedule: The complete CDC schedule captures address the same routine immunization subject across adult versus young-child age bands. childhood and adolescent immunization schedule / childhood immunization schedule: The two CDC schedule captures govern contiguous pediatric age bands and the same routine vaccine series, so age population does not split the immunization subject.
 
 ### MEMBERS
 - adult immunization schedule
@@ -54,27 +54,11 @@ REFUTATION: All 3 pairwise merge proposals survived independent refutation. adul
 - childhood and adolescent immunization schedule: Catalog row(s): ACIP ? web-capture, population pediatric, adolescent, citation https://www.cdc.gov/vaccines/imz-schedules/adolescent-easyread.html. Complete threshold sheet: first retained decision schedule-applicability-age = age 7 through 18 years for children-7-18; population record children-7-18.
 - childhood immunization schedule: Catalog row(s): ACIP ? web-capture, population pediatric, citation https://www.cdc.gov/vaccines/imz-schedules/child-easyread.html. Complete threshold sheet: first retained decision young-schedule-applicability = birth through age 6 years for children-birth-through-6; population record children-birth-through-6.
 
-## SUBJECT: maternal immunization
-DATE: 2026-09-01
-ELECTED: maternal immunization
-ELECTION: The member-authored key "maternal immunization" was selected uniquely to preserve overlapping maximal-clique identity; it is a key, not a clinical-priority label.
-REFUTATION: All 3 pairwise merge proposals survived independent refutation. adult immunization schedule / childhood immunization schedule: The complete CDC schedule captures address the same routine immunization subject across adult versus young-child age bands. adult immunization schedule / maternal immunization: Both sheets substantively assess and administer vaccines, with general adults versus pregnant patients as population branches and maternal timing/contraindications adding specialized scope. childhood immunization schedule / maternal immunization: Both sheets substantively govern vaccine assessment and administration, with young children versus pregnancy as population branches; maternal vaccination remains immunization care rather than a different disease subject.
-
-### MEMBERS
-- adult immunization schedule
-- childhood immunization schedule
-- maternal immunization
-
-### EVIDENCE
-- adult immunization schedule: Catalog row(s): ACIP ? web-capture, population adult, citation https://www.cdc.gov/vaccines/imz-schedules/adult-easyread.html. Complete threshold sheet: first retained decision schedule-applicability-age = age >=19 years for adults-19-plus; population record adults-19-plus.
-- childhood immunization schedule: Catalog row(s): ACIP ? web-capture, population pediatric, citation https://www.cdc.gov/vaccines/imz-schedules/child-easyread.html. Complete threshold sheet: first retained decision young-schedule-applicability = birth through age 6 years for children-birth-through-6; population record children-birth-through-6.
-- maternal immunization: Catalog row(s): IDSA 2026 guideline, population pregnancy, citation Obstet Gynecol. 2026;147:e123–e128. Complete threshold sheet: first retained decision vaccination-status-assessment = routinely assess vaccination status, including risk factors for vaccine-preventable diseases for pregnant-patients; population record pregnant-patients.
-
 ## SUBJECT: anemia in chronic kidney disease
 DATE: 2026-09-01
 ELECTED: anemia in chronic kidney disease
 ELECTION: The member-authored key "anemia in chronic kidney disease" was selected uniquely to preserve overlapping maximal-clique identity; it is a key, not a clinical-priority label.
-REFUTATION: All 1 pairwise merge proposals survived independent refutation. anemia in chronic kidney disease / chronic kidney disease: The anemia sheet substantively defines CKD stages and manages a CKD complication in people with CKD, while the general CKD sheet covers anemia among CKD progression and complications; this is legitimate nested membership.
+REFUTATION: Independent refutation findings: anemia in chronic kidney disease / chronic kidney disease: The anemia sheet substantively defines CKD stages and manages a CKD complication in people with CKD, while the general CKD sheet covers anemia among CKD progression and complications; this is legitimate nested membership.
 
 ### MEMBERS
 - anemia in chronic kidney disease
@@ -88,7 +72,7 @@ REFUTATION: All 1 pairwise merge proposals survived independent refutation. anem
 DATE: 2026-09-01
 ELECTED: antibiotic stewardship program implementation
 ELECTION: The member-authored key "antibiotic stewardship program implementation" was selected uniquely to preserve overlapping maximal-clique identity; it is a key, not a clinical-priority label.
-REFUTATION: All 1 pairwise merge proposals survived independent refutation. antibiotic stewardship program implementation / antimicrobial stewardship leadership: Both complete guidelines substantively concern operation of antimicrobial stewardship programs, including leadership, staffing, preauthorization, audit, and feedback; leader competencies are a focused implementation branch.
+REFUTATION: Independent refutation findings: antibiotic stewardship program implementation / antimicrobial stewardship leadership: Both complete guidelines substantively concern operation of antimicrobial stewardship programs, including leadership, staffing, preauthorization, audit, and feedback; leader competencies are a focused implementation branch.
 
 ### MEMBERS
 - antibiotic stewardship program implementation
@@ -102,7 +86,7 @@ REFUTATION: All 1 pairwise merge proposals survived independent refutation. anti
 DATE: 2026-09-01
 ELECTED: anxiety disorder screening
 ELECTION: The member-authored key "anxiety disorder screening" was selected uniquely to preserve overlapping maximal-clique identity; it is a key, not a clinical-priority label.
-REFUTATION: All 1 pairwise merge proposals survived independent refutation. anxiety disorder screening / anxiety screening: Both complete USPSTF sheets screen asymptomatic people for anxiety disorders and differ principally by adult/perinatal versus pediatric population; neither sheet introduces a different anxiety condition.
+REFUTATION: Independent refutation findings: anxiety disorder screening / anxiety screening: Both complete USPSTF sheets screen asymptomatic people for anxiety disorders and differ principally by adult/perinatal versus pediatric population; neither sheet introduces a different anxiety condition.
 
 ### MEMBERS
 - anxiety disorder screening
@@ -116,7 +100,7 @@ REFUTATION: All 1 pairwise merge proposals survived independent refutation. anxi
 DATE: 2026-09-01
 ELECTED: atrial fibrillation
 ELECTION: The member-authored key "atrial fibrillation" was selected uniquely to preserve overlapping maximal-clique identity; it is a key, not a clinical-priority label.
-REFUTATION: All 1 pairwise merge proposals survived independent refutation. atrial fibrillation / atrial fibrillation screening: The USPSTF sheet screens for atrial fibrillation and the AHA/ACC sheet diagnoses and manages the same rhythm disorder; detection versus management does not split AF.
+REFUTATION: Independent refutation findings: atrial fibrillation / atrial fibrillation screening: The USPSTF sheet screens for atrial fibrillation and the AHA/ACC sheet diagnoses and manages the same rhythm disorder; detection versus management does not split AF.
 
 ### MEMBERS
 - atrial fibrillation
@@ -130,7 +114,7 @@ REFUTATION: All 1 pairwise merge proposals survived independent refutation. atri
 DATE: 2026-09-01
 ELECTED: blood cholesterol
 ELECTION: The member-authored key "blood cholesterol" was selected uniquely to preserve overlapping maximal-clique identity; it is a key, not a clinical-priority label.
-REFUTATION: All 1 pairwise merge proposals survived independent refutation. blood cholesterol / cardiovascular disease prevention, statins: The blood-cholesterol guideline substantively makes statin and other lipid-lowering decisions for ASCVD prevention, and the USPSTF statement makes the corresponding primary-prevention statin decision; the shared lipid-management scope is clinical, not lexical.
+REFUTATION: Independent refutation findings: blood cholesterol / cardiovascular disease prevention, statins: The blood-cholesterol guideline substantively makes statin and other lipid-lowering decisions for ASCVD prevention, and the USPSTF statement makes the corresponding primary-prevention statin decision; the shared lipid-management scope is clinical, not lexical.
 
 ### MEMBERS
 - blood cholesterol
@@ -144,7 +128,7 @@ REFUTATION: All 1 pairwise merge proposals survived independent refutation. bloo
 DATE: 2026-09-01
 ELECTED: dyslipidemia
 ELECTION: The member-authored key "dyslipidemia" was selected uniquely to preserve overlapping maximal-clique identity; it is a key, not a clinical-priority label.
-REFUTATION: All 6 pairwise merge proposals survived independent refutation. blood cholesterol / dyslipidemia: Both full guidelines define, detect, and manage abnormal cholesterol, LDL-C, and triglycerides; the newer dyslipidemia wording broadens rather than changes the lipid-disorder subject. blood cholesterol / lipid disorder screening: The complete sheets address detection and clinical interpretation of lipid disorders, with the general adult management sheet and pediatric screening statement differing by population and care phase rather than condition. blood cholesterol / lipid management in chronic kidney disease: The CKD sheet substantively assesses and treats cholesterol and triglyceride disorders with statins and statin-ezetimibe; CKD is an added population and second membership, not a replacement for the lipid subject. dyslipidemia / lipid disorder screening: Both complete sheets address detection and classification of lipid disorders, with comprehensive pediatric/adult dyslipidemia management versus pediatric screening as phase and population differences. dyslipidemia / lipid management in chronic kidney disease: The CKD sheet substantively assesses and treats cholesterol and triglyceride disorders, while CKD adds a nested population and second membership to the general dyslipidemia subject. lipid disorder screening / lipid management in chronic kidney disease: Both sheets substantively assess cholesterol and triglyceride disorders, with pediatric population screening versus CKD-specific assessment and treatment; the CKD sheet legitimately adds a second membership.
+REFUTATION: Independent refutation findings: blood cholesterol / dyslipidemia: Both full guidelines define, detect, and manage abnormal cholesterol, LDL-C, and triglycerides; the newer dyslipidemia wording broadens rather than changes the lipid-disorder subject. blood cholesterol / lipid disorder screening: The complete sheets address detection and clinical interpretation of lipid disorders, with the general adult management sheet and pediatric screening statement differing by population and care phase rather than condition. blood cholesterol / lipid management in chronic kidney disease: The CKD sheet substantively assesses and treats cholesterol and triglyceride disorders with statins and statin-ezetimibe; CKD is an added population and second membership, not a replacement for the lipid subject. dyslipidemia / lipid disorder screening: Both complete sheets address detection and classification of lipid disorders, with comprehensive pediatric/adult dyslipidemia management versus pediatric screening as phase and population differences. dyslipidemia / lipid management in chronic kidney disease: The CKD sheet substantively assesses and treats cholesterol and triglyceride disorders, while CKD adds a nested population and second membership to the general dyslipidemia subject. lipid disorder screening / lipid management in chronic kidney disease: Both sheets substantively assess cholesterol and triglyceride disorders, with pediatric population screening versus CKD-specific assessment and treatment; the CKD sheet legitimately adds a second membership.
 
 ### MEMBERS
 - blood cholesterol
@@ -162,7 +146,7 @@ REFUTATION: All 6 pairwise merge proposals survived independent refutation. bloo
 DATE: 2026-09-01
 ELECTED: blood pressure in chronic kidney disease
 ELECTION: The member-authored key "blood pressure in chronic kidney disease" was selected uniquely to preserve overlapping maximal-clique identity; it is a key, not a clinical-priority label.
-REFUTATION: All 1 pairwise merge proposals survived independent refutation. blood pressure in chronic kidney disease / chronic kidney disease: The BP-in-CKD sheet substantively defines CKD stages and manages a central CKD progression risk, while the general CKD sheet itself includes BP targets and renin-angiotensin therapy; nested CKD membership is supported by both scopes.
+REFUTATION: Independent refutation findings: blood pressure in chronic kidney disease / chronic kidney disease: The BP-in-CKD sheet substantively defines CKD stages and manages a central CKD progression risk, while the general CKD sheet itself includes BP targets and renin-angiotensin therapy; nested CKD membership is supported by both scopes.
 
 ### MEMBERS
 - blood pressure in chronic kidney disease
@@ -176,7 +160,7 @@ REFUTATION: All 1 pairwise merge proposals survived independent refutation. bloo
 DATE: 2026-09-01
 ELECTED: high blood pressure
 ELECTION: The member-authored key "high blood pressure" was selected uniquely to preserve overlapping maximal-clique identity; it is a key, not a clinical-priority label.
-REFUTATION: All 6 pairwise merge proposals survived independent refutation. blood pressure in chronic kidney disease / high blood pressure: Both complete guidelines substantively measure and treat high blood pressure, with the KDIGO sheet narrowing the population to CKD and adding a second CKD membership. blood pressure in chronic kidney disease / high blood pressure screening: The KDIGO sheet and pediatric USPSTF sheet address BP measurement, confirmation, and high-BP thresholds; CKD and age are population branches within the high-blood-pressure subject. blood pressure in chronic kidney disease / hypertension screening: Both sheets substantively cover accurate BP measurement and confirmation of hypertension, with CKD-specific management versus adult population screening as the scope difference. high blood pressure / high blood pressure screening: Both complete sheets address high blood pressure, with pediatric asymptomatic screening versus adult prevention, detection, evaluation, and management as population and phase differences. high blood pressure / hypertension screening: Hypertension and high blood pressure are the same condition in the sheets, and adult screening feeds the general adult management pathway. high blood pressure screening / hypertension screening: Both USPSTF sheets screen asymptomatic people for the same high-blood-pressure/hypertension condition and differ by pediatric versus adult population.
+REFUTATION: Independent refutation findings: blood pressure in chronic kidney disease / high blood pressure: Both complete guidelines substantively measure and treat high blood pressure, with the KDIGO sheet narrowing the population to CKD and adding a second CKD membership. blood pressure in chronic kidney disease / high blood pressure screening: The KDIGO sheet and pediatric USPSTF sheet address BP measurement, confirmation, and high-BP thresholds; CKD and age are population branches within the high-blood-pressure subject. blood pressure in chronic kidney disease / hypertension screening: Both sheets substantively cover accurate BP measurement and confirmation of hypertension, with CKD-specific management versus adult population screening as the scope difference. high blood pressure / high blood pressure screening: Both complete sheets address high blood pressure, with pediatric asymptomatic screening versus adult prevention, detection, evaluation, and management as population and phase differences. high blood pressure / hypertension screening: Hypertension and high blood pressure are the same condition in the sheets, and adult screening feeds the general adult management pathway. high blood pressure screening / hypertension screening: Both USPSTF sheets screen asymptomatic people for the same high-blood-pressure/hypertension condition and differ by pediatric versus adult population.
 
 ### MEMBERS
 - blood pressure in chronic kidney disease
@@ -194,7 +178,7 @@ REFUTATION: All 6 pairwise merge proposals survived independent refutation. bloo
 DATE: 2026-09-01
 ELECTED: breast cancer risk-reducing medication
 ELECTION: The member-authored key "breast cancer risk-reducing medication" was selected uniquely to preserve overlapping maximal-clique identity; it is a key, not a clinical-priority label.
-REFUTATION: All 1 pairwise merge proposals survived independent refutation. breast cancer risk-reducing medication / breast cancer screening: Both USPSTF sheets govern prevention and early detection of breast cancer in asymptomatic women, with chemoprevention versus screening as care branches of the same cancer subject.
+REFUTATION: Independent refutation findings: breast cancer risk-reducing medication / breast cancer screening: Both USPSTF sheets govern prevention and early detection of breast cancer in asymptomatic women, with chemoprevention versus screening as care branches of the same cancer subject.
 
 ### MEMBERS
 - breast cancer risk-reducing medication
@@ -208,7 +192,7 @@ REFUTATION: All 1 pairwise merge proposals survived independent refutation. brea
 DATE: 2026-09-01
 ELECTED: cardiovascular disease prevention, aspirin
 ELECTION: The member-authored key "cardiovascular disease prevention, aspirin" was selected uniquely to preserve overlapping maximal-clique identity; it is a key, not a clinical-priority label.
-REFUTATION: All 10 pairwise merge proposals survived independent refutation. cardiovascular disease prevention, aspirin / cardiovascular disease prevention, diet and physical activity counseling: Both USPSTF statements target primary prevention of cardiovascular morbidity and mortality in adults without established CVD; aspirin versus behavioral counseling is an intervention branch within that subject. cardiovascular disease prevention, aspirin / cardiovascular disease prevention, statins: Both sheets use baseline cardiovascular risk to select a preventive medication for adults without established CVD; distinct drugs do not create distinct clinical subjects. cardiovascular disease prevention, aspirin / cardiovascular disease risk assessment, nontraditional risk factors: The risk-assessment sheet and aspirin sheet both substantively operate on primary CVD-risk estimation in asymptomatic adults, with assessment feeding prevention rather than naming an unrelated condition. cardiovascular disease prevention, aspirin / cardiovascular disease risk screening, electrocardiography: Both sheets address primary CVD prevention decisions in asymptomatic adults stratified by cardiovascular risk; ECG screening versus aspirin is a screening/intervention distinction within the same prevention subject. cardiovascular disease prevention, diet and physical activity counseling / cardiovascular disease prevention, statins: Both sheets target primary prevention of cardiovascular events in adults and select intervention intensity using risk status; behavioral counseling versus statins is not a different disease subject. cardiovascular disease prevention, diet and physical activity counseling / cardiovascular disease risk assessment, nontraditional risk factors: Risk assessment and lifestyle counseling are substantive steps in primary CVD prevention for asymptomatic adults; differing tools and actions do not split the cardiovascular-prevention subject. cardiovascular disease prevention, diet and physical activity counseling / cardiovascular disease risk screening, electrocardiography: Both USPSTF statements address primary CVD prevention in adults without established disease, one counseling on behavior and the other assessing ECG screening; the outcome subject is shared. cardiovascular disease prevention, statins / cardiovascular disease risk assessment, nontraditional risk factors: The statin statement and nontraditional-risk statement both substantively use primary CVD-risk estimation to guide prevention in asymptomatic adults; assessment versus therapy is a care-phase distinction. cardiovascular disease prevention, statins / cardiovascular disease risk screening, electrocardiography: Both sheets address cardiovascular-risk evaluation and primary prevention in adults without known CVD, using ECG screening versus statin treatment as distinct actions within the same subject. cardiovascular disease risk assessment, nontraditional risk factors / cardiovascular disease risk screening, electrocardiography: The two complete USPSTF statements evaluate additional methods for cardiovascular-risk assessment in asymptomatic adults and use the same primary-prevention risk strata; the tested modality is the substantive difference.
+REFUTATION: Independent refutation findings: cardiovascular disease prevention, aspirin / cardiovascular disease prevention, diet and physical activity counseling: Both USPSTF statements target primary prevention of cardiovascular morbidity and mortality in adults without established CVD; aspirin versus behavioral counseling is an intervention branch within that subject. cardiovascular disease prevention, aspirin / cardiovascular disease prevention, statins: Both sheets use baseline cardiovascular risk to select a preventive medication for adults without established CVD; distinct drugs do not create distinct clinical subjects. cardiovascular disease prevention, aspirin / cardiovascular disease risk assessment, nontraditional risk factors: The risk-assessment sheet and aspirin sheet both substantively operate on primary CVD-risk estimation in asymptomatic adults, with assessment feeding prevention rather than naming an unrelated condition. cardiovascular disease prevention, aspirin / cardiovascular disease risk screening, electrocardiography: Both sheets address primary CVD prevention decisions in asymptomatic adults stratified by cardiovascular risk; ECG screening versus aspirin is a screening/intervention distinction within the same prevention subject. cardiovascular disease prevention, diet and physical activity counseling / cardiovascular disease prevention, statins: Both sheets target primary prevention of cardiovascular events in adults and select intervention intensity using risk status; behavioral counseling versus statins is not a different disease subject. cardiovascular disease prevention, diet and physical activity counseling / cardiovascular disease risk assessment, nontraditional risk factors: Risk assessment and lifestyle counseling are substantive steps in primary CVD prevention for asymptomatic adults; differing tools and actions do not split the cardiovascular-prevention subject. cardiovascular disease prevention, diet and physical activity counseling / cardiovascular disease risk screening, electrocardiography: Both USPSTF statements address primary CVD prevention in adults without established disease, one counseling on behavior and the other assessing ECG screening; the outcome subject is shared. cardiovascular disease prevention, statins / cardiovascular disease risk assessment, nontraditional risk factors: The statin statement and nontraditional-risk statement both substantively use primary CVD-risk estimation to guide prevention in asymptomatic adults; assessment versus therapy is a care-phase distinction. cardiovascular disease prevention, statins / cardiovascular disease risk screening, electrocardiography: Both sheets address cardiovascular-risk evaluation and primary prevention in adults without known CVD, using ECG screening versus statin treatment as distinct actions within the same subject. cardiovascular disease risk assessment, nontraditional risk factors / cardiovascular disease risk screening, electrocardiography: The two complete USPSTF statements evaluate additional methods for cardiovascular-risk assessment in asymptomatic adults and use the same primary-prevention risk strata; the tested modality is the substantive difference.
 
 ### MEMBERS
 - cardiovascular disease prevention, aspirin
@@ -228,7 +212,7 @@ REFUTATION: All 10 pairwise merge proposals survived independent refutation. car
 DATE: 2026-09-01
 ELECTED: vitamin and mineral supplementation for cardiovascular disease and cancer prevention
 ELECTION: The member-authored key "vitamin and mineral supplementation for cardiovascular disease and cancer prevention" was selected uniquely to preserve overlapping maximal-clique identity; it is a key, not a clinical-priority label.
-REFUTATION: All 1 pairwise merge proposals survived independent refutation. cardiovascular disease prevention, statins / vitamin and mineral supplementation for cardiovascular disease and cancer prevention: The supplementation sheet substantively evaluates prevention of cardiovascular disease in adults, while also carrying cancer as a second subject; statins versus supplements are preventive interventions under the shared CVD-prevention scope.
+REFUTATION: Independent refutation findings: cardiovascular disease prevention, statins / vitamin and mineral supplementation for cardiovascular disease and cancer prevention: The supplementation sheet substantively evaluates prevention of cardiovascular disease in adults, while also carrying cancer as a second subject; statins versus supplements are preventive interventions under the shared CVD-prevention scope.
 
 ### MEMBERS
 - cardiovascular disease prevention, statins
@@ -242,7 +226,7 @@ REFUTATION: All 1 pairwise merge proposals survived independent refutation. card
 DATE: 2026-09-01
 ELECTED: chronic hepatitis B
 ELECTION: The member-authored key "chronic hepatitis B" was selected uniquely to preserve overlapping maximal-clique identity; it is a key, not a clinical-priority label.
-REFUTATION: All 1 pairwise merge proposals survived independent refutation. chronic hepatitis B / hepatitis B screening: The sheets cover detection and treatment phases of HBV infection, including screening markers that establish the population entering chronic-HBV management; screening versus established infection does not separate HBV.
+REFUTATION: Independent refutation findings: chronic hepatitis B / hepatitis B screening: The sheets cover detection and treatment phases of HBV infection, including screening markers that establish the population entering chronic-HBV management; screening versus established infection does not separate HBV.
 
 ### MEMBERS
 - chronic hepatitis B
@@ -256,7 +240,7 @@ REFUTATION: All 1 pairwise merge proposals survived independent refutation. chro
 DATE: 2026-09-01
 ELECTED: chronic kidney disease
 ELECTION: The member-authored key "chronic kidney disease" was selected uniquely to preserve overlapping maximal-clique identity; it is a key, not a clinical-priority label.
-REFUTATION: All 1 pairwise merge proposals survived independent refutation. chronic kidney disease / chronic kidney disease in HIV infection: The HIV-specific guideline substantively defines, detects, stages, and manages CKD and its progression, making HIV an added population and second subject rather than reducing CKD to a passing mention.
+REFUTATION: Independent refutation findings: chronic kidney disease / chronic kidney disease in HIV infection: The HIV-specific guideline substantively defines, detects, stages, and manages CKD and its progression, making HIV an added population and second subject rather than reducing CKD to a passing mention.
 
 ### MEMBERS
 - chronic kidney disease
@@ -270,7 +254,7 @@ REFUTATION: All 1 pairwise merge proposals survived independent refutation. chro
 DATE: 2026-09-01
 ELECTED: chronic kidney disease-mineral and bone disorder
 ELECTION: The member-authored key "chronic kidney disease-mineral and bone disorder" was selected uniquely to preserve overlapping maximal-clique identity; it is a key, not a clinical-priority label.
-REFUTATION: All 1 pairwise merge proposals survived independent refutation. chronic kidney disease / chronic kidney disease-mineral and bone disorder: CKD-MBD is a substantive complication of CKD stratified by CKD stages, and the general CKD sheet covers evaluation and complications; the narrower sheet legitimately belongs to the CKD subject as well as MBD.
+REFUTATION: Independent refutation findings: chronic kidney disease / chronic kidney disease-mineral and bone disorder: CKD-MBD is a substantive complication of CKD stratified by CKD stages, and the general CKD sheet covers evaluation and complications; the narrower sheet legitimately belongs to the CKD subject as well as MBD.
 
 ### MEMBERS
 - chronic kidney disease
@@ -284,7 +268,7 @@ REFUTATION: All 1 pairwise merge proposals survived independent refutation. chro
 DATE: 2026-09-01
 ELECTED: diabetes in chronic kidney disease
 ELECTION: The member-authored key "diabetes in chronic kidney disease" was selected uniquely to preserve overlapping maximal-clique identity; it is a key, not a clinical-priority label.
-REFUTATION: All 1 pairwise merge proposals survived independent refutation. chronic kidney disease / diabetes in chronic kidney disease: The diabetes-in-CKD sheet substantively stages CKD and manages kidney-protective therapy and CKD progression in people with diabetes; it supports both diabetes and CKD memberships.
+REFUTATION: Independent refutation findings: chronic kidney disease / diabetes in chronic kidney disease: The diabetes-in-CKD sheet substantively stages CKD and manages kidney-protective therapy and CKD progression in people with diabetes; it supports both diabetes and CKD memberships.
 
 ### MEMBERS
 - chronic kidney disease
@@ -298,7 +282,7 @@ REFUTATION: All 1 pairwise merge proposals survived independent refutation. chro
 DATE: 2026-09-01
 ELECTED: heart failure in chronic kidney disease
 ELECTION: The member-authored key "heart failure in chronic kidney disease" was selected uniquely to preserve overlapping maximal-clique identity; it is a key, not a clinical-priority label.
-REFUTATION: All 1 pairwise merge proposals survived independent refutation. chronic kidney disease / heart failure in chronic kidney disease: Although the heart-failure artifact is a declared non-source, its complete scope is expressly for heart failure in people with CKD and future CKD-specific management; the nested CKD subject is substantive in the document form available.
+REFUTATION: Independent refutation findings: chronic kidney disease / heart failure in chronic kidney disease: Although the heart-failure artifact is a declared non-source, its complete scope is expressly for heart failure in people with CKD and future CKD-specific management; the nested CKD subject is substantive in the document form available.
 
 ### MEMBERS
 - chronic kidney disease
@@ -306,13 +290,13 @@ REFUTATION: All 1 pairwise merge proposals survived independent refutation. chro
 
 ### EVIDENCE
 - chronic kidney disease: Catalog row(s): KDIGO 2024 guideline, population ?, citation 10.1016/j.kint.2023.10.018. Complete threshold sheet: first retained decision ckd-minimum-duration = abnormalities of kidney structure or function for >=3 months for people-ckd; population record people-ckd.
-- heart failure in chronic kidney disease: Catalog row(s): KDIGO ? scope-of-work, population ?, citation no catalog citation. Complete threshold sheet: source kdigo-scope (scope-of-work, version ?); all nine source pages, including the proposed guideline topics, work-group scope, and development plan. The read found no quantity-shaped token that changes what is done to a patient..
+- heart failure in chronic kidney disease: Catalog row(s): KDIGO ? scope-of-work, population ?, citation no catalog citation. Complete threshold sheet: source kdigo-scope (scope-of-work, version ?); the complete source, including the proposed guideline topics, work-group scope, and development plan. The read found no quantity-shaped token that changes what is done to a patient.
 
 ## SUBJECT: hepatitis C in chronic kidney disease
 DATE: 2026-09-01
 ELECTED: hepatitis C in chronic kidney disease
 ELECTION: The member-authored key "hepatitis C in chronic kidney disease" was selected uniquely to preserve overlapping maximal-clique identity; it is a key, not a clinical-priority label.
-REFUTATION: All 1 pairwise merge proposals survived independent refutation. chronic kidney disease / hepatitis C in chronic kidney disease: The HCV-in-CKD guideline substantively evaluates CKD stages, dialysis, transplant, and HCV-associated renal disease; it therefore supports CKD membership in addition to HCV.
+REFUTATION: Independent refutation findings: chronic kidney disease / hepatitis C in chronic kidney disease: The HCV-in-CKD guideline substantively evaluates CKD stages, dialysis, transplant, and HCV-associated renal disease; it therefore supports CKD membership in addition to HCV.
 
 ### MEMBERS
 - chronic kidney disease
@@ -326,7 +310,7 @@ REFUTATION: All 1 pairwise merge proposals survived independent refutation. chro
 DATE: 2026-09-01
 ELECTED: lipid management in chronic kidney disease
 ELECTION: The member-authored key "lipid management in chronic kidney disease" was selected uniquely to preserve overlapping maximal-clique identity; it is a key, not a clinical-priority label.
-REFUTATION: All 1 pairwise merge proposals survived independent refutation. chronic kidney disease / lipid management in chronic kidney disease: The lipid sheet substantively stratifies assessment and treatment across CKD, dialysis, pediatric, and transplant populations, supporting nested CKD membership as well as dyslipidemia.
+REFUTATION: Independent refutation findings: chronic kidney disease / lipid management in chronic kidney disease: The lipid sheet substantively stratifies assessment and treatment across CKD, dialysis, pediatric, and transplant populations, supporting nested CKD membership as well as dyslipidemia.
 
 ### MEMBERS
 - chronic kidney disease
@@ -340,7 +324,7 @@ REFUTATION: All 1 pairwise merge proposals survived independent refutation. chro
 DATE: 2026-09-01
 ELECTED: chronic kidney disease in HIV infection
 ELECTION: The member-authored key "chronic kidney disease in HIV infection" was selected uniquely to preserve overlapping maximal-clique identity; it is a key, not a clinical-priority label.
-REFUTATION: All 6 pairwise merge proposals survived independent refutation. chronic kidney disease in HIV infection / HIV preexposure prophylaxis: The CKD guideline substantively manages HIV-infected people and antiretroviral exposure, while PrEP prevents acquisition; CKD adds a nested condition but does not erase the shared HIV clinical subject across prevention and established infection. chronic kidney disease in HIV infection / HIV primary care: Both IDSA sheets provide care for people with HIV, and the primary-care sheet includes renal monitoring while the CKD sheet expands that HIV complication; nested kidney disease supports multi-membership. chronic kidney disease in HIV infection / HIV screening: The sheets address detection and subsequent management of HIV infection, with the CKD sheet adding a substantive renal complication and second membership rather than a different infection. HIV preexposure prophylaxis / HIV primary care: The sheets cover prevention before HIV acquisition and longitudinal care after infection, both substantively organized around HIV risk, testing, antiretroviral use, and prevention; care phase does not split the HIV subject. HIV preexposure prophylaxis / HIV screening: Both USPSTF sheets operate in people without known HIV and substantively link HIV risk assessment, testing, and prevention; PrEP versus screening is an action distinction within HIV prevention. HIV primary care / HIV screening: The USPSTF statement detects HIV infection and the IDSA sheet provides longitudinal primary care after diagnosis; screening and management phases address the same infection.
+REFUTATION: Independent refutation findings: chronic kidney disease in HIV infection / HIV preexposure prophylaxis: The CKD guideline substantively manages HIV-infected people and antiretroviral exposure, while PrEP prevents acquisition; CKD adds a nested condition but does not erase the shared HIV clinical subject across prevention and established infection. chronic kidney disease in HIV infection / HIV primary care: Both IDSA sheets provide care for people with HIV, and the primary-care sheet includes renal monitoring while the CKD sheet expands that HIV complication; nested kidney disease supports multi-membership. chronic kidney disease in HIV infection / HIV screening: The sheets address detection and subsequent management of HIV infection, with the CKD sheet adding a substantive renal complication and second membership rather than a different infection. HIV preexposure prophylaxis / HIV primary care: The sheets cover prevention before HIV acquisition and longitudinal care after infection, both substantively organized around HIV risk, testing, antiretroviral use, and prevention; care phase does not split the HIV subject. HIV preexposure prophylaxis / HIV screening: Both USPSTF sheets operate in people without known HIV and substantively link HIV risk assessment, testing, and prevention; PrEP versus screening is an action distinction within HIV prevention. HIV primary care / HIV screening: The USPSTF statement detects HIV infection and the IDSA sheet provides longitudinal primary care after diagnosis; screening and management phases address the same infection.
 
 ### MEMBERS
 - chronic kidney disease in HIV infection
@@ -358,7 +342,7 @@ REFUTATION: All 6 pairwise merge proposals survived independent refutation. chro
 DATE: 2026-09-01
 ELECTED: chronic obstructive pulmonary disease
 ELECTION: The member-authored key "chronic obstructive pulmonary disease" was selected uniquely to preserve overlapping maximal-clique identity; it is a key, not a clinical-priority label.
-REFUTATION: All 1 pairwise merge proposals survived independent refutation. chronic obstructive pulmonary disease / COPD screening: Both complete sheets concern COPD, with USPSTF addressing case finding in asymptomatic adults and GOLD covering diagnosis, management, and prevention; screening versus management is the only subject-level distinction.
+REFUTATION: Independent refutation findings: chronic obstructive pulmonary disease / COPD screening: Both complete sheets concern COPD, with USPSTF addressing case finding in asymptomatic adults and GOLD covering diagnosis, management, and prevention; screening versus management is the only subject-level distinction.
 
 ### MEMBERS
 - chronic obstructive pulmonary disease
@@ -372,7 +356,7 @@ REFUTATION: All 1 pairwise merge proposals survived independent refutation. chro
 DATE: 2026-09-01
 ELECTED: chronic pain in HIV infection
 ELECTION: The member-authored key "chronic pain in HIV infection" was selected uniquely to preserve overlapping maximal-clique identity; it is a key, not a clinical-priority label.
-REFUTATION: All 6 pairwise merge proposals survived independent refutation. chronic pain in HIV infection / HIV preexposure prophylaxis: The pain guideline is substantively care of people living with HIV, and the PrEP statement prevents that same infection; chronic pain adds a second nested subject while prevention versus established infection remains an HIV care-phase distinction. chronic pain in HIV infection / HIV primary care: Both sheets care for people with HIV, with chronic-pain assessment and treatment a focused complication within the broader HIV primary-care subject. chronic pain in HIV infection / HIV screening: HIV screening and downstream care of chronic pain in people with HIV are detection and nested-management phases of the HIV subject; the pain sheet retains a second condition membership. HIV preexposure prophylaxis / HIV primary care: The sheets cover prevention before HIV acquisition and longitudinal care after infection, both substantively organized around HIV risk, testing, antiretroviral use, and prevention; care phase does not split the HIV subject. HIV preexposure prophylaxis / HIV screening: Both USPSTF sheets operate in people without known HIV and substantively link HIV risk assessment, testing, and prevention; PrEP versus screening is an action distinction within HIV prevention. HIV primary care / HIV screening: The USPSTF statement detects HIV infection and the IDSA sheet provides longitudinal primary care after diagnosis; screening and management phases address the same infection.
+REFUTATION: Independent refutation findings: chronic pain in HIV infection / HIV preexposure prophylaxis: The pain guideline is substantively care of people living with HIV, and the PrEP statement prevents that same infection; chronic pain adds a second nested subject while prevention versus established infection remains an HIV care-phase distinction. chronic pain in HIV infection / HIV primary care: Both sheets care for people with HIV, with chronic-pain assessment and treatment a focused complication within the broader HIV primary-care subject. chronic pain in HIV infection / HIV screening: HIV screening and downstream care of chronic pain in people with HIV are detection and nested-management phases of the HIV subject; the pain sheet retains a second condition membership. HIV preexposure prophylaxis / HIV primary care: The sheets cover prevention before HIV acquisition and longitudinal care after infection, both substantively organized around HIV risk, testing, antiretroviral use, and prevention; care phase does not split the HIV subject. HIV preexposure prophylaxis / HIV screening: Both USPSTF sheets operate in people without known HIV and substantively link HIV risk assessment, testing, and prevention; PrEP versus screening is an action distinction within HIV prevention. HIV primary care / HIV screening: The USPSTF statement detects HIV infection and the IDSA sheet provides longitudinal primary care after diagnosis; screening and management phases address the same infection.
 
 ### MEMBERS
 - chronic pain in HIV infection
@@ -390,7 +374,7 @@ REFUTATION: All 6 pairwise merge proposals survived independent refutation. chro
 DATE: 2026-09-01
 ELECTED: Clostridioides difficile infection
 ELECTION: The member-authored key "Clostridioides difficile infection" was selected uniquely to preserve overlapping maximal-clique identity; it is a key, not a clinical-priority label.
-REFUTATION: All 1 pairwise merge proposals survived independent refutation. Clostridioides difficile infection / Clostridium difficile infection: Both IDSA sheets manage the same C. difficile infection; Clostridioides is the renamed genus, while the population and update scope explain the remaining differences.
+REFUTATION: Independent refutation findings: Clostridioides difficile infection / Clostridium difficile infection: Both IDSA sheets manage the same C. difficile infection; Clostridioides is the renamed genus, while the population and update scope explain the remaining differences.
 
 ### MEMBERS
 - Clostridioides difficile infection
@@ -404,7 +388,7 @@ REFUTATION: All 1 pairwise merge proposals survived independent refutation. Clos
 DATE: 2026-09-01
 ELECTED: community-acquired pneumonia
 ELECTION: The member-authored key "community-acquired pneumonia" was selected uniquely to preserve overlapping maximal-clique identity; it is a key, not a clinical-priority label.
-REFUTATION: All 1 pairwise merge proposals survived independent refutation. community-acquired pneumonia / hospital-acquired and ventilator-associated pneumonia: Both ATS/IDSA sheets diagnose and treat pneumonia in adults; acquisition setting changes pathogen risk, testing, and empiric therapy but remains a clinically substantive subtype distinction within pneumonia.
+REFUTATION: Independent refutation findings: community-acquired pneumonia / hospital-acquired and ventilator-associated pneumonia: Both ATS/IDSA sheets diagnose and treat pneumonia in adults; acquisition setting changes pathogen risk, testing, and empiric therapy but remains a clinically substantive subtype distinction within pneumonia.
 
 ### MEMBERS
 - community-acquired pneumonia
@@ -418,7 +402,7 @@ REFUTATION: All 1 pairwise merge proposals survived independent refutation. comm
 DATE: 2026-09-01
 ELECTED: COVID-19 infection prevention for healthcare personnel
 ELECTION: The member-authored key "COVID-19 infection prevention for healthcare personnel" was selected uniquely to preserve overlapping maximal-clique identity; it is a key, not a clinical-priority label.
-REFUTATION: All 3 pairwise merge proposals survived independent refutation. COVID-19 infection prevention for healthcare personnel / COVID-19 serologic testing: Both IDSA sheets substantively concern suspected or known COVID-19, with occupational infection-control measures versus serologic diagnosis as prevention and detection branches of the same infection subject. COVID-19 infection prevention for healthcare personnel / COVID-19 treatment: The complete sheets address prevention of SARS-CoV-2 transmission during care and treatment of infected patients; personnel population and action differ, but COVID-19 remains the substantive disease driving both. COVID-19 serologic testing / COVID-19 treatment: Both complete IDSA sheets concern SARS-CoV-2 infection in patients, one delimiting serologic diagnosis and the other treatment by COVID-19 severity; diagnostic versus therapeutic scope does not split the disease.
+REFUTATION: Independent refutation findings: COVID-19 infection prevention for healthcare personnel / COVID-19 serologic testing: Both IDSA sheets substantively concern suspected or known COVID-19, with occupational infection-control measures versus serologic diagnosis as prevention and detection branches of the same infection subject. COVID-19 infection prevention for healthcare personnel / COVID-19 treatment: The complete sheets address prevention of SARS-CoV-2 transmission during care and treatment of infected patients; personnel population and action differ, but COVID-19 remains the substantive disease driving both. COVID-19 serologic testing / COVID-19 treatment: Both complete IDSA sheets concern SARS-CoV-2 infection in patients, one delimiting serologic diagnosis and the other treatment by COVID-19 severity; diagnostic versus therapeutic scope does not split the disease.
 
 ### MEMBERS
 - COVID-19 infection prevention for healthcare personnel
@@ -434,7 +418,7 @@ REFUTATION: All 3 pairwise merge proposals survived independent refutation. COVI
 DATE: 2026-09-01
 ELECTED: dental caries prevention
 ELECTION: The member-authored key "dental caries prevention" was selected uniquely to preserve overlapping maximal-clique identity; it is a key, not a clinical-priority label.
-REFUTATION: All 1 pairwise merge proposals survived independent refutation. dental caries prevention / oral health screening and prevention: The broader oral-health sheets substantively include dental caries screening and preventive interventions, while the younger-child sheet focuses on caries; this is legitimate nested oral-health membership.
+REFUTATION: Independent refutation findings: dental caries prevention / oral health screening and prevention: The broader oral-health sheets substantively include dental caries screening and preventive interventions, while the younger-child sheet focuses on caries; this is legitimate nested oral-health membership.
 
 ### MEMBERS
 - dental caries prevention
@@ -448,7 +432,7 @@ REFUTATION: All 1 pairwise merge proposals survived independent refutation. dent
 DATE: 2026-09-01
 ELECTED: depression and suicide risk screening
 ELECTION: The member-authored key "depression and suicide risk screening" was selected uniquely to preserve overlapping maximal-clique identity; it is a key, not a clinical-priority label.
-REFUTATION: All 1 pairwise merge proposals survived independent refutation. depression and suicide risk screening / perinatal depression prevention: The screening sheet expressly includes pregnant and postpartum people and depression, while the prevention sheet targets the same perinatal depressive illness before diagnosis; suicide-risk content adds a second scope but does not erase the shared depression subject.
+REFUTATION: Independent refutation findings: depression and suicide risk screening / perinatal depression prevention: The screening sheet expressly includes pregnant and postpartum people and depression, while the prevention sheet targets the same perinatal depressive illness before diagnosis; suicide-risk content adds a second scope but does not erase the shared depression subject.
 
 ### MEMBERS
 - depression and suicide risk screening
@@ -462,7 +446,7 @@ REFUTATION: All 1 pairwise merge proposals survived independent refutation. depr
 DATE: 2026-09-01
 ELECTED: prediabetes and type 2 diabetes screening
 ELECTION: The member-authored key "prediabetes and type 2 diabetes screening" was selected uniquely to preserve overlapping maximal-clique identity; it is a key, not a clinical-priority label.
-REFUTATION: All 3 pairwise merge proposals survived independent refutation. diabetes in chronic kidney disease / diabetes mellitus: The KDIGO sheet substantively manages diabetes with glycemic monitoring, targets, lifestyle, and glucose-lowering drugs, adding CKD as a nested population to the general diabetes subject. diabetes in chronic kidney disease / prediabetes and type 2 diabetes screening: Both sheets substantively address type 2 diabetes, with USPSTF case finding and KDIGO management after diabetes and CKD coexist; screening versus nested management supports one diabetes subject. diabetes mellitus / prediabetes and type 2 diabetes screening: The USPSTF sheets detect prediabetes and type 2 diabetes and ADA manages the same diabetes continuum; screening versus comprehensive management and age branches do not split the subject.
+REFUTATION: Independent refutation findings: diabetes in chronic kidney disease / diabetes mellitus: The KDIGO sheet substantively manages diabetes with glycemic monitoring, targets, lifestyle, and glucose-lowering drugs, adding CKD as a nested population to the general diabetes subject. diabetes in chronic kidney disease / prediabetes and type 2 diabetes screening: Both sheets substantively address type 2 diabetes, with USPSTF case finding and KDIGO management after diabetes and CKD coexist; screening versus nested management supports one diabetes subject. diabetes mellitus / prediabetes and type 2 diabetes screening: The USPSTF sheets detect prediabetes and type 2 diabetes and ADA manages the same diabetes continuum; screening versus comprehensive management and age branches do not split the subject.
 
 ### MEMBERS
 - diabetes in chronic kidney disease
@@ -478,7 +462,7 @@ REFUTATION: All 3 pairwise merge proposals survived independent refutation. diab
 DATE: 2026-09-01
 ELECTED: diabetes-related foot infection
 ELECTION: The member-authored key "diabetes-related foot infection" was selected uniquely to preserve overlapping maximal-clique identity; it is a key, not a clinical-priority label.
-REFUTATION: All 1 pairwise merge proposals survived independent refutation. diabetes mellitus / diabetes-related foot infection: The foot-infection guideline substantively addresses a diabetes complication and its management in people with diabetes, while ADA covers foot assessment and complication prevention; the narrow sheet legitimately belongs to both diabetes and infection subjects.
+REFUTATION: Independent refutation findings: diabetes mellitus / diabetes-related foot infection: The foot-infection guideline substantively addresses a diabetes complication and its management in people with diabetes, while ADA covers foot assessment and complication prevention; the narrow sheet legitimately belongs to both diabetes and infection subjects.
 
 ### MEMBERS
 - diabetes mellitus
@@ -492,7 +476,7 @@ REFUTATION: All 1 pairwise merge proposals survived independent refutation. diab
 DATE: 2026-09-01
 ELECTED: gestational diabetes screening
 ELECTION: The member-authored key "gestational diabetes screening" was selected uniquely to preserve overlapping maximal-clique identity; it is a key, not a clinical-priority label.
-REFUTATION: All 1 pairwise merge proposals survived independent refutation. diabetes mellitus / gestational diabetes screening: The comprehensive ADA sheet substantively covers diabetes in pregnancy, while USPSTF detects gestational diabetes; pregnancy and screening add a subtype and phase within the broader diabetes subject.
+REFUTATION: Independent refutation findings: diabetes mellitus / gestational diabetes screening: The comprehensive ADA sheet substantively covers diabetes in pregnancy, while USPSTF detects gestational diabetes; pregnancy and screening add a subtype and phase within the broader diabetes subject.
 
 ### MEMBERS
 - diabetes mellitus
@@ -506,7 +490,7 @@ REFUTATION: All 1 pairwise merge proposals survived independent refutation. diab
 DATE: 2026-09-01
 ELECTED: drug-susceptible tuberculosis treatment
 ELECTION: The member-authored key "drug-susceptible tuberculosis treatment" was selected uniquely to preserve overlapping maximal-clique identity; it is a key, not a clinical-priority label.
-REFUTATION: All 1 pairwise merge proposals survived independent refutation. drug-susceptible tuberculosis treatment / tuberculosis diagnosis: The diagnosis guideline substantively establishes active pulmonary and extrapulmonary TB and drug-resistance workup that leads to the drug-susceptible treatment guideline; diagnostic versus therapeutic phase does not split active tuberculosis.
+REFUTATION: Independent refutation findings: drug-susceptible tuberculosis treatment / tuberculosis diagnosis: The diagnosis guideline substantively establishes active pulmonary and extrapulmonary TB and drug-resistance workup that leads to the drug-susceptible treatment guideline; diagnostic versus therapeutic phase does not split active tuberculosis.
 
 ### MEMBERS
 - drug-susceptible tuberculosis treatment
@@ -520,7 +504,7 @@ REFUTATION: All 1 pairwise merge proposals survived independent refutation. drug
 DATE: 2026-09-01
 ELECTED: fracture prevention, vitamin D and calcium supplementation
 ELECTION: The member-authored key "fracture prevention, vitamin D and calcium supplementation" was selected uniquely to preserve overlapping maximal-clique identity; it is a key, not a clinical-priority label.
-REFUTATION: All 1 pairwise merge proposals survived independent refutation. fracture prevention, vitamin D and calcium supplementation / osteoporosis screening, fracture prevention: Both USPSTF sheets center on preventing fragility fractures in community-dwelling adults; supplementation versus osteoporosis screening is a preventive-action distinction within the shared fracture-prevention subject.
+REFUTATION: Independent refutation findings: fracture prevention, vitamin D and calcium supplementation / osteoporosis screening, fracture prevention: Both USPSTF sheets center on preventing fragility fractures in community-dwelling adults; supplementation versus osteoporosis screening is a preventive-action distinction within the shared fracture-prevention subject.
 
 ### MEMBERS
 - fracture prevention, vitamin D and calcium supplementation
@@ -534,7 +518,7 @@ REFUTATION: All 1 pairwise merge proposals survived independent refutation. frac
 DATE: 2026-09-01
 ELECTED: heart failure
 ELECTION: The member-authored key "heart failure" was selected uniquely to preserve overlapping maximal-clique identity; it is a key, not a clinical-priority label.
-REFUTATION: All 1 pairwise merge proposals survived independent refutation. heart failure / heart failure in chronic kidney disease: The CKD artifact is a scope of work rather than a decision source, but its complete text is substantively and expressly about diagnosis and management of heart failure in CKD; CKD creates nested membership without changing the heart-failure subject.
+REFUTATION: Independent refutation findings: heart failure / heart failure in chronic kidney disease: The CKD artifact is a scope of work rather than a decision source, but its complete text is substantively and expressly about diagnosis and management of heart failure in CKD; CKD creates nested membership without changing the heart-failure subject.
 
 ### MEMBERS
 - heart failure
@@ -542,13 +526,13 @@ REFUTATION: All 1 pairwise merge proposals survived independent refutation. hear
 
 ### EVIDENCE
 - heart failure: Catalog row(s): AHA ACC 2022 guideline, population ?, citation 10.1161/CIR.0000000000001063. Complete threshold sheet: first retained decision hf-ef-classification = HFrEF: LVEF <=40% for hfr-ef; population record all-hf.
-- heart failure in chronic kidney disease: Catalog row(s): KDIGO ? scope-of-work, population ?, citation no catalog citation. Complete threshold sheet: source kdigo-scope (scope-of-work, version ?); all nine source pages, including the proposed guideline topics, work-group scope, and development plan. The read found no quantity-shaped token that changes what is done to a patient..
+- heart failure in chronic kidney disease: Catalog row(s): KDIGO ? scope-of-work, population ?, citation no catalog citation. Complete threshold sheet: source kdigo-scope (scope-of-work, version ?); the complete source, including the proposed guideline topics, work-group scope, and development plan. The read found no quantity-shaped token that changes what is done to a patient.
 
 ## SUBJECT: hepatitis C screening
 DATE: 2026-09-01
 ELECTED: hepatitis C screening
 ELECTION: The member-authored key "hepatitis C screening" was selected uniquely to preserve overlapping maximal-clique identity; it is a key, not a clinical-priority label.
-REFUTATION: All 3 pairwise merge proposals survived independent refutation. hepatitis C in chronic kidney disease / hepatitis C screening: The KDIGO sheet includes HCV detection and screening in CKD and dialysis populations, while USPSTF covers population screening generally; CKD is a nested population within the HCV subject. hepatitis C in chronic kidney disease / hepatitis C virus infection: Both sheets substantively diagnose and treat HCV infection; KDIGO adds renal-stage, dialysis, and transplant branches and therefore retains both HCV and CKD memberships. hepatitis C screening / hepatitis C virus infection: The USPSTF sheet detects HCV infection and the AASLD-IDSA sheet tests, stages, and treats that same infection; screening and management phases support one HCV subject.
+REFUTATION: Independent refutation findings: hepatitis C in chronic kidney disease / hepatitis C screening: The KDIGO sheet includes HCV detection and screening in CKD and dialysis populations, while USPSTF covers population screening generally; CKD is a nested population within the HCV subject. hepatitis C in chronic kidney disease / hepatitis C virus infection: Both sheets substantively diagnose and treat HCV infection; KDIGO adds renal-stage, dialysis, and transplant branches and therefore retains both HCV and CKD memberships. hepatitis C screening / hepatitis C virus infection: The USPSTF sheet detects HCV infection and the AASLD-IDSA sheet tests, stages, and treats that same infection; screening and management phases support one HCV subject.
 
 ### MEMBERS
 - hepatitis C in chronic kidney disease
@@ -564,7 +548,7 @@ REFUTATION: All 3 pairwise merge proposals survived independent refutation. hepa
 DATE: 2026-09-01
 ELECTED: high body mass index intervention
 ELECTION: The member-authored key "high body mass index intervention" was selected uniquely to preserve overlapping maximal-clique identity; it is a key, not a clinical-priority label.
-REFUTATION: All 1 pairwise merge proposals survived independent refutation. high body mass index intervention / obesity, behavioral weight loss intervention: Both USPSTF sheets prescribe intensive behavioral weight-management interventions for elevated BMI/obesity, separated primarily by pediatric versus adult population wording.
+REFUTATION: Independent refutation findings: high body mass index intervention / obesity, behavioral weight loss intervention: Both USPSTF sheets prescribe intensive behavioral weight-management interventions for elevated BMI/obesity, separated primarily by pediatric versus adult population wording.
 
 ### MEMBERS
 - high body mass index intervention
@@ -578,7 +562,7 @@ REFUTATION: All 1 pairwise merge proposals survived independent refutation. high
 DATE: 2026-09-01
 ELECTED: hypertensive disorders of pregnancy screening
 ELECTION: The member-authored key "hypertensive disorders of pregnancy screening" was selected uniquely to preserve overlapping maximal-clique identity; it is a key, not a clinical-priority label.
-REFUTATION: All 1 pairwise merge proposals survived independent refutation. hypertensive disorders of pregnancy screening / preeclampsia prevention, low-dose aspirin: Preeclampsia is a substantive hypertensive disorder of pregnancy in the screening sheet, and both statements govern detection or prevention of that pregnancy-specific condition; the broader screening sheet legitimately has nested membership.
+REFUTATION: Independent refutation findings: hypertensive disorders of pregnancy screening / preeclampsia prevention, low-dose aspirin: Preeclampsia is a substantive hypertensive disorder of pregnancy in the screening sheet, and both statements govern detection or prevention of that pregnancy-specific condition; the broader screening sheet legitimately has nested membership.
 
 ### MEMBERS
 - hypertensive disorders of pregnancy screening
@@ -592,7 +576,7 @@ REFUTATION: All 1 pairwise merge proposals survived independent refutation. hype
 DATE: 2026-09-01
 ELECTED: illicit drug use prevention
 ELECTION: The member-authored key "illicit drug use prevention" was selected uniquely to preserve overlapping maximal-clique identity; it is a key, not a clinical-priority label.
-REFUTATION: All 1 pairwise merge proposals survived independent refutation. illicit drug use prevention / unhealthy drug use screening: Both USPSTF statements address primary-care prevention or detection of nonmedical drug use, with age and pregnancy branches and a prevention-versus-screening distinction rather than different substances or conditions.
+REFUTATION: Independent refutation findings: illicit drug use prevention / unhealthy drug use screening: Both USPSTF statements address primary-care prevention or detection of nonmedical drug use, with age and pregnancy branches and a prevention-versus-screening distinction rather than different substances or conditions.
 
 ### MEMBERS
 - illicit drug use prevention
@@ -606,7 +590,7 @@ REFUTATION: All 1 pairwise merge proposals survived independent refutation. illi
 DATE: 2026-09-01
 ELECTED: iron deficiency anemia screening
 ELECTION: The member-authored key "iron deficiency anemia screening" was selected uniquely to preserve overlapping maximal-clique identity; it is a key, not a clinical-priority label.
-REFUTATION: All 1 pairwise merge proposals survived independent refutation. iron deficiency anemia screening / iron deficiency anemia screening and supplementation: Both USPSTF sheets address detection of iron deficiency anemia, with young children versus pregnancy and added maternal iron supplementation as population and intervention branches.
+REFUTATION: Independent refutation findings: iron deficiency anemia screening / iron deficiency anemia screening and supplementation: Both USPSTF sheets address detection of iron deficiency anemia, with young children versus pregnancy and added maternal iron supplementation as population and intervention branches.
 
 ### MEMBERS
 - iron deficiency anemia screening
@@ -620,7 +604,7 @@ REFUTATION: All 1 pairwise merge proposals survived independent refutation. iron
 DATE: 2026-09-01
 ELECTED: kidney transplant recipient care
 ELECTION: The member-authored key "kidney transplant recipient care" was selected uniquely to preserve overlapping maximal-clique identity; it is a key, not a clinical-priority label.
-REFUTATION: All 1 pairwise merge proposals survived independent refutation. kidney transplant recipient care / kidney transplantation candidate evaluation: The complete KDIGO sheets govern successive pretransplant-candidate and posttransplant-recipient phases for the kidney transplant patient, with substantive continuity in eligibility, risk evaluation, and recipient management.
+REFUTATION: Independent refutation findings: kidney transplant recipient care / kidney transplantation candidate evaluation: The complete KDIGO sheets govern successive pretransplant-candidate and posttransplant-recipient phases for the kidney transplant patient, with substantive continuity in eligibility, risk evaluation, and recipient management.
 
 ### MEMBERS
 - kidney transplant recipient care
@@ -634,7 +618,7 @@ REFUTATION: All 1 pairwise merge proposals survived independent refutation. kidn
 DATE: 2026-09-01
 ELECTED: latent tuberculosis infection screening
 ELECTION: The member-authored key "latent tuberculosis infection screening" was selected uniquely to preserve overlapping maximal-clique identity; it is a key, not a clinical-priority label.
-REFUTATION: All 1 pairwise merge proposals survived independent refutation. latent tuberculosis infection screening / tuberculosis diagnosis: The diagnosis guideline substantively covers TST and IGRA evaluation, interpretation, and exclusion of active disease, while USPSTF covers case finding for latent infection; both share the latent-TB diagnostic subject.
+REFUTATION: Independent refutation findings: latent tuberculosis infection screening / tuberculosis diagnosis: The diagnosis guideline substantively covers TST and IGRA evaluation, interpretation, and exclusion of active disease, while USPSTF covers case finding for latent infection; both share the latent-TB diagnostic subject.
 
 ### MEMBERS
 - latent tuberculosis infection screening
@@ -648,7 +632,7 @@ REFUTATION: All 1 pairwise merge proposals survived independent refutation. late
 DATE: 2026-09-01
 ELECTED: lower extremity peripheral artery disease
 ELECTION: The member-authored key "lower extremity peripheral artery disease" was selected uniquely to preserve overlapping maximal-clique identity; it is a key, not a clinical-priority label.
-REFUTATION: All 1 pairwise merge proposals survived independent refutation. lower extremity peripheral artery disease / peripheral artery disease screening, ankle-brachial index: Both sheets concern lower-extremity PAD and use the ankle-brachial index for detection or evaluation, with screening versus full disease management as the scope difference.
+REFUTATION: Independent refutation findings: lower extremity peripheral artery disease / peripheral artery disease screening, ankle-brachial index: Both sheets concern lower-extremity PAD and use the ankle-brachial index for detection or evaluation, with screening versus full disease management as the scope difference.
 
 ### MEMBERS
 - lower extremity peripheral artery disease
@@ -658,25 +642,11 @@ REFUTATION: All 1 pairwise merge proposals survived independent refutation. lowe
 - lower extremity peripheral artery disease: Catalog row(s): AHA ACC 2024 guideline, population ?, citation 10.1161/CIR.0000000000001251. Complete threshold sheet: first retained decision history-and-physical-examination-to-assess-1 = In patients at increased risk of PAD (Table 5), a comprehensive medical history and review of symptoms to assess for exertional leg symptoms, lower extremity rest pain, and lower extremity wounds or other ischemic skin changes should be performed. for patients-at-increased-risk-of-pad-table-5; population record patients-at-increased-risk-of-pad-table-5.
 - peripheral artery disease screening, ankle-brachial index: Catalog row(s): USPSTF 2018 recommendation-statement, population adult, citation 10.1001/jama.2018.8357. Complete threshold sheet: first retained decision screening-evidence-conclusion = evidence is insufficient to assess the balance of benefits and harms of screening for PAD and CVD risk with ABI for asymptomatic-adults-no-pad-cvd-severe-ckd; population record asymptomatic-adults-no-pad-cvd-severe-ckd.
 
-## SUBJECT: sexually transmitted infection prevention counseling
-DATE: 2026-09-01
-ELECTED: sexually transmitted infection prevention counseling
-ELECTION: The member-authored key "sexually transmitted infection prevention counseling" was selected uniquely to preserve overlapping maximal-clique identity; it is a key, not a clinical-priority label.
-REFUTATION: All 1 pairwise merge proposals survived independent refutation. sexually transmitted infection prevention counseling / syphilis screening: Syphilis is substantively one of the sexually transmitted infections whose acquisition the counseling statement seeks to prevent; broad STI prevention and specific syphilis detection support nested subject membership.
-
-### MEMBERS
-- sexually transmitted infection prevention counseling
-- syphilis screening
-
-### EVIDENCE
-- sexually transmitted infection prevention counseling: Catalog row(s): USPSTF 2020 recommendation-statement, population adolescent, adult, citation 10.1001/jama.2020.13095. Complete threshold sheet: first retained decision behavioral-counseling-recommendation = provide behavioral counseling to prevent STIs; Grade B for counseling-eligible-population; population record sexually-active-adolescents.
-- syphilis screening: Catalog row(s): USPSTF 2022 recommendation-statement, population adolescent, adult, citation 10.1001/jama.2022.15322; USPSTF 2025 recommendation-statement, population pregnancy, citation 10.1001/jama.2025.5009. Complete threshold sheet: first retained decision syphilis-screening = screen for increased-risk-nonpregnant-adolescents-and-adults; population record increased-risk-nonpregnant-adolescents-and-adults.
-
 ## SUBJECT: skin cancer prevention counseling
 DATE: 2026-09-01
 ELECTED: skin cancer prevention counseling
 ELECTION: The member-authored key "skin cancer prevention counseling" was selected uniquely to preserve overlapping maximal-clique identity; it is a key, not a clinical-priority label.
-REFUTATION: All 1 pairwise merge proposals survived independent refutation. skin cancer prevention counseling / skin cancer screening: Both USPSTF sheets address prevention or early detection of skin cancer in asymptomatic populations, with UV-risk counseling versus visual screening as distinct preventive actions.
+REFUTATION: Independent refutation findings: skin cancer prevention counseling / skin cancer screening: Both USPSTF sheets address prevention or early detection of skin cancer in asymptomatic populations, with UV-risk counseling versus visual screening as distinct preventive actions.
 
 ### MEMBERS
 - skin cancer prevention counseling
@@ -690,7 +660,7 @@ REFUTATION: All 1 pairwise merge proposals survived independent refutation. skin
 DATE: 2026-09-01
 ELECTED: tobacco smoking cessation
 ELECTION: The member-authored key "tobacco smoking cessation" was selected uniquely to preserve overlapping maximal-clique identity; it is a key, not a clinical-priority label.
-REFUTATION: All 1 pairwise merge proposals survived independent refutation. tobacco smoking cessation / tobacco use prevention and cessation: Both USPSTF sheets address preventing or stopping tobacco use, with adults and pregnancy versus children and adolescents as population branches.
+REFUTATION: Independent refutation findings: tobacco smoking cessation / tobacco use prevention and cessation: Both USPSTF sheets address preventing or stopping tobacco use, with adults and pregnancy versus children and adolescents as population branches.
 
 ### MEMBERS
 - tobacco smoking cessation
