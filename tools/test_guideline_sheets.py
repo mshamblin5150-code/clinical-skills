@@ -400,16 +400,16 @@ class TheSkillsExamplesStillMatchTheSheets(ProseBind, unittest.TestCase):
         sheets = sorted(
             p.name
             for p in THRESHOLDS.glob("*.md")
-            if p.name not in {"README.md", "coverage.md"}
+            if p.name not in {"README.md", "coverage.md", "subjects.md"}
         )
         coverage = COVERAGE.read_text(encoding="utf-8")
         registered = sorted(
-            cells[2]
+            cells[3]
             for line in coverage.splitlines()
             if line.startswith("| ")
-            and len(cells := [cell.strip() for cell in line.strip("|").split("|")]) == 4
-            and cells[1] in threshold_coverage.STATES
-            and cells[2]
+            and len(cells := [cell.strip() for cell in line.strip("|").split("|")]) == 5
+            and cells[2] in threshold_coverage.STATES
+            and cells[3]
         )
         self.assertEqual(sheets, registered)
         self.assertIn("thresholds/coverage.md", self.text)
@@ -419,7 +419,7 @@ class TheSkillsExamplesStillMatchTheSheets(ProseBind, unittest.TestCase):
         source_classes, problems = threshold_sheet.load_catalog_source_classes()
         self.assertEqual(problems, [])
         for path in THRESHOLDS.glob("*.md"):
-            if path.name in {"README.md", "coverage.md"}:
+            if path.name in {"README.md", "coverage.md", "subjects.md"}:
                 continue
             parsed = threshold_sheet.parse(path.read_text(encoding="utf-8"), path)
             self.assertTrue(parsed.ok, parsed.why_not)

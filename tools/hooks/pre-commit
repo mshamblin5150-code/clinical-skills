@@ -55,7 +55,7 @@ for python in python python3 py; do
         # published --recs-alias records carry the current producer identity.
         if git diff --cached --name-only --diff-filter=ACM \
             | grep '^reference/thresholds/[^/]*\.md$' \
-            | grep -Ev '^reference/thresholds/(README|coverage)\.md$' \
+            | grep -Ev '^reference/thresholds/(README|coverage|subjects)\.md$' \
             | grep -q .; then
             "$python" "$repo_root/tools/threshold_sheet.py" --all --quiet >&2 || status=1
         fi
@@ -69,7 +69,16 @@ for python in python python3 py; do
             "$python" "$repo_root/tools/threshold_coverage.py" >&2 || status=1
         fi
 
-        # **The fourth refusing check.** It cannot run in CI because scratch roots
+        # **The fourth refusing check.** The subject column and its evidence ledger
+        # are one two-way bind. Run the grader when either half is staged so neither
+        # can drift alone. Treat renames as delete-plus-add so moving either half
+        # away still runs it.
+        if git diff --cached --name-only --no-renames --diff-filter=ACDM \
+            | grep -Eq '^reference/thresholds/(coverage|subjects)\.md$'; then
+            "$python" "$repo_root/tools/subject_ledger.py" >&2 || status=1
+        fi
+
+        # **The fifth refusing check.** It cannot run in CI because scratch roots
         # are gitignored patient records. The ordinary command stays at two Git
         # subprocesses; the slower removability measurement is opt-in.
         "$python" "$repo_root/tools/scratch_census.py" >&2 || status=1

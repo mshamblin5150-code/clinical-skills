@@ -91,10 +91,11 @@ reports near-miss documents at draft time only, and only where the typed topic w
 other row's topic or title; and a source added to a sheet after drafting, or one from an unrelated
 topic, is surfaced by nothing.
 
-`TOPIC_ALIASES` is the only bridge between the two senses of `topic` that exists, it holds one entry,
-and it is one-way. Every population counted per catalog topic — the 169-row registry, the sweep's
-denominator, the drafter's seed set — is counted in the cell sense. Nothing counts in the clinical
-sense, and no committed artifact records which cells belong together.
+`coverage.md` now keeps the two joins separate: `artifact` is the one-way bridge from a sheet name
+to its catalog topic, while `subject` records authored, potentially multi-valued clinical-subject
+memberships. Every population counted per catalog topic — the registry, the sweep's denominator,
+the drafter's seed set — remains counted in the cell sense; the subject column does not make a gate
+join a sheet's sources to its own topic.
 
 ADR 0063's Consequences paragraph filing #645 is **factually correct and is not corrected**. It
 states that nothing binds a sheet's `## Sources` documents to its own topic's catalog documents, and
@@ -124,3 +125,5 @@ two questions in one read.
 
 **Reading the drafter's rejected list as coverage.** It is a floor bounded by string overlap with
 the name that was typed, and ruling 3's ticket exists because that floor is lower than it reads.
+
+*(Corrected in place 2026-09-01, on [ADR 0016](0016-an-adr-number-is-claimed-when-it-is-handed-out-and-a-ratified-records-facts-may-be-corrected-in-place.md)'s terms. The Consequences originally said `TOPIC_ALIASES` was the only bridge, held one entry, and was one-way. ADR 0102 and #689 retired that dict: the registry now owns the distinct `artifact` and `subject` joins. Ruling 1's refusal of a topic-keyed gate is untouched.)*
