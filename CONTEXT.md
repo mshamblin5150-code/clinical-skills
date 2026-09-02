@@ -656,3 +656,21 @@ _Avoid_: staleness, mismatch, error, out of date
 **In flight**:
 The state a ticket is in while an agent is working it, marked by the label of that name: work is going on now, so unmerged work may exist on the ticket. A claim about **the ticket**, never about any one comment on it — `docs/agents/issue-tracker.md` says in as many words not to read the label as a claim's provenance, which is what the dated branch state block is for. It has a documented add-time and no stated end: nothing removes it, at close or ever, so a ticket carrying it is not necessarily one an agent is working.
 _Avoid_: active, in progress, WIP, assigned, unmerged
+
+### Review
+
+**Correction**:
+An observed reversal in a session's transcript — a claim was asserted, later contradicted, and the contradiction stood. It is an event that happened rather than a judgment about what might have gone wrong, which is what lets it be read off a record instead of introspected about. Its **corrector** is a field on it and not a second event, because the fix's destination differs by who did the correcting: the clinician, an agent or tool, or the orchestrator catching itself. Which party was *in error* is a further field and not the same one — a correction whose corrector was wrong is a supported outcome rather than an edge case. Distinct from a **preference stated for the first time**, which is a new fact and reverses nothing; counting one as a correction inflates the record with things nothing was wrong about.
+_Avoid_: mistake, error, defect, feedback, pushback
+
+**Disposition**:
+Where one **correction**'s fix lands, chosen from a closed set: a skill-file edit, a tracker ticket, a memory write, or a check. Every correction carries one, and *nothing durable* is not a member — a correction dispositioned nowhere is indistinguishable from a review that did no work, which is the silent pass the review exists to close. **Not the sense `research_ledger` gives the word**, where a *disposition* is one of the RECENCY verdicts on a source's age; two senses, one word, and the collision is recorded here rather than left latent, because a heading-derived fire cannot see a sense that lives in a module. It also decides authority rather than only destination: a ticket and a memory write are **recording** and are applied unattended, while a skill-file edit is **changing a ruling** and is proposed as a diff on the ticket for the clinician. Distinct from the review's own verdict, which says whether the session had corrections at all — a session with none disposes of nothing and is clean.
+_Avoid_: destination, outcome, action, remedy, landing
+
+**After-action review**:
+The pass a skill makes over its own **sitting** once it has produced that sitting's terminal output, harvesting every **correction** and giving each one a **disposition**. Keyed to the submission and not to the run, because a run directory outlives every sitting and one record per run would be overwritten by the next sitting with nothing saying so. It runs *after* the work is handed over and before the tickets it raises are filed, so its subject is a finished thing rather than a thing in progress. Its own verdict is whether every correction landed, never whether a review was written — a written review that changed nothing is the silent pass it exists to close.
+_Avoid_: retrospective, postmortem, reflection, debrief, self-review
+
+**Quotation gate**:
+A refusal that fires when a publication reproduces a span of the working material it was written about. It is content-agnostic and knows nothing about patient data, classmates, preceptors or sites — it knows only what the source was, so it reaches the classes a shape scanner is documented not to reach. Its subject is **copying**, never disclosure: a description of what went wrong publishes freely, and only a span lifted from the source is refused. A floor rather than a proof, because a paraphrase walks through it, and its span length is a measured value rather than a chosen one.
+_Avoid_: leak check, PHI gate, redaction, plagiarism check
