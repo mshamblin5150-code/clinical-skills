@@ -15,16 +15,16 @@ records what its collision groups mean.
 ## Measured before ruling, at `1f1c645`
 
 Freshness gate `FRESH`. Every tracker figure is re-derived from #596's body as of
-`2026-09-01T22:42:56Z` and moves on the next rebuild.
+`2026-09-02T00:21:08Z` and moves on the next rebuild.
 
 **The graph renders, and it is larger than when it failed.** Two loads of the issue page reached
 `is-render-ready` with no `.render-error` and no *Unable to render rich display*, at
 `viewscreen.githubusercontent.com/markdown/mermaid`. A tracker sweep recorded one clean load an hour
-earlier. The block is **6,026 characters, 93 nodes and 140 edges** against the **4,915 characters,
+earlier. The block is **5,873 characters, 93 nodes and 139 edges** against the **4,915 characters,
 77 nodes and 115 edges** the ticket recorded as failing.
 
-**The population, derived independently of the extraction.** Of 237 non-blank lines: 93 node
-definitions, 140 edges, and a remainder of 4, all directives — `graph TD`, two `classDef`s and one
+**The population, derived independently of the extraction.** Of 236 non-blank lines: 93 node
+definitions, 139 edges, and a remainder of 4, all directives — `graph TD`, two `classDef`s and one
 `class` line. No edge references an undefined node.
 
 | drawn shape | count | what it is |
@@ -32,15 +32,15 @@ definitions, 140 edges, and a remainder of 4, all directives — `graph TD`, two
 | `-.-` | 88 | collision-sequence links — exactly the sum of `len(group) - 1` over the 21 groups |
 | `-->\|HARD\|` | 34 | dependency |
 | `-.->\|saves rebuild\|` | 14 | `REBUILD-SAVING` |
-| `==>\|GATE\|` | 4 | external gate |
+| `==>\|GATE\|` | 3 | external gate |
 
-**The collision share is 62.9%, not the 70.4% the ticket recorded nor the 72.9% a first pass here
+**The collision share is 63.3%, not the 70.4% the ticket recorded nor the 72.9% a first pass here
 published.** Both higher figures counted the 14 `REBUILD-SAVING` edges, which are dotted and are
 **not** collision chains. Three separate figures for one quantity, each from a matcher nobody had
 checked against the whole population.
 
-**Node partition:** 40 nodes touch a `HARD`, `GATE` or `REBUILD-SAVING` edge; **41 appear only in
-collision chains**; 12 are isolated. **53 of 93 drawn nodes carry no dependency relationship.**
+**Node partition:** 49 nodes touch a `HARD`, `GATE` or `REBUILD-SAVING` edge; **34 appear only in
+collision chains**; 10 are isolated. **44 of 93 drawn nodes carry no dependency relationship.**
 
 **Eight edge lines are emitted twice** — `P495 -.- P496`, `P498_500 -.- P540`, `P540 -.- P624`,
 `P584 -.- P587`, `P587 -.- P662`, `P700 -.- P702`, each once over. 88 drawn, 80 distinct. `HARD`
@@ -71,7 +71,7 @@ Two mermaid blocks — a dependency graph and a collision graph — was the opti
 information were symmetric. It is not: a 21-group membership structure is a table's native shape and
 a graph's worst one.
 
-### 2. The 12 isolated nodes stay drawn
+### 2. The 10 isolated nodes stay drawn
 
 A packet with no dependency and no collision is a true and useful fact — *this one is free-standing*
 — and dropping it would leave a picture of only the entangled work.
@@ -94,10 +94,10 @@ partial read as clean.
 #756 already forbade a threshold named at an edge, on `SPACE_ADVANCE_FRACTION`'s recorded failure
 and [#97](https://github.com/mshamblin5150-code/clinical-skills/issues/97)'s objection to inventing
 a cut point the corpus does not ground. The situation is now worse than unprincipled: **the block
-failed at 115 edges and renders at 140.** The only natural experiment available produced a
+failed at 115 edges and renders at 139.** The only natural experiment available produced a
 *contradiction*, not a cut point, so there is no measurement to ground a bound on in either
-direction and any value would be invented. Under decision 1 the drawn graph falls to roughly 40
-nodes and 52 edges, so a bound would guard a number nothing is near.
+direction and any value would be invented. Under decision 1 the drawn graph falls to roughly 49
+nodes and 51 edges, so a bound would guard a number nothing is near.
 
 *The graph timed out once, so bound the edges* is the proposal a future session will make from this
 ticket's title alone. This decision is where it is answered.

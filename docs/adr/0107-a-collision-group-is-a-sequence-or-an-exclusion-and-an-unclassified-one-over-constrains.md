@@ -14,7 +14,7 @@ and adds two glossary terms the repository has been using without defining.
 ## Measured before ruling, at `1f1c645`
 
 Freshness gate `FRESH`. The tracker figures are re-derived from #596's body as of
-`2026-09-01T22:42:56Z` and move on the next rebuild.
+`2026-09-02T00:21:08Z` and move on the next rebuild.
 
 **Two obligations, one name.** Some `why` fields describe a real order whose violation destroys
 work — *"one module; sequence 495, then 496, then 497+532"*, and *"must beat #438/#510 to main or
