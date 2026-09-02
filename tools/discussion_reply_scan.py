@@ -50,6 +50,7 @@ from case_study_scan import EvidenceDisposition
 
 ADDRESSED_NAME = "addressed-name"
 WORD_FLOOR = "word-floor"
+WORD_FLOOR_COUNT = 150
 REFERENCE_MINIMUM = "reference-minimum"
 UNRESOLVED_CITATION = "unresolved-citation"
 UNTRACED_NUMBER = "untraced-number"
@@ -63,7 +64,7 @@ UNLOCATED_READING = "unlocated-reading"
 BORROWED_LOCATOR = "borrowed-locator"
 ROWS = {
     ADDRESSED_NAME: "the addressed first name is on the run roster",
-    WORD_FLOOR: "the reply contains at least 100 words",
+    WORD_FLOOR: f"the reply contains at least {WORD_FLOOR_COUNT} words",
     REFERENCE_MINIMUM: "the reply contains at least one reference",
     UNRESOLVED_CITATION: "every in-text citation resolves within the reply",
     UNTRACED_NUMBER: "every body number traces to claims.md",
@@ -265,7 +266,7 @@ def _address_finding(reply: Reply, roster: tuple[str, ...]) -> Finding | None:
 
 def _word_finding(reply: Reply) -> Finding | None:
     count = len(WORD.findall(strip_discussion_markers(reply.body)))
-    if count < 100:
+    if count < WORD_FLOOR_COUNT:
         return Finding(WORD_FLOOR, reply.path.name, f"{count} words")
     return None
 
