@@ -695,6 +695,43 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
         self.assertIn("tracker readback: FETCH FAILED; context-blind", report)
         self.assertIn("record number and labels were not read", report)
 
+    def test_a_malformed_fetched_record_uses_the_same_context_blind_path(self) -> None:
+        index = phi_scan.build_index(set(), set())
+        malformed = fetched_records(670)
+        del malformed[670]["updatedAt"]
+        with (
+            mock.patch.object(hook, "current_index", return_value=(index, ())),
+            mock.patch.object(hook, "refresh_default_branch", return_value=True),
+            mock.patch.object(hook, "fetch_readback", return_value=malformed),
+            mock.patch.object(hook, "write_marker"),
+        ):
+            response = hook.handle(
+                self.payload("gh issue comment 670 --body 'Cites #17'")
+            )
+
+        report = response["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("tracker readback: FETCH FAILED; context-blind", report)
+        self.assertIn("record number and labels were not read", report)
+        self.assertNotIn("HOOK FAILURE", report)
+
+    def test_a_target_record_without_a_url_is_context_blind(self) -> None:
+        index = phi_scan.build_index(set(), set())
+        malformed = fetched_records(670)
+        del malformed[670]["url"]
+        with (
+            mock.patch.object(hook, "current_index", return_value=(index, ())),
+            mock.patch.object(hook, "refresh_default_branch", return_value=True),
+            mock.patch.object(hook, "fetch_readback", return_value=malformed),
+            mock.patch.object(hook, "write_marker"),
+        ):
+            response = hook.handle(
+                self.payload("gh issue comment 670 --body 'Cites #17'")
+            )
+
+        report = response["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("tracker readback: FETCH FAILED; context-blind", report)
+        self.assertNotIn("HOOK FAILURE", report)
+
 
 class BatchedGraphqlReadback(unittest.TestCase):
     def test_a_nonzero_exit_with_a_payload_is_parsed(self) -> None:
@@ -724,6 +761,13 @@ class BatchedGraphqlReadback(unittest.TestCase):
         command = run.call_args.args[0]
         self.assertEqual(command[:3], ["gh", "api", "graphql"])
         self.assertEqual(command.count("graphql"), 1)
+
+    def test_an_omitted_alias_is_not_misreported_as_an_explicit_null(self) -> None:
+        payload = {"data": {"repository": {}}}
+        completed = mock.Mock(returncode=1, stdout=json.dumps(payload), stderr="error")
+        with mock.patch.object(hook.subprocess, "run", return_value=completed):
+            with self.assertRaisesRegex(ValueError, "omitted requested record"):
+                hook.fetch_readback(frozenset({17}))
 
 
 class ProjectSettingsRegisterTheHook(unittest.TestCase):

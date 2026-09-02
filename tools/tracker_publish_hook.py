@@ -752,7 +752,10 @@ def fetch_readback(
         raise ValueError("tracker readback payload had no repository data")
     records: dict[int, dict | None] = {}
     for number in numbers:
-        record = repository.get(f"record_{number}")
+        alias = f"record_{number}"
+        if alias not in repository:
+            raise ValueError("tracker readback omitted requested record")
+        record = repository[alias]
         if record is not None and not isinstance(record, dict):
             raise ValueError("tracker readback record had the wrong type")
         records[number] = record
@@ -762,16 +765,13 @@ def fetch_readback(
 def _issue_context(record: dict | None) -> dict | None:
     if record is None:
         return None
-    labels = record.get("labels", {})
-    nodes = labels.get("nodes", []) if isinstance(labels, dict) else []
+    url = record.get("url")
+    if not isinstance(url, str):
+        raise ValueError("tracker readback record URL had the wrong type")
     return {
         "number": record.get("number"),
-        "labels": [
-            row.get("name")
-            for row in nodes
-            if isinstance(row, dict) and isinstance(row.get("name"), str)
-        ],
-        "url": record.get("url", "draft record"),
+        "labels": list(tracker_readback.label_names(record)),
+        "url": url,
     }
 
 
@@ -876,6 +876,9 @@ def handle(payload: dict) -> dict:
 
         index, missing = current_index()
         remote_fresh = refresh_default_branch()
+        # ``tracker_scan`` splits title and body so a finding identifies the
+        # field to edit. A readback identifies records, not fields, so that
+        # reason does not transfer and both fields deliberately form one set.
         publication_text = "\n".join(row.text for row in extracted.publications)
         citations = tracker_readback.citation_numbers(
             publication_text,
@@ -886,6 +889,9 @@ def handle(payload: dict) -> dict:
         if citations:
             try:
                 records = fetch_readback(citations)
+                readback_lines = tracker_readback.fingerprint_lines(records)
+                if extracted.number is not None:
+                    issue = _issue_context(records.get(extracted.number))
             except (
                 OSError,
                 UnicodeError,
@@ -897,10 +903,6 @@ def handle(payload: dict) -> dict:
                     "tracker readback: FETCH FAILED; context-blind -- current "
                     "record state and labels were not read",
                 )
-            else:
-                readback_lines = tracker_readback.fingerprint_lines(records)
-                if extracted.number is not None:
-                    issue = _issue_context(records.get(extracted.number))
         else:
             readback_lines = (tracker_readback.empty_citation_line(),)
 

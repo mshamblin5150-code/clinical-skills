@@ -1123,6 +1123,10 @@ length. It never fetches, returns body text, asserts drift, or changes the
 publish decision. The publish hook owns the single batched GraphQL request and
 passes its result into this module.
 
+`tracker_scan.records_from_github` splits title and body so its finding names
+the field to edit. A readback names records rather than editable fields, so
+that reason does not transfer and the two fields form one citation set here.
+
 A completed read reports unresolved numbers rather than dropping them. A
 text-bearing create that supplies no number reports the unbounded aggregate
 class explicitly; a text-free publication does not run the readback and stays

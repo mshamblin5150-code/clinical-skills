@@ -53,7 +53,8 @@ def citation_numbers(
     return frozenset(numbers)
 
 
-def _label_names(record: Mapping[str, Any]) -> tuple[str, ...]:
+def label_names(record: Mapping[str, Any]) -> tuple[str, ...]:
+    """Normalize one fetched record's label connection."""
     labels = record.get("labels", {})
     nodes = labels.get("nodes", []) if isinstance(labels, Mapping) else labels
     if not isinstance(nodes, list):
@@ -88,7 +89,7 @@ def fingerprint_lines(
             raise ValueError("record number or state had the wrong type")
         if not isinstance(updated_at, str) or not isinstance(body, str):
             raise ValueError("record timestamp or body had the wrong type")
-        labels = ", ".join(_label_names(record))
+        labels = ", ".join(label_names(record))
         lines.append(
             f"tracker readback: #{number} state={state} labels=[{labels}] "
             f"updatedAt={updated_at} body_length={len(body)}"
