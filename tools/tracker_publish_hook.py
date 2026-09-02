@@ -38,6 +38,7 @@ from typing import NamedTuple
 import phi_scan
 import tracker_bodies
 import tracker_branch_scope
+import tracker_readback
 from console_codec import use_utf8
 
 
@@ -92,6 +93,12 @@ NOT_REACHED = (
         "This Claude Code hook prevents a damaged publication from this "
         "publisher only. The GitHub workflow reaches both known publishers "
         "after publication and reports rather than prevents.",
+    ),
+    (
+        "a failed tracker readback leaves the publication context-blind",
+        "When the batched tracker fetch fails, the hook says that current "
+        "record state and labels were not read and continues without claiming "
+        "that the cited records are current.",
     ),
 )
 
@@ -691,19 +698,81 @@ def refresh_default_branch() -> bool:
     return completed.returncode == 0
 
 
-def fetch_issue(number: int) -> dict:
+REPOSITORY_OWNER = "mshamblin5150-code"
+REPOSITORY_NAME = "clinical-skills"
+
+
+def _readback_query(numbers: frozenset[int]) -> str:
+    selections = "\n".join(
+        f"""record_{number}: issueOrPullRequest(number: {number}) {{
+      ... on Issue {{ number state labels(first: 100) {{ nodes {{ name }} }} updatedAt body url }}
+      ... on PullRequest {{ number state labels(first: 100) {{ nodes {{ name }} }} updatedAt body url }}
+    }}"""
+        for number in sorted(numbers)
+    )
+    return f"""query($owner: String!, $name: String!) {{
+  repository(owner: $owner, name: $name) {{
+    {selections}
+  }}
+}}"""
+
+
+def fetch_readback(
+    numbers: frozenset[int],
+) -> dict[int, dict | None]:
+    """Fetch all current record fingerprints in one GraphQL request.
+
+    ``gh api graphql`` can return status 1 while stdout still contains every
+    resolved alias and ``null`` for an unresolved one.  The payload, not the
+    process status, therefore decides whether the read succeeded.
+    """
     completed = subprocess.run(
-        ["gh", "issue", "view", str(number), "--json", "number,labels,url"],
+        [
+            "gh",
+            "api",
+            "graphql",
+            "-F",
+            f"owner={REPOSITORY_OWNER}",
+            "-F",
+            f"name={REPOSITORY_NAME}",
+            "-f",
+            "query=" + _readback_query(numbers),
+        ],
         cwd=Path(__file__).resolve().parent.parent,
         capture_output=True,
         encoding="utf-8",
         errors="replace",
-        check=True,
     )
     document = json.loads(completed.stdout)
     if not isinstance(document, dict):
-        raise ValueError("issue context was not an object")
-    return document
+        raise ValueError("tracker readback payload was not an object")
+    data = document.get("data")
+    repository = data.get("repository") if isinstance(data, dict) else None
+    if not isinstance(repository, dict):
+        raise ValueError("tracker readback payload had no repository data")
+    records: dict[int, dict | None] = {}
+    for number in numbers:
+        alias = f"record_{number}"
+        if alias not in repository:
+            raise ValueError("tracker readback omitted requested record")
+        record = repository[alias]
+        if record is not None and not isinstance(record, dict):
+            raise ValueError("tracker readback record had the wrong type")
+        records[number] = record
+    return records
+
+
+def _issue_context(record: dict | None) -> dict | None:
+    if record is None:
+        return None
+    url = record.get("url")
+    if not isinstance(url, str):
+        raise ValueError("tracker readback record URL had the wrong type")
+    return {
+        "number": record.get("number"),
+        "labels": list(tracker_readback.label_names(record)),
+        "url": url,
+    }
 
 
 def write_marker() -> None:
@@ -807,10 +876,22 @@ def handle(payload: dict) -> dict:
 
         index, missing = current_index()
         remote_fresh = refresh_default_branch()
+        # ``tracker_scan`` splits title and body so a finding identifies the
+        # field to edit. A readback identifies records, not fields, so that
+        # reason does not transfer and both fields deliberately form one set.
+        publication_text = "\n".join(row.text for row in extracted.publications)
+        citations = tracker_readback.citation_numbers(
+            publication_text,
+            publication_number=extracted.number,
+        )
         issue = None
-        if extracted.number is not None:
+        readback_lines: tuple[str, ...]
+        if citations:
             try:
-                issue = fetch_issue(extracted.number)
+                records = fetch_readback(citations)
+                readback_lines = tracker_readback.fingerprint_lines(records)
+                if extracted.number is not None:
+                    issue = _issue_context(records.get(extracted.number))
             except (
                 OSError,
                 UnicodeError,
@@ -818,7 +899,12 @@ def handle(payload: dict) -> dict:
                 json.JSONDecodeError,
                 ValueError,
             ):
-                issue = None
+                readback_lines = (
+                    "tracker readback: FETCH FAILED; context-blind -- current "
+                    "record state and labels were not read",
+                )
+        else:
+            readback_lines = (tracker_readback.empty_citation_line(),)
 
         analyses = [
             analyze(
@@ -842,6 +928,7 @@ def handle(payload: dict) -> dict:
                 + ", ".join(missing)
                 + " not available"
             )
+        lines.extend(readback_lines)
         lines.extend(analysis.report for analysis in analyses)
         denied = any(
             finding.posture == "deny"

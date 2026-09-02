@@ -15,6 +15,7 @@ import tracker_branch_scope
 import tracker_bodies
 import tracker_merge_receipt
 import tracker_publish_hook
+import tracker_readback
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -202,6 +203,7 @@ class DeclaredLimitsAreBound(unittest.TestCase):
         ("Tracker branch scope", "tracker_branch_scope", tracker_branch_scope, False),
         ("Tracker merge receipt", "tracker_merge_receipt", tracker_merge_receipt, True),
         ("Tracker publish hook", "tracker_publish_hook", tracker_publish_hook, True),
+        ("Tracker readback", "tracker_readback", tracker_readback, True),
     )
 
     @staticmethod

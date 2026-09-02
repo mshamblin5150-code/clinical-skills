@@ -1114,13 +1114,38 @@ Covered by `tools/test_tracker_freshness.py`, which uses throwaway Git
 repositories to exercise fresh, stale, and failed-fetch states without reading
 the live tracker.
 
+### Tracker readback
+
+`tools/tracker_readback.py` is the offline half of the publication-time record
+readback. It extracts one citation set from the title and body together, adds
+the record being published to when that record already exists, and formats
+already-fetched GitHub records as current state, labels, update time, and body
+length. It never fetches, returns body text, asserts drift, or changes the
+publish decision. The publish hook owns the single batched GraphQL request and
+passes its result into this module.
+
+`tracker_scan.records_from_github` splits title and body so its finding names
+the field to edit. A readback names records rather than editable fields, so
+that reason does not transfer and the two fields form one citation set here.
+
+A completed read reports unresolved numbers rather than dropping them. A
+text-bearing create that supplies no number reports the unbounded aggregate
+class explicitly; a text-free publication does not run the readback and stays
+silent. The complete boundary belongs to `tracker_readback.NOT_REACHED`; this
+section points to the object and copies none of its rows.
+
+Covered by `tools/test_tracker_readback.py`, which drives invented publication
+text and fetched-record dictionaries through the parser and formatter without
+opening a socket.
+
 ### Tracker publish hook
 
 The pre-publication `PreToolUse` hook is registered in
 `.claude/settings.json` and implemented by
 `tools/tracker_publish_hook.py`. It extracts publishable title and body fields
-from one `gh` command, reads record context when available, and sends each field
-through `phi_scan` and `tracker_branch_scope` without returning matched values.
+from one `gh` command, reads current cited-record metadata in one request, and
+sends each field through `phi_scan` and `tracker_branch_scope` without returning
+matched values.
 `PUBLISH_ROUTES` owns command classification; the settings condition is only a
 cost guard.
 
