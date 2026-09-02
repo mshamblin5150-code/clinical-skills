@@ -7,6 +7,8 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stderr, redirect_stdout
+from io import StringIO
 from pathlib import Path
 
 import tracker_freshness
@@ -201,6 +203,23 @@ class AnAncestryQuestionGitDeclinesToAnswer(unittest.TestCase):
         self.statuses_for(0)
         self.assertIn(("merge-base", "--is-ancestor", tracker_freshness.REMOTE_REF, "HEAD"), self.calls)
 
+    def test_every_status_prints_the_commit_base_scope_from_the_owned_object(self) -> None:
+        replacement = "sentinel scope rendered from row one"
+        original = tracker_freshness.NOT_REACHED
+        tracker_freshness.NOT_REACHED = (
+            (original[0][0], replacement),
+            *original[1:],
+        )
+        try:
+            for status in (0, 1, 128):
+                stdout = StringIO()
+                stderr = StringIO()
+                with self.subTest(status=status), redirect_stdout(stdout), redirect_stderr(stderr):
+                    self.statuses_for(status)
+                self.assertIn(replacement, stdout.getvalue() + stderr.getvalue())
+        finally:
+            tracker_freshness.NOT_REACHED = original
+
 
 class DocumentationRequiresBothCheckpoints(unittest.TestCase):
     def test_agent_and_tracker_instructions_require_start_and_publication_checks(self) -> None:
@@ -217,6 +236,22 @@ class DocumentationRequiresBothCheckpoints(unittest.TestCase):
                 self.assertLess(start, first_command)
                 self.assertLess(first_command, publication)
                 self.assertLess(publication, second_command)
+
+    def test_both_checkpoint_sections_point_to_the_owned_boundary_without_copying_it(self) -> None:
+        sections = {
+            "CLAUDE.md": "### Tracker freshness",
+            "docs/agents/issue-tracker.md": "### Establish the current base twice",
+        }
+        for relative, heading in sections.items():
+            text = (REPO_ROOT / relative).read_text(encoding="utf-8")
+            start = text.index(heading)
+            end = text.find("\n### ", start + len(heading))
+            section = text[start:] if end == -1 else text[start:end]
+            with self.subTest(relative=relative):
+                self.assertIn("`tracker_freshness.NOT_REACHED`", section)
+                for row in tracker_freshness.NOT_REACHED:
+                    for cell in row:
+                        self.assertNotIn(cell, section)
 
 
 if __name__ == "__main__":

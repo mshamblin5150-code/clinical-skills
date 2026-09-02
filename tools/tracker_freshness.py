@@ -42,6 +42,21 @@ FRESH = 0
 STALE = 1
 DID_NOT_CHECK = 2
 
+NOT_REACHED = (
+    (
+        "tracker records",
+        "The gate reads the commit base and no tracker record.",
+    ),
+    (
+        "record verdict currency",
+        "A verdict about a tracker record is current only as of when it was read.",
+    ),
+    (
+        "aggregate verdicts",
+        "A verdict naming no record number is reached by no mechanism, permanently.",
+    ),
+)
+
 # `git merge-base --is-ancestor` documents 0 for yes and 1 for no. Any other
 # status is git declining to answer -- a bad ref, a corrupt object store, a
 # missing binary -- and is not evidence that the base is behind.
@@ -51,6 +66,12 @@ IS_NOT_ANCESTOR = 1
 
 class DidNotCheck(RuntimeError):
     """A git command the gate depends on did not complete."""
+
+
+def scope_clause() -> str:
+    """Render the command-line qualifier from the declaration it exposes."""
+
+    return f"Scope: {NOT_REACHED[0][1]}"
 
 
 def run_git(*args: str) -> subprocess.CompletedProcess[str]:
@@ -90,7 +111,8 @@ def main() -> int:
     except DidNotCheck as failure:
         print(
             f"tracker-freshness: DID NOT CHECK -- {failure}. No cached remote "
-            "reference was trusted and no verdict about the base was reached.",
+            "reference was trusted and no verdict about the base was reached. "
+            f"{scope_clause()}",
             file=sys.stderr,
         )
         return DID_NOT_CHECK
@@ -98,11 +120,15 @@ def main() -> int:
         print(
             f"tracker-freshness: STALE HEAD={head} {REMOTE}/{BRANCH}={upstream}. "
             f"Run `git rebase {REMOTE}/{BRANCH}` or merge it, resolve any "
-            "conflicts, rerun the relevant checks, then run this command again.",
+            "conflicts, rerun the relevant checks, then run this command again. "
+            f"{scope_clause()}",
             file=sys.stderr,
         )
         return STALE
-    print(f"tracker-freshness: FRESH HEAD={head} {REMOTE}/{BRANCH}={upstream}")
+    print(
+        f"tracker-freshness: FRESH HEAD={head} {REMOTE}/{BRANCH}={upstream}. "
+        f"{scope_clause()}"
+    )
     return FRESH
 
 
