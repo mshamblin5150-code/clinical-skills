@@ -168,6 +168,9 @@ from pathlib import Path
 from typing import NamedTuple
 
 import run_grader
+import aar_scan
+
+EXPECTED_COMPLETION_CHECKS = (aar_scan.EXPECTED_ROW,)
 from case_study_scan import EvidenceDisposition
 
 
@@ -715,18 +718,25 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
             f" ({', '.join(tickets)})."
             " Re-run with --show to see which, and do not paste that output."
         )
+    aar_failed, aar_report = aar_scan.completion_gate(
+        source.path.parent, _parsed.value("--submission")
+    )
     return run_grader.Grade(
         scan=scan,
         source=source.path.name,
-        findings_failed=bool(scan.failing_checks),
+        findings_failed=bool(scan.failing_checks) or aar_failed,
         coverage_failed=not source.records,
         diagnostics=tuple(diagnostics),
+        reports=(aar_report,),
     )
 
 
 GRADER = run_grader.Grader(
-    usage="usage: checks_ledger.py <a checks file> [--show]",
-    options=(run_grader.Option("--show"),),
+    usage="usage: checks_ledger.py <a checks file> [--show] [--submission <key>]",
+    options=(
+        run_grader.Option("--show"),
+        run_grader.Option("--submission", takes_value=True, missing_value="--submission needs a key", repeatable=False),
+    ),
     load=_load,
     grade=_grade,
     format_report=format_report,

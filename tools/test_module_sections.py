@@ -50,6 +50,7 @@ SECTION = re.compile(r"(?m)^### (.+)$")
 # section's name; the row is the ruling that the arrangement is deliberate.
 DECLARED_SECTIONS = {
     "adr_next": "ADR number allocation",
+    "aar_scan": "After-action review",
     "anchor_scan": "Anchor scan",
     "block_scan": "Block scan",
     "case_study_scan": "Case study house style",

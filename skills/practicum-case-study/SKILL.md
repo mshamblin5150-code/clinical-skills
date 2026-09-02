@@ -1366,3 +1366,11 @@ and it cannot see clipping, overlap, a bad break or a layout that is correct in 
 page. `tools/render_scan.py` guarantees only that the final exported page count has retained pixels.
 The `the rendered document` reader is what turns those pixels into a visually checked document;
 its substantiated verdict is required before submission.
+
+**Invoke `/AAR` before declaring the submission complete.** Use the dated output Markdown stem as the submission key. After `/AAR` exits clean, rerun the post-draft completion grader:
+
+```bash
+python tools/checks_ledger.py <checks-ledger> --submission <output-Markdown-stem>
+```
+
+The existing expected-check table still grades its reader records. This terminal invocation adds the shared expected row and must report `the after-action review: clean`; an earlier checks-ledger pass is not the completion pass.

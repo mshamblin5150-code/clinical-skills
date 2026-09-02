@@ -220,6 +220,9 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import run_grader
+import aar_scan
+
+EXPECTED_COMPLETION_CHECKS = (aar_scan.EXPECTED_ROW,)
 import threshold_coverage
 import threshold_sheet
 
@@ -1510,19 +1513,26 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
         )
         coverage_failed = True
         coverage_limbs.append(UNREADABLE_THRESHOLD_SHEET)
+    aar_failed, aar_report = aar_scan.completion_gate(
+        source.directory, _parsed.value("--submission")
+    )
     return run_grader.Grade(
         scan=scan,
         source=source.directory.name,
-        findings_failed=has_findings,
+        findings_failed=has_findings or aar_failed,
         coverage_failed=coverage_failed,
         coverage_limbs=tuple(coverage_limbs),
         diagnostics=tuple(diagnostics),
+        reports=(aar_report,),
     )
 
 
 GRADER = run_grader.Grader(
-    usage="usage: differential_scan.py <a run directory> [--show]",
-    options=(run_grader.Option("--show"),),
+    usage="usage: differential_scan.py <a run directory> [--show] [--submission <key>]",
+    options=(
+        run_grader.Option("--show"),
+        run_grader.Option("--submission", takes_value=True, missing_value="--submission needs a key", repeatable=False),
+    ),
     load=_load,
     grade=_grade,
     format_report=format_report,

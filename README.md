@@ -26,6 +26,12 @@ Agent-agnostic skills for a nurse practitioner student's written work — clinic
 | --- | --- |
 | `setup-clinical-skills` | Configures one clinician's courses, Medatrax account, local patient identity map, shorthand, and optional writing voice model. Run it once before the other skills. |
 
+### Review
+
+| Skill | What it does |
+| --- | --- |
+| `aar` | Runs the mandatory submission-keyed after-action review for the six clinical and coursework skills, then lands every observed correction in a durable destination. |
+
 Invoke a skill by name, such as `/clinical-note`, and give the agent the material it asks for. A synthetic example:
 
 ```text

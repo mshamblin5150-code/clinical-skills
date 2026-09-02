@@ -268,6 +268,8 @@ the already graded response artifact. A board repair is available only when the 
 that live coursework edit; no repair is automatic. Do not capture or diff the board against the
 artifact. Rerun `discussion_reply_scan.py` after writing the record; its exit must now be 0.
 
+That posted reply is one submission. Invoke `/AAR` with its response filename as the submission key, then rerun `discussion_reply_scan.py <run-directory> --submission <response-filename>`. The report must include `the after-action review: clean` before reply two begins.
+
 ## 5. Draft and post reply two sequentially
 
 Only after reply one is posted, draft reply two. Read the posted first reply and its reference list
@@ -277,11 +279,11 @@ artificial delay.
 Run the same independent ledger and discussion-reply checks over the completed run. The grader
 compares every response file, so a repeated source now fails. Show reply two and wait for a new,
 explicit posting go-ahead. Then type, submit, record, and grade its posted reading on the same terms
-as reply one.
+as reply one. Invoke `/AAR` for reply two's response filename after its posted reading. The terminal grader is then `python tools/discussion_reply_scan.py <run-directory> --submission <reply-one-filename>,<reply-two-filename>`; both submission-keyed reviews must be clean.
 
 ## Completion
 
-Report the two posted addressees, the pre-post and post-reading grader exits, each posted-reading
+Do not report completion until the terminal two-submission grader exits 0 and reports `the after-action review: clean`. Report the two posted addressees, the pre-post and post-reading grader exits, each posted-reading
 verdict, the invoked-source count for each reply, and any pre-#496 marker count.
 Keep every `board-<date>.md`, `posts/`, `post.md` when present, `claims.md`, both replies, and
 `reread.md`, plus `voice-status.md` when present, together under the run key as the private

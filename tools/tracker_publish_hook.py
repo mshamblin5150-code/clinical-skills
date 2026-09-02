@@ -55,6 +55,14 @@ PUBLISH_ROUTES = (
 )
 PUBLISH_MARKER = phi_scan.TRACKER_PUBLISH_MARKER
 
+# Measured before being written, per ADR 0109 ruling 13. Across 371 real issue
+# bodies and the text in 11 real run directories on 2026-09-02, an 80-character
+# normalized span appeared in seven bodies; shorter floors rapidly admitted
+# ordinary overlap. The gate fires only for a body file under
+# ``<run>/aar/publications/`` and therefore changes no ordinary publication.
+AAR_QUOTE_SPAN_CHARS = 80
+AAR_PUBLICATION_PARTS = ("aar", "publications")
+
 NOT_REACHED = (
     (
         "the GitHub web UI bypasses the hook",
@@ -99,6 +107,10 @@ NOT_REACHED = (
         "When the batched tracker fetch fails, the hook says that current "
         "record state and labels were not read and continues without claiming "
         "that the cited records are current.",
+    ),
+    (
+        "an AAR paraphrase passes the quotation gate",
+        "The AAR gate refuses copied spans and cannot recognize a paraphrase of private working material.",
     ),
 )
 
@@ -260,6 +272,79 @@ def _read_candidate(source: str) -> str | None:
         except (OSError, UnicodeError):
             continue
     return None
+
+
+def _candidate_file(source: str) -> Path | None:
+    for candidate in _candidate_paths(source):
+        path = Path(candidate)
+        if path.is_file():
+            return path.resolve()
+    return None
+
+
+def _aar_run_directory(source: str) -> Path | None:
+    """The run root for an AAR-owned body file, otherwise ``None``."""
+    path = _candidate_file(source)
+    if path is None or path.parent.name != AAR_PUBLICATION_PARTS[1]:
+        return None
+    aar = path.parent.parent
+    if aar.name != AAR_PUBLICATION_PARTS[0]:
+        return None
+    return aar.parent
+
+
+def _normalized_span_text(text: str) -> str:
+    return re.sub(r"\s+", " ", text).strip().casefold()
+
+
+def _quotes_run_material(publication: Publication) -> bool:
+    """Whether one AAR body repeats a measured-length span from its run.
+
+    ``aar/`` is excluded because its extract necessarily contains the complete
+    reduced conversation. The gate's subject is the working material the review
+    was about, not the review record describing conduct.
+    """
+    run = _aar_run_directory(publication.source)
+    body = _normalized_span_text(publication.text)
+    if run is None or len(body) < AAR_QUOTE_SPAN_CHARS:
+        return False
+    spans = {
+        body[index : index + AAR_QUOTE_SPAN_CHARS]
+        for index in range(len(body) - AAR_QUOTE_SPAN_CHARS + 1)
+    }
+    for path in run.rglob("*"):
+        if not path.is_file() or path.suffix.casefold() not in {".md", ".txt", ".json"}:
+            continue
+        try:
+            path.resolve().relative_to((run / "aar").resolve())
+        except ValueError:
+            pass
+        else:
+            continue
+        try:
+            source = _normalized_span_text(path.read_text(encoding="utf-8", errors="replace"))
+        except OSError:
+            continue
+        if any(
+            source[index : index + AAR_QUOTE_SPAN_CHARS] in spans
+            for index in range(len(source) - AAR_QUOTE_SPAN_CHARS + 1)
+        ):
+            return True
+    return False
+
+
+def aar_quotation_analysis(publications: tuple[Publication, ...]) -> Analysis:
+    findings = tuple(
+        Finding("aar-quotation", 1, publication.field, "deny")
+        for publication in publications
+        if _quotes_run_material(publication)
+    )
+    report = (
+        "AAR quotation gate: copied private-run spans " + str(len(findings))
+        if findings
+        else "AAR quotation gate: 0 copied private-run spans"
+    )
+    return Analysis(findings, report)
 
 
 def _resolve_plain_value(
@@ -916,6 +1001,7 @@ def handle(payload: dict) -> dict:
             )
             for publication in extracted.publications
         ]
+        analyses.append(aar_quotation_analysis(extracted.publications))
         write_marker()
         lines = [
             f"tracker pre-publish: {publication.field} read from "

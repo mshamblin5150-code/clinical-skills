@@ -426,3 +426,11 @@ Every hedged diagnosis in the Assessment has been accounted for the same way: co
 And every occurrence of spirometry identifies the intervention. An affected entry waited for a
 qualified clinician restatement while unrelated extraction continued; no worksheet line relies on
 a qualifier written somewhere else.
+
+**Then invoke `/AAR`; the worksheet is not complete without it.** Use the worksheet's submission key and date. After `/AAR` exits clean, rerun the separated-read completion command with `--submission <submission-key>`:
+
+```bash
+python tools/specificity_scan.py <run directory> --second-read <record.json> --submission <submission-key>
+```
+
+Exit 0 must include `the after-action review: clean`. The brief mode is not terminal and deliberately does not grade this row.

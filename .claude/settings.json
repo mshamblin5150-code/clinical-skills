@@ -12,6 +12,17 @@
           }
         ]
       }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"$CLAUDE_PROJECT_DIR/tools/aar_scan.py\" --session-end",
+            "timeout": 10
+          }
+        ]
+      }
     ]
   }
 }

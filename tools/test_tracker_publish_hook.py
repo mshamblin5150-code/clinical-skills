@@ -816,7 +816,7 @@ class DeclaredLimitsHaveOneOwner(unittest.TestCase):
         all. ADR 0096 added the three that describe what a run it *did* perform
         does not establish, and ADR 0104 adds the failed-readback path, on the
         rule this object already carried: a limit lives here rather than in the
-        docstring or ``CLAUDE.md``.
+        docstring or ``CLAUDE.md``. ADR 0109 adds the AAR paraphrase ceiling.
         """
         self.assertEqual(
             set(dict(hook.NOT_REACHED)),
@@ -829,6 +829,7 @@ class DeclaredLimitsHaveOneOwner(unittest.TestCase):
                 "expansion is reconstructed and reaches only the same command",
                 "the refusing hook covers one of two publishers",
                 "a failed tracker readback leaves the publication context-blind",
+                "an AAR paraphrase passes the quotation gate",
             },
         )
 
@@ -951,6 +952,49 @@ class ThePathFormsThatEscapedAreResolved(unittest.TestCase):
         got = hook.extract('S="text"; gh issue comment 670 --body "$S/tail"')
 
         self.assertEqual(got.publications[0].text, "text/tail")
+
+
+class AnAarPublicationCannotQuoteItsRun(unittest.TestCase):
+    def publication(self, copied: int, *, aar_owned: bool = True) -> hook.Publication:
+        self.temporary = tempfile.TemporaryDirectory()
+        run = Path(self.temporary.name) / "course-module-discussion"
+        source = run / "post.md"
+        source.parent.mkdir(parents=True)
+        material = "A deliberately distinctive private working sentence " * 4
+        source.write_text(material, encoding="utf-8")
+        if aar_owned:
+            body = run / "aar" / "publications" / "ticket.md"
+        else:
+            body = run / "ordinary-ticket.md"
+        body.parent.mkdir(parents=True, exist_ok=True)
+        text = material[:copied]
+        body.write_text(text, encoding="utf-8")
+        return hook.Publication("body", text, str(body))
+
+    def tearDown(self) -> None:
+        if hasattr(self, "temporary"):
+            self.temporary.cleanup()
+
+    def test_the_measured_floor_refuses_a_copied_span(self) -> None:
+        publication = self.publication(hook.AAR_QUOTE_SPAN_CHARS)
+
+        analysis = hook.aar_quotation_analysis((publication,))
+
+        self.assertEqual([row.rule for row in analysis.findings], ["aar-quotation"])
+        self.assertEqual(analysis.findings[0].posture, "deny")
+
+    def test_one_character_below_the_floor_is_not_claimed(self) -> None:
+        publication = self.publication(hook.AAR_QUOTE_SPAN_CHARS - 1)
+
+        self.assertEqual(hook.aar_quotation_analysis((publication,)).findings, ())
+
+    def test_an_ordinary_body_file_does_not_activate_the_aar_gate(self) -> None:
+        publication = self.publication(hook.AAR_QUOTE_SPAN_CHARS + 20, aar_owned=False)
+
+        self.assertEqual(hook.aar_quotation_analysis((publication,)).findings, ())
+
+    def test_the_paraphrase_ceiling_is_declared(self) -> None:
+        self.assertTrue(any("paraphrase" in subject for subject, _reason in hook.NOT_REACHED))
 
 
 if __name__ == "__main__":

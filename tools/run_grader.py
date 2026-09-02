@@ -28,6 +28,7 @@ WALK_CEILING = (
 )
 
 MEMBERS: set[str] = {
+    "aar_scan",
     "anchor_scan",
     "block_scan",
     "case_study_scan",

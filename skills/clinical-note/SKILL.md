@@ -1292,3 +1292,11 @@ Row 2 carries the most weight and is the easiest to skip, because a drifting not
 A failing row is written as a **FLAG** in the tier block, never quietly repaired into a pass. That is what FLAG is for — the matrix finds the defect, FLAG is where it is recorded.
 
 Close with `N given, N derived, N filled` and stop.
+
+**Before stopping, invoke `/AAR`.** Use the encounter's run key plus the submission date as the submission key; where `batch-shift` owns the run, use the shift key that skill supplies rather than creating a second review per nested note. For a standalone note, after `/AAR` exits clean run:
+
+```bash
+python tools/differential_scan.py <the run directory> --submission <encounter-key>-<date>
+```
+
+The completion output must include `the after-action review: clean`. The scanner's clinical floors remain unchanged; this expected row is additional and a missing review fails completion.
