@@ -312,9 +312,10 @@ say, and is deliberately not counted here.** This paragraph stated the number, a
 which is [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143) arriving inside
 the change whose subject is a list that had been copied into two. Caught by `/code-review` and by
 the tracker sweep independently; the sharper form is theirs, that the same change withheld the row
-count beside it on #143's terms and then stated this one. A test asserts that mapping's keys are
-exactly `research_ledger.SOURCE_CLASSES`, so a fifth class fails rather than leaving a ruling made
-over four standing unqualified.
+count beside it on #143's terms and then stated this one. ADR 0110 deliberately widened the
+closed vocabulary for deck runs and moved the equality: a test now asserts that the mapping's keys
+are exactly `research_ledger.SOURCE_CLASS_VOCABULARY`. Each signed bar selects its permitted subset,
+so the fifth class does not silently loosen a clinical run.
 
 **This was the third copy of that claim and the one the correction missed.** `reference_scan.py` and
 `CLAUDE.md` were both fixed when #218 and #231 met; a sheet under `skills/` was outside what that

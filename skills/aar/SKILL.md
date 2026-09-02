@@ -1,6 +1,6 @@
 ---
 name: aar
-description: Run the mandatory after-action review at the terminal step of a scoped clinical skill, classify observed corrections adversarially, and land every correction in a durable destination. Use only when batch-shift, clinical-note, discussion-post, discussion-reply, icd10-cpt, or practicum-case-study reaches a submission.
+description: Run the mandatory after-action review at the terminal step of a scoped clinical skill, classify observed corrections adversarially, and land every correction in a durable destination. Use only when batch-shift, clinical-note, course-assignment, discussion-post, discussion-reply, icd10-cpt, or practicum-case-study reaches a submission.
 ---
 
 # After-action review

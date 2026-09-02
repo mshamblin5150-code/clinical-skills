@@ -62,6 +62,8 @@ DECLARED_SECTIONS = {
     "discussion_post_scan": "Discussion post grading",
     "discussion_post_render": "Discussion post grading",
     "discussion_reply_scan": "Discussion reply grading",
+    "deck_render": "Course assignment deck grading",
+    "deck_scan": "Course assignment deck grading",
     "docx_read": "Word documents, both directions",
     "docx_word_probe": "Word documents, both directions",
     "docx_write": "Word documents, both directions",

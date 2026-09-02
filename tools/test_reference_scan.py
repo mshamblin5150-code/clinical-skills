@@ -1661,15 +1661,16 @@ class TheDeclinedOptionIsPinnedToTheClassesItWasRuledOver(unittest.TestCase):
     leaving a ruling that was made over four standing unqualified in three files.
     """
 
-    def test_the_keys_are_exactly_the_ledgers_source_classes(self):
-        """A fifth class, or a renamed one, fails rather than passing quietly.
+    def test_the_keys_are_exactly_the_ledgers_closed_source_vocabulary(self):
+        """ADR 0110 deliberately moves this equality to the widened vocabulary.
 
-        Both directions, because either alone leaves a hole: a class the ledger gained
-        and this never heard of, or one this names that the ledger has dropped.
+        Per-run bars select a subset, so binding to one run's four clinical classes
+        would make a valid market class look like drift. Both directions still matter:
+        a vocabulary member this reading never considered, or a stale key it retained.
         """
         self.assertEqual(
             set(scan.SOURCE_CLASS_SETTLES_RETRIEVAL_DATE),
-            set(research_ledger.SOURCE_CLASSES),
+            set(research_ledger.SOURCE_CLASS_VOCABULARY),
         )
 
     def test_the_classes_that_span_both_answers_are_the_reason_it_was_declined(self):

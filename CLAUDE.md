@@ -664,7 +664,7 @@ python tools/reference_scan.py <a draft .md> --as-of <YYYY-MM-DD>
 
 **That list is `reference_scan.NOT_REACHED` now rather than a paragraph, and it is [#220](https://github.com/mshamblin5150-code/clinical-skills/issues/220)'s repair arriving one artifact over** — [#241](https://github.com/mshamblin5150-code/clinical-skills/issues/241). It sat in this module's docstring *and* in [apa7.md](skills/practicum-case-study/reference/apa7.md) §7, and a **prose** edit to either failed nothing, so the reader who was misled was the one who checked the file nearer to hand. One object, and a test asserts the sheet names the same items in both directions. **How many rows is that tuple's to say and is deliberately not restated here**, on [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143)'s terms. **That bind still cannot establish whether a row's verdict is true, so #323 drives a synthetic draft through the scanner for every current row and makes a new row fail until it gains a measurement.**
 
-**#241's own row was ruled a permanent reading rather than left open, and the declined option is the part worth keeping.** A retrieval date belongs only on a work designed to change that is cited unarchived, so a guideline PDF, a journal article, a USPSTF statement and a textbook take none — and the command refuses one **only on a DOI**, which is that test failing in the one place an entry string states it. The proposal was to join each entry to its `research_ledger.py` record and read the `SOURCE` class off it, the only candidate needing no new authored data, since a record's `REFERENCE` field *is* the APA entry. **It was priced and declined on a measurement rather than on cost**: `peer-reviewed` and `society guideline` map onto that list cleanly, while `government` covers a USPSTF statement, which takes no retrieval date, and a public-health page designed to change, which takes one, and `tertiary reference` covers UpToDate and a textbook, which take opposite answers. **A row keyed on either of those two fails a correct entry**, which is `guidelines_catalog.py --draft`'s refusal to derive a population arriving at a second artifact — *a guessed answer here is worse than a blank one*. **How many of the classes settle it is `reference_scan.SOURCE_CLASS_SETTLES_RETRIEVAL_DATE`'s to say and is deliberately not counted here** — this sentence stated the number, and so did the sheet and the module's docstring, which is [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143) arriving inside the change whose subject is a list that had been copied into two. **The same change withheld the row count one sentence earlier on #143's terms and then stated this one**, which is the finding rather than the fix, and it was caught by `/code-review` and by the tracker sweep independently. A test asserts that mapping's keys are exactly `research_ledger.SOURCE_CLASSES`, so a fifth class fails rather than leaving a ruling made over four standing unqualified in three files.
+**#241's own row was ruled a permanent reading rather than left open, and the declined option is the part worth keeping.** A retrieval date belongs only on a work designed to change that is cited unarchived, so a guideline PDF, a journal article, a USPSTF statement and a textbook take none — and the command refuses one **only on a DOI**, which is that test failing in the one place an entry string states it. The proposal was to join each entry to its `research_ledger.py` record and read the `SOURCE` class off it, the only candidate needing no new authored data, since a record's `REFERENCE` field *is* the APA entry. **It was priced and declined on a measurement rather than on cost**: `peer-reviewed` and `society guideline` map onto that list cleanly, while `government` covers a USPSTF statement, which takes no retrieval date, and a public-health page designed to change, which takes one, and `tertiary reference` covers UpToDate and a textbook, which take opposite answers. **A row keyed on either of those two fails a correct entry**, which is `guidelines_catalog.py --draft`'s refusal to derive a population arriving at a second artifact — *a guessed answer here is worse than a blank one*. **How many of the classes settle it is `reference_scan.SOURCE_CLASS_SETTLES_RETRIEVAL_DATE`'s to say and is deliberately not counted here** — this sentence stated the number, and so did the sheet and the module's docstring, which is [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143) arriving inside the change whose subject is a list that had been copied into two. **The same change withheld the row count one sentence earlier on #143's terms and then stated this one**, which is the finding rather than the fix, and it was caught by `/code-review` and by the tracker sweep independently. ADR 0110 deliberately widened the closed vocabulary for deck runs and moved the equality to `research_ledger.SOURCE_CLASS_VOCABULARY`; each signed bar selects its permitted subset, so the new class does not silently loosen a clinical run.
 
 **What makes that a ruling rather than a shrug is that the reading is graded, and the mechanism landed while the ticket sat.** [#240](https://github.com/mshamblin5150-code/clinical-skills/issues/240) put `checks_ledger.py` in front of `skills/practicum-case-study/SKILL.md` step 9's fan-out, and its `EXPECTED_CHECKS` already carried the row `the reference list, the part no command reaches` — so naming this direction in that row's reader column is a one-line edit that makes a run fail when it returns no verdict on it. #214's *what a written instruction cannot do is fail*, which is the objection option 3 had to answer before it could be closed rather than deferred. **A test pins the chain end to end** — the sheet names the reading, the step names it in the row, and the grader expects that row by name — because a rename in any one of the three would otherwise rot the arrangement in silence.
 
@@ -935,6 +935,30 @@ mechanical rows, 1 for a finding, 2 when the run could not be completely scanned
 
 Covered by `tools/test_discussion_post_render.py`, `tools/test_discussion_post_scan.py`, and
 `tools/test_discussion_post_skill.py`.
+
+### Course assignment deck grading
+
+`course-assignment` produces one PowerPoint deck under a signed assignment bar.
+
+```bash
+python tools/deck_scan.py <a run directory> --pptx <the PowerPoint deck>
+python tools/deck_render.py <a run directory> --pptx <the PowerPoint deck>
+```
+
+The package scan owns its mechanical rows in `deck_scan.ROWS` and its reader-owned coverage
+boundary in `deck_scan.DECLARED_LIMITS`; this section points to those objects without copying
+their contents. The scan reads slide faces for container limits and slide faces plus speaker notes
+for claim tracing. Counts print by default, while `--show` exposes artifact text and remains private.
+Exit 0 is clean, 1 means a finding, and 2 means the input population was not completely scanned.
+
+The render command asks a newly owned PowerPoint process for one page-faithful PDF and rasterizes
+that export to one PNG per slide in a new consecutive `render/pass-N/`. It retains a pass only after
+every page is readable. If PowerPoint export is unavailable, `--clinician-export <PDF>` accepts the
+clinician's export through the same raster and retention checks. The complete route, escalation,
+and visual comparison obligations live in `skills/course-assignment/SKILL.md`.
+
+Covered by `tools/test_deck_scan.py`, `tools/test_deck_render.py`, and
+`tools/test_course_assignment_skill.py`.
 
 ### Discussion reply grading
 

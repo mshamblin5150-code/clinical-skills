@@ -19,6 +19,7 @@ Agent-agnostic skills for a nurse practitioner student's written work — clinic
 | `practicum-case-study` | Builds a researched practicum case study from faculty material and delivers the graded document as a `.docx`. |
 | `discussion-post` | Researches and drafts an evidence-backed initial post for one live course discussion board. |
 | `discussion-reply` | Ranks live discussion topics and drafts evidence-backed replies, with approval required before each reply is posted. |
+| `course-assignment` | Reads a live assignment, signs its artifact-specific bar, and produces, grades, renders, and submits a PowerPoint deck after clinician approval. |
 
 ### Setup
 
@@ -30,7 +31,7 @@ Agent-agnostic skills for a nurse practitioner student's written work — clinic
 
 | Skill | What it does |
 | --- | --- |
-| `aar` | Runs the mandatory submission-keyed after-action review for the six clinical and coursework skills, then lands every observed correction in a durable destination. |
+| `aar` | Runs the mandatory submission-keyed after-action review for the scoped clinical and coursework skills, then lands every observed correction in a durable destination. |
 
 Invoke a skill by name, such as `/clinical-note`, and give the agent the material it asks for. A synthetic example:
 

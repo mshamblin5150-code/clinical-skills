@@ -32,6 +32,16 @@ memory. Transcribe the live assignment and course syllabus requirements into tha
 fills the assignment's silence. Show the transcription and precedence to the clinician, and do not
 write its `SIGNED:` ISO date or draft until the clinician explicitly approves it.
 
+The signed bar also carries the research policy exactly once:
+
+```text
+SOURCE-CLASSES: society guideline | peer-reviewed | government | tertiary reference
+RECENCY-WINDOW-YEARS: 5
+```
+
+These fields preserve the existing clinical source vocabulary and five-year ordinary window. A
+missing field is not a default: `research_ledger.py` exits 2 because the run was not scanned.
+
 **Every run uses one provenance layout.** Set `<run-directory>` to that derived directory,
 `<claims-ledger>` to `<run-directory>/claims.md`, and `<checks-ledger>` to
 `<run-directory>/checks.md`. Evidence handed to the ledger is
