@@ -68,6 +68,19 @@ CRASH (2)   aar_scan refusal_scan
 NO TEXT (1) render_scan
 ```
 
+**Re-derived at `eac8d7b`, after the rulings and before this record was published.**
+[#838](https://github.com/mshamblin5150-code/clinical-skills/issues/838) landed mid-session, so
+`refusal_scan` now reads with `errors="replace"` and leaves the crash row:
+
+```
+CRASH (1)   aar_scan
+GRADE (10)  the nine above, plus refusal_scan
+```
+
+It gained no `OSError` handler, so it stays in the axis-2 residue and the deny-ACL reproduction
+above is unchanged. **No ruling below moves**; ruling 3's closing paragraph is now true at `main`
+rather than after ADR 0115.
+
 **Five of the sixteen carry no limits object at all** -- `anchor_scan`, `block_scan`, `render_scan`,
 `specificity_scan`, `filled_vitals_census` -- and four of those five are run-directory readers.
 
@@ -161,9 +174,11 @@ the read is the whole grade.* It is principled, and it moves five modules nobody
 `discussion_reply_scan` the other way. ADR 0114 refused rulings over unread modules four separate
 times and nothing measured here reverses that.
 
-**After ADR 0115 the axis-1 crash population is one module.** `refusal_scan` closes under #838 plus
-the shared reader; `render_scan` was never in it. `aar_scan` is the whole residue, it is a deferral
-with its own migration ticket, and its unreadable-review path already converts to a finding.
+**The axis-1 crash population is one module.** This was written as a prediction -- *`refusal_scan`
+closes under #838 plus the shared reader; `render_scan` was never in it* -- and #838 landed at
+`eac8d7b` before publication, so it is now a measurement. `aar_scan` is the whole residue, it is a
+deferral with its own migration ticket, and its unreadable-review path already converts to a
+finding.
 
 ### 4. The declaration is a family-wide map in `run_grader`, held by a behavioral probe and a declared floor
 

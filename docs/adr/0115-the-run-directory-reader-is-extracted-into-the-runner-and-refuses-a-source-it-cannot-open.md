@@ -25,6 +25,20 @@ body 29d9e215  refusal_scan
 Two bodies. The four "shapes" are four *docstrings* -- the `worksheet`/`note` and `run`/`set` nouns
 plus `refusal_scan`'s absence -- which is #839's own decision 3 and a naming question.
 
+**Re-derived at `eac8d7b`, after the rulings and before this record was published.**
+[#838](https://github.com/mshamblin5150-code/clinical-skills/issues/838) landed mid-session and its
+convergence is exactly what ADR 0114 ruling 2 specified, so there is **one** body now:
+
+```
+body efb1bb8d  anchor_scan  block_scan  differential_scan  filled_vitals_census
+               refusal_scan  specificity_scan
+```
+
+`refusal_scan`'s docstring is `anchor_scan`'s and `specificity_scan`'s. **No ruling below moves** --
+the ordering ruling 5's neighbor worried about is discharged rather than reversed, and the
+extraction now has the one correct body to converge on that both tickets asked for. The freshness
+gate caught this at the publication checkpoint, which is what that second checkpoint is for.
+
 **#839's `NOT_MEMBERS` is a stale name.** #830 landed between filing and grilling: `MEMBERS` is 14,
 `REFUSED` and `DEFERRED` split what `NOT_MEMBERS` held, and `filled_vitals_census`'s migration has a
 ticket -- [#842](https://github.com/mshamblin5150-code/clinical-skills/issues/842).
@@ -165,8 +179,8 @@ parameter rather than a caller's judgment.
 it holds no copy of the extracted function, so nothing here reaches it. Its migration is
 [#840](https://github.com/mshamblin5150-code/clinical-skills/issues/840).
 
-**The `refusal_scan` ordering.** #838 lands first so this has one correct body to converge on, and
-[#838](https://github.com/mshamblin5150-code/clinical-skills/issues/838) is `ready-for-agent` and
-unbuilt as of this record. If it lands after, the extraction adopts the five's body directly and
-#838's convergence becomes a no-op -- which loses the before-and-after ADR 0114 ruling 2 built it
-for, and is a worse outcome than a wait.
+**The `refusal_scan` ordering, discharged rather than standing.** This was written while #838 was
+`ready-for-agent` and unbuilt, saying the extraction must wait or lose the before-and-after ADR 0114
+ruling 2 built it for. #838 landed at `eac8d7b` during this session, so the condition is met and the
+extraction has one body to converge on. It is kept rather than deleted because the reasoning is what
+a later reordering would have to answer.
