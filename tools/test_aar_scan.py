@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from contextlib import redirect_stderr, redirect_stdout
 
 import aar_scan
 import checks_ledger
@@ -69,6 +70,123 @@ def write_transcript(path: Path, run: Path | None = None) -> None:
         ),
     ]
     path.write_text("\n".join(json.dumps(item) for item in rows) + "\n", encoding="utf-8")
+
+
+def invoke_main(arguments: list[str], stdin: str | None = None) -> tuple[int, str, str]:
+    stdout = io.StringIO()
+    stderr = io.StringIO()
+    original_stdin = aar_scan.sys.stdin
+    if stdin is not None:
+        aar_scan.sys.stdin = io.StringIO(stdin)
+    try:
+        with redirect_stdout(stdout), redirect_stderr(stderr):
+            status = aar_scan.main(arguments)
+    finally:
+        aar_scan.sys.stdin = original_stdin
+    return status, stdout.getvalue(), stderr.getvalue()
+
+
+class CommandModesBeforeRunnerMigration(unittest.TestCase):
+    """Characterize the three command modes before #840 changes their routing."""
+
+    def test_the_graded_mode_prints_the_report_and_returns_its_finding(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            run = Path(directory) / "run"
+            run.mkdir()
+
+            status, stdout, stderr = invoke_main(
+                [str(run), "--submission", "post-1"]
+            )
+
+        self.assertEqual(status, 1)
+        self.assertEqual(stderr, "")
+        self.assertEqual(
+            stdout,
+            "after-action review over run\n\n"
+            "  review records                  0\n"
+            "  candidate population            0\n"
+            "  correction records              0\n"
+            "  sustain records                 0\n"
+            "  unread candidates               0\n"
+            "  orphaned sittings               0\n"
+            "  findings                        1\n\n"
+            "  declared limits:\n"
+            "    semantic classification\n"
+            "    tool-result-only correction\n"
+            "    uncorrected error\n"
+            "    orchestrator veto\n"
+            "    subagent silence\n"
+            "    transcript flush\n"
+            "    run-key discovery\n",
+        )
+
+    def test_the_extract_mode_writes_and_reports_its_private_packet(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run = root / "run"
+            run.mkdir()
+            transcript = root / "session-1.jsonl"
+            write_transcript(transcript)
+            memory = root / "memory" / "MEMORY.md"
+            memory.parent.mkdir()
+            memory.write_text("# Index\n", encoding="utf-8")
+
+            status, stdout, stderr = invoke_main(
+                [
+                    str(run),
+                    "--submission", "post-1",
+                    "--transcript", str(transcript),
+                    "--memory-index", str(memory),
+                    "--extract",
+                ]
+            )
+
+            self.assertTrue(aar_scan.extract_path(run, "post-1").is_file())
+        self.assertEqual(status, 0)
+        self.assertEqual(stderr, "")
+        self.assertEqual(
+            stdout,
+            "after-action review extract over run\n"
+            "  candidate population            4\n"
+            "  private extract written         post-1.extract.md\n",
+        )
+
+    def test_the_session_end_mode_keeps_its_silent_exit_two(self) -> None:
+        self.assertEqual(invoke_main(["--session-end"], stdin="{}"), (2, "", ""))
+
+    def test_the_hand_rolled_parser_accepts_unknown_flags(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            run = Path(directory) / "run"
+            run.mkdir()
+            status, _stdout, stderr = invoke_main(
+                [str(run), "--submission", "post-1", "--unknown"]
+            )
+        self.assertEqual((status, stderr), (1, ""))
+
+    def test_the_hand_rolled_parser_refuses_a_flag_first_invocation(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            run = Path(directory) / "run"
+            run.mkdir()
+            status, stdout, stderr = invoke_main(
+                ["--show", str(run), "--submission", "post-1"]
+            )
+        self.assertEqual(status, 2)
+        self.assertEqual(stdout, "")
+        self.assertEqual(
+            stderr,
+            "usage: aar_scan.py <run-directory> --submission <key> "
+            "[--transcript <jsonl> --memory-index <path> --extract] [--show]\n",
+        )
+
+    def test_the_hand_rolled_parser_takes_show_as_the_submission_key(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            run = Path(directory) / "run"
+            run.mkdir()
+            status, stdout, stderr = invoke_main(
+                [str(run), "--submission", "--show"]
+            )
+        self.assertEqual((status, stderr), (1, ""))
+        self.assertIn("missing-review: --show", stdout)
 
 
 class ReductionByEntryShape(unittest.TestCase):
@@ -151,6 +269,28 @@ class SubmissionRecord(unittest.TestCase):
         self.assertEqual(scan.findings, ())
         self.assertEqual(scan.unread, 0)
         self.assertIsNone(aar_scan.completion_finding(self.run, [self.submission]))
+
+    def test_a_clean_graded_command_drains_orphan_pointers_after_reporting(self) -> None:
+        self.write_clean()
+        pointer = self.run / "aar" / "orphaned-earlier.json"
+        pointer.write_text(
+            json.dumps(
+                {
+                    "transcript_path": str(self.transcript),
+                    "run_key": self.run.name,
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        status, stdout, stderr = invoke_main(
+            [str(self.run), "--submission", self.submission]
+        )
+
+        self.assertEqual((status, stderr), (0, ""))
+        self.assertIn("after-action review over course-module-discussion", stdout)
+        self.assertFalse(pointer.exists())
 
     def test_a_correction_cannot_be_dispositioned_nowhere(self) -> None:
         fields, identifiers = self.extract()

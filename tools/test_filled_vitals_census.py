@@ -53,6 +53,69 @@ def written(directory: Path, **notes: str) -> Path:
     return directory
 
 
+def invoke_main(arguments: list[str]) -> tuple[int, str, str]:
+    stdout = io.StringIO()
+    stderr = io.StringIO()
+    with redirect_stdout(stdout), redirect_stderr(stderr):
+        status = fvc.main(arguments)
+    return status, stdout.getvalue(), stderr.getvalue()
+
+
+class CommandSurfaceBeforeRunnerMigration(unittest.TestCase):
+    """Characterize the invocation behavior #842 declares will move."""
+
+    BODY = (
+        "FILLED·asserted   HEIGHT 5'10\" (70 in) filled. Plausible for a "
+        "36-year-old man. WEIGHT 190 lb filled. BP 118/76 filled.\n"
+    )
+
+    def setUp(self) -> None:
+        self.temporary = tempfile.TemporaryDirectory()
+        run = Path(self.temporary.name) / "run"
+        run.mkdir()
+        self.run = written(run, one=self.BODY)
+
+    def tearDown(self) -> None:
+        self.temporary.cleanup()
+
+    def test_an_unknown_flag_is_silently_ignored(self) -> None:
+        status, stdout, stderr = invoke_main([str(self.run), "--unknown"])
+
+        self.assertEqual((status, stderr), (0, ""))
+        self.assertIn("filled-vitals census over run", stdout)
+
+    def test_show_is_accepted_before_the_directory(self) -> None:
+        status, stdout, stderr = invoke_main(["--show", str(self.run)])
+
+        self.assertEqual((status, stderr), (0, ""))
+        self.assertIn("heights, most repeated first", stdout)
+
+    def test_show_is_taken_as_a_submission_key(self) -> None:
+        status, stdout, stderr = invoke_main(
+            [str(self.run), "--submission", "--show"]
+        )
+
+        self.assertEqual(status, 1)
+        self.assertIn("incomplete for --show", stdout)
+        self.assertEqual(
+            stderr,
+            "\nRe-run with --show to see which values, and do not paste that output.\n",
+        )
+
+    def test_a_missing_submission_value_keeps_its_exact_banner(self) -> None:
+        self.assertEqual(
+            invoke_main([str(self.run), "--submission"]),
+            (2, "", "--submission needs a key\n"),
+        )
+
+    def test_a_missing_directory_keeps_its_exact_banner(self) -> None:
+        missing = Path(self.temporary.name) / "missing"
+        self.assertEqual(
+            invoke_main([str(missing)]),
+            (2, "", "no directory named missing\n"),
+        )
+
+
 class FilledBlock(unittest.TestCase):
     """The block is found by a tier key at column 0, never by the phrase."""
 
