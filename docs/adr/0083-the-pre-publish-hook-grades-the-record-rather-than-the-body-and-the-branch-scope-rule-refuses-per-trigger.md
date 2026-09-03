@@ -189,6 +189,12 @@ flow rather than being arranged:
 | unresolved path | yes | refuse while the fetch succeeded |
 | same-directory near miss | yes | **advise, always** |
 
+**Remote-dependent escape, added by ADR 0105.** The verified positive Branch-state
+form also reads `origin/main`. When the fetch fails, that form is accepted with an
+explicit declaration that ancestry was not verified; the local triggers keep their
+refusing posture, and the failure degrades only the escape whose truth the stale ref
+cannot settle.
+
 The three local triggers are **348 of the 353 measured firings** and each has a remedy that is right
 every time. The near miss is the one whose own message tells the author to fix the slug, which is a
 judgment and is wrong when the slug is right and the file simply has not merged. **When the fetch

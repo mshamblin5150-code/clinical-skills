@@ -125,7 +125,11 @@ jobs:
           $status = $LASTEXITCODE
           Get-Content -LiteralPath $plan | ForEach-Object {
             $receipt = $_ | ConvertFrom-Json
+            # Publish first: tracker_branch_scope's receipt fullmatch is the
+            # deliberate escape while the ticket still carries `in flight`.
             gh issue comment $receipt.ticket --body $receipt.body
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            gh issue edit $receipt.ticket --remove-label "in flight"
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           }
           if ($status -ne 0) { exit $status }

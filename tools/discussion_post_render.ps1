@@ -15,6 +15,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+. (Join-Path $PSScriptRoot "office_process.ps1")
 
 $WdDoNotSaveChanges = 0
 $WdFormatPDF = 17
@@ -26,34 +27,31 @@ $ownershipEstablished = $false
 try {
     # New-Object creates the dedicated Word process required by ADR 0087. The
     # script never attaches to an interactive instance and never changes Visible.
-    $priorWordIds = @(
-        Get-Process -Name WINWORD -ErrorAction SilentlyContinue |
-            Select-Object -ExpandProperty Id
-    )
-    $word = New-Object -ComObject Word.Application
-    $newWordIds = @(
-        Get-Process -Name WINWORD -ErrorAction SilentlyContinue |
-            Where-Object Id -NotIn $priorWordIds |
-            Select-Object -ExpandProperty Id
-    )
-    if ($newWordIds.Count -ne 1) {
-        throw "Word automation did not create exactly one owned process"
-    }
-    $ownedWordId = $newWordIds[0].ToString()
-    [IO.File]::WriteAllText($OwnershipFile, "$ownedWordId|created")
+    $owned = New-OwnedOfficeApplication -ProcessName "WINWORD" `
+        -OwnershipFile $OwnershipFile `
+        -Create { New-Object -ComObject Word.Application } `
+        -FailureMessage "Word automation did not create exactly one owned process"
+    $word = $owned.Application
+    $ownedWordId = $owned.ProcessId
     $ownershipEstablished = $true
     $word.DisplayAlerts = 0
     $opened = $word.Documents.Open($Document, $false, $true, $false)
-    [IO.File]::WriteAllText($OwnershipFile, "$ownedWordId|opened")
+    Set-OwnedOfficeStage -OwnershipFile $OwnershipFile -ProcessId $ownedWordId -Stage "opened"
     if ($Mode -eq "pdf") {
         $pdf = Join-Path $OutputDirectory "post.pdf"
-        $opened.ExportAsFixedFormat2($pdf, $WdFormatPDF)
+        [void]$opened.GetType().InvokeMember(
+            "ExportAsFixedFormat2", [Reflection.BindingFlags]::InvokeMethod,
+            $null, $opened, [object[]]@([string]$pdf, [int32]$WdFormatPDF)
+        )
         [pscustomobject]@{ source = "word-pdf"; path = $pdf } |
             ConvertTo-Json -Compress
     }
     else {
         $xps = Join-Path $OutputDirectory "post.xps"
-        $opened.SaveAs2($xps, $WdFormatXPS)
+        [void]$opened.GetType().InvokeMember(
+            "SaveAs2", [Reflection.BindingFlags]::InvokeMethod,
+            $null, $opened, [object[]]@([string]$xps, [int32]$WdFormatXPS)
+        )
         [pscustomobject]@{ source = "word-xps"; path = $xps } |
             ConvertTo-Json -Compress
     }

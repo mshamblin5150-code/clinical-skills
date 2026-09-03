@@ -339,10 +339,21 @@ class TheRenderCommand(unittest.TestCase):
 
     def test_the_word_script_quits_only_after_process_ownership_is_established(self):
         script = Path(render.__file__).with_suffix(".ps1").read_text(encoding="utf-8")
+        helper = Path(render.__file__).with_name("office_process.ps1").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("office_process.ps1", script)
+        self.assertIn("$created.Count -ne 1", helper)
         self.assertIn("$ownershipEstablished = $false", script)
         self.assertIn("$ownershipEstablished = $true", script)
         self.assertIn("$null -ne $word -and $ownershipEstablished", script)
         self.assertIn("$cleanupFailure", script)
+
+    def test_the_word_route_uses_the_shared_runner_with_its_own_bound(self):
+        source = Path(render.__file__).read_text(encoding="utf-8")
+
+        self.assertIn("office_process.run_owned_process", source)
+        self.assertIn("timeout_seconds=EXPORT_TIMEOUT_SECONDS", source)
 
     def test_a_stalled_pdf_attempt_stops_only_its_owned_word_and_uses_xps(self):
         commands = []

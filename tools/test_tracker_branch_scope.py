@@ -20,6 +20,10 @@ CITED_RECORD_MARKER = (
     "> **Cited record state:** `docs/adr/9999-not-on-main.md` is not on `main` "
     "as of `2026-08-27`.\n\n"
 )
+MAIN_MARKER = (
+    "> **Branch state:** this text rests on `main` at "
+    "`abcdef0123456789abcdef0123456789abcdef01` as of `2026-09-03`.\n\n"
+)
 
 
 def main_url(path: str) -> str:
@@ -58,6 +62,57 @@ class InFlightTrackerRecordsCarryTheirOwnBranchScope(unittest.TestCase):
         )
 
         self.assertEqual(result.status, 0)
+
+    def test_a_verified_positive_main_scope_is_clean(self):
+        with mock.patch.object(scope, "_main_ancestry", return_value=True):
+            result = scope.grade(
+                comment_event(MAIN_MARKER + "The merged command is available."),
+                "issue_comment",
+            )
+
+        self.assertEqual(result.status, 0)
+
+    def test_a_provably_false_positive_main_scope_is_a_finding(self):
+        with mock.patch.object(scope, "_main_ancestry", return_value=False):
+            result = scope.grade(
+                comment_event(MAIN_MARKER + "The merged command is available."),
+                "issue_comment",
+            )
+
+        self.assertEqual(result.status, 1)
+        self.assertIn("not an ancestor of origin/main", result.report)
+        self.assertNotIn("The merged command", result.report)
+
+    def test_an_unverifiable_positive_main_scope_is_accepted_and_declared(self):
+        with mock.patch.object(scope, "_main_ancestry", return_value=None):
+            result = scope.grade(
+                comment_event(MAIN_MARKER + "The merged command is available."),
+                "issue_comment",
+            )
+
+        self.assertEqual(result.status, 0)
+        self.assertIn("ancestry could not be verified", result.report)
+
+    def test_a_failed_remote_refresh_skips_positive_ancestry_verification(self):
+        with mock.patch.object(scope, "_main_ancestry") as ancestry:
+            result = scope.grade(
+                comment_event(MAIN_MARKER + "The merged command is available."),
+                "issue_comment",
+                remote_fresh=False,
+            )
+
+        self.assertEqual(result.status, 0)
+        self.assertIn("ancestry could not be verified", result.report)
+        ancestry.assert_not_called()
+
+    def test_a_bold_scope_without_the_blockquote_names_that_limb(self):
+        body = MARKER.removeprefix("> ") + "The branch adds the command."
+
+        result = scope.grade(comment_event(body), "issue_comment")
+
+        self.assertEqual(result.status, 1)
+        self.assertIn("blockquote marker", result.report)
+        self.assertNotIn("The branch adds the command", result.report)
 
 
 class UnresolvedPathCitationsCarryDatedMainState(unittest.TestCase):
@@ -252,6 +307,17 @@ class UnresolvedPathCitationsCarryDatedMainState(unittest.TestCase):
         self.assertIn("tools/tracker_branch_scope.py", paths)
         self.assertEqual(
             ["git", "ls-tree", "-r", "--name-only", "origin/main"],
+            run.call_args.args[0],
+        )
+
+    def test_positive_scope_ancestry_is_checked_against_remote_main(self):
+        completed = mock.Mock(returncode=0)
+        commit = "abcdef0123456789abcdef0123456789abcdef01"
+        with mock.patch("subprocess.run", return_value=completed) as run:
+            self.assertTrue(scope._main_ancestry(commit))
+
+        self.assertEqual(
+            ["git", "merge-base", "--is-ancestor", commit, "origin/main"],
             run.call_args.args[0],
         )
 

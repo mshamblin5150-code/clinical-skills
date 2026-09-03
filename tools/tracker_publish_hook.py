@@ -688,6 +688,7 @@ def analyze(
                 }
             },
             "pull_request_target",
+            remote_fresh=remote_fresh,
         )
         context = (
             "title path triggers evaluated; record-label and completion triggers "
@@ -706,11 +707,15 @@ def analyze(
         }
         if route in (("issue", "create"), ("issue", "edit")):
             container["body"] = publication.text
-            branch = tracker_branch_scope.grade({"issue": container}, "issues")
+            branch = tracker_branch_scope.grade(
+                {"issue": container}, "issues", remote_fresh=remote_fresh
+            )
         elif route in (("pr", "create"), ("pr", "edit")):
             container["body"] = publication.text
             branch = tracker_branch_scope.grade(
-                {"pull_request": container}, "pull_request_target"
+                {"pull_request": container},
+                "pull_request_target",
+                remote_fresh=remote_fresh,
             )
         elif route == ("pr", "review"):
             branch = tracker_branch_scope.grade(
@@ -722,6 +727,7 @@ def analyze(
                     },
                 },
                 "pull_request_review",
+                remote_fresh=remote_fresh,
             )
         else:
             if route == ("pr", "comment") or "/pull/" in container["html_url"]:
@@ -735,6 +741,7 @@ def analyze(
                     },
                 },
                 "issue_comment",
+                remote_fresh=remote_fresh,
             )
         context = (
             "context-blind: record number and labels were not read; the in-flight "
@@ -757,6 +764,9 @@ def analyze(
     if not remote_fresh:
         lines.append(
             "origin/main fetch failed: unresolved-path and near-miss rules are advisory"
+        )
+        lines.append(
+            "positive Branch state accepted without ancestry verification"
         )
     lines.extend(
         f"{row.posture}: {row.rule}: {row.count} finding(s) in {row.field}"

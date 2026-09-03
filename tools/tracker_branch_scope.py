@@ -26,12 +26,21 @@ from tracker_bodies import CODE_SPAN, FENCED_CODE
 from tracker_merge_receipt import parse_merge_receipt
 
 
-BRANCH_SCOPE = re.compile(
-    r"\A>[ \t]+\*\*Branch state:\*\*[ \t]+"
+BRANCH_SCOPE_BODY = (
+    r"\*\*Branch state:\*\*[ \t]+"
     r"`[A-Za-z0-9._/-]+`[ \t]+at[ \t]+`[0-9a-fA-F]{40}`[ \t]+"
     r"is[ \t]+not[ \t]+on[ \t]+`main`[ \t]+as[ \t]+of[ \t]+"
     r"`[0-9]{4}-[0-9]{2}-[0-9]{2}`\.[ \t]*\r?\n"
 )
+BRANCH_SCOPE = re.compile(r"\A>[ \t]+" + BRANCH_SCOPE_BODY)
+BRANCH_SCOPE_WITHOUT_BLOCKQUOTE = re.compile(r"\A" + BRANCH_SCOPE_BODY)
+MAIN_SCOPE_BODY = (
+    r"\*\*Branch state:\*\*[ \t]+this[ \t]+text[ \t]+rests[ \t]+on[ \t]+"
+    r"`main`[ \t]+at[ \t]+`(?P<commit>[0-9a-fA-F]{40})`[ \t]+as[ \t]+of[ \t]+"
+    r"`[0-9]{4}-[0-9]{2}-[0-9]{2}`\.[ \t]*\r?\n"
+)
+MAIN_SCOPE = re.compile(r"\A>[ \t]+" + MAIN_SCOPE_BODY)
+MAIN_SCOPE_WITHOUT_BLOCKQUOTE = re.compile(r"\A" + MAIN_SCOPE_BODY)
 CITED_RECORD_SCOPE = re.compile(
     r"\A>[ \t]+\*\*Cited record state:\*\*[ \t]+"
     r"`(?P<path>[^`\r\n]+)`[ \t]+is[ \t]+not[ \t]+on[ \t]+`main`[ \t]+"
@@ -93,7 +102,7 @@ NOT_REACHED = (
     ),
     (
         "the qualifier forms cannot compose",
-        "Both accepted qualifiers are record-level and anchored at the first line, so one "
+        "All three accepted qualifiers are record-level and anchored at the first line, so one "
         "record cannot independently date two different branch relationships.",
     ),
 )
@@ -148,6 +157,22 @@ def _default_branch_paths() -> frozenset[str]:
     return frozenset(completed.stdout.splitlines())
 
 
+def _main_ancestry(commit: str) -> bool | None:
+    completed = subprocess.run(
+        ["git", "merge-base", "--is-ancestor", commit, "origin/main"],
+        check=False,
+        capture_output=True,
+        cwd=Path(__file__).resolve().parent.parent,
+        encoding="utf-8",
+        errors="replace",
+    )
+    if completed.returncode == 0:
+        return True
+    if completed.returncode == 1:
+        return False
+    return None
+
+
 def _unresolved_main_paths(
     cited: tuple[CitedPath, ...], tracked: frozenset[str]
 ) -> tuple[str, ...]:
@@ -182,7 +207,7 @@ def _has_near_miss(path: str, tracked: frozenset[str]) -> bool:
     return any(entry.startswith(prefix) for entry in tracked)
 
 
-def grade(document: Any, event_name: str) -> Result:
+def grade(document: Any, event_name: str, *, remote_fresh: bool = True) -> Result:
     if not isinstance(document, dict):
         raise ValueError("GitHub event JSON must be an object")
     if event_name in ("issues", "issue_comment"):
@@ -254,6 +279,7 @@ def grade(document: Any, event_name: str) -> Result:
         receipt is not None and receipt.ticket == container.get("number")
     )
     branch_scope = BRANCH_SCOPE.match(body)
+    main_scope = MAIN_SCOPE.match(body)
     cited_record_scope = CITED_RECORD_SCOPE.match(body)
     cited_record_scope_matches = (
         cited_record_scope is not None
@@ -262,9 +288,38 @@ def grade(document: Any, event_name: str) -> Result:
             or cited_record_scope.group("path") in unresolved_paths
         )
     )
-    explicit_scope = branch_scope is not None or cited_record_scope_matches
+    if main_scope is not None:
+        ancestry = (
+            _main_ancestry(main_scope.group("commit")) if remote_fresh else None
+        )
+        if ancestry is False:
+            return Result(
+                1,
+                f"tracker-branch-scope: {url}: claimed main commit is not an "
+                "ancestor of origin/main",
+            )
+        if ancestry is None:
+            return Result(
+                0,
+                f"tracker-branch-scope: {url}: explicit main branch state present; "
+                "ancestry could not be verified",
+            )
+    explicit_scope = (
+        branch_scope is not None
+        or main_scope is not None
+        or cited_record_scope_matches
+    )
     if explicit_scope or (not unresolved_path and receipt_matches_issue):
         return Result(0, f"tracker-branch-scope: {url}: explicit branch state present")
+
+    if (
+        BRANCH_SCOPE_WITHOUT_BLOCKQUOTE.match(body) is not None
+        or MAIN_SCOPE_WITHOUT_BLOCKQUOTE.match(body) is not None
+    ):
+        return Result(
+            1,
+            f"tracker-branch-scope: {url}: Branch state blockquote marker is missing",
+        )
 
     if unresolved_path:
         reason = "text cites an unresolved path on the default branch"
