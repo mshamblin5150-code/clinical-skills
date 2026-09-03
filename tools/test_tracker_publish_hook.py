@@ -394,6 +394,39 @@ class PublishedFieldsAreGradedWithoutEchoingThem(unittest.TestCase):
         )
         self.assertIn("title path triggers", result.report)
 
+    def test_a_failed_fetch_declares_unverified_positive_scope(self) -> None:
+        body = (
+            "> **Branch state:** this text rests on `main` at "
+            "`abcdef0123456789abcdef0123456789abcdef01` as of `2026-09-03`.\n\n"
+            "Merged behavior."
+        )
+        with mock.patch.object(
+            hook.tracker_branch_scope, "_main_ancestry", return_value=False
+        ) as ancestry:
+            result = hook.analyze(
+                hook.Publication("body", body),
+                index=phi_scan.build_index(set(), set()),
+                issue={"number": 737, "labels": ["in flight"]},
+                remote_fresh=False,
+            )
+
+        ancestry.assert_called_once()
+        self.assertEqual([], [row for row in result.findings if row.posture == "deny"])
+        self.assertIn("positive Branch state accepted without ancestry verification", result.report)
+
+    def test_a_failed_fetch_does_not_claim_an_unverified_positive_scope_without_one(self) -> None:
+        result = hook.analyze(
+            hook.Publication("body", "Ordinary tracker prose."),
+            index=phi_scan.build_index(set(), set()),
+            issue={"number": 737, "labels": []},
+            remote_fresh=False,
+        )
+
+        self.assertNotIn(
+            "positive Branch state accepted without ancestry verification",
+            result.report,
+        )
+
     def test_completion_is_a_comment_trigger_not_an_issue_body_trigger(self) -> None:
         index = phi_scan.build_index(set(), set())
         issue = {"number": 670, "labels": []}

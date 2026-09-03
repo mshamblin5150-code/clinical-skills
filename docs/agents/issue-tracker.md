@@ -108,6 +108,14 @@ with a scope block above the claim, in this exact, unambiguous form:
 
 > **Branch state:** `branch-name` at `full commit SHA` is not on `main` as of `YYYY-MM-DD`.
 
+Text that rests on merged work uses the verified positive form instead:
+
+> **Branch state:** this text rests on `main` at `<full commit SHA>` as of `<YYYY-MM-DD>`.
+
+The hook accepts that form only after `git merge-base --is-ancestor <full commit SHA> origin/main`
+confirms the commit. If a record mixes merged and unmerged claims, use the weaker negative form;
+the three record-level qualifiers share the first line and do not compose.
+
 Naming a branch, saying it was *merged with main*, or adding `in flight` is not
 the same statement. The first can outlive a deleted ref, the second does not say
 which direction the merge ran, and the label scopes a ticket rather than an
@@ -127,6 +135,11 @@ or delete it on merge. A bare `ADR NNNN` is under-specified; prefer the link,
 though bare numbers are deliberately not graded. The check's blind spots have
 one owner in `tracker_branch_scope.NOT_REACHED`; this document copies none of
 those rows.
+
+A negative block is a dated claim about the publication moment, not a
+present-tense claim that the branch remains unmerged. Its commit is the anchor;
+run `git merge-base --is-ancestor <full commit SHA> origin/main` to settle its
+current relationship to `main`.
 
 This is mechanically checked at the publication event. `tracker.yml` runs
 `tools/tracker_branch_scope.py` for issue bodies, issue comments, pull request
@@ -161,7 +174,12 @@ binding in the same authored message.
 When that pull request merges into `main`, `tracker.yml` runs
 `tools/tracker_merge_receipt.py` over the PR body and commit messages and posts
 one merge receipt for each explicitly named whole ticket or partial lead. The
-receipt preserves that bounded relation, plus the PR, full merge SHA and date,
+same receipt loop then removes `in flight` from every ticket it names, so merge
+is the label's documented end of life even when a partial binding leaves the
+ticket open. The receipt is posted first; its exact full-body grammar is the
+deliberate branch-scope escape while the label is still present, and mixed
+receipt prose is not accepted. The receipt preserves that bounded relation,
+plus the PR, full merge SHA and date,
 so two branches settling two leads on one ticket do not collapse into one state.
 It does not pretend a symbol kept its name or that every other claim on the
 ticket is current. The pre-merge receipt-plan check is advisory and reports an

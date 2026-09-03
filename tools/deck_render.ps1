@@ -6,26 +6,24 @@ param(
 
 $ErrorActionPreference = "Stop"
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+. (Join-Path $PSScriptRoot "office_process.ps1")
 $powerpoint = $null
 $presentation = $null
 $ownedPid = $null
 $ownershipEstablished = $false
-$before = @(Get-Process -Name POWERPNT -ErrorAction SilentlyContinue | ForEach-Object { $_.Id })
 
 try {
-    $powerpoint = New-Object -ComObject PowerPoint.Application
-    $after = @(Get-Process -Name POWERPNT -ErrorAction SilentlyContinue | ForEach-Object { $_.Id })
-    $created = @($after | Where-Object { $before -notcontains $_ })
-    if ($created.Count -ne 1) {
-        throw "PowerPoint automation did not create exactly one owned process"
-    }
-    $ownedPid = $created[0]
-    Set-Content -LiteralPath $OwnershipFile -Value "$ownedPid|created" -Encoding Ascii -NoNewline
+    $owned = New-OwnedOfficeApplication -ProcessName "POWERPNT" `
+        -OwnershipFile $OwnershipFile `
+        -Create { New-Object -ComObject PowerPoint.Application } `
+        -FailureMessage "PowerPoint automation did not create exactly one owned process"
+    $powerpoint = $owned.Application
+    $ownedPid = $owned.ProcessId
     $ownershipEstablished = $true
 
     $presentation = $powerpoint.Presentations.Open($Pptx, $true, $true, $false)
     if ($ownershipEstablished) {
-        Set-Content -LiteralPath $OwnershipFile -Value "$ownedPid|opened" -Encoding Ascii -NoNewline
+        Set-OwnedOfficeStage -OwnershipFile $OwnershipFile -ProcessId $ownedPid -Stage "opened"
     }
     $presentation.SaveAs($OutputPdf, 32)
     @{ source = "powerpoint-pdf"; path = $OutputPdf } | ConvertTo-Json -Compress

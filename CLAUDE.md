@@ -1096,6 +1096,12 @@ record body. Exit 0 means the record is scoped or outside the gate, 1 means a
 branch-state or path-citation rule failed, and 2 means the event could not be
 graded.
 
+Its positive scope form — `this text rests on main at <commit>` in the exact
+documented block — is accepted only when that commit is an ancestor of
+`origin/main`. A failed fetch accepts the form with an explicit unverified
+declaration rather than turning a stale local ref into a false refusal. A
+bold-only scope attempt gets a blockquote-limb diagnostic without its body.
+
 A clean run establishes only what that bounded event and tree can establish.
 The complete boundary belongs to `tracker_branch_scope.NOT_REACHED`; this
 section points to the object and copies none of its rows.
@@ -1113,6 +1119,11 @@ reasoned no-ticket declaration was found, 1 means the plan is empty or contains
 a declined reference-shaped line, and 2 means the input cannot establish a
 completed merge into `main`; `--check-plan` applies the same plan verdict before
 merge.
+
+`parse_merge_receipt` is the branch-scope workflow's production reader. Its
+full-body match is deliberate: the bot can publish the immutable receipt while
+the ticket still carries `in flight`, then the same merge loop discharges that
+label; prefixing the receipt onto other prose is not an escape.
 
 A clean run establishes only the bounded plan verdict above. The full boundary
 belongs to `tracker_merge_receipt.NOT_REACHED`; this section points to the

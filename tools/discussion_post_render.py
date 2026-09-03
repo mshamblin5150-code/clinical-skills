@@ -23,6 +23,7 @@ import tempfile
 from pathlib import Path
 
 from console_codec import use_utf8
+import office_process
 from discussion_artifact import (
     AUTOMATED_RENDERED_SOURCES,
     RENDERED_RASTER_DPI as RASTER_DPI,
@@ -47,66 +48,39 @@ def _next_pass(render_root: Path) -> int:
     return len(numbers) + 1
 
 
-def _stop_owned_word(ownership_file: Path) -> None:
-    try:
-        process_id = ownership_file.read_text(encoding="ascii").split("|", 1)[0].strip()
-    except OSError:
-        return
-    if not process_id.isdigit():
-        return
-    subprocess.run(
-        ["taskkill.exe", "/PID", process_id, "/T", "/F"],
-        check=False,
-        capture_output=True,
-        encoding="utf-8",
-        errors="replace",
-    )
-
-
-def _owned_word_stage(ownership_file: Path) -> str:
-    try:
-        parts = ownership_file.read_text(encoding="ascii").strip().split("|", 1)
-    except OSError:
-        return "before process ownership was recorded"
-    return parts[1] if len(parts) == 2 and parts[1] else "after process creation"
-
-
 def _word_attempt(
     docx: Path, output_directory: Path, mode: str
 ) -> tuple[str, Path]:
     script = Path(__file__).with_suffix(".ps1")
     ownership_file = output_directory / f"{mode}-word-pid.txt"
+    command = [
+        "powershell.exe",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        str(script),
+        "-Document",
+        str(docx),
+        "-OutputDirectory",
+        str(output_directory),
+        "-Mode",
+        mode,
+        "-OwnershipFile",
+        str(ownership_file),
+    ]
     try:
-        completed = subprocess.run(
-            [
-                "powershell.exe",
-                "-NoProfile",
-                "-ExecutionPolicy",
-                "Bypass",
-                "-File",
-                str(script),
-                "-Document",
-                str(docx),
-                "-OutputDirectory",
-                str(output_directory),
-                "-Mode",
-                mode,
-                "-OwnershipFile",
-                str(ownership_file),
-            ],
-            check=False,
-            capture_output=True,
+        completed = office_process.run_owned_process(
+            command,
+            ownership_file,
+            timeout_seconds=EXPORT_TIMEOUT_SECONDS,
+            application="Word",
+            action=f"{mode} export",
+            runner=subprocess.run,
             encoding="utf-8-sig",
-            errors="replace",
-            timeout=EXPORT_TIMEOUT_SECONDS,
         )
-    except subprocess.TimeoutExpired as failure:
-        stage = _owned_word_stage(ownership_file)
-        _stop_owned_word(ownership_file)
-        raise RenderError(f"Word {mode} export timed out at stage {stage}") from failure
-    if completed.returncode:
-        _stop_owned_word(ownership_file)
-        raise RenderError(completed.stderr.strip() or f"Word {mode} export failed")
+    except office_process.OwnedProcessError as failure:
+        raise RenderError(str(failure)) from failure
     try:
         report = json.loads(completed.stdout)
         source = report["source"]
