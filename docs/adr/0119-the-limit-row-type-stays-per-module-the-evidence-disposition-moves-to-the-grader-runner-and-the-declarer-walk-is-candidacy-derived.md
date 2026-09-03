@@ -72,6 +72,14 @@ directory wrong, measured rather than argued.
 
 The first of those is half of what a pointer-keyed walk was proposed to catch.
 
+**Re-derived at `abe3716`, after the rulings and before this record was published.**
+[#853](https://github.com/mshamblin5150-code/clinical-skills/issues/853) landed mid-session, adding
+`office_process` and `word_automation_scan` and eleven lines to `CLAUDE.md`. **Every figure above is
+unchanged** — 8 definitions, 3 enums, 5 importers, 15 non-test declarers, 50 pointers all resolving,
+the same four misses, and `test_aar_scan` still at zero mentions. The check is run rather than
+assumed because a new module carrying a limits object or a new `CLAUDE.md` pointer would have moved
+three of these at once, and neither branch's suite could have said so.
+
 ## Ruled 2026-09-03
 
 ### 1. The row type stays eight, and only `EvidenceDisposition` is shared
