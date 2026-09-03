@@ -34,7 +34,10 @@ from typing import Any, Iterable, Mapping
 
 from console_codec import use_utf8
 import repo_root
-from run_grader import NOT_GRADED
+import run_grader
+
+
+NOT_GRADED = run_grader.NOT_GRADED
 
 
 SCOPED_SKILLS = frozenset(
@@ -53,6 +56,37 @@ DISPOSITIONS = frozenset({"skill-file", "tracker-ticket", "memory-write", "check
 CORRECTORS = frozenset({"clinician", "agent-or-tool", "orchestrator"})
 PRIVATE_TEXT_SUFFIXES = frozenset({".md", ".txt", ".json"})
 SUBAGENT_TOOLS = frozenset({"Agent", "Task", "Monitor", "TaskStop"})
+
+ROWS: Mapping[str, str] = MappingProxyType(
+    {
+        "missing-review": "the submission has no review record",
+        "unscannable-review": "the review record or its evidence cannot be scanned",
+        "missing-header-field": "a required review header field is absent",
+        "wrong-submission": "the review names another submission",
+        "non-numeric-coverage": "the population or unread count is not numeric",
+        "population-mismatch": "the review and extract populations disagree",
+        "unread-candidates": "the review leaves candidate records unread",
+        "watermark-mismatch": "the review and extract watermarks disagree",
+        "transcript-mismatch": "the review and extract transcript sets disagree",
+        "missing-correction-verdict": "the correction population has no verdict",
+        "contradictory-correction-verdict": "correction records contradict a none verdict",
+        "missing-sustain-verdict": "the sustain population has no verdict",
+        "contradictory-sustain-verdict": "sustain records contradict a none verdict",
+        "bad-orphan-pointer": "an orphan pointer cannot be read",
+        "unknown-correction-event": "a correction names no extracted candidate",
+        "missing-correction-field": "a correction lacks a required field",
+        "unknown-corrector": "a correction names no declared corrector",
+        "unknown-error-party": "a correction names no declared party in error",
+        "unknown-disposition": "a correction names no declared disposition",
+        "unlanded-ticket": "a tracker-ticket correction has no landed ticket",
+        "unlanded-memory": "a memory correction has no changed memory target",
+        "unlanded-check": "a check correction has no changed tracked check",
+        "unknown-sustain-event": "a sustain names no extracted candidate",
+        "bare-sustain": "a sustain lacks substantive classification",
+        "missing-gh-call": "a tracker disposition has no successful GitHub call",
+    }
+)
+KINDS = tuple(ROWS)
 
 DECLARED_LIMITS = (
     (
@@ -147,8 +181,7 @@ class Review:
 
 
 @dataclass(frozen=True)
-class Finding:
-    kind: str
+class Finding(run_grader.Finding):
     detail: str
 
 
@@ -840,36 +873,34 @@ def session_end(payload: Mapping[str, Any]) -> int:
     return 0
 
 
-def _value(arguments: list[str], name: str) -> str | None:
-    try:
-        index = arguments.index(name)
-    except ValueError:
-        return None
-    return arguments[index + 1] if index + 1 < len(arguments) else None
+USAGE = (
+    "usage: aar_scan.py <run-directory> --submission <key> "
+    "[--transcript <jsonl> --memory-index <path> --extract] [--show]"
+)
 
 
-def main(argv: list[str] | None = None) -> int:
-    arguments = list(sys.argv[1:] if argv is None else argv)
-    if arguments == ["--session-end"]:
-        try:
-            payload = json.load(sys.stdin)
-            return session_end(payload)
-        except (UnicodeError, json.JSONDecodeError, ValueError):
-            return 2
-    if not arguments or arguments[0].startswith("-"):
-        print("usage: aar_scan.py <run-directory> --submission <key> [--transcript <jsonl> --memory-index <path> --extract] [--show]", file=sys.stderr)
-        return 2
-    run = Path(arguments[0]).expanduser().resolve()
-    submission = _value(arguments, "--submission")
-    if not run.is_dir() or not submission:
-        print("run directory and --submission are required", file=sys.stderr)
-        return 2
-    if "--extract" in arguments:
-        transcript_value = _value(arguments, "--transcript")
-        memory_value = _value(arguments, "--memory-index")
-        if not memory_value:
-            print("--extract requires --memory-index", file=sys.stderr)
-            return 2
+def validate(parsed: run_grader.Parsed) -> str | None:
+    if not parsed.value("--submission"):
+        return "--submission is required"
+    if parsed.enabled("--extract") and not parsed.value("--memory-index"):
+        return "--extract requires --memory-index"
+    return None
+
+
+def load(parsed: run_grader.Parsed) -> Path:
+    run = Path(parsed.source).expanduser().resolve()
+    if not run.is_dir():
+        raise run_grader.SourceError(f"no directory named {run.name}")
+    return run
+
+
+def grade(run: Path, parsed: run_grader.Parsed) -> run_grader.Grade[Scan] | run_grader.EarlyExit:
+    submission = parsed.value("--submission")
+    assert submission is not None  # validate owns this invocation requirement
+    if parsed.enabled("--extract"):
+        transcript_value = parsed.value("--transcript")
+        memory_value = parsed.value("--memory-index")
+        assert memory_value is not None  # validate owns this invocation requirement
         try:
             transcript = (
                 Path(transcript_value).expanduser().resolve()
@@ -880,18 +911,67 @@ def main(argv: list[str] | None = None) -> int:
                 run, transcript, submission, Path(memory_value).expanduser().resolve()
             )
         except (OSError, ValueError, subprocess.SubprocessError) as exc:
-            print(f"after-action review NOT SCANNED: {exc}", file=sys.stderr)
-            return 2
-        print(f"after-action review extract over {run.name}")
-        print(f"  candidate population            {count}")
-        print(f"  private extract written         {destination.name}")
-        return 0
+            return run_grader.EarlyExit(
+                2,
+                stderr=(f"after-action review NOT SCANNED: {exc}",),
+            )
+        return run_grader.EarlyExit(
+            0,
+            stdout=(
+                f"after-action review extract over {run.name}",
+                f"  candidate population            {count}",
+                f"  private extract written         {destination.name}",
+            ),
+        )
+
     scan = survey(run, submission)
-    print(format_report(scan, run.name, show="--show" in arguments))
-    if scan.findings:
-        return 1
-    consume_orphans(run)
-    return 0
+    return run_grader.Grade(
+        scan=scan,
+        source=run.name,
+        findings_failed=bool(scan.findings),
+    )
+
+
+# No exit_2_limbs: the exact SessionEnd branch below has two exit-2 routes
+# outside the runner. A partial vocabulary would claim the whole command
+# surface. The hook is not a reader in the grader family (ADR 0117).
+GRADER = run_grader.Grader(
+    usage=USAGE,
+    load=load,
+    grade=grade,
+    format_report=format_report,
+    options=(
+        run_grader.Option("--show"),
+        run_grader.Option(
+            "--submission", takes_value=True, missing_value="--submission needs a key"
+        ),
+        run_grader.Option("--transcript", takes_value=True),
+        run_grader.Option("--memory-index", takes_value=True),
+        run_grader.Option("--extract"),
+    ),
+    validate=validate,
+    source_error_to_stdout=False,
+    allow_extra_positionals=True,
+)
+
+
+def main(argv: list[str] | None = None) -> int:
+    arguments = list(sys.argv[1:] if argv is None else argv)
+    if arguments == ["--session-end"]:
+        try:
+            payload = json.load(sys.stdin)
+            return session_end(payload)
+        except (UnicodeError, json.JSONDecodeError, ValueError):
+            return 2
+    status = run_grader.run(GRADER, arguments)
+    if status == 0:
+        # Re-parse only arguments the runner already accepted. Keeping this
+        # post-report preserves the recoverable failure direction ruled in
+        # ADR 0117: a crash cannot erase both the pointer and its report.
+        parsed = run_grader.parse(GRADER, arguments)
+        if not parsed.enabled("--extract"):
+            consume_orphans(Path(parsed.source).expanduser().resolve())
+    return status
 
 
 if __name__ == "__main__":

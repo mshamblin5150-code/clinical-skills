@@ -27,7 +27,11 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 import filled_vitals_census as fvc
+import grader_conformance
 import run_grader
+
+
+FilledVitalsCensusConformance = grader_conformance.for_module(fvc)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 NOTES = REPO_ROOT / "fixtures" / "filled-anchor" / "notes"
@@ -61,8 +65,8 @@ def invoke_main(arguments: list[str]) -> tuple[int, str, str]:
     return status, stdout.getvalue(), stderr.getvalue()
 
 
-class CommandSurfaceBeforeRunnerMigration(unittest.TestCase):
-    """Characterize the invocation behavior #842 declares will move."""
+class CommandSurface(unittest.TestCase):
+    """The invocation behavior migrated under #842's declared contract."""
 
     BODY = (
         "FILLED·asserted   HEIGHT 5'10\" (70 in) filled. Plausible for a "
@@ -78,11 +82,12 @@ class CommandSurfaceBeforeRunnerMigration(unittest.TestCase):
     def tearDown(self) -> None:
         self.temporary.cleanup()
 
-    def test_an_unknown_flag_is_silently_ignored(self) -> None:
+    def test_an_unknown_flag_is_refused(self) -> None:
         status, stdout, stderr = invoke_main([str(self.run), "--unknown"])
 
-        self.assertEqual((status, stderr), (0, ""))
-        self.assertIn("filled-vitals census over run", stdout)
+        self.assertEqual(status, 2)
+        self.assertEqual(stdout, "")
+        self.assertEqual(stderr, "unrecognized option --unknown\n")
 
     def test_show_is_accepted_before_the_directory(self) -> None:
         status, stdout, stderr = invoke_main(["--show", str(self.run)])
@@ -90,17 +95,14 @@ class CommandSurfaceBeforeRunnerMigration(unittest.TestCase):
         self.assertEqual((status, stderr), (0, ""))
         self.assertIn("heights, most repeated first", stdout)
 
-    def test_show_is_taken_as_a_submission_key(self) -> None:
+    def test_show_is_refused_as_a_submission_key(self) -> None:
         status, stdout, stderr = invoke_main(
             [str(self.run), "--submission", "--show"]
         )
 
-        self.assertEqual(status, 1)
-        self.assertIn("incomplete for --show", stdout)
-        self.assertEqual(
-            stderr,
-            "\nRe-run with --show to see which values, and do not paste that output.\n",
-        )
+        self.assertEqual(status, 2)
+        self.assertEqual(stdout, "")
+        self.assertEqual(stderr, "--submission needs a key\n")
 
     def test_a_missing_submission_value_keeps_its_exact_banner(self) -> None:
         self.assertEqual(
@@ -603,7 +605,10 @@ class ExitStatusReportsTheDefect(unittest.TestCase):
     def test_a_repeated_body_exits_non_zero(self):
         with tempfile.TemporaryDirectory() as tmp:
             directory = written(Path(tmp), a=self.BODY, b=self.BODY)
-            self.assertEqual(fvc.survey(run_grader.read_run_directory(directory)).repeated_bodies, 1)
+            scan = fvc.survey(run_grader.read_run_directory(directory))
+            self.assertEqual(scan.repeated_bodies, 1)
+            self.assertEqual([finding.kind for finding in scan.findings], ["B13"])
+            self.assertIn("1 of 2", scan.findings[0].detail)
             self.assertEqual(fvc.main([str(directory)]), 1)
 
     def test_two_different_bodies_exit_zero(self):

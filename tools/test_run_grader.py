@@ -265,7 +265,7 @@ class TheUndecodableBytePostureIsDeclaredForTheFamily(unittest.TestCase):
         self.assertEqual(len(named), len(set(named)))
         self.assertTrue(all(reason for reasons in declared.values() for reason in reasons.values()))
         self.assertEqual(
-            {"grade", "refuse", "crash", "no text read"},
+            {"grade", "refuse", "finding", "crash", "no text read"},
             set(declared),
         )
 
@@ -281,6 +281,7 @@ class TheUndecodableBytePostureIsDeclaredForTheFamily(unittest.TestCase):
         ) - run_grader.RUN_DIRECTORY_READERS
         self.assertIn("read_text", run_grader.TEXT_READ_WALK_CEILING)
         self.assertIn("floor", run_grader.TEXT_READ_WALK_CEILING)
+        self.assertIn("SourceError", run_grader.TEXT_READ_WALK_CEILING)
 
         for name in sorted(remaining):
             with self.subTest(module=name):
@@ -294,7 +295,7 @@ class TheUndecodableBytePostureIsDeclaredForTheFamily(unittest.TestCase):
                     self.assertGreater(evidence.refusing, 0)
                     self.assertEqual(0, evidence.replacing)
                     self.assertEqual(0, evidence.crashing)
-                elif posture == "crash":
+                elif posture in {"crash", "finding"}:
                     self.assertGreater(evidence.crashing, 0)
                     self.assertGreater(evidence.replacing, 0)
                 else:
@@ -338,6 +339,16 @@ class TheUndecodableBytePostureIsDeclaredForTheFamily(unittest.TestCase):
         self.assertEqual(0, partial.refusing)
         self.assertEqual(1, partial.crashing)
 
+    def test_a_value_error_conversion_is_outside_the_walks_refusal_predicate(self):
+        evidence = run_grader.walk_text_reads(
+            "def load(path):\n"
+            "    try:\n        return path.read_text(encoding='utf-8')\n"
+            "    except (OSError, UnicodeError):\n        raise ValueError('finding')\n"
+        )
+
+        self.assertEqual(0, evidence.refusing)
+        self.assertEqual(1, evidence.crashing)
+
 
 class TheMembershipClaimIsDerivedFromTheTree(unittest.TestCase):
     def test_every_grader_shape_is_declared_with_the_walks_ceiling(self):
@@ -363,19 +374,6 @@ class TheMembershipClaimIsDerivedFromTheTree(unittest.TestCase):
 
         self.assertIn("quiet", reason)
         self.assertIn("multiple sheets", reason)
-
-    def test_aar_scan_is_deferred_with_its_migration_work_named(self):
-        reason = run_grader.DEFERRED["aar_scan"]
-
-        self.assertIn("#840", reason)
-        self.assertIn("second entry point", reason)
-        self.assertIn("post-report side effect", reason)
-
-    def test_filled_vitals_census_deferral_names_its_owner(self):
-        reason = run_grader.DEFERRED["filled_vitals_census"]
-
-        self.assertIn("#842", reason)
-        self.assertIn("Finding rewrite", reason)
 
     def test_every_declared_member_delegates_and_adopts_the_kit(self):
         here = Path(__file__).parent
@@ -462,7 +460,7 @@ class TheMembershipClaimIsDerivedFromTheTree(unittest.TestCase):
                 ):
                     self.assertIs(module.NOT_GRADED, run_grader.NOT_GRADED)
 
-    def test_aar_scan_uses_the_shared_not_graded_sentinel_while_deferred(self):
+    def test_aar_scan_uses_the_shared_not_graded_sentinel(self):
         module = importlib.import_module("aar_scan")
 
         self.assertIs(module.NOT_GRADED, run_grader.NOT_GRADED)

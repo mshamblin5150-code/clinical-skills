@@ -8,6 +8,7 @@ from pathlib import Path
 import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
+from unittest import mock
 
 import aar_scan
 import checks_ledger
@@ -15,7 +16,11 @@ import differential_scan
 import discussion_post_scan
 import discussion_reply_scan
 import filled_vitals_census
+import grader_conformance
 import specificity_scan
+
+
+AarScanConformance = grader_conformance.for_module(aar_scan)
 
 
 def row(kind: str, uuid: str, message: object, **extra: object) -> dict[str, object]:
@@ -86,8 +91,8 @@ def invoke_main(arguments: list[str], stdin: str | None = None) -> tuple[int, st
     return status, stdout.getvalue(), stderr.getvalue()
 
 
-class CommandModesBeforeRunnerMigration(unittest.TestCase):
-    """Characterize the three command modes before #840 changes their routing."""
+class CommandModes(unittest.TestCase):
+    """The three command modes whose routing #840 migrated."""
 
     def test_the_graded_mode_prints_the_report_and_returns_its_finding(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -154,39 +159,57 @@ class CommandModesBeforeRunnerMigration(unittest.TestCase):
     def test_the_session_end_mode_keeps_its_silent_exit_two(self) -> None:
         self.assertEqual(invoke_main(["--session-end"], stdin="{}"), (2, "", ""))
 
-    def test_the_hand_rolled_parser_accepts_unknown_flags(self) -> None:
+    def test_a_refused_review_open_is_a_finding_without_a_traceback(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            run = Path(directory) / "run"
+            (run / "aar").mkdir(parents=True)
+            review = aar_scan.review_path(run, "post-1")
+            review.write_text("# AFTER-ACTION REVIEW\n", encoding="utf-8")
+            original = Path.read_text
+
+            def refusing(path: Path, *args: object, **kwargs: object) -> str:
+                if path == review:
+                    raise PermissionError(13, "denied", str(review))
+                return original(path, *args, **kwargs)
+
+            with mock.patch.object(Path, "read_text", refusing):
+                status, stdout, stderr = invoke_main(
+                    [str(run), "--submission", "post-1", "--show"]
+                )
+
+        self.assertEqual((status, stderr), (1, ""))
+        self.assertIn("unscannable-review: cannot read review", stdout)
+
+    def test_the_runner_refuses_unknown_flags(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             run = Path(directory) / "run"
             run.mkdir()
             status, _stdout, stderr = invoke_main(
                 [str(run), "--submission", "post-1", "--unknown"]
             )
-        self.assertEqual((status, stderr), (1, ""))
+        self.assertEqual(status, 2)
+        self.assertEqual(stderr, "unrecognized option --unknown\n")
 
-    def test_the_hand_rolled_parser_refuses_a_flag_first_invocation(self) -> None:
+    def test_the_runner_accepts_a_flag_first_invocation(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             run = Path(directory) / "run"
             run.mkdir()
             status, stdout, stderr = invoke_main(
                 ["--show", str(run), "--submission", "post-1"]
             )
-        self.assertEqual(status, 2)
-        self.assertEqual(stdout, "")
-        self.assertEqual(
-            stderr,
-            "usage: aar_scan.py <run-directory> --submission <key> "
-            "[--transcript <jsonl> --memory-index <path> --extract] [--show]\n",
-        )
+        self.assertEqual((status, stderr), (1, ""))
+        self.assertIn("after-action review over run", stdout)
 
-    def test_the_hand_rolled_parser_takes_show_as_the_submission_key(self) -> None:
+    def test_the_runner_refuses_show_as_a_submission_key(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             run = Path(directory) / "run"
             run.mkdir()
             status, stdout, stderr = invoke_main(
                 [str(run), "--submission", "--show"]
             )
-        self.assertEqual((status, stderr), (1, ""))
-        self.assertIn("missing-review: --show", stdout)
+        self.assertEqual(status, 2)
+        self.assertEqual(stdout, "")
+        self.assertEqual(stderr, "--submission needs a key\n")
 
 
 class ReductionByEntryShape(unittest.TestCase):
@@ -284,12 +307,24 @@ class SubmissionRecord(unittest.TestCase):
             encoding="utf-8",
         )
 
-        status, stdout, stderr = invoke_main(
-            [str(self.run), "--submission", self.submission]
-        )
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        original_unlink = Path.unlink
 
-        self.assertEqual((status, stderr), (0, ""))
-        self.assertIn("after-action review over course-module-discussion", stdout)
+        def unlink_after_report(path: Path, *args: object, **kwargs: object) -> None:
+            self.assertIn(
+                "after-action review over course-module-discussion", stdout.getvalue()
+            )
+            original_unlink(path, *args, **kwargs)
+
+        with (
+            mock.patch.object(Path, "unlink", unlink_after_report),
+            redirect_stdout(stdout),
+            redirect_stderr(stderr),
+        ):
+            status = aar_scan.main([str(self.run), "--submission", self.submission])
+
+        self.assertEqual((status, stderr.getvalue()), (0, ""))
         self.assertFalse(pointer.exists())
 
     def test_a_correction_cannot_be_dispositioned_nowhere(self) -> None:

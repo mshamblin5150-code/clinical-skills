@@ -164,14 +164,24 @@ from __future__ import annotations
 import re
 import sys
 from collections import Counter
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from math import comb
 from pathlib import Path
 
 import run_grader
-from console_codec import use_utf8
 from corpus_census import Reading, is_normal_bp
 import aar_scan
+
+
+NOT_GRADED = run_grader.NOT_GRADED
+
+
+ROWS = {
+    "B13": "no two notes share an identical filled height-and-weight pair",
+    "B17": "filled pressures do not exceed the ruled false-alarm rate",
+    "B18": "every filled height names an age and a sex",
+}
+KINDS = tuple(ROWS)
 
 EXPECTED_COMPLETION_CHECKS = (aar_scan.EXPECTED_ROW,)
 
@@ -407,7 +417,12 @@ class Fill:
 
 
 @dataclass(frozen=True)
-class Census:
+class Finding(run_grader.Finding):
+    detail: str
+
+
+@dataclass(frozen=True)
+class Scan:
     """Counts over a set of notes. Holds no note text and no filename."""
 
     notes: int
@@ -438,6 +453,7 @@ class Census:
     # Kept for ``--show`` alone, and never read by ``format_report`` without it.
     height_counts: tuple[tuple[int, int], ...] = ()
     body_counts: tuple[tuple[tuple[int, int], int], ...] = ()
+    findings: tuple[Finding, ...] = ()
 
     def count_of(self, key: str) -> int:
         """How many notes declared one counted class, by its ``COUNTED_CLASSES`` key."""
@@ -558,10 +574,10 @@ def read_fill(text: str) -> Fill:
     )
 
 
-def survey(texts: list[str]) -> Census:
+def survey(texts: list[str]) -> Scan:
     """Count the filled bodies across a set of note texts.
 
-    Takes texts rather than files: a ``Census`` never learns a filename, so it
+    Takes texts rather than files: a ``Scan`` never learns a filename, so it
     cannot put a patient record's path into output this script promises is safe
     to paste.
     """
@@ -571,7 +587,7 @@ def survey(texts: list[str]) -> Census:
     weights = Counter(f.weight_lb for f in fills if f.weight_lb is not None)
     bodies = Counter(f.body for f in fills if f.body is not None)
     pressures = Counter(f.pressure for f in fills if f.pressure is not None)
-    return Census(
+    scan = Scan(
         notes=len(texts),
         heights=sum(heights.values()),
         distinct_heights=len(heights),
@@ -594,20 +610,43 @@ def survey(texts: list[str]) -> Census:
         height_counts=tuple(sorted(heights.items())),
         body_counts=tuple(sorted(bodies.items())),
     )
+    findings: list[Finding] = []
+    if scan.repeated_bodies:
+        findings.append(
+            Finding(
+                "B13",
+                f"{scan.repeated_bodies} of {scan.bodies} filled bodies share a value",
+            )
+        )
+    if scan.tilted:
+        findings.append(
+            Finding(
+                "B17",
+                f"{scan.abnormal_pressures} of {scan.pressures} filled pressures land not normal",
+            )
+        )
+    if scan.heights_missing_person:
+        findings.append(
+            Finding(
+                "B18",
+                f"{scan.heights_missing_person} of {scan.heights} filled heights name no age and sex",
+            )
+        )
+    return replace(scan, findings=tuple(findings))
 
 
 def _inches(value: int) -> str:
     return f"{value // 12}'{value % 12}\""
 
 
-def _tilt_verdict(census: Census) -> str:
+def _tilt_verdict(scan: Scan) -> str:
     """The tilt line, which never reads as a pass where nothing was measured."""
-    if not census.pressures:
-        return "not graded — no filled pressure declared"
-    return "YES" if census.tilted else "no"
+    if not scan.pressures:
+        return f"{NOT_GRADED} — no filled pressure declared"
+    return "YES" if scan.tilted else "no"
 
 
-def format_report(census: Census, source: str, show: bool = False) -> str:
+def format_report(scan: Scan, source: str, show: bool = False) -> str:
     """The report, as one string. Carries no measured value unless ``show``."""
     lines = [
         f"filled-vitals census over {source}",
@@ -616,34 +655,40 @@ def format_report(census: Census, source: str, show: bool = False) -> str:
         # ruling and #177's ordering. A count printed ahead of the caveat is
         # read as the verdict, and a caveat printed only when it fires teaches
         # a reader that its absence is a stronger claim than it is.
-        f"  {'scanned':<32}{census.asserted_keys_read} of"
-        f" {census.asserted_keys} {KEY_NOUN}",
-        f"  notes read                      {census.notes}",
-        f"  declaring a filled height       {census.heights}",
-        f"    distinct values               {census.distinct_heights}",
-        f"    largest group at one value    {census.largest_height_group}",
-        f"    naming no age and sex         {census.heights_missing_person}",
-        f"  declaring a filled weight       {census.weights}",
-        f"    distinct values               {census.distinct_weights}",
-        f"  declaring a filled pressure     {census.pressures}",
-        f"    distinct values               {census.distinct_pressures}",
-        f"    largest group at one value    {census.largest_pressure_group}",
-        f"    not normal (130+ or 80+)      {census.abnormal_pressures}",
-        f"    {f'beyond a fair split at {CHANCE_FLOOR:.0%}?':<30}{_tilt_verdict(census)}",
-        f"  declaring a filled height and weight   {census.bodies}",
-        f"    sharing a body with another note     {census.repeated_bodies}",
+        f"  {'scanned':<32}{scan.asserted_keys_read} of"
+        f" {scan.asserted_keys} {KEY_NOUN}",
+        f"  notes read                      {scan.notes}",
+        f"  declaring a filled height       {scan.heights}",
+        f"    distinct values               {scan.distinct_heights}",
+        f"    largest group at one value    {scan.largest_height_group}",
+        f"    naming no age and sex         {scan.heights_missing_person}",
+        f"  declaring a filled weight       {scan.weights}",
+        f"    distinct values               {scan.distinct_weights}",
+        f"  declaring a filled pressure     {scan.pressures}",
+        f"    distinct values               {scan.distinct_pressures}",
+        f"    largest group at one value    {scan.largest_pressure_group}",
+        f"    not normal (130+ or 80+)      {scan.abnormal_pressures}",
+        f"    {f'beyond a fair split at {CHANCE_FLOOR:.0%}?':<30}{_tilt_verdict(scan)}",
+        f"  declaring a filled height and weight   {scan.bodies}",
+        f"    sharing a body with another note     {scan.repeated_bodies}",
         "",
-        "  counted, not graded — no corpus split grounds a bar on these:",
+        f"  counted, {NOT_GRADED} — no corpus split grounds a bar on these:",
     ]
     lines += [
-        f"    {f'declaring a filled {label}':<37}{census.count_of(key)}"
+        f"    {f'declaring a filled {label}':<37}{scan.count_of(key)}"
         for label, key, _ in COUNTED_CLASSES
     ]
     if show:
+        # The default count lines already state the row outcomes. Only this
+        # private block joins each fixture row identifier to its measurement
+        # without repeating the default report's counts (ADR 0118).
+        if scan.findings:
+            lines += ["", "  findings (private - read, do not paste):"]
+            lines += [f"    {finding.kind}: {finding.detail}" for finding in scan.findings]
         lines += ["", "  heights, most repeated first:"]
-        for value, count in sorted(census.height_counts, key=lambda p: -p[1]):
+        for value, count in sorted(scan.height_counts, key=lambda p: -p[1]):
             lines.append(f"    {_inches(value):>8}  x{count}")
-        repeated = [(b, n) for b, n in census.body_counts if n > 1]
+        repeated = [(b, n) for b, n in scan.body_counts if n > 1]
         if repeated:
             lines += ["", "  bodies shared by more than one note:"]
             for (height, weight), count in repeated:
@@ -651,75 +696,59 @@ def format_report(census: Census, source: str, show: bool = False) -> str:
     return "\n".join(lines)
 
 
-def main(argv: list[str]) -> int:
-    """``argv`` is the argument list without the program name."""
-    args: list[str] = []
-    submission: str | None = None
-    index = 0
-    while index < len(argv):
-        if argv[index] == "--submission":
-            if index + 1 >= len(argv):
-                print("--submission needs a key", file=sys.stderr)
-                return 2
-            submission = argv[index + 1]
-            index += 2
-            continue
-        if not argv[index].startswith("--"):
-            args.append(argv[index])
-        index += 1
-    show = "--show" in argv
-    if not args:
-        print("usage: filled_vitals_census.py <directory> [--show]", file=sys.stderr)
-        return 2
-    directory = Path(args[0])
+def load(parsed: run_grader.Parsed) -> tuple[Path, list[str]]:
+    directory = Path(parsed.source)
     # The directory name, never the path: a run directory sits under ``scratch/``
     # or ``output/``, and its path names the shift and often the site.
     if not directory.is_dir():
-        print(f"no directory named {directory.name}", file=sys.stderr)
-        return 2
-    try:
-        notes = run_grader.read_run_directory(directory)
-    except run_grader.SourceError as failure:
-        print(str(failure), file=sys.stderr)
-        return 2
+        raise run_grader.SourceError(f"no directory named {directory.name}")
+    notes = run_grader.read_run_directory(directory)
     if not notes:
-        print(f"no notes found in {directory.name}", file=sys.stderr)
-        return 2
-    census = survey(notes)
-    print(format_report(census, source=directory.name, show=show))
-    aar_failed, aar_report = aar_scan.completion_gate(directory, submission)
-    print(aar_report)
+        raise run_grader.SourceError(f"no notes found in {directory.name}")
+    return directory, notes
 
-    findings = []
-    if census.repeated_bodies:
-        findings.append(
-            f"{census.repeated_bodies} note(s) share a filled body with another."
+
+def grade(
+    loaded: tuple[Path, list[str]], parsed: run_grader.Parsed
+) -> run_grader.Grade[Scan]:
+    directory, notes = loaded
+    scan = survey(notes)
+    aar_failed, aar_report = aar_scan.completion_gate(
+        directory, parsed.value("--submission")
+    )
+
+    diagnostic_by_kind = {
+        "B13": (
+            f"{scan.repeated_bodies} note(s) share a filled body with another."
             " fixtures/day-b B13 fails."
-        )
-    if census.tilted:
-        findings.append(
-            f"{census.abnormal_pressures} of {census.pressures} filled pressures land"
+        ),
+        "B17": (
+            f"{scan.abnormal_pressures} of {scan.pressures} filled pressures land"
             " not normal, which a fair split produces less than"
             f" {CHANCE_FLOOR:.0%} of the time. The anchors were in the notes."
             " fixtures/day-b B17 fails."
-        )
-    if census.heights_missing_person:
-        findings.append(
-            f"{census.heights_missing_person} filled height(s) name no age and sex."
+        ),
+        "B18": (
+            f"{scan.heights_missing_person} filled height(s) name no age and sex."
             " Both are given on all but one committed input, so a height almost"
             " always has two anchors already in the encounter."
             " fixtures/day-b B18 fails."
-        )
+        ),
+    }
+    findings = [diagnostic_by_kind[finding.kind] for finding in scan.findings]
     # #204. Every figure above is a fraction whose denominator is whatever the
     # parser found, so a key it did not read shrinks a graded row rather than
     # failing it -- which makes a violation less likely, not more.
     unread = (
-        f"{census.asserted_keys_unread} of {census.asserted_keys} {KEY_NOUN} sit"
+        f"{scan.asserted_keys_unread} of {scan.asserted_keys} {KEY_NOUN} sit"
         " outside the block that was read, so every count here is a floor.\n"
-        if census.asserted_keys_unread
+        if scan.asserted_keys_unread
         else ""
     )
-    if findings or aar_failed:
+    findings_failed = bool(scan.findings or aar_failed)
+    coverage_failed = False
+    diagnostics: tuple[str, ...] = ()
+    if findings_failed:
         # 1 outranks 2 deliberately: returning 2 where something was graded and
         # failed would file the strongest thing known about the run under the
         # heading that means nothing was measured.
@@ -727,29 +756,54 @@ def main(argv: list[str]) -> int:
         # The floor note goes **first**, ahead of the findings, on #177's
         # ordering: a count printed ahead of its caveat is read as the verdict,
         # and every finding below is a count.
-        print(
+        diagnostics = (
             "\n" + unread + "\n".join(findings) + ("\n" if findings else "") + "Re-run with --show to see"
             " which values, and do not paste that output.",
-            file=sys.stderr,
         )
-        return 1
-    if unread:
-        print(
+    elif unread:
+        coverage_failed = True
+        diagnostics = (
             "\n" + unread.rstrip("\n") + f" No graded row was measured over the whole of"
             f" {directory.name}. This is not a pass.",
-            file=sys.stderr,
         )
-        return 2
-    if not census.gradeable:
-        print(
+    elif not scan.gradeable:
+        coverage_failed = True
+        diagnostics = (
             f"\nno note in {directory.name} declares a filled height or a filled"
             " pressure, so neither graded row read anything. This is not a pass.",
-            file=sys.stderr,
         )
-        return 2
-    return 0
+    return run_grader.Grade(
+        scan=scan,
+        source=directory.name,
+        findings_failed=findings_failed,
+        coverage_failed=coverage_failed,
+        diagnostics=diagnostics,
+        reports=(aar_report,),
+    )
+
+
+# No exit_2_limbs: ADR 0118 keeps this migration's existing prose contract
+# rather than introducing an exit-vocabulary seam without its own ruling.
+GRADER = run_grader.Grader(
+    usage="usage: filled_vitals_census.py <directory> [--show]",
+    load=load,
+    grade=grade,
+    format_report=format_report,
+    options=(
+        run_grader.Option("--show"),
+        run_grader.Option(
+            "--submission", takes_value=True, missing_value="--submission needs a key"
+        ),
+    ),
+    source_error_to_stdout=False,
+    allow_extra_positionals=True,
+)
+
+
+def main(argv: list[str]) -> int:
+    """``argv`` is the argument list without the program name."""
+    return run_grader.run(GRADER, argv)
 
 
 if __name__ == "__main__":
-    use_utf8()
     raise SystemExit(main(sys.argv[1:]))

@@ -331,6 +331,9 @@ def for_module(module: Any) -> type[unittest.TestCase]:
             command = dataclasses.replace(
                 module.GRADER,
                 options=(),
+                # This synthetic command grades report precedence, not the
+                # member's required invocation values.
+                validate=None,
                 load=lambda _parsed: scan,
                 grade=lambda loaded, _parsed: run_grader.Grade(
                     scan=loaded,
