@@ -579,6 +579,14 @@ _Avoid_: render, screenshot, page dump, pass
 A module named in `run_grader.MEMBERS`, asserting that it runs on the shared grader runner. Being named and actually delegating are two claims and they have come apart: a module can satisfy the population walk's source shape — a top-level `survey`, a top-level `format_report`, a `__main__` guard — while importing nothing from the runner, and appending its name is exactly what turns that walk green. So a declared member is graded on **adoption** and never on shape. Distinct from a module the walk merely *sees*, which is a statement about what an instrument can read rather than about what a module does.
 _Avoid_: grader, member, migrated, participant
 
+**Run-directory reader**:
+A grader's reader over the `.md` artifacts of one **run directory**, its README excluded because a run's README is prose about the run and counting it puts a wrong denominator beside every figure below it. That it reads a *set* is what fixes its failure posture: an artifact it cannot decode is read with replacement and graded, because refusing would lose the other artifacts in the run to one byte in one of them. Distinct from an **unreadable source**, which is a source the reader never held at all.
+_Avoid_: note reader, worksheet loader, directory walk
+
+**Unreadable source**:
+A run artifact a grader was pointed at and could not obtain, so the run is reported as not scanned rather than as scanned and clean. It is the grader-side twin of an **unreadable body** and takes that entry's reasoning: a report of nothing found about something never held is the shape every scanner here refuses. Distinct from an artifact that *was* held and carries a replaced byte, which a **run-directory reader** grades. Which inputs qualify is measured and unruled — the members disagree three ways — so the term names the outcome and not yet its boundary.
+_Avoid_: tier-1 failure, load error, bad input, missing file
+
 **Adoption**:
 A module's actual use of the shared runner and its conformance kit — importing `run_grader`, and its test module binding `grader_conformance.for_module`. It is what a **declared member** is graded on, and it is not shape: shape is the source pattern a population walk can recognize, so a walk over shape answers *is there a grader here nobody declared* while a walk over adoption answers *is there a name here nobody wired up*. Neither walk sees the other's case, which is why both are kept.
 _Avoid_: migration, membership, compliance, conformance
