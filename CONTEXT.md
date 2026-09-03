@@ -575,6 +575,22 @@ _Avoid_: PHI, sensitivity, redaction, safe to paste, output policy
 One rasterization of a submission, kept whole — the page-faithful export and one image per page of it, written together under the run directory. It is the unit coverage is measured over, and keeping both halves is what stops either half being a claim: the images are the numerator and the export's own page count is the denominator, where the `.docx` archive has neither. A run has as many as it has renders and only the last must be whole, because a pass abandoned on a defect found at page 2 did what it should. Distinct from a **sitting**, which is a person's occasion of working on a graded artifact, and from the check's own verdict, which records what a reader looked for rather than which pages exist.
 _Avoid_: render, screenshot, page dump, pass
 
+**Declared member**:
+A module named in `run_grader.MEMBERS`, asserting that it runs on the shared grader runner. Being named and actually delegating are two claims and they have come apart: a module can satisfy the population walk's source shape — a top-level `survey`, a top-level `format_report`, a `__main__` guard — while importing nothing from the runner, and appending its name is exactly what turns that walk green. So a declared member is graded on **adoption** and never on shape. Distinct from a module the walk merely *sees*, which is a statement about what an instrument can read rather than about what a module does.
+_Avoid_: grader, member, migrated, participant
+
+**Adoption**:
+A module's actual use of the shared runner and its conformance kit — importing `run_grader`, and its test module binding `grader_conformance.for_module`. It is what a **declared member** is graded on, and it is not shape: shape is the source pattern a population walk can recognize, so a walk over shape answers *is there a grader here nobody declared* while a walk over adoption answers *is there a name here nobody wired up*. Neither walk sees the other's case, which is why both are kept.
+_Avoid_: migration, membership, compliance, conformance
+
+**Refusal**:
+A permanent verdict that the shared runner cannot express what a module does, recorded against that module in `run_grader.NOT_MEMBERS`. It turns on the module's *graded* path — a report that must be suppressible, or a status that must be the worst of several sources, is a refusal because the runner grades one source to one status and prints unconditionally. Distinct from a **deferral**, which is open work; collapsing the two loses the difference between a decision and a queue.
+_Avoid_: exclusion, exemption, opt-out, declined
+
+**Deferral**:
+Open migration work with a named owner, recorded against a module in `run_grader.NOT_MEMBERS` alongside outright **refusals**. Its obstacles lie outside the module's graded path — a second entry point, or a side effect the runner has no hook for — so it is a module that could join rather than one that cannot. Held apart from a refusal because a single assertion that *a reason was written* proves only that, so a deferral sharing one mapping with refusals reads as a settled exclusion and nothing schedules its review.
+_Avoid_: exclusion, not yet, pending, backlog
+
 ### Tracker
 
 **Binding**:
