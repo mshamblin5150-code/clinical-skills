@@ -31,7 +31,7 @@ from typing import NamedTuple
 import run_grader
 from run_grader import NOT_GRADED
 import coursework_run
-from case_study_scan import EvidenceDisposition
+from run_grader import EvidenceDisposition
 from docx_write import markdown_tables, split_row
 
 # **The draft's reference list is parsed once, by the module that grades it.**

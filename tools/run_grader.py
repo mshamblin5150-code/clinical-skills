@@ -12,6 +12,7 @@ from __future__ import annotations
 import ast
 import sys
 from dataclasses import dataclass, field
+from enum import Enum
 from pathlib import Path
 from types import MappingProxyType
 from typing import Any, Callable, Generic, Mapping, TypeVar
@@ -23,6 +24,13 @@ TSource = TypeVar("TSource")
 TScan = TypeVar("TScan")
 NOT_GRADED = "not graded"
 UNREADABLE_RUN_ARTIFACT = "a run artifact could not be opened"
+
+
+class EvidenceDisposition(Enum):
+    """How a grader-family declared limit is supported."""
+
+    BEHAVIOR = "behavior"
+    DECLARED_READING = "declared-reading"
 
 WALK_CEILING = (
     "top-level survey(), top-level format_report(), and an if __name__ == '__main__' guard; "

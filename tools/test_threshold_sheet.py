@@ -43,7 +43,7 @@ from guidelines_manifest_test_support import (  # noqa: E402
     write_trusted_extraction_manifest,
 )
 import threshold_sheet as gate  # noqa: E402
-from prose_bind import normalized as normalized_prose  # noqa: E402
+from prose_bind import SHINGLE, normalized as normalized_prose  # noqa: E402
 
 
 def grade(
@@ -2586,14 +2586,12 @@ class DeclaredLimits(unittest.TestCase):
 class DeclaredLimitProsePointsWithoutCopying(unittest.TestCase):
     """ADR 0074's live two-surface pointer and no-copy bind."""
 
-    SHINGLE = 8
-
     @classmethod
     def shingles(cls, text: str) -> set[str]:
         words = normalized_prose(text).split()
         return {
-            " ".join(words[index:index + cls.SHINGLE])
-            for index in range(len(words) - cls.SHINGLE + 1)
+            " ".join(words[index:index + SHINGLE])
+            for index in range(len(words) - SHINGLE + 1)
         }
 
     @classmethod

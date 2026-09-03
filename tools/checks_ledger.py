@@ -172,7 +172,7 @@ from run_grader import NOT_GRADED
 import aar_scan
 
 EXPECTED_COMPLETION_CHECKS = (aar_scan.EXPECTED_ROW,)
-from case_study_scan import EvidenceDisposition
+from run_grader import EvidenceDisposition
 
 
 class DeclaredLimit(NamedTuple):

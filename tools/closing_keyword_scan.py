@@ -46,6 +46,8 @@ DELIBERATE = re.compile(r"(?m)^[ \t]*Closes[ \t]+#[0-9]+[ \t\r]*$")
 FENCE = re.compile(r"^[ \t]*(?P<fence>`{3,}|~{3,})")
 
 
+# This command is outside the grader family; importing its runner solely for
+# this enum would add a dependency the module does not otherwise use.
 class EvidenceDisposition(Enum):
     """How a declared parser limit is supported."""
 

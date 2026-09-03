@@ -297,6 +297,8 @@ def record_built_from_another_document(record: dict, document: str) -> str:
     return "" if source_filename_matches_document(built_from, document) else built_from
 
 
+# This command is outside the grader family; importing its runner solely for
+# this enum would add a dependency the module does not otherwise use.
 class EvidenceDisposition(Enum):
     """How a declared coverage limit can be checked."""
 
