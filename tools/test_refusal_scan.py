@@ -205,6 +205,46 @@ class TheCommandReportsWhetherItScanned(unittest.TestCase):
         self.assertEqual(status, 0)
         self.assertIn("worksheets                       1", report)
 
+    def test_an_invalid_utf8_byte_is_replaced_and_the_worksheet_is_graded(self):
+        with tempfile.TemporaryDirectory() as raw:
+            directory = Path(raw) / "run"
+            directory.mkdir()
+            (directory / "case-01.md").write_bytes(
+                worksheet(refusal()).encode("utf-8") + b"\xff"
+            )
+            output = io.StringIO()
+            with redirect_stdout(output):
+                status = scan.main([str(directory)])
+
+        self.assertEqual(status, 0)
+        self.assertIn("worksheets                       1", output.getvalue())
+
+    def test_a_markdown_directory_beside_a_worksheet_is_skipped(self):
+        with tempfile.TemporaryDirectory() as raw:
+            directory = Path(raw) / "run"
+            directory.mkdir()
+            (directory / "case-01.md").write_text(
+                worksheet(refusal()), encoding="utf-8"
+            )
+            (directory / "notes.md").mkdir()
+            output = io.StringIO()
+            with redirect_stdout(output):
+                status = scan.main([str(directory)])
+
+        self.assertEqual(status, 0)
+
+    def test_a_markdown_directory_alone_reports_no_worksheets(self):
+        with tempfile.TemporaryDirectory() as raw:
+            directory = Path(raw) / "run"
+            directory.mkdir()
+            (directory / "notes.md").mkdir()
+            output = io.StringIO()
+            with redirect_stdout(output):
+                status = scan.main([str(directory)])
+
+        self.assertEqual(status, 2)
+        self.assertIn("no worksheets found", output.getvalue())
+
 
 class TheCommittedRunPinsTheWalkedRow(unittest.TestCase):
     @classmethod

@@ -245,10 +245,15 @@ def format_report(result: Scan, source: str, show: bool = False) -> str:
 
 
 def read_worksheets(directory: Path) -> list[str]:
+    """The text of every worksheet in ``directory``, README excluded.
+
+    A run's README is prose about the run; counting it would put a wrong
+    denominator beside every figure below it.
+    """
     return [
-        path.read_text(encoding="utf-8")
+        path.read_text(encoding="utf-8", errors="replace")
         for path in sorted(directory.glob("*.md"))
-        if path.name.lower() != "readme.md"
+        if path.is_file() and path.stem.lower() != "readme"
     ]
 
 
