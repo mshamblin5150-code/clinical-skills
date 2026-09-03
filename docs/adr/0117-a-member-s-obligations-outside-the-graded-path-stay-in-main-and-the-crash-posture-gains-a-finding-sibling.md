@@ -191,12 +191,37 @@ blending them.
 `6cd340a` and again at `3af546c`, and a figure a session reports is a claim rather than a fact —
 which is the rule that caught the row.
 
+### 6. `session_end` is not a reader in the grader family, and the family's exit vocabulary does not reach it
+
+**Ruled 2026-09-03, after `8d1b2ee` merged this record with the question standing under *What this
+does not reach*.** It was left open there because #843 closed without asking it; the clinician ruled
+it on the same day once the rest of the record had landed, and it is finalized in place rather than
+in a new record because it is this record's own open item and nothing else depends on it.
+
+`session_end` is a `SessionEnd` **hook** registered in `.claude/settings.json`. Its exit status is
+read by Claude Code under the hook contract, not by a person reading a grader's report, and the
+family's `0` clean / `1` finding / `2` did-not-scan vocabulary is a vocabulary about graded runs.
+The hook grades no run: it reads a transcript, decides whether a sitting drained, and writes or
+withholds an orphan pointer. **So ADR 0116 ruling 3 — *no reader exits 1 for a reason that is not a
+finding* — does not reach it**, and ruling 3 above was right to keep its two exit-2 routes outside
+the runner's vocabulary rather than to enumerate them under it.
+
+**What that costs is named rather than absorbed.** The hook's failure posture is now governed by
+Claude Code's hook contract alone, and nothing in this session measured it: the write path was
+driven with an `OSError` on `write_text` and `mkdir` and returned 0 only because the synthetic
+transcript named no run directory, so **the write-failure column for `--session-end` in the table
+above is a blank, not a clean**. What the hook does when a pointer cannot be written is a question
+about the hook contract, not about this family, and it is outside every ruling here.
+
+**The one thing it does settle for #840's builder** is that ruling 5's `finding` posture and the
+injected-failure table describe the **graded path**, and no part of the migration should try to make
+`session_end` conform to a vocabulary it was never inside.
+
 ## What this does not reach, declared rather than left to be found
 
-**Whether `session_end` is a reader in the grader family at all.** It is a `SessionEnd` hook whose
-exit status Claude Code reads, not a grader status, and ADR 0116 ruling 3 was written about graders.
-Ruling 3 above keeps its two exit-2 routes outside the runner without deciding this, and #843 is
-closed with the question unasked.
+**`session_end`'s own failure posture.** Ruling 6 places the hook outside the family; it does not
+say what the hook should do when a pointer cannot be written, and no run in this session reached
+that path. That is a question about Claude Code's `SessionEnd` contract, and it is unmeasured here.
 
 **Ruling 5 corrects one row, not the instrument's reach.** `walk_text_reads` remains an AST floor
 over direct `read_text` calls, and a fourth posture arriving tomorrow in a module nobody drove with
