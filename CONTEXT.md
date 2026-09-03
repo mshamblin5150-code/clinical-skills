@@ -335,6 +335,10 @@ _Avoid_: audit file, digest file, hash list, checksums
 The way a corpus document identifies itself on its own page, so that a person could obtain it again — a DOI, a URL the document prints, or a journal citation line. It is read off the page and never found by searching, so a document that prints no such thing has none rather than acquiring one. Its declared limits live in `guidelines_catalog.NOT_REACHED`; this glossary keeps no second copy.
 _Avoid_: locator, url, doi, link, source
 
+**Citation tier**:
+Which evidence a threshold sheet's `CITATION` gate could reach for one row, numbered by how much of the source it holds rather than by how good the row is. **Its `tier` is not the one in Tiers**, which classes a line of a finished note as given, derived or filled; these are two senses of the word and neither term is a narrowing of the other. A tier that could not run says so on the page, because a gate that skipped and a gate that passed are the same silence otherwise.
+_Avoid_: tier, citation level, evidence tier, resolution level
+
 **Download address**:
 Where a reader is sent to obtain a corpus document, recorded on the threshold sheet that cites it. It points outward and is chosen or found, which is what distinguishes it from a Stated citation — that is read off the document and points inward, and the two may legitimately differ where a guideline was co-published. It is seeded from the Stated citation where there is one and found by an agent where there is not; nothing in the tree fetches one.
 _Avoid_: locator, url, doi, link, source, stated citation
@@ -580,11 +584,11 @@ A module named in `run_grader.MEMBERS`, asserting that it runs on the shared gra
 _Avoid_: grader, member, migrated, participant
 
 **Run-directory reader**:
-A grader's reader over the `.md` artifacts of one **run directory**, its README excluded because a run's README is prose about the run and counting it puts a wrong denominator beside every figure below it. That it reads a *set* is what fixes its failure posture: an artifact it cannot decode is read with replacement and graded, because refusing would lose the other artifacts in the run to one byte in one of them. Distinct from an **unreadable source**, which is a source the reader never held at all.
+A grader's reader over the `.md` artifacts of one **run directory**, its README excluded because a run's README is prose about the run and counting it puts a wrong denominator beside every figure below it. Two different things fix its two failure postures, and collapsing them is how a set reader that refuses comes to look wrong. That it reads a *set* fixes the **byte**: an artifact it cannot decode is read with replacement and graded, because refusing would lose the other artifacts in the run to one byte in one of them. That the set is the **primary source** fixes the read: an artifact it cannot open at all is an **unreadable source** and refuses the run, because there is then no denominator to preserve. Distinct from an unreadable source in the artifact it names -- one the reader never held, rather than one it held and could not decode.
 _Avoid_: note reader, worksheet loader, directory walk
 
 **Unreadable source**:
-A run artifact a grader was pointed at and could not obtain, so the run is reported as not scanned rather than as scanned and clean. It is the grader-side twin of an **unreadable body** and takes that entry's reasoning: a report of nothing found about something never held is the shape every scanner here refuses. Distinct from an artifact that *was* held and carries a replaced byte, which a **run-directory reader** grades. Which inputs qualify is measured and unruled — the members disagree three ways — so the term names the outcome and not yet its boundary.
+A run artifact a grader was pointed at and could not obtain, so the run is reported as not scanned rather than as scanned and clean. It is the grader-side twin of an **unreadable body** and takes that entry's reasoning: a report of nothing found about something never held is the shape every scanner here refuses. Distinct from an artifact that *was* held and carries a replaced byte, which a **run-directory reader** grades. Which inputs qualify is keyed on the input's **role** and never on the module: a primary source refuses, an optional secondary degrades into the report and states the narrowing, and a tracked reference artifact means a broken checkout. Whether a member *grades or refuses an undecodable byte* is a separate axis, declared per module rather than ruled family-wide; what is ruled family-wide is that no reader exits 1 for a reason that is not a finding.
 _Avoid_: tier-1 failure, load error, bad input, missing file
 
 **Adoption**:
