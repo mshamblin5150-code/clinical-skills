@@ -31,6 +31,7 @@ WALK_CEILING = (
 
 MEMBERS: set[str] = {
     "anchor_scan",
+    "aar_scan",
     "block_scan",
     "case_study_scan",
     "checks_ledger",
@@ -43,6 +44,7 @@ MEMBERS: set[str] = {
     "render_scan",
     "research_ledger",
     "specificity_scan",
+    "filled_vitals_census",
     "voice_model_scan",
 }
 
@@ -58,16 +60,7 @@ REFUSED: Mapping[str, str] = MappingProxyType(
     }
 )
 
-DEFERRED: Mapping[str, str] = MappingProxyType(
-    {
-        "aar_scan": (
-            "migration in #840 must preserve its second entry point and post-report side effect"
-        ),
-        "filled_vitals_census": (
-            "migration in #842 requires the Finding rewrite"
-        ),
-    }
-)
+DEFERRED: Mapping[str, str] = MappingProxyType({})
 
 # Named beside the walk because the population review considered them, but their
 # present source shape is below the predicate's stated floor.
@@ -114,11 +107,12 @@ UNDECODABLE_BYTE_POSTURES: Mapping[str, Mapping[str, str]] = MappingProxyType(
                 "voice_model_scan": "the model and tracked specification must both be readable before the comparison can run",
             }
         ),
-        "crash": MappingProxyType(
+        "finding": MappingProxyType(
             {
-                "aar_scan": "an unhandled strict baseline read remains deferred to #840; its unreadable review path is already a finding",
+                "aar_scan": "the graded path converts unreadable strict baseline and orphan-pointer evidence into findings; replacement would corrupt landing evidence",
             }
         ),
+        "crash": MappingProxyType({}),
         "no text read": MappingProxyType(
             {
                 "render_scan": "the retained export is opened by PyMuPDF and the module performs no built-in text read",
@@ -129,7 +123,9 @@ UNDECODABLE_BYTE_POSTURES: Mapping[str, Mapping[str, str]] = MappingProxyType(
 
 TEXT_READ_WALK_CEILING = (
     "AST floor over direct .read_text calls with an absent errors argument or the literal "
-    "errors='replace'; built-in open calls, indirect readers, and computed error modes are invisible"
+    "errors='replace'; a strict read counts as a refusal only when both OSError and "
+    "UnicodeError are converted to SourceError; other conversions remain in the crashing "
+    "count, and built-in open calls, indirect readers, and computed error modes are invisible"
 )
 
 
