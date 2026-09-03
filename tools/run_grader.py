@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Shared command tail for graders over run artifacts.
+"""Shared runner, run-directory reader, and family declarations for run graders.
 
 The population walk is deliberately a floor on one source shape: a module with
 an executable ``__main__`` guard plus top-level ``survey`` and ``format_report``
@@ -22,6 +22,7 @@ from console_codec import use_utf8
 TSource = TypeVar("TSource")
 TScan = TypeVar("TScan")
 NOT_GRADED = "not graded"
+UNREADABLE_RUN_ARTIFACT = "a run artifact could not be opened"
 
 WALK_CEILING = (
     "top-level survey(), top-level format_report(), and an if __name__ == '__main__' guard; "
@@ -76,6 +77,181 @@ OUTSIDE_WALK: Mapping[str, str] = MappingProxyType(
         "voice_corpus": "format_report returns a list and takes no source",
     }
 )
+
+RUN_DIRECTORY_READERS = frozenset(
+    {
+        "anchor_scan",
+        "block_scan",
+        "differential_scan",
+        "filled_vitals_census",
+        "refusal_scan",
+        "specificity_scan",
+    }
+)
+RUN_DIRECTORY_BYTE_REASON = (
+    "the shared run-directory reader preserves the other artifacts in the set"
+)
+
+UNDECODABLE_BYTE_POSTURES: Mapping[str, Mapping[str, str]] = MappingProxyType(
+    {
+        "grade": MappingProxyType(
+            {
+                **{
+                    name: RUN_DIRECTORY_BYTE_REASON
+                    for name in sorted(RUN_DIRECTORY_READERS)
+                },
+                "case_study_scan": "the draft and optional skill reads use replacement so their readable text remains gradeable",
+                "checks_ledger": "the ledger read uses replacement and grades the rows it can recover",
+                "reference_scan": "the draft read uses replacement and grades the references it can recover",
+                "research_ledger": "the run artifacts use replacement and grade the records they can recover",
+            }
+        ),
+        "refuse": MappingProxyType(
+            {
+                "deck_scan": "the signed bar and claim ledger are required primary sources for the deck grade",
+                "discussion_post_scan": "the signed run artifacts are required primary sources for the post grade",
+                "discussion_reply_scan": "the roster and signed run artifacts are required primary sources for the reply grade",
+                "voice_model_scan": "the model and tracked specification must both be readable before the comparison can run",
+            }
+        ),
+        "crash": MappingProxyType(
+            {
+                "aar_scan": "an unhandled strict baseline read remains deferred to #840; its unreadable review path is already a finding",
+            }
+        ),
+        "no text read": MappingProxyType(
+            {
+                "render_scan": "the retained export is opened by PyMuPDF and the module performs no built-in text read",
+            }
+        ),
+    }
+)
+
+TEXT_READ_WALK_CEILING = (
+    "AST floor over direct .read_text calls with an absent errors argument or the literal "
+    "errors='replace'; built-in open calls, indirect readers, and computed error modes are invisible"
+)
+
+
+@dataclass(frozen=True)
+class TextReadWalk:
+    """Recognized direct text reads and the unread remainder under the walk's ceiling."""
+
+    total: int
+    replacing: int
+    refusing: int
+    crashing: int
+
+    @property
+    def recognized(self) -> int:
+        return self.replacing + self.refusing + self.crashing
+
+    @property
+    def unread(self) -> int:
+        return self.total - self.recognized
+
+
+def _exception_names(node: ast.expr | None) -> set[str]:
+    if node is None:
+        return {"BaseException"}
+    if isinstance(node, ast.Name):
+        return {node.id}
+    if isinstance(node, ast.Attribute):
+        return {node.attr}
+    if isinstance(node, ast.Tuple):
+        return set().union(*(_exception_names(item) for item in node.elts))
+    return set()
+
+
+def _raises_source_error(handler: ast.ExceptHandler) -> bool:
+    return any(
+        isinstance(node, ast.Raise)
+        and isinstance(node.exc, ast.Call)
+        and (
+            isinstance(node.exc.func, ast.Name)
+            and node.exc.func.id == "SourceError"
+            or isinstance(node.exc.func, ast.Attribute)
+            and node.exc.func.attr == "SourceError"
+        )
+        for node in ast.walk(handler)
+    )
+
+
+def _converts_read_failure(handler: ast.ExceptHandler) -> bool:
+    caught = _exception_names(handler.type)
+    covers_read_failures = bool(
+        caught & {"Exception", "BaseException"}
+        or {"OSError", "UnicodeError"} <= caught
+    )
+    return covers_read_failures and _raises_source_error(handler)
+
+
+def walk_text_reads(source: str) -> TextReadWalk:
+    """Count direct ``read_text`` calls without presenting partial coverage as whole."""
+
+    tree = ast.parse(source)
+    parents = {
+        child: parent
+        for parent in ast.walk(tree)
+        for child in ast.iter_child_nodes(parent)
+    }
+
+    def enclosed_by_refusal(node: ast.AST) -> bool:
+        child = node
+        parent = parents.get(child)
+        while parent is not None:
+            if isinstance(parent, ast.Try) and child in parent.body:
+                if any(_converts_read_failure(handler) for handler in parent.handlers):
+                    return True
+            if isinstance(parent, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                break
+            child, parent = parent, parents.get(parent)
+        return False
+
+    def enclosing_function(node: ast.AST) -> str | None:
+        parent = parents.get(node)
+        while parent is not None:
+            if isinstance(parent, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                return parent.name
+            parent = parents.get(parent)
+        return None
+
+    def helper_called_under_refusal(name: str | None) -> bool:
+        if name is None:
+            return False
+        return any(
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == name
+            and enclosed_by_refusal(node)
+            for node in ast.walk(tree)
+        )
+
+    total = replacing = refusing = crashing = 0
+    for node in ast.walk(tree):
+        if not (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "read_text"
+        ):
+            continue
+        total += 1
+        if any(keyword.arg is None for keyword in node.keywords):
+            continue
+        errors = next((keyword.value for keyword in node.keywords if keyword.arg == "errors"), None)
+        if errors is None:
+            if enclosed_by_refusal(node) or helper_called_under_refusal(enclosing_function(node)):
+                refusing += 1
+            else:
+                crashing += 1
+        elif isinstance(errors, ast.Constant) and errors.value == "replace":
+            replacing += 1
+    return TextReadWalk(
+        total=total,
+        replacing=replacing,
+        refusing=refusing,
+        crashing=crashing,
+    )
 
 
 @dataclass(frozen=True)
@@ -138,11 +314,27 @@ class EarlyExit:
 
 
 class SourceError(Exception):
-    """A tier-1 failure: no run artifact was available to grade."""
+    """A primary source was unavailable, so nothing could be graded."""
 
     def __init__(self, message: str, *, exit_2_limb: str | None = None):
         super().__init__(message)
         self.exit_2_limb = exit_2_limb
+
+
+def read_run_directory(directory: Path) -> list[str]:
+    """Read a run directory's Markdown artifacts in name order, excluding README."""
+
+    try:
+        return [
+            path.read_text(encoding="utf-8", errors="replace")
+            for path in sorted(directory.glob("*.md"))
+            if path.is_file() and path.stem.lower() != "readme"
+        ]
+    except OSError as failure:
+        raise SourceError(
+            f"could not read a run artifact in {directory.name}",
+            exit_2_limb=UNREADABLE_RUN_ARTIFACT,
+        ) from failure
 
 
 class ParseError(SourceError):

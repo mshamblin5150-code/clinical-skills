@@ -9,6 +9,7 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 import refusal_scan as scan
+import run_grader
 from grader_conformance import for_module
 
 GraderConformance = for_module(scan)
@@ -251,7 +252,7 @@ class TheCommittedRunPinsTheWalkedRow(unittest.TestCase):
     def setUpClass(cls):
         directory = REPO_ROOT / "fixtures" / "filled-anchor" / "run-2"
         cls.scan = scan.survey(
-            [scan.read_worksheet(text) for text in scan.read_worksheets(directory)]
+            [scan.read_worksheet(text) for text in run_grader.read_run_directory(directory)]
         )
 
     def test_all_twelve_worksheets_carry_the_block(self):

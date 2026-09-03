@@ -168,6 +168,7 @@ from dataclasses import dataclass
 from math import comb
 from pathlib import Path
 
+import run_grader
 from console_codec import use_utf8
 from corpus_census import Reading, is_normal_bp
 import aar_scan
@@ -650,19 +651,6 @@ def format_report(census: Census, source: str, show: bool = False) -> str:
     return "\n".join(lines)
 
 
-def read_notes(directory: Path) -> list[str]:
-    """The text of every note in ``directory``, README excluded.
-
-    A set's README is prose about the set, and counting it as a note read would
-    put a wrong denominator beside every figure below it.
-    """
-    return [
-        path.read_text(encoding="utf-8", errors="replace")
-        for path in sorted(directory.glob("*.md"))
-        if path.is_file() and path.stem.lower() != "readme"
-    ]
-
-
 def main(argv: list[str]) -> int:
     """``argv`` is the argument list without the program name."""
     args: list[str] = []
@@ -689,7 +677,11 @@ def main(argv: list[str]) -> int:
     if not directory.is_dir():
         print(f"no directory named {directory.name}", file=sys.stderr)
         return 2
-    notes = read_notes(directory)
+    try:
+        notes = run_grader.read_run_directory(directory)
+    except run_grader.SourceError as failure:
+        print(str(failure), file=sys.stderr)
+        return 2
     if not notes:
         print(f"no notes found in {directory.name}", file=sys.stderr)
         return 2

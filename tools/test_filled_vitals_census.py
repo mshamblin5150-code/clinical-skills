@@ -27,6 +27,7 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 import filled_vitals_census as fvc
+import run_grader
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 NOTES = REPO_ROOT / "fixtures" / "filled-anchor" / "notes"
@@ -441,7 +442,7 @@ class TheRunRecordRepeatsItsHeights(unittest.TestCase):
         self.census = fvc.survey(all_notes())
 
     def test_the_set_is_twelve_notes_and_the_readme_is_not_one(self):
-        read = fvc.read_notes(NOTES)
+        read = run_grader.read_run_directory(NOTES)
         self.assertEqual(len(read), 12)
         self.assertFalse([t for t in read if t.startswith("# filled-anchor")])
 
@@ -539,7 +540,7 @@ class ExitStatusReportsTheDefect(unittest.TestCase):
     def test_a_repeated_body_exits_non_zero(self):
         with tempfile.TemporaryDirectory() as tmp:
             directory = written(Path(tmp), a=self.BODY, b=self.BODY)
-            self.assertEqual(fvc.survey(fvc.read_notes(directory)).repeated_bodies, 1)
+            self.assertEqual(fvc.survey(run_grader.read_run_directory(directory)).repeated_bodies, 1)
             self.assertEqual(fvc.main([str(directory)]), 1)
 
     def test_two_different_bodies_exit_zero(self):
