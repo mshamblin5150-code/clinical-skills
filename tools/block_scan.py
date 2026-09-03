@@ -386,19 +386,6 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
     return "\n".join(lines)
 
 
-def read_notes(directory: Path) -> list[str]:
-    """The text of every note in ``directory``, README excluded.
-
-    A run's README is prose about the run; counting it would put a wrong
-    denominator beside every figure below it.
-    """
-    return [
-        path.read_text(encoding="utf-8", errors="replace")
-        for path in sorted(directory.glob("*.md"))
-        if path.is_file() and path.stem.lower() != "readme"
-    ]
-
-
 @dataclass(frozen=True)
 class Source:
     directory: Path
@@ -409,7 +396,7 @@ def _load(parsed: run_grader.Parsed) -> Source:
     directory = Path(parsed.source)
     if not directory.is_dir():
         raise run_grader.SourceError(f"no directory named {directory.name}")
-    notes = tuple(read_notes(directory))
+    notes = tuple(run_grader.read_run_directory(directory))
     if not notes:
         raise run_grader.SourceError(f"no notes found in {directory.name}")
     return Source(directory, notes)

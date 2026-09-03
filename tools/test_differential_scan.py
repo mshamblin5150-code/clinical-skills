@@ -39,11 +39,12 @@ import io
 import re
 import tempfile
 import unittest
-from contextlib import redirect_stderr, redirect_stdout
+from contextlib import nullcontext, redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
 import differential_scan as ds
+import run_grader
 from grader_conformance import for_module
 
 GraderConformance = for_module(ds)
@@ -447,6 +448,7 @@ class TheExitStatusSeparatesNotScanningFromFindingNothing(unittest.TestCase):
             ("no numbered item in a labeled block", [str(no_numbered_item)]),
             ("any bare ``NOT CODED`` mark", [str(bare_mark)]),
             ("a cited threshold sheet did not parse", [str(unreadable_sheet)]),
+            (run_grader.UNREADABLE_RUN_ARTIFACT, [str(no_entry)]),
         )
 
         documented = " ".join((ds.__doc__ or "").split())
@@ -457,13 +459,25 @@ class TheExitStatusSeparatesNotScanningFromFindingNothing(unittest.TestCase):
             + ", ".join(limbs[:-1])
             + ", and "
             + limbs[-1]
-            + ".** The last four matter most"
+            + ".** The last five matter most"
         )
         self.assertIn(exact_enumeration, documented)
         with patch.object(ds, "THRESHOLD_ROOT", threshold_root):
             for limb, argv in cases:
                 with self.subTest(limb=limb):
-                    with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                    reader = (
+                        patch.object(
+                            run_grader,
+                            "read_run_directory",
+                            side_effect=run_grader.SourceError(
+                                "could not read a run artifact",
+                                exit_2_limb=run_grader.UNREADABLE_RUN_ARTIFACT,
+                            ),
+                        )
+                        if limb == run_grader.UNREADABLE_RUN_ARTIFACT
+                        else nullcontext()
+                    )
+                    with reader, redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
                         status = ds.main(argv)
                     self.assertEqual(status, 2)
                     self.assertIn(limb, documented)
@@ -481,7 +495,7 @@ class TheExitStatusSeparatesNotScanningFromFindingNothing(unittest.TestCase):
     def test_a_readme_is_not_counted_as_a_note(self):
         self.write("README.md", CLEAN_SOAP)
         self.write("case-01.md", CLEAN_SOAP)
-        scan = ds.survey([ds.read_note(t) for t in ds.read_notes(self.root)])
+        scan = ds.survey([ds.read_note(t) for t in run_grader.read_run_directory(self.root)])
         self.assertEqual(scan.notes, 1)
 
 
@@ -1065,10 +1079,10 @@ class TheFilledAnchorRunHasNothingToScan(unittest.TestCase):
     NOTES = REPO_ROOT / "fixtures" / "filled-anchor" / "notes"
 
     def test_twelve_notes_are_read(self):
-        self.assertEqual(len(ds.read_notes(self.NOTES)), 12)
+        self.assertEqual(len(run_grader.read_run_directory(self.NOTES)), 12)
 
     def test_no_note_uses_the_slot_form(self):
-        scan = ds.survey([ds.read_note(t) for t in ds.read_notes(self.NOTES)])
+        scan = ds.survey([ds.read_note(t) for t in run_grader.read_run_directory(self.NOTES)])
         self.assertEqual(scan.differential_entries, 0)
 
     def test_the_scanner_reports_not_having_scanned(self):
@@ -1377,7 +1391,7 @@ class TheRetiredFormReadsAsUnscanned(unittest.TestCase):
         self.write("case-01.md", WRAPPED_REFUSAL)
         self.write("case-02.md", RETIRED_FORM)
         self.assertEqual(ds.main([str(self.root)]), 1)
-        scan = ds.survey([ds.read_note(t) for t in ds.read_notes(self.root)])
+        scan = ds.survey([ds.read_note(t) for t in run_grader.read_run_directory(self.root)])
         self.assertEqual(scan.unwelded_marks, 1)
         self.assertEqual(scan.refused_codes, 1)
 
@@ -1388,7 +1402,7 @@ class TheRetiredFormReadsAsUnscanned(unittest.TestCase):
         # the weakest heading. The unwelded count is printed either way.
         self.write("case-01.md", WELDED_SLOT_VIOLATION)
         self.write("case-02.md", RETIRED_FORM)
-        scan = ds.survey([ds.read_note(t) for t in ds.read_notes(self.root)])
+        scan = ds.survey([ds.read_note(t) for t in run_grader.read_run_directory(self.root)])
         self.assertEqual(scan.unwelded_marks, 1)
         self.assertEqual(len(scan.findings), 1)
         self.assertEqual(ds.main([str(self.root)]), 1)
@@ -1399,7 +1413,7 @@ class TheRetiredFormReadsAsUnscanned(unittest.TestCase):
         # or one sentence does.
         self.write("case-01.md", RETIRED_FORM)
         report = ds.format_report(
-            ds.survey([ds.read_note(t) for t in ds.read_notes(self.root)]), source="run-1"
+            ds.survey([ds.read_note(t) for t in run_grader.read_run_directory(self.root)]), source="run-1"
         )
         self.assertIn("unwelded NOT CODED marks         1", report)
 
@@ -1457,7 +1471,7 @@ class TheCoverageRowSeparatesReadableFromClean(unittest.TestCase):
         (self.root / name).write_text(text, encoding="utf-8")
 
     def scan(self):
-        return ds.survey([ds.read_note(t) for t in ds.read_notes(self.root)])
+        return ds.survey([ds.read_note(t) for t in run_grader.read_run_directory(self.root)])
 
     def test_the_count_is_notes_and_not_entries(self):
         """One note carrying several entries is one note, and the other five are five."""
@@ -1676,7 +1690,7 @@ class TheValidationSetsLimitsAreDeclared(unittest.TestCase):
         found = [
             d
             for d in sorted(self.FIXTURES.glob("*")) + sorted(self.FIXTURES.glob("*/*"))
-            if d.is_dir() and ds.read_notes(d)
+            if d.is_dir() and run_grader.read_run_directory(d)
         ]
         self.assertTrue(found, "the instrument is dead: no committed directory was read")
         return found
@@ -1709,7 +1723,7 @@ class TheValidationSetsLimitsAreDeclared(unittest.TestCase):
         reachable = []
         entries = refusals = 0
         for directory in self.committed_directories():
-            notes = [ds.read_note(t) for t in ds.read_notes(directory)]
+            notes = [ds.read_note(t) for t in run_grader.read_run_directory(directory)]
             here_entries = sum(len(note.entries) for note in notes)
             here_refusals = sum(len(note.refused) for note in notes)
             entries += here_entries
@@ -1839,7 +1853,7 @@ class TheCommittedSlotFormRunIsReadable(unittest.TestCase):
     RUN = REPO_ROOT / "fixtures" / "slot-form-run"
 
     def notes(self):
-        found = ds.read_notes(self.RUN)
+        found = run_grader.read_run_directory(self.RUN)
         self.assertTrue(found, "the committed slot-form run read nothing")
         return [ds.read_note(text) for text in found]
 
@@ -1872,7 +1886,7 @@ class TheCommittedSlotFormRunIsReadable(unittest.TestCase):
 
     def test_one_committed_uspstf_tail_mutation_fires_row_24_through_main(self):
         """Plant one wrong grade in a clean committed note; leave the record untouched."""
-        text = next(note for note in ds.read_notes(self.RUN) if "[uspstf: grade A" in note)
+        text = next(note for note in run_grader.read_run_directory(self.RUN) if "[uspstf: grade A" in note)
         control = ds.read_note(text)
         baseline = len(control.guideline_findings)
         mutated = text.replace("[uspstf: grade A", "[uspstf: grade D", 1)
@@ -1909,7 +1923,7 @@ class TheCommittedSlotFormRunIsReadable(unittest.TestCase):
         and weaker complaint that the branch had no real material to run against.
         """
         mutated = None
-        for text in ds.read_notes(self.RUN):
+        for text in run_grader.read_run_directory(self.RUN):
             note = ds.read_note(text)
             if not (note.entries and note.refused):
                 continue

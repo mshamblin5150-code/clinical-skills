@@ -9,6 +9,7 @@ import unittest
 from dataclasses import dataclass
 from pathlib import Path
 from types import SimpleNamespace
+from unittest import mock
 
 import run_grader
 from grader_conformance import constructed_kinds
@@ -171,6 +172,171 @@ class TheRunnerOwnsTheCommandTail(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "names no exit-2 limb"):
             self.run_command(command, ["source"])
+
+
+class TheRunDirectoryReaderOwnsTheSetPolicy(unittest.TestCase):
+    def test_it_sorts_markdown_replaces_an_undecodable_byte_and_excludes_readme(self):
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            (root / "b.md").write_text("second", encoding="utf-8")
+            (root / "README.md").write_text("not an artifact", encoding="utf-8")
+            (root / "a.md").write_bytes(b"first\xff")
+
+            self.assertEqual(
+                ["first\ufffd", "second"],
+                run_grader.read_run_directory(root),
+            )
+
+    def test_an_artifact_that_cannot_be_opened_is_a_declared_source_failure(self):
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            (root / "case-01.md").write_text("held", encoding="utf-8")
+            sensitive = str(root / "patient-name.md")
+            denied = PermissionError(13, "denied", sensitive)
+            with mock.patch.object(Path, "read_text", side_effect=denied):
+                with self.assertRaises(run_grader.SourceError) as raised:
+                    run_grader.read_run_directory(root)
+
+        self.assertEqual(run_grader.UNREADABLE_RUN_ARTIFACT, raised.exception.exit_2_limb)
+        self.assertIn("could not read a run artifact", str(raised.exception))
+        self.assertNotIn(sensitive, str(raised.exception))
+
+    def test_the_declared_consumers_call_the_shared_reader_without_local_aliases(self):
+        here = Path(__file__).parent
+        for name in sorted(run_grader.RUN_DIRECTORY_READERS):
+            with self.subTest(module=name):
+                tree = ast.parse((here / f"{name}.py").read_text(encoding="utf-8"))
+                local_functions = {
+                    node.name
+                    for node in tree.body
+                    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+                }
+                calls_shared_reader = any(
+                    isinstance(node, ast.Call)
+                    and isinstance(node.func, ast.Attribute)
+                    and isinstance(node.func.value, ast.Name)
+                    and node.func.value.id == "run_grader"
+                    and node.func.attr == "read_run_directory"
+                    for node in ast.walk(tree)
+                )
+
+                self.assertNotIn("read_notes", local_functions)
+                self.assertNotIn("read_worksheets", local_functions)
+                self.assertTrue(calls_shared_reader)
+
+    def test_all_declared_consumers_refuse_an_artifact_open_failure_at_exit_two(self):
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            (root / "case-01.md").write_text("held", encoding="utf-8")
+            failure = run_grader.SourceError(
+                "could not read a run artifact",
+                exit_2_limb=run_grader.UNREADABLE_RUN_ARTIFACT,
+            )
+            for name in sorted(run_grader.RUN_DIRECTORY_READERS):
+                module = importlib.import_module(name)
+                with self.subTest(module=name):
+                    stdout = io.StringIO()
+                    stderr = io.StringIO()
+                    with (
+                        mock.patch.object(
+                            run_grader,
+                            "read_run_directory",
+                            side_effect=failure,
+                        ),
+                        contextlib.redirect_stdout(stdout),
+                        contextlib.redirect_stderr(stderr),
+                    ):
+                        status = module.main([str(root)])
+
+                    self.assertEqual(2, status)
+                    emitted = stdout.getvalue() if name == "refusal_scan" else stderr.getvalue()
+                    quiet = stderr.getvalue() if name == "refusal_scan" else stdout.getvalue()
+                    self.assertEqual("", quiet)
+                    self.assertIn("could not read a run artifact", emitted)
+
+
+class TheUndecodableBytePostureIsDeclaredForTheFamily(unittest.TestCase):
+    def test_every_reader_has_one_reasoned_posture(self):
+        declared = run_grader.UNDECODABLE_BYTE_POSTURES
+        population = run_grader.MEMBERS | set(run_grader.DEFERRED)
+        named = [name for reasons in declared.values() for name in reasons]
+
+        self.assertEqual(population, set(named))
+        self.assertEqual(len(named), len(set(named)))
+        self.assertTrue(all(reason for reasons in declared.values() for reason in reasons.values()))
+        self.assertEqual(
+            {"grade", "refuse", "crash", "no text read"},
+            set(declared),
+        )
+
+    def test_the_unshared_readers_have_ast_evidence_with_a_written_ceiling(self):
+        here = Path(__file__).parent
+        posture_of = {
+            name: posture
+            for posture, reasons in run_grader.UNDECODABLE_BYTE_POSTURES.items()
+            for name in reasons
+        }
+        remaining = (
+            run_grader.MEMBERS | set(run_grader.DEFERRED)
+        ) - run_grader.RUN_DIRECTORY_READERS
+        self.assertIn("read_text", run_grader.TEXT_READ_WALK_CEILING)
+        self.assertIn("floor", run_grader.TEXT_READ_WALK_CEILING)
+
+        for name in sorted(remaining):
+            with self.subTest(module=name):
+                source = (here / f"{name}.py").read_text(encoding="utf-8")
+                evidence = run_grader.walk_text_reads(source)
+                self.assertEqual(evidence.total, evidence.recognized)
+                posture = posture_of[name]
+                if posture == "grade":
+                    self.assertGreater(evidence.replacing, 0)
+                elif posture == "refuse":
+                    self.assertGreater(evidence.refusing, 0)
+                    self.assertEqual(0, evidence.replacing)
+                    self.assertEqual(0, evidence.crashing)
+                elif posture == "crash":
+                    self.assertGreater(evidence.crashing, 0)
+                    self.assertGreater(evidence.replacing, 0)
+                else:
+                    self.assertEqual("no text read", posture)
+                    self.assertEqual(0, evidence.total)
+
+    def test_a_zero_match_mutant_is_unread_rather_than_clean(self):
+        evidence = run_grader.walk_text_reads(
+            "def load(path, mode):\n    return path.read_text(encoding='utf-8', errors=mode)\n"
+        )
+
+        self.assertEqual(1, evidence.total)
+        self.assertEqual(0, evidence.recognized)
+        self.assertEqual(1, evidence.unread)
+
+    def test_a_partial_match_mutant_reports_its_unread_remainder(self):
+        evidence = run_grader.walk_text_reads(
+            "def load(first, second, mode):\n"
+            "    return (first.read_text(encoding='utf-8', errors='replace'),\n"
+            "            second.read_text(encoding='utf-8', errors=mode))\n"
+        )
+
+        self.assertEqual(2, evidence.total)
+        self.assertEqual(1, evidence.recognized)
+        self.assertEqual(1, evidence.unread)
+
+    def test_a_strict_read_refuses_only_when_both_open_and_decode_failures_convert(self):
+        complete = run_grader.walk_text_reads(
+            "def load(path):\n"
+            "    try:\n        return path.read_text(encoding='utf-8')\n"
+            "    except (OSError, UnicodeError):\n        raise run_grader.SourceError('no source')\n"
+        )
+        partial = run_grader.walk_text_reads(
+            "def load(path):\n"
+            "    try:\n        return path.read_text(encoding='utf-8')\n"
+            "    except OSError:\n        raise run_grader.SourceError('no source')\n"
+        )
+
+        self.assertEqual(1, complete.refusing)
+        self.assertEqual(0, complete.crashing)
+        self.assertEqual(0, partial.refusing)
+        self.assertEqual(1, partial.crashing)
 
 
 class TheMembershipClaimIsDerivedFromTheTree(unittest.TestCase):

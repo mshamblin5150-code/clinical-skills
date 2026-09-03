@@ -19,6 +19,7 @@ from contextlib import redirect_stdout
 from pathlib import Path
 
 import anchor_scan as scan
+import run_grader
 from grader_conformance import for_module
 
 GraderConformance = for_module(scan)
@@ -384,7 +385,7 @@ class TheExitStatusSaysWhetherAnythingWasScanned(unittest.TestCase):
             (directory / "README.md").write_text(
                 "Prose about the run, naming Z68.99 - a code in a sentence\n", encoding="utf-8"
             )
-            texts = scan.read_worksheets(directory)
+            texts = run_grader.read_run_directory(directory)
         self.assertEqual(len(texts), 1)
 
 
@@ -404,7 +405,7 @@ class TheCommittedRunsFiguresArePinned(unittest.TestCase):
     def setUpClass(cls):
         cls.directory = REPO_ROOT / "fixtures" / "filled-anchor" / "run-2"
         cls.scan = scan.survey(
-            [scan.read_worksheet(text) for text in scan.read_worksheets(cls.directory)]
+            [scan.read_worksheet(text) for text in run_grader.read_run_directory(cls.directory)]
         )
 
     def test_twelve_worksheets(self):

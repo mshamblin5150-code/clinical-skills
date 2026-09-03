@@ -25,6 +25,7 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 import block_scan
+import run_grader
 from grader_conformance import for_module
 
 GraderConformance = for_module(block_scan)
@@ -429,7 +430,7 @@ class TheExitStatusSaysWhichKindOfNothing(unittest.TestCase):
 
     def test_a_readme_is_not_a_note(self) -> None:
         with write_run({"README.md": CLEAN, "case-01.md": CLEAN}) as run:
-            self.assertEqual(len(block_scan.read_notes(Path(run))), 1)
+            self.assertEqual(len(run_grader.read_run_directory(Path(run))), 1)
 
 
 class TheCommittedNotesReadClean(unittest.TestCase):
@@ -454,7 +455,7 @@ class TheCommittedNotesReadClean(unittest.TestCase):
     def setUp(self) -> None:
         self.blocks = [
             block_scan.read_block(text)
-            for text in block_scan.read_notes(self.NOTES)
+            for text in run_grader.read_run_directory(self.NOTES)
         ]
 
     def test_all_twelve_carry_a_readable_block(self) -> None:

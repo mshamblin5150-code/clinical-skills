@@ -151,7 +151,8 @@ printed unless ``--show`` asks, and **``--show`` output is PHI** on
 when every reached floor is clean, 1 on a violation, and **2 for every way of not having
 scanned** -- invalid invocation, no directory, no notes in it, no differential entry in
 any note read, no numbered item in a labeled block, any bare ``NOT CODED`` mark,
-and a cited threshold sheet did not parse.** The last four matter most: a run
+a cited threshold sheet did not parse, and a run artifact could not be opened.**
+The last five matter most: a run
 whose differential was written in some shape this parser does not read, or whose
 refusals are written in the form row 22 retired, would otherwise report zero
 violations and look like a pass.
@@ -1382,19 +1383,6 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
     return "\n".join(lines)
 
 
-def read_notes(directory: Path) -> list[str]:
-    """The text of every note in ``directory``, README excluded.
-
-    A run's README is prose about the run; counting it would put a wrong
-    denominator beside every figure below it.
-    """
-    return [
-        path.read_text(encoding="utf-8", errors="replace")
-        for path in sorted(directory.glob("*.md"))
-        if path.is_file() and path.stem.lower() != "readme"
-    ]
-
-
 @dataclass(frozen=True)
 class Source:
     directory: Path
@@ -1416,6 +1404,7 @@ EXIT_2_LIMBS = (
     NO_NUMBERED_ITEM,
     BARE_NOT_CODED,
     UNREADABLE_THRESHOLD_SHEET,
+    run_grader.UNREADABLE_RUN_ARTIFACT,
 )
 
 
@@ -1425,7 +1414,7 @@ def _load(parsed: run_grader.Parsed) -> Source:
         raise run_grader.SourceError(
             f"no directory named {directory.name}", exit_2_limb=NO_DIRECTORY
         )
-    texts = tuple(read_notes(directory))
+    texts = tuple(run_grader.read_run_directory(directory))
     if not texts:
         raise run_grader.SourceError(
             f"no notes found in {directory.name}", exit_2_limb=NO_NOTES
