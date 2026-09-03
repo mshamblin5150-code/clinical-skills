@@ -15,6 +15,10 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 import deck_scan as scan
+from grader_conformance import for_module
+
+
+GraderConformance = for_module(scan)
 
 
 A = "http://schemas.openxmlformats.org/drawingml/2006/main"

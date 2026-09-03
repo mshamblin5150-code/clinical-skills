@@ -57,6 +57,7 @@ from discussion_artifact import (
     strip_discussion_markers,
 )
 import run_grader
+from run_grader import NOT_GRADED
 import aar_scan
 
 EXPECTED_COMPLETION_CHECKS = (aar_scan.EXPECTED_ROW,)
@@ -1008,42 +1009,42 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         (
             f"words: {scan.words} (floor {scan.word_floor})"
             if scan.reference_boundary_graded
-            else "words: not graded"
+            else f"words: {NOT_GRADED}"
         ),
         f"word ceiling: {scan.word_ceiling if scan.word_ceiling is not None else 'none'}",
         (
             f"word ceiling exceeded: {'yes' if exceeded else 'no'} (counted, never graded)"
             if scan.reference_boundary_graded
-            else "word ceiling exceeded: not graded"
+            else f"word ceiling exceeded: {NOT_GRADED}"
         ),
         (
             f"references: {scan.references} (minimum {scan.reference_minimum})"
             if scan.reference_boundary_graded
-            else "references: not graded"
+            else f"references: {NOT_GRADED}"
         ),
-        f"numeric claims: {scan.numeric_claims if scan.reference_boundary_graded else 'not graded'}",
-        f"claim records: {scan.claim_records if scan.reference_boundary_graded else 'not graded'}",
-        f"citations: {scan.citations if scan.reference_boundary_graded else 'not graded'}",
+        f"numeric claims: {scan.numeric_claims if scan.reference_boundary_graded else NOT_GRADED}",
+        f"claim records: {scan.claim_records if scan.reference_boundary_graded else NOT_GRADED}",
+        f"citations: {scan.citations if scan.reference_boundary_graded else NOT_GRADED}",
         (
             f"invoked sources: {len(scan.invoked_sources or ())}"
             if scan.reference_boundary_graded
-            else "invoked sources: not graded"
+            else f"invoked sources: {NOT_GRADED}"
         ),
         (
             "unfilled invoked properties: "
-            f"{scan.unfilled_invoked_properties} (counted, not graded)"
+            f"{scan.unfilled_invoked_properties} (counted, {NOT_GRADED})"
             if scan.reference_boundary_graded
-            else "unfilled invoked properties: not graded"
+            else f"unfilled invoked properties: {NOT_GRADED}"
         ),
         (
-            f"pre-#496 markers: {scan.pre_496_markers} (counted, not graded)"
+            f"pre-#496 markers: {scan.pre_496_markers} (counted, {NOT_GRADED})"
             if scan.reference_boundary_graded
-            else "pre-#496 markers: not graded"
+            else f"pre-#496 markers: {NOT_GRADED}"
         ),
         (
-            f"{RENDERED_TEXT}: {scan.rendered_text_mismatches} (reported, not graded)"
+            f"{RENDERED_TEXT}: {scan.rendered_text_mismatches} (reported, {NOT_GRADED})"
             if scan.docx_graded
-            else f"{RENDERED_TEXT}: not graded"
+            else f"{RENDERED_TEXT}: {NOT_GRADED}"
         ),
         legal_source_vocabulary_covered(),
         f"findings: {len(scan.findings)}",
@@ -1059,9 +1060,9 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
             UNLOCATED_READING,
             BORROWED_LOCATOR,
         } and not scan.reference_boundary_graded:
-            lines.append(f"{kind}: not graded")
+            lines.append(f"{kind}: {NOT_GRADED}")
         elif kind in {BOLD_HEADINGS, RENDERED_COMMENTS, RENDERED_PAGES} and not scan.docx_graded:
-            lines.append(f"{kind}: not graded")
+            lines.append(f"{kind}: {NOT_GRADED}")
         else:
             lines.append(
                 f"{kind}: {sum(finding.kind == kind for finding in scan.findings)}"

@@ -592,11 +592,11 @@ A module's actual use of the shared runner and its conformance kit — importing
 _Avoid_: migration, membership, compliance, conformance
 
 **Refusal**:
-A permanent verdict that the shared runner cannot express what a module does, recorded against that module in `run_grader.NOT_MEMBERS`. It turns on the module's *graded* path — a report that must be suppressible, or a status that must be the worst of several sources, is a refusal because the runner grades one source to one status and prints unconditionally. Distinct from a **deferral**, which is open work; collapsing the two loses the difference between a decision and a queue.
+A permanent verdict that the shared runner cannot express what a module does, recorded against that module in `run_grader.REFUSED`. It turns on the module's *graded* path — a report that must be suppressible, or a status that must be the worst of several sources, is a refusal because the runner grades one source to one status and prints unconditionally. Distinct from a **deferral**, which is open work; collapsing the two loses the difference between a decision and a queue.
 _Avoid_: exclusion, exemption, opt-out, declined
 
 **Deferral**:
-Open migration work with a named owner, recorded against a module in `run_grader.NOT_MEMBERS` alongside outright **refusals**. Its obstacles lie outside the module's graded path — a second entry point, or a side effect the runner has no hook for — so it is a module that could join rather than one that cannot. Held apart from a refusal because a single assertion that *a reason was written* proves only that, so a deferral sharing one mapping with refusals reads as a settled exclusion and nothing schedules its review.
+Open migration work with a named owner, recorded against a module in `run_grader.DEFERRED`. Its obstacles lie outside the module's graded path — a second entry point, or a side effect the runner has no hook for — so it is a module that could join rather than one that cannot. Held apart from a refusal because a single assertion that *a reason was written* proves only that, so a deferral sharing one mapping with refusals reads as a settled exclusion and nothing schedules its review.
 _Avoid_: exclusion, not yet, pending, backlog
 
 ### Tracker

@@ -8,6 +8,10 @@ from pathlib import Path
 from unittest import mock
 
 import voice_model_scan as scan
+from grader_conformance import for_module
+
+
+GraderConformance = for_module(scan)
 
 
 TOOLS = Path(__file__).parent

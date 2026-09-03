@@ -21,6 +21,7 @@ from console_codec import use_utf8
 
 TSource = TypeVar("TSource")
 TScan = TypeVar("TScan")
+NOT_GRADED = "not graded"
 
 WALK_CEILING = (
     "top-level survey(), top-level format_report(), and an if __name__ == '__main__' guard; "
@@ -28,7 +29,6 @@ WALK_CEILING = (
 )
 
 MEMBERS: set[str] = {
-    "aar_scan",
     "anchor_scan",
     "block_scan",
     "case_study_scan",
@@ -45,16 +45,26 @@ MEMBERS: set[str] = {
     "voice_model_scan",
 }
 
-NOT_MEMBERS: Mapping[str, str] = MappingProxyType(
+REFUSED: Mapping[str, str] = MappingProxyType(
     {
         "corpus_census": "a census over the corpus, not a grader over a run",
-        "filled_vitals_census": "migration requires the Finding rewrite reserved for its own ticket",
         "threshold_sheet": (
             "the shared runner has no quiet path and grades one source to one status, "
             "while threshold_sheet must suppress reports under --quiet and --all must "
             "return the worst status across multiple sheets"
         ),
         "tracker_bodies": "format_report takes no show flag and its report is safe to paste",
+    }
+)
+
+DEFERRED: Mapping[str, str] = MappingProxyType(
+    {
+        "aar_scan": (
+            "migration in #840 must preserve its second entry point and post-report side effect"
+        ),
+        "filled_vitals_census": (
+            "migration in #842 requires the Finding rewrite"
+        ),
     }
 )
 

@@ -147,7 +147,7 @@ def gate_conformance(module: Any) -> type[unittest.TestCase]:
                         }
                         self.assertEqual(1, len(matches), kind)
                         index = next(iter(matches))
-                        self.assertIn("not graded", off[index])
+                        self.assertIn(run_grader.NOT_GRADED, off[index])
                         self.assertEqual(f"{kind}: 0", on[index])
                         declared_indexes.add(index)
 
@@ -170,7 +170,7 @@ def gate_conformance(module: Any) -> type[unittest.TestCase]:
                         count_lines = {
                             index
                             for index in field_indexes
-                            if "not graded" in off[index]
+                            if run_grader.NOT_GRADED in off[index]
                             and str(displayed_value) in on[index]
                         }
                         self.assertTrue(count_lines, field_name)

@@ -241,6 +241,7 @@ from datetime import date
 from pathlib import Path
 
 import run_grader
+from run_grader import NOT_GRADED
 from discussion_artifact import (
     LEGAL_CITATION,
     LEGAL_SOURCE_VOCABULARY,
@@ -1336,7 +1337,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
     lines = [
         f"reference list in {source}, exam date {scan.as_of.isoformat()}"
         if scan.as_of
-        else f"reference list in {source}, NO EXAM DATE - the retrieval window was not graded",
+        else f"reference list in {source}, NO EXAM DATE - the retrieval window was {NOT_GRADED}",
         "",
         f"  reference entries read           {scan.entries}",
         f"    UpToDate entries               {scan.uptodate}",
