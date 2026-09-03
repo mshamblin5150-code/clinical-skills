@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import ast
 import contextlib
+import importlib
 import io
 import tempfile
 import unittest
@@ -177,21 +179,127 @@ class TheMembershipClaimIsDerivedFromTheTree(unittest.TestCase):
 
         self.assertEqual(
             population,
-            run_grader.MEMBERS | set(run_grader.NOT_MEMBERS),
+            run_grader.MEMBERS
+            | set(run_grader.REFUSED)
+            | set(run_grader.DEFERRED),
         )
         self.assertIn("__main__", run_grader.WALK_CEILING)
         self.assertIn("survey", run_grader.WALK_CEILING)
         self.assertIn("format_report", run_grader.WALK_CEILING)
 
-    def test_every_exclusion_carries_a_reason(self):
-        self.assertTrue(all(run_grader.NOT_MEMBERS.values()))
+    def test_every_nonmember_verdict_carries_a_reason(self):
+        self.assertTrue(all(run_grader.REFUSED.values()))
+        self.assertTrue(all(run_grader.DEFERRED.values()))
         self.assertTrue(all(run_grader.OUTSIDE_WALK.values()))
 
     def test_threshold_sheet_names_both_runner_mismatches(self):
-        reason = run_grader.NOT_MEMBERS["threshold_sheet"]
+        reason = run_grader.REFUSED["threshold_sheet"]
 
         self.assertIn("quiet", reason)
         self.assertIn("multiple sheets", reason)
+
+    def test_aar_scan_is_deferred_with_its_migration_work_named(self):
+        reason = run_grader.DEFERRED["aar_scan"]
+
+        self.assertIn("#840", reason)
+        self.assertIn("second entry point", reason)
+        self.assertIn("post-report side effect", reason)
+
+    def test_filled_vitals_census_deferral_names_its_owner(self):
+        reason = run_grader.DEFERRED["filled_vitals_census"]
+
+        self.assertIn("#842", reason)
+        self.assertIn("Finding rewrite", reason)
+
+    def test_every_declared_member_delegates_and_adopts_the_kit(self):
+        here = Path(__file__).parent
+        for member in sorted(run_grader.MEMBERS):
+            with self.subTest(member=member):
+                source = (here / f"{member}.py").read_text(encoding="utf-8")
+                member_tree = ast.parse(source)
+                imports_runner = any(
+                    isinstance(node, ast.Import)
+                    and any(alias.name == "run_grader" for alias in node.names)
+                    for node in member_tree.body
+                )
+                main = next(
+                    node
+                    for node in member_tree.body
+                    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+                    and node.name == "main"
+                )
+                delegates_to_runner = any(
+                    isinstance(node, ast.Call)
+                    and isinstance(node.func, ast.Attribute)
+                    and isinstance(node.func.value, ast.Name)
+                    and node.func.value.id == "run_grader"
+                    and node.func.attr == "run"
+                    for node in ast.walk(main)
+                )
+                self.assertTrue(imports_runner and delegates_to_runner)
+                tests = (here / f"test_{member}.py").read_text(encoding="utf-8")
+                tree = ast.parse(tests)
+                imports_kit = any(
+                    isinstance(node, ast.ImportFrom)
+                    and node.module == "grader_conformance"
+                    and any(alias.name == "for_module" for alias in node.names)
+                    or isinstance(node, ast.Import)
+                    and any(alias.name == "grader_conformance" for alias in node.names)
+                    for node in tree.body
+                )
+                calls_kit = any(
+                    isinstance(node, ast.Call)
+                    and (
+                        isinstance(node.func, ast.Name)
+                        and node.func.id == "for_module"
+                        or isinstance(node.func, ast.Attribute)
+                        and isinstance(node.func.value, ast.Name)
+                        and node.func.value.id == "grader_conformance"
+                        and node.func.attr == "for_module"
+                    )
+                    for node in ast.walk(tree)
+                )
+                self.assertTrue(imports_kit and calls_kit)
+
+    def test_members_import_the_shared_not_graded_sentinel(self):
+        here = Path(__file__).parent
+        for member in sorted(run_grader.MEMBERS):
+            with self.subTest(member=member):
+                module = importlib.import_module(member)
+                tree = ast.parse(
+                    (here / f"{member}.py").read_text(encoding="utf-8")
+                )
+                executable_literals: set[str] = set()
+                for function in (
+                    node
+                    for node in ast.walk(tree)
+                    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+                ):
+                    docstring = function.body[0] if function.body else None
+                    executable_literals.update(
+                        node.value
+                        for node in ast.walk(function)
+                        if isinstance(node, ast.Constant)
+                        and isinstance(node.value, str)
+                        and not (
+                            isinstance(docstring, ast.Expr)
+                            and node is docstring.value
+                        )
+                    )
+                self.assertFalse(
+                    any("not graded" in literal for literal in executable_literals),
+                    "executable code writes the shared sentinel as a local literal",
+                )
+                if any(
+                    isinstance(node, ast.Name) and node.id == "NOT_GRADED"
+                    for node in ast.walk(tree)
+                ):
+                    self.assertIs(module.NOT_GRADED, run_grader.NOT_GRADED)
+
+    def test_aar_scan_uses_the_shared_not_graded_sentinel_while_deferred(self):
+        module = importlib.import_module("aar_scan")
+
+        self.assertIs(module.NOT_GRADED, run_grader.NOT_GRADED)
 
 
 class TheSharedFindingWalkStatesAndTestsItsCeiling(unittest.TestCase):

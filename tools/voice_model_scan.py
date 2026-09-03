@@ -58,6 +58,21 @@ EXIT_2_LIMBS = (
     NO_REGISTER_SHAPE,
     INCOMPLETE_REGISTER_SHAPE,
 )
+ROWS = (
+    "invoked-domain",
+    "invoked-observation",
+    "invoked-property",
+    "missing-observations",
+    "missing-pairs",
+    "missing-register",
+    "observation-without-quote",
+    "pair-floor",
+    "pair-generic",
+    "pair-his",
+    "unread-observation",
+    "unread-register",
+)
+KINDS = ROWS
 
 SECTION_FOUR = re.compile(
     r"^## 4\. Reading a sample into a model\s*$"

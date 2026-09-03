@@ -168,6 +168,7 @@ from pathlib import Path
 from typing import NamedTuple
 
 import run_grader
+from run_grader import NOT_GRADED
 import aar_scan
 
 EXPECTED_COMPLETION_CHECKS = (aar_scan.EXPECTED_ROW,)
@@ -649,7 +650,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         # would have reported it as having done so. Caught by rendering the
         # report over a file of bare cleans rather than by reading the code.
         f"      must say what it walked      {scan.clean_required}",
-        f"      not graded for it            {scan.clean_not_required}",
+        f"      {NOT_GRADED} for it            {scan.clean_not_required}",
         f"    defect                         {scan.defect}",
         f"    neither verdict                {scan.unrecognized_verdict}",
         "",

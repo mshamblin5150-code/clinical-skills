@@ -29,6 +29,7 @@ from pathlib import Path
 from typing import NamedTuple
 
 import run_grader
+from run_grader import NOT_GRADED
 import coursework_run
 from case_study_scan import EvidenceDisposition
 from docx_write import markdown_tables, split_row
@@ -1282,7 +1283,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
     lines = [
         f"research ledger over {source}, as of {scan.as_of.isoformat()}"
         if scan.as_of
-        else f"research ledger over {source}, NO DATE HEADER - the window was not graded",
+        else f"research ledger over {source}, NO DATE HEADER - the window was {NOT_GRADED}",
         "",
         f"  claim records read               {scan.records}",
         f"    sourced                        {scan.sourced}",
@@ -1313,7 +1314,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
     # prescriptions says so on the same page as its clean exit.
     if scan.prescriptions is None:
         lines.append(
-            f"  {'prescription drug rows':<32} not graded - no --draft was given"
+            f"  {'prescription drug rows':<32} {NOT_GRADED} - no --draft was given"
         )
     else:
         lines.append(f"  prescription drug rows           {scan.prescriptions}")
@@ -1327,7 +1328,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         # reasoning: a reader who has learned to read the qualifier takes its
         # absence as the stronger claim.
         lines.append(
-            f"    tables read with one anchor    {scan.half_anchored}  (not graded)"
+            f"    tables read with one anchor    {scan.half_anchored}  ({NOT_GRADED})"
         )
     # The population this row joined against, on #258's ruling and for its
     # reason: a reader who has learned to read the qualifier takes its absence as
@@ -1335,13 +1336,13 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
     # page as its clean exit.
     if scan.evidence_topics is None:
         lines.append(
-            f"  {'evidence topics carried':<32} not graded - no --evidence was given"
+            f"  {'evidence topics carried':<32} {NOT_GRADED} - no --evidence was given"
         )
     else:
         lines.append(f"  {'evidence topics carried':<32} {scan.evidence_topics}")
     if scan.uptodate_citations is None:
         lines.append(
-            f"  {'UpToDate citations read':<32} not graded - no --evidence was given"
+            f"  {'UpToDate citations read':<32} {NOT_GRADED} - no --evidence was given"
         )
     else:
         # What the row read, beside what it read against. Both, because either
@@ -1358,11 +1359,11 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         # for the reason ``Scan.prescriptions`` is not an ``int``.
         shown = count
         if scan.prescriptions is None and kind in DRAFT_ROWS:
-            shown = "not graded"
+            shown = NOT_GRADED
         if (
             scan.evidence_topics is None or scan.uptodate_citations is None
         ) and kind in EVIDENCE_ROWS:
-            shown = "not graded"
+            shown = NOT_GRADED
         lines.append(f"  {ROWS[kind]} - {kind:<31} {shown}")
     lines.append("")
     lines.append(f"  records at fault                 {scan.failing_records}")

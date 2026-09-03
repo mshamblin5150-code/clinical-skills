@@ -83,6 +83,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import run_grader
+from run_grader import NOT_GRADED
 import aar_scan
 
 EXPECTED_COMPLETION_CHECKS = (aar_scan.EXPECTED_ROW,)
@@ -693,14 +694,14 @@ def _grade(
         second_read_path = Path(second_read)
         read = load_second_read(second_read_path)
         if not read.ok:
-            diagnostics.append(f"\nseparated read not graded: {read.why_not}")
+            diagnostics.append(f"\nseparated read {NOT_GRADED}: {read.why_not}")
             coverage_failed = True
         else:
             try:
                 connection = open_database()
             except FileNotFoundError:
                 diagnostics.append(
-                    "\nseparated read not graded: the committed ICD-10-CM database is missing"
+                    f"\nseparated read {NOT_GRADED}: the committed ICD-10-CM database is missing"
                 )
                 coverage_failed = True
             else:

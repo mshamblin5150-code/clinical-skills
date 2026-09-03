@@ -45,6 +45,7 @@ from discussion_artifact import (
     strip_discussion_markers,
 )
 import run_grader
+from run_grader import NOT_GRADED
 import aar_scan
 
 EXPECTED_COMPLETION_CHECKS = (aar_scan.EXPECTED_ROW,)
@@ -648,19 +649,19 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         f"discussion replies in {source}",
         f"responses: {scan.responses}",
         f"roster posts read: {scan.posts_read} of {scan.posts_total}",
-        f"words: {scan.words if scan.reference_boundary_graded else 'not graded'}",
-        f"references: {scan.references if scan.reference_boundary_graded else 'not graded'}",
-        f"citations: {scan.citations if scan.reference_boundary_graded else 'not graded'}",
-        f"numeric claims: {scan.numeric_claims if scan.reference_boundary_graded else 'not graded'}",
+        f"words: {scan.words if scan.reference_boundary_graded else NOT_GRADED}",
+        f"references: {scan.references if scan.reference_boundary_graded else NOT_GRADED}",
+        f"citations: {scan.citations if scan.reference_boundary_graded else NOT_GRADED}",
+        f"numeric claims: {scan.numeric_claims if scan.reference_boundary_graded else NOT_GRADED}",
         (
             f"invoked sources: {scan.invoked_sources}"
             if scan.reference_boundary_graded
-            else "invoked sources: not graded"
+            else f"invoked sources: {NOT_GRADED}"
         ),
         (
-            f"pre-#496 markers: {scan.pre_496_markers} (counted, not graded)"
+            f"pre-#496 markers: {scan.pre_496_markers} (counted, {NOT_GRADED})"
             if scan.reference_boundary_graded
-            else "pre-#496 markers: not graded"
+            else f"pre-#496 markers: {NOT_GRADED}"
         ),
         f"findings: {len(scan.findings)}",
     ]
@@ -673,7 +674,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
             UNLOCATED_READING,
             BORROWED_LOCATOR,
         } and not scan.reference_boundary_graded:
-            lines.append(f"{kind}: not graded")
+            lines.append(f"{kind}: {NOT_GRADED}")
         else:
             lines.append(f"{kind}: {sum(finding.kind == kind for finding in scan.findings)}")
     if show:

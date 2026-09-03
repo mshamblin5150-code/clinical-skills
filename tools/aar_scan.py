@@ -34,6 +34,7 @@ from typing import Any, Iterable, Mapping
 
 from console_codec import use_utf8
 import repo_root
+from run_grader import NOT_GRADED
 
 
 SCOPED_SKILLS = frozenset(
@@ -729,7 +730,7 @@ def is_live_run(run: Path) -> bool:
 def completion_gate(run: Path, submission: str | None) -> tuple[bool, str]:
     """Grade the shared expected row only for an explicitly terminal submission."""
     if submission is None:
-        return False, f"{EXPECTED_ROW}: not graded - --submission was not supplied"
+        return False, f"{EXPECTED_ROW}: {NOT_GRADED} - --submission was not supplied"
     finding = completion_finding(run, (submission,))
     return (finding is not None, f"{EXPECTED_ROW}: {'finding - ' + finding if finding else 'clean'}")
 
