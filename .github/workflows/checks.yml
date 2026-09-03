@@ -104,10 +104,10 @@ jobs:
           $pr = Join-Path $env:RUNNER_TEMP 'pull-request.json'
           python tools/tracker_merge_receipt.py --check-plan $pr
 
-      # Reconciliation is owed after merge, so a pull request is stale by
-      # design. The tool owns the advisory conversion: findings remain visible
-      # while a missing or malformed harvest still fails this step. #679.
-      - name: Implementation map disagreement, advisory after merge
+      # Reconciliation is owed after merge, and a disagreement now fails rather
+      # than hiding inside a green advisory step. A missing or malformed harvest
+      # also fails. #679, #808.
+      - name: Implementation map disagreement
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -115,7 +115,7 @@ jobs:
           $harvest = Join-Path $env:RUNNER_TEMP 'implementation-map-issues.json'
           gh api --paginate 'repos/${{ github.repository }}/issues?state=all&per_page=100' |
             Out-File -FilePath $harvest -Encoding utf8
-          $report = python tools/map_scan.py $harvest --advisory 2>&1
+          $report = python tools/map_scan.py $harvest 2>&1
           $status = $LASTEXITCODE
           $report
           @('### Implementation map disagreement', '', '```', $report, '```') |

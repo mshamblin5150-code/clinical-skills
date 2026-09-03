@@ -57,7 +57,7 @@ DECLARED_LIMITS = (
     ),
     DeclaredLimit(
         "readiness-predicate-binding",
-        "The out-of-tree helper has a duplicate readiness predicate with no binding to this module; both read only ready_labels from the map state.",
+        "The live implementation-map helper and this offline grader have duplicate readiness predicates with no mechanical binding; both read only ready_labels from the map state.",
     ),
     DeclaredLimit(
         "blocked-invariant",
