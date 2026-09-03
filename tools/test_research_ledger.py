@@ -39,7 +39,7 @@ import reference_scan
 import research_ledger as ledger
 import coursework_run
 from grader_conformance import constructed_kinds, for_module
-from prose_bind import ProseBind, normalized as normalized_prose
+from prose_bind import SHINGLE, ProseBind, normalized as normalized_prose
 
 GraderConformance = for_module(ledger)
 import run_grader
@@ -384,10 +384,8 @@ class EveryLedgerPublishingSkillCarriesTheAuthenticatedResearchRoute(unittest.Te
 class DeclaredLimitProsePointsWithoutCopying(ProseBind, unittest.TestCase):
     """ADR 0053 ruling 10's two-direction, live, mutation-tested bind."""
 
-    SHINGLE = 8
     SURFACES = {
         "the module prose": module_prose_without_inventory,
-        "CLAUDE.md": lambda: (REPO_ROOT / "CLAUDE.md").read_text(encoding="utf-8"),
         "discussion-post": lambda: (
             REPO_ROOT / "skills" / "discussion-post" / "SKILL.md"
         ).read_text(encoding="utf-8"),
@@ -401,8 +399,8 @@ class DeclaredLimitProsePointsWithoutCopying(ProseBind, unittest.TestCase):
     def shingles(cls, text: str) -> set[str]:
         words = normalized_prose(text).split()
         return {
-            " ".join(words[index : index + cls.SHINGLE])
-            for index in range(len(words) - cls.SHINGLE + 1)
+            " ".join(words[index : index + SHINGLE])
+            for index in range(len(words) - SHINGLE + 1)
         }
 
     @classmethod

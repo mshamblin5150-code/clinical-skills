@@ -21,7 +21,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import run_grader
-from case_study_scan import EvidenceDisposition
+from run_grader import EvidenceDisposition
 
 
 CODE = r"(?:[A-Z][0-9][0-9A-Z](?:\.[0-9A-Z]{1,4})?|[0-9]{5})"

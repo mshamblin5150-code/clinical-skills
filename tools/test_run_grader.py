@@ -522,5 +522,26 @@ class TheSharedFindingWalkStatesAndTestsItsCeiling(unittest.TestCase):
             directory.cleanup()
 
 
+class EvidenceDispositionOwnership(unittest.TestCase):
+    def test_grader_family_limit_declarers_share_the_runner_enum(self):
+        import case_study_scan
+        import checks_ledger
+        import discussion_post_scan
+        import discussion_reply_scan
+        import refusal_scan
+        import research_ledger
+
+        for module in (
+            case_study_scan,
+            checks_ledger,
+            discussion_post_scan,
+            discussion_reply_scan,
+            refusal_scan,
+            research_ledger,
+        ):
+            with self.subTest(module=module.__name__):
+                self.assertIs(module.EvidenceDisposition, run_grader.EvidenceDisposition)
+
+
 if __name__ == "__main__":
     unittest.main()

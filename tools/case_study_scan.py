@@ -92,12 +92,12 @@ from __future__ import annotations
 import re
 import sys
 from dataclasses import dataclass
-from enum import Enum
 from pathlib import Path
 
 import docx_write
 import coursework_run
 import run_grader
+from run_grader import EvidenceDisposition
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -279,11 +279,6 @@ KINDS = tuple(ROWS)
 # or rendered-page judgment and cannot be re-derived here. It does not claim a reader
 # owns the row; that separate gap remains #306. Keeping the disposition on the row
 # avoids a second list that can drift.
-class EvidenceDisposition(Enum):
-    BEHAVIOR = "behavior"
-    DECLARED_READING = "declared-reading"
-
-
 DECLARED_LIMITS = (
     ("the voice, and it never will be", EvidenceDisposition.DECLARED_READING),
     (

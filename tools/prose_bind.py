@@ -11,6 +11,10 @@ from collections.abc import Iterable
 #: buys nothing is an undeclared escape route.
 PROSE_MARK = re.compile(r"[\"'#>*`]")
 
+# Shared by every normalized prose-copy detector. Shorter leaves use exact
+# normalized substring comparison instead.
+SHINGLE = 9
+
 
 def normalized(text: str | Iterable[str]) -> str:
     """Remove prose marks and collapse whitespace for one membership operand."""

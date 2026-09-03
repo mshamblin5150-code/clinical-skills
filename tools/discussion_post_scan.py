@@ -62,7 +62,7 @@ import aar_scan
 
 EXPECTED_COMPLETION_CHECKS = (aar_scan.EXPECTED_ROW,)
 import coursework_run
-from case_study_scan import EvidenceDisposition
+from run_grader import EvidenceDisposition
 import docx_write
 
 

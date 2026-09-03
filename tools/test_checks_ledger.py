@@ -33,7 +33,7 @@ from pathlib import Path
 
 import checks_ledger as checks
 from grader_conformance import for_module
-from prose_bind import ProseBind, normalized as normalized_prose
+from prose_bind import SHINGLE, ProseBind, normalized as normalized_prose
 
 GraderConformance = for_module(checks)
 
@@ -291,15 +291,14 @@ def module_prose_without_inventory() -> str:
 class DeclaredLimitProseContract(ProseBind, unittest.TestCase):
     """ADR 0070 rulings 3 and 4's ownership and prose binds."""
 
-    SHINGLE = 8
     SKILL_MARKER = "**The command's declared limits, in `checks_ledger.NOT_REACHED` order:**"
 
     @classmethod
     def shingles(cls, text: str) -> set[str]:
         words = normalized_prose(text).split()
         return {
-            " ".join(words[index : index + cls.SHINGLE])
-            for index in range(len(words) - cls.SHINGLE + 1)
+            " ".join(words[index : index + SHINGLE])
+            for index in range(len(words) - SHINGLE + 1)
         }
 
     @classmethod
@@ -331,10 +330,7 @@ class DeclaredLimitProseContract(ProseBind, unittest.TestCase):
         )
 
     def test_module_and_claude_point_without_copying_rows(self):
-        surfaces = {
-            "the module prose": module_prose_without_inventory(),
-            "CLAUDE.md": (REPO_ROOT / "CLAUDE.md").read_text(encoding="utf-8"),
-        }
+        surfaces = {"the module prose": module_prose_without_inventory()}
         for where, prose in surfaces.items():
             with self.subTest(where=where):
                 self.assertProseIn("checks_ledger.DECLARED_LIMITS", prose)

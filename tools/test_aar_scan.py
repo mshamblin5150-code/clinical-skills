@@ -23,6 +23,15 @@ import specificity_scan
 AarScanConformance = grader_conformance.for_module(aar_scan)
 
 
+class DeclaredLimitsAreBound(unittest.TestCase):
+    def test_the_test_suite_names_the_declared_limits_object(self):
+        self.assertTrue(aar_scan.DECLARED_LIMITS)
+        self.assertEqual(
+            tuple(reason for _subject, reason in aar_scan.DECLARED_LIMITS),
+            aar_scan.NOT_REACHED,
+        )
+
+
 def row(kind: str, uuid: str, message: object, **extra: object) -> dict[str, object]:
     return {
         "type": kind,
