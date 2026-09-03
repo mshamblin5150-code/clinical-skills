@@ -161,14 +161,18 @@ class CommandModes(unittest.TestCase):
 
     def test_a_refused_review_open_is_a_finding_without_a_traceback(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            run = Path(directory) / "run"
+            root = Path(directory)
+            (root / "alias-parent").mkdir()
+            # Drive an unresolved spelling on every platform. Windows CI's
+            # short temporary-directory alias exposed this same mismatch.
+            run = root / "alias-parent" / ".." / "run"
             (run / "aar").mkdir(parents=True)
             review = aar_scan.review_path(run, "post-1")
             review.write_text("# AFTER-ACTION REVIEW\n", encoding="utf-8")
             original = Path.read_text
 
             def refusing(path: Path, *args: object, **kwargs: object) -> str:
-                if path == review:
+                if path.resolve() == review.resolve():
                     raise PermissionError(13, "denied", str(review))
                 return original(path, *args, **kwargs)
 
