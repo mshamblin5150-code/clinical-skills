@@ -13,6 +13,7 @@ import zipfile
 from pathlib import Path
 
 from console_codec import use_utf8
+import office_process
 
 
 RASTER_DPI = 120
@@ -34,28 +35,6 @@ def _next_pass(render_root: Path) -> int:
     return max(numbers, default=0) + 1
 
 
-def _owned_process(ownership_file: Path) -> int | None:
-    try:
-        pid, _stage = ownership_file.read_text(encoding="ascii").strip().split("|", 1)
-        return int(pid)
-    except (OSError, ValueError):
-        return None
-
-
-def _stop_owned_powerpoint(ownership_file: Path) -> None:
-    pid = _owned_process(ownership_file)
-    if pid is None:
-        return
-    subprocess.run(
-        ["taskkill.exe", "/PID", str(pid), "/T", "/F"],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        check=False,
-    )
-
-
 def _powerpoint_export(deck: Path, output: Path, ownership_file: Path) -> None:
     script = Path(__file__).with_suffix(".ps1")
     command = [
@@ -74,21 +53,16 @@ def _powerpoint_export(deck: Path, output: Path, ownership_file: Path) -> None:
         str(ownership_file),
     ]
     try:
-        result = subprocess.run(
+        result = office_process.run_owned_process(
             command,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=EXPORT_TIMEOUT_SECONDS,
-            check=False,
+            ownership_file,
+            timeout_seconds=EXPORT_TIMEOUT_SECONDS,
+            application="PowerPoint",
+            action="PDF export",
+            runner=subprocess.run,
         )
-    except subprocess.TimeoutExpired as failure:
-        _stop_owned_powerpoint(ownership_file)
-        raise RenderError("PowerPoint PDF export timed out") from failure
-    if result.returncode != 0:
-        _stop_owned_powerpoint(ownership_file)
-        raise RenderError(result.stderr.strip() or "PowerPoint PDF export failed")
+    except office_process.OwnedProcessError as failure:
+        raise RenderError(str(failure)) from failure
     try:
         response = json.loads(result.stdout)
     except json.JSONDecodeError as failure:

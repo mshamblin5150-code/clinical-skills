@@ -181,10 +181,20 @@ class TheDeckRenderCommand(unittest.TestCase):
 
     def test_the_script_quits_only_a_freshly_owned_powerpoint_process(self):
         script = Path(render.__file__).with_suffix(".ps1").read_text(encoding="utf-8")
+        helper = Path(render.__file__).with_name("office_process.ps1").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("office_process.ps1", script)
         self.assertIn("$ownershipEstablished = $false", script)
-        self.assertIn("$created.Count -ne 1", script)
+        self.assertIn("$created.Count -ne 1", helper)
         self.assertIn("$ownershipEstablished = $true", script)
         self.assertIn("$null -ne $powerpoint -and $ownershipEstablished", script)
+
+    def test_the_deck_route_uses_the_shared_runner_with_its_own_bound(self):
+        source = Path(render.__file__).read_text(encoding="utf-8")
+
+        self.assertIn("office_process.run_owned_process", source)
+        self.assertIn("timeout_seconds=EXPORT_TIMEOUT_SECONDS", source)
 
     def test_the_script_uses_powerpoints_pdf_save_format(self):
         script = Path(render.__file__).with_suffix(".ps1").read_text(encoding="utf-8")

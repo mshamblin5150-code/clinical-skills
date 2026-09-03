@@ -359,6 +359,17 @@ class ACompletedMergePublishesAnImmutableTicketReceipt(unittest.TestCase):
         self.assertIn("issues: write", text)
         self.assertIn("github.event.repository.default_branch", text)
 
+    def test_each_receipt_is_published_before_its_in_flight_label_is_discharged(self):
+        text = workflow_text()
+        receipt_loop = text.partition("Get-Content -LiteralPath $plan")[2]
+
+        comment = receipt_loop.index("gh issue comment $receipt.ticket")
+        discharge = receipt_loop.index(
+            'gh issue edit $receipt.ticket --remove-label "in flight"'
+        )
+
+        self.assertLess(comment, discharge)
+
     def test_tracker_citations_are_scoped_at_the_publication_event(self):
         text = workflow_text()
         self.assertIn("--github-event", text)
