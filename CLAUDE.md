@@ -1226,18 +1226,43 @@ caller's operation; the scanner opens no socket:
 $harvest = Join-Path $env:RUNNER_TEMP 'implementation-map-issues.json'
 gh api --paginate 'repos/OWNER/REPO/issues?state=all&per_page=100' |
   Out-File -FilePath $harvest -Encoding utf8
-python tools/map_scan.py $harvest --advisory
+python tools/map_scan.py $harvest
 ```
 
-The flag makes findings advisory after a merge while leaving every did-not-scan
-result failing. The full boundary is `map_scan.DECLARED_LIMITS`; this section
-points to that object and copies none of its rows. A clean scan is a clean
-readiness-and-obligation gate, not a checked implementation map.
+Findings and did-not-scan results both fail after a merge. The full boundary is
+`map_scan.DECLARED_LIMITS`; this section points to that object and copies none
+of its rows. A clean scan is a clean readiness-and-obligation gate, not a
+checked implementation map.
 
 Covered by `tools/test_map_scan.py`, which builds synthetic issue harvests and
 throwaway checkouts in a temp directory. **The real tracker is deliberately not
 a fixture** — the suite reads no live tracker state and opens no socket, on the
 scanner's own offline boundary.
+
+### Implementation map helper
+
+`tools/implementation_map.py` is the committed producer and mutator for the
+coordination issue. `check`, `claim`, `render`, and `audit` are read-only;
+`publish` rebuilds derived views without advancing `reconciled_through`; and
+`apply-delta` applies reviewed judgment. Its direct placement form takes one
+ready ticket and an authored outcome, then derives the packet shell and native
+HARD edges without inventing semantic prose. A partial reconciliation writes
+safe additions, holds the anchor, names the ready-ticket remainder, and exits
+with a finding.
+
+Every tracker mutation holds the repository's nonblocking artifact lock and
+compares the state-block hash immediately before publication. The hash excludes
+derived views, so concurrent publishes do not conflict; a changed machine state
+refuses a stale delta and preserves its authored outcomes in a unique temporary
+record whose path is printed. The rendered Mermaid block is checked before
+publication for defined nodes, unique edges, accounted lines, and one node per
+state packet, with its denominator and unread remainder reported. The body then
+crosses the direct-writer entry point in `tracker_publish_hook.py` before `gh`
+receives it.
+
+The complete boundary belongs to `implementation_map.DECLARED_LIMITS`; this
+section points to that object and copies none of its rows. Covered by
+`tools/test_implementation_map.py`, whose tracker is entirely in memory.
 
 ### Tracker bodies
 

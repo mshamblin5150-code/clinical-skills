@@ -53,6 +53,17 @@ class TheRecognizedPublishSetIsDeclared(unittest.TestCase):
         )
 
 
+class DirectTrackerWritersCrossTheBodyGate(unittest.TestCase):
+    def test_lost_body_and_control_character_forms_are_refused(self) -> None:
+        for body in ("@-", "word\bword"):
+            with self.subTest(body=repr(body)):
+                with self.assertRaisesRegex(ValueError, "tracker body refused"):
+                    hook.authorize_issue_body(body, "issue #596")
+
+    def test_an_ordinary_body_is_accepted(self) -> None:
+        hook.authorize_issue_body("A complete tracker body.", "issue #596")
+
+
 class InlineTrackerTextIsRead(unittest.TestCase):
     def test_title_and_body_are_separate_publication_fields(self) -> None:
         result = hook.extract(
