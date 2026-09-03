@@ -29,7 +29,9 @@ LATE_BOUND_WORD_METHODS = MeasuredMethodSet(
 
 def survey(root: Path) -> tuple[Finding, ...]:
     patterns = {
-        method: re.compile(rf"\.[ \t]*{re.escape(method)}[ \t]*\(")
+        method: re.compile(
+            rf"\.[ \t]*{re.escape(method)}[ \t]*\(", re.IGNORECASE
+        )
         for method in LATE_BOUND_WORD_METHODS.methods
     }
     findings = []

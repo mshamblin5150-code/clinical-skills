@@ -289,9 +289,13 @@ def grade(document: Any, event_name: str, *, remote_fresh: bool = True) -> Resul
         )
     )
     if main_scope is not None:
-        ancestry = (
-            _main_ancestry(main_scope.group("commit")) if remote_fresh else None
-        )
+        ancestry = _main_ancestry(main_scope.group("commit"))
+        if ancestry is not True and not remote_fresh:
+            return Result(
+                0,
+                f"tracker-branch-scope: {url}: explicit main branch state present; "
+                "ancestry could not be verified",
+            )
         if ancestry is False:
             return Result(
                 1,
@@ -300,8 +304,8 @@ def grade(document: Any, event_name: str, *, remote_fresh: bool = True) -> Resul
             )
         if ancestry is None:
             return Result(
-                0,
-                f"tracker-branch-scope: {url}: explicit main branch state present; "
+                1,
+                f"tracker-branch-scope: {url}: positive Branch state refused; "
                 "ancestry could not be verified",
             )
     explicit_scope = (

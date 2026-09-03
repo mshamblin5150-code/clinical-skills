@@ -83,18 +83,30 @@ class InFlightTrackerRecordsCarryTheirOwnBranchScope(unittest.TestCase):
         self.assertIn("not an ancestor of origin/main", result.report)
         self.assertNotIn("The merged command", result.report)
 
-    def test_an_unverifiable_positive_main_scope_is_accepted_and_declared(self):
+    def test_indeterminate_ancestry_after_a_successful_fetch_is_a_finding(self):
         with mock.patch.object(scope, "_main_ancestry", return_value=None):
             result = scope.grade(
                 comment_event(MAIN_MARKER + "The merged command is available."),
                 "issue_comment",
             )
 
-        self.assertEqual(result.status, 0)
+        self.assertEqual(result.status, 1)
         self.assertIn("ancestry could not be verified", result.report)
 
-    def test_a_failed_remote_refresh_skips_positive_ancestry_verification(self):
-        with mock.patch.object(scope, "_main_ancestry") as ancestry:
+    def test_a_failed_refresh_still_verifies_against_the_cached_remote(self):
+        with mock.patch.object(scope, "_main_ancestry", return_value=True) as ancestry:
+            result = scope.grade(
+                comment_event(MAIN_MARKER + "The merged command is available."),
+                "issue_comment",
+                remote_fresh=False,
+            )
+
+        self.assertEqual(result.status, 0)
+        self.assertNotIn("ancestry could not be verified", result.report)
+        ancestry.assert_called_once()
+
+    def test_a_nonancestor_after_a_failed_refresh_is_accepted_and_declared(self):
+        with mock.patch.object(scope, "_main_ancestry", return_value=False):
             result = scope.grade(
                 comment_event(MAIN_MARKER + "The merged command is available."),
                 "issue_comment",
@@ -103,7 +115,6 @@ class InFlightTrackerRecordsCarryTheirOwnBranchScope(unittest.TestCase):
 
         self.assertEqual(result.status, 0)
         self.assertIn("ancestry could not be verified", result.report)
-        ancestry.assert_not_called()
 
     def test_a_bold_scope_without_the_blockquote_names_that_limb(self):
         body = MARKER.removeprefix("> ") + "The branch adds the command."

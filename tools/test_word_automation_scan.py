@@ -32,6 +32,18 @@ class MeasuredWordMethodsUseTypedLateBinding(unittest.TestCase):
         self.assertEqual("SaveAs2", findings[0].method)
         self.assertEqual("probe.ps1", findings[0].path)
 
+    def test_powershell_case_variants_of_a_listed_method_are_findings(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "probe.ps1").write_text(
+                "$document.sAvEaS2($output, 18)\n", encoding="utf-8"
+            )
+
+            findings = scan.survey(root)
+
+        self.assertEqual(1, len(findings))
+        self.assertEqual("SaveAs2", findings[0].method)
+
     def test_typed_invoke_member_is_not_a_dynamic_call(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

@@ -750,6 +750,10 @@ def analyze(
             else f"record context: issue #{container['number']} labels read"
         )
 
+    positive_unverified = (
+        branch.status == 0 and "ancestry could not be verified" in branch.report
+    )
+
     if branch.status == 1:
         rule = _branch_rule(branch.report)
         remote_rule = rule in ("branch:unresolved-path", "branch:near-miss")
@@ -765,6 +769,7 @@ def analyze(
         lines.append(
             "origin/main fetch failed: unresolved-path and near-miss rules are advisory"
         )
+    if positive_unverified:
         lines.append(
             "positive Branch state accepted without ancestry verification"
         )
