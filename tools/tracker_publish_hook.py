@@ -767,6 +767,22 @@ def analyze(
     return Analysis(tuple(findings), "\n".join(lines))
 
 
+def authorize_issue_body(body: str, label: str) -> None:
+    """Apply the shared lost-body and raw-control refusal for direct writers.
+
+    Most tracker writes arrive as a shell command and enter through ``handle``.
+    An in-process writer already holds the exact body, so making it reconstruct
+    shell quoting would add a second, weaker extraction path. This entry point
+    feeds those bytes to the same ``tracker_bodies`` predicate instead.
+    """
+    findings = tracker_bodies.grade(
+        [tracker_bodies.Record("direct publication", label, tracker_bodies.ISSUE, body)]
+    )
+    if findings:
+        kinds = ", ".join(row.kind for row in findings)
+        raise ValueError(f"tracker body refused for {label}: {kinds}")
+
+
 def current_index() -> tuple[phi_scan.CorpusIndex, tuple[str, ...]]:
     names, dates = phi_scan.corpus_identifiers()
     return phi_scan.build_index(names, dates), tuple(phi_scan.missing_corpus_sources())

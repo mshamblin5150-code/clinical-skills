@@ -37,8 +37,8 @@ CLAUDE_MD = REPO_ROOT / "CLAUDE.md"
 SUITE_COMMAND = "python -m unittest discover -s tools -t tools"
 THRESHOLD_COMMAND = "python tools/threshold_sheet.py --all"
 THRESHOLD_STEP_NAME = "Threshold sheet gates, external evidence may not run"
-MAP_COMMAND = "python tools/map_scan.py $harvest --advisory"
-MAP_STEP_NAME = "Implementation map disagreement, advisory after merge"
+MAP_COMMAND = "python tools/map_scan.py $harvest"
+MAP_STEP_NAME = "Implementation map disagreement"
 
 RUNNER = "windows-latest"
 PYTHON_VERSION = "3.14"
@@ -187,9 +187,10 @@ class ImplementationMapGateRunsWhereReconciliationIsOwed(unittest.TestCase):
         self.assertIn("issues?state=all&per_page=100", step)
         self.assertIn("gh api --paginate", step)
 
-    def test_the_tool_owns_the_advisory_conversion(self):
+    def test_findings_fail_without_an_advisory_conversion(self):
         step = self.map_step()
         self.assertIn(MAP_COMMAND, step)
+        self.assertNotIn("--advisory", step)
         self.assertNotIn("continue-on-error", step)
 
     def test_the_report_reaches_the_step_summary(self):
