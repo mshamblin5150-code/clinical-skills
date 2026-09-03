@@ -36,10 +36,11 @@ pair by three — and all three were born on 2026-08-21 in the migration itself.
 **The counts are dated and are deliberately restated nowhere else**, on
 [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143)'s terms.
 
-## What is ruled
+## Ruled 2026-09-02
 
-**Ruling 1. The report frame stays per-grader, and #405 decision 3's reasoning is affirmed rather
-than re-argued.** Every divergence between the reports is a clinician ruling —
+### 1. The report frame stays per-grader, and #405 decision 3's reasoning is affirmed rather than re-argued
+
+Every divergence between the reports is a clinician ruling —
 [#218](https://github.com/mshamblin5150-code/clinical-skills/issues/218)'s safe-to-paste banner,
 [#258](https://github.com/mshamblin5150-code/clinical-skills/issues/258)'s header qualifiers,
 [#255](https://github.com/mshamblin5150-code/clinical-skills/issues/255)'s substantiated-clean list
@@ -50,9 +51,10 @@ gave a reason to build.
 frame stopped flexing on 2026-08-23 and four members have joined since for one line each. The
 option was tested rather than deferred, and it lost on measurement.
 
-**Ruling 2. `not graded` becomes one shared constant, imported by the members and by the
-conformance walk.** The literal is written by hand in 13 modules and
-`grader_conformance`'s gate walk then asserts `"not graded" in ...` against it. That is
+### 2. `not graded` becomes one shared constant, imported by the members and by the conformance walk
+
+The literal is written by hand in 13 modules and `grader_conformance`'s gate walk then asserts
+`"not graded" in ...` against it. That is
 [#220](https://github.com/mshamblin5150-code/clinical-skills/issues/220)'s two copies of one rule
 with a string search standing in for the second copy: an edit to any member's spelling fails
 nothing until the walk quietly stops matching.
@@ -67,7 +69,8 @@ without moving a single clinician ruling.
 the seam. That is stated rather than papered over: the five outside `MEMBERS` keep their own copies,
 and the walk's guarantee covers members only.
 
-**Ruling 3. `counts` is not extracted, on this repository's own stated test.**
+### 3. `counts` is not extracted, on this repository's own stated test
+
 [#253](https://github.com/mshamblin5150-code/clinical-skills/issues/253) refused to extract a field
 parser two graders had written identically, on the ground that *a helper two modules happen to have
 written the same way is not one that exists to be depended on, and a test pinning the agreement

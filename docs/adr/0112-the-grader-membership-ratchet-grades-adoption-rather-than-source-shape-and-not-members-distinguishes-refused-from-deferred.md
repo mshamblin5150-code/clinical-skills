@@ -47,11 +47,12 @@ shape. Four members have joined since and needed no field.
 [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143)'s terms. They move the day
 a grader lands, and ruling 1 is what stops them mattering.
 
-## What is ruled
+## Ruled 2026-09-02
 
-**Ruling 1. Membership is delegation, and the ratchet grades delegation.** A name in
-`run_grader.MEMBERS` asserts that the module runs on the shared runner. A walk over `MEMBERS`
-requires each member to import `run_grader` and each member's test module to adopt
+### 1. Membership is delegation, and the ratchet grades delegation
+
+A name in `run_grader.MEMBERS` asserts that the module runs on the shared runner. A walk over
+`MEMBERS` requires each member to import `run_grader` and each member's test module to adopt
 `grader_conformance.for_module`. The existing shape walk stays; it answers a different question and
 is a floor on visibility, never a claim about adoption.
 
@@ -60,9 +61,10 @@ catches a grader arriving that nobody declared — #405's landing case, where a 
 merge silently. The adoption walk catches a name declared that nobody wired up. Neither sees the
 other's case, and `aar_scan` is the recorded instance of the second passing through the first.
 
-**Ruling 2. `NOT_MEMBERS` distinguishes a refusal from a deferral, and the two are separate
-mappings.** A **refused** module is a permanent verdict: the runner cannot express what it does.
-A **deferred** module is open work with a named owner. Today `corpus_census`, `threshold_sheet` and
+### 2. `NOT_MEMBERS` distinguishes a refusal from a deferral, and the two are separate mappings
+
+A **refused** module is a permanent verdict: the runner cannot express what it does. A **deferred**
+module is open work with a named owner. Today `corpus_census`, `threshold_sheet` and
 `tracker_bodies` are refusals and `filled_vitals_census` is a deferral.
 
 **One mapping could not tell them apart, and that is the same defect one level up.** The single
@@ -72,7 +74,8 @@ limit going stale in the direction nobody notices, which is
 [#241](https://github.com/mshamblin5150-code/clinical-skills/issues/241)'s subject, arriving on a
 membership roster.
 
-**Ruling 3. `aar_scan` is deferred, not refused, and its entry must say what migration would take.**
+### 3. `aar_scan` is deferred, not refused, and its entry must say what migration would take
+
 Its graded path fits the runner. What does not fit is a second entry point and a side effect:
 `--session-end` takes no positional source and `run_grader.parse` raises on `if not positionals`,
 and `consume_orphans` unlinks files only on a clean grade, after the report, where `run()` returns
@@ -84,17 +87,23 @@ which is [#410](https://github.com/mshamblin5150-code/clinical-skills/issues/410
 `aar_scan`'s obstacles are both outside its graded path and both are soluble, so writing
 *structurally excluded* there would ship the same overclaim this record exists to correct.
 
-**Ruling 4. The guard is a walk in the shared test kit and never structure in the runner.**
+### 4. The guard is a walk in the shared test kit and never structure in the runner
+
 [ADR 0094](0094-a-tool-s-show-output-is-unpasteable-by-default-and-its-own-docstring-is-the-only-authority.md)
 declares that **`run_grader` does not speak for its members** — a verdict on the runner would be a
 claim about every grader that delegates to it. A structural redaction gate inside `run_grader.run`
 is exactly that claim, so it is foreclosed here rather than left to be re-proposed.
 
-**The walk is not the same act and that is why it survives the same ADR.** It asserts a behavioral
-property of each member's own `format_report` — a salted marker reaches `--show` and does not reach
-the default — and makes no claim about any module's disclosure posture, which stays that module's
-docstring's under ADR 0094 ruling 2. Ruling 4 of that record blesses precisely this distribution,
-calling a guarded aperture beside a silent default *the correct distribution*.
+**The walk is not the same act and that is why it survives the same record.** It asserts a
+behavioral property of each member's own `format_report` — a salted marker reaches `--show` and does
+not reach the default — and makes no claim about any module's disclosure posture, which stays that
+module's own docstring's under ADR 0094. That record blesses precisely this distribution, calling a
+guarded aperture beside a silent default *the correct distribution*.
+
+**Its rulings are cited here by description rather than by ordinal, and that is forced rather than
+stylistic.** ADR 0094 declares its rulings as bold paragraphs, so the tree-side ordinal resolver
+reads it as declaring none and a coordinate into it cannot resolve. Twenty-two records share that
+shape and ninety use numbered headings; normalizing a ratified record is not this one's to do.
 
 ## What this does not reach, declared rather than left to be found
 
