@@ -139,9 +139,9 @@ same words*. Section-scoping can, because the pointer is what licenses the readi
 
 **The floor is real and is declared**: a section that copies a row without carrying the pointer is
 never read. The walk grades a promise rather than a document — which is ADR 0119 ruling 4's
-arrangement, and the same floor the pointer-spelling half accepted when it reached 11 declarers of
-15. The `###` boundary is part of the rule and is stated: content under a `##` heading before the
-next `###` falls into the preceding section.
+arrangement, and the same floor the pointer-spelling half accepted when it reached 11 declarers
+out of 15. The `###` boundary is part of the rule and is stated: content under a `##` heading
+before the next `###` falls into the preceding section.
 
 **A second assertion was declined on measurement.** Requiring the section to *make* the no-copy
 promise would fail five pointed sections that make none — `aar_scan`, `closing_keyword_scan`,
@@ -165,8 +165,9 @@ at 8.
 words is compared by exact substring, which covers 158 of the 437 leaves. It buys
 `ORPHANED_FIGURES`'s `4,168` — a live #143 figure restatement under *"this file deliberately copies
 no row"* — and `case_study_scan`'s seven-word key. It costs one collision:
-`('letter-spaced word', '306')` against *"306 lines of the three welded running heads"*, a different
-306. A minimum word count, a letter requirement and a token-boundary rule each lose `4,168` with it.
+`('letter-spaced word', '306')` against *"306 lines of the three welded running heads"*, which is a
+different figure entirely. A minimum word count, a letter requirement and a token-boundary rule
+each lose `4,168` with it.
 
 **An instrument property that has to be written down**: `prose_bind.normalized` strips emphasis,
 quotes and comment marks but **not sentence punctuation**, so a shingle whose final token carries a
