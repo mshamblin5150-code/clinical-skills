@@ -60,6 +60,10 @@ _Avoid_: the scratch directory, scratch/, scratch dir
 The clone a worktree belongs to — what `repo_root.main_repo_root()` walks up to through the worktree's `.git` pointer file. It is where account-owned gitignored state lives, because it is the checkout that outlives every worktree. **Not "the main checkout" as a synonym for "the branch `main`"**: it names a place on disk, never a ref.
 _Avoid_: main checkout (ambiguous with the `main` branch), parent repo, root clone
 
+**Module root**:
+The checkout a `tools/` module file is sitting in — what `Path(__file__).resolve().parent.parent` returns. In a worktree that is **the worktree**, and that is the right answer for almost everything here: a test reading a committed fixture, a walk over the files being committed, a subprocess reading a ref shared with the **owning checkout**. It is the wrong answer for gitignored account-owned state, which is the only thing that takes `main_repo_root()`. **The two are not ranked** — neither is a fallback for the other, and a site using the literal is not a site that has not been migrated yet.
+_Avoid_: repo root, the repo, tools root, unqualified "root"
+
 **Ticket directory**:
 One ticket's working material, at `scratch/sessions/ticket-<n>/`. Keyed by the ticket and never by the branch or the worker, so several **Sessions** on one ticket share it and a follow-up finds its predecessor's files rather than a clean directory. It is a child of the sessions namespace, which is itself one **accounted** top-level entry however many exist beneath it. Work belonging to no ticket goes to a named sibling, `sweep-<date>/`, and never to the scratch top level. Distinct from a **Run directory**, which is a graded artifact's provenance and outlives every sitting.
 _Avoid_: session directory, temp directory, workspace
