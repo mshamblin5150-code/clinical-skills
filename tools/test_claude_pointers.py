@@ -4,7 +4,7 @@ ADR 0120. The limits-object population is name-keyed and declared; string
 extraction is shape-blind; comparison is scoped to the ``###`` section carrying
 each pointer. A clean result does not establish that unpointed sections copy no
 row, that the pointer is the right one, or that non-string limits are uncopied.
-The two live figure instances state that ceiling precisely:
+Live figure instances state that ceiling precisely:
 ``split_census.HISTORICAL_SHAPE_FIGURES`` stores integers the walk skips, while
 ``guidelines_extract.ORPHANED_FIGURES`` stores strings the walk reads.
 """
