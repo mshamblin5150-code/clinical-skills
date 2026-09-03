@@ -533,6 +533,10 @@ _Avoid_: scope, completeness, sheet coverage, supported types
 A named object beside a mechanism holding why it is built as it is — why an option was declined, or why a refusal refuses. The same shape as a **declared limit** and never a member of one, because it states a why rather than an unreached what. Which it is, is decided on the sentence and never on the constant's name: a `WHY_`-named constant carrying a coverage sentence is a limit, and a plainly-named one carrying reasoning is not.
 _Avoid_: declared limit, caveat, note, comment
 
+**Evidence disposition**:
+How a **declared limit**'s row is supported — `behavior`, meaning the module's own suite drives the public seam and demonstrates the boundary, or `declared-reading`, meaning the answer needs a judgment no rule can re-derive. It rides on the row rather than in a second list beside it, so a row cannot lose its disposition without losing itself. The enum is one object per family and not one per repository: the grader family imports `run_grader`'s, and a module outside that family holding its own is declared at the code point rather than drifted.
+_Avoid_: evidence type, support level, limit kind, confidence
+
 **Underived count**:
 A figure stating the size of a population that is sitting in code and was never consulted. The remedy is to derive it or to drop it; the corrected number is as underived as the wrong one. Distinct from an **orphaned figure**, whose instrument no longer exists at all — that one is declared, this one is repaired.
 _Avoid_: stale count, off-by-one, magic number

@@ -71,6 +71,14 @@ DECLARED_CANDIDATES = (
         "The bare term is a tracker reference; the Citation compounds are bibliographic.",
     ),
     Candidate(
+        "Disposition",
+        Verdict.COLLISION,
+        "The bare term is where a correction's fix lands; an Evidence disposition "
+        "is how a declared limit's row is supported. A third sense is recorded in "
+        "the bare entry's own body -- research_ledger's RECENCY verdicts -- so the "
+        "word carries three and none narrows another.",
+    ),
+    Candidate(
         "Assertion",
         Verdict.NARROWING,
         "A Promoted assertion is an assertion whose bar has become binary.",
