@@ -1353,6 +1353,9 @@ class ShapeFindings(unittest.TestCase):
         )
         derived = body.split(imap.STATE_END, 1)[1]
         self.assertNotIn("a-kind-this-version-does-not-know", derived)
+        table = derived.split("## Collision groups", 1)[1].split("##", 1)[0]
+        self.assertIn("| Constraint | Kind | Packets | Why |", table)
+        self.assertIn("| future classifier | - | PA, PB | - |", table)
 
     def test_non_integer_ticket(self):
         state = state_with([packet("PA", ["#1"])])
@@ -1433,20 +1436,25 @@ class TheRenderedViews(unittest.TestCase):
         with self.assertRaisesRegex(imap.MapError, "unaccounted Mermaid"):
             imap.verify_mermaid(state, malformed.replace("PX", "PA"))
 
-    def test_duplicate_collision_edges_are_emitted_once(self):
+    def test_collision_groups_are_a_table_and_not_graph_edges(self):
         state = state_with(
             [packet("PA", [1]), packet("PB", [2])],
             groups=[
-                {"name": "first", "packets": ["PA", "PB"]},
-                {"name": "second", "packets": ["PA", "PB"]},
+                {"name": "first", "packets": ["PA", "PB"], "why": "one seam"},
+                {"name": "second", "packets": ["PA", "PB"], "why": "another seam"},
             ],
         )
         live = imap.Live(FakeTracker([issue(1), issue(2)]), state)
 
         graph = imap.mermaid(state, live)
+        body = imap.render(state, live, {"commit": "c", "date": "d"})
+        table = body.split("## Collision groups", 1)[1].split("##", 1)[0]
 
-        self.assertEqual(graph.count("PA -.- PB"), 1)
+        self.assertNotIn("-.-", graph)
         self.assertEqual(imap.verify_mermaid(state, graph).unread, ())
+        self.assertIn("| first | - | PA, PB | one seam |", table)
+        self.assertIn("| second | - | PA, PB | another seam |", table)
+        self.assertNotIn("collision sequencing", body)
 
 
 # ---------------------------------------------------------------------------

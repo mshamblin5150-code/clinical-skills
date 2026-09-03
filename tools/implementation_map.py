@@ -917,10 +917,6 @@ def mermaid(state: dict, live: Live) -> str:
             gate_nodes.add(node)
             lines.append(f"    {node}([\"{edge.get('on')}\"]):::gate")
         lines.append(f"    {node} ==>|GATE| {ids[edge['to']]}")
-    for group in sorted(state.get("collision_groups", []), key=lambda g: g["name"]):
-        members = group.get("packets", [])
-        for left, right in zip(members, members[1:]):
-            lines.append(f"    {ids[left]} -.- {ids[right]}")
     done = sorted(ids[pid] for pid, s in status.items() if s == "done")
     if done:
         lines.append("    classDef done fill:#d4edda,stroke:#155724")
@@ -978,28 +974,27 @@ def render(state: dict, live: Live, snapshot: dict) -> str:
             )
     else:
         front_lines.append("No packet is currently startable.")
-    groups = state.get("collision_groups", [])
-    if groups:
-        front_lines.append("")
-        front_lines.append(
-            "Must not build concurrently (collision groups; serialize, and "
-            "whichever merges later re-runs the earlier one's tests):"
-        )
-        front_lines.append("")
-        for group in sorted(groups, key=lambda g: g["name"]):
-            front_lines.append(
-                f"- `{group['name']}`: {', '.join(group['packets'])}"
-                + (f" - {group['why']}" if group.get("why") else "")
-            )
     parts.append("## Current frontier\n\n" + "\n".join(front_lines))
     parts.append(
         "## Dependency graph\n\n"
         "Solid `HARD` arrows are native blocked-by; dashed `saves rebuild` "
-        "arrows are preferred orderings; dotted lines are collision "
-        "sequencing (no dependency); double `GATE` arrows wait on something "
-        "outside the packet queue.\n\n"
+        "arrows are preferred orderings; double `GATE` arrows wait on "
+        "something outside the packet queue. Collision constraints are kept "
+        "in the table below because they are not dependency edges.\n\n"
         "```mermaid\n" + graph + "\n```"
     )
+    collision_rows = [
+        "| Constraint | Kind | Packets | Why |",
+        "| --- | --- | --- | --- |",
+    ]
+    for group in sorted(state.get("collision_groups", []), key=lambda g: g["name"]):
+        # Ticket #809 owns the kind vocabulary and its semantics. Until it
+        # lands, this tool deliberately accepts and ignores that field.
+        name = str(group["name"]).replace("|", "\\|")
+        members = ", ".join(group.get("packets", [])).replace("|", "\\|")
+        why = str(group.get("why", "-") or "-").replace("|", "\\|")
+        collision_rows.append(f"| {name} | - | {members or '-'} | {why} |")
+    parts.append("## Collision groups\n\n" + "\n".join(collision_rows))
     rows = [
         "| Packet | Tickets | Status | Blocked by | Outcome | Collisions |",
         "| --- | --- | --- | --- | --- | --- |",

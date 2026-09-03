@@ -77,6 +77,7 @@ DECLARED_SECTIONS = {
     "harvest_review": "PHI pre-commit hook",
     "icd10_build": "ICD-10-CM code set",
     "icd10_lookup": "ICD-10-CM code set",
+    "implementation_map": "Implementation map helper",
     "map_scan": "Implementation map disagreement scan",
     "name_index": "PHI pre-commit hook",
     "phi_scan": "PHI pre-commit hook",
