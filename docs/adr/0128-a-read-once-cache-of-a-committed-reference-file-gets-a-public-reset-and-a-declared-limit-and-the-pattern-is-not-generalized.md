@@ -6,7 +6,12 @@ unreachable staleness is worth a seam. It is one of two process-lifetime caches 
 until something joins them* — turned out to be the right instrument pointed one level too high. The
 join is inside `guidelines_recs.py`, not one import away.
 
-## Measured before ruling, at `966d966`
+## Measured before ruling, at `966d966`, re-derived after merging `e1a37c5`
+
+`main` advanced mid-session. Every figure and line reference below was re-derived against the
+merged tree; `guidelines_recs.py` and `cdc_percentile.py` were untouched by that merge and
+`test_guidelines_recs.py` moved by one line, which is why its references are not the ones the
+#883 ruling comment carries.
 
 **The cache.** `tools/guidelines_recs.py:1199` holds `_CURATED_CACHE`, populated once in
 `curated_rows_for` at `:1227` and never invalidated. What it caches is the parsed contents of
@@ -15,7 +20,7 @@ join is inside `guidelines_recs.py`, not one import away.
 `SOURCE_CURATED_TABLE`. It is written by `tools/uspstf_table.py`, whose `DEFAULT_OUT` at `:58` is
 that path.
 
-**The join, which the ticket did not have.** `_record` at `:1308` stamps
+**The join, which the ticket did not have.** `_record` at `:1307` stamps
 `record_producer["inputs"] = artifact_provenance.producer_file_identity(RECORD_TRUST_FLOOR[floor_key])`,
 which for `curated-table` hashes `reference/guidelines-uspstf.md` **off disk at write time**. The
 `recommendations` in that same payload came from `_CURATED_CACHE`, parsed at first call. **The
@@ -26,21 +31,21 @@ the mechanism is one function call away rather than one import away, and that is
 seam.
 
 **The test seams, which do not all want the same thing.** Four sites in
-`tools/test_guidelines_recs.py` touch the private global, and they split two ways. `:1307` and
-`:1323` assign `None` to force a re-read of the committed table: those want a reset. `:647`
-installs a synthetic parsed table so the precedence tests run against invented rows, and `:1337`
+`tools/test_guidelines_recs.py` touch the private global, and they split two ways. `:1308` and
+`:1324` assign `None` to force a re-read of the committed table: those want a reset. `:648`
+installs a synthetic parsed table so the precedence tests run against invented rows, and `:1339`
 installs a hand-built two-key dict to reach the case-collision refusal: those want an injection. The
 ticket's option 2 — *give the module the reset the test suite already needs* — therefore buys half
 of what it claims. A reset removes two pokes and leaves two.
 
-**Both injection sites carry recorded reasoning for being deliberate.** The comment at `:643` says
+**Both injection sites carry recorded reasoning for being deliberate.** The comment at `:644` says
 that passing rows into `extract` would test the injected value rather than the precedence, and the
-docstring at `:1337` says the case collision is unreachable against the committed table and must be
+docstring at `:1339` says the case collision is unreachable against the committed table and must be
 synthesized. Read against the stamp finding above, those are not a module missing a seam. They are
 tests reaching for something the production path must not offer.
 
 **Where a declared limit is allowed to live.**
-`test_guidelines_recs.py:906` reads the module docstring and `CLAUDE.md` and asserts each names
+`test_guidelines_recs.py:904` reads the module docstring and `CLAUDE.md` and asserts each names
 `guidelines_recs.DECLARED_LIMITS` while carrying no row's key and no row's limit sentence. So the
 ticket's option 3 — *say so in the docstring* — has no form that is both legal and durable: as a
 registry row's sentence it turns the suite red, and as prose alone it is the shape
@@ -64,7 +69,7 @@ cache, so the ruling is the tree's standing answer on the pattern — is false a
 
 ### 1. The seam is a public reset, and injection stays private
 
-`guidelines_recs` gains a public `reset_curated_cache()`. `:1307` and `:1323` call it. The two
+`guidelines_recs` gains a public `reset_curated_cache()`. `:1308` and `:1324` call it. The two
 injection sites keep reaching for the private name, and their existing comments are what justifies
 that.
 
