@@ -104,7 +104,8 @@ object: `:3278` through `extraction_identity_from_manifest` for `handoff.provena
 adds no read, because the identity call already reads unconditionally whenever `text_root is not
 None`, which is the only case in which `gate_watermark` would have read at all.
 
-**Ruled: its own ticket, filed with these numbers.** It is a different module and a different seam,
+**Ruled: its own ticket, filed with these numbers as
+[#881](https://github.com/mshamblin5150-code/clinical-skills/issues/881).** It is a different module and a different seam,
 it needs no ruling from #871 to be correct, and it must be priced before the rest, because every
 figure #871 reasons from is written against 580 processes and the honest denominator after it is
 **290**.
@@ -222,7 +223,8 @@ re-derives the property on every run rather than asserting a number nothing reco
 
 ## Decision 9 — two build tickets, the reordering first
 
-**Ruled: split, reordering first.** The two landings are orthogonal — the seam removes `status` and
+**Ruled: split, reordering first** — the reordering is
+[#880](https://github.com/mshamblin5150-code/clinical-skills/issues/880) and the seam stays on #871. The two landings are orthogonal — the seam removes `status` and
 collapses `rev-parse`, the reordering removes `merge-base` and `diff`, and neither moves the other's
 denominator:
 
@@ -255,10 +257,17 @@ that is the ticket's own *what must not come out of this*.
 its two test seams named, so whoever meets the volume starts from the measurement rather than
 re-deriving it.
 
-**One live staleness of exactly the kind the ticket feared is already in the tree, on a different
-file, and is not #871's.** `TRUST_FLOOR["recs"]` contains `reference/guidelines-uspstf.md`, which
-`uspstf_table.py` writes — and `guidelines_recs.py:1199` caches that file's parsed contents for the
-life of the process with no reset the module offers. Filed separately.
+**A staleness of exactly the kind the ticket feared is shaped in the tree already, on a different
+file — and it is latent rather than live, which is a correction to what this session first said.**
+`TRUST_FLOOR["recs"]` contains `reference/guidelines-uspstf.md`, which `uspstf_table.py` writes, and
+`guidelines_recs.py:1199` caches that file's parsed contents for the life of the process with no
+reset the module offers. It was reported here and on #871 as live before it was checked. **It is
+not**: `uspstf_table.py` does not import `guidelines_recs`, so no process both writes that file and
+reads the cache, and the only reset seam is the test suite poking the private global directly. The
+correction is recorded rather than the sentence deleted, because the mistake is the one this whole
+ADR is about — a claim asserted from the shape of two facts without measuring whether anything joins
+them. Filed as [#883](https://github.com/mshamblin5150-code/clinical-skills/issues/883) so the next
+reader does not re-derive it as a live bug.
 
 **Every wall-clock figure in the originating ticket is retained rather than corrected.** The
 machines differ and the ticket's measurements were honestly taken; what is corrected is the
