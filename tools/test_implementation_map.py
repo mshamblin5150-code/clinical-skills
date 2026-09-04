@@ -26,6 +26,8 @@ from types import SimpleNamespace
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
+import artifact_lock_test_support  # noqa: E402, F401
+
 _spec = importlib.util.spec_from_file_location(
     "implementation_map", HERE / "implementation_map.py"
 )
