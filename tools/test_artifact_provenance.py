@@ -239,6 +239,60 @@ accepted distrust against <corpus> on <date>:
         )
 
 
+class ProducerCheckGitCost(unittest.TestCase):
+    def test_matching_inputs_with_an_expected_commit_spawn_no_git_process(self):
+        with tempfile.TemporaryDirectory() as directory:
+            repo = Path(directory)
+            producer_path = repo / "tools" / "producer.py"
+            producer_path.parent.mkdir()
+            producer_path.write_text("stable\n", encoding="utf-8")
+            inputs = artifact_provenance.producer_file_identity(
+                ("tools/producer.py",), repo_root=repo
+            )
+
+            with mock.patch.object(artifact_provenance.subprocess, "run") as run:
+                result = artifact_provenance.check_producer(
+                    {"commit": "same", "dirty": False, "inputs": inputs},
+                    repo / "artifact.json",
+                    expected_commit="same",
+                    repo_root=repo,
+                    unchanged_paths=("tools/producer.py",),
+                )
+
+            self.assertTrue(result.trusted)
+            run.assert_not_called()
+
+    def test_the_merge_parent_fallback_still_spawns_git_processes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            repo = Path(directory)
+
+            def successful_git(arguments, **_kwargs):
+                return subprocess.CompletedProcess(arguments, 0)
+
+            with (
+                mock.patch.object(
+                    artifact_provenance.subprocess,
+                    "run",
+                    side_effect=successful_git,
+                ) as run,
+                contextlib.redirect_stderr(io.StringIO()),
+            ):
+                result = artifact_provenance.check_producer(
+                    {"commit": "merge-parent", "dirty": False},
+                    repo / "artifact.json",
+                    allow_untrusted=True,
+                    expected_commit="checkout-head",
+                    repo_root=repo,
+                    unchanged_paths=("tools/producer.py",),
+                )
+
+            self.assertEqual(result.reasons, ("records no producer-file identity",))
+            self.assertEqual(
+                [call.args[0][3] for call in run.call_args_list],
+                ["merge-base", "diff", "diff"],
+            )
+
+
 class MergeParentTrustTests(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
