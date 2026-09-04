@@ -713,17 +713,11 @@ class ExtractionIdentity:
     extractor_sha256: str
 
 
-def extraction_identity_from_manifest(
-    root: Path,
-    *,
-    allow_untrusted_provenance: bool = False,
+def extraction_identity_from_handoff(
+    handoff: guidelines_manifest.Manifest,
 ) -> tuple[ExtractionIdentity | None, list[str]]:
-    """Read identity through the extracted corpus's validated manifest owner."""
+    """Derive the extraction identity from one validated manifest handoff."""
 
-    handoff = guidelines_manifest.read(
-        root,
-        allow_untrusted_provenance=allow_untrusted_provenance,
-    )
     path = handoff.root / guidelines_manifest.MANIFEST_NAME
     producer = handoff.provenance.producer if handoff.provenance else None
     if not isinstance(producer, dict):
@@ -1976,6 +1970,7 @@ def gate_watermark(
     text_root: Path | None,
     *,
     allow_untrusted_provenance: bool = False,
+    handoff: guidelines_manifest.Manifest | None = None,
 ) -> GateResult:
     """Gate 4. A row carrying a string #80 stripped is a row the text stream interleaved.
 
@@ -2049,10 +2044,11 @@ def gate_watermark(
             diagnostics=("  WATERMARK       1 manifest problem(s)",),
         )
     text_root = Path(text_root)
-    handoff = read_extraction(
-        text_root,
-        allow_untrusted_provenance=allow_untrusted_provenance,
-    )
+    if handoff is None:
+        handoff = read_extraction(
+            text_root,
+            allow_untrusted_provenance=allow_untrusted_provenance,
+        )
     manifest_diagnostic = (
         f"  WATERMARK       {len(handoff.problems)} manifest problem(s)"
     )
@@ -3274,12 +3270,17 @@ def survey(
 
     schema = gate_schema(sheet, catalog_source_classes)
     null_span = gate_null_span(sheet)
-    current_extraction, identity_problems = (
-        extraction_identity_from_manifest(
+    extraction_handoff = (
+        guidelines_manifest.read(
             text_root,
             allow_untrusted_provenance=allow_untrusted_provenance,
         )
         if text_root is not None
+        else None
+    )
+    current_extraction, identity_problems = (
+        extraction_identity_from_handoff(extraction_handoff)
+        if extraction_handoff is not None
         else (None, ["no --text-root was available"])
     )
     extraction_identity = gate_extraction_identity(
@@ -3310,6 +3311,7 @@ def survey(
         sheet,
         text_root,
         allow_untrusted_provenance=allow_untrusted_provenance,
+        handoff=extraction_handoff,
     )
     # **Gate 5 runs only when a read is handed to it, and never runs itself.** The
     # independence is the whole instrument: a second read this module produced would
