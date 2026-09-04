@@ -292,6 +292,14 @@ _Avoid_: producer code, producer paths, unchanged paths, provenance list
 Everything a content-addressed build hashes to decide whether it may reuse an earlier artifact instead of producing one again. Deliberately wider than the trust floor, because the price of a miss is a rebuild and the price of a wrong hit is a stale answer.
 _Avoid_: build key, fingerprint, producer identity
 
+**Checkout commit**:
+The commit the checkout consuming an artifact is at, and the thing a provenance check compares a stamp against. It is a consumer's question, and asking for it through a producer's identity is what once made a repo-wide `git status` the price of reading a manifest — the value was computed and discarded on the line that fetched it. A run cannot move it, so it is supplied once by the command whose run it belongs to rather than fetched again by each reader.
+_Avoid_: current commit, HEAD, producer commit, current producer
+
+**Producer commit**:
+The commit stamped into an artifact when it was built, written by the producer and read back out of the artifact. A statement about the build and never about the reader's tree, which is why it travels with the artifact to another checkout and why disagreeing with the **checkout commit** opens a question rather than settling one.
+_Avoid_: commit, current commit, checkout commit, stamp
+
 **Held declaration**:
 A claim a curated artifact makes about a check its reader may be unable to re-run. The run that *can* re-run it is the only thing enforcing the claim — refusing where it is absent, and refusing where it describes a different run than the one that just happened. Never checked against elapsed time, because no artifact knows what its reader's machine holds. Which claims qualify is enumerated by hand, never inferred.
 _Avoid_: provenance line, status line, audit note, metadata
