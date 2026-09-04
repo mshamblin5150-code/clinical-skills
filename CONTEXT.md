@@ -64,6 +64,10 @@ _Avoid_: main checkout (ambiguous with the `main` branch), parent repo, root clo
 The checkout a `tools/` module file is sitting in — what `Path(__file__).resolve().parent.parent` returns. In a worktree that is **the worktree**, and that is the right answer for almost everything here: a test reading a committed fixture, a walk over the files being committed, a subprocess reading a ref shared with the **owning checkout**. It is the wrong answer for gitignored account-owned state, which is the only thing that takes `main_repo_root()`. **The two are not ranked** — neither is a fallback for the other, and a site using the literal is not a site that has not been migrated yet.
 _Avoid_: repo root, the repo, tools root, unqualified "root"
 
+**Tracked path**:
+The bytes git stores for an entry, as distinct from the string a git command prints for it. `ls-files`, `ls-tree` and `diff --name-only` C-quote any non-ASCII path; `rev-list --objects` does not quote and truncates at a newline; text-mode decoding rewrites a carriage return and so collapses two distinct paths onto one. A path is only itself when read through `-z` and decoded `surrogateescape` from **bytes** — every other form is a rendering, and a comparison against one is a comparison against a rendering rather than against the repository.
+_Avoid_: filename, the path git returns, path string
+
 **Ticket directory**:
 One ticket's working material, at `scratch/sessions/ticket-<n>/`. Keyed by the ticket and never by the branch or the worker, so several **Sessions** on one ticket share it and a follow-up finds its predecessor's files rather than a clean directory. It is a child of the sessions namespace, which is itself one **accounted** top-level entry however many exist beneath it. Work belonging to no ticket goes to a named sibling, `sweep-<date>/`, and never to the scratch top level. Distinct from a **Run directory**, which is a graded artifact's provenance and outlives every sitting.
 _Avoid_: session directory, temp directory, workspace
