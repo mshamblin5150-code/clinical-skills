@@ -28,7 +28,23 @@ class PathRecordReader(unittest.TestCase):
         self.assertEqual(paths[1].encode("utf-8", errors="surrogateescape"), b"raw\xe9.md")
         run.assert_called_once_with(
             ["git", "ls-tree", "-r", "-z", "--name-only", "origin/main"],
-            cwd=Path("repo"), capture_output=True, check=False,
+            cwd=Path("repo"), input=None, capture_output=True, check=False,
+        )
+
+    def test_stdin_bytes_are_forwarded_without_text_decoding(self):
+        completed = subprocess.CompletedProcess(
+            ["git"], 0, stdout=b"raw\xe9.md\0", stderr=b""
+        )
+        stdin = b"caf\xc3\xa9.md\0raw\xe9.md\0"
+        with patch.object(git_paths.subprocess, "run", return_value=completed) as run:
+            paths = git_paths.read_path_records(
+                Path("repo"), "check-ignore", "--stdin", "-z", stdin=stdin
+            )
+
+        self.assertEqual(paths[0].encode("utf-8", errors="surrogateescape"), b"raw\xe9.md")
+        run.assert_called_once_with(
+            ["git", "check-ignore", "--stdin", "-z"],
+            cwd=Path("repo"), input=stdin, capture_output=True, check=False,
         )
 
     def test_a_failed_git_read_raises(self):
@@ -37,6 +53,16 @@ class PathRecordReader(unittest.TestCase):
         with patch.object(git_paths.subprocess, "run", return_value=completed):
             with self.assertRaisesRegex(git_paths.GitPathError, "fatal: no tree"):
                 git_paths.read_path_records(Path("repo"), "ls-files", "-z")
+
+    def test_an_explicitly_accepted_empty_match_status_returns_no_records(self):
+        completed = subprocess.CompletedProcess(["git"], 1, stdout=b"", stderr=b"")
+        with patch.object(git_paths.subprocess, "run", return_value=completed):
+            paths = git_paths.read_path_records(
+                Path("repo"), "check-ignore", "--stdin", "-z",
+                stdin=b"visible.md\0", accepted_returncodes=(0, 1),
+            )
+
+        self.assertEqual(paths, ())
 
     def test_text_mode_is_refused(self):
         """A tracked walk must be lossless; an untracked path remains outside it."""

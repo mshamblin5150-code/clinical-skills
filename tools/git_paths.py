@@ -15,17 +15,24 @@ class GitPathError(Exception):
     """Git could not provide a complete path population."""
 
 
-def _run(repo: Path, arguments: tuple[str, ...]) -> bytes:
+def _run(
+    repo: Path,
+    arguments: tuple[str, ...],
+    *,
+    stdin: bytes | None = None,
+    accepted_returncodes: tuple[int, ...] = (0,),
+) -> bytes:
     try:
         completed = subprocess.run(
             ["git", *arguments],
             cwd=repo,
+            input=stdin,
             capture_output=True,
             check=False,
         )
     except OSError as exc:
         raise GitPathError(f"git {arguments[0]}: {exc}") from exc
-    if completed.returncode != 0:
+    if completed.returncode not in accepted_returncodes:
         first = completed.stderr.decode("utf-8", errors="replace").strip().splitlines()
         raise GitPathError(
             f"git {arguments[0]}: {first[0] if first else 'failed'}"
@@ -33,11 +40,21 @@ def _run(repo: Path, arguments: tuple[str, ...]) -> bytes:
     return completed.stdout
 
 
-def read_path_records(repo: Path, *arguments: str) -> tuple[str, ...]:
+def read_path_records(
+    repo: Path,
+    *arguments: str,
+    stdin: bytes | None = None,
+    accepted_returncodes: tuple[int, ...] = (0,),
+) -> tuple[str, ...]:
     """Read NUL-delimited path-bearing records without losing path bytes."""
     if "-z" not in arguments:
         raise ValueError("a path-listing git command must request -z output")
-    raw = _run(repo, tuple(arguments))
+    raw = _run(
+        repo,
+        tuple(arguments),
+        stdin=stdin,
+        accepted_returncodes=accepted_returncodes,
+    )
     return tuple(
         record.decode("utf-8", errors="surrogateescape")
         for record in raw.split(b"\0")
