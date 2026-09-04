@@ -41,6 +41,8 @@ import guidelines_catalog as gc
 from guidelines_manifest_test_support import ReadingManifestConformance
 import guidelines_extract as extract
 
+EXPECTED_COMMIT = artifact_provenance.checkout_commit(Path(__file__).resolve().parent.parent)
+
 
 def clean_producer():
     producer = artifact_provenance.current_producer()
@@ -121,7 +123,11 @@ class ReadingTheExtractedCorpus(ReadingManifestConformance, unittest.TestCase):
 
     def conformance_read(self, root, *, allow):
         try:
-            gc.read_corpus(root, allow_untrusted_provenance=allow)
+            gc.read_corpus(
+                root,
+                expected_commit=EXPECTED_COMMIT,
+                allow_untrusted_provenance=allow,
+            )
         except ValueError as failure:
             return False, str(failure)
         return True, ""
@@ -185,7 +191,7 @@ class ReadingTheExtractedCorpus(ReadingManifestConformance, unittest.TestCase):
 
             self.assertNotIn(repeated, (text_dir / "USPSTF" / "screening.txt").read_text())
             self.assertEqual(
-                gc.read_corpus(text_dir),
+            gc.read_corpus(text_dir, expected_commit=EXPECTED_COMMIT),
                 [
                     gc.Document(
                         society="USPSTF",
@@ -206,7 +212,7 @@ class ReadingTheExtractedCorpus(ReadingManifestConformance, unittest.TestCase):
             (text_dir / "USPSTF" / "screening.txt").write_text("body\n", encoding="utf-8")
 
             with self.assertRaisesRegex(ValueError, "manifest.json"):
-                gc.read_corpus(text_dir)
+                gc.read_corpus(text_dir, expected_commit=EXPECTED_COMMIT)
 
     def test_the_manifest_must_carry_the_title_key_even_when_its_value_is_null(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -221,7 +227,7 @@ class ReadingTheExtractedCorpus(ReadingManifestConformance, unittest.TestCase):
             manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
             with self.assertRaisesRegex(ValueError, "title"):
-                gc.read_corpus(text_dir)
+                gc.read_corpus(text_dir, expected_commit=EXPECTED_COMMIT)
 
     def test_year_voting_keeps_page_frequency_after_the_handoff(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -240,7 +246,12 @@ class ReadingTheExtractedCorpus(ReadingManifestConformance, unittest.TestCase):
                 producer=clean_producer(),
             )
 
-            self.assertEqual(gc.read_corpus(text_dir)[0].year_guess, "2019")
+            self.assertEqual(
+                gc.read_corpus(
+                    text_dir, expected_commit=EXPECTED_COMMIT
+                )[0].year_guess,
+                "2019",
+            )
 
 
 def reading(column: str, value: str) -> gc.AuditReading:

@@ -26,6 +26,7 @@ import guidelines_catalog
 import guidelines_extract
 import guidelines_manifest
 import threshold_coverage
+from artifact_provenance import checkout_commit
 from console_codec import use_utf8
 from guidelines_recs import (
     RECS_PREFIX,
@@ -173,9 +174,13 @@ def _document(row: guidelines_catalog.Row) -> str:
     return f"{row.society}/{Path(row.filename).stem}"
 
 
-def _load_record(path: Path) -> dict:
+def _load_record(path: Path, *, expected_commit: str) -> dict:
     try:
-        return load_recommendation_record(path, require_source_pdf=True)
+        return load_recommendation_record(
+            path,
+            expected_commit=expected_commit,
+            require_source_pdf=True,
+        )
     except UntrustedRecommendationRecord as error:
         raise ValueError(
             f"untrusted recommendation record {path}: {'; '.join(error.reasons)}"
@@ -232,6 +237,8 @@ def resolve_sources(
     seeded_sheet: Sheet | None,
     recs_alias: Path | None = None,
     registry_entries: list[threshold_coverage.Entry] | None = None,
+    *,
+    expected_commit: str,
 ) -> tuple[list[Source], list[str], list[str], int, int, bool]:
     catalog_rows, _, problems = guidelines_catalog.parse_catalog(
         catalog_path.read_text(encoding="utf-8")
@@ -291,7 +298,7 @@ def resolve_sources(
             errors.extend(_record_hint_errors(recs_root, key, row.filename))
             continue
         try:
-            record = _load_record(record_path)
+            record = _load_record(record_path, expected_commit=expected_commit)
         except (OSError, ValueError, json.JSONDecodeError) as error:
             errors.append(
                 f"{row.society}/{row.filename}: {location.description}: {error}"
@@ -559,6 +566,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    expected_commit = checkout_commit(REPO_ROOT)
     # Importing the tuple is an executable assertion that the draft and auditor share
     # one section vocabulary rather than two lists that can drift independently.
     if len(SECTION_HEADINGS) != 7:
@@ -604,13 +612,17 @@ def main(argv: list[str] | None = None) -> int:
             seeded_sheet,
             args.recs_alias,
             registry_entries,
+            expected_commit=expected_commit,
         )
     except (OSError, ValueError, json.JSONDecodeError) as error:
         print(error, file=sys.stderr)
         return 2
     rows, scoped_out, row_rejections = select_rows(sources, seeded_sheet)
     rejected = source_rejections + source_errors + row_rejections
-    extraction_handoff = guidelines_manifest.read(args.text_root)
+    extraction_handoff = guidelines_manifest.read(
+        args.text_root,
+        expected_commit=expected_commit,
+    )
     extraction_identity, identity_problems = extraction_identity_from_handoff(
         extraction_handoff
     )

@@ -13,6 +13,7 @@ import artifact_lock_test_support  # noqa: F401
 import guidelines_catalog
 import guidelines_recs
 import uspstf_table
+import artifact_provenance
 from guidelines_manifest import read_or_raise
 
 
@@ -297,7 +298,11 @@ class ExtractedCorpusTier2(unittest.TestCase):
             message = f"TIER 2 SKIPPED: extracted guideline corpus is absent at {CORPUS}"
             print(message, file=sys.stderr)
             raise unittest.SkipTest(message)
-        handoff = read_or_raise(CORPUS, allow_untrusted_provenance=True)
+        handoff = read_or_raise(
+            CORPUS,
+            expected_commit=artifact_provenance.checkout_commit(REPO_ROOT),
+            allow_untrusted_provenance=True,
+        )
         cls.topic_documents = {
             Path(document.source).name: (
                 list(handoff.pages[doc_id]),

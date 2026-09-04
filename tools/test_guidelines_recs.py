@@ -1093,7 +1093,10 @@ class RecommendationRecordOwnership(unittest.TestCase):
                     path = root / f"recs-{counted_from or 'absent'}.json"
                     path.write_text(json.dumps(payload), encoding="utf-8")
                     with self.assertRaises(recs.UntrustedRecommendationRecord):
-                        recs.load_recommendation_record(path)
+                        recs.load_recommendation_record(
+                            path,
+                            expected_commit=recs.artifact_provenance.checkout_commit(),
+                        )
 
     def test_a_changed_source_pdf_refuses(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -1109,7 +1112,10 @@ class RecommendationRecordOwnership(unittest.TestCase):
             with self.assertRaisesRegex(
                 recs.UntrustedRecommendationRecord, "source PDF sha256"
             ):
-                recs.load_recommendation_record(path)
+                recs.load_recommendation_record(
+                    path,
+                    expected_commit=recs.artifact_provenance.checkout_commit(),
+                )
 
     def test_an_unreachable_source_pdf_is_bannered_but_the_record_can_be_read(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -1122,7 +1128,10 @@ class RecommendationRecordOwnership(unittest.TestCase):
             path.write_text(json.dumps(payload), encoding="utf-8")
             stderr = io.StringIO()
             with contextlib.redirect_stderr(stderr):
-                loaded = recs.load_recommendation_record(path)
+                loaded = recs.load_recommendation_record(
+                    path,
+                    expected_commit=recs.artifact_provenance.checkout_commit(),
+                )
 
         self.assertEqual(loaded["doc_id"], "Society/guideline")
         self.assertIn("SOURCE PDF NOT VERIFIED", stderr.getvalue())

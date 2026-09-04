@@ -37,6 +37,8 @@ import guidelines_extract as extract
 import uspstf_table as ut
 from guidelines_manifest_test_support import ReadingManifestConformance
 
+EXPECTED_COMMIT = artifact_provenance.checkout_commit(Path(__file__).resolve().parent.parent)
+
 
 def clean_producer():
     producer = artifact_provenance.current_producer()
@@ -72,7 +74,11 @@ class ReadingTheExtractedCorpus(ReadingManifestConformance, unittest.TestCase):
 
     def conformance_read(self, root, *, allow):
         try:
-            ut.build(root, allow_untrusted_provenance=allow)
+            ut.build(
+                root,
+                expected_commit=EXPECTED_COMMIT,
+                allow_untrusted_provenance=allow,
+            )
         except ValueError as failure:
             return False, str(failure)
         return True, ""
@@ -100,7 +106,7 @@ class ReadingTheExtractedCorpus(ReadingManifestConformance, unittest.TestCase):
             )
             extract.write_manifest(text_dir, [record], Path("C:/outside/guidelines-src"), producer=clean_producer())
 
-            results = ut.build(text_dir)
+            results = ut.build(text_dir, expected_commit=EXPECTED_COMMIT)
 
             self.assertEqual(len(results), 1)
             self.assertEqual(Path(results[0].filename).name, "rhrs.pdf")
@@ -118,7 +124,9 @@ class ReadingTheExtractedCorpus(ReadingManifestConformance, unittest.TestCase):
             )
             extract.write_manifest(text_dir, [record], Path("C:/outside/guidelines-src"), producer=clean_producer())
 
-            self.assertEqual(ut.build(text_dir), [])
+            self.assertEqual(
+                ut.build(text_dir, expected_commit=EXPECTED_COMMIT), []
+            )
 
     def test_normalized_jama_label_still_opens_the_recommendation_region(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -139,7 +147,7 @@ class ReadingTheExtractedCorpus(ReadingManifestConformance, unittest.TestCase):
                 "Conclusions and Recommendation The USPSTF",
                 (text_dir / "USPSTF" / "thyroid.txt").read_text(encoding="utf-8"),
             )
-            results = ut.build(text_dir)
+            results = ut.build(text_dir, expected_commit=EXPECTED_COMMIT)
             self.assertEqual([row.grade for row in results[0].rows], ["D"])
 
     def test_the_dated_abstract_citation_wins_after_an_undated_jama_masthead(self):
@@ -164,7 +172,7 @@ class ReadingTheExtractedCorpus(ReadingManifestConformance, unittest.TestCase):
                 citation,
                 (text_dir / "USPSTF" / "celiac.txt").read_text(encoding="utf-8"),
             )
-            results = ut.build(text_dir)
+            results = ut.build(text_dir, expected_commit=EXPECTED_COMMIT)
             self.assertEqual({row.year for row in results[0].rows}, {"2017"})
 
     def test_the_manifest_must_carry_the_title_key_even_when_its_value_is_null(self):
@@ -182,7 +190,7 @@ class ReadingTheExtractedCorpus(ReadingManifestConformance, unittest.TestCase):
             manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
             with self.assertRaisesRegex(ValueError, "title"):
-                ut.build(text_dir)
+                ut.build(text_dir, expected_commit=EXPECTED_COMMIT)
 
 
 class GradeValidationTests(unittest.TestCase):

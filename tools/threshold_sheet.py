@@ -1969,6 +1969,7 @@ def gate_watermark(
     sheet: Sheet,
     text_root: Path | None,
     *,
+    expected_commit: str,
     allow_untrusted_provenance: bool = False,
     handoff: guidelines_manifest.Manifest | None = None,
 ) -> GateResult:
@@ -2047,6 +2048,7 @@ def gate_watermark(
     if handoff is None:
         handoff = read_extraction(
             text_root,
+            expected_commit=expected_commit,
             allow_untrusted_provenance=allow_untrusted_provenance,
         )
     manifest_diagnostic = (
@@ -2786,6 +2788,7 @@ def bind_recs(
     arguments: list[str],
     recs_root: Path | None,
     *,
+    expected_commit: str,
     allow_untrusted_provenance: bool = False,
     recs_alias: Path | None = None,
     corpus_documents: set[str] | frozenset[str] = frozenset(),
@@ -2879,7 +2882,9 @@ def bind_recs(
         else:
             try:
                 loaded = load_recommendation_record(
-                    path, allow_untrusted=allow_untrusted_provenance
+                    path,
+                    expected_commit=expected_commit,
+                    allow_untrusted=allow_untrusted_provenance,
                 )
             except UntrustedRecommendationRecord as error:
                 why_not[key] = f"untrusted record: {'; '.join(error.reasons)}"
@@ -3219,6 +3224,8 @@ def survey(
     page_counts: dict[str, int] | None = None,
     recs_alias: Path | None = None,
     catalog_source_classes: dict[str, str] | None = None,
+    *,
+    expected_commit: str,
 ) -> Scan:
     """Read and grade one sheet without emitting either report or findings."""
 
@@ -3262,6 +3269,7 @@ def survey(
         sheet,
         recs_arguments or [],
         recs_root,
+        expected_commit=expected_commit,
         allow_untrusted_provenance=allow_untrusted_provenance,
         recs_alias=recs_alias,
         corpus_documents=frozenset(page_counts),
@@ -3273,6 +3281,7 @@ def survey(
     extraction_handoff = (
         guidelines_manifest.read(
             text_root,
+            expected_commit=expected_commit,
             allow_untrusted_provenance=allow_untrusted_provenance,
         )
         if text_root is not None
@@ -3310,6 +3319,7 @@ def survey(
     watermark = gate_watermark(
         sheet,
         text_root,
+        expected_commit=expected_commit,
         allow_untrusted_provenance=allow_untrusted_provenance,
         handoff=extraction_handoff,
     )
@@ -3542,6 +3552,7 @@ def text_root_for(args: argparse.Namespace) -> Path:
 def main(argv: list[str]) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    expected_commit = artifact_provenance.checkout_commit(REPO_ROOT)
 
     text_root = text_root_for(args)
 
@@ -3614,6 +3625,7 @@ def main(argv: list[str]) -> int:
                 None,
                 args.allow_untrusted_provenance,
                 recs_alias=args.recs_alias,
+                expected_commit=expected_commit,
             )
             worst = max(
                 worst,
@@ -3648,6 +3660,7 @@ def main(argv: list[str]) -> int:
             args.second_read,
             args.allow_untrusted_provenance,
             recs_alias=args.recs_alias,
+            expected_commit=expected_commit,
         ),
         quiet=args.quiet,
     )

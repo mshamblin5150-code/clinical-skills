@@ -365,8 +365,8 @@ def _read_locked(
 def read(
     text_dir: Path | str,
     *,
+    expected_commit: str,
     allow_untrusted_provenance: bool = False,
-    expected_commit: str | None = None,
 ) -> Manifest:
     """Tolerantly read one extraction while holding its shared read lock."""
     root = Path(text_dir).resolve()
@@ -385,10 +385,17 @@ def read(
 
 
 def read_or_raise(
-    text_dir: Path | str, *, allow_untrusted_provenance: bool = False
+    text_dir: Path | str,
+    *,
+    expected_commit: str,
+    allow_untrusted_provenance: bool = False,
 ) -> Manifest:
     """Strictly read one extraction, refusing if the tolerant reader found a problem."""
-    result = read(text_dir, allow_untrusted_provenance=allow_untrusted_provenance)
+    result = read(
+        text_dir,
+        expected_commit=expected_commit,
+        allow_untrusted_provenance=allow_untrusted_provenance,
+    )
     if result.problems:
         if len(result.problems) == 1 and result.problems[0].cause is not None:
             raise result.problems[0].cause

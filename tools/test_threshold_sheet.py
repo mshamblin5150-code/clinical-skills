@@ -46,6 +46,8 @@ from guidelines_manifest_test_support import (  # noqa: E402
 import threshold_sheet as gate  # noqa: E402
 from prose_bind import SHINGLE, normalized as normalized_prose  # noqa: E402
 
+EXPECTED_COMMIT = artifact_provenance.checkout_commit(Path(__file__).resolve().parent.parent)
+
 
 def grade(
     sheet_path: Path,
@@ -71,6 +73,7 @@ def grade(
             "Society/aha": 60,
             "Society/kdigo": 60,
         },
+        expected_commit=EXPECTED_COMMIT,
     )
     return gate._emit_scan(scan, quiet=quiet)
 
@@ -390,7 +393,9 @@ class Parsing(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "x.md"
             path.write_text(HEADER, encoding="utf-8")
-            scan = gate.survey(path, [], None)
+            scan = gate.survey(
+                path, [], None, expected_commit=EXPECTED_COMMIT
+            )
 
         self.assertEqual(scan.status, 2)
         self.assertEqual(scan.sheet.why_not, "no row under a '## Thresholds' heading")
@@ -1332,7 +1337,12 @@ class EveryGateReturnsOneNamedShape(unittest.TestCase):
             ("CITATION tier 2", gate.gate_citation_tier2(parsed, Path("C:/nowhere"))),
             ("COVERAGE", gate.gate_coverage(parsed, {})),
             ("RANGE", gate.gate_range(parsed)),
-            ("WATERMARK", gate.gate_watermark(parsed, None)),
+            (
+                "WATERMARK",
+                gate.gate_watermark(
+                    parsed, None, expected_commit=EXPECTED_COMMIT
+                ),
+            ),
             (
                 "SECOND READ",
                 gate.gate_second_read(
@@ -1364,7 +1374,7 @@ class NullSheetReportsAreAssertionsRatherThanEmptyPasses(unittest.TestCase):
             gate.gate_citation_tier1(parsed),
             gate.gate_citation_tier2(parsed, Path("C:/nowhere")),
             gate.gate_range(parsed),
-            gate.gate_watermark(parsed, None),
+            gate.gate_watermark(parsed, None, expected_commit=EXPECTED_COMMIT),
         )
 
         for result in results:
@@ -1386,6 +1396,7 @@ class NullSheetReportsAreAssertionsRatherThanEmptyPasses(unittest.TestCase):
                 None,
                 page_counts={"Society/doc": 60},
                 catalog_source_classes={"Society/doc": "guideline"},
+                expected_commit=EXPECTED_COMMIT,
             )
 
         report = gate.format_report(scan)
@@ -1414,7 +1425,11 @@ class NullSheetReportsAreAssertionsRatherThanEmptyPasses(unittest.TestCase):
                         gate.gate_citation_tier1(parsed),
                         gate.gate_citation_tier2(parsed, pdf_root),
                         gate.gate_range(parsed),
-                        gate.gate_watermark(parsed, text_root),
+                        gate.gate_watermark(
+                            parsed,
+                            text_root,
+                            expected_commit=EXPECTED_COMMIT,
+                        ),
                     )
                 )
 
@@ -1455,7 +1470,9 @@ class ExtractionIdentityGate(unittest.TestCase):
             expected = self.write_manifest(root)
 
             identity, problems = gate.extraction_identity_from_handoff(
-                gate.guidelines_manifest.read(root)
+                gate.guidelines_manifest.read(
+                    root, expected_commit=EXPECTED_COMMIT
+                )
             )
 
         self.assertEqual(problems, [])
@@ -1528,6 +1545,7 @@ class ExtractionIdentityGate(unittest.TestCase):
                 None,
                 text_root=root,
                 page_counts={"Society/doc": 60},
+                expected_commit=EXPECTED_COMMIT,
             )
 
         identity = next(
@@ -1560,6 +1578,7 @@ class ExtractionIdentityGate(unittest.TestCase):
                         None,
                         text_root=root,
                         page_counts={"Society/doc": 60},
+                        expected_commit=EXPECTED_COMMIT,
                     )
 
         self.assertEqual(reader.call_count, 2)
@@ -3031,6 +3050,7 @@ class NullSpanBlindCorroboration(unittest.TestCase):
                 text_root=None,
                 page_counts={"Society/doc": 60},
                 catalog_source_classes={"Society/doc": "guideline"},
+                expected_commit=EXPECTED_COMMIT,
             )
 
         self.assertEqual(scan.status, 1)
@@ -3416,7 +3436,9 @@ class TheDiabetesSheetPassesTheExternalCliSeam(unittest.TestCase):
         handoff_stderr = io.StringIO()
         with contextlib.redirect_stderr(handoff_stderr):
             handoff = gate.read_extraction(
-                self.TEXT_ROOT, allow_untrusted_provenance=True
+                self.TEXT_ROOT,
+                expected_commit=EXPECTED_COMMIT,
+                allow_untrusted_provenance=True,
             )
         self.assertFalse(handoff.problems, handoff.problems)
 
@@ -3635,7 +3657,12 @@ class BindingARecordToEachSource(unittest.TestCase):
     """
 
     def bind(self, sheet_, arguments, recs_root=None):
-        records, why, errors, _ = gate.bind_recs(sheet_, arguments, recs_root)
+        records, why, errors, _ = gate.bind_recs(
+            sheet_,
+            arguments,
+            recs_root,
+            expected_commit=EXPECTED_COMMIT,
+        )
         return records, why, errors
 
     def test_the_sweep_alias_wins_over_the_exact_name_root_and_is_reported(self):
@@ -3675,6 +3702,7 @@ class BindingARecordToEachSource(unittest.TestCase):
                 sheet(row(rec="p41/goal/alias")),
                 [],
                 recs_root,
+                expected_commit=EXPECTED_COMMIT,
                 recs_alias=recs_alias,
                 corpus_documents={"Society/doc"},
             )
@@ -3727,6 +3755,7 @@ class BindingARecordToEachSource(unittest.TestCase):
                     sheet(row()),
                     [],
                     recs_root,
+                    expected_commit=EXPECTED_COMMIT,
                     recs_alias=recs_alias,
                     corpus_documents=corpus_documents,
                 )
@@ -3745,6 +3774,7 @@ class BindingARecordToEachSource(unittest.TestCase):
                 sheet(row()),
                 [str(explicit)],
                 root / "recs",
+                expected_commit=EXPECTED_COMMIT,
                 recs_alias=root / "guidelines-recs",
                 corpus_documents={"Society/doc"},
             )
@@ -3788,6 +3818,7 @@ class BindingARecordToEachSource(unittest.TestCase):
                     sheet(row()),
                     [str(path)],
                     None,
+                    expected_commit=EXPECTED_COMMIT,
                     allow_untrusted_provenance=True,
                 )
 
@@ -3853,7 +3884,10 @@ class BindingARecordToEachSource(unittest.TestCase):
         self.assertIsNone(records["src"])
         self.assertIn("no such file", why["src"])
         _, _, _, missing = gate.bind_recs(
-            sheet(row()), ["src=C:/nowhere-at-all/recs.json"], None
+            sheet(row()),
+            ["src=C:/nowhere-at-all/recs.json"],
+            None,
+            expected_commit=EXPECTED_COMMIT,
         )
         self.assertEqual(missing, set())
 
@@ -3862,7 +3896,12 @@ class BindingARecordToEachSource(unittest.TestCase):
             _, why, _ = self.bind(sheet(row()), [], Path(directory))
             self.assertIn("no recommendation record", why["src"])
             self.assertNotIn("no such file", why["src"])
-            _, _, _, missing = gate.bind_recs(sheet(row()), [], Path(directory))
+            _, _, _, missing = gate.bind_recs(
+                sheet(row()),
+                [],
+                Path(directory),
+                expected_commit=EXPECTED_COMMIT,
+            )
             self.assertEqual(missing, {"src"})
 
     def test_no_argument_and_no_root_says_none_was_given(self):
@@ -4474,7 +4513,10 @@ class WatermarkGate(ReadingManifestConformance, unittest.TestCase):
     def conformance_read(self, root, *, allow):
         with contextlib.redirect_stderr(io.StringIO()):
             result = gate.gate_watermark(
-                sheet(row()), root, allow_untrusted_provenance=allow
+                sheet(row()),
+                root,
+                expected_commit=EXPECTED_COMMIT,
+                allow_untrusted_provenance=allow,
             )
             _, skip, _, _ = result.findings, result.skip_reason, result.rendered, result.unprobed_sources
         return skip is None, skip or ""
@@ -4498,7 +4540,9 @@ class WatermarkGate(ReadingManifestConformance, unittest.TestCase):
         text_root = self.root / "first-guidelines-text"
         with artifact_lock.hold(text_root, "guideline extraction"):
             result = gate.gate_watermark(
-                sheet(row()), text_root
+                sheet(row()),
+                text_root,
+                expected_commit=EXPECTED_COMMIT,
             )
             failures, skip, rendered, unprobed = result.findings, result.skip_reason, result.rendered, result.unprobed_sources
 
@@ -4514,7 +4558,9 @@ class WatermarkGate(ReadingManifestConformance, unittest.TestCase):
             boilerplate=["Jones et al"],
         )
         suspect = row(snippet="an SBP goal of Jones et al <130 mm Hg")
-        result = gate.gate_watermark(sheet(suspect), self.root)
+        result = gate.gate_watermark(
+            sheet(suspect), self.root, expected_commit=EXPECTED_COMMIT
+        )
         failures, skip, rendered, unprobed = result.findings, result.skip_reason, result.rendered, result.unprobed_sources
         self.assertIsNone(skip)
         self.assertEqual(unprobed, [])
@@ -4527,7 +4573,9 @@ class WatermarkGate(ReadingManifestConformance, unittest.TestCase):
             self.root, "Society/doc", "an SBP goal of <130 mm Hg for adults",
             boilerplate=["Jones et al"],
         )
-        result = gate.gate_watermark(sheet(row()), self.root)
+        result = gate.gate_watermark(
+            sheet(row()), self.root, expected_commit=EXPECTED_COMMIT
+        )
         failures, skip, _, _ = result.findings, result.skip_reason, result.rendered, result.unprobed_sources
         self.assertIsNone(skip)
         self.assertEqual(failures, [])
@@ -4548,7 +4596,9 @@ class WatermarkGate(ReadingManifestConformance, unittest.TestCase):
             boilerplate=["JAMA"],
         )
         suspect = row(snippet="JAMA an SBP goal of <130 mm Hg")
-        result = gate.gate_watermark(sheet(suspect), self.root)
+        result = gate.gate_watermark(
+            sheet(suspect), self.root, expected_commit=EXPECTED_COMMIT
+        )
         failures, _, _, _ = result.findings, result.skip_reason, result.rendered, result.unprobed_sources
         self.assertEqual(failures, [])
 
@@ -4562,7 +4612,9 @@ class WatermarkGate(ReadingManifestConformance, unittest.TestCase):
             margin=["Global Strategy for Prevention"],
         )
         suspect = row(snippet="an SBP goal of Global Strategy for Prevention <130 mm Hg")
-        result = gate.gate_watermark(sheet(suspect), self.root)
+        result = gate.gate_watermark(
+            sheet(suspect), self.root, expected_commit=EXPECTED_COMMIT
+        )
         failures, _, _, _ = result.findings, result.skip_reason, result.rendered, result.unprobed_sources
         self.assertEqual(len(failures), 1)
 
@@ -4577,7 +4629,9 @@ class WatermarkGate(ReadingManifestConformance, unittest.TestCase):
             boilerplate=["Jones et al"],
         )
         marked = row(snippet=f"{gate.RENDERED_MARKER} Jones et al <130 mm Hg")
-        result = gate.gate_watermark(sheet(marked), self.root)
+        result = gate.gate_watermark(
+            sheet(marked), self.root, expected_commit=EXPECTED_COMMIT
+        )
         failures, _, rendered, _ = result.findings, result.skip_reason, result.rendered, result.unprobed_sources
         self.assertEqual(failures, [])
         self.assertEqual(rendered, 1)
@@ -4591,7 +4645,9 @@ class WatermarkGate(ReadingManifestConformance, unittest.TestCase):
         figure could not even find."""
         text_corpus(self.root, "Society/doc", "JAMA and a goal of <130 mm Hg",
                     boilerplate=["JAMA"])
-        result = gate.gate_watermark(sheet(row()), self.root)
+        result = gate.gate_watermark(
+            sheet(row()), self.root, expected_commit=EXPECTED_COMMIT
+        )
         failures, skip, _, unprobed = result.findings, result.skip_reason, result.rendered, result.unprobed_sources
         self.assertIsNone(skip)
         self.assertEqual(failures, [])
@@ -4600,7 +4656,9 @@ class WatermarkGate(ReadingManifestConformance, unittest.TestCase):
     def test_a_source_with_no_manifest_entry_is_reported_and_never_clean(self):
         text_corpus(self.root, "Society/other", "a goal of <130 mm Hg",
                     boilerplate=["Jones et al"])
-        result = gate.gate_watermark(sheet(row()), self.root)
+        result = gate.gate_watermark(
+            sheet(row()), self.root, expected_commit=EXPECTED_COMMIT
+        )
         _, skip, _, unprobed = result.findings, result.skip_reason, result.rendered, result.unprobed_sources
         self.assertIsNone(skip)
         self.assertEqual(unprobed, ["src"])
@@ -4609,7 +4667,11 @@ class WatermarkGate(ReadingManifestConformance, unittest.TestCase):
         """Tier 2's arrangement and for tier 2's reason: the extracted corpus lives
         outside every checkout, so on a fresh clone and in CI there is nothing to
         probe. A skip is returned and the caller prints a banner."""
-        result = gate.gate_watermark(sheet(row()), self.root / "nowhere")
+        result = gate.gate_watermark(
+            sheet(row()),
+            self.root / "nowhere",
+            expected_commit=EXPECTED_COMMIT,
+        )
         failures, skip, _, _ = result.findings, result.skip_reason, result.rendered, result.unprobed_sources
         self.assertEqual(failures, [])
         self.assertIsNotNone(skip)
@@ -4638,14 +4700,18 @@ class WatermarkGate(ReadingManifestConformance, unittest.TestCase):
         manifest["producer"]["commit"] = extractor_commit
         manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
-        result = gate.gate_watermark(sheet(row()), self.root)
+        result = gate.gate_watermark(
+            sheet(row()), self.root, expected_commit=EXPECTED_COMMIT
+        )
         _, skip, _, _ = result.findings, result.skip_reason, result.rendered, result.unprobed_sources
 
         self.assertIsNone(skip)
 
     def test_a_manifest_present_but_unusable_is_a_skip_carrying_its_reason(self):
         (self.root / "manifest.json").write_text("not json at all", encoding="utf-8")
-        result = gate.gate_watermark(sheet(row()), self.root)
+        result = gate.gate_watermark(
+            sheet(row()), self.root, expected_commit=EXPECTED_COMMIT
+        )
         _, skip, _, _ = result.findings, result.skip_reason, result.rendered, result.unprobed_sources
         self.assertIsNotNone(skip)
         self.assertIn("manifest", skip.lower())
@@ -4663,12 +4729,15 @@ class WatermarkGate(ReadingManifestConformance, unittest.TestCase):
         manifest["producer"].pop("inputs")
         path.write_text(json.dumps(manifest), encoding="utf-8")
 
-        result = gate.gate_watermark(sheet(row()), self.root)
+        result = gate.gate_watermark(
+            sheet(row()), self.root, expected_commit=EXPECTED_COMMIT
+        )
         _, skip, _, _ = result.findings, result.skip_reason, result.rendered, result.unprobed_sources
         with self.assertWarnsRegex(RuntimeWarning, "untrusted"):
             result = gate.gate_watermark(
                 sheet(row()),
                 self.root,
+                expected_commit=EXPECTED_COMMIT,
                 allow_untrusted_provenance=True,
             )
             _, allowed_skip, _, _ = result.findings, result.skip_reason, result.rendered, result.unprobed_sources
@@ -4709,7 +4778,10 @@ class WatermarkGate(ReadingManifestConformance, unittest.TestCase):
 
         with self.assertWarns(RuntimeWarning):
             result = gate.gate_watermark(
-                sheet(row()), corpus, allow_untrusted_provenance=True
+                sheet(row()),
+                corpus,
+                expected_commit=EXPECTED_COMMIT,
+                allow_untrusted_provenance=True,
             )
 
         self.assertTrue(result.not_graded)
@@ -4748,6 +4820,7 @@ class WatermarkGate(ReadingManifestConformance, unittest.TestCase):
             result = gate.gate_watermark(
                 self._sheet_with_accepted_distrust(declaration),
                 corpus,
+                expected_commit=EXPECTED_COMMIT,
                 allow_untrusted_provenance=True,
             )
 
@@ -4765,6 +4838,7 @@ class WatermarkGate(ReadingManifestConformance, unittest.TestCase):
             result = gate.gate_watermark(
                 self._sheet_with_accepted_distrust(declaration),
                 corpus,
+                expected_commit=EXPECTED_COMMIT,
                 allow_untrusted_provenance=True,
             )
 
@@ -4782,7 +4856,9 @@ class WatermarkGate(ReadingManifestConformance, unittest.TestCase):
         )
 
         result = gate.gate_watermark(
-            self._sheet_with_accepted_distrust(declaration), self.root
+            self._sheet_with_accepted_distrust(declaration),
+            self.root,
+            expected_commit=EXPECTED_COMMIT,
         )
 
         self.assertTrue(any("delete the accepted distrust" in finding for finding in result.findings))
@@ -4820,7 +4896,9 @@ class WatermarkGate(ReadingManifestConformance, unittest.TestCase):
     def test_every_tolerant_read_reports_its_problem_count(self):
         text_corpus(self.root, "Society/doc", "an SBP goal of <130 mm Hg")
 
-        result = gate.gate_watermark(sheet(row()), self.root)
+        result = gate.gate_watermark(
+            sheet(row()), self.root, expected_commit=EXPECTED_COMMIT
+        )
 
         self.assertIn("0 manifest problem(s)", "\n".join(result.diagnostics))
 
@@ -4836,7 +4914,9 @@ class WatermarkGate(ReadingManifestConformance, unittest.TestCase):
         value["documents"].append({"doc_id": "Society/broken"})
         path.write_text(json.dumps(value), encoding="utf-8")
         result = gate.gate_watermark(
-            sheet(row(snippet="Jones et al goal <130 mm Hg")), self.root
+            sheet(row(snippet="Jones et al goal <130 mm Hg")),
+            self.root,
+            expected_commit=EXPECTED_COMMIT,
         )
         failures, skip, _, _ = (
             result.findings,
@@ -4856,7 +4936,9 @@ class WatermarkGate(ReadingManifestConformance, unittest.TestCase):
                     boilerplate=["Jones et al"])
         suspect = row(value="<130 Jones et al mm Hg",
                       snippet="a goal of <130 Jones et al mm Hg")
-        result = gate.gate_watermark(sheet(suspect), self.root)
+        result = gate.gate_watermark(
+            sheet(suspect), self.root, expected_commit=EXPECTED_COMMIT
+        )
         failures, _, _, _ = result.findings, result.skip_reason, result.rendered, result.unprobed_sources
         self.assertTrue(failures)
 
@@ -4876,14 +4958,18 @@ class TheWatermarkGateAgainstTheCommittedSheet(unittest.TestCase):
         )
         if not (self.text_root / "manifest.json").is_file():
             self.skipTest(f"no extracted corpus at {self.text_root}")
-        result = gate.read_extraction(self.text_root)
+        result = gate.read_extraction(
+            self.text_root, expected_commit=EXPECTED_COMMIT
+        )
         if result.problems:
             self.skipTest("; ".join(problem.message for problem in result.problems))
 
     def test_the_committed_sheet_has_no_interleaved_row(self):
         path = gate.SHEET_ROOT / "hypertension.md"
         parsed = gate.parse(path.read_text(encoding="utf-8"), path)
-        result = gate.gate_watermark(parsed, self.text_root)
+        result = gate.gate_watermark(
+            parsed, self.text_root, expected_commit=EXPECTED_COMMIT
+        )
         failures, skip, _, unprobed = result.findings, result.skip_reason, result.rendered, result.unprobed_sources
         self.assertIsNone(skip)
         self.assertEqual(unprobed, [])
@@ -5559,7 +5645,11 @@ class GateFourRefusesUntilTheRenderedPageIsChecked(unittest.TestCase):
         text_corpus(self.root / "text2", "Society/doc", "an SBP goal of <130 mm Hg",
                     boilerplate=["Jones et al"], margin=["Circulation 2025"])
         suspect = row(snippet="Jones et al an SBP goal of <130 mm Hg Circulation 2025")
-        result = gate.gate_watermark(sheet(suspect), self.root / "text2")
+        result = gate.gate_watermark(
+            sheet(suspect),
+            self.root / "text2",
+            expected_commit=EXPECTED_COMMIT,
+        )
         findings, _, _, _ = result.findings, result.skip_reason, result.rendered, result.unprobed_sources
         self.assertEqual(len(findings), 2)
 

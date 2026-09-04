@@ -26,6 +26,7 @@ from guidelines_manifest_test_support import (  # noqa: E402
 ROOT = Path(__file__).resolve().parent.parent
 COMMAND = ROOT / "tools" / "threshold_draft.py"
 COMMITTED_RECS = ROOT / "fixtures" / "threshold-draft-records"
+EXPECTED_COMMIT = guidelines_recs.artifact_provenance.checkout_commit(ROOT)
 
 
 def catalog_row(
@@ -379,6 +380,7 @@ class ThresholdDraftCli(unittest.TestCase):
                         ("hypertension screening", "?", "adults.md"),
                         ("high blood pressure screening", "?", "children.md"),
                     ),
+                    expected_commit=EXPECTED_COMMIT,
                 )
                 for topic in ("hypertension", "high blood pressure")
             ]
@@ -431,6 +433,7 @@ class ThresholdDraftCli(unittest.TestCase):
                     ("hypertension screening", "?", "adults.md"),
                     ("high blood pressure screening", "?", "children.md"),
                 ),
+                expected_commit=EXPECTED_COMMIT,
             )
 
         report = "\n".join(rejected)
@@ -669,7 +672,9 @@ class ThresholdDraftCli(unittest.TestCase):
             self.skipTest(f"acceptance record not present at {record_path}")
         try:
             record = guidelines_recs.load_recommendation_record(
-                record_path, require_source_pdf=True
+                record_path,
+                expected_commit=EXPECTED_COMMIT,
+                require_source_pdf=True,
             )
         except (OSError, ValueError, guidelines_recs.UntrustedRecommendationRecord) as error:
             self.skipTest(f"acceptance record is not trusted in this checkout: {error}")
@@ -812,7 +817,9 @@ class ThresholdDraftCli(unittest.TestCase):
             self.skipTest(f"acceptance record not present at {recs}")
         try:
             guidelines_recs.load_recommendation_record(
-                recs, require_source_pdf=True
+                recs,
+                expected_commit=EXPECTED_COMMIT,
+                require_source_pdf=True,
             )
         except (OSError, ValueError, guidelines_recs.UntrustedRecommendationRecord) as error:
             self.skipTest(f"acceptance record is not trusted in this checkout: {error}")
