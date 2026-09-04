@@ -104,6 +104,79 @@ def imported_from_repo_root(source: str) -> set[str]:
     }
 
 
+MODULE_ROOT_LITERAL = "Path(__file__).resolve().parent.parent"
+ACCOUNT_OWNED_DIRECTORIES = frozenset({"scratch", "output"})
+
+
+def literal_root_bindings(tree: ast.Module) -> set[str]:
+    """Names assigned directly from the worktree-root literal."""
+    bindings: set[str] = set()
+    for node in tree.body:
+        if not isinstance(node, (ast.Assign, ast.AnnAssign)):
+            continue
+        value = node.value
+        if value is None or MODULE_ROOT_LITERAL not in ast.unparse(value):
+            continue
+        targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+        bindings.update(
+            target.id for target in targets if isinstance(target, ast.Name)
+        )
+    return bindings
+
+
+def account_owned_literal_joins(source: str) -> list[int]:
+    """Direct joins this property can see; aliases and helper calls are invisible."""
+    tree = ast.parse(source)
+    roots = literal_root_bindings(tree)
+    offenders: list[int] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.BinOp) or not isinstance(node.op, ast.Div):
+            continue
+        if not isinstance(node.right, ast.Constant) or node.right.value not in ACCOUNT_OWNED_DIRECTORIES:
+            continue
+        left = ast.unparse(node.left)
+        if MODULE_ROOT_LITERAL in left or any(
+            isinstance(name, ast.Name) and name.id in roots for name in ast.walk(node.left)
+        ):
+            offenders.append(node.lineno)
+    return offenders
+
+
+class ModuleRootProperty(unittest.TestCase):
+    """A literal worktree root never selects account-owned state directly.
+
+    This reads only a direct ``/`` join whose left side is the literal expression
+    or a module-level name assigned from it. An intermediate local variable,
+    ``os.path.join``, or a root passed into another function is invisible.
+    """
+
+    def test_the_live_control_detects_a_planted_join(self):
+        planted = (
+            "from pathlib import Path\n"
+            "ROOT = Path(__file__).resolve().parent.parent\n"
+            "CORPUS = ROOT / 'scratch'\n"
+        )
+        self.assertEqual(account_owned_literal_joins(planted), [3])
+
+    def test_literal_root_population_uses_repo_root_for_account_owned_state(self):
+        population = []
+        offenders = []
+        for path in module_sources():
+            if path.name == RULE_HOLDER:
+                continue
+            source = path.read_text(encoding="utf-8")
+            tree = ast.parse(source)
+            if MODULE_ROOT_LITERAL not in ast.unparse(tree):
+                continue
+            population.append(path.name)
+            offenders.extend(
+                f"{path.name}:{line}" for line in account_owned_literal_joins(source)
+            )
+
+        self.assertEqual(len(population), 24)
+        self.assertEqual(offenders, [])
+
+
 class Checkout:
     """A throwaway tree holding a plain clone, a worktree and two innocents."""
 

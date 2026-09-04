@@ -427,6 +427,23 @@ class PublishedFieldsAreGradedWithoutEchoingThem(unittest.TestCase):
             result.report,
         )
 
+    def test_a_failed_tree_read_surfaces_the_not_graded_citation_row(self) -> None:
+        with mock.patch.object(
+            hook.tracker_branch_scope, "_default_branch_paths", return_value=None
+        ):
+            result = hook.analyze(
+                hook.Publication(
+                    "body",
+                    "https://github.com/example/repo/blob/main/docs/missing.md",
+                ),
+                index=phi_scan.build_index(set(), set()),
+                issue=None,
+                remote_fresh=True,
+            )
+
+        self.assertIn("citation path resolution NOT GRADED", result.report)
+        self.assertFalse(result.findings)
+
     def test_completion_is_a_comment_trigger_not_an_issue_body_trigger(self) -> None:
         index = phi_scan.build_index(set(), set())
         issue = {"number": 670, "labels": []}
@@ -619,7 +636,27 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
         self.assertIn("--text <path>", unreadable_report)
         self.assertNotIn("HOOK FAILURE", unreadable_report)
         self.assertIn("HOOK FAILURE", crashed_report)
-        self.assertIn("Unreadable body", crashed_report)
+        self.assertIn("analysis failed", crashed_report)
+        self.assertEqual(
+            crashed["hookSpecificOutput"]["permissionDecision"], "deny"
+        )
+
+    def test_an_exception_escaping_analyze_denies_the_publication(self) -> None:
+        index = phi_scan.build_index(set(), set())
+        with (
+            mock.patch.object(hook, "current_index", return_value=(index, ())),
+            mock.patch.object(hook, "refresh_default_branch", return_value=True),
+            mock.patch.object(hook, "fetch_readback", return_value=fetched_records(670)),
+            mock.patch.object(hook, "analyze", side_effect=RuntimeError("boom")),
+        ):
+            response = hook.handle(
+                self.payload("gh issue comment 670 --body 'Ordinary body'")
+            )
+
+        specific = response["hookSpecificOutput"]
+        self.assertEqual(specific["permissionDecision"], "deny")
+        self.assertIn("analysis failed (RuntimeError)", specific["additionalContext"])
+        self.assertNotIn("Unreadable body", specific["additionalContext"])
 
     def test_the_hook_marker_is_dated_and_contains_no_tracker_text(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

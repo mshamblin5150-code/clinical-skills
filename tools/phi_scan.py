@@ -106,6 +106,7 @@ from pathlib import Path
 from typing import NamedTuple, Sequence
 
 from console_codec import use_utf8
+import git_paths
 from name_index import coverage as index_coverage, looks_like_a_name
 from repo_root import scratch_root
 
@@ -502,7 +503,7 @@ def _redact(text: str) -> str:
 def _git(*args: str) -> str:
     return subprocess.run(
         ["git", *args], capture_output=True, text=True, encoding="utf-8",
-        errors="replace", cwd=REPO_ROOT,
+        errors="replace", cwd=REPO_ROOT, check=False,
     ).stdout
 
 
@@ -839,35 +840,57 @@ def scan_text(text: str, path: str, index: CorpusIndex) -> list[Finding]:
 
 
 def staged_paths() -> list[str]:
-    out = _git("diff", "--cached", "--name-only", "--diff-filter=ACMR")
-    return [p for p in out.splitlines() if p.strip()]
+    return list(git_paths.read_path_records(
+        REPO_ROOT, "diff", "--cached", "-z", "--name-only", "--diff-filter=ACMR"
+    ))
+
+
+def _numstat_paths() -> list[str]:
+    records = iter(git_paths.read_path_records(
+        REPO_ROOT, "diff", "--cached", "-z", "--numstat", "--diff-filter=ACMR"
+    ))
+    paths: list[str] = []
+    for record in records:
+        _added, separator, remainder = record.partition("\t")
+        _deleted, separator2, path = remainder.partition("\t") if separator else ("", "", "")
+        if not separator2:
+            continue
+        if path:
+            paths.append(path)
+        else:
+            next(records, None)  # old name in a rename/copy record
+            new_name = next(records, None)
+            if new_name is not None:
+                paths.append(new_name)
+    return paths
 
 
 def staged_additions() -> dict[str, list[tuple[int, str]]]:
     """Added lines per file, with their line numbers in the new file."""
-    return parse_diff(_git("diff", "--cached", "--unified=0", "--diff-filter=ACMR"))
+    return {
+        path: parse_diff(_git(
+            "diff", "--cached", "--unified=0", "--diff-filter=ACMR", "--", path
+        ))
+        for path in _numstat_paths()
+    }
 
 
-def parse_diff(diff: str) -> dict[str, list[tuple[int, str]]]:
-    """Added lines per file, keyed by path.
+def parse_diff(diff: str) -> list[tuple[int, str]]:
+    """Added lines from one already-known path; patch headers are ignored.
 
     A binary file contributes nothing: git prints ``Binary files ... differ``
     with no ``+++ b/`` header and no ``+`` lines, so the path never enters this
     map. That is what keeps ``scan_staged`` from pulling the 13 MB code set
     through ``git show`` on every commit, and ``test_phi_scan`` pins it down.
     """
-    additions: dict[str, list[tuple[int, str]]] = {}
-    path = ""
+    additions: list[tuple[int, str]] = []
     number = 0
     for line in diff.splitlines():
-        if line.startswith("+++ b/"):
-            path = line[6:]
-            additions.setdefault(path, [])
-        elif line.startswith("@@"):
+        if line.startswith("@@"):
             header = re.search(r"\+(\d+)", line)
             number = int(header.group(1)) if header else 0
-        elif line.startswith("+") and not line.startswith("+++") and path:
-            additions[path].append((number, line[1:]))
+        elif line.startswith("+") and number:
+            additions.append((number, line[1:]))
             number += 1
     return additions
 
@@ -939,8 +962,13 @@ def read_text_if_text(path: Path) -> str | None:
     return data.decode("utf-8", errors="replace")
 
 
+def tracked_paths() -> tuple[str, ...]:
+    """Every tracked path; an untracked file is absent until it is staged."""
+    return git_paths.read_path_records(REPO_ROOT, "ls-files", "-z")
+
+
 # spelling-scan: mentions 1
-def scan_all(index: CorpusIndex) -> list[Finding]:
+def scan_all(index: CorpusIndex, paths: Sequence[str] | None = None) -> list[Finding]:
     """Every **tracked** file, which is the whole of what a clean result covers.
 
     [#254](https://github.com/mshamblin5150-code/clinical-skills/issues/254).
@@ -971,7 +999,7 @@ def scan_all(index: CorpusIndex) -> list[Finding]:
     ruling -- naming the two that print is a derivation and a numeral is not.
     """
     findings: list[Finding] = []
-    for path in _git("ls-files").splitlines():
+    for path in tracked_paths() if paths is None else paths:
         full = REPO_ROOT / path
         if not full.is_file():
             continue
@@ -1110,13 +1138,15 @@ def scanned_population(all_mode: bool) -> str:
     """
     if all_mode:
         return ("tracked files -- git ls-files; an untracked file is not scanned "
-                "until the commit that tracks it")
+                "until the commit that tracks it; a tracked file absent from the "
+                "working tree is not scanned and its committed content is not read; "
+                "CI's clean checkout is the second net")
     return "staged changes -- an unstaged or untracked file is not scanned"
 
 
 def layer_report(
     names: set[str], dates: set[str], all_mode: bool, missing: Sequence[str] = (),
-    coverage=None,
+    coverage=None, not_on_disk: int = 0,
 ) -> list[str]:
     """What was scanned, and which layers ran over it. #86 decision 2, #258.
 
@@ -1207,6 +1237,7 @@ def layer_report(
     lines = [
         f"phi-scan coverage ({'--all' if all_mode else 'staged'}):",
         f"  scanned        {scanned_population(all_mode)}",
+        f"  not on disk    {not_on_disk}",
         f"  path layer     {path}",
         f"  corpus layer   {corpus}",
         "  shape layer    ACTIVE   -- dob, SSN, phone, MRN, US-style short date",
@@ -1328,8 +1359,27 @@ def main(argv: list[str]) -> int:
     # carries the shortfall, so the branch above needs nothing added.
     coverage = corpus_coverage()
     dead_corpus = bool(missing)
+    index = build_index(names, dates)
+    try:
+        if all_mode:
+            paths = tracked_paths()
+            not_on_disk = sum(not (REPO_ROOT / path).is_file() for path in paths)
+            findings = scan_all(index, paths)
+        else:
+            not_on_disk = 0
+            findings = scan_staged(index)
+    except (git_paths.GitPathError, subprocess.CalledProcessError) as exc:
+        print(
+            "phi-scan coverage: NOT GRADED -- git path population was not read: "
+            f"{exc}",
+            file=sys.stderr,
+        )
+        return NOT_SCANNED
+
     if dead_corpus or all_mode:
-        for line in layer_report(names, dates, all_mode, missing, coverage):
+        for line in layer_report(
+            names, dates, all_mode, missing, coverage, not_on_disk=not_on_disk
+        ):
             print(line, file=sys.stderr)
         print(tracker_publish_notice(), file=sys.stderr)
     else:
@@ -1337,9 +1387,6 @@ def main(argv: list[str]) -> int:
         for line in shortfall_notice(coverage, missing):
             print(line, file=sys.stderr)
         print(tracker_publish_notice(), file=sys.stderr)
-
-    index = build_index(names, dates)
-    findings = scan_all(index) if all_mode else scan_staged(index)
 
     if not findings:
         if not dead_corpus or allows_no_corpus(argv):

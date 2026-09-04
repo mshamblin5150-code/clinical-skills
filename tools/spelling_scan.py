@@ -93,6 +93,7 @@ from pathlib import Path
 from typing import Callable, Iterable, NamedTuple
 
 from console_codec import use_utf8
+import git_paths
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -656,7 +657,7 @@ def tracked_files() -> list[str]:
     An untracked file is invisible until the commit that tracks it, so a clean
     result over this walk says nothing about a file still outside the index.
     """
-    return [p for p in _git("ls-files").splitlines() if p.strip()]
+    return list(git_paths.read_path_records(REPO_ROOT, "ls-files", "-z"))
 
 
 def tracked_markdown() -> list[str]:
@@ -738,12 +739,9 @@ def staged_additions() -> dict[str, list[tuple[int, str]]]:
 
 def staged_paths() -> list[str]:
     """Every added, copied, modified, or renamed staged path."""
-    return [
-        path for path in _git(
-            "diff", "--cached", "--name-only", "--diff-filter=ACMR",
-        ).splitlines()
-        if path.strip()
-    ]
+    return list(git_paths.read_path_records(
+        REPO_ROOT, "diff", "--cached", "-z", "--name-only", "--diff-filter=ACMR"
+    ))
 
 
 def read_staged(path: str) -> str | None:
@@ -1011,7 +1009,7 @@ if __name__ == "__main__":
     use_utf8()
     try:
         status = main()
-    except MentionDeclarationError as exc:
+    except (MentionDeclarationError, git_paths.GitPathError) as exc:
         print(f"spelling-scan: {exc}", file=sys.stderr)
         status = 2
     sys.exit(status)

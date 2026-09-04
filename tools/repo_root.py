@@ -22,6 +22,12 @@ right answer for almost everything in ``tools/`` -- a test reading a committed
 fixture, a tool writing into the tree it was run from -- and it is the wrong
 answer for the gitignored, account-owned ``scratch/`` and ``output/`` trees.
 
+The tracker gates deliberately use that module root for the default-tree read,
+the main-ancestry check, the default-branch fetch, and the GraphQL readback.
+Refs live in the common Git directory, and the network call's working directory
+is inert; an exported tree has no owning checkout to discover. These are
+declared module-root uses, not account-owned-state lookups waiting to migrate.
+
 ``scratch/`` is gitignored, so ``git worktree`` does not bring it. It exists in
 the main clone and nowhere else. A tool that resolves it from its own location
 therefore looks for the corpus inside a worktree that has never had one, finds

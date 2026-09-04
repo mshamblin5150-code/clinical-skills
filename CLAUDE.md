@@ -148,7 +148,7 @@ if __name__ == "__main__":
 
 **What tripped it is the part worth keeping.** A paragraph in this file documenting `docx_read.py`'s homoglyph map -- which has to contain the homoglyphs in order to describe them -- was staged, and `spelling_scan`'s pre-commit run died inside `staged_additions` with `'NoneType' object has no attribute 'splitlines'`, on a `_git` that had already raised `UnicodeDecodeError` in a reader thread. **The commit went through**, because `spelling_scan` is advisory and the hook ORs its status away: **an advisory check that crashed is indistinguishable from one that passed.** Describing the rule broke the tool that checks the rule, which is `differential_scan`'s [#153](https://github.com/mshamblin5150-code/clinical-skills/issues/153) arriving on a different module.
 
-**It cost a real finding, which is the argument for the test rather than for the fix.** With the scan dead, `licence` landed in `skills/practicum-case-study/SKILL.md` -- a form already on standing rule 4's table, and the same one [#73](https://github.com/mshamblin5150-code/clinical-skills/issues/73) recorded as its thirteenth instance. **Neither net caught it**: the staged scan crashed, and `--all` walks `git ls-files`, so it cannot see a file until the commit that makes it tracked. `TheOtherEndOfTheSameBoundary` in `tools/test_console_codec.py` now walks every `subprocess` call in `tools/` by AST and asserts each one that decodes names both its encoding and its `errors`, so a fourth site cannot arrive quietly.
+**It cost a real finding, which is the argument for the test rather than for the fix.** With the scan dead, `licence` landed in `skills/practicum-case-study/SKILL.md` -- a form already on standing rule 4's table, and the same one [#73](https://github.com/mshamblin5150-code/clinical-skills/issues/73) recorded as its thirteenth instance. **Neither net caught it**: the staged scan crashed, and `--all` walks `git ls-files`, so it cannot see a file until the commit that makes it tracked. `TheOtherEndOfTheSameBoundary` in `tools/test_console_codec.py` walks literal `subprocess` call shapes in `tools/` by AST and asserts each recognized decoder names both its encoding and its `errors`. **For the whole time this paragraph credited that walk with holding the boundary, its predicate was blind to an `encoding=`-only call**; ADR 0123 widened the predicate and the real `tracker_branch_scope` call went red before the shared bytes reader removed it. The walk states a floor: a decoder assembled at run time remains invisible, so no prose claims that another site cannot arrive quietly.
 
 **Two things it does not reach, and both follow from the placement rather than being oversights.** A tool that printed *before* `main` would print through the old codec — nothing here does, checked by AST, and an `argparse` error is written by `argparse` to a stream already reconfigured. And **a caller that imports `main()` rather than running the script gets no protection at all**, which is every command-line test in `tools/`; that is why they still redirect into a `StringIO` happily and why #150's end-to-end case had to be a subprocess.
 
@@ -1095,6 +1095,13 @@ citations required by `docs/agents/issue-tracker.md` without printing the
 record body. Exit 0 means the record is scoped or outside the gate, 1 means a
 branch-state or path-citation rule failed, and 2 means the event could not be
 graded.
+
+The tree is read through `git ls-tree -z` as bytes, split before
+`surrogateescape` decoding. A citation join tries both the authored raw path and
+its UTF-8 URL-decoded form, without normalizing the tree side; membership,
+tree-directory resolution, and near-miss detection share that rule. If the
+tree read fails, citation resolution reports `NOT GRADED` and publication
+continues unless another branch-scope rule independently refuses it.
 
 Its positive scope form — `this text rests on main at <commit>` in the exact
 documented block — is accepted only when that commit is an ancestor of
@@ -2116,6 +2123,23 @@ python tools/phi_scan.py --show
 ```
 
 Audit everything already committed with `python tools/phi_scan.py --all`.
+
+**Git paths are read as bytes through NUL-delimited output.** Before ADR 0123,
+a staged file such as `scratch/café.md` was C-quoted by Git: the leading quote
+defeated the path-layer prefix and the patch parser dropped the same file, so it
+reached no layer at all. `tools/git_paths.py` now splits bytes on NUL before
+decoding with `surrogateescape`, and staged added lines are read from a per-path
+patch whose header is ignored. A failed path-population read is `NOT SCANNED`,
+never a clean empty population.
+
+**The `--all` skip is counted rather than graded.** Its report carries a
+`not on disk` row beside the population row. A tracked file absent from the
+working tree is not scanned and its committed content is not read; CI's clean
+checkout is the second net. Binary files remain the separately declared skip.
+If a path contains an undecodable byte, a finding remains true and its line
+number remains usable, while console replacement may make the printed path
+imprecise; preserving the exit status is the guarantee, not preserving the
+glyph.
 
 #### Corpus resolution
 

@@ -33,6 +33,7 @@ from types import MappingProxyType
 from typing import Any, Iterable, Mapping
 
 from console_codec import use_utf8
+import git_paths
 import repo_root
 import run_grader
 
@@ -375,16 +376,9 @@ def _hash(path: Path) -> str | None:
 def _tracked_files() -> tuple[Path, ...]:
     """Tracked files used for landing evidence; untracked files are not visible."""
     root = Path(__file__).resolve().parent.parent
-    completed = subprocess.run(
-        ["git", "ls-files", "-z"],
-        cwd=root,
-        capture_output=True,
-        check=True,
-    )
     return tuple(
-        root / raw.decode("utf-8", errors="surrogateescape")
-        for raw in completed.stdout.split(b"\0")
-        if raw
+        root / path
+        for path in git_paths.read_path_records(root, "ls-files", "-z")
     )
 
 
@@ -584,16 +578,12 @@ def _target_changed(target: str, baseline: Mapping[str, str | None]) -> bool:
 
 def _tracked_diff_names() -> set[Path]:
     root = Path(__file__).resolve().parent.parent
-    completed = subprocess.run(
-        ["git", "diff", "--name-only", "--", "."],
-        cwd=root,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        check=True,
-    )
-    return {(root / line.strip()).resolve() for line in completed.stdout.splitlines() if line.strip()}
+    return {
+        (root / path).resolve()
+        for path in git_paths.read_path_records(
+            root, "diff", "-z", "--name-only", "--", "."
+        )
+    }
 
 
 def _successful_gh_call(transcripts: Iterable[Path]) -> bool:
@@ -910,7 +900,7 @@ def grade(run: Path, parsed: run_grader.Parsed) -> run_grader.Grade[Scan] | run_
             destination, count = write_extract(
                 run, transcript, submission, Path(memory_value).expanduser().resolve()
             )
-        except (OSError, ValueError, subprocess.SubprocessError) as exc:
+        except (OSError, ValueError, subprocess.SubprocessError, git_paths.GitPathError) as exc:
             return run_grader.EarlyExit(
                 2,
                 stderr=(f"after-action review NOT SCANNED: {exc}",),
