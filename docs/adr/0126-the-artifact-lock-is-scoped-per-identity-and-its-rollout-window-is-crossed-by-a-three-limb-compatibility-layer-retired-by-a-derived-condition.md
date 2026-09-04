@@ -132,7 +132,7 @@ of proportion to disk space.
 **The generator is killed.** An overridable lock root, in the idiom of `CLINICAL_GUIDELINES_INDEX`
 and `CLINICAL_GUIDELINES_BUILDS`, pointed by the suite at a per-run temp directory. Suite-driven
 growth goes to zero and the shared root then holds only real artifacts, on the order of ten. It
-changes no production behaviour, and the cross-process race test at
+changes no production behavior, and the cross-process race test at
 `tools/test_guidelines_extract.py:1820` survives because an environment variable is inherited by the
 subprocess it spawns.
 
@@ -142,7 +142,7 @@ Two processes pointed at different roots do not see each other, which is the fai
 prevent.
 
 **It is undetectable at run time by construction.** The only evidence would be a contention that
-never occurred. A runtime signal would therefore be theatre, and the `--allow-untrusted-provenance`
+never occurred. A runtime signal would therefore be theater, and the `--allow-untrusted-provenance`
 precedent argues against it from the other side too: the suite sets the override on every run, so the
 line would print on every clean run and become the warning this repository has ruled stops being
 read.
