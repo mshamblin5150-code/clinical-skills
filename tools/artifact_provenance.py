@@ -450,7 +450,7 @@ def check_producer(
         ):
             reasons.append(
                 "was produced by a different commit "
-                f"({commit}; current is {expected_commit})"
+                f"({commit}; checkout is {expected_commit})"
             )
         if (
             unchanged_paths

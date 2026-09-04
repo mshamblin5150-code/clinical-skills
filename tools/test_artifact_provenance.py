@@ -215,7 +215,7 @@ class TextProducerIdentity(unittest.TestCase):
 class AcceptedDistrustDeclarations(unittest.TestCase):
     def test_reasons_round_trip_without_splitting_a_semicolon(self):
         reasons = (
-            "was produced by a different commit (abc; current is def)",
+            "was produced by a different commit (abc; checkout is def)",
             "was produced by a dirty checkout",
         )
         rendered = artifact_provenance.render_accepted_distrust(
