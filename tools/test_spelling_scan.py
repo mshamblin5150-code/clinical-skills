@@ -637,9 +637,13 @@ class TheWalkedPopulation(unittest.TestCase):
                 line = self.population(scan.render(self.clean(), False, mode))
                 self.assertTrue(line.strip())
 
-    # spelling-scan: mentions 1
+    # spelling-scan: mentions 2
     def test_the_all_walk_includes_non_source_filenames(self):
-        with mock.patch.object(scan, "_git", return_value="docs/clean.md\ngrey-data.csv\n"):
+        with mock.patch.object(
+            scan.git_paths,
+            "read_path_records",
+            return_value=("docs/clean.md", "grey-data.csv"),
+        ):
             self.assertEqual(scan.tracked_files(), ["docs/clean.md", "grey-data.csv"])
 
     def test_the_all_mode_line_names_tracked_and_what_that_excludes(self):

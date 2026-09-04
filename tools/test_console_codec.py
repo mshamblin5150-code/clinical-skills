@@ -272,6 +272,7 @@ class TheOtherEndOfTheSameBoundary(unittest.TestCase):
                 decodes = (
                     "text" in keywords
                     or "universal_newlines" in keywords
+                    or "encoding" in keywords
                     or name == "check_output"
                 )
                 if decodes:

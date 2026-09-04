@@ -143,6 +143,7 @@ from pathlib import Path
 from typing import Iterable, NamedTuple, Sequence, TypeVar
 
 import phi_scan
+import git_paths
 from console_codec import use_utf8
 from phi_scan import CorpusIndex, Finding
 
@@ -545,12 +546,15 @@ def reachable_objects(repo: Path) -> dict[str, str]:
     kept here as a label rather than trusted as *the* path.
     """
     labeled = {}
-    for line in _git(repo, "rev-list", "--all", "--objects").splitlines():
-        parts = line.split(" ", 1)
-        if len(parts) == 2 and parts[1].strip():
-            labeled[parts[0]] = parts[1].strip()
-        elif parts[0].strip():
-            labeled.setdefault(parts[0].strip(), "")
+    try:
+        records = git_paths.read_rev_list_objects(repo, "--all")
+    except git_paths.GitPathError as exc:
+        raise GitError(str(exc)) from exc
+    for object_id, path in records:
+        if path:
+            labeled[object_id] = path
+        elif object_id:
+            labeled.setdefault(object_id, "")
     return labeled
 
 

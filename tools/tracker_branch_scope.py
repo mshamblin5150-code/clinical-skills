@@ -20,8 +20,10 @@ import subprocess
 import sys
 from pathlib import Path, PurePosixPath
 from typing import Any, NamedTuple
+from urllib.parse import unquote
 
 from console_codec import use_utf8
+import git_paths
 from tracker_bodies import CODE_SPAN, FENCED_CODE
 from tracker_merge_receipt import parse_merge_receipt
 
@@ -105,6 +107,21 @@ NOT_REACHED = (
         "All three accepted qualifiers are record-level and anchored at the first line, so one "
         "record cannot independently date two different branch relationships.",
     ),
+    (
+        "the default-branch tree read can fail",
+        "A failed Git tree read leaves citation resolution not graded; the report names "
+        "the missing measurement while unrelated branch-scope rules still run.",
+    ),
+    (
+        "citation extraction truncates punctuation-bearing paths",
+        "The citation extractor stops at parentheses, quotes, apostrophes, and backticks, "
+        "so a correct citation to a tracked path containing one is reported unresolved.",
+    ),
+    (
+        "a raw literal-percent form can resolve the wrong URL",
+        "A raw citation form matching a tracked path containing a literal percent can pass "
+        "even when URL decoding points to a different repository path.",
+    ),
 )
 
 PULL_REQUEST_RECORD_KEY = {
@@ -146,15 +163,16 @@ def _repo_relative_markdown_paths(body: str) -> tuple[str, ...]:
     return tuple(match.group("path") for match in REPO_RELATIVE_MARKDOWN_PATH.finditer(prose))
 
 
-def _default_branch_paths() -> frozenset[str]:
-    completed = subprocess.run(
-        ["git", "ls-tree", "-r", "--name-only", "origin/main"],
-        check=True,
-        capture_output=True,
-        cwd=Path(__file__).resolve().parent.parent,
-        encoding="utf-8",
-    )
-    return frozenset(completed.stdout.splitlines())
+REPO_ROOT = Path(__file__).resolve().parent.parent
+
+
+def _default_branch_paths(repo: Path = REPO_ROOT) -> frozenset[str] | None:
+    try:
+        return frozenset(git_paths.read_path_records(
+            repo, "ls-tree", "-r", "-z", "--name-only", "origin/main"
+        ))
+    except git_paths.GitPathError:
+        return None
 
 
 def _main_ancestry(commit: str) -> bool | None:
@@ -185,9 +203,17 @@ def _unresolved_main_paths(
     return tuple(
         citation.path
         for citation in cited
-        if citation.path not in tracked
-        and not (citation.kind == "tree" and citation.path in directories)
+        if not any(form in tracked for form in _citation_forms(citation.path))
+        and not (
+            citation.kind == "tree"
+            and any(form in directories for form in _citation_forms(citation.path))
+        )
     )
+
+
+def _citation_forms(path: str) -> tuple[str, ...]:
+    decoded = unquote(path, encoding="utf-8", errors="surrogateescape")
+    return (path,) if decoded == path else (path, decoded)
 
 
 def cites_an_unresolved_path(body: str) -> bool:
@@ -195,16 +221,21 @@ def cites_an_unresolved_path(body: str) -> bool:
     if not cited:
         return False
     tracked = _default_branch_paths()
+    if tracked is None:
+        return False
     return bool(_unresolved_main_paths(cited, tracked))
 
 
 def _has_near_miss(path: str, tracked: frozenset[str]) -> bool:
-    candidate = Path(path)
-    stem_head, separator, _ = candidate.name.partition("-")
-    if not separator:
-        return False
-    prefix = f"{candidate.parent.as_posix()}/{stem_head}-"
-    return any(entry.startswith(prefix) for entry in tracked)
+    for form in _citation_forms(path):
+        candidate = Path(form)
+        stem_head, separator, _ = candidate.name.partition("-")
+        if not separator:
+            continue
+        prefix = f"{candidate.parent.as_posix()}/{stem_head}-"
+        if any(entry.startswith(prefix) for entry in tracked):
+            return True
+    return False
 
 
 def grade(document: Any, event_name: str, *, remote_fresh: bool = True) -> Result:
@@ -238,26 +269,38 @@ def grade(document: Any, event_name: str, *, remote_fresh: bool = True) -> Resul
         body = ""
 
     cited = _cited_main_paths(body)
-    tracked = _default_branch_paths() if cited else frozenset()
+    tracked_read = _default_branch_paths() if cited else frozenset()
+    tree_not_graded = tracked_read is None
+    tracked = frozenset() if tree_not_graded else tracked_read
     unresolved_paths = _unresolved_main_paths(cited, tracked)
+    if tree_not_graded:
+        unresolved_paths = ()
     unresolved_path = bool(unresolved_paths)
     relative_paths = _repo_relative_markdown_paths(body)
 
+    def graded(status: int, report: str) -> Result:
+        if tree_not_graded:
+            report += (
+                "; citation path resolution NOT GRADED -- the default-branch "
+                "tree was not read"
+            )
+        return Result(status, report)
+
     if relative_paths:
-        return Result(
+        return graded(
             1,
             f"tracker-branch-scope: {url}: repo-relative Markdown link does not "
             "resolve from tracker text; use an absolute blob/main URL",
         )
     if any(_has_near_miss(path, tracked) for path in unresolved_paths):
-        return Result(
+        return graded(
             1,
             f"tracker-branch-scope: {url}: unresolved path has a same-directory "
             "near miss; fix the slug rather than adding a qualifier",
         )
 
     if pull_request_discussion and not unresolved_path:
-        return Result(0, "tracker-branch-scope: pull request discussion is outside scope")
+        return graded(0, "tracker-branch-scope: pull request discussion is outside scope")
 
     labels = container.get("labels", [])
     if not isinstance(labels, list) or any(not isinstance(row, dict) for row in labels):
@@ -273,7 +316,7 @@ def grade(document: Any, event_name: str, *, remote_fresh: bool = True) -> Resul
         and DECLARES_COMPLETION.match(body) is not None
     )
     if not in_flight and not self_declares_completion and not unresolved_path:
-        return Result(0, "tracker-branch-scope: record has no branch-state trigger")
+        return graded(0, "tracker-branch-scope: record has no branch-state trigger")
     receipt = parse_merge_receipt(body)
     receipt_matches_issue = (
         receipt is not None and receipt.ticket == container.get("number")
@@ -291,19 +334,19 @@ def grade(document: Any, event_name: str, *, remote_fresh: bool = True) -> Resul
     if main_scope is not None:
         ancestry = _main_ancestry(main_scope.group("commit"))
         if ancestry is not True and not remote_fresh:
-            return Result(
+            return graded(
                 0,
                 f"tracker-branch-scope: {url}: explicit main branch state present; "
                 "ancestry could not be verified",
             )
         if ancestry is False:
-            return Result(
+            return graded(
                 1,
                 f"tracker-branch-scope: {url}: claimed main commit is not an "
                 "ancestor of origin/main",
             )
         if ancestry is None:
-            return Result(
+            return graded(
                 1,
                 f"tracker-branch-scope: {url}: positive Branch state refused; "
                 "ancestry could not be verified",
@@ -314,13 +357,13 @@ def grade(document: Any, event_name: str, *, remote_fresh: bool = True) -> Resul
         or cited_record_scope_matches
     )
     if explicit_scope or (not unresolved_path and receipt_matches_issue):
-        return Result(0, f"tracker-branch-scope: {url}: explicit branch state present")
+        return graded(0, f"tracker-branch-scope: {url}: explicit branch state present")
 
     if (
         BRANCH_SCOPE_WITHOUT_BLOCKQUOTE.match(body) is not None
         or MAIN_SCOPE_WITHOUT_BLOCKQUOTE.match(body) is not None
     ):
-        return Result(
+        return graded(
             1,
             f"tracker-branch-scope: {url}: Branch state blockquote marker is missing",
         )
@@ -332,12 +375,12 @@ def grade(document: Any, event_name: str, *, remote_fresh: bool = True) -> Resul
     else:
         reason = "the issue is labeled 'in flight'"
     if body:
-        return Result(
+        return graded(
             1,
             f"tracker-branch-scope: {url}: missing Branch state at the start of "
             f"text because {reason}",
         )
-    return Result(1, f"tracker-branch-scope: {url}: missing body while {reason}")
+    return graded(1, f"tracker-branch-scope: {url}: missing body while {reason}")
 
 
 def _read(path: str) -> Any:

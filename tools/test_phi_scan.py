@@ -10,12 +10,14 @@ subject to the corpus layer regardless.
 import io
 import json
 import re
+import subprocess
 import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from datetime import date as CalendarDate, timedelta
 from pathlib import Path
 from random import Random
+from unittest import mock
 
 import name_index as ni
 import phi_scan as ps
@@ -734,7 +736,7 @@ class StagedDiffParsing(unittest.TestCase):
             "index 0000000..1234567\n"
             "Binary files /dev/null and b/reference/icd10cm-2026.sqlite differ\n"
         )
-        self.assertEqual(ps.parse_diff(diff), {})
+        self.assertEqual(ps.parse_diff(diff), [])
 
     def test_a_text_diff_contributes_its_added_lines(self):
         diff = (
@@ -744,9 +746,7 @@ class StagedDiffParsing(unittest.TestCase):
             "@@ -0,0 +12 @@\n"
             "+seen by Jordan Vance today\n"
         )
-        self.assertEqual(
-            ps.parse_diff(diff), {"notes.md": [(12, "seen by Jordan Vance today")]}
-        )
+        self.assertEqual(ps.parse_diff(diff), [(12, "seen by Jordan Vance today")])
 
     def test_line_numbers_advance_within_a_hunk(self):
         diff = (
@@ -755,7 +755,46 @@ class StagedDiffParsing(unittest.TestCase):
             "+first\n"
             "+second\n"
         )
-        self.assertEqual(ps.parse_diff(diff), {"notes.md": [(5, "first"), (6, "second")]})
+        self.assertEqual(ps.parse_diff(diff), [(5, "first"), (6, "second")])
+
+    def test_added_content_that_begins_with_three_pluses_is_not_a_header(self):
+        diff = "+++ b/notes.md\n@@ -0,0 +1 @@\n++++patient marker\n"
+        self.assertEqual(ps.parse_diff(diff), [(1, "+++patient marker")])
+
+    def test_non_path_git_reads_may_return_a_nonzero_status(self):
+        completed = subprocess.CompletedProcess(
+            ["git", "config"], returncode=1, stdout="", stderr=""
+        )
+        with mock.patch.object(ps.subprocess, "run", return_value=completed) as run:
+            self.assertEqual(
+                ps._git("config", "--bool", "--get", ps.ALLOW_NO_CORPUS_CONFIG),
+                "",
+            )
+        self.assertFalse(run.call_args.kwargs["check"])
+
+    def test_real_staged_non_ascii_paths_reach_the_path_and_content_layers(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            repo = Path(temporary)
+            subprocess.run(["git", "init", "-q", str(repo)], check=True)
+            protected = repo / "scratch" / "caf\N{LATIN SMALL LETTER E WITH ACUTE}.md"
+            protected.parent.mkdir()
+            protected.write_text("ordinary text\n", encoding="utf-8")
+            source = repo / "caf\N{LATIN SMALL LETTER E WITH ACUTE}.md"
+            source.write_text("dob 01/02/2003\n", encoding="utf-8")
+            subprocess.run(
+                ["git", "add", "-f", "--", protected.relative_to(repo), source.relative_to(repo)],
+                cwd=repo, check=True,
+            )
+            original = ps.REPO_ROOT
+            try:
+                ps.REPO_ROOT = repo
+                findings = ps.scan_staged(ps.build_index(set(), set()))
+            finally:
+                ps.REPO_ROOT = original
+
+        by_path = {finding.path: finding.rule for finding in findings}
+        self.assertEqual(by_path["scratch/caf\N{LATIN SMALL LETTER E WITH ACUTE}.md"], "phi-directory")
+        self.assertIn("us-short-date", set(by_path.values()))
 
 
 class LayerReport(unittest.TestCase):
@@ -806,6 +845,12 @@ class LayerReport(unittest.TestCase):
         for scan_all in (True, False):
             with self.subTest(scan_all=scan_all):
                 self.assertIn("ACTIVE", self.shape_line(self.report(scan_all=scan_all)))
+
+    def test_all_mode_counts_tracked_paths_missing_from_disk(self):
+        report = "\n".join(
+            ps.layer_report(set(), set(), True, not_on_disk=2)
+        )
+        self.assertIn("not on disk    2", report)
 
     def test_a_live_corpus_reports_counts_and_never_an_identifier(self):
         """`corpus_census.py`'s rule, and the reason this output is safe to paste
@@ -1213,7 +1258,7 @@ class AnAllRunStatesItsCoverage(unittest.TestCase):
         }
         self.addCleanup(self.restore)
         ps.scan_staged = lambda index: []
-        ps.scan_all = lambda index: []
+        ps.scan_all = lambda index, paths=None: []
         ps.missing_corpus_sources = lambda: []
         ps.corpus_identifiers = lambda: (set(NAMES), set(DATES))
         # **The fifth stub, added when #141 merged.** Without it the one-line
@@ -1362,7 +1407,7 @@ class DidNotScan(unittest.TestCase):
         # Nothing staged and nothing tracked, so a run's status is about the
         # corpus and never about a finding -- except where a test says otherwise.
         ps.scan_staged = lambda index: []
-        ps.scan_all = lambda index: []
+        ps.scan_all = lambda index, paths=None: []
         self.set_config("")
 
     def restore(self):
@@ -1428,6 +1473,20 @@ class DidNotScan(unittest.TestCase):
         this -- it already ORs any non-zero into its own status."""
         status, _, _ = self.run_main()
         self.assertEqual(status, ps.NOT_SCANNED)
+
+    def test_a_failed_git_path_population_is_not_a_clean_empty_scan(self):
+        original = ps.tracked_paths
+        ps.tracked_paths = lambda: (_ for _ in ()).throw(
+            ps.git_paths.GitPathError("ls-files failed")
+        )
+        try:
+            status, _, err = self.run_main(["--all"], live=True)
+        finally:
+            ps.tracked_paths = original
+
+        self.assertEqual(status, ps.NOT_SCANNED)
+        self.assertIn("NOT GRADED", err)
+        self.assertIn("ls-files failed", err)
 
     def test_two_is_not_one(self):
         """A finding and a dead corpus are different claims about a tree, and a

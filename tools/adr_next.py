@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from console_codec import use_utf8
+import git_paths
 
 
 ADR_PREFIX = re.compile(r"^(?P<number>\d{4})")
@@ -151,18 +152,14 @@ def write_claim(checkout: Path, number: int, title: str) -> Path:
 
 
 def staged_adr_claims(checkout: Path) -> tuple[AdrClaim, ...]:
-    finished = run_git(
-        checkout,
-        "diff",
-        "--cached",
-        "--name-only",
-        "-M",
-        "--diff-filter=ACMR",
-    )
-    if finished.returncode != 0:
-        raise OSError(finished.stderr.strip() or "could not read staged paths")
+    try:
+        paths = git_paths.read_path_records(
+            checkout, "diff", "--cached", "-z", "--name-only", "-M", "--diff-filter=ACMR"
+        )
+    except git_paths.GitPathError as exc:
+        raise OSError(str(exc)) from exc
     claims = []
-    for raw_path in finished.stdout.splitlines():
+    for raw_path in paths:
         normalized = raw_path.replace("\\", "/")
         if not normalized.startswith("docs/adr/"):
             continue

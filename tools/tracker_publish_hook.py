@@ -765,6 +765,8 @@ def analyze(
         findings.append(Finding(rule, 1, publication.field, posture))
 
     lines = [context]
+    if "citation path resolution NOT GRADED" in branch.report:
+        lines.append(branch.report)
     if not remote_fresh:
         lines.append(
             "origin/main fetch failed: unresolved-path and near-miss rules are advisory"
@@ -1055,9 +1057,9 @@ def handle(payload: dict) -> dict:
         return _hook_response("deny" if denied else None, "\n".join(lines))
     except Exception as exc:
         return _hook_response(
-            None,
+            "deny",
             "tracker pre-publish HOOK FAILURE: "
-            f"Unreadable body ({type(exc).__name__})",
+            f"analysis failed ({type(exc).__name__})",
         )
 
 

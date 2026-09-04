@@ -311,15 +311,45 @@ class UnresolvedPathCitationsCarryDatedMainState(unittest.TestCase):
         self.assertFalse(scope.cites_an_unresolved_path(adr))
 
     def test_default_branch_paths_are_read_from_remote_main_not_feature_head(self):
-        completed = mock.Mock(stdout="tools/tracker_branch_scope.py\n")
-        with mock.patch("subprocess.run", return_value=completed) as run:
+        with mock.patch(
+            "git_paths.read_path_records",
+            return_value=("tools/tracker_branch_scope.py",),
+        ) as read:
             paths = scope._default_branch_paths()
 
         self.assertIn("tools/tracker_branch_scope.py", paths)
-        self.assertEqual(
-            ["git", "ls-tree", "-r", "--name-only", "origin/main"],
-            run.call_args.args[0],
+        read.assert_called_once_with(
+            scope.REPO_ROOT, "ls-tree", "-r", "-z", "--name-only", "origin/main"
         )
+
+    def test_a_failed_tree_read_degrades_the_citation_row(self):
+        with mock.patch(
+            "git_paths.read_path_records",
+            side_effect=scope.git_paths.GitPathError("tree unavailable"),
+        ):
+            result = scope.grade_text(main_url("docs/adr/9999-not-on-main.md"))
+
+        self.assertEqual(result.status, 0)
+        self.assertIn("NOT GRADED", result.report)
+        self.assertIn("default-branch tree", result.report)
+
+    def test_raw_and_url_decoded_citation_forms_are_accepted(self):
+        tracked = frozenset({"docs/a b.md", "docs/caf\N{LATIN SMALL LETTER E WITH ACUTE}.md"})
+        cited = (
+            scope.CitedPath("blob", "docs/a%20b.md"),
+            scope.CitedPath("blob", "docs/caf%C3%A9.md"),
+        )
+        self.assertEqual(scope._unresolved_main_paths(cited, tracked), ())
+
+    def test_tree_directories_and_near_misses_use_the_same_forms(self):
+        tracked = frozenset({"docs/a b/file.md", "docs/adr/0123-current.md"})
+        self.assertEqual(
+            scope._unresolved_main_paths(
+                (scope.CitedPath("tree", "docs/a%20b"),), tracked
+            ),
+            (),
+        )
+        self.assertTrue(scope._has_near_miss("docs/adr/0123-old%20name.md", tracked))
 
     def test_positive_scope_ancestry_is_checked_against_remote_main(self):
         completed = mock.Mock(returncode=0)
@@ -574,6 +604,9 @@ class DeclaredLimitsHaveOneOwner(unittest.TestCase):
                 "citation coordinates need file contents",
                 "an undated assertion about a resolved path",
                 "the qualifier forms cannot compose",
+                "the default-branch tree read can fail",
+                "citation extraction truncates punctuation-bearing paths",
+                "a raw literal-percent form can resolve the wrong URL",
             },
         )
 
