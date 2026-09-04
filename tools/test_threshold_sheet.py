@@ -1454,7 +1454,9 @@ class ExtractionIdentityGate(unittest.TestCase):
             root = Path(directory)
             expected = self.write_manifest(root)
 
-            identity, problems = gate.extraction_identity_from_manifest(root)
+            identity, problems = gate.extraction_identity_from_handoff(
+                gate.guidelines_manifest.read(root)
+            )
 
         self.assertEqual(problems, [])
         self.assertEqual(identity, expected)
@@ -1532,6 +1534,35 @@ class ExtractionIdentityGate(unittest.TestCase):
             result for result in scan.results if result.gate == "EXTRACTION IDENTITY"
         )
         self.assertEqual(len(identity.warnings), 1)
+
+    def test_each_survey_reads_the_manifest_once_without_caching_between_passes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.write_manifest(root)
+            path = root / "sheet.md"
+            path.write_text(
+                HEADER
+                + "\n## Thresholds\n\n"
+                + "| quantity | population | value | snippet | source | page | rec | class |\n"
+                + "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
+                + row(),
+                encoding="utf-8",
+            )
+            reader = mock.Mock(wraps=gate.guidelines_manifest.read)
+
+            with mock.patch.object(
+                gate.guidelines_manifest, "read", reader
+            ), mock.patch.object(gate, "read_extraction", reader):
+                for _ in range(2):
+                    gate.survey(
+                        path,
+                        [],
+                        None,
+                        text_root=root,
+                        page_counts={"Society/doc": 60},
+                    )
+
+        self.assertEqual(reader.call_count, 2)
 
     def test_all_quiet_counts_and_names_the_affected_sheets(self):
         with tempfile.TemporaryDirectory() as directory:

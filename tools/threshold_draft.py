@@ -24,6 +24,7 @@ from pathlib import Path
 
 import guidelines_catalog
 import guidelines_extract
+import guidelines_manifest
 import threshold_coverage
 from console_codec import use_utf8
 from guidelines_recs import (
@@ -56,7 +57,7 @@ from threshold_sheet import (
     SOURCES_HEADING,
     THRESHOLDS_HEADING,
     _normalize,
-    extraction_identity_from_manifest,
+    extraction_identity_from_handoff,
     parse,
     render_extraction_identity,
     source_locator,
@@ -609,7 +610,10 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     rows, scoped_out, row_rejections = select_rows(sources, seeded_sheet)
     rejected = source_rejections + source_errors + row_rejections
-    extraction_identity, identity_problems = extraction_identity_from_manifest(args.text_root)
+    extraction_handoff = guidelines_manifest.read(args.text_root)
+    extraction_identity, identity_problems = extraction_identity_from_handoff(
+        extraction_handoff
+    )
     if extraction_identity is None:
         for problem in identity_problems:
             print(problem, file=sys.stderr)
