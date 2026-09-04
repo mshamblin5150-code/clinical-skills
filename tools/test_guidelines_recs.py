@@ -901,6 +901,19 @@ class DeclaredLimitsAndCensus(ProseBind, unittest.TestCase):
             }.issubset(keys)
         )
 
+    def test_the_curated_table_read_once_limit_is_behavioral(self):
+        row = next(
+            row
+            for row in recs.DECLARED_LIMITS
+            if row.key == "curated-table-read-once"
+        )
+        self.assertEqual(
+            row.limit,
+            "A run does not establish that its curated rows match the committed "
+            "curated table as it stands when the recommendation record is written.",
+        )
+        self.assertEqual(row.evidence, recs.EvidenceDisposition.BEHAVIOR)
+
     def test_prose_points_at_the_registry_without_copying_any_row(self):
         claude = (recs.REPO_ROOT / "CLAUDE.md").read_text(encoding="utf-8")
         surfaces = {
@@ -1305,7 +1318,7 @@ class TheCommittedTableIsWhatTheCommandReads(unittest.TestCase):
     """
 
     def test_it_reads_the_committed_table_and_finds_rows_for_a_file_named_in_it(self):
-        recs._CURATED_CACHE = None
+        recs.reset_curated_cache()
         parsed = recs.parse_curated_table(recs.CURATED_TABLE.read_text(encoding="utf-8"))
         filename = sorted(parsed)[0]
         self.assertEqual(recs.curated_rows_for(filename), parsed[filename])
@@ -1321,10 +1334,60 @@ class TheCommittedTableIsWhatTheCommandReads(unittest.TestCase):
         silent: the document falls through to the markers and comes back `bound`
         where it should have come back `exact`.
         """
-        recs._CURATED_CACHE = None
+        recs.reset_curated_cache()
         parsed = recs.parse_curated_table(recs.CURATED_TABLE.read_text(encoding="utf-8"))
         filename = sorted(parsed)[0]
         self.assertEqual(recs.curated_rows_for(filename.upper()), parsed[filename])
+
+    def test_a_later_record_stamp_does_not_establish_which_table_bytes_supplied_the_rows(self):
+        first_table = CURATED
+        second_table = CURATED.replace(
+            "The USPSTF recommends counseling young adults with fair skin.",
+            "The USPSTF recommends using sunscreen in young adults.",
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            table_path = root / "reference" / "guidelines-uspstf.md"
+            module_path = root / "tools" / "guidelines_recs.py"
+            pdf = root / "skin.pdf"
+            table_path.parent.mkdir()
+            module_path.parent.mkdir()
+            table_path.write_text(first_table, encoding="utf-8")
+            module_path.write_text("# identity fixture\n", encoding="utf-8")
+            pdf.write_bytes(b"source bytes")
+
+            original_identity = recs.artifact_provenance.producer_file_identity
+            with (
+                mock.patch.object(recs, "CURATED_TABLE", table_path),
+                mock.patch.object(
+                    recs.artifact_provenance,
+                    "producer_file_identity",
+                    side_effect=lambda paths: original_identity(paths, repo_root=root),
+                ),
+            ):
+                recs.reset_curated_cache()
+                cached_rows = recs.curated_rows_for("skin.pdf")
+                table_path.write_text(second_table, encoding="utf-8")
+                payload, _ = recs._record_payload(
+                    pdf,
+                    "USPSTF/skin",
+                    recs.curated_records(cached_rows, "USPSTF/skin"),
+                    recs.MODE_EXACT,
+                    recs.SOURCE_CURATED_TABLE,
+                    {"commit": "fixture", "dirty": False},
+                )
+
+        stamped_inputs = {
+            row["path"]: row["sha256"] for row in payload["producer"]["inputs"]
+        }
+        self.assertEqual(
+            payload["recommendations"][0]["text"],
+            "The USPSTF recommends counseling young adults with fair skin.",
+        )
+        self.assertEqual(
+            stamped_inputs["reference/guidelines-uspstf.md"],
+            hashlib.sha256(second_table.encode("utf-8")).hexdigest(),
+        )
 
     def test_two_files_differing_only_in_case_are_not_scanned(self):
         """Unreachable against the committed table, which is the reason to test it here.
