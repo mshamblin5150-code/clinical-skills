@@ -9,7 +9,19 @@ this is the record the build reads.
 
 ## Measured before ruling, at `9500e6f`
 
-Freshness gate `FRESH` at both checkpoints. Every figure below was taken on the grilling machine
+Freshness gate `FRESH` at the first checkpoint and **`STALE` at the second** — `main` reached
+`fcef52f` mid-session, carrying [ADR 0126](0126-the-artifact-lock-is-scoped-per-identity-and-its-rollout-window-is-crossed-by-a-three-limb-compatibility-layer-retired-by-a-derived-condition.md)
+and the shared render pass. The gate blocked the publication, the branch was brought forward, and
+the figures were re-checked rather than re-asserted: **not one of the six files they read changed
+between the two bases** — `artifact_provenance.py`, `guidelines_manifest.py`, `threshold_sheet.py`,
+`guidelines_index.py`, `guidelines_recs.py` and `artifact_lock.py` are byte-identical across
+`9500e6f..fcef52f`. Every figure below therefore stands at both.
+
+Note that ADR 0126 is the *record* for #870 and not its build, so the `artifact_lock` cost named in
+premise 5 below was live in the tree these figures were taken from and is still live today. When
+#870's build lands, the non-git remainder of a manifest read shrinks and nothing else here moves.
+
+Every figure below was taken on the grilling machine
 rather than the maintainer's, Python 3.14, by wrapping `subprocess.run` and keying a counter on the
 git subcommand, over `test_threshold_sheet.RangeGate` — 12 tests, 0 failures in every configuration
 run.
