@@ -154,6 +154,14 @@ _Avoid_: missing, hole, TODO
 A shorthand token matching no glossary entry.
 _Avoid_: unrecognized, garbage, typo
 
+**Latent shape**:
+Two facts about the tree that would compose into a defect, with no **join** between them — a cache nothing invalidates and a file something rewrites, held in modules no process loads together. It is a description of the code and never a claim about behavior, so reporting one as a defect is asserting a consequence nobody measured. A latent shape is worth recording precisely because it is not a bug: the record is what stops the next reader re-deriving it as one, and names the day it would become live. Distinct from a **gap**, which is something genuinely absent rather than something present and inert.
+_Avoid_: latent bug, potential bug, time bomb, hypothetical defect
+
+**Join**:
+The thing in the tree that makes a **latent shape** live — an import, a call, a shared process — turning two inert facts into a reachable consequence. It is the object to go looking for and the object to declare absent; a shape's write-up is incomplete without a statement about its join. **Not the sense the graders give the word**, where a *join* is a row matched to a table — `research_ledger`'s evidence join, `threshold_sheet`'s sheet join; two senses, one word, and the collision is recorded here rather than left latent because the grader sense lives in modules a heading-derived read cannot see.
+_Avoid_: trigger, link, path, connection
+
 ### Artifacts
 
 **Working file**:
