@@ -433,25 +433,22 @@ def check_producer(
             reasons.append("records no producer-file identity")
         if inputs_match is False:
             reasons.append("producer inputs do not match the current checkout")
-        unchanged_ancestor = (
-            isinstance(commit, str)
-            and bool(commit)
-            and bool(unchanged_paths)
-            and _is_checkout_ancestor(commit, repo_root)
-            and _paths_unchanged(commit, unchanged_paths, repo_root)
-        )
         if (
             isinstance(commit, str)
             and commit
             and commit != expected
-            and not unchanged_ancestor
             and inputs_match is not True
+            and not (
+                unchanged_paths
+                and _is_checkout_ancestor(commit, repo_root)
+                and _paths_unchanged(commit, unchanged_paths, repo_root)
+            )
         ):
             reasons.append(f"was produced by a different commit ({commit}; current is {expected})")
         if (
             unchanged_paths
-            and not _paths_unchanged("HEAD", unchanged_paths, repo_root)
             and inputs_match is not True
+            and not _paths_unchanged("HEAD", unchanged_paths, repo_root)
         ):
             reasons.append(
                 "producer files have uncommitted changes in the working tree "
