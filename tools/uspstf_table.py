@@ -1138,12 +1138,17 @@ def render_markdown(
 
 
 def build(
-    source_dir: Path, *, allow_untrusted_provenance: bool = False
+    source_dir: Path,
+    *,
+    expected_commit: str,
+    allow_untrusted_provenance: bool = False,
 ) -> list[DocumentResult]:
     """Build rows from the USPSTF documents in #80's extracted corpus."""
     results = []
     handoff = read_or_raise(
-        source_dir, allow_untrusted_provenance=allow_untrusted_provenance
+        source_dir,
+        expected_commit=expected_commit,
+        allow_untrusted_provenance=allow_untrusted_provenance,
     )
     for doc_id, document in sorted(handoff.documents.items()):
         if document.society != "USPSTF":
@@ -1183,6 +1188,7 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
     args = parser.parse_args(argv)
+    expected_commit = artifact_provenance.checkout_commit(REPO_ROOT)
 
     # Asked of the arguments alone and before the expensive read, on #176's lesson:
     # `guidelines_extract` used to ask this after loading a PDF library and
@@ -1203,6 +1209,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         results = build(
             args.source,
+            expected_commit=expected_commit,
             allow_untrusted_provenance=args.allow_untrusted_provenance,
         )
     except (OSError, ValueError) as unusable:

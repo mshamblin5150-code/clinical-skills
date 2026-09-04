@@ -96,6 +96,7 @@ FTS_KEYWORDS = frozenset({"and", "or", "not", "near"})
 # Enough of the line to identify it, and no more: a page of a table can hold a very
 # long line, and this is printed to a terminal.
 MAX_LINE = 300
+REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
 class NotAnIndex(RuntimeError):
@@ -123,7 +124,10 @@ class Hit:
 
 
 def open_index(
-    path: Path | str | None = None, *, allow_untrusted_provenance: bool = False
+    path: Path | str | None = None,
+    *,
+    expected_commit: str,
+    allow_untrusted_provenance: bool = False,
 ) -> sqlite3.Connection:
     """Open the index read-only, or raise loudly. Never returns an empty index."""
     target = Path(path) if path is not None else default_database()
@@ -155,6 +159,7 @@ def open_index(
         artifact_provenance.check_derived(
             provenance,
             target,
+            expected_commit=expected_commit,
             allow_untrusted=allow_untrusted_provenance,
         )
     except (json.JSONDecodeError, artifact_provenance.UntrustedProvenance):
@@ -332,10 +337,12 @@ def main(argv: list[str]) -> int:
         "--fts", action="store_true", help="pass the query through as FTS5 syntax"
     )
     args = parser.parse_args(argv)
+    expected_commit = artifact_provenance.checkout_commit(REPO_ROOT)
 
     try:
         connection = open_index(
             args.db,
+            expected_commit=expected_commit,
             allow_untrusted_provenance=args.allow_untrusted_provenance,
         )
     except (

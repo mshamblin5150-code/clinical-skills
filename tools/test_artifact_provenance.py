@@ -27,6 +27,27 @@ from repo_root import InsideCheckout  # noqa: E402
 from prose_bind import ProseBind  # noqa: E402
 
 
+class CheckoutIdentity(unittest.TestCase):
+    def test_a_consumer_reads_the_checkout_commit_without_asking_for_status(self):
+        completed = subprocess.CompletedProcess(
+            args=[], returncode=0, stdout="abc123\n", stderr=""
+        )
+        with mock.patch.object(
+            artifact_provenance.subprocess, "run", return_value=completed
+        ) as run:
+            commit = artifact_provenance.checkout_commit(Path("C:/checkout"))
+
+        self.assertEqual(commit, "abc123")
+        run.assert_called_once_with(
+            ["git", "-C", "C:\\checkout", "rev-parse", "HEAD"],
+            check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+
+
 class ArtifactIdentityTables(unittest.TestCase):
     def test_each_cache_identity_contains_its_content_trust_floor(self):
         expected_cache = {
@@ -93,6 +114,7 @@ class ArtifactIdentityTables(unittest.TestCase):
             artifact_provenance.check_derived(
                 {"producer": {}, "source": {}, "untrusted_reasons": []},
                 "index.sqlite",
+                expected_commit="checkout",
             )
 
         self.assertEqual(
@@ -193,7 +215,7 @@ class TextProducerIdentity(unittest.TestCase):
 class AcceptedDistrustDeclarations(unittest.TestCase):
     def test_reasons_round_trip_without_splitting_a_semicolon(self):
         reasons = (
-            "was produced by a different commit (abc; current is def)",
+            "was produced by a different commit (abc; checkout is def)",
             "was produced by a dirty checkout",
         )
         rendered = artifact_provenance.render_accepted_distrust(
@@ -278,6 +300,7 @@ class MergeParentTrustTests(unittest.TestCase):
             artifact_provenance.check_producer(
                 {"commit": commit, "dirty": False},
                 self.repo / "manifest.json",
+                expected_commit=commit,
                 repo_root=self.repo,
                 unchanged_paths=("tools/guidelines_extract.py",),
             )
@@ -287,6 +310,7 @@ class MergeParentTrustTests(unittest.TestCase):
         (self.repo / "later.txt").write_text("later\n", encoding="utf-8")
         self._git("add", "later.txt")
         self._git("commit", "-m", "later commit")
+        checkout = self._git("rev-parse", "HEAD")
         (self.repo / "tools" / "guidelines_extract.py").write_text(
             "EXTRACTOR = 'uncommitted'\n", encoding="utf-8"
         )
@@ -295,6 +319,7 @@ class MergeParentTrustTests(unittest.TestCase):
             artifact_provenance.check_producer(
                 {"commit": recorded, "dirty": False},
                 self.repo / "manifest.json",
+                expected_commit=checkout,
                 repo_root=self.repo,
                 unchanged_paths=("tools/guidelines_extract.py",),
             )
@@ -311,6 +336,7 @@ class MergeParentTrustTests(unittest.TestCase):
         (self.repo / "feature.txt").write_text("feature\n", encoding="utf-8")
         self._git("add", "feature.txt")
         self._git("commit", "-m", "feature work")
+        checkout = self._git("rev-parse", "HEAD")
         self._git("merge", "--no-commit", "--no-ff", "main")
         inputs = artifact_provenance.producer_file_identity(
             ("tools/guidelines_extract.py",), repo_root=self.repo
@@ -319,6 +345,7 @@ class MergeParentTrustTests(unittest.TestCase):
         result = artifact_provenance.check_producer(
             {"commit": incoming_parent, "dirty": False, "inputs": inputs},
             self.repo / "manifest.json",
+            expected_commit=checkout,
             repo_root=self.repo,
             unchanged_paths=("tools/guidelines_extract.py",),
         )
@@ -381,6 +408,7 @@ class MergeParentTrustTests(unittest.TestCase):
             artifact_provenance.check_producer(
                 {"commit": current_parent, "dirty": False},
                 self.repo / "manifest.json",
+                expected_commit=current_parent,
                 repo_root=self.repo,
                 unchanged_paths=("tools/guidelines_extract.py",),
             )
@@ -587,7 +615,10 @@ class TheDerivedCheckTracesToo(unittest.TestCase):
             warnings.simplefilter("ignore")
             with contextlib.redirect_stderr(stderr):
                 artifact_provenance.check_derived(
-                    provenance, "derived-artifact", allow_untrusted=True
+                    provenance,
+                    "derived-artifact",
+                    expected_commit="abc",
+                    allow_untrusted=True,
                 )
         self.assertIn("derived-artifact", stderr.getvalue())
         self.assertIn("was produced by a dirty checkout", stderr.getvalue())

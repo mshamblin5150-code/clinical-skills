@@ -535,7 +535,10 @@ def looks_like_title(candidate: str, filename: str) -> bool:
 
 
 def read_corpus_handoff(
-    src: Path, *, allow_untrusted_provenance: bool = False
+    src: Path,
+    *,
+    expected_commit: str,
+    allow_untrusted_provenance: bool = False,
 ) -> tuple[list[Document], Manifest]:
     """Read every document and retain the manifest handoff that established trust.
 
@@ -545,7 +548,9 @@ def read_corpus_handoff(
     """
     docs: list[Document] = []
     handoff = read_or_raise(
-        src, allow_untrusted_provenance=allow_untrusted_provenance
+        src,
+        expected_commit=expected_commit,
+        allow_untrusted_provenance=allow_untrusted_provenance,
     )
     for doc_id, document in sorted(handoff.documents.items()):
         pages = list(handoff.pages[doc_id])
@@ -571,11 +576,16 @@ def read_corpus_handoff(
 
 
 def read_corpus(
-    src: Path, *, allow_untrusted_provenance: bool = False
+    src: Path,
+    *,
+    expected_commit: str,
+    allow_untrusted_provenance: bool = False,
 ) -> list[Document]:
     """Read every document from #80's extracted text and manifest."""
     docs, _ = read_corpus_handoff(
-        src, allow_untrusted_provenance=allow_untrusted_provenance
+        src,
+        expected_commit=expected_commit,
+        allow_untrusted_provenance=allow_untrusted_provenance,
     )
     return docs
 
@@ -1092,6 +1102,7 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
     args = parser.parse_args(argv)
+    expected_commit = artifact_provenance.checkout_commit(REPO_ROOT)
 
     if args.audit_draft:
         src = Path(args.audit_draft)
@@ -1106,6 +1117,7 @@ def main(argv: list[str] | None = None) -> int:
         try:
             docs = read_corpus(
                 src,
+                expected_commit=expected_commit,
                 allow_untrusted_provenance=args.allow_untrusted_provenance,
             )
         except ValueError as unusable:
@@ -1147,6 +1159,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         docs, handoff = read_corpus_handoff(
             text_src,
+            expected_commit=expected_commit,
             allow_untrusted_provenance=args.allow_untrusted_provenance,
         )
     except ValueError as unusable:

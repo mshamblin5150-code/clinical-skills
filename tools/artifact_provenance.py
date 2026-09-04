@@ -302,9 +302,9 @@ def grade_accepted_distrust(
     return AcceptedDistrustVerdict()
 
 
-def current_producer(repo_root: Path = REPO_ROOT) -> dict[str, str | bool]:
-    """Return the commit and dirty state of the checkout running a producer."""
-    commit = subprocess.run(
+def checkout_commit(repo_root: Path = REPO_ROOT) -> str:
+    """Return the commit checked out by an artifact consumer."""
+    return subprocess.run(
         ["git", "-C", str(repo_root), "rev-parse", "HEAD"],
         check=True,
         capture_output=True,
@@ -312,6 +312,11 @@ def current_producer(repo_root: Path = REPO_ROOT) -> dict[str, str | bool]:
         encoding="utf-8",
         errors="replace",
     ).stdout.strip()
+
+
+def current_producer(repo_root: Path = REPO_ROOT) -> dict[str, str | bool]:
+    """Return the commit and dirty state of the checkout running a producer."""
+    commit = checkout_commit(repo_root)
     dirty = bool(
         subprocess.run(
             ["git", "-C", str(repo_root), "status", "--porcelain", "--untracked-files=normal"],
@@ -408,13 +413,12 @@ def check_producer(
     producer: object,
     artifact: Path | str,
     *,
+    expected_commit: str,
     allow_untrusted: bool = False,
-    expected_commit: str | None = None,
     repo_root: Path = REPO_ROOT,
     unchanged_paths: tuple[str, ...] = (),
 ) -> ProvenanceCheck:
     """Validate a producer stamp against the checkout consuming the artifact."""
-    expected = expected_commit or str(current_producer(repo_root)["commit"])
     reasons: list[str] = []
     normalized: dict[str, object] | None = None
     if not isinstance(producer, dict):
@@ -436,7 +440,7 @@ def check_producer(
         if (
             isinstance(commit, str)
             and commit
-            and commit != expected
+            and commit != expected_commit
             and inputs_match is not True
             and not (
                 unchanged_paths
@@ -444,7 +448,10 @@ def check_producer(
                 and _paths_unchanged(commit, unchanged_paths, repo_root)
             )
         ):
-            reasons.append(f"was produced by a different commit ({commit}; current is {expected})")
+            reasons.append(
+                "was produced by a different commit "
+                f"({commit}; checkout is {expected_commit})"
+            )
         if (
             unchanged_paths
             and inputs_match is not True
@@ -474,23 +481,29 @@ def check_derived(
     provenance: object,
     artifact: Path | str,
     *,
+    expected_commit: str,
     allow_untrusted: bool = False,
 ) -> ProvenanceCheck:
     """Validate a derived artifact without erasing distrust in its source."""
     if not isinstance(provenance, dict):
         return check_producer(
-            None, artifact, allow_untrusted=allow_untrusted
+            None,
+            artifact,
+            expected_commit=expected_commit,
+            allow_untrusted=allow_untrusted,
         )
 
     producer_check = check_producer(
         provenance.get("producer"),
         artifact,
+        expected_commit=expected_commit,
         allow_untrusted=allow_untrusted,
         unchanged_paths=TRUST_FLOOR["index"],
     )
     source_check = check_producer(
         provenance.get("source"),
         f"{artifact} source manifest",
+        expected_commit=expected_commit,
         allow_untrusted=allow_untrusted,
         unchanged_paths=TRUST_FLOOR["extraction"],
     )

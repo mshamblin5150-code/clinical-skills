@@ -622,6 +622,7 @@ def peek_recommendation_source(path: Path) -> str:
 def load_recommendation_record(
     path: Path,
     *,
+    expected_commit: str,
     allow_untrusted: bool = False,
     require_source_pdf: bool = False,
 ) -> dict:
@@ -648,6 +649,7 @@ def load_recommendation_record(
             artifact_provenance.check_producer(
                 record.get("producer"),
                 path,
+                expected_commit=expected_commit,
                 allow_untrusted=allow_untrusted,
                 unchanged_paths=floor,
             )

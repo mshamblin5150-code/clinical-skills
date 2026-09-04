@@ -182,10 +182,15 @@ def read_table(path: Path) -> tuple[TableRow, ...]:
 
 
 def read_documents(
-    source: Path, *, allow_untrusted_provenance: bool = False
+    source: Path,
+    *,
+    expected_commit: str,
+    allow_untrusted_provenance: bool = False,
 ) -> dict[str, str]:
     handoff = read_or_raise(
-        source, allow_untrusted_provenance=allow_untrusted_provenance
+        source,
+        expected_commit=expected_commit,
+        allow_untrusted_provenance=allow_untrusted_provenance,
     )
     documents: dict[str, str] = {}
     for doc_id, document in handoff.documents.items():
@@ -232,10 +237,12 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
     args = parser.parse_args(argv)
+    expected_commit = artifact_provenance.checkout_commit(REPO_ROOT)
     try:
         rows = read_table(args.table)
         documents = read_documents(
             args.source,
+            expected_commit=expected_commit,
             allow_untrusted_provenance=args.allow_untrusted_provenance,
         )
         result = measure(rows, documents)

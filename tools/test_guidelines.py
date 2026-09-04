@@ -39,6 +39,7 @@ import artifact_provenance
 from repo_root import InsideCheckout
 
 TOOLS = Path(__file__).resolve().parent
+EXPECTED_COMMIT = artifact_provenance.checkout_commit(TOOLS.parent)
 
 
 # Invented prose, shaped like a threshold table so the line-attribution tests
@@ -161,9 +162,13 @@ class ProducerEditHandoffTests(unittest.TestCase):
             sys.path.insert(0, {str(self.checkout_tools)!r})
             import guidelines_index
             import guidelines_search
+            import artifact_provenance
 
             guidelines_index.build({str(self.text_dir)!r}, {str(self.database)!r})
-            with guidelines_search.open_index({str(self.database)!r}) as connection:
+            with guidelines_search.open_index(
+                {str(self.database)!r},
+                expected_commit=artifact_provenance.checkout_commit(),
+            ) as connection:
                 assert connection.execute("SELECT COUNT(*) FROM document").fetchone() == (1,)
             """
         )
@@ -191,8 +196,12 @@ class ProducerEditHandoffTests(unittest.TestCase):
             import sys
             sys.path.insert(0, {str(self.checkout_tools)!r})
             import guidelines_search
+            import artifact_provenance
 
-            guidelines_search.open_index({str(self.database)!r})
+            guidelines_search.open_index(
+                {str(self.database)!r},
+                expected_commit=artifact_provenance.checkout_commit(),
+            )
             """
         )
 
@@ -213,6 +222,7 @@ class ProducerEditHandoffTests(unittest.TestCase):
             sys.path.insert(0, {str(self.checkout_tools)!r})
             import guidelines_extract
             import guidelines_manifest
+            import artifact_provenance
 
             root = Path({str(extraction)!r})
             text = root / "Society" / "one.txt"
@@ -229,7 +239,9 @@ class ProducerEditHandoffTests(unittest.TestCase):
                 chars=len("A synthetic recommendation.\\n"),
             )
             guidelines_extract.write_manifest(root, [record], Path("source"))
-            result = guidelines_manifest.read(root)
+            result = guidelines_manifest.read(
+                root, expected_commit=artifact_provenance.checkout_commit()
+            )
             assert not result.problems, result.problems
             """
         )
@@ -274,8 +286,12 @@ class ProducerEditHandoffTests(unittest.TestCase):
             import sys
             sys.path.insert(0, {str(self.checkout_tools)!r})
             import guidelines_manifest
+            import artifact_provenance
 
-            guidelines_manifest.read_or_raise({str(extraction)!r})
+            guidelines_manifest.read_or_raise(
+                {str(extraction)!r},
+                expected_commit=artifact_provenance.checkout_commit(),
+            )
             """
         )
 
@@ -617,7 +633,9 @@ class BuildTests(TempCorpus):
         ):
             gi.build(self.text_dir, self.db)
 
-        with closing(gs.open_index(self.db)) as connection:
+        with closing(
+            gs.open_index(self.db, expected_commit=EXPECTED_COMMIT)
+        ) as connection:
             self.assertEqual(
                 connection.execute("SELECT COUNT(*) FROM document").fetchone(), (1,)
             )
@@ -660,7 +678,7 @@ class BuildTests(TempCorpus):
 
     def test_meta_records_what_it_was_built_from(self):
         self.build_default_corpus()
-        connection = gs.open_index(self.db)
+        connection = gs.open_index(self.db, expected_commit=EXPECTED_COMMIT)
         try:
             meta = dict(connection.execute("SELECT key, value FROM meta").fetchall())
         finally:
@@ -673,7 +691,7 @@ class BuildTests(TempCorpus):
         self.build_default_corpus()
         report = self.build_default_corpus()
         self.assertEqual(report.pages, 4)
-        connection = gs.open_index(self.db)
+        connection = gs.open_index(self.db, expected_commit=EXPECTED_COMMIT)
         try:
             self.assertEqual(connection.execute("SELECT count(*) FROM page").fetchone()[0], 4)
         finally:
@@ -690,7 +708,7 @@ class SearchTests(TempCorpus):
     def setUp(self):
         super().setUp()
         self.build_default_corpus()
-        self.connection = gs.open_index(self.db)
+        self.connection = gs.open_index(self.db, expected_commit=EXPECTED_COMMIT)
         self.addCleanup(self.connection.close)
 
     def test_a_hit_carries_filename_page_and_line(self):
@@ -769,7 +787,7 @@ class LineAttributionTests(TempCorpus):
         )
         write_manifest(self.text_dir, [{"doc_id": "AHA ACC/syncope"}])
         gi.build(self.text_dir, self.db)
-        connection = gs.open_index(self.db)
+        connection = gs.open_index(self.db, expected_commit=EXPECTED_COMMIT)
         self.addCleanup(connection.close)
         hits = gs.search(connection, "near syncope")
         self.assertEqual(len(hits), 1)
@@ -781,19 +799,19 @@ class MissingIndexTests(TempCorpus):
 
     def test_no_index_file_is_loud(self):
         with self.assertRaises(FileNotFoundError):
-            gs.open_index(self.db)
+            gs.open_index(self.db, expected_commit=EXPECTED_COMMIT)
 
     def test_a_file_that_is_not_an_index_is_loud(self):
         self.db.parent.mkdir(parents=True)
         self.db.write_text("this is not a database", encoding="utf-8")
         with self.assertRaises(gs.NotAnIndex):
-            gs.open_index(self.db)
+            gs.open_index(self.db, expected_commit=EXPECTED_COMMIT)
 
     def test_a_database_without_the_schema_is_loud(self):
         self.db.parent.mkdir(parents=True)
         sqlite3.connect(self.db).close()
         with self.assertRaises(gs.NotAnIndex):
-            gs.open_index(self.db)
+            gs.open_index(self.db, expected_commit=EXPECTED_COMMIT)
 
     def test_a_schema_from_another_version_is_loud(self):
         self.build_default_corpus()
@@ -802,7 +820,7 @@ class MissingIndexTests(TempCorpus):
         connection.commit()
         connection.close()
         with self.assertRaises(gs.NotAnIndex):
-            gs.open_index(self.db)
+            gs.open_index(self.db, expected_commit=EXPECTED_COMMIT)
 
     def test_an_index_without_provenance_is_refused(self):
         self.build_default_corpus()
@@ -812,7 +830,7 @@ class MissingIndexTests(TempCorpus):
         connection.close()
 
         with self.assertRaisesRegex(gi.UntrustedProvenance, "provenance"):
-            gs.open_index(self.db)
+            gs.open_index(self.db, expected_commit=EXPECTED_COMMIT)
 
     def test_matching_index_inputs_outweigh_an_unrelated_commit(self):
         self.build_default_corpus()
@@ -830,7 +848,9 @@ class MissingIndexTests(TempCorpus):
         connection.commit()
         connection.close()
 
-        with closing(gs.open_index(self.db)) as opened:
+        with closing(
+            gs.open_index(self.db, expected_commit=EXPECTED_COMMIT)
+        ) as opened:
             self.assertEqual(
                 opened.execute("SELECT COUNT(*) FROM document").fetchone(), (2,)
             )
@@ -842,7 +862,9 @@ class MissingIndexTests(TempCorpus):
 
         with self.assertWarnsRegex(RuntimeWarning, "untrusted"):
             connection = gs.open_index(
-                self.db, allow_untrusted_provenance=True
+                self.db,
+                expected_commit=EXPECTED_COMMIT,
+                allow_untrusted_provenance=True,
             )
         connection.close()
 
@@ -863,7 +885,9 @@ class MissingIndexTests(TempCorpus):
         connection.commit()
         connection.close()
 
-        with closing(gs.open_index(self.db)) as opened:
+        with closing(
+            gs.open_index(self.db, expected_commit=EXPECTED_COMMIT)
+        ) as opened:
             self.assertEqual(
                 opened.execute("SELECT COUNT(*) FROM document").fetchone(), (2,)
             )

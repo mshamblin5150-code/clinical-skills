@@ -609,7 +609,9 @@ class PreservingContentAddressedTrust(BuildCommandCase):
         )
         self.assertTrue(
             artifact_provenance.check_derived(
-                provenance, index / "guidelines.sqlite"
+                provenance,
+                index / "guidelines.sqlite",
+                expected_commit="b" * 40,
             ).trusted
         )
         mismatched = copy.deepcopy(manifest["producer"])

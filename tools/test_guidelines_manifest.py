@@ -15,6 +15,8 @@ import artifact_lock_test_support  # noqa: F401
 import guidelines_manifest as manifest
 import guidelines_extract as extract
 
+EXPECTED_COMMIT = "checkout"
+
 
 class ManifestSerializationTests(unittest.TestCase):
     def test_the_producer_uses_the_owned_record_and_filename(self):
@@ -229,7 +231,7 @@ class ManifestReadingTests(unittest.TestCase):
         del missing["title"]
         self.write([self.entry(), missing])
 
-        result = manifest.read(self.root)
+        result = manifest.read(self.root, expected_commit=EXPECTED_COMMIT)
 
         self.assertEqual(set(result.documents), {"Society/one"})
         self.assertEqual(len(result.problems), 1)
@@ -250,7 +252,7 @@ class ManifestReadingTests(unittest.TestCase):
                 return_value=mock.sentinel.provenance,
             ) as check,
         ):
-            manifest.read(self.root)
+            manifest.read(self.root, expected_commit=EXPECTED_COMMIT)
 
         self.assertEqual(check.call_args.kwargs["unchanged_paths"], floors["extraction"])
 
@@ -258,7 +260,7 @@ class ManifestReadingTests(unittest.TestCase):
         self.text(body="page one\fpage two")
         self.write([self.entry(pages=1)])
 
-        result = manifest.read(self.root)
+        result = manifest.read(self.root, expected_commit=EXPECTED_COMMIT)
 
         self.assertEqual(result.documents, {})
         self.assertIn("2", result.problems[0].message)
@@ -267,7 +269,7 @@ class ManifestReadingTests(unittest.TestCase):
         self.text("Society/wrong")
         self.write([self.entry(output="Society/wrong.txt")])
 
-        result = manifest.read(self.root)
+        result = manifest.read(self.root, expected_commit=EXPECTED_COMMIT)
 
         self.assertEqual(result.documents, {})
         self.assertTrue(
@@ -277,7 +279,7 @@ class ManifestReadingTests(unittest.TestCase):
     def test_read_rejects_an_output_outside_the_corpus(self):
         self.write([self.entry(output="../outside.txt")])
 
-        result = manifest.read(self.root)
+        result = manifest.read(self.root, expected_commit=EXPECTED_COMMIT)
 
         self.assertEqual(result.documents, {})
         self.assertTrue(
@@ -290,7 +292,7 @@ class ManifestReadingTests(unittest.TestCase):
         self.addCleanup(outside.unlink, missing_ok=True)
         self.write([self.entry(doc_id="../outside", output="../outside.txt")])
 
-        result = manifest.read(self.root)
+        result = manifest.read(self.root, expected_commit=EXPECTED_COMMIT)
 
         self.assertEqual(result.documents, {})
         self.assertTrue(
@@ -300,7 +302,7 @@ class ManifestReadingTests(unittest.TestCase):
     def test_read_turns_a_malformed_field_type_into_a_problem(self):
         self.write([self.entry(output=["Society/one.txt"])])
 
-        result = manifest.read(self.root)
+        result = manifest.read(self.root, expected_commit=EXPECTED_COMMIT)
 
         self.assertEqual(result.documents, {})
         self.assertEqual(len(result.problems), 1)
@@ -312,7 +314,7 @@ class ManifestReadingTests(unittest.TestCase):
             with self.subTest(field=field):
                 self.write([self.entry(**{field: {"shape": "one"}})])
 
-                result = manifest.read(self.root)
+                result = manifest.read(self.root, expected_commit=EXPECTED_COMMIT)
 
                 self.assertEqual(result.documents, {})
                 self.assertTrue(
@@ -333,7 +335,9 @@ class ManifestReadingTests(unittest.TestCase):
             yield
 
         with mock.patch.object(manifest.artifact_lock, "hold", held):
-            result = manifest.read(self.root / ".")
+            result = manifest.read(
+                self.root / ".", expected_commit=EXPECTED_COMMIT
+            )
 
         self.assertEqual(result.root, self.root.resolve())
         self.assertEqual(calls[0][0], self.root.resolve())
@@ -345,14 +349,14 @@ class ManifestReadingTests(unittest.TestCase):
             "hold",
             side_effect=manifest.artifact_lock.ArtifactBusy("rebuilding"),
         ):
-            result = manifest.read(self.root)
+            result = manifest.read(self.root, expected_commit=EXPECTED_COMMIT)
 
         self.assertEqual(result.documents, {})
         self.assertIn("rebuilding", result.problems[0].message)
 
     def test_read_or_raise_refuses_any_problem(self):
         with self.assertRaisesRegex(ValueError, "manifest.json"):
-            manifest.read_or_raise(self.root)
+            manifest.read_or_raise(self.root, expected_commit=EXPECTED_COMMIT)
 
 
 if __name__ == "__main__":
