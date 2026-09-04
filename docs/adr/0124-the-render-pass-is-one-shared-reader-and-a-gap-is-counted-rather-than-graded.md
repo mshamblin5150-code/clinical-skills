@@ -187,12 +187,13 @@ render coverage twice — the third-implementation cost this ticket exists to pr
 
 **What naming the split as correct exposes is not this ticket's to fix.** The post grades its render
 coverage *inside* its package grader, gated on `--docx` and printing `not graded` without it, while
-the deck and the case study use a separate command. Two artifacts, two architectures, and no
+the deck and the case study use a separate command. Three artifacts, three arrangements, and no
 artifact-shaped reason for the difference — `discussion_post_scan` solved with a gate the very thing
 ADR 0098 refused to build for the case study. Resolving it means moving the post's row out to
-`render_scan` and deleting a working gate, which is larger than the pass. After ruling 3 both
-arrangements read one shared pass reader, so the divergence is now only about **which command holds
-the row** and never about what a pass is. It is declared here and filed as its own ticket.
+`render_scan` and deleting a working gate, which is larger than the pass. After ruling 3 every
+arrangement reads one shared pass reader, so no divergence about **what a pass is** survives; what
+the rows themselves grade is a separate question this record did not measure. It is declared here
+and filed as its own ticket.
 
 ### 5. #803's decision 1 is untouched
 
@@ -224,3 +225,18 @@ its own ticket and no ruling here touches it.
 **ADR 0116 ruling 1's read-failure posture.** A gap is not a read failure — the directory reads
 fine — so the role-keyed posture does not bind this ruling, and `render_scan`'s retained-export
 read stays the already-correct instance ADR 0116 names.
+
+---
+
+**Corrected in place 2026-09-03, on [ADR 0016](0016-an-adr-number-is-claimed-when-it-is-handed-out-and-a-ratified-records-facts-may-be-corrected-in-place.md)'s
+rule and [ADR 0022](0022-an-adr-carries-no-status-field-because-no-record-waits-on-main-for-a-decision.md)'s
+precedent.** Two fact sentences in ruling 4 were false. They read *"Two artifacts, two
+architectures"* and *"After ruling 3 both arrangements read one shared pass reader, so the divergence
+is now only about **which command holds the row** and never about what a pass is."*
+[#864](https://github.com/mshamblin5150-code/clinical-skills/issues/864)'s grilling measured three
+arrangements rather than two — the deck has render coverage and no record half at all — and measured
+`render_scan.final-page-coverage` and `discussion_post_scan`'s `rendered-pages` as grading different
+properties, so the divergence was never only about which command holds the row. Ruling 4's decision,
+that `deck_scan` gains no render row and the placement divergence is declared and filed, is untouched.
+[ADR 0125](0125-render-coverage-and-the-render-record-are-two-properties-and-each-artifact-wires-them-its-own-way.md)
+carries the measurement and the placement ruling.
