@@ -10,6 +10,8 @@ import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from unittest import mock
 
+import artifact_lock_test_support  # noqa: F401
+
 import aar_scan
 import checks_ledger
 import differential_scan

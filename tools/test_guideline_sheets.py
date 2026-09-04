@@ -53,6 +53,8 @@ import re
 import unittest
 from pathlib import Path
 
+import artifact_lock_test_support  # noqa: F401
+
 from prose_bind import ProseBind
 import threshold_coverage
 import threshold_sheet

@@ -23,6 +23,8 @@ import re
 import unittest
 from pathlib import Path
 
+import artifact_lock_test_support  # noqa: F401
+
 import guidelines_recs
 import threshold_coverage
 

@@ -1,4 +1,9 @@
-"""Nonblocking process locks for shared, out-of-repo build artifacts."""
+"""Nonblocking process locks for shared, out-of-repo build artifacts.
+
+The lock root may be overridden for a bounded run, but it always remains outside
+every checkout. Scoped identities bound ordinary acquisition work to one artifact;
+what the mechanism does not guard is declared in ``NOT_GUARDED``.
+"""
 
 from __future__ import annotations
 
@@ -13,16 +18,42 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import BinaryIO, Iterator
 
+from repo_root import ensure_outside_checkout
+
+
+LOCK_ROOT_ENVIRONMENT_VARIABLE = "CLINICAL_SKILLS_LOCK_ROOT"
+
+NOT_GUARDED = (
+    (
+        "lock identity directories are permanent debris",
+        "The directory and its lock record remain after release because deleting a "
+        "lock another process may be opening can split ownership across two inodes.",
+    ),
+    (
+        "different lock roots do not coordinate",
+        "Two processes configured with different overrides cannot observe one another; "
+        "the value is kept outside checkouts, but disagreement is undetectable at run time.",
+    ),
+)
+
 
 class ArtifactBusy(ValueError):
     """Another task currently owns a shared artifact."""
 
 
+def lock_root() -> Path:
+    """Return the shared lock root, constrained outside every checkout."""
+    override = os.environ.get(LOCK_ROOT_ENVIRONMENT_VARIABLE)
+    if override:
+        return ensure_outside_checkout(override)
+    return Path(tempfile.gettempdir()) / "clinical-skills-artifact-locks"
+
+
 def lock_path(artifact: Path | str) -> Path:
-    """Map an artifact path to a stable lock outside every checkout."""
+    """Map an artifact identity to its scoped record outside every checkout."""
     identity = os.path.normcase(str(Path(artifact).resolve())).encode("utf-8")
     digest = hashlib.sha256(identity).hexdigest()
-    return Path(tempfile.gettempdir()) / "clinical-skills-artifact-locks" / f"{digest}.lock"
+    return lock_root() / digest / "lock"
 
 
 def _try_lock(stream: BinaryIO) -> None:
@@ -96,10 +127,10 @@ def _record(stream: BinaryIO, action: str) -> None:
 
 
 @contextmanager
-def _gate(path: Path, artifact: Path) -> Iterator[None]:
+def _handoff(scoped_record_path: Path, artifact: Path) -> Iterator[None]:
     """Serialize the short ownership handoff, never the artifact operation."""
-    gate_path = path.with_suffix(".gate")
-    with gate_path.open("a+b") as stream:
+    handoff_path = scoped_record_path.parent / "handoff"
+    with handoff_path.open("a+b") as stream:
         _prepare(stream)
         deadline = time.monotonic() + 1.0
         while True:
@@ -120,53 +151,62 @@ def _gate(path: Path, artifact: Path) -> Iterator[None]:
 
 
 @contextmanager
-def _hold_read(artifact: Path, path: Path, action: str) -> Iterator[Path]:
-    reader_path = path.with_name(
-        f"{path.stem}.reader.{os.getpid()}.{uuid.uuid4().hex}"
-    )
-    reader = None
-    with _gate(path, artifact):
-        with path.open("a+b") as writer:
-            _prepare(writer)
-            try:
-                _try_lock(writer)
-            except (BlockingIOError, PermissionError) as failure:
-                raise _busy(artifact, _owner(writer), reader=True) from failure
-            else:
-                _unlock(writer)
+def _hold_read(
+    artifact: Path, scoped_record_path: Path, action: str
+) -> Iterator[Path]:
+    suffix = f"{os.getpid()}.{uuid.uuid4().hex}"
+    reader_path = scoped_record_path.parent / f"reader.{suffix}"
+    reader: BinaryIO | None = None
+    try:
+        with _handoff(scoped_record_path, artifact):
+            with scoped_record_path.open("a+b") as writer:
+                _prepare(writer)
+                try:
+                    _try_lock(writer)
+                except (BlockingIOError, PermissionError) as failure:
+                    raise _busy(artifact, _owner(writer), reader=True) from failure
+                else:
+                    _unlock(writer)
 
-        reader = reader_path.open("a+b")
-        try:
+            reader = reader_path.open("a+b")
             _prepare(reader)
             _try_lock(reader)
             _record(reader, action)
-        except Exception:
+    except Exception:
+        if reader is not None:
+            try:
+                _unlock(reader)
+            except OSError:
+                pass
             reader.close()
             reader_path.unlink(missing_ok=True)
-            raise
+        raise
 
     try:
-        yield path
+        yield scoped_record_path
     finally:
-        with _gate(path, artifact):
-            if reader is not None:
-                _unlock(reader)
-                reader.close()
+        with _handoff(scoped_record_path, artifact):
+            assert reader is not None
+            _unlock(reader)
+            reader.close()
             reader_path.unlink(missing_ok=True)
 
 
 @contextmanager
-def _hold_write(artifact: Path, path: Path, action: str) -> Iterator[Path]:
-    writer = path.open("a+b")
+def _hold_write(
+    artifact: Path, scoped_record_path: Path, action: str
+) -> Iterator[Path]:
+    writer = scoped_record_path.open("a+b")
     _prepare(writer)
     try:
-        with _gate(path, artifact):
+        with _handoff(scoped_record_path, artifact):
             try:
                 _try_lock(writer)
             except (BlockingIOError, PermissionError) as failure:
                 raise _busy(artifact, _owner(writer), reader=False) from failure
 
-            for reader_path in path.parent.glob(f"{path.stem}.reader.*"):
+            scoped_readers = scoped_record_path.parent.glob("reader.*")
+            for reader_path in scoped_readers:
                 with reader_path.open("a+b") as reader:
                     _prepare(reader)
                     try:
@@ -182,7 +222,7 @@ def _hold_write(artifact: Path, path: Path, action: str) -> Iterator[Path]:
             _record(writer, action)
 
         try:
-            yield path
+            yield scoped_record_path
         finally:
             writer.seek(1)
             writer.truncate()
@@ -200,10 +240,12 @@ def hold(
     if mode not in {"read", "write"}:
         raise ValueError(f"unknown artifact lock mode: {mode}")
     artifact = Path(artifact).resolve()
-    path = lock_path(artifact)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    holder = _hold_read(artifact, path, action) if mode == "read" else _hold_write(
-        artifact, path, action
+    scoped_record_path = lock_path(artifact)
+    scoped_record_path.parent.mkdir(parents=True, exist_ok=True)
+    holder = (
+        _hold_read(artifact, scoped_record_path, action)
+        if mode == "read"
+        else _hold_write(artifact, scoped_record_path, action)
     )
     with holder:
-        yield path
+        yield scoped_record_path

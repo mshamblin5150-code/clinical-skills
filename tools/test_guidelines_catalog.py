@@ -34,6 +34,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import artifact_lock_test_support  # noqa: F401
 import artifact_lock
 import artifact_provenance
 import guidelines_catalog as gc

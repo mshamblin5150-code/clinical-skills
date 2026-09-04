@@ -26,6 +26,7 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import artifact_lock_test_support  # noqa: E402, F401
 import guidelines_recs as recs  # noqa: E402
 from prose_bind import ProseBind  # noqa: E402
 
