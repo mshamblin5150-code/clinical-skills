@@ -1017,8 +1017,9 @@ page-faithful PDF or XPS and one 120-dpi PNG per page beside it. Use a filename 
 `case-study.pdf` or `case-study.xps`, never a patient identifier. The exported file is the page
 count; only PNGs that decode as one readable image are pages the reader can inspect. Pixels without
 the export leave the denominator unmeasurable, and an export without its readable page images
-leaves the pages unchecked. Pass directories are the canonical uninterrupted pass-1 through
-pass-N sequence; a gap, a leading-zero alias, replacement, or overwrite is not a new pass.
+leaves the pages unchecked. A pass directory is `pass-N`, where `N` is an ASCII positive integer
+with no leading zero. A new pass takes the next number above the highest retained pass and never
+replaces or overwrites one. The gap count is reported and never graded.
 
 **Run the bounded automated route first.** Spawn a fresh Word application, open the `.docx`
 read-only with conversion confirmation disabled, and attempt a PDF export under a process bound;
@@ -1049,14 +1050,16 @@ python tools/render_scan.py <run-directory>
 
 The command derives coverage from the files rather than from a check-record field. A final pass
 with fewer PNGs than exported pages is exit 1. Any pass with no measurable retained export is exit 2.
-No `render/` directory, no numbered pass, or a noncanonical or interrupted pass sequence is also
-exit 2. When both occur across passes, exit 1 wins. The default report gives each pass's readable-image and
+No `render/` directory or no numbered pass is also exit 2. A missing pass number is counted in every
+report and never changes either status. When a finding and unavailable evidence occur across passes,
+exit 1 wins. The default report gives each pass's readable-image and
 exported-page counts; re-run with `--show` to add the finding detail. The complete walk without
-Python is: find the canonical uninterrupted pass-1 through pass-N sequence; confirm each pass holds
-exactly one readable PDF or XPS; count that export's pages; count only PNGs that decode as one
-readable image; report each pass's readable-image and exported-page counts; report incomplete
-earlier passes without failing them; and require the final readable-PNG count to reach the final
-exported page count.
+Python is: read only `pass-N` directories whose `N` is an ASCII positive integer with no leading
+zero; count any missing numbers from 1 through the highest; confirm each pass holds exactly one
+readable PDF or XPS; count that export's pages; count only PNGs that decode as one readable image;
+report each pass's readable-image and exported-page counts; report incomplete earlier passes
+without failing them; and require the final readable-PNG count to reach the final exported page
+count.
 
 Coverage does not replace the substantiated `the rendered document` verdict. `render_scan.py`
 grades which pages were imaged; `checks_ledger.py` still grades that a reader recorded what was

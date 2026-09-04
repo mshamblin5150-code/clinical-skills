@@ -113,6 +113,18 @@ class TheDeckRenderCommand(unittest.TestCase):
             sorted(path.name for path in (self.root / "render" / "pass-1").iterdir()),
         )
 
+    def test_a_gap_and_non_pass_names_allocate_above_the_highest_pass(self):
+        render_root = self.root / "render"
+        for name in ("pass-1", "pass-3", "pass-01", "pass-0", "pass-²"):
+            (render_root / name).mkdir(parents=True)
+
+        status, stdout, stderr = self.run_command()
+
+        self.assertEqual(0, status)
+        self.assertEqual("", stderr)
+        self.assertIn("render/pass-4", stdout.replace("\\", "/"))
+        self.assertTrue((render_root / "pass-4" / "deck.pdf").is_file())
+
     def test_a_failed_powerpoint_route_retains_no_pass(self):
         failed = SimpleNamespace(returncode=1, stdout="", stderr="PowerPoint refused export")
         stderr = io.StringIO()

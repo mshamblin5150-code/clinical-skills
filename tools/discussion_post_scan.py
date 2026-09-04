@@ -57,6 +57,7 @@ from discussion_artifact import (
     strip_discussion_markers,
 )
 import run_grader
+import render_pass
 from run_grader import NOT_GRADED
 import aar_scan
 
@@ -241,7 +242,8 @@ class RunSource:
     rendered_paragraph_texts: tuple[str, ...]
     expected_paragraph_texts: tuple[str, ...]
     rendered_readings: tuple[RenderedReading, ...]
-    render_passes: tuple[RenderPass, ...]
+    render_passes: tuple[tuple[int, RenderPass], ...]
+    missing_pass_numbers: int
     refused_label: str | None
     post_url: str | None
     post_posted: str | None
@@ -311,6 +313,7 @@ class Scan:
     unfilled_invoked_properties: int | None
     pre_496_markers: int | None
     rendered_text_mismatches: int | None
+    missing_pass_numbers: int
     docx_graded: bool
     reference_boundary_graded: bool
     findings: tuple[Finding, ...] = ()
@@ -549,37 +552,26 @@ def _rendered_readings(text: str) -> tuple[RenderedReading, ...]:
     return tuple(readings)
 
 
-def _render_passes(root: Path) -> tuple[RenderPass, ...]:
+def _render_passes(root: Path) -> tuple[tuple[tuple[int, RenderPass], ...], int]:
     render = root / "render"
-    if not render.is_dir():
-        return ()
-    numbered: list[tuple[int, RenderPass]] = []
-    for child in render.iterdir():
-        match = re.fullmatch(r"pass-(\d+)", child.name)
-        if child.is_dir() and match:
-            pixels = tuple(
-                sorted(
-                    child.glob("*.png"),
-                    key=lambda path: (
-                        int(page.group(1))
-                        if (page := re.fullmatch(r"page-(\d+)\.png", path.name))
-                        else sys.maxsize,
-                        path.name,
-                    ),
-                )
-            )
-            exports = tuple(
-                path
-                for path in (child / "post.pdf", child / "post.xps")
-                if path.is_file()
-            )
-            numbered.append((int(match.group(1)), RenderPass(pixels, exports)))
-    if not numbered:
-        return ()
-    numbered.sort()
-    if [number for number, _ in numbered] != list(range(1, len(numbered) + 1)):
-        return tuple(render_pass for _, render_pass in numbered) + (RenderPass((), ()),)
-    return tuple(render_pass for _, render_pass in numbered)
+    numbered = render_pass.read_passes(render)
+    passes = tuple(
+        (
+            number,
+            RenderPass(
+                tuple(sorted(path for path in child.glob("*.png") if path.is_file())),
+                tuple(
+                    sorted(
+                        path
+                        for path in child.iterdir()
+                        if path.is_file() and path.suffix.lower() in {".pdf", ".xps"}
+                    )
+                ),
+            ),
+        )
+        for number, child in numbered
+    )
+    return passes, render_pass.missing_pass_numbers(numbered)
 
 
 def load(parsed: run_grader.Parsed) -> RunSource:
@@ -641,6 +633,7 @@ def load(parsed: run_grader.Parsed) -> RunSource:
     named_heading_styles, rendered_comment_paragraphs, rendered_paragraph_texts = (
         _docx_properties(docx) if docx is not None else ((), 0, ())
     )
+    render_passes, missing_pass_numbers = _render_passes(root)
     return RunSource(
         root,
         draft,
@@ -654,7 +647,8 @@ def load(parsed: run_grader.Parsed) -> RunSource:
         rendered_paragraph_texts,
         _expected_paragraph_texts(draft_text) if docx is not None else (),
         _rendered_readings(post_text) if docx is not None else (),
-        _render_passes(root) if docx is not None else (),
+        render_passes,
+        missing_pass_numbers,
         section.refused_label,
         post_fields.get("POST-URL"),
         post_fields.get("POSTED"),
@@ -735,7 +729,10 @@ def _rendered_page_findings(source: RunSource) -> tuple[Finding, ...]:
                 "no RENDERED record for the rendered document",
             ),
         )
-    if len(source.rendered_readings) != len(source.render_passes):
+    retained_count = len(source.render_passes)
+    highest_pass_number = source.render_passes[-1][0] if source.render_passes else 0
+    reading_count = len(source.rendered_readings)
+    if reading_count not in {retained_count, highest_pass_number}:
         findings.append(
             Finding(
                 RENDERED_PAGES,
@@ -747,42 +744,60 @@ def _rendered_page_findings(source: RunSource) -> tuple[Finding, ...]:
         import pymupdf
     except ImportError:
         pymupdf = None
+    passes_by_number = dict(source.render_passes)
+    align_by_number = reading_count == highest_pass_number
     for index, reading in enumerate(source.rendered_readings, start=1):
         detail: list[str] = list(reading.errors)
         is_last = index == len(source.rendered_readings)
-        render_pass = (
-            source.render_passes[index - 1]
-            if index <= len(source.render_passes)
-            else RenderPass((), ())
+        if align_by_number:
+            retained_pass_at_number = passes_by_number.get(index)
+            retained = (
+                (index, retained_pass_at_number)
+                if retained_pass_at_number is not None
+                else None
+            )
+        else:
+            retained = (
+                source.render_passes[index - 1]
+                if index <= retained_count
+                else None
+            )
+        pass_number, retained_pass = (
+            retained if retained is not None else (index, RenderPass((), ()))
         )
-        pixels = render_pass.pixels
+        missing_retained_pass_is_gap = align_by_number and retained is None
+        pass_name = f"pass-{pass_number}"
+        pixels = retained_pass.pixels
         if reading.artifact != "post.md":
             detail.append("record artifact is not post.md")
         if reading.pages_seen is not None and reading.pages_seen < 1:
             detail.append("PAGES imaged count must be positive")
         if reading.pages_expected is not None and reading.pages_expected < 1:
             detail.append("PAGES expected count must be positive")
-        if reading.pages_seen is not None and len(pixels) != reading.pages_seen:
+        if (
+            not missing_retained_pass_is_gap
+            and reading.pages_seen is not None
+            and len(pixels) != reading.pages_seen
+        ):
             detail.append(
-                f"pass-{index} keeps {len(pixels)} page image(s), not {reading.pages_seen}"
+                f"{pass_name} keeps {len(pixels)} page image(s), not {reading.pages_seen}"
             )
-        expected_names = [f"page-{number}.png" for number in range(1, len(pixels) + 1)]
-        if [pixel.name for pixel in pixels] != expected_names:
-            detail.append(f"pass-{index} page image names are not consecutive from page-1.png")
-        if pymupdf is None and pixels:
+        if not missing_retained_pass_is_gap and pymupdf is None and pixels:
             detail.append("PyMuPDF is unavailable, so retained page pixels were not decoded")
-        elif pymupdf is not None:
+        elif not missing_retained_pass_is_gap and pymupdf is not None:
             for pixel in pixels:
                 if failure := png_read_error(pymupdf, pixel):
                     detail.append(f"{pixel.name} {failure}")
-        if len(render_pass.exports) != 1:
+        if missing_retained_pass_is_gap:
+            pass
+        elif len(retained_pass.exports) != 1:
             detail.append(
-                f"pass-{index} keeps {len(render_pass.exports)} page-faithful export(s), not 1"
+                f"{pass_name} keeps {len(retained_pass.exports)} page-faithful export(s), not 1"
             )
         elif pymupdf is None:
             detail.append("PyMuPDF is unavailable, so the retained export page count was not read")
         else:
-            export = render_pass.exports[0]
+            export = retained_pass.exports[0]
             try:
                 with pymupdf.open(str(export)) as document:
                     export_pages = len(document)
@@ -791,9 +806,11 @@ def _rendered_page_findings(source: RunSource) -> tuple[Finding, ...]:
             else:
                 if export_pages < 1:
                     detail.append(f"{export.name} contains no pages")
-                if is_last and len(pixels) != export_pages:
+                if is_last and not render_pass.images_cover_exported_pages(
+                    len(pixels), export_pages
+                ):
                     detail.append(
-                        f"pass-{index} keeps {len(pixels)} page image(s) for "
+                        f"{pass_name} keeps {len(pixels)} page image(s) for "
                         f"{export_pages} exported page(s)"
                     )
                 if (
@@ -827,7 +844,7 @@ def _rendered_page_findings(source: RunSource) -> tuple[Finding, ...]:
             detail.append("UNSEEN names an unchecked page")
         if detail:
             findings.append(
-                Finding(RENDERED_PAGES, f"pass-{index}", "; ".join(detail))
+                Finding(RENDERED_PAGES, pass_name, "; ".join(detail))
             )
     last = source.rendered_readings[-1]
     if last.verdict is not None and not last.verdict.casefold().startswith("clean -"):
@@ -867,6 +884,7 @@ def survey(source: RunSource) -> Scan:
                 if source.docx is not None
                 else None
             ),
+            missing_pass_numbers=source.missing_pass_numbers,
             docx_graded=source.docx is not None,
             reference_boundary_graded=False,
             findings=findings + _posted_reading_findings(source),
@@ -981,6 +999,7 @@ def survey(source: RunSource) -> Scan:
             if source.docx is not None
             else None
         ),
+        missing_pass_numbers=source.missing_pass_numbers,
         docx_graded=source.docx is not None,
         reference_boundary_graded=True,
         findings=tuple(findings),
@@ -1046,6 +1065,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
             if scan.docx_graded
             else f"{RENDERED_TEXT}: {NOT_GRADED}"
         ),
+        f"missing pass numbers: {scan.missing_pass_numbers} (counted, {NOT_GRADED})",
         legal_source_vocabulary_covered(),
         f"findings: {len(scan.findings)}",
     ]
