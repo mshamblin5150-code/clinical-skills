@@ -172,14 +172,16 @@ python tools/render_scan.py scratch/runs/<course>-<module>-course-assignment
 ```
 
 `deck_render.py` asks a freshly spawned PowerPoint for one page-faithful PDF, then rasterizes it to
-one 120-dpi PNG per slide in a new consecutive `render/pass-N/`. A failed route retains no pass.
+one 120-dpi PNG per slide in a new `render/pass-N/` above the highest retained number. A failed
+route retains no pass.
 If PowerPoint cannot export, ask the clinician for a clinician-supplied PDF and rerun with
 `--clinician-export <PDF>`; PowerPoint is the fast path and never the only path.
 
-`render_scan.py` reads canonical uninterrupted pass directories, the retained export's page count,
-and readable PNGs. Earlier passes remain counted evidence; only the last pass must contain at least
-one readable image for every exported page. Fewer final images than exported pages is exit 1. No
-measurable retained export or noncanonical pass history is exit 2.
+`render_scan.py` reads pass directories whose number is an ASCII positive integer with no leading
+zero, the retained export's page count, and readable PNGs. Earlier passes remain counted evidence;
+only the last pass must contain at least one readable image for every exported page. Fewer final
+images than exported pages is exit 1. No measurable retained export is exit 2. The gap count is
+reported on every run and never graded.
 
 A vision-capable, non-authoring context opens every PNG in the final pass and compares it with the
 deck and signed bar. It reports clipping, overflow, overlap, unreadable contrast, missing or
