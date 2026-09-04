@@ -113,15 +113,17 @@ class TextProducerIdentity(unittest.TestCase):
             )
             producer_path.write_bytes(b"first\nsecond\n")
 
-            result = artifact_provenance.check_producer(
-                {"commit": "same", "dirty": False, "inputs": inputs},
-                repo / "artifact.json",
-                expected_commit="same",
-                repo_root=repo,
-                unchanged_paths=("tools/producer.py",),
-            )
+            with mock.patch.object(artifact_provenance.subprocess, "run") as run:
+                result = artifact_provenance.check_producer(
+                    {"commit": "same", "dirty": False, "inputs": inputs},
+                    repo / "artifact.json",
+                    expected_commit="same",
+                    repo_root=repo,
+                    unchanged_paths=("tools/producer.py",),
+                )
 
             self.assertTrue(result.trusted)
+            run.assert_not_called()
 
             producer_path.write_bytes(b"first\nchanged\n")
             with self.assertRaisesRegex(
@@ -239,60 +241,6 @@ accepted distrust against <corpus> on <date>:
         )
 
 
-class ProducerCheckGitCost(unittest.TestCase):
-    def test_matching_inputs_with_an_expected_commit_spawn_no_git_process(self):
-        with tempfile.TemporaryDirectory() as directory:
-            repo = Path(directory)
-            producer_path = repo / "tools" / "producer.py"
-            producer_path.parent.mkdir()
-            producer_path.write_text("stable\n", encoding="utf-8")
-            inputs = artifact_provenance.producer_file_identity(
-                ("tools/producer.py",), repo_root=repo
-            )
-
-            with mock.patch.object(artifact_provenance.subprocess, "run") as run:
-                result = artifact_provenance.check_producer(
-                    {"commit": "same", "dirty": False, "inputs": inputs},
-                    repo / "artifact.json",
-                    expected_commit="same",
-                    repo_root=repo,
-                    unchanged_paths=("tools/producer.py",),
-                )
-
-            self.assertTrue(result.trusted)
-            run.assert_not_called()
-
-    def test_the_merge_parent_fallback_still_spawns_git_processes(self):
-        with tempfile.TemporaryDirectory() as directory:
-            repo = Path(directory)
-
-            def successful_git(arguments, **_kwargs):
-                return subprocess.CompletedProcess(arguments, 0)
-
-            with (
-                mock.patch.object(
-                    artifact_provenance.subprocess,
-                    "run",
-                    side_effect=successful_git,
-                ) as run,
-                contextlib.redirect_stderr(io.StringIO()),
-            ):
-                result = artifact_provenance.check_producer(
-                    {"commit": "merge-parent", "dirty": False},
-                    repo / "artifact.json",
-                    allow_untrusted=True,
-                    expected_commit="checkout-head",
-                    repo_root=repo,
-                    unchanged_paths=("tools/producer.py",),
-                )
-
-            self.assertEqual(result.reasons, ("records no producer-file identity",))
-            self.assertEqual(
-                [call.args[0][3] for call in run.call_args_list],
-                ["merge-base", "diff", "diff"],
-            )
-
-
 class MergeParentTrustTests(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
@@ -386,16 +334,33 @@ class MergeParentTrustTests(unittest.TestCase):
         self._git("add", "tools/guidelines_extract.py")
         self._git("commit", "-m", "change extractor")
         self._git("merge", "--no-commit", "--no-ff", "main")
+        expected_commit = self._git("rev-parse", "HEAD")
 
-        with self.assertRaisesRegex(
-            artifact_provenance.UntrustedProvenance, "different commit"
+        git_commands = []
+        original_run = subprocess.run
+
+        def counting_run(arguments, *args, **kwargs):
+            if arguments[0] == "git":
+                git_commands.append(arguments[3])
+            return original_run(arguments, *args, **kwargs)
+
+        with (
+            mock.patch.object(
+                artifact_provenance.subprocess, "run", side_effect=counting_run
+            ),
+            self.assertRaisesRegex(
+                artifact_provenance.UntrustedProvenance, "different commit"
+            ),
         ):
             artifact_provenance.check_producer(
                 {"commit": incoming_parent, "dirty": False},
                 self.repo / "manifest.json",
+                expected_commit=expected_commit,
                 repo_root=self.repo,
                 unchanged_paths=("tools/guidelines_extract.py",),
             )
+
+        self.assertEqual(git_commands, ["merge-base", "diff", "diff"])
 
     def test_an_artifact_from_head_is_refused_when_the_merge_changes_its_extractor(self):
         (self.repo / "tools" / "guidelines_extract.py").write_text(
