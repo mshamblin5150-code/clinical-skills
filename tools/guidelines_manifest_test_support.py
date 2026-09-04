@@ -6,6 +6,7 @@ import json
 import tempfile
 from pathlib import Path
 
+import artifact_lock_test_support  # noqa: F401
 import artifact_lock
 import artifact_provenance
 import guidelines_manifest

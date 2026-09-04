@@ -41,6 +41,7 @@ import subprocess
 import unittest
 from pathlib import Path
 
+import artifact_lock_test_support  # noqa: F401
 import guidelines_extract
 import guidelines_index
 import guidelines_recs

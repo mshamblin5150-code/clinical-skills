@@ -19,6 +19,7 @@ TOOLS = Path(__file__).resolve().parent
 REPO = TOOLS.parent
 sys.path.insert(0, str(TOOLS))
 
+import artifact_lock_test_support  # noqa: E402, F401
 import artifact_provenance  # noqa: E402
 import guidelines_recs  # noqa: E402
 import uspstf_table  # noqa: E402

@@ -43,6 +43,7 @@ from contextlib import nullcontext, redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
+import artifact_lock_test_support  # noqa: F401
 import differential_scan as ds
 import run_grader
 from grader_conformance import for_module

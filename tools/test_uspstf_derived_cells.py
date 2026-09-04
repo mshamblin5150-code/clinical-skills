@@ -27,6 +27,8 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+import artifact_lock_test_support  # noqa: F401
+
 import guidelines_recs
 import uspstf_table
 

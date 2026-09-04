@@ -10,6 +10,8 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest import mock
 
+import artifact_lock_test_support  # noqa: F401
+
 import guidelines_extract as extract
 import split_census as census
 from prose_bind import ProseBind

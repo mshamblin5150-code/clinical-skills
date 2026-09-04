@@ -31,6 +31,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest import mock
 
+import artifact_lock_test_support  # noqa: F401
 import guidelines_index as gi
 import guidelines_search as gs
 import artifact_lock
@@ -1269,7 +1270,7 @@ class BuildCommandLineTests(TempCorpus):
     def test_a_busy_ownership_handoff_names_the_artifact(self):
         path = artifact_lock.lock_path(self.db)
         path.parent.mkdir(parents=True, exist_ok=True)
-        with artifact_lock._gate(path, self.db):
+        with artifact_lock._handoff(path, self.db):
             status, _, err = self.run_build([str(self.text_dir), str(self.db)])
 
         self.assertEqual(status, 2)
