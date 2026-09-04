@@ -308,6 +308,14 @@ _Avoid_: provenance line, status line, audit note, metadata
 A held declaration for a verdict a command produced while knowingly reading an artifact whose provenance check failed. It is a property of the run rather than of the artifact read, and where the verdict reaches a curated file by way of a person it is the artifact's own declaration — naming the source, the date and the reasons — that holds the verdict; a superseding trusted run retires it.
 _Avoid_: provenance stamp, taint, untrusted flag
 
+**Lock identity**:
+What a nonblocking artifact lock is keyed on, so that two processes reaching for the same thing find each other. It is a **name** and need not be a file: a coordination issue on the tracker has no filesystem location, and the tool that owns one hands the lock a synthetic path standing in for it. A reader who assumes the argument is the artifact designs for the wrong unit — the lock never opens what it is named after, and its cost and its debris are properties of the identity rather than of anything the identity points at.
+_Avoid_: lock file, lock key, locked artifact, lock path
+
+**Lock root**:
+The one directory every **lock identity** resolves under, outside every checkout. Its being shared is the whole mechanism: two unrelated processes exclude each other only because they compute the same place. It is overridable so that a test run can generate identities that die with it rather than accumulating forever, and that override is the mechanism's own hazard — two processes pointed at different roots do not see each other, which is exactly the overlap the lock exists to prevent. Undetectable at run time by construction, since the evidence would be a contention that never happened, so it is declared and never warned about.
+_Avoid_: lock directory, lock namespace, temp lock dir
+
 **Paste box**:
 The rich-text field a graded post is submitted through, as distinct from a file upload. It keeps the tags of what is pasted and discards every style, class and stylesheet, so a document's appearance never predicts it.
 _Avoid_: editor, text field, LMS box

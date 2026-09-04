@@ -101,6 +101,7 @@ class ACompleteFinalPassIsClean(unittest.TestCase):
         self.assertIn("exported pages", stdout)
         self.assertIn("page images", stdout)
         self.assertIn("final-page-coverage: 0", stdout)
+        self.assertIn("missing pass numbers         0", stdout)
         self.assertNotIn("page-1.png", stdout)
         self.assertNotIn(Path(temp).name, stdout)
 
@@ -163,31 +164,31 @@ class AMeasuredShortFinalPassIsAFinding(unittest.TestCase):
 
 
 class MissingEvidenceDidNotScan(unittest.TestCase):
-    def test_numbered_passes_must_start_at_one_and_have_no_gaps(self):
-        with tempfile.TemporaryDirectory() as temp:
-            run = Run(Path(temp))
-            run.add_pass(2, pages=1, pixels=1)
-            status, _, stderr = run.grade()
-
-        self.assertEqual(2, status)
-        self.assertIn("canonical uninterrupted", stderr)
-
-    def test_numeric_aliases_do_not_create_two_versions_of_one_pass(self):
+    def test_a_gap_is_counted_without_changing_clean_status(self):
         with tempfile.TemporaryDirectory() as temp:
             run = Run(Path(temp))
             run.add_pass(1, pages=1, pixels=1)
-            alias = Path(temp) / "render" / "pass-01"
-            alias.mkdir()
-            (alias / "case-study.pdf").write_text("pages:1", encoding="ascii")
-            (alias / "page-1.png").write_bytes(
-                b"\x89PNG\r\n\x1a\nretained pixels"
-            )
-            status, _, stderr = run.grade()
+            run.add_pass(3, pages=1, pixels=1)
+            status, stdout, stderr = run.grade()
 
-        self.assertEqual(2, status)
-        self.assertIn("canonical uninterrupted", stderr)
+        self.assertEqual(0, status)
+        self.assertEqual("", stderr)
+        self.assertIn("missing pass numbers         1", stdout)
 
-    def test_a_short_final_pass_outranks_a_noncanonical_history(self):
+    def test_non_pass_directory_names_are_ignored(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            run.add_pass(1, pages=1, pixels=1)
+            for name in ("pass-01", "pass-0", "pass-²"):
+                (Path(temp) / "render" / name).mkdir()
+            status, stdout, stderr = run.grade()
+
+        self.assertEqual(0, status)
+        self.assertEqual("", stderr)
+        self.assertIn("passes read                 1", stdout)
+        self.assertIn("missing pass numbers         0", stdout)
+
+    def test_a_gap_does_not_change_a_short_final_pass_status(self):
         with tempfile.TemporaryDirectory() as temp:
             run = Run(Path(temp))
             run.add_pass(1, pages=1, pixels=1)
@@ -196,7 +197,8 @@ class MissingEvidenceDidNotScan(unittest.TestCase):
 
         self.assertEqual(1, status)
         self.assertIn("final-page-coverage: 1", stdout)
-        self.assertIn("canonical uninterrupted", stderr)
+        self.assertIn("missing pass numbers         1", stdout)
+        self.assertNotIn("canonical uninterrupted", stderr)
 
     def test_no_render_directory_exits_two(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -262,7 +264,7 @@ class TheSkillSaysWhatThisGrades(unittest.TestCase):
 
     def test_pass_history_and_readable_pixel_contract_are_written_out(self):
         normalized = " ".join(self.skill.split())
-        self.assertIn("canonical uninterrupted pass-1 through pass-N", normalized)
+        self.assertIn("gap count is reported and never graded", normalized)
         self.assertIn("count only PNGs that decode as one readable image", normalized)
         self.assertIn("report each pass's readable-image and exported-page counts", normalized)
 

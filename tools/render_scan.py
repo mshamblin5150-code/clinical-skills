@@ -3,10 +3,12 @@
 
     python tools/render_scan.py <a run directory> [--show]
 
-Each canonical uninterrupted ``render/pass-N`` keeps exactly one page-faithful
-PDF or XPS and one readable PNG per imaged page. The export supplies the
-page-count denominator; the readable-PNG count supplies the numerator. Earlier passes are reported and may be incomplete after
-a reader stopped on a defect. Only the last pass must cover every exported page.
+Each ``render/pass-N`` uses an ASCII positive integer with no leading zero and
+keeps exactly one page-faithful PDF or XPS and one readable PNG per imaged page.
+The export supplies the page-count denominator; the readable-PNG count supplies
+the numerator. Earlier passes are reported and may be incomplete after a reader
+stopped on a defect. Only the last pass must cover every exported page. Missing
+pass numbers are counted on every run and never graded.
 
 Default output reports aggregate and per-pass counts only. ``--show`` adds
 pass-level finding detail. Exit 0
@@ -25,12 +27,12 @@ grades the substantiated ``the rendered document`` verdict for that reading.
 
 from __future__ import annotations
 
-import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 
 import run_grader
+import render_pass
 
 
 FINAL_PAGE_COVERAGE = "final-page-coverage"
@@ -46,19 +48,16 @@ INVALID_INVOCATION = "invalid invocation"
 NO_RUN_DIRECTORY = "no run directory"
 NO_RENDER_DIRECTORY = "no render directory"
 NO_RENDER_PASSES = "no numbered render passes"
-NONCANONICAL_PASSES = "render passes are not canonical and uninterrupted"
 UNREADABLE_EXPORT = "render pass has no readable retained export"
 EXIT_2_LIMBS = (
     INVALID_INVOCATION,
     NO_RUN_DIRECTORY,
     NO_RENDER_DIRECTORY,
     NO_RENDER_PASSES,
-    NONCANONICAL_PASSES,
     UNREADABLE_EXPORT,
 )
 
 EXPORT_SUFFIXES = frozenset({".pdf", ".xps"})
-PASS_DIRECTORY = re.compile(r"pass-(\d+)")
 
 
 @dataclass(frozen=True)
@@ -89,35 +88,20 @@ class PassCoverage:
 class Source:
     root: Path
     passes: tuple[RenderPass, ...]
+    missing_pass_numbers: int
     coverage_limbs: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
 class Scan:
     passes_read: int
+    missing_pass_numbers: int
     exported_pages: int
     page_images: int
     incomplete_earlier_passes: int
     unscanned_passes: int
     pass_coverage: tuple[PassCoverage, ...]
     findings: tuple[Finding, ...] = ()
-
-
-def _numbered_passes(render_root: Path) -> tuple[tuple[int, Path], ...]:
-    found = []
-    for child in render_root.iterdir():
-        match = PASS_DIRECTORY.fullmatch(child.name)
-        if child.is_dir() and match:
-            found.append((int(match.group(1)), child))
-    return tuple(sorted(found))
-
-
-def _pass_history_is_canonical(numbered: tuple[tuple[int, Path], ...]) -> bool:
-    expected = tuple(range(1, len(numbered) + 1))
-    actual = tuple(number for number, _path in numbered)
-    return actual == expected and all(
-        path.name == f"pass-{number}" for number, path in numbered
-    )
 
 
 def _read_export_pages(exports: tuple[Path, ...]) -> tuple[int | None, str]:
@@ -165,7 +149,7 @@ def _load(parsed: run_grader.Parsed) -> Source:
         raise run_grader.SourceError(
             "no render directory in the supplied run", exit_2_limb=NO_RENDER_DIRECTORY
         )
-    numbered = _numbered_passes(render_root)
+    numbered = render_pass.read_passes(render_root)
     if not numbered:
         raise run_grader.SourceError(
             f"no numbered render passes in {render_root.name}",
@@ -201,19 +185,24 @@ def _load(parsed: run_grader.Parsed) -> Source:
             )
         )
     limbs = []
-    if not _pass_history_is_canonical(numbered):
-        limbs.append(NONCANONICAL_PASSES)
     if any(render_pass.exported_pages is None for render_pass in passes):
         limbs.append(UNREADABLE_EXPORT)
-    return Source(root, tuple(passes), tuple(limbs))
+    return Source(
+        root,
+        tuple(passes),
+        render_pass.missing_pass_numbers(numbered),
+        tuple(limbs),
+    )
 
 
-def survey(passes: tuple[RenderPass, ...]) -> Scan:
+def survey(passes: tuple[RenderPass, ...], missing_pass_numbers: int = 0) -> Scan:
     final = passes[-1]
     findings = []
     if (
         final.exported_pages is not None
-        and len(final.pixels) < final.exported_pages
+        and not render_pass.images_cover_exported_pages(
+            len(final.pixels), final.exported_pages
+        )
     ):
         findings.append(
             Finding(
@@ -225,6 +214,7 @@ def survey(passes: tuple[RenderPass, ...]) -> Scan:
         )
     return Scan(
         passes_read=len(passes),
+        missing_pass_numbers=missing_pass_numbers,
         exported_pages=sum(item.exported_pages or 0 for item in passes),
         page_images=sum(len(item.pixels) for item in passes),
         incomplete_earlier_passes=sum(
@@ -247,6 +237,7 @@ def format_report(scan: Scan, _source: str, show: bool = False) -> str:
         "render scan",
         "",
         f"  passes read                 {scan.passes_read}",
+        f"  missing pass numbers         {scan.missing_pass_numbers}",
         f"  exported pages              {scan.exported_pages}",
         f"  page images                 {scan.page_images}",
         f"  incomplete earlier passes   {scan.incomplete_earlier_passes}",
@@ -274,12 +265,8 @@ def format_report(scan: Scan, _source: str, show: bool = False) -> str:
 
 
 def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
-    scan = survey(source.passes)
+    scan = survey(source.passes, source.missing_pass_numbers)
     diagnostics = []
-    if NONCANONICAL_PASSES in source.coverage_limbs:
-        diagnostics.append(
-            "render passes must use canonical uninterrupted pass-1 through pass-N directories"
-        )
     for render_pass in source.passes:
         if render_pass.read_error:
             diagnostics.append(f"{render_pass.path.name}: {render_pass.read_error}")

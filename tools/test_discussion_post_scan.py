@@ -236,6 +236,112 @@ class ACompletePostPasses(unittest.TestCase):
         self.assertIn("bold-headings: 0", stdout)
         self.assertIn("rendered-text: 0", stdout)
         self.assertIn("rendered-pages: 0", stdout)
+        self.assertIn("missing pass numbers: 0 (counted, not graded)", stdout)
+
+    def test_a_gap_is_counted_without_changing_clean_status(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            document = run.root / "post.docx"
+            docx_write.write_docx(BODY, document, bold_headings=True)
+            run.record_render(render_pass=1)
+            run.record_render(render_pass=3)
+            status, stdout, stderr = run.grade("--docx", str(document))
+
+        self.assertEqual(0, status)
+        self.assertEqual("", stderr)
+        self.assertIn("missing pass numbers: 1 (counted, not graded)", stdout)
+        self.assertIn("rendered-pages: 0", stdout)
+
+    def test_deleting_a_historical_pass_does_not_turn_the_gap_into_a_finding(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            document = run.root / "post.docx"
+            docx_write.write_docx(BODY, document, bold_headings=True)
+            run.record_render(render_pass=1)
+            run.record_render(render_pass=2)
+            run.record_render(render_pass=3)
+            retained = run.root / "render" / "pass-2"
+            for artifact in retained.iterdir():
+                artifact.unlink()
+            retained.rmdir()
+            status, stdout, stderr = run.grade("--docx", str(document))
+
+        self.assertEqual(0, status)
+        self.assertEqual("", stderr)
+        self.assertIn("missing pass numbers: 1 (counted, not graded)", stdout)
+        self.assertIn("rendered-pages: 0", stdout)
+
+    def test_a_finding_uses_the_retained_pass_number_after_a_gap(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            document = run.root / "post.docx"
+            docx_write.write_docx(BODY, document, bold_headings=True)
+            run.record_render(render_pass=1)
+            run.record_render(
+                seen=1,
+                expected=2,
+                unseen="2",
+                render_pass=3,
+            )
+            status, stdout, _ = run.grade("--docx", str(document), "--show")
+
+        self.assertEqual(1, status)
+        self.assertIn("rendered-pages: pass-3:", stdout)
+        self.assertNotIn("rendered-pages: pass-2:", stdout)
+
+    def test_an_extra_render_record_keeps_the_empty_pass_evidence_checks(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            document = run.root / "post.docx"
+            docx_write.write_docx(BODY, document, bold_headings=True)
+            run.record_render(render_pass=1)
+            post = run.root / "post.md"
+            post.write_text(
+                post.read_text(encoding="utf-8")
+                + "\n## RENDERED: post.md\n"
+                + "PAGES: 2 of 2 imaged\n"
+                + "SOURCE: word-pdf\n"
+                + "UNSEEN: none\n"
+                + "READ: 2026-09-01\n"
+                + "VERDICT: clean - both pages compared with the Markdown\n",
+                encoding="utf-8",
+            )
+            status, stdout, _ = run.grade("--docx", str(document), "--show")
+
+        self.assertEqual(1, status)
+        self.assertIn("pass-2 keeps 0 page image(s), not 2", stdout)
+        self.assertIn("pass-2 keeps 0 page-faithful export(s), not 1", stdout)
+
+    def test_non_pass_directory_names_are_ignored(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            document = run.root / "post.docx"
+            docx_write.write_docx(BODY, document, bold_headings=True)
+            run.record_render()
+            for name in ("pass-01", "pass-0", "pass-²"):
+                (run.root / "render" / name).mkdir()
+            status, stdout, stderr = run.grade("--docx", str(document))
+
+        self.assertEqual(0, status)
+        self.assertEqual("", stderr)
+        self.assertIn("missing pass numbers: 0 (counted, not graded)", stdout)
+        self.assertIn("rendered-pages: 0", stdout)
+
+    def test_deck_shaped_pass_names_are_read_through_the_globbed_shape(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            document = run.root / "post.docx"
+            docx_write.write_docx(BODY, document, bold_headings=True)
+            run.record_render()
+            retained = run.root / "render" / "pass-1"
+            (retained / "post.pdf").rename(retained / "deck.pdf")
+            (retained / "page-1.png").rename(retained / "slide-1.png")
+            (retained / "page-2.png").rename(retained / "slide-2.png")
+            status, stdout, stderr = run.grade("--docx", str(document))
+
+        self.assertEqual(0, status)
+        self.assertEqual("", stderr)
+        self.assertIn("rendered-pages: 0", stdout)
 
     def test_a_docx_without_a_render_record_fails_coverage(self):
         with tempfile.TemporaryDirectory() as temp:

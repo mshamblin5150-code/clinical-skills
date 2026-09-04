@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 import shutil
 import subprocess
 import sys
@@ -24,6 +23,7 @@ from pathlib import Path
 
 from console_codec import use_utf8
 import office_process
+import render_pass
 from discussion_artifact import (
     AUTOMATED_RENDERED_SOURCES,
     RENDERED_RASTER_DPI as RASTER_DPI,
@@ -35,17 +35,6 @@ EXPORT_TIMEOUT_SECONDS = 20
 
 class RenderError(Exception):
     pass
-
-
-def _next_pass(render_root: Path) -> int:
-    numbers = sorted(
-        int(match.group(1))
-        for child in render_root.iterdir()
-        if child.is_dir() and (match := re.fullmatch(r"pass-(\d+)", child.name))
-    )
-    if numbers != list(range(1, len(numbers) + 1)):
-        raise RenderError("render pass directories are not consecutive from pass-1")
-    return len(numbers) + 1
 
 
 def _word_attempt(
@@ -185,11 +174,7 @@ def render(
         ):
             raise RenderError("--clinician-export must be an existing PDF or XPS")
     render_root = run / "render"
-    render_root.mkdir(exist_ok=True)
-    pass_number = _next_pass(render_root)
-    destination = render_root / f"pass-{pass_number}"
-    staging = Path(tempfile.mkdtemp(prefix=f".pass-{pass_number}-", dir=render_root))
-    try:
+    def build(staging: Path) -> tuple[str, int]:
         with tempfile.TemporaryDirectory() as conversion_directory:
             source, pages, retained_export, failures = _pages_from_exports(
                 pymupdf,
@@ -206,15 +191,14 @@ def render(
                 staging / f"post{retained_export.suffix.lower()}",
             )
         retained = tuple(staging.glob("*.png"))
-        if len(retained) != pages:
+        if not render_pass.images_cover_exported_pages(len(retained), pages):
             raise RenderError(
                 f"rasterizer retained {len(retained)} page image(s) for {pages} pages"
             )
-        staging.rename(destination)
-        return source, destination, pages
-    finally:
-        if staging.exists():
-            shutil.rmtree(staging)
+        return source, pages
+
+    destination, (source, pages) = render_pass.retain_staged_pass(render_root, build)
+    return source, destination, pages
 
 
 def main(argv: list[str]) -> int:

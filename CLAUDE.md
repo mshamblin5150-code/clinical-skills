@@ -701,10 +701,11 @@ Covered by `tools/test_reference_scan.py`, which builds synthetic drafts in that
 ### Render scan
 
 `tools/render_scan.py` grades the retained page evidence for a `practicum-case-study` run. It reads
-`<run-directory>/render/pass-N/`; the directories must be the canonical uninterrupted sequence
-from `pass-1` through `pass-N`. Each pass keeps one Word-exported PDF or XPS and the PNG pages
-rasterized from it. The export's own page count is the denominator and the count of PNGs that
-decode as one readable image is the numerator, so neither half is a line a reader self-reports.
+`<run-directory>/render/pass-N/`, where `N` is an ASCII positive integer with no leading zero.
+Each pass keeps one Word-exported PDF or XPS and the PNG pages rasterized from it. The export's own
+page count is the denominator and the count of PNGs that decode as one readable image is the
+numerator, so neither half is a line a reader self-reports. A missing pass number is counted in
+every report and never changes the exit status.
 
 ```bash
 python tools/render_scan.py <a run directory> [--show]
@@ -719,8 +720,8 @@ returns a failure inside the bound proceeds to the bounded XPS attempt.
 Only the last pass is graded for completeness. An earlier pass may stop when its reader finds a
 layout defect; the report gives each pass's readable-image and exported-page counts without failing
 that historical short pass. A measurable short final pass is exit 1. Missing render evidence, a
-pass with no single readable retained export, or a noncanonical or interrupted pass sequence is exit
-2, and a final-pass finding wins when both states occur in one run. Default output is counts only;
+pass with no single readable retained export, or no numbered pass is exit 2. A gap is reported and
+never graded, including when another condition sets the status. Default output is counts only;
 `--show` adds only fixed `pass-N` labels and finding detail, so both forms are pasteable.
 
 This is coverage, not the visual judgment. It cannot establish that the PNG files are the pages a
@@ -730,9 +731,9 @@ document` record remains owned by `tools/checks_ledger.py`, and
 
 Covered by `tools/test_render_scan.py`, which uses synthetic retained exports behind a fake
 PyMuPDF public interface and temp run directories. The suite therefore exercises PDF and XPS page
-counts, readable image validation, canonical pass history, per-pass reporting, historical short
-passes, final short coverage, missing evidence, exit precedence, report redaction, the shared
-grader contract, and the prose binding without requiring Word or PyMuPDF.
+counts, readable image validation, pass-name grammar and gap reporting, per-pass reporting,
+historical short passes, final short coverage, missing evidence, exit precedence, report redaction,
+the shared grader contract, and the prose binding without requiring Word or PyMuPDF.
 
 ### After-action review
 
@@ -912,8 +913,8 @@ python tools/discussion_post_scan.py <a run directory> --draft <the Markdown> [-
 **The render command creates the page evidence the scan grades.** It asks an owned Word process for
 a PDF and starts a fresh XPS rasterization when that route cannot reach every page. If neither
 export succeeds, a clinician-supplied PDF or XPS is the escalation. Each successful run retains one
-page-faithful export and one image per page of that same export in a new consecutive
-`render/pass-N/`; a failed run retains no pass. The exact page resolution and source vocabulary are
+page-faithful export and one image per page of that same export in a new `render/pass-N/` above the
+highest retained number; a failed run retains no pass. The exact page resolution and source vocabulary are
 owned by `discussion_artifact`, and the full route and escalation contract is published in
 `skills/discussion-post/SKILL.md` rather than copied here.
 
@@ -952,7 +953,7 @@ for claim tracing. Counts print by default, while `--show` exposes artifact text
 Exit 0 is clean, 1 means a finding, and 2 means the input population was not completely scanned.
 
 The render command asks a newly owned PowerPoint process for one page-faithful PDF and rasterizes
-that export to one PNG per slide in a new consecutive `render/pass-N/`. It retains a pass only after
+that export to one PNG per slide in a new `render/pass-N/` above the highest retained number. It retains a pass only after
 every page is readable. If PowerPoint export is unavailable, `--clinician-export <PDF>` accepts the
 clinician's export through the same raster and retention checks. The complete route, escalation,
 and visual comparison obligations live in `skills/course-assignment/SKILL.md`.

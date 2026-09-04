@@ -8,12 +8,12 @@ import re
 import shutil
 import subprocess
 import sys
-import tempfile
 import zipfile
 from pathlib import Path
 
 from console_codec import use_utf8
 import office_process
+import render_pass
 
 
 RASTER_DPI = 120
@@ -23,16 +23,6 @@ SLIDE_PART = re.compile(r"^ppt/slides/slide[1-9]\d*\.xml$")
 
 class RenderError(Exception):
     pass
-
-
-def _next_pass(render_root: Path) -> int:
-    numbers = []
-    for child in render_root.iterdir():
-        if child.is_dir() and child.name.startswith("pass-"):
-            suffix = child.name.removeprefix("pass-")
-            if suffix.isdigit():
-                numbers.append(int(suffix))
-    return max(numbers, default=0) + 1
 
 
 def _powerpoint_export(deck: Path, output: Path, ownership_file: Path) -> None:
@@ -103,14 +93,6 @@ def _slide_count(deck: Path) -> int:
     return count
 
 
-def _discard_building(path: Path, render_root: Path) -> None:
-    resolved = path.resolve()
-    if resolved.parent != render_root.resolve() or not resolved.name.startswith(".building-"):
-        raise RenderError(f"refused to remove unexpected temporary path {resolved}")
-    if path.exists():
-        shutil.rmtree(path)
-
-
 def render(
     run: Path,
     deck: Path,
@@ -126,12 +108,10 @@ def render(
         raise RenderError("clinician export must be an existing PDF")
     slide_count = _slide_count(deck)
     render_root = run / "render"
-    render_root.mkdir(exist_ok=True)
-    building = Path(tempfile.mkdtemp(prefix=".building-", dir=render_root))
-    ownership = building / "powerpoint-owned.txt"
-    export = building / "deck.pdf"
-    source = "powerpoint-pdf"
-    try:
+    def build(building: Path) -> tuple[str, int]:
+        ownership = building / "powerpoint-owned.txt"
+        export = building / "deck.pdf"
+        source = "powerpoint-pdf"
         try:
             _powerpoint_export(deck.resolve(), export.resolve(), ownership.resolve())
         except RenderError:
@@ -145,12 +125,14 @@ def render(
                 f"retained PDF has {pages} pages for {slide_count} slides"
             )
         ownership.unlink(missing_ok=True)
-        destination = render_root / f"pass-{_next_pass(render_root)}"
-        building.rename(destination)
-        return source, destination, pages
-    except Exception:
-        _discard_building(building, render_root)
-        raise
+        if not render_pass.images_cover_exported_pages(
+            len(tuple(building.glob("*.png"))), pages
+        ):
+            raise RenderError("not every exported slide has a retained page image")
+        return source, pages
+
+    destination, (source, pages) = render_pass.retain_staged_pass(render_root, build)
+    return source, destination, pages
 
 
 def main(argv: list[str]) -> int:
