@@ -336,6 +336,11 @@ DECLARED_LIMITS = (
         EvidenceDisposition.DECLARED_READING,
     ),
     DeclaredLimit(
+        "curated-table-read-once",
+        "A run does not establish that its curated rows match the committed curated table as it stands when the recommendation record is written.",
+        EvidenceDisposition.BEHAVIOR,
+    ),
+    DeclaredLimit(
         "curated-supersession-unread",
         "Curated verification does not interpret the source table's supersession metadata.",
         EvidenceDisposition.BEHAVIOR,
@@ -1197,6 +1202,12 @@ def curated_recommendations(
 
 
 _CURATED_CACHE: dict[str, list[CuratedRow]] | None = None
+
+
+def reset_curated_cache() -> None:
+    """Make the next curated-table lookup read the committed file again."""
+    global _CURATED_CACHE
+    _CURATED_CACHE = None
 
 
 def curated_rows_for(filename: str) -> list[CuratedRow]:
