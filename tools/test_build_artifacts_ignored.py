@@ -36,6 +36,7 @@ rather than restating it.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 import subprocess
 import unittest
 from pathlib import Path
@@ -44,9 +45,28 @@ import guidelines_extract
 import guidelines_index
 import guidelines_recs
 import docx_write
+import git_paths
 from repo_root import main_repo_root
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+
+
+def _ignored(paths: Sequence[str]) -> set[str]:
+    """Return the members of ``paths`` ignored by the repository's rules."""
+    stdin = b"".join(
+        path.encode("utf-8", errors="surrogateescape") + b"\0" for path in paths
+    )
+    return set(
+        git_paths.read_path_records(
+            REPO_ROOT,
+            "check-ignore",
+            "--no-index",
+            "--stdin",
+            "-z",
+            stdin=stdin,
+            accepted_returncodes=(0, 1),
+        )
+    )
 
 
 def _check_ignore(relative: str) -> bool:
@@ -55,14 +75,7 @@ def _check_ignore(relative: str) -> bool:
     ``--no-index`` so the answer is about the rules rather than about whether the
     path happens to exist or be tracked right now.
     """
-    finished = subprocess.run(
-        ["git", "check-ignore", "--no-index", "-q", "--", relative],
-        cwd=REPO_ROOT,
-        capture_output=True,
-        encoding="utf-8",
-        errors="replace",
-    )
-    return finished.returncode == 0
+    return relative in _ignored((relative,))
 
 
 def _ignore_source(relative: str) -> str | None:
@@ -95,6 +108,17 @@ def _ignore_source(relative: str) -> str | None:
 
 class TheInstrumentIsLive(unittest.TestCase):
     """A path nothing covers must come back not-ignored, or the rest proves nothing."""
+
+    def test_a_population_returns_only_the_ignored_paths(self) -> None:
+        paths = (
+            "tools/guidelines_extract.py",
+            "scratch/day-file-text/anything.md",
+            "output/a-finished-note.md",
+        )
+        self.assertEqual(
+            _ignored(paths),
+            {"scratch/day-file-text/anything.md", "output/a-finished-note.md"},
+        )
 
     def test_an_uncovered_path_is_not_ignored(self) -> None:
         self.assertFalse(_check_ignore("zzz-nothing-covers-this/afile.txt"))
@@ -295,17 +319,12 @@ class TheNetDoesNotSwallowWhatIsCommitted(unittest.TestCase):
         every path it added would pass this assertion by definition. There is
         no version of this test that sees more by seeing untracked files.
         """
-        finished = subprocess.run(
-            ["git", "ls-files", "--cached"],
-            cwd=REPO_ROOT,
-            capture_output=True,
-            encoding="utf-8",
-            errors="replace",
-            check=True,
+        tracked = git_paths.read_path_records(
+            REPO_ROOT, "ls-files", "--cached", "-z"
         )
-        tracked = [line for line in finished.stdout.splitlines() if line.strip()]
         self.assertGreater(len(tracked), 100, "git ls-files returned too little to be a checkout")
-        ignored = [path for path in tracked if _check_ignore(path)]
+        ignored_set = _ignored(tracked)
+        ignored = [path for path in tracked if path in ignored_set]
         self.assertEqual(
             ignored,
             [],
