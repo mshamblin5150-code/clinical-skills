@@ -151,7 +151,8 @@ which the parser's own comment says place their list under the H1.
 It is latent: nothing cites any of the four by ordinal today. It would go live on the first
 citation, because `RULING_CITATION` accepts `decision` as an ordinal word — so the natural way to
 cite one is unresolvable, against a ceiling of 2 with one slot already spent. This record therefore
-refers to ADR 0127 without an ordinal deliberately. Filed separately rather than folded in here,
+refers to ADR 0127 without an ordinal deliberately. Filed as
+[#886](https://github.com/mshamblin5150-code/clinical-skills/issues/886) rather than folded in here,
 because it has nothing to do with this cache and it carries a decision of its own.
 
 **Whether the two injection sites should ever become public.** Ruling 1 withholds the seam on what a
