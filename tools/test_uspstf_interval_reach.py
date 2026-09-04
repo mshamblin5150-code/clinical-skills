@@ -5,6 +5,8 @@ from __future__ import annotations
 import unittest
 from pathlib import Path
 
+import artifact_lock_test_support  # noqa: F401
+
 import uspstf_interval_reach as reach
 
 

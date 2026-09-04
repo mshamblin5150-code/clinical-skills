@@ -2,8 +2,7 @@
 
 The lock root may be overridden for a bounded run, but it always remains outside
 every checkout. Scoped identities bound ordinary acquisition work to one artifact;
-the legacy layout remains a compatibility bridge until #877's derived tripwire
-fires. What neither mechanism guards is declared in ``NOT_GUARDED``.
+what the mechanism does not guard is declared in ``NOT_GUARDED``.
 """
 
 from __future__ import annotations
@@ -29,12 +28,6 @@ NOT_GUARDED = (
         "lock identity directories are permanent debris",
         "The directory and its lock record remain after release because deleting a "
         "lock another process may be opening can split ownership across two inodes.",
-    ),
-    (
-        "the compatibility window is bounded by one worktree registry",
-        "The retirement tripwire cannot see separate clones. On non-Windows hosts the "
-        "bridge retains its flat legacy-reader lookup, and an abandoned registered "
-        "worktree keeps the bridge in place rather than risking overlap.",
     ),
     (
         "different lock roots do not coordinate",
@@ -133,60 +126,10 @@ def _record(stream: BinaryIO, action: str) -> None:
     stream.flush()
 
 
-def _legacy_record_path(scoped_record_path: Path) -> Path:
-    return (
-        scoped_record_path.parent.parent
-        / f"{scoped_record_path.parent.name}.lock"
-    )
-
-
-def _legacy_reader_paths(scoped_record_path: Path) -> Iterator[Path]:
-    """Find old reader records without scanning every flat lock on Windows."""
-    root = scoped_record_path.parent.parent
-    pattern = f"{scoped_record_path.parent.name}.reader.*"
-    if os.name != "nt":
-        yield from root.glob(pattern)
-        return
-
-    import ctypes
-    from ctypes import wintypes
-
-    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
-    find_first = kernel32.FindFirstFileW
-    find_first.argtypes = (wintypes.LPCWSTR, ctypes.POINTER(wintypes.WIN32_FIND_DATAW))
-    find_first.restype = wintypes.HANDLE
-    find_next = kernel32.FindNextFileW
-    find_next.argtypes = (wintypes.HANDLE, ctypes.POINTER(wintypes.WIN32_FIND_DATAW))
-    find_next.restype = wintypes.BOOL
-    find_close = kernel32.FindClose
-    find_close.argtypes = (wintypes.HANDLE,)
-    find_close.restype = wintypes.BOOL
-
-    data = wintypes.WIN32_FIND_DATAW()
-    handle = find_first(str(root / pattern), ctypes.byref(data))
-    invalid = wintypes.HANDLE(-1).value
-    if handle == invalid:
-        error = ctypes.get_last_error()
-        if error in {2, 18}:  # file not found; no more files
-            return
-        raise OSError(error, os.strerror(error), str(root / pattern))
-    try:
-        while True:
-            yield root / data.cFileName
-            if find_next(handle, ctypes.byref(data)):
-                continue
-            error = ctypes.get_last_error()
-            if error == 18:  # no more files
-                break
-            raise OSError(error, os.strerror(error), str(root / pattern))
-    finally:
-        find_close(handle)
-
-
 @contextmanager
 def _handoff(scoped_record_path: Path, artifact: Path) -> Iterator[None]:
     """Serialize the short ownership handoff, never the artifact operation."""
-    handoff_path = _legacy_record_path(scoped_record_path).with_suffix(".gate")
+    handoff_path = scoped_record_path.parent / "handoff"
     with handoff_path.open("a+b") as stream:
         _prepare(stream)
         deadline = time.monotonic() + 1.0
@@ -212,41 +155,25 @@ def _hold_read(
     artifact: Path, scoped_record_path: Path, action: str
 ) -> Iterator[Path]:
     suffix = f"{os.getpid()}.{uuid.uuid4().hex}"
-    reader_paths = (
-        scoped_record_path.parent / f"reader.{suffix}",
-        scoped_record_path.parent.parent
-        / f"{scoped_record_path.parent.name}.reader.{suffix}",
-    )
-    readers: list[tuple[BinaryIO, Path]] = []
+    reader_path = scoped_record_path.parent / f"reader.{suffix}"
+    reader: BinaryIO | None = None
     try:
         with _handoff(scoped_record_path, artifact):
-            writers = []
-            try:
-                for writer_path in (
-                    _legacy_record_path(scoped_record_path),
-                    scoped_record_path,
-                ):
-                    writer = writer_path.open("a+b")
-                    writers.append(writer)
-                    _prepare(writer)
-                    try:
-                        _try_lock(writer)
-                    except (BlockingIOError, PermissionError) as failure:
-                        raise _busy(artifact, _owner(writer), reader=True) from failure
-                    else:
-                        _unlock(writer)
+            with scoped_record_path.open("a+b") as writer:
+                _prepare(writer)
+                try:
+                    _try_lock(writer)
+                except (BlockingIOError, PermissionError) as failure:
+                    raise _busy(artifact, _owner(writer), reader=True) from failure
+                else:
+                    _unlock(writer)
 
-                for reader_path in reader_paths:
-                    reader = reader_path.open("a+b")
-                    readers.append((reader, reader_path))
-                    _prepare(reader)
-                    _try_lock(reader)
-                    _record(reader, action)
-            finally:
-                for writer in writers:
-                    writer.close()
+            reader = reader_path.open("a+b")
+            _prepare(reader)
+            _try_lock(reader)
+            _record(reader, action)
     except Exception:
-        for reader, reader_path in readers:
+        if reader is not None:
             try:
                 _unlock(reader)
             except OSError:
@@ -259,10 +186,10 @@ def _hold_read(
         yield scoped_record_path
     finally:
         with _handoff(scoped_record_path, artifact):
-            for reader, reader_path in readers:
-                _unlock(reader)
-                reader.close()
-                reader_path.unlink(missing_ok=True)
+            assert reader is not None
+            _unlock(reader)
+            reader.close()
+            reader_path.unlink(missing_ok=True)
 
 
 @contextmanager
@@ -270,24 +197,16 @@ def _hold_write(
     artifact: Path, scoped_record_path: Path, action: str
 ) -> Iterator[Path]:
     writer = scoped_record_path.open("a+b")
-    legacy_writer = _legacy_record_path(scoped_record_path).open("a+b")
     _prepare(writer)
-    _prepare(legacy_writer)
     try:
         with _handoff(scoped_record_path, artifact):
-            locked = []
-            for stream in (legacy_writer, writer):
-                try:
-                    _try_lock(stream)
-                    locked.append(stream)
-                except (BlockingIOError, PermissionError) as failure:
-                    for acquired in reversed(locked):
-                        _unlock(acquired)
-                    raise _busy(artifact, _owner(stream), reader=False) from failure
+            try:
+                _try_lock(writer)
+            except (BlockingIOError, PermissionError) as failure:
+                raise _busy(artifact, _owner(writer), reader=False) from failure
 
             scoped_readers = scoped_record_path.parent.glob("reader.*")
-            legacy_readers = _legacy_reader_paths(scoped_record_path)
-            for reader_path in (*scoped_readers, *legacy_readers):
+            for reader_path in scoped_readers:
                 with reader_path.open("a+b") as reader:
                     _prepare(reader)
                     try:
@@ -301,19 +220,16 @@ def _hold_write(
                 reader_path.unlink(missing_ok=True)
 
             _record(writer, action)
-            _record(legacy_writer, action)
 
         try:
             yield scoped_record_path
         finally:
-            for stream in (writer, legacy_writer):
-                stream.seek(1)
-                stream.truncate()
-                stream.flush()
-                _unlock(stream)
+            writer.seek(1)
+            writer.truncate()
+            writer.flush()
+            _unlock(writer)
     finally:
         writer.close()
-        legacy_writer.close()
 
 
 @contextmanager

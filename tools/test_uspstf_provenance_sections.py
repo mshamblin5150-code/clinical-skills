@@ -8,6 +8,8 @@ import unittest
 from collections import defaultdict
 from pathlib import Path
 
+import artifact_lock_test_support  # noqa: F401
+
 import guidelines_catalog
 import guidelines_recs
 import uspstf_table

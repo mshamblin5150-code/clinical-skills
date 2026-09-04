@@ -13,6 +13,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 COMMAND = ROOT / "tools" / "threshold_coverage.py"
 sys.path.insert(0, str(ROOT / "tools"))
+import artifact_lock_test_support  # noqa: E402, F401
 import threshold_sheet  # noqa: E402
 
 

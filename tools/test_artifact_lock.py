@@ -7,7 +7,6 @@ import os
 import subprocess
 import tempfile
 import unittest
-from contextlib import contextmanager
 from pathlib import Path
 from unittest import mock
 
@@ -19,63 +18,82 @@ from repo_root import InsideCheckout
 SUITE_LOCK_ROOT = artifact_lock_test_support.LOCK_ROOT
 
 
-@contextmanager
-def operating_system_lock(path: Path):
-    with path.open("a+b") as stream:
-        stream.seek(0, os.SEEK_END)
-        if stream.tell() == 0:
-            stream.write(b"\0")
-            stream.flush()
-        stream.seek(0)
-        if os.name == "nt":
-            import msvcrt
-
-            msvcrt.locking(stream.fileno(), msvcrt.LK_NBLCK, 1)
-        else:
-            import fcntl
-
-            fcntl.flock(stream.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-        try:
-            yield
-        finally:
-            stream.seek(0)
-            if os.name == "nt":
-                msvcrt.locking(stream.fileno(), msvcrt.LK_UNLCK, 1)
-            else:
-                fcntl.flock(stream.fileno(), fcntl.LOCK_UN)
-
-
 class LockIdentityLayout(unittest.TestCase):
+    def test_every_lock_bearing_test_module_reaches_the_shared_bootstrap(self):
+        tools = Path(__file__).resolve().parent
+        sources = {path.stem: path for path in tools.glob("*.py")}
+        imports = {}
+        for name, path in sources.items():
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            imported = set()
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Import):
+                    imported.update(alias.name.split(".")[0] for alias in node.names)
+                elif isinstance(node, ast.ImportFrom) and node.module:
+                    imported.add(node.module.split(".")[0])
+            imports[name] = imported & sources.keys()
+
+        def reaches(start: str, target: str, seen: set[str] | None = None) -> bool:
+            if start == target:
+                return True
+            visited = set() if seen is None else seen
+            if start in visited:
+                return False
+            visited.add(start)
+            return any(reaches(name, target, visited) for name in imports[start])
+
+        lock_bearing = sorted(
+            name
+            for name in sources
+            if name.startswith("test_") and reaches(name, "artifact_lock")
+        )
+        missing = [
+            name
+            for name in lock_bearing
+            if not reaches(name, "artifact_lock_test_support")
+        ]
+        self.assertEqual(
+            missing,
+            [],
+            "Every focused lock-bearing test run needs one private inherited root.",
+        )
+
     def test_one_identity_is_scoped_under_the_overridden_root(self):
         artifact = SUITE_LOCK_ROOT.parent / "an-artifact"
 
-        path = artifact_lock.lock_path(artifact)
+        scoped_record_path = artifact_lock.lock_path(artifact)
 
-        self.assertEqual(path.name, "lock")
-        self.assertEqual(path.parent.parent, SUITE_LOCK_ROOT)
-        self.assertEqual(len(path.parent.name), 64)
+        self.assertEqual(scoped_record_path.name, "lock")
+        self.assertEqual(scoped_record_path.parent.parent, SUITE_LOCK_ROOT)
+        self.assertEqual(len(scoped_record_path.parent.name), 64)
 
     def test_a_lock_bearing_test_module_installs_its_own_run_root(self):
         tools = Path(__file__).resolve().parent
-        result = subprocess.run(
-            [
-                os.environ.get("PYTHON", "python"),
-                "-c",
-                (
-                    "import os; "
-                    "os.environ.pop('CLINICAL_SKILLS_LOCK_ROOT', None); "
-                    "import test_guidelines; "
-                    "print(os.environ.get('CLINICAL_SKILLS_LOCK_ROOT', ''))"
-                ),
-            ],
-            cwd=tools,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-        )
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertTrue(result.stdout.strip())
+        for module in (
+            "test_guidelines",
+            "test_threshold_draft",
+            "test_uspstf_table",
+        ):
+            with self.subTest(module=module):
+                result = subprocess.run(
+                    [
+                        os.environ.get("PYTHON", "python"),
+                        "-c",
+                        (
+                            "import importlib, os; "
+                            "os.environ.pop('CLINICAL_SKILLS_LOCK_ROOT', None); "
+                            f"importlib.import_module('{module}'); "
+                            "print(os.environ.get('CLINICAL_SKILLS_LOCK_ROOT', ''))"
+                        ),
+                    ],
+                    cwd=tools,
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertTrue(result.stdout.strip())
 
     def test_a_lock_bearing_test_module_preserves_an_inherited_run_root(self):
         tools = Path(__file__).resolve().parent
@@ -103,6 +121,34 @@ class LockIdentityLayout(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(Path(result.stdout.strip()), inherited_root)
 
+    def test_package_style_lock_bearing_modules_install_the_run_root(self):
+        checkout = Path(__file__).resolve().parent.parent
+        for module in (
+            "tools.test_artifact_provenance",
+            "tools.test_guidelines_recs",
+            "tools.test_threshold_coverage",
+        ):
+            with self.subTest(module=module):
+                result = subprocess.run(
+                    [
+                        os.environ.get("PYTHON", "python"),
+                        "-c",
+                        (
+                            "import importlib, os; "
+                            "os.environ.pop('CLINICAL_SKILLS_LOCK_ROOT', None); "
+                            f"importlib.import_module('{module}'); "
+                            "print(os.environ.get('CLINICAL_SKILLS_LOCK_ROOT', ''))"
+                        ),
+                    ],
+                    cwd=checkout,
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertTrue(result.stdout.strip())
+
     def test_the_override_cannot_put_lock_state_inside_a_checkout(self):
         checkout_root = Path(__file__).resolve().parent.parent
         with mock.patch.dict(
@@ -112,32 +158,39 @@ class LockIdentityLayout(unittest.TestCase):
             with self.assertRaises(InsideCheckout):
                 artifact_lock.lock_path(checkout_root / "artifact")
 
-    def test_writer_acquires_scoped_and_legacy_layouts_during_rollout(self):
-        artifact = SUITE_LOCK_ROOT.parent / "rollout-artifact"
-        path = artifact_lock.lock_path(artifact)
-        legacy = path.parent.parent / f"{path.parent.name}.lock"
-        handoff = legacy.with_suffix(".gate")
+    def test_writer_uses_only_the_scoped_layout(self):
+        artifact = SUITE_LOCK_ROOT.parent / "scoped-artifact"
+        scoped_record_path = artifact_lock.lock_path(artifact)
+        legacy = (
+            scoped_record_path.parent.parent
+            / f"{scoped_record_path.parent.name}.lock"
+        )
+        legacy_handoff = legacy.with_suffix(".gate")
+        scoped_handoff = scoped_record_path.parent / "handoff"
 
-        with artifact_lock.hold(artifact, "build during rollout") as held:
-            self.assertEqual(held, path)
-            self.assertTrue(path.is_file())
-            self.assertTrue(legacy.is_file())
-            self.assertTrue(handoff.is_file())
-            self.assertFalse((path.parent / "handoff").exists())
+        with artifact_lock.hold(artifact, "scoped build") as held:
+            self.assertEqual(held, scoped_record_path)
+            self.assertTrue(scoped_record_path.is_file())
+            self.assertTrue(scoped_handoff.is_file())
+            self.assertFalse(legacy.exists())
+            self.assertFalse(legacy_handoff.exists())
 
-        self.assertTrue(path.parent.is_dir())
+        self.assertTrue(scoped_record_path.parent.is_dir())
 
-    def test_reader_advertises_in_both_layouts_and_cleans_up(self):
+    def test_reader_advertises_only_in_the_scoped_layout_and_cleans_up(self):
         artifact = SUITE_LOCK_ROOT.parent / "reader-artifact"
-        path = artifact_lock.lock_path(artifact)
-        legacy_pattern = f"{path.parent.name}.reader.*"
+        scoped_record_path = artifact_lock.lock_path(artifact)
+        legacy_pattern = f"{scoped_record_path.parent.name}.reader.*"
 
-        with artifact_lock.hold(artifact, "read during rollout", mode="read"):
-            self.assertEqual(len(tuple(path.parent.glob("reader.*"))), 1)
-            self.assertEqual(len(tuple(path.parent.parent.glob(legacy_pattern))), 1)
+        with artifact_lock.hold(artifact, "scoped read", mode="read"):
+            self.assertEqual(
+                len(tuple(scoped_record_path.parent.glob("reader.*"))), 1
+            )
+            self.assertEqual(
+                tuple(scoped_record_path.parent.parent.glob(legacy_pattern)), ()
+            )
 
-        self.assertEqual(tuple(path.parent.glob("reader.*")), ())
-        self.assertEqual(tuple(path.parent.parent.glob(legacy_pattern)), ())
+        self.assertEqual(tuple(scoped_record_path.parent.glob("reader.*")), ())
 
 
 class LockExclusion(unittest.TestCase):
@@ -148,29 +201,6 @@ class LockExclusion(unittest.TestCase):
             with self.assertRaises(artifact_lock.ArtifactBusy):
                 with artifact_lock.hold(artifact, "overlapping write"):
                     self.fail("the writer overlapped an active reader")
-
-    def test_a_legacy_reader_excludes_a_new_writer(self):
-        artifact = SUITE_LOCK_ROOT.parent / "legacy-reader"
-        path = artifact_lock.lock_path(artifact)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        legacy_reader = path.parent.parent / f"{path.parent.name}.reader.fixture"
-
-        with operating_system_lock(legacy_reader):
-            with self.assertRaises(artifact_lock.ArtifactBusy):
-                with artifact_lock.hold(artifact, "new writer"):
-                    self.fail("the new writer overlapped a legacy reader")
-
-    def test_a_legacy_writer_excludes_a_new_reader(self):
-        artifact = SUITE_LOCK_ROOT.parent / "legacy-writer"
-        path = artifact_lock.lock_path(artifact)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        legacy_writer = path.parent.parent / f"{path.parent.name}.lock"
-
-        with operating_system_lock(legacy_writer):
-            with self.assertRaises(artifact_lock.ArtifactBusy):
-                with artifact_lock.hold(artifact, "new reader", mode="read"):
-                    self.fail("the new reader overlapped a legacy writer")
-
 
 class AcquisitionCost(unittest.TestCase):
     def _enumerated_entries(self, junk_entries: int) -> int:
@@ -216,8 +246,8 @@ class AcquisitionCost(unittest.TestCase):
 
 
 class DeclaredLimits(unittest.TestCase):
-    def test_all_three_unguarded_properties_carry_a_key_and_reason(self):
-        self.assertEqual(len(artifact_lock.NOT_GUARDED), 3)
+    def test_both_unguarded_properties_carry_a_key_and_reason(self):
+        self.assertEqual(len(artifact_lock.NOT_GUARDED), 2)
         for key, reason in artifact_lock.NOT_GUARDED:
             self.assertTrue(key.strip())
             self.assertGreater(len(reason.split()), 12, key)
@@ -228,46 +258,6 @@ class DeclaredLimits(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertIn("artifact_lock.NOT_GUARDED", claude)
-
-
-class CompatibilityRetirementTripwire(unittest.TestCase):
-    def test_a_registered_worktree_still_needs_the_legacy_bridge(self):
-        checkout = Path(__file__).resolve().parent.parent
-        result = subprocess.run(
-            ["git", "worktree", "list", "--porcelain"],
-            cwd=checkout,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-        )
-        self.assertEqual(result.returncode, 0, result.stderr)
-        roots = tuple(
-            Path(line.removeprefix("worktree ")).resolve()
-            for line in result.stdout.splitlines()
-            if line.startswith("worktree ")
-        )
-        self.assertTrue(roots, "git reported no registered worktrees")
-        if len(roots) == 1:
-            self.skipTest("one checkout has no local rollout window")
-
-        scoped_marker = 'return lock_root() / digest / "lock"'
-        legacy = []
-        for root in roots:
-            try:
-                source = (root / "tools" / "artifact_lock.py").read_text(encoding="utf-8")
-            except OSError:
-                legacy.append(root)
-                continue
-            if scoped_marker not in source:
-                legacy.append(root)
-
-        self.assertTrue(
-            legacy,
-            "Every registered worktree carries the scoped artifact-lock layout. "
-            "Implement #877 now: retire all three compatibility limbs together, "
-            "switch to the scoped handoff file, and remove this tripwire.",
-        )
 
 
 class SourceEnumerationFloor(unittest.TestCase):
@@ -293,11 +283,9 @@ class SourceEnumerationFloor(unittest.TestCase):
         self.assertEqual(
             found,
             [
-                ("_legacy_reader_paths", "root", "pattern"),
                 ("_hold_write", "scoped_record_path.parent", "'reader.*'"),
             ],
-            "Only the declared non-Windows legacy fallback and one identity-scoped "
-            "reader walk may enumerate; #877 removes the fallback with the bridge.",
+            "Only one identity-scoped reader walk may enumerate.",
         )
 
 
