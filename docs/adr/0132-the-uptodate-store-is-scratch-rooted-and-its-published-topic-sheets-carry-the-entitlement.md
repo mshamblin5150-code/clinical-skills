@@ -36,7 +36,7 @@ Aug 2026 (46).
 carries the *same* `Literature review current through` value, so that field dates the dump rather
 than the topic. `This topic last updated` has 16 distinct values across the filed dump's 18 topics,
 and
-[apa7.md](../../skills/practicum-case-study/reference/apa7.md) §2 already rules it the APA year
+`skills/practicum-case-study/reference/apa7.md` §2 already rules it the APA year
 element: *"the date element is the year of the topic's last update. Not the year it was read."*
 
 **The gate this collides with.** `research_ledger.CITED_TOPIC_NOT_IN_EVIDENCE` joins every cited
