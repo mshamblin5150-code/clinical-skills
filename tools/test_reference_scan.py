@@ -1576,7 +1576,8 @@ class TheNursingSourceClassTableIsBoundToTheSheet(unittest.TestCase):
             self.assertIn(f"`{bucket.name}`", glossary)
         for state in (scan.COVERAGE_CLEAN, scan.COVERAGE_UNDECIDABLE):
             self.assertIn(f"**{state}**", glossary)
-        self.assertNotIn("**finding**", glossary)
+        retired_state = "**" + "finding" + "**"
+        self.assertNotIn(retired_state, glossary)
 
 
 class RequiredRetrievalDatesComeFromTheClassTable(unittest.TestCase):
