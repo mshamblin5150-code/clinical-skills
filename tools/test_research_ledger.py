@@ -1724,8 +1724,7 @@ class TheSkillSaysWhatThisChecks(ProseBind, unittest.TestCase):
     # the scanner knows -- which is what ``AGENTS.md`` classes this tool by.
     ROW_PHRASES = {
         ledger.CITED_TOPIC_NOT_IN_EVIDENCE: (
-            "an UpToDate topic cited here that neither the current dump nor an"
-            " accumulated manifest carries"
+            "an UpToDate topic cited here that no accumulated manifest carries"
         ),
         ledger.UPTODATE_REREAD_DUE: (
             "an UpToDate topic whose literature-review month has left the signed"
@@ -3831,15 +3830,24 @@ class TheCommandReadsTheEvidenceFile(unittest.TestCase):
         write_bar(self.root)
         return str(path)
 
-    def test_a_cited_topic_the_dump_carries_exits_clean(self):
+    def test_a_cited_topic_in_the_dump_and_its_manifest_exits_clean(self):
         led = self.write("led.md", ledger_text(cited("A carried topic")))
         ev = self.write("evidence.txt", topic("A carried topic"))
-        status, out, _ = self.run_main([led, "--evidence", ev])
+        store = self.root / "uptodate"
+        uptodate_store.ingest_dump(
+            Path(ev),
+            store,
+            dump_id="current",
+            module="Current module",
+            received_on=AS_OF,
+        )
+        with mock.patch.object(uptodate_store, "default_store", return_value=store):
+            status, out, _ = self.run_main([led, "--evidence", ev])
         self.assertEqual(status, 0, out)
 
-    def test_a_cited_topic_the_dump_lacks_refuses(self):
-        led = self.write("led.md", ledger_text(cited("A topic nobody handed over")))
-        ev = self.write("evidence.txt", topic("Some other topic"))
+    def test_a_cited_topic_in_an_unfiled_current_dump_refuses(self):
+        led = self.write("led.md", ledger_text(cited("A topic nobody filed")))
+        ev = self.write("evidence.txt", topic("A topic nobody filed"))
         status, _, err = self.run_main([led, "--evidence", ev])
         self.assertEqual(status, 1)
         self.assertIn("evidence", err.lower())
@@ -3992,10 +4000,10 @@ class EvidenceMembershipAccumulatesAcrossDumpManifests(unittest.TestCase):
         return ledger.read_records(ledger_text(record))
 
     def test_a_topic_in_no_manifest_is_still_refused(self):
-        carried = ledger.accumulated_evidence_topics(topic("Current topic"), self.store)
+        carried = ledger.accumulated_evidence_topics(self.store)
 
         found, _ = ledger.evidence_findings(
-            self.records_citing("Never supplied topic"), (), carried
+            self.records_citing("Current topic"), (), carried
         )
 
         self.assertEqual([row.kind for row in found], [ledger.CITED_TOPIC_NOT_IN_EVIDENCE])
@@ -4011,7 +4019,7 @@ class EvidenceMembershipAccumulatesAcrossDumpManifests(unittest.TestCase):
             received_on=date(2026, 1, 2),
         )
 
-        carried = ledger.accumulated_evidence_topics(topic("Current topic"), self.store)
+        carried = ledger.accumulated_evidence_topics(self.store)
         found, _ = ledger.evidence_findings(
             self.records_citing("Earlier topic"), (), carried
         )

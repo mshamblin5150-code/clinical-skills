@@ -5,14 +5,18 @@ ingest copies only a file the clinician deliberately names; ``sweep`` is a
 read-only count of topic-shaped bodies elsewhere and never calls ``ingest``.
 
     python tools/uptodate_store.py ingest <dump> --dump-id <id> --module <name>
-        --received-on YYYY-MM-DD
+        --received-on YYYY-MM-DD [--references <file>]
     python tools/uptodate_store.py search <query> [<query> ...]
     python tools/uptodate_store.py sweep [<root> ...]
 
 The SQLite index is derived from the per-dump manifests and retained source
 copies.  FTS5 keeps literal retrieval cheap without turning similarity into
-evidence.  Exit 0 completed, exit 1 is a refused ingest, and exit 2 means the
-command could not read a required source or store.
+evidence.  Topic coverage uses the widest of three independently counted
+markers: author mastheads, publisher-review lines, and last-update lines.  An
+input carrying none of those markers remains outside that floor; the command
+states that ceiling rather than calling it complete coverage.  Exit 0
+completed, exit 1 is a refused ingest, and exit 2 means the command could not
+read a required source or store.
 """
 
 from __future__ import annotations
@@ -36,6 +40,7 @@ from repo_root import scratch_root
 SCHEMA_VERSION = 1
 STORE_DIRECTORY = "uptodate"
 SOURCE_NAME = "source.txt"
+REFERENCE_NAME = "references.txt"
 DUMP_MANIFEST_NAME = "manifest.json"
 INDEX_NAME = "index.sqlite"
 
@@ -67,6 +72,8 @@ class IngestReport:
     manifest: Path
     index: Path
     topics: int
+    candidates: int
+    unread: int
 
 
 @dataclass(frozen=True)
@@ -92,6 +99,17 @@ def _parse_month(value: re.Match[str]) -> str:
         f"{value.group('month')} {value.group('year')}", "%b %Y"
     )
     return parsed.strftime("%Y-%m")
+
+
+def topic_key(title: str) -> str:
+    """The one equality rule for topic titles across store consumers."""
+    return " ".join(title.casefold().split())
+
+
+def topic_population_count(text: str) -> int:
+    """Independent floor: the widest authored/reviewed/updated marker count."""
+    authored = sum(bool(TOPIC_MASTHEAD.match(line)) for line in text.splitlines())
+    return max(authored, len(REVIEW_LINE.findall(text)), len(UPDATED_LINE.findall(text)))
 
 
 def parse_topics(text: str) -> list[Topic]:
@@ -140,22 +158,23 @@ def parse_topics(text: str) -> list[Topic]:
                 body=body,
             )
         )
+    population = topic_population_count(text)
+    marker_counts = (
+        len(starts),
+        len(REVIEW_LINE.findall(text)),
+        len(UPDATED_LINE.findall(text)),
+    )
+    if len(topics) != population or any(count != population for count in marker_counts):
+        raise ValueError(
+            f"topic population incomplete: read {len(topics)} of {population}; "
+            f"author/review/update markers are {marker_counts}"
+        )
     return topics
 
 
 def topic_shape_count(text: str) -> int:
-    """Count title-plus-masthead shapes without claiming their bodies are complete."""
-    lines = text.splitlines()
-    count = 0
-    for index, line in enumerate(lines):
-        if not TOPIC_MASTHEAD.match(line):
-            continue
-        above = index - 1
-        while above >= 0 and not lines[above].strip():
-            above -= 1
-        if above >= 0:
-            count += 1
-    return count
+    """Report the widest of three markers without claiming complete recognition."""
+    return topic_population_count(text)
 
 
 def _sha256(path: Path) -> str:
@@ -187,6 +206,19 @@ def _validate_manifest(manifest_path: Path, manifest: object) -> dict[str, objec
         raise ValueError(f"manifest source file is invalid: {dump_id}")
     if not re.fullmatch(r"[0-9a-f]{64}", str(manifest.get("source_sha256", ""))):
         raise ValueError(f"manifest source digest is invalid: {dump_id}")
+    source_path = manifest_path.parent / SOURCE_NAME
+    if not source_path.is_file() or _sha256(source_path) != manifest["source_sha256"]:
+        raise ValueError(f"source does not match manifest: {dump_id}")
+    reference_file = manifest.get("reference_file")
+    reference_digest = manifest.get("reference_sha256")
+    if reference_file is not None or reference_digest is not None:
+        if reference_file != REFERENCE_NAME:
+            raise ValueError(f"manifest reference file is invalid: {dump_id}")
+        if not re.fullmatch(r"[0-9a-f]{64}", str(reference_digest or "")):
+            raise ValueError(f"manifest reference digest is invalid: {dump_id}")
+        reference_path = manifest_path.parent / REFERENCE_NAME
+        if not reference_path.is_file() or _sha256(reference_path) != reference_digest:
+            raise ValueError(f"reference list does not match manifest: {dump_id}")
     topics = manifest.get("topics")
     if not isinstance(topics, list) or not topics:
         raise ValueError(f"manifest topics must be a nonempty list: {dump_id}")
@@ -206,7 +238,7 @@ def _validate_manifest(manifest_path: Path, manifest: object) -> dict[str, objec
             raise ValueError(f"manifest topic has an invalid update date: {title}") from error
         if not isinstance(topic.get("has_summary"), bool):
             raise ValueError(f"manifest topic needs a summary flag: {title}")
-        key = " ".join(title.casefold().split())
+        key = topic_key(title)
         if key in titles:
             raise ValueError(f"manifest has a duplicate topic title: {title}")
         titles.add(key)
@@ -251,7 +283,7 @@ def topic_currencies(store: Path | None = None) -> dict[str, str]:
             if not isinstance(topic, dict) or not isinstance(topic.get("title"), str):
                 raise ValueError("manifest topic needs a title")
             title = topic["title"]
-            key = " ".join(title.casefold().split())
+            key = topic_key(title)
             if key not in rows or received > rows[key][0]:
                 rows[key] = (received, currency)
     return {key: value[1] for key, value in rows.items()}
@@ -259,11 +291,11 @@ def topic_currencies(store: Path | None = None) -> dict[str, str]:
 
 def topic_record(title: str, store: Path | None = None) -> tuple[dict[str, object], dict[str, object]] | None:
     """Return the newest manifest/topic pair with an exact normalized title."""
-    wanted = " ".join(title.casefold().split())
+    wanted = topic_key(title)
     matches: list[tuple[dict[str, object], dict[str, object]]] = []
     for _path, manifest in _manifest_rows((store or default_store()).resolve()):
         for row in manifest.get("topics", []):
-            if isinstance(row, dict) and " ".join(str(row.get("title", "")).casefold().split()) == wanted:
+            if isinstance(row, dict) and topic_key(str(row.get("title", ""))) == wanted:
                 matches.append((manifest, row))
     if not matches:
         return None
@@ -285,9 +317,9 @@ def source_topic(dump_id: str, title: str, store: Path | None = None) -> Topic |
     source = root / "dumps" / dump_id / str(manifest.get("source_file", SOURCE_NAME))
     if not source.is_file() or _sha256(source) != manifest.get("source_sha256"):
         raise ValueError(f"source does not match manifest: {dump_id}")
-    wanted = " ".join(title.casefold().split())
+    wanted = topic_key(title)
     for topic in parse_topics(source.read_text(encoding="utf-8", errors="replace")):
-        if " ".join(topic.title.casefold().split()) == wanted:
+        if topic_key(topic.title) == wanted:
             return topic
     return None
 
@@ -330,11 +362,16 @@ def ingest_dump(
     dump_id: str,
     module: str,
     received_on: date,
+    references: Path | None = None,
 ) -> IngestReport:
     source = source.expanduser().resolve()
     root = (store or default_store()).expanduser().resolve()
     if not source.is_file():
         raise ValueError(f"no dump file named {source.name}")
+    if references is not None:
+        references = references.expanduser().resolve()
+        if not references.is_file():
+            raise ValueError(f"no reference-list file named {references.name}")
     if not re.fullmatch(r"[a-z0-9][a-z0-9._-]*", dump_id):
         raise ValueError("dump id must use lowercase letters, numbers, dot, underscore, or hyphen")
     destination = root / "dumps" / dump_id
@@ -344,7 +381,7 @@ def ingest_dump(
     topics = parse_topics(text)
     if not topics:
         raise ValueError(f"no authored topic body found in {source.name}")
-    keys = [" ".join(topic.title.casefold().split()) for topic in topics]
+    keys = [topic_key(topic.title) for topic in topics]
     if len(set(keys)) != len(keys):
         raise ValueError("duplicate topic title in one dump")
     currencies = {topic.literature_review_current_through for topic in topics}
@@ -373,13 +410,19 @@ def ingest_dump(
                 for topic in topics
             ],
         }
+        if references is not None:
+            copied_references = destination / REFERENCE_NAME
+            shutil.copyfile(references, copied_references)
+            manifest["reference_file"] = REFERENCE_NAME
+            manifest["reference_sha256"] = _sha256(copied_references)
         manifest_path = destination / DUMP_MANIFEST_NAME
         manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
         index = rebuild_index(root)
     except Exception:
         shutil.rmtree(destination)
         raise
-    return IngestReport(manifest_path, index, len(topics))
+    population = topic_population_count(text)
+    return IngestReport(manifest_path, index, len(topics), population, population - len(topics))
 
 
 def search(store: Path | None, query: str, *, limit: int = 20) -> list[SearchHit]:
@@ -404,6 +447,10 @@ def sweep_unfiled(scan_root: Path, store: Path | None = None) -> SweepReport:
     evidence_store = (store or default_store()).expanduser().resolve()
     files = 0
     bodies = 0
+    filed_hashes = {
+        str(manifest["source_sha256"])
+        for _path, manifest in _manifest_rows(evidence_store)
+    }
     if not root.is_dir():
         return SweepReport(0, 0)
     for path in root.rglob("*"):
@@ -411,6 +458,8 @@ def sweep_unfiled(scan_root: Path, store: Path | None = None) -> SweepReport:
             continue
         resolved = path.resolve()
         if resolved.is_relative_to(evidence_store):
+            continue
+        if _sha256(resolved) in filed_hashes:
             continue
         try:
             count = topic_shape_count(path.read_text(encoding="utf-8", errors="replace"))
@@ -431,6 +480,7 @@ def _parser() -> argparse.ArgumentParser:
     ingest.add_argument("--dump-id", required=True)
     ingest.add_argument("--module", required=True)
     ingest.add_argument("--received-on", type=date.fromisoformat, required=True)
+    ingest.add_argument("--references", type=Path)
     find = sub.add_parser("search")
     find.add_argument("queries", nargs="+")
     find.add_argument("--limit", type=int, default=20)
@@ -449,8 +499,12 @@ def main(argv: list[str]) -> int:
                 dump_id=args.dump_id,
                 module=args.module,
                 received_on=args.received_on,
+                references=args.references,
             )
-            print(f"ingested {report.topics} topic(s); manifest {report.manifest.name}; index {report.index.name}")
+            print(
+                f"ingested topics read {report.topics} of {report.candidates}; "
+                f"unread {report.unread}; manifest {report.manifest.name}; index {report.index.name}"
+            )
         elif args.command == "search":
             for query in args.queries:
                 hits = search(args.store, query, limit=args.limit)
@@ -465,6 +519,10 @@ def main(argv: list[str]) -> int:
                 f"{sum(row.topic_bodies for row in reports)} topic body/bodies"
             )
             print("nothing was ingested; pass a deliberate file to the ingest command")
+            print(
+                "candidate bound is the widest author/review/update marker count per file; "
+                "a body carrying none of those markers is outside this report"
+            )
         return 0
     except (OSError, UnicodeError, ValueError, sqlite3.Error) as error:
         print(f"uptodate-store: {error}", file=sys.stderr)

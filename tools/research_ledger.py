@@ -649,26 +649,31 @@ def carried_topics(text: str) -> set[str]:
     return carried
 
 
-def accumulated_evidence_topics(
-    current_dump: str, store: Path | None = None
-) -> set[str]:
-    """The current supplied dump plus every topic in an earlier manifest.
-
-    The current file preserves #298's same-run behavior.  A cross-course topic
-    receives entitlement only through a per-dump manifest; merely existing
-    elsewhere on disk does not put it in this set.
-    """
+def accumulated_evidence_topics(store: Path | None = None) -> set[str]:
+    """Every topic in a deliberate per-dump manifest, across courses."""
     try:
-        accumulated = uptodate_store.entitled_topics(store)
+        return uptodate_store.entitled_topics(store)
     except ValueError as error:
         raise run_grader.SourceError(f"the UpToDate store is unreadable: {error}") from error
-    return carried_topics(current_dump) | accumulated
 
 
 def uptodate_topic(entry: str) -> str:
     """Read the topic element from #231's UpToDate reference form."""
     match = UPTODATE_TITLE.search(entry)
     return " ".join(match.group("title").split()) if match else ""
+
+
+def cited_uptodate_entries(
+    records: list[Record], entries: tuple[str, ...]
+) -> list[tuple[str, str, str, str]]:
+    """One citation population shared by membership and currency checks."""
+    citations = [(record.claim, record.value("REFERENCE")) for record in records]
+    citations.extend((DRAFT_LIST, entry) for entry in entries)
+    return [
+        (claim, entry, title, normalize(title))
+        for claim, entry in citations
+        for title in (uptodate_topic(entry),)
+    ]
 
 
 def read_records(text: str) -> list[Record]:
@@ -1152,19 +1157,15 @@ def evidence_findings(
 ) -> tuple[list[Finding], int]:
     """Apply #298's citation-to-carried-topic join.
 
-    The clinician supplies complete topic bodies, so a cited UpToDate topic joins
-    against the current dump plus the accumulated manifest set. Findings de-duplicate by topic because two
-    citations name one missing artifact.
+    The clinician deliberately ingests complete topic bodies, so a cited
+    UpToDate topic joins against the accumulated manifest set. Findings
+    de-duplicate by topic because two citations name one missing artifact.
     """
     keys = {normalize(title) for title in carried}
     found: list[Finding] = []
     seen: set[str] = set()
     read = 0
-    cited = [(record.claim, record.value("REFERENCE")) for record in records]
-    cited += [(DRAFT_LIST, entry) for entry in entries]
-    for claim, entry in cited:
-        title = uptodate_topic(entry)
-        key = normalize(title)
+    for claim, entry, title, key in cited_uptodate_entries(records, entries):
         if not key:
             # Preserve an unreadable UpToDate-shaped entry in the population and
             # report it on ``UNREADABLE_DRUG_ROW``'s fail-visible precedent.
@@ -1204,13 +1205,9 @@ def uptodate_reread_findings(
     if as_of is None or not has_account:
         return []
     currency = {normalize(title): stamp for title, stamp in currency_by_topic.items()}
-    cited = [(record.claim, record.value("REFERENCE")) for record in records]
-    cited += [(DRAFT_LIST, entry) for entry in entries]
     found: list[Finding] = []
     seen: set[str] = set()
-    for claim, entry in cited:
-        title = uptodate_topic(entry)
-        key = normalize(title)
+    for claim, _entry, title, key in cited_uptodate_entries(records, entries):
         stamp = currency.get(key)
         if not key or stamp is None or key in seen:
             continue
@@ -1570,7 +1567,7 @@ def _load(parsed: run_grader.Parsed) -> Source:
         current_topics = carried_topics(evidence_text)
         evidence_unreadable = not current_topics
         if current_topics:
-            carried = accumulated_evidence_topics(evidence_text)
+            carried = accumulated_evidence_topics()
         if carried is not None and draft is not None:
             entries = tuple(entry.text for entry in read_document(draft_text).entries)
         cited_entries = [record.value("REFERENCE") for record in records] + list(entries)

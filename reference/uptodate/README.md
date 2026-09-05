@@ -5,11 +5,15 @@ dumps, per-dump manifests, and the FTS5 index stay under `scratch/uptodate/`; a 
 the bibliographic record and a short restatement. One topic has one file even when several dumps
 carry it.
 
-Run `python tools/uptodate_store.py ingest ...` before authoring a sheet. Use the source's own
+At intake, ask whether the supplied dump came with a separate reference list. Pass one with
+`--references <file>` so its bytes and digest remain beside the dump for the future primary-source
+join; omitting it records no list and claims no join. Run `python tools/uptodate_store.py ingest ...`
+before authoring a sheet. Use the source's own
 `SUMMARY AND RECOMMENDATIONS` as the selection boundary. Where none exists, compress the whole
 article and declare `DISTILLATION-BASIS: whole article`. The normal restatement is 400–550 words.
 Exact source language is reserved for a number, dose, criterion, or cut point whose wording is the
-honesty mechanism.
+honesty mechanism. Standing rule 5 still applies: no current exact figure from this gitignored
+source reaches a sheet unless a tracked source and equality-backed test can support it.
 
 Every sheet carries these fields exactly once:
 

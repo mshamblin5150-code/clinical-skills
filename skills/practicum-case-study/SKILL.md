@@ -710,8 +710,12 @@ First ingest that deliberately supplied file into the shared account-owned store
 lowercase dump id naming the course, module, and receipt date; never point the ingest command at a
 directory or let the reporting sweep choose a file:
 
+Ask at intake: **Did this dump come with a separate reference list?** If yes, retain that exact
+supplied file with `--references`; if no, omit the option. Retention records provenance for the
+future primary-source join and does not claim that the join exists today.
+
 ```bash
-python tools/uptodate_store.py ingest <the evidence dump> --dump-id <course-module-date> --module <course and module> --received-on <YYYY-MM-DD>
+python tools/uptodate_store.py ingest <the evidence dump> --dump-id <course-module-date> --module <course and module> --received-on <YYYY-MM-DD> [--references <the supplied reference list>]
 ```
 
 The command copies the raw dump and writes its manifest and searchable index under
@@ -726,14 +730,14 @@ python tools/research_ledger.py <claims-ledger> --evidence <the evidence dump>
 
 | The citation | Why |
 | --- | --- |
-| an UpToDate topic cited here that neither the current dump nor an accumulated manifest carries | the deliberately supplied store is the required source set; opening a topic through another route does not put it in that set |
+| an UpToDate topic cited here that no accumulated manifest carries | the deliberately supplied store is the required source set; an unfiled current dump or a topic opened through another route does not put it in that set |
 | an UpToDate topic whose literature-review month has left the signed two-year window | re-read it while the profile says the clinician has an account; `UPTODATE-ACCOUNT: no` waives this row without pretending the old date became current |
 | an entry whose locator names an UpToDate topic and that states no database element | the row above reads a topic only from the database element, so without this one an entry missing it escapes the check and the coverage count together |
 
 **The grounding is companion-evidence membership, not whether some route can open the page.** The
 Authenticated route may reach an UpToDate topic outside the accumulated manifests; that does not add the topic to the
 faculty material the clinician supplied. The clinician hands dumps over wholesale, so their manifests
-accumulate across courses. This accumulated current-and-manifest population is the **required
+accumulate across courses. This accumulated manifest population is the **required
 supplied-source set**. **A journal article, a society guideline or a government page the
 dump lacks is left alone**, because that is this step's ordinary case: a claim record only exists
 because the evidence did *not* cover the claim, and a row firing on those would refuse the correct

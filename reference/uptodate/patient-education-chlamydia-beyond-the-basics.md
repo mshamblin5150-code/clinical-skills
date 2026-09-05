@@ -26,10 +26,10 @@ usually uses a urine specimen or a swab from the vagina, cervix, urethra, or rec
 indeterminate home test needs prompt clinical follow-up; persistent symptoms or a credible
 exposure also warrant evaluation despite a negative home result.
 
-Screening matters because asymptomatic infection is common. The topic recommends annual testing
-for sexually active women younger than 25 years and for older women with increased exposure risk.
-Men who have sex with men should be tested at least annually, with specimen sites selected from the
-reported sexual exposure. A chlamydia diagnosis should also prompt testing for other sexually
+Screening matters because asymptomatic infection is common. Clinicians use age, exposure risk, and
+sexual practices to decide who should receive routine or risk-based testing. For people reporting
+oral or anal exposure, specimen sites should match the contact described rather than relying on a
+genital specimen alone. A chlamydia diagnosis should also prompt testing for other sexually
 transmitted infections and review of hepatitis A, hepatitis B, and human papillomavirus
 vaccination status.
 
@@ -38,15 +38,14 @@ disease, tubal scarring, infertility, ectopic pregnancy, or chronic pelvic pain.
 untreated infection is associated with miscarriage and preterm birth and may be transmitted during
 delivery, causing neonatal conjunctivitis or pneumonia.
 
-For most nonpregnant patients, the described first-line regimen is oral doxycycline twice daily
-for 7 days, particularly when rectal infection is a concern. Azithromycin is presented as a
-single-dose alternative when doxycycline cannot be used or completing a 7-day course is doubtful;
-it is also described as suitable during pregnancy. Sexual activity should stop during a multidose
-course or for 7 days after single-dose therapy, and it should not resume until partners have also
-completed treatment. Recent partners from the preceding 60 days, or the most recent partner when
-that interval includes none, need treatment even without symptoms. Routine testing within one
-month is generally unnecessary after recommended therapy unless symptoms persist, but repeat
-testing at about 3 months is advised because reinfection is common.
+For most nonpregnant patients, the topic presents oral doxycycline as the preferred therapy,
+particularly when rectal infection is a concern. Azithromycin is an alternative when doxycycline
+cannot be used or completing the preferred course is doubtful; it is also described as suitable
+during pregnancy. Sexual activity should stop until the prescribed regimen is complete, and it
+should not resume until partners have also completed treatment. Partners with recent exposure need
+treatment even without symptoms. Routine immediate testing after recommended therapy is generally
+unnecessary unless symptoms persist, but later repeat testing is advised because reinfection is
+common.
 
 Prevention centers on consistent condom use, cleaning shared sex toys, avoiding sex when either
 partner has symptoms suggesting infection, discussing appropriate screening with a clinician, and

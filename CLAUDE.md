@@ -1888,6 +1888,13 @@ queries literal topic text; `sweep` counts topic-shaped material outside the sto
 nothing. The manifest population is what widens `research_ledger.py`'s UpToDate membership join
 across courses. Material merely found by the sweep gains no citation entitlement.
 
+At dump intake the skill asks whether a separate reference list was supplied. `--references`
+retains that file and its digest beside the dump for the primary-source join ADR 0132 defers; an
+absent list records nothing and no current command claims the deferred join. Ingest coverage uses
+the widest of author-masthead, publisher-review, and last-update marker counts and refuses when the
+three populations disagree. A topic carrying none of those markers remains outside that floor,
+which the command says beside its report.
+
 Published restatements live under `reference/uptodate/`, whose README owns the file format and
 verbatim cap. `tools/uptodate_sheet.py --all` grades required metadata against the private source,
 the APA year against the topic's last-update line, the currency stamp, retrieval chronology, the
