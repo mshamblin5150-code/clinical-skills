@@ -289,19 +289,6 @@ def topic_currencies(store: Path | None = None) -> dict[str, str]:
     return {key: value[1] for key, value in rows.items()}
 
 
-def topic_record(title: str, store: Path | None = None) -> tuple[dict[str, object], dict[str, object]] | None:
-    """Return the newest manifest/topic pair with an exact normalized title."""
-    wanted = topic_key(title)
-    matches: list[tuple[dict[str, object], dict[str, object]]] = []
-    for _path, manifest in _manifest_rows((store or default_store()).resolve()):
-        for row in manifest.get("topics", []):
-            if isinstance(row, dict) and topic_key(str(row.get("title", ""))) == wanted:
-                matches.append((manifest, row))
-    if not matches:
-        return None
-    return max(matches, key=lambda item: str(item[0].get("received_on", "")))
-
-
 def manifest_for_dump(dump_id: str, store: Path | None = None) -> dict[str, object] | None:
     for _path, manifest in _manifest_rows((store or default_store()).resolve()):
         if manifest.get("dump_id") == dump_id:

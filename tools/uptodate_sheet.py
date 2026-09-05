@@ -52,7 +52,6 @@ VERBATIM_SHARE_MAXIMUM = 0.10
 MISSING_FIELD = "missing-field"
 DUPLICATE_FIELD = "duplicate-field"
 HEADING_TITLE_MISMATCH = "heading-title-mismatch"
-UNKNOWN_DUMP = "unknown-dump"
 TITLE_NOT_IN_DUMP = "title-not-in-dump"
 AUTHORS_MISMATCH = "authors-mismatch"
 APA_YEAR_MISMATCH = "apa-year-mismatch"
