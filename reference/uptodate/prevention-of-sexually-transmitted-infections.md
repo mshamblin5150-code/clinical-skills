@@ -24,7 +24,7 @@ for other infections is selected from the patient's anatomy, practices, exposure
 context. Prevention counseling can reduce infection rates and can occur in person, by telephone,
 or through other media. A brief encounter can still be useful when it assesses the patient's
 understanding of transmission, explores behavior and readiness for change, agrees on a realistic
-goal, and identifies one concrete next step.
+goal, and identifies a concrete next step.
 
 Vaccination prevents several infections transmitted sexually or associated with sexual activity.
 Relevant immunization includes hepatitis A, hepatitis B, human papillomavirus, meningococcal, and

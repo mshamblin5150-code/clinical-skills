@@ -26,8 +26,8 @@ The history should include menstrual and pregnancy information without assuming 
 that a pregnancy occurred or is comfortable disclosing how it ended. Clinical uncertainty about
 those details should not postpone stabilization or source control.
 
-Treatment rests on three coordinated actions: restore perfusion with intravenous fluid, begin
-broad intravenous antimicrobial therapy, and urgently evacuate infected material from the uterus.
+Treatment requires coordinated restoration of perfusion with intravenous fluid, broad intravenous
+antimicrobial therapy, and urgent evacuation of infected material from the uterus.
 Antibiotics are essential but cannot substitute for surgical source control. Unstable patients
 need simultaneous airway, breathing, and circulatory support, vasoactive therapy when required,
 prompt antimicrobials, and operative evacuation. This work is generally conducted in an intensive

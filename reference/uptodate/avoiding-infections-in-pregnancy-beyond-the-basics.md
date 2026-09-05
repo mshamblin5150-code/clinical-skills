@@ -38,7 +38,7 @@ sexually transmitted infections; avoid sex when a partner has discharge, dysuria
 or other possible infection. Never share injection equipment.
 
 Immunizations should be current before pregnancy when possible. Influenza, pertussis, COVID-19,
-and hepatitis B vaccination may be indicated during pregnancy, while live vaccines for rubella or
+and hepatitis B vaccination are recommended during pregnancy, while live vaccines for rubella or
 varicella are given before pregnancy or after delivery rather than during pregnancy. Household
 vaccination reduces exposure for both parent and infant.
 

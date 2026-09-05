@@ -28,9 +28,9 @@ available, making azithromycin the more appropriate routine choice.
 
 All diagnosed patients should be tested for gonorrhea and treated when that result is positive.
 Screening should also address syphilis, HIV, and other infections indicated by the patient's
-exposures and practices. Sexual activity should stop until the prescribed regimen is complete, any
-symptoms have resolved, and partners have been treated. This prevents a technically adequate
-course from being undermined by immediate re-exposure.
+exposures and practices. Sexual activity should stop until any required post-dose interval has
+elapsed or a multidose regimen is complete, symptoms have resolved, and partners have been treated.
+This prevents a technically adequate course from being undermined by immediate re-exposure.
 
 Partner management is a treatment component, not a separate courtesy. Recent partners and the
 most recent partner outside the usual lookback interval should be tested and treated. When a

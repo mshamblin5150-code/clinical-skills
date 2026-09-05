@@ -22,8 +22,8 @@ patients.
 History helps separate the major diagnostic groups. Clinicians should characterize the onset,
 location, quality, severity, and evolution of pain and ask about associated gastrointestinal,
 urinary, genital, and systemic symptoms. Menstrual history and sexual history are necessary when
-developmentally appropriate and should be obtained in a respectful setting that supports accurate
-disclosure. An unclear history does not remove pregnancy or other time-sensitive conditions from
+developmentally appropriate because they help differentiate gynecologic causes. An unclear history
+does not remove pregnancy or other time-sensitive conditions from
 consideration. The clinical picture, rather than a presumed social history, determines which
 possibilities must be tested.
 
@@ -43,12 +43,16 @@ ordered as a fixed panel for every patient.
 The diagnostic pathway then branches according to pregnancy and menstrual status. Pregnant
 adolescents follow an approach designed around pregnancy-related and nonpregnancy causes, while
 premenarcheal patients and nonpregnant patients after menarche follow pathways keyed to their
-clinical findings. The algorithms organize rather than replace judgment: unstable patients still
-receive immediate resuscitation, urgent diagnoses remain the first priority, and ancillary tests
-must answer questions raised by the encounter. The overall strategy is to keep the initial
-differential broad, use developmentally appropriate history and examination to narrow it, establish
-pregnancy status when it could change care, and let the patient's stability determine whether
-diagnosis proceeds sequentially or alongside emergency treatment.
-Communication should preserve privacy and avoid assumptions about sexual activity while still
-asking the questions needed for safe care. That balance improves the history without allowing
-discomfort with the subject to narrow the differential prematurely.
+clinical findings. The algorithms organize rather than replace judgment. They first separate a
+pregnant adolescent from premenarcheal and nonpregnant postmenarcheal patients, then use the key
+findings and available results within each group to direct the next diagnostic step. Unstable
+patients still receive immediate resuscitation, urgent diagnoses remain the first priority, and
+ancillary tests must answer questions raised by the encounter rather than follow a fixed menu.
+
+The overall strategy is to keep gynecologic and nongynecologic causes visible at the start, use
+pain features and associated symptoms to narrow them, and establish menstrual and pregnancy status
+whenever those facts can change the path. Examination supplies the physiologic stability and
+abdominal, pelvic, and genital findings that determine urgency. Laboratory and imaging studies
+then address the remaining possibilities. This sequence preserves a broad differential without
+delaying treatment of shock or another emergency and gives pregnant, premenarcheal, and
+nonpregnant postmenarcheal patients distinct routes through the same clinical problem.

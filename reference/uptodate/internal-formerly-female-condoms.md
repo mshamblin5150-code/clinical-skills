@@ -30,12 +30,12 @@ device is refused or cannot be used. Nitrile is suitable for most people who rea
 a nitrile reaction rules out that material. Some users find placement or removal difficult, so
 demonstration, practice, and clear instructions matter.
 
-Counseling should include how to recognize correct placement. The inner portion needs to remain
-inside the vagina while the outer frame stays outside, and the penis must enter the sleeve rather
-than pass beside it. A patient who is comfortable checking those points is more likely to detect a
-placement problem before exposure. Difficulty during an early attempt does not mean the method is
-unsuitable, but unresolved pain, repeated displacement, or inability to position the device should
-prompt a different barrier choice.
+Correct use depends on the device's basic arrangement: the exterior frame remains outside while
+the sleeve lines the vagina and the inner component helps hold it in place. The barrier protects
+only when it is used correctly for every episode of vaginal intercourse. Because insertion and
+removal problems are recognized disadvantages, counseling should prepare users for those
+practical demands and help them decide whether consistent use is realistic. Access without an
+examination or special fitting does not guarantee that every user will find the method easy to use.
 
 Unlike an external device, it may be positioned before sexual activity and can remain briefly
 after ejaculation. Its cost is usually higher, and it is not intended for anal use. Its broader

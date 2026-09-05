@@ -19,7 +19,7 @@ oropharyngeal sites; bloodstream spread, arthritis, pelvic inflammatory disease,
 ascending infections require management for complicated disease.
 
 Ceftriaxone is the preferred therapy because it remains highly effective and has the lowest level
-of documented gonococcal resistance among available cephalosporins. A single intramuscular dose is
+of documented gonococcal resistance among available cephalosporins. Intramuscular ceftriaxone is
 used for suspected or confirmed uncomplicated infection, with the dose adjusted for very high
 body weight. Declining susceptibility supports the currently recommended higher-dose approach.
 Because chlamydia coinfection is common, nonpregnant patients also receive presumptive doxycycline
@@ -35,9 +35,9 @@ The encounter should include testing for HIV, chlamydia, syphilis, and other sex
 infections not already assessed. A patient newly diagnosed with gonorrhea who tests negative for
 HIV should be evaluated for HIV preexposure prophylaxis. Partner treatment is essential to prevent
 reinfection and ongoing spread. Recent partners generally receive presumptive treatment, and
-expedited partner therapy is useful when a heterosexual partner is unlikely to present for direct
-care. Direct evaluation is preferred for partners who are men who have sex with men because the
-opportunity to identify HIV and other coinfections is especially important.
+expedited partner therapy is useful when a partner is unlikely to present for direct care. For men
+who have sex with men, direct evaluation after notification is preferred because the opportunity
+to identify HIV and other coinfections is especially important.
 
 Follow-up depends on site and response. Patients with resolved urogenital or rectal infection do
 not routinely need immediate proof of cure but do need later retesting for reinfection. Persistent
@@ -46,8 +46,9 @@ re-exposure. Throat infection requires a test of cure even when symptoms resolve
 ceftriaxone failure calls for culture and nucleic acid amplification testing from every exposed
 site, susceptibility testing of isolates, and public health reporting.
 
-Pregnant patients generally receive the same ceftriaxone-based regimen, with specialist input for
-severe beta-lactam allergy and follow-up adapted to pregnancy risk. Most patients reporting
+Pregnant patients generally receive ceftriaxone along with pregnancy-appropriate treatment for
+chlamydia unless testing has excluded it, with specialist input for severe beta-lactam allergy and
+follow-up adapted to pregnancy risk. Most patients reporting
 penicillin allergy can still receive ceftriaxone; the reaction history should distinguish a mild
 delayed rash from an immediate immune-mediated reaction before an inferior regimen is chosen. An
 allergy label alone is not enough to select treatment.

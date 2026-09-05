@@ -33,9 +33,9 @@ to common causes. The history should characterize where the pain is located, how
 has evolved, and which symptoms accompany it, including fever or vaginal bleeding. Medical,
 surgical, gynecologic, and other relevant background helps place those findings in context. The
 general examination includes vital signs, overall appearance, and a careful abdominal assessment.
-Pelvic assessment begins externally, then uses a speculum to view the vagina and cervix and a
-bimanual technique to assess uterine and adnexal structures; rectal assessment is added when it
-answers a clinical question. Laboratory testing follows the history and examination rather than a single
+Pelvic assessment begins externally, then uses a speculum to view the vagina and cervix, a
+bimanual technique to assess uterine and adnexal structures, and a rectal assessment. Laboratory
+testing follows the history and examination rather than a single
 uniform panel. Pelvic ultrasonography is appropriate for most patients.
 
 When evaluation identifies a likely cause, treatment should target that condition and the patient
