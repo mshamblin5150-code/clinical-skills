@@ -17,7 +17,7 @@ produced it is a baseline, not a verification* -- and
 same recall that produced an entry produces the check of it, so the check has to
 come from somewhere the recall does not reach. A string test is such a place.
 
-**The rules are ``skills/practicum-case-study/reference/apa7.md``'s and this file
+**The rules are ``skills/_shared/reference/apa7.md``'s and this file
 does not own one of them.** That sheet is verified against apastyle.apa.org and
 carries the caveat that the *Publication Manual*'s section numbers are pointers
 rather than checked claims. Section numbers named below are pointers on the same
@@ -1393,7 +1393,7 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
     if scan.findings:
         diagnostics.append(
             f"{len(scan.findings)} reference defect(s) against"
-            " skills/practicum-case-study/reference/apa7.md."
+            " skills/_shared/reference/apa7.md."
             " Re-run with --show to see which."
         )
     return run_grader.Grade(

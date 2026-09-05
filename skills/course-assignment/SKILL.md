@@ -117,7 +117,7 @@ reader's work.
 ## 3. Produce the deck
 
 Read `scratch/voice-model.md` and use its reflective or argumentative register. If it is absent,
-follow [voice.md](../practicum-case-study/reference/voice.md)'s no-model rule and keep the resulting
+follow [voice.md](../_shared/reference/voice.md)'s no-model rule and keep the resulting
 status in the private run record. Generate the `.pptx` agent-side. Do not build or call a repository PowerPoint writer. Keep the
 slide face within the signed container and put the supporting narrative in speaker notes. Speaker
 notes are outside the projected 6x6 container and inside the claim surface because the clinician

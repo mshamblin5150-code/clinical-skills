@@ -2,7 +2,7 @@
 
 The course spec, distilled. Captured from the program's learning management system for an FNP
 primary-care-across-the-lifespan practicum. **Read this before drafting** —
-[SKILL.md](../SKILL.md) points here for the required components, the point weighting and the
+[practicum-case-study](../../practicum-case-study/SKILL.md) points here for the required components, the point weighting and the
 guideline roster.
 
 **The raw capture is `scratch/case-study-spec.md`**, taken from the live LMS topic on
@@ -59,7 +59,7 @@ marital status, insurance, social determinants of health, and cultural considera
 habitual block carries age, sex, race and source. [clinical-note](../../clinical-note/SKILL.md)
 already infers marital status from age and fills payment method and race from declared rules — the
 same machinery serves here, except that in a case study an unknown is **ordered rather than
-filled**. See the tier rule in [SKILL.md](../SKILL.md).
+filled**. See the tier rule in [practicum-case-study](../../practicum-case-study/SKILL.md).
 
 **Pharmacologic therapy asks for more than the Rx table carries.** For every medication: generic
 name, **drug class**, dose, route, frequency, duration, **contraindications**, **monitoring**,
@@ -70,7 +70,7 @@ prose when they land at all, which is unstructured and case-dependent.
 **Write them, in a prose block under each Rx table. Ruled 2026-08-18** — the table keeps its six
 rows, and the five go underneath it as one paragraph rather than into the table or into nothing.
 The shape and the worked example are in [style.md](style.md) §8; the reasoning is in
-[SKILL.md](../SKILL.md) step 6. **Omitting them has never cost a point**, which the ruling treats
+[practicum-case-study](../../practicum-case-study/SKILL.md) step 6. **Omitting them has never cost a point**, which the ruling treats
 as survivable rather than as safe.
 
 ## Two explicit limits
@@ -102,7 +102,7 @@ strength.
 | Peer Clinical Critique | 5 |
 
 **Clinical judgment carries 70 of the 100 points.** APA format and guideline integration carry 10
-between them, and that is why [SKILL.md](../SKILL.md) spends its length on the differential and its
+between them, and that is why [practicum-case-study](../../practicum-case-study/SKILL.md) spends its length on the differential and its
 ordering rather than on citation hygiene.
 
 **It is a claim about where the length goes and not about what may be left broken.** This paragraph

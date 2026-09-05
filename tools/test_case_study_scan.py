@@ -48,7 +48,7 @@ import research_ledger
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SKILL = REPO_ROOT / "skills" / "practicum-case-study" / "SKILL.md"
-STYLE = REPO_ROOT / "skills" / "practicum-case-study" / "reference" / "style.md"
+STYLE = REPO_ROOT / "skills" / "_shared" / "reference" / "style.md"
 MODULE = Path(scan.__file__)
 
 # A prescription table in exactly the shape ``style.md`` section 8 publishes: an

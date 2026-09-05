@@ -16,7 +16,7 @@ class EverySectionSixRowHasACalibrationIdentity(unittest.TestCase):
     SHEET = (
         Path(__file__).resolve().parent.parent
         / "skills"
-        / "practicum-case-study"
+        / "_shared"
         / "reference"
         / "apa7.md"
     )
@@ -65,7 +65,7 @@ class TheCommittedWordMeasurement(unittest.TestCase):
     RECORD = (
         Path(__file__).resolve().parent.parent
         / "skills"
-        / "practicum-case-study"
+        / "_shared"
         / "reference"
         / "word-renderer-calibration.json"
     )

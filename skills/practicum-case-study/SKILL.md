@@ -67,7 +67,7 @@ clinician before approval. The report does not silently rewrite the draft.
 
 ## What it is graded by
 
-[reference/rubric.md](reference/rubric.md) holds the Canvas spec in full — the required components,
+[../_shared/reference/rubric.md](../_shared/reference/rubric.md) holds the Canvas spec in full — the required components,
 the 100-point rubric, and the 21 guideline bodies. Read it before drafting. Three things from it
 decide how the document is written:
 
@@ -82,7 +82,7 @@ run could read as permission to hand back a document with known reference-list d
 **Ruled 2026-08-18, in the clinician's words:** *ordering the differential is very important, but
 that shouldn't take the place of tidiness.* So step 7 runs on every document, and a defect it finds
 is **fixed before the document is handed over** rather than listed in `PROPOSED` for him to fix by
-hand. [reference/apa7.md](reference/apa7.md) is the written rule it runs against — without one,
+hand. [../_shared/reference/apa7.md](../_shared/reference/apa7.md) is the written rule it runs against — without one,
 *"fix the reference list"* is a wish rather than a check.
 
 **Three to five prioritized differentials is the stated cap, and the corpus exceeds it routinely
@@ -115,14 +115,14 @@ were coded and these were not:
 
 **Starts at the faculty material and stops before the discussion board replies.** The peer critique
 is a separate deliverable with its own headings and its own word count; it is described at the
-bottom of [reference/rubric.md](reference/rubric.md) and this skill does not write it.
+bottom of [../_shared/reference/rubric.md](../_shared/reference/rubric.md) and this skill does not write it.
 
 ## The document
 
-[reference/style.md](reference/style.md) holds the house style, derived from ten graded and
+[../_shared/reference/style.md](../_shared/reference/style.md) holds the house style, derived from ten graded and
 returned submissions. It is the authority on the voice's **mechanics**, on section shapes and on
-the normalizations; [reference/voice.md](reference/voice.md) is the method for the **register**,
-which §11's mechanics turned out not to reach. [reference/apa7.md](reference/apa7.md) is the
+the normalizations; [../_shared/reference/voice.md](../_shared/reference/voice.md) is the method for the **register**,
+which §11's mechanics turned out not to reach. [../_shared/reference/apa7.md](../_shared/reference/apa7.md) is the
 authority on the reference list.
 **Every section below is written, every time** — see *Three modes, and none of them subtracts a
 section* under it. The skeleton, in order:
@@ -141,7 +141,7 @@ section* under it. The skeleton, in order:
 10. **Faculty Questions:** — present only where the material poses them, and it answers them
     rather than replacing anything above.
 11. **Signed by:** — name, credentials, timestamp.
-12. **References** — APA 7, alphabetized. [reference/apa7.md](reference/apa7.md).
+12. **References** — APA 7, alphabetized. [../_shared/reference/apa7.md](../_shared/reference/apa7.md).
 
 **The differential, the MDM, the Plan and the Patient Education are numbered lists. Never
 bullets.** His ruling, 2026-08-18, and it is not a formatting preference. A grader counting
@@ -165,7 +165,7 @@ comparing the Markdown to the `.docx` should know that Word receives those autho
 Demographics, the Review of Systems and the Physical Examination are written as defined fields with
 their values appended, as running text. A table is still right for a given result set — laboratory
 values, diagnostic studies — and the prescriptions in `Rx:` stay tables because a prescription is a
-form. See [reference/style.md](reference/style.md) §1a, which carries the shapes, the Review of
+form. See [../_shared/reference/style.md](../_shared/reference/style.md) §1a, which carries the shapes, the Review of
 Systems closer, and the three pieces of scaffolding language that must not reach the document.
 
 The Assessment still runs as prose.
@@ -371,7 +371,7 @@ from `scratch/medatrax-profile.md` or ask.
 **The document has to sound like the person submitting it, and the first run did not.** His words:
 *"this is missing my — I don't know how to say it — way of speaking."*
 
-[reference/style.md](reference/style.md) §11 captures the mechanics: first person and decisive, show
+[../_shared/reference/style.md](../_shared/reference/style.md) §11 captures the mechanics: first person and decisive, show
 the arithmetic, name the inconsistency, reason on physiology rather than lists, argue rarity down
 instead of ignoring it, dry humor never at the patient's expense. **Those are true and they are not
 sufficient.** A run can satisfy every one of them and still read as a competent stranger, which is
@@ -383,7 +383,7 @@ about people, and that reaches for a principle rather than a protocol when the c
 hard. It is not decoration on top of the clinical content — it is *how the reasoning is carried*,
 which is why a checklist of tics cannot reproduce it.
 
-**The mechanism is [reference/voice.md](reference/voice.md), and it is the method rather than the
+**The mechanism is [../_shared/reference/voice.md](../_shared/reference/voice.md), and it is the method rather than the
 model.** It says how to ask for writing samples, how to read them into a register, and what never
 to imitate. **What it builds is `scratch/voice-model.md`** — gitignored, one per clinician, built
 from that clinician's own samples.
@@ -392,13 +392,13 @@ from that clinician's own samples.
 `reference/`. A rule that only resolves against one account belongs in the profile, and a register
 is that shape at its purest: it is nobody else's, it is useless to a second clinician, and shipping
 his would make every other user of this skill sound like him. A model also has to **quote**, and
-the quotes are the user's own work — which is [reference/style.md](reference/style.md)'s own
+the quotes are the user's own work — which is [../_shared/reference/style.md](../_shared/reference/style.md)'s own
 arrangement, distilled into `reference/` from a gitignored working file that quoted ten submissions
 in full.
 
 **The samples are collected by [setup-clinical-skills](../setup-clinical-skills/SKILL.md) step 8**,
 where the rest of this clinician's per-account configuration already lives — his ruling, 2026-08-18,
-settling the one question #213 left open. [reference/voice.md](reference/voice.md) §3 is the spec
+settling the one question #213 left open. [../_shared/reference/voice.md](../_shared/reference/voice.md) §3 is the spec
 for what to ask for and §4 is how the samples are read; that step points at both rather than
 restating either.
 
@@ -407,7 +407,7 @@ restating either.
 **Where there is genuinely no model, the run says so.** A run that finds no `scratch/voice-model.md` writes
 in the §11 mechanics and **says in the `PROPOSED` block that the voice is unmodeled**, rather than
 claiming a register it has not been given. **The declaration is per register**, not per document —
-[reference/voice.md](reference/voice.md) §7. A model built from three MDMs and nothing else has
+[../_shared/reference/voice.md](../_shared/reference/voice.md) §7. A model built from three MDMs and nothing else has
 modeled the clinical argument and has said nothing about how this clinician argues a position,
 which is the register #213 was filed about.
 
@@ -501,7 +501,7 @@ the run did not choose that number, the patient arrived on it -- and such a row 
 `Continued home medication: prenatal vitamin one tablet PO daily`. **The exemption is declared and
 never inferred**, so a drug row that says nothing is graded, and that is the direction it has to
 fail in. A `Delayed order:` is graded too: a dose that has not started yet is still a dose the run
-chose. The declaration lives in [style.md](reference/style.md) §8 with the table it is written in.
+chose. The declaration lives in [style.md](../_shared/reference/style.md) §8 with the table it is written in.
 
 **The claim heading is what names the drug**, not the restatement buried under it — a record whose
 `## CLAIM:` line says *ceftriaxone* is a claim about ceftriaxone, and one that reaches the drug only
@@ -783,13 +783,13 @@ description of the case.
 
 ### 5. Draft the body
 
-In skeleton order, in his voice — [reference/style.md](reference/style.md) is the authority and the
+In skeleton order, in his voice — [../_shared/reference/style.md](../_shared/reference/style.md) is the authority and the
 part that matters most is that the voice is **first person and decisive**. `I would`, `I will`,
 `I'm going to stop`. Never *the provider should consider*.
 
 **Read `scratch/voice-model.md` first, if it exists**, and write each section in the register that
 section takes — the MDM, the patient education and the reflective prose are three different voices
-and [reference/voice.md](reference/voice.md) §2 says which is which. Where the model declares a
+and [../_shared/reference/voice.md](../_shared/reference/voice.md) §2 says which is which. Where the model declares a
 register unmodeled, that section is written in the §11 mechanics and the gap is declared in
 `PROPOSED`. **Where no model exists at all, this run does not stop to build one** — that needs the
 clinician and his samples, it is [setup-clinical-skills](../setup-clinical-skills/SKILL.md) step 8,
@@ -802,7 +802,7 @@ with the reasoning underneath.
 
 ### 6. Write the prescriptions
 
-The fixed six-row table in [reference/style.md](reference/style.md), one per drug, including the
+The fixed six-row table in [../_shared/reference/style.md](../_shared/reference/style.md), one per drug, including the
 home medications that are being continued unchanged. The patient cell is a placeholder and the date
 of birth is literally `x-x-xxx` — **a case study prescription carries no identifiers**. Sig spells
 the numbers out and ends `for <indication>`. Held orders say so in the drug row.
@@ -811,7 +811,7 @@ the numbers out and ends `for <indication>`. Held orders say so in the drug row.
 Therapy component names and the table does not: **drug class, contraindications, monitoring,
 adverse effects, and the guideline that supports the choice**. One paragraph, not a second table.
 **Ruled 2026-08-18.** The shape and the worked example are in
-[reference/style.md](reference/style.md) §8, which is the authority on section shapes and the one
+[../_shared/reference/style.md](../_shared/reference/style.md) §8, which is the authority on section shapes and the one
 place they are written.
 
 **Why prose rather than more rows.** The spec asks eleven fields per medication and the table
@@ -839,7 +839,7 @@ what this exists to replace.
 
 ### 7. Fix the references
 
-**APA 7, alphabetized — [reference/apa7.md](reference/apa7.md) is the rule, and it is checked
+**APA 7, alphabetized — [../_shared/reference/apa7.md](../_shared/reference/apa7.md) is the rule, and it is checked
 rather than recalled.** That sheet carries the `a`/`b` disambiguation ordering, the UpToDate entry
 form, when a retrieval date belongs and when it is a defect, and the mechanics of the list itself.
 It also carries the legal-entry form and points to the code-owned configured-reader boundary.
@@ -856,16 +856,16 @@ sorted.
 | The reference list headed anything but `References`, or `Reference` for a one-entry list | rename it — and since [#217](https://github.com/mshamblin5150-code/clinical-skills/issues/217) the heading is what *applies* the hanging indent, so a wrong label changes the layout as well as the word |
 | An entry written as a bullet or a numbered item | make it a paragraph — the renderer gives a list its list style and the hanging indent is lost |
 | An entry carrying no year element — most often one hard-wrapped onto a second line | join it — the renderer sets every non-blank line as its own paragraph, so the second half hangs on nothing, and a line with no year is what that looks like |
-| Two entries out of alphabetical order | sort the list — sorted is sorted, [apa7.md](reference/apa7.md) §1 |
+| Two entries out of alphabetical order | sort the list — sorted is sorted, [apa7.md](../_shared/reference/apa7.md) §1 |
 | `Links to an external site.` welded to a URL | strip it — it is a Canvas paste artifact |
 | Retrieval year behind the exam year | the retrieval date must be on or after the exam date |
-| An entry whose declared source class requires a retrieval date but carries none | add one — the content is designed to change and the version cited is unarchived, [apa7.md](reference/apa7.md) §4 |
-| A retrieval date on a guideline, article or textbook | remove it — [apa7.md](reference/apa7.md) §4. **The command reaches this only where the entry carries a DOI**; on a guideline PDF or a textbook nothing in the URL says so, and it stays a reading — ruled permanent on [#241](https://github.com/mshamblin5150-code/clinical-skills/issues/241), and it is the reading step 9's `the reference list, the part no command reaches` row is graded on |
+| An entry whose declared source class requires a retrieval date but carries none | add one — the content is designed to change and the version cited is unarchived, [apa7.md](../_shared/reference/apa7.md) §4 |
+| A retrieval date on a guideline, article or textbook | remove it — [apa7.md](../_shared/reference/apa7.md) §4. **The command reaches this only where the entry carries a DOI**; on a guideline PDF or a textbook nothing in the URL says so, and it stays a reading — ruled permanent on [#241](https://github.com/mshamblin5150-code/clinical-skills/issues/241), and it is the reading step 9's `the reference list, the part no command reaches` row is graded on |
 | In-text year not matching the reference list year | reconcile |
-| Two entries with the same authors and year and no `a`/`b` | disambiguate, in both places — and the letters are assigned by **title order**, [apa7.md](reference/apa7.md) §3. **The same *authors*, not the same first author**: `Hsu, K.` and `Hsu, K., & Khosropour, C.` in one year take no letters, and adding them is the defect |
+| Two entries with the same authors and year and no `a`/`b` | disambiguate, in both places — and the letters are assigned by **title order**, [apa7.md](../_shared/reference/apa7.md) §3. **The same *authors*, not the same first author**: `Hsu, K.` and `Hsu, K., & Khosropour, C.` in one year take no letters, and adding them is the defect |
 | An UpToDate entry with the database name unitalicized | italicize it in the entry, not in the text |
 | An UpToDate year that is the year it was read | use the topic's **last update** year |
-| A legal entry carrying only its section | add the legal source name in [apa7.md](reference/apa7.md) §8's form |
+| A legal entry carrying only its section | add the legal source name in [apa7.md](../_shared/reference/apa7.md) §8's form |
 | An entry in the list that is cited nowhere in the body | delete it |
 | A citation in the body with no entry in the list | add it |
 | A missing space in a date | `February 19, 2026` |
@@ -955,7 +955,7 @@ exactly what the ticket exists to reject — so there is nothing here to run bef
 text.** That is the shape
 [#280](https://github.com/mshamblin5150-code/clinical-skills/issues/280) was filed over: a row faking a width the grid does not have renders into column 1, and a pipe
 written as `\|` or `&#124;` outside a table reaches the page as visible text. **Fix the row, not the
-warning** — [reference/style.md](reference/style.md) §8 is the worked example of a table that
+warning** — [../_shared/reference/style.md](../_shared/reference/style.md) §8 is the worked example of a table that
 declares its columns. **Unless the pipe is genuinely content in that cell**, in which case the
 row is right and the warning is the price of a check that reads the output rather than the
 intent. The document is still written either way, because a blocked submission is a
@@ -967,9 +967,9 @@ margins, a page number top right, headings at body size in APA's own level styli
 first-line indent on **body paragraphs only**, tables drawn with APA's horizontal rules rather
 than a grid, and a reference list that starts on a new page under a bold centered label with a
 hanging indent. **What *only* excludes is deliberately not enumerated here** —
-[reference/apa7.md](reference/apa7.md) §6 has it, and a partial list at a third site is what #220
+[../_shared/reference/apa7.md](../_shared/reference/apa7.md) §6 has it, and a partial list at a third site is what #220
 was filed over.
-[reference/apa7.md](reference/apa7.md) §6 is the list of what it does **and does not** do — read
+[../_shared/reference/apa7.md](../_shared/reference/apa7.md) §6 is the list of what it does **and does not** do — read
 it rather than assuming the render finished the job. Two things it will not do for you: the label
 must be `References` or, for a single entry, exactly `Reference` — the singular is matched only as
 a complete heading, so `Reference Ranges` is safe and `Reference List` is not a reference list.
@@ -999,7 +999,7 @@ check that was never run is not.
 | --- | --- | --- | --- |
 | the house style | the whole draft, section by section | `tools/case_study_scan.py` below — mechanical, so it is a command and not an agent | no |
 | the reference list | the list, and every citation in the body | `tools/reference_scan.py`, step 7 — mechanical, so it is a command and not an agent | no |
-| the reference list, the part no command reaches | the entries against the companion evidence | a reader: is each UpToDate year the topic's **last update** year, does any entry carry a **retrieval date that does not belong** — a guideline, a statement or a textbook takes none and the command catches that only on a DOI — the rule is [apa7.md](reference/apa7.md) §4 and how far the command reaches is §7 — and does each source exist and say what the sentence citing it says | no |
+| the reference list, the part no command reaches | the entries against the companion evidence | a reader: is each UpToDate year the topic's **last update** year, does any entry carry a **retrieval date that does not belong** — a guideline, a statement or a textbook takes none and the command catches that only on a DOI — the rule is [apa7.md](../_shared/reference/apa7.md) §4 and how far the command reaches is §7 — and does each source exist and say what the sentence citing it says | no |
 | differential ordering | the numbered differential and the intake block | a reader: is `1.` defensible as what would kill first, and does a patient of childbearing age with abdominal or pelvic pain have the pregnancy-related emergencies ranked first — *Ordering is the graded axis* above | yes |
 | MDM completeness | every MDM entry | a reader: does each entry name a discriminator from **this** case rather than summarizing the disease, and does each carry a citation | yes |
 | the Rx blocks | the Plan and every prescription table | a reader: every drug in the Plan has a table — **including any drug row that welds a second drug into it**, which is a drug in the Plan without its own table and is a shape no command here reaches — every `Sig` ends in an indication, and every table has the prose block under it carrying class, contraindications, monitoring, adverse effects and guideline support | no |
@@ -1093,7 +1093,7 @@ restated where nothing re-derives it is
 [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143). His framing is the ticket: *"is there some machine checkable way to get this right every
 time... this prevents me from using this skill for future work."*
 [#277](https://github.com/mshamblin5150-code/clinical-skills/issues/277). The rules landed in
-[reference/style.md](reference/style.md) §1a and §8 as prose, which is exactly the arrangement
+[../_shared/reference/style.md](../_shared/reference/style.md) §1a and §8 as prose, which is exactly the arrangement
 [#220](https://github.com/mshamblin5150-code/clinical-skills/issues/220) ruled insufficient: **a
 prose edit to a rule fails nothing.**
 
@@ -1114,7 +1114,7 @@ Deliberately **not** `tools/reference_scan.py`'s exception — that command's ou
 what its code can draw from, and this one's is not, because a bullet's finding is the bullet's own
 text.
 
-**Every row is a rule written in [reference/style.md](reference/style.md) §1a or §8**, and how many
+**Every row is a rule written in [../_shared/reference/style.md](../_shared/reference/style.md) §1a or §8**, and how many
 there are is `case_study_scan.KINDS`'s to say rather than this paragraph's. **This list is the one
 copy** — a test keyed on that tuple asserts each row has a sentence here, and `CLAUDE.md` points at
 it rather than repeating it. The rows are: no bullet anywhere in
@@ -1256,10 +1256,10 @@ thing that reaches it. `the reference list` is the clearest of the ones left out
 command, so its `clean` is an exit status and there was never a reader to have walked anything.
 
 **Which two #255 marked, and the arithmetic behind them is not the arithmetic #255 offered.** That ticket put
-these two at *70 of the rubric's 100 points*, and [reference/rubric.md](reference/rubric.md) does
+these two at *70 of the rubric's 100 points*, and [../_shared/reference/rubric.md](../_shared/reference/rubric.md) does
 not: *Differential Diagnoses and Clinical Reasoning* scores **15** and *Medical Decision Making*
 **10**, so the two criteria these rows name carry **25** between them. **Which criteria compose the
-70 is not stated here and cannot be**: [reference/rubric.md](reference/rubric.md) asserts that
+70 is not stated here and cannot be**: [../_shared/reference/rubric.md](../_shared/reference/rubric.md) asserts that
 figure without enumerating it, and 31 different seven-criterion subsets of its table sum to 70 — so
 any count named beside it would be a number satisfiable 31 ways, which is not a claim. What the
 table does settle is that *Comprehensive Treatment Plan* at **20** is the single heaviest criterion
@@ -1336,7 +1336,7 @@ Then walk this list, by eye — none of it is mechanical:
   `Sig` ending in an indication **and a prose block under it carrying class, contraindications,
   monitoring, adverse effects and guideline support**?
 - **Has the step 7 reference walk actually run**, against
-  [reference/apa7.md](reference/apa7.md) rather than from memory, and does
+  [../_shared/reference/apa7.md](../_shared/reference/apa7.md) rather than from memory, and does
   `python tools/reference_scan.py <the draft> --as-of <the exam date>` exit 0? A known reference
   defect does not leave this step in the `PROPOSED` block — it gets fixed.
 - **Does `python tools/checks_ledger.py <checks-ledger>` exit 0**, and has every
@@ -1353,7 +1353,7 @@ Then walk this list, by eye — none of it is mechanical:
 - Is the Patient Education spoken, jargon-free, and does it end on the follow-up interval?
 - **Read the draft back against the discriminating pairs in `scratch/voice-model.md`**, register by
   register — for each pair, which half does the draft's sentence resemble?
-  [reference/voice.md](reference/voice.md) §5. Where the model is absent or a register is
+  [../_shared/reference/voice.md](../_shared/reference/voice.md) §5. Where the model is absent or a register is
   unmodeled, that is what `PROPOSED` declares rather than something this step can settle.
 - Does any number in the body rest on recall rather than on a source in hand?
 - **Does every claim researched in step 3 read the way its ledger record says the source reads?**

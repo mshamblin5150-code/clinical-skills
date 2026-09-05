@@ -375,7 +375,7 @@ only when the declared cuts agree; otherwise withhold it and increase the count 
 count is zero. **A finding is a floor, not a target.** It can forbid stripping a measured feature
 from graded prose; it never licenses amplifying the feature to imitate a percentage.
 
-**Where a run reads it.** [SKILL.md](../SKILL.md) step 5, before drafting, and step 9, where the
+**Where a run reads it.** [practicum-case-study](../../practicum-case-study/SKILL.md) step 5, before drafting, and step 9, where the
 draft is read back against the discriminating pairs.
 
 **Where there is no model.** A run that finds no `scratch/voice-model.md` writes in the §11
@@ -407,6 +407,6 @@ read as one.
 **Samples are a snapshot.** A register moves, and a model built from eight documents describes the
 writer those documents had. It carries its build date for that reason.
 
-**It cannot make a clinical argument correct.** Everything in [SKILL.md](../SKILL.md)'s *Every
+**It cannot make a clinical argument correct.** Everything in [practicum-case-study](../../practicum-case-study/SKILL.md)'s *Every
 clinical claim is looked up, never recalled* binds a document written in a perfect register exactly
 as hard.

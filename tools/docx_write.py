@@ -37,7 +37,7 @@ label. The switch is on the *heading*, so a document with no References section 
 pays for any of it.
 
 **The APA rules themselves are owned by
-``skills/practicum-case-study/reference/apa7.md``, not by this docstring.** That sheet is
+``skills/_shared/reference/apa7.md``, not by this docstring.** That sheet is
 verified against apastyle.apa.org and carries the caveat that the *Publication Manual*'s
 section numbers are pointers rather than checked claims, since the manual is not in this
 repo. Section numbers named here and in the tests are pointers on the same terms.
@@ -48,7 +48,7 @@ part, which is the only reason this archive carries a header at all. Headings ar
 size at every level, distinguished the way APA distinguishes them: level 1 bold
 centered, level 2 bold flush left, level 3 bold italic flush left, level 4 bold
 indented. The rubric gives APA format 5 of 100 points, and this is most of what that
-line can be given mechanically -- see ``skills/practicum-case-study/reference/rubric.md``.
+line can be given mechanically -- see ``skills/_shared/reference/rubric.md``.
 
 **``--bold-headings`` carries that same visible heading format directly.** The heading
 paragraph has no named heading style or outline level; bold and level-three italic are
@@ -130,7 +130,7 @@ LINE_DOUBLE = 480
 
 
 # What this renderer does **not** apply. One object rather than another prose inventory:
-# ``skills/practicum-case-study/reference/apa7.md`` section 6 names the APA limits and
+# ``skills/_shared/reference/apa7.md`` section 6 names the APA limits and
 # ADR 0013 names the paste-target limits. ``tools/test_docx.py`` binds every row to one
 # of those prose surfaces and every prose limit back to a row. #220's own comment is why:
 # a code regression fails a behavior test, and a prose edit to either copy failed
@@ -698,7 +698,7 @@ def is_rule(line: str) -> bool:
     ``split_row("")`` is ``[""]`` and the ``if c`` filter left nothing to check.
     ``markdown_tables`` reads the line under a header to decide a table starts
     there, so any table-looking line followed by a blank one opened a phantom
-    one-row table; ``skills/practicum-case-study/reference/voice.md`` has one
+    one-row table; ``skills/_shared/reference/voice.md`` has one
     today. Found by ``research_ledger`` adopting this function at a merge, and by
     nothing either suite ran.
     """
@@ -1439,7 +1439,7 @@ def main(argv: list) -> int:
         print(
             "warning: a row faking its width renders into column 1, and an escape "
             "nothing consumed reaches the page as text. See "
-            "skills/practicum-case-study/reference/style.md section 8 for a table "
+            "skills/_shared/reference/style.md section 8 for a table "
             "that declares its columns. #280.",
             file=sys.stderr,
         )

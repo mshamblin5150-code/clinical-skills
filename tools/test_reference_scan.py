@@ -42,7 +42,7 @@ GraderConformance = for_module(scan)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SKILL = REPO_ROOT / "skills" / "practicum-case-study" / "SKILL.md"
-APA7 = REPO_ROOT / "skills" / "practicum-case-study" / "reference" / "apa7.md"
+APA7 = REPO_ROOT / "skills" / "_shared" / "reference" / "apa7.md"
 DISCUSSION_POST_SKILL = REPO_ROOT / "skills" / "discussion-post" / "SKILL.md"
 CONTEXT = REPO_ROOT / "CONTEXT.md"
 
@@ -277,7 +277,7 @@ class SameAuthorSameYearTakesALetter(unittest.TestCase):
         self.assertIn(scan.MISSING_AB, kinds(text))
 
     def test_a_shared_first_author_with_different_coauthors_takes_no_letter(self):
-        """[apa7.md](../skills/practicum-case-study/reference/apa7.md) section 3
+        """[apa7.md](../skills/_shared/reference/apa7.md) section 3
         scopes the rule to *the same authors*, and APA 8.19 with it. ``Hsu, K.``
         and ``Hsu, K., & Khosropour, C.`` are two author strings, and
         ``(Hsu, 2026)`` and ``(Hsu & Khosropour, 2026)`` already tell them apart
@@ -1378,7 +1378,7 @@ class LegalReferenceRulesArePublished(unittest.TestCase):
 
     def test_discussion_post_points_to_the_apa_sheet(self):
         self.assertIn(
-            "../practicum-case-study/reference/apa7.md",
+            "../_shared/reference/apa7.md",
             DISCUSSION_POST_SKILL.read_text(encoding="utf-8"),
         )
 

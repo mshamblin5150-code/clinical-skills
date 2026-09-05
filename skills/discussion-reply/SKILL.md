@@ -7,7 +7,7 @@ description: Read one LMS discussion topic live, rank classmates the clinician c
 
 Write a short conversational answer to a classmate's discussion post. This is not the initial
 discussion post and not the eight-heading peer critique in
-[practicum-case-study/reference/rubric.md](../practicum-case-study/reference/rubric.md). A reply has
+[_shared/reference/rubric.md](../_shared/reference/rubric.md). A reply has
 no Markdown heading at any level, opens with the classmate's exact first name, contains at least
 150 words, and carries at least one source in its own reference list.
 
@@ -187,7 +187,7 @@ and rerun rather than treated as unmodeled. The default report is counts only. `
 working material and must not be pasted. A clean scan grades shape, not whether the model is true
 of the clinician.
 
-If `scratch/voice-model.md` is absent, follow [voice.md](../practicum-case-study/reference/voice.md)
+If `scratch/voice-model.md` is absent, follow [voice.md](../_shared/reference/voice.md)
 §8's no-model rule in full. Write the declaration it requires to
 `scratch/runs/<run-key>/voice-status.md`. Keep `voice-status.md` in the private run record; it is
 not part of the reply typed into the LMS.

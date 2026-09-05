@@ -9,7 +9,7 @@ framing is the ticket: *"is there some machine checkable way to get this right
 every time... this prevents me from using this skill for future work."*
 
 **The rules landed as prose in
-``skills/practicum-case-study/reference/style.md`` section 1a and in
+``skills/_shared/reference/style.md`` section 1a and in
 ``SKILL.md``, which is exactly the arrangement
 [#220](https://github.com/mshamblin5150-code/clinical-skills/issues/220) ruled
 insufficient: a prose edit to a rule fails nothing.** This is

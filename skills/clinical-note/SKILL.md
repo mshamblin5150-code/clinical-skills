@@ -743,7 +743,7 @@ That rule used to end *"say it where it is genuinely unknown and would matter; o
 lives in `scratch/`, so it is already in reach of every skill here — what this section settles is
 **how much of it applies where**.
 
-[practicum-case-study/reference/voice.md](../practicum-case-study/reference/voice.md) §2 names three
+[_shared/reference/voice.md](../_shared/reference/voice.md) §2 names three
 registers. A note is not a case study and does not take all three:
 
 | Register | In a note | Where |
@@ -776,7 +776,7 @@ whose rewriting the scanner cannot survive, and
 caught it: that scanner's exit-1 path has never fired on a real run. **The reason goes in the
 clause; the clause stays welded and stays on its line.** A voice model is the last thing consulted
 and the first thing dropped: where it pulls against a rule anywhere else in this file, the rule
-wins, on [voice.md](../practicum-case-study/reference/voice.md) §9's terms.
+wins, on [voice.md](../_shared/reference/voice.md) §9's terms.
 
 **Punctuation is the live conflict and it is already decided.** His own prose is full of em dashes;
 the rule below forbids them in a note body. **The rule wins**, and this is exactly why the model is

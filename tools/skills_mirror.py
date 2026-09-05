@@ -65,11 +65,12 @@ from console_codec import use_utf8
 MIRROR = Path(".claude") / "skills"
 CANONICAL = Path("skills")
 
-# A directory under skills/ is a skill when it carries a SKILL.md. Nothing here
-# hardcodes the skill names: README's own `for s in clinical-note batch-shift
-# icd10-cpt` list was written when there were three and never gained
-# setup-clinical-skills, which is the same drift one level up.
+# A directory under skills/ is mirrored when it carries a SKILL.md or when this
+# explicit set names shared instruction that has no owning skill. Skill names stay
+# discovered from their files; the exception is named because widening to every
+# directory would silently make a future non-instruction directory loadable.
 SKILL_FILE = "SKILL.md"
+SHARED_INSTRUCTION_DIRECTORIES = {"_shared"}
 
 LINKED = "linked"
 MISSING = "missing"
@@ -151,7 +152,11 @@ def skill_names(root: Path) -> list[str]:
         return []
     return sorted(
         p.name for p in canonical.iterdir()
-        if p.is_dir() and (p / SKILL_FILE).is_file()
+        if p.is_dir()
+        and (
+            (p / SKILL_FILE).is_file()
+            or p.name in SHARED_INSTRUCTION_DIRECTORIES
+        )
     )
 
 

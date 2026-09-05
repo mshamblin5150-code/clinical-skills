@@ -1,0 +1,23 @@
+#!/bin/sh
+# Repair the gitignored skills mirror after Git materializes a new worktree.
+# A branch checkout also passes $3=1, so the all-zero previous object id is the
+# discriminator. Ordinary checkouts stay silent and do no work.
+NULL_OID=0000000000000000000000000000000000000000
+[ "$1" = "$NULL_OID" ] || exit 0
+
+# core.hooksPath is absolute in the owning checkout's shared configuration. The
+# hook can therefore come from that checkout while the tree needing repair is the
+# new worktree Git has just made current.
+repo_root=$(git rev-parse --show-toplevel) || exit 0
+[ -f "$repo_root/tools/skills_mirror.py" ] || exit 0
+
+for python in python python3 py; do
+    if command -v "$python" >/dev/null 2>&1; then
+        # Mirror repair is advisory: failure must not turn a successful checkout
+        # into a failed one, but non-quiet findings remain visible on stderr.
+        "$python" "$repo_root/tools/skills_mirror.py" --repair --quiet >&2 || true
+        break
+    fi
+done
+
+exit 0

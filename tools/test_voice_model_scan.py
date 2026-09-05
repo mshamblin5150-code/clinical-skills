@@ -16,7 +16,7 @@ GraderConformance = for_module(scan)
 
 TOOLS = Path(__file__).parent
 REPO_ROOT = TOOLS.parent
-VOICE_SPEC = REPO_ROOT / "skills" / "practicum-case-study" / "reference" / "voice.md"
+VOICE_SPEC = REPO_ROOT / "skills" / "_shared" / "reference" / "voice.md"
 SYNTHETIC = TOOLS / "testdata" / "voice-model-synthetic.md"
 DISCUSSION_REPLY = REPO_ROOT / "skills" / "discussion-reply" / "SKILL.md"
 SETUP = REPO_ROOT / "skills" / "setup-clinical-skills" / "SKILL.md"
