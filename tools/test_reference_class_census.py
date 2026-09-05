@@ -192,13 +192,7 @@ class TheCensusReportIsCountsOnlyAndHasAHouseExit(unittest.TestCase):
             for node in ast.walk(main)
             if isinstance(node, ast.Return) and node.value is not None
         ]
-        self.assertFalse(
-            any(
-                isinstance(node, ast.Constant) and node.value == 1
-                for returned in returns
-                for node in ast.walk(returned)
-            )
-        )
+        self.assertEqual({ast.unparse(returned) for returned in returns}, {"0", "2"})
 
     def test_clean_is_zero_and_unreadable_is_two(self):
         with tempfile.TemporaryDirectory() as directory:

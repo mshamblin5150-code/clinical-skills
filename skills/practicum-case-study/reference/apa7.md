@@ -367,7 +367,8 @@ restate its entries.
 heat. *Journal of Community Nursing, 18*(2), 41–49. https://doi.org/10.1000/jcn.2026.14
 
 **Abstracted entry form:** Author, A. A., & Author, B. B. (Year). Title of article. *Journal Title,
-volume*(issue), page range. https://doi.org/xxxxx
+volume*(issue when available), page range. DOI when present; otherwise a resolving article URL when
+available; otherwise omit the locator
 
 **Declared limit:** The synthesized example is not string-checkable against APA's page; the local
 sheet records the observed slot order, not a copied APA example or proof that any source exists.
@@ -379,8 +380,9 @@ sheet records the observed slot order, not a copied APA example or proof that an
 **Synthesized example:** Morgan, D. R., & Patel, S. N. (2025). Simulation coaching for novice
 preceptors. *Clinical Learning Review, 2025*, Article 734921. https://doi.org/10.1000/clr.734921
 
-**Abstracted entry form:** Author, A. A. (Year). Title of article. *Journal Title, volume*(issue),
-Article number. https://doi.org/xxxxx
+**Abstracted entry form:** Author, A. A. (Year). Title of article. *Journal Title, volume*(issue when
+available), Article number. DOI when present; otherwise a resolving article URL when available;
+otherwise omit the locator
 
 **Declared limit:** The synthesized example is not string-checkable against APA's page; the local
 sheet records the article-number slot rather than reproducing APA's demonstration.
@@ -419,8 +421,9 @@ page established the retrieval-date slot but not this invented author, title, or
 **Synthesized example:** Allen, R. P., & Vega, M. L. (Eds.). (2024). *Foundations of ambulatory
 nursing* (3rd ed.). North Valley Press.
 
-**Abstracted entry form:** Author, A. A. (or Editor, A. A. [Ed.]). (Year). *Title of book* (Edition).
-Publisher. DOI or stable URL when present
+**Abstracted entry form:** Author, A. A. (Year). *Title of book* (Edition). Publisher. DOI or stable
+URL when present; or Editor, E. E. (Ed.). (Year). *Title of book* (Edition). Publisher. DOI or stable
+URL when present. Use (Eds.) for multiple editors
 
 **Declared limit:** The synthesized example is not string-checkable against APA's page; the form
 does not establish authorship, edition, publisher, or locator for a real book.
@@ -486,7 +489,8 @@ form reflects the series' current journal-article presentation and must follow t
 **Synthesized example:** Association of Community Nurse Educators. (2026). *Code of ethics for
 community-based teaching*. https://ethics.example/community-nurse-educators
 
-**Abstracted entry form:** Group Author. (Year). *Title of ethics code*. URL
+**Abstracted entry form:** Group Author. (Year). *Title of ethics code*. Publisher or site name when
+different from the author. URL
 
 **Declared limit:** The synthesized example is not string-checkable against APA's page; it does not
 establish the title, date, publisher relationship, or section language of a real code.
@@ -498,7 +502,8 @@ establish the title, date, publisher relationship, or section language of a real
 **Synthesized example:** Coalition for Safe Ambulatory Care. (2026, May 14). *Position statement on
 plain-language discharge instructions*. https://policy.example/plain-language-discharge
 
-**Abstracted entry form:** Group Author. (Year, Month Day). *Title of position statement*. URL
+**Abstracted entry form:** Group Author. (Year, Month Day). *Title of position statement*. Publisher
+or site name when different from the author. URL
 
 **Declared limit:** The synthesized example is not string-checkable against APA's page; the date
 precision and author-publisher relationship must be read from the actual statement.
@@ -569,7 +574,7 @@ App Store. URL when available
 **Declared limit:** The synthesized example is not string-checkable against APA's page; attribution
 and container details must be read from the actual entry and dictionary.
 
-## 25. Reference form: YouTube video
+## 25. Reference form: YouTube Video
 
 **Provenance:** APA Style's *Nursing Student References* page, item 19, read 2026-09-04.
 
@@ -639,7 +644,8 @@ form only when the work does not fit a more specific reference category.
 
 ## 30. Outside the nursing set: APA reference example index
 
-**Provenance:** APA Style's general *Reference Examples* index, read 2026-09-04.
+**Provenance:** APA Style's general [*Reference Examples*
+index](https://apastyle.apa.org/style-grammar-guidelines/references/examples), read 2026-09-04.
 
 **Synthesized routing example:** A writer citing an original data set first leaves the nursing set,
 selects **Data and Assessments**, and follows the index link for data-set references instead of

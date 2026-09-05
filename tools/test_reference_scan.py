@@ -1403,7 +1403,7 @@ class TheNursingSourceClassTableIsBoundToTheSheet(unittest.TestCase):
         "Lab or diagnostic manual",
         "Medical dictionary",
         "Entry in a medical dictionary",
-        "YouTube video",
+        "YouTube Video",
         "Podcast or podcast episode",
         "Doctor of nursing practice (DNP) project",
         "PowerPoint slides or lecture notes",
@@ -1461,17 +1461,24 @@ class TheNursingSourceClassTableIsBoundToTheSheet(unittest.TestCase):
                 continue
             with self.subTest(source_class=item.name):
                 section = form_markdown_section(sheet, item.name)
-                self.assertIn("**Provenance:**", section)
-                self.assertIn("**Synthesized example:**", section)
-                self.assertIn("**Abstracted entry form:**", section)
-                self.assertIn("**Declared limit:**", section)
+                parts = (
+                    "**Provenance:**",
+                    "**Synthesized example:**",
+                    "**Abstracted entry form:**",
+                    "**Declared limit:**",
+                )
+                for part in parts:
+                    self.assertEqual(section.count(part), 1)
+                    self.assertTrue(section.partition(part)[2].split("\n\n", 1)[0].strip())
+                self.assertIn(f"item {item.item}, read 2026-09-04", section)
                 self.assertIn("not string-checkable against APA's page", section)
 
     def test_the_general_index_section_has_its_four_declared_parts(self):
-        section = numbered_markdown_section(
-            APA7.read_text(encoding="utf-8"),
-            max(item.item for item in scan.APA_SOURCE_CLASSES) + 7,
-        )
+        sheet = APA7.read_text(encoding="utf-8")
+        heading = "## 30. Outside the nursing set: APA reference example index"
+        block = sheet[sheet.index(heading) :]
+        next_heading = block.find("\n## ", 1)
+        section = block if next_heading == -1 else block[:next_heading]
         self.assertIn("**Provenance:**", section)
         self.assertIn("**Synthesized routing example:**", section)
         self.assertIn("**Abstracted selection form:**", section)
@@ -1704,7 +1711,7 @@ class ReferenceCoverageIsClassifiedByDeclaredBuckets(unittest.TestCase):
         self.assertNotIn("uncovered-class", report)
         self.assertIn("undecidable remainder", report)
 
-    def test_show_reports_only_the_bucket_name_and_line_for_coverage(self):
+    def test_show_does_not_expose_entry_text_through_aggregate_coverage(self):
         marker = "private-entry-marker"
         text = draft(
             COCHRANE + marker,

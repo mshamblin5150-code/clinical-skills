@@ -295,7 +295,7 @@ APA_SOURCE_CLASSES = (
     ApaSourceClass(16, "Lab or diagnostic manual", True, False),
     ApaSourceClass(17, "Medical dictionary", True, False),
     ApaSourceClass(18, "Entry in a medical dictionary", True, False),
-    ApaSourceClass(19, "YouTube video", True, False),
+    ApaSourceClass(19, "YouTube Video", True, False),
     ApaSourceClass(20, "Podcast or podcast episode", True, False),
     ApaSourceClass(21, "Doctor of nursing practice (DNP) project", True, False),
     ApaSourceClass(22, "PowerPoint slides or lecture notes", True, False),
@@ -491,7 +491,7 @@ REFERENCE_BUCKETS = (
     ReferenceBucket(
         "identified-media",
         (
-            "YouTube video",
+            "YouTube Video",
             "Podcast or podcast episode",
             "Doctor of nursing practice (DNP) project",
             "PowerPoint slides or lecture notes",
