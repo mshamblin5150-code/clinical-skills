@@ -37,9 +37,11 @@ The signed bar also carries the research policy exactly once:
 ```text
 SOURCE-CLASSES: society guideline | peer-reviewed | government | tertiary reference
 RECENCY-WINDOW-YEARS: 5
+UPTODATE-RECENCY-WINDOW-YEARS: 2
 ```
 
-These fields preserve the existing clinical source vocabulary and five-year ordinary window. A
+These fields preserve the existing clinical source vocabulary and five-year ordinary window, and
+give UpToDate its publisher-review-date window separately. A
 missing field is not a default: `research_ledger.py` exits 2 because the run was not scanned.
 
 **Every run uses one provenance layout.** Set `<run-directory>` to that derived directory,
@@ -704,19 +706,39 @@ precedent is that a cut point is grounded where the corpus offers one and refuse
 **And give a fresh checker the ledger and what you were actually handed** -- #298's row, ruled by
 the clinician 2026-08-20, grades what the run says it read:
 
+First ingest that deliberately supplied file into the shared account-owned store. Use a stable
+lowercase dump id naming the course, module, and receipt date; never point the ingest command at a
+directory or let the reporting sweep choose a file:
+
+Ask at intake: **Did this dump come with a separate reference list?** If yes, retain that exact
+supplied file with `--references`; if no, omit the option. Retention records provenance for the
+future primary-source join and does not claim that the join exists today.
+
+```bash
+python tools/uptodate_store.py ingest <the evidence dump> --dump-id <course-module-date> --module <course and module> --received-on <YYYY-MM-DD> [--references <the supplied reference list>]
+```
+
+The command copies the raw dump and writes its manifest and searchable index under
+`scratch/uptodate/`. The raw source and manifest stay gitignored. Search the accumulated store with
+`python tools/uptodate_store.py search <query> [<query> ...]`; use several literal synonym queries
+when needed. `python tools/uptodate_store.py sweep` only reports topic-shaped material that has not
+been deliberately filed and ingests nothing.
+
 ```bash
 python tools/research_ledger.py <claims-ledger> --evidence <the evidence dump>
 ```
 
 | The citation | Why |
 | --- | --- |
-| an UpToDate topic cited here that the evidence dump does not carry | the companion evidence is the required supplied-source set; opening a topic through another route does not put it in that set, so citing the missing topic is the Module 1 defect exactly |
+| an UpToDate topic cited here that no accumulated manifest carries | the deliberately supplied store is the required source set; an unfiled current dump or a topic opened through another route does not put it in that set |
+| an UpToDate topic whose literature-review month has left the signed two-year window | re-read it while the profile says the clinician has an account; `UPTODATE-ACCOUNT: no` waives this row without pretending the old date became current |
 | an entry whose locator names an UpToDate topic and that states no database element | the row above reads a topic only from the database element, so without this one an entry missing it escapes the check and the coverage count together |
 
 **The grounding is companion-evidence membership, not whether some route can open the page.** The
-Authenticated route may reach an UpToDate topic outside the dump; that does not add the topic to the
-faculty material the case study must use. The clinician hands supplied topics over wholesale, so the
-dump is the whole supplied set. **A journal article, a society guideline or a government page the
+Authenticated route may reach an UpToDate topic outside the accumulated manifests; that does not add the topic to the
+faculty material the clinician supplied. The clinician hands dumps over wholesale, so their manifests
+accumulate across courses. This accumulated manifest population is the **required
+supplied-source set**. **A journal article, a society guideline or a government page the
 dump lacks is left alone**, because that is this step's ordinary case: a claim record only exists
 because the evidence did *not* cover the claim, and a row firing on those would refuse the correct
 outcome.

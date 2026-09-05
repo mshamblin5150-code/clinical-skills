@@ -83,6 +83,16 @@ for python in python python3 py; do
         # subprocesses; the slower removability measurement is opt-in.
         "$python" "$repo_root/tools/scratch_census.py" >&2 || status=1
 
+        # **The sixth refusing check.** A published UpToDate sheet carries
+        # citable clinical guidance. Grade the complete publisher directory
+        # only when a topic sheet is staged; its README is the format, not a
+        # topic. The source manifest is gitignored, so this is a local gate.
+        if git diff --cached --name-only --diff-filter=ACM \
+            | grep '^reference/uptodate/[^/]*\.md$' \
+            | grep -qv '^reference/uptodate/README\.md$'; then
+            "$python" "$repo_root/tools/uptodate_sheet.py" --all --quiet >&2 || status=1
+        fi
+
         # Standing rule 1, and it is no longer `exec`ed. It still refuses on its own
         # and nothing above can suppress it -- the status is OR-ed, never replaced.
         #

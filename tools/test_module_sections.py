@@ -104,6 +104,8 @@ DECLARED_SECTIONS = {
     "tracker_scan": "Tracker scan",
     "uspstf_interval_reach": "USPSTF interval reach",
     "uspstf_table": "USPSTF recommendation table",
+    "uptodate_sheet": "UpToDate evidence store",
+    "uptodate_store": "UpToDate evidence store",
     "voice_corpus": "The corpus a voice model is built from",
     "voice_model_scan": "Voice model shape",
 }

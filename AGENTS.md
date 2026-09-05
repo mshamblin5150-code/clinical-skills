@@ -53,6 +53,17 @@ from [discussion-post](skills/discussion-post/SKILL.md) step 6, but cannot call 
 verified. Its declared limits remain reader-owned and live in
 `discussion_post_scan.NOT_REACHED` rather than in a second prose copy.
 
+**The shared UpToDate path depends on committed store and sheet tools.**
+`tools/uptodate_store.py` ingests one deliberately supplied dump into `scratch/uptodate/`, writes
+its per-dump manifest and FTS5 index, searches the accumulated store, and reports unfiled
+topic-shaped material without ingesting it. `tools/uptodate_sheet.py` grades staged
+`reference/uptodate/` topic sheets against that private source. A consumer without these commands
+can read the manifest and the complete rules in
+[reference/uptodate/README.md](reference/uptodate/README.md), but cannot call the store searchable
+or the sheet mechanically verified. `research_ledger.py` widens its evidence-membership join from
+the current dump to that accumulated manifest population and applies the signed publisher-review
+window, waived only by the account answer in the profile.
+
 **`course-assignment` depends on committed graders.** `tools/deck_scan.py` grades its signed
 container and cost-record rows, `tools/deck_render.py` retains PowerPoint's page-faithful export and
 slide pixels, `tools/render_scan.py` grades final-pass coverage, and `tools/research_ledger.py`
@@ -91,7 +102,7 @@ These bind every skill in this repo.
 
    **A scanner reads the same table** (`tools/spelling_scan.py`), and it is **advisory** where rule 1's is not — a spelling never refuses a commit here. It found a British spelling in a skill file that the hand sweep writing this rule had missed, which is the argument for having it. Since #104 it scans staged or tracked Markdown and Python contents plus filenames, and `tools/hooks/commit-msg` scans the local commit message; ticket and PR text remain the manual surface. A counted `# spelling-scan: mentions N` immediately above one Python statement is the Python equivalent of a code span, and a stale count fails rather than widening the exemption. It still holds the table rather than the language, which is the argument for still reading this rule.
 
-   *(This sentence read "standing rule 1 stays the only thing that refuses a commit here" until 2026-08-16. These checks can now refuse: rule 1 via `tools/phi_scan.py`; `tools/scratch_census.py` on every local commit, ruled on #466; `tools/threshold_sheet.py` when a threshold sheet is staged — ruled on #83 and narrowed by #181 so the directory README, coverage registry, and subject ledger are not sheets; `tools/threshold_coverage.py` when the catalog, registry, or a threshold sheet is staged; and `tools/subject_ledger.py` when either half of the subject bind is staged. Rule 1's two checks are still the only ones binding **every** commit, which is the part that mattered to this rule and the reason the sentence survived a merge after it stopped being true.)*
+   *(This sentence read "standing rule 1 stays the only thing that refuses a commit here" until 2026-08-16. These checks can now refuse: rule 1 via `tools/phi_scan.py`; `tools/scratch_census.py` on every local commit, ruled on #466; `tools/threshold_sheet.py` when a threshold sheet is staged — ruled on #83 and narrowed by #181 so the directory README, coverage registry, and subject ledger are not sheets; `tools/threshold_coverage.py` when the catalog, registry, or a threshold sheet is staged; `tools/subject_ledger.py` when either half of the subject bind is staged; and `tools/uptodate_sheet.py` when an UpToDate topic sheet is staged. Rule 1's two checks are still the only ones binding **every** commit, which is the part that mattered to this rule and the reason the sentence survived a merge after it stopped being true.)*
 5. **Delete an exact figure unless its value changes a reader's decision.** A useful current figure derived from a tracked source stays only when the same change binds it to that source with an equality-backed test. The test derives the value independently and compares the current claim or the property it supports; another hand-kept copy is not a source of truth.
 
    **An untracked source cannot support a current figure.** A measurement from `scratch/`, `output/`, a gitignored build artifact, or an out-of-repo source that the suite cannot inspect is removed from current prose. It may survive only as an explicitly historical measurement that states its date, units, and derivation command or other provenance. A rebuild time or file modification time does not establish which code produced an artifact. Shared-artifact ownership and producer identity belong to #184 and #276; this rule is #180's boundary for published prose.

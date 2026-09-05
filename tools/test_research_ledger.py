@@ -37,6 +37,7 @@ import checks_ledger
 import docx_write
 import reference_scan
 import research_ledger as ledger
+import uptodate_store
 import coursework_run
 from grader_conformance import constructed_kinds, for_module
 from prose_bind import SHINGLE, ProseBind, normalized as normalized_prose
@@ -79,6 +80,7 @@ def ledger_text(*records: str, stamp: str = "2026-08-19") -> str:
 CLINICAL_BAR = """\
 SOURCE-CLASSES: society guideline | peer-reviewed | government | tertiary reference
 RECENCY-WINDOW-YEARS: 5
+UPTODATE-RECENCY-WINDOW-YEARS: 2
 """
 
 
@@ -1722,7 +1724,11 @@ class TheSkillSaysWhatThisChecks(ProseBind, unittest.TestCase):
     # the scanner knows -- which is what ``AGENTS.md`` classes this tool by.
     ROW_PHRASES = {
         ledger.CITED_TOPIC_NOT_IN_EVIDENCE: (
-            "an UpToDate topic cited here that the evidence dump does not carry"
+            "an UpToDate topic cited here that no accumulated manifest carries"
+        ),
+        ledger.UPTODATE_REREAD_DUE: (
+            "an UpToDate topic whose literature-review month has left the signed"
+            " two-year window"
         ),
         ledger.UNREADABLE_UPTODATE_ENTRY: (
             "an entry whose locator names an UpToDate topic and that states no"
@@ -3824,15 +3830,24 @@ class TheCommandReadsTheEvidenceFile(unittest.TestCase):
         write_bar(self.root)
         return str(path)
 
-    def test_a_cited_topic_the_dump_carries_exits_clean(self):
+    def test_a_cited_topic_in_the_dump_and_its_manifest_exits_clean(self):
         led = self.write("led.md", ledger_text(cited("A carried topic")))
         ev = self.write("evidence.txt", topic("A carried topic"))
-        status, out, _ = self.run_main([led, "--evidence", ev])
+        store = self.root / "uptodate"
+        uptodate_store.ingest_dump(
+            Path(ev),
+            store,
+            dump_id="current",
+            module="Current module",
+            received_on=AS_OF,
+        )
+        with mock.patch.object(uptodate_store, "default_store", return_value=store):
+            status, out, _ = self.run_main([led, "--evidence", ev])
         self.assertEqual(status, 0, out)
 
-    def test_a_cited_topic_the_dump_lacks_refuses(self):
-        led = self.write("led.md", ledger_text(cited("A topic nobody handed over")))
-        ev = self.write("evidence.txt", topic("Some other topic"))
+    def test_a_cited_topic_in_an_unfiled_current_dump_refuses(self):
+        led = self.write("led.md", ledger_text(cited("A topic nobody filed")))
+        ev = self.write("evidence.txt", topic("A topic nobody filed"))
         status, _, err = self.run_main([led, "--evidence", ev])
         self.assertEqual(status, 1)
         self.assertIn("evidence", err.lower())
@@ -3969,6 +3984,75 @@ class TheDraftsReferenceListComesFromTheRendererSideParser(unittest.TestCase):
             [ledger.uptodate_topic(entry.text) for entry in document.entries],
             ["A topic nobody handed over"],
         )
+
+
+class EvidenceMembershipAccumulatesAcrossDumpManifests(unittest.TestCase):
+    """#901 widens #298's join without treating an unfiled topic as evidence."""
+
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        self.store = self.root / "uptodate"
+
+    def records_citing(self, title):
+        record = with_reference(CLEAN, uptodate_entry(title))
+        return ledger.read_records(ledger_text(record))
+
+    def test_a_topic_in_no_manifest_is_still_refused(self):
+        carried = ledger.accumulated_evidence_topics(self.store)
+
+        found, _ = ledger.evidence_findings(
+            self.records_citing("Current topic"), (), carried
+        )
+
+        self.assertEqual([row.kind for row in found], [ledger.CITED_TOPIC_NOT_IN_EVIDENCE])
+
+    def test_a_topic_from_an_earlier_dump_is_admitted(self):
+        earlier = self.root / "earlier.txt"
+        earlier.write_text(topic("Earlier topic"), encoding="utf-8")
+        uptodate_store.ingest_dump(
+            earlier,
+            self.store,
+            dump_id="module-1",
+            module="Module 1",
+            received_on=date(2026, 1, 2),
+        )
+
+        carried = ledger.accumulated_evidence_topics(self.store)
+        found, _ = ledger.evidence_findings(
+            self.records_citing("Earlier topic"), (), carried
+        )
+
+        self.assertEqual(found, [])
+
+
+class UpToDateCurrencyUsesTheSignedWindowAndAccountAnswer(unittest.TestCase):
+    def records_citing(self, title):
+        record = with_reference(CLEAN, uptodate_entry(title))
+        return ledger.read_records(ledger_text(record))
+
+    def test_a_review_stamp_outside_two_years_needs_a_reread(self):
+        found = ledger.uptodate_reread_findings(
+            self.records_citing("An old topic"),
+            (),
+            {"An old topic": "2024-07"},
+            date(2026, 9, 5),
+            window_years=2,
+            has_account=True,
+        )
+        self.assertEqual([row.kind for row in found], [ledger.UPTODATE_REREAD_DUE])
+
+    def test_the_same_age_is_waived_when_the_profile_says_no_account(self):
+        found = ledger.uptodate_reread_findings(
+            self.records_citing("An old topic"),
+            (),
+            {"An old topic": "2024-07"},
+            date(2026, 9, 5),
+            window_years=2,
+            has_account=False,
+        )
+        self.assertEqual(found, [])
 
 if __name__ == "__main__":
     unittest.main()

@@ -27,6 +27,7 @@ DISCOVERY_CEILING = (
 # walk refusing by default without pretending those producers consume this module.
 NON_EXTRACTION_MANIFEST_OWNERS = {
     "guidelines_recs.py": "recommendation sweep manifest",
+    "uptodate_store.py": "account-level UpToDate dump manifest",
 }
 
 # The refusing walk remains runnable during staged migration. Each exception must
