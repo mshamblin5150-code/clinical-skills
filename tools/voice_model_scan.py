@@ -32,7 +32,7 @@ import run_grader
 VOICE_SPEC = (
     Path(__file__).resolve().parent.parent
     / "skills"
-    / "practicum-case-study"
+    / "_shared"
     / "reference"
     / "voice.md"
 )

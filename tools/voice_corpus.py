@@ -9,7 +9,7 @@
 ``scratch/voice-model.md`` from 46 supplied documents.
 [#388](https://github.com/mshamblin5150-code/clinical-skills/issues/388) located a
 corpus roughly forty times that size -- the clinician's own chat export -- and
-``skills/practicum-case-study/reference/voice.md`` §3 argues for it directly:
+``skills/_shared/reference/voice.md`` §3 argues for it directly:
 *a sample written in order to demonstrate a voice is a performance of one*, and
 nobody proofreads a prompt.
 
@@ -41,7 +41,7 @@ Converter contract
 ------------------
 
 This module is the ChatGPT reference implementation of the vendor-neutral method
-in ``skills/practicum-case-study/reference/voice-corpus.md``. A converter for
+in ``skills/_shared/reference/voice-corpus.md``. A converter for
 another assistant emits a **top-level JSON list** of conversations. Each carries
 ``conversation_id`` or ``id``, its own numeric ``create_time`` or an explicitly
 missing timestamp reported as undated, and a ``mapping`` dict. Mapping nodes

@@ -1,7 +1,7 @@
 # House style for a practicum case study
 
 Derived from **ten graded and returned submissions**, all from one FNP practicum course. This is
-the authority [SKILL.md](../SKILL.md) points at for voice and for section shapes.
+the authority [practicum-case-study](../../practicum-case-study/SKILL.md) points at for voice and for section shapes.
 
 **Scrubbed.** The working file this was distilled from is `scratch/case-study-style.md`,
 gitignored: it names the clinician, quotes
@@ -64,7 +64,7 @@ would claim work that was not done.
 
 ### Never bullets, anywhere in the document
 
-§ the skeleton rule in [SKILL.md](../SKILL.md) already forbids bullets in the differential, the MDM,
+§ the skeleton rule in [practicum-case-study](../../practicum-case-study/SKILL.md) already forbids bullets in the differential, the MDM,
 the Plan and the Patient Education. **It is the whole document, ruled 2026-08-19** — *"remember I
 abhor bullet points"* — and the run that prompted this had set the HPI's OLDCARTS breakdown as a
 bulleted list. Write the fields as running text on the pattern above.
@@ -99,7 +99,7 @@ first submission put the date on its own line beneath, which renders as a stray 
 **`tools/case_study_scan.py`, ruled 2026-08-19 on
 [#277](https://github.com/mshamblin5150-code/clinical-skills/issues/277).** Most of this section
 and the prescription table in §8 are read by a scanner
-[SKILL.md](../SKILL.md) step 9 runs over the draft, so a rule here is a rule that fails rather than
+[practicum-case-study](../../practicum-case-study/SKILL.md) step 9 runs over the draft, so a rule here is a rule that fails rather than
 a rule that is remembered — [#220](https://github.com/mshamblin5150-code/clinical-skills/issues/220)'s
 *a prose edit to a rule fails nothing*, answered.
 
@@ -109,7 +109,7 @@ would refuse a document he would have written himself. **Authored numbering surp
 and never graded.** A section may intentionally continue a prior list above `1.`. And
 anything that takes a **reading** — whether a stop criterion's endpoint is the right endpoint,
 whether a wrapper instruction applies to this patient at all — stays a reader's, and
-[SKILL.md](../SKILL.md) step 9 names each one. **A clean scan is not a checked draft.**
+[practicum-case-study](../../practicum-case-study/SKILL.md) step 9 names each one. **A clean scan is not a checked draft.**
 
 ## 2. Assessment — an optional body under a required heading
 
@@ -251,7 +251,8 @@ cell. The table has real columns now, and no row needs an escaped pipe.**
 - **A home medication continued unchanged is labeled in the drug row too**: `Continued home
   medication: prenatal vitamin one tablet PO daily`. Ruled 2026-08-19 on
   [#289](https://github.com/mshamblin5150-code/clinical-skills/issues/289), and it is the label that
-  does the work rather than the fact. A record in the step 3 ledger is required for every drug the
+  does the work rather than the fact. A record in the
+  [practicum-case-study](../../practicum-case-study/SKILL.md) step 3 ledger is required for every drug the
   run **chose a number for**; a dose the patient arrived on is not one, and this is how the row says
   so. **The exemption is declared and never inferred** — an unlabeled row is graded, so a run that
   forgets the label is asked for a record rather than let through. `Delayed order:` exempts nothing:
@@ -268,7 +269,7 @@ cell. The table has real columns now, and no row needs an escaped pipe.**
   words, and every form that avoids one fires on correct orders instead — a titration, a repeat
   dose, an infusion rate, and a taper too once the form is broad enough. **So a
   run that welds a second drug into one row is caught by a reader and by nothing else**, and
-  [SKILL.md](../SKILL.md) step 9's `the Rx blocks` row asks for it by name. Ruled 2026-08-20 on
+  [practicum-case-study](../../practicum-case-study/SKILL.md) step 9's `the Rx blocks` row asks for it by name. Ruled 2026-08-20 on
   [#300](https://github.com/mshamblin5150-code/clinical-skills/issues/300), where the measurement
   that declined the parser row is a test rather than a figure here.
 - **A drug held because it is contraindicated gets no table at all.** Ruled 2026-08-18 against a run
@@ -308,7 +309,7 @@ contraindications, monitoring, adverse effects, and the guideline supporting the
 > Third-generation cephalosporin. Contraindicated in anaphylaxis to cephalosporins or a severe
 > penicillin reaction. Monitor the injection site and observe for hypersensitivity over the
 > following 30 minutes. Adverse effects are injection-site pain, diarrhea and rash. First-line for
-> this indication in `<the guideline the step 3 record for this drug sourced>`
+> this indication in `<the guideline the practicum-case-study step 3 record for this drug sourced>`
 > `(<Author> et al., <year>)`.
 
 **The guideline sentence carries a placeholder rather than a citation, and that is the one thing in
@@ -319,7 +320,7 @@ worked example was teaching a run to cite a source it had never read. **How many
 on #289 and deliberately not restated here**: it is a count over a dump under `scratch/`, so nothing
 committed re-derives it, which is
 [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143). **The citation here comes
-off the ledger record for this drug or it does not go in**: [SKILL.md](../SKILL.md) step 3 requires
+off the ledger record for this drug or it does not go in**: [practicum-case-study](../../practicum-case-study/SKILL.md) step 3 requires
 one for every drug the run chose a number for, and `tools/research_ledger.py --draft` fails a
 document whose prescriptions do not reach one.
 
@@ -327,7 +328,7 @@ document whose prescriptions do not reach one.
 prescription and reads as one; the five added fields are graded reasoning, and graded reasoning
 belongs in prose. **Omitting them has never cost a point across ten submissions**, which is
 evidence that the omission is survivable rather than that it is right — the same finding the mode
-ruling rests on. See [SKILL.md](../SKILL.md) step 6.
+ruling rests on. See [practicum-case-study](../../practicum-case-study/SKILL.md) step 6.
 
 ## 9. Ordering is the graded axis
 
@@ -355,7 +356,7 @@ every skeleton section is written every time, and faculty questions are answered
 rather than instead of it. **What the submission proves is that the omission was survivable on one
 occasion, not that it was rewarded**; the rubric scores ten criteria and four faculty questions
 need not touch all ten, so the sections it dropped were points nobody checked rather than points
-nobody wanted. See *Three modes, and none of them subtracts a section* in [SKILL.md](../SKILL.md),
+nobody wanted. See *Three modes, and none of them subtracts a section* in [practicum-case-study](../../practicum-case-study/SKILL.md),
 and the rulings block at the foot of this file.
 
 **Judgment being what earns the marks is still true, and it was never the same claim.** It is why
@@ -382,7 +383,7 @@ below is a ruling rather than a description.
   first place.
 
 **A question the skeleton already answers still gets an entry here.** The section exists so that
-every item on the faculty's own list can be pointed at, which is [SKILL.md](../SKILL.md) step 9's
+every item on the faculty's own list can be pointed at, which is [practicum-case-study](../../practicum-case-study/SKILL.md) step 9's
 first check.
 
 ## 10. References — APA 7
@@ -463,15 +464,15 @@ than the question.
 
 **1. Q&A mode does not replace the full workup.** Every skeleton section is written every time,
 and faculty questions are answered in addition to it. **This reverses what
-[SKILL.md](../SKILL.md) shipped saying.** The evidence for replacing was two full-marks submissions
+[practicum-case-study](../../practicum-case-study/SKILL.md) shipped saying.** The evidence for replacing was two full-marks submissions
 that did it — real, and not enough, because the rubric scores ten criteria and a set of faculty
-questions need not touch all ten. The reasoning is in [SKILL.md](../SKILL.md) under *Three modes,
+questions need not touch all ten. The reasoning is in [practicum-case-study](../../practicum-case-study/SKILL.md) under *Three modes,
 and none of them subtracts a section*.
 
 **2. The `a`/`b` disambiguation, the retrieval dates and the rest of the reference walk are not
 optional, and their findings are not handed back.** His words: *ordering the differential is very
 important, but that shouldn't take the place of tidiness.* The sentence in
-[SKILL.md](../SKILL.md) that read *the ordering of a differential matters more than the tidiness of
+[practicum-case-study](../../practicum-case-study/SKILL.md) that read *the ordering of a differential matters more than the tidiness of
 a citation* is gone, because a run could read it as permission to skip the walk. The rubric's
 70-of-100 weighting still decides where the **length** goes; it never decided what may be left
 broken. **[apa7.md](apa7.md) exists because of this ruling** — an instruction to fix the reference

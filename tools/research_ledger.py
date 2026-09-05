@@ -576,7 +576,7 @@ class Scan:
 # rejected against the rendered dump's prose-and-section-label shape.
 TOPIC_MASTHEAD = re.compile(r"(?i)^[ \t]*authors?[ \t]*:")
 
-# The title element of [apa7.md](skills/practicum-case-study/reference/apa7.md)
+# The title element of [apa7.md](skills/_shared/reference/apa7.md)
 # section 2's published form, taken between the year element and the database
 # element. **The database name is matched as a word and never as a hostname**,
 # which is ``reference_scan``'s recorded defect adopted rather than

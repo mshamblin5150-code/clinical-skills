@@ -8,7 +8,7 @@ can go to the source rather than trust this file.
 **Sections 1 through 7 were verified against apastyle.apa.org on 2026-08-18.** Every rule in those
 sections was read from that site on that date, not recalled. A rule this sheet does not cover is
 looked up the same way — **an APA rule is looked up, never recalled**, which is
-[SKILL.md](../SKILL.md)'s anchor discipline arriving at the reference list.
+[practicum-case-study](../../practicum-case-study/SKILL.md)'s anchor discipline arriving at the reference list.
 
 **The two fenced examples are APA's own, and they stay.** Ruled 2026-08-18 on
 [#223](https://github.com/mshamblin5150-code/clinical-skills/issues/223), against a public
@@ -25,7 +25,7 @@ holds a copy, and the claim being made is only that the site said so on the date
 them as verified would be the thing this sheet exists to stop.
 
 **What this sheet is for.** *APA Format and Scholarly Writing* is 5 of the 100 points, and
-[SKILL.md](../SKILL.md) requires the reference walk in step 7 to run on every document. That
+[practicum-case-study](../../practicum-case-study/SKILL.md) step 7 requires the reference walk to run on every document. That
 instruction needs a written rule behind it, or *"fix the reference list"* is a wish rather than a
 check. **Ruled 2026-08-18**, and the words that settled it were the clinician's: *ordering the
 differential is very important, but that shouldn't take the place of tidiness.*
@@ -237,7 +237,7 @@ level 3 bold italic flush left, level 4 bold indented.
 | A **title page** — title, author, affiliation, course, instructor, due date | **not applied**, and not mechanical: none of those six values is in the Markdown | `title-page` |
 | APA level 4 and 5 headings are **run-in** | **not applied** — Markdown gives a heading its own line, so level 4 renders as the indented bold paragraph it otherwise is, and level 5 is not in the subset | `run-in-headings` |
 | The list is **alphabetized** (§1) | **not applied**, and declined rather than pending — sorting is an *edit to the document*, not a format applied to it, and this renderer changes no word it is handed. `tools/reference_scan.py` grades the order instead, its `list-not-sorted` row | `reference-alphabetization` |
-| Each entry is **one paragraph** (§1) | **not applied** — every non-blank line becomes its own paragraph, so a hard-wrapped entry renders as two and the second hangs on nothing. Joining them is an edit on the same terms as sorting; [SKILL.md](../SKILL.md) step 7 catches it as an author defect | `reference-single-paragraph` |
+| Each entry is **one paragraph** (§1) | **not applied** — every non-blank line becomes its own paragraph, so a hard-wrapped entry renders as two and the second hangs on nothing. Joining them is an edit on the same terms as sorting; [practicum-case-study](../../practicum-case-study/SKILL.md) step 7 catches it as an author defect | `reference-single-paragraph` |
 
 **The last two rows are not #220's, and they were on neither table before it** — they are a gap
 that ticket's repair surfaced. This paragraph used to say the renderer applied *most of* §1, which
@@ -263,7 +263,7 @@ draws.** #424 adds that independent measurement and a Word-free shape tripwire f
 a new row fails until it gains both a calibration identity and a dated Word record.
 
 **None of these is worth more than a point, and they are still real.**
-**A rendered `.docx` is not an APA-formatted document**, which is [SKILL.md](../SKILL.md) step 9's
+**A rendered `.docx` is not an APA-formatted document**, which is [practicum-case-study](../../practicum-case-study/SKILL.md) step 9's
 sentence arriving one level down — and it is no less true for the rows that went green above,
 because what a renderer cannot check is whether the entry it indented so carefully is a real
 source.
@@ -276,7 +276,7 @@ source.
 above — the label in §1, the sorting in §1, the `a`/`b` ordering in §3, where a retrieval date
 belongs and where it is a defect in §4, the italics in §2, and both directions of §5. **This sheet
 owns the rules and that command is a second *reader* of it, never a second copy**, which is why a
-row it applies is written out in [SKILL.md](../SKILL.md) step 7 as well: a harness with no Python
+row it applies is written out in [practicum-case-study](../../practicum-case-study/SKILL.md) step 7 as well: a harness with no Python
 walks the table by eye and reaches the same verdict.
 
 A form section's heading uses `## <n>. Reference form: <class name>` exactly; the class-name tail
@@ -285,7 +285,7 @@ is the published `APA_SOURCE_CLASSES` vocabulary term rather than a paraphrase.
 **What stays a reading, and it is a list rather than a paragraph now.** Each row is a rule this
 sheet states that no command grades, so a run walks it by eye — and since
 [#241](https://github.com/mshamblin5150-code/clinical-skills/issues/241) the walk is not left to
-memory either: [SKILL.md](../SKILL.md) step 9 names the row `the reference list, the part no command
+memory either: [practicum-case-study](../../practicum-case-study/SKILL.md) step 9 names the row `the reference list, the part no command
 reaches` and `tools/checks_ledger.py` expects it, so a run that returns no verdict on that row fails. **One row and one verdict for all three**, which is the honest width of it — a run that read only the UpToDate years and wrote `clean` discharges the row, and no command can tell. What the grader catches is a run that never looked at all.
 
 | What stays a reading | Why no command reaches it |

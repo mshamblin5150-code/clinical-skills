@@ -101,6 +101,21 @@ class DiscoveryTests(TempCheckout):
         (self.root / "skills" / "notes" / "README.md").write_text("x", encoding="utf-8")
         self.assertEqual(sm.skill_names(self.root), ["clinical-note"])
 
+    def test_the_declared_shared_directory_is_mirrored_without_a_skill_file(self):
+        shared = self.root / "skills" / "_shared" / "reference"
+        shared.mkdir(parents=True)
+        (shared / "voice.md").write_text("# Voice\n", encoding="utf-8")
+
+        entries = sm.inspect(self.root)
+        self.assertEqual([(entry.name, entry.status) for entry in entries], [
+            ("_shared", sm.MISSING),
+        ])
+
+        repaired, refusals = sm.repair(self.root, entries)
+
+        self.assertEqual((repaired, refusals), (1, []))
+        self.assertEqual(status_of(self.root, "_shared").status, sm.LINKED)
+
     def test_no_skills_directory_is_empty_not_an_error(self):
         empty = self.root / "nowhere"
         empty.mkdir()

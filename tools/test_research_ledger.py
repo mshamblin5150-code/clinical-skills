@@ -46,7 +46,7 @@ import run_grader
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SKILL = REPO_ROOT / "skills" / "practicum-case-study" / "SKILL.md"
-STYLE = REPO_ROOT / "skills" / "practicum-case-study" / "reference" / "style.md"
+STYLE = REPO_ROOT / "skills" / "_shared" / "reference" / "style.md"
 
 AS_OF = date(2026, 8, 19)
 
@@ -2730,7 +2730,7 @@ class TheDocumentedTableIsStillReadable(unittest.TestCase):
     the drug would be in.
     """
 
-    STYLE = REPO_ROOT / "skills" / "practicum-case-study" / "reference" / "style.md"
+    STYLE = REPO_ROOT / "skills" / "_shared" / "reference" / "style.md"
 
     @classmethod
     def setUpClass(cls):
@@ -2799,7 +2799,7 @@ class TheStyleSheetDeclaresWhatTheParserReads(unittest.TestCase):
     saying it could not look.
     """
 
-    STYLE = REPO_ROOT / "skills" / "practicum-case-study" / "reference" / "style.md"
+    STYLE = REPO_ROOT / "skills" / "_shared" / "reference" / "style.md"
 
     @classmethod
     def setUpClass(cls):
@@ -3321,7 +3321,7 @@ def topic(title: str) -> str:
 
 
 def uptodate_entry(title: str, year: str = "2026") -> str:
-    """The form [apa7.md](skills/practicum-case-study/reference/apa7.md) §2 publishes."""
+    """The form [apa7.md](skills/_shared/reference/apa7.md) §2 publishes."""
     return (
         f"Author, A., & Author, B. ({year}). {title}. UpToDate. Retrieved"
         f" August 20, 2026, from https://www.uptodate.com/contents/some-slug"

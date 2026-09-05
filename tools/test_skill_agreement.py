@@ -68,12 +68,12 @@ MEDATRAX = REPO_ROOT / "reference" / "medatrax-fields.md"
 DAY_A_ASSERTIONS = REPO_ROOT / "fixtures" / "day-a" / "assertions.md"
 BLOCK_SCAN = REPO_ROOT / "tools" / "block_scan.py"
 CASE_STUDY = REPO_ROOT / "skills" / "practicum-case-study" / "SKILL.md"
-CASE_STUDY_STYLE = REPO_ROOT / "skills" / "practicum-case-study" / "reference" / "style.md"
-CASE_STUDY_VOICE = REPO_ROOT / "skills" / "practicum-case-study" / "reference" / "voice.md"
+CASE_STUDY_STYLE = REPO_ROOT / "skills" / "_shared" / "reference" / "style.md"
+CASE_STUDY_VOICE = REPO_ROOT / "skills" / "_shared" / "reference" / "voice.md"
 DISCUSSION_POST = REPO_ROOT / "skills" / "discussion-post" / "SKILL.md"
 DISCUSSION_REPLY = REPO_ROOT / "skills" / "discussion-reply" / "SKILL.md"
 VOICE_CORPUS_REFERENCE = (
-    REPO_ROOT / "skills" / "practicum-case-study" / "reference" / "voice-corpus.md"
+    REPO_ROOT / "skills" / "_shared" / "reference" / "voice-corpus.md"
 )
 VOICE_CORPUS_MODULE = REPO_ROOT / "tools" / "voice_corpus.py"
 CATALOG = REPO_ROOT / "reference" / "guidelines-catalog.md"
@@ -1291,7 +1291,7 @@ class TheVoiceModelIsPerAccountAndTheMethodIsNot(ProseBind, unittest.TestCase):
         section_eight = section_eight.split("\n## 9.", 1)[0]
         self.assertIn("Where there is no model.", section_eight)
 
-        pointer = "[voice.md](../practicum-case-study/reference/voice.md) §8"
+        pointer = "[voice.md](../_shared/reference/voice.md) §8"
         for path in (DISCUSSION_POST, DISCUSSION_REPLY):
             with self.subTest(skill=path.parent.name):
                 step_three = read(path).split("## 3.", 1)[1]
@@ -1327,7 +1327,7 @@ class TheVoiceModelIsPerAccountAndTheMethodIsNot(ProseBind, unittest.TestCase):
         # gets written into both files. So ``setup`` must point at the spec, and
         # must not carry the counts that would go stale against it.
         setup = read(SETUP)
-        self.assertIn("practicum-case-study/reference/voice.md", setup)
+        self.assertIn("_shared/reference/voice.md", setup)
         self.assertIn("not restated here on purpose", setup)
         self.assertProseNotIn("Ask for 5 at minimum", setup)
 
@@ -2453,6 +2453,19 @@ class EveryCitedStepResolvesToADeclaredStep(unittest.TestCase):
         unresolved = [cite for _path, cite in walk_citations() if cite.skill is None]
         self.assertEqual([cite for cite in unresolved if cite.how != "owner"], [])
 
+    def test_shared_instructions_never_depend_on_an_owning_skill(self) -> None:
+        """#758: a shared sheet has no owner, so every step names its skill."""
+        shared = SKILLS_DIR / "_shared"
+        names = skill_names()
+        unresolved = [
+            f"{path.relative_to(REPO_ROOT)}:{cite.line}: step {cite.number}"
+            for path in graded_files()
+            if path.is_relative_to(shared)
+            for cite in step_citations(read(path), None, names)
+            if cite.skill is None
+        ]
+        self.assertEqual(unresolved, [])
+
     def test_every_citation_in_tools_resolves(self) -> None:
         """#238: a ``tools/`` module names the skill whose step it cites.
 
@@ -2610,9 +2623,9 @@ class EveryCitedStepResolvesToADeclaredStep(unittest.TestCase):
         stale = stale_citations(declared)
         self.assertGreaterEqual(len(stale), 4)
         for expected in (
-            "skills/practicum-case-study/reference/apa7.md",
-            "skills/practicum-case-study/reference/style.md",
-            "skills/practicum-case-study/reference/voice.md",
+            "skills/_shared/reference/apa7.md",
+            "skills/_shared/reference/style.md",
+            "skills/_shared/reference/voice.md",
             "tools/docx_write.py",
         ):
             with self.subTest(file=expected):

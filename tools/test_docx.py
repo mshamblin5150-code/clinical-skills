@@ -839,7 +839,7 @@ class TheTwoCopiesOfWhatTheRendererApplies(unittest.TestCase):
     its exhaustive key comparison.
     """
 
-    SHEET = Path(__file__).resolve().parent.parent / "skills" / "practicum-case-study"
+    SHEET = Path(__file__).resolve().parent.parent / "skills" / "_shared"
     SPLIT = "still not applied"
 
     def section_six(self):
@@ -1506,11 +1506,14 @@ class AnUnrecognizedOption(unittest.TestCase):
             self.assertEqual(docx_write.main([str(source), str(path), "--forse"]), 2)
             self.assertFalse(path.exists())
 SKILL = Path(__file__).resolve().parent.parent / "skills" / "practicum-case-study"
+SHARED_REFERENCE = (
+    Path(__file__).resolve().parent.parent / "skills" / "_shared" / "reference"
+)
 
 
 def section_eight():
     """``style.md`` section 8, sliced once rather than in each class that reads it."""
-    text = (SKILL / "reference" / "style.md").read_text(encoding="utf-8")
+    text = (SHARED_REFERENCE / "style.md").read_text(encoding="utf-8")
     return text[text.index("## 8.") : text.index("## 9.")]
 
 
@@ -1616,7 +1619,7 @@ class NoDocumentedTableRendersItsOwnSeparator(unittest.TestCase):
     The ticket's open decision was whether to generalize past section 8, and it worried
     that a wider walk *"may fire on tables that document Markdown rather than prescribing
     output"*. Measured over the sheets rather than argued: every table in
-    ``skills/practicum-case-study/reference/`` is a shape a run copies or a legend a run
+    ``skills/_shared/reference/`` is a shape a run copies or a legend a run
     reads, **not one of them documents Markdown syntax**, and only section 8's ever
     carried an escape. So the wider walk costs nothing and fires on the one recorded
     defect.
@@ -1632,7 +1635,7 @@ class NoDocumentedTableRendersItsOwnSeparator(unittest.TestCase):
     everywhere.
     """
 
-    SHEETS = SKILL / "reference"
+    SHEETS = SHARED_REFERENCE
 
     # A floor rather than the count, on #143's terms: a sheet gaining a table must not
     # turn the suite red, and a walk that found nothing must not read as a clean sweep.

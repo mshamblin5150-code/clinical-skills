@@ -125,7 +125,7 @@ hedges attached to facts, and the clinician's argumentative posture. Do not copy
 lowercase message openings. An invoked source already present in the clinician's reasoning may
 stay; the skill is licensed to add none.
 
-If `scratch/voice-model.md` is absent, follow [voice.md](../practicum-case-study/reference/voice.md)
+If `scratch/voice-model.md` is absent, follow [voice.md](../_shared/reference/voice.md)
 §8's no-model rule in full. Write the declaration it requires to
 `scratch/runs/<course>-<module>-discussion/voice-status.md`. Keep `voice-status.md` in the private
 run record; do not copy it into the finished post or the LMS.
@@ -160,7 +160,7 @@ uncited prose unresearched.
 
 Create `claims.md` with a `DATE:` header and one `## CLAIM:` heading per derived claim. Write each
 reference entry from the applicable form in
-[apa7.md](../practicum-case-study/reference/apa7.md), including its legal-entry form and declared
+[apa7.md](../_shared/reference/apa7.md), including its legal-entry form and declared
 `C.F.R.`-only limit; do not recall a form the sheet does not cover. Use the full record shape:
 
 ```text
