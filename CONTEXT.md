@@ -193,7 +193,7 @@ The single word a reference entry is alphabetized and letter-disambiguated by. D
 _Avoid_: entry key, author key, sort key, match key
 
 **Reference bucket**:
-The narrowest source shape a reference entry's own signals support, declaring every APA nursing source class that shape can span rather than guessing one class. The vocabulary is `uptodate`, `statpearls`, `legal`, `cochrane`, `doi-work`, `identified-media`, `identified-web`, and `unresolved`. Coverage is **clean** when every spanned class has a form in the local APA sheet, a **finding** when none does, and **undecidable** when the bucket spans both; undecidable entries report and never fail a draft.
+The narrowest source shape a reference entry's own signals support, declaring every APA nursing source class that shape can span rather than guessing one class. The vocabulary is `uptodate`, `statpearls`, `legal`, `cochrane`, `doi-work`, `identified-media`, `identified-web`, and `unresolved`. Coverage is **clean** when every spanned class has a form in the local APA sheet, and **undecidable** otherwise — either because the shape reaches outside APA's nursing set, or because a spanned class has no form on the sheet. Undecidable entries report and never fail a draft.
 _Avoid_: source class, reference type, guessed class, citation kind
 
 **Legal reference entry**:

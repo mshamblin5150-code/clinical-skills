@@ -31,8 +31,6 @@ from contextlib import redirect_stderr, redirect_stdout
 from datetime import date
 from pathlib import Path
 
-import ast
-
 import checks_ledger
 import docx_write
 import discussion_artifact as artifact
@@ -52,6 +50,19 @@ CONTEXT = REPO_ROOT / "CONTEXT.md"
 def numbered_markdown_section(text: str, number: int) -> str:
     """Return one numbered ``##`` section, bounded by the next peer heading."""
     block = text[text.index(f"## {number}.") :]
+    next_heading = block.find("\n## ", 1)
+    return block if next_heading == -1 else block[:next_heading]
+
+
+def form_markdown_section(text: str, source_class: str) -> str:
+    """Return the form section whose exact heading tail names ``source_class``."""
+    marker = f"{scan.FORM_HEADING_MARKER}{source_class}"
+    heading = next(
+        line
+        for line in text.splitlines()
+        if line.startswith("## ") and line.endswith(marker)
+    )
+    block = text[text.index(heading) :]
     next_heading = block.find("\n## ", 1)
     return block if next_heading == -1 else block[:next_heading]
 
@@ -1392,7 +1403,7 @@ class TheNursingSourceClassTableIsBoundToTheSheet(unittest.TestCase):
         "Lab or diagnostic manual",
         "Medical dictionary",
         "Entry in a medical dictionary",
-        "YouTube video",
+        "YouTube Video",
         "Podcast or podcast episode",
         "Doctor of nursing practice (DNP) project",
         "PowerPoint slides or lecture notes",
@@ -1441,6 +1452,37 @@ class TheNursingSourceClassTableIsBoundToTheSheet(unittest.TestCase):
 
     def test_has_form_is_bound_to_the_sheet_headings_in_both_directions(self):
         self.assert_form_headings_bind(APA7.read_text(encoding="utf-8"))
+
+    def test_each_appended_nursing_form_has_its_four_declared_parts(self):
+        sheet = APA7.read_text(encoding="utf-8")
+        existing = {"UpToDate article", "State nursing practice act (NPA)"}
+        for item in scan.APA_SOURCE_CLASSES:
+            if item.name in existing:
+                continue
+            with self.subTest(source_class=item.name):
+                section = form_markdown_section(sheet, item.name)
+                parts = (
+                    "**Provenance:**",
+                    "**Synthesized example:**",
+                    "**Abstracted entry form:**",
+                    "**Declared limit:**",
+                )
+                for part in parts:
+                    self.assertEqual(section.count(part), 1)
+                    self.assertTrue(section.partition(part)[2].split("\n\n", 1)[0].strip())
+                self.assertIn(f"item {item.item}, read 2026-09-04", section)
+                self.assertIn("not string-checkable against APA's page", section)
+
+    def test_the_general_index_section_has_its_four_declared_parts(self):
+        sheet = APA7.read_text(encoding="utf-8")
+        heading = "## 30. Outside the nursing set: APA reference example index"
+        block = sheet[sheet.index(heading) :]
+        next_heading = block.find("\n## ", 1)
+        section = block if next_heading == -1 else block[:next_heading]
+        self.assertIn("**Provenance:**", section)
+        self.assertIn("**Synthesized routing example:**", section)
+        self.assertIn("**Abstracted selection form:**", section)
+        self.assertIn("**Declared limit:**", section)
 
     def test_nested_class_names_bind_to_distinct_synthetic_headings(self):
         nested_pairs = tuple(
@@ -1528,16 +1570,14 @@ class TheNursingSourceClassTableIsBoundToTheSheet(unittest.TestCase):
         self.assertIn("APA_SOURCE_CLASSES", sheet)
         self.assertIn("takes_retrieval_date", sheet)
 
-    def test_context_names_the_bucket_vocabulary_and_all_three_states(self):
+    def test_context_names_the_bucket_vocabulary_and_both_states(self):
         glossary = CONTEXT.read_text(encoding="utf-8")
         for bucket in scan.REFERENCE_BUCKETS:
             self.assertIn(f"`{bucket.name}`", glossary)
-        for state in (
-            scan.COVERAGE_CLEAN,
-            scan.COVERAGE_FINDING,
-            scan.COVERAGE_UNDECIDABLE,
-        ):
+        for state in (scan.COVERAGE_CLEAN, scan.COVERAGE_UNDECIDABLE):
             self.assertIn(f"**{state}**", glossary)
+        retired_state = "**" + "finding" + "**"
+        self.assertNotIn(retired_state, glossary)
 
 
 class RequiredRetrievalDatesComeFromTheClassTable(unittest.TestCase):
@@ -1565,9 +1605,9 @@ class ReferenceCoverageIsClassifiedByDeclaredBuckets(unittest.TestCase):
     def test_specific_buckets_span_declared_classes_without_guessing(self):
         cases = (
             (UPTODATE, "uptodate", ("UpToDate article",), scan.COVERAGE_CLEAN),
-            (STATPEARLS, "statpearls", ("StatPearls",), scan.COVERAGE_FINDING),
+            (STATPEARLS, "statpearls", ("StatPearls",), scan.COVERAGE_CLEAN),
             (NAMED_LEGAL, "legal", ("State nursing practice act (NPA)",), scan.COVERAGE_CLEAN),
-            (COCHRANE, "cochrane", ("Cochrane review",), scan.COVERAGE_FINDING),
+            (COCHRANE, "cochrane", ("Cochrane review",), scan.COVERAGE_CLEAN),
         )
         for text, name, classes, state in cases:
             with self.subTest(bucket=name):
@@ -1647,27 +1687,21 @@ class ReferenceCoverageIsClassifiedByDeclaredBuckets(unittest.TestCase):
         self.assertEqual(scan.classify_entry(author).name, "unresolved")
         self.assertEqual(scan.classify_entry(video).name, "unresolved")
 
-    def test_uncovered_class_is_advisory_and_not_a_body_or_graded_row(self):
-        self.assertNotIn(scan.UNCOVERED_CLASS, scan.BODY_ROWS)
-        self.assertNotIn(scan.UNCOVERED_CLASS, scan.KINDS)
-        text = draft(
-            COCHRANE,
-            body="# Case\n\nLaver et al. (2025).\n",
-            heading="## Reference",
+    def test_a_class_without_a_form_makes_its_bucket_undecidable(self):
+        source_class = scan._APA_CLASS_BY_NAME["Cochrane review"]
+        uncovered = scan.ApaSourceClass(
+            source_class.item,
+            source_class.name,
+            False,
+            source_class.takes_retrieval_date,
         )
-        document = scan.read_document(text)
-        result = scan.survey(document, AS_OF)
-        self.assertEqual(result.findings, ())
-        self.assertEqual(len(result.coverage_findings), 1)
-        self.assertEqual(result.coverage_findings[0].kind, scan.UNCOVERED_CLASS)
-        self.assertEqual(result.coverage_findings[0].detail, "cochrane")
-        self.assertEqual(result.coverage_findings[0].line, document.entries[0].line)
+        bucket = next(item for item in scan.REFERENCE_BUCKETS if item.name == "cochrane")
+        with mock.patch.dict(scan._APA_CLASS_BY_NAME, {source_class.name: uncovered}):
+            self.assertEqual(bucket.state, scan.COVERAGE_UNDECIDABLE)
 
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "case.md"
-            path.write_text(text, encoding="utf-8")
-            with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
-                self.assertEqual(scan.main([str(path), "--as-of", AS_OF.isoformat()]), 0)
+    def test_the_retired_coverage_finding_vocabulary_is_absent(self):
+        self.assertFalse(hasattr(scan, "COVERAGE_FINDING"))
+        self.assertFalse(hasattr(scan, "UNCOVERED_CLASS"))
 
     def test_every_report_prints_bucket_populations_states_and_the_remainder(self):
         report = shown_report(CLEAN)
@@ -1675,10 +1709,10 @@ class ReferenceCoverageIsClassifiedByDeclaredBuckets(unittest.TestCase):
             with self.subTest(bucket=bucket.name):
                 self.assertIn(bucket.name, report)
                 self.assertIn(bucket.state, report)
-        self.assertIn("uncovered-class", report)
+        self.assertNotIn("uncovered-class", report)
         self.assertIn("undecidable remainder", report)
 
-    def test_show_reports_only_the_bucket_name_and_line_for_coverage(self):
+    def test_show_does_not_expose_entry_text_through_aggregate_coverage(self):
         marker = "private-entry-marker"
         text = draft(
             COCHRANE + marker,
