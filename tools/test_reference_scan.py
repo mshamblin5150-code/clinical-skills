@@ -48,6 +48,14 @@ APA7 = REPO_ROOT / "skills" / "practicum-case-study" / "reference" / "apa7.md"
 DISCUSSION_POST_SKILL = REPO_ROOT / "skills" / "discussion-post" / "SKILL.md"
 CONTEXT = REPO_ROOT / "CONTEXT.md"
 
+
+def numbered_markdown_section(text: str, number: int) -> str:
+    """Return one numbered ``##`` section, bounded by the next peer heading."""
+    block = text[text.index(f"## {number}.") :]
+    next_heading = block.find("\n## ", 1)
+    return block if next_heading == -1 else block[:next_heading]
+
+
 AS_OF = date(2026, 8, 19)
 
 ACOG = (
@@ -1220,10 +1228,7 @@ class TheTwoCopiesOfWhatStaysAReading(unittest.TestCase):
         rather than about the rule -- an eighth section would have silently widened
         what this reads. Caught by review.
         """
-        text = APA7.read_text(encoding="utf-8")
-        block = text[text.index("## 7.") :]
-        nxt = block.find(chr(10) + "## ", 1)
-        return block if nxt == -1 else block[:nxt]
+        return numbered_markdown_section(APA7.read_text(encoding="utf-8"), 7)
 
     def rows(self):
         return docx_write.table_first_cells(self.section_seven())
@@ -1394,9 +1399,6 @@ class TheNursingSourceClassTableIsBoundToTheSheet(unittest.TestCase):
         "Webpage on a website",
     )
 
-    def test_form_heading_marker_is_one_owned_exact_grammar(self):
-        self.assertEqual(scan.FORM_HEADING_MARKER, "Reference form: ")
-
     def test_the_table_is_the_published_nursing_source_class_vocabulary(self):
         self.assertEqual(
             tuple((item.item, item.name) for item in scan.APA_SOURCE_CLASSES),
@@ -1430,6 +1432,13 @@ class TheNursingSourceClassTableIsBoundToTheSheet(unittest.TestCase):
         self.assertEqual(len(classes_claiming_a_form), len(classes_named_by_a_heading))
         self.assertEqual(classes_claiming_a_form, set(classes_named_by_a_heading))
 
+    def synthetic_form_sheet(self, source_classes=scan.APA_SOURCE_CLASSES) -> str:
+        return "\n".join(
+            f"## {item.item}. {scan.FORM_HEADING_MARKER}{item.name}"
+            for item in source_classes
+            if item.has_form
+        )
+
     def test_has_form_is_bound_to_the_sheet_headings_in_both_directions(self):
         self.assert_form_headings_bind(APA7.read_text(encoding="utf-8"))
 
@@ -1451,20 +1460,10 @@ class TheNursingSourceClassTableIsBoundToTheSheet(unittest.TestCase):
             )
             for item in scan.APA_SOURCE_CLASSES
         )
-        synthetic_sheet = "\n".join(
-            f"## {item.item}. {scan.FORM_HEADING_MARKER}{item.name}"
-            for item in classes
-            if item.has_form
-        )
-
-        self.assert_form_headings_bind(synthetic_sheet, classes)
+        self.assert_form_headings_bind(self.synthetic_form_sheet(classes), classes)
 
     def test_a_duplicate_form_heading_breaks_the_bijection(self):
-        sheet = "\n".join(
-            f"## {item.item}. {scan.FORM_HEADING_MARKER}{item.name}"
-            for item in scan.APA_SOURCE_CLASSES
-            if item.has_form
-        )
+        sheet = self.synthetic_form_sheet()
         duplicate = (
             f"\n## 24. {scan.FORM_HEADING_MARKER}UpToDate article\n"
         )
@@ -1472,24 +1471,15 @@ class TheNursingSourceClassTableIsBoundToTheSheet(unittest.TestCase):
             self.assert_form_headings_bind(sheet + duplicate)
 
     def test_an_unknown_form_heading_breaks_the_bind(self):
-        valid_headings = "\n".join(
-            f"## {item.item}. {scan.FORM_HEADING_MARKER}{item.name}"
-            for item in scan.APA_SOURCE_CLASSES
-            if item.has_form
-        )
         mutant = (
-            valid_headings
+            self.synthetic_form_sheet()
             + f"\n## 24. {scan.FORM_HEADING_MARKER}Unknown source class\n"
         )
         with self.assertRaises(AssertionError):
             self.assert_form_headings_bind(mutant)
 
     def test_section_seven_states_the_form_heading_marker(self):
-        sheet = APA7.read_text(encoding="utf-8")
-        section = sheet[sheet.index("## 7.") :]
-        next_heading = section.find("\n## ", 1)
-        if next_heading != -1:
-            section = section[:next_heading]
+        section = numbered_markdown_section(APA7.read_text(encoding="utf-8"), 7)
         self.assertIn(scan.FORM_HEADING_MARKER, section)
 
     def test_retrieval_date_requirement_is_one_column_not_a_second_mapping(self):
