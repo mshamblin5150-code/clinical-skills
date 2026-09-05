@@ -10,11 +10,24 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest import mock
 
+import discussion_post_scan
 import render_scan
 from grader_conformance import for_module
 
 
 GraderConformance = for_module(render_scan)
+
+
+class TheRenderWiringDecisionIsPublished(unittest.TestCase):
+    def test_both_graders_point_to_adr_0125(self):
+        post_limits = " ".join(
+            text
+            for subject, reason, _disposition in discussion_post_scan.DECLARED_LIMITS
+            for text in (subject, reason)
+        )
+
+        self.assertIn("ADR 0125", post_limits)
+        self.assertIn("ADR 0125", render_scan.__doc__ or "")
 
 
 class FakeDocument:
