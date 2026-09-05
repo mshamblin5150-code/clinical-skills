@@ -34,6 +34,40 @@ no run can produce.
 words that the StatPearls and Cochrane buckets report `COVERAGE_FINDING`. Both assertions go red the
 moment the sheet covers those classes, so #757's builder edits this machinery either way.
 
+**Correction, 2026-09-04, hours after this record merged: the breakage is four assertions and not
+two, and ruling 4 is reopened by it.** The sentence above was measured by reading the two subtests
+rather than by simulating the build. Simulated — every `APA_SOURCE_CLASS` flipped to `has_form=True`
+with `dataclasses.replace`, both suites run in process — 177 tests give five red, of which
+`test_has_form_is_bound_to_the_sheet_headings_in_both_directions` is an artifact of flipping the
+column without adding the sheet sections and stays green in the real build. The four that are real
+are the two named above plus:
+
+* `tools/test_reference_scan.py:1603` `test_uncovered_class_is_advisory_and_not_a_body_or_graded_row`,
+  which asserts `len(result.coverage_findings) == 1` at `:1614` over a Cochrane entry. Covering
+  Cochrane empties that list, and the assertion is that a coverage finding **exists at all**, so no
+  expected-state edit repairs it.
+* `tools/test_reference_class_census.py:157`
+  `test_finding_is_exit_one_and_report_names_no_corpus_text`, which fails `AssertionError: 0 != 1` at
+  `:170` — the exit-1 loss this section describes, arriving at **#757's** merge rather than at #893's
+  build.
+
+**Those two are rulings 1 and 2's own subjects**, so neither can be repaired without doing part of
+what ruling 4 assigns to the separate build. Ruling 4's *minimal repair … and nothing else*
+instruction is therefore unsatisfiable as written, and the split as ruled leaves a red window: #757
+cannot merge green under it, and #893 cannot land first while the coverage finding is still
+reachable and correct. **That cost was not priced and the clinician was not shown it.** Ruling 4
+stands as ratified until he rules again; the candidate resolutions are recorded on #893 and none is
+adopted here.
+
+**The method is the transferable part.** The original figure came from reading the two assertions
+that name `COVERAGE_FINDING`; the honest instrument was to force the column and run the suites,
+which is `block_scan.py`'s and `threshold_sheet.py`'s recorded lesson — both of their parser bugs
+were found by pointing the tool at real material and neither by a fixture — arriving on a record's
+own measurement rather than on a parser. It was caught by the tracker sweep this record's session
+was obliged to run, which is
+[#320](https://github.com/mshamblin5150-code/clinical-skills/issues/320)'s and the sweep rule's
+whole argument.
+
 **The keeping argument was checked against the tree and does not hold.** #893's option 1 rests on
 detecting a future class arriving uncovered. The class vocabulary is a hand-written module object and
 `TheNursingSourceClassTableIsBoundToTheSheet` compares it against a second hand-written copy in the
