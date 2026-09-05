@@ -233,7 +233,7 @@ One handover of complete tertiary-source topic bodies, supplied wholesale for a 
 _Avoid_: sources, corpus, articles
 
 **Evidence store**:
-The account-owned accumulation of every **Evidence dump**, gitignored under the scratch root and searched rather than read whole. Holding it is what entitles a run to cite the topics it carries, so a checkout without one carries no entitlement however many **Topic sheets** it holds.
+The account-owned accumulation of every **Evidence dump**, gitignored under the scratch root and searched rather than read whole. It is what a run researches *from*; it is not what entitles a run to cite, because a **Topic sheet** carries its own retrieval record and is citable by anyone holding the repository.
 _Avoid_: evidence folder, shared reference, cache, library
 
 **Topic sheet**:
@@ -241,7 +241,7 @@ The committed distillation of one supplied topic: the source's own summary secti
 _Avoid_: summary, digest, extract, article, evidence sheet
 
 **Dump manifest**:
-The gitignored record of one **Evidence dump** -- which topics arrived, for which module, on what date. It is what a citation-membership join reads, which is why it stays out of the repository while the **Topic sheets** it explains go in.
+The gitignored record of one **Evidence dump** -- which topics arrived, for which module, on what date. Provenance for the sheets a dump produced, and what the evidence-membership join reads for a run of the account that was handed it; it establishes when a topic arrived, never who may cite it.
 _Avoid_: index, inventory, log, catalog
 
 **Review currency**:

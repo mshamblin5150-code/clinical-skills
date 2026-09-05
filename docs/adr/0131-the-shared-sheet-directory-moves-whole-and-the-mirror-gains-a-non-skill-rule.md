@@ -157,10 +157,34 @@ After the move, `git grep -c "practicum-case-study/reference/"` outside `docs/ad
 reads **zero**. That turns 125 `tools/` prose mentions and 18 in `CLAUDE.md` — none of which any
 check can see — into one criterion a reviewer can run.
 
-**The 39 mentions in ratified ADRs stay.** They are all inline code and none is a Markdown link, so
-no resolver breaks, and a path in a ratified record is a dated statement about the tree at
-ratification. Editing one to keep it true would falsify the record, which is the rule this
+**The mentions in ratified ADRs stay.** A path in a ratified record is a dated statement about the
+tree at ratification, and editing one to keep it true would falsify the record — the rule this
 repository already applies to a preserved run record.
+
+**Corrected 2026-09-05, hours after ratification, by the tracker sweep of this record's own session.**
+Two errors, both in this ruling as first written, and both are the shape this repository keeps
+recording — the change that cites a rule breaking it.
+
+**First, it said the ADR mentions are *"all inline code and none is a Markdown link, so no resolver
+breaks."* That was false when it was written**, and falsified by the sibling record this session
+wrote in the same commit:
+[ADR 0132](0132-the-uptodate-store-is-scratch-rooted-and-its-published-topic-sheets-carry-the-entitlement.md)
+carried `[apa7.md](../../skills/practicum-case-study/reference/apa7.md)` — the **only** Markdown link
+into the moving directory anywhere in `docs/adr/`. `graded_files()` excludes `fixtures/` and its own
+module and **not** `docs/adr/`, so `EveryRelativeLinkResolvesToAnIndexedPath` would have failed on a
+ratified record the moment ruling 1 landed, and this ruling forbids both available repairs. The
+measurement was taken at `b26ea2a`, before ADR 0132 existed; the session then falsified its own
+finding and shipped the sentence unqualified. **The link is now inline code**, so the claim is true
+again by repair rather than by luck, and the next author is warned rather than trusted: a Markdown
+link from `docs/adr/` into a directory being moved is a suite failure with no permitted fix.
+**The quotation above is safe because `dead_links` skips code spans**, driven both ways to check rather than assumed: a plain `](target)` is caught and a backticked one is not. A `git grep` has no such notion and flags both, which is how this correction was nearly written as a second defect.
+
+**Second, the criterion and the figures beside it count different populations.** The grep names the
+directory path; the 69/71, 5/125 and 8/18 table above counts the six sheet **basenames**. At
+`2331821` the criterion reads **41 occurrences over 15 files** outside `docs/adr/` and `fixtures/`.
+The criterion is unchanged and correct; what was wrong is the sentence claiming it *"turns 125
+`tools/` prose mentions and 18 in `CLAUDE.md`"* into itself. It does not — those are a different
+measurement, and a builder checking the criterion against them would find neither number.
 
 ### 7. #758's body carries five measured errors and they are corrected rather than left in comments
 
