@@ -130,6 +130,11 @@ ABSENT_BY_DESIGN_FIELDS = ("word_ceiling",)
 
 DECLARED_LIMITS = (
     (
+        "the authority for render wiring",
+        "The governing architecture record for this declaration is ADR 0125.",
+        EvidenceDisposition.DECLARED_READING,
+    ),
+    (
         "whether the bar transcription is complete",
         "The command can read structured values but cannot compare the quoted bar with the live topic and syllabus pages.",
         EvidenceDisposition.DECLARED_READING,

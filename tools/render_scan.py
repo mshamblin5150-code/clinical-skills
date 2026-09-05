@@ -23,6 +23,7 @@ page image filename.
 This does not establish that the retained images are the pages a reader actually
 read, or that the visual comparison was careful. ``checks_ledger.py`` separately
 grades the substantiated ``the rendered document`` verdict for that reading.
+ADR 0125 is the governing record.
 """
 
 from __future__ import annotations
