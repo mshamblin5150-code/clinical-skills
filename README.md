@@ -44,7 +44,7 @@ The deliverable is the completed note. Beside it, the run also produces a privat
 
 ## What ships with them
 
-The reference tier begins with [`reference/guidelines-catalog.md`](reference/guidelines-catalog.md), covering material from USPSTF, IDSA, AHA/ACC, KDIGO, ACIP, ADA, CDC, GINA, and GOLD. The repository also includes the derived [`reference/guidelines-uspstf.md`](reference/guidelines-uspstf.md), topic decision sheets under [`reference/thresholds/`](reference/thresholds/), the 2026 ICD-10-CM code set in `reference/icd10cm-2026.sqlite`, and CDC BMI-for-age data in `reference/cdc-bmi-for-age-2022.csv`.
+The reference tier begins with [`reference/guidelines-catalog.md`](reference/guidelines-catalog.md), covering material from USPSTF, IDSA, AHA/ACC, KDIGO, ACIP, ADA, CDC, GINA, and GOLD. The repository also includes the derived [`reference/guidelines-uspstf.md`](reference/guidelines-uspstf.md), topic decision sheets under [`reference/thresholds/`](reference/thresholds/), supplied-source distillations under [`reference/uptodate/`](reference/uptodate/), the 2026 ICD-10-CM code set in `reference/icd10cm-2026.sqlite`, and CDC BMI-for-age data in `reference/cdc-bmi-for-age-2022.csv`.
 
 [`reference/thresholds/coverage.md`](reference/thresholds/coverage.md) is the live answer for threshold-sheet coverage. The source corpus PDFs remain outside this repository, and using the skills does not require them. These reference artifacts are committed, so a new edition reaches your clone with `git pull`.
 
@@ -157,8 +157,8 @@ The hook is a seatbelt, not a vault. Git does not clone hooks, `--no-verify` byp
 ```text
 skills/<name>/SKILL.md    canonical skill instructions
 skills/<name>/*.md        references a skill loads on demand
-reference/                field map, guideline catalog and tables, threshold sheets,
-                          ICD-10-CM data, CDC BMI data, and tracker records
+reference/                field map, guideline catalog and tables, threshold and
+                          UpToDate sheets, ICD-10-CM data, CDC BMI data, and tracker records
 fixtures/                 de-identified regression material and run records
 scratch/                  live working files — gitignored, never committed
 output/                   finished notes and coursework — gitignored, never committed
@@ -196,6 +196,23 @@ python tools/threshold_coverage.py
 ```
 
 `guidelines_build.py` creates content-addressed extraction, index, and recommendation artifacts outside every checkout. `guidelines_catalog.py` audits the committed catalog against that corpus, and `threshold_coverage.py` re-derives the live registry report. Follow the fuller contracts in [`CLAUDE.md`](CLAUDE.md) and [`reference/thresholds/README.md`](reference/thresholds/README.md) before publishing rebuilt artifacts.
+
+### UpToDate evidence store
+
+Deliberately supplied UpToDate dumps stay private under `scratch/uptodate/`. A maintainer ingests
+one named file, searches the accumulated literal-text index, and reports unfiled topic-shaped
+material with these commands:
+
+```bash
+python tools/uptodate_store.py ingest <dump> --dump-id <id> --module <name> --received-on <YYYY-MM-DD>
+python tools/uptodate_store.py search <query> [<query> ...]
+python tools/uptodate_store.py sweep
+python tools/uptodate_sheet.py --all
+```
+
+The sweep writes nothing. The last command grades committed sheets against their private source
+manifests and is a local staged-sheet refuser. The format and quotation boundary live in
+[`reference/uptodate/README.md`](reference/uptodate/README.md).
 
 ### Tools
 

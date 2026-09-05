@@ -80,6 +80,18 @@ Confirm the host. `np.medatrax.com` is the NP portal; `medatrax.com` is a differ
 
 **The agent never types credentials.** The clinician signs in themselves, or the password manager fills the form in their own browser. Confirm the session with `/login/patient.aspx` — the patient list means signed in, a bounce back to the form means signed out. `default.aspx` renders the same public page either way and proves nothing.
 
+Ask one further account question here: **Do you have an UpToDate account?** Record exactly one of
+these lines in `scratch/medatrax-profile.md`:
+
+```text
+UPTODATE-ACCOUNT: yes
+UPTODATE-ACCOUNT: no
+```
+
+The answer controls only the shared evidence store's re-read requirement. `yes` keeps its signed
+two-year window active; `no` waives the re-read because the authenticated route is unavailable. An
+absent answer never manufactures the waiver.
+
 ### 3. Program and hours
 
 Ask, and record the answers rather than deriving them:

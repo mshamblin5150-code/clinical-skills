@@ -182,7 +182,10 @@ class ManifestOwnershipTests(unittest.TestCase):
         self.assertTrue(all(manifest.NOT_MIGRATED.values()))
         self.assertEqual(
             manifest.NON_EXTRACTION_MANIFEST_OWNERS,
-            {"guidelines_recs.py": "recommendation sweep manifest"},
+            {
+                "guidelines_recs.py": "recommendation sweep manifest",
+                "uptodate_store.py": "account-level UpToDate dump manifest",
+            },
         )
 
 

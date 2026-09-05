@@ -31,6 +31,8 @@ from typing import NamedTuple
 import run_grader
 from run_grader import NOT_GRADED
 import coursework_run
+import uptodate_store
+from repo_root import scratch_root
 from run_grader import EvidenceDisposition
 from docx_write import markdown_tables, split_row
 
@@ -57,7 +59,7 @@ DECLARED_LIMITS = (
     DeclaredLimit("reason-substance-unverified", "Alphanumeric substance cannot prove that a stated search or reason happened.", EvidenceDisposition.DECLARED_READING),
     DeclaredLimit("restatement-semantic-equivalence-unchecked", "Only normalized equality is rejected; semantic restatements are not compared.", EvidenceDisposition.BEHAVIOR),
     DeclaredLimit("numeric-values-uncompared", "Numeric claims and restatements need numbers whose actual values are never compared.", EvidenceDisposition.BEHAVIOR),
-    DeclaredLimit("two-year-target-unenforced", "The preferred two-year recency target is not an enforced grading window.", EvidenceDisposition.BEHAVIOR),
+    DeclaredLimit("two-year-target-unenforced", "The preferred two-year recency target remains unenforced for sources other than UpToDate.", EvidenceDisposition.BEHAVIOR),
     DeclaredLimit("doi-shape-overmatches", "The bare-DOI pattern also accepts page-range text shaped like a DOI.", EvidenceDisposition.BEHAVIOR),
     DeclaredLimit("locator-opening-unverified", "A record may state a locator that its research agent never opened.", EvidenceDisposition.DECLARED_READING),
     DeclaredLimit("source-reputation-unchecked", "An allowed source-class word does not establish that the source is reputable.", EvidenceDisposition.DECLARED_READING),
@@ -103,7 +105,8 @@ FIELD = re.compile(
     r"[ \t]*:[ \t]*(.*?)[ \t]*$"
 )
 BAR_FIELD = re.compile(
-    r"(?mi)^(?P<name>SOURCE-CLASSES|RECENCY-WINDOW-YEARS)\s*:\s*(?P<value>[^\n]+?)\s*$"
+    r"(?mi)^(?P<name>SOURCE-CLASSES|RECENCY-WINDOW-YEARS|UPTODATE-RECENCY-WINDOW-YEARS)"
+    r"\s*:\s*(?P<value>[^\n]+?)\s*$"
 )
 # The day the paper is written. Recency is measured against it and never against
 # the clock -- a ledger graded twice a year apart has to grade the same both times.
@@ -231,6 +234,7 @@ STATED_EXPIRY_REACHED = "stated-expiry-reached"
 # reporting follows #258's distinction between an executed zero and an omitted
 # group.
 CITED_TOPIC_NOT_IN_EVIDENCE = "cited-topic-not-in-evidence"
+UPTODATE_REREAD_DUE = "uptodate-reread-due"
 
 # The sibling row reports an UpToDate locator whose title element is unreadable,
 # on ``UNREADABLE_DRUG_ROW``'s fail-visible precedent.
@@ -243,6 +247,7 @@ UNREADABLE_DRUG_ROW = "unreadable-drug-row"
 # Which ruling each row belongs to, so a reader knows which ticket to go and read.
 ROWS = {
     CITED_TOPIC_NOT_IN_EVIDENCE: "#298",
+    UPTODATE_REREAD_DUE: "#901",
     UNREADABLE_UPTODATE_ENTRY: "#298",
     UNRESEARCHED_PRESCRIPTION: "#289",
     DOSE_NOT_CLAIMED: "#289",
@@ -312,7 +317,11 @@ CITATION_FIELDS = (
 DRAFT_ROWS = (UNRESEARCHED_PRESCRIPTION, DOSE_NOT_CLAIMED, UNREADABLE_DRUG_ROW)
 
 # The #298 report group, on ``DRAFT_ROWS``' single-population arrangement.
-EVIDENCE_ROWS = (CITED_TOPIC_NOT_IN_EVIDENCE, UNREADABLE_UPTODATE_ENTRY)
+EVIDENCE_ROWS = (
+    CITED_TOPIC_NOT_IN_EVIDENCE,
+    UPTODATE_REREAD_DUE,
+    UNREADABLE_UPTODATE_ENTRY,
+)
 
 # A prescription table is the one table in a case study carrying both of
 # these, and the drug row is the row above ``Disp:``. **A welded pair and a
@@ -360,16 +369,22 @@ _VOCABULARY_KEYS = frozenset(normalize(name) for name in SOURCE_CLASS_VOCABULARY
 class LedgerBar:
     source_classes: tuple[str, ...]
     recency_window_years: int
+    uptodate_recency_window_years: int | None
 
 
 def read_bar(text: str) -> LedgerBar:
-    """Read the two per-run research decisions from a signed bar."""
+    """Read the per-run research decisions from a signed bar."""
     matches = tuple(BAR_FIELD.finditer(text))
     fields = {match.group("name"): match.group("value").strip() for match in matches}
+    for name in (
+        "SOURCE-CLASSES",
+        "RECENCY-WINDOW-YEARS",
+        "UPTODATE-RECENCY-WINDOW-YEARS",
+    ):
+        if sum(match.group("name") == name for match in matches) > 1:
+            raise run_grader.SourceError(f"bar.md has a duplicate {name} field")
     for name in ("SOURCE-CLASSES", "RECENCY-WINDOW-YEARS"):
         count = sum(match.group("name") == name for match in matches)
-        if count > 1:
-            raise run_grader.SourceError(f"bar.md has a duplicate {name} field")
         if count == 0:
             raise run_grader.SourceError(f"bar.md needs a {name} field")
     classes = tuple(item.strip().casefold() for item in fields["SOURCE-CLASSES"].split("|"))
@@ -384,7 +399,18 @@ def read_bar(text: str) -> LedgerBar:
     window = fields["RECENCY-WINDOW-YEARS"]
     if not window.isdigit() or int(window) < 1:
         raise run_grader.SourceError("bar.md RECENCY-WINDOW-YEARS must be a positive integer")
-    return LedgerBar(classes, int(window))
+    uptodate_window = fields.get("UPTODATE-RECENCY-WINDOW-YEARS")
+    if uptodate_window is not None and (
+        not uptodate_window.isdigit() or int(uptodate_window) < 1
+    ):
+        raise run_grader.SourceError(
+            "bar.md UPTODATE-RECENCY-WINDOW-YEARS must be a positive integer"
+        )
+    return LedgerBar(
+        classes,
+        int(window),
+        None if uptodate_window is None else int(uptodate_window),
+    )
 
 
 def keyword_of(value: str, vocabulary: tuple[str, ...]) -> tuple[str, str]:
@@ -621,6 +647,22 @@ def carried_topics(text: str) -> set[str]:
         if above >= 0:
             carried.add(lines[above].strip())
     return carried
+
+
+def accumulated_evidence_topics(
+    current_dump: str, store: Path | None = None
+) -> set[str]:
+    """The current supplied dump plus every topic in an earlier manifest.
+
+    The current file preserves #298's same-run behavior.  A cross-course topic
+    receives entitlement only through a per-dump manifest; merely existing
+    elsewhere on disk does not put it in this set.
+    """
+    try:
+        accumulated = uptodate_store.entitled_topics(store)
+    except ValueError as error:
+        raise run_grader.SourceError(f"the UpToDate store is unreadable: {error}") from error
+    return carried_topics(current_dump) | accumulated
 
 
 def uptodate_topic(entry: str) -> str:
@@ -1111,7 +1153,7 @@ def evidence_findings(
     """Apply #298's citation-to-carried-topic join.
 
     The clinician supplies complete topic bodies, so a cited UpToDate topic joins
-    against that authored set. Findings de-duplicate by topic because two
+    against the current dump plus the accumulated manifest set. Findings de-duplicate by topic because two
     citations name one missing artifact.
     """
     keys = {normalize(title) for title in carried}
@@ -1149,6 +1191,45 @@ def evidence_findings(
     return sorted(found, key=lambda f: _KIND_ORDER[f.kind]), read
 
 
+def uptodate_reread_findings(
+    records: list[Record],
+    entries: tuple[str, ...],
+    currency_by_topic: dict[str, str],
+    as_of: date | None,
+    *,
+    window_years: int,
+    has_account: bool,
+) -> list[Finding]:
+    """Require a fresh read once the publisher's review month leaves the bar window."""
+    if as_of is None or not has_account:
+        return []
+    currency = {normalize(title): stamp for title, stamp in currency_by_topic.items()}
+    cited = [(record.claim, record.value("REFERENCE")) for record in records]
+    cited += [(DRAFT_LIST, entry) for entry in entries]
+    found: list[Finding] = []
+    seen: set[str] = set()
+    for claim, entry in cited:
+        title = uptodate_topic(entry)
+        key = normalize(title)
+        stamp = currency.get(key)
+        if not key or stamp is None or key in seen:
+            continue
+        seen.add(key)
+        try:
+            reviewed_year, reviewed_month = (int(part) for part in stamp.split("-", 1))
+        except (TypeError, ValueError):
+            continue
+        if (as_of.year, as_of.month) > (reviewed_year + window_years, reviewed_month):
+            found.append(
+                Finding(
+                    UPTODATE_REREAD_DUE,
+                    claim,
+                    f"{title}; literature review current through {stamp}",
+                )
+            )
+    return sorted(found, key=lambda finding: _KIND_ORDER[finding.kind])
+
+
 def _stated_expiry_unscanned(records: Iterable[Record]) -> bool:
     """Whether sourced records all predate #498's required field."""
     sourced = [record for record in records if record.status == SOURCED]
@@ -1165,6 +1246,9 @@ def survey(
     *,
     source_classes: tuple[str, ...] | None = None,
     recency_window_years: int | None = None,
+    uptodate_currency: dict[str, str] | None = None,
+    uptodate_recency_window_years: int = 2,
+    uptodate_has_account: bool = True,
 ) -> Scan:
     """Count across one ledger.
 
@@ -1220,6 +1304,16 @@ def survey(
         if carried is None
         else evidence_findings(records, entries, carried)
     )
+    if carried is not None and uptodate_currency is not None:
+        on_the_evidence += uptodate_reread_findings(
+            records,
+            entries,
+            uptodate_currency,
+            as_of,
+            window_years=uptodate_recency_window_years,
+            has_account=uptodate_has_account,
+        )
+        on_the_evidence.sort(key=lambda finding: _KIND_ORDER[finding.kind])
     found = (
         on_the_evidence
         + on_the_draft
@@ -1405,6 +1499,23 @@ class Source:
     evidence_name: str | None
     source_classes: tuple[str, ...]
     recency_window_years: int
+    uptodate_currency: dict[str, str] | None
+    uptodate_recency_window_years: int
+    uptodate_has_account: bool
+
+
+UPTODATE_ACCOUNT = re.compile(
+    r"(?mi)^\s*UPTODATE-ACCOUNT\s*:\s*(?P<answer>yes|no)\s*$"
+)
+
+
+def clinician_has_uptodate_account(profile: Path | None = None) -> bool:
+    """The explicit setup answer; absence does not manufacture a waiver."""
+    path = profile or scratch_root() / "medatrax-profile.md"
+    if not path.is_file():
+        return True
+    match = UPTODATE_ACCOUNT.search(path.read_text(encoding="utf-8", errors="replace"))
+    return match is None or match.group("answer").casefold() == "yes"
 
 
 def _load(parsed: run_grader.Parsed) -> Source:
@@ -1447,17 +1558,34 @@ def _load(parsed: run_grader.Parsed) -> Source:
     entries: tuple[str, ...] = ()
     evidence_unreadable = False
     evidence_name: str | None = None
+    uptodate_currency: dict[str, str] | None = None
+    uptodate_window = bar.uptodate_recency_window_years or 2
+    uptodate_has_account = True
     if evidence is not None:
         evidence_path = Path(evidence)
         evidence_name = evidence_path.name
         if not evidence_path.is_file():
             raise run_grader.SourceError(f"no evidence file named {evidence_path.name}")
-        found = carried_topics(evidence_path.read_text(encoding="utf-8", errors="replace"))
-        evidence_unreadable = not found
-        if found:
-            carried = found
+        evidence_text = evidence_path.read_text(encoding="utf-8", errors="replace")
+        current_topics = carried_topics(evidence_text)
+        evidence_unreadable = not current_topics
+        if current_topics:
+            carried = accumulated_evidence_topics(evidence_text)
         if carried is not None and draft is not None:
             entries = tuple(entry.text for entry in read_document(draft_text).entries)
+        cited_entries = [record.value("REFERENCE") for record in records] + list(entries)
+        if any(uptodate_topic(entry) for entry in cited_entries):
+            if bar.uptodate_recency_window_years is None:
+                raise run_grader.SourceError(
+                    "bar.md needs an UPTODATE-RECENCY-WINDOW-YEARS field when UpToDate evidence is graded"
+                )
+            try:
+                uptodate_currency = uptodate_store.topic_currencies()
+            except ValueError as error:
+                raise run_grader.SourceError(
+                    f"the UpToDate store is unreadable: {error}"
+                ) from error
+            uptodate_has_account = clinician_has_uptodate_account()
 
     stamp = DATE_HEADER.search(text)
     as_of = date(int(stamp.group(1)), int(stamp.group(2)), int(stamp.group(3))) if stamp else None
@@ -1476,6 +1604,9 @@ def _load(parsed: run_grader.Parsed) -> Source:
         evidence_name,
         bar.source_classes,
         bar.recency_window_years,
+        uptodate_currency,
+        uptodate_window,
+        uptodate_has_account,
     )
 
 
@@ -1489,6 +1620,9 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
         source.entries,
         source_classes=source.source_classes,
         recency_window_years=source.recency_window_years,
+        uptodate_currency=source.uptodate_currency,
+        uptodate_recency_window_years=source.uptodate_recency_window_years,
+        uptodate_has_account=source.uptodate_has_account,
     )
     diagnostics: list[str] = []
     if source.evidence_unreadable:
@@ -1523,11 +1657,21 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
             " no claim record. Re-run with --show to see which, and do not paste that output."
         )
     if scan.evidence_at_fault:
-        diagnostics.append(
-            f"{scan.evidence_at_fault} UpToDate topic(s) cited here are not in the"
-            " evidence dump, so nobody read them. Paste the topic in and re-run,"
-            " or drop the citation. Re-run with --show to see which, and do not paste that output."
-        )
+        counts = dict(scan.counts)
+        missing = counts[CITED_TOPIC_NOT_IN_EVIDENCE] + counts[UNREADABLE_UPTODATE_ENTRY]
+        reread = counts[UPTODATE_REREAD_DUE]
+        if missing:
+            diagnostics.append(
+                f"{missing} UpToDate citation(s) do not resolve to the current dump or"
+                " accumulated evidence manifests. Deliberately ingest the supplied dump"
+                " or drop the citation. Re-run with --show to see which, and do not paste that output."
+            )
+        if reread:
+            diagnostics.append(
+                f"{reread} UpToDate topic(s) have left the signed publisher-review window."
+                " Re-open them through the authenticated route and refresh their sheets."
+                " Re-run with --show to see which, and do not paste that output."
+            )
     findings_failed = bool(
         scan.failing_records or scan.prescriptions_at_fault or scan.evidence_at_fault
     )
