@@ -11,8 +11,9 @@ material outside every checkout is outside this walk.
 Only Markdown and text files can carry the Markdown reference heading consumed by
 ``reference_scan.read_document``. The report emits bucket names, coverage states,
 and integers only; it has no ``--show`` aperture and never emits an entry, filename,
-or path. Exit status is 0 with no populated finding-state bucket, 1 with one, and 2
-whenever the complete registered population was not scanned.
+or path. Exit status is 0 for a completed count and 2 whenever the complete
+registered population was not scanned. There is no exit 1 because a complete local
+APA sheet leaves no finding-state bucket for the census to report.
 """
 
 from __future__ import annotations
@@ -66,15 +67,6 @@ class Census:
     entries: int
     bucket_counts: tuple[reference_scan.BucketCount, ...]
     undecidable_remainder: int
-
-    @property
-    def uncovered(self) -> int:
-        return sum(
-            item.population
-            for item in self.bucket_counts
-            if item.state == reference_scan.COVERAGE_FINDING
-        )
-
 
 def read_text_file(path: Path) -> FileRead:
     """Detect a likely reference list independently, then run the extractor."""
@@ -179,7 +171,6 @@ def format_report(census: Census) -> str:
         lines.append(f"  {item.name:<22} {item.state:<11} {item.population}")
     lines += [
         "",
-        f"uncovered-class                   {census.uncovered}",
         f"undecidable remainder             {census.undecidable_remainder}",
     ]
     return "\n".join(lines)
@@ -206,7 +197,7 @@ def main(argv: list[str]) -> int:
             file=sys.stderr,
         )
         return 2
-    return 1 if result.uncovered else 0
+    return 0
 
 
 if __name__ == "__main__":

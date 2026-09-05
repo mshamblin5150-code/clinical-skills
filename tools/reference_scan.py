@@ -272,34 +272,34 @@ FORM_HEADING_MARKER = "Reference form: "
 # directions in ``TheNursingSourceClassTableIsBoundToTheSheet``; consumers derive
 # the requires-one set from the final column rather than copying it.
 APA_SOURCE_CLASSES = (
-    ApaSourceClass(1, "Journal article", False, False),
-    ApaSourceClass(2, "Journal article with an article number", False, False),
+    ApaSourceClass(1, "Journal article", True, False),
+    ApaSourceClass(2, "Journal article with an article number", True, False),
     ApaSourceClass(3, "UpToDate article", True, True),
-    ApaSourceClass(4, "Cochrane review", False, False),
-    ApaSourceClass(5, "StatPearls", False, True),
-    ApaSourceClass(6, "Authored or edited book", False, False),
-    ApaSourceClass(7, "Chapter in an edited book", False, False),
-    ApaSourceClass(8, "Report by a government agency or other group author", False, False),
-    ApaSourceClass(9, "Clinical practice guideline with a group author", False, False),
+    ApaSourceClass(4, "Cochrane review", True, False),
+    ApaSourceClass(5, "StatPearls", True, True),
+    ApaSourceClass(6, "Authored or edited book", True, False),
+    ApaSourceClass(7, "Chapter in an edited book", True, False),
+    ApaSourceClass(8, "Report by a government agency or other group author", True, False),
+    ApaSourceClass(9, "Clinical practice guideline with a group author", True, False),
     ApaSourceClass(
         10,
         "Clinical practice guideline by individual authors at a government agency, published as part of a series",
-        False,
+        True,
         False,
     ),
-    ApaSourceClass(11, "Ethics code", False, False),
-    ApaSourceClass(12, "Position statement", False, False),
-    ApaSourceClass(13, "Fact sheet", False, False),
+    ApaSourceClass(11, "Ethics code", True, False),
+    ApaSourceClass(12, "Position statement", True, False),
+    ApaSourceClass(13, "Fact sheet", True, False),
     ApaSourceClass(14, "State nursing practice act (NPA)", True, False),
-    ApaSourceClass(15, "Drug information", False, False),
-    ApaSourceClass(16, "Lab or diagnostic manual", False, False),
-    ApaSourceClass(17, "Medical dictionary", False, False),
-    ApaSourceClass(18, "Entry in a medical dictionary", False, False),
-    ApaSourceClass(19, "YouTube video", False, False),
-    ApaSourceClass(20, "Podcast or podcast episode", False, False),
-    ApaSourceClass(21, "Doctor of nursing practice (DNP) project", False, False),
-    ApaSourceClass(22, "PowerPoint slides or lecture notes", False, False),
-    ApaSourceClass(23, "Webpage on a website", False, False),
+    ApaSourceClass(15, "Drug information", True, False),
+    ApaSourceClass(16, "Lab or diagnostic manual", True, False),
+    ApaSourceClass(17, "Medical dictionary", True, False),
+    ApaSourceClass(18, "Entry in a medical dictionary", True, False),
+    ApaSourceClass(19, "YouTube video", True, False),
+    ApaSourceClass(20, "Podcast or podcast episode", True, False),
+    ApaSourceClass(21, "Doctor of nursing practice (DNP) project", True, False),
+    ApaSourceClass(22, "PowerPoint slides or lecture notes", True, False),
+    ApaSourceClass(23, "Webpage on a website", True, False),
 )
 _APA_CLASS_BY_NAME = {item.name: item for item in APA_SOURCE_CLASSES}
 RETRIEVAL_DATE_REQUIRED_CLASSES = frozenset(
@@ -307,7 +307,6 @@ RETRIEVAL_DATE_REQUIRED_CLASSES = frozenset(
 )
 
 COVERAGE_CLEAN = "clean"
-COVERAGE_FINDING = "finding"
 COVERAGE_UNDECIDABLE = "undecidable"
 
 
@@ -326,8 +325,6 @@ class ReferenceBucket:
         forms = tuple(_APA_CLASS_BY_NAME[name].has_form for name in self.classes)
         if all(forms):
             return COVERAGE_CLEAN
-        if not any(forms):
-            return COVERAGE_FINDING
         return COVERAGE_UNDECIDABLE
 
 
@@ -337,14 +334,6 @@ class BucketCount:
     state: str
     population: int
 
-
-@dataclass(frozen=True)
-class CoverageFinding:
-    """Advisory sheet coverage keyed only by bucket and entry line."""
-
-    kind: str
-    detail: str
-    line: int
 
 # The two labels APA permits, section 1. Both are matched as a whole heading here;
 # the renderer is looser on the plural and this file does not copy that looseness,
@@ -491,8 +480,6 @@ INTEXT_YEAR_MISMATCH = "intext-year-mismatch"
 UNCITED_ENTRY = "uncited-entry"
 UNLISTED_CITATION = "unlisted-citation"
 LEGAL_REFERENCE_LACKS_NAME = "legal-reference-lacks-name"
-UNCOVERED_CLASS = "uncovered-class"
-
 REFERENCE_BUCKETS = (
     ReferenceBucket("uptodate", ("UpToDate article",)),
     ReferenceBucket("statpearls", ("StatPearls",)),
@@ -948,7 +935,6 @@ class Scan:
     legal: int
     citations: int
     bucket_counts: tuple[BucketCount, ...]
-    coverage_findings: tuple[CoverageFinding, ...]
     undecidable_remainder: int
     counts: tuple[tuple[str, int], ...]
     entries_at_fault: int
@@ -1295,15 +1281,6 @@ def survey(document: Document, as_of: date | None) -> Scan:
     at_fault = {f.line for f in found if f.line is not None}
     classified = tuple((entry, classify_entry(entry)) for entry in document.entries)
     bucket_counts = summarize_buckets(tuple(bucket for _, bucket in classified))
-    coverage_findings = tuple(
-        CoverageFinding(
-            UNCOVERED_CLASS,
-            bucket.name,
-            entry.line,
-        )
-        for entry, bucket in classified
-        if bucket.state == COVERAGE_FINDING
-    )
     return Scan(
         as_of=as_of,
         heading=document.heading,
@@ -1313,7 +1290,6 @@ def survey(document: Document, as_of: date | None) -> Scan:
         legal=sum(1 for e in document.entries if e.is_legal),
         citations=len(document.citations),
         bucket_counts=bucket_counts,
-        coverage_findings=coverage_findings,
         undecidable_remainder=sum(
             count.population
             for count in bucket_counts
@@ -1358,7 +1334,6 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
             f"    {count.name:<22} {count.state:<11} {count.population}"
         )
     lines += [
-        f"  {UNCOVERED_CLASS:<34} {len(scan.coverage_findings)}",
         f"  {'undecidable remainder':<34} {scan.undecidable_remainder}",
         "",
         "  A legal entry is outside uncited-entry.",
@@ -1374,11 +1349,6 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         for finding in scan.findings:
             lines.append(f"    {finding.kind:<28} {finding.where}")
             lines.append(f"      {finding.detail}")
-        lines += ["", "  coverage observations (safe to paste):"]
-        for finding in scan.coverage_findings:
-            lines.append(
-                f"    {finding.kind:<28} line {finding.line}: {finding.detail}"
-            )
     return "\n".join(lines)
 
 

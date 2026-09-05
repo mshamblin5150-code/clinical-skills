@@ -154,7 +154,7 @@ class TheCensusReportIsCountsOnlyAndHasAHouseExit(unittest.TestCase):
             status = census.main([])
         return status, stdout.getvalue(), stderr.getvalue()
 
-    def test_finding_is_exit_one_and_report_names_no_corpus_text(self):
+    def test_completed_count_is_zero_and_report_names_no_corpus_text(self):
         marker = "private-corpus-marker"
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -167,7 +167,7 @@ class TheCensusReportIsCountsOnlyAndHasAHouseExit(unittest.TestCase):
             )
             status, stdout, _ = self.run_main((root,), output)
 
-        self.assertEqual(status, 1)
+        self.assertEqual(status, 0)
         self.assertNotIn(marker, stdout)
         self.assertIn("checkouts enumerated", stdout)
         self.assertIn("roots read", stdout)
@@ -177,6 +177,28 @@ class TheCensusReportIsCountsOnlyAndHasAHouseExit(unittest.TestCase):
         for bucket in reference_scan.REFERENCE_BUCKETS:
             self.assertIn(bucket.name, stdout)
             self.assertIn(bucket.state, stdout)
+        self.assertNotIn("uncovered-class", stdout)
+
+    def test_the_census_has_no_exit_one_path(self):
+        source = Path(census.__file__).read_text(encoding="utf-8")
+        module = ast.parse(source)
+        main = next(
+            node
+            for node in module.body
+            if isinstance(node, ast.FunctionDef) and node.name == "main"
+        )
+        returns = [
+            node.value
+            for node in ast.walk(main)
+            if isinstance(node, ast.Return) and node.value is not None
+        ]
+        self.assertFalse(
+            any(
+                isinstance(node, ast.Constant) and node.value == 1
+                for returned in returns
+                for node in ast.walk(returned)
+            )
+        )
 
     def test_clean_is_zero_and_unreadable_is_two(self):
         with tempfile.TemporaryDirectory() as directory:

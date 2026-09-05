@@ -356,3 +356,299 @@ Eligibility for prescriptive authority, W. Va. Code § 30-7-15b (2016). https://
 **Configured reader boundary.** The implemented limit is owned by
 `discussion_artifact.LEGAL_SOURCE_NOT_REACHED`; this sheet points to that object and does not
 restate its entries.
+
+---
+
+## 9. Reference form: Journal article
+
+**Provenance:** APA Style's *Nursing Student References* page, item 1, read 2026-09-04.
+
+**Synthesized example:** Rivera, L. M., & Chen, T. P. (2026). Preparing rural clinics for extreme
+heat. *Journal of Community Nursing, 18*(2), 41–49. https://doi.org/10.1000/jcn.2026.14
+
+**Abstracted entry form:** Author, A. A., & Author, B. B. (Year). Title of article. *Journal Title,
+volume*(issue), page range. https://doi.org/xxxxx
+
+**Declared limit:** The synthesized example is not string-checkable against APA's page; the local
+sheet records the observed slot order, not a copied APA example or proof that any source exists.
+
+## 10. Reference form: Journal article with an article number
+
+**Provenance:** APA Style's *Nursing Student References* page, item 2, read 2026-09-04.
+
+**Synthesized example:** Morgan, D. R., & Patel, S. N. (2025). Simulation coaching for novice
+preceptors. *Clinical Learning Review, 2025*, Article 734921. https://doi.org/10.1000/clr.734921
+
+**Abstracted entry form:** Author, A. A. (Year). Title of article. *Journal Title, volume*(issue),
+Article number. https://doi.org/xxxxx
+
+**Declared limit:** The synthesized example is not string-checkable against APA's page; the local
+sheet records the article-number slot rather than reproducing APA's demonstration.
+
+## 11. Reference form: Cochrane review
+
+**Provenance:** APA Style's *Nursing Student References* page, item 4, read 2026-09-04.
+
+**Synthesized example:** Okafor, I. J., Singh, R., & Bell, M. T. (2026). Telephone follow-up after
+same-day procedures. *Cochrane Database of Systematic Reviews*.
+https://doi.org/10.1000/14651858.CD010101.pub2
+
+**Abstracted entry form:** Author, A. A. (Year). Title of review. *Cochrane Database of Systematic
+Reviews*. https://doi.org/xxxxx
+
+**Declared limit:** The synthesized example is not string-checkable against APA's page; the form
+allows version-dependent journal details when the cited copy displays them.
+
+## 12. Reference form: StatPearls
+
+**Provenance:** APA Style's *Nursing Student References* page, item 5, read 2026-09-04.
+
+**Synthesized example:** Ellis, J. K. (2025). Community-acquired skin infection. *StatPearls*.
+Retrieved September 4, 2026, from https://www.statpearls.example/point-of-care/24680
+
+**Abstracted entry form:** Author, A. A. (Year). Title of entry. *StatPearls*. Retrieved Month Day,
+Year, from URL
+
+**Declared limit:** The synthesized example is not string-checkable against APA's page; the live
+page established the retrieval-date slot but not this invented author, title, or locator.
+
+## 13. Reference form: Authored or edited book
+
+**Provenance:** APA Style's *Nursing Student References* page, item 6, read 2026-09-04.
+
+**Synthesized example:** Allen, R. P., & Vega, M. L. (Eds.). (2024). *Foundations of ambulatory
+nursing* (3rd ed.). North Valley Press.
+
+**Abstracted entry form:** Author, A. A. (or Editor, A. A. [Ed.]). (Year). *Title of book* (Edition).
+Publisher. DOI or stable URL when present
+
+**Declared limit:** The synthesized example is not string-checkable against APA's page; the form
+does not establish authorship, edition, publisher, or locator for a real book.
+
+## 14. Reference form: Chapter in an edited book
+
+**Provenance:** APA Style's *Nursing Student References* page, item 7, read 2026-09-04.
+
+**Synthesized example:** James, P. R., & Soto, E. L. (2024). Medication reconciliation. In N. K.
+Brooks & A. D. Shah (Eds.), *Handbook of transitional care* (2nd ed., pp. 88–109). Harbor Press.
+
+**Abstracted entry form:** Chapter Author, A. A. (Year). Title of chapter. In E. E. Editor (Ed.),
+*Title of book* (Edition, pp. xx–xx). Publisher. DOI or stable URL when present
+
+**Declared limit:** The synthesized example is not string-checkable against APA's page; it records
+the chapter-to-container relationship without copying APA's example.
+
+## 15. Reference form: Report by a government agency or other group author
+
+**Provenance:** APA Style's *Nursing Student References* page, item 8, read 2026-09-04.
+
+**Synthesized example:** Mountain State Office of Rural Health. (2026). *Access to primary care in
+frontier counties* (Report No. 26-04). Department of Community Health.
+https://health.example/reports/frontier-care
+
+**Abstracted entry form:** Group Author. (Year). *Title of report* (Report number). Parent Agency or
+Publisher when different from the author. URL
+
+**Declared limit:** The synthesized example is not string-checkable against APA's page; the form
+does not prove which agency authored or published a real report.
+
+## 16. Reference form: Clinical practice guideline with a group author
+
+**Provenance:** APA Style's *Nursing Student References* page, item 9, read 2026-09-04.
+
+**Synthesized example:** Society for Community Respiratory Care. (2025). *Clinical practice
+guideline for home inhaler teaching*. https://guidelines.example/home-inhaler-teaching
+
+**Abstracted entry form:** Guideline Group. (Year). *Title of clinical practice guideline*. Site
+Name when different from the author. URL
+
+**Declared limit:** The synthesized example is not string-checkable against APA's page; the form
+does not establish that a named organization issued or updated a guideline.
+
+## 17. Reference form: Clinical practice guideline by individual authors at a government agency, published as part of a series
+
+**Provenance:** APA Style's *Nursing Student References* page, item 10, read 2026-09-04.
+
+**Synthesized example:** Ford, A. L., Nguyen, P. T., & Cole, J. R. (2026). Improving adult vaccine
+access in mobile clinics. *Public Health Practice Reports, 12*(4), 201–209.
+https://doi.org/10.1000/phpr.2026.204
+
+**Abstracted entry form:** Author, A. A. (Year). Title of report article. *Government Series Title,
+volume*(issue), page range. DOI or URL
+
+**Declared limit:** The synthesized example is not string-checkable against APA's page; the live
+form reflects the series' current journal-article presentation and must follow the cited issue.
+
+## 18. Reference form: Ethics code
+
+**Provenance:** APA Style's *Nursing Student References* page, item 11, read 2026-09-04.
+
+**Synthesized example:** Association of Community Nurse Educators. (2026). *Code of ethics for
+community-based teaching*. https://ethics.example/community-nurse-educators
+
+**Abstracted entry form:** Group Author. (Year). *Title of ethics code*. URL
+
+**Declared limit:** The synthesized example is not string-checkable against APA's page; it does not
+establish the title, date, publisher relationship, or section language of a real code.
+
+## 19. Reference form: Position statement
+
+**Provenance:** APA Style's *Nursing Student References* page, item 12, read 2026-09-04.
+
+**Synthesized example:** Coalition for Safe Ambulatory Care. (2026, May 14). *Position statement on
+plain-language discharge instructions*. https://policy.example/plain-language-discharge
+
+**Abstracted entry form:** Group Author. (Year, Month Day). *Title of position statement*. URL
+
+**Declared limit:** The synthesized example is not string-checkable against APA's page; the date
+precision and author-publisher relationship must be read from the actual statement.
+
+## 20. Reference form: Fact sheet
+
+**Provenance:** APA Style's *Nursing Student References* page, item 13, read 2026-09-04.
+
+**Synthesized example:** Office of Neighborhood Health. (2025). *Preventing heat illness at outdoor
+clinics* [Fact sheet]. Department of Public Health. https://publichealth.example/heat-clinics
+
+**Abstracted entry form:** Specific Agency. (Year or n.d.). *Title* [Fact sheet]. Parent Agency.
+URL
+
+**Declared limit:** The synthesized example is not string-checkable against APA's page; the actual
+document decides the responsible agency, available date, description, and parent source.
+
+## 21. Reference form: Drug information
+
+**Provenance:** APA Style's *Nursing Student References* page, item 15, read 2026-09-04.
+
+**Synthesized example:** Northlake Therapeutics. (2026, February 8). *Glucofen—metformin tablet*
+[Drug information]. DailyMed. https://dailymed.example/drug/glucofen
+
+**Abstracted entry form:** Manufacturer or Drug Author. (Year, Month Day or n.d.). *Title of drug
+information* [Drug information]. Website Name when different from the author. URL
+
+**Declared limit:** The synthesized example is not string-checkable against APA's page; it supplies
+no evidence about a real product, manufacturer, revision date, or DailyMed record.
+
+## 22. Reference form: Lab or diagnostic manual
+
+**Provenance:** APA Style's *Nursing Student References* page, item 16, read 2026-09-04.
+
+**Synthesized example:** Bennett, H. J., & Flores, M. A. (2025). *Pocket manual of ambulatory
+diagnostic tests* (6th ed.). Meridian Health Press.
+
+**Abstracted entry form:** Author, A. A. (Year). *Title of laboratory or diagnostic manual*
+(Edition). Publisher. DOI or stable URL when present
+
+**Declared limit:** The synthesized example is not string-checkable against APA's page; it records
+the book-form slots without establishing a real manual or edition.
+
+## 23. Reference form: Medical dictionary
+
+**Provenance:** APA Style's *Nursing Student References* page, item 17, read 2026-09-04.
+
+**Synthesized example:** Monroe, K. T. (Ed.). (2025). *Dictionary of outpatient medicine* (5th
+ed.). Meridian Health Press. https://dictionary.example/outpatient
+
+**Abstracted entry form:** Author or Editor, A. A. (Role). (Year). *Title of medical dictionary*
+(Edition or version) [Format when needed]. Publisher or App Store. URL when available
+
+**Declared limit:** The synthesized example is not string-checkable against APA's page; the cited
+dictionary's own medium determines which book, website, or application slots apply.
+
+## 24. Reference form: Entry in a medical dictionary
+
+**Provenance:** APA Style's *Nursing Student References* page, item 18, read 2026-09-04.
+
+**Synthesized example:** Capillary refill. (2025). In K. T. Monroe (Ed.), *Dictionary of outpatient
+medicine* (5th ed.). Meridian Health Press. https://dictionary.example/outpatient/capillary-refill
+
+**Abstracted entry form:** Entry Author or Entry Title. (Year). Entry title when not used as author.
+In E. E. Editor (Ed.), *Dictionary title* (Edition or version) [Format when needed]. Publisher or
+App Store. URL when available
+
+**Declared limit:** The synthesized example is not string-checkable against APA's page; attribution
+and container details must be read from the actual entry and dictionary.
+
+## 25. Reference form: YouTube video
+
+**Provenance:** APA Style's *Nursing Student References* page, item 19, read 2026-09-04.
+
+**Synthesized example:** Clinic Skills Studio. (2026, March 3). *Building a clear medication list*
+[Video]. YouTube. https://youtu.be/example-med-list
+
+**Abstracted entry form:** Account Name. (Year, Month Day). *Title of video* [Video]. YouTube. URL
+
+**Declared limit:** The synthesized example is not string-checkable against APA's page; the actual
+upload decides the account name, creation context, upload date, title, and locator.
+
+## 26. Reference form: Podcast or podcast episode
+
+**Provenance:** APA Style's *Nursing Student References* page, item 20, read 2026-09-04.
+
+**Synthesized example:** Torres, M. (Host). (2026, April 18). Teaching with a mobile clinic (No. 12)
+[Audio podcast episode]. In *Practice close to home*. Community Audio Network.
+https://audio.example/practice-close-to-home/12
+
+**Abstracted entry form:** Host, A. A. (Host). (Year, Month Day). Episode title (No. x) [Audio or
+video podcast episode]. In *Podcast title*. Publisher. URL. For a whole podcast, use its year span,
+italicized title, podcast description, publisher, and URL.
+
+**Declared limit:** The synthesized example is not string-checkable against APA's page; whether the
+work is an episode or whole podcast controls the date, title, and description slots.
+
+## 27. Reference form: Doctor of nursing practice (DNP) project
+
+**Provenance:** APA Style's *Nursing Student References* page, item 21, read 2026-09-04.
+
+**Synthesized example:** Lewis, N. A. (2025). *Improving follow-up after urgent-care discharge*
+[Doctor of nursing practice final project, Plains University]. Plains Digital Repository.
+https://repository.example/dnp/2025/44
+
+**Abstracted entry form:** Author, A. A. (Year). *Title of project* [Doctor of nursing practice
+project description, Degree-Granting University]. Repository Name. URL
+
+**Declared limit:** The synthesized example is not string-checkable against APA's page; the actual
+repository record supplies the project description, institution, repository, date, and URL.
+
+## 28. Reference form: PowerPoint slides or lecture notes
+
+**Provenance:** APA Style's *Nursing Student References* page, item 22, read 2026-09-04.
+
+**Synthesized example:** Kim, S. H., & Wallace, D. P. (2026, January 22). *Evaluating community
+screening events* [PowerPoint slides]. Regional Nursing Education Network.
+https://education.example/slides/screening-events
+
+**Abstracted entry form:** Author, A. A. (Year, Month Day). *Title* [PowerPoint slides or lecture
+notes]. Hosting Site. URL
+
+**Declared limit:** The synthesized example is not string-checkable against APA's page; this public
+locator form does not apply to course material unavailable to the reader.
+
+## 29. Reference form: Webpage on a website
+
+**Provenance:** APA Style's *Nursing Student References* page, item 23, read 2026-09-04.
+
+**Synthesized example:** Office of Family Health. (2026, June 9). *Preparing for a telehealth
+appointment*. Department of Community Services. https://services.example/telehealth/preparing
+
+**Abstracted entry form:** Author. (Year, Month Day or n.d.). *Title of webpage*. Site Name when
+different from the author. URL
+
+**Declared limit:** The synthesized example is not string-checkable against APA's page; use this
+form only when the work does not fit a more specific reference category.
+
+## 30. Outside the nursing set: APA reference example index
+
+**Provenance:** APA Style's general *Reference Examples* index, read 2026-09-04.
+
+**Synthesized routing example:** A writer citing an original data set first leaves the nursing set,
+selects **Data and Assessments**, and follows the index link for data-set references instead of
+forcing the work into the webpage form.
+
+**Abstracted selection form:** Identify the work itself → choose the narrowest applicable index
+category → choose that work type → apply the linked example. Use the webpage category only when no
+more specific category fits.
+
+**Declared limit:** This index section routes a reader and supplies no citation form of its own; the
+synthesized routing example is not string-checkable against APA's page and does not prove the
+linked detail page's slots.
