@@ -229,8 +229,24 @@ The record of a graded contribution as it stands on the board after submission â
 _Avoid_: reread, confirmation, post-check, board diff
 
 **Evidence dump**:
-The topics the clinician was handed wholesale, and the whole of what was read without going looking. A claim it does not cover is one nobody opened, which is why it belongs to the run that was handed it rather than to the account.
+One handover of complete tertiary-source topic bodies, supplied wholesale for a module rather than found by searching. It is the unit of provenance and no longer the unit of entitlement: dumps accumulate into the **Evidence store**, so a later paper may cite a topic an earlier dump carried.
 _Avoid_: sources, corpus, articles
+
+**Evidence store**:
+The account-owned accumulation of every **Evidence dump**, gitignored under the scratch root and searched rather than read whole. Holding it is what entitles a run to cite the topics it carries, so a checkout without one carries no entitlement however many **Topic sheets** it holds.
+_Avoid_: evidence folder, shared reference, cache, library
+
+**Topic sheet**:
+The committed distillation of one supplied topic: the source's own summary section restated in this repository's prose, verbatim only where a number, dose, criterion or cut point is the honesty mechanism, beside every bibliographic fact a citation needs. Keyed to the clinical topic and never to the dump that supplied it, so a topic supplied twice is one sheet read twice.
+_Avoid_: summary, digest, extract, article, evidence sheet
+
+**Dump manifest**:
+The gitignored record of one **Evidence dump** -- which topics arrived, for which module, on what date. It is what a citation-membership join reads, which is why it stays out of the repository while the **Topic sheets** it explains go in.
+_Avoid_: index, inventory, log, catalog
+
+**Review currency**:
+The date a tertiary source prints as the day its own literature review runs through, read off the topic body rather than named here. Distinct from a **Stated expiry**, which is a date of ceasing to have effect: a topic with a review date has not expired, it has merely stopped being re-read, and it is this date a **Topic sheet**'s re-read window is measured against.
+_Avoid_: recency, freshness, last updated, currency
 
 **Fixture**:
 A regression set derived from a working file with the visit date and site removed, committed so a skill's behavior can be checked after an edit.
