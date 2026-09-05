@@ -60,10 +60,13 @@ directly; the latter links it from its own workflow because the reference scanne
 [style.md](style.md) §10 described the corpus as roughly alphabetical, which was an accurate
 description of ten submitted documents and was never a statement of the standard. Sorted is sorted.
 
-## 2. UpToDate article reference form
+## 2. Reference form: UpToDate article
 
 APA publishes a reference example for this database specifically, which is worth knowing before
 inventing a form for it. *Publication Manual* §10.1.
+
+**Form provenance:** This form was read from the *Publication Manual*, not APA Style's *Nursing
+Student References* page, so it carries no page-item provenance line.
 
 ```
 Bordeaux, B., & Lieberman, H. R. (2020). Benefits and risks of caffeine and caffeinated
@@ -276,6 +279,9 @@ owns the rules and that command is a second *reader* of it, never a second copy*
 row it applies is written out in [SKILL.md](../SKILL.md) step 7 as well: a harness with no Python
 walks the table by eye and reaches the same verdict.
 
+A form section's heading uses `## <n>. Reference form: <class name>` exactly; the class-name tail
+is the published `APA_SOURCE_CLASSES` vocabulary term rather than a paraphrase.
+
 **What stays a reading, and it is a list rather than a paragraph now.** Each row is a rule this
 sheet states that no command grades, so a run walks it by eye — and since
 [#241](https://github.com/mshamblin5150-code/clinical-skills/issues/241) the walk is not left to
@@ -322,7 +328,7 @@ so the fifth class does not silently loosen a clinical run.
 sweep had open, which is [#137](https://github.com/mshamblin5150-code/clinical-skills/issues/137)
 again. Found by the merge rather than by either branch.
 
-## 8. Legal reference entries — State nursing practice act (NPA)
+## 8. Reference form: State nursing practice act (NPA)
 
 **Provenance:** APA Style's *Nursing Student References* page, item 14, read 2026-08-30.
 
