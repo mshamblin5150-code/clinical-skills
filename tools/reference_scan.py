@@ -262,6 +262,12 @@ class ApaSourceClass:
     takes_retrieval_date: bool
 
 
+# A form section is ``## <n>. Reference form: <class name>``. The bind in
+# ``TheNursingSourceClassTableIsBoundToTheSheet`` detects this marker and
+# compares its stripped tail byte-for-byte with ``ApaSourceClass.name``.
+FORM_HEADING_MARKER = "Reference form: "
+
+
 # One table owns both answers. The sheet headings bind ``has_form`` in both
 # directions in ``TheNursingSourceClassTableIsBoundToTheSheet``; consumers derive
 # the requires-one set from the final column rather than copying it.

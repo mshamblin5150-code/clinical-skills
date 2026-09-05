@@ -48,6 +48,14 @@ APA7 = REPO_ROOT / "skills" / "practicum-case-study" / "reference" / "apa7.md"
 DISCUSSION_POST_SKILL = REPO_ROOT / "skills" / "discussion-post" / "SKILL.md"
 CONTEXT = REPO_ROOT / "CONTEXT.md"
 
+
+def numbered_markdown_section(text: str, number: int) -> str:
+    """Return one numbered ``##`` section, bounded by the next peer heading."""
+    block = text[text.index(f"## {number}.") :]
+    next_heading = block.find("\n## ", 1)
+    return block if next_heading == -1 else block[:next_heading]
+
+
 AS_OF = date(2026, 8, 19)
 
 ACOG = (
@@ -1220,10 +1228,7 @@ class TheTwoCopiesOfWhatStaysAReading(unittest.TestCase):
         rather than about the rule -- an eighth section would have silently widened
         what this reads. Caught by review.
         """
-        text = APA7.read_text(encoding="utf-8")
-        block = text[text.index("## 7.") :]
-        nxt = block.find(chr(10) + "## ", 1)
-        return block if nxt == -1 else block[:nxt]
+        return numbered_markdown_section(APA7.read_text(encoding="utf-8"), 7)
 
     def rows(self):
         return docx_write.table_first_cells(self.section_seven())
@@ -1400,7 +1405,11 @@ class TheNursingSourceClassTableIsBoundToTheSheet(unittest.TestCase):
             tuple(enumerate(self.EXPECTED_CLASSES, 1)),
         )
 
-    def assert_form_headings_bind(self, sheet: str) -> None:
+    def assert_form_headings_bind(
+        self,
+        sheet: str,
+        source_classes=scan.APA_SOURCE_CLASSES,
+    ) -> None:
         headings = tuple(
             line.removeprefix("## ")
             for line in sheet.splitlines()
@@ -1409,31 +1418,69 @@ class TheNursingSourceClassTableIsBoundToTheSheet(unittest.TestCase):
         form_headings = tuple(
             heading
             for heading in headings
-            if "reference form" in heading.casefold()
-            or "reference entries" in heading.casefold()
+            if scan.FORM_HEADING_MARKER in heading
         )
-        matched = {
-            heading: tuple(
-                item.name
-                for item in scan.APA_SOURCE_CLASSES
-                if item.name.casefold() in heading.casefold()
-            )
-            for heading in form_headings
-        }
-        self.assertTrue(all(len(names) == 1 for names in matched.values()))
-        classes_named_by_a_heading = {names[0] for names in matched.values()}
+        class_by_name = {item.name: item for item in source_classes}
+        classes_named_by_a_heading = []
+        for heading in form_headings:
+            tail = heading.partition(scan.FORM_HEADING_MARKER)[2].strip()
+            self.assertIn(tail, class_by_name)
+            classes_named_by_a_heading.append(tail)
         classes_claiming_a_form = {
-            item.name for item in scan.APA_SOURCE_CLASSES if item.has_form
+            item.name for item in source_classes if item.has_form
         }
-        self.assertEqual(classes_claiming_a_form, classes_named_by_a_heading)
+        self.assertEqual(len(classes_claiming_a_form), len(classes_named_by_a_heading))
+        self.assertEqual(classes_claiming_a_form, set(classes_named_by_a_heading))
+
+    def synthetic_form_sheet(self, source_classes=scan.APA_SOURCE_CLASSES) -> str:
+        return "\n".join(
+            f"## {item.item}. {scan.FORM_HEADING_MARKER}{item.name}"
+            for item in source_classes
+            if item.has_form
+        )
 
     def test_has_form_is_bound_to_the_sheet_headings_in_both_directions(self):
         self.assert_form_headings_bind(APA7.read_text(encoding="utf-8"))
 
+    def test_nested_class_names_bind_to_distinct_synthetic_headings(self):
+        nested_pairs = tuple(
+            (shorter, longer)
+            for shorter in scan.APA_SOURCE_CLASSES
+            for longer in scan.APA_SOURCE_CLASSES
+            if shorter is not longer and shorter.name in longer.name
+        )
+        self.assertTrue(nested_pairs, "the nested-name premise needs rereading")
+        nested_names = {item.name for item in nested_pairs[0]}
+        classes = tuple(
+            scan.ApaSourceClass(
+                item.item,
+                item.name,
+                item.has_form or item.name in nested_names,
+                item.takes_retrieval_date,
+            )
+            for item in scan.APA_SOURCE_CLASSES
+        )
+        self.assert_form_headings_bind(self.synthetic_form_sheet(classes), classes)
+
+    def test_a_duplicate_form_heading_breaks_the_bijection(self):
+        sheet = self.synthetic_form_sheet()
+        duplicate = (
+            f"\n## 24. {scan.FORM_HEADING_MARKER}UpToDate article\n"
+        )
+        with self.assertRaises(AssertionError):
+            self.assert_form_headings_bind(sheet + duplicate)
+
     def test_an_unknown_form_heading_breaks_the_bind(self):
-        mutant = APA7.read_text(encoding="utf-8") + "\n## 24. Unknown reference form\n"
+        mutant = (
+            self.synthetic_form_sheet()
+            + f"\n## 24. {scan.FORM_HEADING_MARKER}Unknown source class\n"
+        )
         with self.assertRaises(AssertionError):
             self.assert_form_headings_bind(mutant)
+
+    def test_section_seven_states_the_form_heading_marker(self):
+        section = numbered_markdown_section(APA7.read_text(encoding="utf-8"), 7)
+        self.assertIn(scan.FORM_HEADING_MARKER, section)
 
     def test_retrieval_date_requirement_is_one_column_not_a_second_mapping(self):
         self.assertEqual(
