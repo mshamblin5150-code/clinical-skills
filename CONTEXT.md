@@ -217,7 +217,7 @@ The year in a legal citation, naming the edition of the code the writer consulte
 _Avoid_: edition year, currency date, as-of year, publication year
 
 **Codification cross-reference**:
-A legal citation written inside a reference entry that is not that entry's authority — the note saying where the enacted law was later codified. It names a real provision, so it is indistinguishable from an authority by shape alone, and what is read instead is declared in `discussion_artifact.LEGAL_READER_NOT_REACHED` rather than restated here. **The distinction is which law the entry is a reference *for*, never which citation is well formed**; both are.
+A legal citation written inside a reference entry that is not that entry's authority — the note saying where the enacted law was later codified. It names a real provision, so it is indistinguishable from an authority by shape alone, and what is read instead is declared in `discussion_artifact.LEGAL_SOURCE_NOT_REACHED` rather than restated here. **The distinction is which law the entry is a reference *for*, never which citation is well formed**; both are.
 _Avoid_: codified cite, cross-cite, secondary citation, see-also
 
 **Parallel citation**:
