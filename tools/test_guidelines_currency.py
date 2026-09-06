@@ -109,8 +109,10 @@ class RegistryBind(unittest.TestCase):
                 society_observed="2025-09-05",
             )
         )
-        result = currency.audit(rows, parsed, today=date(2026, 9, 5))
-        self.assertTrue(any("ADA" in item and "2026 publication cycle" in item for item in result.findings))
+        early = currency.audit(rows, parsed, today=date(2026, 1, 1))
+        self.assertFalse(any("ADA" in item and "publication cycle" in item for item in early.findings))
+        due = currency.audit(rows, parsed, today=date(2026, 9, 5))
+        self.assertTrue(any("ADA" in item and "publication cycle" in item for item in due.findings))
 
 
 class ReaderCoverage(unittest.TestCase):
@@ -323,8 +325,10 @@ class FetchBoundary(unittest.TestCase):
             sheet.write_text("old sheet bytes", encoding="utf-8")
             before = sheet.read_bytes()
             with mock.patch.object(currency, "download_bytes", return_value=payload), mock.patch.object(
-                currency, "run_rebuild_pipeline"
-            ) as rebuild:
+                currency, "run_guidelines_build"
+            ) as build, mock.patch.object(currency, "run_catalog_check") as catalog_check, mock.patch.object(
+                currency, "run_coverage_check"
+            ) as coverage_check:
                 record = currency.fetch_replacement(
                     "https://example.invalid/new.pdf",
                     "KDIGO/new.pdf",
@@ -343,7 +347,9 @@ class FetchBoundary(unittest.TestCase):
                 f"| KDIGO | new.pdf | {record.sha256} | {len(payload)} | {record.fetched} |",
                 audit.read_text(encoding="utf-8"),
             )
-            rebuild.assert_called_once_with(corpus, catalog, audit, coverage)
+            build.assert_called_once_with(corpus)
+            catalog_check.assert_called_once_with(corpus, catalog, audit)
+            coverage_check.assert_called_once_with(catalog, coverage)
 
     def test_fetch_preflights_the_catalog_handoff_before_downloading(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -366,7 +372,7 @@ class FetchBoundary(unittest.TestCase):
             coverage_before = coverage.read_bytes()
             audit_before = audit.read_bytes()
             with mock.patch.object(currency, "download_bytes", return_value=payload), mock.patch.object(
-                currency, "run_rebuild_pipeline", side_effect=subprocess.CalledProcessError(1, ["build"])
+                currency, "run_guidelines_build", side_effect=subprocess.CalledProcessError(1, ["build"])
             ):
                 with self.assertRaises(subprocess.CalledProcessError):
                     currency.fetch_replacement(
@@ -376,6 +382,26 @@ class FetchBoundary(unittest.TestCase):
             self.assertFalse((root / "corpus" / "KDIGO" / "new.pdf").exists())
             self.assertEqual(coverage.read_bytes(), coverage_before)
             self.assertEqual(audit.read_bytes(), audit_before)
+
+    def test_post_build_check_failure_keeps_source_and_digest_coherent(self):
+        payload = b"%PDF-1.7\nreplacement guideline"
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            catalog, registry_path, coverage, audit = self.handoff_files(root)
+            coverage_before = coverage.read_bytes()
+            with mock.patch.object(currency, "download_bytes", return_value=payload), mock.patch.object(
+                currency, "run_guidelines_build"
+            ), mock.patch.object(
+                currency, "run_catalog_check", side_effect=subprocess.CalledProcessError(1, ["catalog"])
+            ):
+                with self.assertRaises(subprocess.CalledProcessError):
+                    currency.fetch_replacement(
+                        "https://example.invalid/new.pdf", "KDIGO/new.pdf", root / "corpus",
+                        coverage, "lipids", "old.pdf", audit, catalog, registry_path,
+                    )
+            self.assertTrue((root / "corpus" / "KDIGO" / "new.pdf").exists())
+            self.assertIn("| KDIGO | new.pdf |", audit.read_text(encoding="utf-8"))
+            self.assertEqual(coverage.read_bytes(), coverage_before)
 
 
 if __name__ == "__main__":

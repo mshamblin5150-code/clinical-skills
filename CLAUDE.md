@@ -1756,7 +1756,8 @@ plain reader fetches its declared route; AHA/ACC and GOLD require an agent-suppl
 capture. A successful HTTP response with no countable guideline entries is a failed
 read, never a successful empty index, and a detectable next page or total contributes
 to the unread remainder. `--draft` leaves society observations blank and unread, so a
-scaffold cannot claim that anybody looked. The exact claims this cannot establish live in
+scaffold cannot claim that anybody looked; it deliberately does not grade clean until
+those unread-state dates are supplied. The exact claims this cannot establish live in
 `guidelines_currency.DECLARED_LIMITS` and are not copied here.
 
 `--fetch-replacement` is explicit and networked. It writes the received PDF below
@@ -1765,8 +1766,10 @@ ledger, runs the governed build and catalog checks, and moves the affected cover
 row to `unread` with the supersession record. It never edits a threshold sheet, so a
 new source cannot be attached to rows distilled from the retired document without a
 new clinical read. The curated catalog row and the registry's old-to-new bind must
-exist before the fetch; a failed rebuild restores both registries and removes the newly
-received PDF and its receipt rather than leaving a half-completed handoff.
+exist before the fetch. A failure before the build publishes removes the new PDF and
+receipt. After derived aliases publish, a later validation failure preserves the source,
+receipt, and digest instead of leaving an alias pointed at a deleted corpus document;
+the coverage row changes only after the catalog check passes.
 
 The pre-commit advisory opens no socket and prints only the oldest recorded
 observation plus the never-checked count and remedy. Covered by

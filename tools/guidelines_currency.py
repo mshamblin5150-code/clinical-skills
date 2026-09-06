@@ -412,11 +412,17 @@ def audit(
             if entry and DATE_RE.fullmatch(entry.last_observed)
             else None
         )
-        publication_cycle = max([today.year, *editions]) if editions else today.year
-        if observed is not None and observed.year < publication_cycle:
+        if observed is not None:
+            try:
+                next_cycle = observed.replace(year=observed.year + 1)
+            except ValueError:
+                next_cycle = observed.replace(year=observed.year + 1, day=28)
+        else:
+            next_cycle = None
+        if next_cycle is not None and today >= next_cycle:
             findings.append(
-                f"{society} observation {observed.isoformat()} predates its "
-                f"{publication_cycle} publication cycle"
+                f"{society} observation {observed.isoformat()} is older than its "
+                f"annual publication cycle due {next_cycle.isoformat()}"
             )
 
     return AuditResult(
@@ -647,16 +653,22 @@ def validate_pdf_bytes(payload: bytes) -> None:
         raise ReadError("downloaded replacement is not a PDF")
 
 
-def run_rebuild_pipeline(
-    corpus_root: Path,
-    catalog_path: Path = DEFAULT_CATALOG,
-    audit_path: Path = DEFAULT_AUDIT,
-    coverage_path: Path = DEFAULT_COVERAGE,
-) -> None:
-    """Run the governed rebuild stages after a replacement reaches the corpus."""
+def _run_stage(command: list[str]) -> None:
+    subprocess.run(command, cwd=REPO_ROOT, check=True)
 
-    commands = (
-        [sys.executable, str(REPO_ROOT / "tools" / "guidelines_build.py"), str(corpus_root)],
+
+def run_guidelines_build(corpus_root: Path) -> None:
+    """Build and atomically publish the external derived-corpus aliases."""
+
+    _run_stage(
+        [sys.executable, str(REPO_ROOT / "tools" / "guidelines_build.py"), str(corpus_root)]
+    )
+
+
+def run_catalog_check(corpus_root: Path, catalog_path: Path, audit_path: Path) -> None:
+    """Grade the rebuilt corpus and the just-recorded byte identity."""
+
+    _run_stage(
         [
             sys.executable,
             str(REPO_ROOT / "tools" / "guidelines_catalog.py"),
@@ -666,7 +678,14 @@ def run_rebuild_pipeline(
             str(catalog_path),
             "--audit",
             str(audit_path),
-        ],
+        ]
+    )
+
+
+def run_coverage_check(catalog_path: Path, coverage_path: Path) -> None:
+    """Grade the post-fetch unread handoff against the curated catalog."""
+
+    _run_stage(
         [
             sys.executable,
             str(REPO_ROOT / "tools" / "threshold_coverage.py"),
@@ -674,10 +693,8 @@ def run_rebuild_pipeline(
             str(catalog_path),
             "--coverage",
             str(coverage_path),
-        ],
+        ]
     )
-    for command in commands:
-        subprocess.run(command, cwd=REPO_ROOT, check=True)
 
 
 def _mark_topic_unread(
@@ -835,11 +852,16 @@ def fetch_replacement(
     sidecar = destination.with_suffix(destination.suffix + ".fetch.json")
     destination.write_bytes(payload)
     record = FetchRecord(url, filename, digest, len(payload), observed)
+    build_completed = False
     try:
         sidecar.write_text(
             json.dumps(record.__dict__, indent=2, sort_keys=True) + "\n",
             encoding="utf-8",
         )
+        # Build while the checkout is still clean. The build system refuses to
+        # publish a new trusted artifact from a dirty producer checkout.
+        run_guidelines_build(corpus_root)
+        build_completed = True
         _upsert_audit_digest(
             audit_path,
             relative.parts[0],
@@ -848,15 +870,15 @@ def fetch_replacement(
             len(payload),
             observed,
         )
-        _mark_topic_unread(
-            coverage_path, topic, old_filename, filename, digest, observed
-        )
-        run_rebuild_pipeline(corpus_root, catalog_path, audit_path, coverage_path)
+        run_catalog_check(corpus_root, catalog_path, audit_path)
+        _mark_topic_unread(coverage_path, topic, old_filename, filename, digest, observed)
+        run_coverage_check(catalog_path, coverage_path)
     except Exception:
-        audit_path.write_text(audit_text, encoding="utf-8")
-        coverage_path.write_text(coverage_text, encoding="utf-8")
-        sidecar.unlink(missing_ok=True)
-        destination.unlink(missing_ok=True)
+        if not build_completed:
+            audit_path.write_text(audit_text, encoding="utf-8")
+            coverage_path.write_text(coverage_text, encoding="utf-8")
+            sidecar.unlink(missing_ok=True)
+            destination.unlink(missing_ok=True)
         raise
     return record
 
