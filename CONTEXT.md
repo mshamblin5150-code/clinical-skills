@@ -197,11 +197,11 @@ The narrowest source shape a reference entry's own signals support, declaring ev
 _Avoid_: source class, reference type, guessed class, citation kind
 
 **Legal reference entry**:
-A reference for codified law, including a statute or regulation. Its name is the name of the legal source and its section is the locator, so an entry carrying only a section names nothing and is not one.
-_Avoid_: citation entry, code cite, regulation cite
+A reference for enacted or codified law, including a session law, a statute or a regulation. Its name is the name of the legal source and its section is the locator, so an entry carrying only a section names nothing and is not one. **Enacted and codified are two locations of one law, not two kinds of entry** — an act as passed and the same act as codified are the same authority written twice, and an entry may carry both.
+_Avoid_: citation entry, code cite, regulation cite, statute entry
 
 **Legal citation**:
-An in-text reference to codified law, spelled with the legal source's name and year. The section is a locator and may stand in the same slot, but it is not what names the source.
+An in-text reference to enacted or codified law, spelled with the legal source's name and year. The section is a locator and may stand in the same slot, but it is not what names the source.
 _Avoid_: code citation, section reference
 
 **Section number**:
@@ -215,6 +215,14 @@ _Avoid_: subsection, paragraph, suffix, subdivision
 **Codification year**:
 The year in a legal citation, naming the edition of the code the writer consulted. **It is provenance and never currency** — accurate the day it was written and accurate a decade later, because it says which snapshot was read rather than that the snapshot still holds. What can go stale is the unstated claim beneath it, that the text quoted is still in force, and that is a different question with a different answer: the publisher's reissue schedule is not a stated expiry, and the snapshot behind the year is reached by nothing here.
 _Avoid_: edition year, currency date, as-of year, publication year
+
+**Codification cross-reference**:
+A legal citation written inside a reference entry that is not that entry's authority — the note saying where the enacted law was later codified. It names a real provision, so it is indistinguishable from an authority by shape alone, and what is read instead is declared in `discussion_artifact.LEGAL_SOURCE_NOT_REACHED` rather than restated here. **The distinction is which law the entry is a reference *for*, never which citation is well formed**; both are.
+_Avoid_: codified cite, cross-cite, secondary citation, see-also
+
+**Parallel citation**:
+A second locator for the same enactment, published elsewhere — the Statutes at Large page beside the public law number. It repeats an authority already named rather than adding one, so an entry carrying one has one authority and two addresses for it, and reading both would put two legal spans in one entry.
+_Avoid_: parallel cite, alternate citation, duplicate citation
 
 **Run directory**:
 The one place a graded artifact's provenance is kept — its bar, its board snapshots, its claim and check ledgers, and the evidence it was handed. Named by the run key, so it carries no date and outlives every sitting.
