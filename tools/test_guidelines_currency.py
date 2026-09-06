@@ -28,6 +28,8 @@ CATALOG = """| society | filename | title | topic | population | year | page_cou
 
 
 def registry(*documents: str, society_observed: str = "2026-09-05") -> str:
+    ada = currency.SOCIETY_INDEXES["ADA"]
+    aha = currency.SOCIETY_INDEXES["AHA ACC"]
     return f"""# Guideline edition currency
 
 {currency.SCHEMA_MARKER}
@@ -36,8 +38,8 @@ def registry(*documents: str, society_observed: str = "2026-09-05") -> str:
 
 | society | index | reader | join key | access | last observed | state | state observed |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| ADA | https://example.invalid/ada | ada | dcYY-srev | plain | {society_observed} | read |  |
-| AHA ACC | https://example.invalid/aha | aha-acc | DOI | agent | {society_observed} | read |  |
+| ADA | {ada[0]} | {ada[1]} | {ada[2]} | {ada[3]} | {society_observed} | read |  |
+| AHA ACC | {aha[0]} | {aha[1]} | {aha[2]} | {aha[3]} | {society_observed} | read |  |
 
 ## Documents
 
@@ -86,6 +88,30 @@ class RegistryBind(unittest.TestCase):
         )
         self.assertGreaterEqual(len(result.failures), 3)
 
+    def test_society_reader_contract_cannot_drift_from_the_ruled_route(self):
+        text = registry(
+            "| diabetes.pdf | ADA | dc26-srev | current |  |  |\n",
+            "| old.pdf | AHA ACC | 10.1000/old | current |  |  |\n",
+            "| new.pdf | AHA ACC | 10.1000/new | current |  |  |\n",
+        ).replace("| ada |", "| invented-reader |", 1)
+        result = self.audit(text)
+        self.assertTrue(any("reader" in failure and "ruled contract" in failure for failure in result.failures))
+
+    def test_annual_cycle_ages_even_when_the_new_edition_is_not_in_the_catalog(self):
+        older_catalog = CATALOG.replace("| 2026 | 2 |", "| 2025 | 2 |", 1)
+        rows, _, problems = currency.guidelines_catalog.parse_catalog(older_catalog)
+        self.assertEqual(problems, [])
+        parsed = currency.parse_registry(
+            registry(
+                "| diabetes.pdf | ADA | dc25-srev | current | 2025-09-05 |  |\n",
+                "| old.pdf | AHA ACC | 10.1000/old | current |  |  |\n",
+                "| new.pdf | AHA ACC | 10.1000/new | current |  |  |\n",
+                society_observed="2025-09-05",
+            )
+        )
+        result = currency.audit(rows, parsed, today=date(2026, 9, 5))
+        self.assertTrue(any("ADA" in item and "2026 publication cycle" in item for item in result.findings))
+
 
 class ReaderCoverage(unittest.TestCase):
     def test_declared_limits_name_the_unreachable_claims(self):
@@ -109,6 +135,16 @@ class ReaderCoverage(unittest.TestCase):
         html = """
         <a href='https://doi.org/10.1000/one'>Practice guideline one</a>
         <a href='/guideline/two'>Practice guideline two without DOI</a>
+        """
+        result = currency.read_society_index("IDSA", html)
+        self.assertEqual(result.denominator, 2)
+        self.assertEqual(result.join_values, ("10.1000/one",))
+        self.assertEqual(result.unread, 1)
+
+    def test_detectable_pagination_cannot_report_a_clean_whole(self):
+        html = """
+        <a href='https://doi.org/10.1000/one'>Practice guideline one</a>
+        <a rel='next' href='?page=2'>Next</a>
         """
         result = currency.read_society_index("IDSA", html)
         self.assertEqual(result.denominator, 2)
@@ -169,6 +205,9 @@ class CommandContract(unittest.TestCase):
             parsed = currency.parse_registry(output.read_text(encoding="utf-8"))
         self.assertEqual(len(parsed.documents), 3)
         self.assertEqual({row.filename for row in parsed.documents}, {"diabetes.pdf", "old.pdf", "new.pdf"})
+        self.assertTrue(all(row.state == "unread" for row in parsed.societies))
+        self.assertTrue(all(not row.last_observed for row in parsed.societies))
+        self.assertTrue(all(not row.state_observed for row in parsed.societies))
 
     def test_missing_input_is_not_graded(self):
         completed = subprocess.run(
@@ -215,6 +254,45 @@ class CommandContract(unittest.TestCase):
 
 
 class FetchBoundary(unittest.TestCase):
+    def handoff_files(self, root: Path) -> tuple[Path, Path, Path, Path]:
+        catalog = root / "catalog.md"
+        registry_path = root / "currency.md"
+        coverage = root / "coverage.md"
+        audit = root / "audit.md"
+        catalog.write_text(
+            "| society | filename | title | topic | population | year | page_count | class | citation |\n"
+            "| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n"
+            "| KDIGO | old.pdf | Old | lipids | adult | 2013 | 1 | guideline | 10.1000/old |\n"
+            "| KDIGO | new.pdf | New | ckd | adult | 2024 | 1 | guideline | 10.1000/new |\n",
+            encoding="utf-8",
+        )
+        route = currency.SOCIETY_INDEXES["KDIGO"]
+        registry_path.write_text(
+            f"# Currency\n\n{currency.SCHEMA_MARKER}\n\n## Society indexes\n\n"
+            "| society | index | reader | join key | access | last observed | state | state observed |\n"
+            "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
+            f"| KDIGO | {route[0]} | {route[1]} | {route[2]} | {route[3]} | 2026-09-05 | read |  |\n\n"
+            "## Documents\n\n"
+            "| filename | society | join value | verdict | observed | superseded by |\n"
+            "| --- | --- | --- | --- | --- | --- |\n"
+            "| old.pdf | KDIGO | 10.1000/old | superseded | 2026-09-05 | new.pdf |\n"
+            "| new.pdf | KDIGO | 10.1000/new | current | 2026-09-05 |  |\n",
+            encoding="utf-8",
+        )
+        coverage.write_text(
+            "| topic | subject | state | artifact | record |\n"
+            "| --- | --- | --- | --- | --- |\n"
+            "| lipids | lipids | sheet | topic.md | prior |\n",
+            encoding="utf-8",
+        )
+        audit.write_text(
+            "## Documents\n\n"
+            "| society | filename | sha256 | bytes | audited |\n"
+            "| --- | --- | --- | --- | --- |\n",
+            encoding="utf-8",
+        )
+        return catalog, registry_path, coverage, audit
+
     def test_html_response_is_not_accepted_as_a_guideline_pdf(self):
         with self.assertRaisesRegex(currency.ReadError, "not a PDF"):
             currency.validate_pdf_bytes(b"<html>Just a moment...</html>")
@@ -240,22 +318,9 @@ class FetchBoundary(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             corpus = root / "corpus"
-            coverage = root / "coverage.md"
-            audit = root / "audit.md"
+            catalog, registry_path, coverage, audit = self.handoff_files(root)
             sheet = root / "topic.md"
             sheet.write_text("old sheet bytes", encoding="utf-8")
-            coverage.write_text(
-                "| topic | subject | state | artifact | record |\n"
-                "| --- | --- | --- | --- | --- |\n"
-                "| lipids | lipids | sheet | topic.md | prior |\n",
-                encoding="utf-8",
-            )
-            audit.write_text(
-                "## Documents\n\n"
-                "| society | filename | sha256 | bytes | audited |\n"
-                "| --- | --- | --- | --- | --- |\n",
-                encoding="utf-8",
-            )
             before = sheet.read_bytes()
             with mock.patch.object(currency, "download_bytes", return_value=payload), mock.patch.object(
                 currency, "run_rebuild_pipeline"
@@ -268,6 +333,8 @@ class FetchBoundary(unittest.TestCase):
                     "lipids",
                     "old.pdf",
                     audit,
+                    catalog,
+                    registry_path,
                 )
             self.assertEqual(sheet.read_bytes(), before)
             self.assertEqual(record.sha256, "8db6673ffd1a5cc0b9e0a05881c2364eda5d97c5750d8810d63e0a473510ddb4")
@@ -276,7 +343,39 @@ class FetchBoundary(unittest.TestCase):
                 f"| KDIGO | new.pdf | {record.sha256} | {len(payload)} | {record.fetched} |",
                 audit.read_text(encoding="utf-8"),
             )
-            rebuild.assert_called_once_with(corpus)
+            rebuild.assert_called_once_with(corpus, catalog, audit, coverage)
+
+    def test_fetch_preflights_the_catalog_handoff_before_downloading(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            catalog, registry_path, coverage, audit = self.handoff_files(root)
+            catalog.write_text(catalog.read_text(encoding="utf-8").replace("| KDIGO | new.pdf", "| KDIGO | other.pdf"), encoding="utf-8")
+            with mock.patch.object(currency, "download_bytes") as download:
+                with self.assertRaisesRegex(ValueError, "catalog has no replacement"):
+                    currency.fetch_replacement(
+                        "https://example.invalid/new.pdf", "KDIGO/new.pdf", root / "corpus",
+                        coverage, "lipids", "old.pdf", audit, catalog, registry_path,
+                    )
+            download.assert_not_called()
+
+    def test_failed_rebuild_rolls_back_received_bytes_and_registry_mutations(self):
+        payload = b"%PDF-1.7\nreplacement guideline"
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            catalog, registry_path, coverage, audit = self.handoff_files(root)
+            coverage_before = coverage.read_bytes()
+            audit_before = audit.read_bytes()
+            with mock.patch.object(currency, "download_bytes", return_value=payload), mock.patch.object(
+                currency, "run_rebuild_pipeline", side_effect=subprocess.CalledProcessError(1, ["build"])
+            ):
+                with self.assertRaises(subprocess.CalledProcessError):
+                    currency.fetch_replacement(
+                        "https://example.invalid/new.pdf", "KDIGO/new.pdf", root / "corpus",
+                        coverage, "lipids", "old.pdf", audit, catalog, registry_path,
+                    )
+            self.assertFalse((root / "corpus" / "KDIGO" / "new.pdf").exists())
+            self.assertEqual(coverage.read_bytes(), coverage_before)
+            self.assertEqual(audit.read_bytes(), audit_before)
 
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 """Audit and refresh the guideline edition-currency registry.
 
     python tools/guidelines_currency.py
-    python tools/guidelines_currency.py --read USPSTF IDSA
+    python tools/guidelines_currency.py --read USPSTF --read IDSA
     python tools/guidelines_currency.py --read AHA-ACC --capture AHA-ACC=page.html
     python tools/guidelines_currency.py --fetch-replacement URL --filename SOCIETY/file.pdf ...
 
@@ -316,6 +316,13 @@ def audit(
                 failures.append(f"{where} has blank {column}")
         if entry.access not in {"plain", "agent"}:
             failures.append(f"{where} has unknown access {entry.access!r}")
+        ruled = SOCIETY_INDEXES.get(entry.society)
+        declared = (entry.index, entry.reader, entry.join_key, entry.access)
+        if ruled is not None and declared != ruled:
+            failures.append(
+                f"{where} route, reader, join key, or access disagrees with the "
+                "ruled contract"
+            )
         if entry.state not in SOCIETY_STATES:
             failures.append(f"{where} has unknown state {entry.state!r}")
         last_observed = _parsed_date(entry.last_observed, where, failures)
@@ -405,10 +412,11 @@ def audit(
             if entry and DATE_RE.fullmatch(entry.last_observed)
             else None
         )
-        if editions and observed is not None and observed.year < max(editions):
+        publication_cycle = max([today.year, *editions]) if editions else today.year
+        if observed is not None and observed.year < publication_cycle:
             findings.append(
                 f"{society} observation {observed.isoformat()} predates its "
-                f"{max(editions)} publication cycle"
+                f"{publication_cycle} publication cycle"
             )
 
     return AuditResult(
@@ -487,6 +495,25 @@ def _join_from_anchor(normalized: str, combined: str) -> str | None:
     raise ReadError(f"no declared reader for society {normalized!r}")
 
 
+def _detectable_unread_remainder(content: str, visible: int) -> int:
+    """Return a lower bound for publisher entries visibly withheld by the response."""
+
+    totals = (
+        re.search(r"showing\s+\d+(?:\s*[-–]\s*\d+)?\s+of\s+(\d+)", content, re.I),
+        re.search(r'"total(?:Results|Count)"\s*:\s*(\d+)', content, re.I),
+    )
+    for match in totals:
+        if match is not None:
+            return max(0, int(match.group(1)) - visible)
+    has_next = re.search(
+        r"\brel\s*=\s*['\"][^'\"]*\bnext\b|\bload\s+more\b|"
+        r"['\"]hasMore['\"]\s*:\s*true",
+        content,
+        re.I,
+    )
+    return 1 if has_next else 0
+
+
 def read_society_index(society: str, content: str) -> ReaderResult:
     """Read one supplied index capture and state its countable coverage."""
 
@@ -500,7 +527,13 @@ def read_society_index(society: str, content: str) -> ReaderResult:
             joins.append(value)
         if value is None:
             unread += 1
-    return ReaderResult(normalized, len(guideline_anchors), tuple(joins), unread)
+    hidden = _detectable_unread_remainder(content, len(guideline_anchors))
+    return ReaderResult(
+        normalized,
+        len(guideline_anchors) + hidden,
+        tuple(joins),
+        unread + hidden,
+    )
 
 
 def follow_index_links(
@@ -538,7 +571,13 @@ def follow_index_links(
             else:
                 values.append(None)
     joins = tuple(dict.fromkeys(value for value in values if value is not None))
-    return ReaderResult(normalized, len(anchors), joins, sum(value is None for value in values))
+    hidden = _detectable_unread_remainder(content, len(anchors))
+    return ReaderResult(
+        normalized,
+        len(anchors) + hidden,
+        joins,
+        sum(value is None for value in values) + hidden,
+    )
 
 
 def follow_doi_links(
@@ -608,7 +647,12 @@ def validate_pdf_bytes(payload: bytes) -> None:
         raise ReadError("downloaded replacement is not a PDF")
 
 
-def run_rebuild_pipeline(corpus_root: Path) -> None:
+def run_rebuild_pipeline(
+    corpus_root: Path,
+    catalog_path: Path = DEFAULT_CATALOG,
+    audit_path: Path = DEFAULT_AUDIT,
+    coverage_path: Path = DEFAULT_COVERAGE,
+) -> None:
     """Run the governed rebuild stages after a replacement reaches the corpus."""
 
     commands = (
@@ -618,8 +662,19 @@ def run_rebuild_pipeline(corpus_root: Path) -> None:
             str(REPO_ROOT / "tools" / "guidelines_catalog.py"),
             "--pdf-src",
             str(corpus_root),
+            "--catalog",
+            str(catalog_path),
+            "--audit",
+            str(audit_path),
         ],
-        [sys.executable, str(REPO_ROOT / "tools" / "threshold_coverage.py")],
+        [
+            sys.executable,
+            str(REPO_ROOT / "tools" / "threshold_coverage.py"),
+            "--catalog",
+            str(catalog_path),
+            "--coverage",
+            str(coverage_path),
+        ],
     )
     for command in commands:
         subprocess.run(command, cwd=REPO_ROOT, check=True)
@@ -706,6 +761,8 @@ def fetch_replacement(
     topic: str,
     old_filename: str,
     audit_path: Path = DEFAULT_AUDIT,
+    catalog_path: Path = DEFAULT_CATALOG,
+    registry_path: Path = DEFAULT_REGISTRY,
 ) -> FetchRecord:
     """Fetch a replacement, record its bytes, rebuild, and stop before the sheet."""
 
@@ -726,6 +783,37 @@ def fetch_replacement(
     destination = corpus_root.joinpath(*relative.parts)
     if destination.exists():
         raise FileExistsError(f"refusing to overwrite existing corpus document {destination}")
+    catalog_text = _read_text(catalog_path, "catalog")
+    catalog_rows, _, catalog_problems = guidelines_catalog.parse_catalog(catalog_text)
+    if catalog_problems:
+        raise ValueError("catalog did not parse: " + "; ".join(catalog_problems))
+    matching_catalog = [
+        row
+        for row in catalog_rows
+        if row.filename == relative.name and row.society == relative.parts[0]
+    ]
+    if len(matching_catalog) != 1:
+        raise ValueError(
+            f"catalog has no replacement {relative.parts[0]}/{relative.name}; "
+            "curate its row before fetching"
+        )
+    registry = parse_registry(_read_text(registry_path, "currency registry"))
+    preflight = audit(catalog_rows, registry)
+    if preflight.failures:
+        raise ValueError("currency handoff is not ready: " + "; ".join(preflight.failures))
+    by_filename = {row.filename: row for row in registry.documents}
+    old_entry = by_filename.get(old_filename)
+    replacement_entry = by_filename.get(relative.name)
+    if (
+        old_entry is None
+        or old_entry.verdict != "superseded"
+        or old_entry.superseded_by != relative.name
+        or replacement_entry is None
+        or replacement_entry.society != relative.parts[0]
+    ):
+        raise ValueError(
+            "currency registry must bind the retired document to the cataloged replacement"
+        )
     audit_text = _read_text(audit_path, "audit ledger")
     audit_lines = audit_text.splitlines()
     if "## Documents" not in audit_lines or not any(
@@ -744,24 +832,32 @@ def fetch_replacement(
     digest = hashlib.sha256(payload).hexdigest()
     observed = date.today().isoformat()
     destination.parent.mkdir(parents=True, exist_ok=True)
+    sidecar = destination.with_suffix(destination.suffix + ".fetch.json")
     destination.write_bytes(payload)
     record = FetchRecord(url, filename, digest, len(payload), observed)
-    destination.with_suffix(destination.suffix + ".fetch.json").write_text(
-        json.dumps(record.__dict__, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-    )
-    _upsert_audit_digest(
-        audit_path,
-        relative.parts[0],
-        relative.name,
-        digest,
-        len(payload),
-        observed,
-    )
-    _mark_topic_unread(
-        coverage_path, topic, old_filename, filename, digest, observed
-    )
-    run_rebuild_pipeline(corpus_root)
+    try:
+        sidecar.write_text(
+            json.dumps(record.__dict__, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        _upsert_audit_digest(
+            audit_path,
+            relative.parts[0],
+            relative.name,
+            digest,
+            len(payload),
+            observed,
+        )
+        _mark_topic_unread(
+            coverage_path, topic, old_filename, filename, digest, observed
+        )
+        run_rebuild_pipeline(corpus_root, catalog_path, audit_path, coverage_path)
+    except Exception:
+        audit_path.write_text(audit_text, encoding="utf-8")
+        coverage_path.write_text(coverage_text, encoding="utf-8")
+        sidecar.unlink(missing_ok=True)
+        destination.unlink(missing_ok=True)
+        raise
     return record
 
 
@@ -814,7 +910,6 @@ def _join_value(
 
 def render_draft(
     catalog_rows: list[guidelines_catalog.Row],
-    observed: str,
     source_metadata: dict[str, dict[str, str]] | None = None,
 ) -> str:
     """Render a complete initial registry without inventing missing join values."""
@@ -827,7 +922,7 @@ def render_draft(
         )
         society_lines.append(
             f"| {society} | {route} | {reader} | {join_key} | {access} | "
-            f"{observed} | read |  |"
+            " | unread |  |"
         )
     document_lines = []
     for row in sorted(catalog_rows, key=lambda item: item.filename.casefold()):
@@ -973,7 +1068,6 @@ def main(argv: list[str] | None = None) -> int:
             args.draft.write_text(
                 render_draft(
                     catalog_rows,
-                    date.today().isoformat(),
                     _source_metadata(REPO_ROOT / "reference" / "thresholds"),
                 ),
                 encoding="utf-8",
@@ -983,6 +1077,11 @@ def main(argv: list[str] | None = None) -> int:
         registry_text = _read_text(args.registry, "registry")
         parsed = parse_registry(registry_text)
         if args.read:
+            preflight = audit(catalog_rows, parsed)
+            if preflight.failures:
+                raise ReadError(
+                    "currency registry did not grade: " + "; ".join(preflight.failures)
+                )
             return _run_reads(args, parsed)
         if args.fetch_replacement:
             missing = [
@@ -1007,6 +1106,8 @@ def main(argv: list[str] | None = None) -> int:
                 args.topic,
                 args.supersedes,
                 args.audit,
+                args.catalog,
+                args.registry,
             )
             print(
                 f"fetched {fetched.filename}: {fetched.bytes} bytes; "
