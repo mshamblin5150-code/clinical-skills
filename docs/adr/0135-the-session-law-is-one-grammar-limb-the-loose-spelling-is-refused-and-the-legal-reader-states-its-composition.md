@@ -56,7 +56,7 @@ Adding `Pub. L. No.` to `LEGAL_SOURCE_VOCABULARY` and re-running changes nothing
 
 ## Ruling 3 — the loose spelling and the parallel cite are both refused, and both refusals are recorded
 
-Measured over corpus Markdown plus every tracked `.md` — 1,011 files, ADR 0100's own population:
+Measured over corpus Markdown plus every tracked `.md`, ADR 0100's own population — **1,012 files, this record and this ticket's own draft excluded**:
 
 | candidate | occurrences | real citations | false matches on prose |
 | --- | ---: | ---: | ---: |
@@ -64,6 +64,8 @@ Measured over corpus Markdown plus every tracked `.md` — 1,011 files, ADR 0100
 | `Pub. L. No. N-N` alone | 2 | 1 use + 1 record mention | **0** |
 | `Public Law` / `Pub. L.` spellings | 84 | 1 | **82** |
 | `N Stat. N` | 2 | 1 use + 1 record mention | **0** |
+
+**The exclusion is load-bearing and was found by the figure moving under its own author.** Re-derived after `main` advanced mid-session, the same three counts read 7, 93 and 8 — because a record that quotes the forms it rules on is inside the population it measures. A ratified ADR arguing from a false-match count is therefore a false match, and the next refresh of this table inflates by however many times the tree has since discussed it. The honest population is *every tracked `.md` except the records stating this measurement*, and it is named here so a later re-derivation that comes back higher is read as this shape rather than as a corpus that moved.
 
 **The 82 are the clinician's own voice corpus**, across six files, and they take the citation shape exactly: `...amendment of 1986 (Public Law 99-457).` sits in ordinary narrative inside a parenthetical. A rule firing there manufactures a citation on correct prose, which is what #771's *What must not come out of this* forbids and what ADR 0085 measured as the danger. **Refused.**
 
@@ -76,13 +78,16 @@ Measured over corpus Markdown plus every tracked `.md` — 1,011 files, ADR 0100
 The obvious repair is to window the legal search to the text before the entry's listed year. Measured, it is a rule with no case:
 
 ```text
-entries examined corpus-wide                                     129
-is_legal today (searches the whole entry)                         18
-is_legal windowed to before the listed year                       17
-entries whose ONLY legal match sits after the listed year          0
-entries carrying more than one legal match                         1
-   ['Pub. L. No. 117-328, § 1263', '21 U.S.C. § 823(m)']
+entries examined, table rows excluded                129   (110 carry a bare (Year))
+
+                                            without limb A     with limb A
+is_legal, searching the whole entry                     18              --
+is_legal, windowed to before the listed year            17              --
+entries whose ONLY legal match sits after the year       1               0
+entries carrying more than one legal match               0               1
 ```
+
+**The two columns are one entry moving between them, and stating a single column would misread the window's value in either direction.** Without limb A the M2 entry's only legal match *is* the codification aside, so the window looks decisive — it is the one verdict of 129 that changes. With limb A the act's own cite appears before the aside, so the entry becomes the corpus's only multi-match and leftmost already resolves it. **A table mixing the two says the window fixes an entry that limb A has already fixed.** A first draft of this record did exactly that, and it was caught by re-deriving after `main` moved rather than by reading.
 
 `re.search` returns the leftmost match and the act's own cite is written before the codification aside, so **limb A alone flips the entry to the right span and the right keys with no change to the span logic at all**. The window would then change zero entries.
 
