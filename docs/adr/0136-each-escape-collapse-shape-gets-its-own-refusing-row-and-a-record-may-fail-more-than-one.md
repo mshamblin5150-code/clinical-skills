@@ -259,8 +259,11 @@ The proposed report over the fresh harvest:
 ```
 
 `literal-at-path` still reports 0, so `SUBSUMED_BY` reproduces today's behavior exactly. Eight
-records go newly red: one comment and **seven pull request bodies** ADR 0099 ruling 6 deliberately
-declines to repair.
+records go newly red: one comment and **seven pull request bodies**. Those seven are all
+among the eight ADR 0099 ruling 6 deliberately leaves standing — five carrying shape 3 and
+two carrying shape 4, none of them among the six that ruling repaired. **Its eighth is not a
+contradiction and no row here reaches it**: the wider class also holds a body carrying backtick
+loss alone.
 
 **The decisive asymmetry is that this red appears in exactly one place.** The workflow grades only
 the changed record, the hook only the publication being made, `authorize_issue_body` only the bytes
@@ -295,7 +298,7 @@ member.** Repairing it inside this ticket was the tempting half of ruling 6's de
 for the reason the table shows: it would split one four-record repair across two tickets because this
 ticket happens to own the row that sees the fourth.
 
-**The seven pull request bodies stay.** ADR 0099 ruling 6 already weighed them and its two reasons
+**They stay.** ADR 0099 ruling 6 already weighed those eight and its two reasons
 hold — nothing reads them as a form, nothing is copied out of them, each describes merged work.
 
 ## Ruling 7 — decision 4 closes here and the route is not pursued further
