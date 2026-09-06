@@ -20,6 +20,10 @@ DEFAULT_COVERAGE = REPO_ROOT / "reference" / "thresholds" / "coverage.md"
 DEFAULT_SHEET_ROOT = REPO_ROOT / "reference" / "thresholds"
 SCHEMA_MARKER = "<!-- schema: threshold-coverage/3 -->"
 STATES = ("sheet", "none", "non-source", "unread")
+SUPERSESSION_HANDOFF = re.compile(
+    r"^superseded (?P<old>[^|/]+\.pdf) by (?P<new>[^|]+\.pdf); "
+    r"fetched (?P<date>\d{4}-\d{2}-\d{2}); sha256 (?P<sha256>[0-9a-f]{64})$"
+)
 
 
 @dataclass(frozen=True)
@@ -222,7 +226,17 @@ def audit(
                     derived_state = "none"
                 else:
                     derived_state = "unread"
-                if entry.state != derived_state:
+                handoff = SUPERSESSION_HANDOFF.fullmatch(entry.record)
+                source_filenames = {
+                    Path(source.get("document", "")).name + ".pdf"
+                    for source in sheet.sources.values()
+                }
+                replacement_read_pending = (
+                    entry.state == "unread"
+                    and handoff is not None
+                    and handoff.group("old") in source_filenames
+                )
+                if entry.state != derived_state and not replacement_read_pending:
                     failures.append(
                         f"coverage.md:{entry.line} topic '{entry.topic}' state "
                         f"'{entry.state}' disagrees with derived state '{derived_state}' "

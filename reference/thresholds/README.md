@@ -236,6 +236,13 @@ blank one is refused.** The Download address must be HTTP(S); a machine-local ad
 is refused. The Download basis vocabulary is closed: `stated`, `digest YYYY-MM-DD`,
 `gated YYYY-MM-DD`, or `chosen`.
 
+Edition currency is deliberately not another source-table cell. On every ordinary
+sheet run, `tools/threshold_sheet.py` joins the row's document to
+`reference/guidelines-currency.md` and prints its verdict and observation date beside
+the source. The registry is the only stored verdict; a copied value in every sheet
+would drift while continuing to look cited. A `superseded` verdict reports and never
+refuses the sheet, and replacing the source still requires a new full-document read.
+
 `stated` means the draft seeded the address from the catalog's audited **Stated
 citation**. A bare DOI is rendered as `https://doi.org/<doi>` and a printed HTTP(S)
 address is copied verbatim. A journal citation seeds nothing. `digest` is recorded

@@ -106,8 +106,8 @@ AUDITED_COLUMNS = NULLABLE
 NOT_REACHED = (
     (
         "resolution",
-        "The catalog records only what the document prints. No tool opens a "
-        "socket, so a passing audit does not establish that a DOI or URL resolves.",
+        "The catalog records only what the document prints. This offline auditor "
+        "opens no socket, so a passing audit does not establish that a DOI or URL resolves.",
     ),
     (
         "download provenance",
