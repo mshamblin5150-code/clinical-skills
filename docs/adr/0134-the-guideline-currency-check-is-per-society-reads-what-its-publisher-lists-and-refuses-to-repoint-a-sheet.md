@@ -139,7 +139,7 @@ on,"* and an upstream check says nothing about our bytes; the ticket calls this 
 mirror, and a mirror is a second artifact rather than a column; and no existing table is keyed for
 the society-level half.
 
-[ADR 0102](0102-a-clinical-subject-is-authored-per-registry-row-and-a-reworded-catalog-cell-loses-it.md)'s
+[ADR 0102](0102-the-clinical-subject-grouping-is-a-registry-column-and-a-refutable-merge-read-from-the-guideline-is-authored-rather-than-inferred.md)'s
 refusal of *a fourth hand-kept list bound to the catalog by nothing* is answered the way
 [#689](https://github.com/mshamblin5150-code/clinical-skills/issues/689) answered it: bind it on the
 catalog's own key and grade the bind.
