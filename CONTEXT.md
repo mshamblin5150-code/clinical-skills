@@ -404,6 +404,18 @@ _Avoid_: confidence, verification, provenance, mode
 The corpus and the tree's record of it having come apart — a document added, removed, or reissued under an unchanged filename. It is not a defect and nothing refuses it; what is a defect is a tree that carries on answering without saying it happened. Distinct from **Drift**, the clinical finding carried into the Objective and absent from the Assessment and the Plan.
 _Avoid_: staleness, desync, corpus change, mismatch
 
+**Edition currency**:
+Whether the society that published a corpus document still lists that document as what it currently publishes. It is a claim about the publisher and never about our bytes, which is what separates it from **Corpus drift** — a document can be byte-identical to the day it was downloaded and retired by its society on the same day, and the two questions have opposite instruments. Distinct from **Review currency**, which is a date a tertiary source prints on itself: a guideline that states no review date still has an edition currency, because the answer is read off what its society lists rather than off the document.
+_Avoid_: freshness, staleness, up to date, currency — unqualified, that word means the review date here; say which
+
+**Society index**:
+What a society publishes as its own list of the guidelines it currently stands behind. It is the thing an edition-currency read reads, and it is per society rather than per document: one read of the list, joined back to the corpus, rather than one lookup per document. **What it is joined on is a property of the society and never one value spanning them all** — a society registering DOIs joins on the DOI, one publishing an annual report under a year-slugged page joins on that year, one publishing a dated schedule page joins on the date. A society that publishes no such list has none rather than acquiring one by inference, and its documents are answered by a named exception instead.
+_Avoid_: catalog, listing, guideline list, registry
+
+**Currency verdict**:
+What an edition-currency read establishes about one corpus document, one of four: `current`, the society's list holds it; `superseded`, the list holds a newer guideline covering it and the verdict names that document; `absent`, the list no longer holds it and no replacement has been identified; `unjoinable`, the document carries no value in the key its society is joined on. `superseded` and `absent` are deliberately not one word — collapsing them upward claims a replacement nobody identified, and collapsing them downward loses that the society has dropped the document. **Never checked is the absence of an observation date rather than a fifth verdict**, so a row cannot report a state it never measured.
+_Avoid_: status, standing, freshness, disposition; also avoid source class, which answers what form a document takes
+
 **Threshold sheet**:
 The distilled decision points of one clinical topic, drawn from every guideline in the corpus that addresses it. Curated Markdown that a tool audits, never a generated artifact.
 _Avoid_: summary, digest, extract, cheat sheet
