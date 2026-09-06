@@ -60,6 +60,10 @@ _Avoid_: the scratch directory, scratch/, scratch dir
 The clone a worktree belongs to — what `repo_root.main_repo_root()` walks up to through the worktree's `.git` pointer file. It is where account-owned gitignored state lives, because it is the checkout that outlives every worktree. **Not "the main checkout" as a synonym for "the branch `main`"**: it names a place on disk, never a ref.
 _Avoid_: main checkout (ambiguous with the `main` branch), parent repo, root clone
 
+**Committing checkout**:
+The checkout a commit is being made from — the third member of the family with **Owning checkout** and **Module root**, and the one a **Session** is standing in. Usually a worktree, and the same place as the owning checkout when the commit is made there. It is one of the two **gating roots**, and its **Ratchet** is a hard zero from day one rather than a baseline, because a worktree is created after the rule and so has no residue predating it.
+_Avoid_: this checkout, the current worktree, local checkout
+
 **Module root**:
 The checkout a `tools/` module file is sitting in — what `Path(__file__).resolve().parent.parent` returns. In a worktree that is **the worktree**, and that is the right answer for almost everything here: a test reading a committed fixture, a walk over the files being committed, a subprocess reading a ref shared with the **owning checkout**. It is the wrong answer for gitignored account-owned state, which is the only thing that takes `main_repo_root()`. **The two are not ranked** — neither is a fallback for the other, and a site using the literal is not a site that has not been migrated yet.
 _Avoid_: repo root, the repo, tools root, unqualified "root"
@@ -87,6 +91,10 @@ _Avoid_: known-good list, allowlist, the exempt set
 **Ratchet**:
 The rule that a **scratch root**'s unaccounted count may fall and may not rise. The owning checkout carries a grandfathered integer baseline; every other checkout has a zero ratchet from day one. A commit grades only the owning and committing roots; peer roots report and are never graded. **Its only value is that it cannot be moved to meet the disk** — raising the baseline to clear a refusal retires the check rather than discharging it. The baseline is an integer rather than a list because a `scratch/` filename may itself carry PHI and this repository is public.
 _Avoid_: threshold, limit, cap, budget
+
+**Gating root**:
+A **scratch root** that can refuse the commit being made — the **owning checkout**'s and the **committing checkout**'s, and no other. The line is that a session writes into exactly those two, so the refused party is always a candidate author of what was found. Every other root is a **peer root**: reported on every run and graded never, because a session cannot reach it, did not dirty it, and has no authorized **Drain** out of it. A gating root that passes still prints on a gating line — the label names what a root *could* do to this commit, never what it did.
+_Avoid_: graded root, active root, local root
 
 **Drain**:
 Moving a gating root's top-level rise under the **owning checkout**'s **Ticket directory**. The authorized remedy is a move rather than a deletion — it reads nothing, classifies nothing, publishes nothing and deletes nothing. A worktree drains into the durable owning root; an owning-root rise drains beneath its own accounted `sessions/` entry. Neither path changes the baseline.
@@ -675,6 +683,10 @@ _Avoid_: note reader, worksheet loader, directory walk
 **Unreadable source**:
 A run artifact a grader was pointed at and could not obtain, so the run is reported as not scanned rather than as scanned and clean. It is the grader-side twin of an **unreadable body** and takes that entry's reasoning: a report of nothing found about something never held is the shape every scanner here refuses. Distinct from an artifact that *was* held and carries a replaced byte, which a **run-directory reader** grades. Which inputs qualify is keyed on the input's **role** and never on the module: a primary source refuses, an optional secondary degrades into the report and states the narrowing, and a tracked reference artifact means a broken checkout. Whether a member *grades or refuses an undecodable byte* is a separate axis, declared per module rather than ruled family-wide; what is ruled family-wide is that no reader exits 1 for a reason that is not a finding.
 _Avoid_: tier-1 failure, load error, bad input, missing file
+
+**Established empty**:
+Said of a graded population with no members, where the emptiness is settled by something other than the matcher that would have recognized one — a separate registry, a manifest, an argument, the filesystem. It is the condition under which a clean verdict over nothing is a true claim rather than a silent one, and it is the distinction an **unreadable source** is the other half of: there the subject could not be obtained, here there is no subject. Where the matcher is the only evidence, an empty population is *not scanned* instead, because empty and unrecognized are then the same reading. The term defines the boundary and asserts nothing about which modules sit inside it.
+_Avoid_: no results, nothing found, vacuous clean, trivially clean
 
 **Adoption**:
 A module's actual use of the shared runner and its conformance kit — importing `run_grader`, and its test module binding `grader_conformance.for_module`. It is what a **declared member** is graded on, and it is not shape: shape is the source pattern a population walk can recognize, so a walk over shape answers *is there a grader here nobody declared* while a walk over adoption answers *is there a name here nobody wired up*. Neither walk sees the other's case, which is why both are kept.
