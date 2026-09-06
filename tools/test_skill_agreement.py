@@ -212,7 +212,12 @@ RULING_EXEMPT_MARKER = re.compile(
 )
 RULING_EXEMPT_CEILING = 2
 RULING_UNNUMBERED_MARKER = re.compile(r"<!--\s*no-numbered-rulings\s*-->")
-RULING_UNNUMBERED_CEILING = 18
+#: Raised 18 -> 19 on #790's stranding sweep, to admit ADR 0101. That
+#: record was authored 2026-09-01 and sat on an unpushed local branch
+#: until 2026-09-06; its decisions are prose because it predates the
+#: numbered-ruling convention entirely. The ceiling rises for a record
+#: that predates the rule, never to let a new one opt out of it.
+RULING_UNNUMBERED_CEILING = 19
 
 #: A reference-style Markdown destination. Link labels are deliberately opaque:
 #: only the destination participates in relative-path resolution.
@@ -2071,11 +2076,11 @@ class AnEmptyRulingParseIsDeclared(unittest.TestCase):
             ["an empty ruling parse lacks the no-numbered-rulings marker"],
         )
 
-    def test_a_nineteenth_marker_breaks_the_ceiling(self) -> None:
-        texts = [self.MARKER] * 19
+    def test_a_twentieth_marker_breaks_the_ceiling(self) -> None:
+        texts = [self.MARKER] * 20
         self.assertEqual(
             unnumbered_ruling_ceiling_findings(texts),
-            ["19 no-numbered-rulings markers exceed the ceiling of 18"],
+            ["20 no-numbered-rulings markers exceed the ceiling of 19"],
         )
 
 

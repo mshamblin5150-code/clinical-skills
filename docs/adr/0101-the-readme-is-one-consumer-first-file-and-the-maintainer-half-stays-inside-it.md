@@ -1,4 +1,5 @@
 # The README is one consumer-first file, and the maintainer half stays inside it
+<!-- no-numbered-rulings -->
 
 `README.md` opened on the directory layout, then wiring, then the PHI firewall and the hook install. Every word of it was true and none of it told a reader what the skills do or how to invoke one. The repository is public. A person landing on it learned where `scratch/` is before learning there is a skill that turns shorthand into a note.
 
