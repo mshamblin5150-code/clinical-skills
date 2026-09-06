@@ -70,6 +70,7 @@ DECLARED_SECTIONS = {
     "filled_vitals_census": "Filled-vitals census",
     "guidelines_build": "Guideline text extraction",
     "guidelines_catalog": "Guideline catalog",
+    "guidelines_currency": "Guideline edition currency",
     "guidelines_extract": "Guideline text extraction",
     "guidelines_index": "Guideline full-text index",
     "guidelines_recs": "Recommendation extraction",

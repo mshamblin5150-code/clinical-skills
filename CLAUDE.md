@@ -1737,6 +1737,46 @@ It reports filenames, column names and counts, never document text, so its outpu
 
 **[#108](https://github.com/mshamblin5150-code/clinical-skills/issues/108) removed the duplicate extractor without losing the pre-strip columns.** `class` comes directly from the producer-owned manifest value. `year` checks the metadata-derived title first, then the manifest's exact pre-strip `year_page_counts` vote. That producer-owned vote preserves page frequency even though #80 correctly removes running heads from every `.txt` page; access stamps remain excluded. The shared reader also refuses a missing manifest, a missing contract key, extraction failures, stale extra text, missing text, and page-count disagreement rather than letting either consumer build from an incomplete corpus.
 
+### Guideline edition currency
+
+`reference/guidelines-currency.md` records one publisher-index route per catalog
+society and one edition-currency verdict per catalog filename. The ordinary command
+is offline and grades both join directions; `superseded`, `absent`, and an annual
+observation outside its measured publication cycle are reported but never refuse a
+commit. Registry damage refuses only when the registry or catalog is staged.
+
+```bash
+python tools/guidelines_currency.py
+python tools/guidelines_currency.py --read USPSTF --read IDSA
+python tools/guidelines_currency.py --read AHA-ACC --capture AHA-ACC=page.html
+```
+
+Each society read states the publisher-index denominator and unread remainder. A
+plain reader fetches its declared route; AHA/ACC and GOLD require an agent-supplied
+capture. A successful HTTP response with no countable guideline entries is a failed
+read, never a successful empty index, and a detectable next page or total contributes
+to the unread remainder. `--draft` leaves society observations blank and unread, so a
+scaffold cannot claim that anybody looked; it deliberately does not grade clean until
+those unread-state dates are supplied. The exact claims this cannot establish live in
+`guidelines_currency.DECLARED_LIMITS` and are not copied here.
+
+`--fetch-replacement` is explicit and networked. It writes the received PDF below
+the named corpus root, records the SHA-256 beside those bytes and in the catalog audit
+ledger, runs the governed build and catalog checks, and moves the affected coverage
+row to `unread` with the supersession record. It never edits a threshold sheet, so a
+new source cannot be attached to rows distilled from the retired document without a
+new clinical read. The curated catalog row and the registry's old-to-new bind must
+exist before the fetch. A failure before the build publishes removes the new PDF and
+receipt. After derived aliases publish, a later validation failure preserves the source,
+receipt, and digest instead of leaving an alias pointed at a deleted corpus document;
+the coverage row changes only after the catalog check passes.
+
+The pre-commit advisory opens no socket and prints only the oldest recorded
+observation plus the never-checked count and remedy. Covered by
+`tools/test_guidelines_currency.py`; the replacement-state exception is pinned in
+`tools/test_threshold_coverage.py`, and threshold-sheet reporting is pinned in
+`tools/test_threshold_sheet.py`.
+
 ### The `class` vocabulary is one set
 
 The catalog documents a `class` column and `guidelines_search.py --class` filters on one. They were **two different vocabularies overlapping on `guideline` alone** — [#185](https://github.com/mshamblin5150-code/clinical-skills/issues/185), ruled by the clinician on 2026-08-19: the catalog's three win and the extractor emits them.

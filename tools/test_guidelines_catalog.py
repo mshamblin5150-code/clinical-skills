@@ -740,6 +740,7 @@ class CheckingCheapCorpusDrift(unittest.TestCase):
             for name in (
                 "skills_mirror.py",
                 "spelling_scan.py",
+                "guidelines_currency.py",
                 "scratch_census.py",
                 "phi_scan.py",
             ):

@@ -218,6 +218,7 @@ from typing import NamedTuple
 import guidelines_extract
 import guidelines_manifest
 import guidelines_catalog
+import guidelines_currency
 import artifact_provenance
 from console_codec import use_utf8
 from guidelines_recs import (
@@ -3161,6 +3162,41 @@ def gate_coverage(
     )
 
 
+def gate_edition_currency(
+    sheet: Sheet, registry: guidelines_currency.Registry
+) -> GateResult:
+    """Report the registry verdict beside each source; never copy or enforce it."""
+
+    if registry.problems:
+        return GateResult(
+            "EDITION CURRENCY",
+            report=(
+                "  EDITION CURRENCY  NOT GRADED -- " + "; ".join(registry.problems),
+            ),
+        )
+    by_filename = {row.filename: row for row in registry.documents}
+    lines: list[str] = []
+    for key, source in sorted(sheet.sources.items()):
+        document = source.get("document", "")
+        filename = Path(document).name + ".pdf"
+        entry = by_filename.get(filename)
+        if entry is None:
+            lines.append(
+                f"source '{key}' {document}: no edition-currency row"
+            )
+            continue
+        detail = f"observed {entry.observed}" if entry.observed else "never checked"
+        if entry.superseded_by:
+            detail += f"; replaced by {entry.superseded_by}"
+        lines.append(
+            f"source '{key}' {document}: {entry.verdict} ({detail})"
+        )
+    return GateResult(
+        "EDITION CURRENCY",
+        report=tuple(lines) or ("  EDITION CURRENCY  no declared source",),
+    )
+
+
 def gate_range(sheet: Sheet) -> GateResult:
     """Unit-keyed sanity bounds, naming failures and the ungraded-number count.
 
@@ -3224,6 +3260,7 @@ def survey(
     page_counts: dict[str, int] | None = None,
     recs_alias: Path | None = None,
     catalog_source_classes: dict[str, str] | None = None,
+    currency_registry: guidelines_currency.Registry | None = None,
     *,
     expected_commit: str,
 ) -> Scan:
@@ -3277,6 +3314,16 @@ def survey(
     records, why_not, recs_errors, missing_records = bound_records
 
     schema = gate_schema(sheet, catalog_source_classes)
+    if currency_registry is None:
+        try:
+            currency_registry = guidelines_currency.parse_registry(
+                guidelines_currency.DEFAULT_REGISTRY.read_text(encoding="utf-8")
+            )
+        except (OSError, UnicodeError) as error:
+            currency_registry = guidelines_currency.Registry(
+                (), (), (f"currency registry is unreadable: {error}",)
+            )
+    edition_currency = gate_edition_currency(sheet, currency_registry)
     null_span = gate_null_span(sheet)
     extraction_handoff = (
         guidelines_manifest.read(
@@ -3352,6 +3399,7 @@ def survey(
 
     results = (
         schema,
+        edition_currency,
         null_span,
         extraction_identity,
         page_coverage,

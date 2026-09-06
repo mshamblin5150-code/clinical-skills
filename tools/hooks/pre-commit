@@ -27,6 +27,11 @@ for python in python python3 py; do
         # guidelines_catalog.py's ordinary command remains the full hash check.
         "$python" "$repo_root/tools/guidelines_catalog.py" --check-corpus-size >&2 || true
 
+        # Advisory and unconditional: edition currency is upstream publisher state,
+        # so a commit reports its oldest observation and never-checked count without
+        # opening a socket or refusing unrelated work.
+        "$python" "$repo_root/tools/guidelines_currency.py" --hook-summary >&2 || true
+
         # Advisory because ADR 0016 rules that another worktree's uncommitted
         # draft may warn but must never refuse this commit. The allocation tool
         # names every other worktree claiming a staged number. No staged ADR
@@ -91,6 +96,14 @@ for python in python python3 py; do
             | grep '^reference/uptodate/[^/]*\.md$' \
             | grep -qv '^reference/uptodate/README\.md$'; then
             "$python" "$repo_root/tools/uptodate_sheet.py" --all --quiet >&2 || status=1
+        fi
+
+        # **The seventh refusing check.** Currency itself only reports. This gate
+        # refuses damage to the catalog-bound registry when either half is staged;
+        # no hook invocation performs a society-index read.
+        if git diff --cached --name-only --no-renames --diff-filter=ACDM \
+            | grep -Eq '^reference/(guidelines-catalog|guidelines-currency)\.md$'; then
+            "$python" "$repo_root/tools/guidelines_currency.py" >&2 || status=1
         fi
 
         # Standing rule 1, and it is no longer `exec`ed. It still refuses on its own
