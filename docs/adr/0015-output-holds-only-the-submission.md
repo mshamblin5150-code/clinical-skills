@@ -1,4 +1,5 @@
 # `output/` holds only the submission, and everything a run produced about it lives in the run directory
+<!-- no-numbered-rulings -->
 
 [ADR 0014](0014-a-run-is-keyed-to-the-graded-artifact.md) settled the run key and stated a *layout*: `claims.md`, `checks.md` and `evidence.txt` under `scratch/runs/<key>/`, the submission under `output/<kind>/`. Grilling [#417](https://github.com/mshamblin5150-code/clinical-skills/issues/417) on 2026-08-23 found that stating a layout is not the same as stating the rule that puts a file on one side of it, and that the tree had already got the rule wrong twice.
 

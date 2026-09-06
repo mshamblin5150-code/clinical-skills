@@ -1,4 +1,5 @@
 # The paste target keeps tags, so the renderer carries heading formatting directly
+<!-- no-numbered-rulings -->
 
 Issue [#418](https://github.com/mshamblin5150-code/clinical-skills/issues/418)
 recorded that headings render huge in the LMS paste while the `.docx` they came from is

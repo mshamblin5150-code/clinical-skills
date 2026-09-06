@@ -1,4 +1,5 @@
 # Word is a one-time calibration instrument
+<!-- no-numbered-rulings -->
 
 Issue [#424](https://github.com/mshamblin5150-code/clinical-skills/issues/424)
 found that every verdict in `apa7.md` section 6 had been inferred from the renderer's

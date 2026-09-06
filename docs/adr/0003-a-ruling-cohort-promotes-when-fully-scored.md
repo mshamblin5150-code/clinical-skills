@@ -1,4 +1,5 @@
 # A ruling cohort promotes when every member is scored, whether it passed or failed
+<!-- no-numbered-rulings -->
 
 `fixtures/README.md` has said since [#29](https://github.com/mshamblin5150-code/clinical-skills/issues/29) that a counted row is promotable when it is *counted for want of a run* rather than for turning on phrasing. It never said what happens when the run arrives. **The exit rule was missing, and the consequence was not that promotion was slow — it was that the thing being decided kept changing shape.**
 

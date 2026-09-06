@@ -1,4 +1,5 @@
 # Fixtures assert on named findings, not prose diffs or self-reported verdicts
+<!-- no-numbered-rulings -->
 
 `clinical-note` had no way to tell whether an edit improved it, so every change was settled by opinion. The regression set that fixes this compares runs by checking **named clinical findings** against the output text — "snuff box tenderness appears in the Assessment or the Plan" — rather than diffing the note against a reference or reading the drift-matrix verdicts the skill emits about itself.
 

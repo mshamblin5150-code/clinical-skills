@@ -260,6 +260,11 @@ _Avoid_: fixture, sample output, test result
 A claim in the clinician's own words about what a correct run must contain.
 _Avoid_: expectation, check, test case
 
+**Ruling**:
+A ratified ADR decision identified by its record and its ordinal. The words around the ordinal are
+spelling, not part of the ruling's identity.
+_Avoid_: point, rule, decision
+
 **Ruling cohort**:
 The assertions across one or more fixtures that express one clinician ruling and share one promotion boundary. Its members move together or not at all.
 _Avoid_: batch, group, wave

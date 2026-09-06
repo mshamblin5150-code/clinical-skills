@@ -185,13 +185,16 @@ STEP_CITATION = re.compile(r"\bsteps?[-‑\s]+(\d+)\b", re.IGNORECASE)
 #: number in an H2 ruling heading. Addenda deliberately remain in the ruling
 #: sequence; another H2 takes numbered prose back out of it.
 ADR_HEADING = re.compile(r"^(#{2,4})\s+(.+?)\s*$")
-RULING_HEADING = re.compile(r"^ruling\s+(\d+)\b", re.IGNORECASE)
+#: Declaration spellings are grounded in ADR headings and bold ruling items.
+#: They intentionally differ from ``RULING_CITATION``'s four-word prose
+#: vocabulary: accepting a citation word must not bless it as a writer's form.
+RULING_HEADING = re.compile(r"^(?:ruling|decision)\s+(\d+)\b", re.IGNORECASE)
 NUMBERED_HEADING = re.compile(r"^(\d+)\.\s")
 RULING_SECTION = re.compile(
     r"^(?:what is ruled|the ruling|rulings|the decisions|ruled\b|(?:\w+\s+)?addendum\b)",
     re.IGNORECASE,
 )
-RULING_ITEM = re.compile(r"^(?:\*\*)?(\d+)\.\s")
+RULING_ITEM = re.compile(r"^(?:\*\*(?:ruling\s+)?)?(\d+)\.\s", re.IGNORECASE)
 #: A fenced block is a specimen rather than document structure, and the record
 #: whose ruling shows a record shape puts a literal ``## `` line inside one.
 #: ADR 0087's ruling 2 does exactly that, and reading it as an H2 took the
@@ -208,6 +211,8 @@ RULING_EXEMPT_MARKER = re.compile(
     r"<!--\s*unresolved-ruling-citations:\s*(\d+)\s*-->"
 )
 RULING_EXEMPT_CEILING = 2
+RULING_UNNUMBERED_MARKER = re.compile(r"<!--\s*no-numbered-rulings\s*-->")
+RULING_UNNUMBERED_CEILING = 18
 
 #: A reference-style Markdown destination. Link labels are deliberately opaque:
 #: only the destination participates in relative-path resolution.
@@ -320,18 +325,7 @@ def ruling_ordinals(text: str) -> list[int]:
     # distinguishes the sections that follow, including correction lists.
     in_ruling_section = True
     accepts_items = True
-    fence = None
-    for line in text.splitlines():
-        opener = CODE_FENCE.match(line)
-        if fence is not None:
-            # Only the marker that opened the block closes it, so a nested
-            # fence of the other kind stays specimen text.
-            if opener and line.strip().startswith(fence):
-                fence = None
-            continue
-        if opener:
-            fence = opener.group(1)
-            continue
+    for line in unfenced_lines(text):
         heading = ADR_HEADING.match(line)
         if heading:
             level, title = len(heading.group(1)), heading.group(2)
@@ -366,6 +360,23 @@ def ruling_ordinals(text: str) -> list[int]:
     return ordinals
 
 
+def unfenced_lines(text: str) -> Iterator[str]:
+    """Document lines excluding fenced specimens and their delimiters."""
+    fence = None
+    for line in text.splitlines():
+        opener = CODE_FENCE.match(line)
+        if fence is not None:
+            # Only the marker that opened the block closes it, so a nested
+            # fence of the other kind stays specimen text.
+            if opener and line.strip().startswith(fence):
+                fence = None
+            continue
+        if opener:
+            fence = opener.group(1)
+            continue
+        yield line
+
+
 def ruling_shape_findings(text: str) -> list[str]:
     """Every gap, restart, or other break in a record's ruling sequence."""
     findings = []
@@ -378,6 +389,40 @@ def ruling_shape_findings(text: str) -> list[str]:
             )
         previous = ordinal
     return findings
+
+
+def unnumbered_ruling_marker_count(text: str) -> int:
+    """Own-line empty-parse declarations outside fenced specimens."""
+    return sum(
+        1
+        for line in unfenced_lines(text)
+        if RULING_UNNUMBERED_MARKER.fullmatch(line.strip())
+    )
+
+
+def unnumbered_ruling_findings(text: str) -> list[str]:
+    """An ADR's empty/non-empty parse agrees with exactly one declaration."""
+    markers = unnumbered_ruling_marker_count(text)
+    if not ruling_ordinals(text):
+        if markers == 0:
+            return ["an empty ruling parse lacks the no-numbered-rulings marker"]
+        if markers > 1:
+            return [f"an empty ruling parse carries {markers} no-numbered-rulings markers"]
+        return []
+    if markers:
+        return ["a numbered ruling parse carries the no-numbered-rulings marker"]
+    return []
+
+
+def unnumbered_ruling_ceiling_findings(texts: list[str]) -> list[str]:
+    """The tree-wide ceiling over deliberate empty ruling parses."""
+    markers = sum(unnumbered_ruling_marker_count(text) for text in texts)
+    if markers <= RULING_UNNUMBERED_CEILING:
+        return []
+    return [
+        f"{markers} no-numbered-rulings markers exceed the ceiling of "
+        f"{RULING_UNNUMBERED_CEILING}"
+    ]
 
 
 class RulingCitation(NamedTuple):
@@ -1915,6 +1960,51 @@ class TheRulingOrdinalParserIsLive(unittest.TestCase):
             ["ruling 1 follows ruling 2; expected ruling 3"],
         )
 
+    def test_the_bold_item_word_is_read_and_the_bare_continuation_is_not(self) -> None:
+        record = """\
+## Ruled 2026-01-01
+
+**Ruling 1. A declared ruling.**
+ruling 5. **The sharp reason is #545's own consequence 2 rather than the precedent.**
+"""
+        self.assertEqual(ruling_ordinals(record), [1])
+
+    def test_decision_headings_are_read_but_point_and_rule_headings_are_not(self) -> None:
+        record = """\
+## Decision 1: a declared decision
+## Point 2: citation vocabulary is not declaration vocabulary
+## Rule 3: citation vocabulary is not declaration vocabulary
+"""
+        self.assertEqual(ruling_ordinals(record), [1])
+
+    def test_the_four_live_alternate_spellings_resolve_to_their_ordinals(self) -> None:
+        expected = {
+            94: set(range(1, 7)),
+            96: set(range(1, 6)),
+            126: set(range(1, 9)),
+            127: set(range(1, 10)),
+        }
+        declared = declared_rulings()
+        self.assertEqual({number: declared[number] for number in expected}, expected)
+
+    def test_the_alternate_declaration_spellings_belong_to_exactly_four_records(self) -> None:
+        found = set()
+        for record in sorted((REPO_ROOT / "docs" / "adr").glob("*.md")):
+            text = read(record)
+            without_alternates = "\n".join(
+                ""
+                if re.match(
+                    r"^(?:\*\*ruling\s+\d+\.\s|#{2,4}\s+decision\s+\d+\b)",
+                    line,
+                    re.IGNORECASE,
+                )
+                else line
+                for line in text.splitlines()
+            )
+            if ruling_ordinals(text) != ruling_ordinals(without_alternates):
+                found.add(int(record.name[:4]))
+        self.assertEqual(found, {94, 96, 126, 127})
+
 
 class EveryADRHasOneRulingSequence(unittest.TestCase):
     """#554: one ordinal has one referent across a record and its addenda."""
@@ -1927,6 +2017,66 @@ class EveryADRHasOneRulingSequence(unittest.TestCase):
                 for finding in ruling_shape_findings(read(record))
             )
         self.assertEqual(findings, [])
+
+    def test_every_empty_parse_is_declared_within_the_tree_ceiling(self) -> None:
+        records = sorted((REPO_ROOT / "docs" / "adr").glob("*.md"))
+        findings = [
+            f"{record.name}: {finding}"
+            for record in records
+            for finding in unnumbered_ruling_findings(read(record))
+        ]
+        findings.extend(
+            unnumbered_ruling_ceiling_findings([read(record) for record in records])
+        )
+        self.assertEqual(findings, [])
+
+
+class AnEmptyRulingParseIsDeclared(unittest.TestCase):
+    """#759: an empty parse is deliberate and the declaration is bounded."""
+
+    MARKER = "<!-- no-numbered-rulings -->"
+
+    def test_an_empty_parse_without_the_marker_fails(self) -> None:
+        self.assertEqual(
+            unnumbered_ruling_findings("# A record with no numbered rulings"),
+            ["an empty ruling parse lacks the no-numbered-rulings marker"],
+        )
+
+    def test_an_empty_parse_with_the_marker_passes(self) -> None:
+        self.assertEqual(
+            unnumbered_ruling_findings(
+                "# A record with no numbered rulings\n\n" + self.MARKER
+            ),
+            [],
+        )
+
+    def test_a_marker_mentioned_inside_prose_is_not_a_declaration(self) -> None:
+        self.assertEqual(
+            unnumbered_ruling_findings(
+                "# A record\n\nThe text mentions <!-- no-numbered-rulings --> here."
+            ),
+            ["an empty ruling parse lacks the no-numbered-rulings marker"],
+        )
+
+    def test_a_marker_shown_inside_a_fence_is_not_a_declaration(self) -> None:
+        record = """\
+# A record
+
+```text
+<!-- no-numbered-rulings -->
+```
+"""
+        self.assertEqual(
+            unnumbered_ruling_findings(record),
+            ["an empty ruling parse lacks the no-numbered-rulings marker"],
+        )
+
+    def test_a_nineteenth_marker_breaks_the_ceiling(self) -> None:
+        texts = [self.MARKER] * 19
+        self.assertEqual(
+            unnumbered_ruling_ceiling_findings(texts),
+            ["19 no-numbered-rulings markers exceed the ceiling of 18"],
+        )
 
 
 class TheRulingCitationResolverIsLive(unittest.TestCase):

@@ -1,4 +1,5 @@
 # A contested glossary term goes to the higher ADR number
+<!-- no-numbered-rulings -->
 
 Two grilling sessions coined the same `CONTEXT.md` term for two different things. [ADR 0032](0032-the-marker-limb-reads-the-repaired-text-the-other-two-limbs-declare-that-they-do-not-and-every-citation-gate-reads-one-reader.md) defined **Recommendation record** as *one recommendation lifted out of a guideline*; [ADR 0034](0034-a-recommendation-record-is-resolved-by-exact-name-at-both-read-sites-and-the-directory-scan-hints-rather-than-selects.md) defined it as *the machine-readable extraction of one guideline document's recommendations* — a unit and the file that holds many of them.
 

@@ -1,4 +1,5 @@
 # A module's interface is what is imported from it, and `tools/` stays public by default
+<!-- no-numbered-rulings -->
 
 An architecture review flagged `tools/corpus_census.py` as a shallow module: 2,508 lines offering **117 public module-level names against 3 private**, consumed by two production modules that use **four** of them. Interface nearly as wide as implementation is the textbook signal, and on that reading the module should be narrowed.
 

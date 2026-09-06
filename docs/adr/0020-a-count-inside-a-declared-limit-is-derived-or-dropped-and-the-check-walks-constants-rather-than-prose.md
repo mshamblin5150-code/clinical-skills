@@ -1,4 +1,5 @@
 # A count inside a declared limit is derived or dropped, and the check walks constants rather than prose
+<!-- no-numbered-rulings -->
 
 A declared limit — `NOT_GUARDED`, `NOT_REACHED`, `NOT_APPLIED`, `DECLARED_LIMITS`, `WHY_OUTSIDE` and their family — exists so a limit cannot go stale unnoticed, which is [#241](https://github.com/mshamblin5150-code/clinical-skills/issues/241)'s ruling. A **hand-typed count inside one reintroduces exactly the failure the object exists to prevent, one level in**: nothing re-derives it, so nothing fails when the population moves. [#457](https://github.com/mshamblin5150-code/clinical-skills/issues/457) found the first instance and asked whether the fix generalizes.
 

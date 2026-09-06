@@ -1,4 +1,5 @@
 # A run joins a threshold sheet on the artifact column, and the state describes the read behind it
+<!-- no-numbered-rulings -->
 
 [ADR 0009](0009-a-topic-is-swept-on-what-the-guideline-states-and-the-sweep-records-its-own-coverage.md) settled the **producer**: how a topic is swept, what [`reference/thresholds/coverage.md`](../../reference/thresholds/coverage.md) records, why `none` and `unread` are separate, and that an artifact does not promote a topic's state. It is silent on the **consumer** end to end.
 

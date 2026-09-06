@@ -1,4 +1,5 @@
 # A run is keyed to the board, and the date is provenance rather than identity
+<!-- no-numbered-rulings -->
 
 [#399](https://github.com/mshamblin5150-code/clinical-skills/issues/399) shipped `scratch/runs/<course>-<module>-<date>/` for the discussion-reply skill. Grilling [#416](https://github.com/mshamblin5150-code/clinical-skills/issues/416) on 2026-08-22 established that the date makes the key a **sitting** — one visit to the board — when the thing being graded is the **board**.
 

@@ -1,4 +1,5 @@
 # An ADR carries no status field, because no record waits on `main` for a decision
+<!-- no-numbered-rulings -->
 
 [#472](https://github.com/mshamblin5150-code/clinical-skills/issues/472) found `tools/adr_next.py` scaffolding every new record as `---\nstatus: proposed\n---` above its heading, and no ratified ADR carrying that frontmatter. The clinician ruled on 2026-08-23.
 
