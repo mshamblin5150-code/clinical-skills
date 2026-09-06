@@ -416,6 +416,10 @@ _Avoid_: locator, url, doi, link, source, stated citation
 What a Download address rests on, one of four: `stated`, seeded from the document's own stated citation; `digest`, where the fetched bytes matched the audited digest; `gated`, where a title matched but a wall stopped the fetch; or `chosen`, where a person deliberately picked an address over the one the document itself prints. It records the kind of evidence rather than a degree of confidence, because the `stated` and `digest` kinds are strong in different ways and neither is a guess.
 _Avoid_: confidence, verification, provenance, mode
 
+**Guideline standing**:
+Whether a corpus document as a whole is still the guidance its society issues, as against having been replaced. It is recorded nowhere and is deliberately absent from the **Guideline catalog**, whose Class column records document form instead. It does not follow from year: an older document may stand and a newer one may already be replaced, so a publication year is never read as an expiry date. Distinct from **Corpus drift**, which is the local file set and the tree's record of it coming apart and is knowable from inside the repository; standing is a fact about the society and is not.
+_Avoid_: currency, status, current, up to date
+
 **Corpus drift**:
 The corpus and the tree's record of it having come apart — a document added, removed, or reissued under an unchanged filename. It is not a defect and nothing refuses it; what is a defect is a tree that carries on answering without saying it happened. Distinct from **Drift**, the clinical finding carried into the Objective and absent from the Assessment and the Plan.
 _Avoid_: staleness, desync, corpus change, mismatch
