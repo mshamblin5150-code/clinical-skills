@@ -356,3 +356,7 @@ census is the answer only to the extent somebody runs it.
 **No corpus figure.** Neither the class split nor the recall share is stated in this record, and
 neither is re-derivable from the base it was written on. They belong to the command on the day it is
 run, which is what ruling 2's second reader exists to make possible.
+
+**2026-09-05 correction.** [#759](https://github.com/mshamblin5150-code/clinical-skills/issues/759)
+and [ADR 0133](0133-a-ruling-is-identified-by-its-ordinal-and-an-empty-parse-is-declared-rather-than-guessed-at.md)
+record the widened ruling declaration grammar and why the quotations above remain unchanged.

@@ -1,4 +1,5 @@
 # One export reader ships, and the export shape is the interface
+<!-- no-numbered-rulings -->
 
 [#388](https://github.com/mshamblin5150-code/clinical-skills/issues/388) established that a chat export is a far better voice-model corpus than supplied writing samples, and built `tools/voice_corpus.py` to read one. Grilling [#400](https://github.com/mshamblin5150-code/clinical-skills/issues/400) on 2026-08-22 asked which vendors a second clinician may be offered, when the reader understands exactly one of them.
 

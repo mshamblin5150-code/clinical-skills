@@ -112,6 +112,12 @@ DECLARED_CANDIDATES = (
         Verdict.NARROWING,
         "A Startable packet is a packet whose sequencing conditions are clear.",
     ),
+    Candidate(
+        "Ruling",
+        Verdict.COLLISION,
+        "The bare term is one ratified ADR decision; a Ruling cohort groups the "
+        "clinician's assertions that express one ruling.",
+    ),
 )
 
 PROSE_CLAUSES = {

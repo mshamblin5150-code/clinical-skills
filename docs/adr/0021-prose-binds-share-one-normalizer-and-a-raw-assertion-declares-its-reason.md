@@ -1,4 +1,5 @@
 # Prose binds share one normalizer and a raw assertion declares its reason
+<!-- no-numbered-rulings -->
 
 [#412](https://github.com/mshamblin5150-code/clinical-skills/issues/412) shipped `tools/prose_bind.py` so a prose bind survives hard wrapping, Markdown emphasis and quotes split across adjacent literals. [#445](https://github.com/mshamblin5150-code/clinical-skills/issues/445) found two sites that did not adopt it: `test_run_record_claim.normalized`, byte-identical to the helper and holding its own copy of `GLUE`, and `test_skill_agreement.squashed`, the whitespace-only subset.
 

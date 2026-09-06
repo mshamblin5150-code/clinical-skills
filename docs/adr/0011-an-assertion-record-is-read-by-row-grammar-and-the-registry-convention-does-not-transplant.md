@@ -1,4 +1,5 @@
 # An assertion record is read by row grammar, and the coverage registry's convention does not transplant
+<!-- no-numbered-rulings -->
 
 [#413](https://github.com/mshamblin5150-code/clinical-skills/issues/413) found the row identifier of `fixtures/*/assertions.md` defined more than once with different patterns, and asked whether the readers should share a parser, a row grammar or only a vocabulary. Grilling it on 2026-08-23 found the divergence is wider than the ticket measured, and that the tree had acquired a *second* convention for reading a structured Markdown record the day before, in [ADR 0009](0009-a-topic-is-swept-on-what-the-guideline-states-and-the-sweep-records-its-own-coverage.md)'s coverage registry.
 

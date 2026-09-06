@@ -1,4 +1,5 @@
 # CI runs the suite at the merge, advisory, and says which PHI layers it could not run
+<!-- no-numbered-rulings -->
 
 `CLAUDE.md` ruled CI out in one breath with two other things — *"Stdlib only — no package manager, no lockfile, no CI in this repo, and the census is not worth introducing any."* **Those three were never coupled.** The reason written down was about dependency machinery, and CI here carries none: checkout, `setup-python`, one stdlib command. This reverses that clause and leaves the other two standing.
 

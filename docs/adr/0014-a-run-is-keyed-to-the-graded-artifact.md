@@ -1,4 +1,5 @@
 # A run is keyed to the graded artifact, and the artifact slot is a vocabulary rather than a name
+<!-- no-numbered-rulings -->
 
 [ADR 0005](0005-a-run-is-keyed-to-the-board.md) ruled the date out of the run key on 2026-08-22 and settled on `scratch/runs/<course>-<module>/`. Grilling [#417](https://github.com/mshamblin5150-code/clinical-skills/issues/417) on 2026-08-22 into 2026-08-23 found that `<course>-<module>` is not a key.
 

@@ -1,4 +1,5 @@
 # An untrusted read may not publish into the checkout
+<!-- no-numbered-rulings -->
 
 Issue [#406](https://github.com/mshamblin5150-code/clinical-skills/issues/406) was filed
 about the trace on `--allow-untrusted-provenance`: it is a `RuntimeWarning`, so

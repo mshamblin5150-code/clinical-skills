@@ -1,4 +1,5 @@
 # An ADR number is claimed when it is handed out, and a ratified record's facts may be corrected in place
+<!-- no-numbered-rulings -->
 
 [#452](https://github.com/mshamblin5150-code/clinical-skills/issues/452) recorded three files named `docs/adr/0010-*.md` on `main` at once, written by three sessions that never saw each other. [#459](https://github.com/mshamblin5150-code/clinical-skills/issues/459) recorded [ADR 0007](0007-a-threshold-sheet-is-drafted-per-topic-and-its-snippets-are-gated-against-the-record.md) stating the guideline corpus as `392 MB`, which is its MiB figure carrying an MB label, after [#87](https://github.com/mshamblin5150-code/clinical-skills/issues/87) ruled bytes-only for that artifact.
 
