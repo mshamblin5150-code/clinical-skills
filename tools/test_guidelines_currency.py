@@ -347,8 +347,9 @@ class FetchBoundary(unittest.TestCase):
                 f"| KDIGO | new.pdf | {record.sha256} | {len(payload)} | {record.fetched} |",
                 audit.read_text(encoding="utf-8"),
             )
-            build.assert_called_once_with(corpus.resolve())
-            catalog_check.assert_called_once_with(corpus, catalog, audit)
+            resolved_corpus = corpus.resolve()
+            build.assert_called_once_with(resolved_corpus)
+            catalog_check.assert_called_once_with(resolved_corpus, catalog, audit)
             coverage_check.assert_called_once_with(catalog, coverage)
 
     def test_fetch_preflights_the_catalog_handoff_before_downloading(self):
