@@ -341,6 +341,25 @@ class ThresholdCoverageCli(unittest.TestCase):
         self.assertIn("state 'unread'", result.stderr)
         self.assertIn("derived state 'none'", result.stderr)
 
+    def test_replacement_handoff_keeps_old_complete_sheet_under_unread(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            sheets = root / "thresholds"
+            sheets.mkdir()
+            (sheets / "cervical.md").write_text(artifact("yes"), encoding="utf-8")
+            result = self.run_cli(
+                CATALOG,
+                registry(
+                    "| cervical cancer | unread | cervical.md | superseded first.pdf by replacement.pdf; fetched 2026-09-05; sha256 "
+                    + "a" * 64
+                    + " |\n",
+                    "| hypertension | unread |  | pending |\n",
+                ),
+                "--sheet-root", str(sheets),
+            )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_a_none_row_over_a_populated_sheet_refuses_as_derived_sheet(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

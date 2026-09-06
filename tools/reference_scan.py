@@ -648,7 +648,7 @@ NOT_REACHED = (
         "[#231](https://github.com/mshamblin5150-code/clinical-skills/issues/231) and it "
         "is answered before the draft exists rather than here: ``research_ledger.py`` "
         "grades a year an agent read off the page and a refutation a second agent "
-        "returned. Neither module sprouts a URL fetcher: no tool here opens a socket. "
+        "returned. Neither grading module sprouts a URL fetcher: both remain offline. "
         "The research and refutation passes own their access paths, including the "
         "required Authenticated route attempt before ``paywalled`` is available. A "
         "resolving locator whose title and authors match the entry is evidence the "

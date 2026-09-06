@@ -38,6 +38,7 @@ import artifact_lock_test_support  # noqa: E402, F401
 import artifact_lock  # noqa: E402
 import artifact_provenance  # noqa: E402
 import guidelines_extract as extract  # noqa: E402
+import guidelines_currency  # noqa: E402
 from guidelines_recs_test_support import trust_recommendation_record  # noqa: E402
 from guidelines_manifest_test_support import (  # noqa: E402
     ReadingManifestConformance,
@@ -292,6 +293,32 @@ def record(*rec_ids: str, mode: str = "exact", doc_id: str = "Society/doc",
     if built_from is not None:
         record_["source"] = built_from
     return trust_recommendation_record(record_)
+
+
+class EditionCurrencyReport(unittest.TestCase):
+    def test_reports_each_source_verdict_without_changing_sheet_status(self):
+        registry = guidelines_currency.parse_registry(f"""# Currency
+
+{guidelines_currency.SCHEMA_MARKER}
+
+## Society indexes
+
+| society | index | reader | join key | access | last observed | state | state observed |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| AHA ACC | https://example.invalid | aha-acc | DOI | agent | 2026-09-05 | read |  |
+
+## Documents
+
+| filename | society | join value | verdict | observed | superseded by |
+| --- | --- | --- | --- | --- | --- |
+| doc.pdf | AHA ACC | 10.1000/old | superseded | 2026-09-05 | new.pdf |
+""")
+        result = gate.gate_edition_currency(null_sheet(), registry)
+        self.assertEqual(result.findings, [])
+        self.assertIn(
+            "source 'src' Society/doc: superseded (observed 2026-09-05; replaced by new.pdf)",
+            result.report,
+        )
 
 
 class Parsing(unittest.TestCase):
@@ -4293,6 +4320,7 @@ class TheHookGradesSheetsAndNotTheDirectoryReadme(unittest.TestCase):
                 "skills_mirror.py",
                 "spelling_scan.py",
                 "guidelines_catalog.py",
+                "guidelines_currency.py",
                 "scratch_census.py",
                 "phi_scan.py",
             ):
@@ -4393,6 +4421,7 @@ class TheHookGradesSheetsAndNotTheDirectoryReadme(unittest.TestCase):
                 "artifact_provenance.py",
                 "guidelines_extract.py",
                 "guidelines_catalog.py",
+                "guidelines_currency.py",
                 "guidelines_manifest.py",
                 "guidelines_recs.py",
                 "console_codec.py",
