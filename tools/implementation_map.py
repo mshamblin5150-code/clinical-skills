@@ -1240,6 +1240,8 @@ def apply_delta(state: dict, delta: dict) -> dict:
         members = change.get("packets", group["packets"])
         if (
             not isinstance(members, list)
+            or not all(isinstance(pid, str) for pid in members)
+            or not all(isinstance(pid, str) for pid in group["packets"])
             or sorted(members) != sorted(group["packets"])
         ):
             raise MapError(

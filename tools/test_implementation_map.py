@@ -829,6 +829,17 @@ class ADeltaPlacesNewWork(unittest.TestCase):
                 "name": "shared", "kind": "sequence", "packets": ["PA", "PC"],
             }]})
 
+    def test_set_collision_kind_refuses_non_packet_id_members(self):
+        state = state_with(
+            [packet("PA", [1]), packet("PB", [2])],
+            groups=[{"name": "shared", "packets": ["PA", "PB"]}],
+        )
+
+        with self.assertRaisesRegex(imap.MapError, "permutation"):
+            imap.apply_delta(state, {"set_collision_kind": [{
+                "name": "shared", "kind": "sequence", "packets": ["PA", 7],
+            }]})
+
     def test_unordered_collision_members_are_stored_by_packet_id(self):
         state = state_with(
             [packet("PA", [1]), packet("PB", [2])],
