@@ -6,6 +6,8 @@ one. **There is no committed case study and there will not be one**: a finished
 draft lives under ``output/`` because it is written about a patient, which is the
 same reason ``test_differential_scan`` has no run to point at.
 
+phi-scan: synthetic
+
 ``TheSkillSaysWhatThisChecks`` is the one class that reads committed files, and it
 is here for ``test_spelling_scan``'s reason: a scanner that has drifted from the
 file a reader opens is worse than no scanner, because it reads as agreement. **It
@@ -91,6 +93,11 @@ LEGAL_NAME = "Payment for nurse practitioners' and clinical nurse specialists' s
 LEGAL_SECTION = "42 C.F.R. § 414.56"
 NAMELESS_LEGAL = f"{LEGAL_SECTION} (2026)."
 NAMED_LEGAL = f"{LEGAL_NAME}, {LEGAL_SECTION} (2026)."
+SESSION_LAW = (
+    "Consolidated Appropriations Act, 2023, Pub. L. No. 117-328, § 1263, "
+    "136 Stat. 4459, 5683-5684 (2022) (the Medication Access and Training "
+    "Expansion Act; codified as amended at 21 U.S.C. § 823(m)). https://example.org/law"
+)
 
 BODY = """\
 # Case Study
@@ -507,6 +514,33 @@ class LegalEntriesResolveBySectionOrAreExplicitlyExcluded(unittest.TestCase):
         self.assertEqual(kinds(draft(UPTODATE, body=pair_body)), [])
         self.assertEqual(kinds(draft(UPTODATE, body=narrative_body)), [])
 
+    def test_a_session_law_is_legal_and_keys_on_its_own_leftmost_span(self):
+        document = scan.read_document(draft(SESSION_LAW, body="# Case\n"))
+        entry = document.entries[0]
+
+        self.assertTrue(entry.is_legal)
+        self.assertEqual(
+            entry.resolution_keys,
+            (
+                ("consolidated", "2022"),
+                ("pub l no 117 328 1263", "2022"),
+                ("pub l no 117 328 1263", ""),
+            ),
+        )
+        self.assertNotIn(("21 u s c 823 m", "2022"), entry.resolution_keys)
+
+    def test_the_loose_spellings_and_parallel_citation_are_not_legal(self):
+        refused = (
+            "Public Law 117-328, § 1263 (2022).",
+            "Pub. L. 117-328, § 1263 (2022).",
+            "136 Stat. 4459 (2022).",
+        )
+
+        for entry_text in refused:
+            with self.subTest(entry=entry_text):
+                entry = scan.read_document(draft(entry_text, body="# Case\n")).entries[0]
+                self.assertFalse(entry.is_legal)
+
 
 class TheCitationParserReadsTheShapesAPAActuallyWrites(unittest.TestCase):
     """Every shape here was found by pointing the parser at real APA prose rather
@@ -595,13 +629,45 @@ class TheReportCarriesNoDocumentTextWithoutShow(unittest.TestCase):
         self.assertIn("legal entries                  0", report)
         self.assertIn("A legal entry is outside uncited-entry.", report)
 
-    def test_the_closed_legal_source_vocabulary_prints_on_every_run(self):
+    def test_the_derived_legal_reader_coverage_prints_on_every_run(self):
         report = scan.format_report(self.scan, source="case.md")
-        self.assertIn(scan.legal_source_vocabulary_covered(), report)
+        self.assertIn(scan.legal_reader_covered(), report)
 
-        widened = (*scan.LEGAL_SOURCE_VOCABULARY, "Example Code")
-        with mock.patch.object(scan, "LEGAL_SOURCE_VOCABULARY", widened):
-            self.assertIn(str(len(widened)), scan.legal_source_vocabulary_covered())
+        widened = (*scan.LEGAL_READER_MECHANISMS, ("example", "1 example form"))
+        with mock.patch.object(scan, "LEGAL_READER_MECHANISMS", widened):
+            coverage = scan.legal_reader_covered()
+        self.assertIn(str(len(widened)), coverage)
+        self.assertIn("1 example form", coverage)
+
+    def test_both_graders_derive_the_same_coverage_function_from_the_mechanisms(self):
+        def function(path: Path) -> ast.FunctionDef:
+            module = ast.parse(path.read_text(encoding="utf-8"))
+            return next(
+                node
+                for node in module.body
+                if isinstance(node, ast.FunctionDef) and node.name == "legal_reader_covered"
+            )
+
+        reference_function = function(REPO_ROOT / "tools" / "reference_scan.py")
+        post_function = function(REPO_ROOT / "tools" / "discussion_post_scan.py")
+
+        self.assertEqual(ast.dump(reference_function), ast.dump(post_function))
+        loaded_names = {
+            node.id
+            for node in ast.walk(reference_function)
+            if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load)
+        }
+        self.assertIn("LEGAL_READER_MECHANISMS", loaded_names)
+
+    def test_the_fixed_form_count_is_derived_from_the_grammar_source(self):
+        coverage = scan.legal_reader_covered()
+        written = re.search(r"(\d+) fixed session-law forms?", coverage)
+
+        self.assertIsNotNone(written)
+        self.assertEqual(
+            int(written.group(1)),
+            len(artifact.SESSION_LAW_AUTHOR_FORMS),
+        )
 
 
 class EntriesAtFaultCountsEntries(unittest.TestCase):
@@ -1366,15 +1432,27 @@ class LegalReferenceRulesArePublished(unittest.TestCase):
         section = self.section_eight()
         self.assertIn("Professional and Vocational Regulations, 16 CCR § 1481 (2023)", section)
         self.assertIn("Name of the Statute, Title number Source § Section number(s) (Year)", section)
-        self.assertIn("discussion_artifact.LEGAL_SOURCE_NOT_REACHED", section)
+        self.assertIn("discussion_artifact.LEGAL_READER_NOT_REACHED", section)
 
     def test_section_eight_enumerates_no_copy_of_the_code_owned_limit(self):
         section = self.section_eight()
-        self.assertTrue(artifact.LEGAL_SOURCE_NOT_REACHED)
-        for subject, reason in artifact.LEGAL_SOURCE_NOT_REACHED:
+        self.assertEqual(
+            {subject for subject, _reason in artifact.LEGAL_READER_NOT_REACHED},
+            {
+                "unlisted legal Source",
+                "refused session-law forms",
+                "leftmost legal span",
+            },
+        )
+        for subject, reason in artifact.LEGAL_READER_NOT_REACHED:
             with self.subTest(subject=subject):
                 self.assertNotIn(subject, section)
                 self.assertNotIn(reason, section)
+
+    def test_the_glossary_points_at_the_renamed_reader_limit(self):
+        glossary = CONTEXT.read_text(encoding="utf-8")
+        self.assertIn("discussion_artifact.LEGAL_READER_NOT_REACHED", glossary)
+        self.assertNotIn("discussion_artifact.LEGAL_SOURCE_NOT_REACHED", glossary)
 
     def test_discussion_post_points_to_the_apa_sheet(self):
         self.assertIn(

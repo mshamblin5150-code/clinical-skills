@@ -354,7 +354,7 @@ Eligibility for prescriptive authority, W. Va. Code § 30-7-15b (2016). https://
 ```
 
 **Configured reader boundary.** The implemented limit is owned by
-`discussion_artifact.LEGAL_SOURCE_NOT_REACHED`; this sheet points to that object and does not
+`discussion_artifact.LEGAL_READER_NOT_REACHED`; this sheet points to that object and does not
 restate its entries.
 
 ---

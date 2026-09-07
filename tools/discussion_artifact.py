@@ -57,19 +57,48 @@ _MIXED_CASE_LEGAL_SOURCE = "|".join(
     re.escape(source).replace(r"\ ", r"\s+")
     for source in LEGAL_SOURCE_VOCABULARY
 )
+_TITLE_NUMBER_LEGAL_SOURCE = r"\b\d+\s+(?-i:(?:[A-Z](?:\.\s*)?){2,})"
+_LISTED_LEGAL_SOURCE = r"(?-i:" + _MIXED_CASE_LEGAL_SOURCE + r")"
 LEGAL_SOURCE = (
-    r"(?:\b\d+\s+(?-i:(?:[A-Z](?:\.\s*)?){2,})"
-    r"|(?-i:" + _MIXED_CASE_LEGAL_SOURCE + r"))"
+    r"(?:" + _TITLE_NUMBER_LEGAL_SOURCE + r"|" + _LISTED_LEGAL_SOURCE + r")"
 )
-LEGAL_SOURCE_NOT_REACHED = (
+LEGAL_READER_NOT_REACHED = (
     (
         "unlisted legal Source",
         "An unlisted code reads as non-legal even when it is a valid legal source.",
     ),
+    (
+        "refused session-law forms",
+        "Public Law and Pub. L. spellings are refused because they match prose, and a Statutes at Large parallel citation is refused because it would add a second legal span.",
+    ),
+    (
+        "leftmost legal span",
+        "The reader takes the leftmost legal span and cannot distinguish an entry's authority from a codification cross-reference.",
+    ),
+)
+_TITLE_NUMBER_LEGAL_AUTHOR = (
+    _TITLE_NUMBER_LEGAL_SOURCE + r"\s*(?:§+|sections?\s+)\s*" + LEGAL_SECTION_NUMBER
+)
+_LISTED_LEGAL_AUTHOR = (
+    _LISTED_LEGAL_SOURCE + r"\s*(?:§+|sections?\s+)\s*" + LEGAL_SECTION_NUMBER
+)
+_SESSION_LAW_AUTHOR = (
+    r"(?-i:Pub\.\s+L\.\s+No\.)\s+\d+-\d+,\s*§+\s*" + LEGAL_SECTION_NUMBER
+)
+SESSION_LAW_AUTHOR_FORMS = (_SESSION_LAW_AUTHOR,)
+LEGAL_READER_MECHANISMS = (
+    (_TITLE_NUMBER_LEGAL_AUTHOR, "title-number uppercase codes by shape"),
+    (
+        _LISTED_LEGAL_AUTHOR,
+        f"{len(LEGAL_SOURCE_VOCABULARY)} listed mixed-case Source forms",
+    ),
+    (
+        r"(?:" + "|".join(SESSION_LAW_AUTHOR_FORMS) + r")",
+        f"{len(SESSION_LAW_AUTHOR_FORMS)} fixed session-law form",
+    ),
 )
 LEGAL_AUTHOR = (
-    LEGAL_SOURCE + r"\s*(?:§+|sections?\s+)\s*"
-    + LEGAL_SECTION_NUMBER
+    r"(?:" + "|".join(pattern for pattern, _description in LEGAL_READER_MECHANISMS) + r")"
 )
 LEGAL_CITATION = re.compile(
     r"(?:\(\s*(?P<parenthesized_author>" + LEGAL_AUTHOR + r")\s*,\s*"

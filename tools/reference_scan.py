@@ -244,7 +244,7 @@ import run_grader
 from run_grader import NOT_GRADED
 from discussion_artifact import (
     LEGAL_CITATION,
-    LEGAL_SOURCE_VOCABULARY,
+    LEGAL_READER_MECHANISMS,
     legal_citation_spans,
     legal_reference_lacks_name,
 )
@@ -1301,13 +1301,13 @@ def survey(document: Document, as_of: date | None) -> Scan:
     )
 
 
-def legal_source_vocabulary_covered() -> str:
-    """State the closed mixed-case Source vocabulary this reader holds."""
+def legal_reader_covered() -> str:
+    """State the derived composition of the shared legal reader."""
 
     return (
-        "legal Source vocabulary: closed at "
-        f"{len(LEGAL_SOURCE_VOCABULARY)} listed mixed-case forms; "
-        "title-number uppercase codes are read by shape."
+        f"legal reader coverage: {len(LEGAL_READER_MECHANISMS)} mechanisms -- "
+        + ", ".join(description for _pattern, description in LEGAL_READER_MECHANISMS)
+        + "."
     )
 
 
@@ -1337,7 +1337,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         f"  {'undecidable remainder':<34} {scan.undecidable_remainder}",
         "",
         "  A legal entry is outside uncited-entry.",
-        f"  {legal_source_vocabulary_covered()}",
+        f"  {legal_reader_covered()}",
         "",
     ]
     for kind, count in scan.counts:
