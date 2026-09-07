@@ -65,6 +65,7 @@ STATE_BEGIN = "<!-- implementation-map:v1:state:begin -->"
 STATE_END = "<!-- implementation-map:v1:state:end -->"
 
 EDGE_TYPES = ("HARD", "REBUILD-SAVING", "EXTERNAL-GATE")
+COLLISION_KINDS = ("sequence", "unordered", "unclassified")
 # COLLISION-SEQUENCING is recorded as collision groups, not as edges: a
 # collision is symmetric and n-ary, and an edge encoding of one invites the
 # false blocking dependency this skill exists to refuse.
@@ -101,8 +102,16 @@ DECLARED_LIMITS = (
         "The emitter check is complete for the line shapes this module writes and does not recognize a future construct automatically.",
     ),
     DeclaredLimit(
-        "collision-kind-forward-compatibility",
-        "An unknown collision-group kind is preserved and ignored here; its sequencing meaning belongs to the classifier that introduces the field.",
+        "collision-kind-accuracy",
+        "No mechanical check establishes that an authored unordered collision group genuinely carries no order.",
+    ),
+    DeclaredLimit(
+        "collision-membership-completeness",
+        "No mechanical check establishes that every packet touching a shared seam belongs to its collision group.",
+    ),
+    DeclaredLimit(
+        "unclassified-order-authorship",
+        "An unclassified group is held by its stored list order even though no mechanical check establishes that order was authored.",
     ),
 )
 
@@ -119,6 +128,12 @@ class Finding:
 
     def __repr__(self) -> str:  # pragma: no cover - debugging aid
         return f"Finding({self.kind}: {self.detail})"
+
+
+def collision_kind(group: dict) -> str:
+    """Return the operational kind; absence and bad values are conservative."""
+    kind = group.get("kind", "unclassified")
+    return kind if kind in COLLISION_KINDS else "unclassified"
 
 
 # ---------------------------------------------------------------------------
@@ -487,9 +502,8 @@ def validate_shape(state: dict) -> list[Finding]:
     return findings
 
 
-def sequencing_graph(state: dict) -> dict[str, set[str]]:
-    """Packet -> its predecessor packets, over declared HARD (lifted to
-    packet level, intra-packet edges dropped) plus REBUILD-SAVING."""
+def declared_sequencing_graph(state: dict) -> dict[str, set[str]]:
+    """The liveness-blind graph of declared HARD and REBUILD-SAVING edges."""
     graph: dict[str, set[str]] = {pid: set() for pid in packet_ids(state)}
     for edge in edges_of(state, "HARD"):
         src = packet_of(state, edge.get("from_ticket"))
@@ -503,11 +517,35 @@ def sequencing_graph(state: dict) -> dict[str, set[str]]:
     return graph
 
 
-def cycle_findings(state: dict) -> list[Finding]:
-    graph = sequencing_graph(state)
+def collision_predecessors(state: dict, live: Live, pid: str) -> list[tuple[str, str]]:
+    """Return (group name, predecessor) for active ordered constraints."""
+    found: list[tuple[str, str]] = []
+    for group in state.get("collision_groups", []):
+        if collision_kind(group) == "unordered" or pid not in group["packets"]:
+            continue
+        position = group["packets"].index(pid)
+        for predecessor in group["packets"][:position]:
+            if packet_status_ignoring_r(state, live, predecessor) != "done":
+                found.append((group["name"], predecessor))
+    return found
+
+
+def sequencing_graph(state: dict, live: Live | None = None) -> dict[str, set[str]]:
+    """Packet predecessors, including live sequence/unclassified collisions."""
+    graph = declared_sequencing_graph(state)
+    if live is not None:
+        for pid in graph:
+            graph[pid].update(
+                predecessor
+                for _, predecessor in collision_predecessors(state, live, pid)
+            )
+    return graph
+
+
+def graph_cycles(graph: dict[str, set[str]]) -> list[tuple[str, ...]]:
     color: dict[str, int] = {}
     stack: list[str] = []
-    cycles: list[str] = []
+    cycles: list[tuple[str, ...]] = []
 
     def visit(node: str) -> None:
         color[node] = 1
@@ -515,7 +553,7 @@ def cycle_findings(state: dict) -> list[Finding]:
         for pred in sorted(graph.get(node, ())):
             if color.get(pred) == 1:
                 loop = stack[stack.index(pred):] + [pred]
-                cycles.append(" -> ".join(loop))
+                cycles.append(tuple(loop))
             elif color.get(pred, 0) == 0:
                 visit(pred)
         stack.pop()
@@ -524,13 +562,68 @@ def cycle_findings(state: dict) -> list[Finding]:
     for node in sorted(graph):
         if color.get(node, 0) == 0:
             visit(node)
-    return [Finding("cycle", f"sequencing cycle: {loop}") for loop in sorted(set(cycles))]
+    return sorted(set(cycles))
+
+
+def cycle_findings(state: dict) -> list[Finding]:
+    return [
+        Finding("cycle", f"sequencing cycle: {' -> '.join(loop)}")
+        for loop in graph_cycles(declared_sequencing_graph(state))
+    ]
+
+
+def collision_cycle_findings(state: dict, live: Live) -> list[Finding]:
+    """Cycles involving collision order, graded only across not-done packets."""
+    not_done = {
+        pid for pid in packet_ids(state)
+        if packet_status_ignoring_r(state, live, pid) != "done"
+    }
+    graph = sequencing_graph(state, live)
+    graph = {
+        pid: {pred for pred in predecessors if pred in not_done}
+        for pid, predecessors in graph.items()
+        if pid in not_done
+    }
+    collision_edges = {
+        (pid, predecessor)
+        for pid in not_done
+        for _, predecessor in collision_predecessors(state, live, pid)
+        if predecessor in not_done
+    }
+    findings: list[Finding] = []
+    for loop in graph_cycles(graph):
+        if any(pair in collision_edges for pair in zip(loop, loop[1:])):
+            findings.append(Finding(
+                "collision-cycle",
+                f"live collision-derived sequencing cycle: {' -> '.join(loop)}",
+            ))
+    return findings
 
 
 def validate_against_live(state: dict, live: Live) -> list[Finding]:
     findings: list[Finding] = []
     excluded = excluded_tickets(state)
     mapped = set(all_tickets(state))
+
+    for group in state.get("collision_groups", []):
+        kind = group.get("kind", "unclassified")
+        if kind not in COLLISION_KINDS:
+            findings.append(Finding(
+                "bad-collision-kind",
+                f"collision group {group.get('name')!r} has kind {kind!r}; "
+                f"expected one of {COLLISION_KINDS}",
+            ))
+        if collision_kind(group) == "unclassified":
+            not_done = [
+                pid for pid in group["packets"]
+                if packet_status_ignoring_r(state, live, pid) != "done"
+            ]
+            if len(not_done) >= 2:
+                findings.append(Finding(
+                    "unclassified-collision",
+                    f"collision group {group.get('name')!r} is unclassified "
+                    f"with not-done members {not_done}",
+                ))
 
     for ticket in sorted(mapped):
         if ticket not in live.issues:
@@ -605,6 +698,7 @@ def validate_against_live(state: dict, live: Live) -> list[Finding]:
                 f"(labels {sorted(labels & in_flight_labels)}, assignees {row['assignees']}) "
                 "but is in no packet and not excluded",
             ))
+    findings.extend(collision_cycle_findings(state, live))
     return findings
 
 
@@ -711,7 +805,7 @@ def frontiers(state: dict, live: Live) -> list[list[str]]:
     first layer is additionally held to a startable derived status, so a
     native blocker the graph cannot see (undeclared drift) never renders as
     buildable."""
-    graph = sequencing_graph(state)
+    graph = sequencing_graph(state, live)
     status = {pid: packet_status(state, live, pid) for pid in graph}
     done = {pid for pid, s in status.items() if s == "done"}
     unready = {pid for pid in graph if packet_readiness(state, live, pid)}
@@ -988,12 +1082,13 @@ def render(state: dict, live: Live, snapshot: dict) -> str:
         "| --- | --- | --- | --- |",
     ]
     for group in sorted(state.get("collision_groups", []), key=lambda g: g["name"]):
-        # Ticket #809 owns the kind vocabulary and its semantics. Until it
-        # lands, this tool deliberately accepts and ignores that field.
         name = str(group["name"]).replace("|", "\\|")
+        kind = collision_kind(group)
         members = ", ".join(group.get("packets", [])).replace("|", "\\|")
         why = str(group.get("why", "-") or "-").replace("|", "\\|")
-        collision_rows.append(f"| {name} | - | {members or '-'} | {why} |")
+        collision_rows.append(
+            f"| {name} | {kind} | {members or '-'} | {why} |"
+        )
     parts.append("## Collision groups\n\n" + "\n".join(collision_rows))
     rows = [
         "| Packet | Tickets | Status | Blocked by | Outcome | Collisions |",
@@ -1040,7 +1135,8 @@ def render(state: dict, live: Live, snapshot: dict) -> str:
 DELTA_KEYS = {
     "note", "add_packets", "remove_packets", "add_tickets", "remove_tickets",
     "add_edges", "remove_edges", "add_collision_groups",
-    "remove_collision_groups", "add_exclusions", "remove_exclusions",
+    "remove_collision_groups", "set_collision_kind", "add_exclusions",
+    "remove_exclusions",
 }
 
 
@@ -1123,6 +1219,38 @@ def apply_delta(state: dict, delta: dict) -> dict:
         if existing_group is not None:
             raise MapError(f"add_collision_groups: {group['name']!r} already exists")
         new.setdefault("collision_groups", []).append(group)
+    for change in delta.get("set_collision_kind", []):
+        name = change.get("name")
+        matches = [
+            group for group in new.get("collision_groups", [])
+            if group["name"] == name
+        ]
+        if len(matches) != 1:
+            raise MapError(
+                f"set_collision_kind: expected one group named {name!r}, "
+                f"found {len(matches)}"
+            )
+        kind = change.get("kind")
+        if kind not in COLLISION_KINDS:
+            raise MapError(
+                f"set_collision_kind: kind {kind!r} is not one of "
+                f"{COLLISION_KINDS}"
+            )
+        group = matches[0]
+        members = change.get("packets", group["packets"])
+        if (
+            not isinstance(members, list)
+            or sorted(members) != sorted(group["packets"])
+        ):
+            raise MapError(
+                "set_collision_kind: packets must be a permutation of the "
+                "current membership"
+            )
+        group["packets"] = sorted(members) if kind == "unordered" else members
+        if kind == "unclassified":
+            group.pop("kind", None)
+        else:
+            group["kind"] = kind
     for ticket in delta.get("remove_exclusions", []):
         rows = new.get("exclusions", [])
         if not any(r["ticket"] == ticket for r in rows):
@@ -1293,6 +1421,23 @@ def cmd_claim(tracker, args) -> int:
             f"{', '.join(f'#{ticket}' for ticket in unready)}"
         )
         return 1
+    for group in state.get("collision_groups", []):
+        predecessors = [
+            predecessor
+            for name, predecessor in collision_predecessors(state, live, pid)
+            if name == group["name"]
+        ]
+        if not predecessors:
+            continue
+        kind = collision_kind(group)
+        detail = (
+            f"collision group {group['name']!r} ({kind}) has unmet "
+            f"predecessors {predecessors}"
+        )
+        if kind == "sequence":
+            print(f"REFUSED: {pid}: {detail}")
+            return 1
+        print(f"WARN: {pid}: {detail}; stored order is not yet ruled")
     if status == "in-flight":
         print(f"WARN: {pid} already looks in flight (assignee or in-flight label)")
     if status == "deferred":
@@ -1312,9 +1457,11 @@ def cmd_claim(tracker, args) -> int:
                 if g != pid and packet_status(state, live, g) == "in-flight"
             ]
             if others:
+                kind = collision_kind(group)
                 print(
-                    f"WARN: collision group {group['name']!r}: {', '.join(others)} "
-                    "in flight; serialize, do not build concurrently"
+                    f"WARN: collision group {group['name']!r} ({kind}): "
+                    f"{', '.join(others)} in flight; serialize, do not build "
+                    "concurrently"
                 )
     print(f"CLAIMABLE: {pid} ({', '.join(f'#{t}' for t in packet['tickets'])})")
     return 0
