@@ -2153,8 +2153,9 @@ that object and copies no row.
 **It can refuse a commit**, and it is one of the two that do so unconditionally. Its status is OR-ed
 into the hook's, so nothing above it can suppress it.
 
-**Exit status** — 0 clean, 1 for a rise in the owning or committing checkout, 2 when a gating root
-or the accounted set was not scanned. A peer root never changes status.
+**Exit status** — 0 clean and 1 for a rise in the owning or committing checkout. The complete
+exit-2 contract lives in `scratch_census.EXIT_2_LIMBS`; this section copies no limb. A peer root
+never changes status.
 
 Covered by `tools/test_scratch_census.py`.
 

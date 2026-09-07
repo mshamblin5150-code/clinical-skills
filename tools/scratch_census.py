@@ -25,6 +25,25 @@ from console_codec import use_utf8
 # entries would publish patient-derived filenames and is therefore unavailable.
 OWNING_BASELINE = 28
 
+INVALID_INVOCATION = "arguments do not match the command surface"
+WORKTREE_REGISTRY_UNAVAILABLE = (
+    "the registered checkout population or committing checkout is unavailable"
+)
+ACCOUNTED_SET_UNAVAILABLE = "the accounted top-level name set is unavailable"
+OWNING_SCRATCH_ABSENT = "the owning checkout has no scratch root"
+OWNING_SCRATCH_UNREADABLE = "the owning checkout scratch root cannot be read"
+COMMITTING_SCRATCH_UNREADABLE = (
+    "the committing checkout scratch root cannot be read"
+)
+EXIT_2_LIMBS = (
+    INVALID_INVOCATION,
+    WORKTREE_REGISTRY_UNAVAILABLE,
+    ACCOUNTED_SET_UNAVAILABLE,
+    OWNING_SCRATCH_ABSENT,
+    OWNING_SCRATCH_UNREADABLE,
+    COMMITTING_SCRATCH_UNREADABLE,
+)
+
 STANDING_ARTIFACTS = frozenset(
     {
         "runs",
@@ -56,6 +75,10 @@ SHARED_TICKET_DIRECTORY_LIMIT = (
 SHARED_CHECKOUT_LIMIT = (
     "two drones sharing one checkout are one gating root to the census"
 )
+DELETED_COMMITTING_ROOT_LIMIT = (
+    "a committing scratch root deleted rather than drained reports as one "
+    "never created"
+)
 
 DECLARED_LIMITS = (
     OWNING_SWAP_LIMIT,
@@ -64,6 +87,7 @@ DECLARED_LIMITS = (
     ABANDONED_WORKTREE_LIMIT,
     SHARED_TICKET_DIRECTORY_LIMIT,
     SHARED_CHECKOUT_LIMIT,
+    DELETED_COMMITTING_ROOT_LIMIT,
 )
 
 DELIMITED_SCRATCH_NAMES = (
@@ -238,7 +262,7 @@ def main(argv: list[str]) -> int:
 
     counts: list[RootCount] = []
     absent: list[Path] = []
-    unreadable: list[Path] = []
+    unavailable: dict[Path, str] = {}
     for root in roots:
         try:
             counted = count_root(root, accounted)
@@ -246,14 +270,35 @@ def main(argv: list[str]) -> int:
                 counts.append(counted)
             else:
                 absent.append(root)
+        except FileNotFoundError:
+            unavailable[root] = (
+                "unreadable" if root.is_dir() else "stale registration"
+            )
         except OSError:
-            unreadable.append(root)
+            unavailable[root] = "unreadable"
 
-    print(
-        f"coverage: {len(roots)} worktrees enumerated; "
-        f"{len(unreadable)} unreadable"
-        + (": " + ", ".join(str(path) for path in unreadable) if unreadable else "")
+    unreadable_roots = tuple(
+        root for root, state in unavailable.items() if state == "unreadable"
     )
+    stale_roots = tuple(
+        root for root, state in unavailable.items() if state == "stale registration"
+    )
+    coverage = (
+        f"coverage: {len(roots)} worktrees enumerated; "
+        f"{len(unreadable_roots)} unreadable"
+        + (
+            ": " + ", ".join(str(path) for path in unreadable_roots)
+            if unreadable_roots
+            else ""
+        )
+    )
+    if stale_roots:
+        noun = "registration" if len(stale_roots) == 1 else "registrations"
+        coverage += (
+            f"; {len(stale_roots)} stale {noun}: "
+            + ", ".join(str(path) for path in stale_roots)
+        )
+    print(coverage)
     print(
         f"scratch roots: {len(counts)} checkouts own a scratch root; "
         f"{sum(item.files for item in counts)} files beneath"
@@ -263,11 +308,10 @@ def main(argv: list[str]) -> int:
         gating_roots = {owning, checkout}
         peer_reported = False
         for root in roots:
-            if root in unreadable:
-                state = "unreadable"
-            elif root in absent:
+            state = unavailable.get(root)
+            if state is None and root in absent:
                 state = "absent"
-            else:
+            elif state is None:
                 state = "not scanned"
             if root in gating_roots:
                 print(f"GATING: {root / 'scratch'}: {state}")
@@ -301,16 +345,17 @@ def main(argv: list[str]) -> int:
         committing_count is not None and committing_count.unaccounted > 0
     )
     peer_counts = [item for item in other_counts if item.root != checkout]
-    gating_unavailable = [
-        root for root in (*absent, *unreadable) if root in (owning, checkout)
+    gating_unavailable = [root for root in absent if root == owning] + [
+        root for root in unavailable if root in (owning, checkout)
     ]
+    committing_absent = checkout != owning and checkout in absent
     peer_unavailable = [
         (root, "absent")
         for root in absent
         if root not in (owning, checkout)
     ] + [
-        (root, "unreadable")
-        for root in unreadable
+        (root, state)
+        for root, state in unavailable.items()
         if root not in (owning, checkout)
     ]
     finding = owning_finding or committing_finding
@@ -328,8 +373,10 @@ def main(argv: list[str]) -> int:
             f"{committing_count.unaccounted} unaccounted, "
             f"{committing_count.unaccounted} above baseline"
         )
+    if committing_absent:
+        print(f"GATING: {checkout / 'scratch'}: absent; nothing to grade")
     for root in gating_unavailable:
-        state = "unreadable" if root in unreadable else "absent"
+        state = unavailable.get(root, "absent")
         print(f"GATING: {root / 'scratch'}: {state}; not scanned")
     for item in peer_counts:
         print(
@@ -361,9 +408,22 @@ def main(argv: list[str]) -> int:
             "        do not raise OWNING_BASELINE -- the ratchet's only value "
             "is that it cannot be moved to meet the disk"
         )
+        if committing_finding:
+            print("        do not delete a scratch root to clear this")
     elif not not_scanned:
         print("CLEAN: scratch top levels are within their ratchets")
     if not_scanned:
+        if owning in absent:
+            print(
+                "REMEDY: run python tools/scratch_work.py ticket <n> to create "
+                "the owning scratch root"
+            )
+        if unavailable.get(owning) == "unreadable":
+            print("REMEDY: restore access to the owning scratch root")
+        if checkout != owning and unavailable.get(checkout) == "unreadable":
+            print("REMEDY: restore access to the committing scratch root")
+        if any(unavailable.get(root) == "unreadable" for root in gating_unavailable):
+            print("        do not delete a scratch root to clear this")
         print("NOT SCANNED: one or more required roots could not be read")
 
     if finding:
