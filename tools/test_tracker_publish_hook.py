@@ -54,8 +54,14 @@ class TheRecognizedPublishSetIsDeclared(unittest.TestCase):
 
 
 class DirectTrackerWritersCrossTheBodyGate(unittest.TestCase):
-    def test_lost_body_and_control_character_forms_are_refused(self) -> None:
-        for body in ("@-", "word\bword"):
+    def test_every_ruled_body_shape_is_refused(self) -> None:
+        for body in (
+            "@-",
+            "word\bword",
+            "before\rafter",
+            r"before\nafter",
+            r"open D:\\folder",
+        ):
             with self.subTest(body=repr(body)):
                 with self.assertRaisesRegex(ValueError, "tracker body refused"):
                     hook.authorize_issue_body(body, "issue #596")
@@ -324,6 +330,42 @@ class PublishedFieldsAreGradedWithoutEchoingThem(unittest.TestCase):
                 self.assertEqual(
                     [(row.field, row.posture) for row in controls],
                     [(field, "deny")],
+                )
+
+    def test_escape_collapse_symptoms_deny_bodies(self) -> None:
+        index = phi_scan.build_index(set(), set())
+        cases = (
+            ("before\rafter", "body:carriage-return-flanked"),
+            (r"before\nafter", "body:literal-newline-escape"),
+            (r"open D:\\folder", "body:doubled-path-separator"),
+        )
+
+        for body, rule in cases:
+            with self.subTest(rule=rule):
+                result = hook.analyze(
+                    hook.Publication("body", body),
+                    index=index,
+                    issue=None,
+                    remote_fresh=True,
+                )
+                self.assertIn(
+                    (rule, "deny"),
+                    [(row.rule, row.posture) for row in result.findings],
+                )
+
+    def test_title_exclusions_are_preserved(self) -> None:
+        index = phi_scan.build_index(set(), set())
+
+        for title in (r"before\nafter", r"open D:\\folder"):
+            with self.subTest(title=title):
+                result = hook.analyze(
+                    hook.Publication("title", title),
+                    index=index,
+                    issue=None,
+                    remote_fresh=True,
+                )
+                self.assertFalse(
+                    any(row.rule.startswith("body:") for row in result.findings)
                 )
 
     def test_phi_findings_are_advisory_counts_with_rule_and_field(self) -> None:
