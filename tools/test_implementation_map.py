@@ -431,7 +431,8 @@ class ACollisionIsNotABlocker(unittest.TestCase):
     def setUp(self):
         self.state = state_with(
             [packet("PA", [1]), packet("PB", [2])],
-            groups=[{"name": "shared_file.py", "packets": ["PA", "PB"],
+            groups=[{"name": "shared_file.py", "kind": "unordered",
+                     "packets": ["PA", "PB"],
                      "why": "same module"}],
         )
 
@@ -462,6 +463,114 @@ class ACollisionIsNotABlocker(unittest.TestCase):
         ])
         live = imap.Live(tracker, self.state)
         self.assertEqual(imap.validate_against_live(self.state, live), [])
+
+
+class CollisionKindControlsStartability(unittest.TestCase):
+    def test_unclassified_group_over_constrains_by_its_stored_order(self):
+        state = state_with(
+            [packet("PA", [1]), packet("PB", [2])],
+            groups=[{"name": "shared", "packets": ["PA", "PB"]}],
+        )
+        live = imap.Live(FakeTracker([
+            issue(1, labels=["ready"]), issue(2, labels=["ready"]),
+        ]), state)
+
+        self.assertEqual(imap.frontiers(state, live), [["PA"], ["PB"]])
+
+    def test_claim_refuses_an_unmet_ruled_sequence(self):
+        state = state_with(
+            [packet("PA", [1]), packet("PB", [2])],
+            groups=[{
+                "name": "shared", "kind": "sequence", "packets": ["PA", "PB"],
+            }],
+        )
+        rows = [
+            issue(1, labels=["ready"]), issue(2, labels=["ready"]),
+            map_issue(state, 50),
+        ]
+
+        rc, out = run(imap.cmd_claim, FakeTracker(rows), args(packet="PB"))
+
+        self.assertEqual(rc, 1)
+        self.assertIn("REFUSED", out)
+        self.assertIn("sequence", out)
+        self.assertIn("shared", out)
+        self.assertIn("PA", out)
+
+    def test_claim_warns_on_an_unclassified_predecessor(self):
+        state = state_with(
+            [packet("PA", [1]), packet("PB", [2])],
+            groups=[{"name": "shared", "packets": ["PA", "PB"]}],
+        )
+        rows = [
+            issue(1, labels=["ready"]), issue(2, labels=["ready"]),
+            map_issue(state, 50),
+        ]
+
+        rc, out = run(imap.cmd_claim, FakeTracker(rows), args(packet="PB"))
+
+        self.assertEqual(rc, 0)
+        self.assertIn("WARN", out)
+        self.assertIn("unclassified", out)
+        self.assertIn("shared", out)
+        self.assertIn("CLAIMABLE", out)
+
+    def test_two_not_done_members_demand_a_collision_kind(self):
+        state = state_with(
+            [packet("PA", [1]), packet("PB", [2])],
+            groups=[{"name": "shared", "packets": ["PA", "PB"]}],
+        )
+        live = imap.Live(FakeTracker([issue(1), issue(2)]), state)
+
+        findings = imap.validate_against_live(state, live)
+
+        finding = next(f for f in findings if f.kind == "unclassified-collision")
+        self.assertIn("shared", finding.detail)
+        self.assertIn("PA", finding.detail)
+        self.assertIn("PB", finding.detail)
+
+    def test_one_not_done_member_does_not_demand_a_collision_kind(self):
+        state = state_with(
+            [packet("PA", [1]), packet("PB", [2])],
+            groups=[{"name": "shared", "packets": ["PA", "PB"]}],
+        )
+        live = imap.Live(FakeTracker([
+            issue(1, state="closed"), issue(2),
+        ]), state)
+
+        kinds = [f.kind for f in imap.validate_against_live(state, live)]
+
+        self.assertNotIn("unclassified-collision", kinds)
+
+    def test_live_sequence_cycle_is_a_collision_finding(self):
+        state = state_with(
+            [packet("PA", [1]), packet("PB", [2])],
+            edges=[hard(2, 1)],
+            groups=[{
+                "name": "shared", "kind": "sequence", "packets": ["PA", "PB"],
+            }],
+        )
+        live = imap.Live(FakeTracker([issue(1), issue(2)]), state)
+
+        kinds = [f.kind for f in imap.validate_against_live(state, live)]
+
+        self.assertIn("collision-cycle", kinds)
+
+    def test_finished_member_removes_a_collision_derived_cycle(self):
+        state = state_with(
+            [packet("PA", [1]), packet("PB", [2])],
+            edges=[hard(2, 1)],
+            groups=[{
+                "name": "shared", "kind": "sequence", "packets": ["PA", "PB"],
+            }],
+        )
+        live = imap.Live(FakeTracker([
+            issue(1), issue(2, state="closed"),
+        ]), state)
+
+        kinds = [f.kind for f in imap.validate_against_live(state, live)]
+
+        self.assertNotIn("collision-cycle", kinds)
 
 
 # ---------------------------------------------------------------------------
@@ -695,6 +804,55 @@ class ADeltaPlacesNewWork(unittest.TestCase):
                 placed,
                 {"add_packets": [packet("PC", [4], outcome="Different judgment")]},
             )
+
+    def test_set_collision_kind_can_author_sequence_order(self):
+        state = state_with(
+            [packet("PA", [1]), packet("PB", [2])],
+            groups=[{"name": "shared", "packets": ["PA", "PB"]}],
+        )
+
+        new = imap.apply_delta(state, {"set_collision_kind": [{
+            "name": "shared", "kind": "sequence", "packets": ["PB", "PA"],
+        }]})
+
+        self.assertEqual(new["collision_groups"][0]["kind"], "sequence")
+        self.assertEqual(new["collision_groups"][0]["packets"], ["PB", "PA"])
+
+    def test_set_collision_kind_refuses_membership_changes(self):
+        state = state_with(
+            [packet("PA", [1]), packet("PB", [2]), packet("PC", [3])],
+            groups=[{"name": "shared", "packets": ["PA", "PB"]}],
+        )
+
+        with self.assertRaisesRegex(imap.MapError, "permutation"):
+            imap.apply_delta(state, {"set_collision_kind": [{
+                "name": "shared", "kind": "sequence", "packets": ["PA", "PC"],
+            }]})
+
+    def test_set_collision_kind_refuses_non_packet_id_members(self):
+        state = state_with(
+            [packet("PA", [1]), packet("PB", [2])],
+            groups=[{"name": "shared", "packets": ["PA", "PB"]}],
+        )
+
+        with self.assertRaisesRegex(imap.MapError, "permutation"):
+            imap.apply_delta(state, {"set_collision_kind": [{
+                "name": "shared", "kind": "sequence", "packets": ["PA", 7],
+            }]})
+
+    def test_unordered_collision_members_are_stored_by_packet_id(self):
+        state = state_with(
+            [packet("PA", [1]), packet("PB", [2])],
+            groups=[{"name": "shared", "packets": ["PB", "PA"]}],
+        )
+
+        new = imap.apply_delta(state, {"set_collision_kind": [{
+            "name": "shared", "kind": "unordered",
+        }]})
+
+        self.assertEqual(new["collision_groups"][0], {
+            "name": "shared", "kind": "unordered", "packets": ["PA", "PB"],
+        })
 
 
 # ---------------------------------------------------------------------------
@@ -1337,7 +1495,7 @@ class ShapeFindings(unittest.TestCase):
         kinds = [f.kind for f in imap.validate_shape(state)]
         self.assertIn("collision-off-map", kinds)
 
-    def test_unknown_collision_kind_is_forward_compatible_and_ignored(self):
+    def test_unknown_collision_kind_is_a_live_finding(self):
         state = state_with(
             [packet("PA", [1]), packet("PB", [2])],
             groups=[{
@@ -1348,16 +1506,20 @@ class ShapeFindings(unittest.TestCase):
         )
 
         self.assertEqual(imap.validate_shape(state), [])
+        live = imap.Live(FakeTracker([issue(1), issue(2)]), state)
+        findings = imap.validate_against_live(state, live)
+        bad_kind = next(f for f in findings if f.kind == "bad-collision-kind")
+        self.assertIn("a-kind-this-version-does-not-know", bad_kind.detail)
         body = imap.render(
             state,
-            imap.Live(FakeTracker([issue(1), issue(2)]), state),
+            live,
             {"commit": "c", "date": "d"},
         )
         derived = body.split(imap.STATE_END, 1)[1]
         self.assertNotIn("a-kind-this-version-does-not-know", derived)
         table = derived.split("## Collision groups", 1)[1].split("##", 1)[0]
         self.assertIn("| Constraint | Kind | Packets | Why |", table)
-        self.assertIn("| future classifier | - | PA, PB | - |", table)
+        self.assertIn("| future classifier | unclassified | PA, PB | - |", table)
 
     def test_non_integer_ticket(self):
         state = state_with([packet("PA", ["#1"])])
@@ -1454,8 +1616,8 @@ class TheRenderedViews(unittest.TestCase):
 
         self.assertNotIn("-.-", graph)
         self.assertEqual(imap.verify_mermaid(state, graph).unread, ())
-        self.assertIn("| first | - | PA, PB | one seam |", table)
-        self.assertIn("| second | - | PA, PB | another seam |", table)
+        self.assertIn("| first | unclassified | PA, PB | one seam |", table)
+        self.assertIn("| second | unclassified | PA, PB | another seam |", table)
         self.assertNotIn("collision sequencing", body)
 
 
