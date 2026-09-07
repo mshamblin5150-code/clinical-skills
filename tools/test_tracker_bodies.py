@@ -207,8 +207,8 @@ class TheC0ControlCharacterRow(unittest.TestCase):
 
         self.assertEqual(kinds_of(records), [tb.C0_CONTROL_CHARACTER])
 
-    def test_tab_line_feed_and_carriage_return_remain_clean(self):
-        records = read(harvest(issue(723, "tab\tline\ncarriage\rreturn")))
+    def test_tab_line_feed_and_unflanked_carriage_return_remain_clean(self):
+        records = read(harvest(issue(723, "tab\tline\ncarriage\r return")))
 
         self.assertEqual(kinds_of(records), [])
 
@@ -216,6 +216,148 @@ class TheC0ControlCharacterRow(unittest.TestCase):
         records = read(harvest(issue(723, "DEL\x7f replacement\ufffd")))
 
         self.assertEqual(kinds_of(records), [])
+
+
+class TheCarriageReturnFlankedRow(unittest.TestCase):
+    """#777 grades only a carriage return with non-space on both sides."""
+
+    def test_a_carriage_return_flanked_by_non_space_fails(self):
+        records = read(harvest(comment(1, "before\rafter")))
+
+        self.assertEqual(kinds_of(records), [tb.CARRIAGE_RETURN_FLANKED])
+
+    def test_line_endings_and_shell_continuations_remain_clean(self):
+        bodies = (
+            "before\r\nafter",
+            "before \rafter",
+            "before\r after",
+            "before\\\r\nafter",
+        )
+
+        for body in bodies:
+            with self.subTest(body=repr(body)):
+                self.assertEqual(kinds_of(read(harvest(comment(1, body)))), [])
+
+
+class TheLiteralNewlineEscapeRow(unittest.TestCase):
+    """#777 requires both the literal escape and zero real line breaks."""
+
+    def test_a_literal_newline_escape_in_a_one_line_body_fails(self):
+        records = read(harvest(issue(777, r"before\nafter", pull=True)))
+
+        self.assertEqual(kinds_of(records), [tb.LITERAL_NEWLINE_ESCAPE])
+
+    def test_a_real_line_break_keeps_a_literal_escape_clean(self):
+        body = "The first line names \\n.\nThe second line proves this is prose."
+
+        self.assertEqual(kinds_of(read(harvest(issue(777, body)))), [])
+
+    def test_code_spans_and_fences_keep_a_literal_escape_clean(self):
+        bodies = (
+            r"Write `\n` for the two-character shape.",
+            "```text\n\\n\n```",
+        )
+
+        for body in bodies:
+            with self.subTest(body=body):
+                self.assertEqual(kinds_of(read(harvest(issue(777, body)))), [])
+
+
+class TheDoubledPathSeparatorRow(unittest.TestCase):
+    """#777 narrows doubled separators to a drive-rooted Windows path."""
+
+    def test_a_drive_letter_followed_by_two_backslashes_fails(self):
+        records = read(harvest(issue(777, r"Open D:\\folder\file.txt", pull=True)))
+
+        self.assertEqual(kinds_of(records), [tb.DOUBLED_PATH_SEPARATOR])
+
+    def test_a_correct_windows_path_remains_clean(self):
+        records = read(harvest(issue(777, r"Open D:\folder\file.txt", pull=True)))
+
+        self.assertEqual(kinds_of(records), [])
+
+    def test_a_non_drive_doubled_backslash_remains_clean(self):
+        records = read(harvest(issue(777, r"Markdown may escape \\ outside a path.")))
+
+        self.assertEqual(kinds_of(records), [])
+
+    def test_a_doubled_separator_in_code_remains_clean(self):
+        records = read(harvest(issue(777, r"Describe `D:\\folder` in code.")))
+
+        self.assertEqual(kinds_of(records), [])
+
+    def test_an_embedded_backtick_in_a_code_span_remains_clean(self):
+        body = r"Use `` `D:\\folder` `` as code."
+        records = read(harvest(issue(777, body)))
+
+        self.assertEqual(kinds_of(records), [])
+
+    def test_escaped_backticks_do_not_hide_a_doubled_separator(self):
+        body = r"Escaped delimiters: \`D:\\folder\`."
+        records = read(harvest(issue(777, body)))
+
+        self.assertEqual(kinds_of(records), [tb.DOUBLED_PATH_SEPARATOR])
+
+    def test_a_backslash_before_the_closer_stays_inside_code(self):
+        bodies = (
+            "Use `D:\\\\folder\\` as code.",
+            "Use ``D:\\\\folder\\`` as code.",
+        )
+
+        for body in bodies:
+            with self.subTest(body=body):
+                self.assertEqual(kinds_of(read(harvest(issue(777, body)))), [])
+
+    def test_a_doubled_separator_in_a_crlf_fence_remains_clean(self):
+        body = "before\r\n```text\r\nD:\\\\folder\r\n```\r\nafter"
+        records = read(harvest(issue(777, body)))
+
+        self.assertEqual(kinds_of(records), [])
+
+    def test_a_longer_closing_fence_remains_clean(self):
+        for opening, closing in (("```", "````"), ("~~~", "~~~~")):
+            with self.subTest(opening=opening):
+                body = f"before\n{opening}text\nD:\\\\folder\n{closing}\nafter"
+
+                self.assertEqual(kinds_of(read(harvest(issue(777, body)))), [])
+
+    def test_invalid_fence_openers_do_not_hide_a_doubled_separator(self):
+        bodies = (
+            "    ```text\nD:\\\\folder\n```",
+            "```bad`info\nD:\\\\folder\n```",
+        )
+
+        for body in bodies:
+            with self.subTest(body=body):
+                self.assertEqual(
+                    kinds_of(read(harvest(issue(777, body)))),
+                    [tb.DOUBLED_PATH_SEPARATOR],
+                )
+
+    def test_valid_fence_edges_remain_clean(self):
+        bodies = (
+            "   ```text\nD:\\\\folder\n   ```",
+            "~~~info`allowed\nD:\\\\folder\n~~~",
+            "```text\nD:\\\\folder",
+        )
+
+        for body in bodies:
+            with self.subTest(body=body):
+                self.assertEqual(kinds_of(read(harvest(issue(777, body)))), [])
+
+    def test_fences_inside_markdown_containers_remain_clean(self):
+        bodies = (
+            "> ~~~text\n> D:\\\\folder\n> ~~~",
+            "- ```text\n  D:\\\\folder\n  ```",
+            "- > ```text\n  > D:\\\\folder\n  > ````",
+            "> 1. ~~~text\n>    D:\\\\folder\n>    ~~~",
+            "- > - ````text\n  >   D:\\\\folder\n  >   ````",
+            "- > ```text\n  > D:\\\\folder",
+        )
+
+        for body in bodies:
+            with self.subTest(body=body):
+                self.assertEqual(kinds_of(read(harvest(issue(777, body)))), [])
 
 
 class ACleanHarvest(unittest.TestCase):
@@ -344,6 +486,11 @@ class TheRowsAreOneTuple(unittest.TestCase):
     def test_kinds_are_distinct(self):
         self.assertEqual(len(tb.KINDS), len(set(tb.KINDS)))
 
+    def test_every_subsumption_names_declared_rows(self):
+        self.assertEqual(tb.SUBSUMED_BY, {tb.LITERAL_AT_PATH: tb.LOST_AT_DASH})
+        self.assertLessEqual(set(tb.SUBSUMED_BY), set(tb.KINDS))
+        self.assertLessEqual(set(tb.SUBSUMED_BY.values()), set(tb.KINDS))
+
     def rows_the_module_builds(self) -> set:
         """Every row a ``Finding(...)`` call in the module actually constructs.
 
@@ -394,6 +541,23 @@ class TheRowsAreOneTuple(unittest.TestCase):
         scan = tb.survey(records)
         self.assertEqual([kind for kind, _ in scan.counts], list(tb.KINDS))
         self.assertEqual(sum(count for _, count in scan.counts), 3)
+
+    def test_cooccurring_escape_collapse_produces_every_matching_finding(self):
+        records = read(harvest(comment(1, "before\bmiddle\rafter")))
+
+        self.assertEqual(
+            kinds_of(records),
+            [tb.C0_CONTROL_CHARACTER, tb.CARRIAGE_RETURN_FLANKED],
+        )
+
+    def test_the_report_separates_distinct_bodies_from_findings(self):
+        records = read(harvest(
+            comment(1, "before\bmiddle\rafter"),
+            issue(777, r"before\nafter", pull=True),
+        ))
+        report = tb.format_report(tb.survey(records), source="t.json")
+
+        self.assertIn("bodies failed                  2    findings 3", report)
 
 
 class TheCommandLine(unittest.TestCase):
@@ -704,18 +868,35 @@ class TheDocSaysWhatThisChecks(unittest.TestCase):
         self.assertIn("fifth row", self.doc)
         self.assertIn("raw body", self.doc)
 
+    def test_the_doc_names_each_escape_collapse_row(self):
+        self.assertIn("carriage-return-flanked", self.doc)
+        self.assertIn("literal-newline-escape", self.doc)
+        self.assertIn("doubled-path-separator", self.doc)
+
     def test_the_doc_names_both_publication_hosts(self):
         self.assertIn("tracker_publish_hook.py", self.doc)
         self.assertIn("tracker_bodies.py --github-event", self.doc)
 
 
 class DeclaredLimitsHaveOneOwner(unittest.TestCase):
-    def test_the_ruled_exclusions_and_wider_class_are_declared(self):
+    def test_the_ruled_exclusions_are_declared(self):
         limits = dict(tb.NOT_REACHED)
 
-        self.assertIn("other escape-collapse damage without a C0 control character", limits)
+        self.assertIn("an escape collapse that leaves only lost backticks", limits)
         self.assertIn("DEL U+007F", limits)
         self.assertIn("replacement character U+FFFD", limits)
+
+    def test_each_escape_collapse_predicate_declares_its_ceiling(self):
+        limits = dict(tb.NOT_REACHED)
+
+        self.assertIn("a carriage return not flanked by non-space", limits)
+        self.assertIn("a partial literal-newline collapse or one in a title", limits)
+        self.assertIn("a doubled separator in a relative path or title", limits)
+        self.assertIn("an escape collapse that leaves only lost backticks", limits)
+        self.assertNotIn(
+            "other escape-collapse damage without a C0 control character",
+            limits,
+        )
 
     def test_the_module_points_at_the_object_without_copying_it(self):
         module_doc = tb.__doc__ or ""

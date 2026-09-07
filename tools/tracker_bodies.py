@@ -139,6 +139,9 @@ EMPTY_BODY = "empty-body"
 LITERAL_AT_PATH = "literal-at-path"
 DOUBLE_ENCODED = "double-encoded"
 C0_CONTROL_CHARACTER = "c0-control-character"
+CARRIAGE_RETURN_FLANKED = "carriage-return-flanked"
+LITERAL_NEWLINE_ESCAPE = "literal-newline-escape"
+DOUBLED_PATH_SEPARATOR = "doubled-path-separator"
 
 # Every row, in report order. One tuple, so the report, the counter and the
 # ticket map cannot drift into listing different sets.
@@ -148,6 +151,9 @@ KINDS = (
     LITERAL_AT_PATH,
     DOUBLE_ENCODED,
     C0_CONTROL_CHARACTER,
+    CARRIAGE_RETURN_FLANKED,
+    LITERAL_NEWLINE_ESCAPE,
+    DOUBLED_PATH_SEPARATOR,
 )
 
 # Which ruling each row belongs to, so a reader knows which ticket to go and
@@ -160,14 +166,39 @@ ROW_TICKET = {
     LITERAL_AT_PATH: "#130",
     DOUBLE_ENCODED: "#155",
     C0_CONTROL_CHARACTER: "#723",
+    CARRIAGE_RETURN_FLANKED: "#777",
+    LITERAL_NEWLINE_ESCAPE: "#777",
+    DOUBLED_PATH_SEPARATOR: "#777",
+}
+
+# Predicate nesting is declared independently of row order. A body of ``@-``
+# satisfies the lone-at-token spelling too, but it is one lost-body defect and
+# remains one finding. Co-occurring, independently repairable escape-collapse
+# symptoms are not suppressed.
+SUBSUMED_BY = {
+    LITERAL_AT_PATH: LOST_AT_DASH,
 }
 
 NOT_REACHED = (
     (
-        "other escape-collapse damage without a C0 control character",
-        "An escape collapse that leaves only lost backticks, a literal newline "
-        "escape, or doubled path separators is outside this row. ADR 0099 owns "
-        "the dated measurement of that wider class.",
+        "an escape collapse that leaves only lost backticks",
+        "A collapse that removes backticks without leaving any other graded "
+        "symptom remains outside every row. ADR 0136 records the dated residue.",
+    ),
+    (
+        "a carriage return not flanked by non-space",
+        "A carriage return with whitespace or a body edge on either side is "
+        "outside the flanked predicate, including ordinary line endings.",
+    ),
+    (
+        "a partial literal-newline collapse or one in a title",
+        "A body with any surviving real line break is outside this row, as is "
+        "every title; ADR 0136 records both deliberate exclusions.",
+    ),
+    (
+        "a doubled separator in a relative path or title",
+        "The predicate requires a drive letter before the doubled separator "
+        "and grades bodies only, so relative paths and titles remain outside it.",
     ),
     (
         "DEL U+007F",
@@ -197,10 +228,11 @@ NOT_REACHED = (
     ),
 )
 
-# Wide enough for the longest kind and the longest surface, so both stay
-# columns. ``research_ledger.py`` learned this the hard way: a row one
-# character over the pad went ragged in the one output meant to be pasted.
-KIND_COLUMN = 21
+# Derived from the declared row names so a newly added longer row cannot make
+# the pasteable report ragged. ``research_ledger.py`` learned this the hard way:
+# a row one character over the pad went ragged in the one output meant to be
+# pasted.
+KIND_COLUMN = max(len(kind) for kind in KINDS)
 SURFACE_COLUMN = 13
 # The report's own label column, wide enough for the longest surface plural.
 COUNT_COLUMN = 29
@@ -219,16 +251,205 @@ AT_DASH = "@-"
 # here anyway.
 LONE_AT_TOKEN = re.compile(r"\A@\S+\Z")
 LITERAL_UNICODE_ESCAPE = re.compile(r"\\u[0-9a-fA-F]{4}")
-FENCED_CODE = re.compile(
-    r"(?ms)^[ \t]*(`{3,}|~{3,})[^\n]*\n.*?^[ \t]*\1[ \t]*$"
-)
-CODE_SPAN = re.compile(r"`+[^`\n]*`+")
+LITERAL_NEWLINE = re.compile(r"\\n")
+DOUBLED_DRIVE_SEPARATOR = re.compile(r"(?i)[a-z]:\\\\")
+
+
+def _is_backslash_escaped(text: str, index: int) -> bool:
+    backslashes = 0
+    cursor = index - 1
+    while cursor >= 0 and text[cursor] == "\\":
+        backslashes += 1
+        cursor -= 1
+    return backslashes % 2 == 1
+
+
+LIST_PREFIX = re.compile(r" {0,3}(?:[-+*]|[0-9]{1,9}[.)])[ \t]{1,4}")
+QUOTE_PREFIX = re.compile(r" {0,3}>[ \t]?")
+
+
+class ContainerPrefix(NamedTuple):
+    kind: str
+    continuation_indent: int
+
+
+class FenceOpening(NamedTuple):
+    marker: str
+    width: int
+    containers: tuple[ContainerPrefix, ...]
+
+
+def _container_prefix(content: str) -> tuple[int, tuple[ContainerPrefix, ...]]:
+    cursor = 0
+    containers: list[ContainerPrefix] = []
+    while True:
+        if match := QUOTE_PREFIX.match(content, cursor):
+            cursor = match.end()
+            containers.append(ContainerPrefix("quote", 0))
+            continue
+        if match := LIST_PREFIX.match(content, cursor):
+            containers.append(ContainerPrefix("list", match.end() - cursor))
+            cursor = match.end()
+            continue
+        return cursor, tuple(containers)
+
+
+def _opening_fence(line: str) -> FenceOpening | None:
+    content = line.rstrip("\r\n")
+    cursor, containers = _container_prefix(content)
+    indent = len(content[cursor:]) - len(content[cursor:].lstrip(" "))
+    cursor += indent
+    if indent > 3 or cursor == len(content):
+        return None
+    marker = content[cursor]
+    if marker not in "`~":
+        return None
+    run_end = cursor
+    while run_end < len(content) and content[run_end] == marker:
+        run_end += 1
+    width = run_end - cursor
+    if width < 3:
+        return None
+    if marker == "`" and "`" in content[run_end:]:
+        return None
+    return FenceOpening(marker, width, containers)
+
+
+def _is_closing_fence(
+    line: str,
+    opening: FenceOpening,
+) -> bool:
+    content = line.rstrip("\r\n")
+    cursor = 0
+    for container in opening.containers:
+        if container.kind == "quote":
+            match = QUOTE_PREFIX.match(content, cursor)
+            if match is None:
+                return False
+            cursor = match.end()
+            continue
+        indentation = content[cursor:cursor + container.continuation_indent]
+        if (
+            len(indentation) != container.continuation_indent
+            or indentation.strip(" ")
+        ):
+            return False
+        cursor += container.continuation_indent
+    indent = len(content[cursor:]) - len(content[cursor:].lstrip(" "))
+    cursor += indent
+    if (
+        indent > 3
+        or cursor == len(content)
+        or content[cursor] != opening.marker
+    ):
+        return False
+    run_end = cursor
+    while run_end < len(content) and content[run_end] == opening.marker:
+        run_end += 1
+    return (
+        run_end - cursor >= opening.width
+        and not content[run_end:].strip(" \t")
+    )
+
+
+def _without_fenced_code(text: str) -> str:
+    """Replace CommonMark-style fenced blocks with spaces."""
+    lines = text.splitlines(keepends=True)
+    result: list[str] = []
+    cursor = 0
+    while cursor < len(lines):
+        opening = _opening_fence(lines[cursor])
+        if opening is None:
+            result.append(lines[cursor])
+            cursor += 1
+            continue
+        cursor += 1
+        while cursor < len(lines):
+            if _is_closing_fence(lines[cursor], opening):
+                cursor += 1
+                break
+            cursor += 1
+        result.append(" ")
+    return "".join(result)
+
+
+def _without_code_spans(text: str) -> str:
+    """Replace spans bounded by equal-length backtick runs with spaces."""
+    result: list[str] = []
+    cursor = 0
+    while cursor < len(text):
+        if text[cursor] != "`":
+            result.append(text[cursor])
+            cursor += 1
+            continue
+        if _is_backslash_escaped(text, cursor):
+            result.append(text[cursor])
+            cursor += 1
+            continue
+
+        opening_end = cursor
+        while opening_end < len(text) and text[opening_end] == "`":
+            opening_end += 1
+        delimiter = text[cursor:opening_end]
+        search_from = opening_end
+        closing = -1
+        while True:
+            candidate = text.find(delimiter, search_from)
+            if candidate < 0:
+                break
+            after = candidate + len(delimiter)
+            bounded = (
+                (candidate == 0 or text[candidate - 1] != "`")
+                and (after == len(text) or text[after] != "`")
+            )
+            if bounded:
+                closing = candidate
+                break
+            search_from = candidate + 1
+        if closing < 0:
+            result.append(delimiter)
+            cursor = opening_end
+            continue
+        result.append(" ")
+        cursor = closing + len(delimiter)
+    return "".join(result)
+
+
+def prose_outside_code(text: str) -> str:
+    """Replace Markdown code spans and fences with spaces."""
+    return _without_code_spans(_without_fenced_code(text))
 
 
 def has_c0_control_character(text: str) -> bool:
     """Whether raw tracker text contains C0 except tab, LF, and CR."""
     return any(ord(character) < 0x20 and character not in "\t\n\r"
                for character in text)
+
+
+def has_carriage_return_flanked(text: str) -> bool:
+    """Whether a carriage return has non-space on both sides."""
+    return any(
+        index > 0
+        and index + 1 < len(text)
+        and not text[index - 1].isspace()
+        and not text[index + 1].isspace()
+        for index, character in enumerate(text)
+        if character == "\r"
+    )
+
+
+def has_literal_newline_escape(text: str) -> bool:
+    """Whether a one-line body carries ``\\n`` outside Markdown code."""
+    if "\r" in text or "\n" in text:
+        return False
+    prose = prose_outside_code(text)
+    return LITERAL_NEWLINE.search(prose) is not None
+
+
+def has_doubled_path_separator(text: str) -> bool:
+    """Whether a drive letter has a doubled separator outside Markdown code."""
+    prose = prose_outside_code(text)
+    return DOUBLED_DRIVE_SEPARATOR.search(prose) is not None
 
 
 def _has_cp1252_mojibake(text: str) -> bool:
@@ -277,6 +498,7 @@ class Scan(NamedTuple):
     records: int
     by_surface: tuple[tuple[str, int], ...]
     counts: tuple[tuple[str, int], ...]
+    failed_records: int
     findings: tuple[Finding, ...]
 
 
@@ -456,11 +678,7 @@ def load_github_event(path: Path, event_name: str) -> list[Record]:
 
 
 def grade(records: Sequence[Record]) -> list[Finding]:
-    """One finding per failed body, at most one per record.
-
-    The order is ``KINDS``'s and the first match wins, which is what keeps
-    ``@-`` off the literal-path row: it is a lone ``@`` token too, and grading it
-    twice would double every count the eight known instances contribute.
+    """Every matching finding, except predicate nesting declared above.
 
     **Each branch names its own row rather than assigning one to a variable**,
     which looks like repetition and is what makes the row set checkable: the
@@ -473,19 +691,44 @@ def grade(records: Sequence[Record]) -> list[Finding]:
     found = []
     for record in records:
         text = (record.body or "").strip()
-        prose = CODE_SPAN.sub(" ", FENCED_CODE.sub(" ", text))
-        if text == AT_DASH:
+        prose = prose_outside_code(text)
+        matches = {
+            LOST_AT_DASH: text == AT_DASH,
+            EMPTY_BODY: not text,
+            LITERAL_AT_PATH: LONE_AT_TOKEN.match(text) is not None,
+            DOUBLE_ENCODED: (
+                _has_cp1252_mojibake(prose)
+                or LITERAL_UNICODE_ESCAPE.search(prose) is not None
+            ),
+            C0_CONTROL_CHARACTER: has_c0_control_character(record.body or ""),
+            CARRIAGE_RETURN_FLANKED: has_carriage_return_flanked(record.body or ""),
+            LITERAL_NEWLINE_ESCAPE: has_literal_newline_escape(record.body or ""),
+            DOUBLED_PATH_SEPARATOR: has_doubled_path_separator(record.body or ""),
+        }
+        if matches[LOST_AT_DASH]:
             found.append(Finding(LOST_AT_DASH, record.label, record.surface))
-        elif not text:
+        if matches[EMPTY_BODY]:
             found.append(Finding(EMPTY_BODY, record.label, record.surface))
-        elif LONE_AT_TOKEN.match(text):
+        if (matches[LITERAL_AT_PATH]
+                and not matches[SUBSUMED_BY[LITERAL_AT_PATH]]):
             found.append(Finding(LITERAL_AT_PATH, record.label, record.surface))
-        elif (_has_cp1252_mojibake(prose)
-              or LITERAL_UNICODE_ESCAPE.search(prose)):
+        if matches[DOUBLE_ENCODED]:
             found.append(Finding(DOUBLE_ENCODED, record.label, record.surface))
-        elif has_c0_control_character(record.body or ""):
+        if matches[C0_CONTROL_CHARACTER]:
             found.append(Finding(
                 C0_CONTROL_CHARACTER, record.label, record.surface
+            ))
+        if matches[CARRIAGE_RETURN_FLANKED]:
+            found.append(Finding(
+                CARRIAGE_RETURN_FLANKED, record.label, record.surface
+            ))
+        if matches[LITERAL_NEWLINE_ESCAPE]:
+            found.append(Finding(
+                LITERAL_NEWLINE_ESCAPE, record.label, record.surface
+            ))
+        if matches[DOUBLED_PATH_SEPARATOR]:
+            found.append(Finding(
+                DOUBLED_PATH_SEPARATOR, record.label, record.surface
             ))
     return found
 
@@ -501,6 +744,7 @@ def survey(records: Sequence[Record]) -> Scan:
         counts=tuple(
             (kind, sum(1 for f in found if f.kind == kind)) for kind in KINDS
         ),
+        failed_records=sum(bool(grade([record])) for record in records),
         findings=tuple(found),
     )
 
@@ -526,7 +770,10 @@ def format_report(scan: Scan, source: str) -> str:
     for kind, count in scan.counts:
         lines.append(f"  {ROW_TICKET[kind]} - {kind:<{KIND_COLUMN}} {count}")
     lines.append("")
-    lines.append(f"  bodies failed                  {len(scan.findings)}")
+    lines.append(
+        f"  bodies failed                  {scan.failed_records}"
+        f"    findings {len(scan.findings)}"
+    )
     if scan.findings:
         lines.append("")
         lines.append("  each one, by the row it failed and the record to open:")

@@ -24,7 +24,7 @@ from urllib.parse import unquote
 
 from console_codec import use_utf8
 import git_paths
-from tracker_bodies import CODE_SPAN, FENCED_CODE
+from tracker_bodies import prose_outside_code
 from tracker_merge_receipt import parse_merge_receipt
 
 
@@ -142,7 +142,7 @@ class CitedPath(NamedTuple):
 
 
 def _citation_prose(body: str) -> str:
-    return CODE_SPAN.sub(" ", FENCED_CODE.sub(" ", body))
+    return prose_outside_code(body)
 
 
 def _cited_main_paths(body: str) -> tuple[CitedPath, ...]:

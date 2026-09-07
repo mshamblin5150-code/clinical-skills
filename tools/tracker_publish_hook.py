@@ -678,6 +678,20 @@ def analyze(
         findings.append(Finding(
             "body:c0-control-character", 1, publication.field, "deny"
         ))
+    if tracker_bodies.has_carriage_return_flanked(publication.text):
+        findings.append(Finding(
+            "body:carriage-return-flanked", 1, publication.field, "deny"
+        ))
+    if (publication.field == "body"
+            and tracker_bodies.has_literal_newline_escape(publication.text)):
+        findings.append(Finding(
+            "body:literal-newline-escape", 1, publication.field, "deny"
+        ))
+    if (publication.field == "body"
+            and tracker_bodies.has_doubled_path_separator(publication.text)):
+        findings.append(Finding(
+            "body:doubled-path-separator", 1, publication.field, "deny"
+        ))
 
     if publication.field == "title":
         branch = tracker_branch_scope.grade(
