@@ -17,6 +17,9 @@ import scratch_census as census
 
 SCRIPT = Path(__file__).with_name("scratch_census.py")
 PRE_COMMIT = Path(__file__).with_name("hooks") / "pre-commit"
+MODULE_ROOT = Path(__file__).resolve().parent.parent
+SCRATCH_GUIDE = MODULE_ROOT / "docs" / "agents" / "scratch.md"
+CLAUDE = MODULE_ROOT / "CLAUDE.md"
 
 
 def git(cwd: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
@@ -197,6 +200,10 @@ class ScratchCensusCommandTests(ScratchRepository):
             f"GATING: {other / 'scratch'}: 1 unaccounted, 1 above baseline",
             finished.stdout,
         )
+        self.assertIn(
+            "do not delete a scratch root to clear this",
+            finished.stdout,
+        )
 
     def test_a_nested_invocation_keeps_its_worktree_gating(self) -> None:
         other = self.add_worktree()
@@ -231,6 +238,14 @@ class ScratchCensusCommandTests(ScratchRepository):
         self.assertIn(line, first.stdout)
         self.assertIn(line, second.stdout)
 
+    def test_a_deleted_committing_root_is_indistinguishable_from_never_created(
+        self,
+    ) -> None:
+        self.assertIn(
+            census.DELETED_COMMITTING_ROOT_LIMIT,
+            census.DECLARED_LIMITS,
+        )
+
     def test_an_absent_owning_scratch_root_is_not_a_clean_scan(self) -> None:
         for entry in (self.root / "scratch").iterdir():
             entry.unlink()
@@ -244,22 +259,28 @@ class ScratchCensusCommandTests(ScratchRepository):
             finished.stdout,
         )
         self.assertIn("NOT SCANNED", finished.stdout)
+        self.assertIn(
+            "REMEDY: run python tools/scratch_work.py ticket <n> to create "
+            "the owning scratch root",
+            finished.stdout,
+        )
         self.assertNotIn("CLEAN", finished.stdout)
 
-    def test_an_absent_committing_scratch_root_is_not_a_clean_scan(self) -> None:
+    def test_an_absent_committing_scratch_root_has_nothing_to_grade(self) -> None:
         other = self.add_worktree()
 
         finished = self.run_census(cwd=other)
 
-        self.assertEqual(finished.returncode, 2, finished.stderr)
+        self.assertEqual(finished.returncode, 0, finished.stderr)
         self.assertIn(
-            f"GATING: {other / 'scratch'}: absent; not scanned",
+            f"GATING: {other / 'scratch'}: absent; nothing to grade",
             finished.stdout,
         )
-        self.assertIn("NOT SCANNED", finished.stdout)
-        self.assertNotIn("CLEAN", finished.stdout)
+        self.assertNotIn("0 unaccounted, 0 above baseline", finished.stdout)
+        self.assertNotIn("NOT SCANNED", finished.stdout)
+        self.assertIn("CLEAN", finished.stdout)
 
-    def test_an_unreadable_peer_root_reports_without_refusing(self) -> None:
+    def test_a_stale_worktree_registration_reports_without_refusing(self) -> None:
         failing = self.add_worktree("failing")
         (failing / "scratch").mkdir()
         (failing / "scratch" / "private-entry").touch()
@@ -269,15 +290,65 @@ class ScratchCensusCommandTests(ScratchRepository):
         finished = self.run_census()
 
         self.assertEqual(finished.returncode, 0, finished.stderr)
-        self.assertIn("1 unreadable", finished.stdout)
+        self.assertIn("0 unreadable", finished.stdout)
+        self.assertIn("1 stale registration", finished.stdout)
         self.assertIn(str(unreadable), finished.stdout)
         self.assertNotIn("FINDING", finished.stdout)
         self.assertIn(
-            f"REPORT ONLY: {unreadable / 'scratch'}: unreadable; never graded",
+            f"REPORT ONLY: {unreadable / 'scratch'}: "
+            "stale registration; never graded",
             finished.stdout,
         )
         self.assertIn("CLEAN", finished.stdout)
         self.assertNotIn("NOT SCANNED", finished.stdout)
+
+    def test_unreadable_gating_roots_name_state_specific_remedies(self) -> None:
+        owning = self.root
+        committing = self.add_worktree()
+        roots = (owning, committing)
+        cases = (
+            (owning, "REMEDY: restore access to the owning scratch root"),
+            (committing, "REMEDY: restore access to the committing scratch root"),
+        )
+
+        for unreadable, remedy in cases:
+            with self.subTest(root=unreadable):
+                def count(root: Path, _accounted: frozenset[str]) -> census.RootCount:
+                    if root == unreadable:
+                        raise FileNotFoundError(root / "scratch" / "vanished")
+                    unaccounted = census.OWNING_BASELINE if root == owning else 0
+                    return census.RootCount(root, unaccounted, unaccounted)
+
+                output = io.StringIO()
+                with (
+                    mock.patch.object(census.Path, "cwd", return_value=committing),
+                    mock.patch.object(census, "worktree_roots", return_value=roots),
+                    mock.patch.object(
+                        census,
+                        "enclosing_worktree",
+                        return_value=committing,
+                    ),
+                    mock.patch.object(
+                        census,
+                        "accounted_names",
+                        return_value=frozenset(),
+                    ),
+                    mock.patch.object(census, "count_root", side_effect=count),
+                    redirect_stdout(output),
+                ):
+                    status = census.main([])
+
+                self.assertEqual(status, 2)
+                self.assertIn(
+                    f"GATING: {unreadable / 'scratch'}: unreadable; not scanned",
+                    output.getvalue(),
+                )
+                self.assertNotIn("stale registration", output.getvalue())
+                self.assertIn(remedy, output.getvalue())
+                self.assertIn(
+                    "do not delete a scratch root to clear this",
+                    output.getvalue(),
+                )
 
     def test_worktree_state_is_measured_only_when_requested(self) -> None:
         (self.root / "README.md").write_text(
@@ -354,6 +425,22 @@ class ScratchCensusCommandTests(ScratchRepository):
 
 
 class AccountedSetTests(unittest.TestCase):
+    def test_exit_2_prose_points_to_the_owned_object_without_copying_limbs(
+        self,
+    ) -> None:
+        scratch_guide = SCRATCH_GUIDE.read_text(encoding="utf-8")
+        claude = CLAUDE.read_text(encoding="utf-8")
+
+        self.assertEqual(
+            scratch_guide.count("scratch_census.EXIT_2_LIMBS"),
+            2,
+        )
+        self.assertEqual(claude.count("scratch_census.EXIT_2_LIMBS"), 1)
+        for limb in census.EXIT_2_LIMBS:
+            with self.subTest(limb=limb):
+                self.assertNotIn(limb, scratch_guide)
+                self.assertNotIn(limb, claude)
+
     def test_every_standing_artifact_is_in_the_derived_set(self) -> None:
         repo = Path(__file__).resolve().parent.parent
 
@@ -375,6 +462,12 @@ class AccountedSetTests(unittest.TestCase):
         )
 
     def test_the_census_refuses_from_the_hook_and_is_not_advisory(self) -> None:
+        """Assert the hook's refusal structurally, never by running the hook.
+
+        The hook runs seven graders, and ``phi_scan`` cannot pass in the
+        throwaway checkout. An end-to-end test would therefore refuse for a
+        reason other than the census behavior under test.
+        """
         hook = PRE_COMMIT.read_text(encoding="utf-8")
 
         self.assertIn('scratch_census.py" >&2 || status=1', hook)
