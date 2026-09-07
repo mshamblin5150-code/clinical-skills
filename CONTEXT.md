@@ -232,6 +232,14 @@ _Avoid_: codified cite, cross-cite, secondary citation, see-also
 A second locator for the same enactment, published elsewhere — the Statutes at Large page beside the public law number. It repeats an authority already named rather than adding one, so an entry carrying one has one authority and two addresses for it, and reading both would put two legal spans in one entry.
 _Avoid_: parallel cite, alternate citation, duplicate citation
 
+**Republished work**:
+A work cited in a version later than the one it first appeared in — a translation, a reissue, a modern edition, a classical or religious text. Its reference entry carries **one** date, the version consulted; its in-text citation carries **two**, the original and the consulted year separated by a slash with the earlier first. **The asymmetry is APA's rule rather than a defect in either half**, so a reader comparing one entry year against one citation year is comparing the wrong pair, and a grader keyed on that equality reports against a conforming draft.
+_Avoid_: translated work, reissue, reprint, two-date citation, original-date citation
+
+**Original element**:
+The half of a republished work's in-text date that precedes the slash — `1920` in `1920/2013`, `ca. 2750-2500 B.C.E.` in the classical form. It is parsed so the year after the slash can be reached, and **compared to nothing**: APA's own worked example reverses its range between the entry and the citation, so a rule joining the two halves fails the source it is derived from. What that leaves unreached is declared in `reference_scan.NOT_REACHED` rather than restated here.
+_Avoid_: original year, first year, prior date, source year, earlier element
+
 **Run directory**:
 The one place a graded artifact's provenance is kept — its bar, its board snapshots, its claim and check ledgers, and the evidence it was handed. Named by the run key, so it carries no date and outlives every sitting.
 _Avoid_: run folder, workspace, scratch dir
