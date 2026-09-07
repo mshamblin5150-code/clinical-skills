@@ -290,7 +290,8 @@ class ScratchCensusCommandTests(ScratchRepository):
         finished = self.run_census()
 
         self.assertEqual(finished.returncode, 0, finished.stderr)
-        self.assertIn("1 unreadable", finished.stdout)
+        self.assertIn("0 unreadable", finished.stdout)
+        self.assertIn("1 stale registration", finished.stdout)
         self.assertIn(str(unreadable), finished.stdout)
         self.assertNotIn("FINDING", finished.stdout)
         self.assertIn(
@@ -314,7 +315,7 @@ class ScratchCensusCommandTests(ScratchRepository):
             with self.subTest(root=unreadable):
                 def count(root: Path, _accounted: frozenset[str]) -> census.RootCount:
                     if root == unreadable:
-                        raise PermissionError(root)
+                        raise FileNotFoundError(root / "scratch" / "vanished")
                     unaccounted = census.OWNING_BASELINE if root == owning else 0
                     return census.RootCount(root, unaccounted, unaccounted)
 
@@ -338,6 +339,11 @@ class ScratchCensusCommandTests(ScratchRepository):
                     status = census.main([])
 
                 self.assertEqual(status, 2)
+                self.assertIn(
+                    f"GATING: {unreadable / 'scratch'}: unreadable; not scanned",
+                    output.getvalue(),
+                )
+                self.assertNotIn("stale registration", output.getvalue())
                 self.assertIn(remedy, output.getvalue())
                 self.assertIn(
                     "do not delete a scratch root to clear this",
