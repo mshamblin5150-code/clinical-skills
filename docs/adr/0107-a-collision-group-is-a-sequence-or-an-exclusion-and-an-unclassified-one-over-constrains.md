@@ -101,3 +101,25 @@ a group's membership is complete: a packet that touches a shared file and was ne
 group is invisible to every rule above, and remains what the reconciliation's semantic judgment is
 for. And the floor of 9 / 5 / 7 is a keyword read of prose, not a classification; it establishes
 that both kinds exist and nothing about which group is which.
+
+## Superseded in part by ADR 0144, 2026-09-06
+
+[ADR 0144](0144-a-collision-kind-is-unordered-or-sequence-and-is-demanded-when-two-members-are-live.md)
+measured the map's live state while grilling
+[#809](https://github.com/mshamblin5150-code/clinical-skills/issues/809) and found that every one of
+the 22 groups is now historical — all 81 grouped packets are done — so the classification decision 6
+withholds from an agent would have produced verdicts about finished work. **Decisions 1, 2 and 3 are
+superseded and are left as written**, being the record of what was ruled at the time:
+
+- The kind named `exclusion` is now `unordered`. `exclusion` describes the obligation both kinds
+  carry rather than the one that separates them, and it collided with the state block's own
+  `exclusions` key.
+- An unclassified group over-constrains **startability**, not only the render. That half was never
+  ruled here, and `sequencing_graph()` had never read `collision_groups` at all.
+- Members are sorted by the reconciliation verb that sets the kind rather than at the render, so
+  the stored state and the rendered table cannot disagree.
+
+Decision 4 stands, with `claim` refusing a ruled sequence and warning an unclassified one. Decision
+5's glossary entries are amended rather than replaced. **Decision 6 is narrowed, not superseded**:
+classification is still the clinician's, and what moves is when it is demanded — at the
+reconciliation that makes it matter, rather than as a batch on one ticket.
