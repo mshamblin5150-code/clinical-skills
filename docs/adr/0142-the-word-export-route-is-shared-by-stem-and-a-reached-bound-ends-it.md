@@ -91,7 +91,7 @@ about one call site's invocation."*
 
 **The question goes to #866**, which already owns which artifact carries a record half and already
 carries the deck. Its own prohibition — *"inventing a mechanism to prove a command was run"* — is the
-neighbouring shape and is not disturbed.
+neighboring shape and is not disturbed.
 
 **The cost is declared rather than discovered.** After this build the case study still cannot tell a
 run that took the bounded route from one that went straight to the clinician. ADR 0087 ruling 7 ruled
