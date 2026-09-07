@@ -32,10 +32,20 @@ first-line indent. A skimming reader sees something that looks deliberately form
 `Reference` style in `word/styles.xml` is the template the shape wants: a named `pStyle` carrying
 the indent, selected by loop state.
 
-**`> ` collides with nothing on a render path.** Thirty-two tracked lines across seven skill and
-reference files begin `> `, and every one is a display device wrapping a worked example —
-`style.md` wraps its examples so a reader can see where they start, and a run copies the content
-inside rather than the marker.
+**`> ` collides with nothing on a render path.** Thirty-three tracked lines across eight files
+under `skills/` and `reference/` begin `> `, and every one is a display device wrapping a worked
+example — `style.md` wraps its examples so a reader can see where they start, and a run copies the
+content inside rather than the marker.
+
+**Corrected 2026-09-06, hours after this record merged, and the correction is worth more than the
+figure.** The sentence above first read *thirty-two tracked lines across seven skill and reference
+files*, and that count was taken over `skills/` alone. It named `reference/` and had not looked
+there — so the one file the unmeasured half of the claim covers,
+`reference/medatrax-fields.md:73`, is exactly the file it missed. The conclusion is unchanged, that
+line being a display device like every other; what was wrong is a claim stated wider than its
+measurement, which is
+[#137](https://github.com/mshamblin5150-code/clinical-skills/issues/137)'s subject arriving inside
+the record that cites #137's shape twice. Found by the sweep this record's own session ran.
 
 **The obvious grading row is falsified by the repository's own style sheet.** `style.md` section 7
 publishes the Patient Education worked example as a quoted span of **56 words**. It is the
@@ -268,6 +278,15 @@ reader.
 **`skills/discussion-reply/SKILL.md` is untouched.** A reply pastes from Markdown directly and
 renders no `.docx`, so a `> ` in a reply draft reaches the board as a literal marker and this build
 changes nothing about it.
+
+## Ordering constraints found by the sweep, 2026-09-06
+
+Three, all found after this record merged, and each is a claim about when the build may start
+rather than a change to what was ruled.
+
+- **Ruling 4 must not build before [#817](https://github.com/mshamblin5150-code/clinical-skills/issues/817) is ruled.** That ruling declares the block form unreachable in the box on ADR 0013's measurement of the **Word-clipboard** route. #817 measured a **second route on the same board** on 2026-09-02: HTML loaded through Canvas's raw HTML editor, stored byte-for-byte at 15,495 characters, with inline bold surviving. ADR 0013 measured nothing about that route, and its own finding is that the sanitizer keeps **tags** — so a `<blockquote>` element, which is a tag rather than a `style` attribute, has no measurement against it either way. If #817 lands, `discussion_post_scan`'s new declared limit is stale on arrival and ruling 4's instruction not to write `> ` in a post draft is wrong. **This is the residue named under *What this record does not settle* turning out to have been already measured by somebody else**, which is the sharper form of that limit rather than a new one.
+- **Ruling 5's double spacing inherits [#828](https://github.com/mshamblin5150-code/clinical-skills/issues/828)'s defect.** `render_body` emits one empty `<w:p/>` per blank source line on top of double spacing, so a `> ` block separated from surrounding prose by blank lines ships with the quadruple gap that ticket is about — in the case study, where the `.docx` is graded. Ruling 5 requires the block quotation to be double spaced; whether it is depends on an unruled question in another ticket.
+- **Ruling 2 hardens what #828 decision 2 proposes to change.** That decision asks whether `blocks` should emit a `blank` block at all, or whether the paragraph break should be carried by the paragraph boundary. Ruling 2 ratifies the line-is-a-paragraph contract and accepts its cost. #828 must now answer this record rather than reason from an open field, and the enumeration under *Derived rather than ruled* of which scanners a new `Block.kind` reaches is the impact map that ticket says nobody had.
 
 ## What this record does not settle
 
