@@ -220,6 +220,13 @@ correctly quoted classical work fires that row on a correct document. It is live
 nothing to do with the renderer, and it has been invisible only because nobody has cited one in a
 graded draft.
 
+**It went to [#816](https://github.com/mshamblin5150-code/clinical-skills/issues/816) rather than to a new ticket**, found by searching the tracker before filing rather than after. That ticket is the same module, the same class and the same *Meditations* instance, and it is still in grilling; a second would be
+[#20](https://github.com/mshamblin5150-code/clinical-skills/issues/20) and
+[#21](https://github.com/mshamblin5150-code/clinical-skills/issues/21) again. The two are one
+question's halves — an entry that exists and cannot be matched, and an entry APA does not require at
+all — and #816's own option 3, a declared limit excusing republished works from `uncited-entry`,
+closes only the first: there is nothing for an entry-less citation to be excused from.
+
 **A carve-out inside this build was refused on three grounds.** #815 is a renderer ticket and the
 carve-out reaches into a grader with sixteen rows whose pasteable `--show` rests on measured
 properties. Recognizing a classical work mechanically is not obvious — a slashed year with `ca.` is
