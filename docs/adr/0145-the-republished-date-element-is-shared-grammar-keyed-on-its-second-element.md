@@ -133,7 +133,7 @@ Into `reference_scan.NOT_REACHED`, which is inside `test_declared_limits.declare
 - **The original half is parsed and never graded** — `(Freud, 1899/2010)` passes with a wrong original year. Ruling 3's reason rides on the row, because a reader who does not know about APA's Gilgamesh inconsistency will try to close it.
 - **An author-shaped non-citation could raise `unlisted-citation`** — `(Cohort A, 2013/2014)`. Zero instances in 700 files, and the same residue `citation_key` already declares for a capitalized common noun.
 
-`discussion_post_scan.DECLARED_LIMITS` gains one row for the shared grammar's behaviour on its two citation rows.
+`discussion_post_scan.DECLARED_LIMITS` gains one row for the shared grammar's behavior on its two citation rows.
 
 **The convention problem is deliberately not settled here.** `discussion_artifact` holds `LEGAL_READER_NOT_REACHED`, which ADR 0135 ruling 5 recorded as *"a third naming convention and the one convention no walk sees"* and deferred to [#867](https://github.com/mshamblin5150-code/clinical-skills/issues/867)/[#875](https://github.com/mshamblin5150-code/clinical-skills/issues/875). A fourth object beside it would settle that in passing from a ticket about a translated work. The shared **grammar** lives in `discussion_artifact`; its **limits** live in the two graders' walked objects.
 
