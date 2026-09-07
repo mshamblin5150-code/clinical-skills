@@ -79,6 +79,15 @@ DECLARED_CANDIDATES = (
         "word carries three and none narrows another.",
     ),
     Candidate(
+        "Export",
+        Verdict.COLLISION,
+        "The bare term is the unreviewed container a clinician hands over; the "
+        "Bounded export route's export is one page-faithful PDF or XPS an Office "
+        "application produced from a submission. Neither name is movable: the "
+        "second is what the code calls it and what Word's own menu calls it, and "
+        "the first is #388's.",
+    ),
+    Candidate(
         "Assertion",
         Verdict.NARROWING,
         "A Promoted assertion is an assertion whose bar has become binary.",
