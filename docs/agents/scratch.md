@@ -68,11 +68,10 @@ worktree that has a `scratch/` of its own is a root that resolution points away 
 `git worktree list --porcelain`, walks the top of each scratch root it finds, derives the
 accounted-for set in **one** `git grep` pass over tracked files, and reports the remainder.
 
-- **0** clean, **1** when the owning checkout's unaccounted count has risen above the recorded
-  baseline or the committing checkout's count has risen above zero, and **2** when either gating
-  root was not scanned. A clone with no owning scratch root says *did not scan*, never *clean*.
-  **Where a finding and a not-scanned limb both hold, 1 wins**, on `differential_scan.py`'s
-  ordering.
+- **0** is clean and **1** means the owning checkout rose above its recorded baseline or the
+  committing checkout rose above zero. Every exit-2 path lives in
+  `scratch_census.EXIT_2_LIMBS`; this document copies no limb. **Where a finding and incomplete
+  coverage both hold, 1 wins**, on `differential_scan.py`'s ordering.
 - **Two gating roots.** The **owning checkout** keeps a grandfathered integer baseline, because its
   residue predates the rule and clearing it needs the clinician's word. The committing checkout
   has a zero ratchet from day one. Every peer worktree reports its count and is never graded.
@@ -84,9 +83,9 @@ accounted-for set in **one** `git grep` pass over tracked files, and reports the
 - **Counts only, and there is no `--show`.** A path is printed only where a tracked file already
   names it. Everything else is a bare number, because an entry the walk cannot account for is
   precisely the one that might carry a patient's name.
-- **An unreadable registered checkout root is named.** `git worktree list --porcelain` already
-  supplies that root, and ADR 0059 requires the report to identify every enumerated checkout it
-  could not read. An unreadable owning or committing root is not scanned; an unreadable peer is
+- **Every unavailable registered checkout root is named.** `git worktree list --porcelain`
+  supplies its path, and a stale registration is reported distinctly from an unreadable root.
+  The gating behavior is owned by `scratch_census.EXIT_2_LIMBS` rather than copied here; a peer is
   report-only and never changes status. This is coverage of the Git registry, not disclosure of a
   scratch-entry path; the count-only rule above still governs every entry under the root.
 - **It reports the worktree-root hazard on every run and grades it never.** How many checkouts own
