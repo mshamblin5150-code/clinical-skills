@@ -381,6 +381,14 @@ _Avoid_: sync, merge, round-trip, reconcile, transcription
 A run or paragraph property written onto the element itself rather than inherited from a named style. The only form that survives the clipboard, because a style is carried by reference and the reference is what a paste target drops.
 _Avoid_: inline style, hard formatting, manual formatting
 
+**Block quotation**:
+The form APA gives a quotation of 40 or more words: set on its own line, indented half an inch from the left margin, carrying no quotation marks, with the citation after the final punctuation. Here it is **authored markup** and never a detected shape -- the renderer sets what the author marked and never counts a quotation's words, because deciding a span is long enough to restyle is an edit to the document rather than a format applied to it.
+_Avoid_: long quote, pull quote, indented quote, blockquote
+
+**Source quotation**:
+A quoted span that carries an in-text citation, which is what distinguishes it from speech the author wrote down -- a scripted line to a patient is quoted and cited by nothing, and will never be a **Block quotation** however long it runs. The pairing is the only discriminator a command has, so a quoted span with no citation beside it is outside every row that grades quotation form.
+_Avoid_: quote, direct quote, quoted material
+
 **Dated observation**:
 A committed measurement of a third party this repo cannot re-derive, carrying the date, the instrument and the scope it was taken at in its own fields. Evidence that something behaved a certain way once, never a claim that it still does.
 _Avoid_: fixture, baseline, snapshot
