@@ -18,7 +18,7 @@ why three tools here are allowed a dependency and the rest are not: all three op
 ``| a | b |``           table, first row is the header, the ``---`` rule skipped
 ``**bold**``            bold run
 ``*italic*``            italic run
-blank line              paragraph break
+blank line              ignored -- retained by the parser, emits no Word paragraph
 ``---``                 ignored -- a Markdown rule is not a Word construct
 own-line HTML comment   ignored -- markup is not document content
 ======================  ====================================================
@@ -961,8 +961,8 @@ def blocks(markdown: str):
         index for index, line in enumerate(lines) if OWN_LINE_COMMENT.fullmatch(line)
     }
     # A removed comment takes one adjacent blank with it. Prefer the following blank,
-    # so ``paragraph / blank / comment / blank / paragraph`` retains the first and
-    # produces the one paragraph break the source intended. No other blank run moves.
+    # so ``paragraph / blank / comment / blank / paragraph`` records the same blank
+    # separation as the source with the comment removed. No other blank run moves.
     for comment_index in tuple(sorted(omitted)):
         following = comment_index + 1
         preceding = comment_index - 1
