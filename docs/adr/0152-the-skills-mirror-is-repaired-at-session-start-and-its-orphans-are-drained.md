@@ -188,6 +188,43 @@ Windows produces a hook that silently emits nothing, which is this ticket's own 
 `skills_mirror.py` already calls `use_utf8()` at `:432`, so the console codec rule is met where it
 stands.
 
+## Ruling 9 — `repo_root()` is defeated by an inherited `GIT_WORK_TREE`, and the kept hook is where that lands
+
+**Found live, during this session's own rebase, and measured rather than reasoned.** The `rebase`
+printed:
+
+```
+skills mirror: C:\...\grill-with-docs-472-eec18b\tools
+  no skills found under skills/ -- nothing to mirror.
+```
+
+Reproduced exactly with `GIT_DIR=<absolute> GIT_WORK_TREE=.`, which is the shape git exports to its
+hooks: `repo_root()` returns `<worktree>/tools`, `skill_names()` finds no `skills/` beneath it,
+and the command prints **nothing to mirror** and exits **0**. A clean-looking report over the wrong
+tree — this ticket's own defect, inside the tool that reports it.
+
+**The defense is the vulnerability, which is why this is a ruling rather than a bug note.**
+`repo_root()` asks git from the *script's own directory* rather than the process cwd, and its
+docstring says why: *"A worktree is a different toplevel than the checkout it was branched from, and
+conflating the two is precisely the bug this file is about."* That `-C` is correct and it is exactly
+what makes an inherited **relative** `GIT_WORK_TREE` resolve to `tools/`. A tool that had used the
+process cwd would have been right here.
+
+**The blast radius is this module alone**, measured: `tools/repo_root.py` takes no subprocess by
+design and is immune; `adr_next.py` shells the same command but derives it from a passed cwd and
+reports correctly under the same environment.
+
+**It does not reach ruling 1's mechanism.** `SessionStart` is not a git hook and inherits no such
+environment. **It reaches the hook ruling 6 keeps** — `post-checkout`, and `pre-commit`'s advisory
+run — so the hook this record preserves can silently measure `tools/` and report success. Filed
+separately; the fix is a resolution that cannot be redirected by inherited environment, not a change
+to any ruling above.
+
+**Ruling 2 is confirmed live by the same session.** A `--repair` run here relinked nine entries and
+refused `practicum-case-study` on exactly the six sheets ADR 0131 ruling 1 moved. The prediction
+that the unattended remedy completes on nine and stalls permanently on the graded-`.docx` skill is a
+measurement, not an argument.
+
 ## What this record does not settle
 
 **Whether the mirror can ever be graded.** It cannot, while `.claude/` is gitignored, and nothing
