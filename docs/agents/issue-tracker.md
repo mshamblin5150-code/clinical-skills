@@ -19,6 +19,8 @@ EOF
 
 The same `--body-file -` works for `gh issue comment` and `gh issue edit`. Single-line bodies may use `--body "..."`.
 
+A body-file path needs either `cd "<folder>" && ` in front of the command or the whole path in quotes.
+
 ### The rest
 
 - **Read an issue**: `gh issue view <number> --comments`. Add `--json body --jq '.body'` when the rendered view truncates.
