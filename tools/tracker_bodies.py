@@ -277,6 +277,7 @@ class FenceOpening(NamedTuple):
     marker: str
     width: int
     containers: tuple[ContainerPrefix, ...]
+    prefix_width: int
 
 
 def _container_prefix(content: str) -> tuple[int, tuple[ContainerPrefix, ...]]:
@@ -312,7 +313,7 @@ def _opening_fence(line: str) -> FenceOpening | None:
         return None
     if marker == "`" and "`" in content[run_end:]:
         return None
-    return FenceOpening(marker, width, containers)
+    return FenceOpening(marker, width, containers, cursor)
 
 
 def _is_closing_fence(
@@ -352,7 +353,45 @@ def _is_closing_fence(
     )
 
 
-def _without_fenced_code(text: str) -> str:
+def _fence_container_width(line: str, opening: FenceOpening) -> int:
+    """Return the structural prefix shared with a fenced block's opener."""
+    content = line.rstrip("\r\n")
+    cursor = 0
+    for container in opening.containers:
+        if container.kind == "quote":
+            match = QUOTE_PREFIX.match(content, cursor)
+            if match is None:
+                return 0
+            cursor = match.end()
+            continue
+        indentation = content[cursor:cursor + container.continuation_indent]
+        if (
+            len(indentation) != container.continuation_indent
+            or indentation.strip(" ")
+        ):
+            return 0
+        cursor += container.continuation_indent
+    return cursor
+
+
+def _fence_placeholder(
+    line: str,
+    opening: FenceOpening,
+    *,
+    opening_line: bool,
+) -> str:
+    """Hide fence content while retaining line and container structure."""
+    content = line.rstrip("\r\n")
+    newline = line[len(content):]
+    prefix_width = (
+        opening.prefix_width
+        if opening_line
+        else _fence_container_width(line, opening)
+    )
+    return content[:prefix_width] + newline
+
+
+def _without_fenced_code(text: str, *, preserve_lines: bool = False) -> str:
     """Replace CommonMark-style fenced blocks with spaces."""
     lines = text.splitlines(keepends=True)
     result: list[str] = []
@@ -363,13 +402,24 @@ def _without_fenced_code(text: str) -> str:
             result.append(lines[cursor])
             cursor += 1
             continue
+        start = cursor
         cursor += 1
         while cursor < len(lines):
             if _is_closing_fence(lines[cursor], opening):
                 cursor += 1
                 break
             cursor += 1
-        result.append(" ")
+        if preserve_lines:
+            result.extend(
+                _fence_placeholder(
+                    line,
+                    opening,
+                    opening_line=index == start,
+                )
+                for index, line in enumerate(lines[start:cursor], start=start)
+            )
+        else:
+            result.append(" ")
     return "".join(result)
 
 
@@ -415,9 +465,11 @@ def _without_code_spans(text: str) -> str:
     return "".join(result)
 
 
-def prose_outside_code(text: str) -> str:
+def prose_outside_code(text: str, *, preserve_lines: bool = False) -> str:
     """Replace Markdown code spans and fences with spaces."""
-    return _without_code_spans(_without_fenced_code(text))
+    return _without_code_spans(
+        _without_fenced_code(text, preserve_lines=preserve_lines)
+    )
 
 
 def has_c0_control_character(text: str) -> bool:

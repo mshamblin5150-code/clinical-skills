@@ -657,6 +657,295 @@ class UnreadableTrackerTextIsClassified(unittest.TestCase):
 
 
 class PublishedFieldsAreGradedWithoutEchoingThem(unittest.TestCase):
+    def test_a_verdict_without_a_discriminator_clause_is_advisory(self) -> None:
+        result = hook.analyze(
+            hook.Publication("body", "**Verdict:** HOLDS"),
+            index=phi_scan.build_index(set(), set()),
+            issue=None,
+            remote_fresh=True,
+        )
+
+        self.assertIn(
+            ("verdict:missing-discriminator", "advise"),
+            [(row.rule, row.posture) for row in result.findings],
+        )
+
+    def test_a_three_space_markdown_verdict_is_still_a_verdict(self) -> None:
+        result = hook.analyze(
+            hook.Publication("body", "   **Verdict:** HOLDS"),
+            index=phi_scan.build_index(set(), set()),
+            issue=None,
+            remote_fresh=True,
+        )
+
+        self.assertIn(
+            "verdict:missing-discriminator",
+            [row.rule for row in result.findings],
+        )
+
+    def test_an_invalid_backtick_opener_does_not_hide_a_live_verdict(self) -> None:
+        result = hook.analyze(
+            hook.Publication(
+                "body", "```text ` is not a fence\n**Verdict:** HOLDS"
+            ),
+            index=phi_scan.build_index(set(), set()),
+            issue=None,
+            remote_fresh=True,
+        )
+
+        self.assertIn(
+            "verdict:missing-discriminator",
+            [row.rule for row in result.findings],
+        )
+
+    def test_a_nonparagraph_quote_does_not_hide_a_following_verdict(self) -> None:
+        prefixes = (
+            "> # Quoted heading\n",
+            "> Quoted paragraph\n>\n",
+        )
+        for prefix in prefixes:
+            with self.subTest(prefix=prefix):
+                result = hook.analyze(
+                    hook.Publication("body", prefix + "**Verdict:** HOLDS"),
+                    index=phi_scan.build_index(set(), set()),
+                    issue=None,
+                    remote_fresh=True,
+                )
+                self.assertIn(
+                    "verdict:missing-discriminator",
+                    [row.rule for row in result.findings],
+                )
+
+    def test_a_verdict_after_a_fenced_list_example_stays_in_the_example(self) -> None:
+        body = "- ```text\n  example\n  ```\n  **Verdict:** HOLDS"
+
+        result = hook.analyze(
+            hook.Publication("body", body),
+            index=phi_scan.build_index(set(), set()),
+            issue=None,
+            remote_fresh=True,
+        )
+
+        self.assertNotIn(
+            "verdict:missing-discriminator",
+            [row.rule for row in result.findings],
+        )
+
+    def test_a_nested_block_ends_a_list_lazy_paragraph(self) -> None:
+        nested_blocks = (
+            "  # heading\n",
+            "  > quote\n",
+            "  - nested\n",
+            "  ---\n",
+        )
+        for nested_block in nested_blocks:
+            with self.subTest(nested_block=nested_block):
+                result = hook.analyze(
+                    hook.Publication(
+                        "body",
+                        "- Example:\n" + nested_block + "**Verdict:** HOLDS",
+                    ),
+                    index=phi_scan.build_index(set(), set()),
+                    issue=None,
+                    remote_fresh=True,
+                )
+
+                self.assertIn(
+                    "verdict:missing-discriminator",
+                    [row.rule for row in result.findings],
+                )
+
+    def test_an_html_block_ends_a_lazy_container_paragraph(self) -> None:
+        html_blocks = (
+            "<script>",
+            "<!-- example",
+            "<?example",
+            "<!DOCTYPE html>",
+            "<![CDATA[example",
+            "<div>",
+            "</div>",
+        )
+        containers = (
+            lambda block: f"> {block}\n",
+            lambda block: f"- Example:\n  {block}\n",
+        )
+        for html_block in html_blocks:
+            for container in containers:
+                with self.subTest(html_block=html_block, container=container):
+                    result = hook.analyze(
+                        hook.Publication(
+                            "body",
+                            container(html_block) + "**Verdict:** HOLDS",
+                        ),
+                        index=phi_scan.build_index(set(), set()),
+                        issue=None,
+                        remote_fresh=True,
+                    )
+
+                    self.assertIn(
+                        "verdict:missing-discriminator",
+                        [row.rule for row in result.findings],
+                    )
+
+    def test_html_block_contents_cannot_supply_the_discriminator(self) -> None:
+        examples = (
+            "<!--\nUnder the claim's negation this differs.\n-->",
+            "> <!--\n> Under the claim's negation this differs.\n> -->",
+            "- <!--\n  Under the claim's negation this differs.\n  -->",
+        )
+        for example in examples:
+            with self.subTest(example=example):
+                result = hook.analyze(
+                    hook.Publication(
+                        "body", "**Verdict:** HOLDS\n\n" + example
+                    ),
+                    index=phi_scan.build_index(set(), set()),
+                    issue=None,
+                    remote_fresh=True,
+                )
+
+                self.assertIn(
+                    "verdict:missing-discriminator",
+                    [row.rule for row in result.findings],
+                )
+
+    def test_html_block_contents_cannot_supply_a_live_verdict(self) -> None:
+        blocks = (
+            "<!--\n**Verdict:** HOLDS\n-->",
+            "<script>\n**Verdict:** HOLDS\n</script>",
+            "<div>\n**Verdict:** HOLDS\n\n",
+            "> <!--\n> **Verdict:** HOLDS\n> -->",
+            "- <!--\n  **Verdict:** HOLDS\n  -->",
+        )
+        for body in blocks:
+            with self.subTest(body=body):
+                result = hook.analyze(
+                    hook.Publication("body", body),
+                    index=phi_scan.build_index(set(), set()),
+                    issue=None,
+                    remote_fresh=True,
+                )
+
+                self.assertNotIn(
+                    "verdict:missing-discriminator",
+                    [row.rule for row in result.findings],
+                )
+
+    def test_a_type_one_html_block_uses_the_first_exact_family_closer(self) -> None:
+        closed = hook.analyze(
+            hook.Publication(
+                "body", "<script>\n</style>\n**Verdict:** HOLDS"
+            ),
+            index=phi_scan.build_index(set(), set()),
+            issue=None,
+            remote_fresh=True,
+        )
+        still_open = hook.analyze(
+            hook.Publication(
+                "body", "<script>\n</script   >\n**Verdict:** HOLDS"
+            ),
+            index=phi_scan.build_index(set(), set()),
+            issue=None,
+            remote_fresh=True,
+        )
+
+        self.assertIn(
+            "verdict:missing-discriminator",
+            [row.rule for row in closed.findings],
+        )
+        self.assertNotIn(
+            "verdict:missing-discriminator",
+            [row.rule for row in still_open.findings],
+        )
+
+    def test_the_discriminator_clause_clears_the_form_check(self) -> None:
+        body = (
+            "**Verdict:** HOLDS\n\n"
+            "Under the claim's negation this instrument reports a different value."
+        )
+        result = hook.analyze(
+            hook.Publication("body", body),
+            index=phi_scan.build_index(set(), set()),
+            issue=None,
+            remote_fresh=True,
+        )
+
+        self.assertNotIn(
+            "verdict:missing-discriminator",
+            [row.rule for row in result.findings],
+        )
+
+    def test_an_example_only_discriminator_does_not_clear_a_live_verdict(self) -> None:
+        examples = (
+            "```text\nUnder the claim's negation this differs.\n```",
+            "> Under the claim's negation this differs.",
+            "- Under the claim's negation this differs.",
+            "- Example:\n  Under the claim's negation this differs.",
+        )
+        for example in examples:
+            with self.subTest(example=example):
+                result = hook.analyze(
+                    hook.Publication(
+                        "body", "**Verdict:** HOLDS\n\n" + example
+                    ),
+                    index=phi_scan.build_index(set(), set()),
+                    issue=None,
+                    remote_fresh=True,
+                )
+                self.assertIn(
+                    "verdict:missing-discriminator",
+                    [row.rule for row in result.findings],
+                )
+
+    def test_the_verdict_form_check_is_comment_scoped(self) -> None:
+        result = hook.analyze(
+            hook.Publication("body", "**Verdict:** HOLDS"),
+            index=phi_scan.build_index(set(), set()),
+            issue=None,
+            remote_fresh=True,
+            route=("issue", "edit"),
+        )
+
+        self.assertNotIn(
+            "verdict:missing-discriminator",
+            [row.rule for row in result.findings],
+        )
+
+    def test_an_issue_close_comment_is_checked(self) -> None:
+        result = hook.analyze(
+            hook.Publication("body", "**Verdict:** HOLDS"),
+            index=phi_scan.build_index(set(), set()),
+            issue=None,
+            remote_fresh=True,
+            route=("issue", "close"),
+        )
+
+        self.assertIn(
+            "verdict:missing-discriminator",
+            [row.rule for row in result.findings],
+        )
+
+    def test_examples_of_verdicts_are_not_the_comments_verdict(self) -> None:
+        examples = (
+            "> **Verdict:** HOLDS",
+            "- **Verdict:** HOLDS",
+            "- Example:\n  **Verdict:** HOLDS",
+            "    **Verdict:** HOLDS",
+            "```text\n**Verdict:** HOLDS\n```",
+        )
+        for body in examples:
+            with self.subTest(body=body):
+                result = hook.analyze(
+                    hook.Publication("body", body),
+                    index=phi_scan.build_index(set(), set()),
+                    issue=None,
+                    remote_fresh=True,
+                )
+                self.assertNotIn(
+                    "verdict:missing-discriminator",
+                    [row.rule for row in result.findings],
+                )
+
     def test_a_c0_control_character_denies_a_body_and_a_title(self) -> None:
         index = phi_scan.build_index(set(), set())
 
@@ -918,6 +1207,54 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
         self.assertIn("body read from inline", specific["additionalContext"])
         self.assertIn("0 findings", specific["additionalContext"])
         write_marker.assert_called_once_with()
+
+    def test_a_missing_discriminator_is_reported_without_denying(self) -> None:
+        index = phi_scan.build_index(set(), set())
+        with (
+            mock.patch.object(hook, "current_index", return_value=(index, ())),
+            mock.patch.object(hook, "refresh_default_branch", return_value=True),
+            mock.patch.object(
+                hook,
+                "fetch_readback",
+                return_value=fetched_records(670),
+            ),
+            mock.patch.object(hook, "write_marker"),
+        ):
+            response = hook.handle(
+                self.payload("gh issue comment 670 --body '**Verdict:** HOLDS'")
+            )
+
+        specific = response["hookSpecificOutput"]
+        self.assertNotIn("permissionDecision", specific)
+        self.assertIn(
+            "advise: verdict:missing-discriminator",
+            specific["additionalContext"],
+        )
+
+    def test_a_pr_review_comment_crosses_the_same_advisory(self) -> None:
+        index = phi_scan.build_index(set(), set())
+        with (
+            mock.patch.object(hook, "current_index", return_value=(index, ())),
+            mock.patch.object(hook, "refresh_default_branch", return_value=True),
+            mock.patch.object(
+                hook,
+                "fetch_readback",
+                return_value=fetched_records(706),
+            ),
+            mock.patch.object(hook, "write_marker"),
+        ):
+            response = hook.handle(
+                self.payload(
+                    "gh pr review --comment 706 --body '**Verdict:** HOLDS'"
+                )
+            )
+
+        specific = response["hookSpecificOutput"]
+        self.assertNotIn("permissionDecision", specific)
+        self.assertIn(
+            "advise: verdict:missing-discriminator",
+            specific["additionalContext"],
+        )
 
     def test_an_api_issue_edit_uses_issue_body_not_comment_rules(self) -> None:
         index = phi_scan.build_index(set(), set())
@@ -1299,6 +1636,7 @@ class DeclaredLimitsHaveOneOwner(unittest.TestCase):
                 "a failed tracker readback leaves the publication context-blind",
                 "an AAR paraphrase passes the quotation gate",
                 "the command-folder reader reaches literal absolute cd targets only",
+                "a stock discriminator clause can satisfy the verdict form check",
             },
         )
 
