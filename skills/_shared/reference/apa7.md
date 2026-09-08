@@ -5,7 +5,8 @@ repo. What is freely published is APA Style's own rule pages, and this sheet is 
 rules a practicum case study rests on, each carrying the manual section it comes from so a reader
 can go to the source rather than trust this file.
 
-**Sections 1 through 7 were verified against apastyle.apa.org on 2026-08-18.** Every rule in those
+**Sections 1 through 7 were verified against apastyle.apa.org on 2026-08-18; section 6's rules on
+paragraph and heading spacing were verified on 2026-09-08.** Every rule in those
 sections was read from that site on that date, not recalled. A rule this sheet does not cover is
 looked up the same way — **an APA rule is looked up, never recalled**, which is
 [practicum-case-study](../../practicum-case-study/SKILL.md)'s anchor discipline arriving at the reference list.
@@ -180,6 +181,8 @@ renderer can reach — and what it does not is written down rather than assumed 
 | **Page numbers**, top right of every page | applied | `page-number-header` |
 | The singular **`Reference`** heading gets the hanging indent | applied | `singular-reference-hanging-indent` |
 | Every body paragraph takes a **0.5 inch first-line indent** (§2.24) | applied — and *only* a body paragraph: a heading, a list item, a reference entry and a table cell each take none | `body-first-line-indent` |
+| **No extra space before or after paragraphs** (§2.21) | applied — consecutive body paragraphs remain continuously double spaced without an empty paragraph between them | `body-no-extra-space` |
+| **No blank lines above or below headings**, even at the end of a page (§§2.26–2.27) | applied — a heading is adjacent to the body paragraph that follows it | `heading-no-blank-lines` |
 | A table carries **horizontal rules only**, no grid (§7.8) | applied — three rules and no more: above the header row, below the header row, below the last row | `table-horizontal-rules` |
 
 **Word is the evidence for every verdict in both tables.** The dated observation and the
