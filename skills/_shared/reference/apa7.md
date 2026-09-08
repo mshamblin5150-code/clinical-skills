@@ -53,8 +53,9 @@ directly; the latter links it from its own workflow because the reference scanne
   whole list**.
 - **Double spaced throughout, with no extra space between entries.**
 - Page numbers sit in the **top right corner of every page**, the reference list included.
-- **Alphabetized by the first significant word of the entry** — normally the first author's
-  surname. Ignore a leading `A`, `An`, or `The` for alphabetizing while retaining it in the
+- **Alphabetized letter by letter from the first significant word of the entry** — normally the
+  first author's surname, including any surname prefix. Disregard capitalization, spaces, and
+  punctuation. Ignore a leading `A`, `An`, or `The` for alphabetizing while retaining it in the
   printed entry. Where a work has no author, the title moves to the front and the entry
   alphabetizes by the title.
 
@@ -131,6 +132,10 @@ order, or by which one was found first.
 - **Use only the year with its letter in text**, even where the reference list entry carries a
   fuller date.
 - Undated works by one author take **`n.d.-a`, `n.d.-b`** — with the hyphen.
+- Works accepted for publication use **`in press`** in both the entry and the in-text citation.
+  When same-author works need letters, the same suffix rule gives `in press-a` and `in press-b`.
+  Within one author's list, §9.46 orders works with no date first, dated works next, and in-press
+  works last.
 
 APA's own worked example, which shows the ordering doing something non-obvious:
 
@@ -323,7 +328,6 @@ reaches` and `tools/checks_ledger.py` expects it, so a run that returns no verdi
 | An **unwarranted retrieval date** on a guideline, a statement or a textbook | §4 says those take none. The command refuses one only where the entry carries a **DOI** — the work stating an archived version of itself exists, which is §4's own test failing. Nothing in a URL distinguishes a stable PDF from a page designed to change |
 | **The UpToDate last update year** | §2's date element is the topic's own last update year, not the year it was read, and the same topic appears in one corpus under three years. Which is which is in the companion evidence document, which the command never sees |
 | **Whether the source exists and says so** | Whether an entry is a real source saying what the sentence citing it says. That is [#231](https://github.com/mshamblin5150-code/clinical-skills/issues/231), answered **before the draft exists**: `tools/research_ledger.py` grades a year an agent read off the page and a refutation a second agent returned |
-| A check of **whether a legal entry is cited** | A legal entry is outside `uncited-entry`: that row keys on the entry's first significant word alone, while a section-form citation resolves on a `resolution_keys` entry the row never reads, so a clean result cannot prove the entry is cited anywhere |
 
 **That table is `reference_scan.NOT_REACHED` and this is not a second copy of it**, which is
 [#220](https://github.com/mshamblin5150-code/clinical-skills/issues/220)'s repair arriving one
@@ -360,7 +364,8 @@ again. Found by the merge rather than by either branch.
 
 ## 8. Reference form: State nursing practice act (NPA)
 
-**Provenance:** APA Style's *Nursing Student References* page, item 14, read 2026-08-30.
+**Provenance:** APA Style's *Nursing Student References* page, item 14, read 2026-08-30;
+*Publication Manual* §§11.3 and 11.5, read 2026-09-08.
 
 APA's published example is a state nursing regulation:
 
@@ -376,6 +381,12 @@ Name of the Statute, Title number Source § Section number(s) (Year)
 ```
 
 The legal source name is required; a section-only entry is not this form.
+
+The in-text form uses the entry's first element as its author element and the entry's publication
+year as its date element. A year embedded in the name of an act remains part of that first element;
+it does not replace the publication year. For example, an entry beginning `Consolidated
+Appropriations Act, 2023` and published in 2022 is cited as `(Consolidated Appropriations Act,
+2023, 2022)`.
 
 A corpus instance follows APA's pattern with West Virginia's codification:
 
@@ -704,7 +715,7 @@ and [*How to cite translated works*](https://apastyle.apa.org/blog/citing-transl
 | `Watson, J. B., & Rayner, R. (2013). Conditioned emotional reactions: The case of Little Albert (D. Webb, Ed.). CreateSpace Independent Publishing Platform. https://a.co/06Se6Na (Original work published 1920)` | `(Watson & Rayner, 1920/2013)` | `2013` | clean |
 | `Watson, J. B., & Rayner, R. (2013). Conditioned emotional reactions: The case of Little Albert (D. Webb, Ed.). CreateSpace Independent Publishing Platform. https://a.co/06Se6Na (Original work published 1920)` | `Watson and Rayner (1920/2013)` | `2013` | clean |
 | `Kübler-Ross, E. (with Byock, I.). (2014). On death & dying: What the dying have to teach doctors, nurses, clergy & their own families (50th anniversary ed.). Scribner. (Original work published 1969)` | `(Kübler-Ross, 1969/2014, foreword by Byock, p. xv)` | `2014` | clean |
-| `Kübler-Ross, E. (with Byock, I.). (2014). On death & dying: What the dying have to teach doctors, nurses, clergy & their own families (50th anniversary ed.). Scribner. (Original work published 1969)` | `Kübler-Ross (1969/2014)` | `2014` | #943 |
+| `Kübler-Ross, E. (with Byock, I.). (2014). On death & dying: What the dying have to teach doctors, nurses, clergy & their own families (50th anniversary ed.). Scribner. (Original work published 1969)` | `Kübler-Ross (1969/2014)` | `2014` | clean |
 | `King James Bible. (2017). King James Bible Online. https://www.kingjamesbibleonline.org/ (Original work published 1769)` | `(King James Bible, 1769/2017, Song of Solomon 8:6)` | `2017` | clean |
 | `King James Bible. (2017). King James Bible Online. https://www.kingjamesbibleonline.org/ (Original work published 1769)` | `King James Bible (1769/2017)` | `2017` | clean |
 | `Alighieri, D. (2001). The divine comedy (H. F. Cary, Trans.). Bartleby. https://www.bartleby.com/20/ (Original work published 1909)` | `(Alighieri, 1909/2001, Inferno, Canto XIII, Lines 72–74)` | `2001` | clean |
@@ -717,9 +728,7 @@ year in the entry. Use canonically numbered parts rather than page numbers when 
 or religious works.
 
 **Declared limit:** The original half is parsed but not graded: APA's own Gilgamesh entry gives
-`ca. 2500–2750 B.C.E.` while its citation gives `ca. 2750–2500 B.C.E./1998`. The two author-shape
-the failure recorded as #943 remains outside this date grammar and is not hidden by the
-examples above.
+`ca. 2500–2750 B.C.E.` while its citation gives `ca. 2750–2500 B.C.E./1998`.
 
 ## 32. Block quotations and direct-quotation locators
 

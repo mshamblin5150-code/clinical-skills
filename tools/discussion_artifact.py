@@ -24,7 +24,8 @@ INVOKED = re.compile(
 )
 AMPLIFICATION = re.compile(r"(?mi)^\s*<!--\s*AMPLIFICATION\s*:[^>]+-->\s*$")
 PAREN_BLOCK = re.compile(r"\((?P<inside>[^()]+)\)")
-YEAR = r"(?:(?:19|20)\d{2}[a-z]?|(?i:n\.d\.(?:-[a-z])?))"
+NONNUMERIC_DATE = r"(?:n\.d\.|in press)"
+YEAR = r"(?:(?:19|20)\d{2}[a-z]?|(?i:" + NONNUMERIC_DATE + r"(?:-[a-z])?))"
 REPUBLISHED_ORIGINAL_DATE = (
     r"(?:(?i:ca\.)\s*)?\d{1,4}(?:\s*–\s*\d{1,4})?"
     r"(?:\s*(?i:B\.C\.E\.|C\.E\.))?"
@@ -33,10 +34,18 @@ REPUBLISHED_DATE_ELEMENT = REPUBLISHED_ORIGINAL_DATE + r"/" + YEAR
 UPPER = re.escape(
     "".join(character for character in map(chr, range(sys.maxunicode + 1)) if character.isupper())
 )
+LOWER = re.escape(
+    "".join(
+        character
+        for character in map(chr, range(sys.maxunicode + 1))
+        if character.islower()
+    )
+)
 LETTER = r"[^\W\d_]"
 PAREN_PAIR = re.compile(
-    r"(?P<author>[" + UPPER + r"][^;]*?),\s*(?P<year>" + YEAR + r")"
-    r"(?:,\s*(?:p{1,2}\.\s*)?\d+(?:[-–]\d+)?)?\s*$"
+    r"(?P<author>[*_]?[" + UPPER + r"][^;]*?),\s*(?P<year>" + YEAR + r")"
+    r"(?P<rest>(?:,\s*" + YEAR + r")*"
+    r"(?:,\s*[^()]*)?)\s*$"
 )
 REPUBLISHED_PAREN_PAIR = re.compile(
     r"(?P<author>[" + UPPER + r"][^;]*?),\s*"
@@ -44,7 +53,15 @@ REPUBLISHED_PAREN_PAIR = re.compile(
     r"(?:,\s*[^()]*)?\s*$"
 )
 NAME = r"[" + UPPER + r"](?:" + LETTER + r"|['’.\-])*"
-AUTHOR_PHRASE = NAME + r"(?:\s+(?:" + NAME + r"|of|for|the|and|&)){0,10}"
+NOT_SENTENCE_END = r"(?!(?<!v\.)(?<=[" + LOWER + r"’']\.)\s)"
+AUTHOR_PHRASE = (
+    NAME
+    + r"(?:"
+    + NOT_SENTENCE_END
+    + r"\s+(?:"
+    + NAME
+    + r"|of|for|the|and|&|v\.)){0,10}"
+)
 NARRATIVE_DEFINITION = re.compile(
     r"\b(?P<author>" + AUTHOR_PHRASE + r")\s*"
     r"\((?P<alias>[" + UPPER + r"][A-Z0-9.\-]*),\s*"
@@ -53,8 +70,17 @@ NARRATIVE_DEFINITION = re.compile(
 NARRATIVE_CITATION = re.compile(
     r"\b(?P<author>" + AUTHOR_PHRASE + r"(?:\s+et\s+al\.)?)\s*"
     r"\((?P<year>" + YEAR + r")"
+    r"(?P<rest>(?:,\s*" + YEAR + r")*)"
     r"(?:,\s*(?:p{1,2}\.|para\.)\s*\d+(?:[-–]\d+)?)?\)"
 )
+ADDITIONAL_DATE = re.compile(r"^\s*,\s*(?P<year>" + YEAR + r")(?![A-Za-z0-9])")
+DATE_VALUE = re.compile(r"(?P<year>" + YEAR + r")(?![A-Za-z0-9])")
+DATE_SERIES = re.compile(
+    r"^\s*" + YEAR + r"(?:\s*,\s*" + YEAR + r")*"
+    r"(?:,\s*(?:p{1,2}\.|para\.)\s*\d+(?:[-–]\d+)?)?\s*$"
+)
+FENCED_CODE = re.compile(r"(?ms)^(\x60\x60\x60|~~~).*?^\1[ \t]*$")
+INLINE_CODE = re.compile(r"\x60+[^\x60\n]*\x60+")
 REPUBLISHED_NARRATIVE_CITATION = re.compile(
     r"\b(?P<author>" + AUTHOR_PHRASE + r"(?:\s+et\s+al\.)?)\s*"
     r"\((?P<year>" + REPUBLISHED_DATE_ELEMENT + r")"
@@ -367,6 +393,15 @@ class Citation:
 
 
 @dataclass(frozen=True)
+class CitationCoverage:
+    candidates: int = 0
+    evidenced: int = 0
+    grammar: int = 0
+    unread: int = 0
+    disagreements: tuple[tuple[str, str], ...] = ()
+
+
+@dataclass(frozen=True)
 class ReferenceSection:
     body: str
     references: tuple[str, ...]
@@ -530,10 +565,107 @@ def citation_year(date_element: str) -> str:
     return date_element.rsplit("/", 1)[-1].casefold()
 
 
-def read_citations(
+def _inside_code(body: str, start: int, end: int) -> bool:
+    return any(
+        start < match.end() and match.start() < end
+        for pattern in (FENCED_CODE, INLINE_CODE)
+        for match in pattern.finditer(body)
+    )
+
+
+def _valid_evidenced_author(body: str, author: str, start: int, end: int) -> bool:
+    first_letter = next(
+        (character for character in author if character.isalpha()),
+        "",
+    )
+    return (
+        len(author_key(author)) >= 3
+        and "\n" not in author
+        and re.search(r"(?<!v)(?<=[" + LOWER + r"’'])\.\s", author) is None
+        and first_letter.isupper()
+        and not _inside_code(body, start, end)
+    )
+
+
+def _evidenced_citations(
+    body: str,
+    reference_key_set: Collection[tuple[str, str]],
+    legal_spans: frozenset[tuple[int, int]],
+) -> tuple[Citation, ...]:
+    """Read exact reference keys before allowing the fallback grammar to split."""
+
+    if not reference_key_set:
+        return ()
+    max_key_length = max(len(key) for key, _year in reference_key_set)
+    found: list[Citation] = []
+    identities: set[tuple[int, int, str]] = set()
+
+    for block in PAREN_BLOCK.finditer(body):
+        offset = block.start("inside")
+        cursor = 0
+        for part in block.group("inside").split(";"):
+            leading = len(part) - len(part.lstrip())
+            stripped = part.strip()
+            start = offset + cursor + leading
+            end = start + len(stripped)
+            if any(start < legal_end and legal_start < end for legal_start, legal_end in legal_spans):
+                cursor += len(part) + 1
+                continue
+            for date_match in DATE_VALUE.finditer(stripped):
+                author = stripped[: date_match.start()].rstrip(" ,")
+                key = author_key(author)
+                year = citation_year(date_match.group("year"))
+                if (
+                    len(key) <= max_key_length
+                    and ((key, year) in reference_key_set or (key, "") in reference_key_set)
+                    and _valid_evidenced_author(body, author, start, end)
+                ):
+                    for remaining in DATE_VALUE.finditer(stripped, date_match.start()):
+                        token = citation_year(remaining.group("year"))
+                        identity = (start, end, token)
+                        if identity not in identities:
+                            identities.add(identity)
+                            found.append(Citation(author, token, start, end))
+                    break
+            cursor += len(part) + 1
+
+    for block in PAREN_BLOCK.finditer(body):
+        if DATE_SERIES.fullmatch(block.group("inside")) is None:
+            continue
+        prefix = body[: block.start()]
+        longest: Citation | None = None
+        year_values = tuple(
+            citation_year(match.group("year"))
+            for match in DATE_VALUE.finditer(block.group("inside"))
+        )
+        for word_start in _reverse_word_starts(prefix):
+            author = prefix[word_start:].strip()
+            key = author_key(author)
+            if len(key) > max_key_length:
+                break
+            if not _valid_evidenced_author(body, author, word_start, block.end()):
+                continue
+            if any(
+                (key, year) in reference_key_set or (key, "") in reference_key_set
+                for year in year_values
+            ):
+                longest = Citation(author, year_values[0], word_start, block.end())
+                break
+        if longest is not None:
+            for year in year_values:
+                identity = (longest.start, longest.end, year)
+                if identity not in identities:
+                    identities.add(identity)
+                    found.append(
+                        Citation(longest.author, year, longest.start, longest.end)
+                    )
+    return tuple(found)
+
+
+def _read_citations(
     body: str,
     reference_key_set: Collection[tuple[str, str]] = (),
-) -> tuple[Citation, ...]:
+) -> tuple[tuple[Citation, ...], CitationCoverage]:
     """Read APA citations, including narrative names evidenced by references."""
 
     found: list[Citation] = []
@@ -583,14 +715,19 @@ def read_citations(
                 continue
             match = REPUBLISHED_PAREN_PAIR.match(stripped) or PAREN_PAIR.match(stripped)
             if match:
+                author = match.group("author")
                 found.append(
-                    Citation(
-                        match.group("author"),
-                        citation_year(match.group("year")),
-                        start,
-                        end,
-                    )
+                    Citation(author, citation_year(match.group("year")), start, end)
                 )
+                rest = match.groupdict().get("rest") or ""
+                while True:
+                    extra = ADDITIONAL_DATE.match(rest)
+                    if extra is None:
+                        break
+                    found.append(
+                        Citation(author, citation_year(extra.group("year")), start, end)
+                    )
+                    rest = rest[extra.end() :]
             cursor += len(part) + 1
     narrative_citations = sorted(
         (
@@ -613,33 +750,88 @@ def read_citations(
                 match.end(),
             )
         )
-    if reference_key_set:
-        max_key_length = max(len(key) for key, _year in reference_key_set)
-        for year_match in REFERENCE_YEAR.finditer(body):
-            if any(
-                citation.start <= year_match.start()
-                and year_match.end() <= citation.end
-                for citation in found
+        rest = match.groupdict().get("rest") or ""
+        while True:
+            extra = ADDITIONAL_DATE.match(rest)
+            if extra is None:
+                break
+            found.append(
+                Citation(
+                    match.group("author"),
+                    citation_year(extra.group("year")),
+                    match.start(),
+                    match.end(),
+                )
+            )
+            rest = rest[extra.end() :]
+    grammar_found = tuple(found)
+    evidence_found = _evidenced_citations(body, reference_key_set, legal_spans)
+    evidence_spans = {(citation.start, citation.end) for citation in evidence_found}
+    disagreements: list[tuple[str, str]] = []
+    for evidence in evidence_found:
+        evidence_key = author_key(evidence.author)
+        for grammar_citation in grammar_found:
+            if (
+                grammar_citation.start < evidence.end
+                and evidence.start < grammar_citation.end
+                and grammar_citation.year == evidence.year
             ):
-                continue
-            prefix = body[: year_match.start()]
-            longest: Citation | None = None
-            year_value = year_match.group("year").casefold()
-            for word_start in _reverse_word_starts(prefix):
-                author = prefix[word_start:].strip()
-                key = author_key(author)
-                if len(key) > max_key_length:
-                    break
-                if (key, year_value) in reference_key_set or (key, "") in reference_key_set:
-                    longest = Citation(
-                        author,
-                        year_value,
-                        word_start,
-                        year_match.end(),
-                    )
-            if longest is not None:
-                found.append(longest)
-    return tuple(sorted(found, key=lambda citation: citation.start))
+                grammar_key = author_key(grammar_citation.author)
+                if grammar_key != evidence_key:
+                    disagreements.append((evidence_key, grammar_key))
+    grammar_remainder = tuple(
+        citation
+        for citation in grammar_found
+        if not any(
+            citation.start < end and start < citation.end
+            for start, end in evidence_spans
+        )
+    )
+    combined = tuple(
+        sorted(
+            (*grammar_remainder, *evidence_found),
+            key=lambda citation: (citation.start, citation.end, citation.year),
+        )
+    )
+    deduplicated = tuple(
+        {
+            (citation.start, citation.end, citation.author, citation.year): citation
+            for citation in combined
+        }.values()
+    )
+    covered_spans = tuple(
+        (citation.start, citation.end)
+        for citation in (*evidence_found, *grammar_remainder)
+    )
+    unread = 0
+    for block in PAREN_BLOCK.finditer(body):
+        if not any(
+            start < block.end() and block.start() < end
+            for start, end in covered_spans
+        ):
+            unread += len(tuple(DATE_VALUE.finditer(block.group("inside"))))
+    coverage = CitationCoverage(
+        candidates=len(evidence_found) + len(grammar_remainder) + unread,
+        evidenced=len(evidence_found),
+        grammar=len(grammar_remainder),
+        unread=unread,
+        disagreements=tuple(dict.fromkeys(disagreements)),
+    )
+    return deduplicated, coverage
+
+
+def read_citations(
+    body: str,
+    reference_key_set: Collection[tuple[str, str]] = (),
+) -> tuple[Citation, ...]:
+    return _read_citations(body, reference_key_set)[0]
+
+
+def citation_coverage(
+    body: str,
+    reference_key_set: Collection[tuple[str, str]] = (),
+) -> CitationCoverage:
+    return _read_citations(body, reference_key_set)[1]
 
 
 def legal_citation_spans(body: str) -> frozenset[tuple[int, int]]:
