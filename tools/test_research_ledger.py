@@ -48,6 +48,7 @@ import run_grader
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SKILL = REPO_ROOT / "skills" / "practicum-case-study" / "SKILL.md"
 STYLE = REPO_ROOT / "skills" / "_shared" / "reference" / "style.md"
+SOURCING = REPO_ROOT / "skills" / "_shared" / "reference" / "sourcing.md"
 
 AS_OF = date(2026, 8, 19)
 
@@ -608,7 +609,7 @@ REFERENCE: Author, A. (2026). Some topic. Retrieved August 20, 2026.
         self.assertIn("no reference list", out.getvalue() + err.getvalue())
 
 
-class AStatusIsOneOfTwoBranches(unittest.TestCase):
+class AStatusIsOneOfThreeBranches(unittest.TestCase):
     """An unrecognized status is a failure, and that departs from
     ``specificity_scan``'s third-branch rule on purpose.
 
@@ -617,11 +618,11 @@ class AStatusIsOneOfTwoBranches(unittest.TestCase):
     clean -- the silent-pass shape this whole directory exists for.
     """
 
-    def test_a_third_word_is_a_finding(self):
+    def test_a_word_outside_the_vocabulary_is_a_finding(self):
         record = replace_field(CLEAN, "STATUS", "pending")
         self.assertIn(ledger.UNKNOWN_STATUS, kinds(ledger_text(record)))
 
-    def test_a_third_word_does_not_also_report_the_rows_it_skipped(self):
+    def test_an_unknown_word_does_not_also_report_the_rows_it_skipped(self):
         """One finding, not seven. A record graded on nothing has one defect."""
         record = replace_field(CLEAN, "STATUS", "pending")
         self.assertEqual(kinds(ledger_text(record)), [ledger.UNKNOWN_STATUS])
@@ -687,6 +688,106 @@ class AnUnsourcedRecordSaysWhatWasSearched(unittest.TestCase):
         text = ledger_text(self._record("unsourced - searched three databases."))
         scan = ledger.survey(ledger.read_records(text), AS_OF)
         self.assertEqual((scan.unsourced, scan.failing_records), (1, 0))
+
+
+class AnUnreadableStatusNamesTheFailedInstruments(unittest.TestCase):
+    """ADR 0149's source-read failure branch at the public record seam."""
+
+    def test_a_sourceless_record_with_two_distinct_instruments_passes(self):
+        record = """\
+## CLAIM: The sought guideline contains a recommendation on this question.
+STATUS: unreadable - both attempts failed before either read the source.
+INSTRUMENTS: web fetch -> curl with a browser user agent
+"""
+        parsed = ledger.read_records(ledger_text(record))[0]
+        self.assertEqual(parsed.value("INSTRUMENTS"), "web fetch -> curl with a browser user agent")
+        self.assertEqual(kinds(ledger_text(record)), [])
+
+    def test_the_instrument_pair_is_required(self):
+        record = """\
+## CLAIM: The sought guideline contains a recommendation on this question.
+STATUS: unreadable - both attempts failed before either read the source.
+"""
+        self.assertEqual(kinds(ledger_text(record)), [ledger.MISSING_FIELD])
+
+    def test_the_status_still_requires_a_reason(self):
+        record = """\
+## CLAIM: The sought guideline contains a recommendation on this question.
+STATUS: unreadable
+INSTRUMENTS: web fetch -> curl
+"""
+        self.assertEqual(kinds(ledger_text(record)), [ledger.BARE_STATUS])
+
+    def test_an_unsplit_instrument_pair_is_a_finding(self):
+        record = """\
+## CLAIM: The sought guideline contains a recommendation on this question.
+STATUS: unreadable - both attempts failed before either read the source.
+INSTRUMENTS: web fetch and curl
+"""
+        self.assertEqual(kinds(ledger_text(record)), [ledger.UNSPLIT_INSTRUMENTS])
+
+    def test_either_empty_instrument_half_is_a_finding(self):
+        for value in (" -> curl", "web fetch -> "):
+            with self.subTest(value=value):
+                record = """\
+## CLAIM: The sought guideline contains a recommendation on this question.
+STATUS: unreadable - both attempts failed before either read the source.
+INSTRUMENTS: <value>
+""".replace("<value>", value)
+                self.assertEqual(kinds(ledger_text(record)), [ledger.BARE_INSTRUMENTS])
+
+    def test_normalized_identical_instruments_are_a_finding(self):
+        record = """\
+## CLAIM: The sought guideline contains a recommendation on this question.
+STATUS: unreadable - both attempts failed before either read the source.
+INSTRUMENTS: Web Fetch -> web-fetch
+"""
+        self.assertEqual(kinds(ledger_text(record)), [ledger.INSTRUMENTS_UNCHANGED])
+
+    def test_every_existing_source_claim_field_is_forbidden_on_the_sourceless_branch(self):
+        base = """\
+## CLAIM: The sought guideline contains a recommendation on this question.
+STATUS: unreadable - both attempts failed before either read the source.
+INSTRUMENTS: web fetch -> curl
+"""
+        values = {
+            "REFERENCE": "Invented, A. (2026). Unread source.",
+            "RESOLVED": "https://example.test/unread - read 2026-09-08",
+            "PAGE-YEAR": "2026 - on the unread page",
+            "REFUTATION": "stands - asserted without a read",
+            "SECOND-ROUTE": "first route -> second route",
+            "STATED-EXPIRY": "none stated",
+        }
+        self.assertEqual(set(values), set(ledger.CITATION_FIELDS))
+        for name, value in values.items():
+            with self.subTest(field=name):
+                record = base + f"{name}: {value}\n"
+                found = kinds(ledger_text(record))
+                self.assertIn(ledger.UNSOURCED_WITH_CITATION_FIELD, found)
+
+    def test_instruments_are_forbidden_on_both_other_statuses(self):
+        unsourced = """\
+## CLAIM: No guideline addresses this question.
+STATUS: unsourced - searched the guideline corpus and found no statement.
+INSTRUMENTS: web search -> corpus index
+"""
+        for record in (unsourced, CLEAN + "INSTRUMENTS: web fetch -> curl\n"):
+            with self.subTest(status=ledger.read_records(ledger_text(record))[0].status):
+                self.assertEqual(kinds(ledger_text(record)), [ledger.UNEXPECTED_INSTRUMENTS])
+
+    def test_an_empty_instruments_field_is_still_forbidden_elsewhere(self):
+        record = CLEAN + "INSTRUMENTS:\n"
+        self.assertEqual(kinds(ledger_text(record)), [ledger.UNEXPECTED_INSTRUMENTS])
+
+    def test_the_status_is_counted_on_its_own_report_line(self):
+        record = """\
+## CLAIM: The sought guideline contains a recommendation on this question.
+STATUS: unreadable - both attempts failed before either read the source.
+INSTRUMENTS: web fetch -> curl
+"""
+        scan = ledger.survey(ledger.read_records(ledger_text(record)), AS_OF)
+        self.assertEqual((scan.unreadable, scan.failing_records), (1, 0))
+        self.assertIn("unreadable - go to PROPOSED", ledger.format_report(scan, source="x.md"))
 
 
 class ARequiredFieldIsPresentAndCarriesSomething(unittest.TestCase):
@@ -1261,12 +1362,12 @@ class TheRefutationPassIsASecondAgentTryingToProveTheCitationWrong(unittest.Test
         record = replace_field(CLEAN, "REFUTATION", "refuted - 114(6) ends at page 1300.")
         self.assertIn(ledger.REFUTED_CITATION, kinds(ledger_text(record)))
 
-    def test_a_third_disposition_is_a_finding(self):
+    def test_a_disposition_outside_the_vocabulary_is_a_finding(self):
         """``STATUS``'s reasoning and not ``SOURCE``'s: it gates the row below."""
         record = replace_field(CLEAN, "REFUTATION", "probably fine")
         self.assertIn(ledger.UNKNOWN_REFUTATION, kinds(ledger_text(record)))
 
-    def test_a_third_disposition_does_not_also_report_the_row_it_skipped(self):
+    def test_an_unknown_disposition_does_not_also_report_the_row_it_skipped(self):
         record = replace_field(CLEAN, "REFUTATION", "probably fine")
         self.assertNotIn(ledger.REFUTED_CITATION, kinds(ledger_text(record)))
 
@@ -1330,11 +1431,7 @@ class TheRefutationPassIsASecondAgentTryingToProveTheCitationWrong(unittest.Test
         scan = ledger.survey(ledger.read_records(ledger_text(CLEAN)), AS_OF)
         self.assertEqual(scan.behind_a_paywall, 0)
 
-    def test_a_fourth_disposition_is_still_a_finding(self):
-        record = replace_field(CLEAN, "REFUTATION", "probably fine")
-        self.assertIn(ledger.UNKNOWN_REFUTATION, kinds(ledger_text(record)))
-
-    def test_a_missing_refutation_reports_the_missing_field_and_not_a_third_word(self):
+    def test_a_missing_refutation_reports_the_missing_field_and_not_an_unknown_word(self):
         record = replace_field(CLEAN, "REFUTATION", None)
         self.assertEqual(kinds(ledger_text(record)), [ledger.MISSING_FIELD])
 
@@ -1380,6 +1477,31 @@ class TheRefutationDeclaresASecondRoute(unittest.TestCase):
         ):
             with self.subTest(kind=kind):
                 self.assertEqual(ledger.ROWS[kind], "#500")
+
+
+class AnUnreadableRefutationCannotDeleteAClaim(unittest.TestCase):
+    """ADR 0149's failed refutation read passes without becoming `refuted`."""
+
+    def _record(self, instruments: str | None = "browser fetch -> curl") -> str:
+        record = replace_field(
+            CLEAN,
+            "REFUTATION",
+            "unreadable - both independent instruments failed before the body was read.",
+        )
+        if instruments is not None:
+            record += f"INSTRUMENTS: {instruments}\n"
+        return record
+
+    def test_an_unreadable_refutation_with_two_instruments_passes(self):
+        self.assertEqual(kinds(ledger_text(self._record())), [])
+
+    def test_the_instrument_pair_is_required_on_this_branch_too(self):
+        self.assertEqual(kinds(ledger_text(self._record(None))), [ledger.MISSING_FIELD])
+
+    def test_the_disposition_is_counted_on_its_own_report_line(self):
+        scan = ledger.survey(ledger.read_records(ledger_text(self._record())), AS_OF)
+        self.assertEqual((scan.unreadable_refutations, scan.failing_records), (1, 0))
+        self.assertIn("unreadable refutations", ledger.format_report(scan, source="x.md"))
 
 
 class ASourceCanStateItsPublishedExpiry(unittest.TestCase):
@@ -1503,6 +1625,78 @@ class TheQueuedFieldLimitsLandWithTheirFields(unittest.TestCase):
         self.assertIn("SECOND citation", row.limit)
         self.assertIn("SECOND distinct publisher", row.limit)
         self.assertIn("cannot fire mechanically", row.limit)
+
+
+class TheSourcingRulesDeclareWhatTheGraderCannotSee(unittest.TestCase):
+    """ADR 0149 ruling 5 keeps the two reader-owned limbs explicit."""
+
+    def test_a_pointer_cannot_be_distinguished_from_retained_primary_material(self):
+        limits = {row.key: row for row in ledger.DECLARED_LIMITS}
+        row = limits["pointer-primary-material-unverified"]
+        self.assertIs(row.evidence, ledger.EvidenceDisposition.DECLARED_READING)
+        self.assertIn("retained and gradeable", row.limit)
+        self.assertIn("independently re-opened", row.limit)
+
+    def test_a_negative_cannot_be_graded_for_its_declared_search_population(self):
+        limits = {row.key: row for row in ledger.DECLARED_LIMITS}
+        row = limits["negative-search-population-unverified"]
+        self.assertIs(row.evidence, ledger.EvidenceDisposition.DECLARED_READING)
+        self.assertIn("corpus it read", row.limit)
+        self.assertIn("did not open", row.limit)
+
+    def test_the_instrument_rows_belong_to_818(self):
+        for kind in (
+            ledger.UNEXPECTED_INSTRUMENTS,
+            ledger.UNSPLIT_INSTRUMENTS,
+            ledger.BARE_INSTRUMENTS,
+            ledger.INSTRUMENTS_UNCHANGED,
+        ):
+            with self.subTest(kind=kind):
+                self.assertEqual(ledger.ROWS[kind], "#818")
+
+
+class EveryRuledFanOutReadsTheSharedSourcingRules(unittest.TestCase):
+    """ADR 0149's one-home rule and its named briefing surfaces."""
+
+    LINK = "[sourcing.md](../_shared/reference/sourcing.md)"
+    SURFACES = {
+        "discussion-post": 3,
+        "discussion-reply": 1,
+        "course-assignment": 2,
+        "practicum-case-study": 2,
+        "icd10-cpt": 1,
+        "aar": 1,
+    }
+
+    def test_the_shared_file_contains_the_two_rules_and_no_third_rule(self):
+        text = SOURCING.read_text(encoding="utf-8")
+        flat = " ".join(text.split())
+        self.assertEqual(
+            re.findall(r"(?m)^## (.+)$", text),
+            ["A pointer is not a source", "A failed read is not a negative"],
+        )
+        self.assertIn("retained and gradeable against it", flat)
+        self.assertIn("resolvable and was independently re-opened", flat)
+        self.assertIn("reports the corpus it read and what it did not open", flat)
+        self.assertIn("retry with a second independent instrument", flat)
+
+    def test_each_named_briefing_surface_points_to_that_file(self):
+        for skill, occurrences in self.SURFACES.items():
+            with self.subTest(skill=skill):
+                text = (REPO_ROOT / "skills" / skill / "SKILL.md").read_text(encoding="utf-8")
+                self.assertEqual(text.count(self.LINK), occurrences)
+
+    def test_each_published_record_shape_names_the_unreadable_vocabulary_and_pair(self):
+        for skill in (
+            "discussion-post",
+            "discussion-reply",
+            "course-assignment",
+        ):
+            with self.subTest(skill=skill):
+                text = (REPO_ROOT / "skills" / skill / "SKILL.md").read_text(encoding="utf-8")
+                self.assertIn("STATUS: sourced | unsourced | unreadable", text)
+                self.assertIn("REFUTATION: stands | refuted | paywalled | unreadable", text)
+                self.assertIn("INSTRUMENTS: <first instrument> -> <second instrument>", text)
 
 
 class AnUnsourcedRecordCarriesNoneOfTheCitationFields(unittest.TestCase):
@@ -1738,9 +1932,9 @@ class TheSkillSaysWhatThisChecks(ProseBind, unittest.TestCase):
         ledger.DOSE_NOT_CLAIMED: "an order stating a dose whose claim record states no number",
         ledger.UNREADABLE_DRUG_ROW: "a prescription table with no readable drug row",
         ledger.MISSING_FIELD: "a field missing or empty",
-        ledger.UNKNOWN_STATUS: "a `STATUS` that is neither word",
+        ledger.UNKNOWN_STATUS: "a `STATUS` outside the three",
         ledger.BARE_STATUS: "an `unsourced` with nothing said about what was searched",
-        ledger.UNSOURCED_WITH_CITATION_FIELD: "an `unsourced` record carrying a `REFERENCE`",
+        ledger.UNSOURCED_WITH_CITATION_FIELD: "an `unsourced` or `unreadable` status record carrying a source field",
         ledger.UNKNOWN_SOURCE_CLASS: "a `SOURCE` outside the four",
         ledger.UNKNOWN_RECENCY: "a `RECENCY` outside the four",
         ledger.RESTATEMENT_ECHOES_CLAIM: "a `RESTATEMENT` that is the claim pasted back",
@@ -1754,13 +1948,17 @@ class TheSkillSaysWhatThisChecks(ProseBind, unittest.TestCase):
         ledger.PAGE_YEAR_UNSTATED: "a `PAGE-YEAR` stating no year",
         ledger.BARE_PAGE_YEAR: "a `PAGE-YEAR` that is a year and nothing else",
         ledger.PAGE_YEAR_DISAGREES: "a `PAGE-YEAR` that is not the year in `REFERENCE`",
-        ledger.UNKNOWN_REFUTATION: "a `REFUTATION` outside the three",
+        ledger.UNKNOWN_REFUTATION: "a `REFUTATION` outside the four",
         ledger.BARE_REFUTATION: "a `REFUTATION` with no reason after it",
         ledger.REFUTED_CITATION: "a `REFUTATION` reading `refuted`",
         ledger.REFUTATION_ECHOES_RESTATEMENT: "a `REFUTATION` that is the restatement pasted back",
         ledger.UNSPLIT_SECOND_ROUTE: "a `SECOND-ROUTE` with no ASCII `->` separator",
         ledger.BARE_SECOND_ROUTE: "a `SECOND-ROUTE` with an empty half",
         ledger.SECOND_ROUTE_UNCHANGED: "a `SECOND-ROUTE` whose normalized halves are equal",
+        ledger.UNEXPECTED_INSTRUMENTS: "`INSTRUMENTS` on neither `unreadable` branch",
+        ledger.UNSPLIT_INSTRUMENTS: "`INSTRUMENTS` with no ASCII `->` separator",
+        ledger.BARE_INSTRUMENTS: "`INSTRUMENTS` with an empty half",
+        ledger.INSTRUMENTS_UNCHANGED: "`INSTRUMENTS` whose normalized halves are equal",
         ledger.UNKNOWN_STATED_EXPIRY: "a `STATED-EXPIRY` outside the three forms",
         ledger.STATED_EXPIRY_REACHED: (
             "a stated expiry at or before `DATE` without the deliberate-supersession reason"
@@ -1786,7 +1984,7 @@ class TheSkillSaysWhatThisChecks(ProseBind, unittest.TestCase):
             with self.subTest(recency=name):
                 self.assertIn(f"`{name}`", self.skill)
 
-    def test_the_skill_declares_both_statuses(self):
+    def test_the_skill_declares_every_status(self):
         for name in ledger.STATUSES:
             with self.subTest(status=name):
                 self.assertIn(f"`{name}`", self.skill)
@@ -1929,6 +2127,12 @@ class TheRowsSitInHelpersAndTheBranchingSitsInRecordFindings(unittest.TestCase):
             self._rows_for("#500"),
         )
 
+    def test_the_instrument_helper_holds_the_three_pair_rows(self):
+        self.assertEqual(
+            self._kinds_constructed_in("_instrument_findings"),
+            self._rows_for("#818") - {ledger.UNEXPECTED_INSTRUMENTS},
+        )
+
     def test_the_stated_expiry_helper_holds_every_498_row_and_nothing_else(self):
         self.assertEqual(
             self._kinds_constructed_in("_stated_expiry_findings"),
@@ -1952,20 +2156,21 @@ class TheRowsSitInHelpersAndTheBranchingSitsInRecordFindings(unittest.TestCase):
         self.assertEqual(set(ledger.DRAFT_ROWS), self._rows_for("#289"))
 
     def test_the_branching_helper_holds_only_the_rows_the_branch_decides(self):
-        """``record_findings`` keeps the two rows no helper can own: a claim with
-        no text, and a status the branch below cannot read."""
+        """``record_findings`` keeps the rows only the branch can own: a claim
+        with no text, a status it cannot read, and instruments on no unreadable branch."""
         self.assertEqual(
             self._kinds_constructed_in("record_findings"),
-            {ledger.MISSING_FIELD, ledger.UNKNOWN_STATUS},
+            {ledger.MISSING_FIELD, ledger.UNKNOWN_STATUS, ledger.UNEXPECTED_INSTRUMENTS},
         )
 
     OWNERS = (
         "record_findings",
-        "_unsourced_findings",
+        "_sourceless_findings",
         "_contract_findings",
         "_recency_findings",
         "_citation_findings",
         "_second_route_findings",
+        "_instrument_findings",
         "_stated_expiry_findings",
         # #289's, and the only one that is not handed a ``Record``. The count in
         # the name below is deliberately gone: it read *five* while the tuple

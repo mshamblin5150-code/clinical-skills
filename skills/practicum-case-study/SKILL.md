@@ -517,6 +517,8 @@ header and one `## CLAIM:` heading per claim, and nothing under them yet. That o
 makes a lost answer visible: a heading whose record never arrived has no `STATUS`, and the grader
 refuses a record with no `STATUS`.
 
+Every research and refutation brief first reads the two rules in
+[sourcing.md](../_shared/reference/sourcing.md) and applies them to every returned claim or negative.
 **One agent per remaining claim, all of them at once.** Each gets the same brief, and the brief is
 **six returns** and the recency rule above — a reputable source in one of four classes, a full
 APA 7 reference, the claim restated in the source's own terms, **the locator it actually opened with
@@ -559,8 +561,11 @@ SECOND-ROUTE: publisher landing page -> journal PDF and table on page 1327
 STATED-EXPIRY: none stated
 ```
 
-`STATUS` is `sourced` or `unsourced`, and an `unsourced` record says on the same line what was
-searched. `SOURCE` is one of `society guideline`, `peer-reviewed`, `government` or
+`STATUS` is `sourced`, `unsourced`, or `unreadable`. An `unsourced` record says on the same line what was
+searched. An `unreadable` record says what prevented both reads, omits every source field, and
+carries only `INSTRUMENTS: <first instrument> -> <second instrument>` after `STATUS`; both halves
+must be substantive and differ after normalization. `INSTRUMENTS` is also required when
+`REFUTATION` is `unreadable` and is forbidden elsewhere. `SOURCE` is one of `society guideline`, `peer-reviewed`, `government` or
 `tertiary reference`. `RECENCY` is one of `current`, `within five`, `nothing newer` or
 `guideline in force`, and the last two carry the reason after a hyphen — *the run must have looked,
 and must say so.* `DATE` is the day the paper is written, and the recency rule is measured against
@@ -571,7 +576,7 @@ and where the document states it, or an ISO date followed by `superseded cited d
 reason. Transcribe only what the document states; do not infer an expiry from a publication cadence.
 `42 C.F.R. § 414.56 (2025)` is the known case where `none stated` is correct: the codification year is
 provenance, and the annual reissue schedule is not a stated expiry. `REFUTATION` is `stands`,
-`refuted` or `paywalled` with the reason after a hyphen. A field's value may wrap onto the next line.
+`refuted`, `paywalled`, or `unreadable` with the reason after a hyphen. A field's value may wrap onto the next line.
 
 The grader also refuses a `SECOND-ROUTE` with no ASCII `->` separator.
 It refuses a `SECOND-ROUTE` with an empty half.
@@ -608,12 +613,14 @@ Where the profile says the **Authenticated route** is available, the researcher 
 giving up on the intended source, settling for a reachable substitute, or writing
 `STATUS: unsourced` because the body was inaccessible.
 
-It comes back `stands`, `refuted` or `paywalled`, with the reason after a hyphen. **A `refuted`
+It comes back `stands`, `refuted`, `paywalled`, or `unreadable`, with the reason after a hyphen.
+An `unreadable` refutation carries the two failed instruments and passes without deleting the
+claim; the completion report counts it on its own line. **A `refuted`
 record is a failure and not an outcome** — unlike `unsourced`, which is honest and goes to
 `PROPOSED`. It means a false citation is sitting in the ledger, so the claim goes back through this
 step and comes out either with a sound record or as `unsourced`. It is never drafted from.
 
-**`paywalled` is the third word, and it exists because a wall is not the same thing as an absence.**
+**`paywalled` is a passing word because a wall is not the same thing as an absence.**
 A locator that 404s, or that names a document a search cannot find, is `refuted` — the citation may
 be invented, which is the whole failure this pass is for. A live page whose title and authors match
 the entry, with the body behind a subscription, is `paywalled` and **passes**: the URL resolving to
@@ -643,9 +650,9 @@ can be several of them at once:
 | The record | Why |
 | --- | --- |
 | a field missing or empty | a record missing its restatement is a citation nobody checked |
-| a `STATUS` that is neither word | it decides which of the rules below apply, so a third word is a record graded on nothing |
-| an `unsourced` with nothing said about what was searched | anybody can write `unsourced`; nobody writes *searched PubMed, IDSA and UpToDate* without having looked |
-| an `unsourced` record carrying a `REFERENCE`, `RESOLVED`, `PAGE-YEAR` or `REFUTATION` | the two contradict, and nothing can tell which was meant |
+| a `STATUS` outside the three | it decides which of the rules below apply, so a fourth word is a record graded on nothing |
+| an `unsourced` with nothing said about what was searched, or an `unreadable` with nothing said about the failed read | either keyword without its reason is an assertion without the work it claims |
+| an `unsourced` or `unreadable` status record carrying a source field | the two contradict, and nothing can tell which was meant |
 | a `SOURCE` outside the four | a returned source outside the classes is a finding, not an answer |
 | a `RECENCY` outside the four | it gates the window below, so a fifth word is a record the window never read |
 | a `RESTATEMENT` that is the claim pasted back | the whole point is the source's own terms |
@@ -659,14 +666,19 @@ can be several of them at once:
 | a `PAGE-YEAR` stating no year, against an entry that states one | the entry claims a year the page did not give |
 | a `PAGE-YEAR` that is a year and nothing else | a year alone is an assertion; where it was found is a place a reader can go and look |
 | a `PAGE-YEAR` that is not the year in `REFERENCE` | the row a fabricated citation has to get past |
-| a `REFUTATION` outside the three | it gates the row below, so a fourth word is a record the refutation never read |
+| a `REFUTATION` outside the four | it gates the row below, so a fifth word is a record the refutation never read |
 | a `REFUTATION` with no reason after it | *the run must have looked, and must say so*, arriving at the second pass |
 | a `REFUTATION` reading `refuted` | a false citation is sitting in the ledger: rewrite the record or write `unsourced` |
 | a `REFUTATION` that is the restatement pasted back | the first agent re-asserting rather than a second one checking |
+| `INSTRUMENTS` on neither `unreadable` branch | the field asserts a failed read on a record that reports no failed read |
+| `INSTRUMENTS` with no ASCII `->` separator | the two attempted instruments cannot be distinguished |
+| `INSTRUMENTS` with an empty half | the record names fewer than two substantive instruments |
+| `INSTRUMENTS` whose normalized halves are equal | one instrument written twice is not an independent retry |
 
-**Two things are deliberately not on that list.** *Within two years is the target* is a target, so a
+**Three things are deliberately not on that list.** *Within two years is the target* is a target, so a
 `current` disposition on a three-year-old source is not a defect. And an `unsourced` record is
-**not** a defect at all — it is the honest outcome the `PROPOSED` block exists for.
+**not** a defect at all — it is the honest outcome the `PROPOSED` block exists for. An `unreadable`
+record is likewise not a negative; it preserves that neither instrument read the source.
 
 **Once the prescriptions exist, hand the ledger and draft to a fresh checker as well** -- #289's
 rows read the draft as well as the ledger the way #298's row below reads the evidence dump:
@@ -1214,6 +1226,7 @@ it inspected. If the harness cannot view the retained pixels, that reader return
 prewritten heading remains incomplete and the document is not submitted. A text-only reread of the
 Markdown cannot substitute for the visual check.
 
+Every step 9 reader first reads and applies [sourcing.md](../_shared/reference/sourcing.md).
 **One reader per row, all of them at once, and none of them is the context that wrote the draft.**
 Each gets the draft, the rule its row names, and the instruction to report findings rather than fix
 them. **Where the harness has no subagent tool, the same briefs are worked one at a time in the main
