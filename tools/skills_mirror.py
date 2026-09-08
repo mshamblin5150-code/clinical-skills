@@ -47,12 +47,21 @@ neither of which may contain PHI under standing rule 1, and it never prints file
 contents. The reason beside a differing file is one of two fixed strings held here
 rather than anything read out of the file. Its output is safe to paste into a ticket,
 like `corpus_census.py` and unlike `harvest_review.py`.
+
+**Session start repairs before a skill is invoked.** The main-session hook records the
+full pre-repair report under `.claude/skills-mirror-reports/`, moves mirror-only files
+under `.claude/skills-orphaned/<name>/<UTC stamp>/`, and then relinks the entry. A
+subagent payload returns without inspecting or writing because its parent already owns
+the repair. Hook output is JSON carrying `hookSpecificOutput.additionalContext`; plain
+stdout text does not reach the model.
 """
 
 from __future__ import annotations
 
 import argparse
+import datetime
 import filecmp
+import json
 import os
 import shutil
 import subprocess
@@ -87,6 +96,8 @@ OK_STATUSES = {LINKED}
 # the report sum to the number of differing files. #198.
 CONTENT = "content"
 LINE_ENDINGS = "line endings only"
+REPORTS = Path(".claude") / "skills-mirror-reports"
+ORPHANS = Path(".claude") / "skills-orphaned"
 
 
 class Difference(NamedTuple):
@@ -98,6 +109,12 @@ class Difference(NamedTuple):
 
     rel: str
     reason: str
+
+
+class RepairResult(NamedTuple):
+    repaired: int
+    drained: list[Path]
+    failures: list[str]
 
 
 def _normalized(data: bytes) -> bytes:
@@ -165,9 +182,9 @@ def _differing_files(
 ) -> tuple[list[Difference], list[str]]:
     """(one Difference per file that differs or is missing, files only in the mirror).
 
-    The second list is the one that blocks repair. A file present only in the copy
-    is either someone's stray edit or work that never reached `skills/`, and either
-    way deleting the copy would be the only record of it going away.
+    The second list is the population repair drains before relinking. A file present
+    only in the copy is either someone's stray edit or work that never reached
+    `skills/`, and either way it is moved rather than deleted.
 
     A file the mirror does not hold is CONTENT rather than a third reason -- see the
     module docstring for why the partition is two-way.
@@ -292,10 +309,20 @@ def link(mirror_entry: Path, canonical: Path) -> None:
         os.symlink(canonical, mirror_entry, target_is_directory=True)
 
 
-def repair(root: Path, entries: list[Entry]) -> tuple[int, list[str]]:
-    """Relink every broken entry. Returns (repaired, refusals)."""
+def repair(
+    root: Path,
+    entries: list[Entry],
+    stamp: str | None = None,
+) -> RepairResult:
+    """Drain mirror-only files, then relink every broken entry.
+
+    Returns ``(repaired, drain_directories, failures)``. A drain is a move,
+    never a deletion, and is scoped by skill name and one UTC run stamp.
+    """
     repaired = 0
-    refusals = []
+    drained = []
+    failures = []
+    run_stamp = stamp or _utc_stamp()
 
     for entry in entries:
         if entry.ok:
@@ -303,31 +330,36 @@ def repair(root: Path, entries: list[Entry]) -> tuple[int, list[str]]:
         canonical = (root / CANONICAL / entry.name).resolve()
         mirror_entry = root / MIRROR / entry.name
 
-        if entry.extra:
-            refusals.append(
-                f"{entry.name}: mirror holds {len(entry.extra)} file(s) that "
-                f"skills/{entry.name}/ does not -- "
-                + ", ".join(entry.extra)
-                + ". Relinking would delete them. Move or discard them first."
-            )
-            continue
+        try:
+            # A FOREIGN entry resolves into another checkout. Its apparent
+            # extras belong to that target, not to this checkout's mirror, so
+            # unlink the local junction without moving anything through it.
+            if entry.extra and entry.status != FOREIGN:
+                drain = root / ORPHANS / entry.name / run_stamp
+                for rel in entry.extra:
+                    destination = drain / rel
+                    destination.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.move(str(mirror_entry / rel), str(destination))
+                drained.append(drain)
 
-        if mirror_entry.exists() or _is_link(mirror_entry):
-            if _is_link(mirror_entry):
-                # Removing the link, never what it points at.
-                try:
-                    os.rmdir(mirror_entry)
-                except OSError:
-                    os.unlink(mirror_entry)
-            elif mirror_entry.is_dir():
-                shutil.rmtree(mirror_entry)
-            else:
-                mirror_entry.unlink()
+            if mirror_entry.exists() or _is_link(mirror_entry):
+                if _is_link(mirror_entry):
+                    # Removing the link, never what it points at.
+                    try:
+                        os.rmdir(mirror_entry)
+                    except OSError:
+                        os.unlink(mirror_entry)
+                elif mirror_entry.is_dir():
+                    shutil.rmtree(mirror_entry)
+                else:
+                    mirror_entry.unlink()
 
-        link(mirror_entry, canonical)
-        repaired += 1
+            link(mirror_entry, canonical)
+            repaired += 1
+        except (OSError, subprocess.CalledProcessError) as exc:
+            failures.append(f"{entry.name}: {exc}")
 
-    return repaired, refusals
+    return RepairResult(repaired, drained, failures)
 
 
 def render(entries: list[Entry], root: Path, verbose: bool) -> list[str]:
@@ -385,6 +417,29 @@ def render(entries: list[Entry], root: Path, verbose: bool) -> list[str]:
     return lines
 
 
+def _utc_stamp() -> str:
+    return datetime.datetime.now(datetime.timezone.utc).strftime(
+        "%Y%m%dT%H%M%S.%fZ"
+    )
+
+
+def record_report(root: Path, lines: list[str], stamp: str | None = None) -> Path:
+    directory = root / REPORTS
+    directory.mkdir(parents=True, exist_ok=True)
+    path = directory / f"{stamp or _utc_stamp()}.txt"
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return path
+
+
+def hook_response(context: str) -> dict:
+    return {
+        "hookSpecificOutput": {
+            "hookEventName": "SessionStart",
+            "additionalContext": context,
+        }
+    }
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(
         description="Check that .claude/skills/ links to skills/, and repair it.",
@@ -392,6 +447,10 @@ def main(argv=None) -> int:
     parser.add_argument(
         "--repair", action="store_true",
         help="replace copies and wrong links with junctions to skills/",
+    )
+    parser.add_argument(
+        "--session-start", action="store_true",
+        help="repair at main-session start and emit Claude hook context",
     )
     parser.add_argument(
         "--verbose", action="store_true",
@@ -407,19 +466,53 @@ def main(argv=None) -> int:
     )
     args = parser.parse_args(argv)
 
+    if args.session_start:
+        payload = json.load(sys.stdin)
+        if "agent_id" in payload:
+            return 0
+
     root = args.root.resolve() if args.root else repo_root()
+
+    if args.session_start:
+        stamp = _utc_stamp()
+        entries = inspect(root)
+        report = render(entries, root, verbose=True)
+        record_report(root, report, stamp=stamp)
+        broken = [entry for entry in entries if not entry.ok]
+        failures = []
+        if not broken:
+            context = f"skills mirror: {len(entries)} of {len(entries)} linked"
+        else:
+            repaired, drained, failures = repair(root, entries, stamp=stamp)
+            context_lines = [*report, "", f"relinked {repaired} skill(s)."]
+            context_lines.extend(
+                f"DRAINED  {path.relative_to(root).as_posix()}"
+                for path in drained
+            )
+            context_lines.extend(f"FAILED  {failure}" for failure in failures)
+            context = "\n".join(context_lines)
+        print(json.dumps(hook_response(context)))
+        # SessionStart is advisory. Returning success is what lets Claude Code
+        # consume the structured failure context instead of turning a fired
+        # hook back into silence.
+        return 0
+
     entries = inspect(root)
 
     if args.repair:
-        repaired, refusals = repair(root, entries)
+        repaired, drained, failures = repair(root, entries)
         entries = inspect(root)
-        for line in render(entries, root, args.verbose):
-            print(line)
-        if repaired:
-            print(f"\nrelinked {repaired} skill(s).")
-        for refusal in refusals:
-            print(f"REFUSED  {refusal}")
-        return 1 if refusals or any(not e.ok for e in entries) else 0
+        broken = [entry for entry in entries if not entry.ok]
+        if broken or failures or not args.quiet:
+            for line in render(entries, root, args.verbose):
+                print(line)
+            if repaired:
+                print(f"\nrelinked {repaired} skill(s).")
+            for path in drained:
+                print(f"DRAINED  {path.relative_to(root).as_posix()}")
+            for failure in failures:
+                print(f"FAILED  {failure}")
+        return 1 if failures or broken else 0
 
     broken = [e for e in entries if not e.ok]
     if broken or not args.quiet:

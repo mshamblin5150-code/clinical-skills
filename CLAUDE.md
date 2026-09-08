@@ -1368,8 +1368,18 @@ python tools/skills_mirror.py --repair   # relink everything
 follows the junctions instead of recreating them, so a fresh worktree initially holds frozen
 instructions. `post-checkout` now recognizes the null previous object id Git supplies for a new
 worktree and runs `skills_mirror.py --repair --quiet` there. Ordinary branch switches do nothing.
-The pre-commit hook still runs the same advisory repair; neither hook changes a successful Git
+The pre-commit hook still runs the advisory report; neither hook changes a successful Git
 operation's exit status.
+
+Claude Code also invokes `skills_mirror.py --session-start` from the tracked
+`.claude/settings.json`. The payload's `agent_id` keeps every subagent read-only; the main session
+records the full pre-repair report under `.claude/skills-mirror-reports/`, repairs the mirror, and
+returns its result through `hookSpecificOutput.additionalContext`. A clean run contributes one
+population-derived line. A broken run contributes the full report plus its relink and drain lines.
+Mirror-only files are moved, never deleted, to
+`.claude/skills-orphaned/<name>/<UTC stamp>/` before the entry is relinked. Both locations are
+per-checkout and gitignored. The settings test proves registration only; silence still means the
+hook did not fire rather than that another check established the mirror was clean. [#820](https://github.com/mshamblin5150-code/clinical-skills/issues/820).
 
 **`copy-stale` says which kind of stale, and that is [#198](https://github.com/mshamblin5150-code/clinical-skills/issues/198) — ruled by the clinician on 2026-08-19.** The comparison is byte-exact, so a mirror copy made before anything rewrote a skill file with `\n` reads `copy-stale` on carriage returns and nothing else. **That is the one word this repo cites as evidence a retired rule has already been followed** — [#93](https://github.com/mshamblin5150-code/clinical-skills/issues/93)'s first comment reasons from an instance in a worktree that is gone, so it can no longer be told apart from three carriage returns, which is the cost rather than the false alarm. **Normalizing the comparison was option 1 and was declined**: a copy that differs on disk is still a copy, and a byte check is the thing that cannot be argued with. So the check is untouched and the report names the reason — `content` or `line endings only` — with **both counts on every run**, whether or not each fired, on `checks_ledger.py`'s precedent.
 

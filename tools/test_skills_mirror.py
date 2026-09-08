@@ -9,11 +9,13 @@ Same reasoning as test_icd10.py never opening the shipped database.
 """
 
 import io
+import json
 import os
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 import skills_mirror as sm
 
@@ -111,9 +113,9 @@ class DiscoveryTests(TempCheckout):
             ("_shared", sm.MISSING),
         ])
 
-        repaired, refusals = sm.repair(self.root, entries)
+        repaired, drained, failures = sm.repair(self.root, entries)
 
-        self.assertEqual((repaired, refusals), (1, []))
+        self.assertEqual((repaired, drained, failures), (1, [], []))
         self.assertEqual(status_of(self.root, "_shared").status, sm.LINKED)
 
     def test_no_skills_directory_is_empty_not_an_error(self):
@@ -287,49 +289,69 @@ class RepairTests(TempCheckout):
         make_skill(self.root, "clinical-note", body="rule kept\n")
         copy_into_mirror(self.root, "clinical-note",
                          overrides={"SKILL.md": "rule retired\n"})
-        repaired, refusals = sm.repair(self.root, sm.inspect(self.root))
-        self.assertEqual((repaired, refusals), (1, []))
+        repaired, drained, failures = sm.repair(self.root, sm.inspect(self.root))
+        self.assertEqual((repaired, drained, failures), (1, [], []))
         self.assertEqual(status_of(self.root, "clinical-note").status, sm.LINKED)
         mirrored = self.root / ".claude" / "skills" / "clinical-note" / "SKILL.md"
         self.assertEqual(mirrored.read_text(encoding="utf-8"), "rule kept\n")
 
     def test_repair_creates_a_missing_entry(self):
         make_skill(self.root, "setup-clinical-skills")
-        repaired, refusals = sm.repair(self.root, sm.inspect(self.root))
-        self.assertEqual((repaired, refusals), (1, []))
+        repaired, drained, failures = sm.repair(self.root, sm.inspect(self.root))
+        self.assertEqual((repaired, drained, failures), (1, [], []))
         self.assertEqual(status_of(self.root, "setup-clinical-skills").status, sm.LINKED)
 
-    def test_repair_refuses_a_copy_holding_a_file_of_its_own(self):
-        """Relinking deletes the copy. A file that exists nowhere else is not this
-        script's to discard."""
+    def test_repair_drains_an_orphan_before_relinking_the_skill(self):
+        """An orphan is preserved under .claude before its copy is replaced."""
         make_skill(self.root, "clinical-note")
         copy_into_mirror(self.root, "clinical-note", overrides={"NOTES.md": "mine\n"})
-        repaired, refusals = sm.repair(self.root, sm.inspect(self.root))
-        self.assertEqual(repaired, 0)
-        self.assertEqual(len(refusals), 1)
-        self.assertIn("NOTES.md", refusals[0])
-        self.assertTrue((self.root / ".claude" / "skills" / "clinical-note" / "NOTES.md").exists())
+        repaired, drained, failures = sm.repair(
+            self.root,
+            sm.inspect(self.root),
+            stamp="20260908T120000.000000Z",
+        )
+        drain = (
+            self.root
+            / ".claude"
+            / "skills-orphaned"
+            / "clinical-note"
+            / "20260908T120000.000000Z"
+        )
+        self.assertEqual((repaired, drained, failures), (1, [drain], []))
+        self.assertEqual((drain / "NOTES.md").read_text(encoding="utf-8"), "mine\n")
+        self.assertEqual(status_of(self.root, "clinical-note").status, sm.LINKED)
 
     def test_repair_removes_a_foreign_link_and_never_its_target(self):
         other = self.root / "other-checkout"
-        make_skill(other, "clinical-note", body="main branch\n")
+        make_skill(
+            other,
+            "clinical-note",
+            body="main branch\n",
+            extra={"NOTES.md": "other checkout only\n"},
+        )
         make_skill(self.root, "clinical-note", body="this branch\n")
         sm.link(self.root / ".claude" / "skills" / "clinical-note",
                 other / "skills" / "clinical-note")
-        repaired, refusals = sm.repair(self.root, sm.inspect(self.root))
-        self.assertEqual((repaired, refusals), (1, []))
+        repaired, drained, failures = sm.repair(self.root, sm.inspect(self.root))
+        self.assertEqual((repaired, drained, failures), (1, [], []))
         self.assertEqual(status_of(self.root, "clinical-note").status, sm.LINKED)
         self.assertEqual(
             (other / "skills" / "clinical-note" / "SKILL.md").read_text(encoding="utf-8"),
             "main branch\n",
+        )
+        self.assertEqual(
+            (other / "skills" / "clinical-note" / "NOTES.md").read_text(
+                encoding="utf-8"
+            ),
+            "other checkout only\n",
         )
 
     def test_repair_leaves_an_already_linked_skill_alone(self):
         make_skill(self.root, "clinical-note")
         sm.link(self.root / ".claude" / "skills" / "clinical-note",
                 self.root / "skills" / "clinical-note")
-        repaired, refusals = sm.repair(self.root, sm.inspect(self.root))
-        self.assertEqual((repaired, refusals), (0, []))
+        repaired, drained, failures = sm.repair(self.root, sm.inspect(self.root))
+        self.assertEqual((repaired, drained, failures), (0, [], []))
 
 
 class CliTests(TempCheckout):
@@ -346,6 +368,108 @@ class CliTests(TempCheckout):
         code, out = self.run_main("--quiet")
         self.assertEqual(code, 0)
         self.assertEqual(out, "")
+
+    def test_session_start_subagent_returns_without_touching_the_mirror(self):
+        make_skill(self.root, "clinical-note", body="rule kept\n")
+        copy_into_mirror(
+            self.root,
+            "clinical-note",
+            overrides={"SKILL.md": "rule retired\n"},
+        )
+        buf = io.StringIO()
+        with patch("sys.stdin", io.StringIO('{"agent_id": "agent-1"}')):
+            with patch.object(
+                sm,
+                "repo_root",
+                side_effect=AssertionError("subagent must return before root resolution"),
+            ) as root_resolution:
+                with redirect_stdout(buf):
+                    code = sm.main(["--session-start"])
+
+        self.assertEqual(code, 0)
+        root_resolution.assert_not_called()
+        self.assertEqual(buf.getvalue(), "")
+        self.assertEqual(status_of(self.root, "clinical-note").status, sm.STALE)
+        self.assertFalse((self.root / ".claude" / "skills-mirror-reports").exists())
+
+    def test_clean_main_session_records_the_report_and_emits_one_context_line(self):
+        make_skill(self.root, "clinical-note")
+        sm.link(
+            self.root / ".claude" / "skills" / "clinical-note",
+            self.root / "skills" / "clinical-note",
+        )
+        buf = io.StringIO()
+        with patch("sys.stdin", io.StringIO('{"hook_event_name": "SessionStart"}')):
+            with redirect_stdout(buf):
+                code = sm.main(["--session-start", "--root", str(self.root)])
+
+        self.assertEqual(code, 0)
+        self.assertEqual(
+            json.loads(buf.getvalue()),
+            {
+                "hookSpecificOutput": {
+                    "hookEventName": "SessionStart",
+                    "additionalContext": "skills mirror: 1 of 1 linked",
+                }
+            },
+        )
+        records = list(
+            (self.root / ".claude" / "skills-mirror-reports").glob("*.txt")
+        )
+        self.assertEqual(len(records), 1)
+        self.assertIn("clinical-note", records[0].read_text(encoding="utf-8"))
+        self.assertIn(sm.LINKED, records[0].read_text(encoding="utf-8"))
+
+    def test_broken_main_session_reports_then_drains_and_repairs(self):
+        make_skill(self.root, "clinical-note", body="rule kept\n")
+        copy_into_mirror(
+            self.root,
+            "clinical-note",
+            overrides={"SKILL.md": "rule retired\n", "NOTES.md": "mine\n"},
+        )
+        buf = io.StringIO()
+        with patch("sys.stdin", io.StringIO('{"hook_event_name": "SessionStart"}')):
+            with redirect_stdout(buf):
+                code = sm.main(["--session-start", "--root", str(self.root)])
+
+        self.assertEqual(code, 0)
+        response = json.loads(buf.getvalue())
+        context = response["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("copy-stale", context)
+        self.assertIn("only in mirror: NOTES.md", context)
+        self.assertIn("relinked 1 skill(s)", context)
+        self.assertIn("DRAINED  .claude/skills-orphaned/clinical-note/", context)
+        self.assertEqual(status_of(self.root, "clinical-note").status, sm.LINKED)
+        records = list(
+            (self.root / ".claude" / "skills-mirror-reports").glob("*.txt")
+        )
+        self.assertEqual(len(records), 1)
+        recorded = records[0].read_text(encoding="utf-8")
+        self.assertIn("copy-stale", recorded)
+        self.assertNotIn("relinked", recorded)
+
+    def test_main_session_reports_a_windows_relink_failure_in_hook_context(self):
+        make_skill(self.root, "clinical-note", body="rule kept\n")
+        copy_into_mirror(
+            self.root,
+            "clinical-note",
+            overrides={"SKILL.md": "rule retired\n"},
+        )
+        buf = io.StringIO()
+        failure = sm.subprocess.CalledProcessError(1, ["cmd", "/c", "mklink"])
+        with patch("sys.stdin", io.StringIO('{"hook_event_name": "SessionStart"}')):
+            with patch.object(sm, "link", side_effect=failure):
+                with redirect_stdout(buf):
+                    code = sm.main(
+                        ["--session-start", "--root", str(self.root)]
+                    )
+
+        self.assertEqual(code, 0)
+        context = json.loads(buf.getvalue())["hookSpecificOutput"][
+            "additionalContext"
+        ]
+        self.assertIn("copy-stale", context)
+        self.assertIn("FAILED  clinical-note:", context)
 
     def test_exit_one_and_loud_when_a_copy_is_stale(self):
         make_skill(self.root, "clinical-note")
@@ -432,12 +556,19 @@ class CliTests(TempCheckout):
         self.assertIn("relinked 1", out)
         self.assertEqual(status_of(self.root, "clinical-note").status, sm.LINKED)
 
-    def test_repair_flag_exits_one_when_it_refuses(self):
+    def test_repair_quiet_drains_orphans_without_checkout_noise(self):
         make_skill(self.root, "clinical-note")
         copy_into_mirror(self.root, "clinical-note", overrides={"NOTES.md": "mine\n"})
-        code, out = self.run_main("--repair")
-        self.assertEqual(code, 1)
-        self.assertIn("REFUSED", out)
+        code, out = self.run_main("--repair", "--quiet")
+        self.assertEqual(code, 0)
+        self.assertEqual(out, "")
+        drained = list(
+            (self.root / ".claude" / "skills-orphaned" / "clinical-note").glob(
+                "*/NOTES.md"
+            )
+        )
+        self.assertEqual(len(drained), 1)
+        self.assertEqual(drained[0].read_text(encoding="utf-8"), "mine\n")
 
 
 class TheReasonWordsAreStatedInOnePlaceAndDescribedInAnother(unittest.TestCase):
@@ -492,6 +623,26 @@ class TheReasonWordsAreStatedInOnePlaceAndDescribedInAnother(unittest.TestCase):
         section = self.section()
         for line in quoted:
             self.assertIn(line, section)
+
+
+class SessionStartRegistration(unittest.TestCase):
+    """This proves tracked registration, not that Claude Code fires the hook."""
+
+    def test_settings_register_the_session_start_repair(self):
+        root = Path(__file__).resolve().parent.parent
+        settings = json.loads(
+            (root / ".claude" / "settings.json").read_text(encoding="utf-8")
+        )
+        registered = settings["hooks"]["SessionStart"]
+
+        self.assertEqual(len(registered), 1)
+        self.assertEqual(len(registered[0]["hooks"]), 1)
+        hook = registered[0]["hooks"][0]
+        self.assertEqual(hook["type"], "command")
+        self.assertEqual(
+            hook["command"],
+            'python "$CLAUDE_PROJECT_DIR/tools/skills_mirror.py" --session-start',
+        )
 
 
 if __name__ == "__main__":
