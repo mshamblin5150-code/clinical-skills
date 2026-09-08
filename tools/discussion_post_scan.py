@@ -34,8 +34,8 @@ from discussion_artifact import (
     CLAIM_REFERENCE,
     Citation,
     LEGAL_SECTION_NUMBER,
+    LEGAL_READER_MECHANISMS,
     LEGAL_SOURCE,
-    LEGAL_SOURCE_VOCABULARY,
     NUMBER,
     INVOKED,
     InvokedSource,
@@ -1011,13 +1011,13 @@ def survey(source: RunSource) -> Scan:
     )
 
 
-def legal_source_vocabulary_covered() -> str:
-    """State the closed mixed-case Source vocabulary this reader holds."""
+def legal_reader_covered() -> str:
+    """State the derived composition of the shared legal reader."""
 
     return (
-        "legal Source vocabulary: closed at "
-        f"{len(LEGAL_SOURCE_VOCABULARY)} listed mixed-case forms; "
-        "title-number uppercase codes are read by shape."
+        f"legal reader coverage: {len(LEGAL_READER_MECHANISMS)} mechanisms -- "
+        + ", ".join(description for _pattern, description in LEGAL_READER_MECHANISMS)
+        + "."
     )
 
 
@@ -1071,7 +1071,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
             else f"{RENDERED_TEXT}: {NOT_GRADED}"
         ),
         f"missing pass numbers: {scan.missing_pass_numbers} (counted, {NOT_GRADED})",
-        legal_source_vocabulary_covered(),
+        legal_reader_covered(),
         f"findings: {len(scan.findings)}",
     ]
     for kind in ROWS:

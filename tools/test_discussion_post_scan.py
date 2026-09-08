@@ -862,6 +862,18 @@ REFUTATION: stands - the page addresses the cited proposition.
                 )
                 self.assertEqual((), scan._numeric_values(body, citations))
 
+    def test_a_session_law_drives_both_readers_independently(self):
+        body = "The rule applies (Pub. L. No. 117-328, § 1263, 2022)."
+
+        citations = artifact.read_citations(body)
+
+        self.assertEqual(1, len(citations))
+        self.assertEqual(
+            ("publno1173281263", "2022"),
+            next(iter(artifact.citation_occurrence_keys(citations)))[0],
+        )
+        self.assertEqual((), scan._numeric_values(body, citations))
+
     def test_an_unlisted_or_bare_source_does_not_become_a_legal_citation(self):
         for body in ("The Code § 5 (2024).", "§ 5 (2024)."):
             with self.subTest(body=body):
@@ -1807,16 +1819,18 @@ class CountedPreferencesNeverBecomeFindings(unittest.TestCase):
         self.assertIn("pre-#496 markers: 1 (counted, not graded)", stdout)
         self.assertNotIn("amplifications:", stdout)
 
-    def test_the_closed_legal_source_vocabulary_prints_on_every_run(self):
+    def test_the_derived_legal_reader_coverage_prints_on_every_run(self):
         with tempfile.TemporaryDirectory() as temp:
             status, stdout, _ = Run(Path(temp)).grade()
 
         self.assertEqual(0, status)
-        self.assertIn(scan.legal_source_vocabulary_covered(), stdout)
+        self.assertIn(scan.legal_reader_covered(), stdout)
 
-        widened = (*scan.LEGAL_SOURCE_VOCABULARY, "Example Code")
-        with mock.patch.object(scan, "LEGAL_SOURCE_VOCABULARY", widened):
-            self.assertIn(str(len(widened)), scan.legal_source_vocabulary_covered())
+        widened = (*scan.LEGAL_READER_MECHANISMS, ("example", "1 example form"))
+        with mock.patch.object(scan, "LEGAL_READER_MECHANISMS", widened):
+            coverage = scan.legal_reader_covered()
+        self.assertIn(str(len(widened)), coverage)
+        self.assertIn("1 example form", coverage)
 
 
 class ProseBarElementsStayDeclaredReadings(unittest.TestCase):
