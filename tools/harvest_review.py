@@ -66,6 +66,7 @@ import json
 import sys
 from typing import NamedTuple, Sequence
 
+import name_index
 import phi_scan
 
 from console_codec import use_utf8
@@ -150,14 +151,22 @@ def render(found: Sequence[Sighting], unruled: set[str]) -> str:
 
 
 def main(argv: list[str]) -> int:
-    entries = phi_scan.harvest_entries()
-    if not entries:
+    missing = phi_scan.missing_corpus_sources()
+    if "name-index.json" in missing:
         print(
             "harvest review: no name index under scratch/ -- nothing to review.\n"
             "The corpus layer is inactive on this clone.",
             file=sys.stderr,
         )
         return 0
+
+    entries, refusal = name_index.load_index(phi_scan.SCRATCH / "name-index.json")
+    if refusal:
+        print(
+            "harvest review: scratch/name-index.json is unreadable -- did not scan.",
+            file=sys.stderr,
+        )
+        return 2
 
     unruled = phi_scan.unreviewed_names(entries, phi_scan.reviewed_names())
     if "--count" in argv:
