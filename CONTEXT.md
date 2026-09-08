@@ -268,6 +268,10 @@ _Avoid_: summary, digest, extract, article, evidence sheet
 The gitignored record of one **Evidence dump** -- which topics arrived, for which module, on what date. Provenance for the sheets a dump produced, and what the evidence-membership join reads for a run of the account that was handed it; it establishes when a topic arrived, never who may cite it.
 _Avoid_: index, inventory, log, catalog
 
+**Instrument**:
+The tool a reader used to attempt an access — a fetch tool, a shell client, a signed-in browser, a local search. A refusal it returns is a fact about the instrument until a second one agrees, so a failed read names the instruments it tried rather than reporting what the source does not contain. Distinct from a **second route**, which compares two *passes*: a route is what one pass took, two passes may take the same route, and one pass may try several instruments before it gives up. An **authenticated route** is one particular instrument, supplied by the clinician's account, and reaches only what a subscription gates.
+_Avoid_: tool, method, route, channel, client
+
 **Pointer**:
 Derived material naming something that may exist — a memory entry, a summary, an index, a prior run's notes. It is evidence that a thing may be there and never evidence of what it says, so it may direct a search and may not carry a sentence in a graded artifact. What lifts material out of this class is not a recorded origin but a checkable one: its primary material is **retained** and it is gradeable against it, or its primary material is **resolvable and was independently re-opened**. A **topic sheet** is the worked case of the first and a record whose locator a refuting pass reopened is the second. Recording where a thing came from is not the test, because a faithful record of having summarized a conversation says nothing about whether the summary is faithful.
 _Avoid_: source, citation, recall, memory, summary

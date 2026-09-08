@@ -292,6 +292,41 @@ nine are one rule is how a correct local tightening gets flattened.
 Pointing nine files at a new file adds a line and deletes nothing. Absorbing four rules deletes local
 text and reconciles divergence. They are different changes and only the first is ruled here.
 
+## Ruling 10. The two instruments get their own field, on both `unreadable` branches
+
+Added 2026-09-08, hours after the first nine, because the clinician asked when #818 could be
+labeled `ready-for-agent` and the answer was **not yet**: rulings 6 and 7 require the branch to name
+both instruments tried, this record's *does not settle* section conceded no slot was chosen, and the
+build list nonetheless asked for the row. An agent could reasonably have picked three different
+answers, which is the `ready-for-agent` bar failing on a gap this record created.
+
+**`INSTRUMENTS: <first> -> <second>`.** Required on a `STATUS: unreadable` record and on a
+`REFUTATION: unreadable` record, forbidden elsewhere, and graded on `SECOND-ROUTE`'s existing shape:
+two substantive halves that must differ after normalization.
+
+**Reusing `SECOND-ROUTE` was the cheap option and is refused.** `CONTEXT.md` already gives that term
+the instrument sense — *"The access path **or instrument** a refuting pass used that the pass it is
+checking did not"* — so the reuse is closer than it looks. What stops it is the rest of that
+definition: it is a comparison between **two passes**, and a `STATUS: unreadable` record has no
+refutation to compare against. The two halves would mean *how the research and refutation passes
+differed* on a sourced record and *what one failed read tried* on an unreadable one. That is one
+field answering two questions, which is the defect this repository has paid for most often.
+
+**Putting it in the `STATUS` remainder is refused too.** The reason and the instruments would share
+one string, so the substance test and the pair test fight over it, and grading a `->` pair inside a
+prose reason is the text-matching ruling 5 declined for rule (i).
+
+**On an `unreadable` refutation both fields are present and say different things, and that is the
+honest shape rather than a collision.** `SECOND-ROUTE` says how the two passes differed;
+`INSTRUMENTS` says what the failed read tried.
+
+**Where a second instrument genuinely was not available, the truthful entry is the identical pair and
+the row firing is correct** — ADR 0042 ruling 4, applied here as it is in ruling 6.
+
+**`CONTEXT.md` gains `Instrument`**, because this ruling turns on a word the glossary does not
+define, and **Second route** and **Authenticated route** are both filed while the thing they are
+made of is not.
+
 ## What this record does not settle
 
 **Whether any check can catch a record built on a pointer.** Ruling 5 declares it unreachable and
@@ -309,7 +344,9 @@ that walk should reach within-entry sense widening at all is a separate question
 here.
 
 **Whether a `STATUS: unreadable` record should record the locator it failed to open.** `RESOLVED`
-means a URL that was opened and read, so it cannot carry one, and no substitute field is ruled here.
+means a URL that was opened and read, so it cannot carry one. Ruling 10 settles where the
+**instruments** go and deliberately does not settle the **locator**: `INSTRUMENTS` names what was
+tried, not what was aimed at.
 
 **The export evidence behind failure one**, which is external to every checkout and re-derivable by
 nothing committed.
