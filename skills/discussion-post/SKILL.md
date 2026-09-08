@@ -171,24 +171,31 @@ reference entry from the applicable form in
 
 ```text
 ## CLAIM: <the drafted claim, including its exact numeric token where applicable>
-STATUS: sourced | unsourced - <what was searched>
+STATUS: sourced | unsourced | unreadable - <what was searched or what prevented the read>
 SOURCE: society guideline | peer-reviewed | government | tertiary reference
 REFERENCE: <full APA 7 entry>
 RESTATEMENT: <what the source says, including the draft's exact numeric token where applicable>
 RECENCY: current | within five | nothing newer - <reason> | guideline in force - <reason>
 RESOLVED: <URL or DOI> - read <ISO date>
 PAGE-YEAR: <year and where the page states it>
-REFUTATION: stands | refuted | paywalled - <reason>
+REFUTATION: stands | refuted | paywalled | unreadable - <reason>
 SECOND-ROUTE: <research route> -> <refutation route>
+INSTRUMENTS: <first instrument> -> <second instrument>
 STATED-EXPIRY: none stated | <ISO date> - <where the document states it> | <ISO date>, superseded cited deliberately - <reason>
 ```
 
-For `unsourced`, put what was searched on the `STATUS` line and omit the other fields. The source
+For `unsourced`, put what was searched on the `STATUS` line and omit the other fields. For
+`STATUS: unreadable`, state what prevented both reads, omit every source field, and retain only
+`INSTRUMENTS`; the two substantive halves are separated by the literal `->` and must differ after
+normalization. `INSTRUMENTS` is also required for `REFUTATION: unreadable` and is forbidden on
+every other record. The source
 classes and recency dispositions are the same ones in `practicum-case-study` step 3: within two
 years is the target, within five is ordinarily expected, and `nothing newer` names what was
 searched. `guideline in force` applies only when the cited guideline is presently in force and the
 record says why; membership in a catalog does not establish standing.
 
+Every research and refutation brief first reads the two rules in
+[sourcing.md](../_shared/reference/sourcing.md) and applies them to every returned claim or negative.
 Fan out one research context per claim. Each returns the source class, full APA 7 reference,
 restatement, opened URL or DOI and read date, the page's stated year and locator, and the source's
 stated expiry or `none stated`. Transcribe only an expiry the document states; do not infer one from
@@ -246,6 +253,11 @@ Give a fresh reader `posts/` and the completed working draft. Have it report whe
 posts converge and where the clinician's already differs. Write that report to
 `differentiation.md` and show it to the clinician. This is a differentiation read, not permission
 to import classmates' claims or normalize the draft toward their median.
+
+That differentiation reader first reads and applies
+[sourcing.md](../_shared/reference/sourcing.md); a remembered or indexed classmate claim remains a
+pointer until the retained post is graded against it, and a failed read reports unreadable rather
+than absent.
 
 Any substantive change made after this read reopens the affected claim records and reference
 walk. A new factual sentence is researched and independently refuted on the same terms as step 3.
@@ -338,6 +350,8 @@ rendered box before doing anything else.
 Create the next retained `render/pass-N/`. Copy the exact output `.html` into that pass as
 `post.html`, and retain enough PNG captures of the scrolling Canvas box to make every rendered
 block visible. The destination is the rasterizer: a text-only reread does not replace these pixels.
+A vision reader first reads and applies [sourcing.md](../_shared/reference/sourcing.md) before it
+reports anything from the retained render.
 A fresh non-authoring context compares the captures with the Markdown and accounts for every
 nonblank block derived through `docx_write.blocks`. The denominator comes from the submitted HTML
 render, never from the record and never from the capture count. Append this exact shape to the
@@ -411,7 +425,7 @@ the earlier pre-post and rendered passes deliberately report that row as not gra
 Do not report completion until the final `discussion_post_scan.py ... --submission <output-Markdown-stem>` exits 0. Report the board key, signed-bar date, research-ledger exit, reference-scan exit,
 discussion-post-scan exit, body word count, stated ceiling and whether it was exceeded, reference
 count, claim-record count, invoked-source count, unfilled-property count, pre-#496 marker count,
-paywalled-claim count,
+paywalled-claim count, unreadable-status count, unreadable-refutation count,
 rendered-box verdict, and the recorded posted-reading verdict.
 Keep `board-<date>.md`, `posts/`, `bar.md`, `claims.md`, `post.md`, `differentiation.md`,
 `reread.md`, and `render/`, plus `voice-status.md` when present, together under the board-keyed run. Remove every

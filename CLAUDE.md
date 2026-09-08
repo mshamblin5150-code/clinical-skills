@@ -483,9 +483,10 @@ claim into `scratch/runs/<course>-<module>-<artifact>/claims.md` and this grades
 is undated and uses the fixed artifact vocabulary from ADR 0014; each submission stem appends its
 ISO sitting date. `coursework_run.py` owns that parse and the canonical run/submission populations.
 
-**The rows belong to three rulings.** #214's contract: every field present, `STATUS` one
-of two branches, an `unsourced` record saying what was searched, no citation field on an unsourced
-record, a restatement that is not the claim pasted back, and a numeric claim answered with a number.
+**The rows trace to their ruling tickets.** #214's contract: every field present, `STATUS` on a
+recognized branch, an `unsourced` record saying what was searched, no source-claim field on a
+sourceless record, a restatement that is not the claim pasted back, and a numeric claim answered
+with a number.
 #215's amended recency rule: `RECENCY` one of four dispositions, a reference stating a year, an old
 one saying why it stands, and the excuse carrying a reason. #231's citation rows, below. The report
 prints the ticket beside each row, and **`skills/practicum-case-study/SKILL.md` step 3 writes every one of them out in a table** —
@@ -493,13 +494,17 @@ a test keyed on the module's own tuple fails if the next one arrives without one
 classes this as a tool a skill *names* rather than one it depends on, and that class is defined by
 the instruction being complete without the command.
 
-**An unrecognized `STATUS` is a failure, and that departs from `specificity_scan.py`'s third-branch
-rule deliberately.** There the keyword picks a message and policing a third would be inventing a
+ADR 0149 and #818 add the `unreadable` status and refutation branches and require their failed-read
+instrument pair. The shared pointer and failed-read rules live in
+`skills/_shared/reference/sourcing.md`; this section does not copy them.
+
+**An unrecognized `STATUS` is a failure, and that departs from `specificity_scan.py`'s extra-branch
+rule deliberately.** There the keyword picks a message and policing another would be inventing a
 rule the skill does not state. Here it picks **which tests run** — so a record reading
 `STATUS: pending` skips every row below it and prints as clean, which is the silent-pass shape the
 whole directory exists for.
 
-**The rows sit in four helpers now and the branching sits in `record_findings`, and the reason the
+**The row families sit in helpers and the branching sits in `record_findings`, and the reason the
 ticket asking for it was wrong is the reusable part.** [#242](https://github.com/mshamblin5150-code/clinical-skills/issues/242)
 argued against the split on the ground that *every other scanner here keeps one grader function*,
 naming `specificity_scan`, `differential_scan`, `block_scan` and `anchor_scan` — every one of which
@@ -511,7 +516,7 @@ here** — the modules say them, and a table of function lengths in prose is [#1
 the day someone edits a function.
 
 **What could not move is the control flow**, and that is where the ticket's six-block reading breaks:
-a record with no recognized `STATUS` is graded on nothing below it, and an `unsourced` one on a
+a record with no recognized `STATUS` is graded on nothing below it, and a sourceless one on a
 different set entirely, so the branch stays in `record_findings`. **#215's two blocks became one
 helper rather than two**, because the second reads the vocabulary split the first derives — the
 sharing the ticket counted as separate. **The findings are sorted by `KINDS` now** instead of

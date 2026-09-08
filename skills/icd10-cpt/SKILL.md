@@ -175,6 +175,7 @@ ICD-10  R00.1  Bradycardia, unspecified
 
 #### A fresh reader checks every ICD-10 specificity reason
 
+The blinded verifier first reads and applies [sourcing.md](../_shared/reference/sourcing.md).
 After every worksheet in a run is written, give a **fresh reader in a separate context** the for-entry ICD-10 code numbers and nothing else. The fresh reader **must not see the worksheet**, its descriptor, its anchor, or its `SPECIFICITY` line. Parallelism is only a speed property; a serial harness may run the reader later, provided its context contains the brief and not the worksheet.
 
 The reader is briefed to **try to break each reason**, not to confirm it. For each subject code, open `reference/icd10cm-2026.sqlite`; inspect whatever parents, children, siblings, and inherited tabular notes bear on specificity; and record:

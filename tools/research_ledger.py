@@ -64,6 +64,8 @@ DECLARED_LIMITS = (
     DeclaredLimit("locator-opening-unverified", "A record may state a locator that its research agent never opened.", EvidenceDisposition.DECLARED_READING),
     DeclaredLimit("source-reputation-unchecked", "An allowed source-class word does not establish that the source is reputable.", EvidenceDisposition.DECLARED_READING),
     DeclaredLimit("source-support-unchecked", "The grader cannot determine whether a source supports its recorded restatement.", EvidenceDisposition.DECLARED_READING),
+    DeclaredLimit("pointer-primary-material-unverified", "The grader cannot establish that derived material has primary material retained and gradeable against it, or resolvable and independently re-opened.", EvidenceDisposition.DECLARED_READING),
+    DeclaredLimit("negative-search-population-unverified", "The grader cannot establish that a negative reports the corpus it read and what it did not open.", EvidenceDisposition.DECLARED_READING),
     DeclaredLimit("unsourced-draft-exclusion-unchecked", "A clean ledger does not establish that unsourced claims stayed outside the draft.", EvidenceDisposition.DECLARED_READING),
     DeclaredLimit("network-resolution-absent", "No grading path fetches a locator or resolves a citation over the network.", EvidenceDisposition.DECLARED_READING),
     DeclaredLimit("refutation-independence-unverified", "SECOND-ROUTE cannot prove that the refuter was a different agent, that it actually took the route it declared, or that it opened anything.", EvidenceDisposition.DECLARED_READING),
@@ -101,7 +103,7 @@ NOT_REACHED = tuple(row.limit for row in DECLARED_LIMITS)
 CLAIM = re.compile(r"(?mi)^[ \t]*#+[ \t]*CLAIM[ \t]*:[ \t]*(.*?)[ \t]*$")
 FIELD = re.compile(
     r"(?mi)^[ \t]*(STATUS|SOURCE|REFERENCE|RESTATEMENT|RECENCY"
-    r"|RESOLVED|PAGE-YEAR|REFUTATION|SECOND-ROUTE|STATED-EXPIRY)"
+    r"|RESOLVED|PAGE-YEAR|REFUTATION|SECOND-ROUTE|INSTRUMENTS|STATED-EXPIRY)"
     r"[ \t]*:[ \t]*(.*?)[ \t]*$"
 )
 BAR_FIELD = re.compile(
@@ -164,7 +166,7 @@ READ_DATE = re.compile(
 # number is not in 1900-2099. The documented form puts the asserted year first.
 BARE_YEAR = re.compile(r"\b((?:19|20)\d{2})\b")
 
-# #231's three dispositions. The brief is to *refute*, so ``stands`` is the outcome
+# #231's refutation dispositions, widened by ADR 0149. The brief is to *refute*, so ``stands`` is the outcome
 # of a failed attempt rather than the default.
 #
 # ``paywalled`` is the clinician's 2026-08-19 decision-4 disposition. It is
@@ -174,7 +176,13 @@ BARE_YEAR = re.compile(r"\b((?:19|20)\d{2})\b")
 REFUTATION_STANDS = "stands"
 REFUTATION_REFUTED = "refuted"
 REFUTATION_PAYWALLED = "paywalled"
-REFUTATION_VALUES = (REFUTATION_STANDS, REFUTATION_REFUTED, REFUTATION_PAYWALLED)
+REFUTATION_UNREADABLE = "unreadable"
+REFUTATION_VALUES = (
+    REFUTATION_STANDS,
+    REFUTATION_REFUTED,
+    REFUTATION_PAYWALLED,
+    REFUTATION_UNREADABLE,
+)
 
 # #498's three forms. A date is transcribed from the source, never inferred
 # from a publication cadence. The C.F.R. citation that filed #534 is the known
@@ -192,7 +200,8 @@ STATED_EXPIRY_ESCAPE = re.compile(
 
 SOURCED = "sourced"
 UNSOURCED = "unsourced"
-STATUSES = (SOURCED, UNSOURCED)
+UNREADABLE = "unreadable"
+STATUSES = (SOURCED, UNSOURCED, UNREADABLE)
 
 # ``specificity_scan.py`` R2's alphanumeric substance predicate.
 SUBSTANCE = re.compile(r"[0-9A-Za-z]")
@@ -227,6 +236,10 @@ REFUTATION_ECHOES_RESTATEMENT = "refutation-echoes-restatement"
 UNSPLIT_SECOND_ROUTE = "unsplit-second-route"
 BARE_SECOND_ROUTE = "bare-second-route"
 SECOND_ROUTE_UNCHANGED = "second-route-unchanged"
+UNEXPECTED_INSTRUMENTS = "unexpected-instruments"
+UNSPLIT_INSTRUMENTS = "unsplit-instruments"
+BARE_INSTRUMENTS = "bare-instruments"
+INSTRUMENTS_UNCHANGED = "instruments-unchanged"
 UNKNOWN_STATED_EXPIRY = "unknown-stated-expiry"
 STATED_EXPIRY_REACHED = "stated-expiry-reached"
 
@@ -276,6 +289,10 @@ ROWS = {
     UNSPLIT_SECOND_ROUTE: "#500",
     BARE_SECOND_ROUTE: "#500",
     SECOND_ROUTE_UNCHANGED: "#500",
+    UNEXPECTED_INSTRUMENTS: "#818",
+    UNSPLIT_INSTRUMENTS: "#818",
+    BARE_INSTRUMENTS: "#818",
+    INSTRUMENTS_UNCHANGED: "#818",
     UNKNOWN_STATED_EXPIRY: "#498",
     STATED_EXPIRY_REACHED: "#498",
 }
@@ -300,9 +317,9 @@ REQUIRED_WHEN_SOURCED = (
 
 # Every field that is a claim about a source. An ``unsourced`` record says there
 # is no source, so carrying any one of them is the contradiction
-# ``UNSOURCED_WITH_CITATION_FIELD`` was written for -- widened by #231 from the one
-# field to the four, because a locator on a record that found nothing is the same
-# defect and was passing.
+# ``UNSOURCED_WITH_CITATION_FIELD`` was written for. A locator on a record that
+# found nothing is the same defect and must not pass merely because it uses a
+# different source-claim field.
 CITATION_FIELDS = (
     "REFERENCE",
     "RESOLVED",
@@ -572,6 +589,7 @@ class Scan:
     records: int
     sourced: int
     unsourced: int
+    unreadable: int
     unrecognized_status: int
     by_class: tuple[tuple[str, int], ...]
     outside_vocabulary: int
@@ -579,6 +597,8 @@ class Scan:
     standing_past_window: int
     # #231's visible paywall population.
     behind_a_paywall: int
+    # ADR 0149's visible failed-refutation-read population.
+    unreadable_refutations: int
     # #498's two always-printed expiry populations.
     stated_expiries: int
     superseded_deliberately: int
@@ -712,12 +732,13 @@ def read_records(text: str) -> list[Record]:
     return records
 
 
-def _unsourced_findings(record: Record) -> list[Finding]:
-    """#214's unsourced branch: the reason, and the four fields it may not carry.
+def _sourceless_findings(record: Record) -> list[Finding]:
+    """The sourceless status branches: a reason and no source-claim fields.
 
-    An ``unsourced`` record is not a failure -- ``skills/practicum-case-study/SKILL.md``
-    step 3 routes it to ``PROPOSED``. What is refused is one that says it found
-    nothing while carrying a claim about a source.
+    An ``unsourced`` or ``unreadable`` record is not a failure --
+    ``skills/practicum-case-study/SKILL.md`` step 3 routes it to ``PROPOSED``.
+    What is refused is one that makes either sourceless claim while carrying a
+    claim about a source.
     """
     claim = record.claim
     found: list[Finding] = []
@@ -864,8 +885,8 @@ def _citation_findings(record: Record, as_of: date | None) -> list[Finding]:
     if SUBSTANCE.search(refutation):
         verdict, reason = keyword_of(refutation, REFUTATION_VALUES)
         if not verdict:
-            # ``STATUS``'s reasoning again: it gates the row below, so a third
-            # word is a record the refutation row never read.
+            # ``STATUS``'s reasoning again: it gates the row below, so an
+            # unrecognized word is a record the refutation row never read.
             found.append(Finding(UNKNOWN_REFUTATION, claim, refutation))
         else:
             if not SUBSTANCE.search(reason):
@@ -901,6 +922,22 @@ def _second_route_findings(record: Record) -> list[Finding]:
         elif normalize(first) == normalize(second):
             found.append(Finding(SECOND_ROUTE_UNCHANGED, claim, second_route))
 
+    return found
+
+
+def _instrument_findings(record: Record) -> list[Finding]:
+    """ADR 0149's three rows over the failed-read instrument pair."""
+    claim = record.claim
+    found: list[Finding] = []
+    instruments = record.value("INSTRUMENTS")
+    if SUBSTANCE.search(instruments):
+        first, separator, second = instruments.partition("->")
+        if not separator:
+            found.append(Finding(UNSPLIT_INSTRUMENTS, claim, instruments))
+        elif not SUBSTANCE.search(first) or not SUBSTANCE.search(second):
+            found.append(Finding(BARE_INSTRUMENTS, claim, instruments))
+        elif normalize(first) == normalize(second):
+            found.append(Finding(INSTRUMENTS_UNCHANGED, claim, instruments))
     return found
 
 
@@ -945,8 +982,8 @@ def record_findings(
     [#242](https://github.com/mshamblin5150-code/clinical-skills/issues/242) did not
     check when it wrote that every other scanner keeps one grader. What stays here is
     the control flow the helpers cannot be written without: a record with no
-    recognized ``STATUS`` is graded on nothing below it, and an ``unsourced`` one is
-    graded on a different set entirely.
+    recognized ``STATUS`` is graded on nothing below it, and the two sourceless
+    statuses are graded on a different set entirely.
 
     **Sorted by ``KINDS`` rather than by append order**, so where a helper is called
     is not something a reader of this record's findings can see. The counts were
@@ -970,17 +1007,26 @@ def record_findings(
     status = record.status
     if not status:
         # Unlike an unrecognized ``SPECIFICITY`` keyword, this one is a failure:
-        # the branch decides which tests below run, so a record wearing a third
-        # word is graded on nothing at all and prints as clean.
+        # the branch decides which tests below run, so a record wearing an
+        # unrecognized word is graded on nothing at all and prints as clean.
         found.append(Finding(UNKNOWN_STATUS, claim, record.value("STATUS")))
-    elif status == UNSOURCED:
-        found += _unsourced_findings(record)
+    elif status in (UNSOURCED, UNREADABLE):
+        found += _sourceless_findings(record)
     else:
         found += _contract_findings(record, source_classes)
         found += _recency_findings(record, as_of, recency_window_years)
         found += _citation_findings(record, as_of)
         found += _second_route_findings(record)
         found += _stated_expiry_findings(record, as_of)
+
+    refutation = keyword_of(record.value("REFUTATION"), REFUTATION_VALUES)[0]
+    instruments_required = status == UNREADABLE or refutation == REFUTATION_UNREADABLE
+    if instruments_required and not SUBSTANCE.search(record.value("INSTRUMENTS")):
+        found.append(Finding(MISSING_FIELD, claim, "INSTRUMENTS"))
+    elif instruments_required:
+        found += _instrument_findings(record)
+    elif "INSTRUMENTS" in record.fields:
+        found.append(Finding(UNEXPECTED_INSTRUMENTS, claim, record.value("INSTRUMENTS")))
 
     # Stable, so two findings of one kind keep the order their helper appended them in.
     return sorted(found, key=lambda f: _KIND_ORDER[f.kind])
@@ -1321,6 +1367,7 @@ def survey(
         records=len(records),
         sourced=len(sourced),
         unsourced=sum(1 for r in records if r.status == UNSOURCED),
+        unreadable=sum(1 for r in records if r.status == UNREADABLE),
         unrecognized_status=sum(1 for r in records if not r.status),
         by_class=tuple(
             (name, sum(1 for r in sourced if normalize(r.value("SOURCE")) == normalize(name)))
@@ -1340,6 +1387,12 @@ def survey(
             1
             for r in sourced
             if keyword_of(r.value("REFUTATION"), REFUTATION_VALUES)[0] == REFUTATION_PAYWALLED
+        ),
+        unreadable_refutations=sum(
+            1
+            for r in sourced
+            if keyword_of(r.value("REFUTATION"), REFUTATION_VALUES)[0]
+            == REFUTATION_UNREADABLE
         ),
         stated_expiries=sum(
             1
@@ -1379,6 +1432,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         f"  claim records read               {scan.records}",
         f"    sourced                        {scan.sourced}",
         f"    unsourced - go to PROPOSED     {scan.unsourced}",
+        f"    unreadable - go to PROPOSED    {scan.unreadable}",
         f"    neither status                 {scan.unrecognized_status}",
         "",
     ]
@@ -1391,6 +1445,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         f"         {scan.standing_past_window}"
     )
     lines.append(f"  citations behind a paywall       {scan.behind_a_paywall}")
+    lines.append(f"  unreadable refutations           {scan.unreadable_refutations}")
     lines.append(
         "  stated expiry                     "
         f"{scan.stated_expiries} of {scan.sourced} sourced records name a date"
