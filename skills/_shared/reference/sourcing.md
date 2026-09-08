@@ -2,10 +2,10 @@
 
 ## A pointer is not a source
 
-Material recalled from a memory store, summary, index, or prior run may carry a sentence in a
-graded artifact only when its primary material is retained and gradeable against it, or when the
-primary material is resolvable and was independently re-opened. Anything else is a pointer: it may
-direct a search and may not carry a sentence.
+Derived material may carry a sentence in a graded artifact only when its primary material is
+retained and gradeable against it, or when the primary material is resolvable and was independently
+re-opened. This includes material recalled from a memory store, summary, index, or prior run.
+Anything else is a pointer: it may direct a search and may not carry a sentence.
 
 ## A failed read is not a negative
 

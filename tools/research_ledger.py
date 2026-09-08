@@ -64,7 +64,7 @@ DECLARED_LIMITS = (
     DeclaredLimit("locator-opening-unverified", "A record may state a locator that its research agent never opened.", EvidenceDisposition.DECLARED_READING),
     DeclaredLimit("source-reputation-unchecked", "An allowed source-class word does not establish that the source is reputable.", EvidenceDisposition.DECLARED_READING),
     DeclaredLimit("source-support-unchecked", "The grader cannot determine whether a source supports its recorded restatement.", EvidenceDisposition.DECLARED_READING),
-    DeclaredLimit("pointer-primary-material-unverified", "The grader cannot establish that material recalled from a summary, memory, index, or prior run has primary material retained and gradeable against it, or resolvable and independently re-opened.", EvidenceDisposition.DECLARED_READING),
+    DeclaredLimit("pointer-primary-material-unverified", "The grader cannot establish that derived material has primary material retained and gradeable against it, or resolvable and independently re-opened.", EvidenceDisposition.DECLARED_READING),
     DeclaredLimit("negative-search-population-unverified", "The grader cannot establish that a negative reports the corpus it read and what it did not open.", EvidenceDisposition.DECLARED_READING),
     DeclaredLimit("unsourced-draft-exclusion-unchecked", "A clean ledger does not establish that unsourced claims stayed outside the draft.", EvidenceDisposition.DECLARED_READING),
     DeclaredLimit("network-resolution-absent", "No grading path fetches a locator or resolves a citation over the network.", EvidenceDisposition.DECLARED_READING),

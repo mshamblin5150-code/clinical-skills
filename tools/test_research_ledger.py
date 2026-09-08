@@ -1634,6 +1634,7 @@ class TheSourcingRulesDeclareWhatTheGraderCannotSee(unittest.TestCase):
         limits = {row.key: row for row in ledger.DECLARED_LIMITS}
         row = limits["pointer-primary-material-unverified"]
         self.assertIs(row.evidence, ledger.EvidenceDisposition.DECLARED_READING)
+        self.assertIn("derived material", row.limit)
         self.assertIn("retained and gradeable", row.limit)
         self.assertIn("independently re-opened", row.limit)
 
@@ -1675,6 +1676,7 @@ class EveryRuledFanOutReadsTheSharedSourcingRules(unittest.TestCase):
             re.findall(r"(?m)^## (.+)$", text),
             ["A pointer is not a source", "A failed read is not a negative"],
         )
+        self.assertIn("Derived material may carry a sentence", flat)
         self.assertIn("retained and gradeable against it", flat)
         self.assertIn("resolvable and was independently re-opened", flat)
         self.assertIn("reports the corpus it read and what it did not open", flat)
@@ -2294,7 +2296,7 @@ class TheFindingsComeBackInReportOrder(unittest.TestCase):
         return replace_field(record, "SOURCE", "a blog post")
 
     def _many(self) -> str:
-        """One record failing rows from all three rulings at once."""
+        """One record failing rows from several ruling families at once."""
         record = with_reference(CLEAN, "Someone, A. (2011). A study. Journal, 1(1), 1-9.")
         record = replace_field(record, "RECENCY", "current")
         record = replace_field(record, "SOURCE", "a blog post")
@@ -2304,7 +2306,7 @@ class TheFindingsComeBackInReportOrder(unittest.TestCase):
 
     def test_a_record_failing_several_rulings_comes_back_in_kinds_order(self):
         found = kinds(ledger_text(self._many()))
-        self.assertGreater(len(found), 3, "the fixture should trip rows from all three rulings")
+        self.assertGreater(len(found), 3, "the fixture should trip several ruling families")
         self.assertEqual(found, sorted(found, key=lambda k: self.ORDER[k]))
 
     def test_a_row_appended_out_of_report_order_comes_back_in_it(self):
