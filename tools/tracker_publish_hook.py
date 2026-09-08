@@ -112,6 +112,10 @@ NOT_REACHED = (
         "an AAR paraphrase passes the quotation gate",
         "The AAR gate refuses copied spans and cannot recognize a paraphrase of private working material.",
     ),
+    (
+        "the command-folder reader reaches literal absolute cd targets only",
+        "A variable, substitution, parent, previous-folder, home, or relative cd target is refused rather than guessed at.",
+    ),
 )
 
 
@@ -119,12 +123,16 @@ class Publication(NamedTuple):
     field: str
     text: str
     source: str = "inline"
+    resolved_against: str | None = None
+    reconstructed_path: str | None = None
 
 
 class Unreadable(NamedTuple):
     field: str
     kind: str
     source: str
+    resolved_against: str | None = None
+    reconstructed_path: str | None = None
 
 
 class Extraction(NamedTuple):
@@ -184,6 +192,9 @@ VARIABLE = re.compile(
     re.DOTALL,
 )
 MSYS_PATH = re.compile(r"\A/(?P<drive>[A-Za-z])/(?P<rest>.*)\Z", re.DOTALL)
+LITERAL_CD = re.compile(
+    r"\Acd\s+(?P<target>\"[^\"]*\"|'[^']*'|[^\s;&|]+)\s*\Z"
+)
 HEREDOC = re.compile(
     r"<<-?\s*['\"]?(?P<tag>[A-Za-z_][A-Za-z0-9_]*)['\"]?[ \t]*\r?\n"
     r"(?P<body>.*?)\r?\n(?P=tag)(?:\r?\n|\Z)",
@@ -263,6 +274,212 @@ def _candidate_paths(source: str) -> tuple[str, ...]:
         return (source,)
     drive = match.group("drive").upper()
     return (source, f"{drive}:/{match.group('rest')}")
+
+
+def _is_absolute_command_path(source: str) -> bool:
+    return Path(source).is_absolute() or MSYS_PATH.match(source) is not None
+
+
+def _shell_pieces(command: str) -> list[str]:
+    """Split shell commands at unquoted separators without expanding them."""
+    command = HEREDOC.sub(
+        lambda match: (
+            match.group(0)[: match.start("body") - match.start()]
+            + match.group(0)[match.end("body") - match.start() :]
+        ),
+        command,
+    )
+    pieces: list[str] = []
+    current: list[str] = []
+    index = 0
+    quote: str | None = None
+    substitution_depth = 0
+    while index < len(command):
+        character = command[index]
+        if quote is not None:
+            current.append(character)
+            if quote == '"' and character == "\\" and index + 1 < len(command):
+                current.append(command[index + 1])
+                index += 2
+                continue
+            if character == quote:
+                quote = None
+            index += 1
+            continue
+        if character in "\"'":
+            quote = character
+            current.append(character)
+            index += 1
+            continue
+        if command.startswith("$(", index):
+            substitution_depth += 1
+            current.append("$(")
+            index += 2
+            continue
+        if substitution_depth:
+            current.append(character)
+            if character == "(":
+                substitution_depth += 1
+            elif character == ")":
+                substitution_depth -= 1
+            index += 1
+            continue
+        if character == "#" and (
+            index == 0 or command[index - 1].isspace() or command[index - 1] in ";|&"
+        ):
+            while index < len(command) and command[index] not in "\r\n":
+                index += 1
+            continue
+        if character == "&" and (
+            (index > 0 and command[index - 1] == ">")
+            or (index + 1 < len(command) and command[index + 1] == ">")
+        ):
+            index += 1
+            continue
+        if command.startswith("&&", index):
+            separator = "&&"
+        elif command.startswith("||", index):
+            separator = "||"
+        else:
+            separator = character
+        if separator in {"&&", "||"} or character in ";|&\n":
+            pieces.extend(("".join(current), separator))
+            current = []
+            index += len(separator)
+            continue
+        current.append(character)
+        index += 1
+    pieces.append("".join(current))
+    return pieces
+
+
+def _literal_command_folder(command: str) -> Path | None:
+    """Return the last literal absolute ``cd`` before the publish command."""
+    pieces = _shell_pieces(command)
+    publish_index = next(
+        (
+            index
+            for index, piece in enumerate(pieces)
+            if piece not in {"&&", "||", ";", "|", "&", "\n"}
+            and _fragment_has_publish(piece)
+        ),
+        None,
+    )
+    if publish_index is None:
+        return None
+    compound_tokens = {
+        "(", ")", "{", "}", "if", "then", "elif", "else", "fi",
+        "for", "while", "until", "case", "esac", "do", "done", "function",
+    }
+    for piece in pieces[:publish_index]:
+        if piece in {"&&", "||", ";", "|", "&", "\n"}:
+            continue
+        if any(delimiter in piece for delimiter in "(){}"):
+            return None
+        try:
+            tokens = shlex.split(piece, posix=True)
+        except ValueError:
+            return None
+        if compound_tokens.intersection(tokens):
+            return None
+    folder: Path | None = None
+    previous_separator = ""
+    conditional_cd = False
+    separators = {"&&", "||", ";", "|", "&", "\n"}
+    for index, piece in enumerate(pieces[:publish_index]):
+        if piece in separators:
+            previous_separator = piece
+            if conditional_cd and piece not in {"&&"}:
+                folder = None
+                conditional_cd = False
+            continue
+        fragment = piece.strip()
+        if not re.match(r"\Acd(?:\s|\Z)", fragment):
+            try:
+                fragment_tokens = shlex.split(fragment, posix=True)
+            except ValueError:
+                fragment_tokens = []
+            if "cd" in fragment_tokens:
+                folder = None
+                conditional_cd = previous_separator in {"&&", "||"}
+            continue
+        next_separator = (
+            pieces[index + 1]
+            if index + 1 < publish_index and pieces[index + 1] in separators
+            else ""
+        )
+        if previous_separator == "|" or next_separator in {"|", "&"}:
+            continue
+        if previous_separator == "||":
+            folder = None
+            conditional_cd = True
+            continue
+        match = LITERAL_CD.fullmatch(fragment)
+        if match is None:
+            folder = None
+            conditional_cd = previous_separator in {"&&", "||"}
+            continue
+        target = match.group("target")
+        if len(target) >= 2 and target[0] == target[-1] and target[0] in "\"'":
+            target = target[1:-1]
+        if _is_absolute_command_path(target):
+            folder = Path(_candidate_paths(target)[-1])
+        else:
+            folder = None
+        conditional_cd = previous_separator in {"&&", "||"}
+    return folder
+
+
+def _fragment_has_publish(fragment: str) -> bool:
+    return _publish_tokens(fragment) is not None
+
+
+def _publish_tokens(command: str) -> tuple[list[str], int] | None:
+    for fragment in _shell_pieces(command):
+        if fragment in {"&&", "||", ";", "|", "&", "\n"}:
+            continue
+        try:
+            tokens = shlex.split(fragment, posix=True)
+        except ValueError:
+            continue
+        for index, token in enumerate(tokens):
+            if token != "gh" or index + 1 >= len(tokens):
+                continue
+            if not _is_command_prefix(tokens[:index]):
+                continue
+            tail = tokens[index + 1 :]
+            route = ("api",) if tail[0] == "api" else tuple(tail[:2])
+            if route in PUBLISH_ROUTES:
+                return tokens, index
+    return None
+
+
+def _is_command_prefix(tokens: list[str]) -> bool:
+    assignment = re.compile(r"\A[A-Za-z_][A-Za-z0-9_]*=")
+    if all(assignment.match(token) is not None for token in tokens):
+        return True
+    if tokens[:1] == ["command"]:
+        return all(
+            token.startswith("-") or assignment.match(token) is not None
+            for token in tokens[1:]
+        )
+    if tokens[:1] == ["env"]:
+        return all(
+            token.startswith("-") or assignment.match(token) is not None
+            for token in tokens[1:]
+        )
+    return False
+
+
+def _resolve_file_source(source: str, command: str) -> tuple[str, Path | None] | None:
+    if _is_absolute_command_path(source):
+        return source, None
+    if re.match(r"\A[A-Za-z]:[^\\/]", source):
+        return None
+    folder = _literal_command_folder(command)
+    if folder is None:
+        return None
+    return str(folder / source), folder
 
 
 def _read_candidate(source: str) -> str | None:
@@ -452,31 +669,58 @@ def _read_file_field(
         if heredoc is None:
             return Unreadable(field, "pipe", source)
         return Publication(field, heredoc.group("body"), "inline heredoc")
+    written_source = source
+    if _written_before_publish(command, written_source):
+        resolved = _resolve_file_source(source, command)
+        if resolved is None:
+            return Unreadable(
+                field, "written-before-publish", source, None, source
+            )
+        reconstructed, folder = resolved
+        return Unreadable(
+            field,
+            "written-before-publish",
+            reconstructed,
+            None if folder is None else str(folder),
+            reconstructed,
+        )
+    resolved = _resolve_file_source(source, command)
+    if resolved is None:
+        return Unreadable(field, "unrooted-path", source, None, source)
+    source, folder = resolved
     text = _read_candidate(source)
     if text is None:
         kind = (
             "written-before-publish"
-            if _written_before_publish(command, source)
+            if _written_before_publish(command, written_source)
             else "missing-file"
         )
-        return Unreadable(field, kind, source)
-    return Publication(field, text, source)
+        return Unreadable(
+            field,
+            kind,
+            source,
+            None if folder is None else str(folder),
+            source,
+        )
+    return Publication(
+        field,
+        text,
+        source,
+        None if folder is None else str(folder),
+        source,
+    )
 
 
 def extract(command: str) -> Extraction:
     """Read inline tracker fields from one ``gh`` invocation."""
-    try:
-        tokens = shlex.split(command, posix=True)
-    except ValueError:
+    publish = _publish_tokens(command)
+    if publish is None:
         route = _raw_publish_route(command)
         if route is None:
             return Extraction(None, None, (), ())
         unreadable = Unreadable("body", "invalid-command", "inline")
         return Extraction(route, None, (), (unreadable,), route)
-    try:
-        start = tokens.index("gh")
-    except ValueError:
-        return Extraction(None, None, (), ())
+    tokens, start = publish
     tail = tokens[start + 1 :]
     if not tail:
         return Extraction(None, None, (), ())
@@ -538,14 +782,6 @@ def extract(command: str) -> Extraction:
             continue
         if route == ("api",) and token == "--input" and index + 1 < len(arguments):
             source = arguments[index + 1]
-            variable = VARIABLE.match(source)
-            if variable is not None:
-                name = variable.group("braced") or variable.group("plain")
-                if name not in assignments:
-                    kind = "command-substitution" if name in substitutions else "external-variable"
-                    unreadable = Unreadable("body", kind, source)
-                    return Extraction(route, number, tuple(publications), (unreadable,), grade_route)
-                source = assignments[name]
             try:
                 if source == "-":
                     heredoc = HEREDOC.search(command)
@@ -556,18 +792,31 @@ def extract(command: str) -> Extraction:
                         )
                     request_text = heredoc.group("body")
                     source = "inline heredoc"
+                    resolved_against = None
+                    reconstructed_path = None
                 else:
-                    request_text = _read_candidate(source)
-                    if request_text is None:
-                        raise OSError(source)
+                    read = _read_file_field(
+                        "body", source, command, assignments, substitutions
+                    )
+                    if isinstance(read, Unreadable):
+                        return Extraction(
+                            route, number, tuple(publications), (read,), grade_route
+                        )
+                    request_text = read.text
+                    source = read.source
+                    resolved_against = read.resolved_against
+                    reconstructed_path = read.reconstructed_path
                 request = json.loads(request_text)
                 if not isinstance(request, dict):
                     raise ValueError("API input is not an object")
-            except (OSError, UnicodeError):
-                unreadable = Unreadable("body", "missing-file", source)
-                return Extraction(route, number, tuple(publications), (unreadable,))
             except (json.JSONDecodeError, ValueError):
-                unreadable = Unreadable("body", "invalid-input", source)
+                unreadable = Unreadable(
+                    "body",
+                    "invalid-input",
+                    source,
+                    resolved_against,
+                    reconstructed_path,
+                )
                 return Extraction(route, number, tuple(publications), (unreadable,))
             for field in ("title", "body"):
                 value = request.get(field)
@@ -948,6 +1197,10 @@ UNREADABLE_REMEDIES = {
         "create the file first, then run `python tools/tracker_publish_hook.py "
         "--text <path>` before retrying"
     ),
+    "unrooted-path": (
+        'put `cd "<folder>" && ` in front of the command, or write the whole '
+        "path in quotes"
+    ),
     "external-variable": (
         "resolve the variable and run `python tools/tracker_publish_hook.py "
         "--text <path>` before retrying"
@@ -997,11 +1250,24 @@ def handle(payload: dict) -> dict:
         if extracted.route is None:
             return {}
         if extracted.unreadable:
-            lines = [
-                f"tracker pre-publish: NOT SCANNED -- unreadable {row.field} "
-                f"({row.kind}); {UNREADABLE_REMEDIES[row.kind]}"
-                for row in extracted.unreadable
-            ]
+            lines = []
+            for row in extracted.unreadable:
+                reconstructed = row.reconstructed_path or row.source
+                if row.resolved_against is not None:
+                    resolved_against = row.resolved_against
+                elif _is_absolute_command_path(reconstructed):
+                    resolved_against = "none (path was absolute)"
+                else:
+                    resolved_against = "none readable"
+                lines.extend(
+                    (
+                        f"tracker pre-publish: NOT SCANNED -- unreadable {row.field} "
+                        f"({row.kind}); {UNREADABLE_REMEDIES[row.kind]}",
+                        "tracker pre-publish: resolved against: "
+                        + resolved_against
+                        + f"; reconstructed path: {reconstructed}",
+                    )
+                )
             return _hook_response("deny", "\n".join(lines), UNSCANNED_REFUSAL)
         if not extracted.publications:
             return {}
