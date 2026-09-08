@@ -359,6 +359,13 @@ class TheDoubledPathSeparatorRow(unittest.TestCase):
             with self.subTest(body=body):
                 self.assertEqual(kinds_of(read(harvest(issue(777, body)))), [])
 
+    def test_line_preserving_prose_keeps_a_fenced_list_container(self):
+        body = "- ```text\n  example\n  ```\n  **Verdict:** HOLDS"
+
+        prose = tb.prose_outside_code(body, preserve_lines=True)
+
+        self.assertEqual(prose, "- \n  \n  \n  **Verdict:** HOLDS")
+
 
 class ACleanHarvest(unittest.TestCase):
     def test_ordinary_bodies_produce_nothing(self):

@@ -426,5 +426,34 @@ class PullRequestsGradeTheReceiptPlanBeforeMerge(unittest.TestCase):
             self.assertIn("owns its line", text)
 
 
+class TheDiscriminatingMeasurementRuleHasOneHome(unittest.TestCase):
+    @staticmethod
+    def section(text: str, heading: str) -> str:
+        marker = f"### {heading}"
+        _head, found, tail = text.partition(marker)
+        if not found:
+            raise AssertionError(f"missing section: {heading}")
+        return marker + tail.partition("\n### ")[0]
+
+    def test_each_document_points_to_the_other_documents_object(self) -> None:
+        claude = CLAUDE_MD.read_text(encoding="utf-8")
+        tracker = ISSUE_TRACKER.read_text(encoding="utf-8")
+
+        claude_section = self.section(claude, "Extractor coverage")
+        tracker_section = self.section(
+            tracker, "Discriminating measurements in sweep verdicts"
+        )
+
+        self.assertIn(
+            "[sweep-specific discriminator rule]"
+            "(docs/agents/issue-tracker.md#discriminating-measurements-in-sweep-verdicts)",
+            claude_section,
+        )
+        self.assertIn(
+            "[extractor-coverage rule](../../CLAUDE.md#extractor-coverage)",
+            tracker_section,
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
