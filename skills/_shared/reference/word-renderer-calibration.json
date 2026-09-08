@@ -230,6 +230,38 @@
         "first_line_count": 1
       }
     },
+    "body-no-extra-space": {
+      "measured_on": "2026-09-08",
+      "word_version": "16.0",
+      "word_build": "16.0.20326",
+      "verdict": "applied",
+      "word_observation": "Word reported exactly three paragraphs—the heading and two body paragraphs—with both body paragraphs continuously double spaced at 24 pt and 0 pt space before and after; no empty paragraph was present.",
+      "renderer_shape": {
+        "body_paragraphs": [
+          "First paragraph.",
+          "Second paragraph."
+        ],
+        "default_after_twips": "0",
+        "default_before_twips": null,
+        "default_line_twips": "480",
+        "direct_spacing_count": 0,
+        "empty_paragraph_count": 0,
+        "paragraph_count": 3
+      }
+    },
+    "heading-no-blank-lines": {
+      "measured_on": "2026-09-08",
+      "word_version": "16.0",
+      "word_build": "16.0.20326",
+      "verdict": "applied",
+      "word_observation": "Word reported exactly three adjacent paragraphs: \"Opening paragraph.\", \"Clinical Case\", and \"Following paragraph.\"; no blank paragraph appeared above or below the heading.",
+      "renderer_shape": {
+        "following_paragraph": "Following paragraph.",
+        "heading_index": 1,
+        "paragraph_count": 3,
+        "preceding_paragraph": "Opening paragraph."
+      }
+    },
     "table-horizontal-rules": {
       "measured_on": "2026-08-22",
       "word_version": "16.0",
