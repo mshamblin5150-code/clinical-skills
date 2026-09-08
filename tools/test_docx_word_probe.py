@@ -73,10 +73,14 @@ class TheCommittedWordMeasurement(unittest.TestCase):
     def test_every_row_records_its_word_measurement_and_covered_xml_shape(self):
         record = json.loads(self.RECORD.read_text(encoding="utf-8"))
         specs = {spec.key: spec for spec in docx_word_probe.CALIBRATIONS}
+        measured_on = {
+            "body-no-extra-space": "2026-09-08",
+            "heading-no-blank-lines": "2026-09-08",
+        }
         self.assertEqual(set(record["rows"]), set(specs))
         for key, row in record["rows"].items():
             with self.subTest(key=key):
-                self.assertEqual(row["measured_on"], "2026-08-22")
+                self.assertEqual(row["measured_on"], measured_on.get(key, "2026-08-22"))
                 self.assertEqual(row["word_version"], "16.0")
                 self.assertTrue(row["word_build"])
                 self.assertEqual(row["verdict"], specs[key].verdict)

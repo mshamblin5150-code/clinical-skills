@@ -30,7 +30,7 @@ class Calibration:
 CALIBRATIONS = (
     Calibration("body-defaults", "Times New Roman", "applied"),
     Calibration("reference-hanging-indent", "whole reference list", "applied"),
-    Calibration("reference-no-extra-space", "No extra space", "applied"),
+    Calibration("reference-no-extra-space", "No extra space between entries", "applied"),
     Calibration("reference-heading-bold", "heading bold", "applied"),
     Calibration("reference-heading-centered", "heading centered", "applied"),
     Calibration("reference-heading-body-size", "body size", "applied"),
@@ -42,6 +42,8 @@ CALIBRATIONS = (
         "applied",
     ),
     Calibration("body-first-line-indent", "first-line indent", "applied"),
+    Calibration("body-no-extra-space", "No extra space before or after", "applied"),
+    Calibration("heading-no-blank-lines", "No blank lines above or below", "applied"),
     Calibration("table-horizontal-rules", "horizontal rules only", "applied"),
     Calibration("title-page", "title page", "not applied"),
     Calibration("run-in-headings", "run-in", "not applied"),
@@ -92,6 +94,8 @@ SINGULAR = "# Clinical Case\n\nBody paragraph.\n\n# Reference\n\nOnly, O. (2025)
 RUN_IN = "#### Follow-up\n\nThe plan continues.\n"
 HARD_WRAP = "# References\n\nRoss, J. (2025). Pelvic\ndisease. UpToDate.\n"
 TITLE = "# Clinical Case\n\nBody paragraph.\n"
+BODY_SPACING = "# Clinical Case\n\nFirst paragraph.\n\nSecond paragraph.\n"
+HEADING_SPACING = "Opening paragraph.\n\n# Clinical Case\n\nFollowing paragraph.\n"
 WORD_SAVE_EDIT = "Calibration edit."
 
 PROBES = {
@@ -105,6 +109,8 @@ PROBES = {
     "page-number-header": COMMON,
     "singular-reference-hanging-indent": SINGULAR,
     "body-first-line-indent": COMMON,
+    "body-no-extra-space": BODY_SPACING,
+    "heading-no-blank-lines": HEADING_SPACING,
     "table-horizontal-rules": COMMON,
     "title-page": TITLE,
     "run-in-headings": RUN_IN,
@@ -171,6 +177,11 @@ def _texts(root) -> list[str]:
     ]
 
 
+def _body_paragraphs(root) -> list:
+    """Paragraphs that are direct body children, excluding table-cell paragraphs."""
+    return root.find("./" + W + "body").findall(W + "p")
+
+
 def _paragraph(root, text: str):
     for paragraph in root.iter(W + "p"):
         if "".join(node.text or "" for node in paragraph.iter(W + "t")) == text:
@@ -224,6 +235,22 @@ def renderer_shapes() -> dict[str, dict]:
     run_in_document = _root(_rendered_parts(RUN_IN), "word/document.xml")
     hard_wrap_document = _root(_rendered_parts(HARD_WRAP), "word/document.xml")
     title_document = _root(_rendered_parts(TITLE), "word/document.xml")
+    body_spacing_document = _root(
+        _rendered_parts(BODY_SPACING), "word/document.xml"
+    )
+    body_spacing_paragraphs = _body_paragraphs(body_spacing_document)
+    body_spacing_texts = [
+        "".join(node.text or "" for node in paragraph.iter(W + "t"))
+        for paragraph in body_spacing_paragraphs
+    ]
+    heading_spacing_document = _root(
+        _rendered_parts(HEADING_SPACING), "word/document.xml"
+    )
+    heading_spacing_paragraphs = _body_paragraphs(heading_spacing_document)
+    heading_spacing_texts = [
+        "".join(node.text or "" for node in paragraph.iter(W + "t"))
+        for paragraph in heading_spacing_paragraphs
+    ]
 
     body_paragraph = _paragraph(document, "Body paragraph.")
     body_first_line = body_paragraph.find("./" + W + "pPr/" + W + "ind")
@@ -334,6 +361,30 @@ def renderer_shapes() -> dict[str, dict]:
                 text: _paragraph_style(_paragraph(document, text))
                 for text in ("Clinical Case", "Bullet item", "Zulu, Z. (2025). Last.")
             },
+        },
+        "body-no-extra-space": {
+            "paragraph_count": len(body_spacing_paragraphs),
+            "empty_paragraph_count": body_spacing_texts.count(""),
+            "body_paragraphs": body_spacing_texts[1:],
+            "default_before_twips": _attr(
+                default_para.find(W + "spacing"), "before"
+            ),
+            "default_after_twips": _attr(default_para.find(W + "spacing"), "after"),
+            "default_line_twips": _attr(default_para.find(W + "spacing"), "line"),
+            "direct_spacing_count": sum(
+                paragraph.find("./" + W + "pPr/" + W + "spacing") is not None
+                for paragraph in body_spacing_paragraphs[1:]
+            ),
+        },
+        "heading-no-blank-lines": {
+            "paragraph_count": len(heading_spacing_paragraphs),
+            "heading_index": heading_spacing_texts.index("Clinical Case"),
+            "preceding_paragraph": heading_spacing_texts[
+                heading_spacing_texts.index("Clinical Case") - 1
+            ],
+            "following_paragraph": heading_spacing_texts[
+                heading_spacing_texts.index("Clinical Case") + 1
+            ],
         },
         "table-horizontal-rules": {
             "table_edges": {
