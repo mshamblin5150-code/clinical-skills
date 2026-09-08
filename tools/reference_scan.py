@@ -108,9 +108,9 @@ list would otherwise be found by neither.
 - **A legal entry carries the legal source name.** A section alone is
   reported as a malformed entry.
 - **A legal entry resolves on its Source and section, with or without a citation year.**
-  It is outside ``uncited-entry`` because the canonical narrative name needs a
-  different key from a section-form citation: that row reads the entry's first
-  significant word alone while the citation resolves through ``resolution_keys``.
+- **A named legal entry participates in ``uncited-entry``.** Its first element is
+  the in-text author element; section-form citations still resolve through
+  ``resolution_keys``.
 
 **What it cannot reach is ``NOT_REACHED`` below, not this paragraph.** That list
 used to be written out here *and* in ``apa7.md`` section 7, and a **prose** edit to

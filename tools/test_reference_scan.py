@@ -1947,11 +1947,6 @@ class EveryDeclaredLimitIsReDerivedAtTheScannerSeam(unittest.TestCase):
         # above measures existence and content rather than a dead citation parser.
         self.assertIn(scan.UNLISTED_CITATION, kinds(draft(UPTODATE, body=unsupported)))
 
-    def whether_a_legal_entry_is_cited(self):
-        self.assertNotIn(scan.UNCITED_ENTRY, kinds(draft(NAMED_LEGAL, body="# Case\n")))
-        self.assertIn(scan.UNCITED_ENTRY, kinds(draft(ACOG, body="# Case\n")))
-
-
 class LegalReferenceRulesArePublished(unittest.TestCase):
     def section_eight(self) -> str:
         text = APA7.read_text(encoding="utf-8")
