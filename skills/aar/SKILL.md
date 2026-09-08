@@ -23,6 +23,7 @@ The extract keeps every human turn, assistant text block, subagent result, and t
 
 ## 2. Classify in a fresh adversarial context
 
+The classifier first reads and applies [sourcing.md](../_shared/reference/sourcing.md).
 Give a fresh non-authoring context only the private extract and the memory index. The classifier returns:
 
 - every **correction**: a claim asserted, later contradicted, with the contradiction standing;

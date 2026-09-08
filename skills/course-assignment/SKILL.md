@@ -80,22 +80,28 @@ every costed figure that may appear on a slide or in speaker notes. Create `clai
 
 ```text
 ## CLAIM: <claim, including the exact numeric token when it is numeric>
-STATUS: sourced | unsourced - <what was searched>
+STATUS: sourced | unsourced | unreadable - <what was searched or what prevented the read>
 SOURCE: <one class signed in bar.md>
 REFERENCE: <full reference entry>
 RESTATEMENT: <what the source says, including a number for a numeric claim>
 RECENCY: current | within five | nothing newer - <reason> | guideline in force - <reason>
 RESOLVED: <URL or DOI> - read <ISO date>
 PAGE-YEAR: <year and where the page states it>
-REFUTATION: stands | refuted | paywalled - <substantive reason>
+REFUTATION: stands | refuted | paywalled | unreadable - <substantive reason>
 SECOND-ROUTE: <research route> -> <different refutation route>
+INSTRUMENTS: <first instrument> -> <second instrument>
 STATED-EXPIRY: none stated | <ISO date> - <where stated> | <ISO date>, superseded cited deliberately - <reason>
 ```
 
-For `unsourced`, state what was searched on `STATUS` and omit every source field. Research produces claim records.
+For `unsourced`, state what was searched on `STATUS` and omit every source field. For
+`STATUS: unreadable`, state what prevented both reads, omit every source field, and retain only
+`INSTRUMENTS`. Its two substantive halves use the literal `->` and must differ after normalization.
+`INSTRUMENTS` is also required for `REFUTATION: unreadable` and forbidden elsewhere. Research produces claim records.
+Every research and refutation brief first reads and applies
+[sourcing.md](../_shared/reference/sourcing.md).
 Refutation attacks each record that exists in a different context and
 tries to disprove the reference, locator, year, bibliographic details, and restatement. It returns
-`stands`, `refuted`, or `paywalled` with a reason and a genuinely different second route. The
+`stands`, `refuted`, `paywalled`, or `unreadable` with a reason and a genuinely different second route. The
 orchestrator alone writes the records.
 
 If the clinician's profile says an available research agent has an authenticated route, that agent
@@ -127,7 +133,8 @@ A generated image may depict a concept, and a visible caption must call that spa
 generated image must never stand in for the actual site. Use a real site photograph where the
 slide claims the actual site. This is a reader-owned convention, not something the file can prove.
 
-After the deck exists, give only the rendered slide images, the speaker-note text, and `claims.md`
+The adversarial investor reader first reads and applies
+[sourcing.md](../_shared/reference/sourcing.md). After the deck exists, give only the rendered slide images, the speaker-note text, and `claims.md`
 to a fresh adversarial context. The adversarial pass attacks the rendered artifact for records that do not exist.
 It reads as the investor named by the assignment and returns every unsupported
 assertion keyed to slide number. The orchestrator writes the result to `adversarial.md`. Research,
