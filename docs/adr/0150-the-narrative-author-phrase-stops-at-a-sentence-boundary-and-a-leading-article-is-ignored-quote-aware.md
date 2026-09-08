@@ -36,6 +36,17 @@ The article is **retained everywhere it is printed** and ignored **only for sort
 
 The adopted rule leaves `NAME` untouched and refuses only the continuation step, so `Virginia.` stops the phrase and `U.S.` does not, and a lone `Epictetus.` still matches because nothing continues it — which is why the third candidate lost 12 and this loses none. The three keys that move are the three that were wrong.
 
+**The patterns the measurements were taken with are recorded here rather than in the ticket**, because a ticket is maintained and a dated record is not — so a second live copy of a rule is what [#220](https://github.com/mshamblin5150-code/clinical-skills/issues/220) refuses, while a measurement stated once beside what it measured is what this file is for. The ticket carries the property and points here.
+
+```python
+NOT_SENTENCE_END = r"(?!(?<=[a-z’']\.)\s)"
+CONNECTORS       = ("of", "for", "the", "and", "&", "on", "in", "at")   # never "to"
+PHRASE           = NAME + r"(?:" + NOT_SENTENCE_END + r"\s+(?:" + NAME + r"|" + "|".join(CONNECTORS) + r")){0,10}"
+ARTICLE          = re.compile(r"^(\s*[*_\"'“‘]*\s*)(?:a|an|the)\s+", re.I)
+```
+
+**Where `sort_key` strips is immaterial and is stated so no one agonizes over it.** Stripping the assembled key and stripping the head element before assembly give identical results across all 80 documents — 0 entries differing, 0 verdicts differing.
+
 **The transplant was measured rather than assumed, and it is the reason the sibling module was not imported.** Its one crossing is this ticket's own live instance: `West Virginia. The Health Resources and Services Administration` in submitted work, where the phrase runs backwards across a sentence boundary because `NAME` admits a trailing period.
 
 ## Ruling 2 — a leading `a`/`an`/`the` is ignored in `first_word`, `citation_key` and `sort_key`, keeping any opening quote
@@ -47,6 +58,26 @@ One uniform rule across all three, per APA's "first significant word". **Partial
 **Leaving `sort_key` alone** makes one module hold two answers to what the first word is, which is this ticket's root shape. Not severable.
 
 **The strip keeps an opening quote or emphasis mark and drops only the article.** A naive strip reproduces this ticket's exact defect on APA's own published Beatles example: `"The Beatles,"` keys `the` against an entry keyed `beatles`, raising `uncited-entry` and `unlisted-citation` on a correct list. Both directions are asserted.
+
+## Ruling 2a — the connector set is the sibling's five plus `on`, `in` and `at`, and never `to`
+
+**Added 2026-09-08, later the same session, before any build began.** The first recommendation was to freeze at `discussion_artifact`'s five and declare the gap, argued from a constructed shape — `Mortality in Heart Failure (2024)` keying `mortality` — that **nobody had measured**. The clinician refused the ruling until it was. Measuring reversed it.
+
+Each candidate driven separately over the 80 documents, full findings plus every citation key:
+
+| set | findings delta | citation keys moved |
+| --- | --- | ---: |
+| five (baseline) | — | — |
+| `+on` | none | **0** |
+| `+in` | none | **0** |
+| `+at` | none | **0** |
+| `+to` | none | **2** |
+
+`on`, `in` and `at` are free. **`to` breaks a live case**: `According to Averkamp (2026)` becomes one phrase keyed `according`, because `SIGNAL_PHRASE` strips ten leading forms and *According to* is not among them. That is the measured reason `to` is excluded, and it is a gap in `SIGNAL_PHRASE` rather than a property of connectors — worth the next reader knowing, because widening that vocabulary would change the answer.
+
+**With both costs measured at zero on this corpus, the corpus does not break the tie and failure direction does.** Excluding `on` leaves `National Institute on Aging` — and `on Drug Abuse`, `on Alcohol Abuse and Alcoholism` — firing the exact false pair this ADR exists to remove, on an author class nursing references genuinely carry. Including it risks a capitalized noun phrase joined by a connector sitting immediately before a year-parens, which 80 documents do not contain and which had to be invented to be discussed. The first is a recorded defect class; the second is a hypothesis.
+
+**The adopted configuration was then re-measured whole rather than inferred from the variant run**, because the `Done when` delta had been taken with five connectors and the build ships eight. It is unchanged, and `National Institute on Aging` joins the four opening shapes as clean, while `According to Averkamp` keys `averkamp` and `Smith et al.` keys `smith`.
 
 ## Ruling 3 — APA's worked example is quoted into `apa7.md` §1 and the scanner is run over it
 
@@ -80,6 +111,8 @@ every other row               (+0)
 
 Two documents move, both under `output/`. The `+1` is `The Elite Nurse Practitioner` filed under **T** where APA's Smithsonian example puts it under **E** — a **true** finding the scanner has never been able to see. Taking it records a shape; it does not edit the document, which is the distinction this ticket's own *"not a repair order"* line draws.
 
+**So the build must not reorder that reference list, and that prohibition is stated rather than assumed.** `output/` is submitted, graded work. The obvious way for a builder to make the delta come out at `+0` on that row is to sort the list — which would be editing a document already handed in, to make a scanner quiet. The expected delta is `+1` **because** the defect stays where it is.
+
 ## Ruling 5 — the partition of the corpus figure, re-derived
 
 The ticket's *"6 across 80 documents"* is **4 today**; the corpus moved since 2026-09-06 and the population is exactly its 80. Of the four: **1 is this root** — HRSA, in submitted work, with its `unlisted-citation` pair — **2 are genuine** (`Landess, M., Christman, M., & Mikes, B. A.` and `Sobel, J.`, each surname occurring exactly once in its file, in the entry itself), and 1 is a synthetic scratch fixture. **The row's live precision on graded work is 2 genuine to 1 false**, and the false one is the pair. That is the ticket's decision 3, which it named as the first thing the build should produce.
@@ -93,6 +126,8 @@ Decision 4 asked whether a whole-phrase author key is available. **It is, and th
 ## Ruling 7 — the legal exclusion stays, and its falsified reason is corrected in place
 
 `NOT_REACHED`'s `whether a legal entry is cited` gives its reason as *"the canonical narrative name citation needs a whole-phrase key this module does not have."* **Ruling 6 makes that clause false.** Lifting the exclusion was measured — 18 legal entries move from ungraded to graded with **zero** new findings, 13 resolving on the section key and 5 on `entry.key` — and is **not** done here: it amends ADR 0088, and this session's standing ruling is minimum necessary.
+
+**The replacement reason is a measurement, not a hedge, and it is stated here so a builder does not invent one.** After ruling 1 the exclusion still has a true justification, and it is a different one: `uncited-entry` tests `entry.key` alone, while a legal entry cited **by its section** — the ordinary form — resolves on a `resolution_keys` entry that row never consults. Measured: **13 of 18 legal entries would fire falsely** if the exclusion were lifted without also making the row read `resolution_keys`. So the corrected reason reads that a legal entry is outside `uncited-entry` because that row keys on the entry's first significant word alone, and a section-form citation resolves on a key it does not read — and a clean result therefore cannot prove a legal entry is cited anywhere in the draft.
 
 So the row is retained and its reason corrected, in three one-line edits in the same commit: `reference_scan.py:112`, `reference_scan.py:686`, and `apa7.md` §7's row. **ADR 0088 and ADR 0100 carry the same clause and are not edited** — a ratified record states what was true when it was ratified. The tests bind `NOT_REACHED`'s keys rather than its reasons, so no test moves.
 
