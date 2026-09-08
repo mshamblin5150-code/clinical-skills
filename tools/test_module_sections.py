@@ -53,6 +53,7 @@ DECLARED_SECTIONS = {
     "aar_scan": "After-action review",
     "anchor_scan": "Anchor scan",
     "block_scan": "Block scan",
+    "case_study_render": "Render scan",
     "case_study_scan": "Case study house style",
     "cdc_percentile": "CDC BMI-for-age table",
     "checks_ledger": "Post-draft checks",

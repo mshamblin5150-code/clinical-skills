@@ -1043,7 +1043,13 @@ leaves the pages unchecked. A pass directory is `pass-N`, where `N` is an ASCII 
 with no leading zero. A new pass takes the next number above the highest retained pass and never
 replaces or overwrites one. The gap count is reported and never graded.
 
-**Run the bounded automated route first.** Spawn a fresh Word application, open the `.docx`
+**Run the bounded automated route first:**
+
+```bash
+python tools/case_study_render.py <run-directory> --docx <the case study .docx>
+```
+
+The command implements this contract: spawn a fresh Word application, open the `.docx`
 read-only with conversion confirmation disabled, and attempt a PDF export under a process bound;
 if that route returns a failure, attempt XPS under the same bound. Never use or quit a shared Word
 instance, never make the spawned instance visible, and never let an export call wait without a
@@ -1052,11 +1058,18 @@ automated route works or that the chosen duration is calibrated. A call that rea
 not return a failure, does not trigger the XPS attempt, and goes directly to the clinician export.
 Rasterize a returned export with PyMuPDF at 120 dpi into the pass directory.
 
-If the bounded automated route does not return successfully, ask the clinician to use
-`File > Export > Create PDF/XPS` in Word and place that export in the new pass directory. The
-clinician supplies the export, not the verdict. The agent still rasterizes and compares every page;
-the escalation never replaces the visual reader. If no page-faithful export is returned, this row
-did not run and the submission stops.
+If the bounded automated route exits 2, ask the clinician to use
+`File > Export > Create PDF/XPS` in Word, then hand that file to the command on a new invocation:
+
+```bash
+python tools/case_study_render.py <run-directory> --docx <the case study .docx> --clinician-export <PDF-or-XPS>
+```
+
+The clinician supplies the export, not the verdict. The agent still rasterizes and compares every page;
+the command retains the export and pixels, and the escalation never replaces the visual reader. A
+consumer that cannot run the producer has the clinician export as the whole route and walks the
+retention and rasterization rules above by eye. If no page-faithful export is returned, this row did
+not run and the submission stops.
 
 **Only the last pass must be complete.** Earlier passes are counted and reported, but may stop
 after a reader finds a defect on page 2 and sends the document back for repair. The next render uses

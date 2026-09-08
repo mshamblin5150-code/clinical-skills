@@ -105,6 +105,8 @@ class TheRenderCommand(unittest.TestCase):
     @staticmethod
     def word_export(command, **_kwargs):
         mode = command[command.index("-Mode") + 1]
+        if command[command.index("-Stem") + 1] != "post":
+            raise AssertionError(command)
         output_directory = Path(command[command.index("-OutputDirectory") + 1])
         output = output_directory / f"post.{mode}"
         output.write_bytes(f"synthetic {mode}".encode("ascii"))
@@ -350,7 +352,9 @@ class TheRenderCommand(unittest.TestCase):
         self.assertEqual([], list(retained.glob("*.building.png")))
 
     def test_the_word_script_quits_only_after_process_ownership_is_established(self):
-        script = Path(render.__file__).with_suffix(".ps1").read_text(encoding="utf-8")
+        script = Path(render.__file__).with_name("word_export.ps1").read_text(
+            encoding="utf-8"
+        )
         helper = Path(render.__file__).with_name("office_process.ps1").read_text(
             encoding="utf-8"
         )
@@ -360,12 +364,17 @@ class TheRenderCommand(unittest.TestCase):
         self.assertIn("$ownershipEstablished = $true", script)
         self.assertIn("$null -ne $word -and $ownershipEstablished", script)
         self.assertIn("$cleanupFailure", script)
+        self.assertIn('[string]$Stem', script)
+        self.assertIn('"$Stem.pdf"', script)
+        self.assertIn('"$Stem.xps"', script)
 
     def test_the_word_route_uses_the_shared_runner_with_its_own_bound(self):
         source = Path(render.__file__).read_text(encoding="utf-8")
 
         self.assertIn("office_process.run_owned_process", source)
         self.assertIn("timeout_seconds=EXPORT_TIMEOUT_SECONDS", source)
+        self.assertIn('with_name("word_export.ps1")', source)
+        self.assertIn('"-Stem",\n        "post"', source)
 
     def test_a_stalled_pdf_attempt_stops_only_its_owned_word_and_uses_xps(self):
         commands = []

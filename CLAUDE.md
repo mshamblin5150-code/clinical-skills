@@ -145,6 +145,9 @@ if __name__ == "__main__":
 commands, and both call `use_utf8` from that path. `aar_scan.py` preceded them. The remaining order
 in that paragraph is historical.
 
+**Correction, 2026-09-08:** `case_study_render.py` is now the most recent direct command and calls
+`use_utf8` from that path. The preceding order remains historical.
+
 **It read 15, and the sixteenth arrived the same day from the other direction.** `tools/anchor_scan.py` was written on [#124](https://github.com/mshamblin5150-code/clinical-skills/issues/124)'s branch while this rule was being written on #150's, and the two merged an hour apart. **Neither branch's suite failed; the merged tree's did** — the new tool did not import a helper that did not exist when it was written, and nothing either side ran could have seen it. That is [#86](https://github.com/mshamblin5150-code/clinical-skills/issues/86)'s *the merge is the unguarded moment*, arriving on the mechanism built to make a fifteenth tool impossible to miss and catching the sixteenth one commit late.
 
 **#150 fixed the process's *output* codec, and the *input* end of the same boundary was wrong in three places until 2026-08-18.** `subprocess.run(..., text=True)` with no `encoding` decodes with the **locale** codec, which here is cp1252 -- so a tool reading `git` output dies on any byte cp1252 has no mapping for. `phi_scan._git` named `encoding="utf-8", errors="replace"`; `spelling_scan._git` and both of `skills_mirror.py`'s call sites did not.
@@ -705,7 +708,17 @@ Covered by `tools/test_reference_scan.py`, which builds synthetic drafts in that
 
 ### Render scan
 
-`tools/render_scan.py` grades the retained page evidence for a `practicum-case-study` run. It reads
+`tools/case_study_render.py` produces the retained page evidence for a `practicum-case-study` run,
+and `tools/render_scan.py` grades it. The producer accepts the clinician's PDF or XPS only on a
+rerun after the bounded automated route exits 2; it has no expected-page override because a DOCX
+declares no page count.
+
+```bash
+python tools/case_study_render.py <a run directory> --docx <the case study .docx>
+python tools/case_study_render.py <a run directory> --docx <the case study .docx> --clinician-export <PDF-or-XPS>
+```
+
+The grader reads
 `<run-directory>/render/pass-N/`, where `N` is an ASCII positive integer with no leading zero.
 Each pass keeps one Word-exported PDF or XPS and the PNG pages rasterized from it. The export's own
 page count is the denominator and the count of PNGs that decode as one readable image is the
@@ -717,7 +730,7 @@ python tools/render_scan.py <a run directory> [--show]
 ```
 
 [practicum-case-study](skills/practicum-case-study/SKILL.md) step 9's automated Word export is
-attempted under a process bound before the clinician export fallback. **That bound is a safety stop
+attempted under a process bound before the named clinician escalation. **That bound is a safety stop
 and not a timing measurement or evidence that the route
 works.** A call that reaches it goes directly to the clinician export; only a PDF attempt that
 returns a failure inside the bound proceeds to the bounded XPS attempt.
