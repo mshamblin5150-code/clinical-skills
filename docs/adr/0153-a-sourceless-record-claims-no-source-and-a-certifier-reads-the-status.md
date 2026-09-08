@@ -66,7 +66,7 @@ the 133** sourceless records contribute traced numbers today, **159 distinct tok
 those needed a restatement to do it. The remainder come from the heading, which no field rule
 removes.
 
-**The live neighbours of that hole are not the ones the ticket predicted.** By status and refutation:
+**The live neighbors of that hole are not the ones the ticket predicted.** By status and refutation:
 1,254 `sourced`/`stands`, 133 `unsourced`, **48 `sourced` carrying no `REFUTATION` field at all**
 contributing 264 distinct tokens, 1 `sourced`/`paywalled`, and **0** `refuted`.
 
