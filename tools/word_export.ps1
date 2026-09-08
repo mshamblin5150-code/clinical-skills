@@ -10,6 +10,9 @@ param(
     [string]$Mode,
 
     [Parameter(Mandatory = $true)]
+    [string]$Stem,
+
+    [Parameter(Mandatory = $true)]
     [string]$OwnershipFile
 )
 
@@ -38,7 +41,7 @@ try {
     $opened = $word.Documents.Open($Document, $false, $true, $false)
     Set-OwnedOfficeStage -OwnershipFile $OwnershipFile -ProcessId $ownedWordId -Stage "opened"
     if ($Mode -eq "pdf") {
-        $pdf = Join-Path $OutputDirectory "post.pdf"
+        $pdf = Join-Path $OutputDirectory "$Stem.pdf"
         [void]$opened.GetType().InvokeMember(
             "ExportAsFixedFormat2", [Reflection.BindingFlags]::InvokeMethod,
             $null, $opened, [object[]]@([string]$pdf, [int32]$WdFormatPDF)
@@ -47,7 +50,7 @@ try {
             ConvertTo-Json -Compress
     }
     else {
-        $xps = Join-Path $OutputDirectory "post.xps"
+        $xps = Join-Path $OutputDirectory "$Stem.xps"
         [void]$opened.GetType().InvokeMember(
             "SaveAs2", [Reflection.BindingFlags]::InvokeMethod,
             $null, $opened, [object[]]@([string]$xps, [int32]$WdFormatXPS)

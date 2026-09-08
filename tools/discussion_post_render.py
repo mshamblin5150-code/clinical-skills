@@ -40,7 +40,7 @@ class RenderError(Exception):
 def _word_attempt(
     docx: Path, output_directory: Path, mode: str
 ) -> tuple[str, Path]:
-    script = Path(__file__).with_suffix(".ps1")
+    script = Path(__file__).with_name("word_export.ps1")
     ownership_file = output_directory / f"{mode}-word-pid.txt"
     command = [
         "powershell.exe",
@@ -55,6 +55,8 @@ def _word_attempt(
         str(output_directory),
         "-Mode",
         mode,
+        "-Stem",
+        "post",
         "-OwnershipFile",
         str(ownership_file),
     ]
