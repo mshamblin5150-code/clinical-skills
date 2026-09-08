@@ -100,6 +100,20 @@ deciding its `verdict` and `reason`. A malformed ledger is not an empty ledger:
 the run says the rulings were not applied and cannot exit clean on the commit
 surface.
 
+### Discriminating measurements in sweep verdicts
+
+The general requirement lives in the
+[extractor-coverage rule](../../CLAUDE.md#extractor-coverage); this section does
+not restate it. In a tracker sweep it applies when a figure is used to confirm
+or overturn an existing written claim, including a ticket body, ADR finding,
+docstring, or prior verdict. The verdict supplies one clause stating what the
+instrument would report under the claim's negation. A figure reported only for
+context does not trigger the clause.
+
+`Re-derived` means a fresh instrument; `re-run` means the same command again. A
+sweep that repeats a prior verdict says which occurred. Re-running one
+instrument adds no independent support to the verdict it repeats.
+
 ## Pull requests as a triage surface
 
 ### Branch truth gets a dated scope, then a merge receipt

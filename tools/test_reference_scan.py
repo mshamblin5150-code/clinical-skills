@@ -603,6 +603,112 @@ class TheCitationParserReadsTheShapesAPAActuallyWrites(unittest.TestCase):
         self.assertEqual(self._keys("Hypertension (2025 update) changed the target."), set())
 
 
+class RepublishedDateExamplesComeFromApaSectionThirtyOne(unittest.TestCase):
+    """The sheet owns every example; neither parser test retypes APA's strings."""
+
+    def examples(self) -> list[tuple[str, str, str, str]]:
+        section = numbered_markdown_section(APA7.read_text(encoding="utf-8"), 31)
+        tables = docx_write.markdown_tables(section)
+        self.assertEqual(len(tables), 1, "section 31 must publish one example table")
+        rows = [
+            docx_write.split_row(line)
+            for line in tables[0].splitlines()
+            if line.strip().startswith("|") and not docx_write.is_rule(line)
+        ]
+        self.assertEqual(
+            rows.pop(0),
+            [
+                "Reference entry",
+                "In-text citation",
+                "Matching year",
+                "`reference_scan` resolution",
+            ],
+        )
+        return [
+            tuple(cell.removeprefix("`").removesuffix("`") for cell in row)
+            for row in rows
+        ]
+
+    def test_every_published_form_is_read_and_keys_on_the_second_date(self):
+        examples = self.examples()
+        self.assertTrue(examples, "an empty table would make the loop pass")
+        for reference, citation, expected_year, disposition in examples:
+            with self.subTest(citation=citation):
+                reference_citations = scan.read_citations(citation)
+                discussion_citations = artifact.read_citations(citation)
+                self.assertEqual(
+                    [item.year for item in reference_citations],
+                    [expected_year],
+                )
+                self.assertEqual(
+                    [item.year for item in discussion_citations],
+                    [expected_year],
+                )
+
+                entry = scan.read_document(draft(reference, body="# Case\n")).entries[0]
+                reference_pairs = set(entry.resolution_keys)
+                reference_resolves = any(
+                    (item.key, item.year) in reference_pairs
+                    for item in reference_citations
+                )
+                self.assertEqual(reference_resolves, disposition not in {"#913", "#943"})
+
+    def test_the_shared_discussion_reader_resolves_both_parenthetical_and_narrative_forms(self):
+        examples = self.examples()
+        watson = [row for row in examples if row[0].startswith("Watson,")]
+        self.assertEqual(len(watson), 2)
+        for reference, citation, _expected_year, _disposition in watson:
+            reference_pairs = set(artifact.reference_keys(reference))
+            occurrences = artifact.citation_occurrence_keys(
+                artifact.read_citations(citation, reference_pairs)
+            )
+            with self.subTest(citation=citation):
+                self.assertTrue(
+                    any(
+                        key in reference_pairs
+                        for occurrence in occurrences
+                        for key in occurrence
+                    )
+                )
+
+    def test_the_only_recorded_author_shape_residues_are_their_existing_tickets(self):
+        dispositions = {disposition for *_rest, disposition in self.examples()}
+        self.assertEqual(dispositions, {"clean", "#913", "#943"})
+
+    def test_dropping_the_approximate_range_limb_kills_the_gilgamesh_form(self):
+        _reference, citation, _year, _disposition = next(
+            row for row in self.examples() if "ca." in row[1]
+        )
+        weakened_date = artifact.REPUBLISHED_DATE_ELEMENT.replace(
+            artifact.REPUBLISHED_ORIGINAL_DATE,
+            r"\d{1,4}",
+        )
+        weakened_pattern = scan.CITATION_PART.pattern.replace(
+            artifact.REPUBLISHED_DATE_ELEMENT,
+            weakened_date,
+        )
+        self.assertNotEqual(weakened_pattern, scan.CITATION_PART.pattern)
+        with mock.patch.object(
+            scan,
+            "CITATION_PART",
+            re.compile(weakened_pattern, scan.CITATION_PART.flags),
+        ):
+            self.assertEqual(scan.read_citations(citation), ())
+
+    def test_dropping_the_narrative_limb_kills_the_watson_form(self):
+        _reference, citation, _year, _disposition = next(
+            row
+            for row in self.examples()
+            if row[0].startswith("Watson,") and not row[1].startswith("(")
+        )
+        with mock.patch.object(
+            artifact,
+            "REPUBLISHED_NARRATIVE_CITATION",
+            re.compile(r"(?!x)x"),
+        ):
+            self.assertEqual(artifact.read_citations(citation), ())
+
+
 class TheReportCarriesNoDocumentTextWithoutShow(unittest.TestCase):
     def setUp(self):
         text = draft(ACOG + "Links to an external site.", UPTODATE)
@@ -1358,6 +1464,8 @@ class EveryDeclaredLimitIsReDerivedAtTheScannerSeam(unittest.TestCase):
 
     def test_every_declared_limit_has_one_behavior_measurement(self):
         handlers = {
+            "republished original publication date": self.republished_original_publication_date,
+            "author-shaped slash span": self.author_shaped_slash_span,
             "unwarranted retrieval date": self.unwarranted_retrieval_date,
             "UpToDate last update year": self.uptodate_last_update_year,
             "the source exists and says so": self.source_exists_and_says_so,
@@ -1367,6 +1475,26 @@ class EveryDeclaredLimitIsReDerivedAtTheScannerSeam(unittest.TestCase):
         for key, handler in handlers.items():
             with self.subTest(key=key):
                 handler()
+
+    def republished_original_publication_date(self):
+        entry = "Freud, S. (2010). Civilization and its discontents."
+        wrong_original = "# Case\n\nThe work remains influential (Freud, 1899/2010).\n"
+        self.assertEqual(kinds(draft(entry, body=wrong_original)), [])
+
+        # The second year is the live matching element; changing it reaches the row.
+        wrong_republication = wrong_original.replace("1899/2010", "1899/2011")
+        self.assertIn(
+            scan.INTEXT_YEAR_MISMATCH,
+            kinds(draft(entry, body=wrong_republication)),
+        )
+
+    def author_shaped_slash_span(self):
+        author_shaped = "# Case\n\nThe two cohorts were compared (Cohort A, 2013/2014).\n"
+        self.assertIn(scan.UNLISTED_CITATION, kinds(draft(ACOG, body=author_shaped)))
+
+        # A numeric slash without an author shape remains outside the grammar.
+        fiscal_year = "# Case\n\nThe rate was 4.8 percent in the (2013/2014 data).\n"
+        self.assertNotIn(scan.UNLISTED_CITATION, kinds(draft(ACOG, body=fiscal_year)))
 
     def unwarranted_retrieval_date(self):
         stable_without_a_doi = ACOG.replace(

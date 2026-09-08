@@ -245,6 +245,8 @@ from run_grader import NOT_GRADED
 from discussion_artifact import (
     LEGAL_CITATION,
     LEGAL_READER_MECHANISMS,
+    REPUBLISHED_DATE_ELEMENT,
+    citation_year,
     legal_citation_spans,
     legal_reference_lacks_name,
 )
@@ -375,7 +377,12 @@ PAREN_BLOCK = re.compile(r"\(([^()]{1,400})\)")
 # here: ``n.d.`` ends on a period, so a word boundary after it can never hold.
 YEAR_END = r"(?![A-Za-z0-9])"
 CITATION_PART = re.compile(
-    r"^\s*(.{1,300}?),\s*[\"'”’]?\s*(" + YEAR_TOKEN + r")" + YEAR_END,
+    r"^\s*(.{1,300}?),\s*[\"'”’]?\s*("
+    + REPUBLISHED_DATE_ELEMENT
+    + r"|"
+    + YEAR_TOKEN
+    + r")"
+    + YEAR_END,
     re.I | re.S,
 )
 # A further year of the same work, ``(Hooton, 2025a, 2025b)``. **Anchored, and
@@ -389,7 +396,13 @@ NAME = r"[A-Z][A-Za-z'’.\-]+"
 # citation of an author named Hypertension, and invented an unlisted one.
 NARRATIVE = re.compile(
     r"\b(" + NAME + r"(?:\s+(?:et al\.|and\s+" + NAME + r"|&\s+" + NAME + r"))?)"
-    r"\s*\(\s*(" + YEAR_TOKEN + r")" + YEAR_END + r"(?:\s*,\s*(?:pp?\.|para\.)[^()]{0,30})?\s*\)"
+    r"\s*\(\s*("
+    + REPUBLISHED_DATE_ELEMENT
+    + r"|"
+    + YEAR_TOKEN
+    + r")"
+    + YEAR_END
+    + r"(?:\s*,\s*(?:pp?\.|para\.)[^()]{0,30})?\s*\)"
 )
 
 CANVAS = re.compile(r"Links to an external site\.?", re.I)
@@ -625,6 +638,19 @@ SOURCE_CLASS_SETTLES_RETRIEVAL_DATE = {
 }
 
 NOT_REACHED = (
+    (
+        "republished original publication date",
+        "Section 31's original date element is parsed and never compared with the "
+        "entry. APA's own Gilgamesh example reverses its range between the entry "
+        "and citation, so joining those date elements would fail the source that defines "
+        "the rule.",
+    ),
+    (
+        "author-shaped slash span",
+        "Grammar alone recognizes an author-shaped span such as (Cohort A, "
+        "2013/2014), which can raise unlisted-citation even when the span is not a "
+        "citation. The measured corpus supplied no such false positive.",
+    ),
     (
         "unwarranted retrieval date",
         "Section 4 says a society guideline PDF, a journal article, a USPSTF statement "
@@ -973,7 +999,7 @@ def read_citations(body: str) -> tuple[Citation, ...]:
         key = citation_key(author)
         if not key:
             return
-        pair = (key, year_key(token))
+        pair = (key, year_key(citation_year(token)))
         seen.setdefault(pair, Citation(key=pair[0], year=pair[1]))
 
     for match in LEGAL_CITATION.finditer(body):

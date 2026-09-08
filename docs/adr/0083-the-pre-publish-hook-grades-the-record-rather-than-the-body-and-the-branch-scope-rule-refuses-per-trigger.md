@@ -17,12 +17,15 @@ The instruments were throwaway scripts under `scratch/`, so **nothing committed 
 figures** and each is a dated floor. The build may want the two censuses as `tools/` modules; that
 is its call and not this record's.
 
-**1. The hook's option space is four values, not two.** In Claude Code 2.1.241 a `PreToolUse` hook
-returns `hookSpecificOutput.permissionDecision` of `allow`, `deny`, `ask` or `defer`, plus an
-optional `additionalContext` described as *text injected into model context*. Plain stdout on exit 0
-reaches the transcript and not the model, so the ticket's *reports a finding to the agent* has
-exactly one spelling. ADR 0077 ruling 5's *advisory* is satisfiable as written and nothing here
-reopens it.
+**1. The hook's option space is four values, not two.** In the Claude Code 2.1.241 binary, the
+runtime schema lists `hookSpecificOutput.permissionDecision` as `allow`, `deny`, `ask` or `defer`.
+The same binary's hook-authoring prose block describes optional `additionalContext` as *text
+injected into model context*, then lists `permissionDecision` as `allow`, `deny` or `ask`. **The
+vendor binary therefore gives two accounts of its own option space; this finding takes the four
+values from the runtime schema and takes the quoted description from the three-value prose block.**
+Plain stdout on exit 0 reaches the transcript and not the model, so the ticket's *reports a finding
+to the agent* has exactly one spelling. ADR 0077 ruling 5's *advisory* is satisfiable as written and
+nothing here reopens it.
 
 **2. A hook matcher cannot express the verb list the ticket writes.** The matcher is a **tool name**
 pattern — `"Bash"`, `"Edit|Write"`, or empty. A separate per-hook `if` field takes permission-rule
@@ -253,3 +256,8 @@ edited record, permanently, per
 **And the trust gate itself.** 60 of 60 is a floor from one machine's `~/.claude.json`, not a property
 of the mechanism: the 61st worktree is one unaccepted dialog away from a hook that is silently absent,
 and the marker's age is a notice at commit time rather than a guarantee at publish time.
+
+**Correction, 2026-09-08:** [#795](https://github.com/mshamblin5150-code/clinical-skills/issues/795)
+corrected finding 1 in place to name the runtime schema and hook-authoring prose block inside the
+2.1.241 binary, record their disagreement, and identify which account supplied each part of the
+finding. The rulings are unchanged.
