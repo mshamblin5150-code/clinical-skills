@@ -25,7 +25,7 @@ The article is **retained everywhere it is printed** and ignored **only for sort
 
 `read_citations.add` already routes through `citation_key`, which reduces to the first word. The defect is entirely that `NARRATIVE`'s `\b` starts the match at the **last** capitalized word. Widening the capture to the whole phrase makes the narrative key equal `Entry.key` with **no change to `Entry.key`, no change to `resolution_keys`, and no new key vocabulary** — so ADR 0039's prohibition on keying the `a`/`b` rows on a resolution key is untouched by construction rather than by care.
 
-**The boundary rule is a measurement, not a judgement.** Three candidates over the 80 documents:
+**The boundary rule is a measurement, not a judgment.** Three candidates over the 80 documents:
 
 | rule | matches | crossings | lost | keys moved |
 | --- | ---: | ---: | ---: | ---: |
