@@ -26,6 +26,10 @@ The ticket, and two tracker sweeps on it, treat the label as **one vocabulary sp
 
 So `## References` **is** how the post pipeline writes a bold label. It arrives on the board bolded. The post grader is not a second instance of this defect; it is correct, and #438's *"neither accepts the house style"* is a true string comparison and a wrong reading of the pipeline.
 
+### Corrected 2026-09-08 — the outcome survives the retired Word route
+
+[ADR 0147](0147-the-post-loads-as-html-through-the-raw-editor-and-the-submit-gate-moves-to-the-rendered-box.md) retired the Word paste and its `--bold-headings` call from `discussion-post`. The route description and present-tense Word mechanism above are historical measurements, not the current path. The ruling's outcome remains: the Markdown form is `## References`, and `tools/post_html.py` renders it as `<p><strong>References</strong></p>` for loading through Canvas's raw HTML editor. The reply pipeline remains distinct.
+
 `skills/discussion-reply/SKILL.md:185` is the other path: *"type the reply into the LMS rather than pasting it."* **No renderer at all.** The reply artifact's spelling is what the typist reads and reproduces, so on that path plain `References` is the one form that reaches the board unbolded — and it is what the skill mandates. **The defect is one grader, not three.**
 
 ### A shared permissive rule would have introduced the defect on the other skill
