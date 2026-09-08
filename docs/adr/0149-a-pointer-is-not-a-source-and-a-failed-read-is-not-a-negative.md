@@ -220,6 +220,14 @@ So the verdict on this sense is the clinician's, taken on 2026-09-08 and recorde
 will fail if it stops being right.** That is this record's own subject arriving inside it — a
 mechanism asserted to cover something it cannot reach — and it was caught by running the tool.
 
+**The green suite could not have caught it, and naming why is the transferable part.** A passing
+`test_glossary_collisions` is what a declared collision produces *and* what an invisible one
+produces, so the instrument prints the same thing under the claim and its negation. That is
+`CLAUDE.md`'s discrimination rule, which reached `main` at `b2b1881` hours after this defect was
+made and after it was found: a measurement settles a claim only where the instrument would report
+differently if the claim were false. The discriminating read was not the test run but
+`candidate_headings`'s own predicate, which requires a bare single-word heading.
+
 **`unreachable` is refused.** ADR 0134 ruling 8 records that exact word being written into the tree
 as a settled property and withdrawn. `unread` is the coverage registry's sweep state, `blocked` is a
 triage label, and `paywalled` is already a `REFUTATION` value meaning something narrower.
