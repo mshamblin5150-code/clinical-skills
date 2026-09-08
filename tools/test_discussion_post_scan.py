@@ -1456,6 +1456,45 @@ class TheSignedBarIsTheScannerInput(unittest.TestCase):
 
 
 class TheMechanicalBarRowsAreGraded(unittest.TestCase):
+    def test_a_republished_original_year_is_not_joined_to_the_claim_record(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            entry = (
+                "Watson, J. B., & Rayner, R. (2013). Conditioned emotional reactions. "
+                "(Original work published 1920)"
+            )
+            (run.root / "claims.md").write_text(
+                CLAIMS.replace(
+                    "Quill, R. (2024). Measuring usable access. Journal of Care, 4(2), 10-18.",
+                    entry,
+                ).replace("PAGE-YEAR: 2024", "PAGE-YEAR: 2013"),
+                encoding="utf-8",
+            )
+            run.draft.write_text(
+                BODY.replace("(Quill, 2024, p. 6)", "(Watson & Rayner, 1919/2013)").replace(
+                    "Quill, R. (2024). Measuring usable access. Journal of Care, 4(2), 10-18.",
+                    entry,
+                ),
+                encoding="utf-8",
+            )
+            status, stdout, _ = run.grade()
+
+        self.assertEqual(0, status)
+        self.assertIn("untraced-citation: 0", stdout)
+        self.assertIn("respent-record: 0", stdout)
+
+    def test_a_republished_second_year_must_match_the_claim_record(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            run.draft.write_text(
+                BODY.replace("(Quill, 2024, p. 6)", "(Quill, 1920/2013)"),
+                encoding="utf-8",
+            )
+            status, stdout, _ = run.grade()
+
+        self.assertEqual(1, status)
+        self.assertIn("untraced-citation: 1", stdout)
+
     def test_a_post_below_the_word_floor_fails(self):
         with tempfile.TemporaryDirectory() as temp:
             run = Run(Path(temp))
@@ -1904,6 +1943,10 @@ class TheRenderedDocumentContractIsPublished(unittest.TestCase):
 
 class EveryBehaviorLimitHasALiveHandler(unittest.TestCase):
     HANDLERS = {
+        "whether a republished citation's original year matches its source": (
+            "TheMechanicalBarRowsAreGraded.test_a_republished_original_year_is_not_joined_to_the_claim_record",
+            "TheMechanicalBarRowsAreGraded.test_a_republished_second_year_must_match_the_claim_record",
+        ),
         "whether equal numeric values always describe one fact": (
             "TheMechanicalBarRowsAreGraded.test_repeated_numeric_values_need_one_tracing_record",
             "TheMechanicalBarRowsAreGraded.test_an_untraced_body_number_fails",

@@ -84,6 +84,33 @@ class Run:
 
 
 class ACompleteRunPasses(unittest.TestCase):
+    def test_a_republished_citation_resolves_on_its_second_year(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            entry = (
+                "Watson, J. B., & Rayner, R. (2013). Conditioned emotional reactions. "
+                "(Original work published 1920)"
+            )
+            (run.root / "claims.md").write_text(
+                CLAIMS.replace(
+                    "Quill, R. (2024). Measuring usable access in community care. Journal of Care, 4(2), 10-18.",
+                    entry,
+                ).replace("PAGE-YEAR: 2024", "PAGE-YEAR: 2013"),
+                encoding="utf-8",
+            )
+            response = run.root / "response-maren.md"
+            response.write_text(
+                BODY.replace("(Quill, 2024)", "(Watson & Rayner, 1920/2013)").replace(
+                    "Quill, R. (2024). Measuring usable access in community care. Journal of Care, 4(2), 10-18.",
+                    entry,
+                ),
+                encoding="utf-8",
+            )
+            with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                status = scan.main([temp])
+
+        self.assertEqual(0, status)
+
     def test_the_bold_references_label_is_accepted(self):
         with tempfile.TemporaryDirectory() as temp:
             run = Run(Path(temp))
