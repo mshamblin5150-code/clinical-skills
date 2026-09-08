@@ -248,6 +248,43 @@ Whether the two APA rows' section numbers are correct in the *Publication Manual
 apastyle.apa.org attributed on 2026-09-08, which is the only claim this sheet ever makes about a
 manual it does not hold.
 
+## Correction of 2026-09-08, found by this session's own tracker sweep
+
+**Ruling 4 rests on a premise [ADR 0147](0147-the-post-loads-as-html-through-the-raw-editor-and-the-submit-gate-moves-to-the-rendered-box.md)
+ruling 3 had already spent, and the clinician ruled the consequence the same day.** The rulings above
+are left as they were made; this section records what moved and what a builder must do instead.
+
+- **The flag is finished.** ADR 0147 ruling 3 reads *"the flag's reason is spent"* and
+  *"`discussion-post` is the only caller of `--bold-headings`"*. Re-derived here: the only invocation
+  passing it anywhere in the tree is `skills/discussion-post/SKILL.md:291`; every other occurrence is
+  a grader row name, a probe, or the renderer's own parameter. So once #817's build lands the flag has
+  **no caller**.
+- **Ruling 4's justification inverts.** It argued from the four 2026-08-22 `paste_rows` that only
+  direct formatting survives the clipboard, so the property goes back as direct formatting rather
+  than by restoring the style. ADR 0147 draws the opposite conclusion from the same measurements:
+  there is no clipboard on that path any more, the archival `.docx` should carry proper heading
+  styles, and the direct-formatted document is *"invisible to Word's navigation pane and to anything
+  that reads structure."*
+- **So #826 is gated on #817 rather than buildable now**, ruled by the clinician on 2026-09-08. It
+  carries `blocked` beside its role label and closes as superseded if the flag goes. Ruling 4's
+  parity test has nothing to compare once there is one heading path instead of two.
+- **Rulings 1, 2, 5 and 6 are untouched by any of this.** The blank-line emission is unconditional,
+  it reaches `practicum-case-study`, which renders without the flag, and the graded `.docx` is where
+  APA format is scored. #828 remains buildable today.
+- **The deferral to #817 in *What this record does not settle* is dead as written.** ADR 0147 retired
+  the Word paste and calls it *"a route that now produces a visibly wrong post"*, so there is no paste
+  box to ask the question about. If the question survives at all it is about the HTML load path, and
+  it belongs to #817 in that form rather than this one.
+
+**How it happened is worth more than the correction.** ADR 0147 was read during the grilling — its
+line 44 supplied ruling 2's argument that a fourth consumer of `blocks` is queued — and its ruling 3,
+two screens further down in the same file, was not. That is
+[#137](https://github.com/mshamblin5150-code/clinical-skills/issues/137)'s shape exactly: a
+generalization made from the part of a file a pass had open, arriving inside a record that cites
+#137's discipline in its own extractor-coverage reasoning. It was caught by the exhaustive tracker
+sweep an hour after this record merged, by a reader whose ticket list included #817 and who had no
+reason to be looking at this one.
+
 ## Ordering constraint
 
 This record clears the `EXTERNAL-GATE` on `issue:828` that packet P815 carries, so ADR 0143's block
