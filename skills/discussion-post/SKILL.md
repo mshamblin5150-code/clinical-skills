@@ -313,7 +313,12 @@ python tools/docx_write.py output/discussions/<course>-<module>-discussion-<date
 
 `post_html.py` writes the exact bytes the agent will load into Canvas's raw editor. Every Markdown
 heading becomes `<p><strong>`; paragraph and inline text come from the same block and inline
-parsers as the Word renderer. Own-line comments are absent. A mid-line or multi-line HTML comment
+parsers as the Word renderer. An authored `> ` line becomes a semantic `<blockquote>` with the
+marker consumed. A Bluefield NUR 5144 M2 measurement on 2026-09-08 found that the tag survived and
+its text rendered 19.8 pixels right of ordinary paragraph text, not at APA's 0.5-inch left indent;
+the dated geometry is in `reference/canvas-paste-calibration.json`. A clean scan does not claim
+exact APA indentation, and the pixel-backed box reading still verifies the current form before
+Gate 2. Own-line comments are absent. A mid-line or multi-line HTML comment
 remains a real delimiter so `rendered-comments` can refuse it rather than hiding it in the box.
 
 The `.docx` is archival and uses proper named heading styles. ADR 0013's direct-formatting

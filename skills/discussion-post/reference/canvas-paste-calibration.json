@@ -25,5 +25,26 @@
     "p_strong": {"pixels": 16, "weight": 700}
   },
   "observed_in": ["paste box before submission", "rendered post body"]
+},
+{
+  "measured_on": "2026-09-08",
+  "institution": "Bluefield",
+  "course": "NUR 5144",
+  "board": "M2 Discussion",
+  "theme": "the course theme active on the measurement date; its identifier was not exposed",
+  "instrument": "browser developer tools computed-style and DOM Range inspection",
+  "source_shape": "raw HTML editor <blockquote>",
+  "rendered_block_quotation": {
+    "tag_survived": true,
+    "display": "block",
+    "margin_left_pixels": 0,
+    "padding_left_pixels": 15,
+    "border_left_pixels": 4.8,
+    "text_indent_delta_pixels": 19.8,
+    "meets_apa_half_inch": false
+  },
+  "observation": "The semantic block quotation survived the raw-editor-to-rich-editor toggle and rendered visibly indented. Its text began 19.8 pixels right of ordinary paragraph text because Canvas supplied 15 pixels of left padding and a 4.8-pixel left border; that measured geometry is not APA's 0.5-inch left indent.",
+  "observed_in": ["reply box before submission"],
+  "discarded_without_submission": true
 }
 ]

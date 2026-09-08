@@ -18,6 +18,7 @@ why three tools here are allowed a dependency and the rest are not: all three op
 ``| a | b |``           table, first row is the header, the ``---`` rule skipped
 ``**bold**``            bold run
 ``*italic*``            italic run
+``> quotation``         block quotation, one source line per paragraph
 blank line              ignored -- retained by the parser, emits no Word paragraph
 ``---``                 ignored -- a Markdown rule is not a Word construct
 own-line HTML comment   ignored -- markup is not document content
@@ -175,6 +176,14 @@ NOT_APPLIED = (
         "and the second hangs on nothing. Joining them is an edit on the same terms "
         "as sorting, and it is caught as an author defect instead -- by "
         "``skills/practicum-case-study/SKILL.md`` step 7.",
+    ),
+    (
+        "Additional paragraphs within one block quotation",
+        "APA gives the second and later paragraphs within one block quotation an "
+        "additional 0.5 inch first-line indent. Each authored ``> `` line is its "
+        "own paragraph and the Markdown carries no signal that groups several "
+        "lines into one quotation, so applying that indent would guess at structure "
+        "the author did not supply.",
     ),
     (
         "cannot prove the paste target still draws it as recorded",
@@ -422,6 +431,10 @@ STYLES = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:style w:type="paragraph" w:styleId="Reference"><w:name w:val="Reference"/>
 <w:basedOn w:val="Normal"/><w:pPr>
 <w:ind w:left="{hang}" w:hanging="{hang}"/>
+<w:spacing w:after="0" w:line="{line}" w:lineRule="auto"/></w:pPr></w:style>
+<w:style w:type="paragraph" w:styleId="BlockQuotation"><w:name w:val="Block Quotation"/>
+<w:basedOn w:val="Normal"/><w:pPr>
+<w:ind w:left="{hang}"/>
 <w:spacing w:after="0" w:line="{line}" w:lineRule="auto"/></w:pPr></w:style>
 <w:style w:type="paragraph" w:styleId="ListParagraph"><w:name w:val="List Paragraph"/>
 <w:basedOn w:val="Normal"/><w:pPr><w:contextualSpacing/></w:pPr></w:style>
@@ -914,7 +927,7 @@ class Block:
     """One thing the renderer will set, and the source line it opens on.
 
     ``kind`` is one of ``blank``, ``separator``, ``heading``, ``table``,
-    ``bullet``, ``numbered`` and ``paragraph`` -- the seven branches
+    ``bullet``, ``numbered``, ``block-quotation`` and ``paragraph`` -- the branches
     ``render_body`` had, named. ``line`` is 1-indexed and nothing in this module
     reads it; it is there because a scanner reports a finding at a line.
     ``ordinal`` retains the drafted numeral on a numbered block, because it states
@@ -986,6 +999,11 @@ def blocks(markdown: str):
 
         if stripped in SEPARATORS:
             yield Block("separator", stripped, line=number)
+            index += 1
+            continue
+
+        if stripped.startswith("> "):
+            yield Block("block-quotation", stripped[2:], line=number)
             index += 1
             continue
 
@@ -1093,6 +1111,11 @@ def render_body(markdown: str, bold_headings: bool = False):
 
         if block.kind == "table":
             out.append(table([list(row) for row in block.rows]))
+            has_content = True
+            continue
+
+        if block.kind == "block-quotation":
+            out.append(para(block.text, style="BlockQuotation"))
             has_content = True
             continue
 

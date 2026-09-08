@@ -1161,7 +1161,7 @@ Deliberately **not** `tools/reference_scan.py`'s exception — that command's ou
 what its code can draw from, and this one's is not, because a bullet's finding is the bullet's own
 text.
 
-**Every row is a rule written in [../_shared/reference/style.md](../_shared/reference/style.md) §1a or §8**, and how many
+**Every row is a rule written in [../_shared/reference/style.md](../_shared/reference/style.md) §1a or §8 or in [../_shared/reference/apa7.md](../_shared/reference/apa7.md) §32**, and how many
 there are is `case_study_scan.KINDS`'s to say rather than this paragraph's. **This list is the one
 copy** — a test keyed on that tuple asserts each row has a sentence here, and `CLAUDE.md` points at
 it rather than repeating it. The rows are: no bullet anywhere in
@@ -1169,8 +1169,9 @@ the document, no table under Demographics, the Review of Systems or the Physical
 Review of Systems closing with the all-other-systems disclaimer **and the Physical Examination not
 carrying one**, no scaffolding language from §1a's closed set, the Most Likely Clinical Diagnosis
 not set wholly bold, the signature and its date on one line, the prescription table at six rows and
-three columns wide, **a drug that continues carrying a stop criterion**, and **no `PROPOSED
-(verify before use)` heading in the submission**; that review block belongs in the run directory.
+three columns wide, **a drug that continues carrying a stop criterion**, **no `PROPOSED
+(verify before use)` heading in the submission** — that review block belongs in the run directory —
+and **a source quotation of 40 words or more carrying authored `> ` block markup**.
 
 **It reads the Markdown through the renderer's own parser rather than a copy of it.** A line it
 calls a bullet is a `ListParagraph` in the `.docx`, because `docx_write.blocks` is what both of them
@@ -1197,8 +1198,9 @@ status. They stay visible for the reader who compares the drafted and rendered n
 and it never will be**, **a wrapper section that does not apply to this patient**, **whether a stop
 criterion's endpoint is the right endpoint**, **whether a drug ordered PRN needs an endpoint
 of its own**, **a second drug welded into one drug row, discharged by the first drug's endpoint**, **whether a dose is correct**, **whether a dose was sourced at all**,
-**a scaffolding phrase nobody has written yet**, and **anything the Markdown cannot show, which the
-rendered document can**.
+**a scaffolding phrase nobody has written yet**, **anything the Markdown cannot show, which the
+rendered document can**, **a narrative citation preceding the source quotation**, and **whether a
+block quotation's parenthetical or narrative citation placement is correct**.
 
 **The two findings in his list that mattered most clinically are in that list rather than in the
 rows** — the ceftriaxone order's missing endpoint being the *right* endpoint, and the growth and

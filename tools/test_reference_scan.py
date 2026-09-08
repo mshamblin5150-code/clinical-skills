@@ -225,6 +225,12 @@ class AnEntryIsOneParagraphTheRendererWillIndent(unittest.TestCase):
         table = "| Reference |\n| --- |\n| " + ACOG + " |"
         self.assertIn(scan.ENTRY_NOT_A_PARAGRAPH, kinds(draft(table, UPTODATE)))
 
+    def test_a_block_quotation_below_references_is_not_a_reference_entry(self):
+        self.assertIn(
+            scan.ENTRY_NOT_A_PARAGRAPH,
+            kinds(draft("> " + ACOG, UPTODATE)),
+        )
+
     def test_a_marked_entry_is_still_graded_on_everything_else(self):
         """The marker is stripped and the entry read, so a bulleted list does not
         report one finding and hide fourteen."""

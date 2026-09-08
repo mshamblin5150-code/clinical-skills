@@ -199,6 +199,7 @@ renderer can reach — and what it does not is written down rather than assumed 
 | Every body paragraph takes a **0.5 inch first-line indent** (§2.24) | applied — and *only* a body paragraph: a heading, a list item, a reference entry and a table cell each take none | `body-first-line-indent` |
 | **No extra space before or after paragraphs** (§2.21) | applied — consecutive body paragraphs remain continuously double spaced without an empty paragraph between them | `body-no-extra-space` |
 | **No blank lines above or below headings**, even at the end of a page (§§2.26–2.27) | applied — a heading is adjacent to the body paragraph that follows it | `heading-no-blank-lines` |
+| A marked **block quotation of 40 words or more** starts on a new line, has no quotation marks added, stays double spaced with no extra space, and is indented 0.5 inch from the left | applied — an authored `> ` line becomes one `BlockQuotation` paragraph and the marker is consumed | `block-quotation-format` |
 | A table carries **horizontal rules only**, no grid (§7.8) | applied — three rules and no more: above the header row, below the header row, below the last row | `table-horizontal-rules` |
 
 **Word is the evidence for every verdict in both tables.** The dated observation and the
@@ -210,8 +211,9 @@ permanent test opens no Office process: it compares the current shapes with all 
 and says the affected row must be retaken when one leaves the measured set. This is
 [ADR 0008](../../../docs/adr/0008-word-is-a-one-time-calibration-instrument.md).
 
-**The last two rows are [#220](https://github.com/mshamblin5150-code/clinical-skills/issues/220),
-landed 2026-08-19, and they were first checked the same way the nine above them were** — a document
+**The body-first-line-indent and table-horizontal-rules rows are
+[#220](https://github.com/mshamblin5150-code/clinical-skills/issues/220), landed 2026-08-19, and
+they were first checked the same way the already-present rows were** — a document
 rendered and its `word/document.xml` and `word/styles.xml` read, not the renderer's source. What
 that read: exactly one paragraph of a document carrying a heading, a body paragraph, two list
 items, a three-column table and a reference entry took `w:ind w:firstLine`, and it was the body
@@ -225,12 +227,12 @@ switch. An APA table is not the only kind of table a Markdown document can hold,
 consumer of this renderer is an APA document — and a parameter no caller passes is a branch
 nothing honestly tests.
 
-**The nine rows above those two were first checked the same way, on a different day** — by rendering
+**The rows that preceded #220 were first checked the same way, on a different day** — by rendering
 a document and reading `word/document.xml`, `word/styles.xml` and `word/header1.xml`, not inferred
 from the source. 2026-08-18, on
 [#217](https://github.com/mshamblin5150-code/clinical-skills/issues/217)'s branch. **Those XML
 reads were renderer-shape checks, not Word measurements.** Five of those
-nine read *not applied* earlier the same day, and the other four were already green — the table
+rows read *not applied* earlier the same day, and the others were already green — the table
 was rechecked rather than inherited because a row's verdict expires when the renderer changes,
 which here was hours rather than days.
 
@@ -262,19 +264,21 @@ level 3 bold italic flush left, level 4 bold indented.
 | APA level 4 and 5 headings are **run-in** | **not applied** — Markdown gives a heading its own line, so level 4 renders as the indented bold paragraph it otherwise is, and level 5 is not in the subset | `run-in-headings` |
 | The list is **alphabetized** (§1) | **not applied**, and declined rather than pending — sorting is an *edit to the document*, not a format applied to it, and this renderer changes no word it is handed. `tools/reference_scan.py` grades the order instead, its `list-not-sorted` row | `reference-alphabetization` |
 | Each entry is **one paragraph** (§1) | **not applied** — every non-blank line becomes its own paragraph, so a hard-wrapped entry renders as two and the second hangs on nothing. Joining them is an edit on the same terms as sorting; [practicum-case-study](../../practicum-case-study/SKILL.md) step 7 catches it as an author defect | `reference-single-paragraph` |
+| **Additional paragraphs within one block quotation** take an additional 0.5 inch first-line indent | **not applied** — each `> ` line is its own paragraph and the Markdown carries no signal that groups several lines into one quotation, so the renderer does not guess which line is a later paragraph in the same block | `block-quotation-subsequent-paragraph-indent` |
 
-**The last two rows are not #220's, and they were on neither table before it** — they are a gap
-that ticket's repair surfaced. This paragraph used to say the renderer applied *most of* §1, which
+**The alphabetization and one-paragraph rows are not #220's, and they were on neither table before
+it** — they are a gap that ticket's repair surfaced. This paragraph used to say the renderer applied *most of* §1, which
 was true and vague; rewriting it into a claim a reader can check is what showed that two of §1's
 bullets had never been recorded in either direction. **The lesson is the one #220 is about**: an
 unfalsifiable summary hides a gap exactly as well as a wrong list does, and nothing had to go
 stale for it to happen.
 
-**Each of the four is a statement about what this renderer is *for*** rather than a fix somebody
+**Each original row is a statement about what this renderer is *for*** rather than a fix somebody
 has not got to. The title page is a `practicum-case-study` question about where six course values
 come from before it is a renderer question; the run-in heading is a limit of Markdown; and the
 last two are the same ruling twice — **a renderer formats, it does not rewrite**. All four are
-recorded here rather than filed.
+recorded here rather than filed. The subsequent-paragraph row is #815's separate declaration that
+the authored markup does not expose which consecutive paragraphs belong to one source quotation.
 
 **This table is no longer a second copy of a list, and that is #220's other half.** The same list
 sat in `tools/docx_write.py`'s docstring, and a **prose** edit to either failed nothing — a code
@@ -716,3 +720,30 @@ or religious works.
 `ca. 2500–2750 B.C.E.` while its citation gives `ca. 2750–2500 B.C.E./1998`. The two author-shape
 the failure recorded as #943 remains outside this date grammar and is not hidden by the
 examples above.
+
+## 32. Block quotations and direct-quotation locators
+
+**Provenance:** APA Style's [*Quotations*](https://apastyle.apa.org/style-grammar-guidelines/citations/quotations),
+[*Direct Quotation of Material With Page Numbers*](https://apastyle.apa.org/style-grammar-guidelines/citations/quotations/page-numbers),
+and [*Direct Quotation of Material Without Page Numbers*](https://apastyle.apa.org/style-grammar-guidelines/citations/quotations/no-page-numbers),
+read in a browser on 2026-09-08.
+
+A quotation of fewer than 40 words stays in the surrounding text and uses quotation marks. A
+quotation of 40 words or more is a block quotation: start it on a new line, omit quotation marks,
+indent the whole block 0.5 inch from the left margin, double-space it, and add no extra space before
+or after it. Additional paragraphs within the same quotation take another 0.5 inch first-line
+indent; the renderer's declared limit for that form is in §6.
+
+For a parenthetical citation, put the citation after the quotation's final punctuation and add no
+period after the closing parenthesis. For a narrative citation, put the author and year before the
+quotation and only the locator in parentheses after the quotation's final punctuation. Citation
+placement is a reader-owned check: `case_study_scan` grades that a cited quoted span at the
+40-word threshold has authored `> ` markup, not where its citation sits.
+
+Every direct quotation carries the author, year, and a locator. Use `p.` for one page and `pp.` for
+multiple pages, an en dash for a continuous range, and a comma between discontinuous pages. When a
+work has no page numbers, use the heading or section name, a paragraph number counted by hand, or
+both; use a timestamp for audiovisual material. For religious and classical works, use the
+canonically numbered book, chapter, verse, line, canto, or comparable part instead of a page. See
+§31 for the reference and two-date form for republished, translated, religious, and classical
+works; this section does not restate it.

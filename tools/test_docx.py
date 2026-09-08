@@ -261,6 +261,36 @@ class TheRoundTrip(unittest.TestCase):
         self.assertIn("Hsu, K., & Khosropour, C. (2026). Chlamydia <adults>.", lines)
 
 
+class BlockQuotationMarkup(unittest.TestCase):
+    """ADR 0143: the author marks the form and the shared parser consumes it."""
+
+    def test_the_marker_opens_one_block_quotation_without_becoming_text(self):
+        parsed = list(docx_write.blocks("> Exact words from the cited source.\n"))
+
+        self.assertEqual(len(parsed), 2)  # the terminal source newline remains a blank block
+        self.assertEqual(parsed[0].kind, "block-quotation")
+        self.assertEqual(parsed[0].text, "Exact words from the cited source.")
+
+    def test_the_rendered_paragraph_uses_the_half_inch_block_style(self):
+        parts = rendered_parts("> Exact words from the cited source.\n")
+        document = parts["word/document.xml"]
+        styles = parts["word/styles.xml"]
+
+        self.assertIn('<w:pStyle w:val="BlockQuotation"/>', document)
+        opening = '<w:style w:type="paragraph" w:styleId="BlockQuotation">'
+        style = styles[styles.index(opening) : styles.index("</w:style>", styles.index(opening))]
+        self.assertIn('<w:ind w:left="720"/>', style)
+        self.assertNotIn("w:firstLine", style)
+        self.assertNotIn("w:hanging", style)
+
+    def test_consecutive_markers_remain_separate_paragraphs(self):
+        parts = rendered_parts("> First authored paragraph.\n> Second authored paragraph.\n")
+        document = parts["word/document.xml"]
+
+        self.assertEqual(document.count('<w:pStyle w:val="BlockQuotation"/>'), 2)
+        self.assertNotIn("&gt;", document)
+
+
 class TheRenderedNumbering(unittest.TestCase):
     """The opt-in read reconstructs the markers Word draws from numbering.xml."""
 
@@ -1019,6 +1049,9 @@ class EveryNotAppliedRowIsReDerivedFromTheRenderedArchive(unittest.TestCase):
             "run-in": self.run_in_heading,
             "alphabetized": self.alphabetized_references,
             "one paragraph": self.one_reference_paragraph,
+            "Additional paragraphs within one block quotation": (
+                self.block_quotation_paragraph_grouping
+            ),
         }
         sheet = TheTwoCopiesOfWhatTheRendererApplies()
         self.assertEqual(set(handlers), set(dict(sheet.apa_limits())))
@@ -1059,6 +1092,13 @@ class EveryNotAppliedRowIsReDerivedFromTheRenderedArchive(unittest.TestCase):
             "# References\n\nRoss, J. (2025). Pelvic\ndisease. UpToDate.\n"
         )["word/document.xml"]
         self.assertEqual(xml.count('<w:pStyle w:val="Reference"/>'), 2)
+
+    def block_quotation_paragraph_grouping(self):
+        xml = rendered_parts(
+            "> First authored paragraph.\n> Second authored paragraph.\n"
+        )["word/document.xml"]
+        self.assertEqual(xml.count('<w:pStyle w:val="BlockQuotation"/>'), 2)
+        self.assertNotIn("w:firstLine", xml)
 
 
 class PasteModeLimitsAreBoundToTheRuling(ProseBind, unittest.TestCase):

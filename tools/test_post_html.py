@@ -73,6 +73,11 @@ class HtmlRendererTests(unittest.TestCase):
 
         self.assertIn("<!-- INVOKED: x | does y -->", rendered)
 
+    def test_a_block_quotation_uses_the_semantic_html_element(self):
+        rendered = post_html.render("> Exact words from the cited source.\n")
+
+        self.assertEqual(rendered, "<blockquote>Exact words from the cited source.</blockquote>\n")
+
     def test_the_command_writes_the_exact_rendered_bytes(self):
         with tempfile.TemporaryDirectory() as temp:
             source = Path(temp) / "post.md"
