@@ -109,6 +109,8 @@ order, or by which one was found first.
 - **Ignore a leading `A`, `An` or `The` in either title** when alphabetizing.
 - The year–letter combination is used in **both** the in-text citation **and** the reference list
   entry. Fixing one and not the other is the defect, not the fix.
+- A republished, translated, or reissued work uses both publication years in text and the
+  republication year in the entry; §31 owns that two-date rule.
 - **Use only the year with its letter in text**, even where the reference list entry carries a
   fuller date.
 - Undated works by one author take **`n.d.-a`, `n.d.-b`** — with the hyphen.
@@ -156,6 +158,9 @@ cited.
 
 The exceptions APA names do not arise here: personal communications, which are cited in text only,
 and the references of a meta-analysis.
+
+A two-date citation for a republished, translated, or reissued work still resolves to the one entry
+for the version used; see §31.
 
 ## 6. What the renderer applies, and what it does not
 
@@ -290,6 +295,8 @@ reaches` and `tools/checks_ledger.py` expects it, so a run that returns no verdi
 
 | What stays a reading | Why no command reaches it |
 | --- | --- |
+| The **republished original publication date** | §31's original date element is parsed and not compared with the entry. APA's own Gilgamesh example reverses the range between its entry and citation, so joining the halves would fail the source that defines the rule |
+| An **author-shaped slash span** | Grammar alone recognizes a span such as `(Cohort A, 2013/2014)`, which can raise `unlisted-citation` even when the span is not a citation. The measured corpus supplied no such false positive |
 | An **unwarranted retrieval date** on a guideline, a statement or a textbook | §4 says those take none. The command refuses one only where the entry carries a **DOI** — the work stating an archived version of itself exists, which is §4's own test failing. Nothing in a URL distinguishes a stable PDF from a page designed to change |
 | **The UpToDate last update year** | §2's date element is the topic's own last update year, not the year it was read, and the same topic appears in one corpus under three years. Which is which is in the companion evidence document, which the command never sees |
 | **Whether the source exists and says so** | Whether an entry is a real source saying what the sentence citing it says. That is [#231](https://github.com/mshamblin5150-code/clinical-skills/issues/231), answered **before the draft exists**: `tools/research_ledger.py` grades a year an agent read off the page and a refutation a second agent returned |
@@ -658,3 +665,35 @@ more specific category fits.
 **Declared limit:** This index section routes a reader and supplies no citation form of its own; the
 synthesized routing example is not string-checkable against APA's page and does not prove the
 linked detail page's slots.
+
+## 31. Two dates for republished, translated, reissued, religious, and classical works
+
+**Provenance:** APA Style's [*Book/Ebook References*](https://apastyle.apa.org/style-grammar-guidelines/references/examples/book-references),
+[*Religious Work References*](https://apastyle.apa.org/style-grammar-guidelines/references/examples/religious-work-references),
+[*Citing classical and religious works*](https://apastyle.apa.org/blog/citing-classical-religious-works),
+and [*How to cite translated works*](https://apastyle.apa.org/blog/citing-translated-works), read
+2026-09-08.
+
+**APA examples:**
+
+| Reference entry | In-text citation | Matching year | `reference_scan` resolution |
+| --- | --- | --- | --- |
+| `Watson, J. B., & Rayner, R. (2013). Conditioned emotional reactions: The case of Little Albert (D. Webb, Ed.). CreateSpace Independent Publishing Platform. https://a.co/06Se6Na (Original work published 1920)` | `(Watson & Rayner, 1920/2013)` | `2013` | clean |
+| `Watson, J. B., & Rayner, R. (2013). Conditioned emotional reactions: The case of Little Albert (D. Webb, Ed.). CreateSpace Independent Publishing Platform. https://a.co/06Se6Na (Original work published 1920)` | `Watson and Rayner (1920/2013)` | `2013` | clean |
+| `Kübler-Ross, E. (with Byock, I.). (2014). On death & dying: What the dying have to teach doctors, nurses, clergy & their own families (50th anniversary ed.). Scribner. (Original work published 1969)` | `(Kübler-Ross, 1969/2014, foreword by Byock, p. xv)` | `2014` | clean |
+| `Kübler-Ross, E. (with Byock, I.). (2014). On death & dying: What the dying have to teach doctors, nurses, clergy & their own families (50th anniversary ed.). Scribner. (Original work published 1969)` | `Kübler-Ross (1969/2014)` | `2014` | #943 |
+| `King James Bible. (2017). King James Bible Online. https://www.kingjamesbibleonline.org/ (Original work published 1769)` | `(King James Bible, 1769/2017, Song of Solomon 8:6)` | `2017` | clean |
+| `King James Bible. (2017). King James Bible Online. https://www.kingjamesbibleonline.org/ (Original work published 1769)` | `King James Bible (1769/2017)` | `2017` | #913 |
+| `Alighieri, D. (2001). The divine comedy (H. F. Cary, Trans.). Bartleby. https://www.bartleby.com/20/ (Original work published 1909)` | `(Alighieri, 1909/2001, Inferno, Canto XIII, Lines 72–74)` | `2001` | clean |
+| `The epic of Gilgamesh (M. G. Kovaks, Trans.). (1998). Academy of Ancient Texts. https://www.ancienttexts.org/library/mesopotamian/gilgamesh/ (Original work published ca. 2500–2750 B.C.E.)` | `(The Epic of Gilgamesh, ca. 2750–2500 B.C.E./1998, Tablet II)` | `1998` | clean |
+
+**Abstracted date form:** Put both publication years in the in-text citation, separated by a slash,
+with the earlier year first. The original element may carry `ca.`, an en-dash year range, and an era
+marker. Match the citation to the reference entry on the second year, which is the republication
+year in the entry. Use canonically numbered parts rather than page numbers when quoting classical
+or religious works.
+
+**Declared limit:** The original half is parsed but not graded: APA's own Gilgamesh entry gives
+`ca. 2500–2750 B.C.E.` while its citation gives `ca. 2750–2500 B.C.E./1998`. The two author-shape
+failures recorded as #913 and #943 remain outside this date grammar and are not hidden by the
+examples above.
