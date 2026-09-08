@@ -821,6 +821,26 @@ class TheCitationParserReadsTheShapesAPAActuallyWrites(unittest.TestCase):
 
         self.assertIn(scan.INTEXT_YEAR_MISMATCH, {f.kind for f in scan.findings(document, AS_OF)})
 
+    def test_reference_evidence_still_splits_a_wrong_legal_date(self):
+        entry = (
+            "Consolidated Appropriations Act, 2023, Pub. L. No. 117-328, "
+            "§ 1263, 136 Stat. 4459 (2022)."
+        )
+        document = scan.read_document(
+            draft(
+                entry,
+                body="# Case\n\n(Consolidated Appropriations Act, 2023, 2024).\n",
+            )
+        )
+
+        mismatches = [
+            finding
+            for finding in scan.findings(document, AS_OF)
+            if finding.kind == scan.INTEXT_YEAR_MISMATCH
+        ]
+        self.assertEqual(1, len(mismatches))
+        self.assertIn("2024", mismatches[0].detail)
+
     def test_an_empty_grammar_key_is_counted_as_unread(self):
         document = scan.read_document(
             draft(
@@ -912,6 +932,23 @@ class TheCitationParserReadsTheShapesAPAActuallyWrites(unittest.TestCase):
             mutant = artifact.read_citations(body, keys)
 
         self.assertNotEqual(expected, artifact.author_key(mutant[0].author))
+
+    def test_discussion_evidence_still_splits_a_wrong_legal_date(self):
+        body = "(Consolidated Appropriations Act, 2023, 2024)"
+        key = artifact.author_key("Consolidated Appropriations Act, 2023")
+        citations = artifact.read_citations(body, {(key, "2022")})
+
+        self.assertEqual(
+            [(key, "2024")],
+            [(artifact.author_key(citation.author), citation.year) for citation in citations],
+        )
+
+    def test_discussion_coverage_counts_each_unread_semicolon_part(self):
+        coverage = artifact.citation_coverage("(Smith, 2021; 2019a, 2019b)")
+
+        self.assertEqual(3, coverage.candidates)
+        self.assertEqual(1, coverage.grammar)
+        self.assertEqual(2, coverage.unread)
 
 
 class RepublishedDateExamplesComeFromApaSectionThirtyOne(unittest.TestCase):
@@ -1044,7 +1081,7 @@ class TheReportCarriesNoDocumentTextWithoutShow(unittest.TestCase):
         report = scan.format_report(self.scan, source="case.md")
         self.assertIn("legal entries", report)
         self.assertIn("legal entries                  0", report)
-        self.assertIn("A legal entry is outside uncited-entry.", report)
+        self.assertIn("A named legal entry participates in uncited-entry.", report)
 
     def test_the_derived_legal_reader_coverage_prints_on_every_run(self):
         report = scan.format_report(self.scan, source="case.md")

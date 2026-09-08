@@ -75,6 +75,9 @@ NARRATIVE_CITATION = re.compile(
 )
 ADDITIONAL_DATE = re.compile(r"^\s*,\s*(?P<year>" + YEAR + r")(?![A-Za-z0-9])")
 DATE_VALUE = re.compile(r"(?P<year>" + YEAR + r")(?![A-Za-z0-9])")
+EVIDENCE_DATE_VALUE = re.compile(
+    r"(?P<year>" + REPUBLISHED_DATE_ELEMENT + r"|" + YEAR + r")(?![A-Za-z0-9])"
+)
 DATE_SERIES = re.compile(
     r"^\s*" + YEAR + r"(?:\s*,\s*" + YEAR + r")*"
     r"(?:,\s*(?:p{1,2}\.|para\.)\s*\d+(?:[-–]\d+)?)?\s*$"
@@ -400,6 +403,22 @@ class CitationCoverage:
     unread: int = 0
     disagreements: tuple[tuple[str, str], ...] = ()
 
+    def report_line(self) -> str:
+        return (
+            "citation reader coverage: "
+            f"candidates {self.candidates}; "
+            f"evidence {self.evidenced}; "
+            f"grammar {self.grammar}; "
+            f"unread {self.unread}; "
+            f"key disagreement {len(self.disagreements)}"
+        )
+
+    def disagreement_lines(self) -> tuple[str, ...]:
+        return tuple(
+            f"citation key disagreement: evidence {evidenced} | grammar {grammar}"
+            for evidenced, grammar in self.disagreements
+        )
+
 
 @dataclass(frozen=True)
 class ReferenceSection:
@@ -611,16 +630,17 @@ def _evidenced_citations(
             if any(start < legal_end and legal_start < end for legal_start, legal_end in legal_spans):
                 cursor += len(part) + 1
                 continue
-            for date_match in DATE_VALUE.finditer(stripped):
+            for date_match in EVIDENCE_DATE_VALUE.finditer(stripped):
                 author = stripped[: date_match.start()].rstrip(" ,")
                 key = author_key(author)
-                year = citation_year(date_match.group("year"))
                 if (
                     len(key) <= max_key_length
-                    and ((key, year) in reference_key_set or (key, "") in reference_key_set)
+                    and any(reference_key == key for reference_key, _ in reference_key_set)
                     and _valid_evidenced_author(body, author, start, end)
                 ):
-                    for remaining in DATE_VALUE.finditer(stripped, date_match.start()):
+                    for remaining in EVIDENCE_DATE_VALUE.finditer(
+                        stripped, date_match.start()
+                    ):
                         token = citation_year(remaining.group("year"))
                         identity = (start, end, token)
                         if identity not in identities:
@@ -636,7 +656,7 @@ def _evidenced_citations(
         longest: Citation | None = None
         year_values = tuple(
             citation_year(match.group("year"))
-            for match in DATE_VALUE.finditer(block.group("inside"))
+            for match in EVIDENCE_DATE_VALUE.finditer(block.group("inside"))
         )
         for word_start in _reverse_word_starts(prefix):
             author = prefix[word_start:].strip()
@@ -645,10 +665,7 @@ def _evidenced_citations(
                 break
             if not _valid_evidenced_author(body, author, word_start, block.end()):
                 continue
-            if any(
-                (key, year) in reference_key_set or (key, "") in reference_key_set
-                for year in year_values
-            ):
+            if any(reference_key == key for reference_key, _ in reference_key_set):
                 longest = Citation(author, year_values[0], word_start, block.end())
                 break
         if longest is not None:
@@ -805,11 +822,25 @@ def _read_citations(
     )
     unread = 0
     for block in PAREN_BLOCK.finditer(body):
-        if not any(
-            start < block.end() and block.start() < end
-            for start, end in covered_spans
-        ):
-            unread += len(tuple(DATE_VALUE.finditer(block.group("inside"))))
+        offset = block.start("inside")
+        cursor = 0
+        for part in block.group("inside").split(";"):
+            leading = len(part) - len(part.lstrip())
+            stripped = part.strip()
+            start = offset + cursor + leading
+            end = start + len(stripped)
+            if (
+                not any(
+                    start < legal_end and legal_start < end
+                    for legal_start, legal_end in legal_spans
+                )
+                and not any(
+                    start < covered_end and covered_start < end
+                    for covered_start, covered_end in covered_spans
+                )
+            ):
+                unread += len(tuple(EVIDENCE_DATE_VALUE.finditer(stripped)))
+            cursor += len(part) + 1
     coverage = CitationCoverage(
         candidates=len(evidence_found) + len(grammar_remainder) + unread,
         evidenced=len(evidence_found),

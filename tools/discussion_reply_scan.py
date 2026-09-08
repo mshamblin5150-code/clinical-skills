@@ -674,15 +674,9 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         f"references: {scan.references if scan.reference_boundary_graded else NOT_GRADED}",
         f"citations: {scan.citations if scan.reference_boundary_graded else NOT_GRADED}",
         (
-            "citation reader coverage: "
-            f"candidates {scan.citation_coverage.candidates}; "
-            f"evidence {scan.citation_coverage.evidenced}; "
-            f"grammar {scan.citation_coverage.grammar}; "
-            f"unread {scan.citation_coverage.unread}; "
-            f"key disagreement {len(scan.citation_coverage.disagreements)}"
+            scan.citation_coverage.report_line()
             if scan.reference_boundary_graded
-            else "citation reader coverage: candidates 0; evidence 0; grammar 0; "
-            "unread 0; key disagreement 0"
+            else CitationCoverage().report_line()
         ),
         f"numeric claims: {scan.numeric_claims if scan.reference_boundary_graded else NOT_GRADED}",
         (
@@ -710,10 +704,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         else:
             lines.append(f"{kind}: {sum(finding.kind == kind for finding in scan.findings)}")
     if show:
-        lines.extend(
-            f"citation key disagreement: evidence {evidenced} | grammar {grammar}"
-            for evidenced, grammar in scan.citation_coverage.disagreements
-        )
+        lines.extend(scan.citation_coverage.disagreement_lines())
         lines.extend(
             f"{finding.kind}: {finding.response}: {finding.detail}"
             for finding in scan.findings

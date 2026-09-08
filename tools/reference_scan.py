@@ -397,8 +397,11 @@ CITATION_PART = re.compile(
 # ``(Smith, 2021, p. 1998)`` as a second year, and the entry it invents is
 # unlisted by construction.
 EXTRA_YEAR = re.compile(r"^\s*,\s*(" + YEAR_TOKEN + r")" + YEAR_END, re.I)
-COMMA_DATE = re.compile(r",\s*(" + YEAR_TOKEN + r")" + YEAR_END, re.I)
 DATE_VALUE = re.compile(r"(" + YEAR_TOKEN + r")" + YEAR_END, re.I)
+EVIDENCE_COMMA_DATE = re.compile(
+    r",\s*(" + REPUBLISHED_DATE_ELEMENT + r"|" + YEAR_TOKEN + r")" + YEAR_END,
+    re.I,
+)
 DATE_SERIES = re.compile(
     r"^\s*" + YEAR_TOKEN
     + r"(?:\s*,\s*" + YEAR_TOKEN + r")*"
@@ -1090,11 +1093,10 @@ def _evidenced_parenthetical(
 
     for entry in entries:
         author = entry.citation_author
-        expected = year_key(entry.year)
         key = citation_key(author)
-        if not author or len(key) < 3 or not expected:
+        if not author or len(key) < 3:
             continue
-        for date_match in COMMA_DATE.finditer(part):
+        for date_match in EVIDENCE_COMMA_DATE.finditer(part):
             written = part[: date_match.start()].strip()
             first_letter = next(
                 (character for character in written if character.isalpha()),
@@ -1116,8 +1118,7 @@ def _evidenced_parenthetical(
                     break
                 dates.append(extra.group(1))
                 rest = rest[extra.end() :]
-            if expected in {year_key(token) for token in dates}:
-                return written, tuple(dates)
+            return written, tuple(dates)
     return None
 
 
@@ -1152,9 +1153,8 @@ def _evidenced_narratives(
         starts = [match.start() for match in re.finditer(r"\S+", prefix)]
         for entry in entries:
             author = entry.citation_author
-            expected = year_key(entry.year)
             key = citation_key(author)
-            if not author or len(key) < 3 or expected not in {year_key(d) for d in dates}:
+            if not author or len(key) < 3:
                 continue
             for author_start in reversed(starts):
                 written = prefix[author_start:].strip()
@@ -1747,7 +1747,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
     lines += [
         f"  {'undecidable remainder':<34} {scan.undecidable_remainder}",
         "",
-        "  A legal entry is outside uncited-entry.",
+        "  A named legal entry participates in uncited-entry.",
         f"  {legal_reader_covered()}",
         "",
     ]
