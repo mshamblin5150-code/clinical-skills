@@ -66,7 +66,7 @@ the 133** sourceless records contribute traced numbers today, **159 distinct tok
 those needed a restatement to do it. The remainder come from the heading, which no field rule
 removes.
 
-**The live neighbours of that hole are not the ones the ticket predicted.** By status and refutation:
+**The live neighbors of that hole are not the ones the ticket predicted.** By status and refutation:
 1,254 `sourced`/`stands`, 133 `unsourced`, **48 `sourced` carrying no `REFUTATION` field at all**
 contributing 264 distinct tokens, 1 `sourced`/`paywalled`, and **0** `refuted`.
 
@@ -109,6 +109,8 @@ artifact and not a claim, and `UNEXPECTED_INSTRUMENTS`' key-presence rule is not
 
 ## Ruling 3. The number certifier reads `STATUS` and `REFUTATION`, and disbelieves three states
 
+**Amended by the correction below**: the set is three modules and `deck_scan.py` is the third.
+
 `discussion_post_scan.py` and `discussion_reply_scan.py` read both fields, imported from
 `research_ledger` on `reference_scan.py`'s `REFERENCE_HEADING` precedent rather than restated. A
 record whose `STATUS` is `unsourced` or `unreadable`, or whose `REFUTATION` is `refuted`, **contributes
@@ -131,6 +133,38 @@ arrives.
 
 **No new finding kind.** A disbelieved record contributes nothing, so a body number falls through to
 the existing `UNTRACED_NUMBER`, which is already the correct refusal.
+
+## Correction, 2026-09-08. Ruling 3's certifier set was named from the modules this grilling had open
+
+**There are three number certifiers, not two.** `deck_scan._claim_costs` builds its trace set from
+`CLAIM_HEADING` alone and refuses an artifact dollar figure absent from it on `UNTRACED_COST`.
+`grep -c STATUS tools/deck_scan.py` and `grep -c REFUTATION` both return **0** — the same measurement
+this record took over the two discussion scanners, on a module it never counted.
+
+Found by the tracker sweep of this record's own branch, against
+[#823](https://github.com/mshamblin5150-code/clinical-skills/issues/823), and re-derived here rather
+than taken: **51** distinct cost tokens sit in sourceless claim headings across the live ledgers and
+**49** of them appear in no `sourced` heading anywhere. `deck_scan.DECLARED_LIMITS` does not qualify
+it and `skills/course-assignment/SKILL.md`'s *appears in no claim record* does not either.
+
+**It is the worse of the three and not merely the third.** The two discussion certifiers read the
+claim heading *plus* `RESTATEMENT`, so ruling 2 removes part of their exposure before ruling 3 acts.
+`_claim_costs` reads the heading **only**, so no field rule touches it at all — and what it certifies
+is a dollar figure on a business-plan deck, which #823 calls the highest-stakes claim in that
+artifact.
+
+**Ruling 3 extends to it unchanged**: `deck_scan` reads `STATUS` and `REFUTATION` on the same three
+states, contributes no traced costs from a disbelieved record, keeps its reference behavior, and adds
+no finding kind — a disbelieved record falls through to the existing `UNTRACED_COST`. That is
+application of a settled rule to a module the grilling missed, not a new decision, and it was not put
+to the clinician.
+
+**The shape is this record's own.** Its context section records a tuple whose comment claimed *every
+field that is a claim about a source* while it held only the fields each successive ticket was
+inventing. Ruling 3 said *two certifiers* while naming the two modules the grilling had open. **A set
+named from what a pass had in front of it is the defect this record was written about**, and it
+survived the grilling, the ADR, the review and the merge — caught only by a sweep that read every
+open ticket rather than the ones whose titles looked related.
 
 ## Ruling 4. The certifier still believes a disbelieved record's reference key, and the asymmetry is deliberate
 
