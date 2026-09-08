@@ -1,6 +1,10 @@
 # The citation author-date split is evidenced by the reference list
 
-[#942](https://github.com/mshamblin5150-code/clinical-skills/issues/942) reports that neither citation reader states a denominator, so a shape the parser cannot read surfaces as a finding two rows from its cause. Grilled on 2026-09-08. Every measurement below was taken in process at `4693353` with the freshness gate `FRESH`. **Nothing is built here; this is the record the build reads.**
+[#942](https://github.com/mshamblin5150-code/clinical-skills/issues/942) reports that neither citation reader states a denominator, so a shape the parser cannot read surfaces as a finding two rows from its cause. Grilled on 2026-09-08. **Nothing is built here; this is the record the build reads.**
+
+**`main` advanced twice mid-session and the gate caught it at the publication attempt.** Every measurement was first taken at `4693353`; [#913](https://github.com/mshamblin5150-code/clinical-skills/issues/913)'s build then merged as `8108af3`, changing `reference_scan.py` by 73 lines, and #815's landed after it. The branch was brought forward through both and **every driven case below was re-derived on the merged base**, twice — once after each. Three figures moved on the first and none on the second; each is marked where it appears, and the rulings did not move. ADR 0150 ruling 4's expected delta re-derives exactly on the merged base — `list-not-sorted` 28 to **29**, `uncited-entry` 4 to **3**, `unlisted-citation` 173 to **172** — so #913's build is correct and this record's baseline is the post-merge one.
+
+**Two measurement sets in this record were taken at `4693353` and are not re-derived here**: the five key disagreements in ruling 1, and the three `normalize` variant deltas in ruling 7. Both were computed against the pre-#913 reader. **The build re-derives both before relying on either**; ruling 1's disagreement count is expected to fall, because #913 repaired one of the two failure modes that produced it.
 
 ## The clinician's standing rulings, made in this session
 
@@ -24,7 +28,7 @@ The reader is a JavaScript application: `get_page_text` returns nothing on the r
 
 The ticket's own instrument is a count of candidate spans the reader declined. **Measured, it prints zero.**
 
-| | `reference_scan` | `discussion_artifact` |
+| measured at `4693353`, pre-#913 | `reference_scan` | `discussion_artifact` |
 | --- | ---: | ---: |
 | unread remainder, reference-evidenced candidates | **0** | **0** |
 | unread remainder, strict containment rule | **0** | **0** |
@@ -37,13 +41,16 @@ This is `CLAUDE.md`'s discrimination rule applied to the ticket that cites it: i
 **The reason is structural rather than a property of this corpus.** Three of the four known wrong-key producers are reads that *succeeded*:
 
 ```text
-Scorsese (2019a, 2019b) directed both.          ref []                       disc []
-Both were directed (Scorsese, 2019a, 2019b).    ref correct                  disc ('Scorsese, 2019a', '2019b')
-Hooton et al. (2025a, 2025b) reports.           ref []                       disc []
-...West Virginia. The HRSA (n.d.) designates.   ref ('administration','nd')  disc 55-char key
+re-derived on the merged base a8be735
+Scorsese (2019a, 2019b) directed both.          ref []              disc []
+Both were directed (Scorsese, 2019a, 2019b).    ref correct         disc ('Scorsese, 2019a', '2019b')
+Hooton et al. (2025a, 2025b) reports.           ref []              disc []
+...West Virginia. The HRSA (n.d.) designates.   ref ('health','nd') disc 55-char key
 ```
 
 Only the first and third are unread spans. The second and fourth produce a citation with a wrong key, and no count of declined spans can see either.
+
+**The fourth row moved when #913 merged, and the movement is worth keeping rather than editing away.** At `4693353` `reference_scan` returned `('administration', 'nd')` — the last word of the phrase — and #913's widening repaired it to the entry's key. **The disagreement survives on the other reader**, whose over-read still crosses the sentence boundary, so the row remains ruling 1's evidence with one side repaired rather than both. That is ADR 0150's own declared residue — the two modules hold two different boundary rules and nothing binds them — arriving as a measurement inside this record's own window.
 
 ## Ruling 2 — the independent denominator is the reference list, not a candidate grammar
 
@@ -102,15 +109,17 @@ APA publishes no diacritic rule. That is now a checked negative rather than an u
 
 **Preserve does not implement that rule.** Under it `ö` sorts after `z`, which is Unicode code-point order and is a principle APA states nowhere; the figure files `de Onís` and `López` in ordinary alphabetical position. Folding is what letter-by-letter comparison means.
 
-Three variants were built and run over the whole corpus:
+Three variants were built and run over the whole corpus, **at `4693353`, against the pre-#913 baseline**. The base column is that reader's; on the merged base the same rows read 29, 3 and 172. **The build re-derives the deltas rather than carrying this table forward:**
 
-| | pop80 base | V1 preserve | V2 fold | V3 fold-equality, preserve-order |
+| measured at `4693353` | pop80 base | V1 preserve | V2 fold | V3 fold-equality, preserve-order |
 | --- | ---: | --- | --- | --- |
 | every one of 16 rows | | `+0` | `+0` | `+0` |
 | `list-not-sorted` | 28 | `+0` | `+0` | `+0` |
 | `uncited-entry` | 4 | `+0` | `+0` | `+0` |
 | `unlisted-citation` | 173 | `+0` | `+0` | `+0` |
 | documents under `output/` whose findings change | | 0 | 0 | 0 |
+
+**The `+0` result is expected to survive the re-derivation and is not assumed to.** #913 changed the narrative phrase boundary and the article strip; it added no non-ASCII handling, and the single corpus entry these variants touch is unchanged. But that is an argument, and the whole point of the table is that it is a measurement.
 
 **V1 is eliminated by measurement, not by preference.** On a leading-`Ö` entry cited with the ASCII spelling it *adds* a false `uncited-entry` to the existing `unlisted-citation`: widening the character class without folding is worse than the bug.
 
@@ -142,7 +151,7 @@ The corpus contains **0 instances**, entry or body. The form is latent and rests
 
 **The nine-document evidence base.** The 80-document grader-reachable population is weak: 65 of the 80 produce zero candidates, 63 have a body under 500 characters and 64 have exactly two reference entries, because the gate fires on small non-APA structures whose `Reference`-prefixed heading truncates the body. **The substantive corpus is 9 documents**, holding 766 of the 790 candidates. Every coverage claim in this record is evidenced by those nine. It does not falsify ADR 0150 ruling 4's baselines, which re-derived cell for cell in two independent processes, but no reader should infer 80.
 
-**`v.` as a connector.** ADR 0150 ruling 2a's connector set omits it because the corpus carries no case citation, so a narrative case citation stays broken after #913 lands. Recorded on that ticket; the repair is #942's.
+**`v.` as a connector.** ADR 0150 ruling 2a's connector set omits it because the corpus carries no case citation. **#913 has now landed and the case citation is still broken, differently** — re-derived on the merged base, `Brown v. Board of Education (1954)` keys `board` where it keyed `education` before, against an entry keyed `brown`. The widening moved the phrase start left as far as `v.` and stopped, which is the boundary rule working exactly as ruled. Recorded on that ticket while it was in flight, with the pre-merge figure; the repair is #942's.
 
 **Whether the two modules' boundary rules agree.** ADR 0150 accepted that residue deliberately. This record closes it by repairing `discussion_artifact`'s side, and states no rule binding them mechanically thereafter.
 
