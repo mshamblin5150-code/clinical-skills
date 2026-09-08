@@ -389,6 +389,14 @@ _Avoid_: sync, merge, round-trip, reconcile, transcription
 A run or paragraph property written onto the element itself rather than inherited from a named style. The only form that survives the clipboard, because a style is carried by reference and the reference is what a paste target drops.
 _Avoid_: inline style, hard formatting, manual formatting
 
+**Blank block**:
+The parser's record that the author left an empty line. It is a record and not a thing on the page — the renderer draws nothing for one, because double spacing already separates two paragraphs and a drawn blank is the extra space APA forbids. It is kept anyway, because it is the only surviving statement of where the author broke their paragraphs, and a renderer emitting into a medium that supplies no spacing of its own is the consumer that needs it. **Not an empty paragraph**, which is a paragraph with no text that a reader can see; the two were one thing until 2026-09-08 and separating them is what made the page correct.
+_Avoid_: blank line, empty paragraph, spacer, paragraph break
+
+**Calibrated property**:
+A property the renderer sets whose behavior Word has been observed producing, recorded with the Word version and the date it was seen. Distinct from an **applied rule**, which is a published rule the renderer satisfies: every applied rule is calibrated, and not every calibrated property answers a rule. Keep-with-next is the worked case — it is set on every heading, and APA publishes nothing requiring it, so it earns a measurement and no row in the rule table. Filing a property as a rule writes a recalled rule into a sheet whose entire purpose is that its rules were looked up.
+_Avoid_: verified property, applied property, measured rule
+
 **Block quotation**:
 The form APA gives a quotation of 40 or more words: set on its own line, indented half an inch from the left margin, carrying no quotation marks, with the citation after the final punctuation. Here it is **authored markup** and never a detected shape -- the renderer sets what the author marked and never counts a quotation's words, because deciding a span is long enough to restyle is an edit to the document rather than a format applied to it.
 _Avoid_: long quote, pull quote, indented quote, blockquote
