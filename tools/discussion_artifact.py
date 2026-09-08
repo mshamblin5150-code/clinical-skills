@@ -25,6 +25,11 @@ INVOKED = re.compile(
 AMPLIFICATION = re.compile(r"(?mi)^\s*<!--\s*AMPLIFICATION\s*:[^>]+-->\s*$")
 PAREN_BLOCK = re.compile(r"\((?P<inside>[^()]+)\)")
 YEAR = r"(?:(?:19|20)\d{2}[a-z]?|(?i:n\.d\.(?:-[a-z])?))"
+REPUBLISHED_ORIGINAL_DATE = (
+    r"(?:(?i:ca\.)\s*)?\d{1,4}(?:\s*–\s*\d{1,4})?"
+    r"(?:\s*(?i:B\.C\.E\.|C\.E\.))?"
+)
+REPUBLISHED_DATE_ELEMENT = REPUBLISHED_ORIGINAL_DATE + r"/" + YEAR
 UPPER = re.escape(
     "".join(character for character in map(chr, range(sys.maxunicode + 1)) if character.isupper())
 )
@@ -32,6 +37,11 @@ LETTER = r"[^\W\d_]"
 PAREN_PAIR = re.compile(
     r"(?P<author>[" + UPPER + r"][^;]*?),\s*(?P<year>" + YEAR + r")"
     r"(?:,\s*(?:p{1,2}\.\s*)?\d+(?:[-–]\d+)?)?\s*$"
+)
+REPUBLISHED_PAREN_PAIR = re.compile(
+    r"(?P<author>[" + UPPER + r"][^;]*?),\s*"
+    r"(?P<year>" + REPUBLISHED_DATE_ELEMENT + r")"
+    r"(?:,\s*[^()]*)?\s*$"
 )
 NAME = r"[" + UPPER + r"](?:" + LETTER + r"|['’.\-])*"
 AUTHOR_PHRASE = NAME + r"(?:\s+(?:" + NAME + r"|of|for|the|and|&)){0,10}"
@@ -44,6 +54,11 @@ NARRATIVE_CITATION = re.compile(
     r"\b(?P<author>" + AUTHOR_PHRASE + r"(?:\s+et\s+al\.)?)\s*"
     r"\((?P<year>" + YEAR + r")"
     r"(?:,\s*(?:p{1,2}\.|para\.)\s*\d+(?:[-–]\d+)?)?\)"
+)
+REPUBLISHED_NARRATIVE_CITATION = re.compile(
+    r"\b(?P<author>" + AUTHOR_PHRASE + r"(?:\s+et\s+al\.)?)\s*"
+    r"\((?P<year>" + REPUBLISHED_DATE_ELEMENT + r")"
+    r"(?:,\s*[^()]{0,100})?\)"
 )
 LEGAL_SECTION_NUMBER = (
     r"\d+[A-Za-z]*(?:\.\d+)*(?:\([\w]+\))*"
@@ -509,6 +524,12 @@ def reference_key(reference: str) -> tuple[str, str] | None:
     return keys[0] if keys else None
 
 
+def citation_year(date_element: str) -> str:
+    """The year that identifies the cited version of a republished work."""
+
+    return date_element.rsplit("/", 1)[-1].casefold()
+
+
 def read_citations(
     body: str,
     reference_key_set: Collection[tuple[str, str]] = (),
@@ -560,18 +581,25 @@ def read_citations(
             ):
                 cursor += len(part) + 1
                 continue
-            match = PAREN_PAIR.match(stripped)
+            match = REPUBLISHED_PAREN_PAIR.match(stripped) or PAREN_PAIR.match(stripped)
             if match:
                 found.append(
                     Citation(
                         match.group("author"),
-                        match.group("year").casefold(),
+                        citation_year(match.group("year")),
                         start,
                         end,
                     )
                 )
             cursor += len(part) + 1
-    for match in NARRATIVE_CITATION.finditer(body):
+    narrative_citations = sorted(
+        (
+            *REPUBLISHED_NARRATIVE_CITATION.finditer(body),
+            *NARRATIVE_CITATION.finditer(body),
+        ),
+        key=lambda match: match.start(),
+    )
+    for match in narrative_citations:
         if any(
             start <= match.start() and match.end() <= end
             for start, end in (*definition_spans, *legal_spans)
@@ -580,7 +608,7 @@ def read_citations(
         found.append(
             Citation(
                 match.group("author"),
-                match.group("year").casefold(),
+                citation_year(match.group("year")),
                 match.start(),
                 match.end(),
             )
