@@ -24,6 +24,7 @@ import coursework_run
 import discussion_reply_scan as reply_scan
 import discussion_artifact as artifact
 import docx_write
+import post_html
 from grader_conformance import for_module, gate_conformance
 from test_discussion_reply_scan import (
     BODY as REPLY_BODY,
@@ -188,6 +189,212 @@ class Run:
         for page in range(1, seen + 1):
             (pass_directory / f"page-{page}.png").write_bytes(PNG)
 
+    def record_canvas_render(
+        self,
+        html: Path,
+        *,
+        seen: int = 13,
+        expected: int = 13,
+        unseen: str = "none",
+        verdict: str = "clean - all blocks compared with the Markdown",
+        render_pass: int = 1,
+        captured_images: int = 1,
+    ) -> None:
+        post = self.root / "post.md"
+        prior = post.read_text(encoding="utf-8") if post.is_file() else BODY
+        post.write_text(
+            prior
+            + "\n\n## RENDERED: post.md\n"
+            + f"BLOCKS: {seen} of {expected} read\n"
+            + "SOURCE: canvas-box\n"
+            + f"UNSEEN: {unseen}\n"
+            + "READ: 2026-09-08\n"
+            + f"VERDICT: {verdict}\n",
+            encoding="utf-8",
+        )
+        pass_directory = self.root / "render" / f"pass-{render_pass}"
+        pass_directory.mkdir(parents=True)
+        (pass_directory / "post.html").write_bytes(html.read_bytes())
+        for capture in range(1, captured_images + 1):
+            (pass_directory / f"capture-{capture}.png").write_bytes(PNG)
+
+
+class CanvasSubmissionRows(unittest.TestCase):
+    def rendered(self, run: Run) -> tuple[Path, Path]:
+        html = run.root / "post.html"
+        html.write_text(post_html.render(BODY), encoding="utf-8", newline="")
+        document = run.root / "post.docx"
+        docx_write.write_docx(BODY, document)
+        return html, document
+
+    def test_clean_html_submission_and_structured_docx_archive_pass(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            html, document = self.rendered(run)
+            run.record_canvas_render(html)
+            status, stdout, stderr = run.grade(
+                "--html", str(html), "--docx", str(document)
+            )
+
+        self.assertEqual(status, 0)
+        self.assertEqual(stderr, "")
+        self.assertIn("bold-headings: 0", stdout)
+        self.assertIn("rendered-comments: 0", stdout)
+        self.assertIn("submission-text: 0", stdout)
+        self.assertIn("rendered-text: 0 (reported, not graded)", stdout)
+        self.assertIn("rendered-pages: 0", stdout)
+
+    def test_docx_is_archival_and_does_not_grade_submission_rows(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            document = run.root / "post.docx"
+            docx_write.write_docx(BODY, document)
+            status, stdout, _ = run.grade("--docx", str(document))
+
+        self.assertEqual(status, 0)
+        self.assertIn("bold-headings: not graded", stdout)
+        self.assertIn("rendered-comments: not graded", stdout)
+        self.assertIn("submission-text: not graded", stdout)
+        self.assertIn("rendered-pages: not graded", stdout)
+        self.assertIn("rendered-text: 0 (reported, not graded)", stdout)
+
+    def test_html_submission_does_not_grade_archive_parity(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            html, _ = self.rendered(run)
+            run.record_canvas_render(html)
+            status, stdout, _ = run.grade("--html", str(html))
+
+        self.assertEqual(status, 0)
+        self.assertIn("rendered-text: not graded", stdout)
+
+    def test_every_html_heading_must_be_a_bold_paragraph(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            html, _ = self.rendered(run)
+            html.write_text(
+                html.read_text(encoding="utf-8").replace(
+                    "<p><strong>Access Is More Than Availability</strong></p>",
+                    "<p>Access Is More Than Availability</p>",
+                ),
+                encoding="utf-8",
+                newline="",
+            )
+            run.record_canvas_render(html)
+            status, stdout, _ = run.grade("--html", str(html))
+
+        self.assertEqual(status, 1)
+        self.assertIn("bold-headings: 1", stdout)
+
+    def test_html_comment_residue_fails_the_submission(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            html, _ = self.rendered(run)
+            html.write_text(
+                html.read_text(encoding="utf-8").replace(
+                    "The practical test", "<!-- residue -->The practical test"
+                ),
+                encoding="utf-8",
+                newline="",
+            )
+            run.record_canvas_render(html)
+            status, stdout, _ = run.grade("--html", str(html))
+
+        self.assertEqual(status, 1)
+        self.assertIn("rendered-comments: 1", stdout)
+
+    def test_html_paragraph_text_must_match_the_markdown(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            html, _ = self.rendered(run)
+            html.write_text(
+                html.read_text(encoding="utf-8").replace(
+                    "Access becomes meaningful", "Availability becomes meaningful"
+                ),
+                encoding="utf-8",
+                newline="",
+            )
+            run.record_canvas_render(html)
+            status, stdout, _ = run.grade("--html", str(html))
+
+        self.assertEqual(status, 1)
+        self.assertIn("submission-text: 1", stdout)
+
+    def test_an_extra_structural_block_fails_html_parity_and_changes_the_denominator(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            html, _ = self.rendered(run)
+            html.write_text(
+                html.read_text(encoding="utf-8") + "<hr>\n",
+                encoding="utf-8",
+                newline="",
+            )
+            run.record_canvas_render(html, seen=14, expected=14)
+            status, stdout, _ = run.grade("--html", str(html))
+
+        self.assertEqual(status, 1)
+        self.assertIn("submission-text: 1", stdout)
+        self.assertIn("rendered-pages: 0", stdout)
+
+    def test_block_denominator_comes_from_the_submission_source(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            html, _ = self.rendered(run)
+            run.record_canvas_render(html, seen=99, expected=99)
+            status, stdout, _ = run.grade("--html", str(html), "--show")
+
+        self.assertEqual(status, 1)
+        self.assertIn("BLOCKS expected count is 99, not the submitted HTML's 13", stdout)
+
+    def test_the_retained_export_is_the_exact_submitted_html(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            html, _ = self.rendered(run)
+            run.record_canvas_render(html)
+            retained = run.root / "render" / "pass-1" / "post.html"
+            retained.write_text("<p>different</p>\n", encoding="utf-8", newline="")
+            status, stdout, _ = run.grade("--html", str(html), "--show")
+
+        self.assertEqual(status, 1)
+        self.assertIn("retained HTML differs from the submitted HTML", stdout)
+
+    def test_a_canvas_pass_needs_a_readable_capture(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            html, _ = self.rendered(run)
+            run.record_canvas_render(html, captured_images=0)
+            status, stdout, _ = run.grade("--html", str(html), "--show")
+
+        self.assertEqual(status, 1)
+        self.assertIn("keeps no Canvas-box capture", stdout)
+
+    def test_the_last_canvas_read_must_account_for_every_block(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            html, _ = self.rendered(run)
+            run.record_canvas_render(html, seen=12, unseen="13")
+            status, stdout, _ = run.grade("--html", str(html))
+
+        self.assertEqual(status, 1)
+        self.assertIn("rendered-pages: 1", stdout)
+
+    def test_an_abandoned_defect_can_precede_a_complete_final_canvas_read(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            html, _ = self.rendered(run)
+            run.record_canvas_render(
+                html,
+                seen=12,
+                unseen="13",
+                verdict="defect - final reference block was below the capture",
+                render_pass=1,
+            )
+            run.record_canvas_render(html, render_pass=2)
+            status, stdout, _ = run.grade("--html", str(html))
+
+        self.assertEqual(status, 0)
+        self.assertIn("rendered-pages: 0", stdout)
+
 
 class ACompletePostPasses(unittest.TestCase):
     def test_report_is_counts_only_and_excludes_citation_and_statute_numbers(self):
@@ -213,353 +420,6 @@ class ACompletePostPasses(unittest.TestCase):
         self.assertIn("rendered-text: not graded", stdout)
         self.assertIn("rendered-pages: not graded", stdout)
 
-
-    def test_a_named_heading_style_fails_the_docx_row(self):
-        with tempfile.TemporaryDirectory() as temp:
-            run = Run(Path(temp))
-            document = run.root / "post.docx"
-            docx_write.write_docx(BODY, document)
-            status, stdout, _ = run.grade("--docx", str(document))
-
-        self.assertEqual(1, status)
-        self.assertIn("bold-headings: 1", stdout)
-
-    def test_a_directly_formatted_heading_passes_the_docx_row(self):
-        with tempfile.TemporaryDirectory() as temp:
-            run = Run(Path(temp))
-            document = run.root / "post.docx"
-            docx_write.write_docx(BODY, document, bold_headings=True)
-            run.record_render()
-            status, stdout, _ = run.grade("--docx", str(document))
-
-        self.assertEqual(0, status)
-        self.assertIn("bold-headings: 0", stdout)
-        self.assertIn("rendered-text: 0", stdout)
-        self.assertIn("rendered-pages: 0", stdout)
-        self.assertIn("missing pass numbers: 0 (counted, not graded)", stdout)
-
-    def test_a_gap_is_counted_without_changing_clean_status(self):
-        with tempfile.TemporaryDirectory() as temp:
-            run = Run(Path(temp))
-            document = run.root / "post.docx"
-            docx_write.write_docx(BODY, document, bold_headings=True)
-            run.record_render(render_pass=1)
-            run.record_render(render_pass=3)
-            status, stdout, stderr = run.grade("--docx", str(document))
-
-        self.assertEqual(0, status)
-        self.assertEqual("", stderr)
-        self.assertIn("missing pass numbers: 1 (counted, not graded)", stdout)
-        self.assertIn("rendered-pages: 0", stdout)
-
-    def test_deleting_a_historical_pass_does_not_turn_the_gap_into_a_finding(self):
-        with tempfile.TemporaryDirectory() as temp:
-            run = Run(Path(temp))
-            document = run.root / "post.docx"
-            docx_write.write_docx(BODY, document, bold_headings=True)
-            run.record_render(render_pass=1)
-            run.record_render(render_pass=2)
-            run.record_render(render_pass=3)
-            retained = run.root / "render" / "pass-2"
-            for artifact in retained.iterdir():
-                artifact.unlink()
-            retained.rmdir()
-            status, stdout, stderr = run.grade("--docx", str(document))
-
-        self.assertEqual(0, status)
-        self.assertEqual("", stderr)
-        self.assertIn("missing pass numbers: 1 (counted, not graded)", stdout)
-        self.assertIn("rendered-pages: 0", stdout)
-
-    def test_a_finding_uses_the_retained_pass_number_after_a_gap(self):
-        with tempfile.TemporaryDirectory() as temp:
-            run = Run(Path(temp))
-            document = run.root / "post.docx"
-            docx_write.write_docx(BODY, document, bold_headings=True)
-            run.record_render(render_pass=1)
-            run.record_render(
-                seen=1,
-                expected=2,
-                unseen="2",
-                render_pass=3,
-            )
-            status, stdout, _ = run.grade("--docx", str(document), "--show")
-
-        self.assertEqual(1, status)
-        self.assertIn("rendered-pages: pass-3:", stdout)
-        self.assertNotIn("rendered-pages: pass-2:", stdout)
-
-    def test_an_extra_render_record_keeps_the_empty_pass_evidence_checks(self):
-        with tempfile.TemporaryDirectory() as temp:
-            run = Run(Path(temp))
-            document = run.root / "post.docx"
-            docx_write.write_docx(BODY, document, bold_headings=True)
-            run.record_render(render_pass=1)
-            post = run.root / "post.md"
-            post.write_text(
-                post.read_text(encoding="utf-8")
-                + "\n## RENDERED: post.md\n"
-                + "PAGES: 2 of 2 imaged\n"
-                + "SOURCE: word-pdf\n"
-                + "UNSEEN: none\n"
-                + "READ: 2026-09-01\n"
-                + "VERDICT: clean - both pages compared with the Markdown\n",
-                encoding="utf-8",
-            )
-            status, stdout, _ = run.grade("--docx", str(document), "--show")
-
-        self.assertEqual(1, status)
-        self.assertIn("pass-2 keeps 0 page image(s), not 2", stdout)
-        self.assertIn("pass-2 keeps 0 page-faithful export(s), not 1", stdout)
-
-    def test_non_pass_directory_names_are_ignored(self):
-        with tempfile.TemporaryDirectory() as temp:
-            run = Run(Path(temp))
-            document = run.root / "post.docx"
-            docx_write.write_docx(BODY, document, bold_headings=True)
-            run.record_render()
-            for name in ("pass-01", "pass-0", "pass-²"):
-                (run.root / "render" / name).mkdir()
-            status, stdout, stderr = run.grade("--docx", str(document))
-
-        self.assertEqual(0, status)
-        self.assertEqual("", stderr)
-        self.assertIn("missing pass numbers: 0 (counted, not graded)", stdout)
-        self.assertIn("rendered-pages: 0", stdout)
-
-    def test_deck_shaped_pass_names_are_read_through_the_globbed_shape(self):
-        with tempfile.TemporaryDirectory() as temp:
-            run = Run(Path(temp))
-            document = run.root / "post.docx"
-            docx_write.write_docx(BODY, document, bold_headings=True)
-            run.record_render()
-            retained = run.root / "render" / "pass-1"
-            (retained / "post.pdf").rename(retained / "deck.pdf")
-            (retained / "page-1.png").rename(retained / "slide-1.png")
-            (retained / "page-2.png").rename(retained / "slide-2.png")
-            status, stdout, stderr = run.grade("--docx", str(document))
-
-        self.assertEqual(0, status)
-        self.assertEqual("", stderr)
-        self.assertIn("rendered-pages: 0", stdout)
-
-    def test_a_docx_without_a_render_record_fails_coverage(self):
-        with tempfile.TemporaryDirectory() as temp:
-            run = Run(Path(temp))
-            document = run.root / "post.docx"
-            docx_write.write_docx(BODY, document, bold_headings=True)
-            status, stdout, _ = run.grade("--docx", str(document))
-
-        self.assertEqual(1, status)
-        self.assertRegex(stdout, r"rendered-pages: [1-9]\d*")
-
-    def test_a_pass_without_its_page_faithful_export_fails_coverage(self):
-        with tempfile.TemporaryDirectory() as temp:
-            run = Run(Path(temp))
-            document = run.root / "post.docx"
-            docx_write.write_docx(BODY, document, bold_headings=True)
-            run.record_render()
-            (run.root / "render" / "pass-1" / "post.pdf").unlink()
-            status, stdout, _ = run.grade("--docx", str(document))
-
-        self.assertEqual(1, status)
-        self.assertRegex(stdout, r"rendered-pages: [1-9]\d*")
-
-    def test_the_retained_export_supplies_the_page_count_denominator(self):
-        with tempfile.TemporaryDirectory() as temp:
-            run = Run(Path(temp))
-            document = run.root / "post.docx"
-            docx_write.write_docx(BODY, document, bold_headings=True)
-            run.record_render()
-            export_path = run.root / "render" / "pass-1" / "post.pdf"
-            export_path.write_text("pages:3", encoding="ascii")
-            status, stdout, _ = run.grade("--docx", str(document))
-
-        self.assertEqual(1, status)
-        self.assertIn("rendered-pages: 1", stdout)
-
-    def test_the_recorded_automated_source_must_match_the_retained_export(self):
-        with tempfile.TemporaryDirectory() as temp:
-            run = Run(Path(temp))
-            document = run.root / "post.docx"
-            docx_write.write_docx(BODY, document, bold_headings=True)
-            run.record_render(source="word-xps")
-            status, stdout, _ = run.grade("--docx", str(document))
-
-        self.assertEqual(1, status)
-        self.assertIn("rendered-pages: 1", stdout)
-
-    def test_an_unimaged_page_fails_coverage(self):
-        with tempfile.TemporaryDirectory() as temp:
-            run = Run(Path(temp))
-            document = run.root / "post.docx"
-            docx_write.write_docx(BODY, document, bold_headings=True)
-            run.record_render(seen=1, expected=2, unseen="2")
-            status, stdout, _ = run.grade("--docx", str(document))
-
-        self.assertEqual(1, status)
-        self.assertIn("rendered-pages: 1", stdout)
-
-    def test_zero_pages_cannot_be_a_complete_render(self):
-        with tempfile.TemporaryDirectory() as temp:
-            run = Run(Path(temp))
-            document = run.root / "post.docx"
-            docx_write.write_docx(BODY, document, bold_headings=True)
-            run.record_render(seen=0, expected=0)
-            status, stdout, _ = run.grade("--docx", str(document))
-
-        self.assertEqual(1, status)
-        self.assertIn("rendered-pages: 1", stdout)
-
-    def test_a_named_path_that_is_not_a_decodable_png_is_not_pixel_evidence(self):
-        for replacement in ("directory", "text"):
-            with self.subTest(replacement=replacement), tempfile.TemporaryDirectory() as temp:
-                run = Run(Path(temp))
-                document = run.root / "post.docx"
-                docx_write.write_docx(BODY, document, bold_headings=True)
-                run.record_render(seen=1, expected=1)
-                page = run.root / "render" / "pass-1" / "page-1.png"
-                page.unlink()
-                if replacement == "directory":
-                    page.mkdir()
-                else:
-                    page.write_bytes(b"plain text")
-                status, stdout, _ = run.grade("--docx", str(document))
-
-            self.assertEqual(1, status)
-            self.assertIn("rendered-pages: 1", stdout)
-
-    def test_an_incomplete_historical_pass_does_not_fail_a_complete_final_pass(self):
-        with tempfile.TemporaryDirectory() as temp:
-            run = Run(Path(temp))
-            document = run.root / "post.docx"
-            docx_write.write_docx(BODY, document, bold_headings=True)
-            run.record_render(
-                verdict="defect - the reference heading is clipped",
-                seen=1,
-                expected=2,
-                unseen="2",
-                render_pass=1,
-            )
-            run.record_render(
-                render_pass=2,
-            )
-            status, stdout, _ = run.grade("--docx", str(document))
-
-        self.assertEqual(0, status)
-        self.assertIn("rendered-pages: 0", stdout)
-
-    def test_the_last_render_pass_must_be_complete_and_clean(self):
-        with tempfile.TemporaryDirectory() as temp:
-            run = Run(Path(temp))
-            document = run.root / "post.docx"
-            docx_write.write_docx(BODY, document, bold_headings=True)
-            run.record_render(render_pass=1)
-            run.record_render(
-                verdict="defect - the reference heading is clipped",
-                seen=1,
-                expected=2,
-                unseen="2",
-                render_pass=2,
-            )
-            status, stdout, _ = run.grade("--docx", str(document))
-
-        self.assertEqual(1, status)
-        self.assertRegex(stdout, r"rendered-pages: [1-9]\d*")
-
-    def test_each_malformed_render_record_is_a_finding(self):
-        replacements = (
-            ("PAGES: 2 of 2 imaged", "PAGES: two pages"),
-            ("SOURCE: word-pdf", "SOURCE: pymupdf-docx"),
-            ("READ: 2026-09-01", "READ: yesterday"),
-            (
-                "VERDICT: clean - both pages compared with the Markdown",
-                "VERDICT: clean",
-            ),
-        )
-        for old, new in replacements:
-            with self.subTest(field=old.split(":", 1)[0]), tempfile.TemporaryDirectory() as temp:
-                run = Run(Path(temp))
-                document = run.root / "post.docx"
-                docx_write.write_docx(BODY, document, bold_headings=True)
-                run.record_render()
-                post = run.root / "post.md"
-                post.write_text(
-                    post.read_text(encoding="utf-8").replace(old, new),
-                    encoding="utf-8",
-                )
-                status, stdout, _ = run.grade("--docx", str(document))
-
-            self.assertEqual(1, status)
-            self.assertGreaterEqual(
-                int(re.search(r"rendered-pages: (\d+)", stdout).group(1)), 1
-            )
-
-    def test_unknown_fields_and_free_prose_make_the_render_record_malformed(self):
-        for residue in ("EXTRA: silently accepted", "arbitrary free prose"):
-            with self.subTest(residue=residue), tempfile.TemporaryDirectory() as temp:
-                run = Run(Path(temp))
-                document = run.root / "post.docx"
-                docx_write.write_docx(BODY, document, bold_headings=True)
-                run.record_render()
-                post = run.root / "post.md"
-                post.write_text(
-                    post.read_text(encoding="utf-8") + residue + "\n",
-                    encoding="utf-8",
-                )
-                status, stdout, _ = run.grade("--docx", str(document))
-
-            self.assertEqual(1, status)
-            self.assertIn("rendered-pages: 1", stdout)
-
-    def test_a_document_whose_paragraph_text_differs_from_the_draft_reports(self):
-        with tempfile.TemporaryDirectory() as temp:
-            run = Run(Path(temp))
-            document = run.root / "post.docx"
-            docx_write.write_docx(
-                BODY.replace("Access becomes meaningful", "Availability becomes meaningful"),
-                document,
-                bold_headings=True,
-            )
-            run.record_render()
-            status, stdout, _ = run.grade("--docx", str(document))
-
-        self.assertEqual(0, status)
-        self.assertIn("rendered-text: 1 (reported, not graded)", stdout)
-
-    def test_a_rendered_mid_line_comment_fails_the_docx_row(self):
-        with tempfile.TemporaryDirectory() as temp:
-            run = Run(Path(temp))
-            document = run.root / "post.docx"
-            docx_write.write_docx(
-                BODY.replace(
-                    "The practical test",
-                    "<!-- INVOKED: gravity | attracts mass --> The practical test",
-                ),
-                document,
-                bold_headings=True,
-            )
-            status, stdout, _ = run.grade("--docx", str(document))
-
-        self.assertEqual(1, status)
-        self.assertIn("rendered-comments: 1", stdout)
-
-    def test_both_lines_of_a_rendered_multi_line_comment_are_counted(self):
-        with tempfile.TemporaryDirectory() as temp:
-            run = Run(Path(temp))
-            document = run.root / "post.docx"
-            docx_write.write_docx(
-                BODY.replace(
-                    "The practical test",
-                    "<!-- INVOKED: gravity\n| attracts mass -->\nThe practical test",
-                ),
-                document,
-                bold_headings=True,
-            )
-            status, stdout, _ = run.grade("--docx", str(document))
-
-        self.assertEqual(1, status)
-        self.assertIn("rendered-comments: 2", stdout)
 
     def test_an_nd_citation_and_reference_are_traced(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -1356,9 +1216,17 @@ class ARecognizedButRefusedLabelStopsTheScan(unittest.TestCase):
                 BODY.replace("## References", "**References**"),
                 encoding="utf-8",
             )
-            document = run.root / "post.docx"
-            docx_write.write_docx(BODY, document)
-            status, stdout, _ = run.grade("--docx", str(document))
+            html = run.root / "post.html"
+            html.write_text(
+                post_html.render(run.draft.read_text(encoding="utf-8")).replace(
+                    "<p><strong>Access Is More Than Availability</strong></p>",
+                    "<p>Access Is More Than Availability</p>",
+                ),
+                encoding="utf-8",
+                newline="",
+            )
+            run.record_canvas_render(html)
+            status, stdout, _ = run.grade("--html", str(html))
 
         self.assertEqual(1, status)
         self.assertIn("bold-headings: 1", stdout)
@@ -1907,6 +1775,7 @@ class TheRenderedDocumentContractIsPublished(unittest.TestCase):
         for row in (
             scan.BOLD_HEADINGS,
             scan.RENDERED_COMMENTS,
+            scan.SUBMISSION_TEXT,
             scan.RENDERED_TEXT,
             scan.RENDERED_PAGES,
         ):
@@ -1925,13 +1794,12 @@ class TheRenderedDocumentContractIsPublished(unittest.TestCase):
 
     def test_the_skill_publishes_the_counted_render_route(self):
         text = self.skill_text()
-        self.assertIn("discussion_post_render.py", text)
+        self.assertIn("post_html.py", text)
+        self.assertNotIn("discussion_post_render.py", text)
         self.assertIn("render/pass-N/", text)
-        self.assertIn(f"{render.RASTER_DPI}-dpi", text)
         self.assertIn("## RENDERED: post.md", text)
-        for source in artifact.RENDERED_SOURCES:
-            with self.subTest(source=source):
-                self.assertIn(source, text)
+        self.assertIn("BLOCKS:", text)
+        self.assertIn("canvas-box", text)
         self.assertIn("Re-renders append", text)
 
     def test_the_skill_recovers_an_editor_change_before_force(self):
@@ -1951,9 +1819,13 @@ class EveryBehaviorLimitHasALiveHandler(unittest.TestCase):
             "TheMechanicalBarRowsAreGraded.test_repeated_numeric_values_need_one_tracing_record",
             "TheMechanicalBarRowsAreGraded.test_an_untraced_body_number_fails",
         ),
-        "whether rendered-document rows were graded when --docx was omitted": (
-            "ACompletePostPasses.test_the_docx_row_is_not_graded_when_no_archive_is_supplied",
-            "ACompletePostPasses.test_a_directly_formatted_heading_passes_the_docx_row",
+        "whether HTML-submission rows were graded when --html was omitted": (
+            "CanvasSubmissionRows.test_docx_is_archival_and_does_not_grade_submission_rows",
+            "CanvasSubmissionRows.test_clean_html_submission_and_structured_docx_archive_pass",
+        ),
+        "whether archival text parity was reported when --docx was omitted": (
+            "CanvasSubmissionRows.test_html_submission_does_not_grade_archive_parity",
+            "CanvasSubmissionRows.test_clean_html_submission_and_structured_docx_archive_pass",
         ),
         "whether reference-dependent rows ran after a refused reference label": (
             "ARecognizedButRefusedLabelStopsTheScan.test_a_bold_references_label_names_the_line_and_ungrades_dependent_rows",

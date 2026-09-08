@@ -83,6 +83,7 @@ DECLARED_SECTIONS = {
     "map_scan": "Implementation map disagreement scan",
     "name_index": "PHI pre-commit hook",
     "phi_scan": "PHI pre-commit hook",
+    "post_html": "Discussion post grading",
     "reference_scan": "Reference scan",
     "reference_class_census": "Reference-class census",
     "refusal_scan": "Refusal scan",

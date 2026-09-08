@@ -16,6 +16,7 @@ import discussion_post_scan
 import discussion_reply_scan
 import discussion_artifact
 import docx_write
+import post_html
 import reference_scan
 from prose_bind import ProseBind, normalized
 from test_discussion_post_scan import BODY as POST_BODY, Run as PostRun
@@ -105,6 +106,7 @@ class TheWorkflowCarriesEveryRatifiedGate(unittest.TestCase):
             "reference_scan.py",
             "discussion_post_scan.py",
             "output/discussions/<course>-<module>-discussion-<date>.md",
+            "output/discussions/<course>-<module>-discussion-<date>.html",
             "docx_write.py",
             "explicit go-ahead",
         ):
@@ -117,10 +119,12 @@ class TheWorkflowCarriesEveryRatifiedGate(unittest.TestCase):
         self.assertIn("discussion_reply_scan.NOT_REACHED", reply)
         self.assertNotIn("discussion_reply_scan.UNMARKED_INVOKED_SOURCE_LIMIT", reply)
 
-    def test_step_seven_renders_one_bold_heading_document_and_grades_it(self):
+    def test_step_seven_renders_the_html_submission_and_structured_archive(self):
         post = read(POST)
-        self.assertRegex(post, r"docx_write\.py[^\n]+--bold-headings")
-        self.assertRegex(post, r"discussion_post_scan\.py[^\n]+--docx")
+        self.assertRegex(post, r"post_html\.py[^\n]+\.html")
+        self.assertRegex(post, r"docx_write\.py[^\n]+\.docx")
+        self.assertNotRegex(post, r"python tools/docx_write\.py[^\n]+--bold-headings")
+        self.assertRegex(post, r"discussion_post_scan\.py[^\n]+--html[^\n]+--docx")
         self.assertIn("rendered-comments", post)
         self.assertNotRegex(post, r"(?i)manually demote|heading demotion")
         self.assertNotRegex(post, r"carries the hanging indent.*heading structure")
@@ -133,7 +137,16 @@ class TheWorkflowCarriesEveryRatifiedGate(unittest.TestCase):
         retired_instruction = "omit every " + "`INVOKED` comment"
         self.assertNotIn(retired_instruction, post)
         self.assertIn("omitting the `INVOKED` comments", reply)
-        self.assertIn("pastes from Markdown", post)
+        self.assertIn("types", post)
+        self.assertNotIn("pastes from Markdown", post)
+
+    def test_the_two_gates_separate_loading_from_submission(self):
+        post = read(POST)
+
+        self.assertIn("Gate 1", post)
+        self.assertIn("Gate 2", post)
+        self.assertIn("loaded and unsubmitted", post)
+        self.assertRegex(post, r"(?is)Gate 1.*authorizes.*load.*Gate 2.*authorizes submit")
 
     def test_the_post_claim_set_is_derived_from_citations_and_body_numbers(self):
         post = read(POST)
@@ -288,6 +301,7 @@ class EachSkillStatesTheLabelItsPipelineAccepts(unittest.TestCase):
                 encoding="utf-8",
             )
             document = run.root / "post.docx"
+            html = run.root / "post.html"
             with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
                 post_status = discussion_post_scan.main(
                     [str(run.root), "--draft", str(run.draft)]
@@ -295,20 +309,23 @@ class EachSkillStatesTheLabelItsPipelineAccepts(unittest.TestCase):
                 reference_status = reference_scan.main(
                     [str(run.draft), "--as-of", "2026-08-22"]
                 )
-                render_status = docx_write.main(
-                    [str(run.draft), str(document), "--bold-headings"]
-                )
-                run.record_render()
+                html_status = post_html.main([str(run.draft), str(html)])
+                render_status = docx_write.main([str(run.draft), str(document)])
+                run.record_canvas_render(html, seen=14, expected=14)
                 rendered_post_status, _, _ = run.grade(
+                    "--html",
+                    str(html),
                     "--docx",
                     str(document),
                 )
             with zipfile.ZipFile(document) as archive:
                 xml = ElementTree.fromstring(archive.read("word/document.xml"))
+            html_text = html.read_text(encoding="utf-8")
 
-        self.assertEqual((0, 0, 0, 0), (
+        self.assertEqual((0, 0, 0, 0, 0), (
             post_status,
             reference_status,
+            html_status,
             render_status,
             rendered_post_status,
         ))
@@ -319,19 +336,23 @@ class EachSkillStatesTheLabelItsPipelineAccepts(unittest.TestCase):
             for node in xml.iter(self.W + "p")
             if "".join(text.text or "" for text in node.iter(self.W + "t")) == "References"
         )
-        self.assertIsNone(paragraph.find("./" + self.W + "pPr/" + self.W + "pStyle"))
-        runs = paragraph.findall("./" + self.W + "r")
-        self.assertTrue(runs)
-        self.assertTrue(
-            all(run.find("./" + self.W + "rPr/" + self.W + "b") is not None for run in runs)
+        self.assertEqual(
+            paragraph.find("./" + self.W + "pPr/" + self.W + "pStyle").get(
+                self.W + "val"
+            ),
+            "Heading2",
         )
+        self.assertIn("<p><strong>References</strong></p>", html_text)
 
 
 class TheCanvasPasteMeasurement(unittest.TestCase):
     RECORD = ROOT / "skills" / "discussion-post" / "reference" / "canvas-paste-calibration.json"
 
     def test_scope_is_carried_in_schema_fields_and_the_observation_is_recorded(self):
-        record = json.loads(read(self.RECORD))
+        records = json.loads(read(self.RECORD))
+        self.assertIsInstance(records, list)
+        self.assertEqual(len(records), 1)
+        record = records[0]
         for field in ("measured_on", "institution", "course", "theme", "instrument"):
             with self.subTest(field=field):
                 self.assertTrue(record[field])

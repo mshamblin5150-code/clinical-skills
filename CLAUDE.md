@@ -150,6 +150,9 @@ in that paragraph is historical.
 **Correction, 2026-09-08:** `case_study_render.py` is now the most recent direct command and calls
 `use_utf8` from that path. The preceding order remains historical.
 
+**Correction, 2026-09-08:** `post_html.py` is now the most recent direct command and calls
+`use_utf8` from that path. The preceding order remains historical.
+
 **It read 15, and the sixteenth arrived the same day from the other direction.** `tools/anchor_scan.py` was written on [#124](https://github.com/mshamblin5150-code/clinical-skills/issues/124)'s branch while this rule was being written on #150's, and the two merged an hour apart. **Neither branch's suite failed; the merged tree's did** — the new tool did not import a helper that did not exist when it was written, and nothing either side ran could have seen it. That is [#86](https://github.com/mshamblin5150-code/clinical-skills/issues/86)'s *the merge is the unguarded moment*, arriving on the mechanism built to make a fifteenth tool impossible to miss and catching the sixteenth one commit late.
 
 **#150 fixed the process's *output* codec, and the *input* end of the same boundary was wrong in three places until 2026-08-18.** `subprocess.run(..., text=True)` with no `encoding` decodes with the **locale** codec, which here is cp1252 -- so a tool reading `git` output dies on any byte cp1252 has no mapping for. `phi_scan._git` named `encoding="utf-8", errors="replace"`; `spelling_scan._git` and both of `skills_mirror.py`'s call sites did not.
@@ -926,17 +929,17 @@ Covered by `tools/test_voice_model_scan.py`.
 signed to.
 
 ```bash
-python tools/discussion_post_render.py <a run directory> --docx <the Word document>
-python tools/discussion_post_scan.py <a run directory> --draft <the Markdown> [--docx <the render>]
+python tools/post_html.py <the Markdown> <the HTML submission>
+python tools/discussion_post_scan.py <a run directory> --draft <the Markdown> [--html <the submission>] [--docx <the archive>]
 ```
 
-**The render command creates the page evidence the scan grades.** It asks an owned Word process for
-a PDF and starts a fresh XPS rasterization when that route cannot reach every page. If neither
-export succeeds, a clinician-supplied PDF or XPS is the escalation. Each successful run retains one
-page-faithful export and one image per page of that same export in a new `render/pass-N/` above the
-highest retained number; a failed run retains no pass. The exact page resolution and source vocabulary are
-owned by `discussion_artifact`, and the full route and escalation contract is published in
-`skills/discussion-post/SKILL.md` rather than copied here.
+**The HTML command writes the exact submission bytes loaded into Canvas's raw editor.** It consumes
+`docx_write.blocks` and the shared format-neutral inline splitter rather than implementing another
+Markdown parser. A Canvas-box pass retains that exact HTML and readable captures in a new
+`render/pass-N/`; the scanner derives the reading denominator from the shared block path rather
+than trusting the record. The complete load, capture, fallback, and two-gate contract is published
+in `skills/discussion-post/SKILL.md` rather than copied here. `discussion_post_render.py` remains the
+reader for historical Word-page passes and is not part of the active submission route.
 
 **The source is a run directory and the draft is named separately**, because the two live apart: the
 provenance record under `scratch/runs/<course>-<module>-discussion/` and the handoff under
@@ -944,18 +947,19 @@ provenance record under `scratch/runs/<course>-<module>-discussion/` and the han
 `discussion_post_scan.ROWS`, `KINDS` and `GATED_ROW_SETS`; the coverage boundary is
 `DECLARED_LIMITS`. **This section points at all four and copies no row.**
 
-**`--docx` is a gate rather than an extra.** With it, the command grades the rendered document's
-heading styles and comment residue and reports paragraph-text parity with the Markdown. Without it
-those rows print `not graded` rather than `0`, which is [#258](https://github.com/mshamblin5150-code/clinical-skills/issues/258)'s
-ruling: an absent input never masquerades as a passing count.
+**`--html` and `--docx` are independent gates rather than extras.** HTML owns the graded submission
+rows and retained Canvas-box evidence. DOCX owns only the reported archival paragraph-text parity
+count. Without the corresponding input those rows print `not graded` rather than `0`, which is
+[#258](https://github.com/mshamblin5150-code/clinical-skills/issues/258)'s ruling: an absent input
+never masquerades as a passing count.
 
 **Counts only by default; `--show` includes finding detail and is private working material.**
 
 **Exit status distinguishes not having scanned from having found nothing** — 0 for passing
 mechanical rows, 1 for a finding, 2 when the run could not be completely scanned.
 
-Covered by `tools/test_discussion_post_render.py`, `tools/test_discussion_post_scan.py`, and
-`tools/test_discussion_post_skill.py`.
+Covered by `tools/test_post_html.py`, `tools/test_discussion_post_render.py`,
+`tools/test_discussion_post_scan.py`, and `tools/test_discussion_post_skill.py`.
 
 ### Course assignment deck grading
 
