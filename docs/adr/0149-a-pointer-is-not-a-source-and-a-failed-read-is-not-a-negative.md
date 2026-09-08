@@ -62,10 +62,18 @@ briefs its verifier **blinded** — given the code numbers and forbidden the wor
 anchor and specificity line. `practicum-case-study` step 9's readers are handed the whole draft. At
 least one member is deliberately stricter than the rule a shared copy would state.
 
-**The existing second-instrument requirement has the wrong trigger.**
-`skills/discussion-post/SKILL.md:201-203` requires the clinician's Authenticated route *"before …
-writing `STATUS: unsourced` because an **access wall** stopped the search."* The KDIGO 403 was not
-an access wall. It was a public static PDF, and a signed-in Chrome session has no bearing on it.
+**The existing second-instrument requirement does not reach the failure, and the two briefs fail
+differently.** `skills/discussion-post/SKILL.md:203` requires the clinician's Authenticated route
+*"before … writing `STATUS: unsourced` because an **access wall** stopped the search"*; the KDIGO 403
+was not an access wall but a public static PDF, so that trigger never fires.
+`skills/practicum-case-study/SKILL.md:607-609` writes the same rule with the broader trigger *"because
+the body was inaccessible"*, which **does** fire on a 403.
+
+**Neither helps, because both name one specific second instrument and it is the wrong one.** The
+Authenticated route is the clinician's signed-in Chrome — a subscription remedy. A public document
+that returns 403 to one fetch tool and 200 to `curl` is not reached by it, so an agent that takes the
+prescribed route and still fails writes `unsourced` compliantly. Rule (ii) is therefore not a
+widening of this rule's trigger; it is a different rule about instruments rather than about walls.
 
 **Rule (i) has already been invented three times locally.** `STATUS: unsourced - <what was
 searched>`; the vision reader's `UNSEEN:` block for pages it could not open; and
