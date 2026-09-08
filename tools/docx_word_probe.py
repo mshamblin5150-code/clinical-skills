@@ -41,14 +41,20 @@ CALIBRATIONS = (
         "singular `Reference` heading",
         "applied",
     ),
-    Calibration("body-first-line-indent", "first-line indent", "applied"),
+    Calibration("body-first-line-indent", "Every body paragraph takes a", "applied"),
     Calibration("body-no-extra-space", "No extra space before or after", "applied"),
     Calibration("heading-no-blank-lines", "No blank lines above or below", "applied"),
+    Calibration("block-quotation-format", "block quotation of 40 words or more", "applied"),
     Calibration("table-horizontal-rules", "horizontal rules only", "applied"),
     Calibration("title-page", "title page", "not applied"),
     Calibration("run-in-headings", "run-in", "not applied"),
     Calibration("reference-alphabetization", "alphabetized", "not applied"),
     Calibration("reference-single-paragraph", "one paragraph", "not applied"),
+    Calibration(
+        "block-quotation-subsequent-paragraph-indent",
+        "Additional paragraphs within one block quotation",
+        "not applied",
+    ),
 )
 
 PASTE_CALIBRATIONS = (
@@ -96,6 +102,10 @@ HARD_WRAP = "# References\n\nRoss, J. (2025). Pelvic\ndisease. UpToDate.\n"
 TITLE = "# Clinical Case\n\nBody paragraph.\n"
 BODY_SPACING = "# Clinical Case\n\nFirst paragraph.\n\nSecond paragraph.\n"
 HEADING_SPACING = "Opening paragraph.\n\n# Clinical Case\n\nFollowing paragraph.\n"
+BLOCK_QUOTATION = (
+    "> First authored block quotation paragraph.\n"
+    "> Second authored block quotation paragraph.\n"
+)
 WORD_SAVE_EDIT = "Calibration edit."
 
 PROBES = {
@@ -111,11 +121,13 @@ PROBES = {
     "body-first-line-indent": COMMON,
     "body-no-extra-space": BODY_SPACING,
     "heading-no-blank-lines": HEADING_SPACING,
+    "block-quotation-format": BLOCK_QUOTATION,
     "table-horizontal-rules": COMMON,
     "title-page": TITLE,
     "run-in-headings": RUN_IN,
     "reference-alphabetization": COMMON,
     "reference-single-paragraph": HARD_WRAP,
+    "block-quotation-subsequent-paragraph-indent": BLOCK_QUOTATION,
 }
 
 HEADING_PROBE_MARKDOWN = (
@@ -251,6 +263,13 @@ def renderer_shapes() -> dict[str, dict]:
         "".join(node.text or "" for node in paragraph.iter(W + "t"))
         for paragraph in heading_spacing_paragraphs
     ]
+    block_parts = _rendered_parts(BLOCK_QUOTATION)
+    block_document = _root(block_parts, "word/document.xml")
+    block_styles = _root(block_parts, "word/styles.xml")
+    block_style = _style(block_styles, "BlockQuotation")
+    block_paragraphs = _body_paragraphs(block_document)
+    block_indent = block_style.find("./" + W + "pPr/" + W + "ind")
+    block_spacing = block_style.find("./" + W + "pPr/" + W + "spacing")
 
     body_paragraph = _paragraph(document, "Body paragraph.")
     body_first_line = body_paragraph.find("./" + W + "pPr/" + W + "ind")
@@ -386,6 +405,19 @@ def renderer_shapes() -> dict[str, dict]:
                 heading_spacing_texts.index("Clinical Case") + 1
             ],
         },
+        "block-quotation-format": {
+            "paragraph_styles": [
+                _paragraph_style(paragraph) for paragraph in block_paragraphs
+            ],
+            "left_twips": _attr(block_indent, "left"),
+            "hanging_twips": _attr(block_indent, "hanging"),
+            "first_line_twips": _attr(block_indent, "firstLine"),
+            "after_twips": _attr(block_spacing, "after"),
+            "line_twips": _attr(block_spacing, "line"),
+            "marker_visible": any(
+                text.startswith("> ") for text in _texts(block_document)
+            ),
+        },
         "table-horizontal-rules": {
             "table_edges": {
                 edge: _attr(table_borders.find(W + edge), "val")
@@ -412,6 +444,17 @@ def renderer_shapes() -> dict[str, dict]:
                 for text in _texts(hard_wrap_document)
                 if _paragraph_style(_paragraph(hard_wrap_document, text)) == "Reference"
             ]
+        },
+        "block-quotation-subsequent-paragraph-indent": {
+            "paragraph_count": len(block_paragraphs),
+            "paragraph_styles": [
+                _paragraph_style(paragraph) for paragraph in block_paragraphs
+            ],
+            "direct_first_line_twips": [
+                _attr(paragraph.find("./" + W + "pPr/" + W + "ind"), "firstLine")
+                for paragraph in block_paragraphs
+            ],
+            "style_first_line_twips": _attr(block_indent, "firstLine"),
         },
     }
 

@@ -244,6 +244,45 @@ class CanvasSubmissionRows(unittest.TestCase):
         self.assertIn("rendered-text: 0 (reported, not graded)", stdout)
         self.assertIn("rendered-pages: 0", stdout)
 
+    def test_block_quotation_text_and_block_count_are_graded_on_the_html_seam(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            markdown = BODY.replace(
+                "The practical test",
+                "> Exact quoted language retained from the source.\n\nThe practical test",
+            )
+            run.draft.write_text(markdown, encoding="utf-8")
+            html = run.root / "post.html"
+            html.write_text(post_html.render(markdown), encoding="utf-8", newline="")
+            run.record_canvas_render(html, seen=14, expected=14)
+
+            status, stdout, _ = run.grade("--html", str(html))
+
+        self.assertEqual(status, 0)
+        self.assertIn("submission-text: 0", stdout)
+        self.assertIn("rendered-pages: 0", stdout)
+
+    def test_changed_block_quotation_text_fails_html_parity(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            markdown = BODY.replace(
+                "The practical test",
+                "> Exact quoted language retained from the source.\n\nThe practical test",
+            )
+            run.draft.write_text(markdown, encoding="utf-8")
+            html = run.root / "post.html"
+            html.write_text(
+                post_html.render(markdown).replace("Exact quoted language", "Changed language"),
+                encoding="utf-8",
+                newline="",
+            )
+            run.record_canvas_render(html, seen=14, expected=14)
+
+            status, stdout, _ = run.grade("--html", str(html))
+
+        self.assertEqual(status, 1)
+        self.assertIn("submission-text: 1", stdout)
+
     def test_docx_is_archival_and_does_not_grade_submission_rows(self):
         with tempfile.TemporaryDirectory() as temp:
             run = Run(Path(temp))
@@ -1749,6 +1788,12 @@ class ProseBarElementsStayDeclaredReadings(unittest.TestCase):
         self.assertTrue(all(len(reason.split()) > 8 for _key, reason in scan.NOT_REACHED))
         for _subject, _reason, disposition in scan.DECLARED_LIMITS:
             self.assertIsInstance(disposition, scan.EvidenceDisposition)
+
+    def test_the_measured_canvas_block_quotation_is_not_a_declared_unknown(self):
+        self.assertNotIn(
+            "whether Canvas renders a submitted block quotation with the APA left indent",
+            tuple(subject for subject, _reason, _disposition in scan.DECLARED_LIMITS),
+        )
 
     def test_an_isbn_bar_element_is_not_pattern_matched_into_a_finding(self):
         with tempfile.TemporaryDirectory() as temp:

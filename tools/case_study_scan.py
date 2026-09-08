@@ -95,6 +95,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import docx_write
+from discussion_artifact import read_citations
 import coursework_run
 import run_grader
 from run_grader import EvidenceDisposition
@@ -172,6 +173,12 @@ ROS_CLOSER = re.compile(r"all\s+other\s+systems?\b.{0,160}?\b(?:negative|unremar
 # looks like in the Markdown the renderer reads.
 ALL_BOLD = re.compile(r"^\*\*(?!\s)(?:(?!\*\*).)+\*\*$", re.S)
 
+# A direct quoted span in one rendered paragraph. Straight and curly quotation
+# marks are paired separately so an apostrophe or unmatched mark cannot consume
+# the rest of the paragraph and manufacture a forty-word span.
+QUOTED_SPAN = re.compile(r'"(?P<straight>[^"\n]+)"|“(?P<curly>[^”\n]+)”')
+QUOTED_WORD = re.compile(r"\b[\w’'-]+\b", re.UNICODE)
+
 # A date on the signature line. Three spellings, because the corpus writes the
 # first and a run may write either of the others.
 SIGNATURE_DATE = re.compile(
@@ -245,6 +252,7 @@ SIGNATURE_DATE_SPLIT = "signature-date-split"
 RX_TABLE_SHAPE = "rx-table-shape"
 NO_STOP_CRITERION = "no-stop-criterion"
 PROPOSED_HEADING = "proposed-heading"
+UNMARKED_BLOCK_QUOTATION = "unmarked-block-quotation"
 
 # Where each row's rule is written, so a reader knows which file to open. Keyed
 # rather than built from ``KINDS``, on ``checks_ledger.ROW_TICKET``'s reasoning: a
@@ -263,6 +271,9 @@ ROWS = {
     NO_STOP_CRITERION: "style.md 8 - a drug that continues carries its stop criterion",
     PROPOSED_HEADING: (
         "skills/practicum-case-study/SKILL.md step 8 - proposed material lives in the run directory"
+    ),
+    UNMARKED_BLOCK_QUOTATION: (
+        "apa7 32, skills/practicum-case-study/SKILL.md step 9 - source quotations of 40 words or more use block markup"
     ),
 }
 KINDS = tuple(ROWS)
@@ -305,6 +316,14 @@ DECLARED_LIMITS = (
     ),
     (
         "anything the Markdown cannot show, which the rendered document can",
+        EvidenceDisposition.DECLARED_READING,
+    ),
+    (
+        "a narrative citation preceding the source quotation",
+        EvidenceDisposition.BEHAVIOR,
+    ),
+    (
+        "whether a block quotation's parenthetical or narrative citation placement is correct",
         EvidenceDisposition.DECLARED_READING,
     ),
 )
@@ -702,6 +721,38 @@ def _proposed_findings(every: list) -> list[Finding]:
     ]
 
 
+def _source_quotation_findings(sections: list[Section], every: list) -> list[Finding]:
+    """Source quotations of forty words or more require authored ``> `` markup.
+
+    The citation must follow the quoted span in the same paragraph. That is the
+    measured discriminator between a source quotation and ``style.md`` section
+    7's correct patient-education script, and it leaves the ruled narrative-
+    citation-before-the-quotation shape declared rather than guessed at.
+    """
+    owner = section_owner(sections)
+    found = []
+    for block in every:
+        if block.kind != "paragraph":
+            continue
+        citations = read_citations(block.text)
+        for match in QUOTED_SPAN.finditer(block.text):
+            quoted = match.group("straight") or match.group("curly") or ""
+            if len(QUOTED_WORD.findall(quoted)) < 40:
+                continue
+            if not any(citation.start >= match.end() for citation in citations):
+                continue
+            found.append(
+                Finding(
+                    UNMARKED_BLOCK_QUOTATION,
+                    owner.get(block.line, OUTSIDE_ANY_SECTION),
+                    block.line,
+                    block.text,
+                )
+            )
+            break
+    return found
+
+
 def findings(sections: list[Section], every: list) -> list[Finding]:
     """Every row, sorted by ``KINDS``.
 
@@ -718,6 +769,7 @@ def findings(sections: list[Section], every: list) -> list[Finding]:
         + _signature_findings(sections, every)
         + _rx_findings(sections)
         + _proposed_findings(every)
+        + _source_quotation_findings(sections, every)
     )
     order = {kind: index for index, kind in enumerate(KINDS)}
     return sorted(found, key=lambda f: (order[f.kind], f.line))
