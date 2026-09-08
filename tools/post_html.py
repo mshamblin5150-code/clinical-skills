@@ -78,6 +78,8 @@ def render(markdown: str) -> str:
             out.append(f"<p><strong>{inline_html(block.text)}</strong></p>")
         elif block.kind == "paragraph":
             out.append(f"<p>{inline_html(block.text)}</p>")
+        elif block.kind == "block-quotation":
+            out.append(f"<blockquote>{inline_html(block.text)}</blockquote>")
         elif block.kind == "table":
             out.append(_table(block))
         elif block.kind == "separator":

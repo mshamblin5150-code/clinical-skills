@@ -354,7 +354,7 @@ class TheCanvasPasteMeasurement(unittest.TestCase):
     def test_scope_is_carried_in_schema_fields_and_the_observation_is_recorded(self):
         records = json.loads(read(self.RECORD))
         self.assertIsInstance(records, list)
-        self.assertEqual(len(records), 1)
+        self.assertEqual(len(records), 2)
         record = records[0]
         for field in ("measured_on", "institution", "course", "theme", "instrument"):
             with self.subTest(field=field):
@@ -363,6 +363,16 @@ class TheCanvasPasteMeasurement(unittest.TestCase):
         self.assertEqual(record["sanitizer"]["keeps"], "tags only")
         self.assertTrue(record["rendered_type_scale"])
         self.assertNotIn("editor", record["observed_in"])
+
+        block = records[1]
+        self.assertEqual(block["measured_on"], "2026-09-08")
+        self.assertEqual(block["source_shape"], "raw HTML editor <blockquote>")
+        self.assertTrue(block["rendered_block_quotation"]["tag_survived"])
+        self.assertEqual(
+            block["rendered_block_quotation"]["text_indent_delta_pixels"], 19.8
+        )
+        self.assertFalse(block["rendered_block_quotation"]["meets_apa_half_inch"])
+        self.assertTrue(block["discarded_without_submission"])
 
 
 class VerifiedSourcesComposeAcrossTheBoard(unittest.TestCase):

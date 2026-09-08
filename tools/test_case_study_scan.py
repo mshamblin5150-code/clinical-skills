@@ -126,6 +126,9 @@ ROW_PHRASES = {
     scan.RX_TABLE_SHAPE: "the prescription table at six rows and three columns wide",
     scan.NO_STOP_CRITERION: "a drug that continues carrying a stop criterion",
     scan.PROPOSED_HEADING: "no `PROPOSED (verify before use)` heading in the submission",
+    scan.UNMARKED_BLOCK_QUOTATION: (
+        "a source quotation of 40 words or more carrying authored `> ` block markup"
+    ),
 }
 
 
@@ -664,6 +667,42 @@ class ProposedMaterialIsNotASubmission(unittest.TestCase):
         self.assertIn(scan.PROPOSED_HEADING, fired)
 
 
+class SourceQuotationsNeedAuthoredBlockMarkup(unittest.TestCase):
+    def test_a_cited_forty_word_quoted_span_without_the_marker_is_a_finding(self):
+        words = " ".join("word{n}".format(n=n) for n in range(1, 41))
+        paragraph = '"{words}" (Aurelius, 2002, p. 14).'.format(words=words)
+        draft = CLEAN.replace("## References", paragraph + "\n\n## References")
+
+        self.assertIn("unmarked-block-quotation", kinds(draft))
+
+    def test_thirty_nine_words_do_not_cross_the_apa_threshold(self):
+        words = " ".join("word{n}".format(n=n) for n in range(1, 40))
+        paragraph = '"{words}" (Aurelius, 2002, p. 14).'.format(words=words)
+        draft = CLEAN.replace("## References", paragraph + "\n\n## References")
+
+        self.assertNotIn(scan.UNMARKED_BLOCK_QUOTATION, kinds(draft))
+
+    def test_a_long_script_without_a_citation_is_not_a_source_quotation(self):
+        words = " ".join("word{n}".format(n=n) for n in range(1, 57))
+        draft = CLEAN.replace("## References", '"' + words + '"\n\n## References')
+
+        self.assertNotIn(scan.UNMARKED_BLOCK_QUOTATION, kinds(draft))
+
+    def test_authored_block_markup_discharges_the_row(self):
+        words = " ".join("word{n}".format(n=n) for n in range(1, 41))
+        paragraph = '> "{words}" (Aurelius, 2002, p. 14).'.format(words=words)
+        draft = CLEAN.replace("## References", paragraph + "\n\n## References")
+
+        self.assertNotIn(scan.UNMARKED_BLOCK_QUOTATION, kinds(draft))
+
+    def test_a_narrative_citation_before_the_span_is_the_declared_limit(self):
+        words = " ".join("word{n}".format(n=n) for n in range(1, 41))
+        paragraph = 'Aurelius (2002) wrote, "{words}" (p. 14).'.format(words=words)
+        draft = CLEAN.replace("## References", paragraph + "\n\n## References")
+
+        self.assertNotIn(scan.UNMARKED_BLOCK_QUOTATION, kinds(draft))
+
+
 class TheSkeletonIsTheSkillsOwn(unittest.TestCase):
     """``SKELETON`` is what ``SKILL.md`` publishes, checked from the command.
 
@@ -803,6 +842,10 @@ class EveryDeclaredLimitHasAnEvidenceDisposition(unittest.TestCase):
         "a second drug welded into one drug row, discharged by the first drug's endpoint"
     )
     SOURCED_DOSE = "whether a dose was sourced at all"
+    NARRATIVE_QUOTATION = "a narrative citation preceding the source quotation"
+    BLOCK_CITATION_PLACEMENT = (
+        "whether a block quotation's parenthetical or narrative citation placement is correct"
+    )
 
     def test_every_limit_has_exactly_one_known_disposition(self):
         self.assertEqual(
@@ -818,7 +861,16 @@ class EveryDeclaredLimitHasAnEvidenceDisposition(unittest.TestCase):
                 for key, disposition in scan.DECLARED_LIMITS
                 if disposition is scan.EvidenceDisposition.BEHAVIOR
             ],
-            [self.WELDED, self.SOURCED_DOSE],
+            [self.WELDED, self.SOURCED_DOSE, self.NARRATIVE_QUOTATION],
+        )
+        self.assertEqual(
+            [
+                key
+                for key, disposition in scan.DECLARED_LIMITS
+                if disposition is scan.EvidenceDisposition.DECLARED_READING
+                and "citation placement" in key
+            ],
+            [self.BLOCK_CITATION_PLACEMENT],
         )
 
     def test_the_welded_second_drug_really_is_discharged_by_the_first_endpoint(self):

@@ -510,7 +510,7 @@ class HtmlUnit:
 class SubmissionHtmlParser(HTMLParser):
     """Read visible paragraph-shaped units and comments from the submitted HTML."""
 
-    UNIT_TAGS = frozenset(("p", "li", "th", "td"))
+    UNIT_TAGS = frozenset(("p", "li", "th", "td", "blockquote"))
 
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
@@ -525,7 +525,7 @@ class SubmissionHtmlParser(HTMLParser):
 
     def handle_starttag(self, tag: str, _attrs) -> None:
         tag = tag.casefold()
-        if tag in {"p", "li", "table", "hr"}:
+        if tag in {"p", "li", "table", "hr", "blockquote"}:
             self.block_count += 1
         if self._unit_tag is None and tag in self.UNIT_TAGS:
             self._unit_tag = tag
@@ -581,6 +581,8 @@ def _expected_html_units(markdown: str) -> tuple[tuple[HtmlUnit, ...], int]:
             units.append(HtmlUnit("p", _plain_inline(block.text), True))
         elif block.kind == "paragraph":
             units.append(HtmlUnit("p", _plain_inline(block.text), False))
+        elif block.kind == "block-quotation":
+            units.append(HtmlUnit("blockquote", _plain_inline(block.text), False))
         elif block.kind in {"bullet", "numbered"}:
             units.append(HtmlUnit("li", _plain_inline(block.text), False))
         elif block.kind == "table":

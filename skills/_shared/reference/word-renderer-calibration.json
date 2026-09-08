@@ -262,6 +262,35 @@
         "preceding_paragraph": "Opening paragraph."
       }
     },
+    "block-quotation-format": {
+      "measured_on": "2026-09-08",
+      "word_version": "16.0",
+      "word_build": "16.0.20326",
+      "verdict": "applied",
+      "word_observation": "Word reported both authored block quotation paragraphs in Block Quotation style with 36 pt left indents, zero first-line indents, 24 pt double-line spacing, and zero space before and after; the authored > markers were absent.",
+      "renderer_shape": {
+        "after_twips": "0",
+        "first_line_twips": null,
+        "hanging_twips": null,
+        "left_twips": "720",
+        "line_twips": "480",
+        "marker_visible": false,
+        "paragraph_styles": ["BlockQuotation", "BlockQuotation"]
+      }
+    },
+    "block-quotation-subsequent-paragraph-indent": {
+      "measured_on": "2026-09-08",
+      "word_version": "16.0",
+      "word_build": "16.0.20326",
+      "verdict": "not applied",
+      "word_observation": "Word reported the two consecutive authored block quotation lines as separate Block Quotation paragraphs, each with a zero first-line indent; the renderer did not infer that the second paragraph continued the same quotation or add the required extra indent.",
+      "renderer_shape": {
+        "direct_first_line_twips": [null, null],
+        "paragraph_count": 2,
+        "paragraph_styles": ["BlockQuotation", "BlockQuotation"],
+        "style_first_line_twips": null
+      }
+    },
     "table-horizontal-rules": {
       "measured_on": "2026-08-22",
       "word_version": "16.0",

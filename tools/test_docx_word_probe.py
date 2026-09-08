@@ -76,6 +76,8 @@ class TheCommittedWordMeasurement(unittest.TestCase):
         measured_on = {
             "body-no-extra-space": "2026-09-08",
             "heading-no-blank-lines": "2026-09-08",
+            "block-quotation-format": "2026-09-08",
+            "block-quotation-subsequent-paragraph-indent": "2026-09-08",
         }
         self.assertEqual(set(record["rows"]), set(specs))
         for key, row in record["rows"].items():
