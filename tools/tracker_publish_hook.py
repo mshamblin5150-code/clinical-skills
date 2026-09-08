@@ -116,6 +116,11 @@ NOT_REACHED = (
         "the command-folder reader reaches literal absolute cd targets only",
         "A variable, substitution, parent, previous-folder, home, or relative cd target is refused rather than guessed at.",
     ),
+    (
+        "a stock discriminator clause can satisfy the verdict form check",
+        "The check establishes that the comment carries the declared form and "
+        "cannot establish that its counterfactual is true.",
+    ),
 )
 
 
@@ -178,6 +183,16 @@ TARGET_VALUE_FLAGS = {
     "--repo",
     "-R",
 }
+COMMENT_ROUTES = (
+    ("issue", "comment"),
+    ("issue", "close"),
+    ("pr", "comment"),
+    ("pr", "review"),
+)
+DISCRIMINATOR_CLAUSE = re.compile(
+    r"\bunder the claim['’]s negation\b",
+    re.IGNORECASE,
+)
 API_RECORD_NUMBER = re.compile(r"/(?:issues|pulls?)/(?P<number>[0-9]+)(?:/|\Z)")
 RAW_PUBLISH_ROUTE = re.compile(
     r"(?:\A|[;&|]\s*)gh\s+(?:(api)\b|([A-Za-z]+)\s+([A-Za-z]+)\b)"
@@ -906,6 +921,181 @@ def _branch_rule(report: str) -> str:
     return "branch:scope"
 
 
+def ordinary_comment_prose(text: str) -> str:
+    """Return unfenced, unquoted, non-list Markdown paragraph lines."""
+    lines = []
+    list_indent: int | None = None
+    lazy_quote = False
+    lazy_list = False
+    html_block: HtmlBlock | None = None
+    for line in tracker_bodies.prose_outside_code(
+        text, preserve_lines=True
+    ).splitlines():
+        if html_block is not None:
+            html_content = html_block_continuation(line, html_block)
+            if html_content is not None:
+                if html_block_closes(html_block, html_content):
+                    html_block = None
+                continue
+            html_block = None
+        if not line.strip():
+            lazy_quote = False
+            lazy_list = False
+            lines.append("")
+            continue
+        indentation = len(line) - len(line.lstrip(" "))
+        if list_indent is not None and (
+            line.startswith("\t") or indentation >= list_indent
+        ):
+            content = line[list_indent:]
+            if opening := html_block_opening(
+                content, container="list", indent=list_indent
+            ):
+                lazy_list = False
+                if not html_block_closes(opening, content):
+                    html_block = opening
+                continue
+            if lazy_list and starts_markdown_block(line[list_indent:]):
+                lazy_list = False
+            continue
+        if match := tracker_bodies.QUOTE_PREFIX.match(line):
+            content = line[match.end():]
+            if opening := html_block_opening(content, container="quote"):
+                lazy_quote = False
+                if not html_block_closes(opening, content):
+                    html_block = opening
+            else:
+                lazy_quote = starts_markdown_paragraph(content)
+            lazy_list = False
+            list_indent = None
+            continue
+        if lazy_quote:
+            if not starts_markdown_block(line):
+                continue
+            lazy_quote = False
+        if match := tracker_bodies.LIST_PREFIX.match(line):
+            list_indent = match.end()
+            content = line[match.end():]
+            if opening := html_block_opening(
+                content, container="list", indent=list_indent
+            ):
+                lazy_list = False
+                if not html_block_closes(opening, content):
+                    html_block = opening
+            else:
+                lazy_list = starts_markdown_paragraph(content)
+            lazy_quote = False
+            continue
+        if lazy_list:
+            if not starts_markdown_block(line):
+                continue
+            lazy_list = False
+            list_indent = None
+        if line.startswith("\t") or line.startswith("    "):
+            continue
+        visible = line.lstrip(" ")
+        if opening := html_block_opening(visible):
+            if not html_block_closes(opening, visible):
+                html_block = opening
+            continue
+        lines.append(visible)
+    return "\n".join(lines)
+
+
+def starts_markdown_block(line: str) -> bool:
+    """Return whether a line interrupts a lazy CommonMark paragraph."""
+    visible = line.lstrip(" ")
+    return bool(
+        tracker_bodies.QUOTE_PREFIX.match(line)
+        or tracker_bodies.LIST_PREFIX.match(line)
+        or re.match(r"#{1,6}(?:[ \t]+|$)", visible)
+        or re.fullmatch(r"(?:\*[ \t]*){3,}", visible)
+        or re.fullmatch(r"(?:-[ \t]*){3,}", visible)
+        or re.fullmatch(r"(?:_[ \t]*){3,}", visible)
+        or starts_html_block(visible)
+    )
+
+
+HTML_BLOCK_TAG = re.compile(
+    r"</?(?:address|article|aside|base|basefont|blockquote|body|caption|center|"
+    r"col|colgroup|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|"
+    r"footer|form|frame|frameset|h[1-6]|head|header|hr|html|iframe|legend|li|"
+    r"link|main|menu|menuitem|nav|noframes|ol|optgroup|option|p|param|search|"
+    r"section|summary|table|tbody|td|tfoot|th|thead|title|tr|track|ul)"
+    r"(?:[ \t]|/?>|$)",
+    re.IGNORECASE,
+)
+
+
+class HtmlBlock(NamedTuple):
+    end_kind: str
+    end_value: str
+    container: str = "top"
+    indent: int = 0
+
+
+def html_block_opening(
+    visible: str,
+    *,
+    container: str = "top",
+    indent: int = 0,
+) -> HtmlBlock | None:
+    """Describe a paragraph-interrupting CommonMark HTML block opener."""
+    if re.match(
+        r"<(?:script|pre|style|textarea)(?:[ \t]|>|$)", visible, re.I
+    ):
+        return HtmlBlock("tag", "", container, indent)
+    markers = {
+        "<!--": "-->",
+        "<?": "?>",
+        "<![CDATA[": "]]>",
+    }
+    for prefix, ending in markers.items():
+        if visible.startswith(prefix):
+            return HtmlBlock("marker", ending, container, indent)
+    if re.match(r"<![A-Z]", visible):
+        return HtmlBlock("marker", ">", container, indent)
+    if HTML_BLOCK_TAG.match(visible):
+        return HtmlBlock("blank", "", container, indent)
+    return None
+
+
+def html_block_closes(block: HtmlBlock, content: str) -> bool:
+    """Return whether one logical HTML-block line reaches its terminator."""
+    if block.end_kind == "marker":
+        return block.end_value in content
+    if block.end_kind == "tag":
+        return bool(
+            re.search(r"</(?:pre|script|style|textarea)>", content, re.I)
+        )
+    return not content.strip()
+
+
+def html_block_continuation(line: str, block: HtmlBlock) -> str | None:
+    """Return logical block content, or None when its container has ended."""
+    if block.container == "top":
+        return line.lstrip(" ")
+    if block.container == "quote":
+        match = tracker_bodies.QUOTE_PREFIX.match(line)
+        return None if match is None else line[match.end():]
+    if not line.strip():
+        return ""
+    indentation = len(line) - len(line.lstrip(" "))
+    if not line.startswith("\t") and indentation < block.indent:
+        return None
+    return line[block.indent:]
+
+
+def starts_html_block(visible: str) -> bool:
+    """Return whether text starts a CommonMark paragraph-interrupting HTML block."""
+    return html_block_opening(visible) is not None
+
+
+def starts_markdown_paragraph(content: str) -> bool:
+    """Return whether container content can have a lazy continuation."""
+    return bool(content.strip()) and not starts_markdown_block(content)
+
+
 def analyze(
     publication: Publication,
     *,
@@ -940,6 +1130,23 @@ def analyze(
             and tracker_bodies.has_doubled_path_separator(publication.text)):
         findings.append(Finding(
             "body:doubled-path-separator", 1, publication.field, "deny"
+        ))
+    comment_prose = (
+        ordinary_comment_prose(publication.text)
+        if publication.field == "body" and route in COMMENT_ROUTES
+        else ""
+    )
+    if (
+        publication.field == "body"
+        and route in COMMENT_ROUTES
+        and any(
+            line.startswith("**Verdict:**")
+            for line in comment_prose.splitlines()
+        )
+        and not DISCRIMINATOR_CLAUSE.search(comment_prose)
+    ):
+        findings.append(Finding(
+            "verdict:missing-discriminator", 1, publication.field, "advise"
         ))
 
     if publication.field == "title":
