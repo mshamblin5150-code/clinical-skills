@@ -643,6 +643,18 @@ class LegalEntriesResolveBySectionOrAreExplicitlyExcluded(unittest.TestCase):
         self.assertIn("legal-reference-lacks-name", kinds(draft(NAMELESS_LEGAL, body="# Case\n")))
         self.assertNotIn("legal-reference-lacks-name", kinds(draft(NAMED_LEGAL, body="# Case\n")))
 
+    def test_a_named_legal_entry_is_uncited_until_its_section_form_resolves(self):
+        self.assertIn(scan.UNCITED_ENTRY, kinds(draft(NAMED_LEGAL, body="# Case\n")))
+        self.assertNotIn(
+            scan.UNCITED_ENTRY,
+            kinds(
+                draft(
+                    NAMED_LEGAL,
+                    body=self.body(self.CITATIONS["narrative section"]),
+                )
+            ),
+        )
+
     def test_only_a_section_only_state_entry_fires_the_entry_row(self):
         section_only = "W. Va. Code § 30-7-15b (2016)."
         named = (
