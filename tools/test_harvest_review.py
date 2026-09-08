@@ -8,7 +8,12 @@ read the real corpus would pass for two reasons, one of them being that the
 corpus happens to suit it.
 """
 
+import contextlib
+import io
+from pathlib import Path
+import tempfile
 import unittest
+from unittest import mock
 
 import harvest_review as hr
 import phi_scan as ps
@@ -137,6 +142,52 @@ class Rendering(unittest.TestCase):
         out = self.render([JORDAN, PRIYA], {"reaction latex", "Ellery Voss"})
         self.assertIn('"reaction latex"', out)
         self.assertIn('"Ellery Voss"', out)
+
+
+class Main(unittest.TestCase):
+    def run_main(self, index_text=None):
+        with tempfile.TemporaryDirectory() as holder:
+            scratch = Path(holder)
+            if index_text is not None:
+                (scratch / "name-index.json").write_text(index_text, encoding="utf-8")
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+            with (
+                mock.patch.object(ps, "SCRATCH", scratch),
+                mock.patch.object(ps, "REVIEWED_LEDGER", scratch / "harvest-reviewed.json"),
+                contextlib.redirect_stdout(stdout),
+                contextlib.redirect_stderr(stderr),
+            ):
+                status = hr.main([])
+            return status, stdout.getvalue(), stderr.getvalue()
+
+    def test_an_absent_name_index_keeps_the_inactive_corpus_message(self):
+        status, stdout, stderr = self.run_main()
+        self.assertEqual(status, 0)
+        self.assertEqual(stdout, "")
+        self.assertEqual(
+            stderr,
+            "harvest review: no name index under scratch/ -- nothing to review.\n"
+            "The corpus layer is inactive on this clone.\n",
+        )
+
+    def test_an_unreadable_name_index_is_did_not_scan(self):
+        status, stdout, stderr = self.run_main("{")
+        self.assertEqual(status, 2)
+        self.assertEqual(stdout, "")
+        self.assertEqual(
+            stderr,
+            "harvest review: scratch/name-index.json is unreadable -- did not scan.\n",
+        )
+
+    def test_a_readable_empty_index_completes_an_empty_review(self):
+        status, stdout, stderr = self.run_main("[]")
+        self.assertEqual(status, 0)
+        self.assertEqual(
+            stdout,
+            "harvest review: nothing unruled. Every harvested string has been decided.\n\n",
+        )
+        self.assertEqual(stderr, "")
 
 
 if __name__ == "__main__":
