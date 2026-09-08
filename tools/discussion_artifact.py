@@ -145,7 +145,7 @@ REREAD_FIELD = re.compile(
 REREAD_FIELDS = ("POST-URL", "POSTED", "READ", "VERDICT")
 POSTED_READING_VERDICTS = frozenset({"matches", "diverges"})
 AUTOMATED_RENDERED_SOURCES = frozenset(("word-pdf", "word-xps"))
-RENDERED_SOURCES = AUTOMATED_RENDERED_SOURCES | {"clinician"}
+RENDERED_SOURCES = AUTOMATED_RENDERED_SOURCES | {"canvas-box", "clinician"}
 RENDERED_RASTER_DPI = 120
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 

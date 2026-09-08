@@ -117,6 +117,7 @@ import os
 import re
 import sys
 import zipfile
+from dataclasses import dataclass
 from pathlib import Path
 
 from console_codec import use_utf8
@@ -507,48 +508,61 @@ def esc(text: str) -> str:
     return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
-_INLINE = re.compile(r"(\*\*.+?\*\*|(?<!\*)\*[^*]+?\*(?!\*)|`[^`]+?`)", re.DOTALL)
+INLINE = re.compile(r"(\*\*.+?\*\*|(?<!\*)\*[^*]+?\*(?!\*)|`[^`]+?`)", re.DOTALL)
 
 
-def runs(text: str, bold: bool = False, italic: bool = False) -> str:
-    """Split bold, italic and monospace spans into Word runs."""
-    out = []
-    for piece in _INLINE.split(text):
+@dataclass(frozen=True)
+class InlineSpan:
+    """One format-neutral inline span in the Markdown subset."""
+
+    text: str
+    bold: bool = False
+    italic: bool = False
+    monospace: bool = False
+
+
+def inline_spans(text: str, bold: bool = False, italic: bool = False):
+    """Split bold, italic, and monospace spans without choosing an output format."""
+
+    for piece in INLINE.split(text):
         if not piece:
             continue
         is_bold, is_italic, is_mono = bold, italic, False
         body = piece
         if piece.startswith("**") and piece.endswith("**") and len(piece) > 4:
             inner = piece[2:-2]
-            # **One level of nesting, and it is the level the corpus actually
-            # writes.** A bold statement carrying an italicised organism name --
-            # ``**... due to *Neisseria gonorrhoeae* ...**`` -- used to emit the
-            # inner asterisks as literal text, because the outer span was consumed
-            # whole and never re-split. That is the stray ``*`` the clinician found
-            # in the Most Likely Clinical Diagnosis line of a graded document.
-            if _INLINE.search(inner):
-                out.append(runs(inner, bold=True, italic=italic))
+            if INLINE.search(inner):
+                yield from inline_spans(inner, bold=True, italic=italic)
                 continue
             is_bold, body = True, inner
         elif piece.startswith("*") and piece.endswith("*") and len(piece) > 2:
             is_italic, body = True, piece[1:-1]
         elif piece.startswith("`") and piece.endswith("`") and len(piece) > 2:
             is_mono, body = True, piece[1:-1]
+        yield InlineSpan(body, is_bold, is_italic, is_mono)
+
+
+def runs(text: str, bold: bool = False, italic: bool = False) -> str:
+    """Split bold, italic and monospace spans into Word runs."""
+    out = []
+    for span in inline_spans(text, bold=bold, italic=italic):
         # ``CT_RPr`` is a sequence like ``CT_PPrBase`` in ``para`` above --
         # ``rStyle``, ``rFonts``, ``b``, ``i`` -- and Word refuses a file whose
         # run properties arrive out of order. ``rFonts`` therefore goes first.
         # This was unreachable from body text until bold learned to nest, and a
         # bold span carrying a monospace one now produces both at once.
         props = ""
-        if is_mono:
+        if span.monospace:
             props += '<w:rFonts w:ascii="Consolas" w:hAnsi="Consolas"/>'
-        if is_bold:
+        if span.bold:
             props += "<w:b/>"
-        if is_italic:
+        if span.italic:
             props += "<w:i/>"
         rpr = "<w:rPr>{p}</w:rPr>".format(p=props) if props else ""
         out.append(
-            '<w:r>{rpr}<w:t xml:space="preserve">{t}</w:t></w:r>'.format(rpr=rpr, t=esc(body))
+            '<w:r>{rpr}<w:t xml:space="preserve">{t}</w:t></w:r>'.format(
+                rpr=rpr, t=esc(span.text)
+            )
         )
     return "".join(out)
 

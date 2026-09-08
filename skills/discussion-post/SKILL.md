@@ -14,9 +14,10 @@ patient safeguards are required. This routing line is also the PHI line: `discus
 accepts patient material. A prompt asking for policy analysis, professional reflection, ethics,
 leadership, or another nonpatient academic argument remains here.
 
-The clinician signs the bar before drafting, reads the finished post, and gives the explicit
-go-ahead before anything is pasted into the LMS. Authorization to read, research, draft, or render
-is not submission authorization.
+The clinician signs the bar before drafting, reads the finished post, and gives an explicit
+go-ahead before it is loaded into the LMS. After an independent reading of the rendered Canvas
+box, the clinician gives a second explicit go-ahead before submission. Authorization to read,
+research, draft, render, or load is not submission authorization.
 
 ## Inputs, outputs, and one board-keyed run
 
@@ -44,12 +45,17 @@ scratch/runs/<course>-<module>-discussion/
 
 Each sitting writes a new `board-<date>.md`; never overwrite an earlier snapshot. `posts/` holds
 one file per classmate for provenance. `post.md` is the private working draft, not the handed-over
-artifact. Write the finished pair only to:
+artifact. Write the finished submission and its renders only to:
 
 ```text
 output/discussions/<course>-<module>-discussion-<date>.md
+output/discussions/<course>-<module>-discussion-<date>.html
 output/discussions/<course>-<module>-discussion-<date>.docx
 ```
+
+The `.html` is the submission loaded into Canvas. The Markdown is its source of record, and the
+`.docx` is its archival paper-shaped rendering. `output/` holds the submission and its renders;
+provenance stays in the run directory.
 
 Parallel readers and researchers each receive a new run-unique private path that no sibling reads
 or writes. They return findings to the orchestrating context and never append to the canonical run
@@ -247,13 +253,13 @@ walk. A new factual sentence is researched and independently refuted on the same
 ## 6. Write and independently grade the finished Markdown
 
 Copy the approved working text to `output/discussions/<course>-<module>-discussion-<date>.md`. Keep the
-`INVOKED` comments in the Markdown working artifact so the count remains auditable. End with the Markdown heading `## References`. This is the form the post grader and reference scanner both read.
-`docx_write.py --bold-headings` drops the own-line comments and renders the heading as direct bold
-formatting without a named heading style before the document is pasted into the LMS. This differs
-from `discussion-reply`, which pastes from Markdown directly and therefore still requires a person
-to omit its working comments.
+`INVOKED` comments in the Markdown working artifact so the count remains auditable. End with the Markdown heading `## References`.
+This is the source of record that the post grader and reference
+scanner both read. Both renderers consume `docx_write.blocks`, so own-line comments leave both
+renders without a second omission rule. This differs from `discussion-reply`, where the agent
+types into the rich editor and omits the working comments while typing.
 
-Fresh, non-authoring contexts run each artifact grader. One context never grades an artifact it
+Fresh, non-authoring contexts run each source grader. One context never grades an artifact it
 authored, and a repair is checked by another fresh context:
 
 ```bash
@@ -272,107 +278,107 @@ beside it, but two citations may not spend that record. The report counts distin
 and claim records, along with the word ceiling, invoked sources, and unfilled invoked properties;
 the latter fields remain counted without grading. Its default output is counts only; `--show`
 includes private finding detail and must not be pasted.
-The `bold-headings`, `rendered-comments`, `rendered-text`, and `rendered-pages` rows report `not graded` at this
-stage because the document does not exist yet; step 7 renders it and reruns this grader with
-`--docx`.
 
-Exit 0 means the scanner's rows pass, 1 means a finding, and 2 means it did not completely scan.
-Preserve the original checker result, fix findings through the drafting context, and have a new
-non-authoring context check the correction. Then walk `discussion_post_scan.NOT_REACHED` item by
-item against the live pages, signed bar, draft, and ledger. In particular, read whether an ISBN or
-other prose bar element is present and whether a reference supports the proposition the bar
+The `bold-headings`, `rendered-comments`, `submission-text`, `rendered-text`, and
+`rendered-pages` rows report `not graded` at this stage because neither render has been supplied.
+Step 7 writes both renders; step 8 supplies the Canvas-box evidence and runs the artifact rows.
+
+Exit 0 means the scanner's source rows pass, 1 means a finding, and 2 means it did not completely
+scan. Preserve the original checker result, fix findings through the drafting context, and have a
+new non-authoring context check the correction. Then walk `discussion_post_scan.NOT_REACHED` item
+by item against the live pages, signed bar, draft, and ledger. In particular, read whether an ISBN
+or other prose bar element is present and whether a reference supports the proposition the bar
 requires; do not substitute a reference count for either judgment.
 
-## 7. Render and inspect the `.docx`
+## 7. Generate the HTML submission and archival `.docx`
 
-Render the checked Markdown:
+Generate both renderings from the checked Markdown:
 
 ```bash
-python tools/docx_write.py output/discussions/<course>-<module>-discussion-<date>.md output/discussions/<course>-<module>-discussion-<date>.docx --bold-headings
-python tools/discussion_post_render.py scratch/runs/<course>-<module>-discussion --docx output/discussions/<course>-<module>-discussion-<date>.docx
+python tools/post_html.py output/discussions/<course>-<module>-discussion-<date>.md output/discussions/<course>-<module>-discussion-<date>.html
+python tools/docx_write.py output/discussions/<course>-<module>-discussion-<date>.md output/discussions/<course>-<module>-discussion-<date>.docx
 ```
 
-`discussion_post_render.py` creates a new retained `render/pass-N/`, keeps Word's page-faithful PDF
-or XPS there, and writes one 120-dpi PNG per page beside it. It asks a freshly spawned
-`Word.Application` to open the document read-only with conversion
-confirmation disabled, without touching `Application.Visible`. Its first route is
-`ExportAsFixedFormat2(path, 17)` followed by PyMuPDF; if Word's PDF route fails, it uses
-`SaveAs2(path, wdFormatXPS)` followed by the same reader. PyMuPDF opened directly on the `.docx`
-is not a route: it reflows the document and cannot supply Word's pagination. The command prints the
-source, exported page count, and retained pass directory. An exit of 2 means no complete pass was
-retained and the document was not visually checked.
+`post_html.py` writes the exact bytes the agent will load into Canvas's raw editor. Every Markdown
+heading becomes `<p><strong>`; paragraph and inline text come from the same block and inline
+parsers as the Word renderer. Own-line comments are absent. A mid-line or multi-line HTML comment
+remains a real delimiter so `rendered-comments` can refuse it rather than hiding it in the box.
 
-The `rendered-comments` row must be 0. It reads the Word artifact for either HTML-comment
-delimiter, so residue from a mid-line or multi-line form fails even though the renderer warns and
-continues. The Markdown keeps the own-line audit comments; the document does not.
+The `.docx` is archival and uses proper named heading styles. ADR 0013's direct-formatting
+`--bold-headings` route is historical: its Word-to-Canvas measurement remains the reason the HTML
+route uses `<strong>`, but no discussion-post document is destined for a Word paste now.
+The archive is graded only through `rendered-text`, a reported paragraph-text parity count that
+does not change exit status. It is not rasterized or visually graded, because it is not the
+submission.
 
-The `rendered-text` row reports whether the draft and document paragraph text differ. It is
-reported, not graded: a nonzero result must be read and reconciled, but does not change the
-scanner's exit status because list markers, fields, and other document structure can make the
-paragraph streams differ without losing prose.
+The Markdown is the authoritative artifact. If the Word renderer refuses an existing document, the refusal
+can mean Word or a person owns changes Git cannot restore. Read the document and recover the edit
+into the Markdown and its claim ledger, and only then ask the clinician before passing `--force`.
+The flag is available after recovery; it is never a substitute for recovery.
 
-The Markdown is the authoritative artifact. If the renderer refuses an existing document, the
-refusal can mean Word or a person owns changes that Git cannot restore. Read the document and
-recover the edit into the Markdown and its claim ledger, and only then ask the clinician before passing
-`--force`. The flag is available after recovery; it is never a substitute for recovery.
+## 8. Gate 1, load, independently read the box, Gate 2, and submit
 
-A vision-capable, non-authoring context compares every retained page image with the Markdown and
-reports clipping, overlap, missing text, broken references, bad page breaks, or misplaced
-headings. A text-only reread does not substitute for the visual check. Each pass is one
-rasterization: if the PDF route cannot image every page, its pixels are discarded before the XPS
-route begins, so the retained images always come from the retained export. If both Word exports
-fail, ask the clinician to export the document as PDF or XPS and rerun with
-`--clinician-export <PDF-or-XPS>`; this records `SOURCE: clinician` while the agent still
-rasterizes and compares every page. Name any page the reader did not compare under `UNSEEN:`. The
-clinician is an escalation, not an equal first route.
+Before Gate 1, inspect the editor for the raw-HTML toggle labeled like *Click or shift-click for the
+html editor*. If it is present, tell the clinician the post will be loaded as HTML. If it is absent,
+declare the typing fallback and its cost before asking: the agent will type the post into the rich
+editor, omit every working comment, and interleave `ctrl+b` around each section heading and the
+References label. The route is chosen at Gate 1 and never changes after a bad reading. There is no
+Word-paste third route; with proper heading styles the measured clipboard path produces visibly
+wrong headings.
 
-After the comparison, append this exact record to the private `post.md`:
+Show the final post and clean source-check summary to the clinician. **Gate 1** is the clinician's
+explicit approval of the post and authorizes loading it into the box, not submission. That approval
+also confirms that every edit implicated by a destination-guard refusal was recovered into the
+authoritative Markdown and, where it changes a factual claim, the claim ledger.
+
+On the primary route, switch to the raw editor, load the exact `.html` contents, and switch back to
+the rich editor. On the fallback route, type and format the post as declared at Gate 1. Inspect the
+rendered box before doing anything else.
+
+Create the next retained `render/pass-N/`. Copy the exact output `.html` into that pass as
+`post.html`, and retain enough PNG captures of the scrolling Canvas box to make every rendered
+block visible. The destination is the rasterizer: a text-only reread does not replace these pixels.
+A fresh non-authoring context compares the captures with the Markdown and accounts for every
+nonblank block derived through `docx_write.blocks`. The denominator comes from the submitted HTML
+render, never from the record and never from the capture count. Append this exact shape to the
+private `post.md`:
 
 ```text
 ## RENDERED: post.md
-PAGES: 3 of 3 imaged
-SOURCE: word-pdf
+BLOCKS: 13 of 13 read
+SOURCE: canvas-box
 UNSEEN: none
-READ: 2026-08-30
-VERDICT: clean - three pages compared; headings bold, references hang, nothing clipped
+READ: 2026-09-08
+VERDICT: clean - all 13 blocks compared; headings bold, paragraphs and references present
 ```
 
-`SOURCE:` is `word-pdf`, `word-xps`, or `clinician`. Re-renders append: never replace an earlier
-record or overwrite its evidence. Each new comparison writes the next `render/pass-N/` and appends
-one matching record. Every record must parse, its expected count must equal the retained export's
-page count, and its imaged count must equal the PNG count in its own pass. An earlier pass may stop
-short after finding a defect; only the last pass must image and compare every page, name
-`UNSEEN: none`, and carry a `clean` verdict with substantive reading detail.
+Replace `13` with the derived block count. Re-renders append: never replace an earlier record or
+overwrite its evidence. Every record must parse, each pass must keep exactly one `.html` export
+whose bytes equal the submitted HTML and at least one readable PNG capture, and the expected block
+count must equal the export's count. An earlier pass may stop after a defect; only the last pass
+must account for every block, name `UNSEEN: none`, and carry a clean verdict with substantive
+reading detail.
 
-Now rerun the grader:
+Run the artifact grader:
 
 ```bash
-python tools/discussion_post_scan.py scratch/runs/<course>-<module>-discussion --draft output/discussions/<course>-<module>-discussion-<date>.md --docx output/discussions/<course>-<module>-discussion-<date>.docx
+python tools/discussion_post_scan.py scratch/runs/<course>-<module>-discussion --draft output/discussions/<course>-<module>-discussion-<date>.md --html output/discussions/<course>-<module>-discussion-<date>.html --docx output/discussions/<course>-<module>-discussion-<date>.docx
 ```
 
-The `rendered-pages` row must be 0. A missing or malformed record, an unrecognized source, a
-record-to-pass count mismatch, or a missing or unreadable retained export is a finding. A partial
-page count or anything other than `none` under `UNSEEN:` is a finding on the last pass; it remains
-visible without failing an earlier pass abandoned after a defect. A last verdict that is not clean
-is also a finding. Any finding makes the scan exit 1. The retained render directory is run evidence
-and survives cleanup.
+The HTML submission owns the graded `bold-headings`, `rendered-comments`, `submission-text`,
+and `rendered-pages` rows. The archival Word document owns only the reported `rendered-text`
+count. A missing or malformed record, an unreadable capture, a nonidentical retained HTML export, a
+false block denominator, an incomplete final reading, or a non-clean final verdict makes the scan
+exit 1.
 
-The clinician pastes from Word because direct bold on each heading survives as inline bold in the
-LMS. The paste discards the hanging indent, centering, page break, and first-line indent; those
-properties remain in the document because the visual check above still needs a paper-shaped file.
+Show the captures to the clinician and say explicitly that the Canvas box is loaded and unsubmitted.
+A non-clean reading stops here and returns to the clinician; the agent does not
+adjudicate its own load, switch routes, or retry. **Gate 2** is the clinician's explicit
+authorization to submit. Gate 2 authorizes submit and nothing else does. After Gate 2, submit and reread
+the posted board version.
 
-## 8. Approve, paste, and reread
-
-Show the final post and the clean-check summary to the clinician. Wait for an explicit go-ahead.
-That approval includes confirming that every edit implicated by a destination-guard refusal was
-recovered into the authoritative Markdown and, where it changes a factual claim, the claim ledger
-before any forced render.
-Paste from Word into the LMS and inspect the paste box before submitting. Submit only after that
-inspection, then reread the posted board version.
-
-The graders read the Markdown and ledger, not the LMS editor. A clean pre-post scan is not a
-checked post in the box. The reread owns lost headings, broken paragraphs, missing references, and
-any change introduced by paste.
+The graders read the Markdown, HTML, Word archive, and ledger; the reread owns any change between
+the inspected box and the posted entry.
 
 After submission, read the initial entry's Copy Link and the board's posted timestamp. Add
 `POST-URL:` and `POSTED:` fields to the private `post.md`; this working record is not the graded
@@ -390,11 +396,15 @@ Replace `matches` with `diverges` when the board and artifact differ. Both verdi
 substantive text after the keyword. Record a divergence without changing
 the already graded output artifact. A board repair is available only when the clinician directs
 that live coursework edit; no repair is automatic. Do not capture or diff the board against the
-artifact. Rerun `discussion_post_scan.py` with the same `--draft` and `--docx`; its exit must be 0.
+artifact. Rerun `discussion_post_scan.py` with the same `--draft`, `--html`, and `--docx`; its exit
+must be 0.
 Then walk `discussion_post_scan.NOT_REACHED`, whose posted-reading row declares that reply records
 belong to the sibling grader.
 
-Now invoke `/AAR` with the output Markdown stem as the submission key. After it exits clean, rerun the same grader one final time with `--submission <output-Markdown-stem>`. Its report must include `the after-action review: clean`; the earlier pre-post and rendered passes deliberately report that row as not graded.
+Now invoke `/AAR` with the output Markdown stem as the submission key. After it exits clean, rerun
+the same grader one final time with the same `--draft`, `--html`, and `--docx` plus
+`--submission <output-Markdown-stem>`. Its report must include `the after-action review: clean`;
+the earlier pre-post and rendered passes deliberately report that row as not graded.
 
 ## Completion
 
@@ -402,7 +412,7 @@ Do not report completion until the final `discussion_post_scan.py ... --submissi
 discussion-post-scan exit, body word count, stated ceiling and whether it was exceeded, reference
 count, claim-record count, invoked-source count, unfilled-property count, pre-#496 marker count,
 paywalled-claim count,
-rendered-page verdict, and the recorded posted-reading verdict.
+rendered-box verdict, and the recorded posted-reading verdict.
 Keep `board-<date>.md`, `posts/`, `bar.md`, `claims.md`, `post.md`, `differentiation.md`,
 `reread.md`, and `render/`, plus `voice-status.md` when present, together under the board-keyed run. Remove every
 temporary per-agent

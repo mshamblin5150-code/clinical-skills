@@ -7,10 +7,11 @@ counts only. ``--show`` includes finding detail and remains private working
 material. Exit 0 means the mechanical rows pass, 1 means at least one finding,
 and 2 means the run could not be completely scanned.
 
-``--docx`` names the rendered handoff, grades its heading style, comment residue,
-and page-reading record backed by retained pixels, and reports paragraph-text parity
-with the Markdown. Without the option, those rows report ``not graded``; an absent
-input never masquerades as a passing count.
+``--html`` names the Canvas submission and grades bold paragraph headings, comment
+residue, paragraph-text parity, and its block reading backed by retained pixels.
+``--docx`` names the archival render and reports paragraph-text parity only. Without
+either option, its artifact-specific rows report ``not graded``; an absent input never
+masquerades as a passing count.
 
 What a clean run does not establish is ``NOT_REACHED``. The tuple is the one
 reader-facing inventory of this command's limits; this docstring deliberately
@@ -25,6 +26,7 @@ import zipfile
 from collections.abc import Collection, Iterator
 from dataclasses import dataclass
 from datetime import date
+from html.parser import HTMLParser
 from pathlib import Path
 from xml.etree import ElementTree
 
@@ -74,6 +76,7 @@ UNTRACED_CITATION = "untraced-citation"
 RESPENT_RECORD = "respent-record"
 BOLD_HEADINGS = "bold-headings"
 RENDERED_COMMENTS = "rendered-comments"
+SUBMISSION_TEXT = "submission-text"
 RENDERED_TEXT = "rendered-text"
 RENDERED_PAGES = "rendered-pages"
 LEGAL_REFERENCE_NAME = "legal-reference-name"
@@ -88,9 +91,10 @@ ROWS = {
     UNTRACED_NUMBER: "every graded body number traces to claims.md",
     UNTRACED_CITATION: "every in-text citation has a claim record for its source",
     RESPENT_RECORD: "every in-text citation has its own claim record",
-    BOLD_HEADINGS: "the rendered document carries no named heading style",
-    RENDERED_COMMENTS: "the rendered document carries no HTML comment delimiter",
-    RENDERED_PAGES: "every rendered pass has a complete page reading backed by kept pixels",
+    BOLD_HEADINGS: "every submission heading is a bold paragraph",
+    RENDERED_COMMENTS: "the HTML submission carries no comment delimiter",
+    SUBMISSION_TEXT: "the HTML submission paragraph text matches the Markdown",
+    RENDERED_PAGES: "every Canvas-box pass has a complete block reading backed by kept pixels",
     LEGAL_REFERENCE_NAME: "every legal reference entry names its legal source",
     MISSING_POSTED_READING: "a posted initial entry has a complete posted reading",
     UNKNOWN_VERDICT: "the posted reading uses a declared verdict",
@@ -101,8 +105,12 @@ ROWS = {
 KINDS = tuple(ROWS)
 
 GATED_ROW_SETS = {
+    "html_graded": (
+        (BOLD_HEADINGS, RENDERED_COMMENTS, SUBMISSION_TEXT, RENDERED_PAGES),
+        (),
+    ),
     "docx_graded": (
-        (BOLD_HEADINGS, RENDERED_COMMENTS, RENDERED_PAGES),
+        (),
         ("rendered_text_mismatches",),
     ),
     "reference_boundary_graded": (
@@ -177,8 +185,13 @@ DECLARED_LIMITS = (
         EvidenceDisposition.DECLARED_READING,
     ),
     (
-        "whether rendered-document rows were graded when --docx was omitted",
-        "Without --docx, the command does not inspect document XML or retained page evidence, so the bold-headings, rendered-comments, rendered-pages, and rendered-text rows are not graded even when the remaining report exits cleanly.",
+        "whether HTML-submission rows were graded when --html was omitted",
+        "Without --html, the command does not inspect the submitted bytes or retained Canvas-box evidence, so bold-headings, rendered-comments, submission-text, and rendered-pages are not graded even when the remaining report exits cleanly.",
+        EvidenceDisposition.BEHAVIOR,
+    ),
+    (
+        "whether archival text parity was reported when --docx was omitted",
+        "Without --docx, the command does not inspect the archival Word document, so rendered-text is not graded even when the remaining report exits cleanly.",
         EvidenceDisposition.BEHAVIOR,
     ),
     (
@@ -215,7 +228,9 @@ RENDERED_BLOCK = re.compile(
     r"(?P<body>.*?)(?=^##\s|\Z)"
 )
 RENDERED_PAGES_VALUE = re.compile(r"^(?P<seen>\d+) of (?P<expected>\d+) imaged$")
-RENDERED_FIELDS = ("PAGES", "SOURCE", "UNSEEN", "READ", "VERDICT")
+RENDERED_BLOCKS_VALUE = re.compile(r"^(?P<seen>\d+) of (?P<expected>\d+) read$")
+RENDERED_COMMON_FIELDS = ("SOURCE", "UNSEEN", "READ", "VERDICT")
+RENDERED_FIELDS = ("PAGES", "BLOCKS") + RENDERED_COMMON_FIELDS
 PAGE_LOCATOR = re.compile(
     r"(?i)\b(?:p{1,2}\.|pages?)\s*\d+(?:\s*[-–]\s*\d+)?"
 )
@@ -248,9 +263,12 @@ class RunSource:
     references: tuple[str, ...]
     claims: str
     bar: Bar
+    html: Path | None
+    submission_heading_failures: int
+    submission_comment_count: int
+    submission_text_mismatches: int | None
+    submitted_blocks: int | None
     docx: Path | None
-    named_heading_styles: tuple[str, ...]
-    rendered_comment_paragraphs: int
     rendered_paragraph_texts: tuple[str, ...]
     expected_paragraph_texts: tuple[str, ...]
     rendered_readings: tuple[RenderedReading, ...]
@@ -271,8 +289,9 @@ class ClaimRecord:
 @dataclass(frozen=True)
 class RenderedReading:
     artifact: str
-    pages_seen: int | None
-    pages_expected: int | None
+    units_seen: int | None
+    units_expected: int | None
+    measure: str | None
     source: str | None
     unseen: str | None
     read: str | None
@@ -326,6 +345,7 @@ class Scan:
     pre_496_markers: int | None
     rendered_text_mismatches: int | None
     missing_pass_numbers: int
+    html_graded: bool
     docx_graded: bool
     reference_boundary_graded: bool
     findings: tuple[Finding, ...] = ()
@@ -478,7 +498,122 @@ def _citation_label(citation: Citation) -> str:
 
 
 W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
-HEADING_STYLE = re.compile(r"Heading\d+")
+
+
+@dataclass(frozen=True)
+class HtmlUnit:
+    tag: str
+    text: str
+    fully_bold: bool
+
+
+class SubmissionHtmlParser(HTMLParser):
+    """Read visible paragraph-shaped units and comments from the submitted HTML."""
+
+    UNIT_TAGS = frozenset(("p", "li", "th", "td"))
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.units: list[HtmlUnit] = []
+        self.comments = 0
+        self.block_count = 0
+        self._unit_tag: str | None = None
+        self._text: list[str] = []
+        self._depth = 0
+        self._strong_depth = 0
+        self._all_text_bold = True
+
+    def handle_starttag(self, tag: str, _attrs) -> None:
+        tag = tag.casefold()
+        if tag in {"p", "li", "table", "hr"}:
+            self.block_count += 1
+        if self._unit_tag is None and tag in self.UNIT_TAGS:
+            self._unit_tag = tag
+            self._text = []
+            self._depth = 1
+            self._strong_depth = 0
+            self._all_text_bold = True
+            return
+        if self._unit_tag is not None:
+            self._depth += 1
+            if tag == "strong":
+                self._strong_depth += 1
+
+    def handle_endtag(self, tag: str) -> None:
+        if self._unit_tag is None:
+            return
+        tag = tag.casefold()
+        if tag == self._unit_tag and self._depth == 1:
+            self.units.append(
+                HtmlUnit(self._unit_tag, "".join(self._text), self._all_text_bold)
+            )
+            self._unit_tag = None
+            return
+        if tag == "strong" and self._strong_depth:
+            self._strong_depth -= 1
+        self._depth -= 1
+
+    def handle_data(self, data: str) -> None:
+        if self._unit_tag is None:
+            return
+        self._text.append(data)
+        if data.strip() and self._strong_depth == 0:
+            self._all_text_bold = False
+
+    def handle_comment(self, _data: str) -> None:
+        self.comments += 1
+
+
+def _plain_inline(text: str) -> str:
+    return "".join(span.text for span in docx_write.inline_spans(text))
+
+
+def _expected_html_units(markdown: str) -> tuple[tuple[HtmlUnit, ...], int]:
+    units: list[HtmlUnit] = []
+    block_count = 0
+    for block in docx_write.blocks(markdown):
+        if block.kind == "blank":
+            continue
+        block_count += 1
+        if block.kind == "separator":
+            continue
+        if block.kind == "heading":
+            units.append(HtmlUnit("p", _plain_inline(block.text), True))
+        elif block.kind == "paragraph":
+            units.append(HtmlUnit("p", _plain_inline(block.text), False))
+        elif block.kind in {"bullet", "numbered"}:
+            units.append(HtmlUnit("li", _plain_inline(block.text), False))
+        elif block.kind == "table":
+            for row_index, row in enumerate(block.rows):
+                tag = "th" if row_index == 0 else "td"
+                units.extend(HtmlUnit(tag, _plain_inline(cell), False) for cell in row)
+    return tuple(units), block_count
+
+
+def _html_properties(path: Path, markdown: str) -> tuple[int, int, int, int]:
+    if not path.is_file():
+        raise run_grader.SourceError(f"no HTML submission at {path}")
+    try:
+        submitted = path.read_text(encoding="utf-8")
+        parser = SubmissionHtmlParser()
+        parser.feed(submitted)
+        parser.close()
+    except (OSError, UnicodeError) as failure:
+        raise run_grader.SourceError(f"could not read the HTML submission: {failure}") from failure
+    expected, expected_block_count = _expected_html_units(markdown)
+    actual = tuple(parser.units)
+    heading_failures = sum(
+        actual[index].tag != "p" or not actual[index].fully_bold
+        for index, unit in enumerate(expected)
+        if unit.fully_bold and index < len(actual)
+    ) + sum(unit.fully_bold for unit in expected[len(actual) :])
+    text_mismatches = int(
+        tuple((unit.tag, unit.text) for unit in actual)
+        != tuple((unit.tag, unit.text) for unit in expected)
+        or parser.block_count != expected_block_count
+    )
+    comment_count = len(re.findall(r"<!--.*?-->|<!--|-->", submitted, re.DOTALL))
+    return heading_failures, comment_count, text_mismatches, parser.block_count
 
 
 def _paragraph_texts(document: ElementTree.Element) -> tuple[str, ...]:
@@ -493,7 +628,7 @@ def _expected_paragraph_texts(markdown: str) -> tuple[str, ...]:
     return _paragraph_texts(ElementTree.fromstring(docx_write.document_xml(markdown)))
 
 
-def _docx_properties(path: Path) -> tuple[tuple[str, ...], int, tuple[str, ...]]:
+def _docx_paragraph_texts(path: Path) -> tuple[str, ...]:
     if not path.is_file():
         raise run_grader.SourceError(f"no rendered document at {path}")
     try:
@@ -503,18 +638,7 @@ def _docx_properties(path: Path) -> tuple[tuple[str, ...], int, tuple[str, ...]]
         raise run_grader.SourceError(
             f"could not read the rendered document: {failure}"
         ) from failure
-    heading_styles = tuple(
-        value
-        for node in document.iter(W + "pStyle")
-        if (value := node.get(W + "val")) is not None
-        and HEADING_STYLE.fullmatch(value)
-    )
-    comment_paragraphs = sum(
-        "<!--" in text or "-->" in text
-        for paragraph in document.iter(W + "p")
-        if (text := "".join(node.text or "" for node in paragraph.iter(W + "t")))
-    )
-    return heading_styles, comment_paragraphs, _paragraph_texts(document)
+    return _paragraph_texts(document)
 
 
 def _rendered_readings(text: str) -> tuple[RenderedReading, ...]:
@@ -528,15 +652,26 @@ def _rendered_readings(text: str) -> tuple[RenderedReading, ...]:
         unknown_fields = sorted({match.group("name") for match in matches} - set(RENDERED_FIELDS))
         if unknown_fields:
             errors.append("unrecognized field(s): " + ", ".join(unknown_fields))
-        for name in RENDERED_FIELDS:
+        for name in RENDERED_COMMON_FIELDS:
             count = sum(match.group("name") == name for match in matches)
             if count == 0:
                 errors.append(f"missing {name}")
             elif count > 1:
                 errors.append(f"duplicate {name}")
+        measures = [name for name in ("PAGES", "BLOCKS") if name in fields]
+        if len(measures) != 1:
+            errors.append("record needs exactly one of PAGES or BLOCKS")
+        for name in ("PAGES", "BLOCKS"):
+            if sum(match.group("name") == name for match in matches) > 1:
+                errors.append(f"duplicate {name}")
+        measure = measures[0] if len(measures) == 1 else None
         page_match = RENDERED_PAGES_VALUE.fullmatch(fields.get("PAGES", ""))
         if "PAGES" in fields and page_match is None:
             errors.append("PAGES must say '<seen> of <expected> imaged'")
+        block_match = RENDERED_BLOCKS_VALUE.fullmatch(fields.get("BLOCKS", ""))
+        if "BLOCKS" in fields and block_match is None:
+            errors.append("BLOCKS must say '<seen> of <expected> read'")
+        unit_match = block_match or page_match
         source = fields.get("SOURCE")
         if source is not None and source not in RENDERED_SOURCES:
             errors.append("unrecognized SOURCE")
@@ -552,8 +687,9 @@ def _rendered_readings(text: str) -> tuple[RenderedReading, ...]:
         readings.append(
             RenderedReading(
                 artifact=block.group("artifact").strip(),
-                pages_seen=int(page_match.group("seen")) if page_match else None,
-                pages_expected=int(page_match.group("expected")) if page_match else None,
+                units_seen=int(unit_match.group("seen")) if unit_match else None,
+                units_expected=int(unit_match.group("expected")) if unit_match else None,
+                measure=measure,
                 source=source,
                 unseen=fields.get("UNSEEN"),
                 read=read,
@@ -576,7 +712,7 @@ def _render_passes(root: Path) -> tuple[tuple[tuple[int, RenderPass], ...], int]
                     sorted(
                         path
                         for path in child.iterdir()
-                        if path.is_file() and path.suffix.lower() in {".pdf", ".xps"}
+                        if path.is_file() and path.suffix.lower() in {".pdf", ".xps", ".html"}
                     )
                 ),
             ),
@@ -598,6 +734,8 @@ def load(parsed: run_grader.Parsed) -> RunSource:
     if draft_value is None:
         raise run_grader.SourceError("--draft needs a Markdown file")
     draft = Path(draft_value)
+    html_value = parsed.value("--html")
+    html = Path(html_value) if html_value is not None else None
     docx_value = parsed.value("--docx")
     docx = Path(docx_value) if docx_value is not None else None
     if not bar_path.is_file() or not claims_path.is_file():
@@ -642,9 +780,13 @@ def load(parsed: run_grader.Parsed) -> RunSource:
         post_text = post_path.read_text(encoding="utf-8") if post_path.is_file() else ""
     except (OSError, UnicodeError, ValueError) as failure:
         raise run_grader.SourceError(f"could not read the discussion-post run: {failure}") from failure
-    named_heading_styles, rendered_comment_paragraphs, rendered_paragraph_texts = (
-        _docx_properties(docx) if docx is not None else ((), 0, ())
-    )
+    rendered_paragraph_texts = _docx_paragraph_texts(docx) if docx is not None else ()
+    (
+        submission_heading_failures,
+        submission_comment_count,
+        submission_text_mismatches,
+        submitted_blocks,
+    ) = _html_properties(html, draft_text) if html is not None else (0, 0, None, None)
     render_passes, missing_pass_numbers = _render_passes(root)
     return RunSource(
         root,
@@ -653,12 +795,15 @@ def load(parsed: run_grader.Parsed) -> RunSource:
         section.references,
         claims,
         bar,
+        html,
+        submission_heading_failures,
+        submission_comment_count,
+        submission_text_mismatches,
+        submitted_blocks,
         docx,
-        named_heading_styles,
-        rendered_comment_paragraphs,
         rendered_paragraph_texts,
         _expected_paragraph_texts(draft_text) if docx is not None else (),
-        _rendered_readings(post_text) if docx is not None else (),
+        _rendered_readings(post_text) if html is not None else (),
         render_passes,
         missing_pass_numbers,
         section.refused_label,
@@ -716,31 +861,52 @@ def _posted_reading_findings(source: RunSource) -> tuple[Finding, ...]:
 
 
 def _rendered_comment_findings(source: RunSource) -> tuple[Finding, ...]:
-    if not source.rendered_comment_paragraphs:
+    if not source.submission_comment_count:
         return ()
-    assert source.docx is not None
+    assert source.html is not None
     return tuple(
         Finding(
             RENDERED_COMMENTS,
-            source.docx.name,
-            "paragraph carries an HTML comment delimiter",
+            source.html.name,
+            "submission carries an HTML comment",
         )
-        for _ in range(source.rendered_comment_paragraphs)
+        for _ in range(source.submission_comment_count)
     )
 
 
-def _rendered_page_findings(source: RunSource) -> tuple[Finding, ...]:
-    if source.docx is None:
+def _submission_findings(source: RunSource) -> tuple[Finding, ...]:
+    if source.html is None:
         return ()
-    findings: list[Finding] = []
+    headings = tuple(
+        Finding(BOLD_HEADINGS, source.html.name, "heading is not a fully bold paragraph")
+        for _ in range(source.submission_heading_failures)
+    )
+    text = (
+        (
+            Finding(
+                SUBMISSION_TEXT,
+                source.html.name,
+                "submission paragraph text differs from the Markdown",
+            ),
+        )
+        if source.submission_text_mismatches
+        else ()
+    )
+    return headings + _rendered_comment_findings(source) + text
+
+
+def _rendered_page_findings(source: RunSource) -> tuple[Finding, ...]:
+    if source.html is None:
+        return ()
     if not source.rendered_readings:
         return (
             Finding(
                 RENDERED_PAGES,
                 "post.md",
-                "no RENDERED record for the rendered document",
+                "no RENDERED record for the Canvas box",
             ),
         )
+    findings: list[Finding] = []
     retained_count = len(source.render_passes)
     highest_pass_number = source.render_passes[-1][0] if source.render_passes else 0
     reading_count = len(source.rendered_readings)
@@ -758,106 +924,77 @@ def _rendered_page_findings(source: RunSource) -> tuple[Finding, ...]:
         pymupdf = None
     passes_by_number = dict(source.render_passes)
     align_by_number = reading_count == highest_pass_number
+    submitted_bytes = source.html.read_bytes()
     for index, reading in enumerate(source.rendered_readings, start=1):
         detail: list[str] = list(reading.errors)
-        is_last = index == len(source.rendered_readings)
-        if align_by_number:
-            retained_pass_at_number = passes_by_number.get(index)
-            retained = (
-                (index, retained_pass_at_number)
-                if retained_pass_at_number is not None
-                else None
-            )
-        else:
-            retained = (
-                source.render_passes[index - 1]
-                if index <= retained_count
-                else None
-            )
+        is_last = index == reading_count
+        retained = (
+            (index, passes_by_number[index])
+            if align_by_number and index in passes_by_number
+            else source.render_passes[index - 1]
+            if not align_by_number and index <= retained_count
+            else None
+        )
         pass_number, retained_pass = (
             retained if retained is not None else (index, RenderPass((), ()))
         )
         missing_retained_pass_is_gap = align_by_number and retained is None
         pass_name = f"pass-{pass_number}"
-        pixels = retained_pass.pixels
         if reading.artifact != "post.md":
             detail.append("record artifact is not post.md")
-        if reading.pages_seen is not None and reading.pages_seen < 1:
-            detail.append("PAGES imaged count must be positive")
-        if reading.pages_expected is not None and reading.pages_expected < 1:
-            detail.append("PAGES expected count must be positive")
+        if reading.measure != "BLOCKS":
+            detail.append("Canvas-box record must use BLOCKS")
+        if reading.source != "canvas-box":
+            detail.append("Canvas-box record must use SOURCE canvas-box")
+        if reading.units_seen is not None and reading.units_seen < 1:
+            detail.append("BLOCKS read count must be positive")
+        if reading.units_expected is not None and reading.units_expected < 1:
+            detail.append("BLOCKS expected count must be positive")
         if (
-            not missing_retained_pass_is_gap
-            and reading.pages_seen is not None
-            and len(pixels) != reading.pages_seen
+            reading.units_expected is not None
+            and source.submitted_blocks is not None
+            and reading.units_expected != source.submitted_blocks
         ):
             detail.append(
-                f"{pass_name} keeps {len(pixels)} page image(s), not {reading.pages_seen}"
+                f"BLOCKS expected count is {reading.units_expected}, not the "
+                f"submitted HTML's {source.submitted_blocks}"
             )
-        if not missing_retained_pass_is_gap and pymupdf is None and pixels:
-            detail.append("PyMuPDF is unavailable, so retained page pixels were not decoded")
-        elif not missing_retained_pass_is_gap and pymupdf is not None:
-            for pixel in pixels:
-                if failure := png_read_error(pymupdf, pixel):
-                    detail.append(f"{pixel.name} {failure}")
-        if missing_retained_pass_is_gap:
-            pass
-        elif len(retained_pass.exports) != 1:
-            detail.append(
-                f"{pass_name} keeps {len(retained_pass.exports)} page-faithful export(s), not 1"
-            )
-        elif pymupdf is None:
-            detail.append("PyMuPDF is unavailable, so the retained export page count was not read")
-        else:
-            export = retained_pass.exports[0]
-            try:
-                with pymupdf.open(str(export)) as document:
-                    export_pages = len(document)
-            except Exception as failure:
-                detail.append(f"{export.name} is not a readable retained export: {failure}")
+        if not missing_retained_pass_is_gap:
+            if not retained_pass.pixels:
+                detail.append(f"{pass_name} keeps no Canvas-box capture")
+            elif pymupdf is None:
+                detail.append("PyMuPDF is unavailable, so retained captures were not decoded")
             else:
-                if export_pages < 1:
-                    detail.append(f"{export.name} contains no pages")
-                if is_last and not render_pass.images_cover_exported_pages(
-                    len(pixels), export_pages
-                ):
-                    detail.append(
-                        f"{pass_name} keeps {len(pixels)} page image(s) for "
-                        f"{export_pages} exported page(s)"
-                    )
-                if (
-                    reading.pages_expected is not None
-                    and reading.pages_expected != export_pages
-                ):
-                    detail.append(
-                        f"PAGES expected count is {reading.pages_expected}, not the "
-                        f"retained export's {export_pages}"
-                    )
-                expected_suffix = {
-                    "word-pdf": ".pdf",
-                    "word-xps": ".xps",
-                }.get(reading.source)
-                if expected_suffix is not None and export.suffix.lower() != expected_suffix:
-                    detail.append(
-                        f"SOURCE {reading.source} does not match retained {export.suffix.lower()} export"
-                    )
+                for pixel in retained_pass.pixels:
+                    if failure := png_read_error(pymupdf, pixel):
+                        detail.append(f"{pixel.name} {failure}")
+            if len(retained_pass.exports) != 1:
+                detail.append(
+                    f"{pass_name} keeps {len(retained_pass.exports)} exports, not 1"
+                )
+            else:
+                export = retained_pass.exports[0]
+                if export.suffix.casefold() != ".html":
+                    detail.append(f"{pass_name} export is not HTML")
+                else:
+                    try:
+                        retained_bytes = export.read_bytes()
+                    except OSError as failure:
+                        detail.append(f"could not read {export.name}: {failure}")
+                    else:
+                        if retained_bytes != submitted_bytes:
+                            detail.append("retained HTML differs from the submitted HTML")
         if (
             is_last
-            and reading.pages_seen is not None
-            and reading.pages_expected is not None
-            and reading.pages_seen != reading.pages_expected
+            and reading.units_seen is not None
+            and reading.units_expected is not None
+            and reading.units_seen != reading.units_expected
         ):
-            detail.append("not every expected page was imaged")
-        if (
-            is_last
-            and reading.unseen is not None
-            and reading.unseen.casefold() != "none"
-        ):
-            detail.append("UNSEEN names an unchecked page")
+            detail.append("not every expected block was read")
+        if is_last and reading.unseen is not None and reading.unseen.casefold() != "none":
+            detail.append("UNSEEN names an unchecked block")
         if detail:
-            findings.append(
-                Finding(RENDERED_PAGES, pass_name, "; ".join(detail))
-            )
+            findings.append(Finding(RENDERED_PAGES, pass_name, "; ".join(detail)))
     last = source.rendered_readings[-1]
     if last.verdict is not None and not last.verdict.casefold().startswith("clean -"):
         findings.append(
@@ -868,17 +1005,7 @@ def _rendered_page_findings(source: RunSource) -> tuple[Finding, ...]:
 
 def survey(source: RunSource) -> Scan:
     if source.refused_label is not None:
-        findings = (
-            (
-                Finding(
-                    BOLD_HEADINGS,
-                    source.docx.name,
-                    "named heading styles: " + ", ".join(source.named_heading_styles),
-                ),
-            )
-            if source.named_heading_styles
-            else ()
-        ) + _rendered_comment_findings(source) + _rendered_page_findings(source)
+        findings = _submission_findings(source) + _rendered_page_findings(source)
         return Scan(
             words=None,
             word_floor=source.bar.word_floor,
@@ -897,6 +1024,7 @@ def survey(source: RunSource) -> Scan:
                 else None
             ),
             missing_pass_numbers=source.missing_pass_numbers,
+            html_graded=source.html is not None,
             docx_graded=source.docx is not None,
             reference_boundary_graded=False,
             findings=findings + _posted_reading_findings(source),
@@ -929,15 +1057,7 @@ def survey(source: RunSource) -> Scan:
                 f"{len(source.references)} references",
             )
         )
-    if source.named_heading_styles:
-        findings.append(
-            Finding(
-                BOLD_HEADINGS,
-                source.docx.name,
-                "named heading styles: " + ", ".join(source.named_heading_styles),
-            )
-        )
-    findings.extend(_rendered_comment_findings(source))
+    findings.extend(_submission_findings(source))
     findings.extend(_rendered_page_findings(source))
     traced_numbers = frozenset(
         value for record in records for value in record.numbers
@@ -1012,6 +1132,7 @@ def survey(source: RunSource) -> Scan:
             else None
         ),
         missing_pass_numbers=source.missing_pass_numbers,
+        html_graded=source.html is not None,
         docx_graded=source.docx is not None,
         reference_boundary_graded=True,
         findings=tuple(findings),
@@ -1085,6 +1206,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         if kind not in {
             BOLD_HEADINGS,
             RENDERED_COMMENTS,
+            SUBMISSION_TEXT,
             RENDERED_PAGES,
             MISSING_POSTED_READING,
             UNKNOWN_VERDICT,
@@ -1093,7 +1215,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
             BORROWED_LOCATOR,
         } and not scan.reference_boundary_graded:
             lines.append(f"{kind}: {NOT_GRADED}")
-        elif kind in {BOLD_HEADINGS, RENDERED_COMMENTS, RENDERED_PAGES} and not scan.docx_graded:
+        elif kind in {BOLD_HEADINGS, RENDERED_COMMENTS, SUBMISSION_TEXT, RENDERED_PAGES} and not scan.html_graded:
             lines.append(f"{kind}: {NOT_GRADED}")
         else:
             lines.append(
@@ -1113,8 +1235,9 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
 
 def grade(source: RunSource, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
     scanned = survey(source)
-    rendered_page_failed = any(
-        finding.kind == RENDERED_PAGES for finding in scanned.findings
+    submission_failed = any(
+        finding.kind in {BOLD_HEADINGS, RENDERED_COMMENTS, SUBMISSION_TEXT, RENDERED_PAGES}
+        for finding in scanned.findings
     )
     aar_failed, aar_report = aar_scan.completion_gate(
         source.path, _parsed.value("--submission")
@@ -1122,8 +1245,10 @@ def grade(source: RunSource, _parsed: run_grader.Parsed) -> run_grader.Grade[Sca
     return run_grader.Grade(
         scan=scanned,
         source=str(source.path),
-        findings_failed=(bool(scanned.findings)
-        and (scanned.reference_boundary_graded or rendered_page_failed)) or aar_failed,
+        findings_failed=(
+            bool(scanned.findings)
+            and (scanned.reference_boundary_graded or submission_failed)
+        ) or aar_failed,
         coverage_failed=not scanned.reference_boundary_graded,
         diagnostics=(
             (f"refused reference label in {source.draft.name}: {source.refused_label}",)
@@ -1137,13 +1262,14 @@ def grade(source: RunSource, _parsed: run_grader.Parsed) -> run_grader.Grade[Sca
 GRADER = run_grader.Grader(
     usage=(
         "usage: discussion_post_scan.py <run directory> --draft <Markdown file> "
-        "[--docx <Word file>] [--show] [--submission <key>]"
+        "[--html <HTML file>] [--docx <Word file>] [--show] [--submission <key>]"
     ),
     load=load,
     grade=grade,
     format_report=format_report,
     options=(
         run_grader.Option("--draft", takes_value=True, missing_value="--draft needs a Markdown file", repeatable=False),
+        run_grader.Option("--html", takes_value=True, missing_value="--html needs an HTML file", repeatable=False),
         run_grader.Option("--docx", takes_value=True, missing_value="--docx needs a Word file", repeatable=False),
         run_grader.Option("--show", repeatable=False),
         run_grader.Option("--submission", takes_value=True, missing_value="--submission needs a key", repeatable=False),

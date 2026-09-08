@@ -376,6 +376,23 @@ class TheRenderCommand(unittest.TestCase):
         self.assertIn('with_name("word_export.ps1")', source)
         self.assertIn('"-Stem",\n        "post"', source)
 
+    def test_the_word_route_rejects_a_canvas_box_source(self):
+        output = self.root / "post.pdf"
+        output.write_bytes(b"synthetic PDF")
+        completed = SimpleNamespace(
+            returncode=0,
+            stdout=json.dumps({"source": "canvas-box", "path": str(output)}),
+            stderr="",
+        )
+
+        with mock.patch.object(
+            render.office_process, "run_owned_process", return_value=completed
+        ):
+            with self.assertRaisesRegex(
+                render.RenderError, "unrecognized source: 'canvas-box'"
+            ):
+                render._word_attempt(self.docx, self.root, "pdf")
+
     def test_a_stalled_pdf_attempt_stops_only_its_owned_word_and_uses_xps(self):
         commands = []
 

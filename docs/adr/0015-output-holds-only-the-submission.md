@@ -5,6 +5,12 @@
 
 The clinician ruled it on 2026-08-23. **A file goes under `output/` if and only if it was handed in. Everything a run produced *about* the submission is provenance and lives in the run directory.**
 
+## Amended 2026-09-08 — a paste-target submission includes its source and renders
+
+[ADR 0147](0147-the-post-loads-as-html-through-the-raw-editor-and-the-submit-gate-moves-to-the-rendered-box.md) replaced the discussion-post Word paste with HTML loaded through Canvas's raw editor. That route exposed an assumption in the original biconditional: it was written for an upload target, where the submitted artifact is one file. A paste target hands in no file even though the run must retain the exact submitted bytes for comparison.
+
+For a paste-target pipeline, **`output/` holds the submission and its renders: the source of record, the bytes handed in, and any archival rendering of the same content.** Provenance still lives in the run directory. For `discussion-post`, those output artifacts are the Markdown source of record, the submitted HTML, and the archival DOCX; captures, ledgers, and checks remain under the run directory. This amendment preserves the original separation while replacing its upload-only test.
+
 ## The disagreement was live, not predicted
 
 Standing rule 3 requires a `PROPOSED (verify before use)` block — the list of every clinical claim the skill contributed that the clinician's draft did not contain, which he reads and accepts or drops before submitting. `skills/practicum-case-study/SKILL.md` says it sits after the References and *"is deleted from the copy that goes to Canvas."*
