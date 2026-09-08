@@ -11,14 +11,13 @@ sections was read from that site on that date, not recalled. A rule this sheet d
 looked up the same way — **an APA rule is looked up, never recalled**, which is
 [practicum-case-study](../../practicum-case-study/SKILL.md)'s anchor discipline arriving at the reference list.
 
-**The two fenced examples are APA's own, and they stay.** Ruled 2026-08-18 on
+**The fenced examples are APA's own, and they stay.** Ruled 2026-08-18 on
 [#223](https://github.com/mshamblin5150-code/clinical-skills/issues/223), against a public
-repo rather than a private one. This sheet reproduces **no APA prose at all** — the only
-verbatim third-party strings in it are the 22-word UpToDate reference in §2 and the
-19-word `2019a`/`2019b` pair in §3, both from the free rule pages, both with their
-publishers already elided, and both *format demonstrations*: a reference format described
-in a sentence is not a reference format. Everything else here is this repo's own wording
-with a section pointer beside it.
+repo rather than a private one. This sheet reproduces **no APA prose at all** — its
+verbatim third-party strings are limited to the reference and citation forms needed for
+the format demonstrations, drawn from the free rule pages with publishers elided where
+the example supplies one. A reference format described in a sentence is not a reference
+format. Everything else here is this repo's own wording with a section pointer beside it.
 
 **The *Publication Manual* section numbers are what those pages cite, and are not themselves
 checked here** — the manual is not in this repo and cannot be. They are a pointer for anyone who
@@ -54,8 +53,25 @@ directly; the latter links it from its own workflow because the reference scanne
   whole list**.
 - **Double spaced throughout, with no extra space between entries.**
 - Page numbers sit in the **top right corner of every page**, the reference list included.
-- **Alphabetized by the first word of the entry** — normally the first author's surname. Where a
-  work has no author, the title moves to the front and the entry alphabetizes by the title.
+- **Alphabetized by the first significant word of the entry** — normally the first author's
+  surname. Ignore a leading `A`, `An`, or `The` for alphabetizing while retaining it in the
+  printed entry. Where a work has no author, the title moves to the front and the entry
+  alphabetizes by the title.
+
+APA's published Smithsonian example applies the same rule to a group author
+([McAdoo, 2022](https://apastyle.apa.org/blog/alphabetize-nonsignificant-words)):
+
+```markdown
+# In-text citations
+
+Raskin (1978), The Smithsonian Institution (n.d.), and Steinbeck (1939) are cited.
+
+## References
+
+Raskin, E. (1978). *The Westing game*. Avon Books.
+The Smithsonian Institution. (n.d.). *Our organization*. https://www.si.edu/about/administration
+Steinbeck, J. (1939). *The grapes of wrath*. Penguin Books.
+```
 
 **`Roughly alphabetical` is not the rule, and this sheet retires that phrase.**
 [style.md](style.md) §10 described the corpus as roughly alphabetical, which was an accurate
@@ -303,7 +319,7 @@ reaches` and `tools/checks_ledger.py` expects it, so a run that returns no verdi
 | An **unwarranted retrieval date** on a guideline, a statement or a textbook | §4 says those take none. The command refuses one only where the entry carries a **DOI** — the work stating an archived version of itself exists, which is §4's own test failing. Nothing in a URL distinguishes a stable PDF from a page designed to change |
 | **The UpToDate last update year** | §2's date element is the topic's own last update year, not the year it was read, and the same topic appears in one corpus under three years. Which is which is in the companion evidence document, which the command never sees |
 | **Whether the source exists and says so** | Whether an entry is a real source saying what the sentence citing it says. That is [#231](https://github.com/mshamblin5150-code/clinical-skills/issues/231), answered **before the draft exists**: `tools/research_ledger.py` grades a year an agent read off the page and a refutation a second agent returned |
-| A check of **whether a legal entry is cited** | A legal entry is outside `uncited-entry`: the canonical narrative name needs a whole-phrase key the command does not have, so a clean result cannot prove the entry is cited anywhere |
+| A check of **whether a legal entry is cited** | A legal entry is outside `uncited-entry`: that row keys on the entry's first significant word alone, while a section-form citation resolves on a `resolution_keys` entry the row never reads, so a clean result cannot prove the entry is cited anywhere |
 
 **That table is `reference_scan.NOT_REACHED` and this is not a second copy of it**, which is
 [#220](https://github.com/mshamblin5150-code/clinical-skills/issues/220)'s repair arriving one
@@ -686,7 +702,7 @@ and [*How to cite translated works*](https://apastyle.apa.org/blog/citing-transl
 | `Kübler-Ross, E. (with Byock, I.). (2014). On death & dying: What the dying have to teach doctors, nurses, clergy & their own families (50th anniversary ed.). Scribner. (Original work published 1969)` | `(Kübler-Ross, 1969/2014, foreword by Byock, p. xv)` | `2014` | clean |
 | `Kübler-Ross, E. (with Byock, I.). (2014). On death & dying: What the dying have to teach doctors, nurses, clergy & their own families (50th anniversary ed.). Scribner. (Original work published 1969)` | `Kübler-Ross (1969/2014)` | `2014` | #943 |
 | `King James Bible. (2017). King James Bible Online. https://www.kingjamesbibleonline.org/ (Original work published 1769)` | `(King James Bible, 1769/2017, Song of Solomon 8:6)` | `2017` | clean |
-| `King James Bible. (2017). King James Bible Online. https://www.kingjamesbibleonline.org/ (Original work published 1769)` | `King James Bible (1769/2017)` | `2017` | #913 |
+| `King James Bible. (2017). King James Bible Online. https://www.kingjamesbibleonline.org/ (Original work published 1769)` | `King James Bible (1769/2017)` | `2017` | clean |
 | `Alighieri, D. (2001). The divine comedy (H. F. Cary, Trans.). Bartleby. https://www.bartleby.com/20/ (Original work published 1909)` | `(Alighieri, 1909/2001, Inferno, Canto XIII, Lines 72–74)` | `2001` | clean |
 | `The epic of Gilgamesh (M. G. Kovaks, Trans.). (1998). Academy of Ancient Texts. https://www.ancienttexts.org/library/mesopotamian/gilgamesh/ (Original work published ca. 2500–2750 B.C.E.)` | `(The Epic of Gilgamesh, ca. 2750–2500 B.C.E./1998, Tablet II)` | `1998` | clean |
 
@@ -698,5 +714,5 @@ or religious works.
 
 **Declared limit:** The original half is parsed but not graded: APA's own Gilgamesh entry gives
 `ca. 2500–2750 B.C.E.` while its citation gives `ca. 2750–2500 B.C.E./1998`. The two author-shape
-failures recorded as #913 and #943 remain outside this date grammar and are not hidden by the
+the failure recorded as #943 remains outside this date grammar and is not hidden by the
 examples above.
