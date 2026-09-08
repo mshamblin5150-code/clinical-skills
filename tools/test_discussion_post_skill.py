@@ -138,7 +138,10 @@ class TheWorkflowCarriesEveryRatifiedGate(unittest.TestCase):
         self.assertNotIn(retired_instruction, post)
         self.assertIn("omitting the `INVOKED` comments", reply)
         self.assertIn("types", post)
-        self.assertNotIn("pastes from Markdown", post)
+        self.assertRegex(
+            post,
+            r"discussion-reply`, where the agent\s+types into the rich editor",
+        )
 
     def test_the_two_gates_separate_loading_from_submission(self):
         post = read(POST)
