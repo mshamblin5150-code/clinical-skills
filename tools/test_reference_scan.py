@@ -270,6 +270,27 @@ class SortedIsSorted(unittest.TestCase):
         self.assertNotIn(scan.LIST_NOT_SORTED, kinds(draft(undated, dated, body=body)))
         self.assertIn(scan.LIST_NOT_SORTED, kinds(draft(dated, undated, body=body)))
 
+    def test_in_press_sorts_after_the_same_authors_dated_works(self):
+        undated = "Zhou, A. (n.d.). Alpha. Journal."
+        dated = "Zhou, A. (2020). Beta. Journal."
+        in_press = "Zhou, A. (in press). Gamma. Journal."
+        body = "# Case\n\nZhou (n.d., 2020, in press) compared the works.\n"
+
+        self.assertNotIn(
+            scan.LIST_NOT_SORTED,
+            kinds(draft(undated, dated, in_press, body=body)),
+        )
+        self.assertIn(
+            scan.LIST_NOT_SORTED,
+            kinds(draft(in_press, dated, undated, body=body)),
+        )
+
+    def test_in_press_is_a_year_element_on_both_reference_readers(self):
+        entry = "Zhou, A. (in press). Gamma. Journal."
+
+        self.assertEqual("in press", scan.read_document(draft(entry)).entries[0].year)
+        self.assertEqual((("zhou", "in press"),), artifact.reference_keys(entry))
+
 
 class ALeadingArticleIsNotTheGroupingOrSortKey(unittest.TestCase):
     def test_first_word_uses_the_first_significant_word(self):
@@ -299,6 +320,17 @@ class ALeadingArticleIsNotTheGroupingOrSortKey(unittest.TestCase):
 
     def test_an_article_is_retained_when_it_is_not_leading(self):
         self.assertEqual(scan.first_word("Association for the Advancement of Nursing."), "association")
+
+    def test_unicode_letters_are_folded_before_keying_and_ordering(self):
+        self.assertEqual(scan.first_word("Östlund, U."), "ostlund")
+        self.assertEqual(scan.citation_key("Ostlund"), "ostlund")
+        self.assertEqual(scan.normalize("Kübler-Ross"), "kubler ross")
+
+    def test_an_entry_with_no_possible_key_is_not_exempt_from_uncited_entry(self):
+        entry = "*** (2024). An authorless work. https://example.org/work"
+        result = scan.findings(scan.read_document(draft(entry, body="# Case\n")), AS_OF)
+
+        self.assertIn(scan.UNCITED_ENTRY, {finding.kind for finding in result})
 
     def test_dropping_quote_preservation_breaks_the_beatles_control(self):
         entry = 'The Beatles. (2022). Album guide. https://example.org'
@@ -485,7 +517,7 @@ class TheYearsAgreeAndBothDirectionsAreChecked(unittest.TestCase):
     def test_the_ruled_connector_set_continues_the_phrase(self):
         self.assertEqual(
             scan.NARRATIVE_AUTHOR_CONNECTORS,
-            ("of", "for", "the", "and", "&", "on", "in", "at"),
+            ("of", "for", "the", "and", "&", "on", "in", "at", r"v\."),
         )
         self.assertEqual(
             self._keys("National Institute on Aging (2024) agrees."),
@@ -611,6 +643,18 @@ class LegalEntriesResolveBySectionOrAreExplicitlyExcluded(unittest.TestCase):
         self.assertIn("legal-reference-lacks-name", kinds(draft(NAMELESS_LEGAL, body="# Case\n")))
         self.assertNotIn("legal-reference-lacks-name", kinds(draft(NAMED_LEGAL, body="# Case\n")))
 
+    def test_a_named_legal_entry_is_uncited_until_its_section_form_resolves(self):
+        self.assertIn(scan.UNCITED_ENTRY, kinds(draft(NAMED_LEGAL, body="# Case\n")))
+        self.assertNotIn(
+            scan.UNCITED_ENTRY,
+            kinds(
+                draft(
+                    NAMED_LEGAL,
+                    body=self.body(self.CITATIONS["narrative section"]),
+                )
+            ),
+        )
+
     def test_only_a_section_only_state_entry_fires_the_entry_row(self):
         section_only = "W. Va. Code § 30-7-15b (2016)."
         named = (
@@ -624,7 +668,7 @@ class LegalEntriesResolveBySectionOrAreExplicitlyExcluded(unittest.TestCase):
     def test_the_nameless_entry_row_does_not_join_the_body_rows(self):
         self.assertNotIn("legal-reference-lacks-name", scan.BODY_ROWS)
 
-    def test_section_forms_resolve_while_the_named_narrative_is_excluded(self):
+    def test_section_and_named_narrative_forms_both_resolve(self):
         section_document = scan.read_document(
             draft(NAMED_LEGAL, body=self.body(self.CITATIONS["narrative section"]))
         )
@@ -633,7 +677,7 @@ class LegalEntriesResolveBySectionOrAreExplicitlyExcluded(unittest.TestCase):
         )
 
         self.assertTrue(section_document.citations)
-        self.assertFalse(name_document.citations)
+        self.assertTrue(name_document.citations)
         self.assertNotIn(scan.UNCITED_ENTRY, kinds(draft(NAMED_LEGAL, body=name_document.body)))
 
     def test_ordinary_author_year_controls_stay_clean(self):
@@ -734,6 +778,190 @@ class TheCitationParserReadsTheShapesAPAActuallyWrites(unittest.TestCase):
         Allowing any trailing text invented an author named Hypertension."""
         self.assertEqual(self._keys("Hypertension (2025 update) changed the target."), set())
 
+    def test_in_press_is_a_date_value_with_the_same_letter_suffix_rule_as_no_date(self):
+        found = self._keys(
+            "Zhou (n.d.-a, in press-a) compared both; later "
+            "(Zhou, n.d.-b, in press-b)."
+        )
+
+        self.assertEqual(
+            found,
+            {
+                ("zhou", "nda"),
+                ("zhou", "ndb"),
+                ("zhou", "inpressa"),
+                ("zhou", "inpressb"),
+            },
+        )
+
+    def test_discussion_reader_keeps_every_date_in_one_parenthetical(self):
+        citations = artifact.read_citations(
+            "Both were directed (Scorsese, 2019a, 2019b)."
+        )
+
+        self.assertEqual(
+            [(citation.author, citation.year) for citation in citations],
+            [("Scorsese", "2019a"), ("Scorsese", "2019b")],
+        )
+
+    def test_reference_entry_evidence_keeps_a_year_inside_a_statute_name(self):
+        entry = (
+            "Consolidated Appropriations Act, 2023, Pub. L. No. 117-328, "
+            "§ 1263, 136 Stat. 4459 (2022)."
+        )
+        text = draft(
+            entry,
+            body="# Case\n\nThe act applies (Consolidated Appropriations Act, 2023, 2022).\n",
+        )
+
+        document = scan.read_document(text)
+
+        self.assertIn(("consolidated", "2022"), {(c.key, c.year) for c in document.citations})
+        self.assertNotIn(scan.INTEXT_YEAR_MISMATCH, {f.kind for f in scan.findings(document, AS_OF)})
+
+    def test_evidence_first_is_the_behavior_that_repairs_the_statute(self):
+        entry = (
+            "Consolidated Appropriations Act, 2023, Pub. L. No. 117-328, "
+            "§ 1263, 136 Stat. 4459 (2022)."
+        )
+        text = draft(
+            entry,
+            body="# Case\n\nThe act applies (Consolidated Appropriations Act, 2023, 2022).\n",
+        )
+        with mock.patch.object(scan, "_evidenced_parenthetical", return_value=None):
+            document = scan.read_document(text)
+
+        self.assertIn(scan.INTEXT_YEAR_MISMATCH, {f.kind for f in scan.findings(document, AS_OF)})
+
+    def test_reference_evidence_still_splits_a_wrong_legal_date(self):
+        entry = (
+            "Consolidated Appropriations Act, 2023, Pub. L. No. 117-328, "
+            "§ 1263, 136 Stat. 4459 (2022)."
+        )
+        document = scan.read_document(
+            draft(
+                entry,
+                body="# Case\n\n(Consolidated Appropriations Act, 2023, 2024).\n",
+            )
+        )
+
+        mismatches = [
+            finding
+            for finding in scan.findings(document, AS_OF)
+            if finding.kind == scan.INTEXT_YEAR_MISMATCH
+        ]
+        self.assertEqual(1, len(mismatches))
+        self.assertIn("2024", mismatches[0].detail)
+
+    def test_an_empty_grammar_key_is_counted_as_unread(self):
+        document = scan.read_document(
+            draft(
+                "Scorsese, M. (2019b). Film. Journal.",
+                body="# Case\n\n(2019a, 2019b)\n",
+            )
+        )
+
+        self.assertEqual(1, document.citation_coverage.candidates)
+        self.assertEqual(1, document.citation_coverage.unread)
+
+    def test_discussion_reader_stops_an_author_at_the_sentence_boundary(self):
+        reference = artifact.reference_keys("HRSA. (n.d.). Designation guide.")
+        citations = artifact.read_citations(
+            "West Virginia. The HRSA (n.d.) designates the site.", reference
+        )
+
+        self.assertEqual("HRSA", citations[0].author)
+
+    def test_both_readers_read_an_italicized_case_name_and_v_connector(self):
+        body = "The holding (*Brown v. Board of Education*, 1954) controls."
+
+        self.assertIn(("brown", "1954"), self._keys(body))
+        self.assertEqual(
+            [("*Brown v. Board of Education*", "1954")],
+            [(citation.author, citation.year) for citation in artifact.read_citations(body)],
+        )
+
+        narrative = "Brown v. Board of Education (1954) held otherwise."
+        self.assertIn(("brown", "1954"), self._keys(narrative))
+        self.assertEqual(
+            [("Brown v. Board of Education", "1954")],
+            [(citation.author, citation.year) for citation in artifact.read_citations(narrative)],
+        )
+
+    def test_discussion_parenthetical_accepts_trailing_locator_matter(self):
+        citations = artifact.read_citations("The result holds (Smith, 2021, Table 2).")
+
+        self.assertEqual([("Smith", "2021")], [(c.author, c.year) for c in citations])
+
+    def test_each_noise_predicate_refuses_evidence_and_leaves_the_grammar_as_fallback(self):
+        cases = (
+            ("sentence", "Alpha Group. Unit", "(Alpha Group. Unit, 2024)"),
+            ("line", "Alpha Group", "(Alpha\nGroup, 2024)"),
+            ("lowercase", "Alpha Group", "(alpha group, 2024)"),
+            ("inline code", "Alpha Group", "\x60(Alpha Group, 2024)\x60"),
+            ("short key", "AI", "(AI, 2024)"),
+        )
+        for name, author, body in cases:
+            entry = scan.Entry(
+                line=1,
+                text=f"{author}. (2024). Title. Journal.",
+                paragraph=True,
+            )
+            with self.subTest(predicate=name):
+                coverage = scan.citation_coverage(body, (entry,))
+                self.assertEqual(0, coverage.evidenced)
+
+    def test_sentence_boundary_mutant_restores_the_discussion_key_disagreement(self):
+        body = "West Virginia. The HRSA (n.d.) designates the site."
+        keys = artifact.reference_keys("HRSA. (n.d.). Designation guide.")
+        self.assertEqual(0, len(artifact.citation_coverage(body, keys).disagreements))
+        old_phrase = (
+            artifact.NAME
+            + r"(?:\s+(?:"
+            + artifact.NAME
+            + r"|of|for|the|and|&|v\.)){0,10}"
+        )
+        mutant = re.compile(
+            r"\b(?P<author>" + old_phrase + r"(?:\s+et\s+al\.)?)\s*"
+            r"\((?P<year>" + artifact.YEAR + r")"
+            r"(?P<rest>(?:,\s*" + artifact.YEAR + r")*)"
+            r"(?:,\s*(?:p{1,2}\.|para\.)\s*\d+(?:[-–]\d+)?)?\)"
+        )
+        with mock.patch.object(artifact, "NARRATIVE_CITATION", mutant):
+            coverage = artifact.citation_coverage(body, keys)
+
+        self.assertEqual(1, len(coverage.disagreements))
+
+    def test_dropping_evidence_first_restores_the_statutes_wrong_discussion_key(self):
+        body = "(Consolidated Appropriations Act, 2023, 2022)"
+        keys = artifact.reference_keys(
+            "Consolidated Appropriations Act, 2023, Pub. L. No. 117-328, "
+            "§ 1263, 136 Stat. 4459 (2022)."
+        )
+        expected = artifact.author_key("Consolidated Appropriations Act, 2023")
+        self.assertEqual(expected, artifact.author_key(artifact.read_citations(body, keys)[0].author))
+        with mock.patch.object(artifact, "_evidenced_citations", return_value=()):
+            mutant = artifact.read_citations(body, keys)
+
+        self.assertNotEqual(expected, artifact.author_key(mutant[0].author))
+
+    def test_discussion_evidence_still_splits_a_wrong_legal_date(self):
+        body = "(Consolidated Appropriations Act, 2023, 2024)"
+        key = artifact.author_key("Consolidated Appropriations Act, 2023")
+        citations = artifact.read_citations(body, {(key, "2022")})
+
+        self.assertEqual(
+            [(key, "2024")],
+            [(artifact.author_key(citation.author), citation.year) for citation in citations],
+        )
+
+    def test_discussion_coverage_counts_each_unread_semicolon_part(self):
+        coverage = artifact.citation_coverage("(Smith, 2021; 2019a, 2019b)")
+
+        self.assertEqual(3, coverage.candidates)
+        self.assertEqual(1, coverage.grammar)
+        self.assertEqual(2, coverage.unread)
+
 
 class RepublishedDateExamplesComeFromApaSectionThirtyOne(unittest.TestCase):
     """The sheet owns every example; neither parser test retypes APA's strings."""
@@ -783,7 +1011,7 @@ class RepublishedDateExamplesComeFromApaSectionThirtyOne(unittest.TestCase):
                     (item.key, item.year) in reference_pairs
                     for item in reference_citations
                 )
-                self.assertEqual(reference_resolves, disposition != "#943")
+                self.assertTrue(reference_resolves, disposition)
 
     def test_the_shared_discussion_reader_resolves_both_parenthetical_and_narrative_forms(self):
         examples = self.examples()
@@ -805,7 +1033,7 @@ class RepublishedDateExamplesComeFromApaSectionThirtyOne(unittest.TestCase):
 
     def test_the_only_recorded_author_shape_residues_are_their_existing_tickets(self):
         dispositions = {disposition for *_rest, disposition in self.examples()}
-        self.assertEqual(dispositions, {"clean", "#943"})
+        self.assertEqual(dispositions, {"clean"})
 
     def test_dropping_the_approximate_range_limb_kills_the_gilgamesh_form(self):
         _reference, citation, _year, _disposition = next(
@@ -865,7 +1093,7 @@ class TheReportCarriesNoDocumentTextWithoutShow(unittest.TestCase):
         report = scan.format_report(self.scan, source="case.md")
         self.assertIn("legal entries", report)
         self.assertIn("legal entries                  0", report)
-        self.assertIn("A legal entry is outside uncited-entry.", report)
+        self.assertIn("A named legal entry participates in uncited-entry.", report)
 
     def test_the_derived_legal_reader_coverage_prints_on_every_run(self):
         report = scan.format_report(self.scan, source="case.md")
@@ -876,6 +1104,13 @@ class TheReportCarriesNoDocumentTextWithoutShow(unittest.TestCase):
             coverage = scan.legal_reader_covered()
         self.assertIn(str(len(widened)), coverage)
         self.assertIn("1 example form", coverage)
+
+    def test_citation_reader_coverage_prints_on_every_run_without_changing_findings(self):
+        report = scan.format_report(self.scan, source="case.md")
+
+        self.assertIn("citation reader coverage", report)
+        self.assertIn("candidates", report)
+        self.assertIn("key disagreement", report)
 
     def test_both_graders_derive_the_same_coverage_function_from_the_mechanisms(self):
         def function(path: Path) -> ast.FunctionDef:
@@ -1151,12 +1386,33 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
                 self.assertIn(phrase, self.apa7)
 
     def test_the_first_significant_word_rule_is_bound_across_both_sheets(self):
-        apa_wording = "Alphabetized by the first significant word of the entry"
+        apa_wording = "Alphabetized letter by letter from the first significant word of the entry"
         style_wording = "Alphabetize by the first significant word of the entry"
         self.assertIn(apa_wording, numbered_markdown_section(self.apa7, 1))
         section_ten = " ".join(self.style[self.style.index("## 10.") :].split())
         self.assertIn(style_wording, section_ten)
         self.assertIn("[apa7.md](apa7.md) §1", section_ten)
+
+    def test_apa_ordering_clauses_and_in_press_order_are_bound_to_the_sheet(self):
+        section_one = numbered_markdown_section(self.apa7, 1)
+        for phrase in (
+            "letter by letter",
+            "including any surname prefix",
+            "Disregard capitalization, spaces, and",
+            "punctuation",
+        ):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, section_one)
+        section_three = numbered_markdown_section(self.apa7, 3)
+        self.assertIn("in press-a", section_three)
+        self.assertIn("works last", section_three)
+
+    def test_the_legal_author_date_definition_is_bound_to_the_sheet(self):
+        section_eight = form_markdown_section(self.apa7, "State nursing practice act (NPA)")
+
+        self.assertIn("entry's first element", section_eight)
+        self.assertIn("publication year", section_eight)
+        self.assertIn("Consolidated Appropriations Act", section_eight)
 
     def test_apa_smithsonian_example_passes_the_scanner(self):
         section = self.apa7[
@@ -1326,7 +1582,11 @@ class TheReportCannotCarryTheDraftsProse(unittest.TestCase):
         exercises, so a sixteenth one cannot arrive without being fired here.
         """
         fired = {f.kind for f in self.findings if f.where == "body"}
-        self.assertLessEqual(set(scan.BODY_ROWS), fired, sorted(fired))
+        self.assertLessEqual(
+            set(scan.BODY_ROWS) - set(scan.NON_FINDING_BODY_ROWS),
+            fired,
+            sorted(fired),
+        )
 
     def test_the_shown_report_carries_no_body_prose(self):
         """The ruling itself, measured rather than argued."""
@@ -1399,7 +1659,10 @@ class NoBodyRowCanArriveUndeclared(unittest.TestCase):
     def test_the_walk_found_the_calls(self):
         """``TheInstrumentIsLive``'s row. A walk matching nothing passes the row
         below for the one reason that must not count."""
-        self.assertGreaterEqual(len(self._body_calls()), len(scan.BODY_ROWS))
+        self.assertGreaterEqual(
+            len(self._body_calls()),
+            len(scan.BODY_ROWS) - len(scan.NON_FINDING_BODY_ROWS),
+        )
 
     def test_every_body_finding_in_the_module_is_declared(self):
         """**The row that matters.** A fifth row reading the draft's prose cannot
@@ -1613,11 +1876,6 @@ class TheTwoCopiesOfWhatStaysAReading(unittest.TestCase):
         """
         self.assertIn("unwarranted retrieval date", dict(scan.NOT_REACHED))
 
-    def test_the_legal_entry_exclusion_is_one_of_them(self):
-        self.assertIn("whether a legal entry is cited", dict(scan.NOT_REACHED))
-
-
-
 class EveryDeclaredLimitIsReDerivedAtTheScannerSeam(unittest.TestCase):
     """#323's executable half, rather than another bind of ``NOT_REACHED``.
 
@@ -1633,7 +1891,6 @@ class EveryDeclaredLimitIsReDerivedAtTheScannerSeam(unittest.TestCase):
             "unwarranted retrieval date": self.unwarranted_retrieval_date,
             "UpToDate last update year": self.uptodate_last_update_year,
             "the source exists and says so": self.source_exists_and_says_so,
-            "whether a legal entry is cited": self.whether_a_legal_entry_is_cited,
         }
         self.assertEqual(set(handlers), set(dict(scan.NOT_REACHED)))
         for key, handler in handlers.items():
@@ -1701,11 +1958,6 @@ class EveryDeclaredLimitIsReDerivedAtTheScannerSeam(unittest.TestCase):
         # Removing the entry still fires the structural direction, so the silence
         # above measures existence and content rather than a dead citation parser.
         self.assertIn(scan.UNLISTED_CITATION, kinds(draft(UPTODATE, body=unsupported)))
-
-    def whether_a_legal_entry_is_cited(self):
-        self.assertNotIn(scan.UNCITED_ENTRY, kinds(draft(NAMED_LEGAL, body="# Case\n")))
-        self.assertIn(scan.UNCITED_ENTRY, kinds(draft(ACOG, body="# Case\n")))
-
 
 class LegalReferenceRulesArePublished(unittest.TestCase):
     def section_eight(self) -> str:

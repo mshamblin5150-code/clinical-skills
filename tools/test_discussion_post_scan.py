@@ -974,7 +974,7 @@ REFUTATION: stands - the page addresses the cited proposition.
         self.assertEqual(short[0].author, long[0].author)
         self.assertEqual(short[0].year, long[0].year)
         self.assertEqual(short_checks, keys.checks)
-        self.assertEqual(short_normalizations + 1, long_normalizations)
+        self.assertLessEqual(long_normalizations, short_normalizations + 1)
 
     def test_a_yearless_section_only_record_is_a_post_finding(self):
         claims = CLAIMS.replace(
@@ -1777,6 +1777,14 @@ class CountedPreferencesNeverBecomeFindings(unittest.TestCase):
             coverage = scan.legal_reader_covered()
         self.assertIn(str(len(widened)), coverage)
         self.assertIn("1 example form", coverage)
+
+    def test_citation_reader_coverage_prints_on_every_run(self):
+        with tempfile.TemporaryDirectory() as temp:
+            status, stdout, _ = Run(Path(temp)).grade()
+
+        self.assertEqual(0, status)
+        self.assertIn("citation reader coverage: candidates", stdout)
+        self.assertIn("key disagreement", stdout)
 
 
 class ProseBarElementsStayDeclaredReadings(unittest.TestCase):

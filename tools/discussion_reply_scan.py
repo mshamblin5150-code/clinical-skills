@@ -29,9 +29,11 @@ from discussion_artifact import (
     RESTATEMENT,
     WORD,
     Citation,
+    CitationCoverage,
     PostedReading,
     author_key,
     citation_occurrence_keys,
+    citation_coverage,
     discussion_entry_id,
     invoked_source_has_substance,
     legal_reference_lacks_name,
@@ -226,6 +228,7 @@ class Scan:
     pre_496_markers: int | None
     reference_boundary_graded: bool
     findings: tuple[Finding, ...] = ()
+    citation_coverage: CitationCoverage = CitationCoverage()
 
 
 def _split_reply(path: Path) -> Reply:
@@ -588,6 +591,23 @@ def survey(source: RunSource) -> Scan:
         read_citations(reply.body, references)
         for reply, references in zip(source.replies, reference_key_sets)
     )
+    coverages = tuple(
+        citation_coverage(reply.body, references)
+        for reply, references in zip(source.replies, reference_key_sets)
+    )
+    coverage = CitationCoverage(
+        candidates=sum(item.candidates for item in coverages),
+        evidenced=sum(item.evidenced for item in coverages),
+        grammar=sum(item.grammar for item in coverages),
+        unread=sum(item.unread for item in coverages),
+        disagreements=tuple(
+            dict.fromkeys(
+                disagreement
+                for item in coverages
+                for disagreement in item.disagreements
+            )
+        ),
+    )
     base_findings = tuple(
         finding
         for reply in source.replies
@@ -641,6 +661,7 @@ def survey(source: RunSource) -> Scan:
         ),
         reference_boundary_graded=True,
         findings=findings,
+        citation_coverage=coverage,
     )
 
 
@@ -652,6 +673,11 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         f"words: {scan.words if scan.reference_boundary_graded else NOT_GRADED}",
         f"references: {scan.references if scan.reference_boundary_graded else NOT_GRADED}",
         f"citations: {scan.citations if scan.reference_boundary_graded else NOT_GRADED}",
+        (
+            scan.citation_coverage.report_line()
+            if scan.reference_boundary_graded
+            else CitationCoverage().report_line()
+        ),
         f"numeric claims: {scan.numeric_claims if scan.reference_boundary_graded else NOT_GRADED}",
         (
             f"invoked sources: {scan.invoked_sources}"
@@ -678,6 +704,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         else:
             lines.append(f"{kind}: {sum(finding.kind == kind for finding in scan.findings)}")
     if show:
+        lines.extend(scan.citation_coverage.disagreement_lines())
         lines.extend(
             f"{finding.kind}: {finding.response}: {finding.detail}"
             for finding in scan.findings

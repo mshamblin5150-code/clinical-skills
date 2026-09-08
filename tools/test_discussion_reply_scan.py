@@ -137,6 +137,8 @@ class ACompleteRunPasses(unittest.TestCase):
         self.assertIn("responses: 1", report)
         self.assertIn("references: 1", report)
         self.assertIn("numeric claims: 1", report)
+        self.assertIn("citation reader coverage: candidates", report)
+        self.assertIn("key disagreement", report)
         self.assertIn("findings: 0", report)
         self.assertNotIn("Maren", report)
 

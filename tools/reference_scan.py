@@ -108,9 +108,9 @@ list would otherwise be found by neither.
 - **A legal entry carries the legal source name.** A section alone is
   reported as a malformed entry.
 - **A legal entry resolves on its Source and section, with or without a citation year.**
-  It is outside ``uncited-entry`` because the canonical narrative name needs a
-  different key from a section-form citation: that row reads the entry's first
-  significant word alone while the citation resolves through ``resolution_keys``.
+- **A named legal entry participates in ``uncited-entry``.** Its first element is
+  the in-text author element; section-form citations still resolve through
+  ``resolution_keys``.
 
 **What it cannot reach is ``NOT_REACHED`` below, not this paragraph.** That list
 used to be written out here *and* in ``apa7.md`` section 7, and a **prose** edit to
@@ -237,6 +237,7 @@ from __future__ import annotations
 
 import re
 import sys
+import unicodedata
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
@@ -244,9 +245,12 @@ from pathlib import Path
 import run_grader
 from run_grader import NOT_GRADED
 from discussion_artifact import (
+    LETTER,
     LEGAL_CITATION,
     LEGAL_READER_MECHANISMS,
     REPUBLISHED_DATE_ELEMENT,
+    LOWER,
+    UPPER,
     citation_year,
     legal_citation_spans,
     legal_reference_lacks_name,
@@ -358,9 +362,10 @@ WRONG_HEADINGS = (
     "citations",
 )
 
-# A year element as APA sets one: the four digits, an optional disambiguating
-# letter, and anything else inside the parentheses (``2025, June 3``).
-YEAR_TOKEN = r"(?:\d{4}[a-z]?|n\.d\.(?:-[a-z])?)"
+# A date value as APA sets one. Dated works take the bare letter suffix while
+# both values without a numeric year share the hyphenated suffix rule.
+NONNUMERIC_DATE = r"(?:n\.d\.|in press)"
+YEAR_TOKEN = r"(?:\d{4}[a-z]?|" + NONNUMERIC_DATE + r"(?:-[a-z])?)"
 ENTRY_YEAR = re.compile(r"\(\s*(" + YEAR_TOKEN + r")\s*(?:,[^)]*)?\)", re.I)
 
 # A parenthetical citation, and a narrative one. Both may wrap, because the corpus
@@ -392,9 +397,24 @@ CITATION_PART = re.compile(
 # ``(Smith, 2021, p. 1998)`` as a second year, and the entry it invents is
 # unlisted by construction.
 EXTRA_YEAR = re.compile(r"^\s*,\s*(" + YEAR_TOKEN + r")" + YEAR_END, re.I)
-NAME = r"[A-Z][A-Za-z'’.\-]+"
-NOT_SENTENCE_END = r"(?!(?<=[a-z’']\.)\s)"
-NARRATIVE_AUTHOR_CONNECTORS = ("of", "for", "the", "and", "&", "on", "in", "at")
+DATE_VALUE = re.compile(r"(" + YEAR_TOKEN + r")" + YEAR_END, re.I)
+EVIDENCE_COMMA_DATE = re.compile(
+    r",\s*(" + REPUBLISHED_DATE_ELEMENT + r"|" + YEAR_TOKEN + r")" + YEAR_END,
+    re.I,
+)
+DATE_SERIES = re.compile(
+    r"^\s*" + YEAR_TOKEN
+    + r"(?:\s*,\s*" + YEAR_TOKEN + r")*"
+    + r"(?:\s*,\s*(?:pp?\.|para\.)[^()]{0,30})?\s*$",
+    re.I,
+)
+FENCED_CODE = re.compile(r"(?ms)^(\x60\x60\x60|~~~).*?^\1[ \t]*$")
+INLINE_CODE = re.compile(r"\x60+[^\x60\n]*\x60+")
+NAME = r"[" + UPPER + r"](?:" + LETTER + r"|['’.\-])+"
+NOT_SENTENCE_END = r"(?!(?<!v\.)(?<=[a-z’']\.)\s)"
+NARRATIVE_AUTHOR_CONNECTORS = (
+    "of", "for", "the", "and", "&", "on", "in", "at", r"v\."
+)
 NARRATIVE_AUTHOR_PHRASE = (
     NAME
     + r"(?:"
@@ -416,6 +436,11 @@ NARRATIVE = re.compile(
     + YEAR_TOKEN
     + r")"
     + YEAR_END
+    + r"(?:\s*,\s*(?:"
+    + YEAR_TOKEN
+    + r")"
+    + YEAR_END
+    + r")*"
     + r"(?:\s*,\s*(?:pp?\.|para\.)[^()]{0,30})?\s*\)"
 )
 CANVAS = re.compile(r"Links to an external site\.?", re.I)
@@ -470,8 +495,9 @@ MONTHS = (
 ARTICLES = ("a", "an", "the")
 ARTICLE = re.compile(r"^(\s*[*_\"'“‘]*\s*)(?:a|an|the)\s+", re.I)
 
-FIRST_WORD = re.compile(r"[*_\"'“‘]*([A-Za-z][A-Za-z'’\-]*)")
-NOT_ALNUM = re.compile(r"[^0-9a-z]+")
+FIRST_WORD = re.compile(
+    r"[*_\"'“‘]*(" + LETTER + r"(?:" + LETTER + r"|['’\-])*)"
+)
 
 # A signal phrase in front of a citation, stripped before the author is read.
 # ``(e.g., Hooton, 2024)`` is ordinary APA and its first word is ``e``, so without
@@ -507,6 +533,7 @@ INTEXT_YEAR_MISMATCH = "intext-year-mismatch"
 UNCITED_ENTRY = "uncited-entry"
 UNLISTED_CITATION = "unlisted-citation"
 LEGAL_REFERENCE_LACKS_NAME = "legal-reference-lacks-name"
+CITATION_READER_COVERAGE = "citation-reader-coverage"
 REFERENCE_BUCKETS = (
     ReferenceBucket("uptodate", ("UpToDate article",)),
     ReferenceBucket("statpearls", ("StatPearls",)),
@@ -562,7 +589,9 @@ BODY_ROWS = (
     UPTODATE_ITALICS,
     INTEXT_YEAR_MISMATCH,
     UNLISTED_CITATION,
+    CITATION_READER_COVERAGE,
 )
+NON_FINDING_BODY_ROWS = (CITATION_READER_COVERAGE,)
 
 # Which **sheet and section** each row reads, so a reader knows where to go and
 # argue with it. The sheets own the rules; this only says which one.
@@ -694,25 +723,26 @@ NOT_REACHED = (
         "resolving locator whose title and authors match the entry is evidence the "
         "document exists even when that route cannot reach its body.",
     ),
-    (
-        "whether a legal entry is cited",
-        "A legal entry is outside ``uncited-entry`` because that row keys on the "
-        "entry's first significant word alone, while a section-form citation resolves "
-        "on a ``resolution_keys`` entry that row never reads. A clean result therefore "
-        "cannot prove that a legal entry is cited anywhere in the draft.",
-    ),
 )
 
 
 def normalize(text: str) -> str:
-    """Lowercase alphanumerics only, single-spaced.
+    """NFKD-folded, mark-stripped lowercase alphanumerics, single-spaced.
 
     Used for ordering and for equality, never for similarity. Markdown emphasis
     falls out with the rest of the punctuation, so ``*UpToDate*`` and ``UpToDate``
     sort as one word -- which they must, since the italics are a *format* rule and
-    the alphabetizing rule cannot see formatting.
+    the alphabetizing rule cannot see formatting. Combining marks are stripped
+    after decomposition; this is intentionally not ``guidelines_recs.fold``, which
+    deletes accented letters instead of folding them.
     """
-    return " ".join(NOT_ALNUM.sub(" ", text.lower()).split())
+    folded = unicodedata.normalize("NFKD", text.casefold())
+    without_marks = "".join(
+        character for character in folded if not unicodedata.combining(character)
+    )
+    return " ".join(
+        "".join(character if character.isalnum() else " " for character in without_marks).split()
+    )
 
 
 def without_leading_article(text: str) -> str:
@@ -849,6 +879,35 @@ class Entry:
         return normalize(self.text[: match.start()]) if match else ""
 
     @property
+    def citation_author(self) -> str:
+        """The reference entry's first element in its in-text form."""
+
+        match = self._year_match
+        if match is None:
+            return ""
+        author_text = self.text[: match.start()].rstrip(". ")
+        legal = LEGAL_CITATION.search(author_text)
+        if legal is not None:
+            return author_text[: legal.start()].rstrip("., ")
+        surnames = re.findall(
+            r"(?:^|(?:,\s*&?|\s+&|\s+and)\s*)(["
+            + UPPER
+            + r"](?:"
+            + LETTER
+            + r"|['’.\-])*),\s*["
+            + UPPER
+            + r"](?:[.\-]|\s|$)",
+            author_text,
+        )
+        if len(surnames) == 1:
+            return surnames[0]
+        if len(surnames) == 2:
+            return " & ".join(surnames)
+        if len(surnames) > 2:
+            return surnames[0] + " et al."
+        return author_text
+
+    @property
     def is_uptodate(self) -> bool:
         """The database name as a word, or its host in a URL. One property rather
         than the same disjunction written twice, once in a row and once in a count,
@@ -942,6 +1001,17 @@ class Citation:
 
 
 @dataclass(frozen=True)
+class CitationCoverage:
+    """Non-grading account of which author/date split read each candidate."""
+
+    candidates: int = 0
+    evidenced: int = 0
+    grammar: int = 0
+    unread: int = 0
+    disagreements: tuple[tuple[str, str], ...] = ()
+
+
+@dataclass(frozen=True)
 class Document:
     """A finished draft, split at the reference heading."""
 
@@ -949,6 +1019,7 @@ class Document:
     body: str
     entries: tuple[Entry, ...]
     citations: tuple[Citation, ...]
+    citation_coverage: CitationCoverage = CitationCoverage()
 
 
 @dataclass(frozen=True)
@@ -990,6 +1061,7 @@ class Scan:
     counts: tuple[tuple[str, int], ...]
     entries_at_fault: int
     findings: tuple[Finding, ...]
+    citation_coverage: CitationCoverage = CitationCoverage()
 
 
 def _is_reference_heading(text: str) -> bool:
@@ -1011,7 +1083,227 @@ def _is_reference_heading(text: str) -> bool:
     return bool(RENDERER_HEADING.match(stripped)) or lowered in WRONG_HEADINGS
 
 
-def read_citations(body: str) -> tuple[Citation, ...]:
+def _evidenced_parenthetical(
+    part: str,
+    entries: tuple[Entry, ...],
+    body: str = "",
+    start: int = 0,
+) -> tuple[str, tuple[str, ...]] | None:
+    """Read a parenthetical's author/date split from a reference first element."""
+
+    for entry in entries:
+        author = entry.citation_author
+        key = citation_key(author)
+        if not author or len(key) < 3:
+            continue
+        for date_match in EVIDENCE_COMMA_DATE.finditer(part):
+            written = part[: date_match.start()].strip()
+            first_letter = next(
+                (character for character in written if character.isalpha()),
+                "",
+            )
+            if (
+                normalize(written) != normalize(author)
+                or "\n" in written
+                or re.search(r"(?<!v)(?<=[" + LOWER + r"’'])\.\s", written)
+                or not first_letter.isupper()
+                or _inside_code(body, start, start + len(part))
+            ):
+                continue
+            dates = [date_match.group(1)]
+            rest = part[date_match.end() :]
+            while True:
+                extra = EXTRA_YEAR.match(rest)
+                if extra is None:
+                    break
+                dates.append(extra.group(1))
+                rest = rest[extra.end() :]
+            return written, tuple(dates)
+    return None
+
+
+def _inside_code(body: str, start: int, end: int) -> bool:
+    if not body:
+        return False
+    return any(
+        start < match.end() and match.start() < end
+        for pattern in (FENCED_CODE, INLINE_CODE)
+        for match in pattern.finditer(body)
+    )
+
+
+def _date_values(value: str) -> tuple[str, ...]:
+    return tuple(match.group(1) for match in DATE_VALUE.finditer(value))
+
+
+def _evidenced_narratives(
+    body: str,
+    entries: tuple[Entry, ...],
+) -> tuple[tuple[str, tuple[str, ...], int, int], ...]:
+    """Find exact reference-first-element suffixes before date parentheses."""
+
+    found: list[tuple[str, tuple[str, ...], int, int]] = []
+    seen: set[tuple[int, int, str]] = set()
+    for block in PAREN_BLOCK.finditer(body):
+        inside = block.group(1)
+        if DATE_SERIES.fullmatch(inside) is None:
+            continue
+        dates = _date_values(inside)
+        prefix = body[: block.start()]
+        starts = [match.start() for match in re.finditer(r"\S+", prefix)]
+        for entry in entries:
+            author = entry.citation_author
+            key = citation_key(author)
+            if not author or len(key) < 3:
+                continue
+            for author_start in reversed(starts):
+                written = prefix[author_start:].strip()
+                candidate = without_leading_article(written)
+                if normalize(candidate) != normalize(author):
+                    continue
+                first_letter = next(
+                    (character for character in candidate if character.isalpha()),
+                    "",
+                )
+                if (
+                    "\n" in written
+                    or re.search(r"(?<!v)(?<=[" + LOWER + r"’'])\.\s", written)
+                    or not first_letter.isupper()
+                    or _inside_code(body, author_start, block.end())
+                ):
+                    break
+                identity = (author_start, block.end(), key)
+                if identity not in seen:
+                    seen.add(identity)
+                    found.append((candidate, dates, author_start, block.end()))
+                break
+    return tuple(found)
+
+
+def citation_coverage(
+    body: str,
+    entries: tuple[Entry, ...] = (),
+) -> CitationCoverage:
+    """Account for each grammar or reference-evidenced citation candidate."""
+
+    candidates = evidenced = unread = 0
+    disagreements: list[tuple[str, str]] = []
+    legal_spans = legal_citation_spans(body)
+    grammar = sum(
+        bool(
+            match.group("parenthesized_year")
+            or match.group("continued_year")
+            or match.group("year")
+        )
+        for match in LEGAL_CITATION.finditer(body)
+    )
+    candidates = grammar
+    narrative_evidence = _evidenced_narratives(body, entries)
+    evidence_spans = tuple(
+        (start, end) for _author, _dates, start, end in narrative_evidence
+    )
+    narrative_lines: list[str] = []
+    for line in body.splitlines(keepends=True):
+        if RENDERER_MARKDOWN_HEADING.match(line.strip()):
+            ending = len(line) - len(line.rstrip("\r\n"))
+            if ending:
+                line = line[:-ending] + ";" + line[len(line) - ending + 1 :]
+        narrative_lines.append(line)
+    narrative_body = "".join(narrative_lines)
+
+    for author, dates, start, end in narrative_evidence:
+        candidates += len(dates)
+        evidenced += len(dates)
+        overlapping = next(
+            (
+                match
+                for match in NARRATIVE.finditer(narrative_body)
+                if match.start() < end and start < match.end()
+            ),
+            None,
+        )
+        if overlapping is not None:
+            evidence_key = citation_key(author)
+            grammar_key = citation_key(overlapping.group(1))
+            if evidence_key != grammar_key:
+                disagreements.append((evidence_key, grammar_key))
+
+    for block in PAREN_BLOCK.finditer(body):
+        if any(
+            start <= block.start() and block.end() <= end
+            for start, end in legal_spans
+        ):
+            continue
+        offset = block.start(1)
+        cursor = 0
+        for part in block.group(1).split(";"):
+            leading = len(part) - len(part.lstrip())
+            stripped = part.strip()
+            start = offset + cursor + leading
+            end = start + len(stripped)
+            if any(
+                start < legal_end and legal_start < end
+                for legal_start, legal_end in legal_spans
+            ):
+                cursor += len(part) + 1
+                continue
+            if any(s <= start and end <= e for s, e in evidence_spans):
+                cursor += len(part) + 1
+                continue
+            evidence = _evidenced_parenthetical(stripped, entries, body, start)
+            parsed = CITATION_PART.match(stripped)
+            if evidence is not None:
+                evidence_author, dates = evidence
+                candidates += len(dates)
+                evidenced += len(dates)
+                if parsed is not None:
+                    evidence_key = citation_key(evidence_author)
+                    grammar_key = citation_key(parsed.group(1))
+                    if evidence_key != grammar_key:
+                        disagreements.append((evidence_key, grammar_key))
+            elif parsed is not None:
+                dates = [parsed.group(2)]
+                rest = stripped[parsed.end() :]
+                while True:
+                    extra = EXTRA_YEAR.match(rest)
+                    if extra is None:
+                        break
+                    dates.append(extra.group(1))
+                    rest = rest[extra.end() :]
+                candidates += len(dates)
+                if citation_key(parsed.group(1)):
+                    grammar += len(dates)
+                else:
+                    unread += len(dates)
+            cursor += len(part) + 1
+
+    for match in NARRATIVE.finditer(narrative_body):
+        if any(
+            start <= match.start() and match.end() <= end
+            for start, end in legal_spans
+        ):
+            continue
+        if any(start < match.end() and match.start() < end for start, end in evidence_spans):
+            continue
+        dates = _date_values(match.group(0)[match.start(2) - match.start() :])
+        candidates += len(dates)
+        if citation_key(match.group(1)):
+            grammar += len(dates)
+        else:
+            unread += len(dates)
+    return CitationCoverage(
+        candidates,
+        evidenced,
+        grammar,
+        unread,
+        tuple(dict.fromkeys(disagreements)),
+    )
+
+
+def read_citations(
+    body: str,
+    entries: tuple[Entry, ...] = (),
+) -> tuple[Citation, ...]:
     """Every distinct in-text citation, parenthetical and narrative.
 
     Deduplicated on the pair, so a source cited nine times is one key and the year
@@ -1058,6 +1350,13 @@ def read_citations(body: str) -> tuple[Citation, ...]:
             ):
                 cursor += len(part) + 1
                 continue
+            evidenced = _evidenced_parenthetical(stripped, entries, body, start)
+            if evidenced is not None:
+                author, dates = evidenced
+                for token in dates:
+                    add(author, token)
+                cursor += len(part) + 1
+                continue
             match = CITATION_PART.match(stripped)
             if not match:
                 cursor += len(part) + 1
@@ -1086,13 +1385,33 @@ def read_citations(body: str) -> tuple[Citation, ...]:
                 line = line[:-ending] + ";" + line[len(line) - ending + 1 :]
         narrative_lines.append(line)
     narrative_body = "".join(narrative_lines)
+    evidence_narratives = _evidenced_narratives(body, entries)
+    evidence_spans = tuple(
+        (start, end) for _author, _dates, start, end in evidence_narratives
+    )
+    for author, dates, _start, _end in evidence_narratives:
+        for token in dates:
+            add(author, token)
     for match in NARRATIVE.finditer(narrative_body):
         if any(
             start <= match.start() and match.end() <= end
             for start, end in legal_spans
         ):
             continue
-        add(match.group(1), match.group(2))
+        if any(
+            start < match.end() and match.start() < end
+            for start, end in evidence_spans
+        ):
+            continue
+        author = match.group(1)
+        add(author, match.group(2))
+        rest = match.group(0)[match.end(2) - match.start() :]
+        while True:
+            extra = EXTRA_YEAR.match(rest)
+            if not extra:
+                break
+            add(author, extra.group(1))
+            rest = rest[extra.end() :]
     return tuple(seen.values())
 
 
@@ -1121,7 +1440,13 @@ def read_document(text: str) -> Document:
             break
 
     if start is None:
-        return Document(heading=None, body=text, entries=(), citations=read_citations(text))
+        return Document(
+            heading=None,
+            body=text,
+            entries=(),
+            citations=read_citations(text),
+            citation_coverage=citation_coverage(text),
+        )
 
     body = "\n".join(lines[: parsed[start].line - 1])
     entries: list[Entry] = []
@@ -1150,7 +1475,14 @@ def read_document(text: str) -> Document:
                 paragraph=block.kind == "paragraph",
             )
         )
-    return Document(heading=heading, body=body, entries=tuple(entries), citations=read_citations(body))
+    parsed_entries = tuple(entries)
+    return Document(
+        heading=heading,
+        body=body,
+        entries=parsed_entries,
+        citations=read_citations(body, parsed_entries),
+        citation_coverage=citation_coverage(body, parsed_entries),
+    )
 
 
 def _retrieval(entry: Entry) -> tuple[date | None, bool, bool]:
@@ -1312,7 +1644,12 @@ def _citation_findings(document: Document) -> list[Finding]:
                 )
             )
     for entry in document.entries:
-        if entry.key and entry.year and not entry.is_legal and entry.key not in cited:
+        entry_cited = any(key in cited for key, _year in entry.resolution_keys)
+        if (
+            entry.year
+            and not (entry.is_legal and not entry.key)
+            and (not entry.key or not entry_cited)
+        ):
             found.append(Finding(UNCITED_ENTRY, f"entry on line {entry.line}", entry.text, entry.line))
     return found
 
@@ -1354,6 +1691,7 @@ def survey(document: Document, as_of: date | None) -> Scan:
         with_doi=sum(1 for e in document.entries if DOI.search(e.text)),
         legal=sum(1 for e in document.entries if e.is_legal),
         citations=len(document.citations),
+        citation_coverage=document.citation_coverage,
         bucket_counts=bucket_counts,
         undecidable_remainder=sum(
             count.population
@@ -1391,6 +1729,14 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         f"    entries carrying a DOI         {scan.with_doi}",
         f"    legal entries                  {scan.legal}",
         f"  in-text citations read           {scan.citations}",
+        (
+            "  citation reader coverage         "
+            f"candidates {scan.citation_coverage.candidates}; "
+            f"evidence {scan.citation_coverage.evidenced}; "
+            f"grammar {scan.citation_coverage.grammar}; "
+            f"unread {scan.citation_coverage.unread}; "
+            f"key disagreement {len(scan.citation_coverage.disagreements)}"
+        ),
         "",
         "  source-class coverage (advisory)",
     ]
@@ -1401,7 +1747,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
     lines += [
         f"  {'undecidable remainder':<34} {scan.undecidable_remainder}",
         "",
-        "  A legal entry is outside uncited-entry.",
+        "  A named legal entry participates in uncited-entry.",
         f"  {legal_reader_covered()}",
         "",
     ]
@@ -1410,6 +1756,10 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
     lines.append("")
     lines.append(f"  entries at fault                 {scan.entries_at_fault}")
     if show:
+        if scan.citation_coverage.disagreements:
+            lines += ["", "  citation key disagreements (safe to paste):"]
+            for evidenced, grammar in scan.citation_coverage.disagreements:
+                lines.append(f"    evidence {evidenced} | grammar {grammar}")
         lines += ["", "  findings (safe to paste):"]
         for finding in scan.findings:
             lines.append(f"    {finding.kind:<28} {finding.where}")

@@ -35,6 +35,7 @@ from discussion_artifact import (
     CLAIM_BLOCK,
     CLAIM_REFERENCE,
     Citation,
+    CitationCoverage,
     LEGAL_SECTION_NUMBER,
     LEGAL_READER_MECHANISMS,
     LEGAL_SOURCE,
@@ -46,6 +47,7 @@ from discussion_artifact import (
     RESTATEMENT,
     WORD,
     citation_occurrence_keys,
+    citation_coverage,
     invoked_source_has_substance,
     legal_reference_lacks_name,
     read_citations,
@@ -349,6 +351,7 @@ class Scan:
     docx_graded: bool
     reference_boundary_graded: bool
     findings: tuple[Finding, ...] = ()
+    citation_coverage: CitationCoverage = CitationCoverage()
 
 
 def _integer(fields: dict[str, str], name: str) -> int:
@@ -406,9 +409,17 @@ def _claim_blocks(claims: str) -> tuple[str, ...]:
 
 def _citation_keys(
     body: str, reference_key_set: ClaimReferenceIndex
-) -> tuple[tuple[Citation, ...], tuple[tuple[tuple[str, str], ...], ...]]:
+) -> tuple[
+    tuple[Citation, ...],
+    tuple[tuple[tuple[str, str], ...], ...],
+    CitationCoverage,
+]:
     body_citations = read_citations(body, reference_key_set)
-    return body_citations, citation_occurrence_keys(body_citations)
+    return (
+        body_citations,
+        citation_occurrence_keys(body_citations),
+        citation_coverage(body, reference_key_set),
+    )
 
 
 def _claim_records(claims: str) -> tuple[ClaimRecord, ...]:
@@ -1034,7 +1045,7 @@ def survey(source: RunSource) -> Scan:
     words = len(WORD.findall(_countable_body(source.body)))
     records = _claim_records(source.claims)
     reference_key_set = ClaimReferenceIndex.from_records(records)
-    body_citations, citations = _citation_keys(source.body, reference_key_set)
+    body_citations, citations, coverage = _citation_keys(source.body, reference_key_set)
     numbers = _numeric_values(source.body, body_citations)
     findings: list[Finding] = list(_posted_reading_findings(source))
     for block in _claim_blocks(source.claims):
@@ -1138,6 +1149,7 @@ def survey(source: RunSource) -> Scan:
         docx_graded=source.docx is not None,
         reference_boundary_graded=True,
         findings=tuple(findings),
+        citation_coverage=coverage,
     )
 
 
@@ -1179,6 +1191,11 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         f"numeric claims: {scan.numeric_claims if scan.reference_boundary_graded else NOT_GRADED}",
         f"claim records: {scan.claim_records if scan.reference_boundary_graded else NOT_GRADED}",
         f"citations: {scan.citations if scan.reference_boundary_graded else NOT_GRADED}",
+        (
+            scan.citation_coverage.report_line()
+            if scan.reference_boundary_graded
+            else CitationCoverage().report_line()
+        ),
         (
             f"invoked sources: {len(scan.invoked_sources or ())}"
             if scan.reference_boundary_graded
@@ -1224,6 +1241,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
                 f"{kind}: {sum(finding.kind == kind for finding in scan.findings)}"
             )
     if show:
+        lines.extend(scan.citation_coverage.disagreement_lines())
         lines.extend(
             f"invoked source: {invoked_source.domain} | {invoked_source.property}"
             for invoked_source in scan.invoked_sources or ()
