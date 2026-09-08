@@ -1060,12 +1060,7 @@ def render_body(markdown: str, bold_headings: bool = False):
     decimal_id = 0
     decimal_lists = 0
     for block in blocks(markdown):
-        if block.kind == "blank":
-            if not in_references:
-                out.append("<w:p/>")
-            continue
-
-        if block.kind == "separator":
+        if block.kind in ("blank", "separator"):
             continue
 
         if block.kind == "heading":

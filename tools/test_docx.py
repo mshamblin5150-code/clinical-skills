@@ -41,12 +41,12 @@ class OwnLineHtmlCommentsAreMarkup(unittest.TestCase):
             lines = docx_read.read_docx(path)
             return lines[:-1] if lines and lines[-1] == "" else lines
 
-    def test_an_own_line_comment_is_not_a_rendered_paragraph(self):
+    def test_an_own_line_comment_and_source_spacing_are_not_rendered_paragraphs(self):
         lines = self.rendered_lines(
             "Before.\n\n<!-- INVOKED: gravity | attracts mass -->\n\nAfter.\n"
         )
 
-        self.assertEqual(lines, ["Before.", "", "After."])
+        self.assertEqual(lines, ["Before.", "After."])
 
     def test_a_line_carrying_only_multiple_comments_is_dropped(self):
         lines = self.rendered_lines("Before.\n<!-- first --><!-- second -->\nAfter.\n")
@@ -498,20 +498,135 @@ class TheReferenceStyle(unittest.TestCase):
         self.assertEqual(xml.count('<w:pStyle w:val="Reference"/>'), 1)
 
 
+class MarkdownBlankLinesRenderNothing(unittest.TestCase):
+    """ADR 0148: source spacing is retained by ``blocks`` and draws no paragraph."""
+
+    W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+
+    def body_children(self, markdown: str):
+        document = ElementTree.fromstring(docx_write.document_xml(markdown))
+        return list(document.find("./" + self.W + "body"))
+
+    def paragraph_text(self, paragraph) -> str:
+        return "".join(node.text or "" for node in paragraph.iter(self.W + "t"))
+
+    def test_blank_lines_and_separators_emit_no_body_paragraph(self):
+        children = self.body_children(
+            "# Assessment\n\nFirst paragraph.\n\n---\n\nSecond paragraph.\n"
+        )
+        paragraphs = [child for child in children if child.tag == self.W + "p"]
+
+        self.assertEqual(
+            [self.paragraph_text(paragraph) for paragraph in paragraphs],
+            ["Assessment", "First paragraph.", "Second paragraph."],
+        )
+
+    def test_only_a_table_emits_an_empty_body_paragraph(self):
+        children = self.body_children(
+            "Before.\n\n| Drug | Dose |\n| --- | --- |\n| Rocephin | 500 mg |\n\nAfter.\n"
+        )
+        empty_paragraph_indexes = [
+            index
+            for index, child in enumerate(children)
+            if child.tag == self.W + "p" and not self.paragraph_text(child)
+        ]
+
+        self.assertEqual(empty_paragraph_indexes, [2])
+        self.assertEqual(children[1].tag, self.W + "tbl")
+
+
+class ParagraphStructureReadersParseXml(unittest.TestCase):
+    """Refuse text matchers for paragraph structure anywhere under ``tools/``.
+
+    The walk sees literal arguments to the matching calls the tree uses. A matcher
+    assembled at run time or read from another file remains invisible, so this is a
+    floor on the present source shapes and not proof that no blind reader can arrive.
+    """
+
+    MATCHING_CALLS = {
+        "count",
+        "find",
+        "findall",
+        "finditer",
+        "fullmatch",
+        "index",
+        "match",
+        "partition",
+        "rpartition",
+        "rsplit",
+        "search",
+        "split",
+    }
+    PARAGRAPH_START = "<w:" + "p"
+
+    def text_matchers(self, source: str) -> list[int]:
+        found = []
+        for node in ast.walk(ast.parse(source)):
+            if not (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and node.func.attr in self.MATCHING_CALLS
+            ):
+                continue
+            for argument in node.args:
+                for part in ast.walk(argument):
+                    if (
+                        isinstance(part, ast.Constant)
+                        and isinstance(part.value, str)
+                        and part.value.startswith(self.PARAGRAPH_START)
+                        and len(part.value) > len(self.PARAGRAPH_START)
+                        and not (
+                            part.value[len(self.PARAGRAPH_START)].isalnum()
+                            or part.value[len(self.PARAGRAPH_START)] in "_:.-"
+                        )
+                    ):
+                        found.append(node.lineno)
+        return found
+
+    def test_the_walk_detects_a_literal_paragraph_matcher(self):
+        self.assertEqual(self.text_matchers('xml.rsplit("<w:p>", 1)'), [1])
+
+    def test_the_walk_detects_the_ticket_s_blind_regex(self):
+        source = 're.findall(r"<w:p[ >].*?</w:p>", xml)'
+
+        self.assertEqual(self.text_matchers(source), [1])
+
+    def test_no_tool_reads_paragraph_structure_by_matching_archive_text(self):
+        offenders = []
+        for path in Path(__file__).resolve().parent.glob("*.py"):
+            for line in self.text_matchers(path.read_text(encoding="utf-8")):
+                offenders.append("{name}:{line}".format(name=path.name, line=line))
+
+        self.assertEqual(offenders, [])
+
+
 class TheReferenceListPageSetup(unittest.TestCase):
     """APA 7 section 2.12 -- a new page, a centered label, a page number on every page."""
 
     BOTH = "# Assessment\n\nText.\n\n# References\n\nRoss, J. (2025).\n"
+    W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+
+    def paragraph(self, text: str):
+        document = ElementTree.fromstring(docx_write.document_xml(self.BOTH))
+        return next(
+            paragraph
+            for paragraph in document.iter(self.W + "p")
+            if "".join(node.text or "" for node in paragraph.iter(self.W + "t"))
+            == text
+        )
 
     def test_the_references_heading_is_centered(self):
-        xml = docx_write.body_xml(self.BOTH)
-        heading = xml[: xml.index("References")]
-        self.assertIn('<w:jc w:val="center"/>', heading.rsplit("<w:p>", 1)[-1])
+        heading = self.paragraph("References")
+        alignment = heading.find("./" + self.W + "pPr/" + self.W + "jc")
+
+        self.assertEqual(alignment.get(self.W + "val"), "center")
 
     def test_the_references_heading_starts_a_new_page(self):
-        xml = docx_write.body_xml(self.BOTH)
-        heading = xml[: xml.index("References")]
-        self.assertIn("<w:pageBreakBefore/>", heading.rsplit("<w:p>", 1)[-1])
+        heading = self.paragraph("References")
+
+        self.assertIsNotNone(
+            heading.find("./" + self.W + "pPr/" + self.W + "pageBreakBefore")
+        )
 
     def test_an_ordinary_heading_gets_neither(self):
         xml = docx_write.body_xml("# Assessment\n\nText.\n\n## Plan\n\nRocephin.\n")

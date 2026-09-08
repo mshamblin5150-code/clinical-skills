@@ -42,6 +42,7 @@ function Paragraph-Record($Paragraph, [int]$Index) {
         alignment = [int]$format.Alignment
         first_line_indent_points = [double]$format.FirstLineIndent
         left_indent_points = [double]$format.LeftIndent
+        space_before_points = [double]$format.SpaceBefore
         space_after_points = [double]$format.SpaceAfter
         line_spacing_points = [double]$format.LineSpacing
         line_spacing_rule = [int]$format.LineSpacingRule
