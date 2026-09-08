@@ -109,7 +109,8 @@ list would otherwise be found by neither.
   reported as a malformed entry.
 - **A legal entry resolves on its Source and section, with or without a citation year.**
   It is outside ``uncited-entry`` because the canonical narrative name needs a
-  whole-phrase key this module does not have.
+  different key from a section-form citation: that row reads the entry's first
+  significant word alone while the citation resolves through ``resolution_keys``.
 
 **What it cannot reach is ``NOT_REACHED`` below, not this paragraph.** That list
 used to be written out here *and* in ``apa7.md`` section 7, and a **prose** edit to
@@ -145,7 +146,7 @@ a checked reference list**, ``skills/practicum-case-study/SKILL.md`` step 7 says
 beside the command, and a test asserts that sentence is still there.
 
 Three parser limits worth knowing before quoting a count. **Author matching is on
-the first word of the entry against the first word of the citation** -- so two
+the first significant word of the entry against the first significant word of the citation** -- so two
 sources whose first authors share a surname are one key here, and a citation naming
 an author the entry spells differently reads as unlisted. **A parenthetical is read
 as a citation when its first word looks like an author** -- a proper noun, a quoted
@@ -250,6 +251,7 @@ from discussion_artifact import (
     legal_citation_spans,
     legal_reference_lacks_name,
 )
+from docx_write import HEADING as RENDERER_MARKDOWN_HEADING
 from docx_write import REFERENCE_HEADING as RENDERER_HEADING
 from docx_write import blocks as renderer_blocks
 
@@ -391,11 +393,23 @@ CITATION_PART = re.compile(
 # unlisted by construction.
 EXTRA_YEAR = re.compile(r"^\s*,\s*(" + YEAR_TOKEN + r")" + YEAR_END, re.I)
 NAME = r"[A-Z][A-Za-z'’.\-]+"
+NOT_SENTENCE_END = r"(?!(?<=[a-z’']\.)\s)"
+NARRATIVE_AUTHOR_CONNECTORS = ("of", "for", "the", "and", "&", "on", "in", "at")
+NARRATIVE_AUTHOR_PHRASE = (
+    NAME
+    + r"(?:"
+    + NOT_SENTENCE_END
+    + r"\s+(?:"
+    + NAME
+    + r"|"
+    + "|".join(NARRATIVE_AUTHOR_CONNECTORS)
+    + r")){0,10}"
+)
 # A narrative citation's parentheses hold **the year and at most a locator**, and
 # nothing else. Allowing any trailing text read ``Hypertension (2025 update)`` as a
 # citation of an author named Hypertension, and invented an unlisted one.
 NARRATIVE = re.compile(
-    r"\b(" + NAME + r"(?:\s+(?:et al\.|and\s+" + NAME + r"|&\s+" + NAME + r"))?)"
+    r"\b(" + NARRATIVE_AUTHOR_PHRASE + r"(?:\s+et al\.)?)"
     r"\s*\(\s*("
     + REPUBLISHED_DATE_ELEMENT
     + r"|"
@@ -404,7 +418,6 @@ NARRATIVE = re.compile(
     + YEAR_END
     + r"(?:\s*,\s*(?:pp?\.|para\.)[^()]{0,30})?\s*\)"
 )
-
 CANVAS = re.compile(r"Links to an external site\.?", re.I)
 
 # The database name as a word, never as a hostname -- ``uptodate.com`` in a URL is
@@ -455,8 +468,9 @@ MONTHS = (
 # Ignored at the front of a title when the ``a``/``b`` letters are assigned,
 # section 3. APA's own worked example turns on exactly this.
 ARTICLES = ("a", "an", "the")
+ARTICLE = re.compile(r"^(\s*[*_\"'“‘]*\s*)(?:a|an|the)\s+", re.I)
 
-FIRST_WORD = re.compile(r"[*_\"'“]*([A-Za-z][A-Za-z'’\-]*)")
+FIRST_WORD = re.compile(r"[*_\"'“‘]*([A-Za-z][A-Za-z'’\-]*)")
 NOT_ALNUM = re.compile(r"[^0-9a-z]+")
 
 # A signal phrase in front of a citation, stripped before the author is read.
@@ -682,10 +696,10 @@ NOT_REACHED = (
     ),
     (
         "whether a legal entry is cited",
-        "A legal entry is outside ``uncited-entry`` because the canonical narrative "
-        "name citation needs a whole-phrase key this module does not have. Section "
-        "citations resolve where they are readable, but a clean result cannot prove "
-        "that a legal entry is cited anywhere in the draft.",
+        "A legal entry is outside ``uncited-entry`` because that row keys on the "
+        "entry's first significant word alone, while a section-form citation resolves "
+        "on a ``resolution_keys`` entry that row never reads. A clean result therefore "
+        "cannot prove that a legal entry is cited anywhere in the draft.",
     ),
 )
 
@@ -701,13 +715,22 @@ def normalize(text: str) -> str:
     return " ".join(NOT_ALNUM.sub(" ", text.lower()).split())
 
 
+def without_leading_article(text: str) -> str:
+    """Ignore a leading article while retaining opening quote or emphasis."""
+
+    return ARTICLE.sub(r"\1", text, count=1)
+
+
 def first_word(text: str) -> str:
     """The entry's or the citation's alphabetizing key.
 
-    The first word, normalized. For a personal author that is the surname; for an
-    organization or an authorless work it is the first word of whatever moved to
-    the front, which is what ``apa7.md`` section 1 alphabetizes by.
+    The first significant word, normalized. A leading ``a``, ``an`` or ``the`` is
+    ignored while an opening quote or emphasis marker is retained. For a personal
+    author the key is the surname; for an organization or an authorless work it is
+    the first significant word of whatever moved to the front, which is what
+    ``apa7.md`` section 1 alphabetizes by.
     """
+    text = without_leading_article(text)
     match = FIRST_WORD.match(text.strip())
     return normalize(match.group(1)) if match else ""
 
@@ -740,6 +763,7 @@ def citation_key(author: str) -> str:
     unlisted-citation row fires on a compliant draft.
     """
     text = SIGNAL_PHRASE.sub("", re.sub(r"\s+", " ", author)).strip()
+    text = without_leading_article(text)
     match = FIRST_WORD.match(text)
     if not match:
         return ""
@@ -841,13 +865,14 @@ class Entry:
         four-digit rank, which sorts the way APA sorts and leaves everything else
         letter by letter.
         """
-        match = ENTRY_YEAR.search(self.text)
+        text = without_leading_article(self.text)
+        match = ENTRY_YEAR.search(text)
         if not match:
-            return normalize(self.text)
+            return normalize(text)
         token = year_key(self.year)
         rank, letter = ("0000", token[2:]) if token.startswith("nd") else (token[:4], token[4:])
-        head = normalize(self.text[: match.start()])
-        tail = normalize(self.text[match.end() :])
+        head = normalize(text[: match.start()])
+        tail = normalize(text[match.end() :])
         return f"{head} {rank}{letter} {tail}"
 
     @property
@@ -1047,7 +1072,21 @@ def read_citations(body: str) -> tuple[Citation, ...]:
                 add(author, extra.group(1))
                 rest = rest[extra.end() :]
             cursor += len(part) + 1
-    for match in NARRATIVE.finditer(body):
+    # A rendered heading is a paragraph boundary, including when it contains a
+    # citation itself. Replacing its first line-ending character with a semicolon
+    # keeps all offsets stable, keeps the heading text readable, and prevents the
+    # ruled narrative phrase from continuing into the following paragraph. A
+    # period cannot do this because ``NAME`` deliberately admits periods.
+    narrative_lines: list[str] = []
+    for line in body.splitlines(keepends=True):
+        stripped = line.strip()
+        if RENDERER_MARKDOWN_HEADING.match(stripped):
+            ending = len(line) - len(line.rstrip("\r\n"))
+            if ending:
+                line = line[:-ending] + ";" + line[len(line) - ending + 1 :]
+        narrative_lines.append(line)
+    narrative_body = "".join(narrative_lines)
+    for match in NARRATIVE.finditer(narrative_body):
         if any(
             start <= match.start() and match.end() <= end
             for start, end in legal_spans

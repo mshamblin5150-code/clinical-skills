@@ -45,6 +45,7 @@ GraderConformance = for_module(scan)
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SKILL = REPO_ROOT / "skills" / "practicum-case-study" / "SKILL.md"
 APA7 = REPO_ROOT / "skills" / "_shared" / "reference" / "apa7.md"
+STYLE = REPO_ROOT / "skills" / "_shared" / "reference" / "style.md"
 DISCUSSION_POST_SKILL = REPO_ROOT / "skills" / "discussion-post" / "SKILL.md"
 CONTEXT = REPO_ROOT / "CONTEXT.md"
 
@@ -264,6 +265,47 @@ class SortedIsSorted(unittest.TestCase):
         self.assertIn(scan.LIST_NOT_SORTED, kinds(draft(dated, undated, body=body)))
 
 
+class ALeadingArticleIsNotTheGroupingOrSortKey(unittest.TestCase):
+    def test_first_word_uses_the_first_significant_word(self):
+        self.assertEqual(scan.first_word("The Smithsonian Institution."), "smithsonian")
+
+    def test_citation_key_keeps_the_opening_quote_while_ignoring_the_article(self):
+        self.assertEqual(scan.citation_key('"The Beatles"'), "beatles")
+
+    def test_a_left_single_quote_is_supported_uniformly(self):
+        text = "‘The Beatles’"
+        self.assertEqual(scan.first_word(text), "beatles")
+        self.assertEqual(scan.citation_key(text), "beatles")
+        entry = scan.Entry(
+            line=1,
+            text="‘The Beatles.’ (2022). Album guide. https://example.org",
+            paragraph=True,
+        )
+        self.assertTrue(entry.sort_key.startswith("beatles"))
+
+    def test_sort_key_uses_the_first_significant_word(self):
+        entry = scan.Entry(
+            line=1,
+            text="The Elite Nurse Practitioner. (2026). Pricing guide. https://example.org",
+            paragraph=True,
+        )
+        self.assertTrue(entry.sort_key.startswith("elite nurse practitioner"))
+
+    def test_an_article_is_retained_when_it_is_not_leading(self):
+        self.assertEqual(scan.first_word("Association for the Advancement of Nursing."), "association")
+
+    def test_dropping_quote_preservation_breaks_the_beatles_control(self):
+        entry = 'The Beatles. (2022). Album guide. https://example.org'
+        text = draft(entry, body='# Case\n\nThe source says so (\"The Beatles,\" 2022).\n')
+        self.assertEqual(kinds(text), [])
+        weakened = re.compile(r"^(\s*)(?:a|an|the)\s+", re.I)
+        with mock.patch.object(scan, "ARTICLE", weakened):
+            self.assertEqual(
+                set(kinds(text)),
+                {scan.UNCITED_ENTRY, scan.UNLISTED_CITATION},
+            )
+
+
 class SameAuthorSameYearTakesALetter(unittest.TestCase):
     A = (
         "Hooton, T. M. (2025a). *UpToDate*. Retrieved August 19, 2026, from "
@@ -424,6 +466,90 @@ class TheYearsAgreeAndBothDirectionsAreChecked(unittest.TestCase):
     def test_a_narrative_citation_is_read_too(self):
         body = BODY.replace("(Gupta & Hooton, 2025)", "as Gupta and Hooton (2024) put it")
         self.assertIn(scan.INTEXT_YEAR_MISMATCH, kinds(draft(ACOG, UPTODATE, body=body)))
+
+    def _keys(self, body: str) -> set[tuple[str, str]]:
+        return {(citation.key, citation.year) for citation in scan.read_citations(body)}
+
+    def test_a_group_author_keys_on_its_first_word(self):
+        self.assertEqual(
+            self._keys("Centers for Disease Control and Prevention (2025) agrees."),
+            {("centers", "2025")},
+        )
+
+    def test_the_ruled_connector_set_continues_the_phrase(self):
+        self.assertEqual(
+            scan.NARRATIVE_AUTHOR_CONNECTORS,
+            ("of", "for", "the", "and", "&", "on", "in", "at"),
+        )
+        self.assertEqual(
+            self._keys("National Institute on Aging (2024) agrees."),
+            {("national", "2024")},
+        )
+
+    def test_a_hard_wrapped_group_author_stays_one_phrase(self):
+        self.assertEqual(
+            self._keys("Centers for Disease Control\nand Prevention (2025) agrees."),
+            {("centers", "2025")},
+        )
+
+    def test_a_narrative_citation_in_a_rendered_heading_is_read(self):
+        self.assertEqual(self._keys("# Smith (2024)\n"), {("smith", "2024")})
+
+    def test_an_lf_heading_does_not_join_the_following_author_phrase(self):
+        self.assertEqual(
+            self._keys(
+                "# Case\nThe Health Resources and Services Administration (2026) agrees."
+            ),
+            {("health", "2026")},
+        )
+
+    def test_to_does_not_continue_the_phrase(self):
+        self.assertEqual(
+            self._keys("According to Averkamp (2026), the rule applies."),
+            {("averkamp", "2026")},
+        )
+
+    def test_a_lowercase_letter_before_a_period_ends_the_phrase(self):
+        self.assertEqual(
+            self._keys(
+                "The rule applies in West Virginia. The Health Resources and "
+                "Services Administration (2026) agrees."
+            ),
+            {("health", "2026")},
+        )
+
+    def test_an_uppercase_abbreviation_period_does_not_end_the_phrase(self):
+        self.assertEqual(
+            self._keys("The rule applies in the U.S. The World Health Organization (2024)."),
+            {("u", "2024")},
+        )
+
+    def test_a_lone_name_with_a_period_still_matches(self):
+        self.assertEqual(self._keys("Epictetus. (2020) wrote it."), {("epictetus", "2020")})
+
+    def test_et_al_stays_a_narrative_citation(self):
+        self.assertEqual(self._keys("Smith et al. (2021) agree."), {("smith", "2021")})
+
+    def test_dropping_the_sentence_boundary_limb_breaks_the_west_virginia_control(self):
+        entry = (
+            "The Health Resources and Services Administration. (2026). "
+            "Program guide. https://example.org"
+        )
+        body = (
+            "# Case\n\nThe rule applies in West Virginia. The Health Resources and "
+            "Services Administration (2026) agrees.\n"
+        )
+        text = draft(entry, body=body)
+        self.assertEqual(kinds(text), [])
+        weakened = re.compile(
+            scan.NARRATIVE.pattern.replace(scan.NOT_SENTENCE_END, ""),
+            scan.NARRATIVE.flags,
+        )
+        with mock.patch.object(scan, "NARRATIVE", weakened):
+            self.assertEqual(
+                set(kinds(text)),
+                {scan.UNCITED_ENTRY, scan.UNLISTED_CITATION},
+            )
 
     def test_a_citation_wrapped_across_two_lines_is_still_one_citation(self):
         """The corpus hard-wraps its prose, so a long organizational author is
@@ -651,7 +777,7 @@ class RepublishedDateExamplesComeFromApaSectionThirtyOne(unittest.TestCase):
                     (item.key, item.year) in reference_pairs
                     for item in reference_citations
                 )
-                self.assertEqual(reference_resolves, disposition not in {"#913", "#943"})
+                self.assertEqual(reference_resolves, disposition != "#943")
 
     def test_the_shared_discussion_reader_resolves_both_parenthetical_and_narrative_forms(self):
         examples = self.examples()
@@ -673,7 +799,7 @@ class RepublishedDateExamplesComeFromApaSectionThirtyOne(unittest.TestCase):
 
     def test_the_only_recorded_author_shape_residues_are_their_existing_tickets(self):
         dispositions = {disposition for *_rest, disposition in self.examples()}
-        self.assertEqual(dispositions, {"clean", "#913", "#943"})
+        self.assertEqual(dispositions, {"clean", "#943"})
 
     def test_dropping_the_approximate_range_limb_kills_the_gilgamesh_form(self):
         _reference, citation, _year, _disposition = next(
@@ -921,6 +1047,7 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
     def setUpClass(cls):
         cls.skill = SKILL.read_text(encoding="utf-8")
         cls.apa7 = APA7.read_text(encoding="utf-8")
+        cls.style = STYLE.read_text(encoding="utf-8")
 
     def test_the_skill_names_the_command(self):
         self.assertIn("python tools/reference_scan.py", self.skill)
@@ -1016,6 +1143,37 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
         for phrase in ("Works Cited", "hanging indent", "assigned by placing the entries"):
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, self.apa7)
+
+    def test_the_first_significant_word_rule_is_bound_across_both_sheets(self):
+        apa_wording = "Alphabetized by the first significant word of the entry"
+        style_wording = "Alphabetize by the first significant word of the entry"
+        self.assertIn(apa_wording, numbered_markdown_section(self.apa7, 1))
+        section_ten = " ".join(self.style[self.style.index("## 10.") :].split())
+        self.assertIn(style_wording, section_ten)
+        self.assertIn("[apa7.md](apa7.md) §1", section_ten)
+
+    def test_apa_smithsonian_example_passes_the_scanner(self):
+        section = self.apa7[
+            self.apa7.index("## 1.") : self.apa7.index("\n## 2.")
+        ]
+        blocks: list[str] = []
+        current: list[str] | None = None
+        for line in section.splitlines():
+            if line.startswith("```"):
+                if current is None:
+                    current = []
+                else:
+                    blocks.append("\n".join(current) + "\n")
+                    current = None
+                continue
+            if current is not None:
+                current.append(line)
+        self.assertIsNone(current, "an unclosed code fence in apa7.md section 1")
+        examples = [block for block in blocks if "The Smithsonian Institution" in block]
+        self.assertEqual(len(examples), 1, "section 1 must hold APA's one Smithsonian example")
+        document = scan.read_document(examples[0])
+        self.assertTrue(document.entries)
+        self.assertEqual([finding.kind for finding in scan.findings(document, None)], [])
 
     def test_the_worked_reference_list_in_the_skill_passes_the_scanner(self):
         """**The one that catches drift a substring cannot see.** A documented

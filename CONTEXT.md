@@ -197,7 +197,7 @@ The pair of a normalized author phrase and a year that a citation and a referenc
 _Avoid_: reference id, source id, match key
 
 **Grouping key**:
-The single word a reference entry is alphabetized and letter-disambiguated by. Deliberately not a **Citation key**, which one entry may yield several of and which answers whether a citation resolved: the two are different questions, and keying the `a`/`b` rows on the resolution key refuses a correct list while teaching the next run to write a wrong one. A key derived so a further citation form resolves is added beside it, never in place of it.
+The first significant word a reference entry is alphabetized and letter-disambiguated by, ignoring a leading `A`, `An`, or `The`. Deliberately not a **Citation key**, which one entry may yield several of and which answers whether a citation resolved: the two are different questions, and keying the `a`/`b` rows on the resolution key refuses a correct list while teaching the next run to write a wrong one. A key derived so a further citation form resolves is added beside it, never in place of it.
 _Avoid_: entry key, author key, sort key, match key
 
 **Reference bucket**:

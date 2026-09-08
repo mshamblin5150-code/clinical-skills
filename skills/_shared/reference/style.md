@@ -408,7 +408,7 @@ documents are not the standard.
   of the entries that must not carry one, which is a defect in the opposite direction from the one
   the table below catches. [apa7.md](apa7.md) §4.
 - **`Roughly alphabetical` is what the corpus is, not what the rule is.** Alphabetize by the first
-  word of the entry. [apa7.md](apa7.md) §1.
+  significant word of the entry. [apa7.md](apa7.md) §1.
 
 ### The defects to fix every time
 
