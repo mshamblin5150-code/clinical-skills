@@ -186,7 +186,7 @@ not worth the hole.
 
 A finding is always recorded in its row; that needs no permission. **Every repair lands in #976** —
 prose repairs to `apa7.md` and to the restatements in `style.md`, and repairs to committed scanner
-behaviour such as findings 3, 4 and 5 above. A registry stating that the sheet is wrong beside a
+behavior such as findings 3, 4 and 5 above. A registry stating that the sheet is wrong beside a
 sheet that is still wrong is worse than not knowing.
 
 **That makes the repair scope unknowable until the read is done, so the ticket is two phases in one
