@@ -10,6 +10,30 @@ branch was brought forward and **every figure below was re-derived at that base*
 is named where it appears: the redaction mutation table was taken at `0de8fc8`, and the intervening
 commit touched only `authorize_issue_body`, which is not on the `analyze` path.
 
+**Corrected 2026-09-09, hours after ratification, by this ticket's own sweep.** The sentence above
+claimed every figure was re-derived at `08499d6`, and it was false for **five** of them. All five
+were carried forward from `0de8fc8` without being re-measured, while `main` moved
+underneath them:
+
+| published | actual at `08499d6` |
+| --- | --- |
+| `implementation_map.GitHub.issues:284` | `:289` |
+| `get_issue:331` | `:336` |
+| `_hook_response:1393` | `:1409` |
+| `handle:1538` | `:1554` |
+| 46 of 83 zero-importer modules, 55% | **45 of 83**, 54% |
+
+Nothing rests on any of them: every coordinate points at a claim that holds, and 45 makes the
+majority argument no weaker than 46. Every other coordinate and importer count in this record was
+re-derived and does hold. But the defect is [#928](https://github.com/mshamblin5150-code/clinical-skills/issues/928)'s exact subject, *a
+coordinate copied forward through a pass that did not re-measure it*, arriving inside the record that
+documents it and under a sentence asserting the opposite. **The re-derivation was scoped to the
+figures the session had been thinking about**, which is
+[#137](https://github.com/mshamblin5150-code/clinical-skills/issues/137)'s generalization-from-open-files
+one level up: a pass re-measures what it remembers measuring. The same sweep also found the
+eight-member population unstated while ruling 6 makes that denominator a reported figure; the members
+are named above now.
+
 **The report is a wire format at three sites, not one.** #834's body names `_branch_rule` alone.
 Two further sites read the same prose: `tracker_publish_hook.py:1224` matches
 `"ancestry could not be verified"` to set `positive_unverified`, and `:1238` matches
@@ -97,7 +121,10 @@ every existing member of that infrastructure class has real reuse: `console_code
 importers, `repo_root` 20, `run_grader` 17, `git_paths` 6.
 
 **`grader_conformance.for_module` demands six things; the tracker family satisfies at most two, in
-different modules.** Across the eight members:
+different modules.** Across the eight members -- `tracker_scan`, `tracker_bodies`,
+`tracker_branch_scope`, `tracker_publish_hook`, `tracker_readback`,
+`tracker_merge_receipt`, `tracker_freshness` and `map_scan`, which is a tracker gate by
+function rather than by name:
 
 | requirement | modules that have it |
 | --- | --- |
@@ -139,12 +166,12 @@ does.** `tracker_scan.EVENT_RECORD_KEYS` and `tracker_bodies.EVENT_RECORD_KEYS` 
 five-entry dicts at distinct addresses — one fact about GitHub's webhook schema held twice. The
 three `_label` URL precedences are genuinely different: `html_url`→number; `html_url`→`url`→number,
 documented as added because `gh issue view --json url` writes that key; and record-`html_url`→
-container-`html_url`. And `implementation_map.GitHub.issues:284` and `get_issue:331` build
+container-`html_url`. And `implementation_map.GitHub.issues:289` and `get_issue:336` build
 `{number, title, state, labels, assignees, body}` — more of #834's claimed record shape than any of
 the eight parsers it names, in a module it never mentions.
 
-**`tracker_freshness` is not orphaned and the hook is not discarding its split.** 46 of 83 non-test
-modules in `tools/` — **55%** — have zero non-test importers, so that condition is the majority and
+**`tracker_freshness` is not orphaned and the hook is not discarding its split.** 45 of 83 non-test
+modules in `tools/` — **54%** — have zero non-test importers, so that condition is the majority and
 not evidence. Its consumer is a documented procedure: `CLAUDE.md` mandates it at two checkpoints of
 every sweep and `docs/agents/issue-tracker.md` names it. The two commands ask different questions:
 `refresh_default_branch:1294` runs `git fetch origin main` and returns `returncode == 0`, asking
