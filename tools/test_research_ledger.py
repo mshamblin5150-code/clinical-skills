@@ -1671,6 +1671,9 @@ class EveryRuledFanOutReadsTheSharedSourcingRules(unittest.TestCase):
         "icd10-cpt": 1,
         "aar": 1,
     }
+    LOCAL_OMIT_RULE = re.compile(
+        r"omit\w* (?:(?:the other|every) source fields?|the other fields)"
+    )
 
     def test_the_shared_file_contains_the_three_rules_and_no_fourth_rule(self):
         text = SOURCING.read_text(encoding="utf-8")
@@ -1707,10 +1710,17 @@ class EveryRuledFanOutReadsTheSharedSourcingRules(unittest.TestCase):
             with self.subTest(skill=skill):
                 text = (REPO_ROOT / "skills" / skill / "SKILL.md").read_text(encoding="utf-8")
                 self.assertIn(self.LINK, text)
-                self.assertIsNone(
-                    re.search(r"omit\w* (?:the other|every) source fields?", text),
-                    skill,
-                )
+                self.assertIsNone(self.LOCAL_OMIT_RULE.search(text), skill)
+
+    def test_the_local_copy_ratchet_recognizes_both_retired_phrasings(self):
+        for phrase in (
+            "omit the other fields",
+            "omits the other fields",
+            "omit every source field",
+            "omits every source field",
+        ):
+            with self.subTest(phrase=phrase):
+                self.assertIsNotNone(self.LOCAL_OMIT_RULE.search(phrase))
 
     def test_each_named_briefing_surface_points_to_that_file(self):
         for skill, occurrences in self.SURFACES.items():
