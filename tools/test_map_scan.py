@@ -10,6 +10,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import artifact_lock_test_support  # noqa: F401
 import map_scan
 
 
@@ -28,7 +29,7 @@ def issue(number, *, state="open", labels=(), body="", title="private title"):
     }
 
 
-def map_body(state, *, pointer=True, state_prefix=""):
+def map_body(state, *, pointer=True, state_prefix="", stamp=True):
     prose = (
         "## Maintenance rule\nMaintenance uses `tools/map_scan.py` and points to "
         "`map_scan.DECLARED_LIMITS`.\n\n## How to update this map"
@@ -36,9 +37,16 @@ def map_body(state, *, pointer=True, state_prefix=""):
         else "## Maintenance rule\nMaintenance asks somebody to remember the reconciliation."
     )
     payload = json.dumps(state, indent=2, sort_keys=True)
+    producer_commit = map_scan.implementation_map.checkout_commit()
+    snapshot = (
+        "\n## Snapshot\n\n- default-branch commit: `abc1234`\n"
+        f"- producer: `tools/implementation_map.py at {producer_commit}`\n"
+        if stamp
+        else ""
+    )
     return (
         f"{prose}\n{STATE_BEGIN}\n```json\n{state_prefix}{payload}\n```\n"
-        f"{STATE_END}\n"
+        f"{STATE_END}\n{snapshot}"
     )
 
 
@@ -198,6 +206,42 @@ class ReconciliationObligation(ScannerCase):
 
 
 class PointerAndStatus(ScannerCase):
+    def test_a_missing_producer_stamp_is_an_advisory_finding(self):
+        value = state(self.anchor)
+
+        code, stdout, _ = self.run_scan(
+            [issue(596, body=map_body(value, stamp=False))],
+        )
+
+        self.assertEqual(code, map_scan.CLEAN)
+        self.assertIn("producer-stamp", stdout)
+        self.assertIn("ticket #596", stdout)
+
+    def test_the_changed_map_event_refuses_a_missing_stamp(self):
+        event = self.root / "event.json"
+        event.write_text(
+            json.dumps({
+                "action": "edited",
+                "issue": {
+                    "number": 596,
+                    "body": map_body(state(self.anchor), stamp=False),
+                },
+            }),
+            encoding="utf-8",
+        )
+        stdout = io.StringIO()
+        with contextlib.redirect_stdout(stdout):
+            code = map_scan.main([
+                "--github-event",
+                str(event),
+                "--event-name",
+                "issues",
+            ], repo_root=self.root)
+
+        self.assertEqual(code, map_scan.FOUND)
+        self.assertIn("producer-stamp", stdout.getvalue())
+        self.assertIn("ticket #596", stdout.getvalue())
+
     def test_a_state_block_mention_is_not_the_maintenance_pointer(self):
         value = state(
             self.anchor,
