@@ -875,6 +875,11 @@ class PublishReadsItselfBack(unittest.TestCase):
             out,
             r"Mermaid coverage: \d+ of \d+ nonblank lines accounted; unread remainder 0",
         )
+        self.assertIn(
+            "Packet coverage: 2 drawn + 0 omitted free-standing = 2 of 2; "
+            "unread remainder 0",
+            out,
+        )
         self.assertEqual(imap.extract_state(tracker.rows[50]["body"]),
                          self.state)
 
@@ -890,7 +895,14 @@ class PublishReadsItselfBack(unittest.TestCase):
         self.assertEqual(hold.call_args.kwargs, {"mode": "write"})
 
     def test_publish_crosses_the_shared_tracker_body_gate(self):
-        tracker = FakeTracker(self.rows, blocked={2: [1]})
+        tracker = FakeTracker(
+            [
+                issue(1, labels=["ready"]),
+                issue(2, labels=["ready"]),
+                map_issue(self.state, 596),
+            ],
+            blocked={2: [1]},
+        )
         with mock.patch.object(
             imap.tracker_publish_hook, "authorize_issue_body"
         ) as authorize:
@@ -898,7 +910,8 @@ class PublishReadsItselfBack(unittest.TestCase):
 
         self.assertEqual(rc, 0, out)
         authorize.assert_called_once()
-        self.assertEqual(authorize.call_args.args[1], "issue #50")
+        self.assertEqual(authorize.call_args.args[1], "issue #596")
+        self.assertEqual(authorize.call_args.kwargs, {"issue_number": 596})
 
     def test_apply_delta_records_the_default_branch_commit_reviewed(self):
         tracker = FakeTracker(self.rows, blocked={2: [1]}, head="feed123")
@@ -1571,6 +1584,61 @@ class TheRenderedViews(unittest.TestCase):
         body = imap.render(self.state, live, {"commit": "c", "date": "d"})
         self.assertIn("live ready-for-agent tickets: 1", body)
 
+    def test_snapshot_names_the_repository_relative_producer_and_commit(self):
+        body = imap.render(
+            self.state,
+            self.live,
+            {
+                "commit": "abc1234",
+                "producer_commit": "def5678",
+                "date": "d",
+            },
+        )
+        snapshot = body.partition("## Snapshot")[2].partition("\n## ")[0]
+
+        self.assertIn(
+            "- producer: `tools/implementation_map.py at def5678`",
+            snapshot,
+        )
+        self.assertIn("- default-branch commit: `abc1234`", snapshot)
+        self.assertNotIn(str(HERE.parent), snapshot)
+
+    def test_producer_stamp_predicate_reads_the_derived_snapshot_once(self):
+        with mock.patch.object(imap, "checkout_commit", return_value="def5678"):
+            valid = imap.render(
+                self.state,
+                self.live,
+                {
+                    "commit": "abc1234",
+                    "producer_commit": "def5678",
+                    "date": "d",
+                },
+            )
+        missing = valid.replace(
+            "- producer: `tools/implementation_map.py at def5678`\n",
+            "",
+        ).replace(
+            '"outcome": "two PRs"',
+            '"outcome": "tools/implementation_map.py at def5678"',
+        )
+        mismatched = valid.replace(
+            "tools/implementation_map.py at def5678",
+            "tools/implementation_map.py at abc1234",
+            1,
+        )
+
+        with mock.patch.object(imap, "checkout_commit", return_value="def5678"):
+            self.assertIsNone(imap.producer_stamp_problem(valid))
+            self.assertIn("exactly one", imap.producer_stamp_problem(missing))
+            self.assertIn("does not match", imap.producer_stamp_problem(mismatched))
+
+    def test_snapshot_separates_default_branch_and_producer_commits(self):
+        with mock.patch.object(imap, "checkout_commit", return_value="def5678"):
+            snapshot = imap.snapshot_for(self.tracker, args(commit="abc1234", date="d"))
+
+        self.assertEqual(snapshot["commit"], "abc1234")
+        self.assertEqual(snapshot["producer_commit"], "def5678")
+
     def test_maintenance_names_the_offline_gate_and_its_limits_pointer(self):
         live = imap.Live(FakeTracker([
             issue(1, labels=["ready"]), issue(2, labels=["ready"])
@@ -1591,14 +1659,20 @@ class TheRenderedViews(unittest.TestCase):
         self.assertEqual(coverage.packet_nodes, len(self.state["packets"]))
 
     def test_the_emitter_refuses_undefined_nodes_and_unknown_lines(self):
-        state = state_with([packet("PA", [1])])
-        malformed = "graph TD\n    PA[\"PA: #1\"]\n    PA -->|HARD| PX\n    mystery"
+        state = state_with(
+            [packet("PA", [1]), packet("PB", [2])],
+            edges=[hard(1, 2)],
+        )
+        malformed = (
+            "graph TD\n    PA[\"PA: #1\"]\n    PB[\"PB: #2\"]\n"
+            "    PA -->|HARD| PX\n    mystery"
+        )
 
         with self.assertRaisesRegex(imap.MapError, "undefined node"):
             imap.verify_mermaid(state, malformed)
 
         with self.assertRaisesRegex(imap.MapError, "unaccounted Mermaid"):
-            imap.verify_mermaid(state, malformed.replace("PX", "PA"))
+            imap.verify_mermaid(state, malformed.replace("PX", "PB"))
 
     def test_collision_groups_are_a_table_and_not_graph_edges(self):
         state = state_with(
@@ -1619,6 +1693,59 @@ class TheRenderedViews(unittest.TestCase):
         self.assertIn("| first | unclassified | PA, PB | one seam |", table)
         self.assertIn("| second | unclassified | PA, PB | another seam |", table)
         self.assertNotIn("collision sequencing", body)
+
+    def test_free_standing_packets_stay_in_the_table_and_off_the_graph(self):
+        state = state_with(
+            [packet("PA", [1]), packet("PB", [2]), packet("PC", [3])],
+            edges=[hard(1, 2)],
+        )
+        live = imap.Live(FakeTracker([issue(1), issue(2), issue(3)]), state)
+
+        graph = imap.mermaid(state, live)
+        body = imap.render(state, live, {"commit": "abc1234", "date": "d"})
+        table = body.split("## Packet table", 1)[1].split("##", 1)[0]
+
+        self.assertNotIn('PC["PC: #3"]', graph)
+        self.assertIn("| PC | #3 |", table)
+
+    def test_graph_packet_coverage_is_a_complete_partition(self):
+        state = state_with(
+            [packet("PA", [1]), packet("PB", [2]), packet("PC", [3])],
+            edges=[hard(1, 2)],
+        )
+        live = imap.Live(FakeTracker([issue(1), issue(2), issue(3)]), state)
+        graph = imap.mermaid(state, live)
+
+        coverage = imap.verify_mermaid(state, graph)
+        body = imap.render(state, live, {"commit": "abc1234", "date": "d"})
+
+        self.assertEqual(coverage.packet_nodes, 2)
+        self.assertEqual(coverage.omitted_packet_nodes, 1)
+        self.assertEqual(coverage.packet_population, 3)
+        self.assertEqual(coverage.packet_remainder, ())
+        self.assertIn(
+            "dependency graph packets: 2 drawn + 1 omitted free-standing = "
+            "3 of 3; unread remainder 0",
+            body,
+        )
+
+    def test_graph_partition_refuses_an_unrepresented_edge_packet(self):
+        state = state_with(
+            [packet("PA", [1]), packet("PB", [2]), packet("PC", [3])],
+            edges=[hard(1, 2)],
+        )
+        live = imap.Live(FakeTracker([issue(1), issue(2), issue(3)]), state)
+        partial = "\n".join(
+            line
+            for line in imap.mermaid(state, live).splitlines()
+            if not line.strip().startswith("PB")
+            and "-->|HARD| PB" not in line
+        )
+
+        with self.assertRaisesRegex(
+            imap.MapError, "edge-carrying packet has no Mermaid node"
+        ):
+            imap.verify_mermaid(state, partial)
 
 
 # ---------------------------------------------------------------------------
@@ -1644,6 +1771,38 @@ class AuditComparesPublishedToFresh(unittest.TestCase):
         tracker = self._published_tracker()
         rc, out = run(imap.cmd_audit, tracker, args())
         self.assertEqual(rc, 0)
+
+    def test_check_and_audit_name_their_different_walked_populations(self):
+        tracker = self._published_tracker()
+
+        check_code, check_output = run(imap.cmd_check, tracker, args())
+        audit_code, audit_output = run(imap.cmd_audit, tracker, args())
+
+        self.assertEqual(check_code, 0)
+        self.assertEqual(audit_code, 0)
+        self.assertIn("state block and live tracker", check_output)
+        self.assertIn("derived views were not read", check_output)
+        self.assertIn("run audit", check_output)
+        section_count = len(imap.derived_sections(tracker.rows[50]["body"]))
+        self.assertIn(
+            f"{section_count} published derived sections; 0 differed",
+            audit_output,
+        )
+        self.assertNotEqual(check_output, audit_output)
+
+    def test_a_missing_producer_stamp_is_an_audit_finding(self):
+        tracker = self._published_tracker()
+        tracker.rows[50]["body"] = re.sub(
+            r"^- producer: `tools/implementation_map\.py at [0-9a-f]+`\n",
+            "",
+            tracker.rows[50]["body"],
+            flags=re.MULTILINE,
+        )
+
+        rc, out = run(imap.cmd_audit, tracker, args())
+
+        self.assertEqual(rc, 1)
+        self.assertIn("producer-stamp", out)
 
     def test_a_closed_ticket_makes_the_view_stale(self):
         tracker = self._published_tracker()

@@ -61,6 +61,7 @@ from console_codec import use_utf8
 import tracker_publish_hook
 
 SCHEMA = 1
+MAP_ISSUE = 596
 STATE_BEGIN = "<!-- implementation-map:v1:state:begin -->"
 STATE_END = "<!-- implementation-map:v1:state:end -->"
 
@@ -112,6 +113,10 @@ DECLARED_LIMITS = (
     DeclaredLimit(
         "unclassified-order-authorship",
         "An unclassified group is held by its stored list order even though no mechanical check establishes that order was authored.",
+    ),
+    DeclaredLimit(
+        "clean-check-derived-views",
+        "A clean check grades the state block against the live tracker and does not establish that the published derived views match a fresh render; audit performs that comparison.",
     ),
 )
 
@@ -917,6 +922,9 @@ class MermaidCoverage(NamedTuple):
     total: int
     nodes: int
     packet_nodes: int
+    omitted_packet_nodes: int
+    packet_population: int
+    packet_remainder: tuple[str, ...]
     edges: int
     directives: int
     unread: tuple[str, ...]
@@ -930,6 +938,56 @@ MERMAID_EDGE = re.compile(
     r'(?:-->\|HARD\||-\.->\|saves rebuild\||==>\|GATE\||-\.-)\s+'
     r'([A-Za-z0-9_]+)\s*$'
 )
+PRODUCER_STAMP = re.compile(
+    r"(?m)^- producer: `tools/implementation_map\.py at ([0-9a-f]{7,40})`$"
+)
+SNAPSHOT_COMMIT = re.compile(
+    r"(?m)^- default-branch commit: `([0-9a-f]{7,40})`$"
+)
+
+
+def producer_stamp_problem(body: str) -> str | None:
+    """Return the one producer-stamp defect in a rendered map body, if any."""
+    if STATE_END not in body:
+        return "implementation map has no complete state block before its Snapshot"
+    derived = body.split(STATE_END, 1)[1]
+    snapshot_match = re.search(
+        r"(?ms)^## Snapshot\s*\n(.*?)(?=^## |\Z)",
+        derived,
+    )
+    if snapshot_match is None:
+        return "implementation map has no derived Snapshot section"
+    snapshot = snapshot_match.group(1)
+    stamps = PRODUCER_STAMP.findall(snapshot)
+    if len(stamps) != 1:
+        return (
+            "derived Snapshot must carry exactly one "
+            "tools/implementation_map.py producer stamp"
+        )
+    if len(SNAPSHOT_COMMIT.findall(snapshot)) != 1:
+        return "derived Snapshot must carry exactly one default-branch commit"
+    expected = checkout_commit()
+    if stamps[0] != expected:
+        return (
+            f"producer stamp commit {stamps[0]} does not match executing "
+            f"checkout commit {expected}"
+        )
+    return None
+
+
+def edge_packet_ids(state: dict) -> set[str]:
+    """Return packets participating in an edge the dependency graph draws."""
+    touched: set[str] = set()
+    for edge in edges_of(state, "HARD"):
+        source = packet_of(state, edge["from_ticket"])
+        target = packet_of(state, edge["to_ticket"])
+        if source and target and source != target:
+            touched.update((source, target))
+    for edge in edges_of(state, "REBUILD-SAVING"):
+        touched.update((edge["from"], edge["to"]))
+    for edge in edges_of(state, "EXTERNAL-GATE"):
+        touched.add(edge["to"])
+    return touched
 
 
 def verify_mermaid(state: dict, graph: str) -> MermaidCoverage:
@@ -966,16 +1024,31 @@ def verify_mermaid(state: dict, graph: str) -> MermaidCoverage:
     duplicates = sorted({line for line in edge_lines if edge_lines.count(line) > 1})
     if duplicates:
         raise MapError(f"duplicate Mermaid edge line(s): {duplicates}")
-    expected_packets = set(mermaid_ids(state).values())
-    missing_packets = sorted(expected_packets - defined)
+    ids = mermaid_ids(state)
+    all_packets = set(ids.values())
+    expected_packets = {ids[pid] for pid in edge_packet_ids(state)}
+    defined_packets = defined & all_packets
+    missing_packets = sorted(expected_packets - defined_packets)
     if missing_packets:
-        raise MapError(f"state packet has no Mermaid node: {missing_packets}")
+        raise MapError(f"edge-carrying packet has no Mermaid node: {missing_packets}")
+    unexpected_packets = sorted(defined_packets - expected_packets)
+    if unexpected_packets:
+        raise MapError(
+            f"free-standing packet has an unexpected Mermaid node: {unexpected_packets}"
+        )
+    omitted_packets = all_packets - expected_packets
+    packet_remainder = tuple(
+        sorted(all_packets - defined_packets - omitted_packets)
+    )
     if unread:
         raise MapError(f"unaccounted Mermaid line(s): {unread}")
     return MermaidCoverage(
         total=len(lines),
         nodes=len(defined),
-        packet_nodes=len(expected_packets),
+        packet_nodes=len(defined_packets),
+        omitted_packet_nodes=len(omitted_packets),
+        packet_population=len(all_packets),
+        packet_remainder=packet_remainder,
         edges=len(edge_lines),
         directives=directives,
         unread=tuple(unread),
@@ -986,7 +1059,10 @@ def mermaid(state: dict, live: Live) -> str:
     lines = ["graph TD"]
     status = {pid: packet_status(state, live, pid) for pid in packet_ids(state)}
     ids = mermaid_ids(state)
+    drawn = edge_packet_ids(state)
     for p in packets(state):
+        if p["id"] not in drawn:
+            continue
         tickets = " ".join(f"#{t}" for t in p["tickets"]) or "stage"
         label = f"{ids[p['id']]}[\"{p['id']}: {tickets}\"]"
         lines.append(f"    {label}")
@@ -1011,7 +1087,10 @@ def mermaid(state: dict, live: Live) -> str:
             gate_nodes.add(node)
             lines.append(f"    {node}([\"{edge.get('on')}\"]):::gate")
         lines.append(f"    {node} ==>|GATE| {ids[edge['to']]}")
-    done = sorted(ids[pid] for pid, s in status.items() if s == "done")
+    done = sorted(
+        ids[pid] for pid, packet_state in status.items()
+        if pid in drawn and packet_state == "done"
+    )
     if done:
         lines.append("    classDef done fill:#d4edda,stroke:#155724")
         lines.append(f"    class {','.join(done)} done")
@@ -1037,7 +1116,10 @@ def render(state: dict, live: Live, snapshot: dict) -> str:
         and set(row["labels"]) & set(state.get("ready_labels", ["ready-for-agent"]))
     )
     graph = mermaid(state, live)
-    verify_mermaid(state, graph)
+    graph_coverage = verify_mermaid(state, graph)
+    covered_packets = (
+        graph_coverage.packet_nodes + graph_coverage.omitted_packet_nodes
+    )
     parts: list[str] = []
     parts.append(
         "This is a coordination artifact, not an implementation ticket: a "
@@ -1050,8 +1132,14 @@ def render(state: dict, live: Live, snapshot: dict) -> str:
     parts.append(
         "## Snapshot\n\n"
         f"- default-branch commit: `{snapshot['commit']}`\n"
+        "- producer: `tools/implementation_map.py at "
+        f"{snapshot.get('producer_commit') or checkout_commit()}`\n"
         f"- generated: {snapshot['date']}\n"
-        f"- live ready-for-agent tickets: {ready_count}"
+        f"- live ready-for-agent tickets: {ready_count}\n"
+        f"- dependency graph packets: {graph_coverage.packet_nodes} drawn + "
+        f"{graph_coverage.omitted_packet_nodes} omitted free-standing = "
+        f"{covered_packets} of {graph_coverage.packet_population}; unread "
+        f"remainder {len(graph_coverage.packet_remainder)}"
     )
     front_lines: list[str] = []
     if fronts:
@@ -1366,7 +1454,8 @@ def report_placement_coverage(
 # Commands
 # ---------------------------------------------------------------------------
 
-def report(findings: list[Finding]) -> int:
+def report(findings: list[Finding], walked: str) -> int:
+    print(f"walked: {walked}")
     if not findings:
         print("clean: no findings")
         return 0
@@ -1384,7 +1473,11 @@ def cmd_check(tracker, args) -> int:
     live = Live(tracker, state)
     findings = validate_shape(state) + validate_against_live(state, live)
     print(f"map: issue #{issue['number']} ({issue['title']!r})")
-    return report(findings)
+    return report(
+        findings,
+        "state block and live tracker; derived views were not read; run audit "
+        "to compare them",
+    )
 
 
 def cmd_claim(tracker, args) -> int:
@@ -1469,10 +1562,30 @@ def cmd_claim(tracker, args) -> int:
     return 0
 
 
+def checkout_commit() -> str:
+    """Return the commit containing the helper in this executing checkout."""
+    completed = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=Path(__file__).resolve().parent,
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    commit = completed.stdout.strip()
+    if completed.returncode != 0 or not re.fullmatch(r"[0-9a-f]{40}", commit):
+        detail = completed.stderr.strip() or "git returned no full commit"
+        raise MapError(f"cannot identify implementation-map producer: {detail}")
+    return commit
+
+
 def snapshot_for(tracker, args) -> dict:
     commit = getattr(args, "commit", None) or tracker.default_branch_head()
     date = getattr(args, "date", None) or datetime.date.today().isoformat()
-    return {"commit": commit, "date": date}
+    return {
+        "commit": commit,
+        "producer_commit": checkout_commit(),
+        "date": date,
+    }
 
 
 def cmd_render(tracker, args) -> int:
@@ -1515,8 +1628,19 @@ def publish_body(
         f"Mermaid coverage: {accounted} of {graph_coverage.total} nonblank "
         f"lines accounted; unread remainder {len(graph_coverage.unread)}"
     )
+    covered_packets = (
+        graph_coverage.packet_nodes + graph_coverage.omitted_packet_nodes
+    )
+    print(
+        f"Packet coverage: {graph_coverage.packet_nodes} drawn + "
+        f"{graph_coverage.omitted_packet_nodes} omitted free-standing = "
+        f"{covered_packets} of {graph_coverage.packet_population}; unread "
+        f"remainder {len(graph_coverage.packet_remainder)}"
+    )
     try:
-        tracker_publish_hook.authorize_issue_body(body, f"issue #{number}")
+        tracker_publish_hook.authorize_issue_body(
+            body, f"issue #{number}", issue_number=number
+        )
     except ValueError as err:
         record = preserve_refused_outcomes(
             refused_outcomes, issue_number=number, reason=str(err)
@@ -1644,7 +1768,10 @@ def _apply_delta_under_lock(tracker, args, issue_number: int) -> int:
         findings = validate_shape(new_state) + validate_against_live(new_state, live)
         print("dry run: delta validates; resulting map findings follow")
         report_placement_coverage(state, new_state, live)
-        rc = report(findings)
+        rc = report(
+            findings,
+            "proposed state block and live tracker; derived views were not read",
+        )
         return 1 if remainder and rc == 0 else rc
     outcomes = tuple(
         row.get("outcome", "") for row in delta.get("add_packets", [])
@@ -1666,7 +1793,10 @@ def _apply_delta_under_lock(tracker, args, issue_number: int) -> int:
         findings = validate_shape(new_state) + validate_against_live(new_state, live)
         if findings:
             print("delta applied; live findings follow")
-            return report(findings)
+            return report(
+                findings,
+                "reconciled state block and live tracker; derived views were not read",
+            )
     return 1 if remainder and rc == 0 else rc
 
 
@@ -1729,7 +1859,10 @@ def _init_under_lock(tracker, args) -> int:
         findings = validate_shape(state) + validate_against_live(state, live)
         if findings:
             print("map created; live findings follow")
-            return report(findings)
+            return report(
+                findings,
+                "initial state block and live tracker; derived views were not read",
+            )
     return rc
 
 
@@ -1741,13 +1874,27 @@ def cmd_audit(tracker, args) -> int:
     live = Live(tracker, state)
     findings = validate_shape(state) + validate_against_live(state, live)
     published = issue["body"]
+    stamp_problem = producer_stamp_problem(published)
+    if stamp_problem is not None:
+        findings.append(Finding("producer-stamp", stamp_problem))
     snapshot_match = re.search(r"default-branch commit: `([0-9a-f]+)`", published)
     recorded_commit = snapshot_match.group(1) if snapshot_match else "?"
-    fresh = render(state, live, {"commit": recorded_commit, "date": "AUDIT"})
+    fresh = render(
+        state,
+        live,
+        {
+            "commit": recorded_commit,
+            "producer_commit": checkout_commit(),
+            "date": "AUDIT",
+        },
+    )
     fresh_sections = derived_sections(fresh)
     published_sections = derived_sections(published)
-    for name in sorted(set(fresh_sections) | set(published_sections)):
+    section_names = sorted(set(fresh_sections) | set(published_sections))
+    differed = 0
+    for name in section_names:
         if fresh_sections.get(name) != published_sections.get(name):
+            differed += 1
             findings.append(Finding(
                 "stale-derived-view",
                 f"section {name!r} on the tracker differs from a fresh render; "
@@ -1761,7 +1908,11 @@ def cmd_audit(tracker, args) -> int:
             f"{head}; the map has not been reconciled since",
         ))
     print(f"map: issue #{issue['number']}")
-    return report(findings)
+    return report(
+        findings,
+        f"state block, live tracker, and {len(section_names)} published "
+        f"derived sections; {differed} differed",
+    )
 
 
 def derived_sections(body: str) -> dict[str, str]:

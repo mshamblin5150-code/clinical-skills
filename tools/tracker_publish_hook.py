@@ -1254,7 +1254,12 @@ def analyze(
     return Analysis(tuple(findings), "\n".join(lines))
 
 
-def authorize_issue_body(body: str, label: str) -> None:
+def authorize_issue_body(
+    body: str,
+    label: str,
+    *,
+    issue_number: int | None = None,
+) -> None:
     """Apply the shared lost-body and raw-control refusal for direct writers.
 
     Most tracker writes arrive as a shell command and enter through ``handle``.
@@ -1268,6 +1273,17 @@ def authorize_issue_body(body: str, label: str) -> None:
     if findings:
         kinds = ", ".join(row.kind for row in findings)
         raise ValueError(f"tracker body refused for {label}: {kinds}")
+    if issue_number is not None:
+        # Lazy import avoids the module-level cycle: implementation_map uses
+        # this direct-writer gate when it publishes the same body.
+        from implementation_map import MAP_ISSUE, producer_stamp_problem
+
+        if issue_number == MAP_ISSUE:
+            problem = producer_stamp_problem(body)
+            if problem is not None:
+                raise ValueError(
+                    f"tracker body refused for {label}: producer stamp: {problem}"
+                )
 
 
 def current_index() -> tuple[phi_scan.CorpusIndex, tuple[str, ...]]:

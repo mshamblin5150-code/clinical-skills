@@ -17,6 +17,7 @@ import contextlib
 import sys
 from unittest import mock
 
+import artifact_lock_test_support  # noqa: F401
 import tracker_publish_hook as hook
 import phi_scan
 
@@ -64,10 +65,18 @@ class DirectTrackerWritersCrossTheBodyGate(unittest.TestCase):
         ):
             with self.subTest(body=repr(body)):
                 with self.assertRaisesRegex(ValueError, "tracker body refused"):
-                    hook.authorize_issue_body(body, "issue #596")
+                    hook.authorize_issue_body(body, "map", issue_number=596)
 
-    def test_an_ordinary_body_is_accepted(self) -> None:
-        hook.authorize_issue_body("A complete tracker body.", "issue #596")
+    def test_a_map_body_without_a_producer_stamp_is_refused(self) -> None:
+        with self.assertRaisesRegex(ValueError, "producer stamp"):
+            hook.authorize_issue_body(
+                "A complete tracker body.", "map", issue_number=596
+            )
+
+    def test_an_ordinary_non_map_body_is_accepted(self) -> None:
+        hook.authorize_issue_body(
+            "A complete tracker body.", "issue #596", issue_number=595
+        )
 
 
 class InlineTrackerTextIsRead(unittest.TestCase):

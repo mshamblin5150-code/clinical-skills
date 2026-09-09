@@ -1283,9 +1283,11 @@ temporary body files. It performs no publication.
 ### Implementation map disagreement scan
 
 `map_scan.py` reads the complete issues REST harvest offline and grades both
-readiness directions, the reconciliation anchor against committed ADRs, and
-the coordination issue's pointer back to the grader. The fetch remains the
-caller's operation; the scanner opens no socket:
+readiness directions, the reconciliation anchor against committed ADRs, the
+coordination issue's pointer back to the grader, and the producer stamp in its
+derived Snapshot. Its GitHub-event mode grades that same stamp predicate on an
+edited #596 body. The fetch remains the caller's operation; the scanner opens
+no socket:
 
 ```powershell
 $harvest = Join-Path $env:RUNNER_TEMP 'implementation-map-issues.json'
@@ -1294,10 +1296,12 @@ gh api --paginate 'repos/OWNER/REPO/issues?state=all&per_page=100' |
 python tools/map_scan.py $harvest
 ```
 
-Findings and did-not-scan results both fail after a merge. The full boundary is
-`map_scan.DECLARED_LIMITS`; this section points to that object and copies none
-of its rows. A clean scan is a clean readiness-and-obligation gate, not a
-checked implementation map.
+Readiness and obligation findings and did-not-scan results fail after a merge;
+the producer-stamp row remains visible but advisory in this whole-harvest
+route. The edited-#596 workflow is the refusing stamp route. The full boundary
+is `map_scan.DECLARED_LIMITS`; this section points to that object and copies
+none of its rows. A clean scan is a clean readiness and obligation gate plus an
+advisory stamp result, not a checked implementation map.
 
 Covered by `tools/test_map_scan.py`, which builds synthetic issue harvests and
 throwaway checkouts in a temp directory. **The real tracker is deliberately not
@@ -1319,11 +1323,16 @@ Every tracker mutation holds the repository's nonblocking artifact lock and
 compares the state-block hash immediately before publication. The hash excludes
 derived views, so concurrent publishes do not conflict; a changed machine state
 refuses a stale delta and preserves its authored outcomes in a unique temporary
-record whose path is printed. The rendered Mermaid block is checked before
-publication for defined nodes, unique edges, accounted lines, and one node per
-state packet, with its denominator and unread remainder reported. The body then
-crosses the direct-writer entry point in `tracker_publish_hook.py` before `gh`
-receives it.
+record whose path is printed. The rendered Mermaid block draws only packets
+carrying a HARD, GATE, or REBUILD-SAVING edge. Before publication it is checked
+for defined nodes, unique edges, accounted lines, and a complete partition of
+state packets into drawn and omitted free-standing sets, with its denominator
+and unread remainder reported. The derived Snapshot names the
+repository-relative producer and its commit. The body then crosses the
+direct-writer entry point in `tracker_publish_hook.py` before `gh` receives it.
+`check` states that it walked the state block and live tracker without reading
+derived views; `audit` states the derived-section denominator and how many
+differed.
 
 The complete boundary belongs to `implementation_map.DECLARED_LIMITS`; this
 section points to that object and copies none of its rows. Covered by

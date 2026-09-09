@@ -1,14 +1,17 @@
-"""Grade implementation-map disagreement from one offline issue harvest.
+"""Grade implementation-map disagreement from a harvest or changed map event.
 
 The harvest is fetched by the caller; this module opens no socket. It checks
 the two readiness directions, the reconciliation anchor against committed ADRs,
-and the map issue's pointer to this module. The complete boundary is
-``map_scan.DECLARED_LIMITS``; its rows are not copied into this docstring or
-the maintainer documentation.
+the map issue's pointer to this module, and its producer stamp. Event mode
+grades that same stamp on an edited #596 body. The complete boundary is
+``map_scan.DECLARED_LIMITS``; its rows are not copied into this docstring or the
+maintainer documentation.
 
-Exit status is 0 clean, 1 findings, and 2 when the scan could not run. When a
-finding and a not-scanned limb coexist, 1 wins and both reports print. The
-``--advisory`` flag converts only 1 to 0, leaving 2 unchanged.
+Exit status is 0 clean, 1 refusing findings, and 2 when the scan could not run.
+The producer-stamp row is advisory in harvest mode and refusing in changed-map
+event mode. When another finding and a not-scanned limb coexist, 1 wins and
+both reports print. The ``--advisory`` flag converts only 1 to 0, leaving a
+finding-free not-scanned result at 2.
 """
 
 from __future__ import annotations
@@ -22,6 +25,7 @@ from pathlib import Path
 from typing import NamedTuple, Sequence
 
 from console_codec import use_utf8
+import implementation_map
 
 CLEAN = 0
 FOUND = 1
@@ -30,7 +34,7 @@ NOT_SCANNED = 2
 STATE_BEGIN = "<!-- implementation-map:v1:state:begin -->"
 STATE_END = "<!-- implementation-map:v1:state:end -->"
 LIMITS_POINTER = "map_scan.DECLARED_LIMITS"
-MAP_ISSUE = 596
+MAP_ISSUE = implementation_map.MAP_ISSUE
 
 
 class DeclaredLimit(NamedTuple):
@@ -62,6 +66,10 @@ DECLARED_LIMITS = (
     DeclaredLimit(
         "blocked-invariant",
         "Neither direction of ADR 0072's blocked-label invariant is certified.",
+    ),
+    DeclaredLimit(
+        "producer-stamp-is-not-a-render",
+        "A clean producer-stamp check establishes the declared emitter identity and does not establish that GitHub rendered any derived view.",
     ),
 )
 
@@ -219,6 +227,19 @@ def scan(rows: Sequence[dict], repo_root: Path) -> ScanResult:
     }
 
     findings: list[Finding] = []
+    stamp_problem = implementation_map.producer_stamp_problem(
+        str(map_row.get("body") or "")
+    )
+    if stamp_problem is not None:
+        findings.append(
+            Finding(
+                "producer-stamp",
+                map_number,
+                ("-",),
+                "-",
+                detail=stamp_problem,
+            )
+        )
     issue_rows = {
         row.get("number"): row
         for row in rows
@@ -284,9 +305,37 @@ def format_finding(finding: Finding) -> str:
     )
 
 
+def scan_github_event(path: Path, event_name: str) -> ScanResult:
+    """Grade the producer stamp on the one changed issue event body."""
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8-sig"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise ScanError(f"cannot read GitHub event {path}: {error}") from error
+    if event_name != "issues":
+        raise ScanError(f"producer-stamp event mode does not handle {event_name!r}")
+    if not isinstance(payload, dict) or payload.get("action") != "edited":
+        raise ScanError("producer-stamp event mode needs one edited issue event")
+    row = payload.get("issue")
+    if not isinstance(row, dict):
+        raise ScanError("edited issue event has no issue object")
+    number = row.get("number")
+    body = row.get("body")
+    if not isinstance(number, int) or not isinstance(body, str):
+        raise ScanError("edited issue event needs an integer number and text body")
+    if number != MAP_ISSUE:
+        return ScanResult((), ())
+    problem = implementation_map.producer_stamp_problem(body)
+    findings = () if problem is None else (
+        Finding("producer-stamp", number, ("-",), "-", detail=problem),
+    )
+    return ScanResult(findings, ())
+
+
 def _arguments(argv: Sequence[str]):
     parser = argparse.ArgumentParser(description="Grade an offline issue harvest")
     parser.add_argument("harvest", nargs="?")
+    parser.add_argument("--github-event")
+    parser.add_argument("--event-name")
     parser.add_argument(
         "--advisory",
         action="store_true",
@@ -302,12 +351,20 @@ def _arguments(argv: Sequence[str]):
 
 def main(argv: Sequence[str], *, repo_root: Path | None = None) -> int:
     args = _arguments(argv)
-    if args is None or not args.harvest:
+    if args is None or (not args.harvest and not args.github_event):
         print("did not scan: name one harvested issues file", file=sys.stderr)
         return NOT_SCANNED
+    if args.harvest and args.github_event:
+        print("did not scan: choose a harvest or a GitHub event", file=sys.stderr)
+        return NOT_SCANNED
     try:
-        rows = read_harvest(Path(args.harvest))
-        result = scan(rows, repo_root or Path.cwd())
+        if args.github_event:
+            if not args.event_name:
+                raise ScanError("GitHub event mode needs --event-name")
+            result = scan_github_event(Path(args.github_event), args.event_name)
+        else:
+            rows = read_harvest(Path(args.harvest))
+            result = scan(rows, repo_root or Path.cwd())
     except ScanError as error:
         print(f"did not scan: {error}", file=sys.stderr)
         return NOT_SCANNED
@@ -319,7 +376,18 @@ def main(argv: Sequence[str], *, repo_root: Path | None = None) -> int:
 
     if result.findings:
         print(f"{len(result.findings)} finding(s)")
-        return CLEAN if args.advisory else FOUND
+        if args.advisory:
+            return CLEAN
+        blocking = result.findings if args.github_event else tuple(
+            finding
+            for finding in result.findings
+            if finding.kind != "producer-stamp"
+        )
+        if blocking:
+            return FOUND
+        if result.not_scanned:
+            return NOT_SCANNED
+        return CLEAN
     if result.not_scanned:
         return NOT_SCANNED
     print("clean: no findings")

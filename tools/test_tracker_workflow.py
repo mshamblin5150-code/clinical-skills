@@ -9,6 +9,7 @@ import re
 import unittest
 from pathlib import Path
 
+import artifact_lock_test_support  # noqa: F401
 import phi_scan
 import test_module_sections
 import tracker_branch_scope
@@ -293,6 +294,20 @@ class EveryChangedTrackerRecordTriggersTheShapeScan(unittest.TestCase):
         self.assertNotIn("github.event.action != 'edited'", step)
         self.assertNotIn("github.event.action == 'labeled'", step)
         self.assertNotIn("gh api", step)
+
+    def test_an_edited_map_body_runs_the_refusing_producer_stamp_check(self):
+        step = workflow_text().partition(
+            "Implementation map producer stamp"
+        )[2].partition("\n      - name:")[0]
+
+        self.assertIn("github.event_name == 'issues'", step)
+        self.assertIn("github.event.action == 'edited'", step)
+        self.assertIn("github.event.issue.number == 596", step)
+        self.assertIn("github.event.changes.body", step)
+        self.assertIn("tools/map_scan.py --github-event", step)
+        self.assertIn("--event-name $env:GITHUB_EVENT_NAME", step)
+        self.assertNotIn("--advisory", step)
+        self.assertIn("exit $status", step)
 
     def test_the_body_shape_workflow_uses_the_public_event_mode(self):
         self.assertTrue(hasattr(tracker_bodies, "load_github_event"))
