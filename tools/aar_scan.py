@@ -34,6 +34,7 @@ from typing import Any, Iterable, Mapping
 
 from console_codec import use_utf8
 import git_paths
+import shell_reader
 import repo_root
 import run_grader
 
@@ -596,7 +597,7 @@ def _successful_gh_call(transcripts: Iterable[Path]) -> bool:
                 continue
             for block in _content_blocks(row.get("message")):
                 command = block.get("input", {}).get("command") if isinstance(block.get("input"), dict) else None
-                if block.get("type") == "tool_use" and isinstance(command, str) and re.search(r"(?:^|[;&|]\s*)gh\s+", command):
+                if block.get("type") == "tool_use" and isinstance(command, str) and shell_reader.has_executable(command, "gh"):
                     gh_ids.add(_text(block.get("id")))
         for row in rows:
             if row.get("type") != "user":

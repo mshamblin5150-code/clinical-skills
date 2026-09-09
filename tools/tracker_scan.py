@@ -146,6 +146,12 @@ import phi_scan
 import git_paths
 from console_codec import use_utf8
 from phi_scan import CorpusIndex, Finding
+from tracker_records import (
+    EVENT_RECORD_KEYS,
+    TrackerRecord,
+    from_actions_event,
+    from_command,
+)
 
 CLEAN = 0
 FOUND = 1
@@ -184,6 +190,7 @@ class Record(NamedTuple):
     ref: str
     text: str
     is_file: bool = False
+    tracker: TrackerRecord | None = None
 
 
 class HarvestError(Exception):
@@ -312,22 +319,34 @@ def records_from_github(data: object, source: str) -> list[Record]:
         if not isinstance(item, dict):
             continue
         label = _label(item, source)
+        raw_labels = item.get("labels", [])
+        labels = tuple(
+            row.get("name") if isinstance(row, dict) else row
+            for row in raw_labels
+            if isinstance(row, (dict, str))
+        ) if isinstance(raw_labels, list) else ()
+        url = item.get("html_url") if isinstance(item.get("html_url"), str) else label
+        pull_request = "pull_request" in item or "/pull/" in url
+        route = ("pr", "view") if pull_request else ("issue", "view")
         title = item.get("title")
         if isinstance(title, str) and title.strip():
-            records.append(Record("title", f"{label} title", title))
+            records.append(Record(
+                "title", f"{label} title", title,
+                tracker=from_command(
+                    title, url=url, number=item.get("number"), labels=labels,
+                    route=route, field="title",
+                ),
+            ))
         body = item.get("body")
         if isinstance(body, str) and body.strip():
-            records.append(Record("body", f"{label} body", body))
+            records.append(Record(
+                "body", f"{label} body", body,
+                tracker=from_command(
+                    body, url=url, number=item.get("number"), labels=labels,
+                    route=route, field="body",
+                ),
+            ))
     return records
-
-
-EVENT_RECORD_KEYS = {
-    "issues": "issue",
-    "issue_comment": "comment",
-    "pull_request_target": "pull_request",
-    "pull_request_review": "review",
-    "pull_request_review_comment": "comment",
-}
 
 
 def records_from_github_event(
@@ -342,6 +361,7 @@ def records_from_github_event(
     """
     if not isinstance(data, dict):
         raise HarvestError(f"{source}: not a JSON object")
+    typed = from_actions_event(data, event_name)
     key = EVENT_RECORD_KEYS.get(event_name)
     if key is None:
         raise HarvestError(f"{source}: unsupported GitHub event {event_name!r}")
@@ -363,7 +383,7 @@ def records_from_github_event(
                 changed_item[field] = item[field]
         item = changed_item
 
-    records = records_from_github([item], source)
+    records = [row._replace(tracker=typed) for row in records_from_github([item], source)]
     if records or data.get("action") != "edited":
         return records
 
@@ -372,7 +392,7 @@ def records_from_github_event(
     # which remains NOT_SCANNED because it names no record at all.
     label = _label(item, source)
     return [
-        Record(field, f"{label} {field}", item.get(field) or "")
+        Record(field, f"{label} {field}", item.get(field) or "", tracker=typed)
         for field in ("title", "body")
         if field in item
     ]

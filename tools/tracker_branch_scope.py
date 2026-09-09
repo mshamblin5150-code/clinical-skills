@@ -24,6 +24,8 @@ from urllib.parse import unquote
 
 from console_codec import use_utf8
 import git_paths
+import git_ancestry
+from tracker_records import TrackerRecord, from_actions_event
 from tracker_bodies import prose_outside_code
 from tracker_merge_receipt import parse_merge_receipt
 
@@ -124,16 +126,27 @@ NOT_REACHED = (
     ),
 )
 
-PULL_REQUEST_RECORD_KEY = {
-    "pull_request_target": "pull_request",
-    "pull_request_review": "review",
-    "pull_request_review_comment": "comment",
-}
+BRANCH_RULES = (
+    "branch:repo-relative-link",
+    "branch:near-miss",
+    "branch:unresolved-path",
+    "branch:self-declares-completion",
+    "branch:in-flight",
+    "branch:blockquote-missing",
+    "branch:ancestry-refused",
+)
+
+
+class Verdict(NamedTuple):
+    rule: str | None
+    ancestry_verified: bool | None
+    default_branch_tree_read: bool
 
 
 class Result(NamedTuple):
     status: int
     report: str
+    verdict: Verdict = Verdict(None, None, False)
 
 
 class CitedPath(NamedTuple):
@@ -176,19 +189,13 @@ def _default_branch_paths(repo: Path = REPO_ROOT) -> frozenset[str] | None:
 
 
 def _main_ancestry(commit: str) -> bool | None:
-    completed = subprocess.run(
-        ["git", "merge-base", "--is-ancestor", commit, "origin/main"],
-        check=False,
-        capture_output=True,
-        cwd=Path(__file__).resolve().parent.parent,
-        encoding="utf-8",
-        errors="replace",
-    )
-    if completed.returncode == 0:
-        return True
-    if completed.returncode == 1:
-        return False
-    return None
+    def run_git(*args: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            ["git", *args], check=False, capture_output=True,
+            cwd=Path(__file__).resolve().parent.parent,
+            encoding="utf-8", errors="replace",
+        )
+    return git_ancestry.is_ancestor(commit, "origin/main", run_git=run_git)
 
 
 def _unresolved_main_paths(
@@ -239,79 +246,63 @@ def _has_near_miss(path: str, tracked: frozenset[str]) -> bool:
 
 
 def grade(document: Any, event_name: str, *, remote_fresh: bool = True) -> Result:
-    if not isinstance(document, dict):
-        raise ValueError("GitHub event JSON must be an object")
-    if event_name in ("issues", "issue_comment"):
-        container = document.get("issue")
-        if not isinstance(container, dict):
-            raise ValueError("GitHub event has no issue object")
-        pull_request_discussion = "pull_request" in container
-        if event_name == "issues":
-            record = container
-        else:
-            record = document.get("comment")
-            if not isinstance(record, dict):
-                raise ValueError("GitHub issue_comment event has no comment object")
-    elif event_name in PULL_REQUEST_RECORD_KEY:
-        container = document.get("pull_request")
-        if not isinstance(container, dict):
-            raise ValueError("GitHub pull request event has no pull_request object")
-        pull_request_discussion = False
-        key = PULL_REQUEST_RECORD_KEY[event_name]
-        record = document.get(key)
-        if not isinstance(record, dict):
-            raise ValueError(f"GitHub {event_name} event has no {key} object")
-    else:
+    record = from_actions_event(document, event_name, require_container=True)
+    if record is None:
         return Result(0, "tracker-branch-scope: event is outside issue text")
-    body = record.get("body")
-    url = record.get("html_url") or container.get("html_url") or "unknown record"
-    if not isinstance(body, str):
-        body = ""
+    return grade_record(record, remote_fresh=remote_fresh)
+
+
+def grade_record(record: TrackerRecord, *, remote_fresh: bool = True) -> Result:
+    body = record.body
+    url = record.url
+    pull_request_discussion = record.container == "pull_request" and record.surface != "body"
 
     cited = _cited_main_paths(body)
-    tracked_read = _default_branch_paths() if cited else frozenset()
-    tree_not_graded = tracked_read is None
-    tracked = frozenset() if tree_not_graded else tracked_read
+    tracked_read = _default_branch_paths() if cited else None
+    tree_not_graded = bool(cited) and tracked_read is None
+    tree_read = tracked_read is not None
+    tracked = frozenset() if tracked_read is None else tracked_read
     unresolved_paths = _unresolved_main_paths(cited, tracked)
     if tree_not_graded:
         unresolved_paths = ()
     unresolved_path = bool(unresolved_paths)
     relative_paths = _repo_relative_markdown_paths(body)
 
-    def graded(status: int, report: str) -> Result:
+    ancestry_verified: bool | None = None
+
+    def graded(status: int, report: str, rule: str | None = None) -> Result:
         if tree_not_graded:
             report += (
                 "; citation path resolution NOT GRADED -- the default-branch "
                 "tree was not read"
             )
-        return Result(status, report)
+        return Result(status, report, Verdict(rule, ancestry_verified, tree_read))
 
     if relative_paths:
         return graded(
             1,
             f"tracker-branch-scope: {url}: repo-relative Markdown link does not "
             "resolve from tracker text; use an absolute blob/main URL",
+            "branch:repo-relative-link",
         )
     if any(_has_near_miss(path, tracked) for path in unresolved_paths):
         return graded(
             1,
             f"tracker-branch-scope: {url}: unresolved path has a same-directory "
             "near miss; fix the slug rather than adding a qualifier",
+            "branch:near-miss",
         )
 
     if pull_request_discussion and not unresolved_path:
         return graded(0, "tracker-branch-scope: pull request discussion is outside scope")
 
-    labels = container.get("labels", [])
-    if not isinstance(labels, list) or any(not isinstance(row, dict) for row in labels):
-        raise ValueError("GitHub issue labels must be objects")
     in_flight = (
-        event_name in ("issues", "issue_comment")
-        and not pull_request_discussion
-        and "in flight" in {row.get("name") for row in labels}
+        record.container == "issue"
+        and record.surface != "title"
+        and "in flight" in record.labels
     )
     self_declares_completion = (
-        event_name == "issue_comment"
+        record.surface == "comment"
         and not pull_request_discussion
         and DECLARES_COMPLETION.match(body) is not None
     )
@@ -319,7 +310,7 @@ def grade(document: Any, event_name: str, *, remote_fresh: bool = True) -> Resul
         return graded(0, "tracker-branch-scope: record has no branch-state trigger")
     receipt = parse_merge_receipt(body)
     receipt_matches_issue = (
-        receipt is not None and receipt.ticket == container.get("number")
+        receipt is not None and receipt.ticket == record.number
     )
     branch_scope = BRANCH_SCOPE.match(body)
     main_scope = MAIN_SCOPE.match(body)
@@ -333,7 +324,9 @@ def grade(document: Any, event_name: str, *, remote_fresh: bool = True) -> Resul
     )
     if main_scope is not None:
         ancestry = _main_ancestry(main_scope.group("commit"))
+        ancestry_verified = ancestry is not None
         if ancestry is not True and not remote_fresh:
+            ancestry_verified = False
             return graded(
                 0,
                 f"tracker-branch-scope: {url}: explicit main branch state present; "
@@ -344,12 +337,14 @@ def grade(document: Any, event_name: str, *, remote_fresh: bool = True) -> Resul
                 1,
                 f"tracker-branch-scope: {url}: claimed main commit is not an "
                 "ancestor of origin/main",
+                "branch:ancestry-refused",
             )
         if ancestry is None:
             return graded(
                 1,
                 f"tracker-branch-scope: {url}: positive Branch state refused; "
                 "ancestry could not be verified",
+                "branch:ancestry-refused",
             )
     explicit_scope = (
         branch_scope is not None
@@ -366,21 +361,25 @@ def grade(document: Any, event_name: str, *, remote_fresh: bool = True) -> Resul
         return graded(
             1,
             f"tracker-branch-scope: {url}: Branch state blockquote marker is missing",
+            "branch:blockquote-missing",
         )
 
     if unresolved_path:
         reason = "text cites an unresolved path on the default branch"
+        rule = "branch:unresolved-path"
     elif self_declares_completion:
         reason = "text self-declares completion"
+        rule = "branch:self-declares-completion"
     else:
         reason = "the issue is labeled 'in flight'"
+        rule = "branch:in-flight"
     if body:
         return graded(
             1,
             f"tracker-branch-scope: {url}: missing Branch state at the start of "
-            f"text because {reason}",
+            f"text because {reason}", rule,
         )
-    return graded(1, f"tracker-branch-scope: {url}: missing body while {reason}")
+    return graded(1, f"tracker-branch-scope: {url}: missing body while {reason}", rule)
 
 
 def _read(path: str) -> Any:
@@ -393,13 +392,7 @@ def _read_text(path: str) -> str:
 
 
 def grade_text(body: str) -> Result:
-    return grade(
-        {
-            "issue": {"number": 0, "labels": []},
-            "comment": {"body": body, "html_url": "draft text"},
-        },
-        "issue_comment",
-    )
+    return grade_record(TrackerRecord(body, "draft text", 0, (), "issue", "comment"))
 
 
 def main(argv: list[str] | None = None) -> int:
