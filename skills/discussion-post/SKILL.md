@@ -184,17 +184,14 @@ INSTRUMENTS: <first instrument> -> <second instrument>
 STATED-EXPIRY: none stated | <ISO date> - <where the document states it> | <ISO date>, superseded cited deliberately - <reason>
 ```
 
-For `unsourced`, put what was searched on the `STATUS` line and omit the other fields. For
-`STATUS: unreadable`, state what prevented both reads, omit every source field, and retain only
-`INSTRUMENTS`; the two substantive halves are separated by the literal `->` and must differ after
-normalization. `INSTRUMENTS` is also required for `REFUTATION: unreadable` and is forbidden on
-every other record. The source
+Apply the shared sourcing rules below to `unsourced` and `unreadable` records. `INSTRUMENTS` is
+also required for `REFUTATION: unreadable` and is forbidden on every other record. The source
 classes and recency dispositions are the same ones in `practicum-case-study` step 3: within two
 years is the target, within five is ordinarily expected, and `nothing newer` names what was
 searched. `guideline in force` applies only when the cited guideline is presently in force and the
 record says why; membership in a catalog does not establish standing.
 
-Every research and refutation brief first reads the two rules in
+Every research and refutation brief first reads the rules in
 [sourcing.md](../_shared/reference/sourcing.md) and applies them to every returned claim or negative.
 Fan out one research context per claim. Each returns the source class, full APA 7 reference,
 restatement, opened URL or DOI and read date, the page's stated year and locator, and the source's

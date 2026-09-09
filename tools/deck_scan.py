@@ -19,6 +19,7 @@ from pathlib import Path
 from xml.etree import ElementTree
 
 import run_grader
+from discussion_artifact import CLAIM_BLOCK, claim_record_can_certify_values
 
 
 A = "{http://schemas.openxmlformats.org/drawingml/2006/main}"
@@ -30,7 +31,6 @@ WORD = re.compile(r"(?:\$?\d[\d,.]*|[A-Za-z]+(?:[-'][A-Za-z]+)*)")
 COST = re.compile(
     r"(?<![\w$])\$\s*(?P<amount>(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d{2})?)(?![\d,])"
 )
-CLAIM_HEADING = re.compile(r"(?mi)^## CLAIM:\s*(?P<claim>[^\n]*)$")
 
 SLIDE_COUNT = "slide-count"
 BULLETS_PER_SLIDE = "bullets-per-slide"
@@ -69,6 +69,14 @@ class DeclaredLimit:
 
 
 DECLARED_LIMITS = (
+    DeclaredLimit(
+        "claim-support-unverified",
+        "A clean cost trace does not establish that a believed record supports the cost token read from its heading.",
+    ),
+    DeclaredLimit(
+        "sourced-field-completeness-unjoined",
+        "A sourced record missing required fields is still believed by the cost certifier; field completeness belongs to research_ledger.",
+    ),
     DeclaredLimit(
         "adversarial-completeness-unverified",
         "The adversarial artifact read has no closed expected set, so no mechanical row proves that it found every unsupported assertion.",
@@ -270,8 +278,9 @@ def _costs(text: str) -> set[str]:
 def _claim_costs(text: str) -> set[str]:
     return {
         amount
-        for match in CLAIM_HEADING.finditer(text)
-        for amount in _costs(match.group("claim"))
+        for match in CLAIM_BLOCK.finditer(text)
+        if claim_record_can_certify_values(match.group("block"))
+        for amount in _costs(match.group("block").splitlines()[0])
     }
 
 

@@ -93,10 +93,8 @@ INSTRUMENTS: <first instrument> -> <second instrument>
 STATED-EXPIRY: none stated | <ISO date> - <where stated> | <ISO date>, superseded cited deliberately - <reason>
 ```
 
-For `unsourced`, state what was searched on `STATUS` and omit every source field. For
-`STATUS: unreadable`, state what prevented both reads, omit every source field, and retain only
-`INSTRUMENTS`. Its two substantive halves use the literal `->` and must differ after normalization.
-`INSTRUMENTS` is also required for `REFUTATION: unreadable` and forbidden elsewhere. Research produces claim records.
+Apply the shared sourcing rules below to `unsourced` and `unreadable` records. `INSTRUMENTS` is
+also required for `REFUTATION: unreadable` and forbidden elsewhere. Research produces claim records.
 Every research and refutation brief first reads and applies
 [sourcing.md](../_shared/reference/sourcing.md).
 Refutation attacks each record that exists in a different context and
@@ -166,8 +164,9 @@ The rows are:
 The default report prints counts only. `--show` exposes artifact text and remains private. Exit 0
 is clean, 1 means a finding, and 2 means the command did not completely scan the run, bar, or deck.
 The command's reader-owned boundaries are in `deck_scan.DECLARED_LIMITS`:
-`adversarial-completeness-unverified` and `image-provenance-unverified`. Walk both against the
-finished artifact; this skill points to their objects and carries no second copy of either row.
+`claim-support-unverified`, `sourced-field-completeness-unjoined`,
+`adversarial-completeness-unverified`, and `image-provenance-unverified`. Walk them against the
+finished artifact; this skill points to their objects and carries no second copy of any row.
 
 ## 5. Render and inspect every slide
 

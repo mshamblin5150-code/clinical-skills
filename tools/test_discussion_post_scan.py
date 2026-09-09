@@ -1429,6 +1429,107 @@ class TheMechanicalBarRowsAreGraded(unittest.TestCase):
         self.assertEqual(1, status)
         self.assertIn("untraced-number: 1", stdout)
 
+    def test_only_believed_claim_records_trace_body_numbers(self):
+        cases = (
+            ("STATUS: sourced", "STATUS: unsourced - searched the named databases."),
+            ("STATUS: sourced", "STATUS: unreadable - both instruments failed."),
+            (
+                "REFUTATION: stands - the results table reports the same measure.",
+                "REFUTATION: refuted - the results table reports a different measure.",
+            ),
+        )
+        for old, new in cases:
+            with self.subTest(state=new.split(" -", 1)[0]):
+                with tempfile.TemporaryDirectory() as temp:
+                    run = Run(Path(temp))
+                    (run.root / "claims.md").write_text(
+                        CLAIMS.replace(old, new, 1), encoding="utf-8"
+                    )
+                    status, stdout, _ = run.grade()
+
+                self.assertEqual(1, status)
+                self.assertIn("untraced-number: 1", stdout)
+
+    def test_a_sourced_standing_record_still_traces_its_number(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            status, stdout, _ = run.grade()
+
+        self.assertEqual(0, status)
+        self.assertIn("untraced-number: 0", stdout)
+
+    def test_a_sourced_record_missing_ledger_fields_is_still_believed(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            incomplete = CLAIMS
+            for line in (
+                "SOURCE: peer-reviewed\n",
+                "RESTATEMENT: Completed visits improved by 12% when both supports were present.\n",
+                "RECENCY: current\n",
+                "RESOLVED: https://example.org/usable-access - read 2026-08-22\n",
+                "PAGE-YEAR: 2024 - stated on the article masthead.\n",
+                "REFUTATION: stands - the results table reports the same measure.\n",
+            ):
+                incomplete = incomplete.replace(line, "", 1)
+            (run.root / "claims.md").write_text(
+                incomplete,
+                encoding="utf-8",
+            )
+            status, stdout, _ = run.grade()
+
+        self.assertEqual(0, status)
+        self.assertIn("untraced-number: 0", stdout)
+
+    def test_numeric_identity_does_not_establish_restatement_support(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            (run.root / "claims.md").write_text(
+                CLAIMS.replace(
+                    "Completed visits improved by 12% when both supports were present.",
+                    "An unrelated outcome changed by 99%.",
+                ),
+                encoding="utf-8",
+            )
+            status, stdout, _ = run.grade()
+
+        self.assertEqual(0, status)
+        self.assertIn("untraced-number: 0", stdout)
+
+    def test_a_refuted_record_keeps_its_reference_key_but_not_its_number(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            (run.root / "claims.md").write_text(
+                CLAIMS.replace(
+                    "REFUTATION: stands - the results table reports the same measure.",
+                    "REFUTATION: refuted - the results table reports a different measure.",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+            status, stdout, _ = run.grade()
+
+        self.assertEqual(1, status)
+        self.assertIn("untraced-number: 1", stdout)
+        self.assertIn("untraced-citation: 0", stdout)
+
+    def test_a_refuted_record_with_another_reference_does_not_evidence_the_citation(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            claims = CLAIMS.replace(
+                "REFUTATION: stands - the results table reports the same measure.",
+                "REFUTATION: refuted - the results table reports a different measure.",
+                1,
+            ).replace(
+                "Quill, R. (2024). Measuring usable access. Journal of Care, 4(2), 10-18.",
+                "Vale, S. (2024). A different source. Journal of Care, 4(2), 10-18.",
+                1,
+            )
+            (run.root / "claims.md").write_text(claims, encoding="utf-8")
+            status, stdout, _ = run.grade()
+
+        self.assertEqual(1, status)
+        self.assertIn("untraced-citation: 1", stdout)
+
     def test_repeated_numeric_values_need_one_tracing_record(self):
         with tempfile.TemporaryDirectory() as temp:
             run = Run(Path(temp))
@@ -1864,6 +1965,14 @@ class TheRenderedDocumentContractIsPublished(unittest.TestCase):
 
 class EveryBehaviorLimitHasALiveHandler(unittest.TestCase):
     HANDLERS = {
+        "whether a believed record's restatement supports the number traced from it": (
+            "TheMechanicalBarRowsAreGraded.test_numeric_identity_does_not_establish_restatement_support",
+            "TheMechanicalBarRowsAreGraded.test_only_believed_claim_records_trace_body_numbers",
+        ),
+        "whether a sourced record missing required fields is still believed": (
+            "TheMechanicalBarRowsAreGraded.test_a_sourced_record_missing_ledger_fields_is_still_believed",
+            "TheMechanicalBarRowsAreGraded.test_only_believed_claim_records_trace_body_numbers",
+        ),
         "whether a republished citation's original year matches its source": (
             "TheMechanicalBarRowsAreGraded.test_a_republished_original_year_is_not_joined_to_the_claim_record",
             "TheMechanicalBarRowsAreGraded.test_a_republished_second_year_must_match_the_claim_record",

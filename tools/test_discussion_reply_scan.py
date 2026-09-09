@@ -520,6 +520,111 @@ class NumbersTraceToTheRunLedger(unittest.TestCase):
         self.assertEqual(1, status)
         self.assertIn("untraced-number: 1", stdout.getvalue())
 
+    def test_only_believed_claim_records_trace_body_numbers(self):
+        cases = (
+            ("STATUS: sourced", "STATUS: unsourced - searched the named databases."),
+            ("STATUS: sourced", "STATUS: unreadable - both instruments failed."),
+            (
+                "REFUTATION: stands - the article reports the measure in its results table.",
+                "REFUTATION: refuted - the article reports a different measure.",
+            ),
+        )
+        for old, new in cases:
+            with self.subTest(state=new.split(" -", 1)[0]):
+                with tempfile.TemporaryDirectory() as temp:
+                    run = Run(Path(temp))
+                    (run.root / "claims.md").write_text(
+                        CLAIMS.replace(old, new, 1), encoding="utf-8"
+                    )
+                    stdout = io.StringIO()
+                    with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
+                        status = scan.main([temp])
+
+                self.assertEqual(1, status)
+                self.assertIn("untraced-number: 1", stdout.getvalue())
+
+    def test_a_sourced_standing_record_still_traces_its_number(self):
+        with tempfile.TemporaryDirectory() as temp:
+            Run(Path(temp))
+            stdout = io.StringIO()
+            with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
+                status = scan.main([temp])
+
+        self.assertEqual(0, status)
+        self.assertIn("untraced-number: 0", stdout.getvalue())
+
+    def test_a_sourced_record_missing_ledger_fields_is_still_believed(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            (run.root / "claims.md").write_text(
+                "DATE: 2026-08-22\n\n"
+                "## CLAIM: [REPLY: maren] The combined program reported a 12% improvement.\n"
+                "STATUS: sourced\n"
+                "REFERENCE: Quill, R. (2024). Measuring usable access in community care. Journal of Care, 4(2), 10-18.\n",
+                encoding="utf-8",
+            )
+            stdout = io.StringIO()
+            with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
+                status = scan.main([temp])
+
+        self.assertEqual(0, status)
+        self.assertIn("untraced-number: 0", stdout.getvalue())
+
+    def test_numeric_identity_does_not_establish_restatement_support(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            (run.root / "claims.md").write_text(
+                CLAIMS.replace(
+                    "Completed visits improved by 12% when evening access and transit support were combined.",
+                    "An unrelated outcome changed by 99%.",
+                ),
+                encoding="utf-8",
+            )
+            stdout = io.StringIO()
+            with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
+                status = scan.main([temp])
+
+        self.assertEqual(0, status)
+        self.assertIn("untraced-number: 0", stdout.getvalue())
+
+    def test_a_refuted_record_keeps_its_reference_key_but_not_its_number(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            (run.root / "claims.md").write_text(
+                CLAIMS.replace(
+                    "REFUTATION: stands - the article reports the measure in its results table.",
+                    "REFUTATION: refuted - the article reports a different measure.",
+                ),
+                encoding="utf-8",
+            )
+            stdout = io.StringIO()
+            with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
+                status = scan.main([temp])
+
+        self.assertEqual(1, status)
+        self.assertIn("untraced-number: 1", stdout.getvalue())
+        self.assertIn("reference-minimum: 0", stdout.getvalue())
+        self.assertIn("unresolved-citation: 0", stdout.getvalue())
+
+    def test_a_refuted_record_with_another_reference_does_not_back_the_reply_reference(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            claims = CLAIMS.replace(
+                "REFUTATION: stands - the article reports the measure in its results table.",
+                "REFUTATION: refuted - the article reports a different measure.",
+            ).replace(
+                "Quill, R. (2024). Measuring usable access in community care. Journal of Care, 4(2), 10-18.",
+                "Vale, S. (2024). A different source. Journal of Care, 4(2), 10-18.",
+                1,
+            )
+            (run.root / "claims.md").write_text(claims, encoding="utf-8")
+            stdout = io.StringIO()
+            with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
+                status = scan.main([temp])
+
+        self.assertEqual(1, status)
+        self.assertIn("reference-minimum: 1", stdout.getvalue())
+
 
 class ASourceIsSpentOnlyOncePerRun(unittest.TestCase):
     def test_the_same_reference_in_two_replies_fails_once(self):
@@ -776,6 +881,14 @@ class EveryDeclaredLimitHasOneCheckedInventory(unittest.TestCase):
 
 class EveryBehaviorLimitHasALiveHandler(unittest.TestCase):
     HANDLERS = {
+        "whether a believed record's restatement supports the number traced from it": (
+            "NumbersTraceToTheRunLedger.test_numeric_identity_does_not_establish_restatement_support",
+            "NumbersTraceToTheRunLedger.test_only_believed_claim_records_trace_body_numbers",
+        ),
+        "whether a sourced record missing required fields is still believed": (
+            "NumbersTraceToTheRunLedger.test_a_sourced_record_missing_ledger_fields_is_still_believed",
+            "NumbersTraceToTheRunLedger.test_only_believed_claim_records_trace_body_numbers",
+        ),
         "whether reference-dependent rows ran after a refused reference label": (
             "ARecognizedButRefusedLabelStopsTheScan.test_a_plain_references_label_names_the_line_and_ungrades_dependent_rows",
             "ACompleteRunPasses.test_cli_reports_counts_without_exposing_the_addressed_name",
