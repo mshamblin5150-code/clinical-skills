@@ -30,7 +30,6 @@ from datetime import date as CalendarDate
 import json
 from pathlib import Path
 import re
-import shlex
 import subprocess
 import sys
 from typing import NamedTuple
@@ -39,7 +38,10 @@ import phi_scan
 import tracker_bodies
 import tracker_branch_scope
 import tracker_readback
+import shell_reader
 from console_codec import use_utf8
+from tracker_records import TrackerRecord, from_command, from_graphql
+from tracker_bodies import ordinary_paragraph_prose
 
 
 PUBLISH_ROUTES = (
@@ -130,6 +132,43 @@ class Publication(NamedTuple):
     source: str = "inline"
     resolved_against: str | None = None
     reconstructed_path: str | None = None
+    record: TrackerRecord | None = None
+
+
+def with_tracker_record(
+    publication: Publication,
+    *,
+    route: tuple[str, ...],
+    context: TrackerRecord | dict | None,
+) -> Publication:
+    """Bind command text to its semantic record before policy grading."""
+    if publication.record is not None:
+        return publication
+    if isinstance(context, TrackerRecord):
+        url = context.url
+        number = context.number
+        labels = context.labels
+    elif isinstance(context, dict):
+        url = context.get("url", "draft record")
+        number = context.get("number")
+        labels = tuple(
+            row.get("name") if isinstance(row, dict) else row
+            for row in context.get("labels", [])
+            if isinstance(row, (dict, str))
+        )
+    else:
+        url = "draft record"
+        number = None
+        labels = ()
+    record = from_command(
+        publication.text,
+        url=url,
+        number=number,
+        labels=labels,
+        route=route,
+        field=publication.field,
+    )
+    return publication._replace(record=record)
 
 
 class Unreadable(NamedTuple):
@@ -193,52 +232,36 @@ DISCRIMINATOR_CLAUSE = re.compile(
     r"\bunder the claim['’]s negation\b",
     re.IGNORECASE,
 )
+REDACTION_WALK_KINDS = (
+    "phi:corpus-name",
+    "phi:corpus-date",
+    *(f"phi:{kind}" for kind in phi_scan.SHAPE_RULES),
+    "body:c0-control-character",
+    "body:carriage-return-flanked",
+    "body:literal-newline-escape",
+    "body:doubled-path-separator",
+    "verdict:missing-discriminator",
+    *tracker_branch_scope.BRANCH_RULES,
+)
+
+
+def redaction_walk_report(triggered: set[str]) -> str:
+    """Report the declared denominator and any kind the fixtures did not trigger."""
+    unread = tuple(kind for kind in REDACTION_WALK_KINDS if kind not in triggered)
+    remainder = ", ".join(unread) if unread else "none"
+    return (
+        f"tracker redaction walk: {len(REDACTION_WALK_KINDS) - len(unread)}/"
+        f"{len(REDACTION_WALK_KINDS)} kinds triggered; unread: {remainder}"
+    )
 API_RECORD_NUMBER = re.compile(r"/(?:issues|pulls?)/(?P<number>[0-9]+)(?:/|\Z)")
 RAW_PUBLISH_ROUTE = re.compile(
     r"(?:\A|[;&|]\s*)gh\s+(?:(api)\b|([A-Za-z]+)\s+([A-Za-z]+)\b)"
-)
-PLAIN_ASSIGNMENT = re.compile(
-    r"(?:\A|[;&|\n]\s*)(?P<name>[A-Za-z_][A-Za-z0-9_]*)="
-    r"(?:\"(?P<double>[^\"]*)\"|'(?P<single>[^']*)'|(?P<bare>[^\s;&|]+))"
-)
-VARIABLE = re.compile(
-    r"\A\$(?:\{(?P<braced>[A-Za-z_][A-Za-z0-9_]*)\}|"
-    r"(?P<plain>[A-Za-z_][A-Za-z0-9_]*))(?P<rest>/.*)?\Z",
-    re.DOTALL,
-)
-MSYS_PATH = re.compile(r"\A/(?P<drive>[A-Za-z])/(?P<rest>.*)\Z", re.DOTALL)
-LITERAL_CD = re.compile(
-    r"\Acd\s+(?P<target>\"[^\"]*\"|'[^']*'|[^\s;&|]+)\s*\Z"
 )
 HEREDOC = re.compile(
     r"<<-?\s*['\"]?(?P<tag>[A-Za-z_][A-Za-z0-9_]*)['\"]?[ \t]*\r?\n"
     r"(?P<body>.*?)\r?\n(?P=tag)(?:\r?\n|\Z)",
     re.DOTALL,
 )
-
-
-def _assignment_value(match: re.Match[str]) -> str:
-    return next(
-        part
-        for part in (match.group("double"), match.group("single"), match.group("bare"))
-        if part is not None
-    )
-
-
-def _plain_assignments(command: str) -> dict[str, str]:
-    return {
-        match.group("name"): value
-        for match in PLAIN_ASSIGNMENT.finditer(command)
-        if "$(" not in (value := _assignment_value(match)) and "`" not in value
-    }
-
-
-def _substitution_assignments(command: str) -> frozenset[str]:
-    return frozenset(
-        match.group("name")
-        for match in PLAIN_ASSIGNMENT.finditer(command)
-        if "$(" in _assignment_value(match) or "`" in _assignment_value(match)
-    )
 
 
 def _written_before_publish(command: str, source: str) -> bool:
@@ -249,274 +272,35 @@ def _written_before_publish(command: str, source: str) -> bool:
     return re.search(r">\s*['\"]?" + re.escape(source) + r"['\"]?", prefix) is not None
 
 
-def _expand(
-    value: str,
-    assignments: dict[str, str],
-    substitutions: frozenset[str],
-) -> tuple[str | None, str | None]:
-    """Return the shell-expanded value, or the kind that makes it unreadable.
-
-    The hook runs before the shell does, so there is no expanded argument to
-    read -- ``tool_input.command`` is the text as typed. Expansion is therefore
-    reconstructed from assignments made in the same command, which is the only
-    source available at this point. A variable naming a path *prefix* expands
-    here as the shell would expand it; #745 is what happened while only a value
-    that was entirely one variable did.
-    """
-    variable = VARIABLE.match(value)
-    if variable is None:
-        return value, None
-    name = variable.group("braced") or variable.group("plain")
-    rest = variable.group("rest") or ""
-    if name in assignments:
-        return assignments[name] + rest, None
-    return None, (
-        "command-substitution" if name in substitutions else "external-variable"
-    )
-
-
-def _candidate_paths(source: str) -> tuple[str, ...]:
-    """Return the spellings of one path this platform may have to try.
-
-    A Git Bash command line writes ``/c/Users/...`` where Windows resolves
-    ``C:/Users/...``. MSYS rewrites it when it launches a native executable, so
-    the shell's own argument is fine and the hook's copy -- taken before that
-    rewrite -- is not. Reading it here is not a guess about the caller: either
-    spelling names one file, and only one of them opens.
-    """
-    match = MSYS_PATH.match(source)
-    if match is None or sys.platform != "win32":
-        return (source,)
-    drive = match.group("drive").upper()
-    return (source, f"{drive}:/{match.group('rest')}")
-
-
-def _is_absolute_command_path(source: str) -> bool:
-    return Path(source).is_absolute() or MSYS_PATH.match(source) is not None
-
-
-def _shell_pieces(command: str) -> list[str]:
-    """Split shell commands at unquoted separators without expanding them."""
-    command = HEREDOC.sub(
-        lambda match: (
-            match.group(0)[: match.start("body") - match.start()]
-            + match.group(0)[match.end("body") - match.start() :]
-        ),
-        command,
-    )
-    pieces: list[str] = []
-    current: list[str] = []
-    index = 0
-    quote: str | None = None
-    substitution_depth = 0
-    while index < len(command):
-        character = command[index]
-        if quote is not None:
-            current.append(character)
-            if quote == '"' and character == "\\" and index + 1 < len(command):
-                current.append(command[index + 1])
-                index += 2
-                continue
-            if character == quote:
-                quote = None
-            index += 1
-            continue
-        if character in "\"'":
-            quote = character
-            current.append(character)
-            index += 1
-            continue
-        if command.startswith("$(", index):
-            substitution_depth += 1
-            current.append("$(")
-            index += 2
-            continue
-        if substitution_depth:
-            current.append(character)
-            if character == "(":
-                substitution_depth += 1
-            elif character == ")":
-                substitution_depth -= 1
-            index += 1
-            continue
-        if character == "#" and (
-            index == 0 or command[index - 1].isspace() or command[index - 1] in ";|&"
-        ):
-            while index < len(command) and command[index] not in "\r\n":
-                index += 1
-            continue
-        if character == "&" and (
-            (index > 0 and command[index - 1] == ">")
-            or (index + 1 < len(command) and command[index + 1] == ">")
-        ):
-            index += 1
-            continue
-        if command.startswith("&&", index):
-            separator = "&&"
-        elif command.startswith("||", index):
-            separator = "||"
-        else:
-            separator = character
-        if separator in {"&&", "||"} or character in ";|&\n":
-            pieces.extend(("".join(current), separator))
-            current = []
-            index += len(separator)
-            continue
-        current.append(character)
-        index += 1
-    pieces.append("".join(current))
-    return pieces
-
-
-def _literal_command_folder(command: str) -> Path | None:
-    """Return the last literal absolute ``cd`` before the publish command."""
-    pieces = _shell_pieces(command)
-    publish_index = next(
-        (
-            index
-            for index, piece in enumerate(pieces)
-            if piece not in {"&&", "||", ";", "|", "&", "\n"}
-            and _fragment_has_publish(piece)
-        ),
-        None,
-    )
-    if publish_index is None:
-        return None
-    compound_tokens = {
-        "(", ")", "{", "}", "if", "then", "elif", "else", "fi",
-        "for", "while", "until", "case", "esac", "do", "done", "function",
-    }
-    for piece in pieces[:publish_index]:
-        if piece in {"&&", "||", ";", "|", "&", "\n"}:
-            continue
-        if any(delimiter in piece for delimiter in "(){}"):
-            return None
-        try:
-            tokens = shlex.split(piece, posix=True)
-        except ValueError:
-            return None
-        if compound_tokens.intersection(tokens):
-            return None
-    folder: Path | None = None
-    previous_separator = ""
-    conditional_cd = False
-    separators = {"&&", "||", ";", "|", "&", "\n"}
-    for index, piece in enumerate(pieces[:publish_index]):
-        if piece in separators:
-            previous_separator = piece
-            if conditional_cd and piece not in {"&&"}:
-                folder = None
-                conditional_cd = False
-            continue
-        fragment = piece.strip()
-        if not re.match(r"\Acd(?:\s|\Z)", fragment):
-            try:
-                fragment_tokens = shlex.split(fragment, posix=True)
-            except ValueError:
-                fragment_tokens = []
-            if "cd" in fragment_tokens:
-                folder = None
-                conditional_cd = previous_separator in {"&&", "||"}
-            continue
-        next_separator = (
-            pieces[index + 1]
-            if index + 1 < publish_index and pieces[index + 1] in separators
-            else ""
-        )
-        if previous_separator == "|" or next_separator in {"|", "&"}:
-            continue
-        if previous_separator == "||":
-            folder = None
-            conditional_cd = True
-            continue
-        match = LITERAL_CD.fullmatch(fragment)
-        if match is None:
-            folder = None
-            conditional_cd = previous_separator in {"&&", "||"}
-            continue
-        target = match.group("target")
-        if len(target) >= 2 and target[0] == target[-1] and target[0] in "\"'":
-            target = target[1:-1]
-        if _is_absolute_command_path(target):
-            folder = Path(_candidate_paths(target)[-1])
-        else:
-            folder = None
-        conditional_cd = previous_separator in {"&&", "||"}
-    return folder
-
-
 def _fragment_has_publish(fragment: str) -> bool:
     return _publish_tokens(fragment) is not None
 
 
 def _publish_tokens(command: str) -> tuple[list[str], int] | None:
-    for fragment in _shell_pieces(command):
-        if fragment in {"&&", "||", ";", "|", "&", "\n"}:
+    for tokens, index in shell_reader.executable_calls(command, "gh"):
+        if index + 1 >= len(tokens):
             continue
-        try:
-            tokens = shlex.split(fragment, posix=True)
-        except ValueError:
-            continue
-        for index, token in enumerate(tokens):
-            if token != "gh" or index + 1 >= len(tokens):
-                continue
-            if not _is_command_prefix(tokens[:index]):
-                continue
-            tail = tokens[index + 1 :]
-            route = ("api",) if tail[0] == "api" else tuple(tail[:2])
-            if route in PUBLISH_ROUTES:
-                return tokens, index
+        tail = tokens[index + 1 :]
+        route = ("api",) if tail[0] == "api" else tuple(tail[:2])
+        if route in PUBLISH_ROUTES:
+            return tokens, index
     return None
 
 
-def _is_command_prefix(tokens: list[str]) -> bool:
-    assignment = re.compile(r"\A[A-Za-z_][A-Za-z0-9_]*=")
-    if all(assignment.match(token) is not None for token in tokens):
-        return True
-    if tokens[:1] == ["command"]:
-        return all(
-            token.startswith("-") or assignment.match(token) is not None
-            for token in tokens[1:]
-        )
-    if tokens[:1] == ["env"]:
-        return all(
-            token.startswith("-") or assignment.match(token) is not None
-            for token in tokens[1:]
-        )
-    return False
-
-
 def _resolve_file_source(source: str, command: str) -> tuple[str, Path | None] | None:
-    if _is_absolute_command_path(source):
+    if shell_reader.is_absolute_path(source):
         return source, None
     if re.match(r"\A[A-Za-z]:[^\\/]", source):
         return None
-    folder = _literal_command_folder(command)
+    folder = shell_reader.literal_command_folder(command, _fragment_has_publish)
     if folder is None:
         return None
     return str(folder / source), folder
 
 
-def _read_candidate(source: str) -> str | None:
-    for candidate in _candidate_paths(source):
-        try:
-            return Path(candidate).read_text(encoding="utf-8")
-        except (OSError, UnicodeError):
-            continue
-    return None
-
-
-def _candidate_file(source: str) -> Path | None:
-    for candidate in _candidate_paths(source):
-        path = Path(candidate)
-        if path.is_file():
-            return path.resolve()
-    return None
-
-
 def _aar_run_directory(source: str) -> Path | None:
     """The run root for an AAR-owned body file, otherwise ``None``."""
-    path = _candidate_file(source)
+    path = shell_reader.candidate_file(source)
     if path is None or path.parent.name != AAR_PUBLICATION_PARTS[1]:
         return None
     aar = path.parent.parent
@@ -585,7 +369,7 @@ def _resolve_plain_value(
     assignments: dict[str, str],
     substitutions: frozenset[str],
 ) -> Publication | Unreadable:
-    expanded, kind = _expand(value, assignments, substitutions)
+    expanded, kind = shell_reader.expand(value, assignments, substitutions)
     if kind is not None:
         return Unreadable(field, kind, value)
     return Publication(field, expanded)
@@ -675,7 +459,7 @@ def _read_file_field(
     assignments: dict[str, str],
     substitutions: frozenset[str],
 ) -> Publication | Unreadable:
-    expanded, kind = _expand(source, assignments, substitutions)
+    expanded, kind = shell_reader.expand(source, assignments, substitutions)
     if kind is not None:
         return Unreadable(field, kind, source)
     source = expanded
@@ -703,7 +487,7 @@ def _read_file_field(
     if resolved is None:
         return Unreadable(field, "unrooted-path", source, None, source)
     source, folder = resolved
-    text = _read_candidate(source)
+    text = shell_reader.read_candidate(source)
     if text is None:
         kind = (
             "written-before-publish"
@@ -747,8 +531,8 @@ def extract(command: str) -> Extraction:
     number = _record_number(route, arguments)
     grade_route = _api_grade_route(arguments) if route == ("api",) else route
     publications: list[Publication] = []
-    assignments = _plain_assignments(command)
-    substitutions = _substitution_assignments(command)
+    assignments = shell_reader.plain_assignments(command)
+    substitutions = shell_reader.substitution_assignments(command)
     index = 0
     while index < len(arguments):
         token = arguments[index]
@@ -907,204 +691,19 @@ def extract(command: str) -> Extraction:
     return Extraction(route, number, tuple(publications), (), grade_route)
 
 
-def _branch_rule(report: str) -> str:
-    if "repo-relative Markdown link" in report:
-        return "branch:repo-relative-link"
-    if "same-directory" in report:
-        return "branch:near-miss"
-    if "unresolved path" in report or "cites an unresolved path" in report:
-        return "branch:unresolved-path"
-    if "self-declares completion" in report:
-        return "branch:self-declares-completion"
-    if "labeled 'in flight'" in report:
-        return "branch:in-flight"
-    return "branch:scope"
-
-
-def ordinary_comment_prose(text: str) -> str:
-    """Return unfenced, unquoted, non-list Markdown paragraph lines."""
-    lines = []
-    list_indent: int | None = None
-    lazy_quote = False
-    lazy_list = False
-    html_block: HtmlBlock | None = None
-    for line in tracker_bodies.prose_outside_code(
-        text, preserve_lines=True
-    ).splitlines():
-        if html_block is not None:
-            html_content = html_block_continuation(line, html_block)
-            if html_content is not None:
-                if html_block_closes(html_block, html_content):
-                    html_block = None
-                continue
-            html_block = None
-        if not line.strip():
-            lazy_quote = False
-            lazy_list = False
-            lines.append("")
-            continue
-        indentation = len(line) - len(line.lstrip(" "))
-        if list_indent is not None and (
-            line.startswith("\t") or indentation >= list_indent
-        ):
-            content = line[list_indent:]
-            if opening := html_block_opening(
-                content, container="list", indent=list_indent
-            ):
-                lazy_list = False
-                if not html_block_closes(opening, content):
-                    html_block = opening
-                continue
-            if lazy_list and starts_markdown_block(line[list_indent:]):
-                lazy_list = False
-            continue
-        if match := tracker_bodies.QUOTE_PREFIX.match(line):
-            content = line[match.end():]
-            if opening := html_block_opening(content, container="quote"):
-                lazy_quote = False
-                if not html_block_closes(opening, content):
-                    html_block = opening
-            else:
-                lazy_quote = starts_markdown_paragraph(content)
-            lazy_list = False
-            list_indent = None
-            continue
-        if lazy_quote:
-            if not starts_markdown_block(line):
-                continue
-            lazy_quote = False
-        if match := tracker_bodies.LIST_PREFIX.match(line):
-            list_indent = match.end()
-            content = line[match.end():]
-            if opening := html_block_opening(
-                content, container="list", indent=list_indent
-            ):
-                lazy_list = False
-                if not html_block_closes(opening, content):
-                    html_block = opening
-            else:
-                lazy_list = starts_markdown_paragraph(content)
-            lazy_quote = False
-            continue
-        if lazy_list:
-            if not starts_markdown_block(line):
-                continue
-            lazy_list = False
-            list_indent = None
-        if line.startswith("\t") or line.startswith("    "):
-            continue
-        visible = line.lstrip(" ")
-        if opening := html_block_opening(visible):
-            if not html_block_closes(opening, visible):
-                html_block = opening
-            continue
-        lines.append(visible)
-    return "\n".join(lines)
-
-
-def starts_markdown_block(line: str) -> bool:
-    """Return whether a line interrupts a lazy CommonMark paragraph."""
-    visible = line.lstrip(" ")
-    return bool(
-        tracker_bodies.QUOTE_PREFIX.match(line)
-        or tracker_bodies.LIST_PREFIX.match(line)
-        or re.match(r"#{1,6}(?:[ \t]+|$)", visible)
-        or re.fullmatch(r"(?:\*[ \t]*){3,}", visible)
-        or re.fullmatch(r"(?:-[ \t]*){3,}", visible)
-        or re.fullmatch(r"(?:_[ \t]*){3,}", visible)
-        or starts_html_block(visible)
-    )
-
-
-HTML_BLOCK_TAG = re.compile(
-    r"</?(?:address|article|aside|base|basefont|blockquote|body|caption|center|"
-    r"col|colgroup|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|"
-    r"footer|form|frame|frameset|h[1-6]|head|header|hr|html|iframe|legend|li|"
-    r"link|main|menu|menuitem|nav|noframes|ol|optgroup|option|p|param|search|"
-    r"section|summary|table|tbody|td|tfoot|th|thead|title|tr|track|ul)"
-    r"(?:[ \t]|/?>|$)",
-    re.IGNORECASE,
-)
-
-
-class HtmlBlock(NamedTuple):
-    end_kind: str
-    end_value: str
-    container: str = "top"
-    indent: int = 0
-
-
-def html_block_opening(
-    visible: str,
-    *,
-    container: str = "top",
-    indent: int = 0,
-) -> HtmlBlock | None:
-    """Describe a paragraph-interrupting CommonMark HTML block opener."""
-    if re.match(
-        r"<(?:script|pre|style|textarea)(?:[ \t]|>|$)", visible, re.I
-    ):
-        return HtmlBlock("tag", "", container, indent)
-    markers = {
-        "<!--": "-->",
-        "<?": "?>",
-        "<![CDATA[": "]]>",
-    }
-    for prefix, ending in markers.items():
-        if visible.startswith(prefix):
-            return HtmlBlock("marker", ending, container, indent)
-    if re.match(r"<![A-Z]", visible):
-        return HtmlBlock("marker", ">", container, indent)
-    if HTML_BLOCK_TAG.match(visible):
-        return HtmlBlock("blank", "", container, indent)
-    return None
-
-
-def html_block_closes(block: HtmlBlock, content: str) -> bool:
-    """Return whether one logical HTML-block line reaches its terminator."""
-    if block.end_kind == "marker":
-        return block.end_value in content
-    if block.end_kind == "tag":
-        return bool(
-            re.search(r"</(?:pre|script|style|textarea)>", content, re.I)
-        )
-    return not content.strip()
-
-
-def html_block_continuation(line: str, block: HtmlBlock) -> str | None:
-    """Return logical block content, or None when its container has ended."""
-    if block.container == "top":
-        return line.lstrip(" ")
-    if block.container == "quote":
-        match = tracker_bodies.QUOTE_PREFIX.match(line)
-        return None if match is None else line[match.end():]
-    if not line.strip():
-        return ""
-    indentation = len(line) - len(line.lstrip(" "))
-    if not line.startswith("\t") and indentation < block.indent:
-        return None
-    return line[block.indent:]
-
-
-def starts_html_block(visible: str) -> bool:
-    """Return whether text starts a CommonMark paragraph-interrupting HTML block."""
-    return html_block_opening(visible) is not None
-
-
-def starts_markdown_paragraph(content: str) -> bool:
-    """Return whether container content can have a lazy continuation."""
-    return bool(content.strip()) and not starts_markdown_block(content)
-
-
 def analyze(
     publication: Publication,
     *,
     index: phi_scan.CorpusIndex,
-    issue: dict | None,
+    issue: TrackerRecord | dict | None,
     remote_fresh: bool,
     route: tuple[str, ...] = ("issue", "comment"),
 ) -> Analysis:
     """Grade one title or body without returning its text or matched values."""
+    publication = with_tracker_record(publication, route=route, context=issue)
+    record = publication.record
+    if record is None:  # NamedTuple narrowing for type checkers.
+        raise ValueError("publication has no tracker record")
     phi_counts = Counter(
         finding.rule
         for finding in phi_scan.scan_text(publication.text, publication.field, index)
@@ -1132,7 +731,7 @@ def analyze(
             "body:doubled-path-separator", 1, publication.field, "deny"
         ))
     comment_prose = (
-        ordinary_comment_prose(publication.text)
+        ordinary_paragraph_prose(publication.text)
         if publication.field == "body" and route in COMMENT_ROUTES
         else ""
     )
@@ -1149,83 +748,26 @@ def analyze(
             "verdict:missing-discriminator", 1, publication.field, "advise"
         ))
 
+    branch = tracker_branch_scope.grade_record(record, remote_fresh=remote_fresh)
     if publication.field == "title":
-        branch = tracker_branch_scope.grade(
-            {
-                "pull_request": {
-                    "body": publication.text,
-                    "html_url": "draft title",
-                }
-            },
-            "pull_request_target",
-            remote_fresh=remote_fresh,
-        )
         context = (
             "title path triggers evaluated; record-label and completion triggers "
             "apply to bodies"
         )
     else:
-        labels = [] if issue is None else issue.get("labels", [])
-        label_rows = [
-            row if isinstance(row, dict) else {"name": row}
-            for row in labels
-        ]
-        container = {
-            "number": 0 if issue is None else issue.get("number"),
-            "labels": label_rows,
-            "html_url": "draft record" if issue is None else issue.get("url", "draft record"),
-        }
-        if route in (("issue", "create"), ("issue", "edit")):
-            container["body"] = publication.text
-            branch = tracker_branch_scope.grade(
-                {"issue": container}, "issues", remote_fresh=remote_fresh
-            )
-        elif route in (("pr", "create"), ("pr", "edit")):
-            container["body"] = publication.text
-            branch = tracker_branch_scope.grade(
-                {"pull_request": container},
-                "pull_request_target",
-                remote_fresh=remote_fresh,
-            )
-        elif route == ("pr", "review"):
-            branch = tracker_branch_scope.grade(
-                {
-                    "pull_request": container,
-                    "review": {
-                        "body": publication.text,
-                        "html_url": container["html_url"],
-                    },
-                },
-                "pull_request_review",
-                remote_fresh=remote_fresh,
-            )
-        else:
-            if route == ("pr", "comment") or "/pull/" in container["html_url"]:
-                container["pull_request"] = {}
-            branch = tracker_branch_scope.grade(
-                {
-                    "issue": container,
-                    "comment": {
-                        "body": publication.text,
-                        "html_url": container["html_url"],
-                    },
-                },
-                "issue_comment",
-                remote_fresh=remote_fresh,
-            )
         context = (
             "context-blind: record number and labels were not read; the in-flight "
             "trigger was not evaluated"
             if issue is None
-            else f"record context: issue #{container['number']} labels read"
+            else f"record context: issue #{record.number} labels read"
         )
 
-    positive_unverified = (
-        branch.status == 0 and "ancestry could not be verified" in branch.report
-    )
+    positive_unverified = branch.status == 0 and branch.verdict.ancestry_verified is False
 
     if branch.status == 1:
-        rule = _branch_rule(branch.report)
+        rule = branch.verdict.rule
+        if rule not in tracker_branch_scope.BRANCH_RULES:
+            raise ValueError("branch grader returned an undeclared rule")
         remote_rule = rule in ("branch:unresolved-path", "branch:near-miss")
         posture = (
             "advise"
@@ -1235,7 +777,7 @@ def analyze(
         findings.append(Finding(rule, 1, publication.field, posture))
 
     lines = [context]
-    if "citation path resolution NOT GRADED" in branch.report:
+    if not branch.verdict.default_branch_tree_read:
         lines.append(branch.report)
     if not remote_fresh:
         lines.append(
@@ -1366,17 +908,8 @@ def fetch_readback(
     return records
 
 
-def _issue_context(record: dict | None) -> dict | None:
-    if record is None:
-        return None
-    url = record.get("url")
-    if not isinstance(url, str):
-        raise ValueError("tracker readback record URL had the wrong type")
-    return {
-        "number": record.get("number"),
-        "labels": list(tracker_readback.label_names(record)),
-        "url": url,
-    }
+def _issue_context(record: dict | None) -> TrackerRecord | None:
+    return from_graphql(record)
 
 
 def write_marker() -> None:
@@ -1478,7 +1011,7 @@ def handle(payload: dict) -> dict:
                 reconstructed = row.reconstructed_path or row.source
                 if row.resolved_against is not None:
                     resolved_against = row.resolved_against
-                elif _is_absolute_command_path(reconstructed):
+                elif shell_reader.is_absolute_path(reconstructed):
                     resolved_against = "none (path was absolute)"
                 else:
                     resolved_against = "none readable"
@@ -1527,6 +1060,14 @@ def handle(payload: dict) -> dict:
         else:
             readback_lines = (tracker_readback.empty_citation_line(),)
 
+        bound_publications = [
+            with_tracker_record(
+                publication,
+                route=extracted.grade_route or extracted.route,
+                context=issue,
+            )
+            for publication in extracted.publications
+        ]
         analyses = [
             analyze(
                 publication,
@@ -1535,7 +1076,7 @@ def handle(payload: dict) -> dict:
                 remote_fresh=remote_fresh,
                 route=extracted.grade_route or extracted.route,
             )
-            for publication in extracted.publications
+            for publication in bound_publications
         ]
         analyses.append(aar_quotation_analysis(extracted.publications))
         write_marker()

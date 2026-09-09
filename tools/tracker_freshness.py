@@ -32,6 +32,7 @@ import subprocess
 import sys
 
 from console_codec import use_utf8
+import git_ancestry
 
 
 REMOTE = "origin"
@@ -57,13 +58,6 @@ NOT_REACHED = (
         "A verdict naming no record number is reached by no mechanism, permanently.",
     ),
 )
-
-# `git merge-base --is-ancestor` documents 0 for yes and 1 for no. Any other
-# status is git declining to answer -- a bad ref, a corrupt object store, a
-# missing binary -- and is not evidence that the base is behind.
-IS_ANCESTOR = 0
-IS_NOT_ANCESTOR = 1
-
 
 class DidNotCheck(RuntimeError):
     """A git command the gate depends on did not complete."""
@@ -104,11 +98,12 @@ def main() -> int:
         git("fetch", "--no-tags", REMOTE, f"refs/heads/{BRANCH}:{REMOTE_REF}")
         head = git("rev-parse", "HEAD")
         upstream = git("rev-parse", REMOTE_REF)
-        contains_main = run_git("merge-base", "--is-ancestor", REMOTE_REF, "HEAD")
-        if contains_main.returncode not in (IS_ANCESTOR, IS_NOT_ANCESTOR):
+        contains_main = git_ancestry.is_ancestor(
+            REMOTE_REF, "HEAD", run_git=run_git
+        )
+        if contains_main is None:
             raise DidNotCheck(
-                "`git merge-base --is-ancestor` neither confirmed nor denied "
-                f"ancestry (status {contains_main.returncode})"
+                "`git merge-base --is-ancestor` neither confirmed nor denied ancestry"
             )
     except DidNotCheck as failure:
         print(
@@ -118,7 +113,7 @@ def main() -> int:
             file=sys.stderr,
         )
         return DID_NOT_CHECK
-    if contains_main.returncode == IS_NOT_ANCESTOR:
+    if contains_main is False:
         print(
             f"tracker-freshness: STALE HEAD={head} {REMOTE}/{BRANCH}={upstream}. "
             f"Run `git rebase {REMOTE}/{BRANCH}` or merge it, resolve any "
