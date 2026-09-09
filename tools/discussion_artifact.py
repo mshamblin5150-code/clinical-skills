@@ -119,6 +119,10 @@ LEGAL_READER_NOT_REACHED = (
         "leftmost legal span",
         "The reader takes the leftmost legal span and cannot distinguish an entry's authority from a codification cross-reference.",
     ),
+    (
+        "legal form and authority status",
+        "The code-section reader does not validate cases, legislative materials, proposed rules, executive orders, patents, constitutions, treaties, parallel reporters, official-version choice, state-specific form, or whether an authority remains current.",
+    ),
 )
 _TITLE_NUMBER_LEGAL_AUTHOR = (
     _TITLE_NUMBER_LEGAL_SOURCE + r"\s*(?:§+|sections?\s+)\s*" + LEGAL_SECTION_NUMBER
@@ -566,12 +570,8 @@ def reference_keys(reference: str) -> tuple[tuple[str, str], ...]:
     )
     keys: list[str]
     if legal is not None:
-        legal_author = _legal_author(legal)
         name_text = author_text[: legal.start()].rstrip("., ")
-        if not name_text and year is not None:
-            name_text = reference[year.end() :].strip(". ").split(".", 1)[0].strip()
         keys = [author_key(name_text)] if name_text else []
-        keys.append(author_key(legal_author))
     elif surnames:
         keys = [author_key(surnames[0])]
         if len(surnames) > 1:
@@ -579,15 +579,11 @@ def reference_keys(reference: str) -> tuple[tuple[str, str], ...]:
     else:
         keys = [author_key(author_text)]
     years = [year.group("year").casefold()] if year is not None else [""]
-    if legal is not None and "" not in years:
-        years.append("")
     keyed: list[tuple[str, str]] = []
     for key in dict.fromkeys(keys):
         if not key:
             continue
         keyed.append((key, years[0]))
-        if legal is not None and key == author_key(_legal_author(legal)) and len(years) > 1:
-            keyed.append((key, ""))
     return tuple(keyed)
 
 

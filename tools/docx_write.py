@@ -31,7 +31,7 @@ declared rationale rather than a coverage limit.
 
 **The References heading switches the body style, and that is APA 7 rather than a
 nicety.** Every paragraph after a heading whose text begins ``References`` -- or the
-singular ``Reference``, which APA permits for a one-entry list -- is rendered with a
+legacy singular ``Reference``, which is styled defensively but is not APA's label -- is rendered with a
 0.5 inch hanging indent, which is what a reference list is. That heading also takes a
 page break and centers, because APA 7 starts the list on a new page under a bold centered
 label. The switch is on the *heading*, so a document with no References section never

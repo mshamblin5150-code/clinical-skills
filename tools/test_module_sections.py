@@ -52,6 +52,7 @@ DECLARED_SECTIONS = {
     "adr_next": "ADR number allocation",
     "aar_scan": "After-action review",
     "anchor_scan": "Anchor scan",
+    "apa7_coverage": "APA manual coverage",
     "block_scan": "Block scan",
     "case_study_render": "Render scan",
     "case_study_scan": "Case study house style",

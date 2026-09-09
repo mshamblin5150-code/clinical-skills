@@ -1170,10 +1170,10 @@ def survey(source: RunSource) -> Scan:
 
 
 def legal_reader_covered() -> str:
-    """State the derived composition of the shared legal reader."""
+    """State the derived composition of the narrow code-section recognizer."""
 
     return (
-        f"legal reader coverage: {len(LEGAL_READER_MECHANISMS)} mechanisms -- "
+        f"code-section recognizer coverage: {len(LEGAL_READER_MECHANISMS)} mechanisms -- "
         + ", ".join(description for _pattern, description in LEGAL_READER_MECHANISMS)
         + "."
     )

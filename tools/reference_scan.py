@@ -18,11 +18,10 @@ same recall that produced an entry produces the check of it, so the check has to
 come from somewhere the recall does not reach. A string test is such a place.
 
 **The rules are ``skills/_shared/reference/apa7.md``'s and this file
-does not own one of them.** That sheet is verified against apastyle.apa.org and
-carries the caveat that the *Publication Manual*'s section numbers are pointers
-rather than checked claims. Section numbers named below are pointers on the same
-terms, and a row here is a second *reader* of that sheet rather than a second copy
-of it.
+does not own one of them.** That sheet is checked against the *Publication Manual*;
+``apa7-coverage.md`` records the item-level primary and refuting reads and binds
+their verdicts to the sheet text. A row here is a second *reader* of that sheet
+rather than a second copy of it.
 
 **One line is one entry, because that is what the renderer makes.**
 ``docx_write.body_xml`` sets every non-blank line as its own paragraph, so a
@@ -58,7 +57,7 @@ list would otherwise be found by neither.
 
 *The list itself, ``apa7.md`` section 1:*
 
-- **The heading is ``References``, or ``Reference`` for a one-entry list.** Never
+- **The heading is ``References``, including for a one-entry list.** Never
   ``Works Cited``, ``Bibliography`` or ``Reference List``. The detail says whether
   the renderer would still have styled the section, because the two failures are
   not the same size: ``References Cited`` is a wrong label, and ``Reference List``
@@ -73,8 +72,9 @@ list would otherwise be found by neither.
 *The ``a``/``b`` rule, section 3:*
 
 - **Two entries with one author and one year take letters.**
-- **The letters follow title order**, with a leading ``A``, ``An`` or ``The``
-  ignored -- APA's own worked example turns on exactly that.
+- **The letters follow date specificity and chronology first**, then title order
+  when the dates are identical, with a leading ``A``, ``An`` or ``The`` ignored;
+  an explicitly numbered series retains series order.
 - **Every in-text year matches its entry's year.** Section 3 rather than section 5,
   because section 3 is the one that states it: *the year-letter combination is used
   in both the in-text citation and the reference list entry, and fixing one and not
@@ -83,13 +83,11 @@ list would otherwise be found by neither.
 *Retrieval dates, section 4:*
 
 - **A class whose ``takes_retrieval_date`` column is true takes one.**
-- **An entry carrying a DOI does not.** A DOI is the work stating that an archived
-  version of itself exists, which is APA's own test failing. **This is the narrow
-  form of the rule deliberately**: a society guideline PDF also takes no retrieval
-  date, and nothing in a URL distinguishes one from a page designed to change, so
-  that direction stays a reading.
-- **The retrieval date is on or after the exam date**, which is the corpus's
-  recurring defect and the one the clinician named himself.
+- **A classified fixed source does not.** The command reaches only source buckets
+  whose committed classifier settles the cited version's disposition. DOI presence
+  alone proves neither stability nor archival status.
+- **The retrieval date is on or after the exam date** under this repository's local
+  submission policy. APA supplies the date's form and placement, not that deadline.
 - **A date element is well formed** -- a real month, and a space after it.
 
 *UpToDate, section 2:*
@@ -107,10 +105,9 @@ list would otherwise be found by neither.
 
 - **A legal entry carries the legal source name.** A section alone is
   reported as a malformed entry.
-- **A legal entry resolves on its Source and section, with or without a citation year.**
-- **A named legal entry participates in ``uncited-entry``.** Its first element is
-  the in-text author element; section-form citations still resolve through
-  ``resolution_keys``.
+- **A supported statute or regulation resolves on its title and publication year.**
+- **A supported named statute or regulation participates in ``uncited-entry``.**
+  Its title and publication year are the in-text key; its code locator is not.
 
 **What it cannot reach is ``NOT_REACHED`` below, not this paragraph.** That list
 used to be written out here *and* in ``apa7.md`` section 7, and a **prose** edit to
@@ -152,9 +149,9 @@ an author the entry spells differently reads as unlisted. **A parenthetical is r
 as a citation when its first word looks like an author** -- a proper noun, a quoted
 short title, or a lowercase name particle -- so ``(systolic, 2000 to 3000)`` is not
 one and a capitalized common noun in that position still is. And **sorting compares
-the normalized entry letter by letter with the year element replaced by a rank**,
-which is an approximation of APA's rule rather than the rule: it agrees with APA on
-surname, on year within an author, and on putting an undated work first.
+normalized entry elements in APA order**: punctuation and spaces inside names are
+disregarded, numeric title tokens are alphabetized as words, and the date element
+is replaced by its no-date/dated/in-press rank.
 
 **Counts only by default**, on ``research_ledger.py``'s and ``block_scan.py``'s
 terms and for their reason: a finished draft lives under ``output/`` and is written
@@ -346,7 +343,7 @@ class BucketCount:
 # The two labels APA permits, section 1. Both are matched as a whole heading here;
 # the renderer is looser on the plural and this file does not copy that looseness,
 # because ``References Cited`` is styled and is still the wrong label.
-APA_HEADINGS = ("References", "Reference")
+APA_HEADINGS = ("References",)
 
 # Headings a document really uses for its reference list and APA forbids. This is
 # how the section is *found* when the label is wrong -- without it a mislabeled
@@ -367,6 +364,15 @@ WRONG_HEADINGS = (
 NONNUMERIC_DATE = r"(?:n\.d\.|in press)"
 YEAR_TOKEN = r"(?:\d{4}[a-z]?|" + NONNUMERIC_DATE + r"(?:-[a-z])?)"
 ENTRY_YEAR = re.compile(r"\(\s*(" + YEAR_TOKEN + r")\s*(?:,[^)]*)?\)", re.I)
+LEGAL_FULL_DATE = re.compile(
+    r"^(?P<title>.*\b(?:treaty|convention|agreement|protocol|charter)\b.*?)"
+    r",\s*(?:January|February|March|April|May|June|July|August|September|October|November|December)"
+    r"\s+\d{1,2},\s*(?P<year>\d{4})\.",
+    re.I,
+)
+DATE_FREE_CONSTITUTION = re.compile(
+    r"^(?:U\.S\.|[A-Z][A-Za-z. ]+)\s+Const\.\s+(?:art\.|amend\.)\s+",
+)
 
 # A parenthetical citation, and a narrative one. Both may wrap, because the corpus
 # hard-wraps its prose and a long organizational author is routinely split.
@@ -458,7 +464,10 @@ UPTODATE_HOST = re.compile(
 STATPEARLS_HOST = re.compile(
     r"(?<![\w.-])(?:https?://)?(?:www\.)?statpearls\.com(?=[/:?#]|\s|$)", re.I
 )
-COCHRANE_SIGNAL = re.compile(r"(?:cochranelibrary\.com|10\.1002/14651858)", re.I)
+COCHRANE_SIGNAL = re.compile(
+    r"(?:Cochrane Database of Systematic Reviews|cochranelibrary\.com|10\.1002/14651858)",
+    re.I,
+)
 YOUTUBE_SIGNAL = re.compile(r"(?:youtube\.com|youtu\.be)", re.I)
 PODCAST_SIGNAL = re.compile(r"\[(?:Audio|Video) podcast(?: episode)?\]", re.I)
 DNP_SIGNAL = re.compile(r"\[Doctor of nursing practice(?: final)? project", re.I)
@@ -697,10 +706,9 @@ NOT_REACHED = (
     (
         "unwarranted retrieval date",
         "Section 4 says a society guideline PDF, a journal article, a USPSTF statement "
-        "and a textbook take no retrieval date. This refuses one only on an entry "
-        "carrying a **DOI** -- the work stating that an archived version of itself "
-        "exists, which is section 4's own test failing, and the only signal in an entry "
-        "string that says so unambiguously. Nothing in a URL distinguishes a stable PDF "
+        "and a textbook take no retrieval date. This refuses one only when a committed "
+        "source classifier settles that the cited form is fixed. DOI presence alone is "
+        "not the archive test, and an unresolved URL cannot distinguish a stable PDF "
         "from a page designed to change.",
     ),
     (
@@ -723,6 +731,13 @@ NOT_REACHED = (
         "resolving locator whose title and authors match the entry is evidence the "
         "document exists even when that route cannot reach its body.",
     ),
+    (
+        "legal form and authority validity",
+        "The command recognizes a narrow statute/regulation subset plus date-free "
+        "constitutional locators and full-date treaty forms. It does not validate cases, "
+        "legislative materials, proposed rules, executive orders, patents, parallel "
+        "reporters, official-version choice, state-specific form, or current legal status.",
+    ),
 )
 
 
@@ -743,6 +758,127 @@ def normalize(text: str) -> str:
     return " ".join(
         "".join(character if character.isalnum() else " " for character in without_marks).split()
     )
+
+
+_NUMBER_TOKEN = re.compile(r"\b\d[\d,]*\b")
+_ONES = (
+    "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine",
+    "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen",
+    "seventeen", "eighteen", "nineteen",
+)
+_TENS = ("", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety")
+_SCALES = ("", "thousand", "million", "billion", "trillion", "quadrillion", "quintillion")
+_AUTHOR_ROLE = re.compile(r"\s*\([^)]*\)\.?\s*$")
+_AUTHOR_USERNAME = re.compile(r"\s*\[[^]]+\]\.?\s*$")
+_BIRTH_SUFFIX = re.compile(r",?\s*(Sr\.?|Jr\.?|II|III|IV|V)\.?\s*$", re.I)
+_BIRTH_RANK = {"sr": "01", "jr": "02", "ii": "03", "iii": "04", "iv": "05", "v": "06"}
+_MONTH_ORDER = {
+    name: number
+    for number, name in enumerate(
+        (
+            "january", "february", "march", "april", "may", "june",
+            "july", "august", "september", "october", "november", "december",
+        ),
+        start=1,
+    )
+}
+_SERIES_PART = re.compile(r"\b(?:part|volume|book)\s+(\d+|[ivx]+)\b", re.I)
+
+
+def _under_thousand(value: int) -> list[str]:
+    words: list[str] = []
+    if value >= 100:
+        words.extend((_ONES[value // 100], "hundred"))
+        value %= 100
+    if value >= 20:
+        words.append(_TENS[value // 10])
+        value %= 10
+    if value:
+        words.append(_ONES[value])
+    return words
+
+
+def numeral_words(token: str) -> str:
+    """Spell a nonnegative integer for §9.49 reference-list ordering."""
+
+    digits = token.replace(",", "")
+    if not digits.isdigit():
+        return token
+    value = int(digits)
+    if value == 0:
+        return "zero"
+    groups: list[str] = []
+    scale = 0
+    while value:
+        value, group = divmod(value, 1000)
+        if group:
+            words = _under_thousand(group)
+            if scale < len(_SCALES) and _SCALES[scale]:
+                words.append(_SCALES[scale])
+            elif scale >= len(_SCALES):
+                return token
+            groups.insert(0, " ".join(words))
+        scale += 1
+    return " ".join(groups)
+
+
+def alphabetic_numerals(text: str) -> str:
+    return _NUMBER_TOKEN.sub(lambda match: numeral_words(match.group()), text)
+
+
+def ordering_text(text: str) -> str:
+    """§§9.44 and 9.49 comparison with spacing and punctuation disregarded."""
+
+    folded = unicodedata.normalize("NFKD", alphabetic_numerals(text).casefold())
+    return "".join(
+        character
+        for character in folded
+        if character.isalnum() and not unicodedata.combining(character)
+    )
+
+
+def author_for_ordering(text: str) -> str:
+    """Remove credited roles/usernames and rank birth-order suffixes explicitly."""
+
+    head = text.strip().rstrip(". ")
+    while True:
+        stripped = _AUTHOR_ROLE.sub("", head)
+        if stripped == head:
+            break
+        head = stripped.rstrip(". ")
+    if _AUTHOR_USERNAME.search(head) and _AUTHOR_USERNAME.sub("", head).strip("., "):
+        head = _AUTHOR_USERNAME.sub("", head).rstrip(". ")
+    suffix = _BIRTH_SUFFIX.search(head)
+    if suffix is None:
+        return ordering_text(head)
+    token = normalize(suffix.group(1)).replace(" ", "")
+    core = head[: suffix.start()]
+    return f"{ordering_text(core)}birthorder{_BIRTH_RANK[token]}"
+
+
+def bare_year(token: str) -> str:
+    key = year_key(token)
+    if re.fullmatch(r"\d{4}[a-z]", key):
+        return key[:4]
+    if re.fullmatch(r"(?:nd|inpress)-?[a-z]", key):
+        return re.sub(r"-?[a-z]$", "", key)
+    return key
+
+
+def series_number(text: str) -> int | None:
+    match = _SERIES_PART.search(text)
+    if match is None:
+        return None
+    token = match.group(1).casefold()
+    if token.isdigit():
+        return int(token)
+    values = {"i": 1, "v": 5, "x": 10}
+    total = previous = 0
+    for character in reversed(token):
+        value = values[character]
+        total += -value if value < previous else value
+        previous = max(previous, value)
+    return total
 
 
 def without_leading_article(text: str) -> str:
@@ -819,7 +955,10 @@ class Entry:
     @property
     def year(self) -> str:
         match = self._year_match
-        return match.group(1) if match else ""
+        if match:
+            return match.group(1)
+        legal_date = LEGAL_FULL_DATE.search(self.text)
+        return legal_date.group("year") if legal_date else ""
 
     @property
     def key(self) -> str:
@@ -831,18 +970,19 @@ class Entry:
 
     @property
     def is_legal(self) -> bool:
-        return self._legal_match is not None
+        return bool(
+            self._legal_match is not None
+            or LEGAL_FULL_DATE.search(self.text)
+            or DATE_FREE_CONSTITUTION.search(self.text)
+        )
 
     @property
     def resolution_keys(self) -> tuple[tuple[str, str], ...]:
         """Citation-pairing keys without changing ``key``'s grouping contract."""
 
         keys = [(self.key, year_key(self.year))] if self.key and self.year else []
-        legal = self._legal_match
-        if legal is not None:
-            section_key = normalize(_legal_section_text(legal))
-            if section_key:
-                keys.extend(((section_key, year_key(self.year)), (section_key, "")))
+        if DATE_FREE_CONSTITUTION.search(self.text) and self.key:
+            keys.append((self.key, ""))
         return tuple(dict.fromkeys(keys))
 
     @property
@@ -876,7 +1016,17 @@ class Entry:
         which is a reading rather than a string test.
         """
         match = self._year_match
-        return normalize(self.text[: match.start()]) if match else ""
+        if match is None:
+            return ""
+        head = self.text[: match.start()].strip().rstrip(". ")
+        while True:
+            stripped = _AUTHOR_ROLE.sub("", head)
+            if stripped == head:
+                break
+            head = stripped.rstrip(". ")
+        if _AUTHOR_USERNAME.search(head) and _AUTHOR_USERNAME.sub("", head).strip("., "):
+            head = _AUTHOR_USERNAME.sub("", head).rstrip(". ")
+        return normalize(head)
 
     @property
     def citation_author(self) -> str:
@@ -927,11 +1077,11 @@ class Entry:
         text = without_leading_article(self.text)
         match = ENTRY_YEAR.search(text)
         if not match:
-            return normalize(text)
+            return ordering_text(text)
         token = year_key(self.year)
         rank, letter = ("0000", token[2:]) if token.startswith("nd") else (token[:4], token[4:])
-        head = normalize(text[: match.start()])
-        tail = normalize(text[match.end() :])
+        head = author_for_ordering(text[: match.start()])
+        tail = ordering_text(text[match.end() :])
         return f"{head} {rank}{letter} {tail}"
 
     @property
@@ -945,11 +1095,30 @@ class Entry:
         if not match:
             return ""
         rest = self.text[match.end() :].lstrip(". \t")
-        head = normalize(rest.split(".")[0])
-        words = head.split()
-        if words and words[0] in ARTICLES:
-            words = words[1:]
-        return " ".join(words)
+        head = without_leading_article(rest.split(".")[0])
+        return ordering_text(head)
+
+    @property
+    def date_order(self) -> tuple[int, int, int]:
+        """§9.47: year-only before fuller dates, then calendar order."""
+
+        match = self._year_match
+        if match is None:
+            return (0, 0, 0)
+        full = match.group(0).strip("() ")
+        _year, separator, remainder = full.partition(",")
+        if not separator:
+            return (0, 0, 0)
+        words = remainder.strip().casefold().split()
+        month = _MONTH_ORDER.get(words[0].rstrip(","), 13) if words else 13
+        day_match = re.search(r"\b(\d{1,2})\b", remainder)
+        day = int(day_match.group(1)) if day_match else 0
+        return (1, month, day)
+
+    @property
+    def series_part(self) -> int | None:
+        match = self._year_match
+        return series_number(self.text[match.end() :]) if match else None
 
 
 def classify_entry(entry: Entry) -> ReferenceBucket:
@@ -975,6 +1144,22 @@ def classify_entry(entry: Entry) -> ReferenceBucket:
     else:
         name = "unresolved"
     return _REFERENCE_BUCKET_BY_NAME[name]
+
+
+def retrieval_date_disposition(bucket: ReferenceBucket) -> bool | None:
+    """Return APA's answer only when the classified form settles archiving.
+
+    ``True`` requires a retrieval date, ``False`` refuses one, and ``None`` keeps
+    the semantic question with the reader. A DOI is deliberately not consulted:
+    §9.16 turns on whether the cited version is archived and retrievable.
+    """
+
+    if bucket.spans_outside_set:
+        return None
+    answers = {
+        _APA_CLASS_BY_NAME[name].takes_retrieval_date for name in bucket.classes
+    }
+    return answers.pop() if len(answers) == 1 else None
 
 
 def summarize_buckets(
@@ -1524,7 +1709,7 @@ def _entry_findings(entry: Entry, as_of: date | None) -> list[Finding]:
     at = entry.line
     if not entry.paragraph:
         found.append(Finding(ENTRY_NOT_A_PARAGRAPH, where, entry.text, at))
-    if not entry.year:
+    if not entry.year and not DATE_FREE_CONSTITUTION.search(entry.text):
         found.append(Finding(ENTRY_HAS_NO_YEAR, where, entry.text, at))
     if CANVAS.search(entry.text):
         found.append(Finding(CANVAS_ARTIFACT, where, entry.text, at))
@@ -1535,16 +1720,14 @@ def _entry_findings(entry: Entry, as_of: date | None) -> list[Finding]:
     if malformed:
         found.append(Finding(MALFORMED_DATE, where, entry.text, at))
     bucket = classify_entry(entry)
-    source_class = (
-        _APA_CLASS_BY_NAME[bucket.classes[0]] if len(bucket.classes) == 1 else None
-    )
-    if source_class is not None and source_class.takes_retrieval_date and stamp is None:
+    retrieval_disposition = retrieval_date_disposition(bucket)
+    if retrieval_disposition is True and stamp is None:
         found.append(Finding(REQUIRES_RETRIEVAL_DATE, where, entry.text, at))
     if entry.is_uptodate and UPTODATE_NAME.search(entry.text) and not ITALIC_UPTODATE.search(entry.text):
         found.append(
             Finding(UPTODATE_ITALICS, where, "the database name is not italicized in the entry", at)
         )
-    if stamp is not None and DOI.search(entry.text):
+    if stamp is not None and retrieval_disposition is False:
         found.append(Finding(RETRIEVAL_DATE_ON_ARCHIVED, where, entry.text, at))
     if stamp is not None and as_of is not None and stamp < as_of:
         found.append(
@@ -1592,7 +1775,7 @@ def _disambiguation_findings(entries: tuple[Entry, ...]) -> list[Finding]:
     for entry in entries:
         if not entry.year:
             continue
-        bare = year_key(entry.year).rstrip("abcdefghijklmnopqrstuvwxyz")
+        bare = bare_year(entry.year)
         groups.setdefault((entry.authors, bare), []).append(entry)
 
     for (_authors, bare), members in groups.items():
@@ -1610,8 +1793,16 @@ def _disambiguation_findings(entries: tuple[Entry, ...]) -> list[Finding]:
             )
             continue
         ordered = sorted(lettered, key=lambda e: year_key(e.year))
-        titles = [e.title for e in ordered]
-        if all(titles) and titles != sorted(titles):
+        date_orders = [entry.date_order for entry in ordered]
+        parts = [entry.series_part for entry in ordered]
+        titles = [entry.title for entry in ordered]
+        if len(set(date_orders)) > 1:
+            assignment_is_wrong = date_orders != sorted(date_orders)
+        elif all(part is not None for part in parts) and len(set(parts)) == len(parts):
+            assignment_is_wrong = parts != sorted(parts)
+        else:
+            assignment_is_wrong = bool(all(titles) and titles != sorted(titles))
+        if assignment_is_wrong:
             found.append(
                 Finding(
                     AB_OUT_OF_TITLE_ORDER,
@@ -1705,10 +1896,10 @@ def survey(document: Document, as_of: date | None) -> Scan:
 
 
 def legal_reader_covered() -> str:
-    """State the derived composition of the shared legal reader."""
+    """State the derived composition of the narrow code-section recognizer."""
 
     return (
-        f"legal reader coverage: {len(LEGAL_READER_MECHANISMS)} mechanisms -- "
+        f"code-section recognizer coverage: {len(LEGAL_READER_MECHANISMS)} mechanisms -- "
         + ", ".join(description for _pattern, description in LEGAL_READER_MECHANISMS)
         + "."
     )
@@ -1727,7 +1918,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         f"  reference entries read           {scan.entries}",
         f"    UpToDate entries               {scan.uptodate}",
         f"    entries carrying a DOI         {scan.with_doi}",
-        f"    legal entries                  {scan.legal}",
+        f"    recognized legal-form entries  {scan.legal}",
         f"  in-text citations read           {scan.citations}",
         (
             "  citation reader coverage         "
@@ -1747,7 +1938,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
     lines += [
         f"  {'undecidable remainder':<34} {scan.undecidable_remainder}",
         "",
-        "  A named legal entry participates in uncited-entry.",
+        "  A supported named statute or regulation participates in uncited-entry by title and year.",
         f"  {legal_reader_covered()}",
         "",
     ]

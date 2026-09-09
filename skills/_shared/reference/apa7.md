@@ -6,9 +6,10 @@ rules a practicum case study rests on, each carrying the manual section it comes
 can go to the source rather than trust this file.
 
 **Sections 1 through 7 were verified against apastyle.apa.org on 2026-08-18; section 6's rules on
-paragraph and heading spacing were verified on 2026-09-08.** Every rule in those
-sections was read from that site on that date, not recalled. A rule this sheet does not cover is
-looked up the same way — **an APA rule is looked up, never recalled**, which is
+paragraph and heading spacing were verified on 2026-09-08.** The manual-side audit and the
+independent second read for each item are recorded in [apa7-coverage.md](apa7-coverage.md); a
+digest change makes the affected verdict stale. A rule this sheet does not cover is looked up at
+the source — **an APA rule is looked up, never recalled**, which is
 [practicum-case-study](../../practicum-case-study/SKILL.md)'s anchor discipline arriving at the reference list.
 
 **The fenced examples are APA's own, and they stay.** Ruled 2026-08-18 on
@@ -19,10 +20,10 @@ the format demonstrations, drawn from the free rule pages with publishers elided
 the example supplies one. A reference format described in a sentence is not a reference
 format. Everything else here is this repo's own wording with a section pointer beside it.
 
-**The *Publication Manual* section numbers are what those pages cite, and are not themselves
-checked here** — the manual is not in this repo and cannot be. They are a pointer for anyone who
-holds a copy, and the claim being made is only that the site said so on the date above. Treating
-them as verified would be the thing this sheet exists to stop.
+**The *Publication Manual* is the authority for this sheet.** It remains outside the repository
+because it is copyrighted; the coverage registry records which manual material was read, what a
+second reader tried to refute, and which exact sheet bytes that verdict governs. Public APA Style
+pages remain legitimate supporting sources, but they are no longer the ceiling on this sheet.
 
 **What this sheet is for.** *APA Format and Scholarly Writing* is 5 of the 100 points, and
 [practicum-case-study](../../practicum-case-study/SKILL.md) step 7 requires the reference walk to run on every document. That
@@ -37,18 +38,12 @@ directly; the latter links it from its own workflow because the reference scanne
 
 ## 1. The reference list, mechanically
 
-*Publication Manual* §2.12 and §9.43 to §9.49.
+*Publication Manual* §§2.12, 2.18, and 9.43–9.49.
 
 - Starts on **a new page** after the text.
-- The label is **`References`**, **bold and centered**. Never `Works Cited`, `Bibliography` or
-  `Reference List`. Where the list holds exactly one entry the singular **`Reference`** is
-  permitted — which the corpus needs, since one submission scored full marks on a single source.
-  **Take that permission freely**: since
-  [#217](https://github.com/mshamblin5150-code/clinical-skills/issues/217) the renderer matches
-  both spellings and the whole of §1 applies to either. This bullet told a run to write the plural
-  regardless until that landed; the workaround is gone. **Write the label and nothing else** —
-  the singular is matched only as a complete heading, because `Reference Ranges` is a heading a
-  clinical document really writes and a match there would center it and break the page.
+- The label is **`References`**, **bold and centered**, including when the list has one entry.
+  Never `Reference`, `Works Cited`, `Bibliography` or `Reference List`. The renderer still styles
+  the legacy singular defensively, but `reference_scan.py` reports it as the wrong APA label.
 - Each entry is **one paragraph, flush left**, with a **0.5 inch hanging indent applied to the
   whole list**.
 - **Double spaced throughout, with no extra space between entries.**
@@ -57,7 +52,11 @@ directly; the latter links it from its own workflow because the reference scanne
   first author's surname, including any surname prefix. Disregard capitalization, spaces, and
   punctuation. Ignore a leading `A`, `An`, or `The` for alphabetizing while retaining it in the
   printed entry. Where a work has no author, the title moves to the front and the entry
-  alphabetizes by the title.
+  alphabetizes by the title; spell numerals out conceptually for that comparison. For one first
+  author, place sole-author works before multiple-author works, order identical author sequences
+  by date, and compare the first differing later author when sequences differ. For identical
+  surnames, initials distinguish first authors. Generational suffixes follow birth order rather
+  than lexical order.
 
 APA's published Smithsonian example applies the same rule to a group author
 ([McAdoo, 2022](https://apastyle.apa.org/blog/alphabetize-nonsignificant-words)):
@@ -113,9 +112,11 @@ Four rules carry it, and **two of them the corpus does not currently follow**:
 
 *Publication Manual* §8.19, with the ordering rule at §9.47.
 
-**The letters are assigned by placing the entries in the reference list alphabetically by title,
-then lettering them in that order.** They are not assigned by which one was cited first, by page
-order, or by which one was found first.
+**The letters are assigned from the reference-list order.** For works by the same authors in the
+same order, compare the date elements first: a year-only work precedes a more specific date in that
+year, and fuller dates proceed chronologically. Only works with identical dates are ordered by
+title, ignoring an initial `A`, `An`, or `The`; explicitly numbered parts in one series retain
+series order. They are not lettered by citation order, page order, or discovery order.
 
 - **The same *authors*, not the same first author.** The rule is scoped to an identical author
   string. `Hsu, K. (2026)` and `Hsu, K., & Khosropour, C. (2026)` are two author strings, and
@@ -152,11 +153,15 @@ here**, and it is ordinary rather than exotic.
 
 ## 4. Retrieval dates
 
-*Publication Manual* §10.16.
+*Publication Manual* §9.16; source-category applications appear throughout Chapter 10.
 
 **Most references do not take one.** A retrieval date belongs only where **both** hold: the work is
 inherently designed to change over time, **and** an unarchived version of it is what is being
 cited.
+
+Write `Retrieved Month Day, Year, from URL`, immediately before the URL. A DOI is not APA's archive
+test: fixed works without DOIs commonly omit retrieval dates, and a changing cited form is not made
+fixed merely by carrying a DOI. Decide from the cited version and source category.
 
 - **The per-class answer lives only in `reference_scan.APA_SOURCE_CLASSES`'s
   `takes_retrieval_date` column.** A class section points to that column rather than restating a
@@ -164,8 +169,8 @@ cited.
 - A society guideline PDF, a journal article, a USPSTF statement and a textbook **do not**. Adding
   one there is a defect in the other direction, and a run that puts retrieval dates on everything
   is wrong on most of the list.
-- **The retrieval date must be on or after the exam date.** A date in the past relative to the
-  document is the corpus's recurring defect, and it is the one the clinician named himself:
+- **Local submission policy:** the retrieval date must be on or after the exam date. APA does not
+  impose this exam-date comparison; it is the corpus's recurring defect and the one the clinician named himself:
   *"I more than likely wrote the retrieved by wrong."*
 
 ## 5. Every entry is cited, and every citation is listed
@@ -178,8 +183,10 @@ cited.
   because a reference list is what the argument rests on and the rubric scores *Integration* rather
   than reading. That ruling predates this sheet; what the sheet adds is that APA agrees with it.
 
-The exceptions APA names do not arise here: personal communications, which are cited in text only,
-and the references of a meta-analysis.
+Exceptions include personal communications and general mentions of a website or common software,
+which can be text-only; the source studies in a meta-analysis, which may be marked in the list
+without separate body citations; classical or religious works whose standard parts suffice; and
+epigraphs or research-participant quotations handled under the manual's specific rules.
 
 A two-date citation for a republished, translated, or reissued work still resolves to the one entry
 for the version used; see §31.
@@ -192,7 +199,7 @@ renderer can reach — and what it does not is written down rather than assumed 
 
 | APA rule | `docx_write.py` | Word calibration and tripwire |
 | --- | --- | --- |
-| Times New Roman 12 pt, double spaced, 1 inch margins | applied | `body-defaults` |
+| Times New Roman 12 pt, one permitted accessible font, used consistently with double spacing subject to §2.21's exceptions and 1 inch margins | applied | `body-defaults` |
 | 0.5 inch hanging indent on the whole reference list | applied | `reference-hanging-indent` |
 | No extra space between entries | applied | `reference-no-extra-space` |
 | `References` heading **bold** | applied | `reference-heading-bold` |
@@ -200,12 +207,12 @@ renderer can reach — and what it does not is written down rather than assumed 
 | `References` heading at **body size**, 12 pt | applied — every heading level is 12 pt | `reference-heading-body-size` |
 | Reference list **starts on a new page** | applied | `reference-page-break` |
 | **Page numbers**, top right of every page | applied | `page-number-header` |
-| The singular **`Reference`** heading gets the hanging indent | applied | `singular-reference-hanging-indent` |
+| The legacy singular **`Reference`** heading gets the hanging indent | applied defensively, but the label is not APA-compliant | `singular-reference-hanging-indent` |
 | Every body paragraph takes a **0.5 inch first-line indent** (§2.24) | applied — and *only* a body paragraph: a heading, a list item, a reference entry and a table cell each take none | `body-first-line-indent` |
 | **No extra space before or after paragraphs** (§2.21) | applied — consecutive body paragraphs remain continuously double spaced without an empty paragraph between them | `body-no-extra-space` |
-| **No blank lines above or below headings**, even at the end of a page (§§2.26–2.27) | applied — a heading is adjacent to the body paragraph that follows it | `heading-no-blank-lines` |
+| **No blank lines above or below headings**, even at the end of a page (§2.21) | applied — a heading is adjacent to the body paragraph that follows it | `heading-no-blank-lines` |
 | A marked **block quotation of 40 words or more** starts on a new line, has no quotation marks added, stays double spaced with no extra space, and is indented 0.5 inch from the left | applied — an authored `> ` line becomes one `BlockQuotation` paragraph and the marker is consumed | `block-quotation-format` |
-| A table carries **horizontal rules only**, no grid (§7.8) | applied — three rules and no more: above the header row, below the header row, below the last row | `table-horizontal-rules` |
+| A table uses **horizontal rules only**, with no grid or vertical dividers (§7.17) | applied as a narrower three-rule subset: above and below the heading row and below the last row; APA also allows a rule above a spanner and an optional rule before a summary | `table-horizontal-rules` |
 
 **Word is the evidence for every verdict in both tables.** The dated observation and the
 semantic XML shape it covered are in
@@ -257,9 +264,10 @@ sitting four lines above it.
 `Reference` singular was not on #217 as filed — it was found by `/code-review` on the branch that
 wrote this sheet, and it is a gap **this sheet created**, because §1 above is what blesses the
 singular. And the heading-size row was filed as *"worth a decision rather than a fix"*; the
-clinician ruled it on 2026-08-18, and the answer was wider than the row — **every heading level
-now renders the way APA distinguishes them**, level 1 bold centered, level 2 bold flush left,
-level 3 bold italic flush left, level 4 bold indented.
+clinician ruled it on 2026-08-18, and the answer was wider than the row — **every supported
+heading level receives its available APA styling**, level 1 bold centered, level 2 bold flush
+left, level 3 bold italic flush left, and level 4 bold indented. The required Level 4 run-in
+behavior and all of Level 5 remain outside the renderer's subset, as the table below states.
 
 **What is still not applied**, so the list above does not read as the whole of APA:
 
@@ -325,9 +333,10 @@ reaches` and `tools/checks_ledger.py` expects it, so a run that returns no verdi
 | --- | --- |
 | The **republished original publication date** | §31's original date element is parsed and not compared with the entry. APA's own Gilgamesh example reverses the range between its entry and citation, so joining the halves would fail the source that defines the rule |
 | An **author-shaped slash span** | Grammar alone recognizes a span such as `(Cohort A, 2013/2014)`, which can raise `unlisted-citation` even when the span is not a citation. The measured corpus supplied no such false positive |
-| An **unwarranted retrieval date** on a guideline, a statement or a textbook | §4 says those take none. The command refuses one only where the entry carries a **DOI** — the work stating an archived version of itself exists, which is §4's own test failing. Nothing in a URL distinguishes a stable PDF from a page designed to change |
+| An **unwarranted retrieval date** on a guideline, a statement or a textbook | §4 says those take none. The command refuses one only when a committed source classifier settles that the cited form is fixed. DOI presence alone is not the archive test, and an unresolved URL cannot distinguish a stable PDF from a page designed to change |
 | **The UpToDate last update year** | §2's date element is the topic's own last update year, not the year it was read, and the same topic appears in one corpus under three years. Which is which is in the companion evidence document, which the command never sees |
 | **Whether the source exists and says so** | Whether an entry is a real source saying what the sentence citing it says. That is [#231](https://github.com/mshamblin5150-code/clinical-skills/issues/231), answered **before the draft exists**: `tools/research_ledger.py` grades a year an agent read off the page and a refutation a second agent returned |
+| **legal form and authority validity** | The command recognizes a narrow statute/regulation subset plus date-free constitutional locators and full-date treaty forms. It does not validate cases, legislative materials, proposed rules, executive orders, patents, parallel reporters, official-version choice, state-specific form, or current legal status |
 
 **That table is `reference_scan.NOT_REACHED` and this is not a second copy of it**, which is
 [#220](https://github.com/mshamblin5150-code/clinical-skills/issues/220)'s repair arriving one
@@ -374,16 +383,21 @@ Professional and Vocational Regulations, 16 CCR § 1481 (2023). https://...
 ```
 
 Its parenthetical citation is `(Professional and Vocational Regulations, 2023)`, and its
-narrative citation is `Professional and Vocational Regulations (2023)`. The entry form is:
+narrative citation is `Professional and Vocational Regulations (2023)`. This example's regulation form is:
 
 ```text
-Name of the Statute, Title number Source § Section number(s) (Year)
+Name of Regulation, Title number Source § Section number(s) (Year). Optional URL
 ```
 
-The legal source name is required; a section-only entry is not this form.
+The legal source name is required; a section-only entry is not this form. A statute instead names
+the act and cites its official compilation or, when not codified or scattered across titles, its
+public-law and session-law source. The year is the publication year of the compilation cited, not
+automatically the enactment year or a year embedded in the act's name. A URL may aid retrieval but
+does not replace the official legal locator.
 
 The in-text form uses the entry's first element as its author element and the entry's publication
-year as its date element. A year embedded in the name of an act remains part of that first element;
+year as its date element. A long title may be shortened only enough to remain an unambiguous pointer
+to the entry. A year embedded in the name of an act remains part of that first element;
 it does not replace the publication year. For example, an entry beginning `Consolidated
 Appropriations Act, 2023` and published in 2022 is cited as `(Consolidated Appropriations Act,
 2023, 2022)`.
@@ -393,6 +407,15 @@ A corpus instance follows APA's pattern with West Virginia's codification:
 ```text
 Eligibility for prescriptive authority, W. Va. Code § 30-7-15b (2016). https://...
 ```
+
+Chapter 11's categories do not collapse into this form. Cases retain the first reporter page,
+parallel citations, court and history information; case names are roman in the list and italic in
+text. Legislative materials, proposed and codified regulations, executive orders, patents,
+constitutional provisions, charters, and treaties each have distinct slots. A whole constitution
+is ordinarily mentioned only in text, whereas an article or amendment receives its legal form; a
+current provision may be date-free and a repealed amendment carries repeal information. Every
+authority must be retrievable and checked for current legal status. The scanner can test only its
+declared structural subset and cannot certify good law.
 
 **Configured reader boundary.** The implemented limit is owned by
 `discussion_artifact.LEGAL_READER_NOT_REACHED`; this sheet points to that object and does not
@@ -408,8 +431,8 @@ restate its entries.
 heat. *Journal of Community Nursing, 18*(2), 41–49. https://doi.org/10.1000/jcn.2026.14
 
 **Abstracted entry form:** Author, A. A., & Author, B. B. (Year). Title of article. *Journal Title,
-volume*(issue when available), page range. DOI when present; otherwise a resolving article URL when
-available; otherwise omit the locator
+volume*(issue when available), page range. DOI when present; otherwise retain a URL for a
+nondatabase article and omit the ordinary academic-database name and URL
 
 **Declared limit:** The synthesized example is not string-checkable against APA's page; the local
 sheet records the observed slot order, not a copied APA example or proof that any source exists.
@@ -422,8 +445,8 @@ sheet records the observed slot order, not a copied APA example or proof that an
 preceptors. *Clinical Learning Review, 2025*, Article 734921. https://doi.org/10.1000/clr.734921
 
 **Abstracted entry form:** Author, A. A. (Year). Title of article. *Journal Title, volume*(issue when
-available), Article number. DOI when present; otherwise a resolving article URL when available;
-otherwise omit the locator
+available), Article number. DOI when present; otherwise retain a URL for a nondatabase article and
+omit the ordinary academic-database name and URL
 
 **Declared limit:** The synthesized example is not string-checkable against APA's page; the local
 sheet records the article-number slot rather than reproducing APA's demonstration.
@@ -462,9 +485,9 @@ page established the retrieval-date slot but not this invented author, title, or
 **Synthesized example:** Allen, R. P., & Vega, M. L. (Eds.). (2024). *Foundations of ambulatory
 nursing* (3rd ed.). North Valley Press.
 
-**Abstracted entry form:** Author, A. A. (Year). *Title of book* (Edition). Publisher. DOI or stable
-URL when present; or Editor, E. E. (Ed.). (Year). *Title of book* (Edition). Publisher. DOI or stable
-URL when present. Use (Eds.) for multiple editors
+**Abstracted entry form:** Author, A. A. (Year). *Title of book* (Edition). Publisher. DOI when
+present, or a nondatabase ebook URL; omit an ordinary academic-database name and URL. An edited
+book places `(Ed.)` or `(Eds.)` after the editor name
 
 **Declared limit:** The synthesized example is not string-checkable against APA's page; the form
 does not establish authorship, edition, publisher, or locator for a real book.
@@ -477,7 +500,8 @@ does not establish authorship, edition, publisher, or locator for a real book.
 Brooks & A. D. Shah (Eds.), *Handbook of transitional care* (2nd ed., pp. 88–109). Harbor Press.
 
 **Abstracted entry form:** Chapter Author, A. A. (Year). Title of chapter. In E. E. Editor (Ed.),
-*Title of book* (Edition, pp. xx–xx). Publisher. DOI or stable URL when present
+*Title of book* (Edition, pp. xx–xx). Publisher. DOI when present, or a nondatabase ebook URL; omit
+an ordinary academic-database name and URL
 
 **Declared limit:** The synthesized example is not string-checkable against APA's page; it records
 the chapter-to-container relationship without copying APA's example.
@@ -749,10 +773,303 @@ quotation and only the locator in parentheses after the quotation's final punctu
 placement is a reader-owned check: `case_study_scan` grades that a cited quoted span at the
 40-word threshold has authored `> ` markup, not where its citation sits.
 
-Every direct quotation carries the author, year, and a locator. Use `p.` for one page and `pp.` for
+Ordinary scholarly direct quotations carry the author, year, and a locator. Epigraphs and
+participant quotations follow their own identification rules, and a general website mention is
+not automatically a quotation citation. Use `p.` for one page and `pp.` for
 multiple pages, an en dash for a continuous range, and a comma between discontinuous pages. When a
 work has no page numbers, use the heading or section name, a paragraph number counted by hand, or
 both; use a timestamp for audiovisual material. For religious and classical works, use the
 canonically numbered book, chapter, verse, line, canto, or comparable part instead of a page. See
 §31 for the reference and two-date form for republished, translated, religious, and classical
 works; this section does not restate it.
+
+Quote the source exactly, correcting only under the manual's disclosed mechanisms: an inserted or
+changed capital letter can be bracketed, omissions take ellipses where needed, and emphasis added
+by the writer is identified. Preserve errors with `[sic]` only when necessary to prevent confusion.
+Nested quotation marks change with whether the quotation is inline or blocked, and a quotation
+embedded in the syntax of the writer's sentence may require only the punctuation demanded by that
+sentence.
+
+## 33. Bias-free descriptions of people
+
+*Publication Manual* §§5.1–5.10.
+
+Bias-free language is a decision method, not a frozen substitution list. Describe only attributes
+that matter to the question, but use the most specific information the source or participant
+supports. Prefer people's current self-designations, make comparison groups parallel rather than
+treating one as the default, preserve agency, and report meaningful intersections instead of
+silently reducing a person to one axis. Terminology and preferences change, so a person's or
+community's stated preference controls when it is known.
+
+- **Age (§5.3):** use an exact age, a bounded range, or informative summary measures when they are
+  available. Avoid treating older age as disease or using an age label that does not fit the
+  population.
+- **Disability (§5.4):** both person-first and identity-first language can be appropriate. Do not
+  impose one order universally; follow expressed preference and describe capabilities and
+  conditions precisely without confinement metaphors, slurs, euphemisms, or crude functioning
+  labels.
+- **Sex, gender, and pronouns (§5.5):** distinguish sex assigned at birth, gender identity, gender
+  expression, and sexual orientation. Report the construct actually measured, use each person's
+  name and pronouns, use singular *they* when gender is unknown or irrelevant, and do not presume a
+  binary.
+- **Research and clinical roles (§5.6):** choose the noun that matches the setting—participant,
+  patient, client, respondent, or another specific role—and do not equate a person with a disease
+  occurrence. Name who is at risk and the risk rather than leaving a broad risk label unexplained.
+- **Race and ethnicity (§5.7):** treat them as distinct constructs, use self-identified and
+  appropriately specific national, regional, racial, or ethnic terms, capitalize group names, keep
+  comparisons parallel, and avoid essentializing umbrella labels.
+- **Sexual orientation (§5.8):** describe orientation rather than a supposed preference, match any
+  umbrella abbreviation to the groups actually discussed, define it when needed, and prefer a
+  specific self-identification over a broader label.
+- **Socioeconomic status (§5.9):** state the concrete dimensions available—such as education,
+  occupation, income, housing, or environment—and their context. Do not use economic wording as an
+  unstated proxy for race or ethnicity or frame structural constraints as individual deficits.
+- **Intersectionality (§5.10):** report relevant identities together when their combination matters
+  to the sample or interpretation; intersectionality is neither an additive score nor permission
+  to attribute an outcome to one identity in isolation.
+
+## 34. Mechanics of scholarly prose
+
+*Publication Manual* §§6.1–6.52 and Tables 6.1–6.5.
+
+Use one space after ordinary sentence and reference-element punctuation (§6.1). Apply periods,
+commas, semicolons, colons, quotation marks, parentheses, brackets, slashes, and unspaced em and en
+dashes according to the relation they express (§§6.2–6.10); a DOI or URL takes no terminal period,
+and an en dash rather than a hyphen expresses a numeric range. Use the serial comma. A retrieval
+date is punctuated as an exact date. Article and chapter titles are not put in quotation marks in
+the reference list, and a bracketed work-form description follows the title when one is needed.
+
+American spelling follows Merriam-Webster, with the APA Dictionary of Psychology controlling its
+specialized vocabulary (§6.11). Choose one accepted variant consistently. Hyphenate permanent
+compounds as the dictionary directs and temporary pre-noun compounds only when the hyphen prevents
+misreading or joins one meaning; most post-noun and `-ly` adverb compounds remain open (§6.12 and
+Tables 6.1–6.3).
+
+Capitalize sentence openings, proper names, racial and ethnic group names, exact test names, formal
+titles immediately before names, and the major words of headings (§§6.13–6.21). Lowercase generic
+drug names, diseases, procedures, theories, variables, generic roles, and ordinary group labels
+unless a proper name remains inside them. Reference-entry work titles use sentence case; periodical
+titles retain title case.
+
+Italicize standalone works, periodical titles and volume numbers, variables and statistical
+symbols that call for italics, scientific taxa, and a newly defined term at first use (§§6.22–6.23).
+Do not extend italics to the punctuation separating reference elements, familiar foreign phrases,
+Greek letters, or routine emphasis; text that would itself be italic returns to roman when nested
+inside an italic span.
+
+Use an abbreviation only when it is familiar or repeated enough to help, define it at first use
+unless it belongs to the manual's standard set, and define nonstandard abbreviations independently
+inside each table or figure (§§6.24–6.31). Measurement symbols do not pluralize and normally follow
+a number after a space; unit names are written out without a number, `L` is the standalone symbol
+for liter, and day, week, month, and year remain written out even after numerals. Use `p.` and `pp.`
+for page locators. Keep Latin abbreviations mainly inside parentheses, with the stated citation and
+legal exceptions; do not use `ibid.`
+
+Write 10 and above as numerals and zero through nine as words unless the value is a measurement,
+statistic, percentage, ratio, date, age, time, score, money amount, or numbered series position
+(§§6.32–6.39). Spell out a number that begins a sentence or heading. Separate adjacent numeric
+modifiers for clarity, apply the same threshold to ordinals, use a leading zero only for quantities
+that can exceed 1, and use commas in most values of 1,000 or more but not page numbers or other
+identified exceptions. Numeric plurals take no apostrophe. Report justified precision; ordinary
+exact *p* values use two or three decimals, and values below .001 use the less-than form.
+
+Choose prose for a small set of values and a table or figure when comparison becomes clearer there;
+the numerical bands in §6.40 are starting heuristics, not mandates. Cite uncommon, disputed, or
+central statistical methods, display formulas that are novel or difficult to read in line, and
+report enough information to understand and reproduce the analysis without duplicating a display
+(§§6.40–6.48). State each confidence level, distinguish total *N* from subgroup *n*, use true minus
+signs and appropriate operator spacing, and preserve every mathematical symbol and alignment the
+work requires.
+
+Lists must be grammatically and conceptually parallel (§§6.49–6.52). An inline series can use
+parenthesized lowercase letters; complete ordered steps can use Arabic numerals and sentence
+punctuation; unordered items can use bullets with punctuation matched to whether the items are
+sentences, fragments, or parts of one continuing sentence. The practicum case study's stricter
+prohibition on bullets is a house rule, not an APA prohibition.
+
+## 35. Tables and figures
+
+*Publication Manual* §§7.1–7.36, Tables 7.1–7.24, and Figures 7.1–7.21.
+
+A table or figure must make a comparison, pattern, process, or other information materially easier
+to understand; it must not merely repeat the prose or decorate it (§§7.1–7.3). Call out every
+display by number and tell the reader what to notice, never by unstable page position such as
+“above” (§7.5). Place it after its first callout or in the permitted end matter, according to the
+assignment, and keep it self-contained, legible, accessible, and consistent with related displays
+(§§7.4–7.6).
+
+Every table has a bold number, an italic concise title, sentence-case column headings including a
+stub heading, a real cell-based body, and only the notes needed to understand it (§§7.9–7.14).
+Stub entries normally align left; other cells may center or align left for readability. Body cells
+may be single, 1.5, or double spaced. Explain a dash used for missing data, use comparable precision,
+and order notes as general, specific, then probability notes. Standard statistical and measurement
+abbreviations are exempt from definition; define every other abbreviation within that display
+(§§7.15–7.16). Use only functional horizontal rules—normally at the top and bottom, beneath column
+headings, above spanners, and optionally before a summary—and never a full cell grid or vertical
+dividers (§7.17). Repeat headings on later pages of a long table and split a table that remains both
+too long and too wide (§7.18).
+
+Every figure has a bold number, an italic concise title, a clear image, a legend only when symbols
+need one, and explanatory notes when the image cannot stand alone (§§7.22–7.28). Image text is
+normally 8–14 point sans serif. Axes, units, scales, error information, panels, symbols, meaningful
+colors or patterns, and alterations must be labeled or explained. Avoid ornamental gridlines and
+three-dimensional effects, ensure color is accessible, and keep like figures comparable in size
+and scale (§§7.26–7.35). Specialized biological, electrophysiological, radiological, and genetic
+figures additionally disclose the orientation, acquisition, processing, scale, coordinate, or
+method details a reader needs (§§7.30–7.34).
+
+A reprinted or adapted table or figure needs source credit in its note and a reference-list entry,
+plus the copyright holder's permission when required (§7.7). The renderer cannot infer ownership,
+permission, missing definitions, callout quality, or whether a display is necessary; those remain
+reader-owned checks. The chapter's sample displays illustrate compliant shapes but do not license
+copying their study-specific language or values.
+
+## 36. Paper elements and student-paper format
+
+*Publication Manual* §§2.1–2.28, Tables 2.1–2.3, and Figures 2.1–2.5.
+
+The assignment determines whether student or professional elements apply. Every APA paper has a
+title page; the student form identifies the title, author, affiliation, course, instructor, and due
+date, whereas the professional form adds its own affiliation, author-note, and running-head
+requirements. A student paper normally omits a running head, abstract, keywords, and author note
+unless the instructor requires them. Repeat the paper title at the start of the text rather than
+adding an `Introduction` heading.
+
+Use a concise, informative title in bold title case; preserve authors' chosen names without
+credentials and map affiliations unambiguously. Put the automatic page number at top right on every
+page. Use one permitted accessible font consistently, 1-inch margins, a ragged right edge, and
+ordinary 0.5-inch first-line indents. Do not manually hyphenate line endings or insert breaks into
+DOIs and URLs. Double-space except where the manual expressly allows a different display, note, or
+title-page treatment, and do not add blank lines around headings.
+
+Headings express a logical hierarchy, proceed top-down without skipped levels, remain parallel,
+and do not create a lone subsection. Levels 1–3 are freestanding; Levels 4–5 are indented run-in
+headings ending with a period. Do not number or letter headings. References, footnotes, appendices,
+tables, figures, and supplemental material each have their own placement, callout, labeling,
+accessibility, and numbering requirements; the course's declared artifact form controls which are
+used.
+
+## 37. Effective scholarly expression
+
+*Publication Manual* §§4.1–4.30.
+
+Write for a defined audience with continuity, a visible argument, informative headings, and
+paragraphs long enough to develop one claim. Put familiar information before new information,
+maintain parallel structure, and use transitions that state the relation between ideas. Revise for
+economy: remove repetition, empty intensifiers, strings of nouns, and needless circumlocution while
+retaining qualifications that affect meaning.
+
+Prefer precise verbs and concrete nouns, but do not turn style guidance into blanket bans. Passive
+voice can keep the relevant object or procedure in focus; an inanimate subject can be accurate;
+first, second, or third person can be appropriate to the rhetorical job; and contractions or
+specialized terms can be proper inside quotations or for a knowledgeable audience. Define an
+unfamiliar term where first used and avoid both unexplained jargon and condescending simplification.
+
+Keep verb tense consistent with time: past or present perfect for completed literature and methods,
+past for completed results, and present for conclusions or enduring statements. Make pronoun
+antecedents unmistakable, keep modifiers beside what they modify, use singular and plural forms
+consistently, and reserve comparisons and causal wording for relations the evidence supports.
+`Since`, `while`, `would`, and similar words are not universally forbidden; rewrite them only when
+their temporal, contrastive, conditional, or habitual meaning is ambiguous.
+
+## 38. Crediting sources in the text
+
+*Publication Manual* §§8.1–8.36, Tables 8.1–8.2, and Figures 8.1–8.7.
+
+Cite ideas, language, data, media, and other contributions where a reader needs to distinguish the
+writer's work from another's. Prefer primary sources; use a secondary-source citation only when the
+original cannot reasonably be obtained, naming both in text but listing only the source actually
+read. Match every ordinary citation to a reference entry and place citations close enough to show
+their scope without repeating them mechanically in every sentence when attribution remains clear.
+
+Use author-date parenthetical or narrative form. Apply the one-author, two-author, and three-or-more
+author rules consistently; distinguish group authors, define a useful abbreviation on first use,
+and disambiguate authors or dates when the normal short form would collide. Multiple citations in
+one parenthesis are alphabetized and separated by semicolons; repeated works by one author order by
+date. Personal communications appear in text only. A general website or common software mention
+may give a version or URL in text without creating a reference entry.
+
+Paraphrase genuinely rather than changing a few words, and still cite the source. Mark exact words
+as quotations and follow §32. A citation can be omitted from a subsequent sentence only while its
+source remains unambiguous; begin a new paragraph with attribution rather than relying on the prior
+paragraph. Cite research participants without turning their confidential statements into ordinary
+recoverable references. Epigraphs, classroom or intranet material, and traditional knowledge have
+their specific access, permission, and attribution boundaries.
+
+## 39. Reference elements, order, and missing information
+
+*Publication Manual* §§9.1–9.52, Table 9.1, and Figures 9.1–9.4.
+
+Choose a reference by identifying its group, category, and work type; online access or a PDF format
+does not turn a report, article, book, or data set into a webpage. Build the entry from author, date,
+title, and source, and verify every element against the work itself. Do not invent a missing element:
+move the title to author position when authorship cannot be found, use `n.d.` when the date is absent,
+add an informative bracketed description when needed, and omit a list entry when no recoverable
+source exists. `Anonymous` is used only when the work is actually signed that way.
+
+Preserve individual and group names as published, including diacritics, capitalization, surname
+particles, suffixes, usernames, and creator roles. List up to 20 authors; for 21 or more, retain the
+first 19 and final author around an ellipsis without an ampersand. Use the most specific responsible
+group and omit a publisher identical to that group. Dates identify the cited version and may be a
+year, fuller date, span, `n.d.`, or `in press`; retrieval dates follow §4.
+
+Use sentence case for work titles and title case for periodical titles. Italic treatment depends on
+whether the work stands alone or sits inside a larger work. Bracket a nonroutine work description
+after the title. The source element can be a periodical, publisher, database required for recovery,
+social platform, website, event location, DOI, or URL. Include a DOI when one exists, in resolver
+form; otherwise include a URL only when the category and access route call for it. Do not prefix an
+ordinary locator with “Retrieved from,” and do not add terminal punctuation to a DOI or URL.
+
+Order entries and same-author works as §§1 and 3 specify. An annotation follows its normally
+formatted entry in its own indented paragraph. Meta-analysis source studies stay in the main list
+and may carry leading asterisks explained beneath the heading. Translated, reprinted, republished,
+religious, and classical works retain the version actually used and the original-date or canonical
+locator information applicable to that work.
+
+## 40. Selecting the correct reference form
+
+*Publication Manual* §§10.1–10.16 and Examples 1–114.
+
+Apply the narrowest work-type form before deciding what locator belongs. Periodical articles use
+periodical source data and an ordinary academic database is omitted; Cochrane and UpToDate retain
+database identity because their works are uniquely recoverable there. Books and chapters omit an
+ordinary database but may name an exclusive database, repository, or direct nondatabase locator.
+Reports, conference work, dissertations, reviews, data, software, tests, audiovisual and audio
+works, visual works, social media, and webpages each assign responsibility, date, title, source,
+description, and locator according to the work itself.
+
+Database access is not one behavior. Proprietary originals, limited-circulation works, repository
+records, and test-database records may name the database; routine aggregator access normally does
+not. Likewise, “online” is not a reference category. Use the webpage form only when the work has no
+more specific category and no larger publication other than the site. Cite each webpage separately;
+a general site mention can remain in text.
+
+Retrieval dates are version decisions, not broad class decorations. Changing profiles, generated
+maps, population clocks, and comparable unarchived states take one; fixed posts, articles, books,
+and archived versions do not. A data set can be designed to change even when a DOI or URL appears,
+so the identifier alone does not settle the question. Credit the creator role appropriate to media,
+distinguish a whole work from one component, and include a URL only when it helps recover the cited
+form under that category.
+
+## 41. Legal references
+
+*Publication Manual* §§11.1–11.10, Tables 11.1–11.2, and Examples 1–29.
+
+Legal references normally retain legal style: title, legal source, and date, with standardized
+abbreviations and the official version of record. Their ordinary in-text key is title and year,
+shortened only enough to remain unambiguous. Preserve required parallel reporters and history,
+make the authority retrievable, and verify that a decision has not been overturned and that a law
+has not been amended or repealed. Formal pattern matching cannot establish current legal status.
+
+Cases, statutes, legislative materials, administrative and executive materials, patents,
+constitutions and charters, and treaties use distinct forms. A case retains the first reporter page,
+court information, parallel citations, and relevant history; its name is roman in the list and
+italic in text. A statute cites the compilation year, or public-law/session source when necessary.
+Codified and proposed rules differ, as do bills, hearings, reports, resolutions, and executive
+orders. Patent dates are issuance dates. Whole constitutions are generally text mentions, while
+articles and amendments take legal locators and current provisions may be date-free. Treaties use
+their agreement name and signing or approval date.
+
+The chapter's abbreviation table is illustrative, not an exhaustive legal vocabulary. State rules
+can differ, a URL is ordinarily supplemental to the authoritative locator, and the Bluebook or an
+appropriate law-library source governs legal questions this distilled sheet does not resolve.
