@@ -286,6 +286,6 @@ so did both of its replacements.
 
 **What this changes for [#976](https://github.com/mshamblin5150-code/clinical-skills/issues/976).**
 Nothing in phase 1's shape. It removes one item from phase 2's expected repair list, moves finding
-2's remainder to a narrower claim, and establishes that **a finding about scanner behaviour is not
+2's remainder to a narrower claim, and establishes that **a finding about scanner behavior is not
 established until the scanner has been driven with a control that fires** — which phase 1's rows
 must record rather than assume.
