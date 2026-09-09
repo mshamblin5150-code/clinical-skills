@@ -48,7 +48,7 @@ from discussion_artifact import (
     WORD,
     citation_occurrence_keys,
     citation_coverage,
-    claim_record_is_believed,
+    claim_record_can_certify_values,
     invoked_source_has_substance,
     legal_reference_lacks_name,
     read_citations,
@@ -440,7 +440,7 @@ def _claim_records(claims: str) -> tuple[ClaimRecord, ...]:
         heading = lines[0] if lines else ""
         restatement = RESTATEMENT.search(block)
         trace_text = ""
-        if claim_record_is_believed(block):
+        if claim_record_can_certify_values(block):
             trace_text = heading + "\n" + (
                 restatement.group("value") if restatement else ""
             )

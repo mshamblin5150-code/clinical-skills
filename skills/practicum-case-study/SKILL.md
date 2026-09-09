@@ -517,7 +517,7 @@ header and one `## CLAIM:` heading per claim, and nothing under them yet. That o
 makes a lost answer visible: a heading whose record never arrived has no `STATUS`, and the grader
 refuses a record with no `STATUS`.
 
-Every research and refutation brief first reads the two rules in
+Every research and refutation brief first reads the rules in
 [sourcing.md](../_shared/reference/sourcing.md) and applies them to every returned claim or negative.
 **One agent per remaining claim, all of them at once.** Each gets the same brief, and the brief is
 **six returns** and the recency rule above — a reputable source in one of four classes, a full
@@ -561,10 +561,8 @@ SECOND-ROUTE: publisher landing page -> journal PDF and table on page 1327
 STATED-EXPIRY: none stated
 ```
 
-`STATUS` is `sourced`, `unsourced`, or `unreadable`. An `unsourced` record says on the same line what was
-searched. An `unreadable` record says what prevented both reads, omits every source field, and
-carries only `INSTRUMENTS: <first instrument> -> <second instrument>` after `STATUS`; both halves
-must be substantive and differ after normalization. `INSTRUMENTS` is also required when
+`STATUS` is `sourced`, `unsourced`, or `unreadable`. Apply the shared sourcing rules above to
+`unsourced` and `unreadable` records. `INSTRUMENTS` is also required when
 `REFUTATION` is `unreadable` and is forbidden elsewhere. `SOURCE` is one of `society guideline`, `peer-reviewed`, `government` or
 `tertiary reference`. `RECENCY` is one of `current`, `within five`, `nothing newer` or
 `guideline in force`, and the last two carry the reason after a hyphen — *the run must have looked,

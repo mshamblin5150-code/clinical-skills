@@ -19,7 +19,7 @@ from pathlib import Path
 from xml.etree import ElementTree
 
 import run_grader
-from discussion_artifact import CLAIM_BLOCK, claim_record_is_believed
+from discussion_artifact import CLAIM_BLOCK, claim_record_can_certify_values
 
 
 A = "{http://schemas.openxmlformats.org/drawingml/2006/main}"
@@ -279,7 +279,7 @@ def _claim_costs(text: str) -> set[str]:
     return {
         amount
         for match in CLAIM_BLOCK.finditer(text)
-        if claim_record_is_believed(match.group("block"))
+        if claim_record_can_certify_values(match.group("block"))
         for amount in _costs(match.group("block").splitlines()[0])
     }
 

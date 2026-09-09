@@ -1707,8 +1707,10 @@ class EveryRuledFanOutReadsTheSharedSourcingRules(unittest.TestCase):
             with self.subTest(skill=skill):
                 text = (REPO_ROOT / "skills" / skill / "SKILL.md").read_text(encoding="utf-8")
                 self.assertIn(self.LINK, text)
-                self.assertNotIn("omit the other fields", text)
-                self.assertNotIn("omit every source field", text)
+                self.assertIsNone(
+                    re.search(r"omit\w* (?:the other|every) source fields?", text),
+                    skill,
+                )
 
     def test_each_named_briefing_surface_points_to_that_file(self):
         for skill, occurrences in self.SURFACES.items():

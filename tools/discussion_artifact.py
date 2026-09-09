@@ -181,7 +181,7 @@ RENDERED_RASTER_DPI = 120
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 
 
-def claim_record_is_believed(block: str) -> bool:
+def claim_record_can_certify_values(block: str) -> bool:
     """Whether a downstream claim certifier may use this record's substance.
 
     Imports are deliberately local: ``research_ledger`` reaches this module

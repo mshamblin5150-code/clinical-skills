@@ -34,7 +34,7 @@ from discussion_artifact import (
     author_key,
     citation_occurrence_keys,
     citation_coverage,
-    claim_record_is_believed,
+    claim_record_can_certify_values,
     discussion_entry_id,
     invoked_source_has_substance,
     legal_reference_lacks_name,
@@ -384,7 +384,7 @@ def _number_findings(
     traced: set[str] = set()
     target = reply.path.stem.removeprefix("response-")
     for claim, block in _scoped_claim_blocks(claims, target):
-        if not claim_record_is_believed(block):
+        if not claim_record_can_certify_values(block):
             # _claimed_references intentionally still reads this block. A
             # disbelieved record cannot certify a number, but its reference key
             # remains visible so narrative citation recognition cannot vanish.

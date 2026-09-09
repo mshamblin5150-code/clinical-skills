@@ -191,7 +191,7 @@ years is the target, within five is ordinarily expected, and `nothing newer` nam
 searched. `guideline in force` applies only when the cited guideline is presently in force and the
 record says why; membership in a catalog does not establish standing.
 
-Every research and refutation brief first reads the two rules in
+Every research and refutation brief first reads the rules in
 [sourcing.md](../_shared/reference/sourcing.md) and applies them to every returned claim or negative.
 Fan out one research context per claim. Each returns the source class, full APA 7 reference,
 restatement, opened URL or DOI and read date, the page's stated year and locator, and the source's
