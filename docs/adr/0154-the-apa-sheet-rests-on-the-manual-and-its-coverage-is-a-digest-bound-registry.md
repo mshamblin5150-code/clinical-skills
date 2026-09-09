@@ -232,3 +232,60 @@ does not enumerate it from a sample of eleven items.
 
 **Whether `apastyle.apa.org` and the manual ever disagree**, and which wins if they do. No instance
 was found; none was looked for.
+
+## Correction, 2026-09-08. Ruling 2's census and findings 2, 3 and 4 were measured at a base `main` left before this record merged
+
+Found by the tracker sweep of this record's own session, hours after it merged. **The eight rulings
+are unchanged; what follows corrects the measurements they were argued from.**
+
+**The base moved between measurement and merge.** Every figure above was taken at `6e0dd3b`.
+`3a1b521` — [#942](https://github.com/mshamblin5150-code/clinical-skills/issues/942)'s build,
+merged as `b3ea628` twenty minutes before this record — edited `skills/_shared/reference/apa7.md`,
+which grew 749 to 758 lines. Re-derived at the merge commit `f7fd264`:
+
+| stated above | at `f7fd264` |
+| --- | --- |
+| sixteen manual sections cited, 4.8% of 336 | **eighteen, 5.4%** — `§11.3` and `§11.5` added at `apa7.md:368` |
+| line 133's undated-letter rule, line 201's `§§2.26–2.27` | `:134` and `:206` |
+| `apa7.md:117`, `apa7.md:202` | `:120`, `:207` |
+
+**Finding 2 is half superseded.** The sheet now carries the `in press-` letter format, so *"carries
+two of the three letter formats"* is false at the merge. **The two-step half stands**: `apa7.md` §3
+still states only the alphabetize-by-title step and carries no series exception.
+
+**Finding 3's sheet half is false at the merge and its code half is falsified outright.**
+`apa7.md:137` cites `§9.46` by number and carries its no-date, dated, in-press ordering. And the
+claim that its absence *"is a defect in committed code"* does not reproduce. Driven against
+`reference_scan` at `f7fd264` with a liveness control that fires:
+
+```
+control, obviously out of order   -> list-not-sorted   (control fires)
+9.46 APA-correct, one-author 2019 before joint 2015  -> clean
+9.46 naive order, joint 2015 before one-author 2019  -> list-not-sorted
+```
+
+**The scanner already implements `§9.46` correctly.** That claim was asserted from a reading of the
+manual without driving the code, which is this repository's own standing rule broken inside the
+record that restates it.
+
+**Finding 4 is confirmed, and only now on a discriminating measurement.**
+
+```
+9.49 APA-correct, "Top 100" before "Top 10"  -> list-not-sorted   (false alarm on a correct list)
+9.49 naive order,  "Top 10" before "Top 100" -> clean
+```
+
+**Three counting instruments were partial in three different ways while making this correction**,
+which is the finding worth more than the numbers. The record's own citation count is the third: a
+pattern reading `§` runs missed `§11.5`, because that section is written without its own section
+symbol after an `and`; widening the separator set then merged across `and` and silently stopped
+expanding `§9.43 to §9.49`, dropping four interior sections while reporting a plausible total. Only
+a pass that expands ranges *within* a segment reconciles base to sixteen and merge to eighteen.
+**The ticket's instrument that this record was written to correct failed in the same family**, and
+so did both of its replacements.
+
+**What this changes for [#976](https://github.com/mshamblin5150-code/clinical-skills/issues/976).**
+Nothing in phase 1's shape. It removes one item from phase 2's expected repair list, moves finding
+2's remainder to a narrower claim, and establishes that **a finding about scanner behaviour is not
+established until the scanner has been driven with a control that fires** — which phase 1's rows
+must record rather than assume.
