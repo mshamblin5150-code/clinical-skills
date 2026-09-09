@@ -186,7 +186,7 @@ not worth the hole.
 
 A finding is always recorded in its row; that needs no permission. **Every repair lands in #976** —
 prose repairs to `apa7.md` and to the restatements in `style.md`, and repairs to committed scanner
-behaviour such as findings 3, 4 and 5 above. A registry stating that the sheet is wrong beside a
+behavior such as findings 3, 4 and 5 above. A registry stating that the sheet is wrong beside a
 sheet that is still wrong is worse than not knowing.
 
 **That makes the repair scope unknowable until the read is done, so the ticket is two phases in one
@@ -286,6 +286,6 @@ so did both of its replacements.
 
 **What this changes for [#976](https://github.com/mshamblin5150-code/clinical-skills/issues/976).**
 Nothing in phase 1's shape. It removes one item from phase 2's expected repair list, moves finding
-2's remainder to a narrower claim, and establishes that **a finding about scanner behaviour is not
+2's remainder to a narrower claim, and establishes that **a finding about scanner behavior is not
 established until the scanner has been driven with a control that fires** — which phase 1's rows
 must record rather than assume.

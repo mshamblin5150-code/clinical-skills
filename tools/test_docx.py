@@ -500,7 +500,7 @@ class TheReferenceStyle(unittest.TestCase):
         self.assertIn('<w:pStyle w:val="Reference"/>', xml)
 
     def test_the_singular_reference_heading_switches_too(self):
-        """APA permits ``Reference`` for a one-entry list -- ``apa7.md`` section 1."""
+        """Legacy singular input is styled defensively even though APA requires the plural."""
         xml = docx_write.body_xml("# Reference\n\nRoss, J. (2025). Pelvic inflammatory disease.\n")
         self.assertIn('<w:pStyle w:val="Reference"/>', xml)
 

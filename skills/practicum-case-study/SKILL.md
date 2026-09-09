@@ -877,7 +877,8 @@ what this exists to replace.
 rather than recalled.** That sheet carries the `a`/`b` disambiguation ordering, the UpToDate entry
 form, when a retrieval date belongs and when it is a defect, and the mechanics of the list itself.
 It also carries the legal-entry form and points to the code-owned configured-reader boundary.
-An APA question it does not answer is looked up at apastyle.apa.org, never guessed.
+An APA question it does not answer is looked up in the manual or an official APA Style source,
+never guessed.
 
 **`Roughly alphabetical` was a description of the corpus and never the standard.** Sorted is
 sorted.
@@ -887,16 +888,16 @@ sorted.
 
 | Defect | Fix |
 | --- | --- |
-| The reference list headed anything but `References`, or `Reference` for a one-entry list | rename it — and since [#217](https://github.com/mshamblin5150-code/clinical-skills/issues/217) the heading is what *applies* the hanging indent, so a wrong label changes the layout as well as the word |
+| The reference list headed anything but `References` | rename it — and since [#217](https://github.com/mshamblin5150-code/clinical-skills/issues/217) the heading is what *applies* the hanging indent, so a wrong label changes the layout as well as the word |
 | An entry written as a bullet or a numbered item | make it a paragraph — the renderer gives a list its list style and the hanging indent is lost |
-| An entry carrying no year element — most often one hard-wrapped onto a second line | join it — the renderer sets every non-blank line as its own paragraph, so the second half hangs on nothing, and a line with no year is what that looks like |
+| An entry carrying no year element — most often one hard-wrapped onto a second line | join it — the renderer sets every non-blank line as its own paragraph, so the second half hangs on nothing. Valid date-free constitutional provisions are the legal exception; full-date treaty forms carry their year outside parentheses |
 | Two entries out of alphabetical order | sort the list — sorted is sorted, [apa7.md](../_shared/reference/apa7.md) §1 |
 | `Links to an external site.` welded to a URL | strip it — it is a Canvas paste artifact |
-| Retrieval year behind the exam year | the retrieval date must be on or after the exam date |
+| Retrieval year behind the exam year | under this repository's local submission policy, make the retrieval date on or after the exam date; APA does not impose that exam-date deadline |
 | An entry whose declared source class requires a retrieval date but carries none | add one — the content is designed to change and the version cited is unarchived, [apa7.md](../_shared/reference/apa7.md) §4 |
-| A retrieval date on a guideline, article or textbook | remove it — [apa7.md](../_shared/reference/apa7.md) §4. **The command reaches this only where the entry carries a DOI**; on a guideline PDF or a textbook nothing in the URL says so, and it stays a reading — ruled permanent on [#241](https://github.com/mshamblin5150-code/clinical-skills/issues/241), and it is the reading step 9's `the reference list, the part no command reaches` row is graded on |
+| A retrieval date on a guideline, article or textbook | remove it — [apa7.md](../_shared/reference/apa7.md) §4. **The command reaches this only where a committed source classifier settles that the cited form is fixed**; DOI presence alone is not the archive test, and an unresolved URL stays a reading — ruled permanent on [#241](https://github.com/mshamblin5150-code/clinical-skills/issues/241), and it is the reading step 9's `the reference list, the part no command reaches` row is graded on |
 | In-text year not matching the reference list year | reconcile |
-| Two entries with the same authors and year and no `a`/`b` | disambiguate, in both places — and the letters are assigned by **title order**, [apa7.md](../_shared/reference/apa7.md) §3. **The same *authors*, not the same first author**: `Hsu, K.` and `Hsu, K., & Khosropour, C.` in one year take no letters, and adding them is the defect |
+| Two entries with the same authors and year and no `a`/`b` | disambiguate in both places: assign letters by **date specificity and chronology first**, then identical-date title order or the identified series order, [apa7.md](../_shared/reference/apa7.md) §3. **The same *authors*, not the same first author**: `Hsu, K.` and `Hsu, K., & Khosropour, C.` in one year take no letters, and adding them is the defect |
 | An UpToDate entry with the database name unitalicized | italicize it in the entry, not in the text |
 | An UpToDate year that is the year it was read | use the topic's **last update** year |
 | A legal entry carrying only its section | add the legal source name in [apa7.md](../_shared/reference/apa7.md) §8's form |

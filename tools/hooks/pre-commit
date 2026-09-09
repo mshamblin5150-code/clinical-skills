@@ -106,6 +106,15 @@ for python in python python3 py; do
             "$python" "$repo_root/tools/guidelines_currency.py" >&2 || status=1
         fi
 
+        # **The eighth refusing check.** The APA sheet and its manual-reading
+        # registry are one digest-bound pair. Run the complete two-way audit when
+        # either half is staged; renames are delete-plus-add so moving a half away
+        # cannot strand the other one silently. Counts intentionally survive quiet.
+        if git diff --cached --name-only --no-renames --diff-filter=ACDM \
+            | grep -Eq '^skills/_shared/reference/apa7(-coverage)?\.md$'; then
+            "$python" "$repo_root/tools/apa7_coverage.py" --quiet >&2 || status=1
+        fi
+
         # Standing rule 1, and it is no longer `exec`ed. It still refuses on its own
         # and nothing above can suppress it -- the status is OR-ed, never replaced.
         #

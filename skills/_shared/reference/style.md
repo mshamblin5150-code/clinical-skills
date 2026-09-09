@@ -398,9 +398,10 @@ documents are not the standard.
   **Two corrections to that form, from APA's own UpToDate page** — the database name is
   *italicized* in the entry and not in running text, and the year is the topic's **last update**
   year rather than the year it was read. See [apa7.md](apa7.md) §2. The corpus does neither.
-- The set includes a university teaching page, a badge reference card, and a state administrative
-  code — the last cited properly with its section number and pulled through into the argument,
-  which is the right way to use a non-clinical source.
+- The set includes a university teaching page, a badge reference card, and a state regulation.
+  A legal authority uses its title and publication year in text, while its reference retains the
+  applicable regulation, statute, or other legal-source form. Its current legal status and the
+  correct state-specific form still require a legal-source check. See [apa7.md](apa7.md) §§8 and 41.
 - **`Non-UpToDate entries are formatted the same way` was wrong and is withdrawn.** A retrieval
   date belongs only where the work is designed to change *and* the version cited is unarchived —
   so UpToDate takes one and a society guideline, a journal article, a USPSTF statement and a
@@ -415,10 +416,11 @@ documents are not the standard.
 | Defect | Fix |
 | --- | --- |
 | `Links to an external site.` welded to the end of a URL | strip it — a Canvas paste artifact, confirmed |
-| Retrieval year one behind the exam year | the retrieval date must be on or after the exam date |
+| Retrieval year one behind the exam year | under the local submission policy, make the retrieval date on or after the exam date; this is not an APA deadline |
 | In-text year not matching the reference-list year | reconcile both |
-| Two entries, same author and year, no `a`/`b` | disambiguate in the list *and* in the text |
+| Two entries, same authors and year, no `a`/`b` | order by date specificity/chronology, then identical-date title or series order; disambiguate the list *and* text |
 | A missing space in a date, or a misspelled month | check every one |
+| A legal locator cited without its title and publication year | use the title-year key, shortening a long title only while it remains unambiguous; separately verify current legal status |
 
 **A citation year or edition is looked up, never recalled.** UpToDate revises continuously, and the
 same topic appears in this corpus under three different years.

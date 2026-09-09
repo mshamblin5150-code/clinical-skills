@@ -191,9 +191,9 @@ class TheHeadingIsTheOneAPARequires(unittest.TestCase):
     def _one_citation(self) -> str:
         return "# Case Study\n\nA culture is drawn first (Gupta & Hooton, 2025).\n"
 
-    def test_the_singular_is_permitted_for_a_one_entry_list(self):
+    def test_the_manual_requires_the_plural_even_for_one_entry(self):
         text = draft(UPTODATE, body=self._one_citation(), heading="## Reference")
-        self.assertEqual(kinds(text), [])
+        self.assertIn(scan.HEADING_NOT_APA, kinds(text))
 
     def test_works_cited_is_a_finding(self):
         text = draft(ACOG, UPTODATE, heading="## Works Cited")
@@ -291,6 +291,61 @@ class SortedIsSorted(unittest.TestCase):
         self.assertEqual("in press", scan.read_document(draft(entry)).entries[0].year)
         self.assertEqual((("zhou", "in press"),), artifact.reference_keys(entry))
 
+    def test_numerals_are_alphabetized_as_if_spelled_out(self):
+        """§9.49: the positive control proves the ordering row is live."""
+        hundred = "Top 100 business schools. (2024). Ranking. https://example.org/100"
+        ten = "Top 10 nursing specialties. (2024). Ranking. https://example.org/10"
+        body = '# Case\n\nBoth rankings were consulted ("Top 100 Business Schools," 2024; "Top 10 Nursing Specialties," 2024).\n'
+
+        self.assertNotIn(scan.LIST_NOT_SORTED, kinds(draft(hundred, ten, body=body)))
+        self.assertIn(scan.LIST_NOT_SORTED, kinds(draft(ten, hundred, body=body)))
+        self.assertIn(scan.LIST_NOT_SORTED, kinds(draft(UPTODATE, ACOG)))
+
+    def test_author_punctuation_is_disregarded_for_ordering(self):
+        oberg = "Oberg, A. (2020). Alpha. Journal."
+        oconnor = "O'Connor, A. (2020). Beta. Journal."
+        body = "# Case\n\nOberg (2020) and O'Connor (2020) reported results.\n"
+
+        self.assertNotIn(scan.LIST_NOT_SORTED, kinds(draft(oberg, oconnor, body=body)))
+        self.assertIn(scan.LIST_NOT_SORTED, kinds(draft(oconnor, oberg, body=body)))
+        self.assertIn(scan.LIST_NOT_SORTED, kinds(draft(UPTODATE, ACOG)))
+
+    def test_parenthesized_roles_do_not_precede_same_author_chronology(self):
+        earlier = "Smith, A. (Writer). (2019). Zulu. Studio."
+        later = "Smith, A. (Director). (2020). Alpha. Studio."
+        body = "# Case\n\nSmith (2019, 2020) created both works.\n"
+
+        self.assertNotIn(scan.LIST_NOT_SORTED, kinds(draft(earlier, later, body=body)))
+        self.assertIn(scan.LIST_NOT_SORTED, kinds(draft(later, earlier, body=body)))
+        self.assertIn(scan.LIST_NOT_SORTED, kinds(draft(UPTODATE, ACOG)))
+
+    def test_bracketed_usernames_do_not_precede_same_author_chronology(self):
+        earlier = "Gaga, L. [@ladygaga]. (2019). Zulu. Example."
+        later = "Gaga, L. (2020). Alpha. Example."
+        body = "# Case\n\nGaga (2019, 2020) posted both works.\n"
+
+        self.assertNotIn(scan.LIST_NOT_SORTED, kinds(draft(earlier, later, body=body)))
+        self.assertIn(scan.LIST_NOT_SORTED, kinds(draft(later, earlier, body=body)))
+        self.assertIn(scan.LIST_NOT_SORTED, kinds(draft(UPTODATE, ACOG)))
+
+    def test_birth_order_suffixes_sort_oldest_first(self):
+        senior = "Santiago, A., Sr. (2020). Alpha. Journal."
+        junior = "Santiago, A., Jr. (2020). Beta. Journal."
+        body = "# Case\n\nA. Santiago, Sr. (2020) and A. Santiago, Jr. (2020) reported results.\n"
+
+        self.assertNotIn(scan.LIST_NOT_SORTED, kinds(draft(senior, junior, body=body)))
+        self.assertIn(scan.LIST_NOT_SORTED, kinds(draft(junior, senior, body=body)))
+        self.assertIn(scan.LIST_NOT_SORTED, kinds(draft(UPTODATE, ACOG)))
+
+    def test_roman_generational_suffixes_sort_oldest_first(self):
+        second = "MacCallum, R. C., II. (2020). Alpha. Journal."
+        third = "MacCallum, R. C., III. (2020). Beta. Journal."
+        body = "# Case\n\nMacCallum (2020) reported both works.\n"
+
+        self.assertNotIn(scan.LIST_NOT_SORTED, kinds(draft(second, third, body=body)))
+        self.assertIn(scan.LIST_NOT_SORTED, kinds(draft(third, second, body=body)))
+        self.assertIn(scan.LIST_NOT_SORTED, kinds(draft(UPTODATE, ACOG)))
+
 
 class ALeadingArticleIsNotTheGroupingOrSortKey(unittest.TestCase):
     def test_first_word_uses_the_first_significant_word(self):
@@ -316,7 +371,7 @@ class ALeadingArticleIsNotTheGroupingOrSortKey(unittest.TestCase):
             text="The Elite Nurse Practitioner. (2026). Pricing guide. https://example.org",
             paragraph=True,
         )
-        self.assertTrue(entry.sort_key.startswith("elite nurse practitioner"))
+        self.assertTrue(entry.sort_key.startswith("elitenursepractitioner"))
 
     def test_an_article_is_retained_when_it_is_not_leading(self):
         self.assertEqual(scan.first_word("Association for the Advancement of Nursing."), "association")
@@ -418,21 +473,87 @@ class SameAuthorSameYearTakesALetter(unittest.TestCase):
         b = self.B.replace("*UpToDate*", "The irishman. *UpToDate*")
         self.assertIn(scan.AB_OUT_OF_TITLE_ORDER, kinds(draft(a, b, body=self._body())))
 
+    def test_undated_and_in_press_are_not_one_same_date_group(self):
+        undated = "Zhou, A. (n.d.). Zulu. Journal."
+        in_press = "Zhou, A. (in press). Alpha. Journal."
+        body = "# Case\n\nZhou (n.d., in press) reported both works.\n"
+
+        found = kinds(draft(undated, in_press, body=body))
+        self.assertNotIn(scan.MISSING_AB, found)
+        self.assertNotIn(scan.AB_OUT_OF_TITLE_ORDER, found)
+
+    def test_date_specificity_precedes_title_when_assigning_letters(self):
+        year_only = "Smith, A. (2020a). Zulu. Journal."
+        full_date = "Smith, A. (2020b, March 26). Alpha. Journal."
+        body = "# Case\n\nSmith (2020a, 2020b) reported both works.\n"
+
+        self.assertNotIn(
+            scan.AB_OUT_OF_TITLE_ORDER,
+            kinds(draft(year_only, full_date, body=body)),
+        )
+
+    def test_full_dates_are_chronological_before_title_order(self):
+        march = "Smith, A. (2020a, March 26). Zulu. Journal."
+        april = "Smith, A. (2020b, April 2). Alpha. Journal."
+        body = "# Case\n\nSmith (2020a, 2020b) reported both works.\n"
+
+        self.assertNotIn(scan.AB_OUT_OF_TITLE_ORDER, kinds(draft(march, april, body=body)))
+
+    def test_an_identified_series_uses_part_order_instead_of_title_order(self):
+        part_one = "Smith, A. (2020a). Zulu process: Part 1. Journal."
+        part_two = "Smith, A. (2020b). Alpha process: Part 2. Journal."
+        body = "# Case\n\nSmith (2020a, 2020b) reported both parts.\n"
+
+        self.assertNotIn(
+            scan.AB_OUT_OF_TITLE_ORDER,
+            kinds(draft(part_one, part_two, body=body)),
+        )
+
+    def test_author_roles_do_not_prevent_required_letters(self):
+        writer = "Smith, A. (Writer). (2020). Alpha. Studio."
+        director = "Smith, A. (Director). (2020). Beta. Studio."
+        body = "# Case\n\nSmith (2020) created both works.\n"
+
+        self.assertIn(scan.MISSING_AB, kinds(draft(writer, director, body=body)))
+
 
 class ARetrievalDateBelongsWhereAPAPutsOne(unittest.TestCase):
     def test_an_uptodate_entry_without_one_is_a_finding(self):
         stripped = UPTODATE.replace("Retrieved August 19, 2026, from ", "")
         self.assertIn(scan.REQUIRES_RETRIEVAL_DATE, kinds(draft(ACOG, stripped)))
 
-    def test_a_retrieval_date_on_a_doi_entry_is_a_finding(self):
+    def test_a_doi_alone_does_not_establish_archived_retrievability(self):
         dated = ACOG.replace("https://doi.org", "Retrieved August 19, 2026, from https://doi.org")
-        self.assertIn(scan.RETRIEVAL_DATE_ON_ARCHIVED, kinds(draft(dated, UPTODATE)))
+        self.assertNotIn(scan.RETRIEVAL_DATE_ON_ARCHIVED, kinds(draft(dated, UPTODATE)))
 
     def test_a_doi_entry_with_no_retrieval_date_at_all_is_not_one(self):
         """The pre-APA-7 ``Retrieved from`` carries no date, so there is no
         retrieval date to object to and this row would name the wrong defect."""
         bare = ACOG.replace("https://doi.org", "Retrieved from https://doi.org")
         self.assertNotIn(scan.RETRIEVAL_DATE_ON_ARCHIVED, kinds(draft(bare, UPTODATE)))
+
+    def test_a_known_archived_class_does_not_need_a_doi_to_refuse_a_retrieval_date(self):
+        archived = COCHRANE.replace(
+            "https://doi.org/10.1002/14651858.CD008349.pub5",
+            "Retrieved August 19, 2026, from https://example.org/archived-review",
+        )
+        body = "# Case\n\nLaver et al. (2025) reported the review.\n"
+
+        self.assertIn(
+            scan.RETRIEVAL_DATE_ON_ARCHIVED,
+            kinds(draft(archived, body=body)),
+        )
+
+    def test_a_doi_alone_does_not_prove_the_cited_form_is_archived(self):
+        changing = UPTODATE.replace(
+            "https://www.uptodate.com/contents/cystitis",
+            "https://doi.org/10.1000/changing-topic",
+        )
+
+        self.assertNotIn(
+            scan.RETRIEVAL_DATE_ON_ARCHIVED,
+            kinds(draft(changing, body=BODY)),
+        )
 
     def test_a_retrieval_date_before_the_exam_date_is_a_finding(self):
         early = UPTODATE.replace("August 19, 2026", "August 19, 1800")
@@ -613,8 +734,8 @@ class TheYearsAgreeAndBothDirectionsAreChecked(unittest.TestCase):
         self.assertEqual(kinds(draft(a, b, body=body)), [])
 
 
-class LegalEntriesResolveBySectionOrAreExplicitlyExcluded(unittest.TestCase):
-    """ADR 0088's legal entry/citation matrix at the finished-draft seam."""
+class SupportedLegalEntriesResolveByTitleAndYear(unittest.TestCase):
+    """Chapter 11's title-year rule at the finished-draft seam."""
 
     CITATIONS = {
         "parenthetical section": f"({LEGAL_SECTION}, 2026)",
@@ -627,30 +748,32 @@ class LegalEntriesResolveBySectionOrAreExplicitlyExcluded(unittest.TestCase):
     def body(self, citation: str) -> str:
         return f"# Case\n\nThe regulation supplies the rule {citation}.\n"
 
-    def test_the_full_entry_and_citation_matrix_has_no_false_pairing_finding(self):
-        for entry in (NAMELESS_LEGAL, NAMED_LEGAL):
-            for shape, citation in self.CITATIONS.items():
-                with self.subTest(entry=entry, citation=shape):
-                    found = kinds(draft(entry, body=self.body(citation)))
-                    expected = []
-                    if entry == NAMELESS_LEGAL:
-                        expected.append("legal-reference-lacks-name")
-                    if entry == NAMELESS_LEGAL and shape == "parenthetical name":
-                        expected.append(scan.UNLISTED_CITATION)
-                    self.assertEqual(found, expected)
+    def test_only_title_and_publication_year_resolve_a_named_entry(self):
+        for shape in ("parenthetical name", "narrative name"):
+            with self.subTest(citation=shape):
+                found = kinds(draft(NAMED_LEGAL, body=self.body(self.CITATIONS[shape])))
+                self.assertNotIn(scan.UNCITED_ENTRY, found)
+                self.assertNotIn(scan.UNLISTED_CITATION, found)
+
+    def test_a_source_section_locator_is_not_the_in_text_key(self):
+        for shape in ("parenthetical section", "narrative section", "yearless section"):
+            with self.subTest(citation=shape):
+                found = kinds(draft(NAMED_LEGAL, body=self.body(self.CITATIONS[shape])))
+                self.assertIn(scan.UNCITED_ENTRY, found)
+                self.assertIn(scan.UNLISTED_CITATION, found)
 
     def test_only_the_nameless_legal_entry_fires_the_entry_row(self):
         self.assertIn("legal-reference-lacks-name", kinds(draft(NAMELESS_LEGAL, body="# Case\n")))
         self.assertNotIn("legal-reference-lacks-name", kinds(draft(NAMED_LEGAL, body="# Case\n")))
 
-    def test_a_named_legal_entry_is_uncited_until_its_section_form_resolves(self):
+    def test_a_named_legal_entry_is_uncited_until_its_title_form_resolves(self):
         self.assertIn(scan.UNCITED_ENTRY, kinds(draft(NAMED_LEGAL, body="# Case\n")))
         self.assertNotIn(
             scan.UNCITED_ENTRY,
             kinds(
                 draft(
                     NAMED_LEGAL,
-                    body=self.body(self.CITATIONS["narrative section"]),
+                    body=self.body(self.CITATIONS["narrative name"]),
                 )
             ),
         )
@@ -668,15 +791,11 @@ class LegalEntriesResolveBySectionOrAreExplicitlyExcluded(unittest.TestCase):
     def test_the_nameless_entry_row_does_not_join_the_body_rows(self):
         self.assertNotIn("legal-reference-lacks-name", scan.BODY_ROWS)
 
-    def test_section_and_named_narrative_forms_both_resolve(self):
-        section_document = scan.read_document(
-            draft(NAMED_LEGAL, body=self.body(self.CITATIONS["narrative section"]))
-        )
+    def test_only_the_named_narrative_form_resolves(self):
         name_document = scan.read_document(
             draft(NAMED_LEGAL, body=self.body(self.CITATIONS["narrative name"]))
         )
 
-        self.assertTrue(section_document.citations)
         self.assertTrue(name_document.citations)
         self.assertNotIn(scan.UNCITED_ENTRY, kinds(draft(NAMED_LEGAL, body=name_document.body)))
 
@@ -697,13 +816,21 @@ class LegalEntriesResolveBySectionOrAreExplicitlyExcluded(unittest.TestCase):
         self.assertTrue(entry.is_legal)
         self.assertEqual(
             entry.resolution_keys,
-            (
-                ("consolidated", "2022"),
-                ("pub l no 117 328 1263", "2022"),
-                ("pub l no 117 328 1263", ""),
-            ),
+            (("consolidated", "2022"),),
         )
         self.assertNotIn(("21 u s c 823 m", "2022"), entry.resolution_keys)
+
+    def test_date_free_constitutional_articles_do_not_require_a_year(self):
+        entry = "U.S. Const. art. I, § 8."
+        self.assertNotIn(scan.ENTRY_HAS_NO_YEAR, kinds(draft(entry, body="# Case\n")))
+
+    def test_a_treaty_full_date_supplies_its_citation_year(self):
+        entry = "Convention on Clinical Cooperation, September 8, 2026. https://example.test"
+        body = "# Case\n\nThe agreement applies (Convention on Clinical Cooperation, 2026).\n"
+        found = kinds(draft(entry, body=body))
+        self.assertNotIn(scan.ENTRY_HAS_NO_YEAR, found)
+        self.assertNotIn(scan.UNCITED_ENTRY, found)
+        self.assertNotIn(scan.UNLISTED_CITATION, found)
 
     def test_the_loose_spellings_and_parallel_citation_are_not_legal(self):
         refused = (
@@ -1091,9 +1218,9 @@ class TheReportCarriesNoDocumentTextWithoutShow(unittest.TestCase):
 
     def test_legal_scope_prints_even_when_the_draft_has_no_legal_entry(self):
         report = scan.format_report(self.scan, source="case.md")
-        self.assertIn("legal entries", report)
-        self.assertIn("legal entries                  0", report)
-        self.assertIn("A named legal entry participates in uncited-entry.", report)
+        self.assertIn("recognized legal-form entries", report)
+        self.assertIn("recognized legal-form entries  0", report)
+        self.assertIn("by title and year", report)
 
     def test_the_derived_legal_reader_coverage_prints_on_every_run(self):
         report = scan.format_report(self.scan, source="case.md")
@@ -1335,9 +1462,9 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
         scan.CANVAS_ARTIFACT: "`Links to an external site.` welded to a URL",
         scan.LIST_NOT_SORTED: "Two entries out of alphabetical order",
         scan.MISSING_AB: "Two entries with the same authors and year and no `a`/`b`",
-        scan.AB_OUT_OF_TITLE_ORDER: "the letters are assigned by **title order**",
+        scan.AB_OUT_OF_TITLE_ORDER: "date specificity and chronology first",
         scan.REQUIRES_RETRIEVAL_DATE: "An entry whose declared source class requires a retrieval date",
-        scan.RETRIEVAL_DATE_ON_ARCHIVED: "The command reaches this only where the entry carries a DOI",
+        scan.RETRIEVAL_DATE_ON_ARCHIVED: "committed source classifier settles",
         scan.RETRIEVAL_DATE_BEFORE_EXAM: "Retrieval year behind the exam year",
         scan.MALFORMED_DATE: "A missing space in a date",
         scan.UPTODATE_ITALICS: "database name unitalicized",
@@ -1381,7 +1508,7 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
     def test_the_apa_sheet_still_owns_the_rules(self):
         """The scanner is a second reader of ``apa7.md``, never a second copy of
         it, so the sheet has to still carry what the rows are derived from."""
-        for phrase in ("Works Cited", "hanging indent", "assigned by placing the entries"):
+        for phrase in ("Works Cited", "hanging indent", "assigned from the reference-list order"):
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, self.apa7)
 
@@ -1891,6 +2018,7 @@ class EveryDeclaredLimitIsReDerivedAtTheScannerSeam(unittest.TestCase):
             "unwarranted retrieval date": self.unwarranted_retrieval_date,
             "UpToDate last update year": self.uptodate_last_update_year,
             "the source exists and says so": self.source_exists_and_says_so,
+            "legal form and authority validity": self.legal_form_and_authority_validity,
         }
         self.assertEqual(set(handlers), set(dict(scan.NOT_REACHED)))
         for key, handler in handlers.items():
@@ -1927,14 +2055,22 @@ class EveryDeclaredLimitIsReDerivedAtTheScannerSeam(unittest.TestCase):
             kinds(draft(stable_without_a_doi, UPTODATE)),
         )
 
-        # The positive control reaches the only unambiguous signal the scanner owns.
-        stable_with_a_doi = ACOG.replace(
-            "https://doi.org", "Retrieved August 19, 2026, from https://doi.org"
+        # The positive control reaches a classified fixed source without relying on a DOI.
+        stable_with_a_doi = (
+            "Smith, A. (2024). Review. *Cochrane Database of Systematic Reviews*. "
+            "Retrieved August 19, 2026, from https://example.org/review"
         )
         self.assertIn(
             scan.RETRIEVAL_DATE_ON_ARCHIVED,
             kinds(draft(stable_with_a_doi, UPTODATE)),
         )
+
+    def legal_form_and_authority_validity(self):
+        case = "Brown v. Board of Education, 347 U.S. 483 (1954)."
+        self.assertFalse(scan.read_document(draft(case, body="# Case\n")).entries[0].is_legal)
+
+        code_section = scan.read_document(draft(NAMED_LEGAL, body="# Case\n")).entries[0]
+        self.assertTrue(code_section.is_legal)
 
     def uptodate_last_update_year(self):
         entry = UPTODATE.replace("(2025)", "(2019)")
@@ -1975,7 +2111,7 @@ class LegalReferenceRulesArePublished(unittest.TestCase):
     def test_section_eight_carries_the_official_form_and_code_owned_limit(self):
         section = self.section_eight()
         self.assertIn("Professional and Vocational Regulations, 16 CCR § 1481 (2023)", section)
-        self.assertIn("Name of the Statute, Title number Source § Section number(s) (Year)", section)
+        self.assertIn("Name of Regulation, Title number Source § Section number(s) (Year)", section)
         self.assertIn("discussion_artifact.LEGAL_READER_NOT_REACHED", section)
 
     def test_section_eight_enumerates_no_copy_of_the_code_owned_limit(self):
@@ -1986,6 +2122,7 @@ class LegalReferenceRulesArePublished(unittest.TestCase):
                 "unlisted legal Source",
                 "refused session-law forms",
                 "leftmost legal span",
+                "legal form and authority status",
             },
         )
         for subject, reason in artifact.LEGAL_READER_NOT_REACHED:

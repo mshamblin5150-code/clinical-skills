@@ -130,8 +130,8 @@ unreachable. That distinction changes what should be measured. The combined
 program reported a 12% improvement when evening hours and transit support were
 offered together (Quill, 2024, p. 6). The result does not prove that one design
 fits every community, but it does show why a building count is an incomplete
-measure. In policy terms, 42 C.F.R. § 482.13 provides a useful legal context
-without settling whether a particular delivery model works. The practical test
+measure. In policy terms, the regulation provides a useful legal context
+(Patient Rights, 2024) without settling whether a particular delivery model works. The practical test
 is completed care, not nominal availability, because the outcome belongs at the
 point where a patient can use what the system says it offers.
 
@@ -653,20 +653,16 @@ REFUTATION: stands - the page addresses the cited proposition.
                 keys = artifact.citation_occurrence_keys(citations)
                 self.assertIn((artifact.author_key(author), "2024"), keys[0])
 
-    def test_yearless_legal_citation_matches_a_dated_regulation_record(self):
+    def test_yearless_legal_citation_does_not_match_a_dated_regulation_record(self):
         citations = artifact.read_citations("42 C.F.R. § 482.13 supplies the legal context.")
         reference = artifact.reference_keys("Patient rights, 42 C.F.R. § 482.13 (2024).")
 
         self.assertEqual(1, len(citations))
-        self.assertTrue(set(artifact.citation_occurrence_keys(citations)[0]) & set(reference))
+        self.assertFalse(set(artifact.citation_occurrence_keys(citations)[0]) & set(reference))
 
-    def test_a_legal_reference_keys_on_its_name_and_section(self):
+    def test_a_legal_reference_keys_on_its_title_and_year(self):
         self.assertEqual(
-            (
-                (artifact.author_key("Patient rights"), "2024"),
-                (artifact.author_key("42 C.F.R. § 482.13"), "2024"),
-                (artifact.author_key("42 C.F.R. § 482.13"), ""),
-            ),
+            ((artifact.author_key("Patient rights"), "2024"),),
             artifact.reference_keys("Patient rights, 42 C.F.R. § 482.13 (2024)."),
         )
 
@@ -853,11 +849,11 @@ REFUTATION: stands - the page addresses the cited proposition.
         entries = {
             "name-and-section": (
                 "Patient rights, 42 C.F.R. § 482.13 (2024).",
-                (True, True, True, True, True),
+                (False, False, False, True, True),
             ),
             "section-only": (
                 "42 C.F.R. § 482.13 (2024). Patient rights.",
-                (True, True, True, True, True),
+                (False, False, False, False, False),
             ),
         }
         forms = (
@@ -891,12 +887,12 @@ REFUTATION: stands - the page addresses the cited proposition.
         self.assertEqual(1, len(citations))
         self.assertEqual("Patient rights", citations[0].author)
 
-    def test_a_section_first_entry_still_evidences_its_trailing_name(self):
+    def test_a_section_first_entry_does_not_invent_a_trailing_title_key(self):
         keys = artifact.reference_keys(
             "42 C.F.R. § 482.13 (2024). Patient rights."
         )
 
-        self.assertIn((artifact.author_key("Patient rights"), "2024"), keys)
+        self.assertEqual((), keys)
 
     def test_an_unmatched_year_is_not_reclassified_as_a_citation(self):
         keys = frozenset({(artifact.author_key("Patient rights"), "2024")})
