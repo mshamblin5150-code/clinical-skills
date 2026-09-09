@@ -163,6 +163,8 @@ RESTATEMENT = re.compile(r"(?mi)^RESTATEMENT\s*:\s*(?P<value>.*(?:\n(?:[ \t]+\S.
 CLAIM_REFERENCE = re.compile(
     r"(?mi)^REFERENCE\s*:\s*(?P<value>.*(?:\n(?:[ \t]+\S.*))*)"
 )
+CLAIM_STATUS = re.compile(r"(?mi)^STATUS\s*:\s*(?P<value>[^\n]*)$")
+CLAIM_REFUTATION = re.compile(r"(?mi)^REFUTATION\s*:\s*(?P<value>[^\n]*)$")
 REFERENCE_LABEL_RECOGNIZER = re.compile(
     r"(?mi)^(?P<label>[ \t]*(?:#{1,6}[ \t]+)?"
     r"(?:\*\*References?\*\*|__References?__|\*References?\*|_References?_|References?)"
@@ -181,6 +183,34 @@ AUTOMATED_RENDERED_SOURCES = frozenset(("word-pdf", "word-xps"))
 RENDERED_SOURCES = AUTOMATED_RENDERED_SOURCES | {"canvas-box", "clinician"}
 RENDERED_RASTER_DPI = 120
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
+
+
+def claim_record_can_certify_values(block: str) -> bool:
+    """Whether a downstream claim certifier may use this record's substance.
+
+    Imports are deliberately local: ``research_ledger`` reaches this module
+    through ``reference_scan``, while the ledger remains the one owner of both
+    vocabularies and their keyword parser.
+    """
+    from research_ledger import (
+        REFUTATION_REFUTED,
+        REFUTATION_VALUES,
+        STATUSES,
+        UNREADABLE,
+        UNSOURCED,
+        keyword_of,
+    )
+
+    status_match = CLAIM_STATUS.search(block)
+    refutation_match = CLAIM_REFUTATION.search(block)
+    status = keyword_of(
+        status_match.group("value") if status_match else "", STATUSES
+    )[0]
+    refutation = keyword_of(
+        refutation_match.group("value") if refutation_match else "",
+        REFUTATION_VALUES,
+    )[0]
+    return status not in {UNSOURCED, UNREADABLE} and refutation != REFUTATION_REFUTED
 
 
 def png_read_error(pymupdf, path) -> str | None:

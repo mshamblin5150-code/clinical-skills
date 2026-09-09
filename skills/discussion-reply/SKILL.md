@@ -112,7 +112,7 @@ full APA 7 reference, a restatement in the source's own terms, the URL or DOI ac
 the read date, the page's stated year and where it appears, and the source's stated expiry or
 `none stated`. The orchestrator alone writes the records.
 
-Every research and refutation brief first reads the two rules in
+Every research and refutation brief first reads the rules in
 [sourcing.md](../_shared/reference/sourcing.md) and applies them to every returned claim or negative.
 Then send every sourced record to a different agent briefed to refute it. The second agent tries to
 prove the reference, locator, year, bibliographic details, or restatement wrong and returns
@@ -145,10 +145,8 @@ INSTRUMENTS: <first instrument> -> <second instrument>
 STATED-EXPIRY: none stated | <ISO date> - <where the document states it> | <ISO date>, superseded cited deliberately - <reason>
 ```
 
-For `unsourced`, put what was searched on the `STATUS` line and omit the other fields. For
-`STATUS: unreadable`, state what prevented both reads, omit every source field, and retain only
-`INSTRUMENTS`. The literal `->` separates two substantive instrument names that must differ after
-normalization. `INSTRUMENTS` is also required for `REFUTATION: unreadable` and forbidden elsewhere.
+Apply the shared sourcing rules below to `unsourced` and `unreadable` records. `INSTRUMENTS` is
+also required for `REFUTATION: unreadable` and forbidden elsewhere.
 For a sourced
 record, transcribe only an expiry the document states; do not infer one from a publication cadence.
 `42 C.F.R. § 414.56 (2025)` is the known case where `none stated` is correct: the codification year is
