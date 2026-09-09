@@ -161,6 +161,64 @@ class CostedClaimsReadSlidesAndSpeakerNotes(unittest.TestCase):
 
         self.assertEqual(0, status)
 
+    def test_only_believed_claim_records_trace_costs(self):
+        states = (
+            "STATUS: unsourced - searched the named market sources.",
+            "STATUS: unreadable - both instruments failed.",
+            "STATUS: sourced\nREFUTATION: refuted - the source states a different cost.",
+        )
+        for state in states:
+            with self.subTest(state=state.splitlines()[-1].split(" -", 1)[0]):
+                with tempfile.TemporaryDirectory() as temp:
+                    run = Run(Path(temp))
+                    (run.root / "claims.md").write_text(
+                        f"DATE: 2026-09-02\n\n## CLAIM: Build-out costs $47,000.\n{state}\n",
+                        encoding="utf-8",
+                    )
+                    run.write_deck((slide_xml("Plan", "Build-out $47,000"),))
+                    status, stdout, _ = run.grade()
+
+                self.assertEqual(1, status)
+                self.assertIn(f"{scan.UNTRACED_COST}: 1", stdout)
+
+    def test_a_sourced_standing_record_still_traces_its_cost(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            (run.root / "claims.md").write_text(
+                "DATE: 2026-09-02\n\n## CLAIM: Build-out costs $47,000.\n"
+                "STATUS: sourced\nREFUTATION: stands - the source states this cost.\n",
+                encoding="utf-8",
+            )
+            run.write_deck((slide_xml("Plan", "Build-out $47,000"),))
+            status, _, _ = run.grade()
+
+        self.assertEqual(0, status)
+
+    def test_a_sourced_record_missing_ledger_fields_is_still_believed(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            (run.root / "claims.md").write_text(
+                "DATE: 2026-09-02\n\n## CLAIM: Build-out costs $47,000.\nSTATUS: sourced\n",
+                encoding="utf-8",
+            )
+            run.write_deck((slide_xml("Plan", "Build-out $47,000"),))
+            status, _, _ = run.grade()
+
+        self.assertEqual(0, status)
+
+    def test_token_identity_does_not_establish_claim_support(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            (run.root / "claims.md").write_text(
+                "DATE: 2026-09-02\n\n## CLAIM: An unrelated item costs $47,000.\n"
+                "STATUS: sourced\nREFUTATION: stands - the source states the unrelated cost.\n",
+                encoding="utf-8",
+            )
+            run.write_deck((slide_xml("Plan", "Build-out $47,000"),))
+            status, _, _ = run.grade()
+
+        self.assertEqual(0, status)
+
     def test_a_cost_outside_a_claim_heading_does_not_trace_the_deck(self):
         with tempfile.TemporaryDirectory() as temp:
             run = Run(Path(temp))

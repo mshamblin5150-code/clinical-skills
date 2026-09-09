@@ -13,3 +13,11 @@ A search that ran and found nothing reports the corpus it read and what it did n
 that did not run is not a negative. When an instrument refuses the read, retry with a second
 independent instrument. If that also fails, report the source as unreadable rather than reporting
 that the sought material is absent.
+
+## A sourceless record makes no claim about a source
+
+An `unsourced` or `unreadable` record states its substantive search or failure on `STATUS` and
+omits every field required of a sourced record: `SOURCE`, `REFERENCE`, `RESTATEMENT`, `RECENCY`,
+`RESOLVED`, `PAGE-YEAR`, `REFUTATION`, `SECOND-ROUTE`, and `STATED-EXPIRY`. An unreadable record
+retains `INSTRUMENTS`, whose two substantive halves name the distinct failed routes. A clean
+sourceless record does not establish that a rejected source was named well enough to recheck.

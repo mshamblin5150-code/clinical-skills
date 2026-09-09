@@ -48,6 +48,7 @@ from discussion_artifact import (
     WORD,
     citation_occurrence_keys,
     citation_coverage,
+    claim_record_is_believed,
     invoked_source_has_substance,
     legal_reference_lacks_name,
     read_citations,
@@ -139,6 +140,16 @@ GATED_ROW_SETS = {
 ABSENT_BY_DESIGN_FIELDS = ("word_ceiling",)
 
 DECLARED_LIMITS = (
+    (
+        "whether a believed record's restatement supports the number traced from it",
+        "The certifier reads numeric tokens and never judges whether the record's restatement supports the fact asserted in the post.",
+        EvidenceDisposition.BEHAVIOR,
+    ),
+    (
+        "whether a sourced record missing required fields is still believed",
+        "Field completeness belongs to research_ledger; this certifier still reads numbers and reference keys from a record whose sourced status is recognizable.",
+        EvidenceDisposition.BEHAVIOR,
+    ),
     (
         "whether a republished citation's original year matches its source",
         "The shared date grammar keys untraced-citation and respent-record on the "
@@ -428,15 +439,20 @@ def _claim_records(claims: str) -> tuple[ClaimRecord, ...]:
         lines = block.splitlines()
         heading = lines[0] if lines else ""
         restatement = RESTATEMENT.search(block)
-        trace_text = heading + "\n" + (
-            restatement.group("value") if restatement else ""
-        )
+        trace_text = ""
+        if claim_record_is_believed(block):
+            trace_text = heading + "\n" + (
+                restatement.group("value") if restatement else ""
+            )
         reference = CLAIM_REFERENCE.search(block)
         keys = (
             reference_keys(reference.group("value").replace("\n", " "))
             if reference is not None
             else ()
         )
+        # Reference keys remain visible even when the record cannot certify a
+        # number. Removing them would hide a narrative citation rather than
+        # refusing its unsupported claim.
         records.append(
             ClaimRecord(
                 numbers=frozenset(

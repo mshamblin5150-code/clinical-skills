@@ -34,6 +34,7 @@ from discussion_artifact import (
     author_key,
     citation_occurrence_keys,
     citation_coverage,
+    claim_record_is_believed,
     discussion_entry_id,
     invoked_source_has_substance,
     legal_reference_lacks_name,
@@ -117,6 +118,16 @@ INVOKED_PROPERTY_LIMIT = (
     "The row refuses an empty field or lexical restatement of the domain noun; the clinician judges whether the remaining words state the real behavior.",
 )
 DECLARED_LIMITS = (
+    (
+        "whether a believed record's restatement supports the number traced from it",
+        "The certifier reads numeric tokens and never judges whether the record's restatement supports the fact asserted in the reply.",
+        EvidenceDisposition.BEHAVIOR,
+    ),
+    (
+        "whether a sourced record missing required fields is still believed",
+        "Field completeness belongs to research_ledger; this certifier still reads numbers and reference keys from a record whose sourced status is recognizable.",
+        EvidenceDisposition.BEHAVIOR,
+    ),
     (
         "whether every roster post was readable",
         "The command refuses a known unread file but cannot establish that the captured posts directory is the complete live board roster.",
@@ -373,6 +384,11 @@ def _number_findings(
     traced: set[str] = set()
     target = reply.path.stem.removeprefix("response-")
     for claim, block in _scoped_claim_blocks(claims, target):
+        if not claim_record_is_believed(block):
+            # _claimed_references intentionally still reads this block. A
+            # disbelieved record cannot certify a number, but its reference key
+            # remains visible so narrative citation recognition cannot vanish.
+            continue
         restatement = RESTATEMENT.search(block)
         trace_text = claim + "\n" + (
             restatement.group("value") if restatement else ""

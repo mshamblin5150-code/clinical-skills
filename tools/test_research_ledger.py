@@ -682,7 +682,7 @@ class AnUnsourcedRecordSaysWhatWasSearched(unittest.TestCase):
         text = ledger_text(
             self._record("unsourced - nothing found.", "Someone, A. (2024). A thing. Journal.")
         )
-        self.assertEqual(kinds(text), [ledger.UNSOURCED_WITH_CITATION_FIELD])
+        self.assertEqual(kinds(text), [ledger.SOURCELESS_WITH_SOURCE_FIELD])
 
     def test_an_unsourced_record_is_counted_so_the_run_knows(self):
         text = ledger_text(self._record("unsourced - searched three databases."))
@@ -751,19 +751,22 @@ STATUS: unreadable - both attempts failed before either read the source.
 INSTRUMENTS: web fetch -> curl
 """
         values = {
+            "SOURCE": "peer-reviewed",
             "REFERENCE": "Invented, A. (2026). Unread source.",
+            "RESTATEMENT": "The unread source states this claim.",
+            "RECENCY": "current",
             "RESOLVED": "https://example.test/unread - read 2026-09-08",
             "PAGE-YEAR": "2026 - on the unread page",
             "REFUTATION": "stands - asserted without a read",
             "SECOND-ROUTE": "first route -> second route",
             "STATED-EXPIRY": "none stated",
         }
-        self.assertEqual(set(values), set(ledger.CITATION_FIELDS))
+        self.assertEqual(set(values), set(ledger.SOURCE_FIELDS))
         for name, value in values.items():
             with self.subTest(field=name):
                 record = base + f"{name}: {value}\n"
                 found = kinds(ledger_text(record))
-                self.assertIn(ledger.UNSOURCED_WITH_CITATION_FIELD, found)
+                self.assertIn(ledger.SOURCELESS_WITH_SOURCE_FIELD, found)
 
     def test_instruments_are_forbidden_on_both_other_statuses(self):
         unsourced = """\
@@ -1449,7 +1452,7 @@ class TheRefutationDeclaresASecondRoute(unittest.TestCase):
             "publisher HTML -> journal PDF rendered at 600 dpi",
         )
         self.assertIn("SECOND-ROUTE", ledger.REQUIRED_WHEN_SOURCED)
-        self.assertIn("SECOND-ROUTE", ledger.CITATION_FIELDS)
+        self.assertIn("SECOND-ROUTE", ledger.SOURCE_FIELDS)
 
     def test_an_unsplit_route_is_a_finding(self):
         record = replace_field(CLEAN, "SECOND-ROUTE", "journal PDF at 600 dpi")
@@ -1669,18 +1672,43 @@ class EveryRuledFanOutReadsTheSharedSourcingRules(unittest.TestCase):
         "aar": 1,
     }
 
-    def test_the_shared_file_contains_the_two_rules_and_no_third_rule(self):
+    def test_the_shared_file_contains_the_three_rules_and_no_fourth_rule(self):
         text = SOURCING.read_text(encoding="utf-8")
         flat = " ".join(text.split())
         self.assertEqual(
             re.findall(r"(?m)^## (.+)$", text),
-            ["A pointer is not a source", "A failed read is not a negative"],
+            [
+                "A pointer is not a source",
+                "A failed read is not a negative",
+                "A sourceless record makes no claim about a source",
+            ],
         )
         self.assertIn("Derived material may carry a sentence", flat)
         self.assertIn("retained and gradeable against it", flat)
         self.assertIn("resolvable and was independently re-opened", flat)
         self.assertIn("reports the corpus it read and what it did not open", flat)
         self.assertIn("retry with a second independent instrument", flat)
+
+    def test_the_sourceless_record_rule_has_one_home(self):
+        rule = "A sourceless record makes no claim about a source"
+        skill_texts = tuple(
+            path.read_text(encoding="utf-8")
+            for path in (REPO_ROOT / "skills").rglob("*.md")
+        )
+
+        self.assertEqual(1, sum(text.count(rule) for text in skill_texts))
+        self.assertIn(rule, SOURCING.read_text(encoding="utf-8"))
+        for skill in (
+            "discussion-post",
+            "discussion-reply",
+            "course-assignment",
+            "practicum-case-study",
+        ):
+            with self.subTest(skill=skill):
+                text = (REPO_ROOT / "skills" / skill / "SKILL.md").read_text(encoding="utf-8")
+                self.assertIn(self.LINK, text)
+                self.assertNotIn("omit the other fields", text)
+                self.assertNotIn("omit every source field", text)
 
     def test_each_named_briefing_surface_points_to_that_file(self):
         for skill, occurrences in self.SURFACES.items():
@@ -1701,40 +1729,72 @@ class EveryRuledFanOutReadsTheSharedSourcingRules(unittest.TestCase):
                 self.assertIn("INSTRUMENTS: <first instrument> -> <second instrument>", text)
 
 
-class AnUnsourcedRecordCarriesNoneOfTheCitationFields(unittest.TestCase):
-    """``UNSOURCED_WITH_CITATION_FIELD``'s reasoning, widened by #231: a record saying
-    it found no source may not carry a locator, a page year or a refutation
-    either. The two statements contradict, and nothing else in the file can tell
-    which was meant."""
+class ASourcelessRecordCarriesNoneOfTheSourceFields(unittest.TestCase):
+    """ADR 0153's complete source-field population, derived from the sourced shape."""
 
     def _unsourced(self) -> str:
         record = replace_field(
             CLEAN, "STATUS", "unsourced - searched PubMed, IDSA and UpToDate, nothing addresses it."
         )
-        for name in ledger.CITATION_FIELDS:
+        for name in ledger.SOURCE_FIELDS:
             record = replace_field(record, name, None)
         return record
 
-    def test_an_unsourced_record_with_no_citation_fields_passes(self):
+    def test_an_unsourced_record_with_no_source_fields_passes(self):
         self.assertEqual(kinds(ledger_text(self._unsourced())), [])
 
-    def test_each_citation_field_contradicts_it_on_its_own(self):
+    def test_each_source_field_contradicts_it_on_its_own(self):
         values = {
+            "SOURCE": "peer-reviewed",
             "REFERENCE": "Someone, A. (2020). A study. Journal, 1(1), 1-9.",
+            "RESTATEMENT": "The study reports the result.",
+            "RECENCY": "current",
             "RESOLVED": "https://doi.org/10.1/x - read 2026-08-19",
             "PAGE-YEAR": "2020 - on the masthead.",
             "REFUTATION": "stands - checked the landing page.",
             "SECOND-ROUTE": "publisher HTML -> journal PDF rendered at 600 dpi",
             "STATED-EXPIRY": "none stated",
         }
-        self.assertEqual(set(values), set(ledger.CITATION_FIELDS))
+        self.assertEqual(ledger.SOURCE_FIELDS, ledger.REQUIRED_WHEN_SOURCED)
+        self.assertEqual(set(values), set(ledger.SOURCE_FIELDS))
         for name, value in values.items():
             with self.subTest(field=name):
-                record = replace_field(self._unsourced(), "RECENCY", value)
-                record = record.replace("RECENCY:", name + ":")
-                self.assertEqual(kinds(ledger_text(record)), [ledger.UNSOURCED_WITH_CITATION_FIELD])
+                record = self._unsourced() + f"{name}: {value}\n"
+                self.assertEqual(kinds(ledger_text(record)), [ledger.SOURCELESS_WITH_SOURCE_FIELD])
 
-    def test_the_citation_fields_are_not_required_of_it(self):
+    def test_the_cli_reports_each_source_field_separately(self):
+        values = {
+            "SOURCE": "peer-reviewed",
+            "REFERENCE": "Someone, A. (2020). A study. Journal, 1(1), 1-9.",
+            "RESTATEMENT": "The study reports the result.",
+            "RECENCY": "current",
+            "RESOLVED": "https://doi.org/10.1/x - read 2026-08-19",
+            "PAGE-YEAR": "2020 - on the masthead.",
+            "REFUTATION": "stands - checked the landing page.",
+            "SECOND-ROUTE": "publisher HTML -> journal PDF rendered at 600 dpi",
+            "STATED-EXPIRY": "none stated",
+        }
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            claims = root / "claims.md"
+            write_bar(root)
+            for name, value in values.items():
+                with self.subTest(field=name):
+                    claims.write_text(
+                        ledger_text(self._unsourced() + f"{name}: {value}\n"),
+                        encoding="utf-8",
+                    )
+                    stdout, stderr = io.StringIO(), io.StringIO()
+                    with redirect_stdout(stdout), redirect_stderr(stderr):
+                        status = ledger.main([str(claims)])
+                    self.assertEqual(1, status)
+                    self.assertIn("1 record(s) fail", stderr.getvalue())
+                    self.assertRegex(
+                        stdout.getvalue(),
+                        rf"#214 - {ledger.SOURCELESS_WITH_SOURCE_FIELD}\s+1",
+                    )
+
+    def test_the_source_fields_are_not_required_of_it(self):
         """An unsourced record has no citation, so asking it to refute one would
         refuse the honest outcome the ``PROPOSED`` block exists for."""
         self.assertEqual(kinds(ledger_text(self._unsourced())), [])
@@ -1936,7 +1996,7 @@ class TheSkillSaysWhatThisChecks(ProseBind, unittest.TestCase):
         ledger.MISSING_FIELD: "a field missing or empty",
         ledger.UNKNOWN_STATUS: "a `STATUS` outside the three",
         ledger.BARE_STATUS: "an `unsourced` with nothing said about what was searched",
-        ledger.UNSOURCED_WITH_CITATION_FIELD: "an `unsourced` or `unreadable` status record carrying a source field",
+        ledger.SOURCELESS_WITH_SOURCE_FIELD: "a sourceless status record carrying any source field",
         ledger.UNKNOWN_SOURCE_CLASS: "a `SOURCE` outside the four",
         ledger.UNKNOWN_RECENCY: "a `RECENCY` outside the four",
         ledger.RESTATEMENT_ECHOES_CLAIM: "a `RESTATEMENT` that is the claim pasted back",
@@ -3706,7 +3766,7 @@ REFUTATION: stands - the volume and pages match.
 
     def test_an_unsourced_record_is_left_alone(self):
         """An ``unsourced`` record may carry no ``REFERENCE`` at all -- that is
-        ``UNSOURCED_WITH_CITATION_FIELD``'s row -- so there is nothing to join."""
+        ``SOURCELESS_WITH_SOURCE_FIELD``'s row -- so there is nothing to join."""
         record = """\
 ## CLAIM: A claim nothing sourced.
 STATUS: unsourced - searched UpToDate, PubMed and the guideline corpus, nothing.

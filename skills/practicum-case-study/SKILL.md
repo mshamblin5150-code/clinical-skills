@@ -652,7 +652,7 @@ can be several of them at once:
 | a field missing or empty | a record missing its restatement is a citation nobody checked |
 | a `STATUS` outside the three | it decides which of the rules below apply, so a fourth word is a record graded on nothing |
 | an `unsourced` with nothing said about what was searched, or an `unreadable` with nothing said about the failed read | either keyword without its reason is an assertion without the work it claims |
-| an `unsourced` or `unreadable` status record carrying a source field | the two contradict, and nothing can tell which was meant |
+| a sourceless status record carrying any source field | the two contradict, and nothing can tell which was meant |
 | a `SOURCE` outside the four | a returned source outside the classes is a finding, not an answer |
 | a `RECENCY` outside the four | it gates the window below, so a fifth word is a record the window never read |
 | a `RESTATEMENT` that is the claim pasted back | the whole point is the source's own terms |

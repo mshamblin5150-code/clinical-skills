@@ -66,6 +66,7 @@ DECLARED_LIMITS = (
     DeclaredLimit("source-support-unchecked", "The grader cannot determine whether a source supports its recorded restatement.", EvidenceDisposition.DECLARED_READING),
     DeclaredLimit("pointer-primary-material-unverified", "The grader cannot establish that derived material has primary material retained and gradeable against it, or resolvable and independently re-opened.", EvidenceDisposition.DECLARED_READING),
     DeclaredLimit("negative-search-population-unverified", "The grader cannot establish that a negative reports the corpus it read and what it did not open.", EvidenceDisposition.DECLARED_READING),
+    DeclaredLimit("sourceless-recheckability-unverified", "A clean sourceless record does not establish that a rejected source was named well enough for a reader to recheck it.", EvidenceDisposition.DECLARED_READING),
     DeclaredLimit("unsourced-draft-exclusion-unchecked", "A clean ledger does not establish that unsourced claims stayed outside the draft.", EvidenceDisposition.DECLARED_READING),
     DeclaredLimit("network-resolution-absent", "No grading path fetches a locator or resolves a citation over the network.", EvidenceDisposition.DECLARED_READING),
     DeclaredLimit("refutation-independence-unverified", "SECOND-ROUTE cannot prove that the refuter was a different agent, that it actually took the route it declared, or that it opened anything.", EvidenceDisposition.DECLARED_READING),
@@ -215,7 +216,7 @@ BOUNDARY = re.compile(r"[^0-9A-Za-z-]|$")
 MISSING_FIELD = "missing-field"
 UNKNOWN_STATUS = "unknown-status"
 BARE_STATUS = "bare-status"
-UNSOURCED_WITH_CITATION_FIELD = "unsourced-with-citation-field"
+SOURCELESS_WITH_SOURCE_FIELD = "sourceless-with-source-field"
 UNKNOWN_SOURCE_CLASS = "unknown-source-class"
 UNKNOWN_RECENCY = "unknown-recency"
 RESTATEMENT_ECHOES_CLAIM = "restatement-echoes-claim"
@@ -268,7 +269,7 @@ ROWS = {
     MISSING_FIELD: "#214",
     UNKNOWN_STATUS: "#214",
     BARE_STATUS: "#214",
-    UNSOURCED_WITH_CITATION_FIELD: "#214",
+    SOURCELESS_WITH_SOURCE_FIELD: "#214",
     UNKNOWN_SOURCE_CLASS: "#214",
     UNKNOWN_RECENCY: "#215",
     RESTATEMENT_ECHOES_CLAIM: "#214",
@@ -315,19 +316,10 @@ REQUIRED_WHEN_SOURCED = (
     "STATED-EXPIRY",
 )
 
-# Every field that is a claim about a source. An ``unsourced`` record says there
-# is no source, so carrying any one of them is the contradiction
-# ``UNSOURCED_WITH_CITATION_FIELD`` was written for. A locator on a record that
-# found nothing is the same defect and must not pass merely because it uses a
-# different source-claim field.
-CITATION_FIELDS = (
-    "REFERENCE",
-    "RESOLVED",
-    "PAGE-YEAR",
-    "REFUTATION",
-    "SECOND-ROUTE",
-    "STATED-EXPIRY",
-)
+# Every required sourced field makes a claim about a source. Deriving this
+# population prevents a later sourced-field addition from silently escaping the
+# sourceless-record rule.
+SOURCE_FIELDS = REQUIRED_WHEN_SOURCED
 
 # The #289 report group, held once so report ordering and optional-run display
 # share one population.
@@ -744,9 +736,9 @@ def _sourceless_findings(record: Record) -> list[Finding]:
     found: list[Finding] = []
     if not SUBSTANCE.search(keyword_of(record.value("STATUS"), STATUSES)[1]):
         found.append(Finding(BARE_STATUS, claim, record.value("STATUS")))
-    for name in CITATION_FIELDS:
+    for name in SOURCE_FIELDS:
         if SUBSTANCE.search(record.value(name)):
-            found.append(Finding(UNSOURCED_WITH_CITATION_FIELD, claim, f"{name}: {record.value(name)}"))
+            found.append(Finding(SOURCELESS_WITH_SOURCE_FIELD, claim, f"{name}: {record.value(name)}"))
     return found
 
 
