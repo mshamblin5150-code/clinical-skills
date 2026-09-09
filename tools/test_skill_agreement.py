@@ -78,6 +78,43 @@ VOICE_CORPUS_REFERENCE = (
 VOICE_CORPUS_MODULE = REPO_ROOT / "tools" / "voice_corpus.py"
 CATALOG = REPO_ROOT / "reference" / "guidelines-catalog.md"
 
+# ``/`` joins co-publishers in README prose; the catalog spells the same
+# society with a space. Nothing else is normalized, so a wrong name stays wrong.
+README_COPUBLICATION_SEPARATOR = "/"
+README_REFUSED_PATH_ROOTS = frozenset({"scratch", "output"})
+README_MARKDOWN_TARGET = re.compile(r"\]\(([^)]+)\)")
+README_CODE_TOKEN = re.compile(r"(?<!`)`([^`\n]+)`(?!`)")
+
+README_NOT_REACHED = (
+    (
+        "external references",
+        "External URLs, issue links and bare filenames are unresolved — so the `#767` "
+        "pointer that opened this ticket is a defect this gate would not catch.",
+    ),
+    (
+        "registry description",
+        "Nothing checks that README.md's description of the currency registry matches "
+        "what the registry records.",
+    ),
+    (
+        "skill descriptions",
+        "A skill row's description can drift from its skill.",
+    ),
+    (
+        "path currency",
+        "A resolving path says nothing about its contents being current.",
+    ),
+    (
+        "ignored paths",
+        "An ignored path is refused by name, so a wrong one passes.",
+    ),
+    (
+        "society characterization",
+        "Nine correct society names do not make the sentence around them a true "
+        "characterization.",
+    ),
+)
+
 
 class InferredAgeHasOnePrivateRecordAndPlainEntry(ProseBind, unittest.TestCase):
     """#158: fill the age, but never label the submitted values as guesses.
@@ -303,6 +340,107 @@ def readme_skill_names() -> set[str]:
     }
 
 
+def catalog_societies() -> set[str]:
+    """Society values from the bounded catalog documents table."""
+
+    section = read(CATALOG).split("| society | filename |", 1)[1]
+    section = section.split("\n## ", 1)[0]
+    return {
+        line.split("|")[1].strip()
+        for line in section.splitlines()
+        if line.startswith("| ") and not line.startswith("| ---")
+    }
+
+
+def readme_societies() -> set[str]:
+    """Societies named after README.md's link to the committed catalog."""
+
+    paragraph = next(
+        block
+        for block in read(README).split("\n\n")
+        if "](reference/guidelines-catalog.md)" in block
+    )
+    names = paragraph.split("covering material from ", 1)[1].split(".", 1)[0]
+    names = names.replace(", and ", ", ")
+    return {
+        name.strip().replace(README_COPUBLICATION_SEPARATOR, " ")
+        for name in names.split(",")
+    }
+
+
+def _readme_path(value: str, *, linked: bool) -> Path | None:
+    """Resolve one root-relative README token, or refuse a non-repository token."""
+
+    candidate = value.strip().split("#", 1)[0].rstrip("/")
+    if (
+        not candidate
+        or re.match(r"^[a-z][a-z0-9+.-]*:", candidate, re.IGNORECASE)
+        or candidate.startswith(("/", "\\"))
+        or re.search(r"[<>*{}]", candidate)
+        or not linked
+        and "/" not in candidate
+        and "\\" not in candidate
+    ):
+        return None
+    normalized = posixpath.normpath(candidate.replace("\\", "/"))
+    if normalized == ".." or normalized.startswith("../"):
+        return None
+    root = normalized.split("/", 1)[0]
+    if root in README_REFUSED_PATH_ROOTS:
+        return None
+    ignored = subprocess.run(
+        ["git", "check-ignore", "--quiet", "--", normalized],
+        cwd=REPO_ROOT,
+        check=False,
+    )
+    if ignored.returncode == 0:
+        return None
+    return REPO_ROOT / normalized
+
+
+def readme_repository_paths() -> set[Path]:
+    """Rooted, non-ignored, non-placeholder paths authored in README.md."""
+
+    text = read(README)
+    candidates = (
+        ((target, True) for target in README_MARKDOWN_TARGET.findall(text)),
+        ((token, False) for token in README_CODE_TOKEN.findall(text)),
+    )
+    return {
+        path
+        for group in candidates
+        for value, linked in group
+        for path in [_readme_path(value, linked=linked)]
+        if path is not None
+    }
+
+
+def tracked_repository_paths() -> set[str]:
+    """Tracked paths Git will materialize in a clean clone.
+
+    A clean result means no tracked README path fails. Untracked paths are
+    outside this walk and cannot make the README gate pass.
+    """
+
+    completed = subprocess.run(
+        ["git", "ls-files", "-z"],
+        cwd=REPO_ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    return {path for path in completed.stdout.split("\0") if path}
+
+
+def tracked_path_or_directory(path: Path, tracked: set[str]) -> bool:
+    """Whether a repository path is tracked itself or owns tracked descendants."""
+
+    relative = path.relative_to(REPO_ROOT).as_posix().rstrip("/")
+    return relative in tracked or any(item.startswith(relative + "/") for item in tracked)
+
+
 class TheReadmeNamesEveryShippedSkill(unittest.TestCase):
     """#401: the public landing page and shipped skill tree stay complete."""
 
@@ -311,6 +449,64 @@ class TheReadmeNamesEveryShippedSkill(unittest.TestCase):
 
     def test_every_readme_skill_row_has_a_skill_directory(self):
         self.assertEqual(readme_skill_names() - set(skill_names()), set())
+
+
+class TheReadmeSocietyStatementMatchesTheCatalog(unittest.TestCase):
+    """#772: the authored society list stays equal to the bounded catalog set."""
+
+    def test_every_catalog_society_appears_in_the_readme(self):
+        self.assertEqual(catalog_societies() - readme_societies(), set())
+
+    def test_every_readme_society_appears_in_the_catalog(self):
+        self.assertEqual(readme_societies() - catalog_societies(), set())
+
+
+class TheReadmeRepositoryPathsResolve(unittest.TestCase):
+    """#772: shipped root-relative paths name something in a clean clone."""
+
+    def test_every_rooted_nonignored_nonplaceholder_path_resolves(self):
+        tracked = tracked_repository_paths()
+        missing = {
+            path.relative_to(REPO_ROOT).as_posix()
+            for path in readme_repository_paths()
+            if not path.exists() or not tracked_path_or_directory(path, tracked)
+        }
+        self.assertEqual(missing, set())
+
+    def test_the_readme_gate_declares_its_six_unreached_claims(self):
+        self.assertEqual(
+            README_NOT_REACHED,
+            (
+                (
+                    "external references",
+                    "External URLs, issue links and bare filenames are unresolved — so the "
+                    "`#767` pointer that opened this ticket is a defect this gate would not catch.",
+                ),
+                (
+                    "registry description",
+                    "Nothing checks that README.md's description of the currency registry "
+                    "matches what the registry records.",
+                ),
+                (
+                    "skill descriptions",
+                    "A skill row's description can drift from its skill.",
+                ),
+                (
+                    "path currency",
+                    "A resolving path says nothing about its contents being current.",
+                ),
+                (
+                    "ignored paths",
+                    "An ignored path is refused by name, so a wrong one passes.",
+                ),
+                (
+                    "society characterization",
+                    "Nine correct society names do not make the sentence around them a true "
+                    "characterization.",
+                ),
+            ),
+        )
+        self.assertEqual(len(catalog_societies()), 9)
 
 
 def declared_steps(name: str) -> set[int]:

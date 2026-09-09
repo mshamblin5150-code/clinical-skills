@@ -178,6 +178,7 @@ class ReaderCoverage(unittest.TestCase):
             "IDSA", 2, ("10.1000/one", "10.1000/new"), 0
         )
         comparison = currency.compare_index(documents, result)
+        self.assertEqual(comparison.matched, ("one.pdf",))
         self.assertEqual(comparison.corpus_absent, ("old.pdf",))
         self.assertEqual(comparison.publisher_additions, ("10.1000/new",))
 
@@ -253,6 +254,52 @@ class CommandContract(unittest.TestCase):
         self.assertEqual(completed.returncode, 0, completed.stderr)
         self.assertIn("superseded 1", completed.stdout)
         self.assertIn("societies 2", completed.stdout)
+
+    def test_read_stamps_only_documents_matched_on_the_society_index(self):
+        text = registry(
+            "| diabetes.pdf | ADA | dc26-srev | current |  |  |\n",
+            "| old.pdf | AHA ACC | 10.1000/old | current | 2025-01-01 |  |\n",
+            "| new.pdf | AHA ACC | 10.1000/new | absent |  |  |\n",
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            catalog = root / "catalog.md"
+            registry_path = root / "currency.md"
+            capture = root / "aha.html"
+            catalog.write_text(CATALOG, encoding="utf-8")
+            registry_path.write_text(text, encoding="utf-8")
+            capture.write_text(
+                "<a href='https://doi.org/10.1000/new'>New guideline</a>",
+                encoding="utf-8",
+            )
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    str(COMMAND),
+                    "--catalog",
+                    str(catalog),
+                    "--registry",
+                    str(registry_path),
+                    "--read",
+                    "AHA-ACC",
+                    "--capture",
+                    f"AHA-ACC={capture}",
+                ],
+                cwd=ROOT,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                capture_output=True,
+            )
+            updated = currency.parse_registry(registry_path.read_text(encoding="utf-8"))
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertIn("corpus absent: old.pdf", completed.stdout)
+        rows = {row.filename: row for row in updated.documents}
+        self.assertEqual(rows["new.pdf"].verdict, "current")
+        self.assertEqual(rows["new.pdf"].observed, date.today().isoformat())
+        self.assertEqual(rows["old.pdf"].verdict, "current")
+        self.assertEqual(rows["old.pdf"].observed, "2025-01-01")
 
 
 class FetchBoundary(unittest.TestCase):

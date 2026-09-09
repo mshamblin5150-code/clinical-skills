@@ -449,7 +449,7 @@ What a Download address rests on, one of four: `stated`, seeded from the documen
 _Avoid_: confidence, verification, provenance, mode
 
 **Guideline standing**:
-Whether a corpus document as a whole is still the guidance its society issues, as against having been replaced. It is recorded nowhere and is deliberately absent from the **Guideline catalog**, whose Class column records document form instead. It does not follow from year: an older document may stand and a newer one may already be replaced, so a publication year is never read as an expiry date. Distinct from **Corpus drift**, which is the local file set and the tree's record of it coming apart and is knowable from inside the repository; standing is a fact about the society and is not.
+Whether a corpus document as a whole is still the guidance its society issues, as against having been replaced. It is recorded nowhere and is deliberately absent from the **Guideline catalog**, whose Class column records document form instead. **Edition currency** is the nearest recorded evidence, but a society's published index can retain retired guidance or omit guidance that still stands, so it does not settle standing. It does not follow from year: an older document may stand and a newer one may already be replaced, so a publication year is never read as an expiry date. Distinct from **Corpus drift**, which is the local file set and the tree's record of it coming apart and is knowable from inside the repository; standing is a fact about the society and is not.
 _Avoid_: currency, status, current, up to date
 
 **Corpus drift**:

@@ -165,6 +165,7 @@ class ReaderResult:
 
 @dataclass(frozen=True)
 class IndexComparison:
+    matched: tuple[str, ...]
     corpus_absent: tuple[str, ...]
     publisher_additions: tuple[str, ...]
 
@@ -267,6 +268,22 @@ def parse_registry(text: str) -> Registry:
         if wanted not in seen_sections:
             problems.append(f"registry has no readable '## {wanted.title()}' table")
     return Registry(tuple(societies), tuple(documents), tuple(problems))
+
+
+def record_index_matches(text: str, filenames: set[str], observed: date) -> str:
+    """Stamp the documents a completed society-index read actually matched."""
+
+    parsed = parse_registry(text)
+    if parsed.problems:
+        raise ReadError("registry did not parse: " + "; ".join(parsed.problems))
+    lines = text.splitlines()
+    for row in parsed.documents:
+        if row.filename in filenames:
+            lines[row.line - 1] = (
+                f"| {row.filename} | {row.society} | {row.join_value} | "
+                f"current | {observed.isoformat()} |  |"
+            )
+    return "\n".join(lines) + "\n"
 
 
 def _parsed_date(value: str, where: str, failures: list[str]) -> date | None:
@@ -609,6 +626,17 @@ def compare_index(
             continue
         by_join.setdefault(row.join_value.casefold(), []).append(row.filename)
     published = {value.casefold(): value for value in result.join_values}
+    matched = tuple(
+        sorted(
+            (
+                filename
+                for join, filenames in by_join.items()
+                if join in published
+                for filename in filenames
+            ),
+            key=str.casefold,
+        )
+    )
     corpus_absent = tuple(
         sorted(
             (
@@ -623,7 +651,7 @@ def compare_index(
     publisher_additions = tuple(
         published[join] for join in sorted(set(published) - set(by_join))
     )
-    return IndexComparison(corpus_absent, publisher_additions)
+    return IndexComparison(matched, corpus_absent, publisher_additions)
 
 
 def download_bytes(url: str) -> bytes:
@@ -1031,12 +1059,13 @@ def _captures(arguments: list[str]) -> dict[str, Path]:
     return captures
 
 
-def _run_reads(args: argparse.Namespace, registry: Registry) -> int:
+def _run_reads(args: argparse.Namespace, registry: Registry, registry_text: str) -> int:
     if registry.problems:
         raise ReadError("registry did not parse: " + "; ".join(registry.problems))
     by_society = {entry.society.upper(): entry for entry in registry.societies}
     captures = _captures(args.capture)
     incomplete = False
+    matched: set[str] = set()
     for requested in args.read:
         key = requested.replace("-", " ").upper()
         entry = by_society.get(key)
@@ -1057,6 +1086,7 @@ def _run_reads(args: argparse.Namespace, registry: Registry) -> int:
         else:
             result = read_society_index(entry.society, content)
         comparison = compare_index(registry.documents, result)
+        matched.update(comparison.matched)
         print(
             f"{entry.society}: read {result.denominator - result.unread} of "
             f"{result.denominator}; unread {result.unread}; corpus absent "
@@ -1065,11 +1095,16 @@ def _run_reads(args: argparse.Namespace, registry: Registry) -> int:
         )
         if args.verbose:
             print(f"  coverage: {SOCIETY_COVERAGE[entry.society]}")
-            for filename in comparison.corpus_absent:
-                print(f"  corpus absent: {filename}")
             for value in comparison.publisher_additions:
                 print(f"  publisher addition: {value}")
+        for filename in comparison.corpus_absent:
+            print(f"  corpus absent: {filename}")
         incomplete = incomplete or result.unread > 0
+    if matched:
+        args.registry.write_text(
+            record_index_matches(registry_text, matched, date.today()),
+            encoding="utf-8",
+        )
     return 2 if incomplete else 0
 
 
@@ -1104,7 +1139,7 @@ def main(argv: list[str] | None = None) -> int:
                 raise ReadError(
                     "currency registry did not grade: " + "; ".join(preflight.failures)
                 )
-            return _run_reads(args, parsed)
+            return _run_reads(args, parsed, registry_text)
         if args.fetch_replacement:
             missing = [
                 name
