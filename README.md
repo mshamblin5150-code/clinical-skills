@@ -50,7 +50,7 @@ The reference tier begins with [`reference/guidelines-catalog.md`](reference/gui
 
 ## Which guidelines these rest on
 
-A publication year is not an expiration date. The catalog records what each document is and what the repository read; it does not establish whether a society still considers that edition current. Upstream-edition monitoring is tracked in [issue #767](https://github.com/mshamblin5150-code/clinical-skills/issues/767). The committed snapshot is current through the editions recorded in the catalog and its audit ledger.
+A publication year is not an expiration date. The catalog records what each document is and what the repository read; it does not establish whether a society still considers that edition current. The committed [`reference/guidelines-currency.md`](reference/guidelines-currency.md) records, per document, what each society's published index currently lists. The committed snapshot is current through the editions recorded in the catalog and its audit ledger.
 
 This is a bounded corpus, not all of medicine. A topic with no threshold sheet is outside this corpus; that absence does not mean no guideline or clinical recommendation applies.
 
