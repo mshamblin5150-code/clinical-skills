@@ -31,7 +31,7 @@ import grader_conformance
 import run_grader
 
 
-FilledVitalsCensusConformance = grader_conformance.for_module(fvc)
+GraderConformance = grader_conformance.for_module(fvc)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 NOTES = REPO_ROOT / "fixtures" / "filled-anchor" / "notes"

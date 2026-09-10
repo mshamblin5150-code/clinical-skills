@@ -23,7 +23,7 @@ import grader_conformance
 import specificity_scan
 
 
-AarScanConformance = grader_conformance.for_module(aar_scan)
+GraderConformance = grader_conformance.for_module(aar_scan)
 
 
 class DeclaredLimitsAreBound(unittest.TestCase):

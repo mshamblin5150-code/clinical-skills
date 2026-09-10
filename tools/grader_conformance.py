@@ -1,4 +1,9 @@
-"""Reusable public-seam conformance tests for ``run_grader`` members."""
+"""Reusable public-seam conformance tests for ``run_grader`` members.
+
+Test modules bind generated classes as ``GraderConformance`` or
+``GateConformance`` so every discovered test id resolves through that binding.
+The kit's measured boundary is ``grader_conformance.DECLARED_LIMITS``.
+"""
 
 from __future__ import annotations
 
@@ -7,6 +12,7 @@ import contextlib
 import dataclasses
 import io
 import inspect
+import sys
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -17,6 +23,16 @@ import run_grader
 
 MARKER = "conformance-salted-marker"
 
+DECLARED_LIMITS = (
+    (
+        "whether every generated class a test module creates is bound where "
+        "discovery can find it",
+        "A second binding of one generated kind replaces the first class, so "
+        "discovery and the adoption walk cannot count the replaced tests.",
+        run_grader.EvidenceDisposition.BEHAVIOR,
+    ),
+)
+
 
 class _FindingProbe:
     def __init__(self, kind: str):
@@ -25,6 +41,14 @@ class _FindingProbe:
 
     def __getattr__(self, _name: str) -> str:
         return MARKER
+
+
+def _set_discoverable_identity(
+    test_case: type[unittest.TestCase], module_name: str, binding_name: str
+) -> None:
+    test_case.__module__ = module_name
+    test_case.__name__ = binding_name
+    test_case.__qualname__ = binding_name
 
 
 def _empty_value(field: dataclasses.Field[Any]) -> Any:
@@ -178,8 +202,11 @@ def gate_conformance(module: Any) -> type[unittest.TestCase]:
 
                     self.assertEqual(changed, declared_indexes)
 
-    GateConformance.__name__ = f"{module.__name__}GateConformance"
-    GateConformance.__qualname__ = GateConformance.__name__
+    _set_discoverable_identity(
+        GateConformance,
+        sys._getframe(1).f_globals["__name__"],
+        "GateConformance",
+    )
     return GateConformance
 
 
@@ -351,6 +378,9 @@ def for_module(module: Any) -> type[unittest.TestCase]:
             self.assertTrue(stdout.getvalue().startswith(module.format_report(scan, "source")))
             self.assertIn("tier-two-diagnostic", stderr.getvalue())
 
-    GraderConformance.__name__ = f"{module.__name__}GraderConformance"
-    GraderConformance.__qualname__ = GraderConformance.__name__
+    _set_discoverable_identity(
+        GraderConformance,
+        sys._getframe(1).f_globals["__name__"],
+        "GraderConformance",
+    )
     return GraderConformance

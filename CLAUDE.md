@@ -169,6 +169,8 @@ in that paragraph is historical.
 
 `tools/grader_conformance.py` holds reusable public-seam checks for the command graders. `for_module` is universal by convention for members of that family: it binds their runner delegation, row vocabulary, redaction, and exit precedence. `gate_conformance` is opt-in and a test module must name its membership explicitly, because a boolean on `Scan` is not necessarily a report gate.
 
+Generated cases are bound as `GraderConformance` and `GateConformance`; `tools/test_suite_ids.py` proves their discovered IDs re-run, while `grader_conformance.DECLARED_LIMITS` owns the remaining boundary.
+
 The distinction comes from the whole-family shape read recorded in [ADR 0080](docs/adr/0080-a-gated-row-set-is-declared-per-gate-and-guarded-by-an-opt-in-walk-in-the-shared-conformance-kit.md). The discussion scanners use booleans to suppress report rows, while `case_study_scan` uses banner flags that append prose and suppress nothing; other riders may have no boolean field at all. Applying the gate walk automatically would therefore grade a correct banner shape as defective. Opting in lets the discussion pair share one report-width rule without asserting that every grader must adopt their boolean-gate arrangement or the nullable-sentinel arrangement refused by [ADR 0071](docs/adr/0071-a-gated-row-set-is-derived-from-its-sentinel-and-guarded-by-a-walk-in-its-own-module.md).
 
 The shared walk proves that each declared gate changes only its declared fields and finding kinds, and that omitted groups say `not graded`. It does not prove command-line reachability or exit status. Each opting-in module owns those through real-fixture positive controls and a `HANDLERS` pair in its test module.
