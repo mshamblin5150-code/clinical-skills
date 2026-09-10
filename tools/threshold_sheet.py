@@ -210,8 +210,10 @@ import json
 import os
 import re
 import sys
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import date
+from enum import Enum
 from pathlib import Path
 from typing import NamedTuple
 
@@ -544,6 +546,34 @@ _INEQUALITY_WORDS = (
 )
 
 
+class LinePlacement(Enum):
+    """Where an emitted line sits relative to the report footer."""
+
+    IN_POSITION = "in-position"
+    TRAILING = "trailing-after-footer"
+
+
+@dataclass(frozen=True)
+class Line:
+    """One ordered output line with its quiet-mode and placement contract."""
+
+    text: str
+    suppressible: bool = True
+    placement: LinePlacement = LinePlacement.IN_POSITION
+
+
+def _report_lines(lines: Iterable[str]) -> tuple[Line, ...]:
+    return tuple(Line(text) for text in lines)
+
+
+def _stdout_lines(
+    lines: Iterable[str],
+    *,
+    placement: LinePlacement = LinePlacement.TRAILING,
+) -> tuple[Line, ...]:
+    return tuple(Line(text, suppressible=False, placement=placement) for text in lines)
+
+
 @dataclass
 class GateResult:
     """One gate's named outcome; every finding remains plain text."""
@@ -559,14 +589,11 @@ class GateResult:
     ungraded: int = 0
     ungraded_sources: list[str] = field(default_factory=list)
     unprobed_sources: list[str] = field(default_factory=list)
-    report: tuple[str, ...] = ()
-    stdout: tuple[str, ...] = ()
+    lines: tuple[Line, ...] = ()
     diagnostics: tuple[str, ...] = ()
     tier2_skip_diagnostics: tuple[str, ...] = ()
     not_graded: bool = False
     fatal: bool = False
-    report_after_stdout: tuple[str, ...] = ()
-    stdout_before_footer: bool = False
 
 def _rows_cited_within_span(sheet: Sheet, span: Span) -> list[Row]:
     """Return rows whose source and cited page fall within ``span``."""
@@ -598,11 +625,12 @@ def format_report(scan: Scan) -> str:
     if not scan.sheet.ok:
         return "\n".join(lines) + "\n"
 
-    for result in scan.results:
-        lines.extend(result.report)
-        if result.stdout_before_footer:
-            lines.extend(result.stdout)
-        lines.extend(result.report_after_stdout)
+    lines.extend(
+        line.text
+        for result in scan.results
+        for line in result.lines
+        if line.placement is LinePlacement.IN_POSITION
+    )
     lines.extend(_report_footer(scan.sheet))
     return "\n".join(lines) + "\n"
 
@@ -908,7 +936,7 @@ def gate_schema(
     return GateResult(
         "SCHEMA",
         failures,
-        report=(f"  SCHEMA          {len(failures)}",),
+        lines=_report_lines((f"  SCHEMA          {len(failures)}",)),
     )
 
 
@@ -929,7 +957,7 @@ def gate_null_span(sheet: Sheet) -> GateResult:
     )
     if retired:
         line += f", {corroborated} corroborated"
-    return GateResult("NULL SPAN", failures, report=(line,))
+    return GateResult("NULL SPAN", failures, lines=_report_lines((line,)))
 
 
 def gate_extraction_identity(
@@ -945,7 +973,7 @@ def gate_extraction_identity(
         return GateResult(
             "EXTRACTION IDENTITY",
             skip_reason=reason,
-            report=(f"  {message}",),
+            lines=_report_lines((f"  {message}",)),
             diagnostics=(f"  {message}",),
         )
     warnings: list[str] = []
@@ -957,7 +985,7 @@ def gate_extraction_identity(
     return GateResult(
         "EXTRACTION IDENTITY",
         warnings=warnings,
-        report=(f"  EXTRACTION IDENTITY {len(warnings)} warning",),
+        lines=_report_lines((f"  EXTRACTION IDENTITY {len(warnings)} warning",)),
     )
 
 
@@ -1050,8 +1078,10 @@ def gate_page_coverage(sheet: Sheet, page_counts: dict[str, int]) -> GateResult:
         findings,
         skip_reason=reason,
         not_graded=bool(unresolved),
-        stdout=tuple(stdout),
-        report=(f"  PAGE COVERAGE   {len(findings)}",),
+        lines=(
+            _report_lines((f"  PAGE COVERAGE   {len(findings)}",))
+            + _stdout_lines(stdout)
+        ),
     )
 
 
@@ -1120,7 +1150,7 @@ def gate_citation_tier1(sheet: Sheet) -> GateResult:
     if not sheet.rows:
         return GateResult(
             "CITATION tier 1",
-            report=("  CITATION tier 1 NO ROWS",),
+            lines=_report_lines(("  CITATION tier 1 NO ROWS",)),
         )
     failures: list[str] = []
     for row in sheet.rows:
@@ -1137,7 +1167,7 @@ def gate_citation_tier1(sheet: Sheet) -> GateResult:
     return GateResult(
         "CITATION tier 1",
         failures,
-        report=(f"  CITATION tier 1 {len(failures)}",),
+        lines=_report_lines((f"  CITATION tier 1 {len(failures)}",)),
     )
 
 
@@ -1323,7 +1353,7 @@ def gate_citation_tier0(
         rendered=rendered,
         ungraded=len(ungraded_sources),
         ungraded_sources=ungraded_sources,
-        report=tuple(report),
+        lines=_report_lines(report),
         not_graded=bool(ungraded_sources),
     )
 
@@ -1333,14 +1363,16 @@ def _citation_tier2_not_run(reason: str) -> GateResult:
     return GateResult(
         "CITATION tier 2",
         skip_reason=reason,
-        report=(f"  CITATION tier 2 SKIPPED -- {reason}",),
-        stdout=(
-            "",
-            "  " + "=" * 66,
-            "  CITATION TIER 2 DID NOT RUN. This sheet has NOT been checked against",
-            "  the source PDFs on this machine. Tier 1 proved each value is in its",
-            "  own snippet; nothing here proved the snippet is on the page it cites.",
-            "  " + "=" * 66,
+        lines=(
+            _report_lines((f"  CITATION tier 2 SKIPPED -- {reason}",))
+            + _stdout_lines((
+                "",
+                "  " + "=" * 66,
+                "  CITATION TIER 2 DID NOT RUN. This sheet has NOT been checked against",
+                "  the source PDFs on this machine. Tier 1 proved each value is in its",
+                "  own snippet; nothing here proved the snippet is on the page it cites.",
+                "  " + "=" * 66,
+            ))
         ),
     )
 
@@ -1369,7 +1401,10 @@ def _hold_tier2_resolution_declaration(
                 f"{sheet.resolved_date} is in the future."
             )
     if result.skip_reason is None:
-        result.report = (f"  CITATION tier 2 {len(result.findings)}", *result.report[1:])
+        result.lines = (
+            _report_lines((f"  CITATION tier 2 {len(result.findings)}",))
+            + result.lines[1:]
+        )
     return result
 
 
@@ -1388,7 +1423,7 @@ def gate_citation_tier2(sheet: Sheet, pdf_root: Path | None) -> GateResult:
     if not sheet.rows:
         return GateResult(
             "CITATION tier 2",
-            report=("  CITATION tier 2 NO ROWS",),
+            lines=_report_lines(("  CITATION tier 2 NO ROWS",)),
         )
     if pdf_root is None or not pdf_root.is_dir():
         return _hold_tier2_resolution_declaration(
@@ -1454,7 +1489,7 @@ def gate_citation_tier2(sheet: Sheet, pdf_root: Path | None) -> GateResult:
             "CITATION tier 2",
             failures,
             rendered=rendered,
-            report=tuple(report),
+            lines=_report_lines(report),
         ),
         pdf_root,
     )
@@ -1534,14 +1569,16 @@ def _watermark_not_run(
     return GateResult(
         "WATERMARK",
         skip_reason=reason,
-        report=(f"  WATERMARK       NOT RUN -- {reason}",),
-        stdout=(
-            "",
-            "  " + "=" * 66,
-            "  WATERMARK DID NOT RUN. Nothing checked whether a string #80 stripped",
-            "  as page-repeated text was interleaved into a row. Rebuild the",
-            "  extracted corpus with tools/guidelines_extract.py, or pass --text-root.",
-            "  " + "=" * 66,
+        lines=(
+            _report_lines((f"  WATERMARK       NOT RUN -- {reason}",))
+            + _stdout_lines((
+                "",
+                "  " + "=" * 66,
+                "  WATERMARK DID NOT RUN. Nothing checked whether a string #80 stripped",
+                "  as page-repeated text was interleaved into a row. Rebuild the",
+                "  extracted corpus with tools/guidelines_extract.py, or pass --text-root.",
+                "  " + "=" * 66,
+            ))
         ),
         diagnostics=diagnostics,
         tier2_skip_diagnostics=tier2_skip_diagnostics,
@@ -1620,7 +1657,7 @@ def gate_watermark(
     if not sheet.rows:
         return GateResult(
             "WATERMARK",
-            report=("  WATERMARK       NO ROWS",),
+            lines=_report_lines(("  WATERMARK       NO ROWS",)),
         )
     if text_root is None:
         reason = f"extracted corpus not found at {text_root}"
@@ -1730,7 +1767,7 @@ def gate_watermark(
         findings,
         rendered=rendered,
         unprobed_sources=unprobed,
-        report=tuple(report),
+        lines=_report_lines(report),
         diagnostics=diagnostics,
         not_graded=declaration_verdict.not_graded,
     )
@@ -2223,15 +2260,15 @@ def gate_second_read(
     if read is None:
         return GateResult(
             "SECOND READ",
-            report=(
+            lines=_report_lines((
                 "  SECOND READ     NOT RUN -- no --second-read given; --brief --span prints the work order",
-            ),
+            )),
         )
     if not read.ok:
         reason = str(read.why_not)
         return GateResult(
             "SECOND READ",
-            report=(f"  SECOND READ     NOT RUN -- {reason}",),
+            lines=_report_lines((f"  SECOND READ     NOT RUN -- {reason}",)),
             diagnostics=(f"  SECOND READ     NOT RUN -- {read.path}: {reason}",),
             not_graded=True,
         )
@@ -2250,7 +2287,7 @@ def gate_second_read(
         reason = "the 'briefed' block does not name exactly one declared span"
         return GateResult(
             "SECOND READ",
-            report=(f"  SECOND READ     NOT RUN -- {reason}",),
+            lines=_report_lines((f"  SECOND READ     NOT RUN -- {reason}",)),
             diagnostics=(f"  SECOND READ     NOT RUN -- {read.path}: {reason}",),
             not_graded=True,
         )
@@ -2358,13 +2395,14 @@ def gate_second_read(
         pairings,
         undiffed,
         uncovered,
-        report=report,
-        stdout=stdout,
-        not_graded=False,
-        report_after_stdout=tuple(
-            f"                  {pairing}" for pairing in pairings
+        lines=(
+            _report_lines(report)
+            + _stdout_lines(stdout, placement=LinePlacement.IN_POSITION)
+            + _report_lines(tuple(
+                f"                  {pairing}" for pairing in pairings
+            ))
         ),
-        stdout_before_footer=True,
+        not_graded=False,
     )
 
 def bind_recs(
@@ -2739,7 +2777,7 @@ def gate_coverage(
         refusals,
         warnings,
         ungraded_sources=ungraded,
-        report=(report, narrative_qualifier),
+        lines=_report_lines((report, narrative_qualifier)),
         diagnostics=tuple(diagnostics),
         not_graded=bool(blocking_ungraded or recs_errors or not sheet.sources),
     )
@@ -2753,9 +2791,9 @@ def gate_edition_currency(
     if registry.problems:
         return GateResult(
             "EDITION CURRENCY",
-            report=(
+            lines=_report_lines((
                 "  EDITION CURRENCY  NOT GRADED -- " + "; ".join(registry.problems),
-            ),
+            )),
         )
     by_filename = {row.filename: row for row in registry.documents}
     lines: list[str] = []
@@ -2776,7 +2814,7 @@ def gate_edition_currency(
         )
     return GateResult(
         "EDITION CURRENCY",
-        report=tuple(lines) or ("  EDITION CURRENCY  no declared source",),
+        lines=_report_lines(tuple(lines) or ("  EDITION CURRENCY  no declared source",)),
     )
 
 
@@ -2791,7 +2829,7 @@ def gate_range(sheet: Sheet) -> GateResult:
     if not sheet.rows:
         return GateResult(
             "RANGE",
-            report=("  RANGE           NO ROWS",),
+            lines=_report_lines(("  RANGE           NO ROWS",)),
         )
     failures: list[str] = []
     ungraded = 0
@@ -2825,10 +2863,10 @@ def gate_range(sheet: Sheet) -> GateResult:
         "RANGE",
         failures,
         ungraded=ungraded,
-        report=(
+        lines=_report_lines((
             f"  RANGE           {len(failures)}  "
             f"({ungraded} numbers carried no unit this grades)",
-        ),
+        )),
     )
 
 
@@ -3056,20 +3094,23 @@ def survey(
 
 def _emit_scan(scan: Scan, *, quiet: bool) -> int:
     """Emit one completed survey under the command's quiet contract."""
-    early_stdout = tuple(
-        result for result in scan.results if result.stdout_before_footer
-    )
     if not quiet:
         print(format_report(scan), end="")
-    elif quiet:
-        for result in early_stdout:
-            for line in result.stdout:
-                print(line)
+    else:
+        for result in scan.results:
+            for line in result.lines:
+                if (
+                    not line.suppressible
+                    and line.placement is LinePlacement.IN_POSITION
+                ):
+                    print(line.text)
     for result in scan.results:
-        if result.stdout_before_footer:
-            continue
-        for line in result.stdout:
-            print(line)
+        for line in result.lines:
+            if (
+                line.placement is LinePlacement.TRAILING
+                and (not quiet or not line.suppressible)
+            ):
+                print(line.text)
     for line in scan.diagnostics:
         print(line, file=sys.stderr)
     return scan.status

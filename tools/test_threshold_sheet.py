@@ -79,6 +79,18 @@ def grade(
     return gate._emit_scan(scan, quiet=quiet)
 
 
+def report_lines(result: gate.GateResult) -> tuple[str, ...]:
+    return tuple(line.text for line in result.lines if line.suppressible)
+
+
+def stdout_lines(result: gate.GateResult) -> tuple[str, ...]:
+    return tuple(line.text for line in result.lines if not line.suppressible)
+
+
+def report_output(lines: tuple[str, ...]) -> tuple[gate.Line, ...]:
+    return tuple(gate.Line(text) for text in lines)
+
+
 def header(mode: str = "exact") -> str:
     """The sheet preamble, with the source's declared mode parameterized.
 
@@ -317,7 +329,7 @@ class EditionCurrencyReport(unittest.TestCase):
         self.assertEqual(result.findings, [])
         self.assertIn(
             "source 'src' Society/doc: superseded (observed 2026-09-05; replaced by new.pdf)",
-            result.report,
+            report_lines(result),
         )
 
 
@@ -996,7 +1008,7 @@ class CitationTier0(unittest.TestCase):
 
         self.assertEqual(result.findings, [])
         self.assertFalse(result.not_graded)
-        self.assertEqual(result.report, ("  CITATION tier 0 0",))
+        self.assertEqual(report_lines(result), ("  CITATION tier 0 0",))
 
     def test_a_bound_source_reports_not_run_and_never_passes(self):
         result = gate.gate_citation_tier0(
@@ -1007,8 +1019,8 @@ class CitationTier0(unittest.TestCase):
 
         self.assertEqual(result.findings, [])
         self.assertTrue(result.not_graded)
-        self.assertIn("NOT RUN", result.report[0])
-        self.assertIn("bound", result.report[0])
+        self.assertIn("NOT RUN", report_lines(result)[0])
+        self.assertIn("bound", report_lines(result)[0])
 
     def test_a_bound_report_derives_both_denominators_and_tier_two_skips(self):
         parsed = sheet(
@@ -1033,7 +1045,7 @@ class CitationTier0(unittest.TestCase):
             {},
         )
 
-        report = "\n".join(result.report)
+        report = "\n".join(report_lines(result))
         self.assertIn("3 row(s) ungraded here", report)
         self.assertIn("2 cite a recommendation identifier", report)
         self.assertIn("all 3 keep tier 1", report)
@@ -1053,7 +1065,7 @@ class CitationTier0(unittest.TestCase):
         self.assertEqual(result.rendered, 1)
         self.assertIn(
             "1 row(s) on graded exact source(s) declared RENDERED:",
-            "\n".join(result.report),
+            "\n".join(report_lines(result)),
         )
 
     def test_one_textless_exact_record_does_not_hide_another_rows_fabrication(self):
@@ -1211,7 +1223,7 @@ class CitationTier0(unittest.TestCase):
 
                 self.assertEqual(result.findings, [])
                 self.assertTrue(result.not_graded)
-                self.assertIn("narrative negative check", result.report[0])
+                self.assertIn("narrative negative check", report_lines(result)[0])
 
     def test_the_aaa_ever_smoker_definition_needs_no_fabricated_recommendation_id(self):
         recommendation_rows = "".join(
@@ -1279,7 +1291,7 @@ class TierZeroRenderedCounterScope(unittest.TestCase):
             },
             {},
         )
-        report = "\n".join(result.report)
+        report = "\n".join(report_lines(result))
 
         self.assertIn(
             "tier 2 grades all but the 1 bound-source row(s) that declare RENDERED:",
@@ -1319,7 +1331,7 @@ class TierZeroRenderedCounterScope(unittest.TestCase):
                     for key, source in parsed.sources.items()
                 }
                 report = "\n".join(
-                    gate.gate_citation_tier0(parsed, records, {}).report
+                    report_lines(gate.gate_citation_tier0(parsed, records, {}))
                 )
                 exact_rendered = sum(
                     item.source in exact
@@ -1406,8 +1418,8 @@ class NullSheetReportsAreAssertionsRatherThanEmptyPasses(unittest.TestCase):
 
         for result in results:
             with self.subTest(gate=result.gate):
-                self.assertIn("NO ROWS", result.report[0])
-                self.assertNotIn("NOT RUN", result.report[0])
+                self.assertIn("NO ROWS", report_lines(result)[0])
+                self.assertNotIn("NOT RUN", report_lines(result)[0])
 
     def test_an_unread_span_is_exit_one_and_does_not_hide_the_other_gate_reports(self):
         unread = null_sheet_text().replace(
@@ -1447,7 +1459,7 @@ class NullSheetReportsAreAssertionsRatherThanEmptyPasses(unittest.TestCase):
                     boilerplate=["Jones et al"],
                 )
                 reports = tuple(
-                    result.report[0]
+                    report_lines(result)[0]
                     for result in (
                         gate.gate_citation_tier1(parsed),
                         gate.gate_citation_tier2(parsed, pdf_root),
@@ -1549,7 +1561,7 @@ class ExtractionIdentityGate(unittest.TestCase):
 
         self.assertEqual(result.warnings, [])
         self.assertEqual(result.skip_reason, "manifest is unavailable")
-        self.assertIn("NOT RUN", result.report[0])
+        self.assertIn("NOT RUN", report_lines(result)[0])
         self.assertIn("NOT RUN", result.diagnostics[0])
 
     def test_survey_compares_the_sheet_with_its_text_root_manifest(self):
@@ -1642,11 +1654,21 @@ class ExtractionIdentityGate(unittest.TestCase):
 
 
 class ACompletedScanCanBeRenderedWithoutRunningAGate(unittest.TestCase):
+    def test_each_line_carries_its_own_suppressibility_and_placement(self):
+        line = gate.Line(
+            "visible in quiet mode",
+            suppressible=False,
+            placement=gate.LinePlacement.TRAILING,
+        )
+
+        self.assertFalse(line.suppressible)
+        self.assertEqual(line.placement, gate.LinePlacement.TRAILING)
+
     def test_format_report_only_reads_the_scan_it_is_given(self):
         parsed = sheet(row())
         scan = gate.Scan(
             sheet=parsed,
-            results=(gate.GateResult("SCHEMA", report=("  SCHEMA          0",)),),
+            results=(gate.GateResult("SCHEMA", lines=report_output(("  SCHEMA          0",))),),
             status=0,
         )
 
@@ -1659,7 +1681,7 @@ class ACompletedScanCanBeRenderedWithoutRunningAGate(unittest.TestCase):
     def test_loud_cli_emission_uses_the_pure_formatter(self):
         scan = gate.Scan(
             sheet=sheet(row()),
-            results=(gate.GateResult("SCHEMA", report=("  SCHEMA          0",)),),
+            results=(gate.GateResult("SCHEMA", lines=report_output(("  SCHEMA          0",))),),
         )
         with mock.patch.object(
             gate, "format_report", wraps=gate.format_report
@@ -1853,7 +1875,7 @@ class CoverageGate(unittest.TestCase):
     def test_every_coverage_run_declares_the_narrative_floor(self):
         result = gate.gate_coverage(sheet(row()), {"src": self.RECS})
 
-        qualifier = "\n".join(result.report)
+        qualifier = "\n".join(report_lines(result))
         self.assertIn("narrative row", qualifier)
         self.assertIn("outside the recommendation index", qualifier)
         self.assertIn("Scope", qualifier)
@@ -1870,7 +1892,7 @@ class CoverageGate(unittest.TestCase):
             {"src": self.RECS},
         )
 
-        self.assertIn("1 page transcription", "\n".join(result.report))
+        self.assertIn("1 page transcription", "\n".join(report_lines(result)))
 
     def test_it_fires_on_one_unread_item_not_only_on_total_absence(self):
         """#153's lesson, from this ticket's own comment: fire on ANY unread item.
@@ -2196,7 +2218,7 @@ class QuietSuppressesTheReportAndNeverAFinding(unittest.TestCase):
             scans = {
                 path: gate.Scan(
                     gate.Sheet(path),
-                    (gate.GateResult("fixture", report=report),),
+                    (gate.GateResult("fixture", lines=report_output(report)),),
                 )
                 for path, report in zip(paths, reports, strict=True)
             }
@@ -2878,7 +2900,7 @@ class ScopeSpanTable(unittest.TestCase):
         ])
         result = gate.gate_page_coverage(parsed, {"Society/doc": 60})
         self.assertEqual(result.findings, [])
-        rendered = "\n".join(result.stdout)
+        rendered = "\n".join(stdout_lines(result))
         self.assertIn("page_count: 60", rendered)
         self.assertIn("unaccounted pages: none", rendered)
 
@@ -2903,13 +2925,13 @@ class ScopeSpanTable(unittest.TestCase):
         result = gate.gate_page_coverage(parsed, {"Society/doc": 60})
         self.assertEqual(len(result.findings), 1)
         self.assertIn("51", result.findings[0])
-        self.assertIn("unaccounted pages: 51", "\n".join(result.stdout))
+        self.assertIn("unaccounted pages: 51", "\n".join(stdout_lines(result)))
 
     def test_an_unresolved_source_page_count_is_not_graded(self):
         result = gate.gate_page_coverage(gate.parse(HEADER, Path("test-sheet.md")), {})
         self.assertTrue(result.not_graded)
         self.assertIn("Society/doc", result.skip_reason)
-        self.assertIn("page_count: NOT RESOLVED", "\n".join(result.stdout))
+        self.assertIn("page_count: NOT RESOLVED", "\n".join(stdout_lines(result)))
 
     def test_a_read_span_with_neither_a_row_nor_a_dated_marker_is_refused(self):
         text = HEADER.replace(
@@ -3005,7 +3027,7 @@ class NullSpanBlindCorroboration(unittest.TestCase):
 
         self.assertEqual(result.findings, [])
         self.assertEqual(
-            result.report,
+            report_lines(result),
             (
                 "  NULL SPAN       0 refusing over 1 span(s) retired on a marker, "
                 "1 corroborated",
@@ -3017,14 +3039,14 @@ class NullSpanBlindCorroboration(unittest.TestCase):
 
         self.assertEqual(result.findings, [])
         self.assertEqual(
-            result.report,
+            report_lines(result),
             ("  NULL SPAN       0 refusing over 0 span(s) retired on a marker",),
         )
 
     def test_an_exemption_is_outside_the_denominator(self):
         parsed = self.parsed("exempt: citation list has no clinical prose")
 
-        self.assertIn("over 0 span(s)", gate.gate_null_span(parsed).report[0])
+        self.assertIn("over 0 span(s)", report_lines(gate.gate_null_span(parsed))[0])
 
     def test_an_impossible_blind_date_stays_a_schema_failure(self):
         parsed = self.parsed("read 2026-08-23; blind 2026-99-99")
@@ -3032,7 +3054,7 @@ class NullSpanBlindCorroboration(unittest.TestCase):
         self.assertTrue(
             any("invalid read value" in item for item in gate.gate_schema(parsed).findings)
         )
-        self.assertIn("over 0 span(s)", gate.gate_null_span(parsed).report[0])
+        self.assertIn("over 0 span(s)", report_lines(gate.gate_null_span(parsed))[0])
 
     def test_the_public_survey_refuses_an_uncorroborated_marker(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -4794,7 +4816,7 @@ class WatermarkGate(ReadingManifestConformance, unittest.TestCase):
             )
 
         self.assertTrue(result.not_graded)
-        self.assertIn("NOT GRADED", "\n".join(result.report))
+        self.assertIn("NOT GRADED", "\n".join(report_lines(result)))
 
     def test_the_command_exits_two_when_the_untrusted_pass_is_not_declared(self):
         corpus, _ = self._dirty_corpus()
@@ -4835,7 +4857,7 @@ class WatermarkGate(ReadingManifestConformance, unittest.TestCase):
 
         self.assertFalse(result.not_graded)
         self.assertEqual(result.findings, [])
-        self.assertIn("WATERMARK       0 refusing", "\n".join(result.report))
+        self.assertIn("WATERMARK       0 refusing", "\n".join(report_lines(result)))
 
     def test_a_declaration_for_different_distrust_refuses(self):
         corpus, _ = self._dirty_corpus()
