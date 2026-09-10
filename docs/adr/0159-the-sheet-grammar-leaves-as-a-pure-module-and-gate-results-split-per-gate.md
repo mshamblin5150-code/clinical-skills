@@ -219,7 +219,8 @@ today.
 under `--quiet` goes to [#986](https://github.com/mshamblin5150-code/clinical-skills/issues/986),
 whose own open question is which lines survive `--quiet` — answering it here would settle a grilling
 ticket from a ticket that is not it. `gate_edition_currency`'s unreachable findings channel is
-inherited rather than entangled and is filed on its own.
+inherited rather than entangled and is filed on its own as
+[#1004](https://github.com/mshamblin5150-code/clinical-skills/issues/1004).
 
 **A behavior change smuggled inside a shape change is how a byte-identity term stops meaning
 anything.** Ruling 2 is what makes both holes one-line changes afterward.
@@ -256,15 +257,17 @@ ruling 4's *a section does not oblige a limits object* is the rule.
 have their own derived view. Splitting it would let the structural half join the grammar and would
 leave the scope rows with the code they bound. It is not ruled here because `threshold_coverage`
 reads `gate_schema(...).findings` and refuses on it, so the split changes what a second command
-refuses on — a behavior change inside a build whose landing term is byte-identity. Filed.
+refuses on — a behavior change inside a build whose landing term is byte-identity. Filed as
+[#1005](https://github.com/mshamblin5150-code/clinical-skills/issues/1005).
 
 **Which lines survive `--quiet`.** #986's question, unmoved by ruling 6 and made cheaper by ruling 2.
 
 **Whether `run_grader.REFUSED`'s classification is durable.** ADR 0112 ruling 2 calls a refusal *a
 permanent verdict*; #410 decision 3 says the question *reopens on evidence*. A reader of the ADR
-alone would not learn that the entry is conditional. Filed rather than settled here, because editing
-a grader-family record from a module-shape ticket is #836's own *"migrating onto `run_grader` by side
-effect"* arriving through the wording instead of through the code.
+alone would not learn that the entry is conditional. Filed as
+[#1006](https://github.com/mshamblin5150-code/clinical-skills/issues/1006) rather than settled here,
+because editing a grader-family record from a module-shape ticket is #836's own *"migrating onto
+`run_grader` by side effect"* arriving through the wording instead of through the code.
 
 **Whether the emitted output is right.** Everything here is shape. A clean byte-identical diff proves
 the refactor preserved behavior; it proves nothing about whether the behavior preserved is the
