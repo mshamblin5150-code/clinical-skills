@@ -383,6 +383,24 @@ class SuiteRunControls(unittest.TestCase):
         self.assertIsNotNone(match, report)
         self.assertGreaterEqual(float(match.group(1)), 0.02)
 
+    def test_a_class_fixture_error_has_a_resolvable_rerun_without_disturbing_accounting(self):
+        status, report = self.run_tree(
+            "import unittest\n"
+            "class BrokenFixture(unittest.TestCase):\n"
+            "    @classmethod\n"
+            "    def tearDownClass(cls):\n"
+            "        raise RuntimeError('fixture broke')\n"
+            "    def test_yes(self):\n"
+            "        pass\n"
+        )
+
+        self.assertEqual(status, 1)
+        self.assertIn("unaccounted: 0", report)
+        self.assertRegex(
+            report,
+            r"(?m)^re-run \(from tools/\): python -m unittest test_[^.]+\.BrokenFixture$",
+        )
+
 
 class DeclaredLimits(unittest.TestCase):
     def test_the_hang_and_discovery_population_are_declared(self):

@@ -16,6 +16,7 @@ import time
 import unittest
 from collections import Counter
 from dataclasses import dataclass
+from enum import Enum
 from pathlib import Path
 from typing import TextIO
 
@@ -47,14 +48,21 @@ class Unit:
 
     name: str
     test_ids: tuple[str, ...]
+    tests: tuple[unittest.TestCase, ...]
     order: int
+
+
+class OutcomeKind(Enum):
+    PASS = "pass"
+    FAILURE = "failure"
+    ERROR = "error"
+    SKIP = "skip"
 
 
 @dataclass(frozen=True)
 class Outcome:
     test_id: str
-    status: str
-    detail: str = ""
+    status: OutcomeKind
 
 
 @dataclass(frozen=True)
@@ -63,7 +71,7 @@ class WorkerReport:
     unit_times: tuple[tuple[str, float], ...]
     elapsed: float
     output: str = ""
-    load_errors: tuple[str, ...] = ()
+    fixture_failures: tuple[str, ...] = ()
 
 
 class AccountingResult(unittest.TextTestResult):
@@ -72,78 +80,58 @@ class AccountingResult(unittest.TextTestResult):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.outcomes: list[Outcome] = []
+        self.fixture_failures: list[str] = []
         self._recorded: set[int] = set()
-        self._started: dict[int, float] = {}
-        self.test_times: dict[str, float] = {}
-        self.unit_times: list[tuple[str, float]] = []
-
-    def startTest(self, test):
-        self._started[id(test)] = time.perf_counter()
-        super().startTest(test)
 
     def stopTest(self, test):
-        started = self._started.pop(id(test), time.perf_counter())
-        self.test_times[test.id()] = self.test_times.get(test.id(), 0.0) + (
-            time.perf_counter() - started
-        )
         if id(test) not in self._recorded:
-            self._record(test, "pass")
+            self._record(test, OutcomeKind.PASS)
         super().stopTest(test)
 
-    def _record(self, test, status: str, detail: str = ""):
+    def _record(self, test, status: OutcomeKind):
         marker = id(test)
         if marker in self._recorded:
             return
         self._recorded.add(marker)
-        self.outcomes.append(Outcome(test.id(), status, detail))
+        self.outcomes.append(Outcome(test.id(), status))
 
     def addSuccess(self, test):
-        self._record(test, "pass")
+        self._record(test, OutcomeKind.PASS)
         super().addSuccess(test)
 
     def addFailure(self, test, err):
-        self._record(test, "failure", self._exc_info_to_string(err, test))
+        self._record(test, OutcomeKind.FAILURE)
         super().addFailure(test, err)
 
     def addError(self, test, err):
-        self._record(test, "error", self._exc_info_to_string(err, test))
+        if test.__class__.__name__ == "_ErrorHolder" and test.__class__.__module__ == "unittest.suite":
+            match = re.search(r"\(([^()]+)\)$", test.id())
+            self.fixture_failures.append(match.group(1) if match else test.id())
+        else:
+            self._record(test, OutcomeKind.ERROR)
         super().addError(test, err)
 
     def addSkip(self, test, reason):
-        self._record(test, "skip", reason)
+        self._record(test, OutcomeKind.SKIP)
         super().addSkip(test, reason)
 
     def addExpectedFailure(self, test, err):
-        self._record(test, "skip", self._exc_info_to_string(err, test))
+        self._record(test, OutcomeKind.SKIP)
         super().addExpectedFailure(test, err)
 
     def addUnexpectedSuccess(self, test):
-        self._record(test, "failure", "unexpected success")
+        self._record(test, OutcomeKind.FAILURE)
         super().addUnexpectedSuccess(test)
 
     def addSubTest(self, test, subtest, err):
         if err is not None:
-            status = "failure" if issubclass(err[0], test.failureException) else "error"
-            self._record(test, status, self._exc_info_to_string(err, test))
+            status = (
+                OutcomeKind.FAILURE
+                if issubclass(err[0], test.failureException)
+                else OutcomeKind.ERROR
+            )
+            self._record(test, status)
         super().addSubTest(test, subtest, err)
-
-
-class TimedUnitSuite(unittest.TestSuite):
-    """Measure one class unit, including its class fixture."""
-
-    def __init__(self, unit_name: str, tests):
-        super().__init__(tests)
-        self.unit_name = unit_name
-
-    def run(self, result, debug=False):
-        started = time.perf_counter()
-        try:
-            return super().run(result, debug)
-        finally:
-            self._tearDownPreviousClass(object(), result)
-            self._handleModuleTearDown(result)
-            result._previousTestClass = None
-            result.unit_times.append((self.unit_name, time.perf_counter() - started))
 
 
 def _test_cases(member):
@@ -155,16 +143,17 @@ def _test_cases(member):
 
 
 def _units(tests) -> tuple[Unit, ...]:
-    grouped: dict[type, list[str]] = {}
+    grouped: dict[type, list[unittest.TestCase]] = {}
     for test in tests:
-        grouped.setdefault(test.__class__, []).append(test.id())
+        grouped.setdefault(test.__class__, []).append(test)
     return tuple(
         Unit(
             f"{test_class.__module__}.{test_class.__qualname__}",
-            tuple(test_ids),
+            tuple(test.id() for test in members),
+            tuple(members),
             order,
         )
-        for order, (test_class, test_ids) in enumerate(grouped.items())
+        for order, (test_class, members) in enumerate(grouped.items())
     )
 
 
@@ -218,71 +207,41 @@ def _write_weights(scratch: Path, unit_times: dict[str, float]) -> None:
             temporary.unlink()
 
 
-def _loaded_suite(unit: Unit, module_dir: Path):
-    module_text = str(module_dir)
-    if module_text not in sys.path:
-        sys.path.insert(0, module_text)
-    loader = unittest.TestLoader()
-    loaded = unittest.TestSuite(loader.loadTestsFromName(name) for name in unit.test_ids)
-    failed = tuple(
-        test
-        for test in _test_cases(loaded)
-        if test.__class__.__name__ == "_FailedTest"
-        and test.__class__.__module__ == "unittest.loader"
-    )
-    return loaded, tuple(loader.errors), failed
-
-
-def _worker(module_dir_text: str, assignment: tuple[Unit, ...]) -> WorkerReport:
+def _run_units(
+    assignment: tuple[Unit, ...], stream: TextIO, *, retain_success_output: bool
+) -> WorkerReport:
     started = time.perf_counter()
-    errors: list[str] = []
-    unit_suites: list[TimedUnitSuite] = []
+    outcomes: list[Outcome] = []
+    fixture_failures: list[str] = []
+    unit_times: list[tuple[str, float]] = []
+    outputs: list[str] = []
     for unit in assignment:
-        loaded, load_errors, failed = _loaded_suite(unit, Path(module_dir_text))
-        if load_errors or failed:
-            errors.extend(load_errors or (f"worker could not load {unit.name}",))
-            continue
-        unit_suites.append(TimedUnitSuite(unit.name, tuple(_test_cases(loaded))))
-    output = io.StringIO()
-    runner = unittest.TextTestRunner(
-        stream=output,
-        verbosity=0,
-        resultclass=AccountingResult,
-    )
-    result = runner.run(unittest.TestSuite(unit_suites))
+        output = stream if retain_success_output else io.StringIO()
+        unit_started = time.perf_counter()
+        result = unittest.TextTestRunner(
+            stream=output,
+            verbosity=1 if retain_success_output else 0,
+            resultclass=AccountingResult,
+        ).run(unittest.TestSuite(unit.tests))
+        unit_times.append((unit.name, time.perf_counter() - unit_started))
+        outcomes.extend(result.outcomes)
+        fixture_failures.extend(result.fixture_failures)
+        if not retain_success_output and not result.wasSuccessful():
+            outputs.append(output.getvalue())
     return WorkerReport(
-        tuple(result.outcomes),
-        tuple(result.unit_times),
+        tuple(outcomes),
+        tuple(unit_times),
         time.perf_counter() - started,
-        output.getvalue() if not result.wasSuccessful() else "",
-        tuple(errors),
+        "".join(outputs),
+        tuple(fixture_failures),
     )
 
 
-def _in_process(tests, units: tuple[Unit, ...], stream: TextIO) -> WorkerReport:
-    started = time.perf_counter()
-    grouped: dict[type, list[unittest.TestCase]] = {}
-    for test in tests:
-        grouped.setdefault(test.__class__, []).append(test)
-    unit_suites = tuple(
-        TimedUnitSuite(unit.name, members)
-        for unit, members in zip(units, grouped.values())
-    )
-    runner = unittest.TextTestRunner(
-        stream=stream,
-        verbosity=1,
-        resultclass=AccountingResult,
-    )
-    result = runner.run(unittest.TestSuite(unit_suites))
-    return WorkerReport(
-        tuple(result.outcomes),
-        tuple(result.unit_times),
-        time.perf_counter() - started,
-    )
+def _worker(assignment: tuple[Unit, ...]) -> WorkerReport:
+    return _run_units(assignment, io.StringIO(), retain_success_output=False)
 
 
 def _parallel(
-    module_dir: Path,
     assignments: tuple[tuple[Unit, ...], ...],
 ) -> tuple[tuple[WorkerReport, ...], tuple[str, ...]]:
     context = multiprocessing.get_context("spawn")
@@ -303,7 +262,7 @@ def _parallel(
         receiving, sending = context.Pipe(duplex=False)
         process = context.Process(
             target=_worker_entry,
-            args=(sending, str(module_dir), assignment),
+            args=(sending, assignment),
             name=f"suite-worker-{index + 1}",
         )
         process.start()
@@ -327,9 +286,9 @@ def _parallel(
     return tuple(report for report in reports if report is not None), missing
 
 
-def _worker_entry(connection, module_dir_text: str, assignment: tuple[Unit, ...]) -> None:
+def _worker_entry(connection, assignment: tuple[Unit, ...]) -> None:
     try:
-        connection.send(_worker(module_dir_text, assignment))
+        connection.send(_worker(assignment))
     finally:
         connection.close()
 
@@ -367,10 +326,10 @@ def run_suite(
     assignments = _pack(units, jobs, weights) if units else ()
 
     if jobs == 1:
-        reports = (_in_process(runnable, units, stream),)
+        reports = (_run_units(units, stream, retain_success_output=True),)
         missing_workers: tuple[str, ...] = ()
     elif assignments:
-        reports, missing_workers = _parallel(module_dir, assignments)
+        reports, missing_workers = _parallel(assignments)
         for report in reports:
             if report.output:
                 print(report.output, end="", file=stream)
@@ -393,9 +352,6 @@ def run_suite(
 
     for error in loader.errors:
         print(f"module did not load: {_loader_module(error)}", file=stream)
-    for report in reports:
-        for error in report.load_errors:
-            print(f"module did not load in worker: {_loader_module(error)}", file=stream)
     for message in missing_workers:
         print(message, file=stream)
     for test_id in duplicate_ids:
@@ -405,11 +361,13 @@ def run_suite(
     for test_id in unexpected_ids:
         print(f"unexpected id: {test_id}", file=stream)
     for outcome in outcomes:
-        if outcome.status in {"failure", "error"}:
+        if outcome.status in {OutcomeKind.FAILURE, OutcomeKind.ERROR}:
             print(
                 f"re-run (from tools/): python -m unittest {outcome.test_id}",
                 file=stream,
             )
+    for target in (target for report in reports for target in report.fixture_failures):
+        print(f"re-run (from tools/): python -m unittest {target}", file=stream)
 
     wall = time.perf_counter() - started
     unit_times = dict(pair for report in reports for pair in report.unit_times)
@@ -432,12 +390,12 @@ def run_suite(
         print(f"slow unit: {name} {elapsed:.3f}s", file=stream)
 
     has_test_failure = any(
-        outcome.status in {"failure", "error"} for outcome in outcomes
-    )
+        outcome.status in {OutcomeKind.FAILURE, OutcomeKind.ERROR}
+        for outcome in outcomes
+    ) or any(report.fixture_failures for report in reports)
     incomplete = bool(
         not discovered
         or loader.errors
-        or any(report.load_errors for report in reports)
         or missing_workers
         or mismatched
     )
