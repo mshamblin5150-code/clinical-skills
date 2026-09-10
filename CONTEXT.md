@@ -680,6 +680,22 @@ _Avoid_: source, corpus, subject
 Emphasis, comment and quotation punctuation that a document's formatting may add or drop without changing what it says. Removed from both halves of a bind so hard wrapping and emphasis cannot decide the outcome. Distinct from a **glued run**, which is an extraction failure rather than a formatting choice.
 _Avoid_: glue, noise, markup
 
+**Copy detector**:
+The half of a bind that decides whether a surface restates a rule rather than pointing at it. Distinct from a **needle**, which is one phrase an author chose: a copy detector is derived from every row of the object under test, so a row added to that object is checked without anybody writing a check. What counts as a restatement is its own judgment — a reworded copy and an independent sentence are the same thing to it past some distance, which is why it is a floor and never a proof.
+_Avoid_: duplication check, plagiarism check, shingle
+
+**Naming surface**:
+A document that must name a declared object and reproduce none of its rows, so the object stays the one place its rows are written. Distinct from an **enumeration surface**, which is the same relationship with the opposite obligation — the two cannot be told apart by reading either document, so which one a check is looking at is supplied rather than inferred. Distinct from a **pointer**, which is a claim about how far derived material may be trusted rather than an obligation a document carries.
+_Avoid_: pointer surface, reference, mention, citation
+
+**Enumeration surface**:
+A document that must reproduce every row of a declared object, in the object's own order, because a reader of that document is owed the whole inventory rather than a pointer. Distinct from a **naming surface**: an enumeration is required to be a copy, so the two obligations are contradictory over one population.
+_Avoid_: inventory, listing, table
+
+**Rule identity**:
+A recorded fingerprint of the instrument that produced a stored measurement, kept beside the measurement so that a change to the instrument is distinguishable from a change to the thing measured. Without one, both arrive as the same signal, and the cheaper remedy cannot be told from the expensive one. Distinct from a **declared limit**, which says what a mechanism does not reach: this says which mechanism ran.
+_Avoid_: version, schema, checksum
+
 **Second route**:
 The access path or instrument a refuting pass used that the pass it is checking did not — a different rendering, a different access path, an independent corroborating source. It is written as two halves so the pair can be compared, and a check fires when they match, because an agent briefed as both passes has only one route to name. Distinct from a **declared limit**, which says what a mechanism does not reach: this is the thing one mechanism does reach, and independence is what it still does not establish.
 _Avoid_: verification, second opinion, double-check, independence
