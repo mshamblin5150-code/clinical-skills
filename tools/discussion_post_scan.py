@@ -208,6 +208,11 @@ DECLARED_LIMITS = (
         EvidenceDisposition.BEHAVIOR,
     ),
     (
+        "whether each reference URL was submitted as a link",
+        "The submission-text row compares visible text, so a reference URL left unlinked in the submitted HTML reads the same as its anchor; whether the board shows a link remains the posted reading.",
+        EvidenceDisposition.BEHAVIOR,
+    ),
+    (
         "whether archival text parity was reported when --docx was omitted",
         "Without --docx, the command does not inspect the archival Word document, so rendered-text is not graded even when the remaining report exits cleanly.",
         EvidenceDisposition.BEHAVIOR,

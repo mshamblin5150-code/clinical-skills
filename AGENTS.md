@@ -44,7 +44,9 @@ trace, source reuse, empty-or-self-restating invoked-property refusal, and the i
 A consumer that cannot run it can walk the
 same checks from [discussion-reply](skills/discussion-reply/SKILL.md) step 4, but cannot call the
 run mechanically verified. Its claim records use `tools/research_ledger.py` on the same full written contract as
-`practicum-case-study` step 3.
+`practicum-case-study` step 3. Its posting step builds the submission with `tools/post_html.py`, which
+writes every reference URL as a link; a consumer that cannot run it types the reply, makes every
+reference URL a link with the editor's link control, and confirms the links in the posted reading.
 
 **`discussion-post` depends on committed graders.** It uses `tools/research_ledger.py` and
 `tools/reference_scan.py` unchanged, then `tools/discussion_post_scan.py` grades the signed word
@@ -52,7 +54,8 @@ floor, reference minimum, body-number trace and citation-to-record trace while c
 invoked sources, unfilled invoked properties, and pre-#496 markers without grading them. A consumer
 that cannot run the new command can walk the same rows
 from [discussion-post](skills/discussion-post/SKILL.md) step 6, but cannot call the run mechanically
-verified. Its declared limits remain reader-owned and live in
+verified. Its submission HTML comes from `tools/post_html.py`, which writes every reference URL as a
+link. Its declared limits remain reader-owned and live in
 `discussion_post_scan.NOT_REACHED` rather than in a second prose copy.
 
 **The shared UpToDate path depends on committed store and sheet tools.**

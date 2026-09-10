@@ -336,3 +336,11 @@ capture instrument is measured to strip every mark a reread would be checking.
 Correction, 2026-08-30: the four-item corrections list formerly had no heading, so its ordinals
 could be read as a second ruling sequence. `## Corrections` was added under ADR 0075 ruling 3; the
 four corrections themselves are unchanged.
+
+Correction, 2026-09-10: the reply is no longer typed into the LMS by hand. After
+[#1039](https://github.com/mshamblin5150-code/clinical-skills/issues/1039) found a typed reply's
+reference URL posted as plain text, `discussion-reply` builds its submission with
+`tools/post_html.py` and loads that HTML through the editor's content interface. The introduction
+and the premise quoted in correction 4 describe the route at the time of ruling. The rulings are
+unchanged: the built HTML is a private working file, not a retained submission that could stand in
+for the board, so the posted reading is still read off the board.

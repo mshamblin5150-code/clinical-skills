@@ -145,7 +145,12 @@ DECLARED_LIMITS = (
     ),
     (
         "whether the posted reply matches the graded artifact",
-        "The reply is typed by hand, and no row compares the submitted board text with the response artifact that the command graded.",
+        "The reply is loaded into the editor from its built HTML, and no row compares the submitted board text with the response artifact that the command graded.",
+        EvidenceDisposition.DECLARED_READING,
+    ),
+    (
+        "whether each reference URL reached the board as a link",
+        "The command reads the response Markdown only and never the built HTML or the posted entry, so a reference URL left unlinked on the board is caught only by the posted reading.",
         EvidenceDisposition.DECLARED_READING,
     ),
     (

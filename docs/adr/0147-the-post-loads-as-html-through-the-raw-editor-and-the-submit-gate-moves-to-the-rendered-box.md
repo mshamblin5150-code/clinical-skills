@@ -279,6 +279,14 @@ skill with no renderer and no output artifact into a pipeline built around both,
 assumption about a different box, inside a ticket whose subject is a bottleneck that skill does not
 have.
 
+*(Corrected in place 2026-09-10, on [ADR 0016](0016-an-adr-number-is-claimed-when-it-is-handed-out-and-a-ratified-records-facts-may-be-corrected-in-place.md)'s
+terms, by [#1039](https://github.com/mshamblin5150-code/clinical-skills/issues/1039). `discussion-reply`
+no longer types. A typed reply reached the board with a reference URL that was not a link, so the
+skill now builds its submission with `tools/post_html.py` and loads it through the editor's content
+interface. That interface is not the raw-editor toggle this ruling filed a measurement for, so
+[#948](https://github.com/mshamblin5150-code/clinical-skills/issues/948)'s toggle question stays
+open. The ruling's scope for #817 is unchanged.)*
+
 **One correction to `discussion-post` about its sibling lands in this ticket's diff**, because it is
 false in the file this change is already editing. `skills/discussion-post/SKILL.md:253-254` claims
 the reply *"pastes from Markdown directly"* and *"still requires a person to omit its working
@@ -299,6 +307,11 @@ consumers.
 **`esc` is reusable for HTML text nodes and not for attribute values.** It escapes `&`, `<` and `>`
 only. The emitter writes no attributes, so the boundary holds; a future attribute needs its own
 escaping.
+
+*(Corrected in place 2026-09-10, by [#1039](https://github.com/mshamblin5150-code/clinical-skills/issues/1039).
+The emitter now writes one attribute: an anchor's `href`, in double quotes. `esc` still covers it,
+because `post_html.URL` cannot match a double quote and the value therefore cannot close its own
+quoting. Any other attribute still needs its own escaping.)*
 
 **Own-line comments are dropped for free** — `post_html` consuming `blocks` inherits ADR 0084's drop.
 `NOT_STRIPPED`'s mid-line and multi-line forms survive, which is why ruling 2 keeps the residue row

@@ -4,10 +4,19 @@
 The block and inline grammars belong to ``docx_write``. This module chooses
 HTML tags and writes the exact bytes loaded into Canvas's raw editor; it does
 not parse Markdown independently.
+
+A URL outside a code span becomes an anchor whose text is the URL itself, so
+every reference can be followed from the board rather than depending on the
+editor to link it (#1039). Only a URL beginning ``http://`` or ``https://`` is
+linked: APA 7 writes a DOI as an ``https://doi.org/`` URL, so a ``doi:`` label
+or a bare ``www.`` address stays text. A URL containing ``*`` or angle
+brackets, or one hard-wrapped across source lines, links only the part the
+inline parser leaves contiguous.
 """
 
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
@@ -16,6 +25,9 @@ from console_codec import use_utf8
 
 
 USAGE = "usage: post_html.py <in.md> <out.html>"
+URL = re.compile(r"https?://[^\s<>\"]+")
+URL_TRAILING_PUNCTUATION = ".,;:!?'"
+URL_CLOSERS = {")": "(", "]": "["}
 
 
 def _text_node(text: str) -> str:
@@ -24,10 +36,41 @@ def _text_node(text: str) -> str:
     return docx_write.esc(text).replace("&lt;!--", "<!--").replace("--&gt;", "-->")
 
 
+def _url_end(url: str) -> str:
+    """Drop sentence punctuation and an unbalanced closing bracket from a URL's tail."""
+
+    while url and (
+        url[-1] in URL_TRAILING_PUNCTUATION
+        or (
+            url[-1] in URL_CLOSERS
+            and url.count(url[-1]) > url.count(URL_CLOSERS[url[-1]])
+        )
+    ):
+        url = url[:-1]
+    return url
+
+
+def _linked_text(text: str) -> str:
+    """Escape text and wrap each URL in an anchor whose text is the URL."""
+
+    out: list[str] = []
+    cursor = 0
+    for match in URL.finditer(text):
+        url = _url_end(match.group(0))
+        if not url:
+            continue
+        out.append(_text_node(text[cursor : match.start()]))
+        linked = docx_write.esc(url)
+        out.append(f'<a href="{linked}">{linked}</a>')
+        cursor = match.start() + len(url)
+    out.append(_text_node(text[cursor:]))
+    return "".join(out)
+
+
 def inline_html(text: str, *, bold: bool = False, italic: bool = False) -> str:
     out: list[str] = []
     for span in docx_write.inline_spans(text, bold=bold, italic=italic):
-        rendered = _text_node(span.text)
+        rendered = _text_node(span.text) if span.monospace else _linked_text(span.text)
         if span.monospace:
             rendered = f"<code>{rendered}</code>"
         if span.italic:

@@ -196,14 +196,14 @@ of the clinician.
 If `scratch/voice-model.md` is absent, follow [voice.md](../_shared/reference/voice.md)
 §8's no-model rule in full. Write the declaration it requires to
 `scratch/runs/<run-key>/voice-status.md`. Keep `voice-status.md` in the private run record; it is
-not part of the reply typed into the LMS.
+not part of the reply posted to the LMS.
 
 Open with the selected classmate's exact roster first name and a comma. Concede what is right in
 full, then add or refuse on a genuinely different axis when the argument calls for it. A hedge
 attaches to a fact; it does not suspend the reply's commitment. Keep the reply conversational and
-substantive. Do not add a heading. End with the bold Markdown label `**References**`; the reply is
-typed into the LMS without a renderer, so this source form is what preserves the clinician's bold
-label. Put each APA entry in its own paragraph separated by a blank line.
+substantive. Do not add a heading. End with the bold Markdown label `**References**`, which the
+submission builder in step 4 renders as a bold paragraph rather than as a heading. Put each APA
+entry in its own paragraph separated by a blank line.
 
 Before the `References` label, mark every invoked source that is present, whether inherited,
 deliberate, or arrived at, on its own invisible working line:
@@ -255,8 +255,21 @@ source, the table shows the invoked source, its domain, and the property it spen
 right and whether each invoked source sounds like the clinician; this is one approval with two named
 questions, not two gates. When `voice-status.md` exists, show its unmodeled-voice declaration
 alongside the reply. Only an explicit go-ahead for this reply authorizes posting.
-In the browser, type the reply into the LMS rather than pasting it, preserving the authored line
-breaks and omitting the `INVOKED` comments. Submit it, then reread the posted board version. Use the
+Build the submission HTML from the approved response:
+
+```bash
+python tools/post_html.py scratch/runs/<run-key>/response-<name>.md scratch/runs/<run-key>/response-<name>.html
+```
+
+The builder keeps the authored paragraphs, renders the bold `References` label, and writes every URL
+as a link whose text is the URL itself, so each reference can be followed from the board; the
+result is the reply omitting the `INVOKED` comments. In the browser, load that HTML into the reply
+editor through the editor's own content interface rather than typing it, then read the editor's
+serialized HTML back before submitting: every paragraph must match the response and every
+reference URL must still be a link. A keystroke used to make the editor register the change goes at
+the end of the opening line, never after a URL. If the editor exposes no content interface, tell the
+clinician before typing the reply instead, and make every reference URL a link with the editor's
+link control. Submit it, then reread the posted board version. Use the
 entry's Copy Link control to read its own `?entry_id=` deep link; do not copy a classmate's locator
 from `posts/`. Append this record to the run's one `reread.md`:
 
@@ -268,7 +281,8 @@ READ: <ISO date of this reading>
 VERDICT: matches - <what the reading found>
 ```
 
-Replace `matches` with `diverges` when the board and artifact differ. Both verdicts require
+Replace `matches` with `diverges` when the board and artifact differ, including when a reference URL
+on the board is not a link. Both verdicts require
 substantive text after the keyword. Record a divergence without changing
 the already graded response artifact. A board repair is available only when the clinician directs
 that live coursework edit; no repair is automatic. Do not capture or diff the board against the
@@ -284,8 +298,8 @@ artificial delay.
 
 Run the same independent ledger and discussion-reply checks over the completed run. The grader
 compares every response file, so a repeated source now fails. Show reply two and wait for a new,
-explicit posting go-ahead. Then type, submit, record, and grade its posted reading on the same terms
-as reply one. Invoke `/AAR` for reply two's response filename after its posted reading. The terminal grader is then `python tools/discussion_reply_scan.py <run-directory> --submission <reply-one-filename>,<reply-two-filename>`; both submission-keyed reviews must be clean.
+explicit posting go-ahead. Then build and load it, submit, record, and grade its posted reading on the
+same terms as reply one. Invoke `/AAR` for reply two's response filename after its posted reading. The terminal grader is then `python tools/discussion_reply_scan.py <run-directory> --submission <reply-one-filename>,<reply-two-filename>`; both submission-keyed reviews must be clean.
 
 ## Completion
 
