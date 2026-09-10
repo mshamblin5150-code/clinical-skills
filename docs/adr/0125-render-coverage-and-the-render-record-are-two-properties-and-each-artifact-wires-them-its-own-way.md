@@ -213,3 +213,10 @@ ruling 4 and under *What this does not reach* — that now carries ADR 0161's on
 record row graded only at the terminal `--submission` run. Ruling 3's reachability defect was filed
 as [#866](https://github.com/mshamblin5150-code/clinical-skills/issues/866), which ADR 0161 rules.
 Ruling 1's placement is untouched.
+
+**Superseded in part 2026-09-10 by
+[ADR 0162](0162-render-scan-earns-its-limits-object-on-a-measurement-and-counts-exactly-one-image-per-page.md),
+and left as written.** Where ruling 2 places `render_scan`'s pointer in the module docstring *because
+that module has no limits object at all*, the pointer now sits in `render_scan.DECLARED_LIMITS`,
+which ADR 0162 ruling 1 found earned on a measurement. Ruling 2's refusal of an object added for
+symmetry stands. Ruling 3's unbound-limits defect is the question ADR 0162 rules.
