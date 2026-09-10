@@ -210,16 +210,46 @@ import json
 import os
 import re
 import sys
-from dataclasses import dataclass, field
+from collections.abc import Iterable
+from dataclasses import dataclass, field, replace
 from datetime import date
+from enum import Enum
 from pathlib import Path
-from typing import NamedTuple
+from typing import ClassVar, NamedTuple
 
 import guidelines_extract
 import guidelines_manifest
 import guidelines_catalog
 import guidelines_currency
 import artifact_provenance
+from threshold_grammar import (
+    CONFLICTS_HEADING,
+    COVERAGE_HEADING,
+    ExtractionIdentity,
+    FORBIDDEN_IN_RAW_TEXT,
+    NARRATIVE_KIND,
+    NONE_DECLARATION,
+    NON_SOURCE_DECLARATION,
+    POPULATIONS_HEADING,
+    QUANTITIES_HEADING,
+    ROW_COLUMNS,
+    SCHEMA_MARKER,
+    SECTION_HEADINGS,
+    SCOPE_HEADING,
+    SOURCE_COLUMNS,
+    SOURCES_HEADING,
+    THRESHOLDS_HEADING,
+    Row,
+    Sheet,
+    SourceLocator,
+    Span,
+    _SPAN_RANGE,
+    _normalize,
+    extraction_identity_from_handoff,
+    parse,
+    render_extraction_identity,
+    source_locator,
+)
 from console_codec import use_utf8
 from guidelines_recs import (
     EvidenceDisposition,
@@ -268,6 +298,31 @@ DEFAULT_RECS_ROOT = "C:/codeing/guidelines-index"
 DEFAULT_RECS_ALIAS = str(Path(DEFAULT_RECS_ROOT).parent / "guidelines-recs")
 RECS_ALIAS_ENV = "CLINICAL_GUIDELINES_RECS_ALIAS"
 
+
+@dataclass(frozen=True)
+class Roots:
+    """Filesystem inputs shared by sheet producers and the survey."""
+
+    recs_alias_environment: ClassVar[str] = RECS_ALIAS_ENV
+    pdf_root: Path | None
+    recs_root: Path | None
+    text_root: Path | None
+    recs_alias: Path | None
+
+    @classmethod
+    def defaults(cls) -> "Roots":
+        pdf_root = DEFAULT_PDF_ROOT
+        return cls(
+            pdf_root=pdf_root,
+            recs_root=Path(os.environ.get("CLINICAL_GUIDELINES_RECS", DEFAULT_RECS_ROOT)),
+            text_root=(
+                Path(os.environ["CLINICAL_GUIDELINES_TEXT"])
+                if os.environ.get("CLINICAL_GUIDELINES_TEXT")
+                else guidelines_extract.default_output(pdf_root)
+            ),
+            recs_alias=Path(os.environ.get(RECS_ALIAS_ENV, DEFAULT_RECS_ALIAS)),
+        )
+
 # **This module takes no write guard, and #176 asked for that to be a decision
 # rather than an absence** -- its own first comment: *"an absent guard is easy to
 # read as an oversight when it is a choice."* Ruled during the limit consolidation
@@ -313,7 +368,6 @@ WHY_BOUND_REC_MEMBERSHIP_IS_NOT_GRADED = (
     "where an absent identifier is dispositive."
 )
 
-SCHEMA_MARKER = "<!-- schema: threshold-sheet/2 -->"
 
 # Page coverage proves that every page was assigned to a named span. It cannot prove
 # that the boundary was drawn correctly: a references span beginning one page too
@@ -338,54 +392,8 @@ PAGE_COVERAGE_CANNOT_GRADE_SPAN_BOUNDARIES = (
 # themselves merely by explaining the rule. Here the marker must START the snippet
 # cell, so a row discussing the hatch in its own text cannot claim it.
 RENDERED_MARKER = "RENDERED:"
-NARRATIVE_KIND = "narrative"
-_SOURCE_LOCATOR = re.compile(
-    r"^p(?P<page>\d+)/(?P<kind>[^/\s]+)/(?P<identifier>[^/\s]+)$"
-)
 
-# The section headings are part of the sheet format's production interface. The
-# draft scaffolder imports these names so it cannot emit a section the auditor does
-# not read after a heading rename.
-SOURCES_HEADING = "## Sources"
-SOURCE_COLUMNS = (
-    "key",
-    "society",
-    "document",
-    "source class",
-    "version",
-    "published",
-    "url",
-    "basis",
-    "mode",
-)
-SCOPE_HEADING = "## Scope"
-POPULATIONS_HEADING = "## Populations"
-QUANTITIES_HEADING = "## Quantities"
-THRESHOLDS_HEADING = "## Thresholds"
-NONE_DECLARATION = (
-    "**No decision point.** Every span in `## Scope` has left the unread list and "
-    "this source states no quantity that changes what is done to a patient."
-)
-NON_SOURCE_DECLARATION = (
-    "**Declared non-source.** Every span in `## Scope` has left the unread list and "
-    "this source is a scope of work that states what a future guideline will cover."
-)
 DECLARED_NON_SOURCE_CLASSES = frozenset({"scope-of-work"})
-CONFLICTS_HEADING = "## Conflicts"
-COVERAGE_HEADING = "## Coverage"
-SECTION_HEADINGS = (
-    SOURCES_HEADING,
-    SCOPE_HEADING,
-    POPULATIONS_HEADING,
-    QUANTITIES_HEADING,
-    THRESHOLDS_HEADING,
-    CONFLICTS_HEADING,
-    COVERAGE_HEADING,
-)
-
-# The eight columns of a threshold row, in order. Named here rather than positionally
-# in the parser so a column added later fails loudly in one place.
-ROW_COLUMNS = ("quantity", "population", "value", "snippet", "source", "page", "rec", "class")
 
 # The comparison operators a value may carry. ASCII only, and that is a rule about
 # the corpus rather than about taste: two fonts in it render a comparison operator
@@ -413,24 +421,6 @@ ROW_COLUMNS = ("quantity", "population", "value", "snippet", "source", "page", "
 # the same PDFs -- a sheet is transcribed by a person who may not be using this
 # module's extraction at all.
 
-# The extractor's destructive C0 slots must be refused before parsing. Their behavior is Python's
-# doing rather than this module's, and `RawInputOperatorGate` in
-# `tools/test_threshold_sheet.py` demonstrates each rather than asserting it:
-#
-#   U+001F  `str.strip()` counts U+001C to U+001F as whitespace, so `_cells`
-#           removes it and the row reads as a bare number -- the corpus defect
-#           reproduced inside the artifact built to refuse it.
-#   U+001E  `str.splitlines()` breaks on it, so the row is two half-lines, neither
-#           is a table row, and the sheet parses clean with the row simply gone.
-#           That is worse than a wrong value: nothing is left to be wrong.
-#
-# #285 repairs neither Python operation. It refuses only these known operator slots
-# in the raw input, preserving the sheet line and its source/page cells for an agent
-# to verify against a rendered PDF page. It never guesses which operator was meant.
-FORBIDDEN_IN_RAW_TEXT = {
-    "\u001e": "line splitting would erase it with its row",
-    "\u001f": "cell trimming would erase it",
-}
 # A blocklist and deliberately not an allowlist. An allowlist of operators was
 # written here first and never referenced by any gate, while the docstring claimed
 # it was enforced -- which is `test_spelling_scan.py`'s failure mode exactly: a rule
@@ -569,26 +559,6 @@ _MEASURED = re.compile(
 )
 
 _NUMBER = re.compile(r"\d+(?:[.,]\d+)?")
-_ROW_PIPE = re.compile(r"^\s*\|(?P<body>.+)\|\s*$")
-_CONFLICT = re.compile(r"^\s*\*{0,2}CONFLICT\*{0,2}:\s*(?P<quantity>[a-z0-9-]+)\b(?P<rest>.*)$", re.IGNORECASE)
-_OUT_LINE = re.compile(r"^\s*-\s*`(?P<rec_id>[^`]+)`\s*[-\u2014:]\s*(?P<reason>.+?)\s*$")
-_RESOLVED = re.compile(r"citations resolved against\s+(?P<corpus>\S+)\s+on\s+(?P<date>\d{4}-\d{2}-\d{2})", re.IGNORECASE)
-_EXTRACTION_IDENTITY = re.compile(
-    r"^extraction identity:\s*producer\s+(?P<commit>[0-9a-f]{40});\s*"
-    r"tools/guidelines_extract\.py\s+sha256\s+(?P<sha256>[0-9a-f]{64})\s*$",
-    re.IGNORECASE,
-)
-_SPAN_SOURCE = re.compile(
-    r"^\s*\*{0,2}Source:\s*`?(?P<source>[a-z0-9-]+)`?\*{0,2}\s*$",
-    re.IGNORECASE,
-)
-_SPAN_RANGE = re.compile(r"^p?(?P<first>\d+)(?:\s*-\s*p?(?P<last>\d+))?$", re.I)
-_DATED_SPAN_READ = re.compile(
-    r"^read\s+(?P<date>\d{4}-\d{2}-\d{2})"
-    r"(?:;\s*blind\s+(?P<blind_date>\d{4}-\d{2}-\d{2}))?$",
-    re.I,
-)
-_SPAN_EXEMPTION = re.compile(r"^exempt:\s*(?P<reason>\S.+)$", re.I)
 _DATED_DOWNLOAD_BASIS = re.compile(
     r"^(?:digest|gated)\s+(?P<date>\d{4}-\d{2}-\d{2})$"
 )
@@ -601,184 +571,108 @@ _INEQUALITY_WORDS = (
 )
 
 
-@dataclass
+class LinePlacement(Enum):
+    """Where an emitted line sits relative to the report footer."""
+
+    IN_POSITION = "in-position"
+    TRAILING = "trailing-after-footer"
+
+
+@dataclass(frozen=True)
+class Line:
+    """One ordered output line with its quiet-mode and placement contract."""
+
+    text: str
+    suppressible: bool = True
+    placement: LinePlacement = LinePlacement.IN_POSITION
+
+
+def _report_lines(lines: Iterable[str]) -> tuple[Line, ...]:
+    return tuple(Line(text) for text in lines)
+
+
+def _stdout_lines(
+    lines: Iterable[str],
+    *,
+    placement: LinePlacement = LinePlacement.TRAILING,
+) -> tuple[Line, ...]:
+    return tuple(Line(text, suppressible=False, placement=placement) for text in lines)
+
+
+@dataclass(frozen=True)
 class GateResult:
-    """One gate's named outcome; every finding remains plain text."""
+    """The result core read without knowing which gate produced it."""
 
     gate: str
     findings: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+    skip_reason: str | None = None
+    lines: tuple[Line, ...] = ()
+    diagnostics: tuple[str, ...] = ()
+    not_graded: bool = False
+    fatal: bool = False
+
+
+@dataclass(frozen=True)
+class SchemaResult(GateResult):
+    """Schema gate outcome."""
+
+
+@dataclass(frozen=True)
+class NullSpanResult(GateResult):
+    """Null-span corroboration outcome."""
+
+
+@dataclass(frozen=True)
+class ExtractionIdentityResult(GateResult):
+    """Extraction-identity gate outcome."""
+
+
+@dataclass(frozen=True)
+class PageCoverageResult(GateResult):
+    """Page-coverage gate outcome."""
+
+
+@dataclass(frozen=True)
+class CitationTier0Result(GateResult):
+    """Recommendation-record citation outcome."""
+
+
+@dataclass(frozen=True)
+class CitationTier1Result(GateResult):
+    """Value-in-snippet citation outcome."""
+
+
+@dataclass(frozen=True)
+class CitationTier2Result(GateResult):
+    """Rendered-page citation outcome."""
+
+
+@dataclass(frozen=True)
+class WatermarkResult(GateResult):
+    tier2_skip_diagnostics: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class SecondReadResult(GateResult):
     pairings: list[str] = field(default_factory=list)
     undiffed: list[str] = field(default_factory=list)
     uncovered: list[str] = field(default_factory=list)
-    skip_reason: str | None = None
-    rendered: int = 0
-    ungraded: int = 0
-    ungraded_sources: list[str] = field(default_factory=list)
-    unprobed_sources: list[str] = field(default_factory=list)
-    report: tuple[str, ...] = ()
-    stdout: tuple[str, ...] = ()
-    diagnostics: tuple[str, ...] = ()
-    tier2_skip_diagnostics: tuple[str, ...] = ()
-    not_graded: bool = False
-    fatal: bool = False
-    report_after_stdout: tuple[str, ...] = ()
-    stdout_before_footer: bool = False
-
-@dataclass(frozen=True)
-class Row:
-    quantity: str
-    population: str
-    value: str
-    snippet: str
-    source: str
-    page: int | None
-    rec: str
-    klass: str
-    line: int
 
 
 @dataclass(frozen=True)
-class SourceLocator:
-    """The page, kind, and identifier carried by one threshold-row locator."""
-
-    page: int
-    kind: str
-    identifier: str
-
-    @property
-    def is_narrative(self) -> bool:
-        return self.kind == NARRATIVE_KIND
-
-
-def source_locator(value: str) -> SourceLocator | None:
-    """Parse ``p<digits>/<kind>/<id>`` without inferring an unknown kind."""
-
-    match = _SOURCE_LOCATOR.fullmatch(value)
-    if match is None:
-        return None
-    return SourceLocator(
-        page=int(match.group("page")),
-        kind=match.group("kind"),
-        identifier=match.group("identifier"),
-    )
+class CoverageResult(GateResult):
+    """Recommendation-coverage gate outcome."""
 
 
 @dataclass(frozen=True)
-class Span:
-    source: str
-    name: str
-    first_page: int
-    last_page: int
-    read: str
-    line: int
-
-    @property
-    def is_unread(self) -> bool:
-        return self.read.casefold() == "no"
-
-    @property
-    def has_dated_marker(self) -> bool:
-        match = _DATED_SPAN_READ.fullmatch(self.read)
-        if match is None:
-            return False
-        for group in ("date", "blind_date"):
-            value = match.group(group)
-            if value is None:
-                continue
-            try:
-                date.fromisoformat(value)
-            except ValueError:
-                return False
-        return True
-
-    @property
-    def blind_read_date(self) -> date | None:
-        match = _DATED_SPAN_READ.fullmatch(self.read)
-        if match is None or not self.has_dated_marker:
-            return None
-        value = match.group("blind_date")
-        return date.fromisoformat(value) if value is not None else None
-
-    @property
-    def exemption_reason(self) -> str | None:
-        match = _SPAN_EXEMPTION.fullmatch(self.read)
-        return match.group("reason") if match else None
+class EditionCurrencyResult(GateResult):
+    """Edition-currency gate outcome."""
 
 
 @dataclass(frozen=True)
-class ExtractionIdentity:
-    """The two manifest fields a sheet binds its extracted-text reading to."""
-
-    producer_commit: str
-    extractor_sha256: str
-
-
-def extraction_identity_from_handoff(
-    handoff: guidelines_manifest.Manifest,
-) -> tuple[ExtractionIdentity | None, list[str]]:
-    """Derive the extraction identity from one validated manifest handoff."""
-
-    path = handoff.root / guidelines_manifest.MANIFEST_NAME
-    producer = handoff.provenance.producer if handoff.provenance else None
-    if not isinstance(producer, dict):
-        problems = [problem.message for problem in handoff.problems]
-        return None, problems or [f"{path} has no validated producer record"]
-    commit = producer.get("commit")
-    inputs = producer.get("inputs")
-    extractor = next(
-        (
-            item.get("sha256")
-            for item in inputs
-            if isinstance(item, dict)
-            and item.get("path") == "tools/guidelines_extract.py"
-        ),
-        None,
-    ) if isinstance(inputs, list) else None
-    if not isinstance(commit, str) or re.fullmatch(r"[0-9a-f]{40}", commit) is None:
-        return None, [f"{path} producer has no 40-character commit"]
-    if not isinstance(extractor, str) or re.fullmatch(r"[0-9a-f]{64}", extractor) is None:
-        return None, [f"{path} validated producer has no extractor SHA-256"]
-    return ExtractionIdentity(commit, extractor), []
-
-
-def render_extraction_identity(identity: ExtractionIdentity) -> str:
-    """Render the declaration shared by the draft producer and sheet parser."""
-
-    return (
-        f"extraction identity: producer {identity.producer_commit}; "
-        f"tools/guidelines_extract.py sha256 {identity.extractor_sha256}"
-    )
-
-
-@dataclass
-class Sheet:
-    """A parsed sheet. ``ok`` is false when it could not be read as one at all."""
-
-    path: Path
-    rows: list[Row] = field(default_factory=list)
-    sources: dict[str, dict[str, str]] = field(default_factory=dict)
-    populations: dict[str, str] = field(default_factory=dict)
-    quantities: dict[str, str] = field(default_factory=dict)
-    conflicts: dict[str, str] = field(default_factory=dict)
-    scoped_out: dict[str, str] = field(default_factory=dict)
-    spans: list[Span] = field(default_factory=list)
-    span_problems: list[str] = field(default_factory=list)
-    # The prose of the ``## Scope`` section, and nothing from anywhere else. Kept as
-    # its own field rather than searched for over the whole document because the two
-    # phrases that satisfy it are ordinary English: a threshold row whose snippet
-    # quotes "not read" would otherwise discharge the sheet's honesty clause.
-    scope: str = ""
-    thresholds: str = ""
-    has_scope_section: bool = False
-    resolved_corpus: str | None = None
-    resolved_date: str | None = None
-    extraction_identity: ExtractionIdentity | None = None
-    accepted_distrust: artifact_provenance.AcceptedDistrust | None = None
-    accepted_distrust_problems: tuple[str, ...] = ()
-    ok: bool = True
-    why_not: str | None = None
-
+class RangeResult(GateResult):
+    """Numeric-range gate outcome."""
 
 def _rows_cited_within_span(sheet: Sheet, span: Span) -> list[Row]:
     """Return rows whose source and cited page fall within ``span``."""
@@ -810,11 +704,12 @@ def format_report(scan: Scan) -> str:
     if not scan.sheet.ok:
         return "\n".join(lines) + "\n"
 
-    for result in scan.results:
-        lines.extend(result.report)
-        if result.stdout_before_footer:
-            lines.extend(result.stdout)
-        lines.extend(result.report_after_stdout)
+    lines.extend(
+        line.text
+        for result in scan.results
+        for line in result.lines
+        if line.placement is LinePlacement.IN_POSITION
+    )
     lines.extend(_report_footer(scan.sheet))
     return "\n".join(lines) + "\n"
 
@@ -860,17 +755,8 @@ def _document_of(sheet: "Sheet", row: "Row") -> str:
     return sheet.sources.get(row.source, {}).get("document", "")
 
 
-def _cells(line: str) -> list[str] | None:
-    """A Markdown table row as its cells, or None if the line is not one."""
-    match = _ROW_PIPE.match(line)
-    if not match:
-        return None
-    return [cell.strip() for cell in match.group("body").split("|")]
 
 
-def _is_rule(cells: list[str]) -> bool:
-    """The ``| --- | --- |`` line under a header."""
-    return all(set(cell) <= set("-: ") and cell for cell in cells)
 
 
 def _normalized_conflict_claim(text: str) -> str:
@@ -914,197 +800,11 @@ def _unnamed_conflict_values(values: set[str], conflict: str) -> list[str]:
     return sorted(missing)
 
 
-def parse(text: str, path: Path) -> Sheet:
-    """Read a sheet into its parts.
-
-    Sections are found by heading, and a row is only read inside the section that
-    owns it. **That is the load-bearing choice in here.** A sheet's prose discusses
-    its own rules -- this file's docstring is full of pipe characters and quantity
-    keys -- and a parser matching a row shape anywhere would read the explanation of
-    a conflict as a conflict. ``block_scan.py`` learned the same rule the hard way:
-    a row fires on what opens a section, never on a mention inside one.
-    """
-    sheet = Sheet(path=path)
-    raw_findings = [
-        (offset, character, why)
-        for character, why in FORBIDDEN_IN_RAW_TEXT.items()
-        if (offset := text.find(character)) != -1
-    ]
-    if raw_findings:
-        offset, character, why = min(raw_findings)
-        line = text.count("\n", 0, offset) + 1
-        sheet.ok = False
-        sheet.why_not = (
-            f"{path.name}:{line} contains U+{ord(character):04X}, a mis-encoded "
-            f"comparison operator that {why}; render the cited PDF page (for example "
-            "with PyMuPDF), visually verify the operator, and replace it with ASCII "
-            "<= or >="
-        )
-        return sheet
-    if SCHEMA_MARKER not in text:
-        sheet.ok = False
-        sheet.why_not = f"no {SCHEMA_MARKER} marker"
-        return sheet
-
-    section: str | None = None
-    source_columns: list[str] = []
-    span_source: str | None = None
-    reading_span_table = False
-    for number, line in enumerate(text.splitlines(), start=1):
-        heading = re.match(r"^\s*#{1,6}\s+(?P<name>.+?)\s*$", line)
-        if heading:
-            section = heading.group("name").strip().lower()
-            if section == SCOPE_HEADING.removeprefix("## ").lower():
-                sheet.has_scope_section = True
-                span_source = None
-                reading_span_table = False
-            continue
-
-        if section == SCOPE_HEADING.removeprefix("## ").lower():
-            sheet.scope += line + "\n"
-            source_match = _SPAN_SOURCE.match(line)
-            if source_match:
-                span_source = source_match.group("source")
-                reading_span_table = False
-            resolved = _RESOLVED.search(line)
-            if resolved:
-                sheet.resolved_corpus = resolved.group("corpus")
-                sheet.resolved_date = resolved.group("date")
-            extraction_identity = _EXTRACTION_IDENTITY.fullmatch(line.strip())
-            if extraction_identity:
-                sheet.extraction_identity = ExtractionIdentity(
-                    extraction_identity.group("commit").lower(),
-                    extraction_identity.group("sha256").lower(),
-                )
-
-        if section == THRESHOLDS_HEADING.removeprefix("## ").lower():
-            sheet.thresholds += line + "\n"
-
-        if section == CONFLICTS_HEADING.removeprefix("## ").lower():
-            conflict = _CONFLICT.match(line)
-            if conflict:
-                sheet.conflicts[conflict.group("quantity").lower()] = conflict.group("rest").strip()
-            continue
-
-        if section == COVERAGE_HEADING.removeprefix("## ").lower():
-            out = _OUT_LINE.match(line)
-            if out:
-                sheet.scoped_out[out.group("rec_id")] = out.group("reason")
-            continue
-
-        cells = _cells(line)
-        if cells is None or _is_rule(cells):
-            continue
-
-        if (
-            section == SCOPE_HEADING.removeprefix("## ").lower()
-            and [cell.casefold() for cell in cells] == ["span", "pages", "read"]
-        ):
-            reading_span_table = True
-            continue
-
-        if section == SCOPE_HEADING.removeprefix("## ").lower() and reading_span_table:
-            if len(cells) != 3:
-                sheet.span_problems.append(
-                    f"{path.name}:{number} span row has {len(cells)} cells, expected 3"
-                )
-                continue
-            source = span_source
-            if source is None and len(sheet.sources) == 1:
-                source = next(iter(sheet.sources))
-            if source is None:
-                sheet.span_problems.append(
-                    f"{path.name}:{number} span table in a multi-source sheet has no "
-                    "preceding 'Source: `<source key>`' line"
-                )
-                continue
-            page_match = _SPAN_RANGE.fullmatch(cells[1])
-            if page_match is None:
-                sheet.span_problems.append(
-                    f"{path.name}:{number} span '{cells[0]}' has invalid page range '{cells[1]}'"
-                )
-                continue
-            first = int(page_match.group("first"))
-            last = int(page_match.group("last") or first)
-            if first < 1 or last < first:
-                sheet.span_problems.append(
-                    f"{path.name}:{number} span '{cells[0]}' has invalid page range '{cells[1]}'"
-                )
-                continue
-            sheet.spans.append(Span(source, cells[0], first, last, cells[2], number))
-            continue
-
-        if section == SOURCES_HEADING.removeprefix("## ").lower() and not source_columns:
-            if cells != list(SOURCE_COLUMNS):
-                sheet.ok = False
-                sheet.why_not = (
-                    f"{path.name}:{number} unreadable '## Sources' header; expected "
-                    + " | ".join(SOURCE_COLUMNS)
-                )
-                return sheet
-            source_columns = list(SOURCE_COLUMNS)
-            continue
-
-        if (
-            section == SOURCES_HEADING.removeprefix("## ").lower()
-            and len(cells) == len(SOURCE_COLUMNS)
-            and cells[0] != "key"
-        ):
-            named = dict(zip(source_columns, cells, strict=True))
-            sheet.sources[cells[0]] = {
-                column: named[column]
-                for column in SOURCE_COLUMNS
-                if column != "key"
-            }
-        elif (
-            section == POPULATIONS_HEADING.removeprefix("## ").lower()
-            and len(cells) >= 2
-            and cells[0] != "key"
-        ):
-            sheet.populations[cells[0]] = cells[1]
-        elif (
-            section == QUANTITIES_HEADING.removeprefix("## ").lower()
-            and len(cells) >= 2
-            and cells[0] != "key"
-        ):
-            sheet.quantities[cells[0]] = cells[1]
-        elif (
-            section == THRESHOLDS_HEADING.removeprefix("## ").lower()
-            and len(cells) >= len(ROW_COLUMNS)
-            and cells[0] != "quantity"
-        ):
-            page = re.sub(r"^p", "", cells[5], flags=re.IGNORECASE)
-            sheet.rows.append(
-                Row(
-                    quantity=cells[0],
-                    population=cells[1],
-                    value=cells[2],
-                    snippet=cells[3].strip('"'),
-                    source=cells[4],
-                    page=int(page) if page.isdigit() else None,
-                    rec=cells[6],
-                    klass=cells[7],
-                    line=number,
-                )
-            )
-
-    declaration_text = " ".join(sheet.thresholds.split())
-    has_null_declaration = declaration_text in {
-        " ".join(NONE_DECLARATION.split()),
-        " ".join(NON_SOURCE_DECLARATION.split()),
-    }
-    if not sheet.rows and not has_null_declaration:
-        sheet.ok = False
-        sheet.why_not = "no row under a '## Thresholds' heading"
-    sheet.accepted_distrust, sheet.accepted_distrust_problems = (
-        artifact_provenance.parse_accepted_distrust(sheet.scope)
-    )
-    return sheet
 
 
 def gate_schema(
     sheet: Sheet, catalog_source_classes: dict[str, str] | None = None
-) -> GateResult:
+) -> SchemaResult:
     """Structure, provenance, scope, declared vocabulary, and the conflict rule."""
     failures: list[str] = []
     failures.extend(
@@ -1312,14 +1012,14 @@ def gate_schema(
                 f"{sheet.path.name}  'CONFLICT: {quantity}' for population '{population}' "
                 f"does not name every distinct value; missing {', '.join(missing)}"
             )
-    return GateResult(
+    return SchemaResult(
         "SCHEMA",
         failures,
-        report=(f"  SCHEMA          {len(failures)}",),
+        lines=_report_lines((f"  SCHEMA          {len(failures)}",)),
     )
 
 
-def gate_null_span(sheet: Sheet) -> GateResult:
+def gate_null_span(sheet: Sheet) -> NullSpanResult:
     """Refuse a span's null claim until it carries dated corroboration."""
 
     retired = [span for span in sheet.spans if span.has_dated_marker]
@@ -1336,23 +1036,23 @@ def gate_null_span(sheet: Sheet) -> GateResult:
     )
     if retired:
         line += f", {corroborated} corroborated"
-    return GateResult("NULL SPAN", failures, report=(line,))
+    return NullSpanResult("NULL SPAN", failures, lines=_report_lines((line,)))
 
 
 def gate_extraction_identity(
     sheet: Sheet,
     current: ExtractionIdentity | None,
     problems: list[str] | tuple[str, ...] = (),
-) -> GateResult:
+) -> ExtractionIdentityResult:
     """Warn when the sheet and current extracted corpus name different builds."""
 
     if current is None:
         reason = "; ".join(problems) or "no extracted-corpus identity was available"
         message = f"EXTRACTION IDENTITY NOT RUN -- {reason}"
-        return GateResult(
+        return ExtractionIdentityResult(
             "EXTRACTION IDENTITY",
             skip_reason=reason,
-            report=(f"  {message}",),
+            lines=_report_lines((f"  {message}",)),
             diagnostics=(f"  {message}",),
         )
     warnings: list[str] = []
@@ -1361,10 +1061,10 @@ def gate_extraction_identity(
             f"{sheet.path.name}  was read against a different extraction than the "
             "current manifest"
         )
-    return GateResult(
+    return ExtractionIdentityResult(
         "EXTRACTION IDENTITY",
         warnings=warnings,
-        report=(f"  EXTRACTION IDENTITY {len(warnings)} warning",),
+        lines=_report_lines((f"  EXTRACTION IDENTITY {len(warnings)} warning",)),
     )
 
 
@@ -1409,7 +1109,7 @@ def _page_runs(pages: set[int]) -> str:
     return ", ".join(runs)
 
 
-def gate_page_coverage(sheet: Sheet, page_counts: dict[str, int]) -> GateResult:
+def gate_page_coverage(sheet: Sheet, page_counts: dict[str, int]) -> PageCoverageResult:
     """Require each source's span union to cover its independently counted pages."""
     findings: list[str] = []
     stdout: list[str] = []
@@ -1452,13 +1152,15 @@ def gate_page_coverage(sheet: Sheet, page_counts: dict[str, int]) -> GateResult:
         "page_count unresolved for " + ", ".join(unresolved)
         if unresolved else None
     )
-    return GateResult(
+    return PageCoverageResult(
         "PAGE COVERAGE",
         findings,
         skip_reason=reason,
         not_graded=bool(unresolved),
-        stdout=tuple(stdout),
-        report=(f"  PAGE COVERAGE   {len(findings)}",),
+        lines=(
+            _report_lines((f"  PAGE COVERAGE   {len(findings)}",))
+            + _stdout_lines(stdout)
+        ),
     )
 
 
@@ -1473,6 +1175,19 @@ class CatalogFacts:
     @property
     def problems(self) -> tuple[str, ...]:
         return self.parse_problems + self.page_count_problems
+
+
+@dataclass(frozen=True)
+class SurveyInputs:
+    """All loop-invariant inputs for grading one or many sheets."""
+
+    roots: Roots
+    recs_arguments: list[str] | None
+    second_read_path: Path | None
+    allow_untrusted_provenance: bool
+    catalog_facts: CatalogFacts | None
+    currency_registry: guidelines_currency.Registry | None
+    expected_commit: str
 
 
 def load_catalog_facts(path: Path = DEFAULT_CATALOG) -> CatalogFacts:
@@ -1516,7 +1231,7 @@ def load_catalog_source_classes(
     return facts.source_classes, list(facts.parse_problems)
 
 
-def gate_citation_tier1(sheet: Sheet) -> GateResult:
+def gate_citation_tier1(sheet: Sheet) -> CitationTier1Result:
     """Every number in a row's value must appear in that row's snippet.
 
     Runs on every machine, which is the point. Tier 2 needs source PDFs that live
@@ -1525,9 +1240,9 @@ def gate_citation_tier1(sheet: Sheet) -> GateResult:
     documents and that #93 watched fire for real.
     """
     if not sheet.rows:
-        return GateResult(
+        return CitationTier1Result(
             "CITATION tier 1",
-            report=("  CITATION tier 1 NO ROWS",),
+            lines=_report_lines(("  CITATION tier 1 NO ROWS",)),
         )
     failures: list[str] = []
     for row in sheet.rows:
@@ -1541,10 +1256,10 @@ def gate_citation_tier1(sheet: Sheet) -> GateResult:
                 f"{sheet.path.name}:{row.line}  value '{row.value}' has "
                 f"{', '.join(missing)} which the snippet does not contain"
             )
-    return GateResult(
+    return CitationTier1Result(
         "CITATION tier 1",
         failures,
-        report=(f"  CITATION tier 1 {len(failures)}",),
+        lines=_report_lines((f"  CITATION tier 1 {len(failures)}",)),
     )
 
 
@@ -1552,7 +1267,7 @@ def gate_citation_tier0(
     sheet: Sheet,
     records: dict[str, dict | None],
     why_not: dict[str, str],
-) -> GateResult:
+) -> CitationTier0Result:
     """Grade recommendation snippets and narrative transcriptions on exact sources.
 
     This is a provenance floor, not a clinical reading. A recommendation row proves
@@ -1724,66 +1439,71 @@ def gate_citation_tier0(
             "and narrative rows ran its same-page negative check"
         )
 
-    return GateResult(
+    return CitationTier0Result(
         "CITATION tier 0",
         failures,
-        rendered=rendered,
-        ungraded=len(ungraded_sources),
-        ungraded_sources=ungraded_sources,
-        report=tuple(report),
+        lines=_report_lines(report),
         not_graded=bool(ungraded_sources),
     )
 
 
-def _citation_tier2_not_run(reason: str) -> GateResult:
+def _citation_tier2_not_run(reason: str) -> CitationTier2Result:
     """One unmistakable result for either reason tier 2 could not start."""
-    return GateResult(
+    return CitationTier2Result(
         "CITATION tier 2",
         skip_reason=reason,
-        report=(f"  CITATION tier 2 SKIPPED -- {reason}",),
-        stdout=(
-            "",
-            "  " + "=" * 66,
-            "  CITATION TIER 2 DID NOT RUN. This sheet has NOT been checked against",
-            "  the source PDFs on this machine. Tier 1 proved each value is in its",
-            "  own snippet; nothing here proved the snippet is on the page it cites.",
-            "  " + "=" * 66,
+        lines=(
+            _report_lines((f"  CITATION tier 2 SKIPPED -- {reason}",))
+            + _stdout_lines((
+                "",
+                "  " + "=" * 66,
+                "  CITATION TIER 2 DID NOT RUN. This sheet has NOT been checked against",
+                "  the source PDFs on this machine. Tier 1 proved each value is in its",
+                "  own snippet; nothing here proved the snippet is on the page it cites.",
+                "  " + "=" * 66,
+            ))
         ),
     )
 
 
 def _hold_tier2_resolution_declaration(
     sheet: Sheet,
-    result: GateResult,
+    result: CitationTier2Result,
     pdf_root: Path | None,
-) -> GateResult:
+) -> CitationTier2Result:
     """Hold tier 2's declaration in both its skipped and live states."""
+    findings = list(result.findings)
     if not sheet.resolved_corpus or not sheet.resolved_date:
-        result.findings.append(
+        findings.append(
             f"{sheet.path.name}  CITATION tier 2 has no resolution declaration in "
             "## Scope. A corpus-free reader cannot tell checked once from never checked."
         )
     elif result.skip_reason is None:
         assert pdf_root is not None  # A live tier-2 result can only come from a real root.
         if Path(sheet.resolved_corpus).resolve() != pdf_root.resolve():
-            result.findings.append(
+            findings.append(
                 f"{sheet.path.name}  CITATION tier 2 resolved against {pdf_root}, but its "
                 f"## Scope declaration names {sheet.resolved_corpus}: a different corpus."
             )
         if sheet.resolved_date > date.today().isoformat():
-            result.findings.append(
+            findings.append(
                 f"{sheet.path.name}  CITATION tier 2 resolution date "
                 f"{sheet.resolved_date} is in the future."
             )
     if result.skip_reason is None:
-        result.report = (f"  CITATION tier 2 {len(result.findings)}", *result.report[1:])
-    return result
+        lines = (
+            _report_lines((f"  CITATION tier 2 {len(findings)}",))
+            + result.lines[1:]
+        )
+    else:
+        lines = result.lines
+    return replace(result, findings=findings, lines=lines)
 
 
-def gate_citation_tier2(sheet: Sheet, pdf_root: Path | None) -> GateResult:
+def gate_citation_tier2(sheet: Sheet, pdf_root: Path | None) -> CitationTier2Result:
     """Every snippet must appear on the page it cites.
 
-    The result names failures, the skip reason, and rows declared RENDERED separately.
+    The result names failures and the skip reason; its lines count rendered rows.
     That separation is deliberate: "tier 2 did not run at all" and "tier 2
     ran and 3 rows opted out of it" are different events, and a sentinel smuggled
     through the skip channel would have made a sheet that declared every row rendered
@@ -1793,9 +1513,9 @@ def gate_citation_tier2(sheet: Sheet, pdf_root: Path | None) -> GateResult:
     whole design of decision 2 is that this **must not be readable as passing**.
     """
     if not sheet.rows:
-        return GateResult(
+        return CitationTier2Result(
             "CITATION tier 2",
-            report=("  CITATION tier 2 NO ROWS",),
+            lines=_report_lines(("  CITATION tier 2 NO ROWS",)),
         )
     if pdf_root is None or not pdf_root.is_dir():
         return _hold_tier2_resolution_declaration(
@@ -1857,26 +1577,15 @@ def gate_citation_tier2(sheet: Sheet, pdf_root: Path | None) -> GateResult:
         )
     return _hold_tier2_resolution_declaration(
         sheet,
-        GateResult(
+        CitationTier2Result(
             "CITATION tier 2",
             failures,
-            rendered=rendered,
-            report=tuple(report),
+            lines=_report_lines(report),
         ),
         pdf_root,
     )
 
 
-def _normalize(text: str) -> str:
-    """Whitespace-flattened and dash-folded, for comparing a snippet to a page.
-
-    A snippet is copied out of a table cell and the page sets the same words with a
-    line break in the middle of them; comparing raw would fail on typography rather
-    than on the citation. Nothing here touches a digit.
-    """
-    text = re.sub(r"[\u2010-\u2015\u2212]", "-", text)
-    text = re.sub(r"[\u2018\u2019\u201c\u201d]", "'", text)
-    return re.sub(r"\s+", " ", text).strip().lower()
 
 
 
@@ -1946,19 +1655,21 @@ def _watermark_not_run(
     diagnostics: tuple[str, ...],
     tier2_skip_diagnostics: tuple[str, ...] = (),
     fatal: bool = False,
-) -> GateResult:
+) -> WatermarkResult:
     """Build the shared absent-corpus result while retaining its distinct metadata."""
-    return GateResult(
+    return WatermarkResult(
         "WATERMARK",
         skip_reason=reason,
-        report=(f"  WATERMARK       NOT RUN -- {reason}",),
-        stdout=(
-            "",
-            "  " + "=" * 66,
-            "  WATERMARK DID NOT RUN. Nothing checked whether a string #80 stripped",
-            "  as page-repeated text was interleaved into a row. Rebuild the",
-            "  extracted corpus with tools/guidelines_extract.py, or pass --text-root.",
-            "  " + "=" * 66,
+        lines=(
+            _report_lines((f"  WATERMARK       NOT RUN -- {reason}",))
+            + _stdout_lines((
+                "",
+                "  " + "=" * 66,
+                "  WATERMARK DID NOT RUN. Nothing checked whether a string #80 stripped",
+                "  as page-repeated text was interleaved into a row. Rebuild the",
+                "  extracted corpus with tools/guidelines_extract.py, or pass --text-root.",
+                "  " + "=" * 66,
+            ))
         ),
         diagnostics=diagnostics,
         tier2_skip_diagnostics=tier2_skip_diagnostics,
@@ -1973,11 +1684,11 @@ def gate_watermark(
     expected_commit: str,
     allow_untrusted_provenance: bool = False,
     handoff: guidelines_manifest.Manifest | None = None,
-) -> GateResult:
+) -> WatermarkResult:
     """Gate 4. A row carrying a string #80 stripped is a row the text stream interleaved.
 
-    The result names findings, the skip reason, rows declared RENDERED, and source
-    keys not probed.
+    The result names findings and the skip reason; its lines count rendered rows and
+    source keys not probed.
 
     #83 states it: *"If a string stripped by #80 appears inside an extracted table
     row, that row is suspect and must be read off the rendered page. Cannot verify a
@@ -2035,9 +1746,9 @@ def gate_watermark(
     is [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143).
     """
     if not sheet.rows:
-        return GateResult(
+        return WatermarkResult(
             "WATERMARK",
-            report=("  WATERMARK       NO ROWS",),
+            lines=_report_lines(("  WATERMARK       NO ROWS",)),
         )
     if text_root is None:
         reason = f"extracted corpus not found at {text_root}"
@@ -2142,12 +1853,10 @@ def gate_watermark(
             "  WATERMARK       NOT GRADED -- add this declaration under ## Scope:\n"
             + str(declaration_verdict.expected),
         )
-    return GateResult(
+    return WatermarkResult(
         "WATERMARK",
         findings,
-        rendered=rendered,
-        unprobed_sources=unprobed,
-        report=tuple(report),
+        lines=_report_lines(report),
         diagnostics=diagnostics,
         not_graded=declaration_verdict.not_graded,
     )
@@ -2590,7 +2299,7 @@ def brief(sheet: Sheet, span_name: str) -> str:
 
 def gate_second_read(
     sheet: Sheet, read: SecondRead | None
-) -> GateResult:
+) -> SecondReadResult:
     """Gate 5, with each outcome carried in a named ``GateResult`` field.
 
     #83: *"A subagent extracts the same table with no access to the sheet; the diff
@@ -2638,17 +2347,17 @@ def gate_second_read(
     ``gate_range``'s false alarms came from too.
     """
     if read is None:
-        return GateResult(
+        return SecondReadResult(
             "SECOND READ",
-            report=(
+            lines=_report_lines((
                 "  SECOND READ     NOT RUN -- no --second-read given; --brief --span prints the work order",
-            ),
+            )),
         )
     if not read.ok:
         reason = str(read.why_not)
-        return GateResult(
+        return SecondReadResult(
             "SECOND READ",
-            report=(f"  SECOND READ     NOT RUN -- {reason}",),
+            lines=_report_lines((f"  SECOND READ     NOT RUN -- {reason}",)),
             diagnostics=(f"  SECOND READ     NOT RUN -- {read.path}: {reason}",),
             not_graded=True,
         )
@@ -2665,9 +2374,9 @@ def gate_second_read(
     ]
     if len(matching_spans) != 1:
         reason = "the 'briefed' block does not name exactly one declared span"
-        return GateResult(
+        return SecondReadResult(
             "SECOND READ",
-            report=(f"  SECOND READ     NOT RUN -- {reason}",),
+            lines=_report_lines((f"  SECOND READ     NOT RUN -- {reason}",)),
             diagnostics=(f"  SECOND READ     NOT RUN -- {read.path}: {reason}",),
             not_graded=True,
         )
@@ -2768,20 +2477,21 @@ def gate_second_read(
     )
     stdout = (f"                  {SECOND_READ_IS_A_SMOKE_TEST}",)
 
-    return GateResult(
+    return SecondReadResult(
         "SECOND READ",
         refusals,
         warnings,
-        pairings,
-        undiffed,
-        uncovered,
-        report=report,
-        stdout=stdout,
-        not_graded=False,
-        report_after_stdout=tuple(
-            f"                  {pairing}" for pairing in pairings
+        pairings=pairings,
+        undiffed=undiffed,
+        uncovered=uncovered,
+        lines=(
+            _report_lines(report)
+            + _stdout_lines(stdout, placement=LinePlacement.IN_POSITION)
+            + _report_lines(tuple(
+                f"                  {pairing}" for pairing in pairings
+            ))
         ),
-        stdout_before_footer=True,
+        not_graded=False,
     )
 
 def bind_recs(
@@ -2928,7 +2638,7 @@ def gate_coverage(
     recs_errors: list[str] | tuple[str, ...] = (),
     missing_records: set[str] | frozenset[str] = frozenset(),
     untrusted_records: set[str] | frozenset[str] = frozenset(),
-) -> GateResult:
+) -> CoverageResult:
     """Gate 2, naming refusals, warnings, and ungraded source keys in its result.
 
     Refuses on an ``exact`` source and warns on a ``bound`` one, and **the mode is
@@ -3151,12 +2861,11 @@ def gate_coverage(
         "prose was read."
     )
 
-    return GateResult(
+    return CoverageResult(
         "COVERAGE",
         refusals,
         warnings,
-        ungraded_sources=ungraded,
-        report=(report, narrative_qualifier),
+        lines=_report_lines((report, narrative_qualifier)),
         diagnostics=tuple(diagnostics),
         not_graded=bool(blocking_ungraded or recs_errors or not sheet.sources),
     )
@@ -3164,15 +2873,15 @@ def gate_coverage(
 
 def gate_edition_currency(
     sheet: Sheet, registry: guidelines_currency.Registry
-) -> GateResult:
+) -> EditionCurrencyResult:
     """Report the registry verdict beside each source; never copy or enforce it."""
 
     if registry.problems:
-        return GateResult(
+        return EditionCurrencyResult(
             "EDITION CURRENCY",
-            report=(
+            lines=_report_lines((
                 "  EDITION CURRENCY  NOT GRADED -- " + "; ".join(registry.problems),
-            ),
+            )),
         )
     by_filename = {row.filename: row for row in registry.documents}
     lines: list[str] = []
@@ -3191,24 +2900,24 @@ def gate_edition_currency(
         lines.append(
             f"source '{key}' {document}: {entry.verdict} ({detail})"
         )
-    return GateResult(
+    return EditionCurrencyResult(
         "EDITION CURRENCY",
-        report=tuple(lines) or ("  EDITION CURRENCY  no declared source",),
+        lines=_report_lines(tuple(lines) or ("  EDITION CURRENCY  no declared source",)),
     )
 
 
-def gate_range(sheet: Sheet) -> GateResult:
+def gate_range(sheet: Sheet) -> RangeResult:
     """Unit-keyed sanity bounds, naming failures and the ungraded-number count.
 
-    The ungraded count is returned and printed rather than swallowed. A gate that
+    The ungraded count is printed rather than swallowed. A gate that
     silently grades 4 of a sheet's 200 numbers and reports a clean run is the shape
     #153 caught reading green over 2.4% coverage, and the fix there was the same:
     put the unread count where the verdict is.
     """
     if not sheet.rows:
-        return GateResult(
+        return RangeResult(
             "RANGE",
-            report=("  RANGE           NO ROWS",),
+            lines=_report_lines(("  RANGE           NO ROWS",)),
         )
     failures: list[str] = []
     ungraded = 0
@@ -3238,33 +2947,27 @@ def gate_range(sheet: Sheet) -> GateResult:
         for number in _NUMBER.finditer(row.value):
             if not any(start <= number.start() < end for start, end in graded_spans):
                 ungraded += 1
-    return GateResult(
+    return RangeResult(
         "RANGE",
         failures,
-        ungraded=ungraded,
-        report=(
+        lines=_report_lines((
             f"  RANGE           {len(failures)}  "
             f"({ungraded} numbers carried no unit this grades)",
-        ),
+        )),
     )
 
 
 def survey(
     sheet_path: Path,
-    recs_arguments: list[str] | None,
-    pdf_root: Path | None,
-    recs_root: Path | None = None,
-    text_root: Path | None = None,
-    second_read_path: Path | None = None,
-    allow_untrusted_provenance: bool = False,
-    page_counts: dict[str, int] | None = None,
-    recs_alias: Path | None = None,
-    catalog_source_classes: dict[str, str] | None = None,
-    currency_registry: guidelines_currency.Registry | None = None,
-    *,
-    expected_commit: str,
+    inputs: SurveyInputs,
 ) -> Scan:
     """Read and grade one sheet without emitting either report or findings."""
+
+    roots = inputs.roots
+    catalog_facts = inputs.catalog_facts or load_catalog_facts()
+    page_counts = catalog_facts.page_counts
+    catalog_source_classes = catalog_facts.source_classes
+    catalog_problems = list(catalog_facts.problems)
 
     if not sheet_path.is_file():
         return Scan(
@@ -3295,25 +2998,19 @@ def survey(
     # by a test -- so `TheExitStatusSaysWhichKindOfNotGraded` now pins all three.
     # Since #177 the distinction is drawn per source, in `bind_recs`, and kept in
     # `why_not` so the report can say which source and which of the two it was.
-    catalog_problems: list[str] = []
-    if page_counts is None:
-        catalog_facts = load_catalog_facts()
-        page_counts = catalog_facts.page_counts
-        catalog_source_classes = catalog_facts.source_classes
-        catalog_problems = list(catalog_facts.problems)
-
     bound_records = bind_recs(
         sheet,
-        recs_arguments or [],
-        recs_root,
-        expected_commit=expected_commit,
-        allow_untrusted_provenance=allow_untrusted_provenance,
-        recs_alias=recs_alias,
+        inputs.recs_arguments or [],
+        roots.recs_root,
+        expected_commit=inputs.expected_commit,
+        allow_untrusted_provenance=inputs.allow_untrusted_provenance,
+        recs_alias=roots.recs_alias,
         corpus_documents=frozenset(page_counts),
     )
     records, why_not, recs_errors, missing_records = bound_records
 
     schema = gate_schema(sheet, catalog_source_classes)
+    currency_registry = inputs.currency_registry
     if currency_registry is None:
         try:
             currency_registry = guidelines_currency.parse_registry(
@@ -3327,11 +3024,11 @@ def survey(
     null_span = gate_null_span(sheet)
     extraction_handoff = (
         guidelines_manifest.read(
-            text_root,
-            expected_commit=expected_commit,
-            allow_untrusted_provenance=allow_untrusted_provenance,
+            roots.text_root,
+            expected_commit=inputs.expected_commit,
+            allow_untrusted_provenance=inputs.allow_untrusted_provenance,
         )
-        if text_root is not None
+        if roots.text_root is not None
         else None
     )
     current_extraction, identity_problems = (
@@ -3346,14 +3043,18 @@ def survey(
     )
     page_coverage = gate_page_coverage(sheet, page_counts)
     if catalog_problems:
-        page_coverage.not_graded = True
-        page_coverage.skip_reason = "; ".join(catalog_problems)
-        page_coverage.diagnostics = tuple(
-            f"  PAGE COVERAGE   NOT GRADED -- {problem}" for problem in catalog_problems
+        page_coverage = replace(
+            page_coverage,
+            not_graded=True,
+            skip_reason="; ".join(catalog_problems),
+            diagnostics=tuple(
+                f"  PAGE COVERAGE   NOT GRADED -- {problem}"
+                for problem in catalog_problems
+            ),
         )
     tier0 = gate_citation_tier0(sheet, records, why_not)
     tier1 = gate_citation_tier1(sheet)
-    tier2 = gate_citation_tier2(sheet, pdf_root)
+    tier2 = gate_citation_tier2(sheet, roots.pdf_root)
     coverage = gate_coverage(
         sheet,
         records,
@@ -3365,16 +3066,20 @@ def survey(
     ranges = gate_range(sheet)
     watermark = gate_watermark(
         sheet,
-        text_root,
-        expected_commit=expected_commit,
-        allow_untrusted_provenance=allow_untrusted_provenance,
+        roots.text_root,
+        expected_commit=inputs.expected_commit,
+        allow_untrusted_provenance=inputs.allow_untrusted_provenance,
         handoff=extraction_handoff,
     )
     # **Gate 5 runs only when a read is handed to it, and never runs itself.** The
     # independence is the whole instrument: a second read this module produced would
     # be the same code path over the same page, which is the check `test_icd10.py`
     # calls worthless and this module's own docstring refuses by name.
-    second_read = load_second_read(second_read_path) if second_read_path else None
+    second_read = (
+        load_second_read(inputs.second_read_path)
+        if inputs.second_read_path
+        else None
+    )
     second_read_result = gate_second_read(sheet, second_read)
     # An argument naming a source the sheet does not declare, or naming one twice, is
     # a typo and never a decision -- and it is a way of not having graded even when
@@ -3473,20 +3178,23 @@ def survey(
 
 def _emit_scan(scan: Scan, *, quiet: bool) -> int:
     """Emit one completed survey under the command's quiet contract."""
-    early_stdout = tuple(
-        result for result in scan.results if result.stdout_before_footer
-    )
     if not quiet:
         print(format_report(scan), end="")
-    elif quiet:
-        for result in early_stdout:
-            for line in result.stdout:
-                print(line)
+    else:
+        for result in scan.results:
+            for line in result.lines:
+                if (
+                    not line.suppressible
+                    and line.placement is LinePlacement.IN_POSITION
+                ):
+                    print(line.text)
     for result in scan.results:
-        if result.stdout_before_footer:
-            continue
-        for line in result.stdout:
-            print(line)
+        for line in result.lines:
+            if (
+                line.placement is LinePlacement.TRAILING
+                and (not quiet or not line.suppressible)
+            ):
+                print(line.text)
     for line in scan.diagnostics:
         print(line, file=sys.stderr)
     return scan.status
@@ -3498,6 +3206,7 @@ def build_parser() -> argparse.ArgumentParser:
     `TheRecordsStayOutsideTheRepo` asserts against ``--recs-root``'s default here, and
     a default only a running command can observe is one no test pins.
     """
+    roots = Roots.defaults()
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("sheet", type=Path, nargs="?", help="the sheet to grade")
     parser.add_argument("--all", action="store_true", help="grade every sheet in reference/thresholds/ (resolves from the sweep alias, then --recs-root; takes no --recs)")
@@ -3520,7 +3229,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--recs-root",
         type=Path,
-        default=Path(os.environ.get("CLINICAL_GUIDELINES_RECS", DEFAULT_RECS_ROOT)),
+        default=roots.recs_root,
         help="where recs-<source key>.json is looked for (outside the repo, always)",
         # Deliberately NOT a spelling of guidelines_index.py's
         # CLINICAL_GUIDELINES_INDEX, which names a database file. This names a
@@ -3530,25 +3239,23 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--recs-alias",
         type=Path,
-        default=Path(os.environ.get(RECS_ALIAS_ENV, DEFAULT_RECS_ALIAS)),
+        default=roots.recs_alias,
         help=(
             "published recommendation sweep containing <doc_id>.json records; "
-            f"defaults from {RECS_ALIAS_ENV}"
+            f"defaults from {Roots.recs_alias_environment}"
         ),
     )
     parser.add_argument(
         "--pdf-root",
         type=Path,
-        default=DEFAULT_PDF_ROOT,
+        default=roots.pdf_root,
         help="corpus root for citation tier 2 (absent is reported, never passed)",
     )
     parser.add_argument(
         "--text-root",
         type=Path,
         default=(
-            Path(os.environ["CLINICAL_GUIDELINES_TEXT"])
-            if os.environ.get("CLINICAL_GUIDELINES_TEXT")
-            else None
+            roots.text_root if os.environ.get("CLINICAL_GUIDELINES_TEXT") else None
         ),
         help=(
             "#80's extracted-text directory, holding manifest.json, for WATERMARK. "
@@ -3663,18 +3370,17 @@ def main(argv: list[str]) -> int:
             return 2
         worst = 0
         affected_extractions: list[str] = []
+        inputs = SurveyInputs(
+            roots=Roots(args.pdf_root, args.recs_root, text_root, args.recs_alias),
+            recs_arguments=[],
+            second_read_path=None,
+            allow_untrusted_provenance=args.allow_untrusted_provenance,
+            catalog_facts=None,
+            currency_registry=None,
+            expected_commit=expected_commit,
+        )
         for path in sheets:
-            scan = survey(
-                path,
-                [],
-                args.pdf_root,
-                args.recs_root,
-                text_root,
-                None,
-                args.allow_untrusted_provenance,
-                recs_alias=args.recs_alias,
-                expected_commit=expected_commit,
-            )
+            scan = survey(path, inputs)
             worst = max(
                 worst,
                 _emit_scan(scan, quiet=args.quiet),
@@ -3701,14 +3407,15 @@ def main(argv: list[str]) -> int:
     return _emit_scan(
         survey(
             args.sheet,
-            args.recs,
-            args.pdf_root,
-            args.recs_root,
-            text_root,
-            args.second_read,
-            args.allow_untrusted_provenance,
-            recs_alias=args.recs_alias,
-            expected_commit=expected_commit,
+            SurveyInputs(
+                roots=Roots(args.pdf_root, args.recs_root, text_root, args.recs_alias),
+                recs_arguments=args.recs,
+                second_read_path=args.second_read,
+                allow_untrusted_provenance=args.allow_untrusted_provenance,
+                catalog_facts=None,
+                currency_registry=None,
+                expected_commit=expected_commit,
+            ),
         ),
         quiet=args.quiet,
     )

@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import guidelines_catalog
+import threshold_grammar
 import threshold_sheet
 from console_codec import use_utf8
 
@@ -172,7 +173,7 @@ def audit(
                 )
             else:
                 artifact_path = sheet_root / artifact
-                sheet = threshold_sheet.parse(
+                sheet = threshold_grammar.parse(
                     artifact_path.read_text(encoding="utf-8"), artifact_path
                 )
                 if not sheet.ok:

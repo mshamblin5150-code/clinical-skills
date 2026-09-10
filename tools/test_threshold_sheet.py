@@ -19,7 +19,9 @@ from __future__ import annotations
 
 import ast
 import contextlib
+import dataclasses
 import io
+import inspect
 import json
 import os
 import re
@@ -50,6 +52,35 @@ from prose_bind import NAMING, bind  # noqa: E402
 EXPECTED_COMMIT = artifact_provenance.checkout_commit(Path(__file__).resolve().parent.parent)
 
 
+def survey_inputs(
+    *,
+    recs_arguments: list[str] | None = None,
+    pdf_root: Path | None = None,
+    recs_root: Path | None = None,
+    text_root: Path | None = None,
+    second_read_path: Path | None = None,
+    allow_untrusted_provenance: bool = False,
+    page_counts: dict[str, int] | None = None,
+    source_classes: dict[str, str] | None = None,
+    recs_alias: Path | None = None,
+    currency_registry: guidelines_currency.Registry | None = None,
+) -> gate.SurveyInputs:
+    catalog_facts = None
+    if page_counts is not None or source_classes is not None:
+        catalog_facts = gate.CatalogFacts(
+            (), page_counts or {}, source_classes or {}, (), ()
+        )
+    return gate.SurveyInputs(
+        roots=gate.Roots(pdf_root, recs_root, text_root, recs_alias),
+        recs_arguments=recs_arguments,
+        second_read_path=second_read_path,
+        allow_untrusted_provenance=allow_untrusted_provenance,
+        catalog_facts=catalog_facts,
+        currency_registry=currency_registry,
+        expected_commit=EXPECTED_COMMIT,
+    )
+
+
 def grade(
     sheet_path: Path,
     recs_arguments: list[str] | None,
@@ -63,20 +94,33 @@ def grade(
     """Exercise the separated survey and command emitter with the old test inputs."""
     scan = gate.survey(
         sheet_path,
-        recs_arguments,
-        pdf_root,
-        recs_root,
-        text_root,
-        second_read_path,
-        allow_untrusted_provenance,
-        {
-            "Society/doc": 60,
-            "Society/aha": 60,
-            "Society/kdigo": 60,
-        },
-        expected_commit=EXPECTED_COMMIT,
+        survey_inputs(
+            recs_arguments=recs_arguments,
+            pdf_root=pdf_root,
+            recs_root=recs_root,
+            text_root=text_root,
+            second_read_path=second_read_path,
+            allow_untrusted_provenance=allow_untrusted_provenance,
+            page_counts={
+                "Society/doc": 60,
+                "Society/aha": 60,
+                "Society/kdigo": 60,
+            },
+        ),
     )
     return gate._emit_scan(scan, quiet=quiet)
+
+
+def report_lines(result: gate.GateResult) -> tuple[str, ...]:
+    return tuple(line.text for line in result.lines if line.suppressible)
+
+
+def stdout_lines(result: gate.GateResult) -> tuple[str, ...]:
+    return tuple(line.text for line in result.lines if not line.suppressible)
+
+
+def report_output(lines: tuple[str, ...]) -> tuple[gate.Line, ...]:
+    return tuple(gate.Line(text) for text in lines)
 
 
 def header(mode: str = "exact") -> str:
@@ -317,7 +361,7 @@ class EditionCurrencyReport(unittest.TestCase):
         self.assertEqual(result.findings, [])
         self.assertIn(
             "source 'src' Society/doc: superseded (observed 2026-09-05; replaced by new.pdf)",
-            result.report,
+            report_lines(result),
         )
 
 
@@ -420,9 +464,7 @@ class Parsing(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "x.md"
             path.write_text(HEADER, encoding="utf-8")
-            scan = gate.survey(
-                path, [], None, expected_commit=EXPECTED_COMMIT
-            )
+            scan = gate.survey(path, survey_inputs())
 
         self.assertEqual(scan.status, 2)
         self.assertEqual(scan.sheet.why_not, "no row under a '## Thresholds' heading")
@@ -736,10 +778,9 @@ class CitationTier1(unittest.TestCase):
         result = gate.gate_citation_tier2(
             sheet(row()), Path("C:/nowhere-at-all")
         )
-        failures, skipped, rendered = result.findings, result.skip_reason, result.rendered
+        failures, skipped = result.findings, result.skip_reason
         self.assertEqual(failures, [])
         self.assertIsNotNone(skipped)
-        self.assertEqual(rendered, 0)
         self.assertEqual(gate.gate_citation_tier1(sheet(row())).findings, [])
 
 
@@ -996,7 +1037,7 @@ class CitationTier0(unittest.TestCase):
 
         self.assertEqual(result.findings, [])
         self.assertFalse(result.not_graded)
-        self.assertEqual(result.report, ("  CITATION tier 0 0",))
+        self.assertEqual(report_lines(result), ("  CITATION tier 0 0",))
 
     def test_a_bound_source_reports_not_run_and_never_passes(self):
         result = gate.gate_citation_tier0(
@@ -1007,8 +1048,8 @@ class CitationTier0(unittest.TestCase):
 
         self.assertEqual(result.findings, [])
         self.assertTrue(result.not_graded)
-        self.assertIn("NOT RUN", result.report[0])
-        self.assertIn("bound", result.report[0])
+        self.assertIn("NOT RUN", report_lines(result)[0])
+        self.assertIn("bound", report_lines(result)[0])
 
     def test_a_bound_report_derives_both_denominators_and_tier_two_skips(self):
         parsed = sheet(
@@ -1033,7 +1074,7 @@ class CitationTier0(unittest.TestCase):
             {},
         )
 
-        report = "\n".join(result.report)
+        report = "\n".join(report_lines(result))
         self.assertIn("3 row(s) ungraded here", report)
         self.assertIn("2 cite a recommendation identifier", report)
         self.assertIn("all 3 keep tier 1", report)
@@ -1050,10 +1091,9 @@ class CitationTier0(unittest.TestCase):
         )
 
         self.assertEqual(result.findings, [])
-        self.assertEqual(result.rendered, 1)
         self.assertIn(
             "1 row(s) on graded exact source(s) declared RENDERED:",
-            "\n".join(result.report),
+            "\n".join(report_lines(result)),
         )
 
     def test_one_textless_exact_record_does_not_hide_another_rows_fabrication(self):
@@ -1211,7 +1251,7 @@ class CitationTier0(unittest.TestCase):
 
                 self.assertEqual(result.findings, [])
                 self.assertTrue(result.not_graded)
-                self.assertIn("narrative negative check", result.report[0])
+                self.assertIn("narrative negative check", report_lines(result)[0])
 
     def test_the_aaa_ever_smoker_definition_needs_no_fabricated_recommendation_id(self):
         recommendation_rows = "".join(
@@ -1279,7 +1319,7 @@ class TierZeroRenderedCounterScope(unittest.TestCase):
             },
             {},
         )
-        report = "\n".join(result.report)
+        report = "\n".join(report_lines(result))
 
         self.assertIn(
             "tier 2 grades all but the 1 bound-source row(s) that declare RENDERED:",
@@ -1319,7 +1359,7 @@ class TierZeroRenderedCounterScope(unittest.TestCase):
                     for key, source in parsed.sources.items()
                 }
                 report = "\n".join(
-                    gate.gate_citation_tier0(parsed, records, {}).report
+                    report_lines(gate.gate_citation_tier0(parsed, records, {}))
                 )
                 exact_rendered = sum(
                     item.source in exact
@@ -1350,28 +1390,37 @@ class EveryGateReturnsOneNamedShape(unittest.TestCase):
     def test_every_gate_returns_a_gate_result_that_names_its_gate(self):
         parsed = sheet(row())
         results = (
-            ("SCHEMA", gate.gate_schema(parsed)),
+            ("SCHEMA", gate.SchemaResult, gate.gate_schema(parsed)),
+            ("NULL SPAN", gate.NullSpanResult, gate.gate_null_span(parsed)),
             (
                 "EXTRACTION IDENTITY",
+                gate.ExtractionIdentityResult,
                 gate.gate_extraction_identity(
                     parsed,
                     gate.ExtractionIdentity("a" * 40, "b" * 64),
                 ),
             ),
-            ("PAGE COVERAGE", gate.gate_page_coverage(parsed, {"Society/doc": 60})),
-            ("CITATION tier 0", gate.gate_citation_tier0(parsed, {}, {})),
-            ("CITATION tier 1", gate.gate_citation_tier1(parsed)),
-            ("CITATION tier 2", gate.gate_citation_tier2(parsed, Path("C:/nowhere"))),
-            ("COVERAGE", gate.gate_coverage(parsed, {})),
-            ("RANGE", gate.gate_range(parsed)),
+            ("PAGE COVERAGE", gate.PageCoverageResult, gate.gate_page_coverage(parsed, {"Society/doc": 60})),
+            ("CITATION tier 0", gate.CitationTier0Result, gate.gate_citation_tier0(parsed, {}, {})),
+            ("CITATION tier 1", gate.CitationTier1Result, gate.gate_citation_tier1(parsed)),
+            ("CITATION tier 2", gate.CitationTier2Result, gate.gate_citation_tier2(parsed, Path("C:/nowhere"))),
+            ("COVERAGE", gate.CoverageResult, gate.gate_coverage(parsed, {})),
+            (
+                "EDITION CURRENCY",
+                gate.EditionCurrencyResult,
+                gate.gate_edition_currency(parsed, guidelines_currency.Registry((), (), ())),
+            ),
+            ("RANGE", gate.RangeResult, gate.gate_range(parsed)),
             (
                 "WATERMARK",
+                gate.WatermarkResult,
                 gate.gate_watermark(
                     parsed, None, expected_commit=EXPECTED_COMMIT
                 ),
             ),
             (
                 "SECOND READ",
+                gate.SecondReadResult,
                 gate.gate_second_read(
                     parsed,
                     gate.SecondRead(
@@ -1385,9 +1434,9 @@ class EveryGateReturnsOneNamedShape(unittest.TestCase):
             ),
         )
 
-        for name, result in results:
+        for name, result_type, result in results:
             with self.subTest(gate=name):
-                self.assertIsInstance(result, gate.GateResult)
+                self.assertIs(type(result), result_type)
                 self.assertEqual(result.gate, name)
                 self.assertIsInstance(result.findings, list)
 
@@ -1406,8 +1455,8 @@ class NullSheetReportsAreAssertionsRatherThanEmptyPasses(unittest.TestCase):
 
         for result in results:
             with self.subTest(gate=result.gate):
-                self.assertIn("NO ROWS", result.report[0])
-                self.assertNotIn("NOT RUN", result.report[0])
+                self.assertIn("NO ROWS", report_lines(result)[0])
+                self.assertNotIn("NOT RUN", report_lines(result)[0])
 
     def test_an_unread_span_is_exit_one_and_does_not_hide_the_other_gate_reports(self):
         unread = null_sheet_text().replace(
@@ -1419,11 +1468,10 @@ class NullSheetReportsAreAssertionsRatherThanEmptyPasses(unittest.TestCase):
             path.write_text(unread, encoding="utf-8")
             scan = gate.survey(
                 path,
-                [],
-                None,
-                page_counts={"Society/doc": 60},
-                catalog_source_classes={"Society/doc": "guideline"},
-                expected_commit=EXPECTED_COMMIT,
+                survey_inputs(
+                    page_counts={"Society/doc": 60},
+                    source_classes={"Society/doc": "guideline"},
+                ),
             )
 
         report = gate.format_report(scan)
@@ -1447,7 +1495,7 @@ class NullSheetReportsAreAssertionsRatherThanEmptyPasses(unittest.TestCase):
                     boilerplate=["Jones et al"],
                 )
                 reports = tuple(
-                    result.report[0]
+                    report_lines(result)[0]
                     for result in (
                         gate.gate_citation_tier1(parsed),
                         gate.gate_citation_tier2(parsed, pdf_root),
@@ -1549,7 +1597,7 @@ class ExtractionIdentityGate(unittest.TestCase):
 
         self.assertEqual(result.warnings, [])
         self.assertEqual(result.skip_reason, "manifest is unavailable")
-        self.assertIn("NOT RUN", result.report[0])
+        self.assertIn("NOT RUN", report_lines(result)[0])
         self.assertIn("NOT RUN", result.diagnostics[0])
 
     def test_survey_compares_the_sheet_with_its_text_root_manifest(self):
@@ -1568,11 +1616,10 @@ class ExtractionIdentityGate(unittest.TestCase):
 
             scan = gate.survey(
                 path,
-                [],
-                None,
-                text_root=root,
-                page_counts={"Society/doc": 60},
-                expected_commit=EXPECTED_COMMIT,
+                survey_inputs(
+                    text_root=root,
+                    page_counts={"Society/doc": 60},
+                ),
             )
 
         identity = next(
@@ -1601,11 +1648,10 @@ class ExtractionIdentityGate(unittest.TestCase):
                 for _ in range(2):
                     gate.survey(
                         path,
-                        [],
-                        None,
-                        text_root=root,
-                        page_counts={"Society/doc": 60},
-                        expected_commit=EXPECTED_COMMIT,
+                        survey_inputs(
+                            text_root=root,
+                            page_counts={"Society/doc": 60},
+                        ),
                     )
 
         self.assertEqual(reader.call_count, 2)
@@ -1642,11 +1688,33 @@ class ExtractionIdentityGate(unittest.TestCase):
 
 
 class ACompletedScanCanBeRenderedWithoutRunningAGate(unittest.TestCase):
+    def test_survey_accepts_one_coherent_input_record(self):
+        self.assertEqual(
+            list(inspect.signature(gate.survey).parameters), ["sheet_path", "inputs"]
+        )
+
+    def test_each_gate_returns_its_frozen_result_type(self):
+        result = gate.gate_range(sheet(row()))
+
+        self.assertIsInstance(result, gate.RangeResult)
+        with self.assertRaises(dataclasses.FrozenInstanceError):
+            result.gate = "other"
+
+    def test_each_line_carries_its_own_suppressibility_and_placement(self):
+        line = gate.Line(
+            "visible in quiet mode",
+            suppressible=False,
+            placement=gate.LinePlacement.TRAILING,
+        )
+
+        self.assertFalse(line.suppressible)
+        self.assertEqual(line.placement, gate.LinePlacement.TRAILING)
+
     def test_format_report_only_reads_the_scan_it_is_given(self):
         parsed = sheet(row())
         scan = gate.Scan(
             sheet=parsed,
-            results=(gate.GateResult("SCHEMA", report=("  SCHEMA          0",)),),
+            results=(gate.GateResult("SCHEMA", lines=report_output(("  SCHEMA          0",))),),
             status=0,
         )
 
@@ -1659,7 +1727,7 @@ class ACompletedScanCanBeRenderedWithoutRunningAGate(unittest.TestCase):
     def test_loud_cli_emission_uses_the_pure_formatter(self):
         scan = gate.Scan(
             sheet=sheet(row()),
-            results=(gate.GateResult("SCHEMA", report=("  SCHEMA          0",)),),
+            results=(gate.GateResult("SCHEMA", lines=report_output(("  SCHEMA          0",))),),
         )
         with mock.patch.object(
             gate, "format_report", wraps=gate.format_report
@@ -1683,7 +1751,7 @@ class CoverageGate(unittest.TestCase):
     def test_an_uncited_unscoped_recommendation_refuses_on_an_exact_source(self):
         parsed = sheet(row(rec="p41/goal/1"), coverage="- `p41/goal/2` - no number stated\n")
         result = gate.gate_coverage(parsed, {"src": self.RECS})
-        refusals, warnings, _ = result.findings, result.warnings, result.ungraded_sources
+        refusals, warnings = result.findings, result.warnings
         self.assertEqual(len(refusals), 1)
         self.assertIn("p41/goal/3", refusals[0])
         self.assertEqual(warnings, [])
@@ -1701,7 +1769,7 @@ class CoverageGate(unittest.TestCase):
             ),
         )
         result = gate.gate_coverage(parsed, {"src": self.RECS})
-        refusals, warnings, _ = result.findings, result.warnings, result.ungraded_sources
+        refusals, warnings = result.findings, result.warnings
         self.assertEqual(len(refusals), 1)
         self.assertIn("p999/invented/7", refusals[0])
         self.assertIn("does not carry", refusals[0])
@@ -1717,7 +1785,7 @@ class CoverageGate(unittest.TestCase):
             mode="bound",
         )
         result = gate.gate_coverage(parsed, {"src": {**self.RECS, "mode": "bound"}})
-        refusals, warnings, _ = result.findings, result.warnings, result.ungraded_sources
+        refusals, warnings = result.findings, result.warnings
         self.assertEqual(refusals, [])
         self.assertEqual(len(warnings), 1)
         self.assertIn("over-reports", warnings[0])
@@ -1734,7 +1802,7 @@ class CoverageGate(unittest.TestCase):
         result = gate.gate_coverage(
             parsed, {"src": {**self.RECS, "mode": "bound"}}
         )
-        refusals, warnings, _ = result.findings, result.warnings, result.ungraded_sources
+        refusals, warnings = result.findings, result.warnings
         self.assertEqual(refusals, [])
         self.assertEqual(warnings, [])
         self.assertIn("under-report", gate.WHY_BOUND_REC_MEMBERSHIP_IS_NOT_GRADED)
@@ -1749,7 +1817,7 @@ class CoverageGate(unittest.TestCase):
             ),
         )
         result = gate.gate_coverage(parsed, {"src": self.RECS})
-        refusals, warnings, _ = result.findings, result.warnings, result.ungraded_sources
+        refusals, warnings = result.findings, result.warnings
         self.assertEqual(len(refusals), 1)
         self.assertIn("p999/invented/7", refusals[0])
         self.assertIn("no exact recommendation record carries it", refusals[0])
@@ -1768,7 +1836,7 @@ class CoverageGate(unittest.TestCase):
         result = gate.gate_coverage(
             parsed, {"src": {**self.RECS, "mode": "bound"}}
         )
-        refusals, warnings, _ = result.findings, result.warnings, result.ungraded_sources
+        refusals, warnings = result.findings, result.warnings
         self.assertEqual(refusals, [])
         self.assertEqual(warnings, [])
 
@@ -1783,7 +1851,7 @@ class CoverageGate(unittest.TestCase):
         """
         parsed = sheet(row(rec="p41/goal/1"), mode="exact")
         result = gate.gate_coverage(parsed, {"src": {**self.RECS, "mode": "bound"}})
-        refusals, _, _ = result.findings, result.warnings, result.ungraded_sources
+        refusals = result.findings
         self.assertTrue(any("declares mode" in message for message in refusals))
 
     def test_a_row_carrying_the_wrong_class_for_its_recommendation_is_refused(self):
@@ -1794,7 +1862,7 @@ class CoverageGate(unittest.TestCase):
         """
         recs = {**self.RECS, "recommendations": [{"rec_id": "p41/goal/1", "cor": "2a"}]}
         result = gate.gate_coverage(sheet(row(rec="p41/goal/1", klass="1")), {"src": recs})
-        refusals, _, _ = result.findings, result.warnings, result.ungraded_sources
+        refusals = result.findings
         self.assertTrue(any("does not match" in message for message in refusals))
 
     def test_a_bound_source_carries_no_class_so_the_class_check_stays_quiet(self):
@@ -1807,7 +1875,7 @@ class CoverageGate(unittest.TestCase):
             "recommendations": [{"rec_id": "p41/goal/1", "cor": None}],
         }
         result = gate.gate_coverage(sheet(row(rec="p41/goal/1"), mode="bound"), {"src": recs})
-        refusals, _, _ = result.findings, result.warnings, result.ungraded_sources
+        refusals = result.findings
         self.assertEqual(refusals, [])
 
     def test_a_narrative_locator_requires_the_narrative_class(self):
@@ -1853,7 +1921,7 @@ class CoverageGate(unittest.TestCase):
     def test_every_coverage_run_declares_the_narrative_floor(self):
         result = gate.gate_coverage(sheet(row()), {"src": self.RECS})
 
-        qualifier = "\n".join(result.report)
+        qualifier = "\n".join(report_lines(result))
         self.assertIn("narrative row", qualifier)
         self.assertIn("outside the recommendation index", qualifier)
         self.assertIn("Scope", qualifier)
@@ -1870,7 +1938,7 @@ class CoverageGate(unittest.TestCase):
             {"src": self.RECS},
         )
 
-        self.assertIn("1 page transcription", "\n".join(result.report))
+        self.assertIn("1 page transcription", "\n".join(report_lines(result)))
 
     def test_it_fires_on_one_unread_item_not_only_on_total_absence(self):
         """#153's lesson, from this ticket's own comment: fire on ANY unread item.
@@ -1881,19 +1949,20 @@ class CoverageGate(unittest.TestCase):
         covered = "".join(f"- `p41/goal/{n}` - no number\n" for n in (2, 3))
         parsed = sheet(row(rec="p41/goal/1"), coverage=covered)
         result = gate.gate_coverage(parsed, {"src": self.RECS})
-        refusals, _, _ = result.findings, result.warnings, result.ungraded_sources
+        refusals = result.findings
         self.assertEqual(refusals, [])
 
         parsed = sheet(row(rec="p41/goal/1"), coverage="- `p41/goal/2` - no number\n")
         result = gate.gate_coverage(parsed, {"src": self.RECS})
-        refusals, _, _ = result.findings, result.warnings, result.ungraded_sources
+        refusals = result.findings
         self.assertEqual(len(refusals), 1)
 
     def test_no_recommendation_record_is_reported_as_ungraded_never_as_clean(self):
         result = gate.gate_coverage(sheet(row()), {})
-        refusals, warnings, ungraded = result.findings, result.warnings, result.ungraded_sources
+        refusals, warnings = result.findings, result.warnings
         self.assertEqual((refusals, warnings), ([], []))
-        self.assertEqual(ungraded, ["src"])
+        self.assertTrue(result.not_graded)
+        self.assertIn("src", "\n".join(report_lines(result)))
 
 
 class RangeGate(unittest.TestCase):
@@ -2067,14 +2136,14 @@ class RangeGate(unittest.TestCase):
 
     def test_catches_the_failure_it_exists_for(self):
         result = gate.gate_range(sheet(row(value="<1300 mm Hg", snippet="1300")))
-        failures, _ = result.findings, result.ungraded
+        failures = result.findings
         self.assertEqual(len(failures), 1)
         self.assertIn("1300", failures[0])
 
     def test_a_bmi_unit_suffix_is_not_a_bmi(self):
         """`>=27 kg/m2` -- the 2 in m2 was being graded as a body mass index."""
         result = gate.gate_range(sheet(row(quantity="bmi-threshold", value=">=27 kg/m2")))
-        failures, _ = result.findings, result.ungraded
+        failures = result.findings
         self.assertEqual(failures, [])
 
     def test_a_duration_in_a_row_whose_quantity_name_contains_bp_is_not_a_pressure(self):
@@ -2083,7 +2152,7 @@ class RangeGate(unittest.TestCase):
         result = gate.gate_range(
             sheet(row(quantity="acute-ich-bp-control-duration", value=">=7 days"))
         )
-        failures, _ = result.findings, result.ungraded
+        failures = result.findings
         self.assertEqual(failures, [])
 
     def test_a_percentage_beside_a_time_window_is_not_a_pressure(self):
@@ -2091,7 +2160,7 @@ class RangeGate(unittest.TestCase):
         result = gate.gate_range(
             sheet(row(quantity="acute-stroke-bp-reduction-target", value="15% in 24 h"))
         )
-        failures, _ = result.findings, result.ungraded
+        failures = result.findings
         self.assertEqual(failures, [])
 
     def test_a_pressure_and_a_time_window_in_one_value_grade_separately(self):
@@ -2100,24 +2169,24 @@ class RangeGate(unittest.TestCase):
         result = gate.gate_range(
             sheet(row(value="<160/110 mm Hg within 30 to 60 min"))
         )
-        failures, ungraded = result.findings, result.ungraded
+        failures = result.findings
         self.assertEqual(failures, [])
-        self.assertEqual(ungraded, 2)
+        self.assertIn("2 numbers carried no unit", "\n".join(report_lines(result)))
 
     def test_a_paired_systolic_and_diastolic_bound_grades_both_numbers(self):
         result = gate.gate_range(sheet(row(value="140-159/90-109 mm Hg")))
-        failures, _ = result.findings, result.ungraded
+        failures = result.findings
         self.assertEqual(failures, [])
         result = gate.gate_range(sheet(row(value="140-159/900-109 mm Hg")))
-        failures, _ = result.findings, result.ungraded
+        failures = result.findings
         self.assertEqual(len(failures), 1)
 
     def test_a_number_in_no_recognized_unit_is_counted_rather_than_passed(self):
         """The ungraded count is returned and printed. A gate that grades 4 of 200
         numbers and reports clean is the shape #153 caught reading green."""
         result = gate.gate_range(sheet(row(value="once daily after 3 doses")))
-        _, ungraded = result.findings, result.ungraded
-        self.assertEqual(ungraded, 1)
+        self.assertEqual(result.findings, [])
+        self.assertIn("1 numbers carried no unit", "\n".join(report_lines(result)))
 
 
 class QuietSuppressesTheReportAndNeverAFinding(unittest.TestCase):
@@ -2196,7 +2265,7 @@ class QuietSuppressesTheReportAndNeverAFinding(unittest.TestCase):
             scans = {
                 path: gate.Scan(
                     gate.Sheet(path),
-                    (gate.GateResult("fixture", report=report),),
+                    (gate.GateResult("fixture", lines=report_output(report)),),
                 )
                 for path, report in zip(paths, reports, strict=True)
             }
@@ -2878,7 +2947,7 @@ class ScopeSpanTable(unittest.TestCase):
         ])
         result = gate.gate_page_coverage(parsed, {"Society/doc": 60})
         self.assertEqual(result.findings, [])
-        rendered = "\n".join(result.stdout)
+        rendered = "\n".join(stdout_lines(result))
         self.assertIn("page_count: 60", rendered)
         self.assertIn("unaccounted pages: none", rendered)
 
@@ -2903,13 +2972,13 @@ class ScopeSpanTable(unittest.TestCase):
         result = gate.gate_page_coverage(parsed, {"Society/doc": 60})
         self.assertEqual(len(result.findings), 1)
         self.assertIn("51", result.findings[0])
-        self.assertIn("unaccounted pages: 51", "\n".join(result.stdout))
+        self.assertIn("unaccounted pages: 51", "\n".join(stdout_lines(result)))
 
     def test_an_unresolved_source_page_count_is_not_graded(self):
         result = gate.gate_page_coverage(gate.parse(HEADER, Path("test-sheet.md")), {})
         self.assertTrue(result.not_graded)
         self.assertIn("Society/doc", result.skip_reason)
-        self.assertIn("page_count: NOT RESOLVED", "\n".join(result.stdout))
+        self.assertIn("page_count: NOT RESOLVED", "\n".join(stdout_lines(result)))
 
     def test_a_read_span_with_neither_a_row_nor_a_dated_marker_is_refused(self):
         text = HEADER.replace(
@@ -3005,7 +3074,7 @@ class NullSpanBlindCorroboration(unittest.TestCase):
 
         self.assertEqual(result.findings, [])
         self.assertEqual(
-            result.report,
+            report_lines(result),
             (
                 "  NULL SPAN       0 refusing over 1 span(s) retired on a marker, "
                 "1 corroborated",
@@ -3017,14 +3086,14 @@ class NullSpanBlindCorroboration(unittest.TestCase):
 
         self.assertEqual(result.findings, [])
         self.assertEqual(
-            result.report,
+            report_lines(result),
             ("  NULL SPAN       0 refusing over 0 span(s) retired on a marker",),
         )
 
     def test_an_exemption_is_outside_the_denominator(self):
         parsed = self.parsed("exempt: citation list has no clinical prose")
 
-        self.assertIn("over 0 span(s)", gate.gate_null_span(parsed).report[0])
+        self.assertIn("over 0 span(s)", report_lines(gate.gate_null_span(parsed))[0])
 
     def test_an_impossible_blind_date_stays_a_schema_failure(self):
         parsed = self.parsed("read 2026-08-23; blind 2026-99-99")
@@ -3032,7 +3101,7 @@ class NullSpanBlindCorroboration(unittest.TestCase):
         self.assertTrue(
             any("invalid read value" in item for item in gate.gate_schema(parsed).findings)
         )
-        self.assertIn("over 0 span(s)", gate.gate_null_span(parsed).report[0])
+        self.assertIn("over 0 span(s)", report_lines(gate.gate_null_span(parsed))[0])
 
     def test_the_public_survey_refuses_an_uncorroborated_marker(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -3050,13 +3119,11 @@ class NullSpanBlindCorroboration(unittest.TestCase):
             )
             scan = gate.survey(
                 path,
-                recs_arguments=[],
-                pdf_root=None,
-                recs_root=Path(directory) / "recs",
-                text_root=None,
-                page_counts={"Society/doc": 60},
-                catalog_source_classes={"Society/doc": "guideline"},
-                expected_commit=EXPECTED_COMMIT,
+                survey_inputs(
+                    recs_root=Path(directory) / "recs",
+                    page_counts={"Society/doc": 60},
+                    source_classes={"Society/doc": "guideline"},
+                ),
             )
 
         self.assertEqual(scan.status, 1)
@@ -3222,15 +3289,14 @@ class TheRenderedPageEscapeHatch(unittest.TestCase):
         result = gate.gate_citation_tier2(
             sheet(marked), Path(__file__).parent
         )
-        failures, skipped, rendered = result.findings, result.skip_reason, result.rendered
+        failures, skipped = result.findings, result.skip_reason
         self.assertIsNone(skipped)
-        self.assertEqual(rendered, 1)
         self.assertEqual(failures, [])
+        self.assertIn("1 row(s) declared RENDERED:", "\n".join(report_lines(result)))
 
     def test_an_undeclared_row_is_not_skipped(self):
         result = gate.gate_citation_tier2(sheet(row()), Path(__file__).parent)
-        _, _, rendered = result.findings, result.skip_reason, result.rendered
-        self.assertEqual(rendered, 0)
+        self.assertNotIn("row(s) declared RENDERED:", "\n".join(report_lines(result)))
 
     def test_the_marker_must_start_the_snippet_not_merely_appear_in_it(self):
         """`phi-scan: synthetic`'s own-line rule, adopted for the reason it was added
@@ -3238,8 +3304,7 @@ class TheRenderedPageEscapeHatch(unittest.TestCase):
         explaining the pragma."""
         mentioned = row(snippet=f"a row may declare {gate.RENDERED_MARKER} to opt out, <130")
         result = gate.gate_citation_tier2(sheet(mentioned), Path(__file__).parent)
-        _, _, rendered = result.findings, result.skip_reason, result.rendered
-        self.assertEqual(rendered, 0)
+        self.assertNotIn("row(s) declared RENDERED:", "\n".join(report_lines(result)))
 
     def test_tier_one_still_grades_a_declared_row(self):
         """The hatch buys out of tier 2 only. A value whose number is absent from its
@@ -3519,8 +3584,8 @@ class CoverageIsPerSource(unittest.TestCase):
             sheet_,
             {"aha": record("p1/aha/1"), "kdigo": record("p9/kdigo/1", "p9/kdigo/2")},
         )
-        refusals, _, ungraded = result.findings, result.warnings, result.ungraded_sources
-        self.assertEqual(ungraded, [])
+        refusals = result.findings
+        self.assertFalse(result.not_graded)
         self.assertEqual(len(refusals), 1)
         self.assertIn("kdigo", refusals[0])
         self.assertIn("p9/kdigo/1", refusals[0])
@@ -3536,7 +3601,7 @@ class CoverageIsPerSource(unittest.TestCase):
             sheet_,
             {"aha": record("p1/goal/1"), "kdigo": record("p1/goal/1")},
         )
-        refusals, _, _ = result.findings, result.warnings, result.ungraded_sources
+        refusals = result.findings
         self.assertEqual(len(refusals), 1)
         self.assertIn("kdigo", refusals[0])
 
@@ -3545,8 +3610,10 @@ class CoverageIsPerSource(unittest.TestCase):
         so could not exceed 1 regardless of how many sources went unchecked."""
         sheet_ = two_source_sheet(row(rec="p1/aha/1", source="aha"))
         result = gate.gate_coverage(sheet_, {"aha": None, "kdigo": None})
-        _, _, ungraded = result.findings, result.warnings, result.ungraded_sources
-        self.assertEqual(ungraded, ["aha", "kdigo"])
+        self.assertTrue(result.not_graded)
+        report = "\n".join(report_lines(result))
+        self.assertIn("aha", report)
+        self.assertIn("kdigo", report)
 
     def test_one_source_graded_and_one_not_reports_both_halves(self):
         """Partial coverage is the shape this ticket series keeps finding. The graded
@@ -3555,8 +3622,9 @@ class CoverageIsPerSource(unittest.TestCase):
         result = gate.gate_coverage(
             sheet_, {"aha": record("p1/aha/1", "p1/aha/2"), "kdigo": None}
         )
-        refusals, _, ungraded = result.findings, result.warnings, result.ungraded_sources
-        self.assertEqual(ungraded, ["kdigo"])
+        refusals = result.findings
+        self.assertTrue(result.not_graded)
+        self.assertIn("kdigo", "\n".join(report_lines(result)))
         self.assertEqual(len(refusals), 1)
         self.assertIn("p1/aha/2", refusals[0])
 
@@ -3570,7 +3638,7 @@ class CoverageIsPerSource(unittest.TestCase):
         result = gate.gate_coverage(
             sheet_, {"aha": record("p1/aha/1"), "kdigo": record("p9/kdigo/1")}
         )
-        refusals, _, _ = result.findings, result.warnings, result.ungraded_sources
+        refusals = result.findings
         self.assertEqual(refusals, [])
 
     def test_the_mode_cross_check_is_per_source(self):
@@ -3585,7 +3653,7 @@ class CoverageIsPerSource(unittest.TestCase):
                 "kdigo": record("p9/kdigo/1", mode="bound"),
             },
         )
-        refusals, warnings, _ = result.findings, result.warnings, result.ungraded_sources
+        refusals, warnings = result.findings, result.warnings
         declared = [message for message in refusals if "declares mode" in message]
         self.assertEqual(len(declared), 1)
         self.assertIn("'kdigo'", declared[0])
@@ -3609,7 +3677,7 @@ class CoverageIsPerSource(unittest.TestCase):
                 "kdigo": record("p9/kdigo/1", built_from="C:/corpus/Society/kdigo.pdf"),
             },
         )
-        refusals, _, _ = result.findings, result.warnings, result.ungraded_sources
+        refusals = result.findings
         named = [message for message in refusals if "was built from" in message]
         self.assertEqual(len(named), 1)
         self.assertIn("'aha'", named[0])
@@ -3626,7 +3694,7 @@ class CoverageIsPerSource(unittest.TestCase):
                 "kdigo": record("p9/kdigo/1", built_from="C:\\corpus\\Society\\kdigo.pdf"),
             },
         )
-        refusals, _, _ = result.findings, result.warnings, result.ungraded_sources
+        refusals = result.findings
         self.assertEqual([message for message in refusals if "was built from" in message], [])
 
     def test_a_record_that_names_no_document_is_not_guessed_at(self):
@@ -3634,7 +3702,7 @@ class CoverageIsPerSource(unittest.TestCase):
         result = gate.gate_coverage(
             sheet_, {"aha": record("p1/aha/1"), "kdigo": record("p9/kdigo/1")}
         )
-        refusals, _, _ = result.findings, result.warnings, result.ungraded_sources
+        refusals = result.findings
         self.assertEqual([message for message in refusals if "was built from" in message], [])
 
     def test_the_class_check_reads_the_rows_own_source_record(self):
@@ -3649,7 +3717,7 @@ class CoverageIsPerSource(unittest.TestCase):
                 "kdigo": record("p9/kdigo/1", cor={"p9/kdigo/1": "2a"}),
             },
         )
-        refusals, _, _ = result.findings, result.warnings, result.ungraded_sources
+        refusals = result.findings
         self.assertTrue(any("does not match" in message for message in refusals))
 
 
@@ -4395,6 +4463,7 @@ class TheHookGradesSheetsAndNotTheDirectoryReadme(unittest.TestCase):
             sheets = root / "reference" / "thresholds"
             sheets.mkdir(parents=True)
             for name in (
+                "threshold_grammar.py",
                 "threshold_sheet.py",
                 "artifact_lock.py",
                 "artifact_provenance.py",
@@ -4526,7 +4595,7 @@ class WatermarkGate(ReadingManifestConformance, unittest.TestCase):
                 expected_commit=EXPECTED_COMMIT,
                 allow_untrusted_provenance=allow,
             )
-            _, skip, _, _ = result.findings, result.skip_reason, result.rendered, result.unprobed_sources
+            skip = result.skip_reason
         return skip is None, skip or ""
 
     def conformance_command(self, root, *, allow):
@@ -4552,11 +4621,9 @@ class WatermarkGate(ReadingManifestConformance, unittest.TestCase):
                 text_root,
                 expected_commit=EXPECTED_COMMIT,
             )
-            failures, skip, rendered, unprobed = result.findings, result.skip_reason, result.rendered, result.unprobed_sources
+            failures, skip = result.findings, result.skip_reason
 
         self.assertEqual(failures, [])
-        self.assertEqual(rendered, 0)
-        self.assertEqual(unprobed, [])
         self.assertIn("another task is rebuilding", skip)
         self.assertIn(str(text_root.resolve()), skip)
 
@@ -4569,10 +4636,8 @@ class WatermarkGate(ReadingManifestConformance, unittest.TestCase):
         result = gate.gate_watermark(
             sheet(suspect), self.root, expected_commit=EXPECTED_COMMIT
         )
-        failures, skip, rendered, unprobed = result.findings, result.skip_reason, result.rendered, result.unprobed_sources
+        failures, skip = result.findings, result.skip_reason
         self.assertIsNone(skip)
-        self.assertEqual(unprobed, [])
-        self.assertEqual(rendered, 0)
         self.assertEqual(len(failures), 1)
         self.assertIn("Jones et al", failures[0])
 
@@ -4584,7 +4649,7 @@ class WatermarkGate(ReadingManifestConformance, unittest.TestCase):
         result = gate.gate_watermark(
             sheet(row()), self.root, expected_commit=EXPECTED_COMMIT
         )
-        failures, skip, _, _ = result.findings, result.skip_reason, result.rendered, result.unprobed_sources
+        failures, skip = result.findings, result.skip_reason
         self.assertIsNone(skip)
         self.assertEqual(failures, [])
 
@@ -4607,7 +4672,7 @@ class WatermarkGate(ReadingManifestConformance, unittest.TestCase):
         result = gate.gate_watermark(
             sheet(suspect), self.root, expected_commit=EXPECTED_COMMIT
         )
-        failures, _, _, _ = result.findings, result.skip_reason, result.rendered, result.unprobed_sources
+        failures = result.findings
         self.assertEqual(failures, [])
 
     def test_the_margin_rules_strings_are_probes_too(self):
@@ -4623,7 +4688,7 @@ class WatermarkGate(ReadingManifestConformance, unittest.TestCase):
         result = gate.gate_watermark(
             sheet(suspect), self.root, expected_commit=EXPECTED_COMMIT
         )
-        failures, _, _, _ = result.findings, result.skip_reason, result.rendered, result.unprobed_sources
+        failures = result.findings
         self.assertEqual(len(failures), 1)
 
     def test_a_rendered_row_is_exempt_and_counted(self):
@@ -4640,9 +4705,9 @@ class WatermarkGate(ReadingManifestConformance, unittest.TestCase):
         result = gate.gate_watermark(
             sheet(marked), self.root, expected_commit=EXPECTED_COMMIT
         )
-        failures, _, rendered, _ = result.findings, result.skip_reason, result.rendered, result.unprobed_sources
+        failures = result.findings
         self.assertEqual(failures, [])
-        self.assertEqual(rendered, 1)
+        self.assertIn("1 row(s) declared RENDERED:", "\n".join(report_lines(result)))
 
     def test_a_document_with_no_usable_probe_is_reported_and_never_clean(self):
         """A sheet citing a document with no usable probe is a sheet gate 4 said
@@ -4656,10 +4721,10 @@ class WatermarkGate(ReadingManifestConformance, unittest.TestCase):
         result = gate.gate_watermark(
             sheet(row()), self.root, expected_commit=EXPECTED_COMMIT
         )
-        failures, skip, _, unprobed = result.findings, result.skip_reason, result.rendered, result.unprobed_sources
+        failures, skip = result.findings, result.skip_reason
         self.assertIsNone(skip)
         self.assertEqual(failures, [])
-        self.assertEqual(unprobed, ["src"])
+        self.assertIn("NOT PROBED for 1 of 1 source(s): src", "\n".join(report_lines(result)))
 
     def test_a_source_with_no_manifest_entry_is_reported_and_never_clean(self):
         text_corpus(self.root, "Society/other", "a goal of <130 mm Hg",
@@ -4667,9 +4732,9 @@ class WatermarkGate(ReadingManifestConformance, unittest.TestCase):
         result = gate.gate_watermark(
             sheet(row()), self.root, expected_commit=EXPECTED_COMMIT
         )
-        _, skip, _, unprobed = result.findings, result.skip_reason, result.rendered, result.unprobed_sources
+        skip = result.skip_reason
         self.assertIsNone(skip)
-        self.assertEqual(unprobed, ["src"])
+        self.assertIn("NOT PROBED for 1 of 1 source(s): src", "\n".join(report_lines(result)))
 
     def test_an_absent_corpus_is_a_skip_and_never_a_pass(self):
         """Tier 2's arrangement and for tier 2's reason: the extracted corpus lives
@@ -4680,7 +4745,7 @@ class WatermarkGate(ReadingManifestConformance, unittest.TestCase):
             self.root / "nowhere",
             expected_commit=EXPECTED_COMMIT,
         )
-        failures, skip, _, _ = result.findings, result.skip_reason, result.rendered, result.unprobed_sources
+        failures, skip = result.findings, result.skip_reason
         self.assertEqual(failures, [])
         self.assertIsNotNone(skip)
 
@@ -4711,7 +4776,7 @@ class WatermarkGate(ReadingManifestConformance, unittest.TestCase):
         result = gate.gate_watermark(
             sheet(row()), self.root, expected_commit=EXPECTED_COMMIT
         )
-        _, skip, _, _ = result.findings, result.skip_reason, result.rendered, result.unprobed_sources
+        skip = result.skip_reason
 
         self.assertIsNone(skip)
 
@@ -4720,7 +4785,7 @@ class WatermarkGate(ReadingManifestConformance, unittest.TestCase):
         result = gate.gate_watermark(
             sheet(row()), self.root, expected_commit=EXPECTED_COMMIT
         )
-        _, skip, _, _ = result.findings, result.skip_reason, result.rendered, result.unprobed_sources
+        skip = result.skip_reason
         self.assertIsNotNone(skip)
         self.assertIn("manifest", skip.lower())
 
@@ -4740,7 +4805,7 @@ class WatermarkGate(ReadingManifestConformance, unittest.TestCase):
         result = gate.gate_watermark(
             sheet(row()), self.root, expected_commit=EXPECTED_COMMIT
         )
-        _, skip, _, _ = result.findings, result.skip_reason, result.rendered, result.unprobed_sources
+        skip = result.skip_reason
         with self.assertWarnsRegex(RuntimeWarning, "untrusted"):
             result = gate.gate_watermark(
                 sheet(row()),
@@ -4748,7 +4813,7 @@ class WatermarkGate(ReadingManifestConformance, unittest.TestCase):
                 expected_commit=EXPECTED_COMMIT,
                 allow_untrusted_provenance=True,
             )
-            _, allowed_skip, _, _ = result.findings, result.skip_reason, result.rendered, result.unprobed_sources
+            allowed_skip = result.skip_reason
 
         self.assertIn("different commit", skip)
         self.assertIsNone(allowed_skip)
@@ -4793,7 +4858,7 @@ class WatermarkGate(ReadingManifestConformance, unittest.TestCase):
             )
 
         self.assertTrue(result.not_graded)
-        self.assertIn("NOT GRADED", "\n".join(result.report))
+        self.assertIn("NOT GRADED", "\n".join(report_lines(result)))
 
     def test_the_command_exits_two_when_the_untrusted_pass_is_not_declared(self):
         corpus, _ = self._dirty_corpus()
@@ -4834,7 +4899,7 @@ class WatermarkGate(ReadingManifestConformance, unittest.TestCase):
 
         self.assertFalse(result.not_graded)
         self.assertEqual(result.findings, [])
-        self.assertIn("WATERMARK       0 refusing", "\n".join(result.report))
+        self.assertIn("WATERMARK       0 refusing", "\n".join(report_lines(result)))
 
     def test_a_declaration_for_different_distrust_refuses(self):
         corpus, _ = self._dirty_corpus()
@@ -4926,12 +4991,7 @@ class WatermarkGate(ReadingManifestConformance, unittest.TestCase):
             self.root,
             expected_commit=EXPECTED_COMMIT,
         )
-        failures, skip, _, _ = (
-            result.findings,
-            result.skip_reason,
-            result.rendered,
-            result.unprobed_sources,
-        )
+        failures, skip = result.findings, result.skip_reason
 
         self.assertIsNone(skip)
         self.assertEqual(len(failures), 1)
@@ -4947,7 +5007,7 @@ class WatermarkGate(ReadingManifestConformance, unittest.TestCase):
         result = gate.gate_watermark(
             sheet(suspect), self.root, expected_commit=EXPECTED_COMMIT
         )
-        failures, _, _, _ = result.findings, result.skip_reason, result.rendered, result.unprobed_sources
+        failures = result.findings
         self.assertTrue(failures)
 
 
@@ -4978,9 +5038,8 @@ class TheWatermarkGateAgainstTheCommittedSheet(unittest.TestCase):
         result = gate.gate_watermark(
             parsed, self.text_root, expected_commit=EXPECTED_COMMIT
         )
-        failures, skip, _, unprobed = result.findings, result.skip_reason, result.rendered, result.unprobed_sources
+        failures, skip = result.findings, result.skip_reason
         self.assertIsNone(skip)
-        self.assertEqual(unprobed, [])
         self.assertEqual(failures, [])
 
 
@@ -5658,7 +5717,7 @@ class GateFourRefusesUntilTheRenderedPageIsChecked(unittest.TestCase):
             self.root / "text2",
             expected_commit=EXPECTED_COMMIT,
         )
-        findings, _, _, _ = result.findings, result.skip_reason, result.rendered, result.unprobed_sources
+        findings = result.findings
         self.assertEqual(len(findings), 2)
 
 
