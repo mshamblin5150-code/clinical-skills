@@ -146,6 +146,15 @@ class RenderedRecord:
 
 
 @dataclass(frozen=True)
+class RenderedAssessment:
+    findings: tuple[Finding, ...]
+    records: int
+    passes: int
+    unrecorded_passes: int
+    report: str
+
+
+@dataclass(frozen=True)
 class Source:
     root: Path
     deck: Path
@@ -341,7 +350,7 @@ def _rendered_records(text: str) -> tuple[RenderedRecord, ...]:
 
 def _rendered_grade(
     source: Source, submission: str | None
-) -> tuple[tuple[Finding, ...], int, int, int, str]:
+) -> RenderedAssessment:
     records = _rendered_records(source.rendered_text or "")
     passes = render_pass.read_passes(source.root / "render")
     found: list[Finding] = []
@@ -394,7 +403,9 @@ def _rendered_grade(
     unrecorded = len(pass_numbers - recorded_numbers)
     if submission is None:
         report = f"rendered record: {run_grader.NOT_GRADED} - --submission was not supplied"
-        return tuple(found), len(records), len(passes), unrecorded, report
+        return RenderedAssessment(
+            tuple(found), len(records), len(passes), unrecorded, report
+        )
 
     if not passes:
         found.append(Finding(RENDERED_RECORD, None, "submission has no retained render pass"))
@@ -425,7 +436,9 @@ def _rendered_grade(
         if not re.fullmatch(r"(?is)clean[ \t]+-[ \t]+.+", record.value("VERDICT")):
             found.append(Finding(RENDERED_RECORD, None, "highest-pass VERDICT is not clean with a reason"))
     report = f"rendered record: {'finding' if found else 'clean'}"
-    return tuple(found), len(records), len(passes), unrecorded, report
+    return RenderedAssessment(
+        tuple(found), len(records), len(passes), unrecorded, report
+    )
 
 
 def _costs(text: str) -> set[str]:
@@ -511,19 +524,17 @@ def format_report(scan: Scan, _source: str, show: bool = False) -> str:
 
 def grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
     scanned = survey(source)
-    rendered_findings, records, passes, unrecorded, rendered_report = _rendered_grade(
-        source, _parsed.value("--submission")
-    )
+    rendered = _rendered_grade(source, _parsed.value("--submission"))
     scanned = Scan(
         scanned.slides_read,
         scanned.bullets_read,
         scanned.words_read,
         scanned.font_runs_read,
         scanned.costs_read,
-        records,
-        passes,
-        unrecorded,
-        scanned.findings + rendered_findings,
+        rendered.records,
+        rendered.passes,
+        rendered.unrecorded_passes,
+        scanned.findings + rendered.findings,
     )
     aar_failed, aar_report = aar_scan.completion_gate(
         source.root, _parsed.value("--submission")
@@ -533,7 +544,7 @@ def grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
         source=str(source.root),
         findings_failed=bool(scanned.findings) or aar_failed,
         diagnostics=("deck findings require review",) if scanned.findings else (),
-        reports=(rendered_report, aar_report),
+        reports=(rendered.report, aar_report),
     )
 
 
