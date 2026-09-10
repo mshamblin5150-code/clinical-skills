@@ -748,6 +748,14 @@ _Avoid_: unreachable, unavailable, blocked, tier-1 failure, load error, bad inpu
 Said of a graded population with no members, where the emptiness is settled by something other than the matcher that would have recognized one — a separate registry, a manifest, an argument, the filesystem. It is the condition under which a clean verdict over nothing is a true claim rather than a silent one, and it is the distinction an **unreadable source** is the other half of: there the subject could not be obtained, here there is no subject. Where the matcher is the only evidence, an empty population is *not scanned* instead, because empty and unrecognized are then the same reading. The term defines the boundary and asserts nothing about which modules sit inside it.
 _Avoid_: no results, nothing found, vacuous clean, trivially clean
 
+**Index walk**:
+An enumeration of files as git's index lists them. It cannot see a file until that file is staged, so a clean result over it means no tracked file fails and never that no file fails. Distinct from a **disk walk**: the two populations differ exactly while a new file is being written, which is why a walk keeps the population it has rather than inheriting one from whatever reads the tree for it.
+_Avoid_: tracked walk, ls-files walk, repository walk
+
+**Disk walk**:
+An enumeration of what a directory holds on disk at the moment it is read, a file not yet staged included. Distinct from an **index walk**, which is blind to that file until it is staged; choosing between them is a decision about which window a check covers, not a spelling.
+_Avoid_: glob walk, directory listing, tree walk
+
 **Adoption**:
 A module's actual use of the shared runner and its conformance kit — importing `run_grader`, and its test module binding `grader_conformance.for_module`. It is what a **declared member** is graded on, and it is not shape: shape is the source pattern a population walk can recognize, so a walk over shape answers *is there a grader here nobody declared* while a walk over adoption answers *is there a name here nobody wired up*. Neither walk sees the other's case, which is why both are kept.
 _Avoid_: migration, membership, compliance, conformance
