@@ -11,10 +11,11 @@ handed it a second question: which route produced a pass.
 
 Grilled 2026-09-10. The session began at `origin/main` `ffbe5c6` and was fast-forwarded to `6b12a85`
 mid-session to pick up the `peer-critique` skill, then to `8e3744e`, which carried ADR 0160 ruling 9
-and its conforming edits. **Fourteen questions were ruled by the clinician on that date.** Twelve were
+and its conforming edits. **Fifteen questions were ruled by the clinician on that date.** Twelve were
 asked before this record was drafted; two more — the field predicate and the conflict with
 [ADR 0098](0098-the-case-study-s-rendered-document-coverage-is-derived-from-kept-evidence-and-owned-by-its-own-run-directory-grader.md)
-— were raised by an adversarial check of the draft and amended it. They are grouped into the eleven
+— were raised by an adversarial check of the draft, and a fifteenth, on a repeated field, by a probe
+run after the record was first committed. All three amended it. They are grouped into the eleven
 rulings below. Nothing is built here; this is the record the build reads. A figure counted under
 `scratch/` below is a dated floor that nothing committed re-derives.
 
@@ -58,6 +59,11 @@ ways on `the rendered document`:
 `read_records` appends any line that is not a recognized field to the field above it, so this holds
 for every name and not only `SOURCE`. Its `FIELD` pattern is case-insensitive, so `verdict:` reads as a
 field and `source:` would be absorbed like `SOURCE:`.
+
+A repeated known field is worse, because `read_records` replaces the earlier value. Driven after this
+record was first committed: a record whose substantiated `FINDINGS` is followed by `FINDINGS: short`
+keeps `short`, and a findings sentence wrapped onto a line opening `findings:` keeps only the words
+after it. Both grade clean.
 
 No field-shaped line other than `VERDICT` or `FINDINGS` appears in the three worked check records in
 `skills/practicum-case-study/SKILL.md` or in either retained case-study checks file, so a finding on a
@@ -225,6 +231,15 @@ ADR 0087 used and ADR 0098 retired, `PAGES` and `UNSEEN`. So `SOURCE:` under `di
 `source:` anywhere it is not taken, and `PAGES:` on any row are findings, while `ROS:`, `MDM:` or
 `General:` wrapped into findings prose never are. A misspelled `SOUCRE:` on `the rendered document` is
 still caught, because a clean record without `SOURCE` fails.
+
+**So is a known field name that opens more than one line in the same record**, on any row. Today the
+later line silently replaces the earlier value, which can shrink a substantiated clean to a stub that
+still passes. **The cost of both findings is stated, not denied**: a findings sentence wrapped onto a
+line that happens to open with one of the six names — `Source:`, `Pass:`, `Findings:` — fires. Today
+that same line is silently misfiled or truncates the finding, so each finding replaces a silent loss
+with a visible one. **Declaring the overwrite was refused**: once `the rendered document` takes
+`SOURCE` and `PASS`, a second `SOURCE:` line there would silently replace the first on the one row
+these fields are added to.
 
 **This supersedes ADR 0098 ruling 2 in part, for these two fields on this one check.** Its reason for
 retiring `SOURCE` rested on the extension naming the route, which ADR 0142 found false. `PASS` answers
