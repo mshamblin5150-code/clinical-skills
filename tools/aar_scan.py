@@ -240,6 +240,28 @@ def _content_blocks(message: Any) -> list[dict[str, Any]]:
     return [row for row in content if isinstance(row, dict)] if isinstance(content, list) else []
 
 
+def _codex_payload(row: Mapping[str, Any]) -> Mapping[str, Any]:
+    payload = row.get("payload")
+    return payload if row.get("type") == "response_item" and isinstance(payload, dict) else {}
+
+
+def _codex_tool_name(payload: Mapping[str, Any]) -> str:
+    name = _text(payload.get("name")) or "unknown-tool"
+    namespace = _text(payload.get("namespace"))
+    return f"{namespace}.{name}" if namespace else name
+
+
+def _codex_content_text(payload: Mapping[str, Any], block_type: str) -> str:
+    content = payload.get("content")
+    if not isinstance(content, list):
+        return ""
+    return "\n".join(
+        _text(block.get("text"))
+        for block in content
+        if isinstance(block, dict) and block.get("type") == block_type
+    ).strip()
+
+
 def read_transcript(path: Path) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     try:
@@ -261,11 +283,15 @@ def read_transcript(path: Path) -> list[dict[str, Any]]:
 def _tool_index(rows: Iterable[dict[str, Any]]) -> dict[str, str]:
     tools: dict[str, str] = {}
     for row in rows:
-        if row.get("type") != "assistant":
-            continue
-        for block in _content_blocks(row.get("message")):
-            if block.get("type") == "tool_use" and isinstance(block.get("id"), str):
-                tools[block["id"]] = _text(block.get("name")) or "unknown-tool"
+        if row.get("type") == "assistant":
+            for block in _content_blocks(row.get("message")):
+                if block.get("type") == "tool_use" and isinstance(block.get("id"), str):
+                    tools[block["id"]] = _text(block.get("name")) or "unknown-tool"
+        payload = _codex_payload(row)
+        if payload.get("type") in {"custom_tool_call", "function_call"}:
+            call_id = _text(payload.get("call_id"))
+            if call_id:
+                tools[call_id] = _codex_tool_name(payload)
     return tools
 
 
@@ -356,6 +382,32 @@ def reduce_transcript(path: Path) -> list[Candidate]:
                             _text(block.get("name")) or "unknown-tool",
                         )
                     )
+        elif row.get("type") == "response_item":
+            payload = _codex_payload(row)
+            payload_type = payload.get("type")
+            identifier = _text(payload.get("id")) or uuid
+            if payload_type == "message":
+                role = payload.get("role")
+                block_type = "input_text" if role == "user" else "output_text"
+                body = _codex_content_text(payload, block_type)
+                if body and role in {"user", "assistant"}:
+                    candidates.append(
+                        Candidate(identifier, transcript_id, "clinician" if role == "user" else "assistant", body)
+                    )
+            elif payload_type in {"custom_tool_call", "function_call"}:
+                candidates.append(
+                    Candidate(identifier, transcript_id, "tool-call", _codex_tool_name(payload))
+                )
+            elif payload_type in {"custom_tool_call_output", "function_call_output"}:
+                call_id = _text(payload.get("call_id"))
+                tool = tools.get(call_id, "unknown-tool")
+                candidates.append(
+                    Candidate(identifier, transcript_id, "tool-status", f"{tool}: completed")
+                )
+            elif payload_type == "agent_message":
+                body = _codex_content_text(payload, "input_text")
+                if body:
+                    candidates.append(Candidate(identifier, transcript_id, "subagent-result", body))
     return candidates
 
 
@@ -797,6 +849,13 @@ def consume_orphans(run: Path) -> None:
 def _strings(value: Any) -> Iterable[str]:
     if isinstance(value, str):
         yield value
+        if value.lstrip().startswith(("{", "[")):
+            try:
+                decoded = json.loads(value)
+            except json.JSONDecodeError:
+                decoded = None
+            if decoded is not None and decoded != value:
+                yield from _strings(decoded)
     elif isinstance(value, dict):
         for nested in value.values():
             yield from _strings(nested)
@@ -809,16 +868,26 @@ def _attributed_scoped(rows: Iterable[dict[str, Any]]) -> bool:
     return any(row.get("attributionSkill") in SCOPED_SKILLS for row in rows)
 
 
+def _is_codex_transcript(rows: Iterable[dict[str, Any]]) -> bool:
+    return any(bool(_codex_payload(row)) for row in rows)
+
+
 def discover_run_directories(rows: Iterable[dict[str, Any]]) -> tuple[Path, ...]:
     root = repo_root.scratch_root() / "runs"
     found: set[Path] = set()
     for row in rows:
-        if row.get("type") != "assistant":
-            continue
-        for block in _content_blocks(row.get("message")):
-            if block.get("type") != "tool_use":
-                continue
-            for value in _strings(block.get("input")):
+        inputs: list[Any] = []
+        if row.get("type") == "assistant":
+            inputs.extend(
+                block.get("input")
+                for block in _content_blocks(row.get("message"))
+                if block.get("type") == "tool_use"
+            )
+        payload = _codex_payload(row)
+        if payload.get("type") in {"custom_tool_call", "function_call"}:
+            inputs.extend((payload.get("input"), payload.get("arguments")))
+        for input_value in inputs:
+            for value in _strings(input_value):
                 for match in RUN_REFERENCE.finditer(value):
                     candidate = (root / match.group("key")).resolve()
                     if candidate.is_dir() and candidate.is_relative_to(root.resolve()):
@@ -828,16 +897,17 @@ def discover_run_directories(rows: Iterable[dict[str, Any]]) -> tuple[Path, ...]
 
 def locate_transcript(run: Path) -> Path:
     """The newest main transcript that names this existing run directory."""
-    root = Path.home() / ".claude" / "projects"
+    roots = (Path.home() / ".claude" / "projects", Path.home() / ".codex" / "sessions")
     candidates: list[Path] = []
-    for path in sorted(root.rglob("*.jsonl"), key=lambda item: item.stat().st_mtime, reverse=True):
+    paths = (path for root in roots if root.is_dir() for path in root.rglob("*.jsonl"))
+    for path in sorted(paths, key=lambda item: item.stat().st_mtime, reverse=True):
         if path.parent.name == "subagents":
             continue
         try:
             rows = read_transcript(path)
         except ValueError:
             continue
-        if _attributed_scoped(rows) and run in discover_run_directories(rows):
+        if (_attributed_scoped(rows) or _is_codex_transcript(rows)) and run in discover_run_directories(rows):
             candidates.append(path)
             break
     if not candidates:

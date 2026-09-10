@@ -89,6 +89,75 @@ def write_transcript(path: Path, run: Path | None = None) -> None:
     path.write_text("\n".join(json.dumps(item) for item in rows) + "\n", encoding="utf-8")
 
 
+def codex_row(payload: object, **extra: object) -> dict[str, object]:
+    return {"type": "response_item", "payload": payload, **extra}
+
+
+def write_codex_transcript(path: Path, run: Path | None = None) -> None:
+    command = "echo ready" if run is None else f'python tools/discussion_post_scan.py "{run}"'
+    rows = [
+        codex_row(
+            {
+                "type": "message",
+                "id": "u1",
+                "role": "user",
+                "content": [{"type": "input_text", "text": "That is the wrong section."}],
+            }
+        ),
+        codex_row(
+            {
+                "type": "message",
+                "id": "a1",
+                "role": "assistant",
+                "content": [{"type": "output_text", "text": "I corrected the citation."}],
+            }
+        ),
+        codex_row(
+            {
+                "type": "custom_tool_call",
+                "id": "call-item-1",
+                "call_id": "call-1",
+                "name": "exec",
+                "input": json.dumps({"cmd": command}),
+                "status": "completed",
+            }
+        ),
+        codex_row(
+            {
+                "type": "custom_tool_call_output",
+                "id": "output-1",
+                "call_id": "call-1",
+                "output": [{"type": "input_text", "text": "patient-bearing output"}],
+            }
+        ),
+        codex_row(
+            {
+                "type": "agent_message",
+                "id": "agent-1",
+                "author": "/root/checker",
+                "recipient": "/root",
+                "content": [{"type": "input_text", "text": "The checker found one mismatch."}],
+            }
+        ),
+        codex_row(
+            {
+                "type": "message",
+                "id": "developer-1",
+                "role": "developer",
+                "content": [{"type": "input_text", "text": "private developer instruction"}],
+            }
+        ),
+        {
+            "type": "event_msg",
+            "payload": {
+                "type": "item_completed",
+                "item": {"type": "UserMessage", "id": "u1", "content": [{"type": "text", "text": "That is the wrong section."}]},
+            },
+        },
+    ]
+    path.write_text("\n".join(json.dumps(item) for item in rows) + "\n", encoding="utf-8")
+
+
 def invoke_main(arguments: list[str], stdin: str | None = None) -> tuple[int, str, str]:
     stdout = io.StringIO()
     stderr = io.StringIO()
@@ -252,6 +321,60 @@ class ReductionByEntryShape(unittest.TestCase):
             )
 
             self.assertEqual(aar_scan.reduce_transcript(transcript)[0].text, "agree")
+
+    def test_codex_keeps_conversation_tools_and_agent_results_without_duplicates(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            transcript = Path(directory) / "rollout.jsonl"
+            write_codex_transcript(transcript)
+
+            candidates = aar_scan.reduce_transcript(transcript)
+            joined = "\n".join(candidate.text for candidate in candidates)
+
+            self.assertEqual(
+                [candidate.kind for candidate in candidates],
+                ["clinician", "assistant", "tool-call", "tool-status", "subagent-result"],
+            )
+            self.assertEqual(joined.count("That is the wrong section."), 1)
+            self.assertIn("exec: completed", joined)
+            self.assertIn("The checker found one mismatch.", joined)
+            self.assertNotIn("patient-bearing output", joined)
+            self.assertNotIn("private developer instruction", joined)
+
+    def test_codex_function_call_keeps_its_namespace(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            transcript = Path(directory) / "rollout.jsonl"
+            transcript.write_text(
+                json.dumps(
+                    codex_row(
+                        {
+                            "type": "function_call",
+                            "id": "call-item-1",
+                            "call_id": "call-1",
+                            "namespace": "mcp__cua_repl",
+                            "name": "js",
+                            "arguments": "{}",
+                        }
+                    )
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            candidate = aar_scan.reduce_transcript(transcript)[0]
+
+            self.assertEqual(candidate.text, "mcp__cua_repl.js")
+
+    def test_codex_tool_input_discovers_the_run_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            scratch = Path(directory) / "scratch"
+            run = scratch / "runs" / "case-study"
+            run.mkdir(parents=True)
+            transcript = Path(directory) / "rollout.jsonl"
+            write_codex_transcript(transcript, run)
+            with mock.patch.object(aar_scan.repo_root, "scratch_root", return_value=scratch):
+                found = aar_scan.discover_run_directories(aar_scan.read_transcript(transcript))
+
+            self.assertEqual(found, (run.resolve(),))
 
 
 class SubmissionRecord(unittest.TestCase):
