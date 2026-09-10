@@ -21,6 +21,7 @@ import ast
 import contextlib
 import dataclasses
 import io
+import inspect
 import json
 import os
 import re
@@ -51,6 +52,35 @@ from prose_bind import NAMING, bind  # noqa: E402
 EXPECTED_COMMIT = artifact_provenance.checkout_commit(Path(__file__).resolve().parent.parent)
 
 
+def survey_inputs(
+    *,
+    recs_arguments: list[str] | None = None,
+    pdf_root: Path | None = None,
+    recs_root: Path | None = None,
+    text_root: Path | None = None,
+    second_read_path: Path | None = None,
+    allow_untrusted_provenance: bool = False,
+    page_counts: dict[str, int] | None = None,
+    source_classes: dict[str, str] | None = None,
+    recs_alias: Path | None = None,
+    currency_registry: guidelines_currency.Registry | None = None,
+) -> gate.SurveyInputs:
+    catalog_facts = None
+    if page_counts is not None or source_classes is not None:
+        catalog_facts = gate.CatalogFacts(
+            (), page_counts or {}, source_classes or {}, (), ()
+        )
+    return gate.SurveyInputs(
+        roots=gate.Roots(pdf_root, recs_root, text_root, recs_alias),
+        recs_arguments=recs_arguments,
+        second_read_path=second_read_path,
+        allow_untrusted_provenance=allow_untrusted_provenance,
+        catalog_facts=catalog_facts,
+        currency_registry=currency_registry,
+        expected_commit=EXPECTED_COMMIT,
+    )
+
+
 def grade(
     sheet_path: Path,
     recs_arguments: list[str] | None,
@@ -64,18 +94,19 @@ def grade(
     """Exercise the separated survey and command emitter with the old test inputs."""
     scan = gate.survey(
         sheet_path,
-        recs_arguments,
-        pdf_root,
-        recs_root,
-        text_root,
-        second_read_path,
-        allow_untrusted_provenance,
-        {
-            "Society/doc": 60,
-            "Society/aha": 60,
-            "Society/kdigo": 60,
-        },
-        expected_commit=EXPECTED_COMMIT,
+        survey_inputs(
+            recs_arguments=recs_arguments,
+            pdf_root=pdf_root,
+            recs_root=recs_root,
+            text_root=text_root,
+            second_read_path=second_read_path,
+            allow_untrusted_provenance=allow_untrusted_provenance,
+            page_counts={
+                "Society/doc": 60,
+                "Society/aha": 60,
+                "Society/kdigo": 60,
+            },
+        ),
     )
     return gate._emit_scan(scan, quiet=quiet)
 
@@ -433,9 +464,7 @@ class Parsing(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "x.md"
             path.write_text(HEADER, encoding="utf-8")
-            scan = gate.survey(
-                path, [], None, expected_commit=EXPECTED_COMMIT
-            )
+            scan = gate.survey(path, survey_inputs())
 
         self.assertEqual(scan.status, 2)
         self.assertEqual(scan.sheet.why_not, "no row under a '## Thresholds' heading")
@@ -1439,11 +1468,10 @@ class NullSheetReportsAreAssertionsRatherThanEmptyPasses(unittest.TestCase):
             path.write_text(unread, encoding="utf-8")
             scan = gate.survey(
                 path,
-                [],
-                None,
-                page_counts={"Society/doc": 60},
-                catalog_source_classes={"Society/doc": "guideline"},
-                expected_commit=EXPECTED_COMMIT,
+                survey_inputs(
+                    page_counts={"Society/doc": 60},
+                    source_classes={"Society/doc": "guideline"},
+                ),
             )
 
         report = gate.format_report(scan)
@@ -1588,11 +1616,10 @@ class ExtractionIdentityGate(unittest.TestCase):
 
             scan = gate.survey(
                 path,
-                [],
-                None,
-                text_root=root,
-                page_counts={"Society/doc": 60},
-                expected_commit=EXPECTED_COMMIT,
+                survey_inputs(
+                    text_root=root,
+                    page_counts={"Society/doc": 60},
+                ),
             )
 
         identity = next(
@@ -1621,11 +1648,10 @@ class ExtractionIdentityGate(unittest.TestCase):
                 for _ in range(2):
                     gate.survey(
                         path,
-                        [],
-                        None,
-                        text_root=root,
-                        page_counts={"Society/doc": 60},
-                        expected_commit=EXPECTED_COMMIT,
+                        survey_inputs(
+                            text_root=root,
+                            page_counts={"Society/doc": 60},
+                        ),
                     )
 
         self.assertEqual(reader.call_count, 2)
@@ -1662,6 +1688,11 @@ class ExtractionIdentityGate(unittest.TestCase):
 
 
 class ACompletedScanCanBeRenderedWithoutRunningAGate(unittest.TestCase):
+    def test_survey_accepts_one_coherent_input_record(self):
+        self.assertEqual(
+            list(inspect.signature(gate.survey).parameters), ["sheet_path", "inputs"]
+        )
+
     def test_each_gate_returns_its_frozen_result_type(self):
         result = gate.gate_range(sheet(row()))
 
@@ -3088,13 +3119,11 @@ class NullSpanBlindCorroboration(unittest.TestCase):
             )
             scan = gate.survey(
                 path,
-                recs_arguments=[],
-                pdf_root=None,
-                recs_root=Path(directory) / "recs",
-                text_root=None,
-                page_counts={"Society/doc": 60},
-                catalog_source_classes={"Society/doc": "guideline"},
-                expected_commit=EXPECTED_COMMIT,
+                survey_inputs(
+                    recs_root=Path(directory) / "recs",
+                    page_counts={"Society/doc": 60},
+                    source_classes={"Society/doc": "guideline"},
+                ),
             )
 
         self.assertEqual(scan.status, 1)

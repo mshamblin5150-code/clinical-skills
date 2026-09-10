@@ -215,7 +215,7 @@ from dataclasses import dataclass, field, replace
 from datetime import date
 from enum import Enum
 from pathlib import Path
-from typing import NamedTuple
+from typing import ClassVar, NamedTuple
 
 import guidelines_extract
 import guidelines_manifest
@@ -297,6 +297,31 @@ DEFAULT_PDF_ROOT = Path("C:/codeing/guidelines-src")
 DEFAULT_RECS_ROOT = "C:/codeing/guidelines-index"
 DEFAULT_RECS_ALIAS = str(Path(DEFAULT_RECS_ROOT).parent / "guidelines-recs")
 RECS_ALIAS_ENV = "CLINICAL_GUIDELINES_RECS_ALIAS"
+
+
+@dataclass(frozen=True)
+class Roots:
+    """Filesystem inputs shared by sheet producers and the survey."""
+
+    recs_alias_environment: ClassVar[str] = RECS_ALIAS_ENV
+    pdf_root: Path | None
+    recs_root: Path | None
+    text_root: Path | None
+    recs_alias: Path | None
+
+    @classmethod
+    def defaults(cls) -> "Roots":
+        pdf_root = DEFAULT_PDF_ROOT
+        return cls(
+            pdf_root=pdf_root,
+            recs_root=Path(os.environ.get("CLINICAL_GUIDELINES_RECS", DEFAULT_RECS_ROOT)),
+            text_root=(
+                Path(os.environ["CLINICAL_GUIDELINES_TEXT"])
+                if os.environ.get("CLINICAL_GUIDELINES_TEXT")
+                else guidelines_extract.default_output(pdf_root)
+            ),
+            recs_alias=Path(os.environ.get(RECS_ALIAS_ENV, DEFAULT_RECS_ALIAS)),
+        )
 
 # **This module takes no write guard, and #176 asked for that to be a decision
 # rather than an absence** -- its own first comment: *"an absent guard is easy to
@@ -1150,6 +1175,19 @@ class CatalogFacts:
     @property
     def problems(self) -> tuple[str, ...]:
         return self.parse_problems + self.page_count_problems
+
+
+@dataclass(frozen=True)
+class SurveyInputs:
+    """All loop-invariant inputs for grading one or many sheets."""
+
+    roots: Roots
+    recs_arguments: list[str] | None
+    second_read_path: Path | None
+    allow_untrusted_provenance: bool
+    catalog_facts: CatalogFacts | None
+    currency_registry: guidelines_currency.Registry | None
+    expected_commit: str
 
 
 def load_catalog_facts(path: Path = DEFAULT_CATALOG) -> CatalogFacts:
@@ -2921,20 +2959,15 @@ def gate_range(sheet: Sheet) -> RangeResult:
 
 def survey(
     sheet_path: Path,
-    recs_arguments: list[str] | None,
-    pdf_root: Path | None,
-    recs_root: Path | None = None,
-    text_root: Path | None = None,
-    second_read_path: Path | None = None,
-    allow_untrusted_provenance: bool = False,
-    page_counts: dict[str, int] | None = None,
-    recs_alias: Path | None = None,
-    catalog_source_classes: dict[str, str] | None = None,
-    currency_registry: guidelines_currency.Registry | None = None,
-    *,
-    expected_commit: str,
+    inputs: SurveyInputs,
 ) -> Scan:
     """Read and grade one sheet without emitting either report or findings."""
+
+    roots = inputs.roots
+    catalog_facts = inputs.catalog_facts or load_catalog_facts()
+    page_counts = catalog_facts.page_counts
+    catalog_source_classes = catalog_facts.source_classes
+    catalog_problems = list(catalog_facts.problems)
 
     if not sheet_path.is_file():
         return Scan(
@@ -2965,25 +2998,19 @@ def survey(
     # by a test -- so `TheExitStatusSaysWhichKindOfNotGraded` now pins all three.
     # Since #177 the distinction is drawn per source, in `bind_recs`, and kept in
     # `why_not` so the report can say which source and which of the two it was.
-    catalog_problems: list[str] = []
-    if page_counts is None:
-        catalog_facts = load_catalog_facts()
-        page_counts = catalog_facts.page_counts
-        catalog_source_classes = catalog_facts.source_classes
-        catalog_problems = list(catalog_facts.problems)
-
     bound_records = bind_recs(
         sheet,
-        recs_arguments or [],
-        recs_root,
-        expected_commit=expected_commit,
-        allow_untrusted_provenance=allow_untrusted_provenance,
-        recs_alias=recs_alias,
+        inputs.recs_arguments or [],
+        roots.recs_root,
+        expected_commit=inputs.expected_commit,
+        allow_untrusted_provenance=inputs.allow_untrusted_provenance,
+        recs_alias=roots.recs_alias,
         corpus_documents=frozenset(page_counts),
     )
     records, why_not, recs_errors, missing_records = bound_records
 
     schema = gate_schema(sheet, catalog_source_classes)
+    currency_registry = inputs.currency_registry
     if currency_registry is None:
         try:
             currency_registry = guidelines_currency.parse_registry(
@@ -2997,11 +3024,11 @@ def survey(
     null_span = gate_null_span(sheet)
     extraction_handoff = (
         guidelines_manifest.read(
-            text_root,
-            expected_commit=expected_commit,
-            allow_untrusted_provenance=allow_untrusted_provenance,
+            roots.text_root,
+            expected_commit=inputs.expected_commit,
+            allow_untrusted_provenance=inputs.allow_untrusted_provenance,
         )
-        if text_root is not None
+        if roots.text_root is not None
         else None
     )
     current_extraction, identity_problems = (
@@ -3027,7 +3054,7 @@ def survey(
         )
     tier0 = gate_citation_tier0(sheet, records, why_not)
     tier1 = gate_citation_tier1(sheet)
-    tier2 = gate_citation_tier2(sheet, pdf_root)
+    tier2 = gate_citation_tier2(sheet, roots.pdf_root)
     coverage = gate_coverage(
         sheet,
         records,
@@ -3039,16 +3066,20 @@ def survey(
     ranges = gate_range(sheet)
     watermark = gate_watermark(
         sheet,
-        text_root,
-        expected_commit=expected_commit,
-        allow_untrusted_provenance=allow_untrusted_provenance,
+        roots.text_root,
+        expected_commit=inputs.expected_commit,
+        allow_untrusted_provenance=inputs.allow_untrusted_provenance,
         handoff=extraction_handoff,
     )
     # **Gate 5 runs only when a read is handed to it, and never runs itself.** The
     # independence is the whole instrument: a second read this module produced would
     # be the same code path over the same page, which is the check `test_icd10.py`
     # calls worthless and this module's own docstring refuses by name.
-    second_read = load_second_read(second_read_path) if second_read_path else None
+    second_read = (
+        load_second_read(inputs.second_read_path)
+        if inputs.second_read_path
+        else None
+    )
     second_read_result = gate_second_read(sheet, second_read)
     # An argument naming a source the sheet does not declare, or naming one twice, is
     # a typo and never a decision -- and it is a way of not having graded even when
@@ -3175,6 +3206,7 @@ def build_parser() -> argparse.ArgumentParser:
     `TheRecordsStayOutsideTheRepo` asserts against ``--recs-root``'s default here, and
     a default only a running command can observe is one no test pins.
     """
+    roots = Roots.defaults()
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("sheet", type=Path, nargs="?", help="the sheet to grade")
     parser.add_argument("--all", action="store_true", help="grade every sheet in reference/thresholds/ (resolves from the sweep alias, then --recs-root; takes no --recs)")
@@ -3197,7 +3229,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--recs-root",
         type=Path,
-        default=Path(os.environ.get("CLINICAL_GUIDELINES_RECS", DEFAULT_RECS_ROOT)),
+        default=roots.recs_root,
         help="where recs-<source key>.json is looked for (outside the repo, always)",
         # Deliberately NOT a spelling of guidelines_index.py's
         # CLINICAL_GUIDELINES_INDEX, which names a database file. This names a
@@ -3207,25 +3239,23 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--recs-alias",
         type=Path,
-        default=Path(os.environ.get(RECS_ALIAS_ENV, DEFAULT_RECS_ALIAS)),
+        default=roots.recs_alias,
         help=(
             "published recommendation sweep containing <doc_id>.json records; "
-            f"defaults from {RECS_ALIAS_ENV}"
+            f"defaults from {Roots.recs_alias_environment}"
         ),
     )
     parser.add_argument(
         "--pdf-root",
         type=Path,
-        default=DEFAULT_PDF_ROOT,
+        default=roots.pdf_root,
         help="corpus root for citation tier 2 (absent is reported, never passed)",
     )
     parser.add_argument(
         "--text-root",
         type=Path,
         default=(
-            Path(os.environ["CLINICAL_GUIDELINES_TEXT"])
-            if os.environ.get("CLINICAL_GUIDELINES_TEXT")
-            else None
+            roots.text_root if os.environ.get("CLINICAL_GUIDELINES_TEXT") else None
         ),
         help=(
             "#80's extracted-text directory, holding manifest.json, for WATERMARK. "
@@ -3340,18 +3370,17 @@ def main(argv: list[str]) -> int:
             return 2
         worst = 0
         affected_extractions: list[str] = []
+        inputs = SurveyInputs(
+            roots=Roots(args.pdf_root, args.recs_root, text_root, args.recs_alias),
+            recs_arguments=[],
+            second_read_path=None,
+            allow_untrusted_provenance=args.allow_untrusted_provenance,
+            catalog_facts=None,
+            currency_registry=None,
+            expected_commit=expected_commit,
+        )
         for path in sheets:
-            scan = survey(
-                path,
-                [],
-                args.pdf_root,
-                args.recs_root,
-                text_root,
-                None,
-                args.allow_untrusted_provenance,
-                recs_alias=args.recs_alias,
-                expected_commit=expected_commit,
-            )
+            scan = survey(path, inputs)
             worst = max(
                 worst,
                 _emit_scan(scan, quiet=args.quiet),
@@ -3378,14 +3407,15 @@ def main(argv: list[str]) -> int:
     return _emit_scan(
         survey(
             args.sheet,
-            args.recs,
-            args.pdf_root,
-            args.recs_root,
-            text_root,
-            args.second_read,
-            args.allow_untrusted_provenance,
-            recs_alias=args.recs_alias,
-            expected_commit=expected_commit,
+            SurveyInputs(
+                roots=Roots(args.pdf_root, args.recs_root, text_root, args.recs_alias),
+                recs_arguments=args.recs,
+                second_read_path=args.second_read,
+                allow_untrusted_provenance=args.allow_untrusted_provenance,
+                catalog_facts=None,
+                currency_registry=None,
+                expected_commit=expected_commit,
+            ),
         ),
         quiet=args.quiet,
     )

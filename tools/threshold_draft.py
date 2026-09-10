@@ -15,7 +15,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import os
 import re
 import sys
 from collections import Counter
@@ -25,6 +24,7 @@ from pathlib import Path
 import guidelines_catalog
 import guidelines_extract
 import guidelines_manifest
+import threshold_grammar
 import threshold_coverage
 from artifact_provenance import checkout_commit
 from console_codec import use_utf8
@@ -38,33 +38,7 @@ from guidelines_recs import (
     record_built_from_another_document,
     source_filename_matches_document,
 )
-from threshold_grammar import (
-    CONFLICTS_HEADING,
-    COVERAGE_HEADING,
-    ExtractionIdentity,
-    NARRATIVE_KIND,
-    POPULATIONS_HEADING,
-    QUANTITIES_HEADING,
-    ROW_COLUMNS,
-    SOURCE_COLUMNS,
-    SCHEMA_MARKER,
-    Sheet,
-    SCOPE_HEADING,
-    SECTION_HEADINGS,
-    SOURCES_HEADING,
-    THRESHOLDS_HEADING,
-    _normalize,
-    extraction_identity_from_handoff,
-    parse,
-    render_extraction_identity,
-    source_locator,
-)
-from threshold_sheet import (
-    DEFAULT_PDF_ROOT,
-    DEFAULT_RECS_ALIAS,
-    DEFAULT_RECS_ROOT,
-    RECS_ALIAS_ENV,
-)
+from threshold_sheet import Roots
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -236,7 +210,7 @@ def resolve_sources(
     topic: str,
     catalog_path: Path,
     recs_root: Path,
-    seeded_sheet: Sheet | None,
+    seeded_sheet: threshold_grammar.Sheet | None,
     recs_alias: Path | None = None,
     registry_entries: list[threshold_coverage.Entry] | None = None,
     *,
@@ -363,7 +337,7 @@ def _recommendations(sources: list[Source]) -> dict[tuple[str, str], dict]:
 
 
 def select_rows(
-    sources: list[Source], seeded_sheet: Sheet | None
+    sources: list[Source], seeded_sheet: threshold_grammar.Sheet | None
 ) -> tuple[list[DraftRow], dict[str, str], list[str]]:
     known = _recommendations(sources)
     rejected: list[str] = []
@@ -390,11 +364,11 @@ def select_rows(
     modes = {source.key: source.mode for source in sources}
     for row in seeded_sheet.rows:
         item = known.get((row.source, row.rec))
-        locator = source_locator(row.rec)
+        locator = threshold_grammar.source_locator(row.rec)
         is_narrative = (
             locator is not None
             and locator.is_narrative
-            and row.klass.strip().casefold() == NARRATIVE_KIND
+            and row.klass.strip().casefold() == threshold_grammar.NARRATIVE_KIND
         )
         if modes.get(row.source) == "bound" or is_narrative:
             rows.append(
@@ -411,7 +385,9 @@ def select_rows(
             rejected.append(f"{row.source}/{row.rec}: not in its recommendation record")
             continue
         record_text = " ".join(str(item.get("text") or "").split())
-        if _normalize(row.snippet) not in _normalize(record_text):
+        if threshold_grammar._normalize(
+            row.snippet
+        ) not in threshold_grammar._normalize(record_text):
             rejected.append(f"{row.source}/{row.rec}: seeded snippet is not in its record")
             continue
         rows.append(
@@ -441,7 +417,7 @@ def render(
     rows: list[DraftRow],
     scoped_out: dict[str, str],
     rejected: list[str],
-    extraction_identity: ExtractionIdentity,
+    extraction_identity: threshold_grammar.ExtractionIdentity,
     ruled_cell_count: int,
     catalog_topic_count: int,
     subject_ruled: bool,
@@ -484,29 +460,31 @@ def render(
 
     sections = [
         f"# {topic.title()} — threshold sheet draft",
-        SCHEMA_MARKER,
+        threshold_grammar.SCHEMA_MARKER,
         "Machine-owned citation cells are filled; quantity, population, and value are blank for a reader.",
         "## Candidate set\n\n"
         + _table(candidate_columns, candidate_rows),
-        SOURCES_HEADING
+        threshold_grammar.SOURCES_HEADING
         + "\n\n"
         + _table(
-            SOURCE_COLUMNS,
+            threshold_grammar.SOURCE_COLUMNS,
             source_rows,
         ),
-        SCOPE_HEADING
+        threshold_grammar.SCOPE_HEADING
         + "\n\n"
         + _table(
             ("candidate recommendations", "cited recommendations", "rejected recommendations"),
             [[str(len(known)), str(len(cited)), str(len(scoped_out))]],
         )
         + "\n\n"
-        + render_extraction_identity(extraction_identity),
-        POPULATIONS_HEADING + "\n\n" + _table(("key", "verbatim"), []),
-        QUANTITIES_HEADING + "\n\n" + _table(("key", "verbatim"), []),
-        THRESHOLDS_HEADING + "\n\n" + _table(ROW_COLUMNS, threshold_rows),
-        CONFLICTS_HEADING,
-        COVERAGE_HEADING
+        + threshold_grammar.render_extraction_identity(extraction_identity),
+        threshold_grammar.POPULATIONS_HEADING + "\n\n" + _table(("key", "verbatim"), []),
+        threshold_grammar.QUANTITIES_HEADING + "\n\n" + _table(("key", "verbatim"), []),
+        threshold_grammar.THRESHOLDS_HEADING
+        + "\n\n"
+        + _table(threshold_grammar.ROW_COLUMNS, threshold_rows),
+        threshold_grammar.CONFLICTS_HEADING,
+        threshold_grammar.COVERAGE_HEADING
         + "\n\n"
         + "\n".join(f"- `{rec}` - {reason}" for rec, reason in scoped_out.items()),
         "## Rejected candidates\n\n"
@@ -532,6 +510,7 @@ def render(
 
 
 def build_parser() -> argparse.ArgumentParser:
+    roots = Roots.defaults()
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0], allow_abbrev=False)
     parser.add_argument("topic")
     parser.add_argument("--catalog", type=Path, default=DEFAULT_CATALOG)
@@ -539,28 +518,22 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--recs-root",
         type=Path,
-        default=Path(os.environ.get("CLINICAL_GUIDELINES_RECS", DEFAULT_RECS_ROOT)),
+        default=roots.recs_root,
     )
     parser.add_argument(
         "--recs-alias",
         type=Path,
-        default=Path(
-            os.environ.get(RECS_ALIAS_ENV, DEFAULT_RECS_ALIAS)
-        ),
+        default=roots.recs_alias,
         help=(
             "published sweep alias containing <doc_id>.json records; "
-            f"defaults from {RECS_ALIAS_ENV}"
+            f"defaults from {Roots.recs_alias_environment}"
         ),
     )
     parser.add_argument("--sheet-root", type=Path, default=DEFAULT_SHEET_ROOT)
     parser.add_argument(
         "--text-root",
         type=Path,
-        default=(
-            Path(os.environ["CLINICAL_GUIDELINES_TEXT"])
-            if os.environ.get("CLINICAL_GUIDELINES_TEXT")
-            else guidelines_extract.default_output(DEFAULT_PDF_ROOT)
-        ),
+        default=roots.text_root,
         help="extracted corpus whose manifest supplies the draft's identity",
     )
     return parser
@@ -571,7 +544,7 @@ def main(argv: list[str] | None = None) -> int:
     expected_commit = checkout_commit(REPO_ROOT)
     # Importing the tuple is an executable assertion that the draft and auditor share
     # one section vocabulary rather than two lists that can drift independently.
-    if len(SECTION_HEADINGS) != 7:
+    if len(threshold_grammar.SECTION_HEADINGS) != 7:
         print("threshold-sheet section interface is incomplete", file=sys.stderr)
         return 2
     try:
@@ -595,7 +568,9 @@ def main(argv: list[str] | None = None) -> int:
     seed_path = args.sheet_root / f"{args.topic.casefold().replace(' ', '-')}.md"
     subject_topic = _registry_topic(args.topic, registry_entries)
     seed_text = seed_path.read_text(encoding="utf-8") if seed_path.is_file() else None
-    seeded_sheet = parse(seed_text, seed_path) if seed_text is not None else None
+    seeded_sheet = (
+        threshold_grammar.parse(seed_text, seed_path) if seed_text is not None else None
+    )
     if seeded_sheet is not None and not seeded_sheet.ok:
         print(f"existing sheet cannot seed the draft: {seeded_sheet.why_not}", file=sys.stderr)
         return 2
@@ -625,7 +600,7 @@ def main(argv: list[str] | None = None) -> int:
         args.text_root,
         expected_commit=expected_commit,
     )
-    extraction_identity, identity_problems = extraction_identity_from_handoff(
+    extraction_identity, identity_problems = threshold_grammar.extraction_identity_from_handoff(
         extraction_handoff
     )
     if extraction_identity is None:
