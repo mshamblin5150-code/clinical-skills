@@ -237,3 +237,14 @@ recorded state of this machine.
 **`discussion-post`'s arrangement.** ADR 0087 ruling 9 rules the two sites apart and this record
 does not revisit it. Rulings 1, 2 and 6 would each apply there, and each is recorded on #676 as a
 finding for the clinician rather than applied.
+
+---
+
+**Superseded in part 2026-09-10 by
+[ADR 0161](0161-the-deck-and-case-study-render-records-name-the-final-pass-and-route.md), and left as
+written.** Ruling 2's *"the record gains no fields"* is superseded for two fields on
+`the rendered document`: `SOURCE`, because ADR 0142 found that a kept file's extension does not name
+the route that produced it, and `PASS`, naming the retained pass a verdict was read against. `PAGES`
+and `UNSEEN` stay retired on this record's grounds. Ruling 3's refusal of `checks_ledger` is superseded
+for one act: listing `render/` at `--submission` to confirm that `PASS` names the highest retained
+pass. The count stays `render_scan`'s, and the other rulings stand.

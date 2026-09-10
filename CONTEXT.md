@@ -721,7 +721,7 @@ One rasterization of a submission, kept whole — the page-faithful export and o
 _Avoid_: render, screenshot, page dump, pass
 
 **Render record**:
-A reader's claim about a **render pass**, joined to the retained evidence that pass holds — what was looked for, how many pages were imaged, and against which artifact. It is the half coverage cannot supply: coverage is derived from files and needs no author, where this is authored and is checkable only against the files beside it. Whether the two are graded by one command or by two joined in prose is wiring and no part of the term, and an artifact may have coverage and no record at all. Distinct from a **substantiated clean**, which is a narration rule a record may be held to rather than the record itself.
+A reader's claim about a **render pass**, joined to the retained evidence that pass holds — what was looked for, how many pages were imaged, against which artifact, and which step of the **bounded export route** the run declares produced the pass. The step is declared and never proven: naming it says which way the pass was made, not that it was made that way. It is the half coverage cannot supply: coverage is derived from files and needs no author, where this is authored and is checkable only against the files beside it. Whether the two are graded by one command or by two joined in prose is wiring and no part of the term, and an artifact may have coverage and no record at all. Distinct from a **substantiated clean**, which is a narration rule a record may be held to rather than the record itself.
 _Avoid_: rendered verdict, page reading, render check, RENDERED block
 
 **Bounded export route**:

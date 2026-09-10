@@ -240,3 +240,13 @@ properties, so the divergence was never only about which command holds the row. 
 that `deck_scan` gains no render row and the placement divergence is declared and filed, is untouched.
 [ADR 0125](0125-render-coverage-and-the-render-record-are-two-properties-and-each-artifact-wires-them-its-own-way.md)
 carries the measurement and the placement ruling.
+
+---
+
+**Superseded in part 2026-09-10 by
+[ADR 0161](0161-the-deck-and-case-study-render-records-name-the-final-pass-and-route.md), and left as
+written.** Ruling 4's *"`deck_scan` gains no render row"* is superseded for one row only: a render
+record row graded at the terminal `--submission` run, which ADR 0161 rules for the deck. The refusal
+of a coverage row that reads the retained export stands on this record's grounds, and so does the
+declared placement divergence. ADR 0161 states where its record row's slide-count comparison
+overlaps coverage and why that overlap was accepted.
