@@ -203,3 +203,13 @@ for the post, the deck has neither, and a clean run of any of them is not a chec
 
 **Anything in ADR 0124's rulings 1, 2, 3 or 5.** The shared pass reader, `max + 1`, the counted-not-
 graded gap, *no row in `deck_scan`* and #803's untouched decision 1 all stand.
+
+---
+
+**Superseded in part 2026-09-10 by
+[ADR 0161](0161-the-deck-and-case-study-render-records-name-the-final-pass-and-route.md), and left as
+written.** Where this record says ADR 0124 ruling 4's *"`deck_scan` gains no render row"* stands — in
+ruling 4 and under *What this does not reach* — that now carries ADR 0161's one exception: a render
+record row graded only at the terminal `--submission` run. Ruling 3's reachability defect was filed
+as [#866](https://github.com/mshamblin5150-code/clinical-skills/issues/866), which ADR 0161 rules.
+Ruling 1's placement is untouched.

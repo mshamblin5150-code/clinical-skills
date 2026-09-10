@@ -82,8 +82,8 @@ In particular **nothing records which route produced a pass**: a run can export 
 file, rasterize, and produce output identical to the bounded route.
 
 **A `SOURCE` field on `the rendered document` was refused here.** `checks_ledger` takes exactly
-`VERDICT` and `FINDINGS` on every row, and a third field on one row breaks a uniformity that grader's
-own docstring argues for. More decisively, `tools/deck_render.py` prints `SOURCE:` into nothing and
+`VERDICT` and `FINDINGS` on every row, so a third field on one row would be the only such field in
+that grader. More decisively, `tools/deck_render.py` prints `SOURCE:` into nothing and
 has the identical hole, so ruling it here settles one artifact of a two-artifact question inside a
 ticket about a third thing — which is what ADR 0111's *What this does not reach* declined to do for
 this very ticket: *"folding it in here would put a second skill's missing mechanism inside a record
@@ -226,3 +226,19 @@ placement; #866 owns the record half. Nothing here disturbs either.
 **Whether ruling 3's ordering is clinically or mechanically better than the post's.** It is ruled on
 the information the two outcomes carry and on which branch is least evidenced. Two artifacts now hold
 two orderings deliberately, and no measurement compares them.
+
+---
+
+**Corrected in place 2026-09-10, on
+[ADR 0016](0016-an-adr-number-is-claimed-when-it-is-handed-out-and-a-ratified-records-facts-may-be-corrected-in-place.md)'s
+rule and
+[ADR 0022](0022-an-adr-carries-no-status-field-because-no-record-waits-on-main-for-a-decision.md)'s
+precedent.** One fact clause in ruling 2 named the wrong source. It read *"a third field on one row
+breaks a uniformity that grader's own docstring argues for."* `tools/checks_ledger.py`'s docstring
+makes no argument about fields; the uniformity argument is
+[ADR 0098](0098-the-case-study-s-rendered-document-coverage-is-derived-from-kept-evidence-and-owned-by-its-own-run-directory-grader.md)
+ruling 2's, which rules that `the rendered document` record gains no fields. The clause now states
+only the field count. Ruling 2's
+decision — refuse `SOURCE` here and hand the route question on — is untouched, and
+[ADR 0161](0161-the-deck-and-case-study-render-records-name-the-final-pass-and-route.md) is the
+answer to it.
