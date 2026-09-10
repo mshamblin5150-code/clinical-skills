@@ -1652,6 +1652,7 @@ class EveryRuledFanOutReadsTheSharedSourcingRules(unittest.TestCase):
         "course-assignment": 2,
         "practicum-case-study": 2,
         "icd10-cpt": 1,
+        "peer-critique": 1,
         "aar": 1,
     }
     LOCAL_OMIT_RULE = re.compile(

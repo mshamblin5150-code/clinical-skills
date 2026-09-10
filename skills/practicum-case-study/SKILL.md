@@ -116,8 +116,9 @@ were coded and these were not:
 ## Scope
 
 **Starts at the faculty material and stops before the discussion board replies.** The peer critique
-is a separate deliverable with its own headings and its own word count; it is described at the
-bottom of [../_shared/reference/rubric.md](../_shared/reference/rubric.md) and this skill does not write it.
+is a separate deliverable with its own headings and its own word count; it is specified at the
+bottom of [../_shared/reference/rubric.md](../_shared/reference/rubric.md) and written by
+[peer-critique](../peer-critique/SKILL.md) rather than by this skill.
 
 ## The document
 

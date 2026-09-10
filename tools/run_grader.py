@@ -46,6 +46,7 @@ MEMBERS: set[str] = {
     "differential_scan",
     "discussion_post_scan",
     "discussion_reply_scan",
+    "peer_critique_scan",
     "deck_scan",
     "reference_scan",
     "refusal_scan",
@@ -112,6 +113,7 @@ UNDECODABLE_BYTE_POSTURES: Mapping[str, Mapping[str, str]] = MappingProxyType(
                 "deck_scan": "the signed bar and claim ledger are required primary sources for the deck grade",
                 "discussion_post_scan": "the signed run artifacts are required primary sources for the post grade",
                 "discussion_reply_scan": "the roster and signed run artifacts are required primary sources for the reply grade",
+                "peer_critique_scan": "the roster, claim ledger and critique are required primary sources for the critique grade",
                 "voice_model_scan": "the model and tracked specification must both be readable before the comparison can run",
             }
         ),

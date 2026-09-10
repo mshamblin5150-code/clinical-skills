@@ -6,8 +6,9 @@ description: Read one LMS discussion topic live, rank classmates the clinician c
 # Discussion reply
 
 Write a short conversational answer to a classmate's discussion post. This is not the initial
-discussion post and not the eight-heading peer critique in
-[_shared/reference/rubric.md](../_shared/reference/rubric.md). A reply has
+discussion post and not the eight-heading peer critique, which
+[peer-critique](../peer-critique/SKILL.md) owns and
+[_shared/reference/rubric.md](../_shared/reference/rubric.md) specifies. A reply has
 no Markdown heading at any level, opens with the classmate's exact first name, contains at least
 150 words, and carries at least one source in its own reference list.
 
