@@ -760,6 +760,10 @@ _Avoid_: exclusion, exemption, opt-out, declined
 Open migration work with a named owner, recorded against a module in `run_grader.DEFERRED`. Its obstacles lie outside the module's graded path — a second entry point, or a side effect the runner has no hook for — so it is a module that could join rather than one that cannot. Held apart from a refusal because a single assertion that *a reason was written* proves only that, so a deferral sharing one mapping with refusals reads as a settled exclusion and nothing schedules its review.
 _Avoid_: exclusion, not yet, pending, backlog
 
+**Suite run**:
+One execution of every test discovery finds under `tools/`, complete only when each discovered test comes back exactly once with an outcome. Its denominator is what discovery found and never the tally of what came back, so a run that lost a test is incomplete rather than clean. Distinct from the gates the repo's refusing checks carry, which grade an artifact; a suite run grades the checkout's own tests.
+_Avoid_: gate, repo-wide gate, test run, CI, the tests
+
 ### Tracker
 
 **Binding**:
