@@ -17,7 +17,10 @@ from contextlib import redirect_stdout
 from pathlib import Path
 
 import peer_critique_scan as scan
+
+SKILL = Path(__file__).resolve().parents[1] / "skills" / "peer-critique" / "SKILL.md"
 from grader_conformance import for_module
+from prose_bind import NAMING, bind
 
 
 GraderConformance = for_module(scan)
@@ -258,6 +261,17 @@ class TheDeclaredLimitsAreDerivedAndBound(unittest.TestCase):
     def test_every_disposition_is_declared(self):
         for _subject, _reason, disposition in scan.DECLARED_LIMITS:
             self.assertIsInstance(disposition, scan.EvidenceDisposition)
+
+    def test_the_skill_and_module_point_to_the_inventory_without_copying_rows(self):
+        skill = SKILL.read_text(encoding="utf-8")
+
+        self.assertIn("peer_critique_scan.NOT_REACHED", skill)
+        self.assertIn("``NOT_REACHED``", scan.__doc__ or "")
+        for where, prose in {
+            "the skill": skill,
+            "the module docstring": scan.__doc__ or "",
+        }.items():
+            self.assertEqual((), bind(scan.NOT_REACHED, prose, mode=NAMING), where)
 
 
 class EveryBehaviorLimitHasALiveHandler(unittest.TestCase):

@@ -7,7 +7,7 @@ from pathlib import Path
 
 import aar_scan
 import peer_critique_scan
-from prose_bind import ProseBind
+from prose_bind import NAMING, ProseBind, bind
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -46,9 +46,7 @@ class EveryGraderRowIsWrittenOut(ProseBind, unittest.TestCase):
     def test_the_skill_points_at_the_limit_inventory_without_copying_it(self):
         skill = read(SKILL)
         self.assertIn("peer_critique_scan.NOT_REACHED", skill)
-        for _subject, reason in peer_critique_scan.NOT_REACHED:
-            with self.subTest(reason=reason[:40]):
-                self.assertProseNotIn(reason, skill)
+        self.assertEqual((), bind(peer_critique_scan.NOT_REACHED, skill, mode=NAMING))
 
 
 class TheNumericBarsAreBoundToTheGrader(ProseBind, unittest.TestCase):
