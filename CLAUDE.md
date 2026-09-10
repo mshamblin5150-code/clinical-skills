@@ -782,7 +782,7 @@ the shared grader contract, and the prose binding without requiring Word or PyMu
 
 ### After-action review
 
-`tools/aar_scan.py` is the deterministic half of `/AAR`, required by [#814](https://github.com/mshamblin5150-code/clinical-skills/issues/814) for `batch-shift`, `clinical-note`, `course-assignment`, `discussion-post`, `discussion-reply`, `icd10-cpt`, `peer-critique`, and `practicum-case-study` at a submission's terminal step.
+`tools/aar_scan.py` is the deterministic half of `/AAR`, required by [#814](https://github.com/mshamblin5150-code/clinical-skills/issues/814) for every skill in `aar_scan.SCOPED_SKILLS` at a submission's terminal step. `aar_scan.COMPLETION_GRADERS` is the complete skill-to-grader pairing; this section copies neither set.
 
 ```bash
 python tools/aar_scan.py <run-directory> --submission <key> --memory-index <MEMORY.md> --extract
@@ -809,7 +809,7 @@ python tools/checks_ledger.py <a checks file>
 
 **The ticket is an asymmetry rather than a defect, and that is the whole argument for building it.** That skill has two fan-outs and they are one mechanism: N agents, one record each, into one Markdown file, headings written first, one writer. **[practicum-case-study](skills/practicum-case-study/SKILL.md) step 3's fan-out got a grader on [#214](https://github.com/mshamblin5150-code/clinical-skills/issues/214) and [practicum-case-study](skills/practicum-case-study/SKILL.md) step 9's did not**, so the second one's record shape was held by exactly what the first one's was held by before `research_ledger.py` existed — a sentence saying so, and a line in a by-eye checklist. #214's *what a written instruction cannot do is fail* transfers whole, and it transfers to the fan-out with **less** protection.
 
-**Two cheaper answers were priced first and both were refused.** Extending `research_ledger.py` shares no field name with it — `CLAIM`/`STATUS`/`SOURCE` against `CHECK`/`VERDICT`/`FINDINGS` — so the module would have to dispatch on which file it was handed, and its exit-2 *no `## CLAIM:` record* limb would stop distinguishing an unreadable ledger from a checks file. Declaring the absence in `SKILL.md` on [#164](https://github.com/mshamblin5150-code/clinical-skills/issues/164)'s terms costs one sentence and leaves the three silent-pass shapes standing. The clinician ruled the tool, 2026-08-19.
+**Two cheaper answers were priced first and both were refused.** Extending `research_ledger.py` shares no record contract with it, so the module would have to dispatch on which file it was handed, and its exit-2 *no `## CLAIM:` record* limb would stop distinguishing an unreadable ledger from a checks file. The recognized field set and its row-specific ownership belong to `checks_ledger.FIELD` and the skill's worked records; this section copies neither. Declaring the absence in `SKILL.md` on [#164](https://github.com/mshamblin5150-code/clinical-skills/issues/164)'s terms costs one sentence and leaves the three silent-pass shapes standing. The clinician ruled the tool, 2026-08-19.
 
 **One of its rows is stronger than anything `research_ledger.py` has, and how many rows there are is `checks_ledger.KINDS`'s to say rather than this paragraph's.** That grader has no expected count and says so, so three records where eight claims went out grade clean. Here the check table in `skills/practicum-case-study/SKILL.md` step 9 **fixes the set**, so a reader nobody spawned is a finding rather than a hole. The rest are the sibling's arguments arriving one file later: no check recorded twice, every heading carrying a `VERDICT`, `VERDICT` one of two words — a third is a failure because the field picks which rows run — a `defect` saying what and where, which is `specificity_scan.py`'s substance test, and since #255 a `clean` saying what it walked on the rows `SUBSTANTIATED_CLEAN` names. **That sentence read *the other four* and enumerated four while the tuple held five**, which is why it now names none: an enumeration in prose is a count wearing a disguise, and #255 added the sixth row one paragraph above the sentence declaring the count was not this paragraph's to state.
 
@@ -1024,6 +1024,7 @@ Covered by `tools/test_peer_critique_scan.py` and `tools/test_peer_critique_skil
 ```bash
 python tools/deck_scan.py <a run directory> --pptx <the PowerPoint deck>
 python tools/deck_render.py <a run directory> --pptx <the PowerPoint deck>
+python tools/deck_scan.py <a run directory> --pptx <the PowerPoint deck> --submission <deck stem>
 ```
 
 The package scan owns its mechanical rows in `deck_scan.ROWS` and its reader-owned coverage
@@ -1031,6 +1032,9 @@ boundary in `deck_scan.DECLARED_LIMITS`; this section points to those objects wi
 their contents. The scan reads slide faces for container limits and slide faces plus speaker notes
 for claim tracing. Counts print by default, while `--show` exposes artifact text and remains private.
 Exit 0 is clean, 1 means a finding, and 2 means the input population was not completely scanned.
+At completion, the package scan also joins the run's `rendered.md` record to the highest retained
+pass and invokes the grader paired in `aar_scan.COMPLETION_GRADERS`; the full record contract stays
+in `skills/course-assignment/SKILL.md` rather than being copied here.
 
 The render command asks a newly owned PowerPoint process for one page-faithful PDF and rasterizes
 that export to one PNG per slide in a new `render/pass-N/` above the highest retained number. It retains a pass only after

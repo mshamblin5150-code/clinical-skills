@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Grade a course-assignment PowerPoint against its signed run bar.
 
-    python tools/deck_scan.py <run directory> --pptx <PowerPoint file> [--show]
+    python tools/deck_scan.py <run directory> --pptx <PowerPoint file> [--show] [--submission <key>]
 
 Container rows read only ``ppt/slides/``. The cost-claim row reads both slide
 faces and ``ppt/notesSlides/``. Counts print by default because a course
@@ -19,6 +19,8 @@ from pathlib import Path
 from xml.etree import ElementTree
 
 import run_grader
+import aar_scan
+import render_pass
 from discussion_artifact import CLAIM_BLOCK, claim_record_can_certify_values
 
 
@@ -31,20 +33,29 @@ WORD = re.compile(r"(?:\$?\d[\d,.]*|[A-Za-z]+(?:[-'][A-Za-z]+)*)")
 COST = re.compile(
     r"(?<![\w$])\$\s*(?P<amount>(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d{2})?)(?![\d,])"
 )
+RENDERED_HEADER = re.compile(r"(?i)^[ \t]*#+[ \t]*RENDERED[ \t]*:[ \t]*(.*?)[ \t]*$")
+RENDERED_FIELD = re.compile(
+    r"(?i)^[ \t]*(PASS|SLIDES|SOURCE|UNSEEN|READ|VERDICT)[ \t]*:[ \t]*(.*?)[ \t]*$"
+)
+POSITIVE_INTEGER = re.compile(r"[1-9][0-9]*", re.ASCII)
+SLIDES_READ = re.compile(r"([0-9]+)[ \t]+of[ \t]+([0-9]+)[ \t]+read", re.IGNORECASE | re.ASCII)
 
 SLIDE_COUNT = "slide-count"
 BULLETS_PER_SLIDE = "bullets-per-slide"
 WORDS_PER_BULLET = "words-per-bullet"
 FONT_POINTS = "font-points"
 UNTRACED_COST = "untraced-costed-figure"
+RENDERED_RECORD = "rendered-record"
 ROWS = (
     SLIDE_COUNT,
     BULLETS_PER_SLIDE,
     WORDS_PER_BULLET,
     FONT_POINTS,
     UNTRACED_COST,
+    RENDERED_RECORD,
 )
 KINDS = ROWS
+EXPECTED_COMPLETION_CHECKS = (aar_scan.EXPECTED_ROW,)
 
 REQUIRED_BAR_FIELDS = (
     "ASSIGNMENT",
@@ -85,6 +96,18 @@ DECLARED_LIMITS = (
         "image-provenance-unverified",
         "Nothing in a PowerPoint file proves whether an image is a photograph or generated, so no mechanical row can reject a generated image presented as the actual site.",
     ),
+    DeclaredLimit(
+        "render-scan-run-unverified",
+        "A skipped render_scan is not detected; the residue is a pass the producer did not write, one altered after retention, or a grading machine missing the PDF engine.",
+    ),
+    DeclaredLimit(
+        "render-source-unproven",
+        "The rendered-record SOURCE is declared and never proven.",
+    ),
+    DeclaredLimit(
+        "render-document-bytes-unbound",
+        "No retained pass or rendered record is bound to the deck's bytes.",
+    ),
 )
 NOT_REACHED = tuple(row.limit for row in DECLARED_LIMITS)
 
@@ -113,6 +136,16 @@ class Slide:
 
 
 @dataclass(frozen=True)
+class RenderedRecord:
+    deck: str
+    fields: dict[str, str]
+    counts: dict[str, int]
+
+    def value(self, name: str) -> str:
+        return self.fields.get(name, "")
+
+
+@dataclass(frozen=True)
 class Source:
     root: Path
     deck: Path
@@ -120,6 +153,7 @@ class Source:
     slides: tuple[Slide, ...]
     notes: tuple[str, ...]
     claims: str
+    rendered_text: str | None
 
 
 @dataclass(frozen=True)
@@ -129,6 +163,9 @@ class Scan:
     words_read: int
     font_runs_read: int
     costs_read: int
+    rendered_records: int
+    retained_passes: int
+    unrecorded_passes: int
     findings: tuple[Finding, ...]
 
 
@@ -249,7 +286,7 @@ def load(parsed: run_grader.Parsed) -> Source:
     if deck_value is None:
         raise run_grader.SourceError("--pptx needs a PowerPoint file")
     deck = Path(deck_value)
-    bar_path, claims_path = root / "bar.md", root / "claims.md"
+    bar_path, claims_path, rendered_path = root / "bar.md", root / "claims.md", root / "rendered.md"
     if not bar_path.is_file() or not claims_path.is_file():
         raise run_grader.SourceError("run needs bar.md and claims.md before it can be scanned")
     if not deck.is_file():
@@ -268,7 +305,127 @@ def load(parsed: run_grader.Parsed) -> Source:
             )
     except (OSError, UnicodeError, zipfile.BadZipFile, KeyError) as failure:
         raise run_grader.SourceError(f"could not read the deck run: {failure}") from failure
-    return Source(root, deck, bar, slides, notes, claims)
+    try:
+        rendered_text = rendered_path.read_text(encoding="utf-8") if rendered_path.is_file() else None
+    except (OSError, UnicodeError) as failure:
+        raise run_grader.SourceError(f"could not read rendered.md: {failure}") from failure
+    return Source(root, deck, bar, slides, notes, claims, rendered_text)
+
+
+def _rendered_records(text: str) -> tuple[RenderedRecord, ...]:
+    records: list[RenderedRecord] = []
+    deck: str | None = None
+    fields: dict[str, str] = {}
+    counts: dict[str, int] = {}
+
+    def close() -> None:
+        if deck is not None:
+            records.append(RenderedRecord(deck, dict(fields), dict(counts)))
+
+    for line in text.splitlines():
+        header = RENDERED_HEADER.match(line)
+        if header:
+            close()
+            deck, fields, counts = header.group(1).strip(), {}, {}
+            continue
+        if deck is None:
+            continue
+        named = RENDERED_FIELD.match(line)
+        if named:
+            name = named.group(1).upper()
+            counts[name] = counts.get(name, 0) + 1
+            fields[name] = named.group(2).strip()
+    close()
+    return tuple(records)
+
+
+def _rendered_grade(
+    source: Source, submission: str | None
+) -> tuple[tuple[Finding, ...], int, int, int, str]:
+    records = _rendered_records(source.rendered_text or "")
+    passes = render_pass.read_passes(source.root / "render")
+    found: list[Finding] = []
+
+    if source.rendered_text is not None and not records:
+        found.append(Finding(RENDERED_RECORD, None, "rendered.md has no RENDERED record"))
+    required = ("PASS", "SLIDES", "SOURCE", "UNSEEN", "READ", "VERDICT")
+    parsed_passes: list[int | None] = []
+    parsed_slides: list[tuple[int, int] | None] = []
+    for record in records:
+        invalid: list[str] = []
+        if not record.deck.casefold().endswith(".pptx"):
+            invalid.append("header does not name a .pptx")
+        for name in required:
+            if record.counts.get(name, 0) != 1 or not record.value(name):
+                invalid.append(f"{name} must appear once with a value")
+        pass_value = record.value("PASS")
+        pass_number = int(pass_value) if POSITIVE_INTEGER.fullmatch(pass_value) else None
+        parsed_passes.append(pass_number)
+        if pass_number is None:
+            invalid.append("PASS is not a positive integer")
+        slides_match = SLIDES_READ.fullmatch(record.value("SLIDES"))
+        parsed_slides.append(
+            (int(slides_match.group(1)), int(slides_match.group(2))) if slides_match else None
+        )
+        if slides_match is None:
+            invalid.append("SLIDES is not n of m read")
+        if record.value("SOURCE").casefold() not in {"powerpoint-pdf", "clinician"}:
+            invalid.append("SOURCE is not powerpoint-pdf or clinician")
+        verdict = record.value("VERDICT")
+        if verdict.casefold().startswith("clean") and not re.fullmatch(
+            r"(?is)clean[ \t]+-[ \t]+.+", verdict
+        ):
+            invalid.append("a clean VERDICT needs a reason after clean -")
+        if invalid:
+            found.append(Finding(RENDERED_RECORD, None, "; ".join(invalid)))
+
+    for pass_number in {number for number in parsed_passes if number is not None}:
+        if parsed_passes.count(pass_number) > 1:
+            found.append(
+                Finding(
+                    RENDERED_RECORD,
+                    None,
+                    f"PASS {pass_number} has more than one rendered record",
+                )
+            )
+
+    pass_numbers = {number for number, _path in passes}
+    recorded_numbers = {number for number in parsed_passes if number is not None}
+    unrecorded = len(pass_numbers - recorded_numbers)
+    if submission is None:
+        report = f"rendered record: {run_grader.NOT_GRADED} - --submission was not supplied"
+        return tuple(found), len(records), len(passes), unrecorded, report
+
+    if not passes:
+        found.append(Finding(RENDERED_RECORD, None, "submission has no retained render pass"))
+    if not records:
+        found.append(Finding(RENDERED_RECORD, None, "submission has no rendered record"))
+    highest = passes[-1][0] if passes else None
+    for record, pass_number in zip(records, parsed_passes, strict=True):
+        if record.deck != source.deck.name:
+            found.append(Finding(RENDERED_RECORD, None, "rendered record names another deck"))
+        if pass_number is not None and pass_number not in pass_numbers:
+            found.append(Finding(RENDERED_RECORD, None, "rendered record names no retained pass"))
+    highest_indexes = [index for index, number in enumerate(parsed_passes) if number == highest]
+    if highest is not None and not highest_indexes:
+        found.append(Finding(RENDERED_RECORD, None, "no rendered record names the highest retained pass"))
+    elif highest_indexes:
+        index = highest_indexes[-1]
+        counts = parsed_slides[index]
+        retained = passes[-1][1]
+        png_count = sum(1 for path in retained.glob("*.png") if path.is_file())
+        slide_count = len(source.slides)
+        if counts is None or counts != (png_count, slide_count) or png_count != slide_count:
+            found.append(
+                Finding(RENDERED_RECORD, None, "highest-pass slide and PNG counts do not match the deck")
+            )
+        record = records[index]
+        if record.value("UNSEEN").casefold() != "none":
+            found.append(Finding(RENDERED_RECORD, None, "highest-pass UNSEEN is not none"))
+        if not re.fullmatch(r"(?is)clean[ \t]+-[ \t]+.+", record.value("VERDICT")):
+            found.append(Finding(RENDERED_RECORD, None, "highest-pass VERDICT is not clean with a reason"))
+    report = f"rendered record: {'finding' if found else 'clean'}"
+    return tuple(found), len(records), len(passes), unrecorded, report
 
 
 def _costs(text: str) -> set[str]:
@@ -321,6 +478,9 @@ def survey(source: Source) -> Scan:
         words_read,
         font_runs_read,
         len(artifact_costs),
+        0,
+        0,
+        0,
         tuple(findings),
     )
 
@@ -334,6 +494,9 @@ def format_report(scan: Scan, _source: str, show: bool = False) -> str:
         f"  words read        {scan.words_read}",
         f"  font runs read    {scan.font_runs_read}",
         f"  costed figures    {scan.costs_read}",
+        f"  rendered records  {scan.rendered_records}",
+        f"  retained passes   {scan.retained_passes}",
+        f"  retained passes without a record {scan.unrecorded_passes}",
         "",
     ]
     for row in ROWS:
@@ -348,22 +511,41 @@ def format_report(scan: Scan, _source: str, show: bool = False) -> str:
 
 def grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
     scanned = survey(source)
+    rendered_findings, records, passes, unrecorded, rendered_report = _rendered_grade(
+        source, _parsed.value("--submission")
+    )
+    scanned = Scan(
+        scanned.slides_read,
+        scanned.bullets_read,
+        scanned.words_read,
+        scanned.font_runs_read,
+        scanned.costs_read,
+        records,
+        passes,
+        unrecorded,
+        scanned.findings + rendered_findings,
+    )
+    aar_failed, aar_report = aar_scan.completion_gate(
+        source.root, _parsed.value("--submission")
+    )
     return run_grader.Grade(
         scan=scanned,
         source=str(source.root),
-        findings_failed=bool(scanned.findings),
+        findings_failed=bool(scanned.findings) or aar_failed,
         diagnostics=("deck findings require review",) if scanned.findings else (),
+        reports=(rendered_report, aar_report),
     )
 
 
 GRADER = run_grader.Grader(
-    usage="usage: deck_scan.py <run directory> --pptx <PowerPoint file> [--show]",
+    usage="usage: deck_scan.py <run directory> --pptx <PowerPoint file> [--show] [--submission <key>]",
     load=load,
     grade=grade,
     format_report=format_report,
     options=(
         run_grader.Option("--pptx", takes_value=True, missing_value="--pptx needs a PowerPoint file", repeatable=False),
         run_grader.Option("--show", repeatable=False),
+        run_grader.Option("--submission", takes_value=True, missing_value="--submission needs a key", repeatable=False),
     ),
     allow_extra_positionals=False,
 )

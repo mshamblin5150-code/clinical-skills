@@ -13,6 +13,7 @@ import unittest
 import zipfile
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
+from unittest import mock
 
 import deck_scan as scan
 from grader_conformance import for_module
@@ -95,6 +96,46 @@ class Run:
             status = scan.main([str(self.root), "--pptx", str(self.deck), *extra])
         return status, stdout.getvalue(), stderr.getvalue()
 
+    def retain(self, number: int, images: int) -> None:
+        retained = self.root / "render" / f"pass-{number}"
+        retained.mkdir(parents=True)
+        for index in range(1, images + 1):
+            (retained / f"slide-{index}.png").write_bytes(b"synthetic")
+
+    def write_rendered(
+        self,
+        *,
+        deck: str = "synthetic.pptx",
+        pass_number: str = "1",
+        slides: str = "1 of 1 read",
+        source: str = "powerpoint-pdf",
+        unseen: str = "none",
+        verdict: str = "clean - every slide is readable",
+    ) -> None:
+        (self.root / "rendered.md").write_text(
+            "\n".join(
+                (
+                    f"## RENDERED: {deck}",
+                    f"PASS: {pass_number}",
+                    f"SLIDES: {slides}",
+                    f"SOURCE: {source}",
+                    f"UNSEEN: {unseen}",
+                    "READ: every retained slide against the deck and bar.md",
+                    f"VERDICT: {verdict}",
+                    "",
+                )
+            ),
+            encoding="utf-8",
+        )
+
+    def terminal(self) -> tuple[int, str, str]:
+        with mock.patch.object(
+            scan.aar_scan,
+            "completion_gate",
+            return_value=(False, "the after-action review: clean"),
+        ):
+            return self.grade("--submission", self.deck.stem)
+
 
 class TheDeckContainerReadsOnlyTheSlideFace(unittest.TestCase):
     def test_a_clean_deck_is_counted_without_private_text(self):
@@ -148,6 +189,7 @@ class CostedClaimsReadSlidesAndSpeakerNotes(unittest.TestCase):
         self.assertEqual(1, face_status)
         self.assertEqual(1, notes_status)
         self.assertIn(f"{scan.UNTRACED_COST}: 1", stdout)
+
 
     def test_recorded_costs_on_both_populations_pass(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -254,6 +296,107 @@ class CostedClaimsReadSlidesAndSpeakerNotes(unittest.TestCase):
         self.assertEqual(1, status)
         self.assertIn(f"{scan.WORDS_PER_BULLET}: 1", stdout)
         self.assertIn(f"{scan.UNTRACED_COST}: 1", stdout)
+
+
+class TheRenderedDeckRecordNamesTheTerminalPass(unittest.TestCase):
+    def a_run(self, root: Path, *, slides: int = 1) -> Run:
+        run = Run(root)
+        run.write_deck(tuple(slide_xml(f"Slide {index}", "Within limit") for index in range(1, slides + 1)))
+        return run
+
+    def test_a_matching_highest_pass_and_clean_review_complete_the_deck(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = self.a_run(Path(temp))
+            run.retain(1, 1)
+            run.write_rendered()
+            status, stdout, stderr = run.terminal()
+
+        self.assertEqual((status, stderr), (0, ""))
+        self.assertIn("rendered record: clean", stdout)
+        self.assertIn("the after-action review: clean", stdout)
+
+    def test_preflight_grades_format_but_not_the_terminal_join(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = self.a_run(Path(temp))
+            run.write_rendered(source="browser")
+            bad_status, _, _ = run.grade()
+            run.write_rendered()
+            clean_status, stdout, _ = run.grade()
+
+        self.assertEqual(bad_status, 1)
+        self.assertEqual(clean_status, 0)
+        self.assertIn("rendered record: not graded - --submission was not supplied", stdout)
+
+    def test_every_declared_record_field_is_well_formed_on_preflight(self):
+        replacements = (
+            ("synthetic.pptx", "synthetic.pdf"),
+            ("PASS: 1", "PASS: 0"),
+            ("SLIDES: 1 of 1 read", "SLIDES: all read"),
+            ("SOURCE: powerpoint-pdf", "SOURCE: browser"),
+            ("UNSEEN: none", "UNSEEN:"),
+            ("READ: every retained slide against the deck and bar.md", "READ:"),
+            ("VERDICT: clean - every slide is readable", "VERDICT: clean"),
+        )
+        for old, new in replacements:
+            with self.subTest(field=old.split(":", 1)[0]):
+                with tempfile.TemporaryDirectory() as temp:
+                    run = self.a_run(Path(temp))
+                    run.write_rendered()
+                    path = run.root / "rendered.md"
+                    path.write_text(path.read_text(encoding="utf-8").replace(old, new), encoding="utf-8")
+                    status, _, _ = run.grade()
+                self.assertEqual(status, 1)
+
+    def test_submission_requires_a_retained_pass_and_a_record(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = self.a_run(Path(temp))
+            run.write_rendered()
+            no_pass, _, _ = run.terminal()
+            run.retain(1, 1)
+            (run.root / "rendered.md").unlink()
+            no_record, _, _ = run.terminal()
+
+        self.assertEqual(no_pass, 1)
+        self.assertEqual(no_record, 1)
+
+    def test_submission_joins_the_highest_pass_deck_and_slide_counts(self):
+        cases = (
+            ({"pass_number": "1"}, (1, 1), (2, 1)),
+            ({"deck": "another.pptx", "pass_number": "2"}, (1, 1), (2, 1)),
+            ({"slides": "1 of 2 read", "pass_number": "2"}, (1, 1), (2, 1)),
+            ({"slides": "2 of 1 read", "pass_number": "2"}, (1, 1), (2, 1)),
+        )
+        for rendered, first, second in cases:
+            with self.subTest(rendered=rendered):
+                with tempfile.TemporaryDirectory() as temp:
+                    run = self.a_run(Path(temp))
+                    run.retain(*first)
+                    run.retain(*second)
+                    run.write_rendered(**rendered)
+                    status, _, _ = run.terminal()
+                self.assertEqual(status, 1)
+
+    def test_an_unrecorded_earlier_pass_is_counted_and_not_failed(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = self.a_run(Path(temp))
+            run.retain(1, 1)
+            run.retain(2, 1)
+            run.write_rendered(pass_number="2")
+            status, stdout, _ = run.terminal()
+
+        self.assertEqual(status, 0)
+        self.assertIn("retained passes without a record 1", stdout)
+
+    def test_two_records_cannot_claim_the_same_read_pass(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = self.a_run(Path(temp))
+            run.retain(1, 1)
+            run.write_rendered()
+            path = run.root / "rendered.md"
+            path.write_text(path.read_text(encoding="utf-8") * 2, encoding="utf-8")
+            status, _, _ = run.grade()
+
+        self.assertEqual(status, 1)
 
 
 class AnUnreadableOrUnsignedBarDidNotScan(unittest.TestCase):
