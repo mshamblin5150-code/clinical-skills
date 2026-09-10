@@ -69,8 +69,9 @@ about the rest.
 
 **Code masking exists three times and two of them claim the same thing.**
 `test_skill_agreement._markdown_prose` masks with spaces and preserves offsets;
-`tracker_bodies.prose_outside_code` deletes and does not; `test_python_floor.prose_outside_fences` is
-fences-only and says so in its name. They disagree on 404 of 476 tracked Markdown files; on
+`tracker_bodies.prose_outside_code` deletes and does not — its `preserve_lines=True` option, added
+on `main` during this session, keeps the line count and still not the character offsets;
+`test_python_floor.prose_outside_fences` is fences-only and says so in its name. They disagree on 404 of 476 tracked Markdown files; on
 `CLAUDE.md` the surviving non-space characters are 319,835, 319,554 and 357,374. And 32
 heading-shaped lines sit inside code fences in tracked Markdown, three of them `###`, all in
 `skills/_shared/reference/voice.md`.
@@ -104,7 +105,7 @@ its rows are all 60 words or longer, so nothing about its own floor moves.
 
 ## Ruling 2. The detector is the hybrid, and it already exists
 
-`test_claude_pointers.copied_leaves` shingles a row of nine or more normalized words and compares a
+`test_claude_pointers.copied_leaves:127` shingles a row of nine or more normalized words and compares a
 shorter row by normalized substring. It walks into dataclass, dict and tuple rows so a row's parts are
 each read, and raises when an object yields no strings at all, so an unreadable object cannot pass as
 clean. It is already green over every limits pointer in `CLAUDE.md`.
