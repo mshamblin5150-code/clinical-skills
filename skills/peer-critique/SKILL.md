@@ -259,11 +259,16 @@ discussion board reply, so **the board is the graded surface**. Where the LMS ha
 peer review, its comment box is bookkeeping that must carry at least one comment before the review
 registers as finished.
 
-**The submission comment box damages a literal ampersand.** It renders `&` as a visible `&amp;`,
-which lands in the APA reference list, where the ampersand is mandatory. That is
-[#991](https://github.com/mshamblin5150-code/clinical-skills/issues/991) and it is unsettled. Until
-it is settled, prefer the board for anything carrying a reference list, and verify any submission
-comment by reading the rendered DOM after posting rather than the box before saving.
+**Both surfaces can damage what is typed into them, and neither is cleared.** The submission comment
+box renders a literal `&` as a visible `&amp;`, which lands in the APA reference list, where the
+ampersand is mandatory; that is
+[#991](https://github.com/mshamblin5150-code/clinical-skills/issues/991) and its remedy is unsettled.
+Whether the board's reply box shares the defect is unmeasured, which is
+[#948](https://github.com/mshamblin5150-code/clinical-skills/issues/948)'s open question. The
+escaping `tools/post_html.py` applies governs an initial post's raw HTML editor, not a reply box.
+Until #991 is ruled, ask the clinician which surface carries the reference list rather than choosing
+one. On whichever surfaces are used, re-read the exact content in the box immediately before
+posting, then read the rendered DOM after posting, and report every damaged character.
 
 **Nothing on the LMS is edited after it is posted.** A defect found in a posted artifact is recorded
 and filed, not repaired in place.
