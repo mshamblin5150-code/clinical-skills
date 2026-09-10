@@ -10,17 +10,21 @@ resolve, and a failing conformance test cannot be re-run by the id it was just s
 [ADR 0080](0080-a-gated-row-set-is-declared-per-gate-and-guarded-by-an-opt-in-walk-in-the-shared-conformance-kit.md)
 and
 [ADR 0118](0118-the-conformance-kit-shapes-a-migrating-grader-s-value-and-vocabulary-and-the-fixture-row-is-the-finding-kind.md)
-rule on the kit's shape and are not reopened; this record rules two attributes inside it.
+rule on the kit's shape and are not reopened; this record rules two attributes inside it and the
+one limit that ruling leaves.
 
 Grilled 2026-09-10. The session began at `origin/main` `2314b4c` and was fast-forwarded to `63528f2`,
-where every figure below was re-derived unless it names another commit. It was then fast-forwarded to
-`ed2c33a`, which carries #1036's `deck_scan` change, where the same instrument found 5,232 tests and
-the same 108 in the same 19 classes. **Two questions were ruled
-by the clinician on that date.** An adversarial read of the first draft found one wrong figure, the
-composition of the prototype's 102, and several places the build spec left a builder to guess; they
-are corrected in place below. Nothing is built here; this is the record the build reads. Every count
-below is a dated measurement, not a current property of the suite, which grew twice during the
-session.
+where every figure below was re-derived unless it names another commit. It was then brought forward
+to `ed2c33a` and to `8582e2e`, which carry #1036's and #867's builds; at each the same instrument found
+the same 108 ids in the same 19 classes. **Three questions were ruled by the clinician on that date.**
+The first two settled the naming; the third was put after the session's tracker sweep found this
+record stating a limit only in its own prose, which is
+[#921](https://github.com/mshamblin5150-code/clinical-skills/issues/921)'s arrival shape. An
+adversarial read of the first draft found one wrong figure, the composition of the prototype's 102,
+and several places the build spec left a builder to guess; they are corrected in place below. Nothing
+is built here; this is the record the build reads. Every count below is a dated measurement, not a
+current property of the suite, which grew each time `main` was brought in while this record was
+written.
 
 ## Measured before ruling
 
@@ -77,6 +81,16 @@ own names. `test_discussion_post_scan` and `test_discussion_reply_scan` each bin
 module binds two of one kind. Simulating ruling 1 below left 12 tests unable to re-run, all in the two
 modules with their own names; renaming those two bindings left none.
 
+### A module binding one kind twice loses a class, and no check sees it
+
+A throwaway test module outside the tree bound `GraderConformance = for_module(refusal_scan)` and then
+`GraderConformance = for_module(block_scan)`, with the kit simulated as ruling 1 sets it. Two generated
+classes of six tests each should give 12. Discovery returned 6 with no loader error, and all 6 re-ran
+by id, so ruling 3's test would pass while the first class's tests never ran. `test_run_grader`'s
+adoption walk checks only that a `for_module` call exists, so it passes too. *Had the first class
+survived, discovery would have returned 12.* Ruling 2's single fixed name makes the collision easier to
+write than the per-module names it replaces.
+
 ### Nothing outside the kit reads the generated names, and the scanner stays legible
 
 Outside the kit's own two assignment pairs, no file in `tools/` or `.github/` reads a generated class's
@@ -104,7 +118,8 @@ A test module binds `GraderConformance = for_module(scan)` and `GateConformance 
 `test_aar_scan` renames `AarScanConformance` and `test_filled_vitals_census` renames
 `FilledVitalsCensusConformance`; no other binding changes. The kit's module docstring states the
 convention, and `CLAUDE.md`'s **Grader conformance** section gains one sentence naming the two binding
-names and `tools/test_suite_ids.py`. That sentence leaves intact the three phrases
+names, `tools/test_suite_ids.py` and `grader_conformance.DECLARED_LIMITS`. That sentence copies no row
+of the object and leaves intact the three phrases
 `test_discussion_post_scan.TheSharedConformanceKitStatesItsBoundary` asserts in the section.
 
 ### 3. One test requires every discovered id in the suite to re-run
@@ -115,7 +130,8 @@ from the repository root, so the result does not depend on the working directory
 discovered test it requires that a fresh `loadTestsFromName(test.id())` returns exactly one test whose
 class is the same class object and whose method name is the same. The population is discovery, never
 the kit, so a class generated elsewhere or a future shape is graded too. A loader error during
-discovery fails the test rather than shrinking its population.
+discovery fails the test rather than shrinking its population. Its module docstring states that the
+population is the CI command's, `test*.py` under `tools/`; a test module carries no limits object.
 
 On failure the report states the denominator and, for each id that does not re-run, the module
 discovery found it in and every attribute name that module binds the class to. For today's defect that
@@ -132,6 +148,28 @@ inside the full suite a second discovery reuses the imported modules and measure
 that can re-run one failing test by the id it printed. No gate module can make a generated class's id
 resolve while the kit overwrites both attributes, so #874 gains a native blocked-by edge on #873 when
 this record lands. The edge decides none of #874's own questions.
+
+### 5. The kit earns `DECLARED_LIMITS` for the double binding, and the limit stays open
+
+`grader_conformance.DECLARED_LIMITS` is a tuple of `(subject, reason, EvidenceDisposition)` triples
+using `run_grader.EvidenceDisposition`, as `render_scan` and `discussion_post_scan` hold. It holds one
+row: **whether every generated class a test module creates is bound where discovery can find it**; a
+second binding of one kind in one module replaces the first, so the first class's tests never run and
+neither ruling 3's test nor the adoption walk can count them; behavior. It is earned by the measurement
+above, not by symmetry, on
+[ADR 0162](0162-render-scan-earns-its-limits-object-on-a-measurement-and-counts-exactly-one-image-per-page.md)
+ruling 1's terms.
+
+`tools/test_suite_ids.py` names the object and holds its evidence:
+
+- a partition test: every row carries one disposition, and the behavior rows are exactly the
+  double-binding row;
+- a control: a synthetic test module written to a temporary directory binds one kind twice, discovery
+  of that directory returns only the second class's tests, and the id requirement passes over them.
+
+The control asserts the boundary still holds, so a build that closes it fails the control and must
+retire the row in the same change. The kit's docstring and `CLAUDE.md` point at the object and copy
+no row; `test_claude_pointers` covers the section's pointer by construction.
 
 ## Rejected options
 
@@ -152,13 +190,17 @@ this record lands. The edge decides none of #874's own questions.
   re-runs, would stay unmeasured.
 - **Leaving the classes alone and sharding by discovery objects.** It fixes one runner and leaves a
   failing test unaddressable by the id a person was shown.
+- **Making the kit refuse a second call of one kind from one module.** It closes the hole with a new
+  rule the ticket did not name, and a future test of the kit that builds two classes from one module
+  would need a way around it.
+- **Leaving the double binding in this record's prose.** A limit written only in an ADR fails nothing
+  when it stops being true, and it lands outside `test_declared_limits.declarers()`, which is #921's
+  recorded shape.
 
 ## What this does not reach
 
-**A module that binds the same kind twice.** The second assignment replaces the first, so the first
-class's tests never run and nothing in the suite notices: ruling 3 cannot count tests discovery was
-never shown, and `test_run_grader`'s adoption walk checks only that a `for_module` call exists. No
-module does it at `63528f2`.
+**Whether a module binds one kind twice.** Declared by ruling 5 and closed by nothing here. No module
+does it at `63528f2`.
 
 **Tests outside discovery's reach.** Ruling 3's population is the CI command's, `test*.py` under
 `tools/`, and nothing else.
