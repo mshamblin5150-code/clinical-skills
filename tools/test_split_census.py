@@ -198,11 +198,14 @@ class HistoricalClaimsBind(ProseBind, unittest.TestCase):
         )
         prose = section(text, "### Guideline text extraction")
         self.assertIn("guidelines_extract.ORPHANED_FIGURES", prose)
-        figures = tuple((label, value) for label, value, _reason in extract.ORPHANED_FIGURES)
         self.assertEqual(
             (("306", 1),),
-            bind(figures, prose, mode=NAMING),
+            bind(extract.ORPHANED_FIGURES, prose, mode=NAMING),
             "the section's 306 welded-running-head lines are a different true figure",
+        )
+        reason = extract.ORPHANED_FIGURES[0][2]
+        self.assertTrue(
+            bind(extract.ORPHANED_FIGURES, f"See the object. {reason}", mode=NAMING)
         )
 
     def test_historical_shape_figures_bind_the_docstring_and_safety_claim(self):

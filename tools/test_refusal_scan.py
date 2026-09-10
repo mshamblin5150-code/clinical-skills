@@ -345,5 +345,7 @@ class EveryDeclaredLimitIsMeasuredAndBound(unittest.TestCase):
         prose = section(text, "### Refusal scan")
 
         self.assertIn("refusal_scan.DECLARED_LIMITS", prose)
-        reasons = tuple(reason for _subject, reason, _disposition in scan.DECLARED_LIMITS)
-        self.assertEqual((), bind(reasons, prose, mode=NAMING))
+        self.assertEqual((), bind(scan.DECLARED_LIMITS, prose, mode=NAMING))
+        subject, reason, _disposition = scan.DECLARED_LIMITS[0]
+        self.assertTrue(bind(scan.DECLARED_LIMITS, f"See the object. {subject}", mode=NAMING))
+        self.assertTrue(bind(scan.DECLARED_LIMITS, f"See the object. {reason}", mode=NAMING))
