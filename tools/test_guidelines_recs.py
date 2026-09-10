@@ -679,7 +679,7 @@ class Precedence(unittest.TestCase):
             raw_records, _, _ = recs.extract(
                 Path("idsa.pdf"),
                 "IDSA/x",
-                marker_reader=lambda candidate: candidate.get_text("text"),
+                marker_reader=lambda candidate: candidate.plain_text(),
             )
         self.assertEqual((mode, source), (recs.MODE_BOUND, recs.SOURCE_TEXT_MARKER))
         self.assertEqual(raw_records, [])
@@ -1035,18 +1035,28 @@ class RecommendationRecordOwnership(unittest.TestCase):
         self.assertEqual(
             recs.RECORD_TRUST_FLOOR,
             {
-                recs.SOURCE_RULED_TABLE: ("tools/guidelines_recs.py",),
+                recs.SOURCE_RULED_TABLE: (
+                    "tools/guidelines_recs.py",
+                    "tools/page_text.py",
+                    "tools/pdf_engine.py",
+                ),
                 recs.SOURCE_CURATED_TABLE: (
                     "tools/guidelines_recs.py",
+                    "tools/page_text.py",
+                    "tools/pdf_engine.py",
                     "reference/guidelines-uspstf.md",
                 ),
                 recs.SOURCE_TEXT_MARKER: (
                     "tools/guidelines_recs.py",
                     "tools/guidelines_extract.py",
+                    "tools/page_text.py",
+                    "tools/pdf_engine.py",
                 ),
                 recs.SOURCE_NOTHING_FOUND: (
                     "tools/guidelines_recs.py",
                     "tools/guidelines_extract.py",
+                    "tools/page_text.py",
+                    "tools/pdf_engine.py",
                     "reference/guidelines-uspstf.md",
                 ),
             },
@@ -1352,12 +1362,14 @@ class TheCommittedTableIsWhatTheCommandReads(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             table_path = root / "reference" / "guidelines-uspstf.md"
-            module_path = root / "tools" / "guidelines_recs.py"
             pdf = root / "skin.pdf"
             table_path.parent.mkdir()
-            module_path.parent.mkdir()
+            (root / "tools").mkdir()
             table_path.write_text(first_table, encoding="utf-8")
-            module_path.write_text("# identity fixture\n", encoding="utf-8")
+            for relative in recs.RECORD_TRUST_FLOOR[recs.SOURCE_CURATED_TABLE]:
+                if relative == "reference/guidelines-uspstf.md":
+                    continue
+                (root / relative).write_text("# identity fixture\n", encoding="utf-8")
             pdf.write_bytes(b"source bytes")
 
             original_identity = recs.artifact_provenance.producer_file_identity

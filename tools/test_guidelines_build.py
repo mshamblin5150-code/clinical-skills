@@ -420,9 +420,13 @@ class SeparatingDifferentInputs(BuildCommandCase):
         self.assertEqual(len(catalog["artifacts"]["index"]), 2)
 
     def test_an_extractor_runtime_change_rebuilds_both_stages(self):
-        with mock.patch("guidelines_build._package_version", return_value="engine-one"):
+        with mock.patch.object(
+            guidelines_build.pdf_engine, "engine_version", return_value="engine-one"
+        ):
             self.assertEqual(self.run_command(), 0)
-        with mock.patch("guidelines_build._package_version", return_value="engine-two"):
+        with mock.patch.object(
+            guidelines_build.pdf_engine, "engine_version", return_value="engine-two"
+        ):
             self.assertEqual(self.run_command(), 0)
 
         self.assertEqual(

@@ -199,7 +199,7 @@ coverage reading green.
 Where 1 and 2 both hold, **1 wins**, and the message names every source that was not
 graded so the finding reads as a floor rather than the whole.
 
-Stdlib only. Tier 2 needs ``pymupdf`` and says ``SKIPPED`` without it rather than
+Stdlib only. Tier 2 needs the PDF engine and says ``SKIPPED`` without it rather than
 failing, which is the same hole -- named here rather than discovered later.
 """
 
@@ -222,6 +222,8 @@ import guidelines_manifest
 import guidelines_catalog
 import guidelines_currency
 import artifact_provenance
+import page_text
+import pdf_engine
 from threshold_grammar import (
     CONFLICTS_HEADING,
     COVERAGE_HEADING,
@@ -1523,52 +1525,50 @@ def gate_citation_tier2(sheet: Sheet, pdf_root: Path | None) -> CitationTier2Res
             _citation_tier2_not_run(f"source PDFs not found at {pdf_root}"),
             pdf_root,
         )
-    try:
-        import pymupdf
-    except ImportError:
-        return _hold_tier2_resolution_declaration(
-            sheet,
-            _citation_tier2_not_run("pymupdf is not installed"),
-            pdf_root,
-        )
-
     failures: list[str] = []
     rendered = 0
     cache: dict[tuple[str, int], str] = {}
-    for row in sheet.rows:
-        if row.snippet.startswith(RENDERED_MARKER):
-            # A page transcription is licensed by a declared render-and-read, not by
-            # verbatim identity with the text stream. Tier 2 therefore has no snippet
-            # claim to check even when the transcription happens to extract cleanly.
-            rendered += 1
-            continue
-        source = sheet.sources.get(row.source)
-        if not source or row.page is None:
-            continue  # already a SCHEMA failure; not counted twice
-        relative = source["document"]
-        key = (relative, row.page)
-        if key not in cache:
-            path = pdf_root / f"{relative}.pdf"
-            if not path.is_file():
-                failures.append(f"{sheet.path.name}:{row.line}  no such PDF: {path}")
-                cache[key] = ""
+    try:
+        for row in sheet.rows:
+            if row.snippet.startswith(RENDERED_MARKER):
+                # A page transcription is licensed by a declared render-and-read, not by
+                # verbatim identity with the text stream. Tier 2 therefore has no snippet
+                # claim to check even when the transcription happens to extract cleanly.
+                rendered += 1
                 continue
-            document = pymupdf.open(str(path))
-            try:
-                page = document[row.page - 1]
-                raw = page.get_text("rawdict")
-                operators = guidelines_extract.rendered_operator_map_for_page(page, raw)
-                cache[key] = _normalize(guidelines_extract.rebuild_text(raw, operators))
-            except Exception as error:  # noqa: BLE001
-                failures.append(f"{sheet.path.name}:{row.line}  page {row.page} unreadable: {error}")
-                cache[key] = ""
-            finally:
-                document.close()
-        page_text = cache[key]
-        if page_text and _normalize(row.snippet) not in page_text:
-            failures.append(
-                f"{sheet.path.name}:{row.line}  snippet not on {relative} p.{row.page}"
-            )
+            source = sheet.sources.get(row.source)
+            if not source or row.page is None:
+                continue  # already a SCHEMA failure; not counted twice
+            relative = source["document"]
+            key = (relative, row.page)
+            if key not in cache:
+                path = pdf_root / f"{relative}.pdf"
+                if not path.is_file():
+                    failures.append(f"{sheet.path.name}:{row.line}  no such PDF: {path}")
+                    cache[key] = ""
+                    continue
+                try:
+                    with page_text.open_document(path) as document:
+                        page = document.page(row.page)
+                        cache[key] = _normalize(guidelines_extract.repaired_text(page))
+                except pdf_engine.EngineUnavailable:
+                    raise
+                except Exception as error:  # noqa: BLE001
+                    failures.append(
+                        f"{sheet.path.name}:{row.line}  page {row.page} unreadable: {error}"
+                    )
+                    cache[key] = ""
+            extracted_text = cache[key]
+            if extracted_text and _normalize(row.snippet) not in extracted_text:
+                failures.append(
+                    f"{sheet.path.name}:{row.line}  snippet not on {relative} p.{row.page}"
+                )
+    except pdf_engine.EngineUnavailable:
+        return _hold_tier2_resolution_declaration(
+            sheet,
+            _citation_tier2_not_run(pdf_engine.TIER2_UNAVAILABLE),
+            pdf_root,
+        )
     report = [f"  CITATION tier 2 {len(failures)}"]
     if rendered:
         report.append(

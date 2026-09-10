@@ -514,39 +514,33 @@ class TheRefusalWinsOverTheInputCheck(unittest.TestCase):
         """The same ordering one module over, and the only way to see it here.
 
         ``guidelines_extract`` asked where the output goes *after*
-        ``require_pymupdf()``, so on a machine with no PDF library a path inside a
+        the PDF-engine version read, so on a machine with no PDF library a path inside a
         checkout got the dependency error rather than the placement one. The
         maintainer's machine has the library, so no ordinary run can show the
         difference -- which is why the dependency is stubbed to fail rather than
         the ordering being asserted by reading the source.
         """
-        def refuse():
-            raise SystemExit("pymupdf is not installed.")
-
-        original = guidelines_extract.require_pymupdf
-        guidelines_extract.require_pymupdf = refuse
-        self.addCleanup(setattr, guidelines_extract, "require_pymupdf", original)
-
-        with self.assertRaises(SystemExit) as stop:
-            guidelines_extract.main(
-                [str(self.tree.source), "--out", str(self.tree.clone / "guidelines-text")]
-            )
+        with mock.patch.object(
+            guidelines_extract.pdf_engine, "engine_version", return_value=None
+        ), self.assertRaises(SystemExit) as stop:
+            guidelines_extract.main([
+                str(self.tree.source),
+                "--out",
+                str(self.tree.clone / "guidelines-text"),
+            ])
         self.assertIn("git checkout", str(stop.exception))
 
     def test_the_stub_is_live(self):
         """Without this the test above passes on a machine that has the library
         whatever the ordering is, which is the shape it was written to catch."""
-        def refuse():
-            raise SystemExit("pymupdf is not installed.")
-
-        original = guidelines_extract.require_pymupdf
-        guidelines_extract.require_pymupdf = refuse
-        self.addCleanup(setattr, guidelines_extract, "require_pymupdf", original)
-
-        with self.assertRaises(SystemExit) as stop:
-            guidelines_extract.main(
-                [str(self.tree.source), "--out", str(self.tree.root / "guidelines-text")]
-            )
+        with mock.patch.object(
+            guidelines_extract.pdf_engine, "engine_version", return_value=None
+        ), self.assertRaises(SystemExit) as stop:
+            guidelines_extract.main([
+                str(self.tree.source),
+                "--out",
+                str(self.tree.root / "guidelines-text"),
+            ])
         self.assertIn("pymupdf", str(stop.exception))
 
 

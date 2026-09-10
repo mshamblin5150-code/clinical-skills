@@ -13,10 +13,12 @@ from pathlib import Path
 
 from console_codec import use_utf8
 import office_process
+import page_image
+import pdf_engine
 import render_pass
 
 
-RASTER_DPI = 120
+RASTER_DPI = page_image.RASTER_DPI
 EXPORT_TIMEOUT_SECONDS = 30
 SLIDE_PART = re.compile(r"^ppt/slides/slide[1-9]\d*\.xml$")
 
@@ -65,21 +67,14 @@ def _powerpoint_export(deck: Path, output: Path, ownership_file: Path) -> None:
 
 def _rasterize(export: Path, destination: Path) -> int:
     try:
-        import pymupdf
-    except ImportError as failure:
+        return page_image.rasterize(export, destination, name="slide")
+    except pdf_engine.EngineUnavailable as failure:
         raise RenderError("PyMuPDF is unavailable") from failure
-    try:
-        with pymupdf.open(str(export)) as document:
-            pages = len(document)
-            if pages < 1:
-                raise RenderError("the retained PDF contains no slides")
-            for number, page in enumerate(document, 1):
-                page.get_pixmap(dpi=RASTER_DPI).save(destination / f"slide-{number}.png")
-    except RenderError:
-        raise
-    except Exception as failure:
-        raise RenderError(f"could not rasterize every slide: {failure}") from failure
-    return pages
+    except pdf_engine.SourceUnreadable as failure:
+        message = str(failure)
+        if message == page_image.EMPTY_EXPORT:
+            raise RenderError("the retained PDF contains no slides") from failure
+        raise RenderError(f"could not rasterize every slide: {message}") from failure
 
 
 def _slide_count(deck: Path) -> int:

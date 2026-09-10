@@ -79,6 +79,8 @@ class ProducerEditHandoffTests(unittest.TestCase):
         "guidelines_index.py",
         "guidelines_manifest.py",
         "guidelines_search.py",
+        "page_text.py",
+        "pdf_engine.py",
         "repo_root.py",
     )
 
