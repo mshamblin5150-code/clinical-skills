@@ -149,7 +149,11 @@ class PdfEngineIsTheOnlyAcquirer(unittest.TestCase):
 
     def test_pdf_engine_is_the_tree_s_only_acquirer(self):
         sources, unread = tree_sources()
-        report = f"walked {len(sources)} modules; unread remainder {list(unread)}"
+        acquired = acquiring_modules(sources)
+        report = (
+            f"walked {len(sources)} modules; unread remainder {list(unread)}; "
+            f"acquiring modules {acquired}"
+        )
         self.assertGreater(len(sources), 0, report)
         self.assertEqual(unread, (), report)
         self.assertTrue(sole_acquirer_is(sources, "pdf_engine.py"), report)
@@ -261,6 +265,10 @@ class PageTextKeepsTheDocumentOpen(unittest.TestCase):
             width = 2
             height = 3
 
+        class EngineTable:
+            def extract(self):
+                return [["cell"]]
+
         class EnginePage:
             def get_text(self, kind="text"):
                 return {"blocks": []} if kind == "rawdict" else "plain"
@@ -269,7 +277,7 @@ class PageTextKeepsTheDocumentOpen(unittest.TestCase):
                 return Pixmap()
 
             def find_tables(self):
-                return type("Found", (), {"tables": ("table",)})()
+                return type("Found", (), {"tables": (EngineTable(),)})()
 
         class Document:
             metadata = {"title": "  Title  "}
@@ -309,13 +317,62 @@ class PageTextKeepsTheDocumentOpen(unittest.TestCase):
                 self.assertEqual(page.number, 1)
                 self.assertEqual(page.rawdict, {"blocks": []})
                 self.assertEqual(page.plain_text(), "plain")
-                self.assertEqual(page.tables(), ("table",))
+                self.assertEqual(page.tables(), ([["cell"]],))
                 self.assertEqual(page.render_glyph((1, 2, 3, 4)), (b"gray", 2, 3))
                 self.assertFalse(hasattr(page, "page"))
         self.assertTrue(document.closed)
 
 
 class PageImageOwnsRasterizationAndTheProbe(unittest.TestCase):
+    def test_document_failures_after_open_become_typed_read_failures(self):
+        class Document:
+            def __init__(self, failure_at):
+                self.failure_at = failure_at
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_arguments):
+                if self.failure_at == "close":
+                    raise OSError("close failed")
+
+            def __len__(self):
+                if self.failure_at == "length":
+                    raise OSError("length failed")
+                return 1
+
+            def __iter__(self):
+                if self.failure_at == "iteration":
+                    raise OSError("iteration failed")
+                return iter(())
+
+        class Engine:
+            failure_at = ""
+
+            @classmethod
+            def open(cls, _path):
+                return Document(cls.failure_at)
+
+        with tempfile.TemporaryDirectory() as directory, mock.patch.object(
+            page_image.pdf_engine, "acquire", return_value=Engine
+        ):
+            root = Path(directory)
+            for failure_at, operation in (
+                ("length", lambda: page_image.export_page_count(root / "export.pdf")),
+                (
+                    "iteration",
+                    lambda: page_image.rasterize(
+                        root / "export.pdf", root, name="page"
+                    ),
+                ),
+                ("close", lambda: page_image.export_page_count(root / "export.pdf")),
+            ):
+                with self.subTest(failure_at=failure_at):
+                    Engine.failure_at = failure_at
+                    with self.assertRaises(pdf_engine.SourceUnreadable) as caught:
+                        operation()
+                    self.assertIn("failed", str(caught.exception))
+
     def test_rasterize_stages_each_page_and_probe_rejects_a_renamed_pdf(self):
         import tempfile
 

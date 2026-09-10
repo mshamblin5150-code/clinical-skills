@@ -114,8 +114,8 @@ def _read_export_pages(exports: tuple[Path, ...]) -> tuple[int | None, str]:
         return None, f"keeps {len(exports)} retained PDF or XPS exports, not 1"
     try:
         pages = page_image.export_page_count(exports[0])
-    except pdf_engine.EngineUnavailable as unavailable:
-        return None, str(unavailable)
+    except pdf_engine.EngineUnavailable:
+        return None, pdf_engine.RENDER_UNAVAILABLE
     except pdf_engine.SourceUnreadable as failure:
         if str(failure) == page_image.EMPTY_EXPORT:
             return None, "the retained export contains no pages"
@@ -150,8 +150,8 @@ def _load(parsed: run_grader.Parsed) -> Source:
         for item in nominal_pixels:
             try:
                 pixel_errors_list.append(page_image.page_read_error(item) or "")
-            except pdf_engine.EngineUnavailable as unavailable:
-                pixel_errors_list.append(str(unavailable))
+            except pdf_engine.EngineUnavailable:
+                pixel_errors_list.append(pdf_engine.RENDER_UNAVAILABLE)
         pixel_errors = tuple(pixel_errors_list)
         pixels = tuple(
             item for item, error in zip(nominal_pixels, pixel_errors) if not error

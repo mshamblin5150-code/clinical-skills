@@ -5,7 +5,13 @@ from __future__ import annotations
 from types import ModuleType
 
 
-REMEDY = "Install the PDF engine with `python -m pip install pymupdf`."
+REMEDY = (
+    "pymupdf is not installed. This is one of the tools in tools/ that is "
+    "not stdlib, because it reads a PDF:\n"
+    "    python -m pip install pymupdf"
+)
+RENDER_UNAVAILABLE = "PyMuPDF is unavailable"
+TIER2_UNAVAILABLE = "pymupdf is not installed"
 
 
 class EngineUnavailable(Exception):

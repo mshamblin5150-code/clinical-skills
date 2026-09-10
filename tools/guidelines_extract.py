@@ -1793,11 +1793,7 @@ def build_parser() -> argparse.ArgumentParser:
 def _run(args: argparse.Namespace, source_root: Path, out_root: Path) -> int:
     """Extract one corpus while ``main`` owns its shared output lock."""
     if pdf_engine.engine_version() is None:
-        raise SystemExit(
-            "pymupdf is not installed. This is one of the tools in tools/ that is "
-            "not stdlib, because it reads a PDF:\n"
-            "    python -m pip install pymupdf"
-        )
+        raise SystemExit(pdf_engine.REMEDY)
 
     pdfs = sorted(source_root.rglob("*.pdf"), key=lambda p: p.relative_to(source_root).as_posix())
     if not pdfs:

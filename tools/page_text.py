@@ -37,8 +37,9 @@ class PageRead:
     def plain_text(self) -> str:
         return self._page.get_text("text")
 
-    def tables(self) -> tuple:
-        return tuple(self._page.find_tables().tables)
+    def tables(self) -> tuple[list[list[str | None]], ...]:
+        """Return extracted cell payloads without leaking engine table objects."""
+        return tuple(table.extract() for table in self._page.find_tables().tables)
 
     def __del__(self) -> None:
         owner = getattr(self, "_owner", None)

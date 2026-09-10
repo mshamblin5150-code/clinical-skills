@@ -1563,10 +1563,10 @@ def gate_citation_tier2(sheet: Sheet, pdf_root: Path | None) -> CitationTier2Res
                 failures.append(
                     f"{sheet.path.name}:{row.line}  snippet not on {relative} p.{row.page}"
                 )
-    except pdf_engine.EngineUnavailable as unavailable:
+    except pdf_engine.EngineUnavailable:
         return _hold_tier2_resolution_declaration(
             sheet,
-            _citation_tier2_not_run(str(unavailable)),
+            _citation_tier2_not_run(pdf_engine.TIER2_UNAVAILABLE),
             pdf_root,
         )
     report = [f"  CITATION tier 2 {len(failures)}"]

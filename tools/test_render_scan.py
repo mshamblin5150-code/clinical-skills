@@ -178,6 +178,20 @@ class AMeasuredShortFinalPassIsAFinding(unittest.TestCase):
 
 
 class MissingEvidenceDidNotScan(unittest.TestCase):
+    def test_a_missing_engine_keeps_the_legacy_unavailable_message(self):
+        with tempfile.TemporaryDirectory() as temp:
+            export = Path(temp) / "export.pdf"
+            export.touch()
+            with mock.patch.object(
+                page_image,
+                "export_page_count",
+                side_effect=page_image.pdf_engine.EngineUnavailable(),
+            ):
+                pages, detail = render_scan._read_export_pages((export,))
+
+        self.assertIsNone(pages)
+        self.assertEqual(detail, "PyMuPDF is unavailable")
+
     def test_a_gap_is_counted_without_changing_clean_status(self):
         with tempfile.TemporaryDirectory() as temp:
             run = Run(Path(temp))

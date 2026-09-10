@@ -1297,7 +1297,7 @@ def extract(
             # table answered the document. #446 permits this cheaper three-limb shape.
             for page in document.pages():
                 try:
-                    tables = [table.extract() for table in page.tables()]
+                    tables = page.tables()
                 except Exception:  # noqa: BLE001 - a page whose tables will not parse is not a failed document
                     tables = []
                 table_hits.extend(

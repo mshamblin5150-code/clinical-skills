@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from pathlib import Path
+from typing import Iterator
 
 import pdf_engine
 
@@ -13,10 +15,15 @@ PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 EMPTY_EXPORT = "export contains no pages"
 
 
-def _opened(export: Path):
+@contextmanager
+def _opened(export: Path) -> Iterator[object]:
+    """Hold one engine document and type every failure across its lifetime."""
     engine = pdf_engine.acquire()
     try:
-        return engine.open(str(export))
+        with engine.open(str(export)) as document:
+            yield document
+    except pdf_engine.SourceUnreadable:
+        raise
     except Exception as failure:
         raise pdf_engine.SourceUnreadable(str(failure)) from failure
 

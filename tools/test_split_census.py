@@ -128,7 +128,12 @@ class CommandTests(unittest.TestCase):
                 status = census.main([tmp])
 
         self.assertEqual(status, 2)
-        self.assertIn("Install the PDF engine", err.getvalue())
+        self.assertEqual(
+            err.getvalue().strip(),
+            "pymupdf is not installed. This is one of the tools in tools/ that is "
+            "not stdlib, because it reads a PDF:\n"
+            "    python -m pip install pymupdf",
+        )
 
     def test_a_quantity_shaped_split_is_a_finding(self):
         measured = census.Census()
