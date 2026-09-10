@@ -56,7 +56,7 @@ the recorded instance of what an undeclared role produces.
 | `case_study_render`, `discussion_post_render` | `RenderError("pymupdf is not installed")` | 2 |
 | `deck_render` | `RenderError("PyMuPDF is unavailable")` | 2 |
 | `render_scan` | a truthy return string reading as zero readable pages | 2 |
-| `discussion_post_scan` | `pymupdf = None`, appended to a graded finding | 1 as a finding |
+| `discussion_post_scan` | `pymupdf = None`, appended to a graded finding; ruling 9 changes this | 1 as a finding |
 
 **One check already has two verdicts, which is the existence proof ruling 2 rests on.** Driven:
 `require_pymupdf()` exits **1** from `guidelines_extract` and **2** from `split_census`, from the
@@ -145,8 +145,9 @@ The ticket's 2026-09-03 comment holds that *one decision rather than one per mod
 the not-installed axis, which is genuinely one policy across all eight.* **That does not survive
 measurement, and it fails to that comment's own argument one axis over.**
 
-`threshold_sheet`'s non-failing `SKIPPED` and `discussion_post_scan`'s graded finding are correct
-**optional secondary** postures under ADR 0116 ruling 1; the producers' and `guidelines_extract`'s
+`threshold_sheet`'s non-failing `SKIPPED` is a correct **optional secondary** posture under ADR 0116
+ruling 1, and so is `discussion_post_scan`'s rendered-pages row -- whose graded finding on a missing
+engine is not that posture, which ruling 9 corrects; the producers' and `guidelines_extract`'s
 hard stop is a correct **primary source** posture. One verdict across the population would overwrite a
 ruled distinction, which is exactly why that comment kept *unreadable* out of the adapter.
 
@@ -224,9 +225,9 @@ re-export.
 
 **The parameter goes**, because ruling 2 makes the detection the seam's and an adapter that makes its
 caller detect pushes one decision back out to two callers -- and it is what would keep `render_scan`
-importing the engine for no reason but to hand it in. `discussion_post_scan` catches the absence into
-its existing finding detail and `render_scan` into its existing read-error string; both behaviors are
-unchanged.
+importing the engine for no reason but to hand it in. `render_scan` catches the absence into its
+existing read-error string, unchanged. `discussion_post_scan` catches it and, under ruling 9, reports
+its rendered-pages row `not graded` at exit 2 rather than folding the absence into a finding.
 
 **Which behavior wins on the three divergences:** the signature check, the interpolated failure and
 the `str | None` return, all three from `png_read_error`, all three strictly more informative.
@@ -322,6 +323,34 @@ string held in a constant and passed to `version()`, is invisible. That ceiling 
 -- `guidelines_build` reaches the engine by a distribution literal today and the body's matcher cannot
 see it. The walk reports its denominator and unread remainder, and is fed a zero-match and a
 partial-match mutant and driven red before its coverage claim is believed.
+
+### 9. A grader that lacks the engine does not fail a clean submission
+
+Found by driving rather than by reading, while re-deriving the tracker sweep's last six verdicts at
+`ffbe5c6`. **Ruled by the clinician on 2026-09-10.**
+
+**Ruling 2 as first written classified `discussion_post_scan`'s missing-engine behavior two ways.** The
+measured table above records it as *"1 as a finding"*; ruling 2 called it a correct optional-secondary
+posture, degrade and state the narrowing. ADR 0116's table keeps those postures apart. Driven on
+`test_discussion_post_scan.CanvasSubmissionRows`, each test run once with the suite's fake engine and
+once with the import blocked, **4 of 14 clean submissions change from exit 0 to exit 1 on the missing
+engine alone**, with `rendered-pages` going 0 to 1: `tools/discussion_post_scan.py:995` appends the
+absence to `detail`, and `:1026` turns any non-empty `detail` into a `RENDERED_PAGES` finding. The
+fake-engine run is the control; had the fixtures produced the finding, it would have exited 1 too.
+
+**A missing engine says something about the grading machine, not about the post.** When
+`discussion_post_scan` cannot decode retained captures because the engine is unavailable, the
+`rendered-pages` row reports `not graded` and names the missing engine, and the command reports that it
+did not scan -- exit 2 -- through its existing coverage-failure route. A real finding on the same run
+still exits 1, on the family's ordering. An absent input never masquerades as a passing count, and it
+does not masquerade as a failing one either.
+
+**This is a second behavior change**, beside `guidelines_recs`'s traceback. Every other status and
+message stays as measured.
+
+**Already consistent and unchanged:** `render_scan` reaches `UNREADABLE_EXPORT`, an exit-2 coverage
+limb, and `threshold_sheet` tier 2's `SKIPPED` fails nothing. Neither fails a clean artifact on a
+missing engine.
 
 ## What this does not reach, declared rather than left to be found
 
