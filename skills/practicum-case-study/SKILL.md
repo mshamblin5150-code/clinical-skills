@@ -1085,7 +1085,7 @@ not run and the submission stops.
 
 **Only the last pass must be complete.** Earlier passes are counted and reported, but may stop
 after a reader finds a defect on page 2 and sends the document back for repair. The next render uses
-a new pass number. The final pass must keep at least one PNG for every page in its retained export,
+a new pass number. The final pass must keep exactly one PNG for every page in its retained export,
 and all render passes remain in the run directory as evidence after the private checker paths are
 removed.
 
@@ -1096,7 +1096,7 @@ python tools/render_scan.py <run-directory>
 ```
 
 The command derives coverage from the files rather than from a check-record field. A final pass
-with fewer PNGs than exported pages is exit 1. Any pass with no measurable retained export is exit 2.
+with fewer or more PNGs than exported pages is exit 1. Any pass with no measurable retained export is exit 2.
 No `render/` directory or no numbered pass is also exit 2. A missing pass number is counted in every
 report and never changes either status. When a finding and unavailable evidence occur across passes,
 exit 1 wins. The default report gives each pass's readable-image and
@@ -1105,7 +1105,7 @@ Python is: read only `pass-N` directories whose `N` is an ASCII positive integer
 zero; count any missing numbers from 1 through the highest; confirm each pass holds exactly one
 readable PDF or XPS; count that export's pages; count only PNGs that decode as one readable image;
 report each pass's readable-image and exported-page counts; report incomplete earlier passes
-without failing them; and require the final readable-PNG count to reach the final exported page
+without failing them; and require the final readable-PNG count to equal the final exported page
 count.
 
 Coverage does not replace the substantiated `the rendered document` verdict. `render_scan.py`

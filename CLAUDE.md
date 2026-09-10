@@ -764,21 +764,23 @@ returns a failure inside the bound proceeds to the bounded XPS attempt.
 
 Only the last pass is graded for completeness. An earlier pass may stop when its reader finds a
 layout defect; the report gives each pass's readable-image and exported-page counts without failing
-that historical short pass. A measurable short final pass is exit 1. Missing render evidence, a
-pass with no single readable retained export, or no numbered pass is exit 2. A gap is reported and
-never graded, including when another condition sets the status. Default output is counts only;
-`--show` adds only fixed `pass-N` labels and finding detail, so both forms are pasteable.
+that historical short pass. A measurable final pass short of or beyond its exported page count is
+exit 1. Missing render evidence, a pass with no single readable retained export, or no numbered pass
+is exit 2. A gap is reported and never graded, including when another condition sets the status.
+Default output is counts only; `--show` adds only fixed `pass-N` labels and finding detail, so both
+forms are pasteable.
 
-This is coverage, not the visual judgment. It cannot establish that the PNG files are the pages a
-reader opened or that the comparison was careful. The separate, substantiated `the rendered
-document` record remains owned by `tools/checks_ledger.py`, and
+This is coverage, not the visual judgment. The limits of what a clean run establishes are declared
+in `render_scan.DECLARED_LIMITS`. The separate, substantiated `the rendered document` record remains
+owned by `tools/checks_ledger.py`, and
 [practicum-case-study](skills/practicum-case-study/SKILL.md) step 9 requires both commands' halves.
 
 Covered by `tools/test_render_scan.py`, which uses synthetic retained exports behind a fake
 PyMuPDF public interface and temp run directories. The suite therefore exercises PDF and XPS page
 counts, readable image validation, pass-name grammar and gap reporting, per-pass reporting,
 historical short passes, final short coverage, missing evidence, exit precedence, report redaction,
-the shared grader contract, and the prose binding without requiring Word or PyMuPDF.
+the shared grader contract, and the module-docstring and **Render scan** section pointer bindings
+without requiring Word or PyMuPDF.
 
 ### After-action review
 
