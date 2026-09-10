@@ -80,6 +80,17 @@ class HtmlRendererTests(unittest.TestCase):
 
         self.assertEqual(rendered, "<blockquote>Exact words from the cited source.</blockquote>\n")
 
+    def test_blank_lines_do_not_restart_an_ordered_list_at_one(self):
+        rendered = post_html.render(
+            "1. First decision.\n\n2. Second decision.\n\n3. Third decision.\n"
+        )
+
+        self.assertEqual(
+            rendered,
+            "<ol><li>First decision.</li><li>Second decision.</li>"
+            "<li>Third decision.</li></ol>\n",
+        )
+
     def test_a_reference_url_becomes_an_anchor_whose_text_is_the_url(self):
         rendered = post_html.render(
             "Author, A. (2026). *A title*. https://www.example.gov/files/a-b.pdf\n"

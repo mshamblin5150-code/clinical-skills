@@ -107,6 +107,11 @@ def render(markdown: str) -> str:
             open_list = None
 
     for block in docx_write.blocks(markdown):
+        if block.kind == "blank":
+            # A blank source line may separate loose Markdown list items. The
+            # next substantive block, not whitespace, decides whether the
+            # current HTML list continues or closes.
+            continue
         list_tag = {"bullet": "ul", "numbered": "ol"}.get(block.kind)
         if list_tag is not None:
             if open_list != list_tag:
@@ -127,7 +132,7 @@ def render(markdown: str) -> str:
             out.append(_table(block))
         elif block.kind == "separator":
             out.append("<hr>")
-        elif block.kind != "blank":  # pragma: no cover - Block owns the vocabulary
+        else:  # pragma: no cover - Block owns the vocabulary
             raise ValueError(f"unsupported block kind: {block.kind}")
     close_list()
     return "".join(out) + "\n"
