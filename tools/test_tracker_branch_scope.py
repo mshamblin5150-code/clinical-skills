@@ -1,14 +1,19 @@
 """In-flight issue text carries dated, directional branch provenance."""
 
 import contextlib
+import ast
 import io
+import inspect
 import json
 import unittest
 from pathlib import Path
 from unittest import mock
 
 import tracker_branch_scope as scope
+import tracker_bodies
 import tracker_merge_receipt as receipt
+import tracker_scan
+from tracker_records import TrackerRecord
 
 
 MARKER = (
@@ -45,6 +50,54 @@ def comment_event(body: str, labels=("in flight",)):
 
 
 class InFlightTrackerRecordsCarryTheirOwnBranchScope(unittest.TestCase):
+    def test_both_actions_consumers_drive_the_shared_record_to_one_verdict(self):
+        event = comment_event("The new command now emits a receipt.")
+
+        scan_record = tracker_scan.records_from_github_event(
+            event, "issue_comment", "event.json"
+        )[0].tracker
+        body_record = tracker_bodies.records_from_github_event(
+            event, "issue_comment", "event.json"
+        )[0].tracker
+
+        self.assertIsNotNone(scan_record)
+        self.assertIsNotNone(body_record)
+        self.assertEqual(
+            scope.grade_record(scan_record).verdict,
+            scope.grade_record(body_record).verdict,
+        )
+
+    def test_record_entry_point_returns_typed_rule_and_measurements(self):
+        record = TrackerRecord(
+            body=MARKER.removeprefix("> ") + "The branch adds the command.",
+            url="https://github.com/example/repo/issues/290#comment-1",
+            number=290,
+            labels=("in flight",),
+            container="issue",
+            surface="comment",
+        )
+
+        result = scope.grade_record(record)
+
+        self.assertEqual(result.verdict.rule, "branch:blockquote-missing")
+        self.assertIsNone(result.verdict.ancestry_verified)
+        self.assertFalse(result.verdict.default_branch_tree_read)
+
+    def test_ancestry_refusal_is_not_the_blockquote_rule(self):
+        record = TrackerRecord(
+            body=MAIN_MARKER + "The merged command is available.",
+            url="https://github.com/example/repo/issues/290#comment-1",
+            number=290,
+            labels=("in flight",),
+            container="issue",
+            surface="comment",
+        )
+        with mock.patch.object(scope, "_main_ancestry", return_value=False):
+            result = scope.grade_record(record)
+
+        self.assertEqual(result.verdict.rule, "branch:ancestry-refused")
+        self.assertTrue(result.verdict.ancestry_verified)
+
     def test_an_in_flight_comment_without_the_scope_is_a_finding(self):
         result = scope.grade(
             comment_event("The new command now emits a receipt."),
@@ -625,6 +678,29 @@ class DeclaredLimitsHaveOneOwner(unittest.TestCase):
         for key, reason in scope.NOT_REACHED:
             with self.subTest(key=key):
                 self.assertGreater(len(reason.split()), 8)
+
+
+class BranchRuleVocabularyIsWalked(unittest.TestCase):
+    def test_every_status_one_return_names_a_declared_rule(self):
+        tree = ast.parse(inspect.getsource(scope.grade_record))
+        calls = [
+            node for node in ast.walk(tree)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "graded"
+            and node.args
+            and isinstance(node.args[0], ast.Constant)
+            and node.args[0].value == 1
+        ]
+        self.assertTrue(calls)
+        for call in calls:
+            with self.subTest(line=call.lineno):
+                self.assertGreaterEqual(len(call.args), 3)
+                rule = call.args[2]
+                self.assertTrue(
+                    (isinstance(rule, ast.Constant) and rule.value in scope.BRANCH_RULES)
+                    or (isinstance(rule, ast.Name) and rule.id == "rule")
+                )
 
 
 if __name__ == "__main__":

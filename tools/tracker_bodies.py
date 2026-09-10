@@ -120,6 +120,13 @@ import sys
 from pathlib import Path
 from typing import NamedTuple, Sequence
 
+from tracker_records import (
+    EVENT_RECORD_KEYS,
+    TrackerRecord,
+    from_actions_event,
+    from_command,
+)
+
 from console_codec import use_utf8
 
 CLEAN = 0
@@ -529,6 +536,155 @@ def _has_cp1252_mojibake(text: str) -> bool:
     return False
 
 
+HTML_BLOCK_TAG = re.compile(
+    r"</?(?:address|article|aside|base|basefont|blockquote|body|caption|center|"
+    r"col|colgroup|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|"
+    r"footer|form|frame|frameset|h[1-6]|head|header|hr|html|iframe|legend|li|"
+    r"link|main|menu|menuitem|nav|noframes|ol|optgroup|option|p|param|search|"
+    r"section|summary|table|tbody|td|tfoot|th|thead|title|tr|track|ul)"
+    r"(?:[ \t]|/?>|$)", re.IGNORECASE,
+)
+
+
+class HtmlBlock(NamedTuple):
+    end_kind: str
+    end_value: str
+    container: str = "top"
+    indent: int = 0
+
+
+def html_block_opening(visible: str, *, container: str = "top", indent: int = 0) -> HtmlBlock | None:
+    if re.match(r"<(?:script|pre|style|textarea)(?:[ \t]|>|$)", visible, re.I):
+        return HtmlBlock("tag", "", container, indent)
+    for prefix, ending in {"<!--": "-->", "<?": "?>", "<![CDATA[": "]]>",}.items():
+        if visible.startswith(prefix):
+            return HtmlBlock("marker", ending, container, indent)
+    if re.match(r"<![A-Z]", visible):
+        return HtmlBlock("marker", ">", container, indent)
+    if HTML_BLOCK_TAG.match(visible):
+        return HtmlBlock("blank", "", container, indent)
+    return None
+
+
+def html_block_closes(block: HtmlBlock, content: str) -> bool:
+    if block.end_kind == "marker":
+        return block.end_value in content
+    if block.end_kind == "tag":
+        return bool(re.search(r"</(?:pre|script|style|textarea)>", content, re.I))
+    return not content.strip()
+
+
+def html_block_continuation(line: str, block: HtmlBlock) -> str | None:
+    if block.container == "top":
+        return line.lstrip(" ")
+    if block.container == "quote":
+        match = QUOTE_PREFIX.match(line)
+        return None if match is None else line[match.end():]
+    if not line.strip():
+        return ""
+    indentation = len(line) - len(line.lstrip(" "))
+    if not line.startswith("\t") and indentation < block.indent:
+        return None
+    return line[block.indent:]
+
+
+def starts_html_block(visible: str) -> bool:
+    return html_block_opening(visible) is not None
+
+
+def starts_markdown_block(line: str) -> bool:
+    visible = line.lstrip(" ")
+    return bool(
+        QUOTE_PREFIX.match(line) or LIST_PREFIX.match(line)
+        or re.match(r"#{1,6}(?:[ \t]+|$)", visible)
+        or re.fullmatch(r"(?:\*[ \t]*){3,}", visible)
+        or re.fullmatch(r"(?:-[ \t]*){3,}", visible)
+        or re.fullmatch(r"(?:_[ \t]*){3,}", visible)
+        or starts_html_block(visible)
+    )
+
+
+def starts_markdown_paragraph(content: str) -> bool:
+    return bool(content.strip()) and not starts_markdown_block(content)
+
+
+def ordinary_paragraph_prose(text: str) -> str:
+    """Return unfenced, unquoted, non-list Markdown paragraph lines."""
+    lines = []
+    list_indent: int | None = None
+    lazy_quote = lazy_list = False
+    html_block: HtmlBlock | None = None
+    for line in prose_outside_code(text, preserve_lines=True).splitlines():
+        if html_block is not None:
+            content = html_block_continuation(line, html_block)
+            if content is not None:
+                if html_block_closes(html_block, content):
+                    html_block = None
+                continue
+            html_block = None
+        if not line.strip():
+            lazy_quote = lazy_list = False
+            lines.append("")
+            continue
+        indentation = len(line) - len(line.lstrip(" "))
+        if list_indent is not None and (line.startswith("\t") or indentation >= list_indent):
+            content = line[list_indent:]
+            opening = html_block_opening(content, container="list", indent=list_indent)
+            if opening:
+                lazy_list = False
+                if not html_block_closes(opening, content):
+                    html_block = opening
+                continue
+            if lazy_list and starts_markdown_block(content):
+                lazy_list = False
+            continue
+        match = QUOTE_PREFIX.match(line)
+        if match:
+            content = line[match.end():]
+            opening = html_block_opening(content, container="quote")
+            if opening:
+                lazy_quote = False
+                if not html_block_closes(opening, content):
+                    html_block = opening
+            else:
+                lazy_quote = starts_markdown_paragraph(content)
+            lazy_list = False
+            list_indent = None
+            continue
+        if lazy_quote:
+            if not starts_markdown_block(line):
+                continue
+            lazy_quote = False
+        match = LIST_PREFIX.match(line)
+        if match:
+            list_indent = match.end()
+            content = line[list_indent:]
+            opening = html_block_opening(content, container="list", indent=list_indent)
+            if opening:
+                lazy_list = False
+                if not html_block_closes(opening, content):
+                    html_block = opening
+            else:
+                lazy_list = starts_markdown_paragraph(content)
+            lazy_quote = False
+            continue
+        if lazy_list:
+            if not starts_markdown_block(line):
+                continue
+            lazy_list = False
+            list_indent = None
+        if line.startswith("\t") or line.startswith("    "):
+            continue
+        visible = line.lstrip(" ")
+        opening = html_block_opening(visible)
+        if opening:
+            if not html_block_closes(opening, visible):
+                html_block = opening
+            continue
+        lines.append(visible)
+    return "\n".join(lines)
+
+
 class Record(NamedTuple):
     """One tracker record's body, with a label a reader can open."""
 
@@ -536,6 +692,7 @@ class Record(NamedTuple):
     label: str
     surface: str
     body: str | None
+    tracker: TrackerRecord | None = None
 
 
 class Finding(NamedTuple):
@@ -584,11 +741,31 @@ def records_from_github(data: object, source: str) -> list[Record]:
         if not isinstance(item, dict):
             continue
         body = item.get("body")
+        surface = _surface(item)
+        label = _label(item, source)
+        raw_labels = item.get("labels", [])
+        labels = tuple(
+            row.get("name") if isinstance(row, dict) else row
+            for row in raw_labels
+            if isinstance(row, (dict, str))
+        ) if isinstance(raw_labels, list) else ()
+        pull_request = surface == PULL or "/pull/" in label
+        if surface == COMMENT:
+            route = ("pr", "comment") if pull_request else ("issue", "comment")
+        else:
+            route = ("pr", "view") if pull_request else ("issue", "view")
         records.append(Record(
             harvest=source,
-            label=_label(item, source),
-            surface=_surface(item),
+            label=label,
+            surface=surface,
             body=body if isinstance(body, str) else None,
+            tracker=from_command(
+                body if isinstance(body, str) else "",
+                url=label,
+                number=item.get("number"),
+                labels=labels,
+                route=route,
+            ),
         ))
     return records
 
@@ -674,21 +851,13 @@ def load_harvest(paths: Sequence[Path]) -> list[Record]:
     return records
 
 
-EVENT_RECORD_KEYS = {
-    "issues": "issue",
-    "issue_comment": "comment",
-    "pull_request_target": "pull_request",
-    "pull_request_review": "review",
-    "pull_request_review_comment": "comment",
-}
-
-
 def records_from_github_event(
     data: object, event_name: str, source: str
 ) -> list[Record]:
     """The body created or edited by one GitHub tracker event."""
     if not isinstance(data, dict):
         raise HarvestError(f"{source}: not a JSON object")
+    typed = from_actions_event(data, event_name)
     key = EVENT_RECORD_KEYS.get(event_name)
     if key is None:
         raise HarvestError(f"{source}: unsupported GitHub event {event_name!r}")
@@ -712,7 +881,7 @@ def records_from_github_event(
 
     if event_name == "pull_request_target":
         item["pull_request"] = {}
-    return records_from_github(item, source)
+    return [row._replace(tracker=typed) for row in records_from_github(item, source)]
 
 
 def load_github_event(path: Path, event_name: str) -> list[Record]:

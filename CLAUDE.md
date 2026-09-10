@@ -1134,6 +1134,13 @@ as a current property of the tracker, and no edit to a sentence fails.
 
 Covered by `tools/test_tracker_scan.py`, which builds synthetic harvest files and throwaway checkouts in a temp directory on `test_skills_mirror.py`'s arrangement. **The real tracker is deliberately not a fixture** — it is fetched over the network and changes every time anybody comments, and #212 carries three sweeps whose surface figures disagree with each other for exactly that reason. A test keyed on it would be measuring the day it ran, so no count of issues, pull requests or blobs is asserted anywhere in it.
 
+### Tracker records
+
+`tools/tracker_records.py` owns the six-value `TrackerRecord` and the adapters
+for GitHub Actions events, parsed `gh` publications, and GraphQL readback.
+Container and surface remain separate axes; consumers add their private
+provenance fields around this record rather than rebuilding webhook envelopes.
+
 ### Tracker branch scope
 
 `tools/tracker_branch_scope.py` reads one GitHub event record and the checked-out

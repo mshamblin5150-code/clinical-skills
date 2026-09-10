@@ -666,6 +666,89 @@ class UnreadableTrackerTextIsClassified(unittest.TestCase):
 
 
 class PublishedFieldsAreGradedWithoutEchoingThem(unittest.TestCase):
+    def test_the_redaction_walk_covers_each_previously_silent_aperture(self) -> None:
+        marker = "salted-redaction-marker-834"
+        fixtures = {
+            "phi:corpus-name": (marker, phi_scan.build_index({marker}, set()), None, None),
+            "phi:corpus-date": (marker + " 09/09/2026", phi_scan.build_index(set(), {"09/09/2026"}), None, None),
+            "phi:dob-with-date": (marker + " DOB: 01/02/2000", None, None, None),
+            "phi:mrn-with-digits": (marker + " MRN: 12345", None, None, None),
+            "phi:ssn": (marker + " 123-45-6789", None, None, None),
+            "phi:phone": (marker + " 555-555-1212", None, None, None),
+            "phi:us-short-date": (marker + " 1/2/2026", None, None, None),
+            "body:c0-control-character": (marker + "\bdamaged", None, None, None),
+            "body:carriage-return-flanked": marker + "\rflanked",
+            "body:literal-newline-escape": marker + r"\nliteral",
+            "body:doubled-path-separator": marker + r" C:\\folder",
+            "verdict:missing-discriminator": marker + "\n**Verdict:** HOLDS",
+            "branch:repo-relative-link": (marker + " [x](docs/x.md)", None, None, None),
+            "branch:near-miss": (marker + " https://github.com/example/repo/blob/main/docs/adr/0083-not-the-real-slug.md", None, None, None),
+            "branch:unresolved-path": (marker + " https://github.com/example/repo/blob/main/docs/adr/9999-not-on-main.md", None, None, None),
+            "branch:self-declares-completion": ("Built on a branch. " + marker, None, None, None),
+            "branch:in-flight": (marker + " ordinary", None, {"number": 834, "labels": ["in flight"]}, None),
+            "branch:blockquote-missing": (
+                "**Branch state:** `ticket-834` at `" + "a" * 40 + "` is not on `main` as of `2026-09-09`.\n" + marker,
+                None, {"number": 834, "labels": ["in flight"]}, None,
+            ),
+            "branch:ancestry-refused": (
+                "> **Branch state:** this text rests on `main` at `" + "a" * 40 + "` as of `2026-09-09`.\n" + marker,
+                None, {"number": 834, "labels": ["in flight"]}, False,
+            ),
+        }
+        fixtures = {
+            kind: value if isinstance(value, tuple) else (value, None, None, None)
+            for kind, value in fixtures.items()
+        }
+        triggered = set()
+        for kind, (body, custom_index, issue, ancestry) in fixtures.items():
+            with self.subTest(kind=kind):
+                ancestry_patch = (
+                    mock.patch.object(hook.tracker_branch_scope, "_main_ancestry", return_value=ancestry)
+                    if ancestry is not None else contextlib.nullcontext()
+                )
+                with ancestry_patch:
+                    result = hook.analyze(
+                        hook.Publication("body", body),
+                        index=custom_index or phi_scan.build_index(set(), set()),
+                        issue=issue,
+                        remote_fresh=True,
+                    )
+                rules = [finding.rule for finding in result.findings]
+                self.assertIn(kind, rules)
+                self.assertNotIn(marker, result.report)
+                if kind in rules:
+                    triggered.add(kind)
+        report = hook.redaction_walk_report(triggered)
+        print(report)
+        self.assertEqual(set(fixtures), set(hook.REDACTION_WALK_KINDS))
+        self.assertEqual(
+            report,
+            f"tracker redaction walk: {len(fixtures)}/{len(fixtures)} kinds triggered; unread: none",
+        )
+
+    def test_branch_posture_reads_the_typed_verdict_not_report_prose(self) -> None:
+        typed = hook.tracker_branch_scope.Result(
+            1,
+            "display text with no machine-readable phrase",
+            hook.tracker_branch_scope.Verdict(
+                "branch:ancestry-refused", True, True
+            ),
+        )
+        with mock.patch.object(
+            hook.tracker_branch_scope, "grade_record", return_value=typed
+        ):
+            result = hook.analyze(
+                hook.Publication("body", "ordinary text"),
+                index=phi_scan.build_index(set(), set()),
+                issue={"number": 834, "labels": ["in flight"]},
+                remote_fresh=True,
+            )
+
+        self.assertIn(
+            ("branch:ancestry-refused", "deny"),
+            [(row.rule, row.posture) for row in result.findings],
+        )
+
     def test_a_verdict_without_a_discriminator_clause_is_advisory(self) -> None:
         result = hook.analyze(
             hook.Publication("body", "**Verdict:** HOLDS"),
@@ -1078,6 +1161,22 @@ class PublishedFieldsAreGradedWithoutEchoingThem(unittest.TestCase):
             [],
         )
         self.assertIn("title path triggers", result.report)
+
+    def test_title_record_keeps_graphql_identity_and_issue_container(self) -> None:
+        context = hook.TrackerRecord(
+            "old", "https://github.com/example/repo/issues/834", 834,
+            ("in flight",), "issue", "body",
+        )
+
+        publication = hook.with_tracker_record(
+            hook.Publication("title", "new"),
+            route=("issue", "edit"),
+            context=context,
+        )
+
+        self.assertEqual(publication.record.url, context.url)
+        self.assertEqual(publication.record.container, "issue")
+        self.assertEqual(publication.record.surface, "title")
 
     def test_a_failed_fetch_declares_unverified_positive_scope(self) -> None:
         body = (
