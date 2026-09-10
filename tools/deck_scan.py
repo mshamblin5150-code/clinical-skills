@@ -29,7 +29,7 @@ P = "{http://schemas.openxmlformats.org/presentationml/2006/main}"
 FIELD = re.compile(r"(?mi)^(?P<name>[A-Z][A-Z-]+)\s*:\s*(?P<value>[^\n]+?)\s*$")
 SLIDE_PART = re.compile(r"^ppt/slides/slide(?P<number>[1-9]\d*)\.xml$")
 NOTES_PART = re.compile(r"^ppt/notesSlides/notesSlide(?P<number>[1-9]\d*)\.xml$")
-WORD = re.compile(r"(?:\$?\d[\d,.]*|[A-Za-z]+(?:[-'][A-Za-z]+)*)")
+WORD = re.compile(r"(?:\$?\d[\d,.]*|[A-Za-z]+(?:[-'\u2019][A-Za-z]+)*)")
 COST = re.compile(
     r"(?<![\w$])\$\s*(?P<amount>(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d{2})?)(?![\d,])"
 )
