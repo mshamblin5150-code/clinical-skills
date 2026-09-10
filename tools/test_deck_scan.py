@@ -73,6 +73,12 @@ RECENCY-WINDOW-YEARS: 2
 """
 
 
+class TheDeckWordCounterTreatsApostropheFormsAlike(unittest.TestCase):
+    def test_ascii_and_typographic_apostrophes_have_the_same_word_count(self):
+        self.assertEqual(3, len(scan.WORD.findall("the mayor's plan")))
+        self.assertEqual(3, len(scan.WORD.findall("the mayor’s plan")))
+
+
 class Run:
     def __init__(self, root: Path):
         self.root = root
