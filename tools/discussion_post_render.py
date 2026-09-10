@@ -23,13 +23,13 @@ from pathlib import Path
 
 from console_codec import use_utf8
 import office_process
+import page_image
+import pdf_engine
 import render_pass
-from discussion_artifact import (
-    AUTOMATED_RENDERED_SOURCES,
-    RENDERED_RASTER_DPI as RASTER_DPI,
-)
+from discussion_artifact import AUTOMATED_RENDERED_SOURCES
 
 
+RASTER_DPI = page_image.RASTER_DPI
 EXPORT_TIMEOUT_SECONDS = 20
 
 
@@ -86,7 +86,6 @@ def _word_attempt(
 
 
 def _pages_from_exports(
-    pymupdf,
     docx: Path,
     conversion_directory: Path,
     staging: Path,
@@ -114,37 +113,30 @@ def _pages_from_exports(
             converted = supplied_export
             if converted is None:
                 route_source, converted = _word_attempt(docx, conversion_directory, mode)
-            with pymupdf.open(str(converted)) as document:
-                route_pages = len(document)
-                if route_pages < 1:
-                    raise RenderError(f"{route_source} export contains no pages")
-                if pages is not None and route_pages != pages:
-                    raise RenderError(
-                        f"{route_source} reports {route_pages} pages after the earlier "
-                        f"route reported {pages}"
-                    )
-                pages = route_pages
-                if expected_pages is not None and route_pages != expected_pages:
-                    raise RenderError(
-                        f"{route_source} reports {route_pages} pages, not "
-                        f"--expected-pages {expected_pages}"
-                    )
-                missed: list[int] = []
-                for number, page in enumerate(document, start=1):
-                    target = staging / f"page-{number}.png"
-                    partial = staging / f".page-{number}.{mode}.building.png"
-                    try:
-                        page.get_pixmap(dpi=RASTER_DPI).save(partial)
-                        partial.replace(target)
-                    except Exception:
-                        partial.unlink(missing_ok=True)
-                        missed.append(number)
-                if not missed:
-                    return route_source, pages, converted, tuple(failures)
-                failures.append(
-                    f"{route_source} could not rasterize page(s) "
-                    + ", ".join(str(number) for number in missed)
+            route_pages = page_image.export_page_count(converted)
+            if pages is not None and route_pages != pages:
+                raise RenderError(
+                    f"{route_source} reports {route_pages} pages after the earlier "
+                    f"route reported {pages}"
                 )
+            pages = route_pages
+            if expected_pages is not None and route_pages != expected_pages:
+                raise RenderError(
+                    f"{route_source} reports {route_pages} pages, not "
+                    f"--expected-pages {expected_pages}"
+                )
+            page_image.rasterize(converted, staging, name="page")
+            return route_source, pages, converted, tuple(failures)
+        except pdf_engine.EngineUnavailable:
+            raise
+        except pdf_engine.SourceUnreadable as failure:
+            message = str(failure)
+            if message == page_image.EMPTY_EXPORT:
+                failures.append(f"{route_source} export contains no pages")
+            elif message.startswith("could not rasterize page(s)"):
+                failures.append(f"{route_source} {message}")
+            else:
+                failures.append(f"could not read the {route_source} export: {message}")
         except RenderError as failure:
             failures.append(str(failure))
         except Exception as failure:
@@ -162,10 +154,8 @@ def render(
         raise RenderError(f"no run directory at {run}")
     if not docx.is_file():
         raise RenderError(f"no rendered document at {docx}")
-    try:
-        import pymupdf
-    except ImportError as failure:
-        raise RenderError("pymupdf is not installed") from failure
+    if pdf_engine.engine_version() is None:
+        raise RenderError("pymupdf is not installed")
 
     if expected_pages is not None and expected_pages < 1:
         raise RenderError("--expected-pages must be a positive integer")
@@ -179,7 +169,6 @@ def render(
     def build(staging: Path) -> tuple[str, int]:
         with tempfile.TemporaryDirectory() as conversion_directory:
             source, pages, retained_export, failures = _pages_from_exports(
-                pymupdf,
                 docx.resolve(),
                 Path(conversion_directory),
                 staging,

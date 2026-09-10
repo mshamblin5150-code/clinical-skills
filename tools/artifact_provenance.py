@@ -50,6 +50,8 @@ CACHE_IDENTITY = {
     ),
     "extraction": (
         "tools/guidelines_extract.py",
+        "tools/page_text.py",
+        "tools/pdf_engine.py",
         "tools/guidelines_manifest.py",
         "tools/artifact_provenance.py",
     ),
@@ -62,6 +64,8 @@ CACHE_IDENTITY = {
     "recs": (
         "tools/guidelines_recs.py",
         "tools/guidelines_extract.py",
+        "tools/page_text.py",
+        "tools/pdf_engine.py",
         "tools/artifact_provenance.py",
         "reference/guidelines-uspstf.md",
     ),
@@ -70,6 +74,8 @@ CACHE_IDENTITY = {
 TRUST_FLOOR = {
     "extraction": (
         "tools/guidelines_extract.py",
+        "tools/page_text.py",
+        "tools/pdf_engine.py",
         "tools/guidelines_manifest.py",
     ),
     "index": (
@@ -79,6 +85,8 @@ TRUST_FLOOR = {
     "recs": (
         "tools/guidelines_recs.py",
         "tools/guidelines_extract.py",
+        "tools/page_text.py",
+        "tools/pdf_engine.py",
         "reference/guidelines-uspstf.md",
     ),
 }

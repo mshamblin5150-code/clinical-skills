@@ -152,6 +152,8 @@ from pathlib import Path
 
 import artifact_provenance
 import guidelines_extract
+import page_text
+import pdf_engine
 from console_codec import use_utf8
 from repo_root import InsideCheckout, ensure_outside_checkout
 
@@ -571,18 +573,28 @@ CURATED_TABLE = REPO_ROOT / "reference" / "guidelines-uspstf.md"
 # This is deliberately not a defaulting lookup: a legacy or foreign limb names no
 # floor the clinician chose and is therefore untrusted. ADR 0030 ruling 2.
 RECORD_TRUST_FLOOR = {
-    SOURCE_RULED_TABLE: ("tools/guidelines_recs.py",),
+    SOURCE_RULED_TABLE: (
+        "tools/guidelines_recs.py",
+        "tools/page_text.py",
+        "tools/pdf_engine.py",
+    ),
     SOURCE_CURATED_TABLE: (
         "tools/guidelines_recs.py",
+        "tools/page_text.py",
+        "tools/pdf_engine.py",
         "reference/guidelines-uspstf.md",
     ),
     SOURCE_TEXT_MARKER: (
         "tools/guidelines_recs.py",
         "tools/guidelines_extract.py",
+        "tools/page_text.py",
+        "tools/pdf_engine.py",
     ),
     SOURCE_NOTHING_FOUND: (
         "tools/guidelines_recs.py",
         "tools/guidelines_extract.py",
+        "tools/page_text.py",
+        "tools/pdf_engine.py",
         "reference/guidelines-uspstf.md",
     ),
 }
@@ -999,10 +1011,7 @@ def changelog_shape_census(records: list[Recommendation]) -> int:
 
 def rebuilt_page_text(page) -> str:
     """Read one page through the extraction pipeline's spacing and operator repair."""
-
-    raw = page.get_text("rawdict")
-    operators = guidelines_extract.rendered_operator_map_for_page(page, raw)
-    return guidelines_extract.rebuild_text(raw, operators)
+    return guidelines_extract.repaired_text(page)
 
 
 @dataclass(frozen=True)
@@ -1272,37 +1281,41 @@ def extract(
     well would add the same recommendation a second time from its own cross
     references and turn an exact count into a bound for no gain.
     """
-    import pymupdf  # imported here so everything above stays importable without it
-
     curated = curated_rows_for(path.name)
-    document = pymupdf.open(str(path))
     table_hits: list[Recommendation] = []
     try:
-        if curated:
-            pages = [page.get_text("text") for page in document]
-            return (
-                curated_recommendations(curated, doc_id, pages),
-                MODE_EXACT,
-                SOURCE_CURATED_TABLE,
-            )
-        # Table documents stop here. Reconstruction costs substantially more than a
-        # plain read, so marker pages are read in a second pass only when no ruled
-        # table answered the document. #446 permits this cheaper three-limb shape.
-        for index, page in enumerate(document, start=1):
-            try:
-                tables = [table.extract() for table in page.find_tables().tables]
-            except Exception:  # noqa: BLE001 - a page whose tables will not parse is not a failed document
-                tables = []
-            table_hits.extend(read_table_recommendations(index, tables, doc_id))
-        if table_hits:
-            return table_hits, MODE_EXACT, SOURCE_RULED_TABLE
+        with page_text.open_document(path) as document:
+            if curated:
+                pages = [page.plain_text() for page in document.pages()]
+                return (
+                    curated_recommendations(curated, doc_id, pages),
+                    MODE_EXACT,
+                    SOURCE_CURATED_TABLE,
+                )
+            # Table documents stop here. Reconstruction costs substantially more than a
+            # plain read, so marker pages are read in a second pass only when no ruled
+            # table answered the document. #446 permits this cheaper three-limb shape.
+            for page in document.pages():
+                try:
+                    tables = page.tables()
+                except Exception:  # noqa: BLE001 - a page whose tables will not parse is not a failed document
+                    tables = []
+                table_hits.extend(
+                    read_table_recommendations(page.number, tables, doc_id)
+                )
+            if table_hits:
+                return table_hits, MODE_EXACT, SOURCE_RULED_TABLE
 
-        marker_hits: list[Recommendation] = []
-        for index, page in enumerate(document, start=1):
-            marker_hits.extend(read_marker_recommendations(index, marker_reader(page), doc_id))
-        return marker_hits, MODE_BOUND, SOURCE_TEXT_MARKER
-    finally:
-        document.close()
+            marker_hits: list[Recommendation] = []
+            for page in document.pages():
+                marker_hits.extend(
+                    read_marker_recommendations(
+                        page.number, marker_reader(page), doc_id
+                    )
+                )
+            return marker_hits, MODE_BOUND, SOURCE_TEXT_MARKER
+    except (pdf_engine.EngineUnavailable, pdf_engine.SourceUnreadable) as failure:
+        raise DidNotScan(str(failure)) from failure
 
 
 def _record_payload(
@@ -1404,7 +1417,7 @@ def compare_marker_readers(path: Path, doc_id: str) -> tuple[int, int, int]:
     raw, _, raw_source = extract(
         path,
         doc_id,
-        marker_reader=lambda page: page.get_text("text"),
+        marker_reader=lambda page: page.plain_text(),
     )
     if raw_source != SOURCE_TEXT_MARKER:
         return len(raw), len(repaired), 0

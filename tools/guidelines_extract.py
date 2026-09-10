@@ -296,6 +296,8 @@ import artifact_provenance
 import collections
 import json
 import os
+import page_text
+import pdf_engine
 import re
 import statistics
 import sys
@@ -564,7 +566,7 @@ SYMBOL_FONT_OPERATORS = {
 
 OPERATOR_INK_CUTOFF = 245
 OPERATOR_ORIENTATION_MARGIN = 0.03
-OPERATOR_RENDER_SCALE = 12.0
+OPERATOR_RENDER_SCALE = page_text.OPERATOR_RENDER_SCALE
 MATHEMATICAL_PI_OPERATOR_SLOTS = {"\u0002", "\u0003", ":"}
 RenderedOperatorKey = tuple[str, tuple]
 
@@ -1573,20 +1575,10 @@ def rebuild_text(
     return "\n".join(lines)
 
 
-def rendered_operator_map_for_page(page, raw: dict) -> dict[RenderedOperatorKey, str]:
-    """Classify rendered operator glyphs for one already-open PyMuPDF page."""
-    import pymupdf
-
-    def render_glyph(bbox):
-        pixmap = page.get_pixmap(
-            matrix=pymupdf.Matrix(OPERATOR_RENDER_SCALE, OPERATOR_RENDER_SCALE),
-            clip=pymupdf.Rect(bbox),
-            colorspace=pymupdf.csGRAY,
-            alpha=False,
-        )
-        return bytes(pixmap.samples), pixmap.width, pixmap.height
-
-    return rendered_operator_map(raw, render_glyph)
+def repaired_text(page) -> str:
+    """Rebuild one duck-typed page with rendered operator repair."""
+    raw = page.rawdict
+    return rebuild_text(raw, rendered_operator_map(raw, page.render_glyph))
 
 
 def extract_pages(
@@ -1608,34 +1600,26 @@ def extract_pages(
     junk-detection heuristic here would put an unreviewable rule between the PDF
     and the record; curating them is the catalog's job (#81).
     """
-    import pymupdf  # imported here so the pure functions above stay importable without it
-
-    document = pymupdf.open(str(path))
     pages: list[str] = []
     symbol_glyphs: dict[str, int] = {}
     import split_census
 
     split_boundaries = split_census.empty_boundaries()
     quantity_split_shapes: collections.Counter[str] = collections.Counter()
-    for page in document:
-        try:
-            raw = page.get_text("rawdict")
-
-            rendered_operators = rendered_operator_map_for_page(page, raw)
-            pages.append(rebuild_text(raw, rendered_operators))
-            split_result = split_census.census_rawdict(raw, rendered_operators)
-            split_boundaries.update(split_result.boundaries)
-            quantity_split_shapes.update(split_result.quantity_shapes)
-            for key, count in symbol_glyph_census(raw, rendered_operators).items():
-                symbol_glyphs[key] = symbol_glyphs.get(key, 0) + count
-        except Exception:  # noqa: BLE001 - any per-page failure degrades to an empty page
-            pages.append("")
-
-    try:
-        title = ((document.metadata or {}).get("title") or "").strip() or None
-    except Exception:  # noqa: BLE001 - a broken metadata dictionary is not a failed read
-        title = None
-    document.close()
+    with page_text.open_document(path) as document:
+        for page in document.pages():
+            try:
+                raw = page.rawdict
+                rendered_operators = rendered_operator_map(raw, page.render_glyph)
+                pages.append(rebuild_text(raw, rendered_operators))
+                split_result = split_census.census_rawdict(raw, rendered_operators)
+                split_boundaries.update(split_result.boundaries)
+                quantity_split_shapes.update(split_result.quantity_shapes)
+                for key, count in symbol_glyph_census(raw, rendered_operators).items():
+                    symbol_glyphs[key] = symbol_glyphs.get(key, 0) + count
+            except Exception:  # noqa: BLE001 - any per-page failure degrades to an empty page
+                pages.append("")
+        title = document.title
     return (
         pages,
         title,
@@ -1646,30 +1630,8 @@ def extract_pages(
 
 
 def _engine_version() -> str:
-    try:
-        import pymupdf
-
-        return f"pymupdf {pymupdf.__version__}"
-    except ImportError:
-        return "pymupdf (not installed)"
-
-
-def require_pymupdf() -> None:
-    """Fail once, up front, rather than once per document.
-
-    Every per-document failure is caught and recorded, which is what #80 asks for
-    -- so without this an uninstalled ``pymupdf`` reads as an unreadable corpus and a
-    manifest full of identical ImportErrors, next to a summary line cheerfully
-    reporting the engine as not installed.
-    """
-    try:
-        import pymupdf  # noqa: F401
-    except ImportError:
-        raise SystemExit(
-            "pymupdf is not installed. This is one of the tools in tools/ that is "
-            "not stdlib, because it reads a PDF:\n"
-            "    python -m pip install pymupdf"
-        ) from None
+    version = pdf_engine.engine_version()
+    return f"pymupdf {version}" if version is not None else "pymupdf (not installed)"
 
 
 def _extract_one(job: tuple[Path, Path, Path]) -> Record:
@@ -1830,7 +1792,8 @@ def build_parser() -> argparse.ArgumentParser:
 
 def _run(args: argparse.Namespace, source_root: Path, out_root: Path) -> int:
     """Extract one corpus while ``main`` owns its shared output lock."""
-    require_pymupdf()
+    if pdf_engine.engine_version() is None:
+        raise SystemExit(pdf_engine.LEGACY_REQUIRE_MESSAGE)
 
     pdfs = sorted(source_root.rglob("*.pdf"), key=lambda p: p.relative_to(source_root).as_posix())
     if not pdfs:

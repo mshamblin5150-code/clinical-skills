@@ -835,6 +835,21 @@ class TierTwoHoldsItsResolutionDeclaration(unittest.TestCase):
             result.findings,
         )
 
+    def test_a_missing_engine_keeps_the_legacy_tier_two_reason(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "Society" / "doc.pdf"
+            source.parent.mkdir()
+            source.touch()
+            with mock.patch.object(
+                gate.page_text,
+                "open_document",
+                side_effect=gate.pdf_engine.EngineUnavailable(),
+            ):
+                result = gate.gate_citation_tier2(self.parsed(), root)
+
+        self.assertEqual(result.skip_reason, "pymupdf is not installed")
+
     def test_a_resolution_mention_outside_scope_cannot_satisfy_the_hold(self):
         text = HEADER.replace(
             f"citations resolved against {TEST_PDF_ROOT} on 2026-08-16\n",
@@ -4472,6 +4487,8 @@ class TheHookGradesSheetsAndNotTheDirectoryReadme(unittest.TestCase):
                 "guidelines_currency.py",
                 "guidelines_manifest.py",
                 "guidelines_recs.py",
+                "page_text.py",
+                "pdf_engine.py",
                 "console_codec.py",
                 "repo_root.py",
             ):
