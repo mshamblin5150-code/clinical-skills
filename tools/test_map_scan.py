@@ -362,9 +362,11 @@ class DeclaredLimitsAreBound(unittest.TestCase):
         )
         self.assertIn("map_scan.DECLARED_LIMITS", map_scan.__doc__)
         self.assertIn("map_scan.DECLARED_LIMITS", prose)
-        limits = tuple(row.limit for row in map_scan.DECLARED_LIMITS)
-        self.assertEqual((), bind(limits, map_scan.__doc__, mode=NAMING))
-        self.assertEqual((), bind(limits, prose, mode=NAMING))
+        self.assertEqual((), bind(map_scan.DECLARED_LIMITS, map_scan.__doc__, mode=NAMING))
+        self.assertEqual((), bind(map_scan.DECLARED_LIMITS, prose, mode=NAMING))
+        row = map_scan.DECLARED_LIMITS[0]
+        self.assertTrue(bind(map_scan.DECLARED_LIMITS, f"See the object. {row.key}.", mode=NAMING))
+        self.assertTrue(bind(map_scan.DECLARED_LIMITS, f"See the object. {row.limit}", mode=NAMING))
 
 
 if __name__ == "__main__":

@@ -194,12 +194,17 @@ def parse_registry(text: str) -> tuple[list[Entry], list[str]]:
     problems: list[str] = []
     if SCHEMA_MARKER not in text:
         problems.append(f"coverage registry has no {SCHEMA_MARKER} marker")
-    identity = RULE_IDENTITY_PATTERN.search(text)
-    if identity is None:
+    identities = list(RULE_IDENTITY_PATTERN.finditer(text))
+    if not identities:
         problems.append("coverage registry has no prose-bind rule identity")
-    elif f"{SCHEMA_MARKER}\n{identity.group(0)}" not in text:
+    elif len(identities) != 1:
+        problems.append(
+            "prose-bind rule identity has structural drift: duplicate markers; "
+            "recompute the digests"
+        )
+    elif f"{SCHEMA_MARKER}\n{identities[0].group(0)}" not in text:
         problems.append("prose-bind rule identity is not beside the schema marker")
-    elif identity.group(0) != rule_identity_marker():
+    elif identities[0].group(0) != rule_identity_marker():
         problems.append(
             "prose-bind rule identity has structural drift; recompute the digests"
         )

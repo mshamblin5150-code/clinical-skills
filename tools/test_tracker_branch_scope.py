@@ -668,8 +668,10 @@ class DeclaredLimitsHaveOneOwner(unittest.TestCase):
         text = self.DOC.read_text(encoding="utf-8")
 
         self.assertIn("tracker_branch_scope.NOT_REACHED", text)
-        keys = tuple(key for key, _reason in scope.NOT_REACHED)
-        self.assertEqual((), bind(keys, text, mode=NAMING))
+        self.assertEqual((), bind(scope.NOT_REACHED, text, mode=NAMING))
+        key, reason = scope.NOT_REACHED[0]
+        self.assertTrue(bind(scope.NOT_REACHED, f"See the object. {key}.", mode=NAMING))
+        self.assertTrue(bind(scope.NOT_REACHED, f"See the object. {reason}", mode=NAMING))
 
     def test_the_module_points_back_at_the_document(self):
         self.assertIn("docs/agents/issue-tracker.md", scope.__doc__)

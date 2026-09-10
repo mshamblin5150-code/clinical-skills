@@ -280,6 +280,19 @@ class Apa7CoverageCli(unittest.TestCase):
         self.assertIn("read-to-root   0", result.stdout)
         self.assertIn("never-checked  344", result.stdout)
 
+    def test_duplicate_rule_identity_is_structural_drift(self):
+        coverage = registry()
+        coverage += (
+            "\n<!-- rule-identity: tools/prose_bind.py sha256="
+            f"{'0' * 64} -->\n"
+        )
+
+        _entries, problems = apa7_coverage.parse_registry(coverage)
+
+        self.assertEqual(len(problems), 1)
+        self.assertIn("structural drift: duplicate markers", problems[0])
+        self.assertIn("recompute the digests", problems[0])
+
     def test_pre_commit_runs_the_bind_when_either_side_is_staged(self):
         hook = (ROOT / "tools" / "hooks" / "pre-commit").read_text(encoding="utf-8")
 

@@ -1411,9 +1411,11 @@ class TheInTreeToolDeclaresItsBoundary(unittest.TestCase):
         for row in imap.DECLARED_LIMITS:
             self.assertTrue(row.key)
             self.assertTrue(row.limit)
-        limits = tuple(row.limit for row in imap.DECLARED_LIMITS)
-        self.assertEqual((), bind(limits, imap.__doc__, mode=NAMING))
-        self.assertEqual((), bind(limits, prose, mode=NAMING))
+        self.assertEqual((), bind(imap.DECLARED_LIMITS, imap.__doc__, mode=NAMING))
+        self.assertEqual((), bind(imap.DECLARED_LIMITS, prose, mode=NAMING))
+        row = imap.DECLARED_LIMITS[0]
+        self.assertTrue(bind(imap.DECLARED_LIMITS, f"See the object. {row.key}.", mode=NAMING))
+        self.assertTrue(bind(imap.DECLARED_LIMITS, f"See the object. {row.limit}", mode=NAMING))
 
     def test_the_ratified_command_split_stays_public(self):
         parser = imap.build_parser()
