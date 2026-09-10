@@ -17,6 +17,7 @@ Agent-agnostic skills for a nurse practitioner student's written work — clinic
 | discussion-reply | [skills/discussion-reply/SKILL.md](skills/discussion-reply/SKILL.md) | One live LMS discussion topic needs ranking, evidence-backed classmate replies, and explicit approval before each post |
 | course-assignment | [skills/course-assignment/SKILL.md](skills/course-assignment/SKILL.md) | A live course assignment declares its own artifact form; currently the supported artifact is a graded PowerPoint deck |
 | aar | [skills/aar/SKILL.md](skills/aar/SKILL.md) | A scoped clinical skill has reached a submission and its mandatory after-action review must classify and land observed corrections |
+| peer-critique | [skills/peer-critique/SKILL.md](skills/peer-critique/SKILL.md) | A classmate's case study needs the graded eight-heading peer clinical critique written against it |
 
 <!-- Additional skills are appended here as they are written. -->
 

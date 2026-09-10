@@ -50,6 +50,7 @@ SCOPED_SKILLS = frozenset(
         "discussion-post",
         "discussion-reply",
         "icd10-cpt",
+        "peer-critique",
         "practicum-case-study",
     }
 )

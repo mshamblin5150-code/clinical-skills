@@ -31,8 +31,9 @@ instruction needs a written rule behind it, or *"fix the reference list"* is a w
 check. **Ruled 2026-08-18**, and the words that settled it were the clinician's: *ordering the
 differential is very important, but that shouldn't take the place of tidiness.*
 
-**Readers:** the `practicum-case-study` and `discussion-post` skills. The former links this sheet
-directly; the latter links it from its own workflow because the reference scanner is shared.
+**Readers:** the `practicum-case-study`, `discussion-post` and `peer-critique` skills. The first
+links this sheet directly; the others link it from their own workflows because the reference scanner
+is shared.
 
 ---
 
