@@ -96,10 +96,10 @@ What a pair is, and what it is not
 ----------------------------------
 
 ``pairs`` is a **mechanical floor**: a matched user message and the nearest
-assistant message with text below it. Whether that reply is a *rewrite of the same
-content* is a reading, and #388 measured the gap -- most records carrying both
-halves are the model answering a question, ghost-writing, or imitating a voice it
-had been trained on. That last is
+assistant message with text below it. A reader still decides whether the assistant
+actually mirrors the user's material; #388 measured the gap -- most records carrying
+both halves are the model answering a question, ghost-writing, or imitating a voice
+it had been trained on. That last is
 ``voice.md`` §5's own warning: a pair whose generic half is the build's imitation
 is the build grading itself. **So the command prints the qualification on every
 run rather than only when it fires**, and the hop distribution prints beside it so

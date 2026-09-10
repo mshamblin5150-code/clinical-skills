@@ -39,6 +39,7 @@ from pathlib import Path
 from unittest import mock
 
 import case_study_scan as scan
+from prose_bind import ENUMERATION, bind
 import coursework_run
 from grader_conformance import for_module
 
@@ -928,6 +929,7 @@ class TheSkillSaysWhatThisCannotDo(unittest.TestCase):
         for item in scan.NOT_REACHED:
             with self.subTest(item=item):
                 self.assertIn(re.sub(r"\s+", " ", item), self.flat)
+        self.assertEqual((), bind(scan.NOT_REACHED, self.step, mode=ENUMERATION))
 
     def test_the_step_names_no_others(self):
         """The other direction, so a row moved out of the tuple answers in a diff."""

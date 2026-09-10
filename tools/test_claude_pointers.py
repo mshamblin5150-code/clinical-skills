@@ -14,12 +14,11 @@ from __future__ import annotations
 import importlib
 import re
 import unittest
-from dataclasses import dataclass, fields, is_dataclass
-from enum import Enum
+from dataclasses import dataclass
 from pathlib import Path
 from typing import NamedTuple
 
-from prose_bind import SHINGLE, normalized
+from prose_bind import NAMING, UnreadObject, bind, copied_leaves, string_leaves
 from test_module_sections import SECTION
 
 
@@ -54,10 +53,6 @@ class PointerOccurrence(NamedTuple):
     section: str
 
 
-class UnreadObject(AssertionError):
-    pass
-
-
 def pointer_occurrences(text: str) -> tuple[PointerOccurrence, ...]:
     boundaries = list(SECTION.finditer(text))
     found = []
@@ -84,65 +79,6 @@ def pointer_occurrences(text: str) -> tuple[PointerOccurrence, ...]:
             )
         )
     return tuple(found)
-
-
-def string_leaves(value: object, seen: set[int] | None = None) -> tuple[str, ...]:
-    if isinstance(value, Enum):
-        return ()
-    if isinstance(value, str):
-        return (value,)
-    if value is None or isinstance(value, (int, float, complex, bytes, bool)):
-        return ()
-    visited = set() if seen is None else seen
-    identity = id(value)
-    if identity in visited:
-        return ()
-    visited.add(identity)
-    if is_dataclass(value) and not isinstance(value, type):
-        return tuple(
-            leaf
-            for field in fields(value)
-            for leaf in string_leaves(getattr(value, field.name), visited)
-        )
-    if isinstance(value, dict):
-        return tuple(
-            leaf
-            for item in value.items()
-            for part in item
-            for leaf in string_leaves(part, visited)
-        )
-    if isinstance(value, (tuple, list, set, frozenset)):
-        return tuple(leaf for item in value for leaf in string_leaves(item, visited))
-    return ()
-
-
-def shingles(text: str) -> set[str]:
-    words = normalized(text).split()
-    return {
-        " ".join(words[index:index + SHINGLE])
-        for index in range(len(words) - SHINGLE + 1)
-    }
-
-
-def copied_leaves(value: object, section: str) -> tuple[tuple[str, int], ...]:
-    leaves = string_leaves(value)
-    if not leaves:
-        raise UnreadObject("object yielded zero string leaves")
-    prose = normalized(section)
-    prose_shingles = shingles(prose)
-    copied = []
-    for leaf in leaves:
-        clean = normalized(leaf)
-        if not clean:
-            continue
-        words = clean.split()
-        if len(words) < SHINGLE:
-            occurrences = prose.count(clean)
-            if occurrences:
-                copied.append((leaf, occurrences))
-        elif shingles(clean) & prose_shingles:
-            copied.append((leaf, 1))
-    return tuple(copied)
 
 
 class EveryPointerResolves(unittest.TestCase):
@@ -188,7 +124,7 @@ class LimitsPointersCopyNoRow(unittest.TestCase):
             )
             value = getattr(module, pointer.constant)
             try:
-                copies = copied_leaves(value, pointer.section)
+                copies = bind(value, pointer.section, mode=NAMING)
             except UnreadObject as error:
                 findings.append(f"{pointer.module}.{pointer.constant}: unread: {error}")
                 continue

@@ -14,7 +14,7 @@ import artifact_lock_test_support  # noqa: F401
 
 import guidelines_extract as extract
 import split_census as census
-from prose_bind import ProseBind
+from prose_bind import NAMING, ProseBind, bind, section
 
 
 def rawline(text: str, split_at: set[int] = frozenset()) -> dict:
@@ -193,12 +193,17 @@ class RuleOwnershipTests(unittest.TestCase):
 
 class HistoricalClaimsBind(ProseBind, unittest.TestCase):
     def test_claude_points_at_the_declared_object_and_copies_no_row(self):
-        prose = (Path(__file__).resolve().parent.parent / "CLAUDE.md").read_text(
+        text = (Path(__file__).resolve().parent.parent / "CLAUDE.md").read_text(
             encoding="utf-8"
         )
+        prose = section(text, "### Guideline text extraction")
         self.assertIn("guidelines_extract.ORPHANED_FIGURES", prose)
-        for label, value, _reason in extract.ORPHANED_FIGURES:
-            self.assertProseNotIn((label, value), prose)
+        figures = tuple((label, value) for label, value, _reason in extract.ORPHANED_FIGURES)
+        self.assertEqual(
+            (("306", 1),),
+            bind(figures, prose, mode=NAMING),
+            "the section's 306 welded-running-head lines are a different true figure",
+        )
 
     def test_historical_shape_figures_bind_the_docstring_and_safety_claim(self):
         prose = (Path(__file__).resolve().parent.parent / "CLAUDE.md").read_text(

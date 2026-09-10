@@ -11,6 +11,8 @@ from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 
+import artifact_provenance
+import guidelines_build
 from console_codec import use_utf8
 from prose_bind import normalized
 
@@ -21,6 +23,9 @@ DEFAULT_COVERAGE = (
     REPO_ROOT / "skills" / "_shared" / "reference" / "apa7-coverage.md"
 )
 SCHEMA_MARKER = "<!-- schema: apa7-coverage/1 -->"
+RULE_IDENTITY_PATTERN = re.compile(
+    r"(?m)^<!-- rule-identity: tools/prose_bind\.py sha256=([0-9a-f]{64}) -->$"
+)
 STATES = ("read-root", "ruled-out", "never-checked")
 EMPTY = {"", "-", "—"}
 SUBSTANCE_WORD = re.compile(r"[0-9A-Za-z]+")
@@ -95,6 +100,10 @@ DECLARED_LIMITS = {
     "manual-site-agreement": (
         "The audit did not compare the manual with apastyle.apa.org for disagreement."
     ),
+    "normalization-rule-identity": (
+        "The recorded producer digest proves which prose-bind rule computed the "
+        "section digests; it does not prove that normalization is the right rule."
+    ),
 }
 
 
@@ -148,6 +157,18 @@ def section_digest(text: str) -> str:
     return hashlib.sha256(normalized(text).encode("utf-8")).hexdigest()
 
 
+def rule_identity_marker() -> str:
+    inputs = guidelines_build._code_inputs(
+        *artifact_provenance.CACHE_IDENTITY["apa7-coverage"]
+    )
+    if len(inputs) != 1 or inputs[0]["path"] != "tools/prose_bind.py":
+        raise ValueError("apa7-coverage rule identity must name tools/prose_bind.py once")
+    return (
+        "<!-- rule-identity: tools/prose_bind.py sha256="
+        f"{inputs[0]['sha256']} -->"
+    )
+
+
 def _numbers(cell: str) -> tuple[int, ...]:
     if cell.strip() in EMPTY:
         return ()
@@ -173,6 +194,15 @@ def parse_registry(text: str) -> tuple[list[Entry], list[str]]:
     problems: list[str] = []
     if SCHEMA_MARKER not in text:
         problems.append(f"coverage registry has no {SCHEMA_MARKER} marker")
+    identity = RULE_IDENTITY_PATTERN.search(text)
+    if identity is None:
+        problems.append("coverage registry has no prose-bind rule identity")
+    elif f"{SCHEMA_MARKER}\n{identity.group(0)}" not in text:
+        problems.append("prose-bind rule identity is not beside the schema marker")
+    elif identity.group(0) != rule_identity_marker():
+        problems.append(
+            "prose-bind rule identity has structural drift; recompute the digests"
+        )
     entries: list[Entry] = []
     in_table = False
     for number, line in enumerate(text.splitlines(), start=1):

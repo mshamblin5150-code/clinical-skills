@@ -15,6 +15,7 @@ from pathlib import Path
 
 import discussion_reply_scan as scan
 from grader_conformance import for_module, gate_conformance
+from prose_bind import NAMING, bind
 
 
 GraderConformance = for_module(scan)
@@ -872,11 +873,12 @@ class EveryDeclaredLimitHasOneCheckedInventory(unittest.TestCase):
         skill = DISCUSSION_REPLY_SKILL.read_text(encoding="utf-8")
 
         self.assertIn("discussion_reply_scan.NOT_REACHED", skill)
-        self.assertNotIn(
-            "discussion_reply_scan.UNMARKED_INVOKED_SOURCE_LIMIT",
-            DISCUSSION_REPLY_SKILL.read_text(encoding="utf-8"),
-        )
         self.assertIn("``NOT_REACHED``", scan.__doc__ or "")
+        for where, prose in {
+            "the skill": skill,
+            "the module docstring": scan.__doc__ or "",
+        }.items():
+            self.assertEqual((), bind(scan.NOT_REACHED, prose, mode=NAMING), where)
 
 
 class EveryBehaviorLimitHasALiveHandler(unittest.TestCase):

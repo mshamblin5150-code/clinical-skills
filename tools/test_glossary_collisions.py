@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Sequence
 
 import test_glossary_terms
+from prose_bind import NAMING, bind, section
 from test_glossary_terms import TERM_HEADING, glossary_definitions
 
 
@@ -224,14 +225,6 @@ def assert_candidate_population(
         raise AssertionError("\n".join(findings))
 
 
-def markdown_section(text: str, heading: str) -> str:
-    """Return one exact ``###`` section body, excluding the next peer heading."""
-    marker = f"### {heading}\n"
-    start = text.index(marker) + len(marker)
-    end = text.find("\n### ", start)
-    return text[start:] if end == -1 else text[start:end]
-
-
 class CandidatePopulationIsDerived(unittest.TestCase):
     def test_the_context_inventory_reports_its_denominator_and_unread_remainder(self) -> None:
         coverage = heading_coverage(CONTEXT.read_text(encoding="utf-8"))
@@ -345,18 +338,15 @@ class RuledCollisionClausesStayAtTheirAnchors(unittest.TestCase):
 
 class DeclaredObjectsHaveOneDocumentedOwner(unittest.TestCase):
     def test_claude_points_to_both_objects_and_copies_no_row(self) -> None:
-        section = markdown_section(
+        prose = section(
             CLAUDE.read_text(encoding="utf-8"),
-            "Glossary sense collisions",
+            "### Glossary sense collisions",
         )
-        self.assertIn("test_glossary_collisions.DECLARED_CANDIDATES", section)
-        self.assertIn("test_glossary_collisions.DECLARED_LIMITS", section)
-        for row in DECLARED_CANDIDATES:
-            with self.subTest(heading=row.heading):
-                self.assertNotIn(row.reason, section)
-        for limit in DECLARED_LIMITS:
-            with self.subTest(limit=limit[:30]):
-                self.assertNotIn(limit, section)
+        self.assertIn("test_glossary_collisions.DECLARED_CANDIDATES", prose)
+        self.assertIn("test_glossary_collisions.DECLARED_LIMITS", prose)
+        reasons = tuple(row.reason for row in DECLARED_CANDIDATES)
+        self.assertEqual((), bind(reasons, prose, mode=NAMING))
+        self.assertEqual((), bind(DECLARED_LIMITS, prose, mode=NAMING))
 
     def test_the_older_check_points_here_and_keeps_its_prose_hole_open(self) -> None:
         prose = test_glossary_terms.__doc__ or ""

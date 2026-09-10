@@ -12,6 +12,7 @@ from io import StringIO
 from pathlib import Path
 
 import tracker_freshness
+from prose_bind import NAMING, bind, section
 
 
 MODULE = Path(__file__).with_name("tracker_freshness.py")
@@ -263,14 +264,10 @@ class DocumentationRequiresBothCheckpoints(unittest.TestCase):
         }
         for relative, heading in sections.items():
             text = (REPO_ROOT / relative).read_text(encoding="utf-8")
-            start = text.index(heading)
-            end = text.find("\n### ", start + len(heading))
-            section = text[start:] if end == -1 else text[start:end]
+            prose = section(text, heading)
             with self.subTest(relative=relative):
-                self.assertIn("`tracker_freshness.NOT_REACHED`", section)
-                for row in tracker_freshness.NOT_REACHED:
-                    for cell in row:
-                        self.assertNotIn(cell, section)
+                self.assertIn("`tracker_freshness.NOT_REACHED`", prose)
+                self.assertEqual((), bind(tracker_freshness.NOT_REACHED, prose, mode=NAMING))
 
 
 if __name__ == "__main__":

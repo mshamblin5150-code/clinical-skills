@@ -25,7 +25,7 @@ from xml.etree import ElementTree
 
 import docx_read
 import docx_write
-from prose_bind import ProseBind, normalized
+from prose_bind import ENUMERATION, ProseBind, bind, normalized
 from repo_root import ForeignCheckout
 
 SOURCE = Path(__file__).resolve().parent / "docx_write.py"
@@ -1012,6 +1012,16 @@ class TheTwoCopiesOfWhatTheRendererApplies(unittest.TestCase):
 
     def test_the_sheet_names_nothing_the_module_does_not(self):
         self.assertEqual(len(self.not_applied()), len(self.apa_limits()))
+
+    def test_section_six_enumerates_the_object_in_order(self):
+        self.assertEqual(
+            (),
+            bind(
+                tuple(key for key, _reason in self.apa_limits()),
+                self.section_six(),
+                mode=ENUMERATION,
+            ),
+        )
 
     def test_no_item_sits_in_both_tables(self):
         """A row promoted by editing one table and not the other is the failure here."""

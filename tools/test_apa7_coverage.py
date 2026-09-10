@@ -8,6 +8,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import artifact_lock_test_support  # noqa: F401
 import apa7_coverage
 import run_grader
 
@@ -66,7 +67,13 @@ def registry(overrides: dict[str, str] | None = None, *, marker: bool = True) ->
                 f"| {item} | Item {item} | never-checked | — | — | — | — | — |",
             )
         )
-    marker_line = "<!-- schema: apa7-coverage/1 -->\n\n" if marker else ""
+    marker_line = (
+        "<!-- schema: apa7-coverage/1 -->\n"
+        + apa7_coverage.rule_identity_marker()
+        + "\n\n"
+        if marker
+        else ""
+    )
     return (
         "# APA 7 manual coverage\n\n"
         + marker_line
@@ -162,6 +169,18 @@ class Apa7CoverageCli(unittest.TestCase):
         self.assertIn("missing manual item '2.2'", result.stderr)
         self.assertIn("manual items   344", result.stdout)
         self.assertIn("never-checked  343", result.stdout)
+
+    def test_rule_identity_drift_refuses_with_the_recompute_remedy(self):
+        coverage = registry().replace(
+            apa7_coverage.rule_identity_marker(),
+            "<!-- rule-identity: tools/prose_bind.py sha256=" + "0" * 64 + " -->",
+        )
+
+        result = self.run_cli(sheet(), coverage, "--quiet")
+
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("prose-bind rule identity has structural drift", result.stderr)
+        self.assertIn("recompute the digests", result.stderr)
 
     def test_checked_rows_require_substantive_evidence_and_refutation(self):
         result = self.run_cli(
@@ -275,7 +294,7 @@ class Apa7CoverageCli(unittest.TestCase):
 
 
 class DeclaredBoundary(unittest.TestCase):
-    def test_the_four_permanent_limits_are_owned(self):
+    def test_the_five_permanent_limits_are_owned(self):
         self.assertEqual(
             set(apa7_coverage.DECLARED_LIMITS),
             {
@@ -283,6 +302,7 @@ class DeclaredBoundary(unittest.TestCase):
                 "out-of-scope-chapters",
                 "sequential-census",
                 "manual-site-agreement",
+                "normalization-rule-identity",
             },
         )
 

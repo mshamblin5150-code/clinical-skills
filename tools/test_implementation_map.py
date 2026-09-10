@@ -27,6 +27,7 @@ from types import SimpleNamespace
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import artifact_lock_test_support  # noqa: E402, F401
+from prose_bind import NAMING, bind  # noqa: E402
 
 _spec = importlib.util.spec_from_file_location(
     "implementation_map", HERE / "implementation_map.py"
@@ -1408,11 +1409,11 @@ class TheInTreeToolDeclaresItsBoundary(unittest.TestCase):
         self.assertEqual(prose.count("implementation_map.DECLARED_LIMITS"), 1)
         self.assertGreater(len(imap.DECLARED_LIMITS), 0)
         for row in imap.DECLARED_LIMITS:
-            with self.subTest(key=row.key):
-                self.assertTrue(row.key)
-                self.assertTrue(row.limit)
-                self.assertNotIn(row.limit, imap.__doc__)
-                self.assertNotIn(row.limit, prose)
+            self.assertTrue(row.key)
+            self.assertTrue(row.limit)
+        limits = tuple(row.limit for row in imap.DECLARED_LIMITS)
+        self.assertEqual((), bind(limits, imap.__doc__, mode=NAMING))
+        self.assertEqual((), bind(limits, prose, mode=NAMING))
 
     def test_the_ratified_command_split_stays_public(self):
         parser = imap.build_parser()

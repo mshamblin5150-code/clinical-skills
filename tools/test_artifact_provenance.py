@@ -24,7 +24,7 @@ import artifact_provenance  # noqa: E402
 import guidelines_recs  # noqa: E402
 import uspstf_table  # noqa: E402
 from repo_root import InsideCheckout  # noqa: E402
-from prose_bind import ProseBind  # noqa: E402
+from prose_bind import NAMING, ProseBind, bind  # noqa: E402
 
 
 class CheckoutIdentity(unittest.TestCase):
@@ -51,6 +51,9 @@ class CheckoutIdentity(unittest.TestCase):
 class ArtifactIdentityTables(unittest.TestCase):
     def test_each_cache_identity_contains_its_content_trust_floor(self):
         expected_cache = {
+            "apa7-coverage": {
+                "tools/prose_bind.py",
+            },
             "extraction": {
                 "tools/guidelines_extract.py",
                 "tools/guidelines_manifest.py",
@@ -93,7 +96,7 @@ class ArtifactIdentityTables(unittest.TestCase):
             {kind: set(paths) for kind, paths in artifact_provenance.TRUST_FLOOR.items()},
             expected_floor,
         )
-        for kind in expected_cache:
+        for kind in expected_floor:
             self.assertGreater(
                 set(artifact_provenance.CACHE_IDENTITY[kind]),
                 set(artifact_provenance.TRUST_FLOOR[kind]),
@@ -886,9 +889,11 @@ class TheDeclaredLimitsArePointedAtRatherThanCopied(ProseBind, unittest.TestCase
 
     def test_no_copy_carries_a_row_of_it(self):
         for where, prose in self._copies().items():
-            for headline, reason in artifact_provenance.NOT_GUARDED:
-                self.assertProseNotIn(headline, prose, f"{where}: {headline}")
-                self.assertProseNotIn(reason, prose, f"{where}: reason for {headline}")
+            self.assertEqual(
+                (),
+                bind(artifact_provenance.NOT_GUARDED, prose, mode=NAMING),
+                where,
+            )
 
     def test_the_bind_is_live(self):
         """Without this the class passes on an empty tuple, which is the shape it
@@ -903,8 +908,7 @@ class TheDeclaredLimitsArePointedAtRatherThanCopied(ProseBind, unittest.TestCase
         headline, reason = artifact_provenance.NOT_GUARDED[0]
         planted = f"""some prose that
 happens to say {headline} across a wrap"""
-        with self.assertRaises(AssertionError):
-            self.assertProseNotIn(headline, planted)
+        self.assertTrue(bind(artifact_provenance.NOT_GUARDED, planted, mode=NAMING))
         self.assertProseIn(headline, planted)
         self.assertTrue(reason.strip())
 

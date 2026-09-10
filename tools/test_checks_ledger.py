@@ -33,7 +33,7 @@ from pathlib import Path
 
 import checks_ledger as checks
 from grader_conformance import for_module
-from prose_bind import SHINGLE, ProseBind, normalized as normalized_prose
+from prose_bind import ENUMERATION, NAMING, ProseBind, bind, normalized as normalized_prose
 
 GraderConformance = for_module(checks)
 
@@ -293,27 +293,6 @@ class DeclaredLimitProseContract(ProseBind, unittest.TestCase):
 
     SKILL_MARKER = "**The command's declared limits, in `checks_ledger.NOT_REACHED` order:**"
 
-    @classmethod
-    def shingles(cls, text: str) -> set[str]:
-        words = normalized_prose(text).split()
-        return {
-            " ".join(words[index : index + SHINGLE])
-            for index in range(len(words) - SHINGLE + 1)
-        }
-
-    @classmethod
-    def copies_in(cls, text: str) -> list[str]:
-        normalized = normalized_prose(text)
-        prose = cls.shingles(normalized)
-        found = []
-        for row in checks.DECLARED_LIMITS:
-            if row.key in normalized:
-                found.append(f"{row.key}: names the key")
-            shared = sorted(cls.shingles(row.limit) & prose)
-            if shared:
-                found.append(f"{row.key}: {shared[0]!r}")
-        return found
-
     def skill_inventory(self) -> tuple[str, ...]:
         skill = SKILL.read_text(encoding="utf-8")
         block = skill.split(self.SKILL_MARKER, 1)[1].lstrip().split("\n\n", 1)[0]
@@ -324,26 +303,30 @@ class DeclaredLimitProseContract(ProseBind, unittest.TestCase):
         )
 
     def test_step_nine_enumerates_the_object_in_both_directions(self):
-        self.assertEqual(
-            self.skill_inventory(),
-            tuple(normalized_prose(row.limit) for row in checks.DECLARED_LIMITS),
-        )
+        inventory = self.skill_inventory()
+        limits = tuple(normalized_prose(row.limit) for row in checks.DECLARED_LIMITS)
+        self.assertEqual(inventory, limits)
+        self.assertEqual((), bind(limits, "\n".join(inventory), mode=ENUMERATION))
 
     def test_module_and_claude_point_without_copying_rows(self):
         surfaces = {"the module prose": module_prose_without_inventory()}
         for where, prose in surfaces.items():
             with self.subTest(where=where):
                 self.assertProseIn("checks_ledger.DECLARED_LIMITS", prose)
-                self.assertEqual(self.copies_in(prose), [], where)
+                self.assertEqual((), bind(checks.DECLARED_LIMITS, prose, mode=NAMING), where)
 
     def test_the_copy_detector_fires_on_every_key_and_sentence(self):
         for row in checks.DECLARED_LIMITS:
             with self.subTest(key=row.key):
-                self.assertTrue(self.copies_in(f"See the object. {row.key}."))
-                self.assertTrue(self.copies_in(f"See the object. {row.limit}"))
+                self.assertTrue(bind(checks.DECLARED_LIMITS, f"See the object. {row.key}.", mode=NAMING))
+                self.assertTrue(bind(checks.DECLARED_LIMITS, f"See the object. {row.limit}", mode=NAMING))
         self.assertEqual(
-            self.copies_in("See checks_ledger.DECLARED_LIMITS for the limits."),
-            [],
+            (),
+            bind(
+                checks.DECLARED_LIMITS,
+                "See checks_ledger.DECLARED_LIMITS for the limits.",
+                mode=NAMING,
+            ),
         )
 
     def test_keyword_parser_points_to_the_sibling_owned_limit(self):

@@ -29,6 +29,7 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 import tracker_bodies as tb
+from prose_bind import NAMING, bind
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 TRACKER_DOC = REPO_ROOT / "docs" / "agents" / "issue-tracker.md"
@@ -364,7 +365,13 @@ class TheDoubledPathSeparatorRow(unittest.TestCase):
 
         prose = tb.prose_outside_code(body, preserve_lines=True)
 
-        self.assertEqual(prose, "- \n  \n  \n  **Verdict:** HOLDS")
+        self.assertEqual(len(prose), len(body))
+        self.assertEqual(
+            prose.index("**Verdict:** HOLDS"),
+            body.index("**Verdict:** HOLDS"),
+        )
+        self.assertEqual(prose.splitlines()[0][:2], "- ")
+        self.assertEqual(prose.splitlines()[-1], "  **Verdict:** HOLDS")
 
 
 class ACleanHarvest(unittest.TestCase):
@@ -909,9 +916,8 @@ class DeclaredLimitsHaveOneOwner(unittest.TestCase):
         module_doc = tb.__doc__ or ""
 
         self.assertIn("NOT_REACHED", module_doc)
-        for key, reason in tb.NOT_REACHED:
-            self.assertNotIn(key, module_doc)
-            self.assertNotIn(reason, module_doc)
+        self.assertEqual((), bind(tb.NOT_REACHED, module_doc, mode=NAMING))
+        for _key, reason in tb.NOT_REACHED:
             self.assertGreater(len(reason.split()), 8)
 
 

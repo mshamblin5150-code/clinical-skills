@@ -50,6 +50,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 import voice_corpus
+from prose_bind import NAMING, bind
 from voice_corpus import (
     CLEAN,
     FOUND,
@@ -67,16 +68,6 @@ MARKER = "Zzyzx-marker-9174"
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CLAUDE_MD = REPO_ROOT / "CLAUDE.md"
-
-
-def normalized(text):
-    """Collapse whitespace before comparing prose.
-
-    ``test_run_record_claim``'s finding: a phrase hard-wrapped across two lines is
-    invisible to a substring search, so a check that reads the raw file reports a
-    clean absence about a file that names the thing.
-    """
-    return " ".join(text.split())
 
 
 def node(node_id, parent, children, message=None):
@@ -712,8 +703,7 @@ class TheCeilingIsDeclared(unittest.TestCase):
         repair: a prose copy of a limit fails nothing when it goes stale."""
         doc = voice_corpus.__doc__
         self.assertIn("NOT_REACHED", doc)
-        for limb in voice_corpus.NOT_REACHED:
-            self.assertNotIn(limb, doc)
+        self.assertEqual((), bind(voice_corpus.NOT_REACHED, doc, mode=NAMING))
 
     def test_claude_md_points_at_the_object_and_copies_no_row(self):
         """The second place a reader looks, held to the same rule.
@@ -722,10 +712,9 @@ class TheCeilingIsDeclared(unittest.TestCase):
         claim is the [#220](https://github.com/mshamblin5150-code/clinical-skills/issues/220)
         shape it was written to avoid -- a prose edit that fails nothing.
         """
-        prose = normalized(CLAUDE_MD.read_text(encoding="utf-8"))
+        prose = CLAUDE_MD.read_text(encoding="utf-8")
         self.assertIn("voice_corpus.NOT_REACHED", prose)
-        for limb in voice_corpus.NOT_REACHED:
-            self.assertNotIn(normalized(limb), prose)
+        self.assertEqual((), bind(voice_corpus.NOT_REACHED, prose, mode=NAMING))
 
     def test_claude_md_names_the_command(self):
         prose = CLAUDE_MD.read_text(encoding="utf-8")

@@ -6,6 +6,7 @@ import unittest
 from pathlib import Path
 
 import deck_scan
+from prose_bind import NAMING, bind
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -62,7 +63,8 @@ class TheCourseAssignmentWorkflow(unittest.TestCase):
         for limit in deck_scan.DECLARED_LIMITS:
             with self.subTest(limit=limit.key):
                 self.assertIn(f"`{limit.key}`", self.skill)
-                self.assertNotIn(limit.limit, self.skill)
+        limits = tuple(limit.limit for limit in deck_scan.DECLARED_LIMITS)
+        self.assertEqual((), bind(limits, self.skill, mode=NAMING))
 
 
 class ExistingLedgerConsumersSignTheirPolicy(unittest.TestCase):

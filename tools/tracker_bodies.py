@@ -128,6 +128,7 @@ from tracker_records import (
 )
 
 from console_codec import use_utf8
+from prose_bind import prose_outside_code as _shared_prose_outside_code
 
 CLEAN = 0
 FOUND = 1
@@ -260,223 +261,15 @@ LONE_AT_TOKEN = re.compile(r"\A@\S+\Z")
 LITERAL_UNICODE_ESCAPE = re.compile(r"\\u[0-9a-fA-F]{4}")
 LITERAL_NEWLINE = re.compile(r"\\n")
 DOUBLED_DRIVE_SEPARATOR = re.compile(r"(?i)[a-z]:\\\\")
-
-
-def _is_backslash_escaped(text: str, index: int) -> bool:
-    backslashes = 0
-    cursor = index - 1
-    while cursor >= 0 and text[cursor] == "\\":
-        backslashes += 1
-        cursor -= 1
-    return backslashes % 2 == 1
-
-
 LIST_PREFIX = re.compile(r" {0,3}(?:[-+*]|[0-9]{1,9}[.)])[ \t]{1,4}")
+LIST_MARKER_PREFIX = re.compile(r" {0,3}(?:[-+*]|[0-9]{1,9}[.)])[ \t]")
 QUOTE_PREFIX = re.compile(r" {0,3}>[ \t]?")
 
 
-class ContainerPrefix(NamedTuple):
-    kind: str
-    continuation_indent: int
-
-
-class FenceOpening(NamedTuple):
-    marker: str
-    width: int
-    containers: tuple[ContainerPrefix, ...]
-    prefix_width: int
-
-
-def _container_prefix(content: str) -> tuple[int, tuple[ContainerPrefix, ...]]:
-    cursor = 0
-    containers: list[ContainerPrefix] = []
-    while True:
-        if match := QUOTE_PREFIX.match(content, cursor):
-            cursor = match.end()
-            containers.append(ContainerPrefix("quote", 0))
-            continue
-        if match := LIST_PREFIX.match(content, cursor):
-            containers.append(ContainerPrefix("list", match.end() - cursor))
-            cursor = match.end()
-            continue
-        return cursor, tuple(containers)
-
-
-def _opening_fence(line: str) -> FenceOpening | None:
-    content = line.rstrip("\r\n")
-    cursor, containers = _container_prefix(content)
-    indent = len(content[cursor:]) - len(content[cursor:].lstrip(" "))
-    cursor += indent
-    if indent > 3 or cursor == len(content):
-        return None
-    marker = content[cursor]
-    if marker not in "`~":
-        return None
-    run_end = cursor
-    while run_end < len(content) and content[run_end] == marker:
-        run_end += 1
-    width = run_end - cursor
-    if width < 3:
-        return None
-    if marker == "`" and "`" in content[run_end:]:
-        return None
-    return FenceOpening(marker, width, containers, cursor)
-
-
-def _is_closing_fence(
-    line: str,
-    opening: FenceOpening,
-) -> bool:
-    content = line.rstrip("\r\n")
-    cursor = 0
-    for container in opening.containers:
-        if container.kind == "quote":
-            match = QUOTE_PREFIX.match(content, cursor)
-            if match is None:
-                return False
-            cursor = match.end()
-            continue
-        indentation = content[cursor:cursor + container.continuation_indent]
-        if (
-            len(indentation) != container.continuation_indent
-            or indentation.strip(" ")
-        ):
-            return False
-        cursor += container.continuation_indent
-    indent = len(content[cursor:]) - len(content[cursor:].lstrip(" "))
-    cursor += indent
-    if (
-        indent > 3
-        or cursor == len(content)
-        or content[cursor] != opening.marker
-    ):
-        return False
-    run_end = cursor
-    while run_end < len(content) and content[run_end] == opening.marker:
-        run_end += 1
-    return (
-        run_end - cursor >= opening.width
-        and not content[run_end:].strip(" \t")
-    )
-
-
-def _fence_container_width(line: str, opening: FenceOpening) -> int:
-    """Return the structural prefix shared with a fenced block's opener."""
-    content = line.rstrip("\r\n")
-    cursor = 0
-    for container in opening.containers:
-        if container.kind == "quote":
-            match = QUOTE_PREFIX.match(content, cursor)
-            if match is None:
-                return 0
-            cursor = match.end()
-            continue
-        indentation = content[cursor:cursor + container.continuation_indent]
-        if (
-            len(indentation) != container.continuation_indent
-            or indentation.strip(" ")
-        ):
-            return 0
-        cursor += container.continuation_indent
-    return cursor
-
-
-def _fence_placeholder(
-    line: str,
-    opening: FenceOpening,
-    *,
-    opening_line: bool,
-) -> str:
-    """Hide fence content while retaining line and container structure."""
-    content = line.rstrip("\r\n")
-    newline = line[len(content):]
-    prefix_width = (
-        opening.prefix_width
-        if opening_line
-        else _fence_container_width(line, opening)
-    )
-    return content[:prefix_width] + newline
-
-
-def _without_fenced_code(text: str, *, preserve_lines: bool = False) -> str:
-    """Replace CommonMark-style fenced blocks with spaces."""
-    lines = text.splitlines(keepends=True)
-    result: list[str] = []
-    cursor = 0
-    while cursor < len(lines):
-        opening = _opening_fence(lines[cursor])
-        if opening is None:
-            result.append(lines[cursor])
-            cursor += 1
-            continue
-        start = cursor
-        cursor += 1
-        while cursor < len(lines):
-            if _is_closing_fence(lines[cursor], opening):
-                cursor += 1
-                break
-            cursor += 1
-        if preserve_lines:
-            result.extend(
-                _fence_placeholder(
-                    line,
-                    opening,
-                    opening_line=index == start,
-                )
-                for index, line in enumerate(lines[start:cursor], start=start)
-            )
-        else:
-            result.append(" ")
-    return "".join(result)
-
-
-def _without_code_spans(text: str) -> str:
-    """Replace spans bounded by equal-length backtick runs with spaces."""
-    result: list[str] = []
-    cursor = 0
-    while cursor < len(text):
-        if text[cursor] != "`":
-            result.append(text[cursor])
-            cursor += 1
-            continue
-        if _is_backslash_escaped(text, cursor):
-            result.append(text[cursor])
-            cursor += 1
-            continue
-
-        opening_end = cursor
-        while opening_end < len(text) and text[opening_end] == "`":
-            opening_end += 1
-        delimiter = text[cursor:opening_end]
-        search_from = opening_end
-        closing = -1
-        while True:
-            candidate = text.find(delimiter, search_from)
-            if candidate < 0:
-                break
-            after = candidate + len(delimiter)
-            bounded = (
-                (candidate == 0 or text[candidate - 1] != "`")
-                and (after == len(text) or text[after] != "`")
-            )
-            if bounded:
-                closing = candidate
-                break
-            search_from = candidate + 1
-        if closing < 0:
-            result.append(delimiter)
-            cursor = opening_end
-            continue
-        result.append(" ")
-        cursor = closing + len(delimiter)
-    return "".join(result)
-
-
 def prose_outside_code(text: str, *, preserve_lines: bool = False) -> str:
-    """Replace Markdown code spans and fences with spaces."""
-    return _without_code_spans(
-        _without_fenced_code(text, preserve_lines=preserve_lines)
-    )
+    """Mask Markdown code with the shared offset-preserving reader."""
+
+    return _shared_prose_outside_code(text)
 
 
 def has_c0_control_character(text: str) -> bool:
@@ -657,7 +450,8 @@ def ordinary_paragraph_prose(text: str) -> str:
             lazy_quote = False
         match = LIST_PREFIX.match(line)
         if match:
-            list_indent = match.end()
+            marker = LIST_MARKER_PREFIX.match(line)
+            list_indent = marker.end() if not line[match.end():].strip() else match.end()
             content = line[list_indent:]
             opening = html_block_opening(content, container="list", indent=list_indent)
             if opening:

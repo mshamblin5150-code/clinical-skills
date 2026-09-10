@@ -40,7 +40,7 @@ import research_ledger as ledger
 import uptodate_store
 import coursework_run
 from grader_conformance import constructed_kinds, for_module
-from prose_bind import SHINGLE, ProseBind, normalized as normalized_prose
+from prose_bind import NAMING, ProseBind, bind, normalized as normalized_prose
 
 GraderConformance = for_module(ledger)
 import run_grader
@@ -398,33 +398,12 @@ class DeclaredLimitProsePointsWithoutCopying(ProseBind, unittest.TestCase):
         "practicum-case-study": lambda: SKILL.read_text(encoding="utf-8"),
     }
 
-    @classmethod
-    def shingles(cls, text: str) -> set[str]:
-        words = normalized_prose(text).split()
-        return {
-            " ".join(words[index : index + SHINGLE])
-            for index in range(len(words) - SHINGLE + 1)
-        }
-
-    @classmethod
-    def copies_in(cls, text: str) -> list[str]:
-        normalized = normalized_prose(text)
-        prose = cls.shingles(normalized)
-        found = []
-        for row in ledger.DECLARED_LIMITS:
-            if row.key in normalized:
-                found.append(f"{row.key}: names the key")
-            shared = sorted(cls.shingles(row.limit) & prose)
-            if shared:
-                found.append(f"{row.key}: {shared[0]!r}")
-        return found
-
     def test_every_surface_points_at_the_object_and_copies_no_row(self):
         for where, read in self.SURFACES.items():
             with self.subTest(where=where):
                 prose = read()
                 self.assertProseIn("research_ledger.DECLARED_LIMITS", prose)
-                self.assertEqual(self.copies_in(prose), [], where)
+                self.assertEqual((), bind(ledger.DECLARED_LIMITS, prose, mode=NAMING), where)
 
     def test_the_bind_is_live_in_both_directions(self):
         self.assertTrue(ledger.DECLARED_LIMITS)
@@ -435,11 +414,15 @@ class DeclaredLimitProsePointsWithoutCopying(ProseBind, unittest.TestCase):
     def test_a_planted_key_and_sentence_each_trigger_the_copy_detector(self):
         for row in ledger.DECLARED_LIMITS:
             with self.subTest(key=row.key):
-                self.assertTrue(self.copies_in(f"See the object. {row.key}."))
-                self.assertTrue(self.copies_in(f"See the object. {row.limit}"))
+                self.assertTrue(bind(ledger.DECLARED_LIMITS, f"See the object. {row.key}.", mode=NAMING))
+                self.assertTrue(bind(ledger.DECLARED_LIMITS, f"See the object. {row.limit}", mode=NAMING))
         self.assertEqual(
-            self.copies_in("See research_ledger.DECLARED_LIMITS for the limits."),
-            [],
+            (),
+            bind(
+                ledger.DECLARED_LIMITS,
+                "See research_ledger.DECLARED_LIMITS for the limits.",
+                mode=NAMING,
+            ),
         )
 
 
@@ -2463,7 +2446,6 @@ class TheDoiBranchOfTheLocatorMatchesAPageRange(unittest.TestCase):
         self.assertNotIn(ledger.UNRESOLVABLE_LOCATOR, found)
         self.assertIn(ledger.UNDATED_READ, found)
 
-    LIMIT = "registrant prefix and a free-form suffix"
     TICKET = "clinical-skills/issues/242"
 
     def test_the_inventory_names_the_limit(self):
@@ -2472,8 +2454,13 @@ class TheDoiBranchOfTheLocatorMatchesAPageRange(unittest.TestCase):
 
     def test_the_repo_level_prose_points_instead_of_copying(self):
         doc = (REPO_ROOT / "CLAUDE.md").read_text(encoding="utf-8")
+        limit = next(
+            row.limit
+            for row in ledger.DECLARED_LIMITS
+            if row.key == "doi-shape-overmatches"
+        )
         self.assertIn("research_ledger.DECLARED_LIMITS", doc)
-        self.assertNotIn(self.LIMIT, doc)
+        self.assertEqual((), bind((limit,), doc, mode=NAMING))
         self.assertIn(self.TICKET, doc)
 
 
