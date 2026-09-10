@@ -21,10 +21,12 @@ from pathlib import Path
 
 from console_codec import use_utf8
 import office_process
+import page_image
+import pdf_engine
 import render_pass
 
 
-RASTER_DPI = 120
+RASTER_DPI = page_image.RASTER_DPI
 # This bound is uncalibrated. It is a safety stop, not a timing measurement,
 # and reaching it is terminal for automation at this site.
 EXPORT_TIMEOUT_SECONDS = 20
@@ -99,31 +101,16 @@ def _automated_export(docx: Path, conversion_directory: Path) -> tuple[str, Path
             raise RenderError(f"{pdf_failure}; {xps_failure}") from xps_failure
 
 
-def _rasterize(pymupdf, exported: Path, staging: Path) -> int:
+def _rasterize(exported: Path, staging: Path) -> int:
     try:
-        with pymupdf.open(str(exported)) as document:
-            pages = len(document)
-            if pages < 1:
-                raise RenderError("export contains no pages")
-            missed = []
-            for number, page in enumerate(document, start=1):
-                target = staging / f"page-{number}.png"
-                partial = staging / f".page-{number}.building.png"
-                try:
-                    page.get_pixmap(dpi=RASTER_DPI).save(partial)
-                    partial.replace(target)
-                except Exception:
-                    partial.unlink(missing_ok=True)
-                    missed.append(number)
-    except RenderError:
-        raise
-    except Exception as failure:
-        raise RenderError(f"could not read the export: {failure}") from failure
-    if missed:
-        raise RenderError(
-            "could not rasterize page(s) " + ", ".join(str(number) for number in missed)
-        )
-    return pages
+        return page_image.rasterize(exported, staging, name="page")
+    except pdf_engine.EngineUnavailable as failure:
+        raise RenderError("pymupdf is not installed") from failure
+    except pdf_engine.SourceUnreadable as failure:
+        message = str(failure)
+        if message == page_image.EMPTY_EXPORT or message.startswith("could not rasterize"):
+            raise RenderError(message) from failure
+        raise RenderError(f"could not read the export: {message}") from failure
 
 
 def render(
@@ -140,24 +127,22 @@ def render(
         or not clinician_export.is_file()
     ):
         raise RenderError("--clinician-export must be an existing PDF or XPS")
-    try:
-        import pymupdf
-    except ImportError as failure:
-        raise RenderError("pymupdf is not installed") from failure
+    if pdf_engine.engine_version() is None:
+        raise RenderError("pymupdf is not installed")
 
     render_root = run / "render"
 
     def build(staging: Path) -> tuple[str, int]:
         if clinician_export is not None:
             source, exported = "clinician", clinician_export
-            pages = _rasterize(pymupdf, exported, staging)
+            pages = _rasterize(exported, staging)
             shutil.copy2(exported, staging / f"case-study{exported.suffix.lower()}")
         else:
             with tempfile.TemporaryDirectory() as conversion_directory:
                 source, exported = _automated_export(
                     docx.resolve(), Path(conversion_directory)
                 )
-                pages = _rasterize(pymupdf, exported, staging)
+                pages = _rasterize(exported, staging)
                 shutil.copy2(exported, staging / f"case-study{exported.suffix.lower()}")
         retained = tuple(staging.glob("*.png"))
         if not render_pass.images_cover_exported_pages(len(retained), pages):

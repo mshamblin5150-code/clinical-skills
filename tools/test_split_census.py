@@ -121,14 +121,19 @@ class CommandTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             (Path(tmp) / "synthetic.pdf").touch()
             with mock.patch.object(
-                census.guidelines_extract,
-                "require_pymupdf",
-                side_effect=SystemExit("pymupdf missing"),
+                census.pdf_engine,
+                "engine_version",
+                return_value=None,
             ), redirect_stderr(io.StringIO()) as err:
                 status = census.main([tmp])
 
         self.assertEqual(status, 2)
-        self.assertIn("pymupdf missing", err.getvalue())
+        self.assertEqual(
+            err.getvalue().strip(),
+            "pymupdf is not installed. This is one of the tools in tools/ that is "
+            "not stdlib, because it reads a PDF:\n"
+            "    python -m pip install pymupdf",
+        )
 
     def test_a_quantity_shaped_split_is_a_finding(self):
         measured = census.Census()
@@ -138,7 +143,7 @@ class CommandTests(unittest.TestCase):
             with mock.patch.object(
                 census, "scan_corpus", return_value=measured
             ), mock.patch.object(
-                census.guidelines_extract, "require_pymupdf"
+                census.pdf_engine, "engine_version", return_value="test"
             ), redirect_stdout(io.StringIO()) as out:
                 status = census.main([tmp])
 
@@ -153,7 +158,7 @@ class CommandTests(unittest.TestCase):
         with mock.patch.object(census, "scan_corpus", return_value=measured), mock.patch.object(
             census, "harvest_lexicon", return_value={"primary", "care"}
         ) as harvest, mock.patch.object(
-            census.guidelines_extract, "require_pymupdf"
+            census.pdf_engine, "engine_version", return_value="test"
         ), redirect_stdout(io.StringIO()):
             status = census.main(["--classify", str(root)])
 

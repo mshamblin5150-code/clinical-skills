@@ -56,6 +56,8 @@ class ArtifactIdentityTables(unittest.TestCase):
             },
             "extraction": {
                 "tools/guidelines_extract.py",
+                "tools/page_text.py",
+                "tools/pdf_engine.py",
                 "tools/guidelines_manifest.py",
                 "tools/artifact_provenance.py",
             },
@@ -68,6 +70,8 @@ class ArtifactIdentityTables(unittest.TestCase):
             "recs": {
                 "tools/guidelines_recs.py",
                 "tools/guidelines_extract.py",
+                "tools/page_text.py",
+                "tools/pdf_engine.py",
                 "tools/artifact_provenance.py",
                 "reference/guidelines-uspstf.md",
             },
@@ -75,6 +79,8 @@ class ArtifactIdentityTables(unittest.TestCase):
         expected_floor = {
             "extraction": {
                 "tools/guidelines_extract.py",
+                "tools/page_text.py",
+                "tools/pdf_engine.py",
                 "tools/guidelines_manifest.py",
             },
             "index": {
@@ -84,6 +90,8 @@ class ArtifactIdentityTables(unittest.TestCase):
             "recs": {
                 "tools/guidelines_recs.py",
                 "tools/guidelines_extract.py",
+                "tools/page_text.py",
+                "tools/pdf_engine.py",
                 "reference/guidelines-uspstf.md",
             },
         }

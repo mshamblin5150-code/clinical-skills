@@ -57,12 +57,13 @@ from discussion_artifact import (
     read_reference_section,
     reference_key,
     reference_keys,
-    png_read_error,
     split_references,
     strip_discussion_markers,
 )
 import run_grader
 import render_pass
+import page_image
+import pdf_engine
 from run_grader import NOT_GRADED
 import aar_scan
 
@@ -115,6 +116,10 @@ GATED_ROW_SETS = {
     "docx_graded": (
         (),
         ("rendered_text_mismatches",),
+    ),
+    "rendered_pages_graded": (
+        (RENDERED_PAGES,),
+        (),
     ),
     "reference_boundary_graded": (
         (
@@ -359,6 +364,7 @@ class Scan:
     rendered_text_mismatches: int | None
     missing_pass_numbers: int
     html_graded: bool
+    rendered_pages_graded: bool
     docx_graded: bool
     reference_boundary_graded: bool
     findings: tuple[Finding, ...] = ()
@@ -924,18 +930,27 @@ def _submission_findings(source: RunSource) -> tuple[Finding, ...]:
     return headings + _rendered_comment_findings(source) + text
 
 
-def _rendered_page_findings(source: RunSource) -> tuple[Finding, ...]:
+@dataclass(frozen=True)
+class RenderedPageSurvey:
+    findings: tuple[Finding, ...]
+    engine_available: bool = True
+
+
+def _rendered_page_findings(source: RunSource) -> RenderedPageSurvey:
     if source.html is None:
-        return ()
+        return RenderedPageSurvey(())
     if not source.rendered_readings:
-        return (
-            Finding(
-                RENDERED_PAGES,
-                "post.md",
-                "no RENDERED record for the Canvas box",
-            ),
+        return RenderedPageSurvey(
+            (
+                Finding(
+                    RENDERED_PAGES,
+                    "post.md",
+                    "no RENDERED record for the Canvas box",
+                ),
+            )
         )
     findings: list[Finding] = []
+    engine_available = True
     retained_count = len(source.render_passes)
     highest_pass_number = source.render_passes[-1][0] if source.render_passes else 0
     reading_count = len(source.rendered_readings)
@@ -947,10 +962,6 @@ def _rendered_page_findings(source: RunSource) -> tuple[Finding, ...]:
                 "RENDERED record count does not match retained pass directories",
             )
         )
-    try:
-        import pymupdf
-    except ImportError:
-        pymupdf = None
     passes_by_number = dict(source.render_passes)
     align_by_number = reading_count == highest_pass_number
     submitted_bytes = source.html.read_bytes()
@@ -991,11 +1002,14 @@ def _rendered_page_findings(source: RunSource) -> tuple[Finding, ...]:
         if not missing_retained_pass_is_gap:
             if not retained_pass.pixels:
                 detail.append(f"{pass_name} keeps no Canvas-box capture")
-            elif pymupdf is None:
-                detail.append("PyMuPDF is unavailable, so retained captures were not decoded")
             else:
                 for pixel in retained_pass.pixels:
-                    if failure := png_read_error(pymupdf, pixel):
+                    try:
+                        failure = page_image.page_read_error(pixel)
+                    except pdf_engine.EngineUnavailable:
+                        engine_available = False
+                        break
+                    if failure:
                         detail.append(f"{pixel.name} {failure}")
             if len(retained_pass.exports) != 1:
                 detail.append(
@@ -1029,12 +1043,13 @@ def _rendered_page_findings(source: RunSource) -> tuple[Finding, ...]:
         findings.append(
             Finding(RENDERED_PAGES, "post.md", "the last rendered verdict is not clean")
         )
-    return tuple(findings)
+    return RenderedPageSurvey(tuple(findings), engine_available)
 
 
 def survey(source: RunSource) -> Scan:
+    rendered_pages = _rendered_page_findings(source)
     if source.refused_label is not None:
-        findings = _submission_findings(source) + _rendered_page_findings(source)
+        findings = _submission_findings(source) + rendered_pages.findings
         return Scan(
             words=None,
             word_floor=source.bar.word_floor,
@@ -1054,6 +1069,7 @@ def survey(source: RunSource) -> Scan:
             ),
             missing_pass_numbers=source.missing_pass_numbers,
             html_graded=source.html is not None,
+            rendered_pages_graded=rendered_pages.engine_available,
             docx_graded=source.docx is not None,
             reference_boundary_graded=False,
             findings=findings + _posted_reading_findings(source),
@@ -1087,7 +1103,7 @@ def survey(source: RunSource) -> Scan:
             )
         )
     findings.extend(_submission_findings(source))
-    findings.extend(_rendered_page_findings(source))
+    findings.extend(rendered_pages.findings)
     traced_numbers = frozenset(
         value for record in records for value in record.numbers
     )
@@ -1162,6 +1178,7 @@ def survey(source: RunSource) -> Scan:
         ),
         missing_pass_numbers=source.missing_pass_numbers,
         html_graded=source.html is not None,
+        rendered_pages_graded=rendered_pages.engine_available,
         docx_graded=source.docx is not None,
         reference_boundary_graded=True,
         findings=tuple(findings),
@@ -1250,6 +1267,8 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
             BORROWED_LOCATOR,
         } and not scan.reference_boundary_graded:
             lines.append(f"{kind}: {NOT_GRADED}")
+        elif kind == RENDERED_PAGES and not scan.rendered_pages_graded:
+            lines.append(f"{kind}: {NOT_GRADED} - PyMuPDF is unavailable")
         elif kind in {BOLD_HEADINGS, RENDERED_COMMENTS, SUBMISSION_TEXT, RENDERED_PAGES} and not scan.html_graded:
             lines.append(f"{kind}: {NOT_GRADED}")
         else:
@@ -1285,7 +1304,10 @@ def grade(source: RunSource, _parsed: run_grader.Parsed) -> run_grader.Grade[Sca
             bool(scanned.findings)
             and (scanned.reference_boundary_graded or submission_failed)
         ) or aar_failed,
-        coverage_failed=not scanned.reference_boundary_graded,
+        coverage_failed=(
+            not scanned.reference_boundary_graded
+            or not scanned.rendered_pages_graded
+        ),
         diagnostics=(
             (f"refused reference label in {source.draft.name}: {source.refused_label}",)
             if source.refused_label is not None

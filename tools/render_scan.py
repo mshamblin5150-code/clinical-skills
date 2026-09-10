@@ -34,6 +34,8 @@ from pathlib import Path
 
 import run_grader
 import render_pass
+import page_image
+import pdf_engine
 
 
 FINAL_PAGE_COVERAGE = "final-page-coverage"
@@ -111,32 +113,14 @@ def _read_export_pages(exports: tuple[Path, ...]) -> tuple[int | None, str]:
     if len(exports) != 1:
         return None, f"keeps {len(exports)} retained PDF or XPS exports, not 1"
     try:
-        import pymupdf
-    except ImportError:
-        return None, "PyMuPDF is unavailable"
-    try:
-        with pymupdf.open(str(exports[0])) as document:
-            pages = len(document)
-    except Exception:
+        pages = page_image.export_page_count(exports[0])
+    except pdf_engine.EngineUnavailable:
+        return None, pdf_engine.RENDER_UNAVAILABLE
+    except pdf_engine.SourceUnreadable as failure:
+        if str(failure) == page_image.EMPTY_EXPORT:
+            return None, "the retained export contains no pages"
         return None, "could not read the retained export"
-    if pages < 1:
-        return None, "the retained export contains no pages"
     return pages, ""
-
-
-def _pixel_read_error(path: Path) -> str:
-    try:
-        import pymupdf
-    except ImportError:
-        return "PyMuPDF is unavailable"
-    try:
-        with pymupdf.open(str(path)) as document:
-            if len(document) != 1:
-                return "does not decode as one image page"
-            next(iter(document)).get_pixmap(dpi=120)
-    except Exception:
-        return "could not decode the retained page image"
-    return ""
 
 
 def _load(parsed: run_grader.Parsed) -> Source:
@@ -162,7 +146,13 @@ def _load(parsed: run_grader.Parsed) -> Source:
         nominal_pixels = tuple(
             sorted(item for item in path.glob("*.png") if item.is_file())
         )
-        pixel_errors = tuple(_pixel_read_error(item) for item in nominal_pixels)
+        pixel_errors_list: list[str] = []
+        for item in nominal_pixels:
+            try:
+                pixel_errors_list.append(page_image.page_read_error(item) or "")
+            except pdf_engine.EngineUnavailable:
+                pixel_errors_list.append(pdf_engine.RENDER_UNAVAILABLE)
+        pixel_errors = tuple(pixel_errors_list)
         pixels = tuple(
             item for item, error in zip(nominal_pixels, pixel_errors) if not error
         )
