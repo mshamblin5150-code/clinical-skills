@@ -906,6 +906,24 @@ class TheCitationParserReadsTheShapesAPAActuallyWrites(unittest.TestCase):
         Allowing any trailing text invented an author named Hypertension."""
         self.assertEqual(self._keys("Hypertension (2025 update) changed the target."), set())
 
+    def test_narrative_evidence_cost_does_not_grow_with_earlier_prose(self):
+        entry = scan.Entry(
+            line=1,
+            text="Unmatched Agency. (2024). Title. Journal.",
+            paragraph=True,
+        )
+        real_normalize = scan.normalize
+
+        def calls_for(padding_words: int) -> int:
+            with mock.patch.object(scan, "normalize", wraps=real_normalize) as normalize:
+                scan.citation_coverage(
+                    "padding " * padding_words + "Observed Author (2024).",
+                    (entry,),
+                )
+            return normalize.call_count
+
+        self.assertEqual(calls_for(10), calls_for(100))
+
     def test_in_press_is_a_date_value_with_the_same_letter_suffix_rule_as_no_date(self):
         found = self._keys(
             "Zhou (n.d.-a, in press-a) compared both; later "
