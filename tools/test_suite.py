@@ -401,6 +401,24 @@ class SuiteRunControls(unittest.TestCase):
             r"(?m)^re-run \(from tools/\): python -m unittest test_[^.]+\.BrokenFixture$",
         )
 
+    def test_a_class_fixture_skip_accounts_for_each_discovered_test(self):
+        status, report = self.run_tree(
+            "import unittest\n"
+            "class SkippedFixture(unittest.TestCase):\n"
+            "    @classmethod\n"
+            "    def setUpClass(cls):\n"
+            "        raise unittest.SkipTest('fixture unavailable')\n"
+            "    def test_one(self):\n"
+            "        pass\n"
+            "    def test_two(self):\n"
+            "        pass\n"
+        )
+
+        self.assertEqual(status, 0, report)
+        self.assertIn("discovered: 2", report)
+        self.assertIn("unaccounted: 0", report)
+        self.assertNotIn("unexpected id:", report)
+
 
 class DeclaredLimits(unittest.TestCase):
     def test_the_hang_and_discovery_population_are_declared(self):

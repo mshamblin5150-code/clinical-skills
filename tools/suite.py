@@ -47,7 +47,6 @@ class Unit:
     """One discovered ``TestCase`` class and its tests in discovery order."""
 
     name: str
-    test_ids: tuple[str, ...]
     tests: tuple[unittest.TestCase, ...]
     order: int
 
@@ -74,6 +73,13 @@ class WorkerReport:
     fixture_failures: tuple[str, ...] = ()
 
 
+def _is_fixture_holder(test) -> bool:
+    return (
+        test.__class__.__name__ == "_ErrorHolder"
+        and test.__class__.__module__ == "unittest.suite"
+    )
+
+
 class AccountingResult(unittest.TextTestResult):
     """A normal unittest result that also emits one outcome per test."""
 
@@ -81,6 +87,7 @@ class AccountingResult(unittest.TextTestResult):
         super().__init__(*args, **kwargs)
         self.outcomes: list[Outcome] = []
         self.fixture_failures: list[str] = []
+        self.fixture_skipped = False
         self._recorded: set[int] = set()
 
     def stopTest(self, test):
@@ -104,7 +111,7 @@ class AccountingResult(unittest.TextTestResult):
         super().addFailure(test, err)
 
     def addError(self, test, err):
-        if test.__class__.__name__ == "_ErrorHolder" and test.__class__.__module__ == "unittest.suite":
+        if _is_fixture_holder(test):
             match = re.search(r"\(([^()]+)\)$", test.id())
             self.fixture_failures.append(match.group(1) if match else test.id())
         else:
@@ -112,7 +119,10 @@ class AccountingResult(unittest.TextTestResult):
         super().addError(test, err)
 
     def addSkip(self, test, reason):
-        self._record(test, OutcomeKind.SKIP)
+        if _is_fixture_holder(test):
+            self.fixture_skipped = True
+        else:
+            self._record(test, OutcomeKind.SKIP)
         super().addSkip(test, reason)
 
     def addExpectedFailure(self, test, err):
@@ -149,7 +159,6 @@ def _units(tests) -> tuple[Unit, ...]:
     return tuple(
         Unit(
             f"{test_class.__module__}.{test_class.__qualname__}",
-            tuple(test.id() for test in members),
             tuple(members),
             order,
         )
@@ -223,6 +232,13 @@ def _run_units(
             verbosity=1 if retain_success_output else 0,
             resultclass=AccountingResult,
         ).run(unittest.TestSuite(unit.tests))
+        if result.fixture_skipped:
+            accounted = {outcome.test_id for outcome in result.outcomes}
+            result.outcomes.extend(
+                Outcome(test.id(), OutcomeKind.SKIP)
+                for test in unit.tests
+                if test.id() not in accounted
+            )
         unit_times.append((unit.name, time.perf_counter() - unit_started))
         outcomes.extend(result.outcomes)
         fixture_failures.extend(result.fixture_failures)
