@@ -8,6 +8,7 @@ phi-scan: synthetic
 from __future__ import annotations
 
 import io
+import re
 import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
@@ -84,6 +85,94 @@ class Run:
         (root / "reread.md").write_text(REREAD, encoding="utf-8")
 
 
+APA_SHEET = REPO_ROOT / "skills" / "_shared" / "reference" / "apa7.md"
+DATED_FORM = "(Year, Month Day"
+DATED_ELEMENT = re.compile(r"\((?P<year>(?:19|20)\d{2}), [^()]+\)")
+
+
+def dated_sections(sheet: str) -> list[tuple[str, str | None]]:
+    """Every apa7.md section whose abstracted form is dated, with its one example."""
+    found: list[tuple[str, str | None]] = []
+    for section in re.split(r"(?m)^## ", sheet):
+        blocks = [" ".join(block.split()) for block in re.split(r"\n\s*\n", section)]
+        if not any(
+            block.startswith("**Abstracted entry form:**") and DATED_FORM in block
+            for block in blocks
+        ):
+            continue
+        examples = [
+            block.removeprefix("**Synthesized example:**").strip()
+            for block in blocks
+            if block.startswith("**Synthesized example:**")
+        ]
+        found.append((section.splitlines()[0], examples[0] if len(examples) == 1 else None))
+    return found
+
+
+def unread_dated_examples(sheet: str) -> list[str]:
+    """Headings of dated sections whose example the grader does not read with its year."""
+    unread: list[str] = []
+    for heading, example in dated_sections(sheet):
+        date = DATED_ELEMENT.search(example) if example else None
+        reply = scan.Reply(
+            path=Path("response-maren.md"),
+            text="",
+            body="",
+            references=(example,) if example else (),
+            refused_label=None,
+        )
+        years = {year for _key, year in scan.reference_keys(example)} if example else set()
+        if not (date and scan._valid_references(reply) and years == {date.group("year")}):
+            unread.append(heading)
+    return unread
+
+
+class DatedReferenceEntriesAreReferences(unittest.TestCase):
+    """apa7.md rules a day-precise date element for several reference forms.
+
+    Each sheet section is graded as a unit. A section whose abstracted entry form
+    is dated must carry one synthesized example that the grader keeps as a
+    reference and keys on that example's year. The abstracted form is a different
+    text from the example, so an example this extraction cannot see fails its own
+    section rather than disappearing from a total.
+
+    ``discussion_artifact.REFERENCE_YEAR`` is a declared copy of the date rule that
+    ``reference_scan.ENTRY_YEAR`` also holds. ``reference_scan`` imports
+    ``discussion_artifact``, so the shared module cannot take that pattern without
+    an import cycle, and the two are deliberately not bound to each other.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.sheet = APA_SHEET.read_text(encoding="utf-8")
+
+    def test_the_sheet_still_publishes_dated_forms(self):
+        self.assertTrue(dated_sections(self.sheet))
+
+    def test_every_dated_example_is_a_reference_keyed_on_its_year(self):
+        self.assertEqual([], unread_dated_examples(self.sheet))
+
+    def test_an_example_the_grader_cannot_read_fails_its_section(self):
+        heading, example = dated_sections(self.sheet)[0]
+        date = DATED_ELEMENT.search(example).group(0)
+        mutant = self.sheet.replace(date, date.lower(), 1)
+
+        self.assertIn(heading, unread_dated_examples(mutant))
+
+    def test_a_parenthetical_that_is_not_a_date_is_not_a_date_element(self):
+        for parenthetical in ("(2019, p. 4)", "(2020, 2021)", "(2018, as amended)"):
+            with self.subTest(parenthetical=parenthetical):
+                self.assertIsNone(scan.REFERENCE_YEAR.fullmatch(parenthetical))
+
+    def test_a_year_only_and_a_seasonal_date_still_read(self):
+        for entry, key in (
+            ("Office of Neighborhood Health. (2025). *Preventing heat illness*.", "2025"),
+            ("Coalition for Safe Care. (2020, Spring). *Discharge instructions*.", "2020"),
+        ):
+            with self.subTest(entry=entry):
+                self.assertEqual({key}, {year for _name, year in scan.reference_keys(entry)})
+
+
 class ACompleteRunPasses(unittest.TestCase):
     def test_a_republished_citation_resolves_on_its_second_year(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -112,7 +201,7 @@ class ACompleteRunPasses(unittest.TestCase):
 
         self.assertEqual(0, status)
 
-    def test_a_reference_dated_to_the_day_is_the_reply_s_reference(self):
+    def test_a_reference_dated_to_the_day_counts_as_the_replys_reference(self):
         with tempfile.TemporaryDirectory() as temp:
             run = Run(Path(temp))
             original = "Quill, R. (2024). Measuring usable access in community care. Journal of Care, 4(2), 10-18."
