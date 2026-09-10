@@ -298,7 +298,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"no PDF files under {args.source}", file=sys.stderr)
         return 2
     if pdf_engine.engine_version() is None:
-        print(str(pdf_engine.EngineUnavailable()), file=sys.stderr)
+        print(pdf_engine.LEGACY_REQUIRE_MESSAGE, file=sys.stderr)
         return 2
     try:
         measured = scan_corpus(args.source, args.jobs)

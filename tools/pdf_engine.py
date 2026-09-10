@@ -5,7 +5,8 @@ from __future__ import annotations
 from types import ModuleType
 
 
-REMEDY = (
+REMEDY = "Install the PDF engine with `python -m pip install pymupdf`."
+LEGACY_REQUIRE_MESSAGE = (
     "pymupdf is not installed. This is one of the tools in tools/ that is "
     "not stdlib, because it reads a PDF:\n"
     "    python -m pip install pymupdf"

@@ -150,9 +150,12 @@ class PdfEngineIsTheOnlyAcquirer(unittest.TestCase):
     def test_pdf_engine_is_the_tree_s_only_acquirer(self):
         sources, unread = tree_sources()
         acquired = acquiring_modules(sources)
+        unexpected = {
+            name: lines for name, lines in acquired.items() if name != "pdf_engine.py"
+        }
         report = (
             f"walked {len(sources)} modules; unread remainder {list(unread)}; "
-            f"acquiring modules {acquired}"
+            f"unexpected acquiring modules {unexpected}"
         )
         self.assertGreater(len(sources), 0, report)
         self.assertEqual(unread, (), report)
