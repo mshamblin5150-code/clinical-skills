@@ -245,6 +245,48 @@ class CanvasSubmissionRows(unittest.TestCase):
         self.assertIn("rendered-text: 0 (reported, not graded)", stdout)
         self.assertIn("rendered-pages: 0", stdout)
 
+    def test_a_missing_engine_does_not_fail_a_clean_submission(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            html, _ = self.rendered(run)
+            run.record_canvas_render(html)
+            with mock.patch.object(
+                scan.page_image.pdf_engine,
+                "acquire",
+                side_effect=scan.pdf_engine.EngineUnavailable(),
+            ):
+                status, stdout, stderr = run.grade("--html", str(html))
+
+        self.assertEqual(status, 2)
+        self.assertEqual(stderr, "")
+        self.assertIn("rendered-pages: not graded", stdout)
+        self.assertIn("PyMuPDF is unavailable", stdout)
+        self.assertIn("findings: 0", stdout)
+
+    def test_a_real_finding_still_wins_when_the_engine_is_missing(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            html, _ = self.rendered(run)
+            html.write_text(
+                html.read_text(encoding="utf-8").replace(
+                    "<p><strong>Access Is More Than Availability</strong></p>",
+                    "<p>Access Is More Than Availability</p>",
+                ),
+                encoding="utf-8",
+                newline="",
+            )
+            run.record_canvas_render(html)
+            with mock.patch.object(
+                scan.page_image.pdf_engine,
+                "acquire",
+                side_effect=scan.pdf_engine.EngineUnavailable(),
+            ):
+                status, stdout, _ = run.grade("--html", str(html))
+
+        self.assertEqual(status, 1)
+        self.assertIn("bold-headings: 1", stdout)
+        self.assertIn("rendered-pages: not graded", stdout)
+
     def test_block_quotation_text_and_block_count_are_graded_on_the_html_seam(self):
         with tempfile.TemporaryDirectory() as temp:
             run = Run(Path(temp))
