@@ -169,15 +169,36 @@ document where a stale number is visible to the grader.
 
 ---
 
-## Out of scope: the peer critique
+## The peer critique is a separate deliverable
 
-Captured so it is not mistaken for part of the case study. It is a **separate deliverable**, one per
-case study, **500 to 750 words**, under eight headings:
+Not part of the case study, and **not out of reach** — [peer-critique](../../peer-critique/SKILL.md)
+owns it. It is captured here because it arrives in the same master spec topic the case study does,
+so one sheet distills one topic.
 
-Clinical Assessment · Clinical Reasoning · Diagnostic Interpretation · Pharmacotherapeutics ·
-Evidence-Based Practice · Preventive Care · Patient Education · Professional Practice.
+One per case study: **one scholarly response to a classmate**, **500 to 750 words**, extending the
+discussion with evidence-based clinical analysis and constructive feedback.
 
-**Minimum two scholarly references, within the last five years where possible.**
+**Eight headings, every one addressed.** The spec states sub-questions under each, and those are the
+bar rather than the heading names:
+
+| Heading | What the spec asks under it |
+| --- | --- |
+| Clinical Assessment | Was the history comprehensive? Were significant findings omitted? Was the physical examination appropriate? Were age-specific considerations addressed? |
+| Clinical Reasoning | Evaluate differential diagnoses, prioritization, diagnostic reasoning, supporting evidence. Would another diagnosis also be appropriate? |
+| Diagnostic Interpretation | Comment on laboratory interpretation, imaging interpretation, diagnostic testing, screening tools. |
+| Pharmacotherapeutics | Evaluate medication selection, dose, route, duration, contraindications, monitoring, drug interactions, safety. |
+| Evidence-Based Practice | Did the student appropriately incorporate national guidelines, recent evidence, best practices? |
+| Preventive Care | Comment on USPSTF screening, CDC immunizations, health promotion, lifestyle medicine. |
+| Patient Education | Discuss health literacy, shared decision-making, cultural humility, motivational interviewing, self-management. |
+| Professional Practice | Evaluate interprofessional collaboration, documentation, clinical judgment, ethical practice, overall strengths, recommendations for improvement. |
+
+**Minimum two scholarly references**, current and peer-reviewed within the last five years wherever
+possible, or the current edition of foundational texts and national clinical guidelines. APA 7.
+
+**The critique is only as good as what the case supplied.** A case study hands the student a fixed
+data set, so an item absent from that data set is not the author's omission and is not a finding
+against them. Grade the reasoning from what was given. Naming an entry and letting the tests argue
+it away is correct differential practice, not a defect.
 
 In the term this was captured from it was worth 5 points as a rubric line. **In at least one other
 course it is a 100-point assignment of its own**, which is why it is named here rather than folded

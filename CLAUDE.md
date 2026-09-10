@@ -782,7 +782,7 @@ the shared grader contract, and the prose binding without requiring Word or PyMu
 
 ### After-action review
 
-`tools/aar_scan.py` is the deterministic half of `/AAR`, required by [#814](https://github.com/mshamblin5150-code/clinical-skills/issues/814) for `batch-shift`, `clinical-note`, `discussion-post`, `discussion-reply`, `icd10-cpt`, and `practicum-case-study` at a submission's terminal step.
+`tools/aar_scan.py` is the deterministic half of `/AAR`, required by [#814](https://github.com/mshamblin5150-code/clinical-skills/issues/814) for `batch-shift`, `clinical-note`, `course-assignment`, `discussion-post`, `discussion-reply`, `icd10-cpt`, `peer-critique`, and `practicum-case-study` at a submission's terminal step.
 
 ```bash
 python tools/aar_scan.py <run-directory> --submission <key> --memory-index <MEMORY.md> --extract
@@ -982,6 +982,40 @@ mechanical rows, 1 for a finding, 2 when the run could not be completely scanned
 
 Covered by `tools/test_post_html.py`, `tools/test_discussion_post_render.py`,
 `tools/test_discussion_post_scan.py`, and `tools/test_discussion_post_skill.py`.
+
+### Peer critique grading
+
+`peer-critique` produces one graded eight-heading peer clinical critique of a classmate's case
+study. This grades it.
+
+```bash
+python tools/peer_critique_scan.py <a run directory> [--show] [--submission critique.md]
+```
+
+The artifact is `critique.md` and the roster is every `posts/*.md` carrying one `AUTHOR:` line;
+another post layout is unread and the command says so. Its rows, their vocabulary and the complete
+coverage boundary are `peer_critique_scan.ROWS`, `KINDS` and `DECLARED_LIMITS`. **This section
+points at all three and copies no row.**
+
+**The word ceiling is reported and never graded, and that is the house rule rather than a
+concession.** The course spec states a range; a floor is a finding because a critique under it has
+not answered eight headings, and a ceiling is a count because no stated maximum is honored. The
+clauses a ceiling removes first are the ones that bound a claim.
+
+**The literal ampersand is counted for a reason outside this repository.** A Canvas submission
+comment box double-escapes it, and an APA reference list is where the ampersand is mandatory —
+[#991](https://github.com/mshamblin5150-code/clinical-skills/issues/991). The count is reported
+from the artifact; whether a given page damages it is a property of that page, which is why the row
+is a count rather than a finding.
+
+**Counts only by default; `--show` names classmates and is private working material.**
+
+**Exit status distinguishes not having scanned from having found nothing** — 0 clean, 1 for a
+finding, 2 for every way of not having scanned, which the module enumerates in `EXIT_2_LIMBS`
+rather than in prose. **A finding wins over incomplete coverage**, on `differential_scan.py`'s
+ordering.
+
+Covered by `tools/test_peer_critique_scan.py` and `tools/test_peer_critique_skill.py`.
 
 ### Course assignment deck grading
 
