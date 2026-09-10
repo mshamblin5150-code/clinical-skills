@@ -310,8 +310,9 @@ python tools/docx_write.py output/discussions/<course>-<module>-discussion-<date
 
 `post_html.py` writes the exact bytes the agent will load into Canvas's raw editor. Every URL
 outside a code span becomes a link whose text is the URL itself, so each reference can be followed
-from the board. Every Markdown heading becomes `<p><strong>`; paragraph and inline text come from the same block and inline
-parsers as the Word renderer. An authored `> ` line becomes a semantic `<blockquote>` with the
+from the board. Every Markdown heading becomes `<p><strong>`; paragraph and inline text come from
+the same block and inline parsers as the Word renderer. An authored `> ` line becomes a semantic
+`<blockquote>` with the
 marker consumed. A Bluefield NUR 5144 M2 measurement on 2026-09-08 found that the tag survived and
 its text rendered 19.8 pixels right of ordinary paragraph text, not at APA's 0.5-inch left indent;
 the dated geometry is in `reference/canvas-paste-calibration.json`. A clean scan does not claim
@@ -337,8 +338,8 @@ Before Gate 1, inspect the editor for the raw-HTML toggle labeled like *Click or
 html editor*. If it is present, tell the clinician the post will be loaded as HTML. If it is absent,
 declare the typing fallback and its cost before asking: the agent will type the post into the rich
 editor, omit every working comment, interleave `ctrl+b` around each section heading and the
-References label, and make every reference URL a link with the editor's link control. The route is chosen at Gate 1 and never changes after a bad reading. There is no
-Word-paste third route; with proper heading styles the measured clipboard path produces visibly
+References label, and make every reference URL a link with the editor's link control. The route is
+chosen at Gate 1 and never changes after a bad reading. There is no Word-paste third route; with proper heading styles the measured clipboard path produces visibly
 wrong headings.
 
 Show the final post and clean source-check summary to the clinician. **Gate 1** is the clinician's
@@ -409,7 +410,8 @@ READ: <ISO date of this reading>
 VERDICT: matches - <what the reading found>
 ```
 
-Replace `matches` with `diverges` when the board and artifact differ. Both verdicts require
+Replace `matches` with `diverges` when the board and artifact differ, including when a reference URL
+on the board is not a link. Both verdicts require
 substantive text after the keyword. Record a divergence without changing
 the already graded output artifact. A board repair is available only when the clinician directs
 that live coursework edit; no repair is automatic. Do not capture or diff the board against the

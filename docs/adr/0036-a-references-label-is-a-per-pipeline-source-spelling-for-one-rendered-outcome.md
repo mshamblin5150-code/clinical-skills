@@ -32,6 +32,10 @@ So `## References` **is** how the post pipeline writes a bold label. It arrives 
 
 `skills/discussion-reply/SKILL.md:185` is the other path: *"type the reply into the LMS rather than pasting it."* **No renderer at all.** The reply artifact's spelling is what the typist reads and reproduces, so on that path plain `References` is the one form that reaches the board unbolded — and it is what the skill mandates. **The defect is one grader, not three.**
 
+### Corrected 2026-09-10 — the reply path now has a renderer
+
+[#1039](https://github.com/mshamblin5150-code/clinical-skills/issues/1039) found a typed reply on the board with a reference URL that was not a link. `discussion-reply` now builds its submission with `tools/post_html.py` and loads it through the editor's content interface. So the paragraph above and the typed-by-hand limit under *What none of this reaches* describe the route as it was measured, not the current one. The reply artifact's bold `**References**` label renders as `<strong>References</strong>` on that route. Whether the board shows what the artifact says is still read only by the posted reading.
+
 ### A shared permissive rule would have introduced the defect on the other skill
 
 The obvious repair — one pattern in `discussion_artifact.py` accepting all three forms, on `docx_write.REFERENCE_HEADING` → `reference_scan.py`'s import precedent — was recommended in round 1 of the grilling and withdrawn in round 2 on the rendering measurement. It would let a post ship with a **plain** label, unbolded on the board, with the grader reporting clean: the exact defect #495 exists to close, relocated.

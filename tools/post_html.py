@@ -7,7 +7,11 @@ not parse Markdown independently.
 
 A URL outside a code span becomes an anchor whose text is the URL itself, so
 every reference can be followed from the board rather than depending on the
-editor to link it (#1039).
+editor to link it (#1039). Only a URL beginning ``http://`` or ``https://`` is
+linked: APA 7 writes a DOI as an ``https://doi.org/`` URL, so a ``doi:`` label
+or a bare ``www.`` address stays text. A URL containing ``*`` or angle
+brackets, or one hard-wrapped across source lines, links only the part the
+inline parser leaves contiguous.
 """
 
 from __future__ import annotations
@@ -22,7 +26,8 @@ from console_codec import use_utf8
 
 USAGE = "usage: post_html.py <in.md> <out.html>"
 URL = re.compile(r"https?://[^\s<>\"]+")
-URL_TRAILING_PUNCTUATION = ".,;:!?"
+URL_TRAILING_PUNCTUATION = ".,;:!?'"
+URL_CLOSERS = {")": "(", "]": "["}
 
 
 def _text_node(text: str) -> str:
@@ -32,11 +37,14 @@ def _text_node(text: str) -> str:
 
 
 def _url_end(url: str) -> str:
-    """Drop sentence punctuation and an unbalanced closing parenthesis from a URL's tail."""
+    """Drop sentence punctuation and an unbalanced closing bracket from a URL's tail."""
 
     while url and (
         url[-1] in URL_TRAILING_PUNCTUATION
-        or (url[-1] == ")" and url.count(")") > url.count("("))
+        or (
+            url[-1] in URL_CLOSERS
+            and url.count(url[-1]) > url.count(URL_CLOSERS[url[-1]])
+        )
     ):
         url = url[:-1]
     return url
@@ -52,8 +60,8 @@ def _linked_text(text: str) -> str:
         if not url:
             continue
         out.append(_text_node(text[cursor : match.start()]))
-        href = docx_write.esc(url).replace('"', "&quot;")
-        out.append(f'<a href="{href}">{docx_write.esc(url)}</a>')
+        linked = docx_write.esc(url)
+        out.append(f'<a href="{linked}">{linked}</a>')
         cursor = match.start() + len(url)
     out.append(_text_node(text[cursor:]))
     return "".join(out)

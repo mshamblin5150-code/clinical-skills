@@ -267,7 +267,9 @@ result is the reply omitting the `INVOKED` comments. In the browser, load that H
 editor through the editor's own content interface rather than typing it, then read the editor's
 serialized HTML back before submitting: every paragraph must match the response and every
 reference URL must still be a link. A keystroke used to make the editor register the change goes at
-the end of the opening line, never after a URL. Submit it, then reread the posted board version. Use the
+the end of the opening line, never after a URL. If the editor exposes no content interface, tell the
+clinician before typing the reply instead, and make every reference URL a link with the editor's
+link control. Submit it, then reread the posted board version. Use the
 entry's Copy Link control to read its own `?entry_id=` deep link; do not copy a classmate's locator
 from `posts/`. Append this record to the run's one `reread.md`:
 
@@ -296,8 +298,8 @@ artificial delay.
 
 Run the same independent ledger and discussion-reply checks over the completed run. The grader
 compares every response file, so a repeated source now fails. Show reply two and wait for a new,
-explicit posting go-ahead. Then type, submit, record, and grade its posted reading on the same terms
-as reply one. Invoke `/AAR` for reply two's response filename after its posted reading. The terminal grader is then `python tools/discussion_reply_scan.py <run-directory> --submission <reply-one-filename>,<reply-two-filename>`; both submission-keyed reviews must be clean.
+explicit posting go-ahead. Then build and load it, submit, record, and grade its posted reading on the
+same terms as reply one. Invoke `/AAR` for reply two's response filename after its posted reading. The terminal grader is then `python tools/discussion_reply_scan.py <run-directory> --submission <reply-one-filename>,<reply-two-filename>`; both submission-keyed reviews must be clean.
 
 ## Completion
 

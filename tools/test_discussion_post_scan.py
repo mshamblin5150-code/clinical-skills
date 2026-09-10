@@ -326,6 +326,32 @@ class CanvasSubmissionRows(unittest.TestCase):
         self.assertEqual(status, 1)
         self.assertIn("submission-text: 1", stdout)
 
+    def test_an_unlinked_reference_url_passes_submission_text(self):
+        markdown = BODY.replace(
+            "Journal of Care, 4(2), 10-18.",
+            "Journal of Care, 4(2), 10-18. https://example.org/usable-access",
+        )
+        self.assertNotEqual(markdown, BODY)
+        linked = post_html.render(markdown)
+        anchor = '<a href="https://example.org/usable-access">'
+        unlinked = linked.replace(anchor, "").replace("</a>", "")
+        self.assertIn(anchor, linked)
+        self.assertNotIn("<a ", unlinked)
+
+        statuses = []
+        for submitted in (linked, unlinked):
+            with tempfile.TemporaryDirectory() as temp:
+                run = Run(Path(temp))
+                run.draft.write_text(markdown, encoding="utf-8")
+                html = run.root / "post.html"
+                html.write_text(submitted, encoding="utf-8", newline="")
+                run.record_canvas_render(html)
+                status, stdout, _ = run.grade("--html", str(html))
+            self.assertIn("submission-text: 0", stdout)
+            statuses.append(status)
+
+        self.assertEqual(statuses[0], statuses[1])
+
     def test_docx_is_archival_and_does_not_grade_submission_rows(self):
         with tempfile.TemporaryDirectory() as temp:
             run = Run(Path(temp))
@@ -2023,6 +2049,10 @@ class EveryBehaviorLimitHasALiveHandler(unittest.TestCase):
         "whether HTML-submission rows were graded when --html was omitted": (
             "CanvasSubmissionRows.test_docx_is_archival_and_does_not_grade_submission_rows",
             "CanvasSubmissionRows.test_clean_html_submission_and_structured_docx_archive_pass",
+        ),
+        "whether each reference URL was submitted as a link": (
+            "CanvasSubmissionRows.test_an_unlinked_reference_url_passes_submission_text",
+            "CanvasSubmissionRows.test_changed_block_quotation_text_fails_html_parity",
         ),
         "whether archival text parity was reported when --docx was omitted": (
             "CanvasSubmissionRows.test_html_submission_does_not_grade_archive_parity",

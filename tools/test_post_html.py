@@ -138,6 +138,15 @@ class HtmlRendererTests(unittest.TestCase):
             rendered,
         )
 
+    def test_an_unbalanced_bracket_and_a_trailing_quote_stay_outside_the_link(self):
+        rendered = post_html.render("[See https://example.org/x] and 'https://example.org/y'\n")
+
+        self.assertIn('[See <a href="https://example.org/x">https://example.org/x</a>]', rendered)
+        self.assertIn(
+            "'<a href=\"https://example.org/y\">https://example.org/y</a>'",
+            rendered,
+        )
+
     def test_a_url_inside_a_code_span_is_not_linked(self):
         rendered = post_html.render("Run `https://example.org/raw` exactly.\n")
 
