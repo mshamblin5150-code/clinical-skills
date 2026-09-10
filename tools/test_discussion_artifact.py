@@ -85,5 +85,63 @@ TRUST-ME: yes
                 self.assertEqual((), records[0].missing_fields)
 
 
+class DatedReferenceEntriesAreReferences(unittest.TestCase):
+    """apa7.md rules a ``(Year, Month Day)`` date element for several forms.
+
+    The population is taken from the sheet's abstracted entry forms, which is a
+    different text from the synthesized examples the extraction reads, so a
+    dated example the extraction fails to see makes the two counts disagree.
+    """
+
+    DATED_ELEMENT = re.compile(r"\((?P<year>(?:19|20)\d{2}), [A-Z][a-z]+ \d{1,2}\)")
+
+    @classmethod
+    def setUpClass(cls):
+        root = Path(__file__).resolve().parents[1]
+        sheet = (root / "skills" / "_shared" / "reference" / "apa7.md").read_text(
+            encoding="utf-8"
+        )
+        blocks = [" ".join(block.split()) for block in re.split(r"\n\s*\n", sheet)]
+        cls.dated_forms = [
+            block
+            for block in blocks
+            if block.startswith("**Abstracted entry form:**")
+            and "(Year, Month Day" in block
+        ]
+        cls.dated_examples = [
+            block.removeprefix("**Synthesized example:**").strip()
+            for block in blocks
+            if block.startswith("**Synthesized example:**")
+            and cls.DATED_ELEMENT.search(block)
+        ]
+
+    def test_every_dated_form_in_the_sheet_has_its_example_read(self):
+        self.assertTrue(self.dated_forms, "apa7.md no longer publishes a dated form")
+        self.assertEqual(len(self.dated_forms), len(self.dated_examples))
+
+    def test_every_dated_example_yields_its_author_and_year(self):
+        for entry in self.dated_examples:
+            with self.subTest(entry=entry[:60]):
+                year = self.DATED_ELEMENT.search(entry).group("year")
+                keys = artifact.reference_keys(entry)
+                self.assertTrue(keys)
+                self.assertEqual({year}, {key_year for _key, key_year in keys})
+
+    def test_the_date_element_captures_only_the_year(self):
+        match = artifact.REFERENCE_YEAR.search(
+            "Office of Family Health. (2026, June 9). *Preparing for a visit*."
+        )
+        self.assertIsNotNone(match)
+        self.assertEqual("2026", match.group("year"))
+
+    def test_a_year_only_entry_still_reads(self):
+        self.assertEqual(
+            (("officeofneighborhoodhealth", "2025"),),
+            artifact.reference_keys(
+                "Office of Neighborhood Health. (2025). *Preventing heat illness*."
+            ),
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

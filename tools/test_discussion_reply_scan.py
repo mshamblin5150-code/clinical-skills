@@ -112,6 +112,32 @@ class ACompleteRunPasses(unittest.TestCase):
 
         self.assertEqual(0, status)
 
+    def test_a_reference_dated_to_the_day_is_the_reply_s_reference(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            original = "Quill, R. (2024). Measuring usable access in community care. Journal of Care, 4(2), 10-18."
+            entry = (
+                "Office of Family Health. (2026, June 9). *Preparing for a telehealth "
+                "appointment*. Department of Community Services. "
+                "https://services.example/telehealth/preparing"
+            )
+            (run.root / "claims.md").write_text(
+                CLAIMS.replace(original, entry).replace("PAGE-YEAR: 2024", "PAGE-YEAR: 2026"),
+                encoding="utf-8",
+            )
+            (run.root / "response-maren.md").write_text(
+                BODY.replace("(Quill, 2024)", "(Office of Family Health, 2026)").replace(
+                    original, entry
+                ),
+                encoding="utf-8",
+            )
+            stdout = io.StringIO()
+            with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
+                status = scan.main([temp])
+
+        self.assertEqual(0, status)
+        self.assertIn("references: 1", stdout.getvalue())
+
     def test_the_bold_references_label_is_accepted(self):
         with tempfile.TemporaryDirectory() as temp:
             run = Run(Path(temp))

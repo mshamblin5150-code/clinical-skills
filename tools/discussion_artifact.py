@@ -157,7 +157,10 @@ LEGAL_CITATION = re.compile(
     r"(?:\s*\((?P<year>" + YEAR + r")\))?)",
     re.IGNORECASE,
 )
-REFERENCE_YEAR = re.compile(r"\((?P<year>" + YEAR + r")\)")
+# A reference entry's date element. APA dates some forms to the day, so the year
+# may be followed by a comma and the rest of the date, as in (2026, March 10);
+# only the year is captured, because an in-text citation carries only the year.
+REFERENCE_YEAR = re.compile(r"\((?P<year>" + YEAR + r")(?:,[^()]*)?\)")
 CLAIM_BLOCK = re.compile(r"(?ms)^## CLAIM:\s*(?P<block>.*?)(?=^## CLAIM:|\Z)")
 RESTATEMENT = re.compile(r"(?mi)^RESTATEMENT\s*:\s*(?P<value>.*(?:\n(?:[ \t]+\S.*))*)")
 CLAIM_REFERENCE = re.compile(
