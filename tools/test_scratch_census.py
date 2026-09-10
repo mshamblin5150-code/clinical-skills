@@ -13,6 +13,7 @@ from pathlib import Path
 from unittest import mock
 
 import scratch_census as census
+from prose_bind import NAMING, bind
 
 
 SCRIPT = Path(__file__).with_name("scratch_census.py")
@@ -436,10 +437,8 @@ class AccountedSetTests(unittest.TestCase):
             2,
         )
         self.assertEqual(claude.count("scratch_census.EXIT_2_LIMBS"), 1)
-        for limb in census.EXIT_2_LIMBS:
-            with self.subTest(limb=limb):
-                self.assertNotIn(limb, scratch_guide)
-                self.assertNotIn(limb, claude)
+        self.assertEqual((), bind(census.EXIT_2_LIMBS, scratch_guide, mode=NAMING))
+        self.assertEqual((), bind(census.EXIT_2_LIMBS, claude, mode=NAMING))
 
     def test_every_standing_artifact_is_in_the_derived_set(self) -> None:
         repo = Path(__file__).resolve().parent.parent

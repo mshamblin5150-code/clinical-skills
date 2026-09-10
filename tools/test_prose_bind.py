@@ -2,10 +2,22 @@
 
 import ast
 import subprocess
+from dataclasses import dataclass
 from pathlib import Path
 import unittest
 
-from prose_bind import PROSE_MARK, ProseBind
+from prose_bind import (
+    ENUMERATION,
+    NAMING,
+    PROSE_MARK,
+    ProseBind,
+    UnreadObject,
+    bind,
+    copied_leaves,
+    prose_outside_code,
+    section,
+    string_leaves,
+)
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -487,6 +499,87 @@ class ProseAssertionsNormalizeBothSides(ProseBind, unittest.TestCase):
                 "a retired clinician ruling",
                 ["a retired clinician", "ruling"],
             )
+
+
+class DeclaredObjectsBindToTheirProseSurface(unittest.TestCase):
+    @dataclass(frozen=True)
+    class Row:
+        key: str
+        limit: str
+
+    ROWS = (
+        Row("short-row", "a short declared limit"),
+        Row(
+            "long-row",
+            "one two three four five six seven eight nine ten words in order",
+        ),
+    )
+
+    def test_a_naming_surface_reports_short_and_long_copies(self):
+        prose = (
+            "See sample.DECLARED_LIMITS. It does not restate a short declared limit, "
+            "or one two three four five six seven eight nine of the longer row."
+        )
+
+        findings = bind(self.ROWS, prose, mode=NAMING)
+
+        self.assertEqual(
+            {"a short declared limit", self.ROWS[1].limit},
+            {leaf for leaf, _occurrences in findings},
+        )
+
+    def test_an_enumeration_surface_requires_every_leaf_in_object_order(self):
+        ordered = "short-row: a short declared limit. long-row: " + self.ROWS[1].limit
+        reversed_rows = "long-row: " + self.ROWS[1].limit + ". short-row: a short declared limit"
+
+        self.assertEqual((), bind(self.ROWS, ordered, mode=ENUMERATION))
+        self.assertTrue(bind(self.ROWS, reversed_rows, mode=ENUMERATION))
+
+    def test_the_mode_is_required_and_never_inferred(self):
+        with self.assertRaises(TypeError):
+            bind(self.ROWS, "sample.DECLARED_LIMITS")
+        with self.assertRaisesRegex(ValueError, "unknown prose-bind mode"):
+            bind(self.ROWS, "sample.DECLARED_LIMITS", mode="auto")
+
+    def test_an_object_with_no_string_leaves_is_unread(self):
+        with self.assertRaisesRegex(UnreadObject, "zero string leaves"):
+            copied_leaves((1, 2, 3), "sample.DECLARED_LIMITS")
+
+    def test_string_leaves_walk_dataclasses_dicts_and_tuples(self):
+        self.assertEqual(
+            ("row", "limit", "key", "value", "tail"),
+            string_leaves((self.Row("row", "limit"), {"key": "value"}, "tail")),
+        )
+
+
+class MarkdownProseKeepsOffsetsAndSectionBoundaries(unittest.TestCase):
+    def test_code_is_masked_without_moving_any_following_offset(self):
+        text = "before `### inline` after\n```md\n### fenced\n```\n### Real\nbody\n"
+        visible = prose_outside_code(text)
+
+        self.assertEqual(len(text), len(visible))
+        self.assertEqual(text.index("### Real"), visible.index("### Real"))
+        self.assertNotIn("### inline", visible)
+        self.assertNotIn("### fenced", visible)
+
+    def test_a_section_closes_at_a_peer_or_parent_heading_only(self):
+        text = (
+            "### Target\nfirst\n"
+            "#264's hard-wrapped ticket reference\n"
+            "#### Child\nchild body\n"
+            "```md\n## fenced parent\n```\n"
+            "## Parent\nafter\n"
+        )
+
+        self.assertEqual(
+            "### Target\nfirst\n#264's hard-wrapped ticket reference\n"
+            "#### Child\nchild body\n```md\n## fenced parent\n```\n",
+            section(text, "### Target"),
+        )
+
+    def test_a_missing_heading_is_loud(self):
+        with self.assertRaisesRegex(ValueError, "heading not found"):
+            section("### Present\n", "### Missing")
 
 
 class TheSilentDirectionHasARefusingWalk(unittest.TestCase):

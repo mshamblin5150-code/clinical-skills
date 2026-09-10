@@ -45,6 +45,9 @@ FLAG_HELP_EFFECT = "traces to stderr on every check and continues"
 FLAG_HELP_NO_PUBLISH = "and refuses publication inside a git checkout"
 
 CACHE_IDENTITY = {
+    "apa7-coverage": (
+        "tools/prose_bind.py",
+    ),
     "extraction": (
         "tools/guidelines_extract.py",
         "tools/guidelines_manifest.py",

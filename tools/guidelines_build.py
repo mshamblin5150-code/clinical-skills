@@ -39,6 +39,7 @@ from repo_root import ensure_outside_checkout, main_repo_root
 
 CATALOG_SCHEMA_VERSION = 2
 ARTIFACT_SCHEMA_VERSION = 1
+GUIDELINE_ARTIFACT_KINDS = ("extraction", "index", "recs")
 ARTIFACT_RECORD = "artifact.json"
 CATALOG_NAME = "catalog.json"
 CATALOG_ENVIRONMENT_VARIABLE = "CLINICAL_GUIDELINES_BUILDS"
@@ -200,7 +201,7 @@ def _extraction_inventory(extraction: SelectedArtifact) -> str:
 def _empty_catalog() -> dict[str, object]:
     return {
         "schema_version": CATALOG_SCHEMA_VERSION,
-        "artifacts": {kind: {} for kind in artifact_provenance.CACHE_IDENTITY},
+        "artifacts": {kind: {} for kind in GUIDELINE_ARTIFACT_KINDS},
     }
 
 
@@ -226,7 +227,7 @@ def _read_catalog_unlocked(path: Path) -> dict[str, object]:
     artifacts = data.get("artifacts")
     if not isinstance(artifacts, dict) or any(
         not isinstance(artifacts.get(kind), dict)
-        for kind in artifact_provenance.CACHE_IDENTITY
+        for kind in GUIDELINE_ARTIFACT_KINDS
     ):
         raise ValueError(f"catalog {path} does not map every artifact kind")
     return data

@@ -12,6 +12,7 @@ from pathlib import Path
 
 import artifact_lock_test_support  # noqa: F401
 import map_scan
+from prose_bind import NAMING, bind
 
 
 STATE_BEGIN = "<!-- implementation-map:v1:state:begin -->"
@@ -361,10 +362,11 @@ class DeclaredLimitsAreBound(unittest.TestCase):
         )
         self.assertIn("map_scan.DECLARED_LIMITS", map_scan.__doc__)
         self.assertIn("map_scan.DECLARED_LIMITS", prose)
-        for row in map_scan.DECLARED_LIMITS:
-            with self.subTest(key=row.key):
-                self.assertNotIn(row.limit, map_scan.__doc__)
-                self.assertNotIn(row.limit, prose)
+        self.assertEqual((), bind(map_scan.DECLARED_LIMITS, map_scan.__doc__, mode=NAMING))
+        self.assertEqual((), bind(map_scan.DECLARED_LIMITS, prose, mode=NAMING))
+        row = map_scan.DECLARED_LIMITS[0]
+        self.assertTrue(bind(map_scan.DECLARED_LIMITS, f"See the object. {row.key}.", mode=NAMING))
+        self.assertTrue(bind(map_scan.DECLARED_LIMITS, f"See the object. {row.limit}", mode=NAMING))
 
 
 if __name__ == "__main__":

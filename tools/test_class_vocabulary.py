@@ -78,6 +78,7 @@ import artifact_lock_test_support  # noqa: F401
 import guidelines_catalog
 import guidelines_extract
 import guidelines_index
+from prose_bind import NAMING, bind
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CATALOG = REPO_ROOT / "reference" / "guidelines-catalog.md"
@@ -133,8 +134,8 @@ class TheCatalogAndGlossaryPointToTheDeclaredLimits(unittest.TestCase):
         for path in (CATALOG, CONTEXT):
             text = path.read_text(encoding="utf-8")
             self.assertEqual(text.count("guidelines_catalog.NOT_REACHED"), 1, path)
-            for _, reason in guidelines_catalog.NOT_REACHED:
-                self.assertNotIn(reason, text, path)
+            limits = tuple(reason for _key, reason in guidelines_catalog.NOT_REACHED)
+            self.assertEqual((), bind(limits, text, mode=NAMING), path)
 
 
 class TheInstrumentIsLive(unittest.TestCase):

@@ -17,6 +17,7 @@ import tracker_bodies
 import tracker_merge_receipt
 import tracker_publish_hook
 import tracker_readback
+from prose_bind import NAMING, bind, section as markdown_section
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -210,11 +211,7 @@ class DeclaredLimitsAreBound(unittest.TestCase):
     @staticmethod
     def section(heading):
         text = CLAUDE_MD.read_text(encoding="utf-8")
-        marker = f"### {heading}\n"
-        _before, found, after = text.partition(marker)
-        if not found:
-            return ""
-        return after.partition("\n### ")[0]
+        return markdown_section(text, f"### {heading}")
 
     def test_each_section_points_at_one_object_and_copies_no_row(self):
         for heading, module_name, module, module_points_at_object in self.CASES:
@@ -225,12 +222,10 @@ class DeclaredLimitsAreBound(unittest.TestCase):
                 self.assertIn(f"{module_name}.NOT_REACHED", section)
                 if module_points_at_object:
                     self.assertIn("NOT_REACHED", module_doc)
-                for key, reason in module.NOT_REACHED:
-                    self.assertNotIn(key, section)
-                    self.assertNotIn(reason, section)
-                    if module_points_at_object:
-                        self.assertNotIn(key, module_doc)
-                        self.assertNotIn(reason, module_doc)
+                self.assertEqual((), bind(module.NOT_REACHED, section, mode=NAMING))
+                if module_points_at_object:
+                    self.assertEqual((), bind(module.NOT_REACHED, module_doc, mode=NAMING))
+                for _key, reason in module.NOT_REACHED:
                     self.assertGreater(len(reason.split()), 8)
 
 

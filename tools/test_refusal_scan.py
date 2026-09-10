@@ -11,6 +11,7 @@ from pathlib import Path
 import refusal_scan as scan
 import run_grader
 from grader_conformance import for_module
+from prose_bind import NAMING, bind, section
 
 GraderConformance = for_module(scan)
 
@@ -341,8 +342,10 @@ class EveryDeclaredLimitIsMeasuredAndBound(unittest.TestCase):
 
     def test_the_section_points_at_the_object_and_copies_no_row(self):
         text = (Path(__file__).resolve().parent.parent / "CLAUDE.md").read_text(encoding="utf-8")
-        section = text.partition("### Refusal scan\n")[2].partition("\n### ")[0]
+        prose = section(text, "### Refusal scan")
 
-        self.assertIn("refusal_scan.DECLARED_LIMITS", section)
-        for _subject, reason, _disposition in scan.DECLARED_LIMITS:
-            self.assertNotIn(reason, section)
+        self.assertIn("refusal_scan.DECLARED_LIMITS", prose)
+        self.assertEqual((), bind(scan.DECLARED_LIMITS, prose, mode=NAMING))
+        subject, reason, _disposition = scan.DECLARED_LIMITS[0]
+        self.assertTrue(bind(scan.DECLARED_LIMITS, f"See the object. {subject}", mode=NAMING))
+        self.assertTrue(bind(scan.DECLARED_LIMITS, f"See the object. {reason}", mode=NAMING))

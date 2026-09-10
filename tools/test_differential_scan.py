@@ -1548,6 +1548,13 @@ class TheCoverageRowSeparatesReadableFromClean(unittest.TestCase):
         self.assertNotIn("osteomyelitis", report.lower())
 
 
+PROSE_BIND_DIVERGENCE = (
+    "The NOT_VALIDATED_AGAINST bind deliberately keeps its local eight-word window "
+    "and [*_`] mark set: its reasons are all long, and the tighter window is the "
+    "documented floor for detecting the lightly reworded copy that created the bind."
+)
+
+
 class TheValidationSetsLimitsAreDeclared(unittest.TestCase):
     """[#162](https://github.com/mshamblin5150-code/clinical-skills/issues/162)'s
     option 4, priced as a declared object rather than as a docstring sentence.
@@ -1638,6 +1645,10 @@ class TheValidationSetsLimitsAreDeclared(unittest.TestCase):
                 # Long enough that the shingle comparison above has something to
                 # bite on: a reason shorter than one window is uncheckable.
                 self.assertGreater(len(reason.split()), self.SHINGLE * 2, key)
+
+    def test_the_shared_detector_divergence_is_declared_and_reasoned(self):
+        self.assertIn("eight-word window", PROSE_BIND_DIVERGENCE)
+        self.assertGreater(len(PROSE_BIND_DIVERGENCE.split()), 20)
 
     def test_the_keys_are_distinct(self):
         self.assertEqual(len(set(self.keys())), len(self.keys()))

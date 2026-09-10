@@ -38,6 +38,7 @@ import docx_write
 import discussion_artifact as artifact
 import research_ledger
 import reference_scan as scan
+from prose_bind import ENUMERATION, NAMING, bind
 from grader_conformance import for_module
 
 GraderConformance = for_module(scan)
@@ -1988,6 +1989,10 @@ class TheTwoCopiesOfWhatStaysAReading(unittest.TestCase):
     def test_the_sheet_names_nothing_the_module_does_not(self):
         self.assertEqual(len(self.rows()), len(scan.NOT_REACHED))
 
+    def test_section_seven_enumerates_the_object_in_order(self):
+        subjects = tuple(subject for subject, _reason in scan.NOT_REACHED)
+        self.assertEqual((), bind(subjects, self.section_seven(), mode=ENUMERATION))
+
     def test_every_entry_carries_a_key_and_a_reason(self):
         """The reason is what a reader of the code reads in place of the old prose."""
         for key, reason in scan.NOT_REACHED:
@@ -2125,10 +2130,10 @@ class LegalReferenceRulesArePublished(unittest.TestCase):
                 "legal form and authority status",
             },
         )
-        for subject, reason in artifact.LEGAL_READER_NOT_REACHED:
-            with self.subTest(subject=subject):
-                self.assertNotIn(subject, section)
-                self.assertNotIn(reason, section)
+        self.assertEqual(
+            (),
+            bind(artifact.LEGAL_READER_NOT_REACHED, section, mode=NAMING),
+        )
 
     def test_the_glossary_points_at_the_renamed_reader_limit(self):
         glossary = CONTEXT.read_text(encoding="utf-8")

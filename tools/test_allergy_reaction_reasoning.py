@@ -16,6 +16,8 @@ from __future__ import annotations
 import unittest
 from pathlib import Path
 
+from prose_bind import section
+
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SKILL = REPO_ROOT / "skills" / "clinical-note" / "SKILL.md"
@@ -27,12 +29,6 @@ CASE_ONE = REPO_ROOT / "fixtures" / "duration-span" / "shorthand" / "case-01.md"
 
 def read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
-
-
-def section(text: str, heading: str) -> str:
-    start = text.index(heading)
-    end = text.find("\n#", start + len(heading))
-    return text[start:] if end == -1 else text[start:end]
 
 
 class TheSkillGradesReasoningPerDistinctAllergen(unittest.TestCase):

@@ -45,7 +45,7 @@ from guidelines_manifest_test_support import (  # noqa: E402
     write_trusted_extraction_manifest,
 )
 import threshold_sheet as gate  # noqa: E402
-from prose_bind import SHINGLE, normalized as normalized_prose  # noqa: E402
+from prose_bind import NAMING, bind  # noqa: E402
 
 EXPECTED_COMMIT = artifact_provenance.checkout_commit(Path(__file__).resolve().parent.parent)
 
@@ -2664,27 +2664,6 @@ class DeclaredLimits(unittest.TestCase):
 class DeclaredLimitProsePointsWithoutCopying(unittest.TestCase):
     """ADR 0074's live two-surface pointer and no-copy bind."""
 
-    @classmethod
-    def shingles(cls, text: str) -> set[str]:
-        words = normalized_prose(text).split()
-        return {
-            " ".join(words[index:index + SHINGLE])
-            for index in range(len(words) - SHINGLE + 1)
-        }
-
-    @classmethod
-    def copies_in(cls, text: str) -> list[str]:
-        normalized = normalized_prose(text)
-        prose = cls.shingles(normalized)
-        found = []
-        for row in gate.DECLARED_LIMITS:
-            if row.key in normalized:
-                found.append(f"{row.key}: names the key")
-            shared = sorted(cls.shingles(row.limit) & prose)
-            if shared:
-                found.append(f"{row.key}: {shared[0]!r}")
-        return found
-
     @staticmethod
     def module_prose() -> str:
         """Every module, class, function, and comment prose surface."""
@@ -2715,13 +2694,13 @@ class DeclaredLimitProsePointsWithoutCopying(unittest.TestCase):
         for where, prose in surfaces.items():
             with self.subTest(where=where):
                 self.assertEqual(prose.count("threshold_sheet.DECLARED_LIMITS"), 1)
-                self.assertEqual(self.copies_in(prose), [], where)
+                self.assertEqual((), bind(gate.DECLARED_LIMITS, prose, mode=NAMING), where)
 
     def test_the_copy_detector_fires_for_every_key_and_sentence(self):
         for row in gate.DECLARED_LIMITS:
             with self.subTest(key=row.key):
-                self.assertTrue(self.copies_in(f"See the object. {row.key}."))
-                self.assertTrue(self.copies_in(f"See the object. {row.limit}"))
+                self.assertTrue(bind(gate.DECLARED_LIMITS, f"See the object. {row.key}.", mode=NAMING))
+                self.assertTrue(bind(gate.DECLARED_LIMITS, f"See the object. {row.limit}", mode=NAMING))
 
     def test_the_cross_topic_limit_keeps_all_three_ruled_limbs(self):
         row = next(

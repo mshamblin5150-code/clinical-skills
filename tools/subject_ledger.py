@@ -16,6 +16,7 @@ from pathlib import Path
 
 import threshold_coverage
 from console_codec import use_utf8
+from prose_bind import section
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -36,14 +37,6 @@ class Record:
     members: tuple[str, ...]
     evidence: dict[str, str]
     line: int
-
-
-def _section(body: str, heading: str) -> str:
-    match = re.search(
-        rf"(?mis)^###[ \t]+{re.escape(heading)}[ \t]*$\n(.*?)(?=^##[#]?[ \t]+|\Z)",
-        body,
-    )
-    return match.group(1) if match else ""
 
 
 def _bullets(text: str) -> list[str]:
@@ -69,9 +62,9 @@ def parse_ledger(text: str) -> tuple[list[Record], list[str]]:
             match.end() : matches[index + 1].start() if index + 1 < len(matches) else None
         ]
         fields = {name.casefold(): value.strip() for name, value in FIELD.findall(body)}
-        members = tuple(_bullets(_section(body, "MEMBERS")))
+        members = tuple(_bullets(section(body, "### MEMBERS")))
         evidence: dict[str, str] = {}
-        for bullet in _bullets(_section(body, "EVIDENCE")):
+        for bullet in _bullets(section(body, "### EVIDENCE")):
             if ":" in bullet:
                 member, value = bullet.split(":", 1)
                 evidence[member.strip().casefold()] = value.strip()

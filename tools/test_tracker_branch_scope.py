@@ -13,6 +13,7 @@ import tracker_branch_scope as scope
 import tracker_bodies
 import tracker_merge_receipt as receipt
 import tracker_scan
+from prose_bind import NAMING, bind
 from tracker_records import TrackerRecord
 
 
@@ -667,9 +668,10 @@ class DeclaredLimitsHaveOneOwner(unittest.TestCase):
         text = self.DOC.read_text(encoding="utf-8")
 
         self.assertIn("tracker_branch_scope.NOT_REACHED", text)
-        for key, _reason in scope.NOT_REACHED:
-            with self.subTest(key=key):
-                self.assertNotIn(key, text)
+        self.assertEqual((), bind(scope.NOT_REACHED, text, mode=NAMING))
+        key, reason = scope.NOT_REACHED[0]
+        self.assertTrue(bind(scope.NOT_REACHED, f"See the object. {key}.", mode=NAMING))
+        self.assertTrue(bind(scope.NOT_REACHED, f"See the object. {reason}", mode=NAMING))
 
     def test_the_module_points_back_at_the_document(self):
         self.assertIn("docs/agents/issue-tracker.md", scope.__doc__)

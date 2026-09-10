@@ -28,7 +28,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import artifact_lock_test_support  # noqa: E402, F401
 import guidelines_recs as recs  # noqa: E402
-from prose_bind import ProseBind  # noqa: E402
+from prose_bind import NAMING, ProseBind, bind  # noqa: E402
 
 
 def table(title: str, *rows: tuple[str, str, str]) -> list[list[str]]:
@@ -923,18 +923,13 @@ class DeclaredLimitsAndCensus(ProseBind, unittest.TestCase):
         for where, prose in surfaces.items():
             with self.subTest(where=where):
                 self.assertProseIn("guidelines_recs.DECLARED_LIMITS", prose, where)
-                for row in recs.DECLARED_LIMITS:
-                    self.assertProseNotIn(row.key, prose, f"{where}: {row.key}")
-                    self.assertProseNotIn(row.limit, prose, f"{where}: {row.key}")
+                self.assertEqual((), bind(recs.DECLARED_LIMITS, prose, mode=NAMING), where)
 
     def test_the_prose_bind_detects_a_planted_key_and_sentence(self):
         for row in recs.DECLARED_LIMITS:
             with self.subTest(key=row.key):
                 planted = f"See the object. {row.key}. {row.limit}"
-                with self.assertRaises(AssertionError):
-                    self.assertProseNotIn(row.key, planted)
-                with self.assertRaises(AssertionError):
-                    self.assertProseNotIn(row.limit, planted)
+                self.assertTrue(bind(recs.DECLARED_LIMITS, planted, mode=NAMING))
 
     @staticmethod
     def _literal_record_reads(source: str) -> list[int]:

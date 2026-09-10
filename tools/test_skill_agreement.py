@@ -51,7 +51,7 @@ import unittest
 from pathlib import Path
 from typing import Callable, Iterator, NamedTuple
 
-from prose_bind import ProseBind, normalized
+from prose_bind import ProseBind, normalized, prose_outside_code
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SELF = Path(__file__).resolve()
@@ -753,49 +753,6 @@ def paragraphs(text: str) -> Iterator[tuple[int, str]]:
         yield start, "\n".join(block)
 
 
-def _markdown_prose(text: str) -> str:
-    """Mask fenced and inline code while preserving offsets and line breaks."""
-    visible = list(text)
-    offset = 0
-    fence: tuple[str, int] | None = None
-    for line in text.splitlines(keepends=True):
-        content = line.rstrip("\r\n")
-        stripped = content.lstrip()
-        marker = re.match(r"(`{3,}|~{3,})", stripped)
-        if fence is not None:
-            for index in range(offset, offset + len(content)):
-                visible[index] = " "
-            if marker and marker.group(1)[0] == fence[0] and len(marker.group(1)) >= fence[1]:
-                fence = None
-            offset += len(line)
-            continue
-        if marker:
-            fence = (marker.group(1)[0], len(marker.group(1)))
-            for index in range(offset, offset + len(content)):
-                visible[index] = " "
-            offset += len(line)
-            continue
-
-        index = 0
-        while index < len(content):
-            if content[index] != "`":
-                index += 1
-                continue
-            end = index
-            while end < len(content) and content[end] == "`":
-                end += 1
-            delimiter = content[index:end]
-            close = content.find(delimiter, end)
-            if close < 0:
-                index = end
-                continue
-            for masked in range(offset + index, offset + close + len(delimiter)):
-                visible[masked] = " "
-            index = close + len(delimiter)
-        offset += len(line)
-    return "".join(visible)
-
-
 class MarkdownTarget(NamedTuple):
     """One Markdown link destination and its source offset."""
 
@@ -905,7 +862,7 @@ def _inline_destination(text: str, start: int) -> tuple[str, int] | None:
 
 def markdown_targets(text: str) -> Iterator[MarkdownTarget]:
     """Inline and reference-style Markdown destinations outside code."""
-    prose = _markdown_prose(text)
+    prose = prose_outside_code(text)
     for found in REFERENCE_DESTINATION.finditer(prose):
         cursor = found.end()
         if cursor < len(prose) and prose[cursor] == "<":
