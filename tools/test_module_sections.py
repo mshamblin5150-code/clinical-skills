@@ -98,6 +98,7 @@ DECLARED_SECTIONS = {
     "spelling_scan": "Spelling scan",
     "split_census": "Split census",
     "subject_ledger": "Threshold subject ledger",
+    "suite": "Suite run",
     "threshold_coverage": "Threshold coverage registry",
     "threshold_draft": "Threshold sheet drafting",
     "threshold_sheet": "Threshold sheets",

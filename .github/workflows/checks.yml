@@ -140,7 +140,13 @@ jobs:
       # figure in a comment is #143 waiting to happen -- the first draft of this
       # line said 1093 and was stale inside its own branch.
       - name: Test suite
-        run: python -m unittest discover -s tools -t tools
+        run: |
+          $report = python tools/suite.py 2>&1
+          $status = $LASTEXITCODE
+          $report
+          @('### Suite run', '', '```', $report, '```') |
+            Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          exit $status
 
       # The pre-commit hook can refuse a threshold-sheet edit, but it does not
       # run on an automatic merge commit. The runner cannot hold the clinical
