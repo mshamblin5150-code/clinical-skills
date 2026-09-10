@@ -265,8 +265,8 @@ Copy the approved working text to `output/discussions/<course>-<module>-discussi
 `INVOKED` comments in the Markdown working artifact so the count remains auditable. End with the Markdown heading `## References`.
 This is the source of record that the post grader and reference
 scanner both read. Both renderers consume `docx_write.blocks`, so own-line comments leave both
-renders without a second omission rule. This differs from `discussion-reply`, where the agent
-types into the rich editor and omits the working comments while typing.
+renders without a second omission rule. `discussion-reply` builds its reply submission with the
+same HTML renderer.
 
 Fresh, non-authoring contexts run each source grader. One context never grades an artifact it
 authored, and a repair is checked by another fresh context:
@@ -308,8 +308,9 @@ python tools/post_html.py output/discussions/<course>-<module>-discussion-<date>
 python tools/docx_write.py output/discussions/<course>-<module>-discussion-<date>.md output/discussions/<course>-<module>-discussion-<date>.docx
 ```
 
-`post_html.py` writes the exact bytes the agent will load into Canvas's raw editor. Every Markdown
-heading becomes `<p><strong>`; paragraph and inline text come from the same block and inline
+`post_html.py` writes the exact bytes the agent will load into Canvas's raw editor. Every URL
+outside a code span becomes a link whose text is the URL itself, so each reference can be followed
+from the board. Every Markdown heading becomes `<p><strong>`; paragraph and inline text come from the same block and inline
 parsers as the Word renderer. An authored `> ` line becomes a semantic `<blockquote>` with the
 marker consumed. A Bluefield NUR 5144 M2 measurement on 2026-09-08 found that the tag survived and
 its text rendered 19.8 pixels right of ordinary paragraph text, not at APA's 0.5-inch left indent;
@@ -335,8 +336,8 @@ The flag is available after recovery; it is never a substitute for recovery.
 Before Gate 1, inspect the editor for the raw-HTML toggle labeled like *Click or shift-click for the
 html editor*. If it is present, tell the clinician the post will be loaded as HTML. If it is absent,
 declare the typing fallback and its cost before asking: the agent will type the post into the rich
-editor, omit every working comment, and interleave `ctrl+b` around each section heading and the
-References label. The route is chosen at Gate 1 and never changes after a bad reading. There is no
+editor, omit every working comment, interleave `ctrl+b` around each section heading and the
+References label, and make every reference URL a link with the editor's link control. The route is chosen at Gate 1 and never changes after a bad reading. There is no
 Word-paste third route; with proper heading styles the measured clipboard path produces visibly
 wrong headings.
 

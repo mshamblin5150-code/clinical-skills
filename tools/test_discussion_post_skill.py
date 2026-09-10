@@ -129,7 +129,7 @@ class TheWorkflowCarriesEveryRatifiedGate(unittest.TestCase):
         self.assertNotRegex(post, r"(?i)manually demote|heading demotion")
         self.assertNotRegex(post, r"carries the hanging indent.*heading structure")
 
-    def test_the_post_workflow_relies_on_rendering_while_the_reply_still_omits_comments(self):
+    def test_both_workflows_render_through_the_html_builder_and_omit_comments(self):
         post = read(POST)
         reply = read(REPLY)
 
@@ -137,11 +137,21 @@ class TheWorkflowCarriesEveryRatifiedGate(unittest.TestCase):
         retired_instruction = "omit every " + "`INVOKED` comment"
         self.assertNotIn(retired_instruction, post)
         self.assertIn("omitting the `INVOKED` comments", reply)
-        self.assertIn("types", post)
+        self.assertRegex(reply, r"post_html\.py[^\n]+response-<name>\.html")
         self.assertRegex(
             post,
-            r"discussion-reply`, where the agent\s+types into the rich editor",
+            r"discussion-reply` builds its reply submission with the\s+same HTML renderer",
         )
+
+    def test_both_workflows_post_every_reference_url_as_a_link(self):
+        post = read(POST)
+        reply = read(REPLY)
+
+        for name, text in (("discussion-post", post), ("discussion-reply", reply)):
+            with self.subTest(skill=name):
+                self.assertRegex(text, r"link whose text is the URL\s+itself")
+        self.assertRegex(post, r"make every reference URL a link with the editor's link control")
+        self.assertRegex(reply, r"reference URL\s+on the board is not a link")
 
     def test_the_two_gates_separate_loading_from_submission(self):
         post = read(POST)

@@ -4,8 +4,10 @@ import contextlib
 import io
 import tempfile
 import unittest
+from html.parser import HTMLParser
 from pathlib import Path
 
+import discussion_post_scan
 import docx_write
 import post_html
 
@@ -77,6 +79,96 @@ class HtmlRendererTests(unittest.TestCase):
         rendered = post_html.render("> Exact words from the cited source.\n")
 
         self.assertEqual(rendered, "<blockquote>Exact words from the cited source.</blockquote>\n")
+
+    def test_a_reference_url_becomes_an_anchor_whose_text_is_the_url(self):
+        rendered = post_html.render(
+            "Author, A. (2026). *A title*. https://www.example.gov/files/a-b.pdf\n"
+        )
+
+        self.assertEqual(
+            rendered,
+            "<p>Author, A. (2026). <em>A title</em>. "
+            '<a href="https://www.example.gov/files/a-b.pdf">'
+            "https://www.example.gov/files/a-b.pdf</a></p>\n",
+        )
+
+    def test_no_url_in_a_reference_list_is_left_outside_an_anchor(self):
+        markdown = (
+            "**References**\n\n"
+            "Agency. (2026, March 10). *First page*. https://www.example.gov/first\n\n"
+            "Social Security Act, 42 U.S.C. § 1396a(bb) (2024). "
+            "https://www.example.gov/content/pkg/USCODE-2024-title42/html/sec1396a.htm\n\n"
+            "Doe, J. (2025). Article. *Journal, 1*(2), 3-4. https://doi.org/10.1000/xyz123\n"
+        )
+
+        class Outside(HTMLParser):
+            def __init__(self):
+                super().__init__()
+                self.depth = 0
+                self.outside: list[str] = []
+                self.anchors = 0
+
+            def handle_starttag(self, tag, _attrs):
+                if tag == "a":
+                    self.depth += 1
+                    self.anchors += 1
+
+            def handle_endtag(self, tag):
+                if tag == "a":
+                    self.depth -= 1
+
+            def handle_data(self, data):
+                if self.depth == 0:
+                    self.outside.append(data)
+
+        reader = Outside()
+        reader.feed(post_html.render(markdown))
+
+        self.assertEqual(reader.anchors, 3)
+        self.assertNotIn("http", "".join(reader.outside))
+
+    def test_trailing_punctuation_and_an_unbalanced_parenthesis_stay_outside_the_link(self):
+        rendered = post_html.render(
+            "See https://example.org/page. Also (https://example.org/a_(b)).\n"
+        )
+
+        self.assertIn('<a href="https://example.org/page">https://example.org/page</a>. ', rendered)
+        self.assertIn(
+            '(<a href="https://example.org/a_(b)">https://example.org/a_(b)</a>).',
+            rendered,
+        )
+
+    def test_a_url_inside_a_code_span_is_not_linked(self):
+        rendered = post_html.render("Run `https://example.org/raw` exactly.\n")
+
+        self.assertIn("<code>https://example.org/raw</code>", rendered)
+        self.assertNotIn("<a ", rendered)
+
+    def test_an_ampersand_in_a_url_is_escaped_in_the_href_and_the_text(self):
+        rendered = post_html.render("Source https://example.org/view?id=1&page=2\n")
+
+        self.assertIn(
+            '<a href="https://example.org/view?id=1&amp;page=2">'
+            "https://example.org/view?id=1&amp;page=2</a>",
+            rendered,
+        )
+
+    def test_the_post_grader_reads_linked_urls_as_the_same_visible_text(self):
+        markdown = (
+            "Body text.\n\n"
+            "**References**\n\n"
+            "Agency. (2026). *Title*. https://www.example.gov/a-page\n"
+        )
+        parser = discussion_post_scan.SubmissionHtmlParser()
+        parser.feed(post_html.render(markdown))
+        parser.close()
+        expected, block_count = discussion_post_scan._expected_html_units(markdown)
+
+        self.assertEqual(
+            tuple((unit.tag, unit.text) for unit in parser.units),
+            tuple((unit.tag, unit.text) for unit in expected),
+        )
+        self.assertEqual(parser.block_count, block_count)
 
     def test_the_command_writes_the_exact_rendered_bytes(self):
         with tempfile.TemporaryDirectory() as temp:
