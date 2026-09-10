@@ -1341,10 +1341,17 @@ def _evidenced_narratives(
             key = citation_key(author)
             if not author or len(key) < 3:
                 continue
+            normalized_author = normalize(author)
+            maximum_written_tokens = len(normalized_author.split()) + 1
             for author_start in reversed(starts):
                 written = prefix[author_start:].strip()
+                # Moving backward can only add normalized tokens. The article rule can
+                # remove at most one, so no earlier suffix can equal this author after
+                # the written suffix exceeds the author's token count by one.
+                if len(normalize(written).split()) > maximum_written_tokens:
+                    break
                 candidate = without_leading_article(written)
-                if normalize(candidate) != normalize(author):
+                if normalize(candidate) != normalized_author:
                     continue
                 first_letter = next(
                     (character for character in candidate if character.isalpha()),
