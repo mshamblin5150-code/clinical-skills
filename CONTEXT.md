@@ -514,7 +514,7 @@ _Avoid_: excluded source, non-guideline, empty source, unusable source
 
 **Engine**:
 The third-party library that turns a page of a document into glyphs or into pixels. It is not a **reader**, which throughout this glossary is a person or a command that reads something and reaches a verdict: an engine reaches no verdict and knows nothing about what it was asked. Whether it is present is one question with one answer, and what its absence *means* is a property of the input's role rather than of the engine — a primary source refuses, an optional secondary degrades and states the narrowing. Naming it in the manifest is how a claim says which substrate it was checked against, which is why an **extraction identity** carries it.
-_Avoid_: vendor, library, dependency, and the product name; also avoid reader, which names the party that judges rather than the thing that decodes.
+_Avoid_: vendor, library, dependency, and the product name; also avoid reader, which names the party that judges rather than the thing that decodes. **Vendor is retired rather than unused** — it is live in ratified records, including the one that filed the seam's own ticket, so this row is a ruling and not an observation.
 
 **Extraction identity**:
 Which build of the extracted corpus a claim was checked against — the producing commit, the extractor's own fingerprint, the reader engine and the boilerplate settings, as opposed to a corpus path and a date. A threshold sheet names it because a re-extraction moves every snippet's substrate at once, and without it a stale sheet is indistinguishable from a current one.

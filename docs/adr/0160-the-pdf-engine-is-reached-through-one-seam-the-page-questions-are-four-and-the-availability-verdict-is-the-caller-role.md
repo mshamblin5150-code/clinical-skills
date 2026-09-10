@@ -209,7 +209,11 @@ page_image.export_page_count(export) -> int
 | page count | a function, not a module | ruling 1 |
 
 **`export_page_count` pays for itself immediately**: with it and ruling 5, `render_scan` names the
-engine nowhere.
+engine's product name nowhere -- it still catches the seam's typed absence, which is what ruling 2
+requires of every caller and what preserves its one coverage limb. Driven with the import blocked,
+`_read_export_pages` returns `(None, "PyMuPDF is unavailable")`, which reaches `UNREADABLE_EXPORT`
+and exits 2; an `int`-returning adapter that swallowed the absence would delete that limb, so the
+rise out of `page_image` is load-bearing rather than tidy.
 
 ### 5. The image probe moves into the raster module, loses its engine parameter, and the two DPIs become two constants
 
@@ -242,7 +246,7 @@ different questions -- `pymupdf.__version__` from the imported module and
 `importlib.metadata.version("PyMuPDF")` from distribution metadata without importing -- one of which
 feeds a content-addressed key.
 
-**One function on the seam**, `vendor_version() -> str | None`, which **imports**, because that is the
+**One function on the seam**, `engine_version() -> str | None`, which **imports**, because that is the
 question a run actually asks, and reports absence rather than a version. `guidelines_extract._engine_version`
 and `guidelines_build._package_version("PyMuPDF")` both consume it, so the manifest's `engine` field
 and the identity's `runtime.pymupdf` can no longer disagree about one fact in one artifact.
@@ -271,10 +275,10 @@ glyph reader to ask a version question; and the role map has no home, ADR 0116 r
 being wrong for a population where six of ten are not graders.
 
 ```
-pdf_engine.VendorUnavailable   the typed absence, carrying the one remedy sentence
+pdf_engine.EngineUnavailable   the typed absence, carrying the one remedy sentence
 pdf_engine.SourceUnreadable    the typed failed open
 pdf_engine.acquire()           the single try: import, called from inside the caller's opening function
-pdf_engine.vendor_version()    ruling 6's importing read
+pdf_engine.engine_version()    ruling 6's importing read
 pdf_engine.ROLES               name -> (role, reason), ten rows, non-adapters included
 ```
 
@@ -287,7 +291,7 @@ an adapter.
 stdlib at module scope, so importing it costs nothing, and the engine import lives inside `acquire()`
 which callers invoke from inside the function that opens the file.
 
-### 8. Three walks hold the mechanical half and three limits are declared
+### 8. Three walks hold the mechanical half and the rest is declared
 
 In `tools/test_pdf_engine.py`, tests only and no command, on `test_ls_files_coverage.py`'s and
 `test_write_guards.py`'s precedent.
@@ -305,6 +309,13 @@ all name the engine in prose -- mostly to explain why they do not use it -- and 
 already broken `spelling_scan` on its own homoglyph map, `differential_scan` on prose describing the
 row it grades, and `phi_scan` on two files that exempted themselves by explaining its pragma. A
 substring walk would need an allowlist; an AST walk cannot see a docstring.
+
+**`pdf_engine` carries a `DECLARED_LIMITS` naming what this record's residue section names**, so the
+seam is visible to the repository's own limits walk rather than declared only in prose here. The
+first draft of this record ordered two new modules and three tree walks and named no limits object of
+any spelling, which is exactly the blind spot
+[#921](https://github.com/mshamblin5150-code/clinical-skills/issues/921) is about, arriving in a
+record published while that ticket was open.
 
 **Its ceiling is stated beside the claim**: an engine name assembled at run time, or a distribution
 string held in a constant and passed to `version()`, is invisible. That ceiling is **not hypothetical**
@@ -345,8 +356,28 @@ them; so does this.
 
 ## A glossary correction the session made on itself
 
-`vendor` appears **zero** times in `CONTEXT.md` and `reader` appears 38, meaning a person or a
-command. The tree's word for the library is **engine**, already in the *Extraction identity* entry and
-in the extraction manifest's `engine` field. The grilling ran on `vendor` for six rounds before the
-glossary was checked; the record uses `engine`, and `CONTEXT.md` gains the term with a distinction
-clause against **reader**.
+The grilling ran on `vendor` for six rounds before the glossary was checked. The tree's word for the
+library is **engine**, already in the *Extraction identity* entry and in the extraction manifest's
+`engine` field, so `CONTEXT.md` gains the term with a distinction clause against **reader**.
+
+**Three corrections to this paragraph's own first draft, all found by the tracker sweep of this
+branch and all re-derived before being believed.**
+
+**The figures were stated without an instrument or a base.** At the record's declared base `bf79efd`,
+`grep -c "reader" CONTEXT.md` is **38 lines** while `grep -oE "\breader\b"` is **49 occurrences** and a
+substring count is 50. The draft published *"`reader` appears 38"*, which is a line count sold as an
+occurrence count -- the unit trap this repository already records for MB against MiB, recurring
+inside a ratified record. `vendor` is **0** at that base and **1** at the commit that publishes the
+claim, because this record's own `_Avoid_` row is the occurrence.
+
+**And `vendor` is not absent from the tree, only from `CONTEXT.md`.** It is live in ten tracked files,
+including three ratified records -- and `ADR 0124`, the record that **filed #837**, calls this exact
+object *"a vendor seam"* twice, at its `:147` and `:222`. So the `_Avoid_` row is a deliberate
+retirement of an incumbent term rather than the naming of an unused one, and saying so is the
+difference between a ruling and an observation.
+
+**The first draft of this record then used the retired word three times**, naming the seam's exception
+`VendorUnavailable` and its version read `vendor_version()`, one paragraph from the sentence ruling
+that word out. Corrected above to `EngineUnavailable` and `engine_version()`. That is this
+repository's oldest recorded shape -- describing a rule breaking the thing that checks it -- arriving
+on the record that writes the rule.
