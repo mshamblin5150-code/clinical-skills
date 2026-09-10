@@ -58,7 +58,7 @@ DECLARED_LIMITS = {
     "engine-object-leakage": "The AST walk does not establish that an adapter never leaks an engine object.",
     "image-probe-window": "The inherited 60-byte image-probe acceptance window is not closed.",
     "decode-resolution": "A decode at the probe DPI does not establish decoding at reading resolution.",
-    "guidelines-extract-split": "The two responsibilities in guidelines_extract remain together.",
+    "guidelines-extract-split": "Guidelines extraction still owns PDF extraction and page reconstruction.",
     "consumer-contract": "The consumer-facing install contract is not changed here.",
     "threshold-gates": "The three unlocked threshold_sheet gates in issue #410 remain out of scope.",
 }

@@ -19,6 +19,7 @@ from contextlib import redirect_stderr
 from pathlib import Path
 from unittest import mock
 
+import artifact_lock_test_support  # noqa: F401
 import page_text
 import page_image
 import pdf_engine
@@ -210,8 +211,26 @@ class ConsumersImportWithoutTheEngine(unittest.TestCase):
             cwd=TOOLS,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
         )
         self.assertEqual(completed.returncode, 0, completed.stderr)
+
+
+class PdfEngineResidueIsDeclared(unittest.TestCase):
+    def test_declared_limits_name_every_ticket_residue(self):
+        self.assertEqual(
+            {
+                "role-correctness",
+                "engine-object-leakage",
+                "image-probe-window",
+                "decode-resolution",
+                "guidelines-extract-split",
+                "consumer-contract",
+                "threshold-gates",
+            },
+            set(pdf_engine.DECLARED_LIMITS),
+        )
 
 
 class GuidelinesRecommendationsConvertsAbsence(unittest.TestCase):
