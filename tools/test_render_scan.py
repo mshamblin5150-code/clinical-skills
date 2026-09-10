@@ -13,7 +13,9 @@ from unittest import mock
 import discussion_post_scan
 import page_image
 import render_scan
+import run_grader
 from grader_conformance import for_module
+from prose_bind import NAMING, bind, section
 
 
 GraderConformance = for_module(render_scan)
@@ -26,9 +28,62 @@ class TheRenderWiringDecisionIsPublished(unittest.TestCase):
             for subject, reason, _disposition in discussion_post_scan.DECLARED_LIMITS
             for text in (subject, reason)
         )
+        render_limits = " ".join(
+            text
+            for subject, reason, _disposition in render_scan.DECLARED_LIMITS
+            for text in (subject, reason)
+        )
 
         self.assertIn("ADR 0125", post_limits)
-        self.assertIn("ADR 0125", render_scan.__doc__ or "")
+        self.assertIn("ADR 0125", render_limits)
+
+
+class TheLimitsObjectOwnsBothProsePointers(unittest.TestCase):
+    POINTER = "render_scan.DECLARED_LIMITS"
+
+    def test_docstring_and_section_each_point_once_without_copying_rows(self):
+        repo = Path(__file__).resolve().parent.parent
+        claude_section = section(
+            (repo / "CLAUDE.md").read_text(encoding="utf-8"),
+            "### Render scan",
+        )
+        surfaces = (render_scan.__doc__ or "", claude_section)
+
+        for surface in surfaces:
+            with self.subTest(surface=surface[:40]):
+                self.assertEqual(1, surface.count(self.POINTER))
+                self.assertEqual(
+                    (), bind(render_scan.DECLARED_LIMITS, surface, mode=NAMING)
+                )
+
+
+class EveryDeclaredLimitHasAnEvidenceDisposition(unittest.TestCase):
+    READER = "whether the retained images are the pages a reader actually read"
+    CARE = "whether the visual comparison was careful"
+    CONTENT = "whether the retained images show the export's pages"
+    ROUTE = "whether the export is Word's pagination"
+    DOCUMENT = "whether the graded pass shows the submitted document"
+    AUTHORITY = "the authority for render wiring"
+
+    def test_every_limit_has_one_disposition_and_behavior_has_three_rows(self):
+        for subject, _reason, disposition in render_scan.DECLARED_LIMITS:
+            with self.subTest(subject=subject):
+                self.assertIsInstance(disposition, run_grader.EvidenceDisposition)
+
+        behavior = [
+            subject
+            for subject, _reason, disposition in render_scan.DECLARED_LIMITS
+            if disposition is run_grader.EvidenceDisposition.BEHAVIOR
+        ]
+        self.assertEqual([self.CONTENT, self.ROUTE, self.DOCUMENT], behavior)
+        declared_readings = [
+            subject
+            for subject, _reason, disposition in render_scan.DECLARED_LIMITS
+            if disposition is run_grader.EvidenceDisposition.DECLARED_READING
+        ]
+        self.assertEqual(
+            [self.READER, self.CARE, self.AUTHORITY], declared_readings
+        )
 
 
 class FakeDocument:
@@ -141,7 +196,34 @@ class ACompleteFinalPassIsClean(unittest.TestCase):
         self.assertIn("pass-2: 2 of 2 readable page images", stdout)
 
 
-class AMeasuredShortFinalPassIsAFinding(unittest.TestCase):
+class DeclaredBehaviorBoundariesRemainOpen(unittest.TestCase):
+    def test_byte_identical_images_are_counted_without_content_comparison(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            run.add_pass(1, pages=3, pixels=3)
+            status, _, _ = run.grade()
+
+        self.assertEqual(0, status)
+
+    def test_an_export_not_produced_by_word_is_counted(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            run.add_pass(1, pages=1, pixels=1)
+            status, _, _ = run.grade()
+
+        self.assertEqual(0, status)
+
+    def test_a_complete_pass_beside_a_different_document_is_counted(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            (run.root / "case-study.docx").write_bytes(b"different document bytes")
+            run.add_pass(1, pages=1, pixels=1)
+            status, _, _ = run.grade()
+
+        self.assertEqual(0, status)
+
+
+class AMeasuredFinalPageCountMismatchIsAFinding(unittest.TestCase):
     def test_fewer_pixels_than_exported_pages_exits_one(self):
         with tempfile.TemporaryDirectory() as temp:
             run = Run(Path(temp))
@@ -150,7 +232,7 @@ class AMeasuredShortFinalPassIsAFinding(unittest.TestCase):
 
         self.assertEqual(1, status)
         self.assertIn("final-page-coverage: 1", stdout)
-        self.assertIn("final render pass is short", stderr)
+        self.assertIn("final render pass differs", stderr)
 
     def test_default_reports_pass_counts_and_show_adds_finding_detail(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -175,6 +257,16 @@ class AMeasuredShortFinalPassIsAFinding(unittest.TestCase):
         self.assertIn("pass-1: 1 of 2 readable page images", stdout)
         self.assertIn("1 unreadable page image", stderr)
         self.assertNotIn("page-2.png", stderr)
+
+    def test_more_pixels_than_exported_pages_exits_one(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            run.add_pass(1, pages=3, pixels=4)
+            status, stdout, stderr = run.grade()
+
+        self.assertEqual(1, status)
+        self.assertIn("final-page-coverage: 1", stdout)
+        self.assertIn("final render pass differs", stderr)
 
 
 class MissingEvidenceDidNotScan(unittest.TestCase):
@@ -297,7 +389,9 @@ class TheSkillSaysWhatThisGrades(unittest.TestCase):
         self.assertIn("report each pass's readable-image and exported-page counts", normalized)
 
     def test_exit_one_and_exit_two_are_distinguished_in_prose(self):
-        self.assertIn("fewer PNGs than exported pages is exit 1", self.skill)
+        self.assertIn(
+            "fewer or more PNGs than exported pages is exit 1", self.skill
+        )
         self.assertIn("no measurable retained export is exit 2", self.skill)
 
     def test_the_automated_route_is_bounded_and_the_clinician_exports_on_fallback(self):

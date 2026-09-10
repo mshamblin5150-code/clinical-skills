@@ -190,8 +190,8 @@ If PowerPoint cannot export, ask the clinician for a clinician-supplied PDF and 
 
 `render_scan.py` reads pass directories whose number is an ASCII positive integer with no leading
 zero, the retained export's page count, and readable PNGs. Earlier passes remain counted evidence;
-only the last pass must contain at least one readable image for every exported page. Fewer final
-images than exported pages is exit 1. No measurable retained export is exit 2. The gap count is
+only the last pass must contain exactly one readable image for every exported page. Fewer or more
+final images than exported pages is exit 1. No measurable retained export is exit 2. The gap count is
 reported on every run and never graded.
 
 A vision-capable, non-authoring context opens every PNG in the final pass and compares it with the

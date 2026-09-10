@@ -46,9 +46,9 @@ def missing_pass_numbers(passes: Iterable[tuple[int, Path]]) -> int:
 
 
 def images_cover_exported_pages(image_count: int, exported_pages: int) -> bool:
-    """Return whether every exported page has at least one retained image."""
+    """Return whether there is exactly one retained image per exported page."""
 
-    return image_count >= exported_pages
+    return image_count == exported_pages
 
 
 def _discard_staging(staging: Path, render_root: Path) -> None:
