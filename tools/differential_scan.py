@@ -225,6 +225,7 @@ import aar_scan
 
 EXPECTED_COMPLETION_CHECKS = (aar_scan.EXPECTED_ROW,)
 import threshold_coverage
+import threshold_grammar
 import threshold_sheet
 
 # ``M86.9``, ``R06.02``, ``A41.9``. Letter, digit, alphanumeric, optional dotted
@@ -1024,7 +1025,7 @@ def _guideline_floor(
                     )
                 )
                 continue
-            parsed_sheet = threshold_sheet.parse(
+            parsed_sheet = threshold_grammar.parse(
                 sheet.read_text(encoding="utf-8"), sheet
             )
             if not parsed_sheet.ok:

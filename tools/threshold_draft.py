@@ -38,19 +38,15 @@ from guidelines_recs import (
     record_built_from_another_document,
     source_filename_matches_document,
 )
-from threshold_sheet import (
+from threshold_grammar import (
     CONFLICTS_HEADING,
     COVERAGE_HEADING,
-    DEFAULT_PDF_ROOT,
-    DEFAULT_RECS_ALIAS,
-    DEFAULT_RECS_ROOT,
     ExtractionIdentity,
     NARRATIVE_KIND,
     POPULATIONS_HEADING,
     QUANTITIES_HEADING,
     ROW_COLUMNS,
     SOURCE_COLUMNS,
-    RECS_ALIAS_ENV,
     SCHEMA_MARKER,
     Sheet,
     SCOPE_HEADING,
@@ -62,6 +58,12 @@ from threshold_sheet import (
     parse,
     render_extraction_identity,
     source_locator,
+)
+from threshold_sheet import (
+    DEFAULT_PDF_ROOT,
+    DEFAULT_RECS_ALIAS,
+    DEFAULT_RECS_ROOT,
+    RECS_ALIAS_ENV,
 )
 
 

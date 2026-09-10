@@ -4395,6 +4395,7 @@ class TheHookGradesSheetsAndNotTheDirectoryReadme(unittest.TestCase):
             sheets = root / "reference" / "thresholds"
             sheets.mkdir(parents=True)
             for name in (
+                "threshold_grammar.py",
                 "threshold_sheet.py",
                 "artifact_lock.py",
                 "artifact_provenance.py",
