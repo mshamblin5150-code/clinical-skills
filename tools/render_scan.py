@@ -13,17 +13,17 @@ pass numbers are counted on every run and never graded.
 Default output reports aggregate and per-pass counts only. ``--show`` adds
 pass-level finding detail. Exit 0
 means the final pass is complete, 1 means its measurable page coverage is short,
-and 2 means the evidence needed to measure coverage was unavailable. A measured
-finding outranks unavailable evidence elsewhere in the run.
+or beyond its exported page count, and 2 means the evidence needed to measure
+coverage was unavailable. A measured finding outranks unavailable evidence
+elsewhere in the run.
 
 All output is pasteable. Reports and diagnostics carry only counts, ``pass-N``
 labels, and fixed explanations; they never print a run path, export filename, or
 page image filename.
 
-This does not establish that the retained images are the pages a reader actually
-read, or that the visual comparison was careful. ``checks_ledger.py`` separately
-grades the substantiated ``the rendered document`` verdict for that reading.
-ADR 0125 is the governing record.
+The limits of what a clean run establishes are declared in
+``render_scan.DECLARED_LIMITS``. ``checks_ledger.py`` separately grades the
+substantiated ``the rendered document`` verdict for that reading.
 """
 
 from __future__ import annotations
@@ -46,6 +46,45 @@ ROWS = {
     ),
 }
 KINDS = tuple(ROWS)
+
+DECLARED_LIMITS = (
+    (
+        "whether the retained images are the pages a reader actually read",
+        "A clean run does not establish that the retained images are the pages a "
+        "reader actually read.",
+        run_grader.EvidenceDisposition.DECLARED_READING,
+    ),
+    (
+        "whether the visual comparison was careful",
+        "A clean run does not establish that the visual comparison was careful.",
+        run_grader.EvidenceDisposition.DECLARED_READING,
+    ),
+    (
+        "whether the retained images show the export's pages",
+        "Coverage counts readable PNG files against the export's page count and "
+        "never compares an image with a page, so a blank image, another document's "
+        "image, or one page under several names is counted.",
+        run_grader.EvidenceDisposition.BEHAVIOR,
+    ),
+    (
+        "whether the export is Word's pagination",
+        "The command counts the pages of whatever single PDF or XPS a pass retains "
+        "and reads nothing naming the route that produced it.",
+        run_grader.EvidenceDisposition.BEHAVIOR,
+    ),
+    (
+        "whether the graded pass shows the submitted document",
+        "The command reads only render/ and opens no document, so a complete final "
+        "pass of an earlier draft is clean; #1020 owns binding a pass to the "
+        "document's bytes.",
+        run_grader.EvidenceDisposition.BEHAVIOR,
+    ),
+    (
+        "the authority for render wiring",
+        "ADR 0125 is the governing record.",
+        run_grader.EvidenceDisposition.DECLARED_READING,
+    ),
+)
 
 INVALID_INVOCATION = "invalid invocation"
 NO_RUN_DIRECTORY = "no run directory"
@@ -267,7 +306,7 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
                 f"{render_pass.path.name}: {render_pass.unreadable_pixels} unreadable page {noun}"
             )
     if scan.findings:
-        diagnostics.append("final render pass is short of its exported page count")
+        diagnostics.append("final render pass differs from its exported page count")
     return run_grader.Grade(
         scan=scan,
         source="run directory",
