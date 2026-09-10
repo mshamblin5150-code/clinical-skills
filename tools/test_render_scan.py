@@ -11,6 +11,7 @@ from pathlib import Path
 from unittest import mock
 
 import discussion_post_scan
+import page_image
 import render_scan
 from grader_conformance import for_module
 
@@ -49,7 +50,7 @@ class FakeDocument:
 
 class FakePage:
     def get_pixmap(self, *, dpi: int):
-        if dpi != 120:
+        if dpi != page_image.DECODE_PROBE_DPI:
             raise ValueError("unexpected raster resolution")
         return object()
 

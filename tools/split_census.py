@@ -29,6 +29,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import guidelines_extract
+import page_text
+import pdf_engine
 from console_codec import use_utf8
 
 
@@ -156,17 +158,12 @@ def census_rawdict(
 
 
 def _scan_document(path: str) -> Census:
-    import pymupdf
-
     result = Census()
-    document = pymupdf.open(path)
-    try:
-        for page in document:
-            raw = page.get_text("rawdict")
-            rendered = guidelines_extract.rendered_operator_map_for_page(page, raw)
+    with page_text.open_document(Path(path)) as document:
+        for page in document.pages():
+            raw = page.rawdict
+            rendered = guidelines_extract.rendered_operator_map(raw, page.render_glyph)
             result.update(census_rawdict(raw, rendered))
-    finally:
-        document.close()
     return result
 
 
@@ -192,13 +189,10 @@ def scan_corpus(source: Path, workers: int | None = None) -> Census:
 
 
 def _harvest_document(path: str) -> collections.Counter[str]:
-    import pymupdf
-
     seen: collections.Counter[str] = collections.Counter()
-    document = pymupdf.open(path)
-    try:
-        for page in document:
-            raw = page.get_text("rawdict")
+    with page_text.open_document(Path(path)) as document:
+        for page in document.pages():
+            raw = page.rawdict
             for block in raw.get("blocks", ()):
                 if block.get("type") != 0:
                     continue
@@ -213,8 +207,6 @@ def _harvest_document(path: str) -> collections.Counter[str]:
                             else:
                                 token.append(glyph)
                     _count_token(token, seen)
-    finally:
-        document.close()
     return seen
 
 
@@ -305,10 +297,8 @@ def main(argv: list[str] | None = None) -> int:
     if not _pdfs(args.source):
         print(f"no PDF files under {args.source}", file=sys.stderr)
         return 2
-    try:
-        guidelines_extract.require_pymupdf()
-    except SystemExit as unavailable:
-        print(str(unavailable), file=sys.stderr)
+    if pdf_engine.engine_version() is None:
+        print(str(pdf_engine.EngineUnavailable()), file=sys.stderr)
         return 2
     try:
         measured = scan_corpus(args.source, args.jobs)

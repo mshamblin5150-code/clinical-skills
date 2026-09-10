@@ -33,6 +33,7 @@ import guidelines_index
 import guidelines_index_artifact
 import guidelines_manifest
 import guidelines_recs
+import pdf_engine
 from console_codec import use_utf8
 from repo_root import ensure_outside_checkout, main_repo_root
 
@@ -119,6 +120,8 @@ def _code_inputs(*paths: str) -> tuple[dict[str, str], ...]:
 
 
 def _package_version(distribution: str) -> str:
+    if distribution == "PyMuPDF":
+        return pdf_engine.engine_version() or "unavailable"
     try:
         return importlib.metadata.version(distribution)
     except importlib.metadata.PackageNotFoundError:

@@ -57,12 +57,13 @@ from discussion_artifact import (
     read_reference_section,
     reference_key,
     reference_keys,
-    png_read_error,
     split_references,
     strip_discussion_markers,
 )
 import run_grader
 import render_pass
+import page_image
+import pdf_engine
 from run_grader import NOT_GRADED
 import aar_scan
 
@@ -947,10 +948,6 @@ def _rendered_page_findings(source: RunSource) -> tuple[Finding, ...]:
                 "RENDERED record count does not match retained pass directories",
             )
         )
-    try:
-        import pymupdf
-    except ImportError:
-        pymupdf = None
     passes_by_number = dict(source.render_passes)
     align_by_number = reading_count == highest_pass_number
     submitted_bytes = source.html.read_bytes()
@@ -991,11 +988,16 @@ def _rendered_page_findings(source: RunSource) -> tuple[Finding, ...]:
         if not missing_retained_pass_is_gap:
             if not retained_pass.pixels:
                 detail.append(f"{pass_name} keeps no Canvas-box capture")
-            elif pymupdf is None:
-                detail.append("PyMuPDF is unavailable, so retained captures were not decoded")
             else:
                 for pixel in retained_pass.pixels:
-                    if failure := png_read_error(pymupdf, pixel):
+                    try:
+                        failure = page_image.page_read_error(pixel)
+                    except pdf_engine.EngineUnavailable:
+                        detail.append(
+                            "PyMuPDF is unavailable, so retained captures were not decoded"
+                        )
+                        break
+                    if failure:
                         detail.append(f"{pixel.name} {failure}")
             if len(retained_pass.exports) != 1:
                 detail.append(

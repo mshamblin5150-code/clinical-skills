@@ -25,6 +25,7 @@ import discussion_reply_scan as reply_scan
 import discussion_artifact as artifact
 import docx_write
 import post_html
+import page_image
 from grader_conformance import for_module, gate_conformance
 from test_discussion_reply_scan import (
     BODY as REPLY_BODY,
@@ -44,7 +45,7 @@ PNG = base64.b64decode(
 class FakePage:
     @staticmethod
     def get_pixmap(*, dpi: int):
-        if dpi != artifact.RENDERED_RASTER_DPI:
+        if dpi != page_image.DECODE_PROBE_DPI:
             raise AssertionError(dpi)
         return object()
 
@@ -71,7 +72,7 @@ class FakePyMuPDF:
     def open(path):
         source = Path(path)
         if source.suffix.lower() == ".png":
-            if not source.read_bytes().startswith(artifact.PNG_SIGNATURE):
+            if not source.read_bytes().startswith(page_image.PNG_SIGNATURE):
                 raise ValueError("not PNG data")
             return FakeDocument(1)
         marker = source.read_text(encoding="ascii")
