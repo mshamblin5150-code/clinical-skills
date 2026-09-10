@@ -1041,7 +1041,7 @@ check that was never run is not.
 | the threshold sheets against this patient | the whole draft, the faculty material's patient, and `reference/thresholds/` via `coverage.md`, including its `subject` column | a reader: group the registry's rows by subject; where this patient's problems touch any cell in a subject, open every sheet in that subject; and where the draft rests on rows from more than one sheet, decide whether each sheet's own population wording holds for **this** patient — `?` means nobody has ruled whether that cell has siblings, never that it has none; population and quantity keys are sheet-local, `CONFLICT` is within-sheet, and no command compares two sheets, so this pair is seen by nobody else | yes |
 | the clinical decisions no command reaches | the faculty material and the whole Markdown draft | a reader: for every continuing drug, **whether a stop criterion's endpoint is the right endpoint**; for every PRN drug, **whether a drug ordered PRN needs an endpoint of its own**; and against the patient in the faculty material, whether the draft carries **a wrapper section that does not apply to this patient**. Never whether a dose is correct: that remains [#289](https://github.com/mshamblin5150-code/clinical-skills/issues/289)'s closing prohibition | yes |
 | the numbering in context | `<numbering-readback>` produced by `python tools/docx_read.py "<the case study document>" --numbering`, and the Markdown draft | a reader: read the reconstructed numerals in context, never the raw `.docx`; does each section start where it should, does each MDM entry discuss **by name** the diagnosis at the same position in the differential, and does every restart or deliberate continuation suit the section | yes |
-| the rendered document | the Markdown draft, the rendered `.docx`, and the final retained render, page by page | coverage: `tools/render_scan.py` below; then a vision-capable reader opens every retained page image, compares it page by page with the Markdown, and reports clipped, overlapping or missing content; broken tables or list numbering; bad page breaks; misplaced headings, page numbers or signatures; and reference-list layout that the Markdown cannot show | yes |
+| the rendered document | the Markdown draft, the rendered `.docx`, and the final retained render, page by page | coverage: `tools/render_scan.py` below; then a vision-capable reader opens every retained page image, compares it page by page with the Markdown, records `SOURCE` as `word-pdf`, `word-xps`, or `clinician` and `PASS` as the positive retained pass number, and reports clipped, overlapping or missing content; broken tables or list numbering; bad page breaks; misplaced headings, page numbers or signatures; and reference-list layout that the Markdown cannot show | yes |
 | the faculty's own to-do list | the faculty material, the draft's headings, and `bar.md` on a routed board run | a reader: does every faculty item have a section that answers it, and on a routed run does every signed bar element — including word floor, reference minimum, ISBN, and every prose element — hold in the finished draft | no |
 | the draft label on threshold-sheet citations | the whole draft and every cited row's `## Sources` entry in `reference/thresholds/` | `tools/differential_scan.py` labels every citation backed by a `draft` source; a reader: where a cited threshold row's `source class` is `draft`, does the draft identify that number as coming from a public-review draft and avoid presenting it as guidance in force; never suppress the citation solely because the source is a draft | no |
 
@@ -1256,6 +1256,17 @@ FINDINGS: The differential's 1. is appendicitis, and the intake gives a patient 
     emergency is at 4 and has to be at 1 until the hCG is back.
 ```
 
+The rendered-document record also fixes the declared route and retained pass:
+
+```
+## CHECK: the rendered document
+VERDICT: clean
+FINDINGS: Walked every retained page against the Markdown; no clipping, overlap,
+    broken numbering, bad break, misplaced heading, or reference-layout defect.
+SOURCE: word-pdf
+PASS: 3
+```
+
 `VERDICT` is `clean` or `defect`, and a `defect` says what and where. **On the rows the table
 above marks, a `clean` says what it walked** — the same field and the same substance test, and it
 is the only thing in the file that stands against a reader who skimmed. A heading with no `VERDICT`
@@ -1291,6 +1302,10 @@ be several of them at once:
 | a `VERDICT` that is neither word | it decides which of the rules below apply, so a third word is a record graded on nothing |
 | a `defect` with no `FINDINGS` under it, or an empty one | anybody can write `defect`; nobody writes the entry's position and the rule it fails without having read it. The field and not just the words — a reason typed after the keyword says the same thing where nobody looking for it will look |
 | a `clean` with no `FINDINGS` under it, on a row the table above marks *yes* | the same test on the other verdict. Anybody can write `clean`; nobody writes *"walked all five MDM entries, each names a discriminator from this case"* without having walked them. [#255](https://github.com/mshamblin5150-code/clinical-skills/issues/255), and it is some rows rather than every row — the rest are counted and not graded, and the report names which |
+| a known field on a row that does not take it | `VERDICT`, `FINDINGS`, `SOURCE`, `PASS`, `PAGES`, or `UNSEEN` opened a new line where that row does not recognize the name; other prose labels such as `ROS:` remain wrapped findings text |
+| a known field written more than once in one record | the later line would otherwise replace the earlier value and hide one of the reader's writes |
+| a clean rendered-document record with a malformed `SOURCE` or `PASS` | `SOURCE` must be `word-pdf`, `word-xps`, or `clinician`, and `PASS` must be a positive integer |
+| a terminal rendered-document record that does not name the highest retained pass | at `--submission`, the run must have a retained pass and the record's `PASS` must name the highest one |
 
 **That last row was off the list entirely until
 [#255](https://github.com/mshamblin5150-code/clinical-skills/issues/255), and it is on for some of
@@ -1399,7 +1414,8 @@ Then walk this list, by eye — none of it is mechanical:
   for every continuing or PRN endpoint and every wrapper-only section?
 - Did `python tools/render_scan.py <run-directory>` exit 0, and did a vision-capable reader compare
   every retained page image with the Markdown draft, with a substantiated verdict recorded under
-  `the rendered document`?
+  `the rendered document`, `SOURCE` naming `word-pdf`, `word-xps`, or `clinician`, and `PASS`
+  naming the positive final retained pass?
 - Is the Patient Education spoken, jargon-free, and does it end on the follow-up interval?
 - **Read the draft back against the discriminating pairs in `scratch/voice-model.md`**, register by
   register — for each pair, which half does the draft's sentence resemble?
@@ -1422,6 +1438,9 @@ Then walk this list, by eye — none of it is mechanical:
 - Alphanumeric substance cannot prove that a reader's findings reflect a substantive review.
 - A clean grader result does not establish that recorded defects were repaired in the draft.
 - An off-table heading is counted but no expected-check rule grades its content.
+- A skipped render_scan is not detected; the residue is a pass the producer did not write, one altered after retention, or a grading machine missing the PDF engine.
+- The rendered-record SOURCE is declared and never proven.
+- No retained pass or rendered record is bound to the document's bytes.
 
 **A rendered `.docx` is not a checked document.** `tools/docx_write.py` guarantees the file opens,
 the page numbers land and the reference list hangs on its own page. It cannot read a differential,

@@ -54,6 +54,35 @@ SCOPED_SKILLS = frozenset(
         "practicum-case-study",
     }
 )
+COMPLETION_GRADERS: Mapping[str, str] = MappingProxyType(
+    {
+        "batch-shift": "filled_vitals_census",
+        "clinical-note": "differential_scan",
+        "course-assignment": "deck_scan",
+        "discussion-post": "discussion_post_scan",
+        "discussion-reply": "discussion_reply_scan",
+        "icd10-cpt": "specificity_scan",
+        "peer-critique": "peer_critique_scan",
+        "practicum-case-study": "checks_ledger",
+    }
+)
+
+
+def validate_completion_graders(
+    scoped_skills: Iterable[str], graders: Mapping[str, str]
+) -> None:
+    """Refuse a scoped skill with no completion grader or an off-scope pairing."""
+    scoped = set(scoped_skills)
+    paired = set(graders)
+    missing = sorted(scoped - paired)
+    extra = sorted(paired - scoped)
+    if missing or extra:
+        raise ValueError(
+            f"completion grader mapping mismatch; missing={missing}; extra={extra}"
+        )
+
+
+validate_completion_graders(SCOPED_SKILLS, COMPLETION_GRADERS)
 EXPECTED_ROW = "the after-action review"
 DISPOSITIONS = frozenset({"skill-file", "tracker-ticket", "memory-write", "check"})
 CORRECTORS = frozenset({"clinician", "agent-or-tool", "orchestrator"})
@@ -736,7 +765,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
 
 
 def completion_finding(run: Path, submissions: Iterable[str]) -> str | None:
-    """The expected row shared by the six completion graders."""
+    """The expected row shared by ``COMPLETION_GRADERS``."""
     for submission in submissions:
         scan = survey(run, submission)
         if scan.findings or scan.unread or scan.orphaned:
