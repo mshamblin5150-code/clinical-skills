@@ -663,6 +663,20 @@ class TheReferenceListPageSetup(unittest.TestCase):
         self.assertNotIn("<w:pageBreakBefore/>", xml)
         self.assertNotIn('<w:jc w:val="center"/>', xml)
 
+    def test_the_case_study_sanity_check_heading_stays_flush_left(self):
+        document = ElementTree.fromstring(
+            docx_write.document_xml("## Sanity Check\n\nModule 3 - confirmed\n")
+        )
+        paragraph = next(
+            node
+            for node in document.iter(self.W + "p")
+            if "".join(text.text or "" for text in node.iter(self.W + "t"))
+            == "Sanity Check"
+        )
+        alignment = paragraph.find("./" + self.W + "pPr/" + self.W + "jc")
+
+        self.assertIsNone(alignment)
+
     def test_a_document_that_opens_on_references_does_not_lead_with_a_blank_page(self):
         """``pageBreakBefore`` on the first paragraph renders an empty first page."""
         xml = docx_write.body_xml("\n# References\n\nRoss, J. (2025).\n")

@@ -91,6 +91,18 @@ class HtmlRendererTests(unittest.TestCase):
             "<li>Third decision.</li></ol>\n",
         )
 
+    def test_blank_separated_bold_mdm_items_remain_one_numbered_list(self):
+        rendered = post_html.render(
+            "## MDM:\n\n"
+            "1. **First diagnosis.** Supporting reasoning.\n\n"
+            "2. **Second diagnosis.** Opposing reasoning.\n"
+        )
+
+        mdm = rendered.split("<p><strong>MDM:</strong></p>", 1)[1]
+        self.assertEqual(mdm.count("<ol>"), 1)
+        self.assertEqual(mdm.count("<li>"), 2)
+        self.assertNotIn("</ol><ol>", mdm)
+
     def test_a_reference_url_becomes_an_anchor_whose_text_is_the_url(self):
         rendered = post_html.render(
             "Author, A. (2026). *A title*. https://www.example.gov/files/a-b.pdf\n"
