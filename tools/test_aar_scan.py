@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import importlib
 import json
 from pathlib import Path
 import tempfile
@@ -377,20 +378,23 @@ class SubmissionRecord(unittest.TestCase):
 
 
 class EveryScopedCompletionGraderExpectsTheReview(unittest.TestCase):
-    def test_the_six_named_graders_share_the_fixed_row(self) -> None:
-        graders = (
-            filled_vitals_census,
-            differential_scan,
-            discussion_post_scan,
-            discussion_reply_scan,
-            specificity_scan,
-            checks_ledger,
-        )
+    def test_every_scoped_skill_maps_to_a_grader_that_expects_the_fixed_row(self) -> None:
+        self.assertEqual(set(aar_scan.COMPLETION_GRADERS), set(aar_scan.SCOPED_SKILLS))
+        for skill, module_name in aar_scan.COMPLETION_GRADERS.items():
+            with self.subTest(skill=skill, grader=module_name):
+                module = importlib.import_module(module_name)
+                self.assertEqual(module.EXPECTED_COMPLETION_CHECKS, (aar_scan.EXPECTED_ROW,))
+                text = (
+                    Path(__file__).resolve().parent.parent / "skills" / skill / "SKILL.md"
+                ).read_text(encoding="utf-8")
+                self.assertIn(module_name, text)
+                self.assertIn("--submission", text)
 
-        self.assertEqual(
-            [module.EXPECTED_COMPLETION_CHECKS for module in graders],
-            [(aar_scan.EXPECTED_ROW,)] * len(graders),
-        )
+    def test_an_unpaired_scoped_skill_is_named(self) -> None:
+        with self.assertRaisesRegex(ValueError, "unpaired-skill"):
+            aar_scan.validate_completion_graders(
+                {"unpaired-skill"}, aar_scan.COMPLETION_GRADERS
+            )
 
     def test_each_scoped_skill_invokes_aar_and_its_completion_row(self) -> None:
         root = Path(__file__).resolve().parent.parent

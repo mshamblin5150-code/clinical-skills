@@ -27,6 +27,7 @@ scratch/runs/<course>-<module>-course-assignment/
     bar.md
     claims.md
     adversarial.md
+    rendered.md
     render/pass-N/
 ```
 
@@ -160,13 +161,17 @@ The rows are:
   signed `FONT-POINTS` in the signed `FONT-DIRECTION`.
 - `untraced-costed-figure`: one finding for each distinct dollar value on a slide or in speaker
   notes that appears in no claim record.
+- `rendered-record`: one finding for each malformed record or failed terminal join to the deck,
+  highest retained pass, slide count, PNG count, unseen count, or clean visual verdict.
 
 The default report prints counts only. `--show` exposes artifact text and remains private. Exit 0
 is clean, 1 means a finding, and 2 means the command did not completely scan the run, bar, or deck.
 The command's reader-owned boundaries are in `deck_scan.DECLARED_LIMITS`:
 `claim-support-unverified`, `sourced-field-completeness-unjoined`,
-`adversarial-completeness-unverified`, and `image-provenance-unverified`. Walk them against the
-finished artifact; this skill points to their objects and carries no second copy of any row.
+`adversarial-completeness-unverified`, `image-provenance-unverified`,
+`render-scan-run-unverified`, `render-source-unproven`, and
+`render-document-bytes-unbound`. Walk them against the finished artifact; this skill points to
+their keys and carries no second copy of any limit sentence.
 
 ## 5. Render and inspect every slide
 
@@ -196,6 +201,24 @@ caption. A package scan cannot substitute for this visual read. Preserve the ori
 repair through the authoring context, render into the next pass, and give the correction to a new
 non-authoring checker.
 
+The orchestrator writes each non-authoring visual reader's result to `rendered.md`, one record per
+read pass:
+
+```text
+## RENDERED: <course>-<module>-course-assignment-<date>.pptx
+PASS: <positive retained pass number>
+SLIDES: <read PNG count> of <deck slide count> read
+SOURCE: powerpoint-pdf | clinician
+UNSEEN: none | <what was not read>
+READ: <what was compared against the retained slide images>
+VERDICT: clean - <reason> | defect - <reason>
+```
+
+Every package scan grades this record's shape when the file exists. At the terminal call, the
+record must name the output deck and highest retained pass, all deck slides must have retained PNGs,
+and `UNSEEN` must be `none` with a reasoned clean verdict. Earlier retained passes need no record;
+the report counts them without grading their absence.
+
 ## 6. Approve, submit, and reread
 
 Show the clinician the finished deck, notes, adversarial report, grader counts, and final rendered
@@ -209,3 +232,9 @@ ledger, deck, and render scans; a completed visual comparison; the clinician's s
 the posted reread; and the after-action review. Keep the signed bar, snapshots, claims,
 adversarial result, and retained render passes together under the run directory. Remove every
 temporary per-context path; if cleanup fails, report the exact remaining path.
+
+After `/AAR` is clean, run the completion grader with that same deck stem:
+
+```bash
+python tools/deck_scan.py <run-directory> --pptx <deck> --submission <deck-stem>
+```

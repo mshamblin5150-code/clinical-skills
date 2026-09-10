@@ -168,6 +168,7 @@ from pathlib import Path
 from typing import NamedTuple
 
 import run_grader
+import render_pass
 from run_grader import NOT_GRADED
 import aar_scan
 
@@ -213,6 +214,21 @@ DECLARED_LIMITS = (
         "An off-table heading is counted but no expected-check rule grades its content.",
         EvidenceDisposition.BEHAVIOR,
     ),
+    DeclaredLimit(
+        "render-scan-run-unverified",
+        "A skipped render_scan is not detected; the residue is a pass the producer did not write, one altered after retention, or a grading machine missing the PDF engine.",
+        EvidenceDisposition.DECLARED_READING,
+    ),
+    DeclaredLimit(
+        "render-source-unproven",
+        "The rendered-record SOURCE is declared and never proven.",
+        EvidenceDisposition.DECLARED_READING,
+    ),
+    DeclaredLimit(
+        "render-document-bytes-unbound",
+        "No retained pass or rendered record is bound to the document's bytes.",
+        EvidenceDisposition.DECLARED_READING,
+    ),
 )
 NOT_REACHED = tuple(row.limit for row in DECLARED_LIMITS)
 
@@ -220,7 +236,11 @@ NOT_REACHED = tuple(row.limit for row in DECLARED_LIMITS)
 # under a document heading without the parser caring -- ``research_ledger.py``'s
 # ``CLAIM`` and its reason.
 CHECK = re.compile(r"(?mi)^[ \t]*#+[ \t]*CHECK[ \t]*:[ \t]*(.*?)[ \t]*$")
-FIELD = re.compile(r"(?mi)^[ \t]*(VERDICT|FINDINGS)[ \t]*:[ \t]*(.*?)[ \t]*$")
+FIELD = re.compile(
+    r"(?mi)^[ \t]*(VERDICT|FINDINGS|SOURCE|PASS|PAGES|UNSEEN)[ \t]*:[ \t]*(.*?)[ \t]*$"
+)
+POSITIVE_INTEGER = re.compile(r"[1-9][0-9]*", re.ASCII)
+RENDER_SOURCES = frozenset({"word-pdf", "word-xps", "clinician"})
 
 # The check table in ``skills/practicum-case-study/SKILL.md`` step 9, first column,
 # verbatim. **Held here and derived there**: a run directory is not a checkout, so
@@ -326,6 +346,10 @@ MISSING_VERDICT = "missing-verdict"
 UNKNOWN_VERDICT = "unknown-verdict"
 DEFECT_WITHOUT_FINDINGS = "defect-without-findings"
 CLEAN_WITHOUT_FINDINGS = "clean-without-findings"
+UNEXPECTED_FIELD = "unexpected-field"
+DUPLICATE_FIELD = "duplicate-field"
+INVALID_RENDERED_RECORD = "invalid-rendered-record"
+RENDER_PASS_MISMATCH = "render-pass-mismatch"
 
 # Which ruling each row belongs to, so a reader knows which ticket to go and read.
 # **Spelled out rather than built from ``KINDS``**, and that is the whole of what
@@ -341,6 +365,10 @@ ROWS = {
     UNKNOWN_VERDICT: "#240",
     DEFECT_WITHOUT_FINDINGS: "#240",
     CLEAN_WITHOUT_FINDINGS: "#255",
+    UNEXPECTED_FIELD: "#866",
+    DUPLICATE_FIELD: "#866",
+    INVALID_RENDERED_RECORD: "#866",
+    RENDER_PASS_MISMATCH: "#866",
 }
 KINDS = tuple(ROWS)
 
@@ -450,6 +478,7 @@ class Record:
 
     check: str
     fields: dict[str, str] = field(default_factory=dict)
+    counts: dict[str, int] = field(default_factory=dict)
 
     def value(self, name: str) -> str:
         return self.fields.get(name, "")
@@ -506,23 +535,27 @@ def read_records(text: str) -> list[Record]:
     records: list[Record] = []
     check: str | None = None
     fields: dict[str, str] = {}
+    counts: dict[str, int] = {}
     current: str | None = None
 
     def close() -> None:
         if check is not None:
-            records.append(Record(check=check, fields=dict(fields)))
+            records.append(
+                Record(check=check, fields=dict(fields), counts=dict(counts))
+            )
 
     for line in text.splitlines():
         heading = CHECK.match(line)
         if heading:
             close()
-            check, fields, current = heading.group(1), {}, None
+            check, fields, counts, current = heading.group(1), {}, {}, None
             continue
         if check is None:
             continue
         named = FIELD.match(line)
         if named:
             current = named.group(1).upper()
+            counts[current] = counts.get(current, 0) + 1
             fields[current] = named.group(2)
             continue
         if current and line.strip():
@@ -546,17 +579,41 @@ def record_findings(record: Record) -> list[Finding]:
     """Every row this record fails. A record can fail more than one."""
     found: list[Finding] = []
     check = record.check
+    rendered = normalize(check) == normalize("the rendered document")
+    allowed = {"VERDICT", "FINDINGS"}
+    if rendered:
+        allowed.update({"SOURCE", "PASS"})
+    for name, count in record.counts.items():
+        if name not in allowed:
+            found.append(Finding(UNEXPECTED_FIELD, check, name))
+        if count > 1:
+            found.append(Finding(DUPLICATE_FIELD, check, f"{name}: {count} lines"))
 
     verdict, reason = keyword_of(record.value("VERDICT"), VERDICTS)
     if not SUBSTANCE.search(record.value("VERDICT")):
         # A heading whose reader never returned. The step names this failure and
         # then leaves it to somebody counting headings against verdicts.
-        return [Finding(MISSING_VERDICT, check, "VERDICT")]
+        found.append(Finding(MISSING_VERDICT, check, "VERDICT"))
+        return found
     if not verdict:
         # A **failure**, not a counted third branch: the field decides which rows
         # below run, so a record wearing a third word is graded on nothing at all
         # and prints as clean. ``research_ledger.py``'s ``STATUS`` reasoning.
-        return [Finding(UNKNOWN_VERDICT, check, record.value("VERDICT"))]
+        found.append(Finding(UNKNOWN_VERDICT, check, record.value("VERDICT")))
+        return found
+
+    if verdict == CLEAN and rendered:
+        if (
+            record.value("SOURCE").casefold() not in RENDER_SOURCES
+            or not POSITIVE_INTEGER.fullmatch(record.value("PASS"))
+        ):
+            found.append(
+                Finding(
+                    INVALID_RENDERED_RECORD,
+                    check,
+                    "clean rendered record needs SOURCE word-pdf, word-xps, or clinician and a positive PASS",
+                )
+            )
 
     if verdict == DEFECT and not SUBSTANCE.search(record.value("FINDINGS")):
         # **The field, not merely the substance.** A reason typed after the keyword
@@ -709,6 +766,50 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
             missing=(),
             findings=(),
         )
+    submission = _parsed.value("--submission")
+    rendered_report = f"the rendered pass: {NOT_GRADED} - --submission was not supplied"
+    if submission is not None and source.records:
+        passes = render_pass.read_passes(source.path.parent / "render")
+        extra: list[Finding] = []
+        rendered = next(
+            (
+                record
+                for record in source.records
+                if normalize(record.check) == normalize("the rendered document")
+            ),
+            None,
+        )
+        if not passes:
+            extra.append(
+                Finding(
+                    RENDER_PASS_MISMATCH,
+                    "the rendered document",
+                    "submission has no retained render pass",
+                )
+            )
+        elif rendered is None or rendered.value("PASS") != str(passes[-1][0]):
+            extra.append(
+                Finding(
+                    RENDER_PASS_MISMATCH,
+                    "the rendered document",
+                    "PASS does not name the highest retained pass",
+                )
+            )
+        if extra:
+            findings = scan.findings + tuple(extra)
+            scan = replace(
+                scan,
+                counts=tuple(
+                    (
+                        kind,
+                        sum(1 for finding in findings if finding.kind == kind),
+                    )
+                    for kind in KINDS
+                ),
+                failing_checks=len({normalize(finding.check) for finding in findings}),
+                findings=findings,
+            )
+        rendered_report = f"the rendered pass: {'finding' if extra else 'clean'}"
     diagnostics: list[str] = []
     if not source.records:
         diagnostics.append(f"no check records found in {source.path.name}")
@@ -720,7 +821,7 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
             " Re-run with --show to see which, and do not paste that output."
         )
     aar_failed, aar_report = aar_scan.completion_gate(
-        source.path.parent, _parsed.value("--submission")
+        source.path.parent, submission
     )
     return run_grader.Grade(
         scan=scan,
@@ -728,7 +829,7 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
         findings_failed=bool(scan.failing_checks) or aar_failed,
         coverage_failed=not source.records,
         diagnostics=tuple(diagnostics),
-        reports=(aar_report,),
+        reports=(rendered_report, aar_report),
     )
 
 

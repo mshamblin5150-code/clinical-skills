@@ -30,6 +30,7 @@ import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
+from unittest import mock
 
 import checks_ledger as checks
 from grader_conformance import for_module
@@ -81,6 +82,8 @@ def a_clean_record(name: str) -> str:
     block = f"## CHECK: {name}\nVERDICT: clean\n"
     if checks.normalize(name) in GRADED_KEYS:
         block += "FINDINGS: Walked every entry against the rule and every one is in order.\n"
+    if name == "the rendered document":
+        block += "SOURCE: word-pdf\nPASS: 1\n"
     return block
 
 
@@ -167,6 +170,43 @@ class TheParserReadsARecordAndItsWrappedFields(unittest.TestCase):
 
     def test_the_complete_file_fails_nothing(self):
         self.assertEqual(kinds(whole_file(CLEAN_RECORD, DEFECT_RECORD)), [])
+
+
+class KnownFieldsStayOnTheRowsThatOwnThem(unittest.TestCase):
+    def test_the_rendered_document_accepts_its_source_and_positive_pass(self):
+        self.assertEqual(kinds(whole_file()), [])
+
+    def test_source_pass_pages_and_unseen_on_another_row_are_findings(self):
+        for field in ("SOURCE: word-pdf", "source: word-pdf", " PASS: 1", "PAGES: 3", "UNSEEN: none"):
+            with self.subTest(field=field):
+                block = f"## CHECK: the Rx blocks\nVERDICT: clean\n{field}\n"
+                self.assertEqual(kinds(instead_of("the Rx blocks", block)), [checks.UNEXPECTED_FIELD])
+
+    def test_a_colon_inside_findings_prose_is_still_wrapped_prose(self):
+        block = (
+            "## CHECK: MDM completeness\n"
+            "VERDICT: defect\n"
+            "FINDINGS: The review covered every section.\n"
+            "ROS: one symptom was misplaced.\n"
+        )
+        self.assertEqual(kinds(instead_of("MDM completeness", block)), [])
+
+    def test_a_second_findings_or_source_line_is_a_finding(self):
+        duplicate_findings = CLEAN_RECORD + "FINDINGS: a second write\n"
+        rendered = a_clean_record("the rendered document") + "SOURCE: clinician\n"
+        self.assertEqual(kinds(instead_of("differential ordering", duplicate_findings)), [checks.DUPLICATE_FIELD])
+        self.assertEqual(kinds(instead_of("the rendered document", rendered)), [checks.DUPLICATE_FIELD])
+
+    def test_a_clean_rendered_record_requires_well_formed_source_and_pass(self):
+        for source, pass_number in (("browser", "1"), ("word-pdf", "0"), ("word-xps", "01"), ("clinician", "one")):
+            with self.subTest(source=source, pass_number=pass_number):
+                block = (
+                    "## CHECK: the rendered document\n"
+                    "VERDICT: clean\n"
+                    "FINDINGS: Walked every retained page.\n"
+                    f"SOURCE: {source}\nPASS: {pass_number}\n"
+                )
+                self.assertEqual(kinds(instead_of("the rendered document", block)), [checks.INVALID_RENDERED_RECORD])
 
 
 class DeclaredLimitsHaveDurableNames(unittest.TestCase):
@@ -578,6 +618,8 @@ class ACleanSaysWhatItWalkedOnTheExpensiveRows(unittest.TestCase):
         block = f"## CHECK: {name}\nVERDICT: clean\n"
         if findings is not None:
             block += f"FINDINGS: {findings}\n"
+        if name == "the rendered document":
+            block += "SOURCE: word-pdf\nPASS: 1\n"
         return kinds(instead_of(name, block))
 
     def ungraded(self) -> list[str]:
@@ -608,6 +650,8 @@ class ACleanSaysWhatItWalkedOnTheExpensiveRows(unittest.TestCase):
         for name in checks.SUBSTANTIATED_CLEAN:
             with self.subTest(check=name):
                 block = f"## CHECK: {name}\nVERDICT: clean - walked all four entries\n"
+                if name == "the rendered document":
+                    block += "SOURCE: word-pdf\nPASS: 1\n"
                 self.assertEqual(kinds(instead_of(name, block)), [checks.CLEAN_WITHOUT_FINDINGS])
 
     def test_the_other_rows_are_counted_and_not_graded(self):
@@ -852,6 +896,32 @@ class TheCommandExitsOnWhatItFound(unittest.TestCase):
             _status, _out, err = run([str(path)])
         self.assertNotIn(str(path.parent), err)
 
+    def test_submission_requires_the_highest_retained_pass(self):
+        directory, path = in_a_file(whole_file())
+        with directory:
+            render = path.parent / "render"
+            (render / "pass-1").mkdir(parents=True)
+            (render / "pass-2").mkdir()
+            with mock.patch.object(checks.aar_scan, "completion_gate", return_value=(False, "the after-action review: clean")):
+                stale = run([str(path), "--submission", "case-study"])[0]
+            text = path.read_text(encoding="utf-8").replace("PASS: 1", "PASS: 2")
+            path.write_text(text, encoding="utf-8")
+            with mock.patch.object(checks.aar_scan, "completion_gate", return_value=(False, "the after-action review: clean")):
+                clean = run([str(path), "--submission", "case-study"])[0]
+
+        self.assertEqual(stale, 1)
+        self.assertEqual(clean, 0)
+
+    def test_submission_with_no_retained_pass_is_a_finding(self):
+        directory, path = in_a_file(whole_file())
+        with directory, mock.patch.object(
+            checks.aar_scan,
+            "completion_gate",
+            return_value=(False, "the after-action review: clean"),
+        ):
+            status, _, _ = run([str(path), "--submission", "case-study"])
+        self.assertEqual(status, 1)
+
 
 class TheSkillSaysWhatThisChecks(unittest.TestCase):
     """``test_spelling_scan``'s rule: a scanner that has drifted from the file a
@@ -1062,6 +1132,10 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
         checks.UNKNOWN_VERDICT: "a `VERDICT` that is neither word",
         checks.DEFECT_WITHOUT_FINDINGS: "a `defect` with no `FINDINGS` under it",
         checks.CLEAN_WITHOUT_FINDINGS: "a `clean` with no `FINDINGS` under it",
+        checks.UNEXPECTED_FIELD: "a known field on a row that does not take it",
+        checks.DUPLICATE_FIELD: "a known field written more than once in one record",
+        checks.INVALID_RENDERED_RECORD: "a clean rendered-document record with a malformed `SOURCE` or `PASS`",
+        checks.RENDER_PASS_MISMATCH: "a terminal rendered-document record that does not name the highest retained pass",
     }
 
     def test_the_skill_writes_out_every_row_the_grader_applies(self):
