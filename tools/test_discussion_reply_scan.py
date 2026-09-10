@@ -16,7 +16,7 @@ from pathlib import Path
 
 import discussion_reply_scan as scan
 from grader_conformance import for_module, gate_conformance
-from prose_bind import NAMING, bind
+from prose_bind import NAMING, bind, prose_outside_code, section
 
 
 GraderConformance = for_module(scan)
@@ -91,10 +91,17 @@ DATED_ELEMENT = re.compile(r"\((?P<year>(?:19|20)\d{2}), [^()]+\)")
 
 
 def dated_sections(sheet: str) -> list[tuple[str, str | None]]:
-    """Every apa7.md section whose abstracted form is dated, with its one example."""
+    """Every apa7.md section whose abstracted form is dated, with its one example.
+
+    Headings are found and sections cut by ``prose_bind``, which masks code, so a
+    heading-shaped line inside a fenced example is not read as a section break.
+    """
     found: list[tuple[str, str | None]] = []
-    for section in re.split(r"(?m)^## ", sheet):
-        blocks = [" ".join(block.split()) for block in re.split(r"\n\s*\n", section)]
+    for heading in re.findall(r"(?m)^## [^\r\n]*\S", prose_outside_code(sheet)):
+        blocks = [
+            " ".join(block.split())
+            for block in re.split(r"\n\s*\n", section(sheet, heading))
+        ]
         if not any(
             block.startswith("**Abstracted entry form:**") and DATED_FORM in block
             for block in blocks
@@ -105,7 +112,7 @@ def dated_sections(sheet: str) -> list[tuple[str, str | None]]:
             for block in blocks
             if block.startswith("**Synthesized example:**")
         ]
-        found.append((section.splitlines()[0], examples[0] if len(examples) == 1 else None))
+        found.append((heading, examples[0] if len(examples) == 1 else None))
     return found
 
 
@@ -136,10 +143,14 @@ class DatedReferenceEntriesAreReferences(unittest.TestCase):
     text from the example, so an example this extraction cannot see fails its own
     section rather than disappearing from a total.
 
-    ``discussion_artifact.REFERENCE_YEAR`` is a declared copy of the date rule that
-    ``reference_scan.ENTRY_YEAR`` also holds. ``reference_scan`` imports
-    ``discussion_artifact``, so the shared module cannot take that pattern without
-    an import cycle, and the two are deliberately not bound to each other.
+    The ``(Year, Month Day`` selector is a floor: a form the sheet later dates some
+    other way is outside it until the selector names that form too.
+
+    ``reference_scan.ENTRY_YEAR`` reads the case-study reference list under a
+    different and wider rule, case-insensitive and with any text after the comma.
+    The two are not one rule and are not bound to each other; narrowing
+    ``ENTRY_YEAR`` would change the case-study grader, which this class does not
+    grade.
     """
 
     @classmethod
@@ -160,7 +171,13 @@ class DatedReferenceEntriesAreReferences(unittest.TestCase):
         self.assertIn(heading, unread_dated_examples(mutant))
 
     def test_a_parenthetical_that_is_not_a_date_is_not_a_date_element(self):
-        for parenthetical in ("(2019, p. 4)", "(2020, 2021)", "(2018, as amended)"):
+        for parenthetical in (
+            "(2019, p. 4)",
+            "(2020, 2021)",
+            "(2018, as amended)",
+            "(2019, Table 2)",
+            "(2024, Vol. 3)",
+        ):
             with self.subTest(parenthetical=parenthetical):
                 self.assertIsNone(scan.REFERENCE_YEAR.fullmatch(parenthetical))
 
@@ -168,6 +185,7 @@ class DatedReferenceEntriesAreReferences(unittest.TestCase):
         for entry, key in (
             ("Office of Neighborhood Health. (2025). *Preventing heat illness*.", "2025"),
             ("Coalition for Safe Care. (2020, Spring). *Discharge instructions*.", "2020"),
+            ("Rural Nurse Forum. (2021, March 18–19). *Annual meeting*.", "2021"),
         ):
             with self.subTest(entry=entry):
                 self.assertEqual({key}, {year for _name, year in scan.reference_keys(entry)})

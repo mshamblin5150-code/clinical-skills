@@ -157,7 +157,29 @@ LEGAL_CITATION = re.compile(
     r"(?:\s*\((?P<year>" + YEAR + r")\))?)",
     re.IGNORECASE,
 )
-REFERENCE_YEAR = re.compile(r"\((?P<year>" + YEAR + r")(?:,\s*[A-Z][^()]*)?\)")
+REFERENCE_DATE_WORDS = (
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+    "Spring",
+    "Summer",
+    "Fall",
+    "Autumn",
+    "Winter",
+)
+REFERENCE_YEAR = re.compile(
+    r"\((?P<year>" + YEAR + r")"
+    r"(?:,\s*(?:" + "|".join(REFERENCE_DATE_WORDS) + r")\b[^()]*)?\)"
+)
 CLAIM_BLOCK = re.compile(r"(?ms)^## CLAIM:\s*(?P<block>.*?)(?=^## CLAIM:|\Z)")
 RESTATEMENT = re.compile(r"(?mi)^RESTATEMENT\s*:\s*(?P<value>.*(?:\n(?:[ \t]+\S.*))*)")
 CLAIM_REFERENCE = re.compile(
