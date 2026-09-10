@@ -20,12 +20,12 @@ refusal is still the standing rule and ruling 1 answers it rather than setting i
 
 ## What was measured before ruling, on 2026-09-09
 
-Freshness gate `FRESH` at `f67e1cd` before reading; `main` advanced mid-session and the branch was
-brought forward to `87fefb7`, where every figure below was re-derived. Matchers are named. Every
-count over the tree is a floor.
+Freshness gate `FRESH` at `f67e1cd` before reading. `main` advanced twice mid-session and the branch
+was brought forward each time; every figure below was re-derived at `7bea9b5`, whose merge brought
+three new modules and two new test modules, neither of which adds a no-copy bind. Matchers are named.
+Every count over the tree is a floor.
 
-**The no-copy population is four sensitivities, not two.** Derived structurally by AST over all 110
-`tools/test_*.py`, not by a name grep:
+**The no-copy population is four sensitivities, not two.** Derived structurally by AST over `tools/test_*.py`, 112 modules, not by a name grep:
 
 | sensitivity of the no-copy half | sites |
 | --- | ---: |
