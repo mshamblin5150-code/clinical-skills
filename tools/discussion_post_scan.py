@@ -1278,7 +1278,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         } and not scan.reference_boundary_graded:
             lines.append(f"{kind}: {NOT_GRADED}")
         elif kind == RENDERED_PAGES and not scan.rendered_pages_graded:
-            lines.append(f"{kind}: {NOT_GRADED} - PyMuPDF is unavailable")
+            lines.append(f"{kind}: {NOT_GRADED} - {pdf_engine.RENDER_UNAVAILABLE}")
         elif kind in {BOLD_HEADINGS, RENDERED_COMMENTS, SUBMISSION_TEXT, RENDERED_PAGES} and not scan.html_graded:
             lines.append(f"{kind}: {NOT_GRADED}")
         else:

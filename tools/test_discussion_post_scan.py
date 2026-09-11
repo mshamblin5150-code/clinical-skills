@@ -272,7 +272,7 @@ class CanvasSubmissionRows(unittest.TestCase):
         self.assertIn("rendered-text: 0 (reported, not graded)", stdout)
         self.assertIn("rendered-pages: 0", stdout)
 
-    def test_a_missing_engine_does_not_fail_a_clean_submission(self):
+    def test_a_missing_engine_leaves_rendered_pages_ungraded_with_shared_reason(self):
         with tempfile.TemporaryDirectory() as temp:
             run = Run(Path(temp))
             html, _ = self.rendered(run)
@@ -287,7 +287,7 @@ class CanvasSubmissionRows(unittest.TestCase):
         self.assertEqual(status, 2)
         self.assertEqual(stderr, "")
         self.assertIn("rendered-pages: not graded", stdout)
-        self.assertIn("PyMuPDF is unavailable", stdout)
+        self.assertIn(scan.pdf_engine.RENDER_UNAVAILABLE, stdout)
         self.assertIn("findings: 0", stdout)
 
     def test_a_real_finding_still_wins_when_the_engine_is_missing(self):
