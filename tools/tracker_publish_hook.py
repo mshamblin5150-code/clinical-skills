@@ -316,14 +316,6 @@ HEREDOC = re.compile(
 )
 
 
-def _written_before_publish(command: str, source: str) -> bool:
-    publish_at = command.find("gh ")
-    if publish_at < 0:
-        return False
-    prefix = command[:publish_at]
-    return re.search(r">\s*['\"]?" + re.escape(source) + r"['\"]?", prefix) is not None
-
-
 def _fragment_has_publish(fragment: str) -> bool:
     return _publish_tokens(fragment) is not None
 
@@ -563,35 +555,15 @@ def _read_file_field(
         if heredoc is None:
             return Unreadable(field, "pipe", source)
         return Publication(field, heredoc.group("body"), "inline heredoc")
-    written_source = source
-    if _written_before_publish(command, written_source):
-        resolved = _resolve_file_source(source, command)
-        if resolved is None:
-            return Unreadable(
-                field, "written-before-publish", source, None, source
-            )
-        reconstructed, folder = resolved
-        return Unreadable(
-            field,
-            "written-before-publish",
-            reconstructed,
-            None if folder is None else str(folder),
-            reconstructed,
-        )
     resolved = _resolve_file_source(source, command)
     if resolved is None:
         return Unreadable(field, "unrooted-path", source, None, source)
     source, folder = resolved
     text = shell_reader.read_candidate(source)
     if text is None:
-        kind = (
-            "written-before-publish"
-            if _written_before_publish(command, written_source)
-            else "missing-file"
-        )
         return Unreadable(
             field,
-            kind,
+            "missing-file",
             source,
             None if folder is None else str(folder),
             source,
@@ -1101,8 +1073,11 @@ def _missing_issue_create_analysis() -> Analysis:
 
 UNREADABLE_REMEDIES = {
     "missing-file": (
-        "create the file first, then run `python tools/tracker_publish_hook.py "
-        "--text <path>` before retrying"
+        "no file was at this path when the hook ran, which is before any part "
+        "of this command runs, and a refused command runs none of its stages; "
+        "if this command writes the file, write it in a separate command "
+        "first, otherwise create it, then run `python "
+        "tools/tracker_publish_hook.py --text <path>` before retrying"
     ),
     "unrooted-path": (
         'put `cd "<folder>" && ` in front of the command, or write the whole '
@@ -1115,9 +1090,6 @@ UNREADABLE_REMEDIES = {
     "pipe": (
         "save the piped text to a file and run `python tools/tracker_publish_hook.py "
         "--text <path>` before retrying"
-    ),
-    "written-before-publish": (
-        "write the file in a separate command, then retry the gh publication"
     ),
     "command-substitution": (
         "run the substitution separately and then run `python "
