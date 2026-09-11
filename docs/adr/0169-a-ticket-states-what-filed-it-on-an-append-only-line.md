@@ -6,13 +6,13 @@
 matter of descent, and the only evidence of descent a sweep can read is the sentence in a ticket's body
 saying where the ticket came from. A respec replaces the body, and nothing said to keep that sentence.
 
-Grilled 2026-09-10 at `origin/main` `4eaf6be`. **Thirteen questions were ruled by the clinician one at
+Grilled 2026-09-10 at `origin/main` `4eaf6be`. **Fourteen questions were ruled by the clinician one at
 a time on that date.** The first nine produced rulings 1 to 9. The session's own tracker sweep then read
 all 60 open tickets against that draft before it merged, and found gaps in rulings 3, 5, 7 and 8 and a
 writer the rules had not considered. Four more questions amended rulings 5, 7 and 8 and added ruling 10.
-The sweep's corrections of fact are folded into the text below. Nothing is built here; this is the
-record the build reads. Every count below is a dated measurement, not a current property of the
-tracker.
+A fourteenth amended ruling 5 again after #875 closed while the record was waiting to merge. The sweep's
+corrections of fact are folded into the text below. Nothing is built here; this is the record the build
+reads. Every count below is a dated measurement, not a current property of the tracker.
 
 ## Measured before ruling
 
@@ -38,7 +38,8 @@ load. It sorted them into five classes that sum to 60:
 
 The one loss is #875, whose early revision says *"Found by an architecture review of the repo-wide
 gate."* The parent re-derived it from #875's own edit history. Had the respec kept the line, the
-current body would have matched `Found by` as the early revision does; it did not.
+current body would have matched `Found by` as the early revision does; it did not. #875 then closed at
+2026-09-11T01:23Z UTC, when PR #1063 merged its build, before this record merged.
 
 The agent classed twelve open tickets as never having had a line: #87, #596, #966, #979, #991, #993,
 #994, #1032, #1033, #1034, #1035 and #1042. Most narrate a run or an after-action review rather than a
@@ -119,14 +120,18 @@ lists it under _Avoid_ for **Held declaration**. *Origin* was refused because `o
 and a scope block directly above the line can be verified against `origin/main`. *Descends from* was
 refused because it names the judgment rather than the fact the judgment rests on.
 
-### 5. Existing tickets change only where a line was lost
+### 5. No existing ticket's body is edited to add the line
 
-The build restores #875's line from its own edit history, word for word under the label. Every other
-ticket filed before the cutoff keeps what it has until its next respec. That respec moves the origin
+A ticket filed before the cutoff keeps what it has until its next respec. That respec moves the origin
 sentence alone under the label, word for word, and leaves any other sentences of its paragraph in the
 body as they were. Where a ticket never had one, the respec writes a line marked as a reconstruction.
-Closed tickets are untouched, on ADR 0166 ruling 7's footing. *Amended before merge: the first draft
-said "the existing line", which the sweep found is usually a sentence inside a longer paragraph.*
+Closed tickets are untouched, on ADR 0166 ruling 7's footing, and #875 is among them.
+
+*Amended twice before merge.* The first draft said "the existing line", which the sweep found is usually
+a sentence inside a longer paragraph. The second draft had the build restore #875's lost line, because
+#875 was the one open ticket that had lost it. #875 closed before this record merged, which put it in
+the same position as the nine closed carriers this ruling leaves alone, and the clinician dropped the
+restoration.
 
 ### 6. The publish hook prevents and the tracker workflow reports
 
@@ -191,8 +196,8 @@ reconstruction never reaches #596.
   a retained revision, for a label every older ticket reaches at its next respec anyway. A
   reconstruction for the twelve tickets the agent classed as never having a line would be the
   respecer's reading.
-- **Change nothing already filed, #875 included.** Refused because #875 is the one real loss and a
-  lineage carrier, and restoring it is one edit from its own history.
+- **Restore #875's line after it closed, or quote it in a comment.** Refused under ruling 5: #875 was
+  singled out only because it was open, and repairing one closed carrier of ten would be arbitrary.
 - **Prose and a sweep step alone.** Refused because #875 shows a respec dropping the line with nothing
   to stop it, which is [#214](https://github.com/mshamblin5150-code/clinical-skills/issues/214)'s *what
   a written instruction cannot do is fail*.
@@ -215,8 +220,8 @@ reconstruction never reaches #596.
 The build is: the two refusals in `tools/tracker_publish_hook.py`, including its read of the current
 body text; the two reports run from `.github/workflows/tracker.yml`; the committed cutoff; the
 map-stamp exemption in all three readers; the rule and the sweep step in
-`docs/agents/issue-tracker.md`; the edit to `skills/aar/SKILL.md`; and #875's restored line. #1054's
-body carries the build spec.
+`docs/agents/issue-tracker.md`; and the edit to `skills/aar/SKILL.md`. #1054's body carries the build
+spec.
 
 ## What this does not reach
 
@@ -232,5 +237,5 @@ body carries the build spec.
   [#1026](https://github.com/mshamblin5150-code/clinical-skills/issues/1026)'s question.
 - **Tickets filed before the cutoff that never had a line.** Nothing reports them until a respec reaches
   them.
-- **Closed tickets.** Ruling 5 leaves them as they are, so a closed ticket's body is not evidence of its
-  descent in either direction.
+- **Closed tickets, #875 and the nine carriers included.** Ruling 5 leaves them as they are, so a closed
+  ticket's body is not evidence of its descent in either direction.
