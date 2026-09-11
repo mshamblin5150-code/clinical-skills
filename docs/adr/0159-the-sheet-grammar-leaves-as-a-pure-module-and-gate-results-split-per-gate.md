@@ -48,10 +48,11 @@ discriminating measurement of #836's thesis, and it is the one the body did not 
 
 **Splitting the nineteen by who reads them gives three tiers.** `gate`, `findings`, `warnings`,
 `skip_reason`, `diagnostics`, `not_graded`, `fatal`, `report` and `stdout` are read by
-`format_report`, `_emit_scan`, `main` or `survey`. `pairings`, `undiffed`, `uncovered` and
-`tier2_skip_diagnostics` are read by `survey` alone — which already names every gate explicitly.
-And **`rendered`, `ungraded`, `ungraded_sources` and `unprobed_sources` have no production reader
-outside the gate that sets them**; their only readers are tests.
+`format_report`, `_emit_scan`, `main` or `survey` — `skip_reason` only off citation tier 2's result.
+`undiffed`, `uncovered` and `tier2_skip_diagnostics` are read by `survey` alone — which already names
+every gate explicitly. And **`pairings`, `rendered`, `ungraded`, `ungraded_sources` and
+`unprobed_sources` have no production reader outside the gate that sets them**; their only readers are
+tests.
 
 **`survey`'s emission list is hand-written, and it is the real interface.** `refusals` is a
 concatenation naming eleven gates one at a time. `gate_edition_currency` is not among them, so a
@@ -289,3 +290,14 @@ view's last row, `misdrawn span boundaries`, which carries `PAGE_COVERAGE_CANNOT
 Ruling 1's *"the one gate whose behavior the `SCOPE_SUMMARY_NOT_REACHED` view bounds"* carries the
 same imprecision and is left as written, being the deciding paragraph. No ruling of this record
 changed.
+
+**Corrected in place again on 2026-09-11**, on ADR 0016's terms, from
+[#1078](https://github.com/mshamblin5150-code/clinical-skills/issues/1078)'s grilling. The
+measurement paragraph listed `pairings` among the fields *"read by `survey` alone"*. An AST walk of
+`tools/threshold_sheet.py` at `9bb259e` finds no loaded `.pairings` anywhere in the module, which this
+record's own ruling 6 already said in other words: *"`pairings` reaches no list in `survey` at all"*.
+It now sits with the fields that have no production reader. The same paragraph placed `skip_reason`
+with the fields the core's readers read, which was true of citation tier 2's value alone; the qualifier
+now says so. Ruling 3's rule applies to both unchanged, and
+[ADR 0176](0176-a-gate-result-field-has-a-production-reader-or-it-is-a-local.md) rules what follows
+from it. No ruling of this record changed.
