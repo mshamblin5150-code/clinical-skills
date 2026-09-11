@@ -773,12 +773,16 @@ A module's actual use of the shared runner and its conformance kit — importing
 _Avoid_: migration, membership, compliance, conformance
 
 **Refusal**:
-A permanent verdict that the shared runner cannot express what a module does, recorded against that module in `run_grader.REFUSED`. It turns on the module's *graded* path — a report that must be suppressible, or a status that must be the worst of several sources, is a refusal because the runner grades one source to one status and prints unconditionally. Distinct from a **deferral**, which is open work; collapsing the two loses the difference between a decision and a queue.
-_Avoid_: exclusion, exemption, opt-out, declined
+A verdict that the shared runner, under its current contract, cannot express what a module's *graded* path does, recorded against that module in `run_grader.REFUSED`. A report that must be suppressible, or a status that must be the worst of several sources, is a refusal because the runner grades one source to one status and prints unconditionally. It has no owner and nothing schedules it, and it reopens only on evidence that the runner's contract changed — never on a claim that it is permanent. Distinct from a **deferral**, which is open work with an owner; collapsing the two loses the difference between a decision and a queue. Distinct too from a **grader lookalike**, which no change to the runner would admit.
+_Avoid_: exclusion, exemption, opt-out, declined, permanent verdict
 
 **Deferral**:
 Open migration work with a named owner, recorded against a module in `run_grader.DEFERRED`. Its obstacles lie outside the module's graded path — a second entry point, or a side effect the runner has no hook for — so it is a module that could join rather than one that cannot. Held apart from a refusal because a single assertion that *a reason was written* proves only that, so a deferral sharing one mapping with refusals reads as a settled exclusion and nothing schedules its review.
 _Avoid_: exclusion, not yet, pending, backlog
+
+**Grader lookalike**:
+A module the membership walk recognizes by source shape that is not a grader over a run, recorded in `run_grader.GRADER_LOOKALIKES` with what it is instead. No change to the runner makes it a **declared member**; only the module becoming a grader would. Distinct from a **refusal**, which is a grader the runner cannot yet express, and from a module the walk does not see at all.
+_Avoid_: non-grader, exclusion, false positive, census
 
 **Suite run**:
 One execution of every test discovery finds under `tools/`, complete only when each discovered test comes back exactly once with an outcome. Its denominator is what discovery found and never the tally of what came back, so a run that lost a test is incomplete rather than clean. Distinct from the gates the repo's refusing checks carry, which grade an artifact; a suite run grades the checkout's own tests.
