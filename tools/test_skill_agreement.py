@@ -51,6 +51,7 @@ import unittest
 from pathlib import Path
 from typing import Callable, Iterator, NamedTuple
 
+import git_paths
 from prose_bind import ProseBind, normalized, prose_outside_code
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -422,16 +423,9 @@ def tracked_repository_paths() -> set[str]:
     outside this walk and cannot make the README gate pass.
     """
 
-    completed = subprocess.run(
-        ["git", "ls-files", "-z"],
-        cwd=REPO_ROOT,
-        check=True,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
+    return set(
+        git_paths.read_path_records(REPO_ROOT, "ls-files", "-z")
     )
-    return {path for path in completed.stdout.split("\0") if path}
 
 
 def tracked_path_or_directory(path: Path, tracked: set[str]) -> bool:
@@ -1084,18 +1078,11 @@ def graded_files() -> list[Path]:
     --exclude-standard`` closes it and was declined -- CI catches it at push and
     the next local run catches it after the stage.
     """
-    finished = subprocess.run(
-        ["git", "ls-files", "--cached", "--", "*.md", "*.py"],
-        cwd=REPO_ROOT,
-        capture_output=True,
-        encoding="utf-8",
-        errors="replace",
-        check=True,
+    records = git_paths.read_path_records(
+        REPO_ROOT, "ls-files", "-z", "--cached", "--", "*.md", "*.py"
     )
     kept = []
-    for line in finished.stdout.splitlines():
-        if not line.strip():
-            continue
+    for line in records:
         path = REPO_ROOT / line
         if line.startswith("fixtures/") and path.name not in FIXTURE_PROSE:
             continue
@@ -2600,15 +2587,11 @@ class EveryRelativeLinkResolvesToAnIndexedPath(unittest.TestCase):
         A clean result covers only those tracked paths; see ``graded_files()``
         for the untracked-file window.
         """
-        finished = subprocess.run(
-            ["git", "ls-files", "--cached"],
-            cwd=REPO_ROOT,
-            capture_output=True,
-            encoding="utf-8",
-            errors="replace",
-            check=True,
+        indexed = set(
+            git_paths.read_path_records(
+                REPO_ROOT, "ls-files", "-z", "--cached"
+            )
         )
-        indexed = {line for line in finished.stdout.splitlines() if line.strip()}
         for path in tuple(indexed):
             parent = posixpath.dirname(path)
             while parent:

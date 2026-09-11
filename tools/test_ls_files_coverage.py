@@ -243,7 +243,7 @@ def modules() -> list[Path]:
     return sorted(TOOLS.glob("*.py"))
 
 
-def tree_sources() -> dict[str, str]:
+def all_tool_module_sources() -> dict[str, str]:
     """Every module in ``tools/``, by name, as text.
 
     **The only thing between the tree and ``grade``, and it is separate so that
@@ -398,7 +398,7 @@ class EveryWalkStatesItsCoverage(unittest.TestCase):
         """
         found = [
             f"{name}:{line}"
-            for name, source in tree_sources().items()
+            for name, source in all_tool_module_sources().items()
             for line, _ in walks(source)
         ]
         self.assertGreaterEqual(len(found), 5, f"only found {found}")
@@ -410,7 +410,9 @@ class EveryWalkStatesItsCoverage(unittest.TestCase):
         predicate silently stopped seeing the ``_git("ls-files")`` spelling,
         which is the one both of these use and no test module uses.
         """
-        walked = {name for name, source in tree_sources().items() if walks(source)}
+        walked = {
+            name for name, source in all_tool_module_sources().items() if walks(source)
+        }
         self.assertIn("phi_scan.py", walked)
         self.assertIn("spelling_scan.py", walked)
 
@@ -421,13 +423,13 @@ class EveryWalkStatesItsCoverage(unittest.TestCase):
         assertion in the module stayed green, which is the same vacuous-pass
         shape the class above exists for -- one layer further out.
         """
-        sources = tree_sources()
+        sources = all_tool_module_sources()
         self.assertGreaterEqual(len(sources), 20)
         self.assertIn("phi_scan.py", sources)
         self.assertIn("def scan_all", sources["phi_scan.py"])
 
     def test_every_walk_says_what_a_clean_result_covers(self) -> None:
-        missing = grade(tree_sources())
+        missing = grade(all_tool_module_sources())
         self.assertEqual(
             missing,
             [],

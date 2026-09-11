@@ -61,7 +61,7 @@ def acquisition_lines(source: str) -> list[int]:
     return sorted(found)
 
 
-def tree_sources() -> tuple[dict[str, str], tuple[str, ...]]:
+def non_test_tool_sources() -> tuple[dict[str, str], tuple[str, ...]]:
     """Read every non-test module and retain the unread remainder."""
     sources: dict[str, str] = {}
     unread: list[str] = []
@@ -148,7 +148,7 @@ class PdfEngineIsTheOnlyAcquirer(unittest.TestCase):
         )
 
     def test_pdf_engine_is_the_tree_s_only_acquirer(self):
-        sources, unread = tree_sources()
+        sources, unread = non_test_tool_sources()
         acquired = acquiring_modules(sources)
         unexpected = {
             name: lines for name, lines in acquired.items() if name != "pdf_engine.py"
@@ -171,7 +171,7 @@ class PdfEngineAcquisitionIsLazy(unittest.TestCase):
         )
 
     def test_the_only_acquisition_is_below_a_function_boundary(self):
-        sources, unread = tree_sources()
+        sources, unread = non_test_tool_sources()
         report = f"walked {len(sources)} modules; unread remainder {list(unread)}"
         self.assertEqual(unread, (), report)
         self.assertTrue(acquisition_is_lazy(sources["pdf_engine.py"]), report)
@@ -190,7 +190,7 @@ class EveryPdfConsumerDeclaresItsRole(unittest.TestCase):
         self.assertTrue(roles_are_complete(sources, {"one", "two"}))
 
     def test_roles_are_complete_in_both_directions(self):
-        sources, unread = tree_sources()
+        sources, unread = non_test_tool_sources()
         report = f"walked {len(sources)} modules; unread remainder {list(unread)}"
         self.assertEqual(unread, (), report)
         self.assertTrue(roles_are_complete(sources, set(pdf_engine.ROLES)), report)

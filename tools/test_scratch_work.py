@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import io
 import re
-import subprocess
 import tempfile
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
 from unittest import mock
 
+import git_paths
 import scratch_work
 import scratch_census
 
@@ -99,17 +99,11 @@ class ScratchWorkCommandTests(unittest.TestCase):
 class DocumentedHarvestTests(unittest.TestCase):
     def test_every_tracked_harvest_calls_the_ticket_directory_producer(self) -> None:
         """Clean means no tracked harvest fails; unstaged files are not read."""
-        listed = subprocess.run(
-            ["git", "ls-files", "*.md", "*.py"],
-            cwd=REPO_ROOT,
-            check=True,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
+        records = git_paths.read_path_records(
+            REPO_ROOT, "ls-files", "-z", "*.md", "*.py"
         )
         harvests: list[tuple[Path, str]] = []
-        for relative in listed.stdout.splitlines():
+        for relative in records:
             path = REPO_ROOT / relative
             text = path.read_text(encoding="utf-8")
             for match in re.finditer(re.escape(HARVEST_SIGNATURE), text):

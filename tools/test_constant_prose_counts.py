@@ -9,8 +9,9 @@ graded; docs/adr/0020 records the measured reason for that boundary.
 import ast
 from pathlib import Path
 import re
-import subprocess
 import unittest
+
+import git_paths
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -43,18 +44,12 @@ def _tracked_tool_modules(root: Path) -> list[str]:
     or unstaged modules remain invisible until they enter the index.
     """
 
-    result = subprocess.run(
-        ["git", "ls-files", "--cached", "--", "tools/*.py"],
-        cwd=root,
-        check=True,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
+    records = git_paths.read_path_records(
+        root, "ls-files", "-z", "--cached", "--", "tools/*.py"
     )
     return [
         relative
-        for relative in result.stdout.splitlines()
+        for relative in records
         if not Path(relative).name.startswith("test_")
     ]
 
@@ -127,7 +122,7 @@ def definite_counts(source: str) -> set[tuple[str, str]]:
     return found
 
 
-def repository_survivors(root: Path) -> set[tuple[str, str, str]]:
+def constant_count_survivors(root: Path) -> set[tuple[str, str, str]]:
     """Walk every module-level uppercase constant in tracked non-test tools."""
 
     found: set[tuple[str, str, str]] = set()
@@ -162,7 +157,7 @@ class DefiniteCountPredicateHasAPositiveControl(unittest.TestCase):
 
 class DefiniteCountsInConstantsAreDeclared(unittest.TestCase):
     def test_every_survivor_is_exactly_declared_and_reasoned(self):
-        found = repository_survivors(REPO_ROOT)
+        found = constant_count_survivors(REPO_ROOT)
         self.assertEqual(set(DECLARED_DEFINITE_COUNTS), found)
         for reason in DECLARED_DEFINITE_COUNTS.values():
             self.assertTrue(reason.strip())
