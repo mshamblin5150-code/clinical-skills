@@ -24,6 +24,7 @@ import page_text
 import page_image
 import pdf_engine
 import guidelines_recs
+from prose_bind import NAMING, bind
 
 
 TOOLS = Path(__file__).resolve().parent
@@ -238,6 +239,7 @@ class PdfEngineResidueIsDeclared(unittest.TestCase):
             },
             set(pdf_engine.DECLARED_LIMITS),
         )
+        self.assertEqual((), bind(pdf_engine.DECLARED_LIMITS, pdf_engine.__doc__, mode=NAMING))
 
 
 class GuidelinesRecommendationsConvertsAbsence(unittest.TestCase):

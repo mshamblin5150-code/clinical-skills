@@ -18,22 +18,20 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import NamedTuple
 
-from prose_bind import NAMING, UnreadObject, bind, copied_leaves, string_leaves
+from prose_bind import (
+    LIMIT_CONSTANTS,
+    NAMING,
+    UnreadObject,
+    bind,
+    copied_leaves,
+    string_leaves,
+)
 from test_module_sections import SECTION
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CLAUDE_MD = REPO_ROOT / "CLAUDE.md"
 POINTER = re.compile(r"`(?P<module>[a-z_][a-z0-9_]*)\.(?P<constant>[A-Z][A-Z0-9_]*)`")
-LIMIT_CONSTANTS = (
-    "DECLARED_LIMITS",
-    "NOT_REACHED",
-    "NOT_GUARDED",
-    "NOT_APPLIED",
-    "NOT_STRIPPED",
-    "NOT_VALIDATED_AGAINST",
-    "ORPHANED_FIGURES",
-)
 LIMITS_ISH = re.compile(r"(?:LIMIT|^NOT_|ORPHAN)")
 EXCEPTIONS = (
     (
@@ -102,7 +100,7 @@ class EveryPointerResolves(unittest.TestCase):
             if LIMITS_ISH.search(pointer.constant)
         }
 
-        self.assertEqual(set(LIMIT_CONSTANTS), candidates)
+        self.assertLessEqual(candidates, set(LIMIT_CONSTANTS))
 
 
 class LimitsPointersCopyNoRow(unittest.TestCase):

@@ -131,11 +131,26 @@ class TheCatalogPublishesOnlyValuesTheIndexCanAnswer(unittest.TestCase):
 
 class TheCatalogAndGlossaryPointToTheDeclaredLimits(unittest.TestCase):
     def test_both_prose_surfaces_point_to_the_module_object(self) -> None:
+        self.assertEqual(
+            (),
+            bind(
+                guidelines_catalog.NOT_REACHED,
+                CATALOG.read_text(encoding="utf-8"),
+                mode=NAMING,
+            ),
+        )
         for path in (CATALOG, CONTEXT):
             text = path.read_text(encoding="utf-8")
             self.assertEqual(text.count("guidelines_catalog.NOT_REACHED"), 1, path)
-            limits = tuple(reason for _key, reason in guidelines_catalog.NOT_REACHED)
-            self.assertEqual((), bind(limits, text, mode=NAMING), path)
+            self.assertEqual(
+                (),
+                bind(
+                    tuple(reason for _key, reason in guidelines_catalog.NOT_REACHED),
+                    text,
+                    mode=NAMING,
+                ),
+                path,
+            )
 
 
 class TheInstrumentIsLive(unittest.TestCase):

@@ -20,6 +20,17 @@ SHINGLE = 9
 
 NAMING = "naming"
 ENUMERATION = "enumeration"
+LIMIT_CONSTANTS = (
+    "DECLARED_LIMITS",
+    "NOT_REACHED",
+    "NOT_GUARDED",
+    "NOT_APPLIED",
+    "NOT_STRIPPED",
+    "NOT_VALIDATED_AGAINST",
+    "ORPHANED_FIGURES",
+    "LEGAL_READER_NOT_REACHED",
+    "README_NOT_REACHED",
+)
 
 
 class UnreadObject(AssertionError):

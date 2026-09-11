@@ -1005,6 +1005,7 @@ class EveryDeclaredLimitHasOneCheckedInventory(unittest.TestCase):
     def test_the_skill_and_module_point_to_the_inventory_without_copying_rows(self):
         skill = DISCUSSION_REPLY_SKILL.read_text(encoding="utf-8")
 
+        self.assertEqual((), bind(scan.DECLARED_LIMITS, scan.__doc__, mode=NAMING))
         self.assertIn("discussion_reply_scan.NOT_REACHED", skill)
         self.assertIn("``NOT_REACHED``", scan.__doc__ or "")
         for where, prose in {

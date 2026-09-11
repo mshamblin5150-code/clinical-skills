@@ -32,10 +32,24 @@ class EvidenceDisposition(Enum):
     BEHAVIOR = "behavior"
     DECLARED_READING = "declared-reading"
 
-WALK_CEILING = (
-    "top-level survey(), top-level format_report(), and an if __name__ == '__main__' guard; "
-    "grader shapes assembled differently are invisible"
+DECLARED_LIMITS = (
+    (
+        "grader-family discovery",
+        "top-level survey(), top-level format_report(), and an if __name__ == '__main__' guard; "
+        "grader shapes assembled differently are invisible",
+        EvidenceDisposition.DECLARED_READING,
+    ),
+    (
+        "direct text-read classification",
+        "AST floor over direct .read_text calls with an absent errors argument or the literal "
+        "errors='replace'; a strict read counts as a refusal only when both OSError and "
+        "UnicodeError are converted to SourceError; other conversions remain in the crashing "
+        "count, and built-in open calls, indirect readers, and computed error modes are invisible",
+        EvidenceDisposition.DECLARED_READING,
+    ),
 )
+WALK_CEILING = DECLARED_LIMITS[0][1]
+TEXT_READ_WALK_CEILING = DECLARED_LIMITS[1][1]
 
 MEMBERS: set[str] = {
     "anchor_scan",
@@ -130,14 +144,6 @@ UNDECODABLE_BYTE_POSTURES: Mapping[str, Mapping[str, str]] = MappingProxyType(
         ),
     }
 )
-
-TEXT_READ_WALK_CEILING = (
-    "AST floor over direct .read_text calls with an absent errors argument or the literal "
-    "errors='replace'; a strict read counts as a refusal only when both OSError and "
-    "UnicodeError are converted to SourceError; other conversions remain in the crashing "
-    "count, and built-in open calls, indirect readers, and computed error modes are invisible"
-)
-
 
 @dataclass(frozen=True)
 class TextReadWalk:
