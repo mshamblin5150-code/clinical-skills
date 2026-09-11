@@ -334,6 +334,17 @@ The flag is available after recovery; it is never a substitute for recovery.
 
 ## 8. Gate 1, load, independently read the box, Gate 2, and submit
 
+Before the retained captures are decoded, run:
+
+```bash
+python tools/pdf_engine.py
+```
+
+On exit 1, ask the clinician for permission to run the install line the check printed and run the
+check again after an attempted install. If permission is declined or the install fails, walk the
+rendered-page rules in this step by eye and retain that result for the completion report. Exit 2
+from the check does not establish that the engine is missing and stops this step for investigation.
+
 Before Gate 1, inspect the editor for the raw-HTML toggle labeled like *Click or shift-click for the
 html editor*. If it is present, tell the clinician the post will be loaded as HTML. If it is absent,
 declare the typing fallback and its cost before asking: the agent will type the post into the rich
@@ -427,7 +438,7 @@ the earlier pre-post and rendered passes deliberately report that row as not gra
 
 ## Completion
 
-Do not report completion until the final `discussion_post_scan.py ... --submission <output-Markdown-stem>` exits 0. Report the board key, signed-bar date, research-ledger exit, reference-scan exit,
+Do not report completion until the final `discussion_post_scan.py ... --submission <output-Markdown-stem>` exits 0, except that its exit 2 is accepted when this run's engine check reported the engine missing and the install did not happen. In that case report that the run is not mechanically verified and that the rendered-page rows were walked by eye. A finding still stops the run. Report the board key, signed-bar date, research-ledger exit, reference-scan exit,
 discussion-post-scan exit, body word count, stated ceiling and whether it was exceeded, reference
 count, claim-record count, invoked-source count, unfilled-property count, pre-#496 marker count,
 paywalled-claim count, unreadable-status count, unreadable-refutation count,

@@ -272,7 +272,7 @@ class CanvasSubmissionRows(unittest.TestCase):
         self.assertIn("rendered-text: 0 (reported, not graded)", stdout)
         self.assertIn("rendered-pages: 0", stdout)
 
-    def test_a_missing_engine_leaves_rendered_pages_ungraded_with_shared_reason(self):
+    def test_a_missing_engine_reaches_the_documented_unverified_completion(self):
         with tempfile.TemporaryDirectory() as temp:
             run = Run(Path(temp))
             html, _ = self.rendered(run)
@@ -288,7 +288,15 @@ class CanvasSubmissionRows(unittest.TestCase):
         self.assertEqual(stderr, "")
         self.assertIn("rendered-pages: not graded", stdout)
         self.assertIn(scan.pdf_engine.RENDER_UNAVAILABLE, stdout)
+        self.assertIn("not mechanically verified", stdout)
         self.assertIn("findings: 0", stdout)
+        skill = (REPO_ROOT / "skills" / "discussion-post" / "SKILL.md").read_text(
+            encoding="utf-8"
+        )
+        completion = skill.split("## Completion", 1)[1]
+        self.assertIn("not mechanically verified", completion)
+        self.assertIn("engine check reported the engine missing", completion)
+        self.assertIn("A finding still stops the run", completion)
 
     def test_a_real_finding_still_wins_when_the_engine_is_missing(self):
         with tempfile.TemporaryDirectory() as temp:
