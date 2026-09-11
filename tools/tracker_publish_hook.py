@@ -410,7 +410,38 @@ def _raw_publish_route(command: str) -> tuple[str, ...] | None:
     return route if route in PUBLISH_ROUTES else None
 
 
-def _api_grade_route(arguments: list[str]) -> tuple[str, ...]:
+def _api_method(arguments: list[str]) -> str:
+    explicit_method: str | None = None
+    has_parameters = False
+    index = 0
+    while index < len(arguments):
+        token = arguments[index]
+        if token in ("--method", "-X") and index + 1 < len(arguments):
+            explicit_method = arguments[index + 1].upper()
+            index += 2
+            continue
+        if token.startswith("--method="):
+            explicit_method = token.partition("=")[2].upper()
+        elif token.startswith("-X") and len(token) > 2:
+            explicit_method = token[2:].upper()
+        elif (
+            token in API_VALUE_FLAGS
+            or token == "--input"
+            or token.startswith("--raw-field=")
+            or token.startswith("--field=")
+            or token.startswith("--input=")
+            or (token.startswith(("-f", "-F")) and len(token) > 2)
+        ):
+            has_parameters = True
+        index += 1
+    if explicit_method is not None:
+        return explicit_method
+    return "POST" if has_parameters else "GET"
+
+
+def _api_grade_route(arguments: list[str]) -> tuple[str, ...] | None:
+    if _api_method(arguments) == "GET":
+        return None
     endpoint = next(
         (
             token
@@ -555,6 +586,8 @@ def extract(command: str) -> Extraction:
     arguments = tail[route_width:]
     number = _record_number(route, arguments)
     grade_route = _api_grade_route(arguments) if route == ("api",) else route
+    if route == ("api",) and grade_route is None:
+        return Extraction(route, number, (), (), None)
     publications: list[Publication] = []
     assignments = shell_reader.plain_assignments(command)
     substitutions = shell_reader.substitution_assignments(command)
