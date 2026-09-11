@@ -64,8 +64,9 @@ other's case, and `aar_scan` is the recorded instance of the second passing thro
 ### 2. `NOT_MEMBERS` distinguishes a refusal from a deferral, and the two are separate mappings
 
 A **refused** module is a permanent verdict: the runner cannot express what it does. A **deferred**
-module is open work with a named owner. Today `corpus_census`, `threshold_sheet` and
-`tracker_bodies` are refusals and `filled_vitals_census` is a deferral.
+module is open work with a named owner. When this record was ruled, `corpus_census`,
+`threshold_sheet` and `tracker_bodies` were refusals and `filled_vitals_census` was a deferral;
+ruling 3 defers `aar_scan` beside it.
 
 **One mapping could not tell them apart, and that is the same defect one level up.** The single
 assertion `all(NOT_MEMBERS.values())` proves a reason was written, never which kind of reason it is
@@ -122,3 +123,10 @@ tell which they are looking at.
 **The three non-adopting members' redaction posture is not thereby reviewed.** The walk will fail
 until each adopts, and adoption proves the marker property from that day. Neither this record nor
 the walk says anything about what those three modules' `--show` output has been until now.
+
+Correction, 2026-09-11: ruling 2's list formerly read "Today" and used the present tense. Both
+deferrals, `filled_vitals_census` and ruling 3's `aar_scan`, joined `MEMBERS` in `cee74e4` on
+2026-09-03 and left `DEFERRED` empty; ruling 3's heading is left as ruled.
+[ADR 0174](0174-a-refusal-is-bounded-by-the-runner-s-contract-and-a-grader-lookalike-is-its-own-kind.md)
+moves `corpus_census` out of `REFUSED` and supersedes this ruling's *permanent verdict*. The
+separation of refusals from deferrals is unchanged.

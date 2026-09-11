@@ -781,16 +781,24 @@ A module's actual use of the shared runner and its conformance kit — importing
 _Avoid_: migration, membership, compliance, conformance
 
 **Refusal**:
-A permanent verdict that the shared runner cannot express what a module does, recorded against that module in `run_grader.REFUSED`. It turns on the module's *graded* path — a report that must be suppressible, or a status that must be the worst of several sources, is a refusal because the runner grades one source to one status and prints unconditionally. Distinct from a **deferral**, which is open work; collapsing the two loses the difference between a decision and a queue.
-_Avoid_: exclusion, exemption, opt-out, declined
+A verdict that the shared runner, under its current contract, cannot express what a module's *graded* path does, recorded against that module in `run_grader.REFUSED`. A report that must be suppressible, or a status that must be the worst of several sources, is a refusal because the runner grades one source to one status and prints unconditionally. It has no owner and nothing schedules it, and it reopens only on evidence that the runner's contract changed — never on a claim that it is permanent. Distinct from a **deferral**, which is open work with an owner; collapsing the two loses the difference between a decision and a queue. Distinct too from a **grader lookalike**, which no change to the runner would admit.
+_Avoid_: exclusion, exemption, opt-out, declined, permanent verdict
 
 **Deferral**:
 Open migration work with a named owner, recorded against a module in `run_grader.DEFERRED`. Its obstacles lie outside the module's graded path — a second entry point, or a side effect the runner has no hook for — so it is a module that could join rather than one that cannot. Held apart from a refusal because a single assertion that *a reason was written* proves only that, so a deferral sharing one mapping with refusals reads as a settled exclusion and nothing schedules its review.
 _Avoid_: exclusion, not yet, pending, backlog
 
+**Grader lookalike**:
+A module the membership walk recognizes by source shape that is not a grader over a run, recorded in `run_grader.GRADER_LOOKALIKES` with what it is instead. No change to the runner makes it a **declared member**; only the module becoming a grader would. Distinct from a **refusal**, which is a grader the runner cannot yet express, and from a module the walk does not see at all.
+_Avoid_: non-grader, exclusion, false positive, census
+
 **Suite run**:
 One execution of every test discovery finds under `tools/`, complete only when each discovered test comes back exactly once with an outcome. Its denominator is what discovery found and never the tally of what came back, so a run that lost a test is incomplete rather than clean. Distinct from the gates the repo's refusing checks carry, which grade an artifact; a suite run grades the checkout's own tests.
 _Avoid_: gate, repo-wide gate, test run, CI, the tests
+
+**Mechanically verified**:
+A run every one of whose named checks ran as its command and came back clean. A run whose check was walked by eye instead — because the command, or the **engine** it needs, could not run on that machine and could not be installed there — may still be complete, but it is never mechanically verified, and it says so rather than leaving a reader to assume the stronger claim. The walk and the command read the same written rules; what differs is only whether a machine applied them.
+_Avoid_: verified, checked, validated, confirmed
 
 ### Tracker
 
@@ -827,15 +835,15 @@ An authored message stating, with a reason, that it changes no ticket's state. I
 _Avoid_: exemption, opt-out, skip, waiver
 
 **Publish route**:
-One command form that puts text on the tracker. Named per invocation rather than per subcommand, because the same verb both publishes and does not: `gh issue edit` carries a body in one call and only a label in the next. What makes a route recognized is a body-bearing flag, so a route outside the recognized set is not a clean scan but an absent one.
+One command form that puts text on the tracker. Named per invocation rather than per subcommand, because the same verb both publishes and does not: `gh issue edit` carries a body in one call and only a label in the next. A body-bearing flag ordinarily makes a route recognized. An issue create is the sole body-less exception because its missing body is itself refused at the fixed-position filing gate; for `gh api`, GitHub's resolved request method decides whether a collection endpoint is a create. A route outside the recognized set is not a clean scan but an absent one.
 _Avoid_: publish command, gh call, write, surface
 
 **Unreadable body**:
-Text a recognized **publish route** is about to publish that the checker cannot obtain — written by an earlier stage of the same command, named by a path it cannot resolve, or arriving on a pipe. It is a third outcome beside a finding and a clean scan, because a checker that reports nothing found about text it never held is the shape every scanner here is built to refuse. The publication is **refused** on it rather than allowed, so the outcome is a state the route does not survive. Distinct from a route carrying no body at all, which is silent rather than reported, and from a **lost body**, which was read and is itself the defect. The **body** is what cannot be read and the **publication** is what goes unscanned, which is why a report may say a publication was not scanned while still naming this as the body's state.
+Text a recognized **publish route** is about to publish that the checker cannot obtain — written by an earlier stage of the same command, named by a path it cannot resolve, or arriving on a pipe. It is a third outcome beside a finding and a clean scan, because a checker that reports nothing found about text it never held is the shape every scanner here is built to refuse. The publication is **refused** on it rather than allowed, so the outcome is a state the route does not survive. Distinct from a route carrying no body at all: an issue create is refused as a missing-body finding, while every other such route is silent. Distinct too from a **lost body**, which was read and is itself the defect. The **body** is what cannot be read and the **publication** is what goes unscanned, which is why a report may say a publication was not scanned while still naming this as the body's state.
 _Avoid_: no body, empty, skipped, not scanned
 
 **Lost body**:
-A body a recognized **publish route** carries and the checker did read, whose text did not land: nothing but whitespace, the two characters `@-`, or a single `@`-token. It is a finding and it is **refused**, never a clean scan and never an **unreadable body**, because the checker holds the text and the text is the defect. Distinct from a route carrying no body flag, which is silent.
+A body a recognized **publish route** carries and the checker did read, whose text did not land: nothing but whitespace, the two characters `@-`, or a single `@`-token. It is a finding and it is **refused**, never a clean scan and never an **unreadable body**, because the checker holds the text and the text is the defect. Distinct from a route carrying no body flag at all, which is silent on every route except an issue create.
 _Avoid_: empty body (one of its three forms), blank, missing body, no body
 
 **Command-named folder**:

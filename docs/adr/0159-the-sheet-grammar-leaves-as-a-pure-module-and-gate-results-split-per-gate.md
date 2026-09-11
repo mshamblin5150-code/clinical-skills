@@ -48,10 +48,11 @@ discriminating measurement of #836's thesis, and it is the one the body did not 
 
 **Splitting the nineteen by who reads them gives three tiers.** `gate`, `findings`, `warnings`,
 `skip_reason`, `diagnostics`, `not_graded`, `fatal`, `report` and `stdout` are read by
-`format_report`, `_emit_scan`, `main` or `survey`. `pairings`, `undiffed`, `uncovered` and
-`tier2_skip_diagnostics` are read by `survey` alone — which already names every gate explicitly.
-And **`rendered`, `ungraded`, `ungraded_sources` and `unprobed_sources` have no production reader
-outside the gate that sets them**; their only readers are tests.
+`format_report`, `_emit_scan`, `main` or `survey` — `skip_reason` only off citation tier 2's result.
+`undiffed`, `uncovered` and `tier2_skip_diagnostics` are read by `survey` alone — which already names
+every gate explicitly. And **`pairings`, `rendered`, `ungraded`, `ungraded_sources` and
+`unprobed_sources` have no production reader outside the gate that sets them**; their only readers are
+tests.
 
 **`survey`'s emission list is hand-written, and it is the real interface.** `refusals` is a
 concatenation naming eleven gates one at a time. `gate_edition_currency` is not among them, so a
@@ -107,7 +108,8 @@ last, `misdrawn span boundaries`, carries the page-coverage limit.
 
 **#410 decision 3's two grounds both stand.** In `tools/run_grader.py` the word `quiet` occurs only
 inside the `REFUSED["threshold_sheet"]` string; `run()` prints `format_report` unconditionally; and
-`parse()` refuses extra positionals with `"one source at a time"` and keeps `positionals[0]`.
+`parse()` keeps `positionals[0]` as the one source, refusing extras with `"one source at a time"` only
+for a grader that sets `allow_extra_positionals=False`.
 
 **Three of #836's own figures are wrong and one of its measurements is void.** The **title's 24** is
 23, and was 23 at the ticket's own measurement commit — six sweeps have said so. The body's *"`survey`
@@ -268,7 +270,8 @@ refuses on — a behavior change inside a build whose landing term is byte-ident
 **Whether `run_grader.REFUSED`'s classification is durable.** ADR 0112 ruling 2 calls a refusal *a
 permanent verdict*; #410 decision 3 says the question *reopens on evidence*. A reader of the ADR
 alone would not learn that the entry is conditional. Filed as
-[#1006](https://github.com/mshamblin5150-code/clinical-skills/issues/1006) rather than settled here,
+[#1006](https://github.com/mshamblin5150-code/clinical-skills/issues/1006) and ruled by
+[ADR 0174](0174-a-refusal-is-bounded-by-the-runner-s-contract-and-a-grader-lookalike-is-its-own-kind.md), rather than settled here,
 because editing a grader-family record from a module-shape ticket is #836's own *"migrating onto
 `run_grader` by side effect"* arriving through the wording instead of through the code.
 
@@ -289,3 +292,22 @@ view's last row, `misdrawn span boundaries`, which carries `PAGE_COVERAGE_CANNOT
 Ruling 1's *"the one gate whose behavior the `SCOPE_SUMMARY_NOT_REACHED` view bounds"* carries the
 same imprecision and is left as written, being the deciding paragraph. No ruling of this record
 changed.
+
+**Corrected in place again on 2026-09-11**, on ADR 0016's terms, from
+[#1078](https://github.com/mshamblin5150-code/clinical-skills/issues/1078)'s grilling. The
+measurement paragraph listed `pairings` among the fields *"read by `survey` alone"*. An AST walk of
+`tools/threshold_sheet.py` at `9bb259e` finds no loaded `.pairings` anywhere in the module, which this
+record's own ruling 6 already said in other words: *"`pairings` reaches no list in `survey` at all"*.
+It now sits with the fields that have no production reader. The same paragraph placed `skip_reason`
+with the fields the core's readers read, which was true of citation tier 2's value alone; the qualifier
+now says so. Ruling 3's rule applies to both unchanged, and
+[ADR 0176](0176-a-gate-result-field-has-a-production-reader-or-it-is-a-local.md) rules what follows
+from it. No ruling of this record changed.
+
+**Corrected in place once more on 2026-09-11**, on the same terms, by #1006's closing sweep. *#410
+decision 3's two grounds both stand* said `parse()` *"refuses extra positionals with `"one source at a
+time"` and keeps `positionals[0]`."* `Grader.allow_extra_positionals` defaults to `True`, so `parse`
+refuses extras only for a grader that sets it `False`; every other grader keeps the first positional
+and drops the rest. The ground the sentence supports, one source to one status, is unchanged. *What
+this record does not settle* now names ADR 0174 as the record that ruled #1006. No ruling of this
+record changed.
