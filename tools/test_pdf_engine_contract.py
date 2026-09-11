@@ -20,7 +20,6 @@ from prose_bind import NAMING, bind
 ROOT = Path(__file__).resolve().parent.parent
 SKILLS = ROOT / "skills"
 AGENTS = ROOT / "AGENTS.md"
-README = ROOT / "README.md"
 CHECK_COMMAND = "python tools/pdf_engine.py"
 CONTRACT_OPENING = "**PDF engine prerequisites.**"
 
@@ -107,11 +106,6 @@ class TheIndexNamesEveryEngineDependentSkill(unittest.TestCase):
         step_zero = setup[setup.index("### 0.") : setup.index("### 1.")]
         self.assertNotIn("second check does not exit 0", step_zero)
         self.assertIn("second check exits 1", step_zero)
-
-    def test_getting_started_names_the_engine_package_exception(self):
-        readme = README.read_text(encoding="utf-8")
-        self.assertIn("The committed references need no package installation.", readme)
-        self.assertIn("PyMuPDF", readme)
 
     def test_the_index_points_to_the_check_without_copying_its_remedy(self):
         paragraph = contract_paragraph(self.agents)

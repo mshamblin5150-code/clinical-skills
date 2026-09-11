@@ -84,9 +84,7 @@ The model is optional and only affects graded writing. It does not replace a rub
 
 ## Getting started
 
-You need Git and Python 3.10 or newer. The committed references need no package installation.
-`batch-shift`, `practicum-case-study`, `discussion-post`, and `course-assignment` also need PyMuPDF;
-setup checks for it and asks before installing it.
+You need Git and Python 3.10 or newer. See `AGENTS.md` for skill-specific prerequisites.
 
 1. Install Python.
 
