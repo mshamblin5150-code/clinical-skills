@@ -39,7 +39,7 @@ import discussion_artifact as artifact
 import research_ledger
 import reference_scan as scan
 from prose_bind import ENUMERATION, NAMING, bind
-from grader_conformance import for_module
+from grader_conformance import EmptyPopulationInput, for_module
 
 GraderConformance = for_module(scan)
 
@@ -118,6 +118,27 @@ def draft(*entries: str, body: str = BODY, heading: str = "## References") -> st
 
 
 CLEAN = draft(ACOG, UPTODATE)
+
+
+def empty_population_input(root: Path) -> EmptyPopulationInput:
+    empty, twin = root / "empty.md", root / "twin.md"
+    empty.write_text("# Synthetic draft\n", encoding="utf-8")
+    twin.write_text(
+        draft(
+            ACOG,
+            body=(
+                "# Synthetic draft\n\n"
+                "(American College of Obstetricians and Gynecologists, 2023).\n"
+            ),
+        ),
+        encoding="utf-8",
+    )
+    as_of = ("--as-of", "2026-08-19")
+    return EmptyPopulationInput(
+        (str(empty), *as_of),
+        population_size=lambda result: result.entries,
+        twin_argv=(str(twin), *as_of),
+    )
 
 
 def kinds(text: str, as_of: date | None = AS_OF) -> list[str]:
@@ -1338,12 +1359,15 @@ class TheCommandExitsOnWhatItFound(unittest.TestCase):
         with redirect_stderr(err):
             self.assertEqual(scan.main(["no-such-draft.md", "--as-of", "2026-08-19"]), 2)
 
-    def test_a_draft_with_no_reference_section_exits_two(self):
-        self.assertEqual(self._run(BODY), 2)
+    def test_body_findings_outrank_a_missing_reference_section(self):
+        self.assertEqual(self._run(BODY), 1)
         self.assertIn("no reference list", self.last)
+        self.assertIn("unlisted-citation", self.last)
 
-    def test_a_heading_with_no_entries_under_it_exits_two(self):
-        self.assertEqual(self._run(BODY + "\n## References\n"), 2)
+    def test_body_findings_outrank_a_heading_with_no_entries(self):
+        self.assertEqual(self._run(BODY + "\n## References\n"), 1)
+        self.assertIn("no entries under the reference heading", self.last)
+        self.assertIn("unlisted-citation", self.last)
 
     def test_a_missing_exam_date_exits_two_on_an_otherwise_clean_draft(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -1988,16 +1988,16 @@ def _load(parsed: run_grader.Parsed) -> Source:
     if not path.is_file():
         raise run_grader.SourceError(f"no draft named {path.name}")
     document = read_document(path.read_text(encoding="utf-8", errors="replace"))
-    if document.heading is None:
-        raise run_grader.SourceError(f"no reference list found in {path.name}")
-    if not document.entries:
-        raise run_grader.SourceError(f"no entries under the reference heading in {path.name}")
     return Source(path, document, as_of)
 
 
 def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
     scan = survey(source.document, source.as_of)
     diagnostics: list[str] = []
+    if source.document.heading is None:
+        diagnostics.append(f"no reference list found in {source.path.name}")
+    elif not source.document.entries:
+        diagnostics.append(f"no entries under the reference heading in {source.path.name}")
     if source.as_of is None:
         diagnostics.append(
             f"{source.path.name} was scanned with no --as-of <YYYY-MM-DD> exam date, so no"
@@ -2013,7 +2013,7 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
         scan=scan,
         source=source.path.name,
         findings_failed=bool(scan.findings),
-        coverage_failed=source.as_of is None,
+        coverage_failed=source.as_of is None or not source.document.entries,
         diagnostics=tuple(diagnostics),
     )
 

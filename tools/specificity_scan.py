@@ -79,7 +79,7 @@ import json
 import re
 import sqlite3
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 import run_grader
@@ -197,6 +197,8 @@ class Scan:
     failing_flags: int = 0
     findings: tuple[Finding, ...] = ()
     advisories: tuple[Finding, ...] = ()
+    for_entry_codes: int = 0
+    for_entry_codes_without_flag: int = 0
 
 
 @dataclass
@@ -563,6 +565,23 @@ def survey(per_worksheet: list[list[Flag]]) -> Scan:
     )
 
 
+def entry_flag_coverage(text: str) -> tuple[int, int]:
+    """Count for-entry codes and those with no positional ``SPECIFICITY`` partner."""
+
+    entries = read_entries(text)
+    flag_starts = tuple(match.start() for match in SPECIFICITY.finditer(text))
+    population = 0
+    remainder = 0
+    for index, entry in enumerate(entries):
+        if not entry.for_entry:
+            continue
+        population += 1
+        end = entries[index + 1].start if index + 1 < len(entries) else len(text)
+        if not any(entry.start < start < end for start in flag_starts):
+            remainder += 1
+    return population, remainder
+
+
 def format_report(scan: Scan, source: str, show: bool = False) -> str:
     """The report, as one string. Carries no code and no descriptor unless ``show``."""
     # Plain ASCII throughout, on ``icd10_lookup.py``'s reasoning: this prints to a
@@ -573,6 +592,8 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         "",
         f"  worksheets read                  {scan.worksheets}",
         f"  SPECIFICITY flags                {scan.flags}",
+        f"  for-entry codes read             {scan.for_entry_codes}",
+        f"    without a paired flag          {scan.for_entry_codes_without_flag}",
         f"    complete                       {scan.complete_flags}",
         f"    needs                          {scan.needs_flags}",
         f"    neither keyword                {scan.unrecognized_flags}",
@@ -634,6 +655,8 @@ class Source:
     directory: Path
     per_worksheet: tuple[tuple[Flag, ...], ...]
     per_worksheet_entries: tuple[tuple[WorksheetEntry, ...], ...]
+    for_entry_codes: int
+    for_entry_codes_without_flag: int
 
 
 def _load(parsed: run_grader.Parsed) -> Source:
@@ -643,10 +666,13 @@ def _load(parsed: run_grader.Parsed) -> Source:
     worksheets = run_grader.read_run_directory(directory)
     if not worksheets:
         raise run_grader.SourceError(f"no worksheets found in {directory.name}")
+    coverage = tuple(entry_flag_coverage(text) for text in worksheets)
     return Source(
         directory,
         tuple(tuple(read_flags(text)) for text in worksheets),
         tuple(tuple(read_entries(text)) for text in worksheets),
+        sum(item[0] for item in coverage),
+        sum(item[1] for item in coverage),
     )
 
 
@@ -672,11 +698,29 @@ def _grade(
         )
 
     scan = survey(per_worksheet)
+    scan = replace(
+        scan,
+        for_entry_codes=source.for_entry_codes,
+        for_entry_codes_without_flag=source.for_entry_codes_without_flag,
+    )
     diagnostics: list[str] = []
     reports: list[str] = []
     second_gate: SecondReadGate | None = None
     second_read = parsed.value("--second-read")
     coverage_failed = False
+    for_entry_flags = sum(
+        1
+        for flags in per_worksheet
+        for flag in flags
+        if flag.for_entry and flag.code
+    )
+    if for_entry_flags == 0 or scan.for_entry_codes_without_flag:
+        diagnostics.append(
+            f"{scan.for_entry_codes} for-entry code(s) were read and "
+            f"{scan.for_entry_codes_without_flag} have no paired SPECIFICITY flag; "
+            "the specificity population was not completely scanned"
+        )
+        coverage_failed = True
     if second_read is not None:
         second_read_path = Path(second_read)
         read = load_second_read(second_read_path)

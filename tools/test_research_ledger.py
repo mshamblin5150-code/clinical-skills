@@ -39,7 +39,7 @@ import reference_scan
 import research_ledger as ledger
 import uptodate_store
 import coursework_run
-from grader_conformance import constructed_kinds, for_module
+from grader_conformance import EmptyPopulationInput, constructed_kinds, for_module
 from prose_bind import NAMING, ProseBind, bind, normalized as normalized_prose
 
 GraderConformance = for_module(ledger)
@@ -87,6 +87,22 @@ UPTODATE-RECENCY-WINDOW-YEARS: 2
 
 def write_bar(root: Path) -> None:
     (root / "bar.md").write_text(CLINICAL_BAR, encoding="utf-8")
+
+
+def empty_population_input(root: Path) -> EmptyPopulationInput:
+    empty_root, twin_root = root / "empty", root / "twin"
+    empty_root.mkdir()
+    twin_root.mkdir()
+    empty, twin = empty_root / "claims.md", twin_root / "claims.md"
+    empty.write_text("DATE: 2026-08-19\n", encoding="utf-8")
+    twin.write_text(ledger_text(CLEAN), encoding="utf-8")
+    write_bar(empty_root)
+    write_bar(twin_root)
+    return EmptyPopulationInput(
+        (str(empty),),
+        population_size=lambda result: result.records,
+        twin_argv=(str(twin),),
+    )
 
 
 def kinds(text: str, as_of: date | None = AS_OF) -> list[str]:
@@ -1848,6 +1864,21 @@ class TheCommandExitsOnWhatItFound(unittest.TestCase):
 
     def test_a_ledger_with_no_records_exits_two(self):
         self.assertEqual(self._run("DATE: 2026-08-19\n\nprose about the run\n"), 2)
+
+    def test_a_draft_finding_outranks_an_empty_claim_population(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            claims, draft = root / "claims.md", root / "draft.md"
+            claims.write_text("DATE: 2026-08-19\n", encoding="utf-8")
+            draft.write_text(rx_table(CEFTRIAXONE), encoding="utf-8")
+            write_bar(root)
+            stdout, stderr = io.StringIO(), io.StringIO()
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                status = ledger.main([str(claims), "--draft", str(draft)])
+
+        self.assertEqual(1, status)
+        self.assertIn("claim records read", stdout.getvalue())
+        self.assertIn("no claim records found", stderr.getvalue())
 
     def test_a_ledger_with_no_date_header_exits_two(self):
         """The limb that matters. Recency is graded against the day the paper is

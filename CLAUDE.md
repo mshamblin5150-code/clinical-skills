@@ -187,13 +187,13 @@ section copies no row.
 
 ### Grader conformance
 
-`tools/grader_conformance.py` holds reusable public-seam checks for the command graders. `for_module` is universal by convention for members of that family: it binds their runner delegation, row vocabulary, redaction, and exit precedence. `gate_conformance` is opt-in and a test module must name its membership explicitly, because a boolean on `Scan` is not necessarily a report gate.
+`tools/grader_conformance.py` holds reusable public-seam checks for the command graders. `for_module` is universal by convention for members of that family: it binds their runner delegation, row vocabulary, redaction, exit precedence, and the empty-population behavior declared by `run_grader.EMPTY_POPULATION_POSTURES`. Each member's test module supplies the synthetic empty input and, for a `not-scanned` posture, its one-member twin; the mapping owns the declarations and this section copies no row. `gate_conformance` is opt-in and a test module must name its membership explicitly, because a boolean on `Scan` is not necessarily a report gate.
 
 Generated cases are bound as `GraderConformance` and `GateConformance`; `tools/test_suite_ids.py` proves their discovered IDs re-run, while `grader_conformance.DECLARED_LIMITS` owns the remaining boundary.
 
 The distinction comes from the whole-family shape read recorded in [ADR 0080](docs/adr/0080-a-gated-row-set-is-declared-per-gate-and-guarded-by-an-opt-in-walk-in-the-shared-conformance-kit.md). The discussion scanners use booleans to suppress report rows, while `case_study_scan` uses banner flags that append prose and suppress nothing; other riders may have no boolean field at all. Applying the gate walk automatically would therefore grade a correct banner shape as defective. Opting in lets the discussion pair share one report-width rule without asserting that every grader must adopt their boolean-gate arrangement or the nullable-sentinel arrangement refused by [ADR 0071](docs/adr/0071-a-gated-row-set-is-derived-from-its-sentinel-and-guarded-by-a-walk-in-its-own-module.md).
 
-The shared walk proves that each declared gate changes only its declared fields and finding kinds, and that omitted groups say `not graded`. It does not prove command-line reachability or exit status. Each opting-in module owns those through real-fixture positive controls and a `HANDLERS` pair in its test module.
+The shared gate walk proves that each declared gate changes only its declared fields and finding kinds, and that omitted groups say `not graded`. It does not prove command-line reachability or general exit status; the empty-population case separately drives that one declared behavior through each member's real load and grade. Each opting-in module owns the rest through real-fixture positive controls and a `HANDLERS` pair in its test module.
 
 ### Corpus census
 
@@ -575,7 +575,9 @@ that date since #231**, not one — the window, and whether a source was read af
 written. **Where a
 violation and a missing `DATE` both hold, 1 wins**, on `differential_scan.py`'s ordering, and the
 banner prints beside it so the finding reads as a floor. **The first version returned 2 there** —
-found by review, and it was the one place this departed from both siblings without saying so.
+found by review, and it was the one place this departed from both siblings without saying so. A
+ledger with no claim record now prints its zero-record report and diagnostic before returning 2, so
+draft and evidence findings still outrank that posture when those optional sources are supplied.
 
 **Two more rows came out of that review and are worth keeping.** An unrecognized `RECENCY` was
 passing silently while an unrecognized `STATUS` failed, and the argument for the second is the
@@ -720,7 +722,7 @@ python tools/reference_scan.py <a draft .md> --as-of <YYYY-MM-DD>
 
 **And it does not widen.** A reader spawned by [practicum-case-study](skills/practicum-case-study/SKILL.md) step 9 is a language model summarizing clinical prose in its own words, with no equivalent guarantee available, so it still reports **where and what** is wrong and never the sentence — ruled unchanged on the same day. `research_ledger.py` is untouched: a ledger record is a claim transcribed from faculty material about a patient. **Nor is `checks_ledger.py`, which grades those same readers' records** — the reader's own words, one file later, so the ruling that does not reach the reader does not reach the file it writes into either. **Nor `case_study_scan.py`, which grades the same skill's draft *body*** — [#277](https://github.com/mshamblin5150-code/clinical-skills/issues/277), and that is this ruling's own test being applied rather than a second exception being refused on instinct: what that module can draw from is the draft's own prose, since a bullet's finding is the bullet's text. Nor does it reach `block_scan.py`, `specificity_scan.py`, `differential_scan.py`, `anchor_scan.py` or `filled_vitals_census.py`, which all read note text or measured values directly; their `--show` output stays PHI.
 
-**Exit status distinguishes not having scanned from having found nothing** — 0 clean, 1 for a defect, **2 for every way of not having scanned**: no argument, no file, an unreadable `--as-of`, **no reference list found in the document**, and **a heading with nothing under it**. Those last two are the limbs that matter, and they are `differential_scan.py`'s reasoning: a draft whose list was headed something this cannot recognize would otherwise report zero defects and read as a clean list.
+**Exit status distinguishes not having scanned from having found nothing** — 0 clean, 1 for a defect, **2 for every way of not having scanned**: no argument, no file, an unreadable `--as-of`, **no reference list found in the document**, and **a heading with nothing under it**. The last two print the report and a diagnostic before returning 2, so findings from the body rows still outrank the empty reference population. Those limbs matter because a draft whose list was headed something this cannot recognize would otherwise report zero defects and read as a clean list.
 
 ### APA manual coverage
 

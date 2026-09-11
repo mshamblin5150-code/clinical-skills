@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest import mock
 
 import voice_model_scan as scan
-from grader_conformance import for_module
+from grader_conformance import EmptyPopulationInput, for_module
 
 
 GraderConformance = for_module(scan)
@@ -20,6 +20,26 @@ VOICE_SPEC = REPO_ROOT / "skills" / "_shared" / "reference" / "voice.md"
 SYNTHETIC = TOOLS / "testdata" / "voice-model-synthetic.md"
 DISCUSSION_REPLY = REPO_ROOT / "skills" / "discussion-reply" / "SKILL.md"
 SETUP = REPO_ROOT / "skills" / "setup-clinical-skills" / "SKILL.md"
+
+
+def empty_population_input(root: Path) -> EmptyPopulationInput:
+    empty, twin = root / "empty.md", root / "twin.md"
+    base = "# Voice model\n"
+    synthetic = SYNTHETIC.read_text(encoding="utf-8")
+    start = synthetic.index("## Register 3")
+    end = synthetic.index("\n## Seen once", start)
+    empty.write_text(base, encoding="utf-8")
+    twin.write_text(base + "\n" + synthetic[start:end], encoding="utf-8")
+    return EmptyPopulationInput(
+        (str(empty),),
+        population_size=lambda result: result.register_headings,
+        twin_argv=(str(twin),),
+        context_factory=lambda: mock.patch.dict(
+            scan.REGISTER_NAMES,
+            {"3": "reflective and argumentative prose"},
+            clear=True,
+        ),
+    )
 
 
 def run(*arguments: str) -> tuple[int, str, str]:

@@ -26,7 +26,7 @@ import discussion_artifact as artifact
 import docx_write
 import post_html
 import page_image
-from grader_conformance import for_module, gate_conformance
+from grader_conformance import EmptyPopulationInput, for_module, gate_conformance
 from prose_bind import NAMING, bind
 from test_discussion_reply_scan import (
     BODY as REPLY_BODY,
@@ -160,7 +160,6 @@ class Run:
         ):
             status = scan.main([str(self.root), "--draft", str(self.draft), *extra])
         return status, stdout.getvalue(), stderr.getvalue()
-
     def record_render(
         self,
         *,
@@ -219,6 +218,33 @@ class Run:
         (pass_directory / "post.html").write_bytes(html.read_bytes())
         for capture in range(1, captured_images + 1):
             (pass_directory / f"capture-{capture}.png").write_bytes(PNG)
+
+
+def empty_population_input(root: Path) -> EmptyPopulationInput:
+    run = Run(root)
+    (root / "bar.md").write_text(
+        BAR.replace("WORD-FLOOR: 100", "WORD-FLOOR: 0")
+        .replace("WORD-CEILING: 180", "WORD-CEILING: 0")
+        .replace("REFERENCE-MINIMUM: 1", "REFERENCE-MINIMUM: 0"),
+        encoding="utf-8",
+    )
+    run.draft.write_text("# Heading only\n\n## References\n", encoding="utf-8")
+    return EmptyPopulationInput(
+        (str(root), "--draft", str(run.draft)),
+        population_size=lambda result: result.words or 0,
+    )
+
+
+class AnEmptyBodyIsStillAFindingUnderAZeroBar(unittest.TestCase):
+    def test_headings_only_exits_one_and_names_the_row(self):
+        with tempfile.TemporaryDirectory() as temp:
+            case = empty_population_input(Path(temp))
+            stdout, stderr = io.StringIO(), io.StringIO()
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                status = scan.main(list(case.argv))
+
+        self.assertEqual(1, status)
+        self.assertIn("empty-body: 1", stdout.getvalue())
 
 
 class CanvasSubmissionRows(unittest.TestCase):

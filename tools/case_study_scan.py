@@ -906,11 +906,17 @@ def _load(parsed: run_grader.Parsed) -> Source:
 
 def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
     scan = survey(source.markdown, source.skill_text)
+    diagnostics = (
+        ("no recognized case-study section was scanned",)
+        if scan.no_section
+        else ()
+    )
     return run_grader.Grade(
         scan=scan,
         source=source.name,
         findings_failed=bool(scan.findings),
         coverage_failed=scan.no_section or bool(scan.skeleton_disagreement) or scan.skeleton_unread,
+        diagnostics=diagnostics,
     )
 
 

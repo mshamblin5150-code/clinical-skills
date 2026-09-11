@@ -4,6 +4,7 @@ import ast
 import contextlib
 import importlib
 import io
+import re
 import tempfile
 import unittest
 from dataclasses import dataclass
@@ -312,6 +313,7 @@ class TheUndecodableBytePostureIsDeclaredForTheFamily(unittest.TestCase):
         self.assertEqual(0, evidence.recognized)
         self.assertEqual(1, evidence.unread)
 
+
     def test_a_partial_match_mutant_reports_its_unread_remainder(self):
         evidence = run_grader.walk_text_reads(
             "def load(first, second, mode):\n"
@@ -349,6 +351,32 @@ class TheUndecodableBytePostureIsDeclaredForTheFamily(unittest.TestCase):
 
         self.assertEqual(0, evidence.refusing)
         self.assertEqual(1, evidence.crashing)
+
+
+class TheEmptyPopulationPostureIsDeclaredForTheFamily(unittest.TestCase):
+    def test_every_member_has_one_reasoned_posture(self):
+        declared = run_grader.EMPTY_POPULATION_POSTURES
+        names = [name for name, value in vars(run_grader).items() if value is declared]
+
+        self.assertEqual(run_grader.MEMBERS, set(declared))
+        self.assertEqual(["EMPTY_POPULATION_POSTURES"], names)
+        self.assertIsNone(
+            re.search(r"(?<!DE)LIMIT|CEILING|LIMBS|ORPHAN|NOT_REACHED", names[0])
+        )
+        self.assertLessEqual(
+            {item.posture.value for item in declared.values()},
+            {posture.value for posture in run_grader.EmptyPopulationPosture},
+        )
+        for name, item in declared.items():
+            with self.subTest(module=name):
+                self.assertTrue(item.population)
+                self.assertTrue(item.reason)
+                if item.posture is run_grader.EmptyPopulationPosture.FINDING:
+                    member = importlib.import_module(name)
+                    rows = getattr(member, "ROWS", getattr(member, "KINDS", ()))
+                    self.assertIn(item.finding, rows)
+                else:
+                    self.assertIsNone(item.finding)
 
 
 class TheMembershipClaimIsDerivedFromTheTree(unittest.TestCase):

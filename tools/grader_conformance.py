@@ -13,15 +13,29 @@ import dataclasses
 import io
 import inspect
 import sys
+import tempfile
 import unittest
+from dataclasses import dataclass
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, Callable
 
 import run_grader
 
 
 MARKER = "conformance-salted-marker"
+
+
+@dataclass(frozen=True)
+class EmptyPopulationInput:
+    """Synthetic command arguments for an empty population and its one-member twin."""
+
+    argv: tuple[str, ...]
+    population_size: Callable[[Any], int]
+    twin_argv: tuple[str, ...] | None = None
+    context_factory: Callable[[], contextlib.AbstractContextManager[Any]] = (
+        contextlib.nullcontext
+    )
 
 DECLARED_LIMITS = (
     (
@@ -327,7 +341,71 @@ def constructed_kinds(module: Any, function: str | None = None) -> set[str]:
 def for_module(module: Any) -> type[unittest.TestCase]:
     """Return one discoverable conformance case bound to ``module``."""
 
+    caller_globals = sys._getframe(1).f_globals
+
     class GraderConformance(unittest.TestCase):
+        def test_the_declared_empty_population_posture(self):
+            declaration = run_grader.EMPTY_POPULATION_POSTURES[module.__name__]
+            provider = caller_globals.get("empty_population_input")
+            self.assertIsNotNone(
+                provider,
+                "the member test module supplies no empty-population input",
+            )
+            with tempfile.TemporaryDirectory() as directory:
+                case = provider(Path(directory))
+                self.assertIsInstance(case, EmptyPopulationInput)
+                with case.context_factory():
+                    parsed = run_grader.parse(module.GRADER, list(case.argv))
+                    loaded = module.GRADER.load(parsed)
+                    graded = module.GRADER.grade(loaded, parsed)
+                    self.assertIsInstance(graded, run_grader.Grade)
+                    self.assertEqual(0, case.population_size(graded.scan))
+
+                    stdout, stderr = io.StringIO(), io.StringIO()
+                    with (
+                        contextlib.redirect_stdout(stdout),
+                        contextlib.redirect_stderr(stderr),
+                    ):
+                        status = run_grader.run(module.GRADER, list(case.argv))
+
+                    if declaration.posture is run_grader.EmptyPopulationPosture.NOT_SCANNED:
+                        population_size = case.population_size
+                        self.assertEqual(2, status)
+                        self.assertTrue(stderr.getvalue().strip())
+                        self.assertTrue(stdout.getvalue().strip())
+                        self.assertIsNotNone(case.twin_argv)
+                        twin_parsed = run_grader.parse(
+                            module.GRADER, list(case.twin_argv or ())
+                        )
+                        twin_loaded = module.GRADER.load(twin_parsed)
+                        twin_graded = module.GRADER.grade(twin_loaded, twin_parsed)
+                        self.assertIsInstance(twin_graded, run_grader.Grade)
+                        self.assertEqual(1, population_size(twin_graded.scan))
+                        with (
+                            contextlib.redirect_stdout(io.StringIO()),
+                            contextlib.redirect_stderr(io.StringIO()),
+                        ):
+                            twin_status = run_grader.run(
+                                module.GRADER, list(case.twin_argv or ())
+                            )
+                        self.assertEqual(
+                            0,
+                            twin_status,
+                            "the twin must add exactly one population member without firing another gate",
+                        )
+                    elif declaration.posture is run_grader.EmptyPopulationPosture.FINDING:
+                        self.assertEqual(1, status)
+                        self.assertIn(
+                            declaration.finding,
+                            {finding.kind for finding in graded.scan.findings},
+                        )
+                    else:
+                        self.assertIs(
+                            run_grader.EmptyPopulationPosture.ESTABLISHED,
+                            declaration.posture,
+                        )
+                        self.assertEqual(0, status)
+
         def test_the_module_delegates_its_main_to_the_shared_runner(self):
             source = inspect.getsource(module.main)
             self.assertIn("run_grader.run", source)
@@ -380,7 +458,7 @@ def for_module(module: Any) -> type[unittest.TestCase]:
 
     _set_discoverable_identity(
         GraderConformance,
-        sys._getframe(1).f_globals["__name__"],
+        caller_globals["__name__"],
         "GraderConformance",
     )
     return GraderConformance

@@ -227,7 +227,7 @@ def survey(text: str, spec_text: str) -> Scan:
         registers.append((number, body))
 
     if headings:
-        for number in ("1", "2", "3"):
+        for number in REGISTER_NAMES:
             if number not in seen_registers:
                 findings.append(Finding("missing-register", f"register {number} is absent"))
 

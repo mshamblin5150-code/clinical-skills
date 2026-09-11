@@ -57,6 +57,22 @@ def written(directory: Path, **notes: str) -> Path:
     return directory
 
 
+def empty_population_input(root: Path) -> grader_conformance.EmptyPopulationInput:
+    empty, twin = root / "empty", root / "twin"
+    empty.mkdir()
+    twin.mkdir()
+    written(empty, one="# Synthetic note\n")
+    written(
+        twin,
+        one="# Synthetic note\nFILLED·asserted   BP 118/76 filled.\n",
+    )
+    return grader_conformance.EmptyPopulationInput(
+        (str(empty),),
+        population_size=lambda result: result.heights + result.pressures,
+        twin_argv=(str(twin),),
+    )
+
+
 def invoke_main(arguments: list[str]) -> tuple[int, str, str]:
     stdout = io.StringIO()
     stderr = io.StringIO()

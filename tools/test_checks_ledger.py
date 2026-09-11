@@ -33,7 +33,7 @@ from pathlib import Path
 from unittest import mock
 
 import checks_ledger as checks
-from grader_conformance import for_module
+from grader_conformance import EmptyPopulationInput, for_module
 from prose_bind import ENUMERATION, NAMING, ProseBind, bind, normalized as normalized_prose
 
 GraderConformance = for_module(checks)
@@ -98,6 +98,24 @@ def whole_file(*records: str, complete: bool = True) -> str:
             if checks.normalize(name) not in named
         ]
     return "\n".join(written)
+
+
+def empty_population_input(root: Path) -> EmptyPopulationInput:
+    empty, twin = root / "empty.md", root / "twin.md"
+    empty.write_text("# Checks\n", encoding="utf-8")
+    twin.write_text("# Checks\n\n" + CLEAN_RECORD, encoding="utf-8")
+    return EmptyPopulationInput(
+        (str(empty),),
+        population_size=lambda result: result.records,
+        twin_argv=(str(twin),),
+        context_factory=lambda: mock.patch.multiple(
+            checks,
+            EXPECTED_CHECKS=("differential ordering",),
+            _EXPECTED_KEYS={
+                checks.normalize("differential ordering"): "differential ordering"
+            },
+        ),
+    )
 
 
 def instead_of(name: str, block: str) -> str:

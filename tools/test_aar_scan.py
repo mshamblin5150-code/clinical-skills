@@ -26,6 +26,15 @@ import specificity_scan
 GraderConformance = grader_conformance.for_module(aar_scan)
 
 
+def empty_population_input(root: Path) -> grader_conformance.EmptyPopulationInput:
+    run = root / "run"
+    run.mkdir()
+    return grader_conformance.EmptyPopulationInput(
+        (str(run), "--submission", "synthetic-submission"),
+        population_size=lambda result: result.population,
+    )
+
+
 class DeclaredLimitsAreBound(unittest.TestCase):
     def test_the_test_suite_names_the_declared_limits_object(self):
         self.assertTrue(aar_scan.DECLARED_LIMITS)
