@@ -22,8 +22,9 @@ build reads.
   runner in three places:
   1. `run_grader.run` calls `format_report` with `show=`, and `tracker_bodies.format_report` takes no
      `show` by design.
-  2. It grades several harvest files as one population, and `Parsed` carries one source even where a
-     grader sets `allow_extra_positionals=True`.
+  2. It grades several harvest files as one population, and `Parsed` carries only the first
+     positional. `Grader.allow_extra_positionals` defaults to `True`, so the runner accepts a second
+     file and drops it rather than refusing it; that silent drop is filed as its own ticket.
   3. `--github-event` grades an event payload and takes no positional, which `run_grader.parse`
      refuses before `load` is reached.
 
