@@ -1379,6 +1379,56 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
             "tool_input": {"command": command},
         }
 
+    def assert_commands_allowed(self, commands: tuple[str, ...]) -> None:
+        for command in commands:
+            with self.subTest(command=command):
+                self.assertEqual(hook.handle(self.payload(command)), {})
+
+    def test_parameterless_api_collection_reads_are_allowed(self) -> None:
+        commands = (
+            "gh api 'repos/example/project/issues?state=open'",
+            "gh api 'repos/example/project/pulls?state=open'",
+        )
+
+        self.assert_commands_allowed(commands)
+
+    def test_explicit_get_with_api_fields_is_allowed(self) -> None:
+        commands = (
+            "gh api --method GET repos/example/project/issues -f state=open",
+            "gh api -X GET repos/example/project/issues -f state=open",
+            "gh api --method GET repos/example/project/issues -f body=filter",
+        )
+
+        self.assert_commands_allowed(commands)
+
+    def test_explicit_post_without_api_fields_uses_create_semantics(self) -> None:
+        commands = (
+            "gh api --method POST repos/example/project/issues",
+            "gh api -X POST repos/example/project/issues",
+        )
+
+        for command in commands:
+            with self.subTest(command=command):
+                response = hook.handle(self.payload(command))
+                specific = response["hookSpecificOutput"]
+                self.assertEqual(specific["permissionDecision"], "deny")
+                self.assertIn("filed-from:create", specific["additionalContext"])
+
+    def test_attached_api_fields_use_implicit_post_create_semantics(self) -> None:
+        commands = (
+            "gh api repos/example/project/issues -f=title=Ticket",
+            "gh api repos/example/project/issues -ftitle=Ticket",
+            "gh api repos/example/project/issues -F=title=Ticket",
+            "gh api repos/example/project/issues -Ftitle=Ticket",
+        )
+
+        for command in commands:
+            with self.subTest(command=command):
+                response = hook.handle(self.payload(command))
+                specific = response["hookSpecificOutput"]
+                self.assertEqual(specific["permissionDecision"], "deny")
+                self.assertIn("filed-from:create", specific["additionalContext"])
+
     def test_a_nonpublishing_gh_invocation_is_silent(self) -> None:
         self.assertEqual(
             hook.handle(self.payload("gh issue edit 670 --add-label bug")),

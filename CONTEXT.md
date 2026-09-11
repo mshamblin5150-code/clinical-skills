@@ -716,6 +716,14 @@ _Avoid_: browser access, logged-in fetch, subscription access, real session
 A path in a tracked Markdown file naming another tracked file or directory, distinct from a **citation**, which is tracker text. It resolves against the linking file's directory and is checked by exact-case membership in the Git index after any anchor fragment is dropped.
 _Avoid_: citation, URL, cross-reference
 
+**Step citation**:
+The word *step* and the number after it in prose, resolved to the skill whose numbered section it names: the one written just before it, the one carried from an earlier citation in the same paragraph with no other skill named in between, or the skill the file belongs to. Resolving it catches a citation to a section that no longer exists, and not one renumbered into another section that does. Distinct from a **relative link**, which names a file, and from a **citation**, which is a ticket reference.
+_Avoid_: step reference, step link, cross-reference
+
+**Declared narrower reader**:
+A reader kept deliberately weaker than a shared reader of the same form, whose gap is written down as a **declared limit** of the check that uses it. It is chosen where converging would change what that check decides and no recorded defect asks for the change. Distinct from a **refusal**, which is a verdict about what a shared runner can express rather than a choice between two readers.
+_Avoid_: weak reader, legacy parser, duplicate parser
+
 **Disclosure class**:
 What a tool's `--show` output may do once it leaves the process. Declared by that tool's own module docstring and by nothing else, so a roster of classes kept anywhere but the modules is a second copy rather than a record. Four are in use: *patient data*, read and never pasted; *private working material*, which names real people who are not patients and is equally unpasteable, though the PHI firewall will never flag it; *copyright-restrained*, a third party's expression where a line may be quoted into a ticket and a table may not; and *pasteable*, which is only ever a ruling and never an inference from silence. Where a module declares nothing the class is unpasteable, so forgetting refuses an output rather than clearing one. It is a property of an **output** and not of the data behind it, which is why it stopped tracking patient-data-or-not the moment a tool began naming people the firewall does not know.
 _Avoid_: PHI, sensitivity, redaction, safe to paste, output policy
@@ -788,6 +796,10 @@ _Avoid_: non-grader, exclusion, false positive, census
 One execution of every test discovery finds under `tools/`, complete only when each discovered test comes back exactly once with an outcome. Its denominator is what discovery found and never the tally of what came back, so a run that lost a test is incomplete rather than clean. Distinct from the gates the repo's refusing checks carry, which grade an artifact; a suite run grades the checkout's own tests.
 _Avoid_: gate, repo-wide gate, test run, CI, the tests
 
+**Mechanically verified**:
+A run every one of whose named checks ran as its command and came back clean. A run whose check was walked by eye instead — because the command, or the **engine** it needs, could not run on that machine and could not be installed there — may still be complete, but it is never mechanically verified, and it says so rather than leaving a reader to assume the stronger claim. The walk and the command read the same written rules; what differs is only whether a machine applied them.
+_Avoid_: verified, checked, validated, confirmed
+
 ### Tracker
 
 **Binding**:
@@ -823,11 +835,11 @@ An authored message stating, with a reason, that it changes no ticket's state. I
 _Avoid_: exemption, opt-out, skip, waiver
 
 **Publish route**:
-One command form that puts text on the tracker. Named per invocation rather than per subcommand, because the same verb both publishes and does not: `gh issue edit` carries a body in one call and only a label in the next. What makes a route recognized is a body-bearing flag, so a route outside the recognized set is not a clean scan but an absent one.
+One command form that puts text on the tracker. Named per invocation rather than per subcommand, because the same verb both publishes and does not: `gh issue edit` carries a body in one call and only a label in the next. A body-bearing flag ordinarily makes a route recognized. An issue create is the sole body-less exception because its missing body is itself refused at the fixed-position filing gate; for `gh api`, GitHub's resolved request method decides whether a collection endpoint is a create. A route outside the recognized set is not a clean scan but an absent one.
 _Avoid_: publish command, gh call, write, surface
 
 **Unreadable body**:
-Text a recognized **publish route** is about to publish that the checker cannot obtain — written by an earlier stage of the same command, named by a path it cannot resolve, or arriving on a pipe. It is a third outcome beside a finding and a clean scan, because a checker that reports nothing found about text it never held is the shape every scanner here is built to refuse. The publication is **refused** on it rather than allowed, so the outcome is a state the route does not survive. Distinct from a route carrying no body at all, which is silent rather than reported. The **body** is what cannot be read and the **publication** is what goes unscanned, which is why a report may say a publication was not scanned while still naming this as the body's state.
+Text a recognized **publish route** is about to publish that the checker cannot obtain — written by an earlier stage of the same command, named by a path it cannot resolve, or arriving on a pipe. It is a third outcome beside a finding and a clean scan, because a checker that reports nothing found about text it never held is the shape every scanner here is built to refuse. The publication is **refused** on it rather than allowed, so the outcome is a state the route does not survive. Distinct from a route carrying no body at all: an issue create is refused as a missing-body finding, while every other such route is silent. The **body** is what cannot be read and the **publication** is what goes unscanned, which is why a report may say a publication was not scanned while still naming this as the body's state.
 _Avoid_: no body, empty, skipped, not scanned
 
 **Command-named folder**:
