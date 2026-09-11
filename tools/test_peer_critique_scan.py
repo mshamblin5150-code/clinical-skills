@@ -265,6 +265,7 @@ class TheDeclaredLimitsAreDerivedAndBound(unittest.TestCase):
     def test_the_skill_and_module_point_to_the_inventory_without_copying_rows(self):
         skill = SKILL.read_text(encoding="utf-8")
 
+        self.assertEqual((), bind(scan.DECLARED_LIMITS, scan.__doc__, mode=NAMING))
         self.assertIn("peer_critique_scan.NOT_REACHED", skill)
         self.assertIn("``NOT_REACHED``", scan.__doc__ or "")
         for where, prose in {
