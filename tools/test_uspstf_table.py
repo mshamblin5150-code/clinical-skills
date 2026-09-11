@@ -19,9 +19,6 @@ Each fixture is one document layout the corpus actually contains:
 * ``summary-section``      -- no abstract field; the grade is in the summary section
 * ``ahrq-sentence-grade``  -- 2000s AHRQ prose, ``A recommendation.`` as a sentence
 
-Run with::
-
-    python -m unittest discover -s tools -t tools
 """
 
 import json

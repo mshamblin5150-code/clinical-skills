@@ -153,6 +153,23 @@ in that paragraph is historical.
 **Correction, 2026-09-08:** `post_html.py` is now the most recent direct command and calls
 `use_utf8` from that path. The preceding order remains historical.
 
+**Correction, 2026-09-10:** `suite.py` is now the most recent direct command and calls `use_utf8`
+from that path. The preceding order remains historical.
+
+### Suite run
+
+`tools/suite.py` is the one complete-suite interface. It discovers the `test*.py` population under
+`tools/` once, accounts for every discovered test ID, and runs each `TestCase` class as one unit.
+The ordinary command uses three quarters of `os.cpu_count()` as measured in [ADR 0164](docs/adr/0164-the-suite-runs-through-one-module-that-accounts-for-every-discovered-test.md):
+
+```bash
+python tools/suite.py
+```
+
+Use `--jobs 1` to reproduce a failure in the calling process with unittest's traceback output.
+`suite.DECLARED_LIMITS` owns the complete boundary for hangs and discovery's population; this
+section copies no row.
+
 **It read 15, and the sixteenth arrived the same day from the other direction.** `tools/anchor_scan.py` was written on [#124](https://github.com/mshamblin5150-code/clinical-skills/issues/124)'s branch while this rule was being written on #150's, and the two merged an hour apart. **Neither branch's suite failed; the merged tree's did** — the new tool did not import a helper that did not exist when it was written, and nothing either side ran could have seen it. That is [#86](https://github.com/mshamblin5150-code/clinical-skills/issues/86)'s *the merge is the unguarded moment*, arriving on the mechanism built to make a fifteenth tool impossible to miss and catching the sixteenth one commit late.
 
 **#150 fixed the process's *output* codec, and the *input* end of the same boundary was wrong in three places until 2026-08-18.** `subprocess.run(..., text=True)` with no `encoding` decodes with the **locale** codec, which here is cp1252 -- so a tool reading `git` output dies on any byte cp1252 has no mapping for. `phi_scan._git` named `encoding="utf-8", errors="replace"`; `spelling_scan._git` and both of `skills_mirror.py`'s call sites did not.
@@ -190,7 +207,7 @@ It reads `scratch/day-file-text/` — gitignored PHI — and **prints counts onl
 Its extractors are covered by `tools/test_corpus_census.py`, which runs against the committed PHI-free fixtures and never touches `scratch/`:
 
 ```bash
-python -m unittest discover -s tools -t tools
+python tools/suite.py
 ```
 
 Stdlib only — no package manager and no lockfile, and the census is not worth introducing either.
