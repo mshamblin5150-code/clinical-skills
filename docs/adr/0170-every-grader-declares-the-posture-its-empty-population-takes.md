@@ -11,8 +11,11 @@ measurement.
 
 Grilled 2026-09-10. The session began at `origin/main` `6222111`, was brought forward by merge to
 `c90f5c7` (containing `9117908`) before this record was written, and no graded module changed in
-that merge, so every line anchor below holds at both. **Twenty questions were ruled by the clinician
-one at a time on that date.** Nothing is built here; this is the record the build reads.
+that merge, so every line anchor below holds at both. **The anchors are dated, not durable: the
+build this record orders moves the ones in the code it changes**, starting with the `load` refusals
+ruling 6 relocates, so a builder resolves a coordinate by the symbol beside it. **Twenty questions
+were ruled by the clinician one at a time on that date.** Nothing is built here; this is the record
+the build reads.
 
 Every exit status below was driven through the real command, or `main(argv)` in-process where the
 member needs the test module's fake PDF engine, over synthetic inputs built from each member's own
