@@ -108,7 +108,8 @@ last, `misdrawn span boundaries`, carries the page-coverage limit.
 
 **#410 decision 3's two grounds both stand.** In `tools/run_grader.py` the word `quiet` occurs only
 inside the `REFUSED["threshold_sheet"]` string; `run()` prints `format_report` unconditionally; and
-`parse()` refuses extra positionals with `"one source at a time"` and keeps `positionals[0]`.
+`parse()` keeps `positionals[0]` as the one source, refusing extras with `"one source at a time"` only
+for a grader that sets `allow_extra_positionals=False`.
 
 **Three of #836's own figures are wrong and one of its measurements is void.** The **title's 24** is
 23, and was 23 at the ticket's own measurement commit — six sweeps have said so. The body's *"`survey`
@@ -269,7 +270,8 @@ refuses on — a behavior change inside a build whose landing term is byte-ident
 **Whether `run_grader.REFUSED`'s classification is durable.** ADR 0112 ruling 2 calls a refusal *a
 permanent verdict*; #410 decision 3 says the question *reopens on evidence*. A reader of the ADR
 alone would not learn that the entry is conditional. Filed as
-[#1006](https://github.com/mshamblin5150-code/clinical-skills/issues/1006) rather than settled here,
+[#1006](https://github.com/mshamblin5150-code/clinical-skills/issues/1006) and ruled by
+[ADR 0174](0174-a-refusal-is-bounded-by-the-runner-s-contract-and-a-grader-lookalike-is-its-own-kind.md), rather than settled here,
 because editing a grader-family record from a module-shape ticket is #836's own *"migrating onto
 `run_grader` by side effect"* arriving through the wording instead of through the code.
 
@@ -301,3 +303,11 @@ with the fields the core's readers read, which was true of citation tier 2's val
 now says so. Ruling 3's rule applies to both unchanged, and
 [ADR 0176](0176-a-gate-result-field-has-a-production-reader-or-it-is-a-local.md) rules what follows
 from it. No ruling of this record changed.
+
+**Corrected in place once more on 2026-09-11**, on the same terms, by #1006's closing sweep. *#410
+decision 3's two grounds both stand* said `parse()` *"refuses extra positionals with `"one source at a
+time"` and keeps `positionals[0]`."* `Grader.allow_extra_positionals` defaults to `True`, so `parse`
+refuses extras only for a grader that sets it `False`; every other grader keeps the first positional
+and drops the rest. The ground the sentence supports, one source to one status, is unchanged. *What
+this record does not settle* now names ADR 0174 as the record that ruled #1006. No ruling of this
+record changed.
