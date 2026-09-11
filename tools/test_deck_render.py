@@ -150,6 +150,30 @@ class TheDeckRenderCommand(unittest.TestCase):
         self.assertIn("unreachable slide", stderr)
         self.assertEqual([], list((self.root / "render").iterdir()))
 
+    def test_engine_absence_uses_the_shared_render_reason(self):
+        mutated_reason = "mutated shared render-unavailable reason"
+        with (
+            mock.patch.object(
+                render.page_image.pdf_engine,
+                "acquire",
+                side_effect=render.pdf_engine.EngineUnavailable,
+            ),
+            mock.patch.object(
+                render.pdf_engine,
+                "RENDER_UNAVAILABLE",
+                mutated_reason,
+            ),
+        ):
+            status, stdout, stderr = self.run_command()
+
+        self.assertEqual(2, status)
+        self.assertEqual("", stdout)
+        self.assertEqual(
+            f"render did not complete: {mutated_reason}\n",
+            stderr,
+        )
+        self.assertEqual([], list((self.root / "render").iterdir()))
+
     def test_a_clinician_pdf_is_the_escalation_when_powerpoint_is_unavailable(self):
         clinician = self.root / "clinician.pdf"
         clinician.write_bytes(b"clinician PDF")

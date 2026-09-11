@@ -603,12 +603,15 @@ def _stdout_lines(
 
 @dataclass(frozen=True)
 class GateResult:
-    """The result core read without knowing which gate produced it."""
+    """The result core read without knowing which gate produced it.
+
+    ``not_graded`` is set only when the gate's incompleteness should make the whole
+    run exit 2.
+    """
 
     gate: str
     findings: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
-    skip_reason: str | None = None
     lines: tuple[Line, ...] = ()
     diagnostics: tuple[str, ...] = ()
     not_graded: bool = False
@@ -649,6 +652,8 @@ class CitationTier1Result(GateResult):
 class CitationTier2Result(GateResult):
     """Rendered-page citation outcome."""
 
+    skipped: bool = False
+
 
 @dataclass(frozen=True)
 class WatermarkResult(GateResult):
@@ -657,7 +662,6 @@ class WatermarkResult(GateResult):
 
 @dataclass(frozen=True)
 class SecondReadResult(GateResult):
-    pairings: list[str] = field(default_factory=list)
     undiffed: list[str] = field(default_factory=list)
     uncovered: list[str] = field(default_factory=list)
 
@@ -1053,7 +1057,6 @@ def gate_extraction_identity(
         message = f"EXTRACTION IDENTITY NOT RUN -- {reason}"
         return ExtractionIdentityResult(
             "EXTRACTION IDENTITY",
-            skip_reason=reason,
             lines=_report_lines((f"  {message}",)),
             diagnostics=(f"  {message}",),
         )
@@ -1150,14 +1153,9 @@ def gate_page_coverage(sheet: Sheet, page_counts: dict[str, int]) -> PageCoverag
                 f"{sheet.path.name} source '{source_key}' assigns page(s) "
                 f"{_page_runs(outside)} beyond page_count {page_count}"
             )
-    reason = (
-        "page_count unresolved for " + ", ".join(unresolved)
-        if unresolved else None
-    )
     return PageCoverageResult(
         "PAGE COVERAGE",
         findings,
-        skip_reason=reason,
         not_graded=bool(unresolved),
         lines=(
             _report_lines((f"  PAGE COVERAGE   {len(findings)}",))
@@ -1445,7 +1443,6 @@ def gate_citation_tier0(
         "CITATION tier 0",
         failures,
         lines=_report_lines(report),
-        not_graded=bool(ungraded_sources),
     )
 
 
@@ -1453,7 +1450,7 @@ def _citation_tier2_not_run(reason: str) -> CitationTier2Result:
     """One unmistakable result for either reason tier 2 could not start."""
     return CitationTier2Result(
         "CITATION tier 2",
-        skip_reason=reason,
+        skipped=True,
         lines=(
             _report_lines((f"  CITATION tier 2 SKIPPED -- {reason}",))
             + _stdout_lines((
@@ -1480,7 +1477,7 @@ def _hold_tier2_resolution_declaration(
             f"{sheet.path.name}  CITATION tier 2 has no resolution declaration in "
             "## Scope. A corpus-free reader cannot tell checked once from never checked."
         )
-    elif result.skip_reason is None:
+    elif not result.skipped:
         assert pdf_root is not None  # A live tier-2 result can only come from a real root.
         if Path(sheet.resolved_corpus).resolve() != pdf_root.resolve():
             findings.append(
@@ -1492,7 +1489,7 @@ def _hold_tier2_resolution_declaration(
                 f"{sheet.path.name}  CITATION tier 2 resolution date "
                 f"{sheet.resolved_date} is in the future."
             )
-    if result.skip_reason is None:
+    if not result.skipped:
         lines = (
             _report_lines((f"  CITATION tier 2 {len(findings)}",))
             + result.lines[1:]
@@ -1505,7 +1502,7 @@ def _hold_tier2_resolution_declaration(
 def gate_citation_tier2(sheet: Sheet, pdf_root: Path | None) -> CitationTier2Result:
     """Every snippet must appear on the page it cites.
 
-    The result names failures and the skip reason; its lines count rendered rows.
+    The result names failures and whether the gate skipped; its lines count rendered rows.
     That separation is deliberate: "tier 2 did not run at all" and "tier 2
     ran and 3 rows opted out of it" are different events, and a sentinel smuggled
     through the skip channel would have made a sheet that declared every row rendered
@@ -1659,7 +1656,6 @@ def _watermark_not_run(
     """Build the shared absent-corpus result while retaining its distinct metadata."""
     return WatermarkResult(
         "WATERMARK",
-        skip_reason=reason,
         lines=(
             _report_lines((f"  WATERMARK       NOT RUN -- {reason}",))
             + _stdout_lines((
@@ -2481,7 +2477,6 @@ def gate_second_read(
         "SECOND READ",
         refusals,
         warnings,
-        pairings=pairings,
         undiffed=undiffed,
         uncovered=uncovered,
         lines=(
@@ -3046,7 +3041,6 @@ def survey(
         page_coverage = replace(
             page_coverage,
             not_graded=True,
-            skip_reason="; ".join(catalog_problems),
             diagnostics=tuple(
                 f"  PAGE COVERAGE   NOT GRADED -- {problem}"
                 for problem in catalog_problems
@@ -3095,13 +3089,6 @@ def survey(
     # a clean diff prints -- and exited 0. Every fixture handed the gate a read that
     # covered at least one citation, so nothing in the suite could see it; the tracker
     # sweep did. Partial coverage stays a floor and is reported as one.
-    not_graded = (
-        coverage.not_graded
-        or watermark.not_graded
-        or second_read_result.not_graded
-        or page_coverage.not_graded
-    )
-
     results = (
         schema,
         edition_currency,
@@ -3116,20 +3103,9 @@ def survey(
         watermark,
         second_read_result,
     )
-
-    refusals = (
-        schema.findings
-        + null_span.findings
-        + extraction_identity.findings
-        + page_coverage.findings
-        + tier0.findings
-        + tier1.findings
-        + tier2.findings
-        + coverage.findings
-        + ranges.findings
-        + watermark.findings
-        + second_read_result.findings
-    )
+    not_graded = any(result.not_graded for result in results)
+    refusals = [finding for result in results for finding in result.findings]
+    warnings = [warning for result in results for warning in result.warnings]
     diagnostics = list(page_coverage.diagnostics)
     diagnostics.extend(
         f"  RECOMMENDATION RECORD source '{key}' -- {origin}"
@@ -3138,14 +3114,7 @@ def survey(
     diagnostics.extend(extraction_identity.diagnostics)
     diagnostics.extend(watermark.diagnostics[:1])
     diagnostics.extend(f"  FAIL  {message}" for message in refusals)
-    diagnostics.extend(
-        f"  WARN  {message}"
-        for message in (
-            extraction_identity.warnings
-            + coverage.warnings
-            + second_read_result.warnings
-        )
-    )
+    diagnostics.extend(f"  WARN  {message}" for message in warnings)
     diagnostics.extend(
         f"  NOT DIFFED  {message}"
         for message in second_read_result.undiffed + second_read_result.uncovered
@@ -3153,8 +3122,18 @@ def survey(
     diagnostics.extend(watermark.diagnostics[1:])
     diagnostics.extend(second_read_result.diagnostics)
     diagnostics.extend(coverage.diagnostics)
-    if tier2.skip_reason:
+    if tier2.skipped:
         diagnostics.extend(watermark.tier2_skip_diagnostics)
+    already_emitted_diagnostic_results = (
+        page_coverage,
+        extraction_identity,
+        watermark,
+        second_read_result,
+        coverage,
+    )
+    for result in results:
+        if not any(result is emitted for emitted in already_emitted_diagnostic_results):
+            diagnostics.extend(result.diagnostics)
 
     if any(result.fatal for result in results):
         status = 2
@@ -3164,9 +3143,12 @@ def survey(
         # the strongest thing known about the sheet under the weakest heading --
         # `differential_scan.py`'s ordering, for its reason.
         if not_graded:
+            incomplete_gates = ", ".join(
+                result.gate for result in results if result.not_graded
+            )
             diagnostics.append(
-                "  note: PAGE COVERAGE, CITATION tier 0, COVERAGE, or SECOND READ "
-                "did not run completely, so the count above is a floor.",
+                f"  note: {incomplete_gates} did not run completely, so the count "
+                "above is a floor.",
             )
         status = 1
     elif not_graded:

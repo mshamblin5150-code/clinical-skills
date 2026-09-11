@@ -661,6 +661,8 @@ class DeclaredLimitsHaveOneOwner(unittest.TestCase):
                 "the default-branch tree read can fail",
                 "citation extraction truncates punctuation-bearing paths",
                 "a raw literal-percent form can resolve the wrong URL",
+                "a reference-style link definition reads as no repository-relative link",
+                "an angle-bracket destination containing whitespace reads as no repository-relative link",
             },
         )
 

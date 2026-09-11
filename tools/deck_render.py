@@ -69,7 +69,7 @@ def _rasterize(export: Path, destination: Path) -> int:
     try:
         return page_image.rasterize(export, destination, name="slide")
     except pdf_engine.EngineUnavailable as failure:
-        raise RenderError("PyMuPDF is unavailable") from failure
+        raise RenderError(pdf_engine.RENDER_UNAVAILABLE) from failure
     except pdf_engine.SourceUnreadable as failure:
         message = str(failure)
         if message == page_image.EMPTY_EXPORT:

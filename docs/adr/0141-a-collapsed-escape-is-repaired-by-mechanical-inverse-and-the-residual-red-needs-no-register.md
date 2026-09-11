@@ -215,3 +215,13 @@ nothing that was not already served.
 
 **Whether a fifth record exists.** The population of four is a dated floor taken from a harvest, not
 a closed set derived from the tree. The build re-derives it before repairing.
+
+**Correction, 2026-09-11:** ruling 5's ground -- *the command path refuses a damaged title or body,
+so no row's population can grow through the Claude Code publisher* -- held for four of
+`tracker_bodies`' eight rows. The command route never called `tracker_bodies.grade`, so
+`lost-at-dash`, `empty-body`, `literal-at-path` and `double-encoded` could grow through that
+publisher, and [#866](https://github.com/mshamblin5150-code/clinical-skills/issues/866)'s body was
+blanked through it on 2026-09-10.
+[ADR 0177](0177-both-publish-routes-grade-a-body-through-one-grader-and-a-lost-body-refuses.md)
+rules both routes through `grade`. The no-register conclusion stands; its ground holds for every row
+once that build lands.

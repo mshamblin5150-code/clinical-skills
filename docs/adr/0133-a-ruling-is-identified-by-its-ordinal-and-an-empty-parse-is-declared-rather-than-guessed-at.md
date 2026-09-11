@@ -5,7 +5,7 @@ Ruled by the clinician on 2026-09-05, in the grilling of
 both checkpoints; `main` moved once mid-session and every figure below was re-derived at the new
 base. Nothing is built here; this is the record the build reads.
 
-**The subject.** `ruling_ordinals` in `tools/test_skill_agreement.py` reads an ADR's numbered
+**The subject.** `ruling_ordinals` in `tools/adr_read.py` reads an ADR's numbered
 rulings, and four ratified records write theirs in spellings it does not read. Those records parse
 to the empty set, which is indistinguishable from a record that rules nothing, so the failure is
 invisible from inside the record and lands on the next author who writes a coordinate to it.

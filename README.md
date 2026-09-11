@@ -84,7 +84,7 @@ The model is optional and only affects graded writing. It does not replace a rub
 
 ## Getting started
 
-You need Git and Python 3.10 or newer. No package installation is needed to use the committed skills and references.
+You need Git and Python 3.10 or newer. See `AGENTS.md` for skill-specific prerequisites.
 
 1. Install Python.
 

@@ -175,6 +175,17 @@ their keys and carries no second copy of any limit sentence.
 
 ## 5. Render and inspect every slide
 
+Before the render and coverage commands, run:
+
+```bash
+python tools/pdf_engine.py
+```
+
+On exit 1, ask the clinician for permission to run the install line the check printed and run the
+check again after an attempted install. If permission is declined or the install fails, walk the
+retained-render and coverage rules below by eye. Exit 2 from the check does not establish that the
+engine is missing and stops this step for investigation.
+
 Run the retained render pass after the package scan:
 
 ```bash
@@ -193,6 +204,11 @@ zero, the retained export's page count, and readable PNGs. Earlier passes remain
 only the last pass must contain exactly one readable image for every exported page. Fewer or more
 final images than exported pages is exit 1. No measurable retained export is exit 2. The gap count is
 reported on every run and never graded.
+
+The engine-reaching grader must exit 0 unless this run's engine check reported the engine missing
+and the install did not happen. Only in that case may its exit 2 be accepted; report that the run is
+not mechanically verified and that the retained-render and coverage rows were walked by eye. A
+finding still stops the run.
 
 A vision-capable, non-authoring context opens every PNG in the final pass and compares it with the
 deck and signed bar. It reports clipping, overflow, overlap, unreadable contrast, missing or
