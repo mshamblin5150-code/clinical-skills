@@ -14,6 +14,546 @@ import git_paths
 
 TOOLS = Path(__file__).resolve().parent
 
+MOCK_EXPECTATION_METHODS = {
+    "assert_any_call",
+    "assert_any_await",
+    "assert_called",
+    "assert_called_once",
+    "assert_called_once_with",
+    "assert_called_with",
+    "assert_has_calls",
+    "assert_has_awaits",
+    "assert_awaited",
+    "assert_awaited_once",
+    "assert_awaited_once_with",
+    "assert_awaited_with",
+    "assert_not_awaited",
+    "assert_not_called",
+}
+MOCK_CONSTRUCTORS = {
+    "AsyncMock",
+    "MagicMock",
+    "Mock",
+    "NonCallableMagicMock",
+    "NonCallableMock",
+}
+COMPREHENSION_SCOPES = (ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp)
+
+
+def _named_expression_targets(node: ast.AST) -> list[ast.Name]:
+    targets: list[ast.Name] = []
+
+    class WalrusTargetCollector(ast.NodeVisitor):
+        def visit_NamedExpr(self, named: ast.NamedExpr) -> None:
+            if isinstance(named.target, ast.Name):
+                targets.append(named.target)
+            self.visit(named.value)
+
+        def visit_FunctionDef(self, nested: ast.FunctionDef) -> None:
+            return
+
+        visit_AsyncFunctionDef = visit_FunctionDef
+
+        def visit_Lambda(self, nested: ast.Lambda) -> None:
+            return
+
+        def visit_ClassDef(self, nested: ast.ClassDef) -> None:
+            return
+
+    WalrusTargetCollector().visit(node)
+    return targets
+
+
+def _literal_arguments(call: ast.Call) -> set[str]:
+    values: set[str] = set()
+
+    class DirectStringLiteralCollector(ast.NodeVisitor):
+        def visit_Constant(self, node: ast.Constant) -> None:
+            if isinstance(node.value, str):
+                values.add(node.value)
+
+        def visit_Call(self, node: ast.Call) -> None:
+            return
+
+    reader = DirectStringLiteralCollector()
+    for argument in call.args:
+        reader.visit(argument)
+    for keyword in call.keywords:
+        reader.visit(keyword.value)
+    return values
+
+
+def _position(node: ast.AST) -> tuple[int, int]:
+    return (getattr(node, "lineno", 0), getattr(node, "col_offset", 0))
+
+
+def _scope_bindings(
+    scope: ast.AST,
+) -> dict[str, list[tuple[tuple[int, int], str]]]:
+    bindings: dict[str, list[tuple[tuple[int, int], str]]] = {}
+
+    def bind(name: str, kind: str, node: ast.AST) -> None:
+        bindings.setdefault(name, []).append((_position(node), kind))
+
+    class BindingCollector(ast.NodeVisitor):
+        def visit_Import(self, node: ast.Import) -> None:
+            for alias in node.names:
+                name = alias.asname or alias.name.split(".", 1)[0]
+                bind(
+                    name,
+                    "git_paths_module" if alias.name == "git_paths" else "other",
+                    alias,
+                )
+
+        def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
+            for alias in node.names:
+                name = alias.asname or alias.name
+                if node.module == "git_paths" and alias.name == "read_path_records":
+                    kind = "read_path_records"
+                elif node.module == "unittest" and alias.name == "mock":
+                    kind = "unittest_mock_module"
+                elif node.module == "unittest.mock" and alias.name == "patch":
+                    kind = "mock_patch"
+                elif (
+                    node.module == "unittest.mock"
+                    and alias.name in MOCK_CONSTRUCTORS
+                ):
+                    kind = "mock_constructor"
+                else:
+                    kind = "other"
+                bind(name, kind, alias)
+
+        def visit_Name(self, node: ast.Name) -> None:
+            if isinstance(node.ctx, ast.Store):
+                bind(node.id, "other", node)
+
+        def visit_arg(self, node: ast.arg) -> None:
+            bind(node.arg, "other", node)
+
+        def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+            if node is scope:
+                self.visit(node.args)
+                for statement in node.body:
+                    self.visit(statement)
+            else:
+                bind(node.name, "other", node)
+
+        visit_AsyncFunctionDef = visit_FunctionDef
+
+        def visit_Lambda(self, node: ast.Lambda) -> None:
+            if node is scope:
+                self.visit(node.args)
+                self.visit(node.body)
+
+        def visit_ClassDef(self, node: ast.ClassDef) -> None:
+            if node is scope:
+                for statement in node.body:
+                    self.visit(statement)
+            else:
+                bind(node.name, "other", node)
+
+        def visit_ExceptHandler(self, node: ast.ExceptHandler) -> None:
+            if node.name:
+                bind(node.name, "other", node)
+            for statement in node.body:
+                self.visit(statement)
+
+        def visit_With(self, node: ast.With) -> None:
+            for item in node.items:
+                self.visit(item.context_expr)
+                if item.optional_vars is not None:
+                    self.visit(item.optional_vars)
+            for statement in node.body:
+                self.visit(statement)
+
+        visit_AsyncWith = visit_With
+
+        def _visit_comprehension_scope(self, node: ast.AST) -> None:
+            if node is scope:
+                for generator in node.generators:
+                    self.visit(generator.target)
+            else:
+                for target in _named_expression_targets(node):
+                    bind(target.id, "other", target)
+
+        visit_ListComp = _visit_comprehension_scope
+        visit_SetComp = _visit_comprehension_scope
+        visit_DictComp = _visit_comprehension_scope
+        visit_GeneratorExp = _visit_comprehension_scope
+
+    collector = BindingCollector()
+    if isinstance(scope, ast.Module):
+        for statement in scope.body:
+            collector.visit(statement)
+    else:
+        collector.visit(scope)
+    return bindings
+
+
+def _resolves_to_import(
+    name: str,
+    kind: str,
+    call: ast.Call,
+    parents: dict[ast.AST, ast.AST],
+    binding_cache: dict[
+        ast.AST, dict[str, list[tuple[tuple[int, int], str]]]
+    ],
+) -> bool:
+    call_position = _position(call)
+    for node in _enclosing_scopes(call, parents):
+        bindings = binding_cache.setdefault(node, _scope_bindings(node))
+        events = bindings.get(name, [])
+        preceding = [event for event in events if event[0] <= call_position]
+        if preceding:
+            return max(preceding)[1] == kind
+        if events and isinstance(
+            node,
+            (
+                ast.FunctionDef,
+                ast.AsyncFunctionDef,
+                ast.Lambda,
+                *COMPREHENSION_SCOPES,
+            ),
+        ):
+            return False
+    return False
+
+
+def _enclosing_scopes(
+    subject: ast.AST, parents: dict[ast.AST, ast.AST]
+) -> list[ast.AST]:
+    def is_within(roots: list[ast.AST]) -> bool:
+        ancestor: ast.AST | None = subject
+        while ancestor is not None:
+            if ancestor in roots:
+                return True
+            ancestor = parents.get(ancestor)
+        return False
+
+    scopes: list[ast.AST] = []
+    node: ast.AST | None = subject
+    inside_function = False
+    while node is not None:
+        is_function_node = isinstance(
+            node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)
+        )
+        function_body = [node.body] if isinstance(node, ast.Lambda) else getattr(
+            node, "body", []
+        )
+        is_function = is_function_node and is_within(function_body)
+        is_visible_class = (
+            isinstance(node, ast.ClassDef)
+            and not inside_function
+            and is_within(node.body)
+        )
+        if is_function:
+            inside_function = True
+        is_comprehension_scope = isinstance(node, COMPREHENSION_SCOPES)
+        if is_comprehension_scope:
+            first_iterable = node.generators[0].iter
+            ancestor: ast.AST | None = subject
+            while ancestor is not None and ancestor is not node:
+                if ancestor is first_iterable:
+                    is_comprehension_scope = False
+                    break
+                ancestor = parents.get(ancestor)
+        if is_comprehension_scope:
+            inside_function = True
+        if (
+            isinstance(node, ast.Module)
+            or is_comprehension_scope
+            or is_function
+            or is_visible_class
+        ):
+            scopes.append(node)
+        node = parents.get(node)
+    return scopes
+
+
+def _is_mock_expectation(
+    call: ast.Call,
+    parents: dict[ast.AST, ast.AST],
+    binding_cache: dict[
+        ast.AST, dict[str, list[tuple[tuple[int, int], str]]]
+    ],
+) -> bool:
+    if (
+        isinstance(call.func, ast.Attribute)
+        and call.func.attr in MOCK_EXPECTATION_METHODS
+        and isinstance(call.func.value, ast.Name)
+        and _resolves_to_mock_object(
+            call.func.value.id,
+            call,
+            parents,
+            binding_cache,
+        )
+    ):
+        return True
+    is_mock_call = (
+        isinstance(call.func, ast.Attribute)
+        and isinstance(call.func.value, ast.Name)
+        and call.func.attr == "call"
+        and _resolves_to_import(
+            call.func.value.id,
+            "unittest_mock_module",
+            call,
+            parents,
+            binding_cache,
+        )
+    )
+    if not is_mock_call:
+        return False
+    node: ast.AST | None = parents.get(call)
+    while node is not None:
+        if isinstance(node, ast.Call) and (
+            isinstance(node.func, ast.Attribute)
+            and node.func.attr in {"assert_has_calls", "assert_has_awaits"}
+            and isinstance(node.func.value, ast.Name)
+            and _resolves_to_mock_object(
+                node.func.value.id,
+                node,
+                parents,
+                binding_cache,
+            )
+        ):
+            return True
+        node = parents.get(node)
+    return False
+
+
+def _patch_call_uses_unittest_mock(
+    call: ast.Call,
+    parents: dict[ast.AST, ast.AST],
+    binding_cache: dict[
+        ast.AST, dict[str, list[tuple[tuple[int, int], str]]]
+    ],
+) -> bool:
+    function = call.func
+    if isinstance(function, ast.Name):
+        return _resolves_to_import(
+            function.id, "mock_patch", call, parents, binding_cache
+        )
+    if not isinstance(function, ast.Attribute):
+        return False
+    if function.attr == "patch" and isinstance(function.value, ast.Name):
+        return _resolves_to_import(
+            function.value.id,
+            "unittest_mock_module",
+            call,
+            parents,
+            binding_cache,
+        )
+    if function.attr != "object":
+        return False
+    if isinstance(function.value, ast.Name):
+        return _resolves_to_import(
+            function.value.id, "mock_patch", call, parents, binding_cache
+        )
+    return (
+        isinstance(function.value, ast.Attribute)
+        and function.value.attr == "patch"
+        and isinstance(function.value.value, ast.Name)
+        and _resolves_to_import(
+            function.value.value.id,
+            "unittest_mock_module",
+            call,
+            parents,
+            binding_cache,
+        )
+    )
+
+
+def _mock_constructor_uses_unittest_mock(
+    call: ast.Call,
+    parents: dict[ast.AST, ast.AST],
+    binding_cache: dict[
+        ast.AST, dict[str, list[tuple[tuple[int, int], str]]]
+    ],
+) -> bool:
+    function = call.func
+    if isinstance(function, ast.Name):
+        return _resolves_to_import(
+            function.id, "mock_constructor", call, parents, binding_cache
+        )
+    return (
+        isinstance(function, ast.Attribute)
+        and function.attr in MOCK_CONSTRUCTORS
+        and isinstance(function.value, ast.Name)
+        and _resolves_to_import(
+            function.value.id,
+            "unittest_mock_module",
+            call,
+            parents,
+            binding_cache,
+        )
+    )
+
+
+def _patch_decorator_injects_mock(call: ast.Call) -> bool:
+    if any(keyword.arg == "new" for keyword in call.keywords):
+        return False
+    is_patch_object = (
+        isinstance(call.func, ast.Attribute) and call.func.attr == "object"
+    )
+    return len(call.args) < (3 if is_patch_object else 2)
+
+
+def _resolves_to_mock_object(
+    name: str,
+    call: ast.Call,
+    parents: dict[ast.AST, ast.AST],
+    binding_cache: dict[
+        ast.AST, dict[str, list[tuple[tuple[int, int], str]]]
+    ],
+) -> bool:
+    call_position = _position(call)
+
+    def binding_survives(scope: ast.AST, candidate: ast.AST) -> bool:
+        for active_scope in _enclosing_scopes(call, parents):
+            if active_scope is scope:
+                break
+            events = binding_cache.setdefault(
+                active_scope, _scope_bindings(active_scope)
+            ).get(name, [])
+            shadows = events and (
+                not isinstance(active_scope, ast.ClassDef)
+                or any(position <= call_position for position, _kind in events)
+            )
+            if shadows:
+                return False
+        bindings = binding_cache.setdefault(scope, _scope_bindings(scope))
+        candidate_position = _position(candidate)
+        return candidate_position <= call_position and not any(
+            candidate_position < position <= call_position
+            for position, _kind in bindings.get(name, [])
+        )
+
+    for scope in _enclosing_scopes(call, parents):
+        if isinstance(scope, COMPREHENSION_SCOPES):
+            continue
+        if isinstance(scope, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            patch_decorators = [
+                decorator
+                for decorator in scope.decorator_list
+                if isinstance(decorator, ast.Call)
+                and _patch_call_uses_unittest_mock(
+                    decorator, parents, binding_cache
+                )
+                and _patch_decorator_injects_mock(decorator)
+            ]
+            positional = [*scope.args.posonlyargs, *scope.args.args]
+            injected = (
+                positional[-len(patch_decorators) :] if patch_decorators else []
+            )
+            for argument in injected:
+                if argument.arg == name and binding_survives(scope, argument):
+                    return True
+        for node in ast.walk(scope):
+            node_scopes = _enclosing_scopes(node, parents)
+            if not node_scopes or node_scopes[0] is not scope:
+                continue
+            assigned_value: ast.AST | None = None
+            assigned_target: ast.AST | None = None
+            if isinstance(node, ast.Assign):
+                named_targets = [
+                    target for target in node.targets if isinstance(target, ast.Name)
+                ]
+                if len(named_targets) == 1 and named_targets[0].id == name:
+                    assigned_target = named_targets[0]
+                    assigned_value = node.value
+            elif (
+                isinstance(node, ast.AnnAssign)
+                and isinstance(node.target, ast.Name)
+                and node.target.id == name
+            ):
+                assigned_target = node.target
+                assigned_value = node.value
+            elif (
+                isinstance(node, ast.NamedExpr)
+                and isinstance(node.target, ast.Name)
+                and node.target.id == name
+            ):
+                assigned_target = node.target
+                assigned_value = node.value
+            if (
+                assigned_target is not None
+                and isinstance(assigned_value, ast.Call)
+                and _mock_constructor_uses_unittest_mock(
+                    assigned_value, parents, binding_cache
+                )
+                and binding_survives(scope, assigned_target)
+            ):
+                return True
+            if not isinstance(node, (ast.With, ast.AsyncWith)):
+                continue
+            if node.lineno > call.lineno:
+                continue
+            for item in node.items:
+                if (
+                    isinstance(item.optional_vars, ast.Name)
+                    and item.optional_vars.id == name
+                    and isinstance(item.context_expr, ast.Call)
+                    and _patch_call_uses_unittest_mock(
+                        item.context_expr, parents, binding_cache
+                    )
+                ):
+                    if binding_survives(scope, item.optional_vars):
+                        return True
+    return False
+
+
+def shared_reader_offenders(root: Path) -> list[str]:
+    """Find path-listing Git calls that bypass the lossless shared reader."""
+    offenders = []
+    for path in sorted(root.glob("*.py")):
+        if path.name in {"git_paths.py", "test_git_paths.py"}:
+            continue
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        parents = {
+            child: parent
+            for parent in ast.walk(tree)
+            for child in ast.iter_child_nodes(parent)
+        }
+        binding_cache: dict[
+            ast.AST, dict[str, list[tuple[tuple[int, int], str]]]
+        ] = {}
+        for call in (node for node in ast.walk(tree) if isinstance(node, ast.Call)):
+            literals = _literal_arguments(call)
+            path_listing = bool(
+                literals & {"ls-files", "ls-tree"}
+                or ("diff" in literals and literals & {"--name-only", "--numstat"})
+                or ("rev-list" in literals and "--objects" in literals)
+            )
+            function = call.func
+            uses_shared_reader = (
+                isinstance(function, ast.Name)
+                and _resolves_to_import(
+                    function.id,
+                    "read_path_records",
+                    call,
+                    parents,
+                    binding_cache,
+                )
+            ) or (
+                isinstance(function, ast.Attribute)
+                and isinstance(function.value, ast.Name)
+                and function.attr == "read_path_records"
+                and _resolves_to_import(
+                    function.value.id,
+                    "git_paths_module",
+                    call,
+                    parents,
+                    binding_cache,
+                )
+            )
+            if (
+                path_listing
+                and not uses_shared_reader
+                and not _is_mock_expectation(call, parents, binding_cache)
+            ):
+                offenders.append(f"{path.name}:{call.lineno}")
+    return offenders
+
 
 class PathRecordReader(unittest.TestCase):
     def test_argv_and_nul_parse_are_pinned(self):
@@ -65,7 +605,7 @@ class PathRecordReader(unittest.TestCase):
         self.assertEqual(paths, ())
 
     def test_text_mode_is_refused(self):
-        """A tracked walk must be lossless; an untracked path remains outside it."""
+        """A clean index walk covers tracked paths; an untracked path stays outside it."""
         with self.assertRaisesRegex(ValueError, "must request -z"):
             git_paths.read_path_records(Path("repo"), "ls-files")
 
@@ -119,7 +659,7 @@ class RealGitPathPopulation(unittest.TestCase):
 
 
 class SharedReaderAdoption(unittest.TestCase):
-    """Literal argv floor for non-test tools that list repository paths.
+    """Literal argv floor for tools that list repository paths.
 
     The walk reads string literals directly from each call. A subcommand built
     at run time or passed through a variable is invisible, so this is a floor
@@ -127,47 +667,281 @@ class SharedReaderAdoption(unittest.TestCase):
     can exist.
     """
 
-    @staticmethod
-    def _literal_arguments(call: ast.Call) -> set[str]:
-        values: set[str] = set()
-
-        class Direct(ast.NodeVisitor):
-            def visit_Constant(self, node: ast.Constant) -> None:
-                if isinstance(node.value, str):
-                    values.add(node.value)
-
-            def visit_Call(self, node: ast.Call) -> None:
-                return
-
-        reader = Direct()
-        for argument in call.args:
-            reader.visit(argument)
-        for keyword in call.keywords:
-            reader.visit(keyword.value)
-        return values
-
     def test_path_listing_subcommands_only_appear_through_git_paths(self):
-        offenders = []
-        for path in sorted(TOOLS.glob("*.py")):
-            if path.name.startswith("test_") or path.name == "git_paths.py":
-                continue
-            tree = ast.parse(path.read_text(encoding="utf-8"))
-            for call in (node for node in ast.walk(tree) if isinstance(node, ast.Call)):
-                literals = self._literal_arguments(call)
-                path_listing = bool(
-                    literals & {"ls-files", "ls-tree"}
-                    or ("diff" in literals and literals & {"--name-only", "--numstat"})
-                    or ("rev-list" in literals and "--objects" in literals)
-                )
-                function = call.func
-                shared = (
-                    isinstance(function, ast.Attribute)
-                    and isinstance(function.value, ast.Name)
-                    and function.value.id == "git_paths"
-                )
-                if path_listing and not shared:
-                    offenders.append(f"{path.name}:{call.lineno}")
-        self.assertEqual(offenders, [])
+        self.assertEqual(shared_reader_offenders(TOOLS), [])
+
+    def test_a_test_module_listing_paths_through_subprocess_is_refused(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "test_reader.py").write_text(
+                "import subprocess\n"
+                "subprocess.run(['git', 'ls-files'])\n",
+                encoding="utf-8",
+            )
+
+            self.assertEqual(
+                shared_reader_offenders(root),
+                ["test_reader.py:2"],
+            )
+
+    def test_import_aliases_and_mock_expectations_are_not_refused(self):
+        source = """\
+from unittest import mock
+from git_paths import read_path_records as records
+import git_paths as paths
+
+records(ROOT, "ls-files", "-z")
+paths.read_path_records(ROOT, "ls-tree", "-z")
+def local_imports():
+    from git_paths import read_path_records as local_records
+    import git_paths as local_paths
+    local_records(ROOT, "ls-files", "-z")
+    local_paths.read_path_records(ROOT, "ls-tree", "-z")
+with mock.patch("target") as run, mock.patch("other") as read:
+    run.assert_any_call(["git", "ls-files"])
+    run.assert_any_await(["git", "ls-files"])
+    run.assert_called(["git", "ls-files"])
+    run.assert_called_once(["git", "ls-files"])
+    run.assert_called_once_with(["git", "ls-files"])
+    read.assert_called_with("ls-tree")
+    run.assert_has_calls([mock.call(["git", "ls-files"])])
+    run.assert_has_awaits([mock.call(["git", "ls-files"])])
+    run.assert_awaited(["git", "ls-files"])
+    run.assert_awaited_once(["git", "ls-files"])
+    run.assert_awaited_once_with(["git", "ls-files"])
+    run.assert_awaited_with(["git", "ls-files"])
+    run.assert_not_awaited(["git", "ls-files"])
+    run.assert_not_called(["git", "ls-files"])
+"""
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "test_reader.py").write_text(source, encoding="utf-8")
+
+            self.assertEqual(shared_reader_offenders(root), [])
+
+    def test_an_executable_listing_inside_a_mock_expectation_is_still_refused(self):
+        source = """\
+import subprocess
+probe.assert_called_with(subprocess.run(["git", "ls-files"]))
+"""
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "test_reader.py").write_text(source, encoding="utf-8")
+
+            self.assertEqual(shared_reader_offenders(root), ["test_reader.py:2"])
+
+    def test_an_unimported_git_paths_name_is_not_adoption(self):
+        source = 'git_paths.read_path_records(ROOT, "ls-files", "-z")\n'
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "test_reader.py").write_text(source, encoding="utf-8")
+
+            self.assertEqual(shared_reader_offenders(root), ["test_reader.py:1"])
+
+    def test_python_scope_boundaries_do_not_bless_or_refuse_aliases(self):
+        source = """\
+import git_paths as paths
+
+def comprehension_target_is_its_own_scope():
+    [item for paths in items]
+    return paths.read_path_records(ROOT, "ls-files", "-z")
+
+def exception_alias_shadows_the_import():
+    try:
+        pass
+    except Exception as paths:
+        paths.read_path_records(ROOT, "ls-files", "-z")
+
+class ClassBody:
+    import git_paths as local_paths
+    records = local_paths.read_path_records(ROOT, "ls-files", "-z")
+"""
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "test_reader.py").write_text(source, encoding="utf-8")
+
+            self.assertEqual(shared_reader_offenders(root), ["test_reader.py:11"])
+
+    def test_a_mock_named_method_on_an_ordinary_receiver_is_not_suppressed(self):
+        source = 'probe.assert_called_with(["git", "ls-files"])\n'
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "test_reader.py").write_text(source, encoding="utf-8")
+
+            self.assertEqual(shared_reader_offenders(root), ["test_reader.py:1"])
+
+    def test_an_ordinary_patch_context_does_not_create_a_mock_receiver(self):
+        source = """\
+def patch():
+    return probe
+with patch() as run:
+    run.assert_called_with(["git", "ls-files"])
+"""
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "test_reader.py").write_text(source, encoding="utf-8")
+
+            self.assertEqual(shared_reader_offenders(root), ["test_reader.py:4"])
+
+    def test_a_receiver_rebound_after_patch_is_not_suppressed(self):
+        source = """\
+from unittest import mock
+with mock.patch("target") as run:
+    pass
+run = object()
+run.assert_called_with(["git", "ls-files"])
+"""
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "test_reader.py").write_text(source, encoding="utf-8")
+
+            self.assertEqual(shared_reader_offenders(root), ["test_reader.py:5"])
+
+    def test_a_class_import_is_not_visible_in_a_comprehension_body(self):
+        source = """\
+paths = probe
+class Reader:
+    import git_paths as paths
+    records = [paths.read_path_records(ROOT, "ls-files", "-z") for item in items]
+"""
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "test_reader.py").write_text(source, encoding="utf-8")
+
+            self.assertEqual(shared_reader_offenders(root), ["test_reader.py:4"])
+
+    def test_a_later_rebinding_does_not_poison_an_earlier_import_use(self):
+        source = """\
+import git_paths as paths
+paths.read_path_records(ROOT, "ls-files", "-z")
+paths = probe
+"""
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "test_reader.py").write_text(source, encoding="utf-8")
+
+            self.assertEqual(shared_reader_offenders(root), [])
+
+    def test_mock_constructors_and_patch_decorators_create_mock_receivers(self):
+        source = """\
+from unittest import mock
+run = mock.Mock()
+run.assert_called_with(["git", "ls-files"])
+@mock.patch("target")
+def test_reader(patched):
+    patched.assert_called_once_with(["git", "ls-files"])
+@mock.patch.object(Service, "method")
+def test_object_patch(patched):
+    patched.assert_called_with(["git", "ls-files"])
+run = mock.NonCallableMagicMock()
+run.assert_called_with(["git", "ls-files"])
+"""
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "test_reader.py").write_text(source, encoding="utf-8")
+
+            self.assertEqual(shared_reader_offenders(root), [])
+
+    def test_a_later_mock_constructor_does_not_retroactively_suppress(self):
+        source = """\
+from unittest import mock
+run = probe
+run.assert_called_with(["git", "ls-files"])
+run = mock.Mock()
+"""
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "test_reader.py").write_text(source, encoding="utf-8")
+
+            self.assertEqual(shared_reader_offenders(root), ["test_reader.py:3"])
+
+    def test_class_mock_resolution_follows_body_execution_order(self):
+        source = """\
+from unittest import mock
+run = mock.Mock()
+class LateRebinding:
+    run.assert_called_with(["git", "ls-files"])
+    run = object()
+class EarlyRebinding:
+    run = object()
+    run.assert_called_with(["git", "ls-files"])
+"""
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "test_reader.py").write_text(source, encoding="utf-8")
+
+            self.assertEqual(shared_reader_offenders(root), ["test_reader.py:8"])
+
+    def test_a_nested_rebinding_stops_outer_mock_provenance(self):
+        source = """\
+from unittest import mock
+def outer():
+    run = mock.Mock()
+    def inner():
+        nonlocal run
+        run = object()
+        run.assert_called_with(["git", "ls-files"])
+"""
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "test_reader.py").write_text(source, encoding="utf-8")
+
+            self.assertEqual(shared_reader_offenders(root), ["test_reader.py:7"])
+
+    def test_definition_time_expressions_use_the_enclosing_import(self):
+        source = """\
+import git_paths as paths
+@decorate(paths.read_path_records(ROOT, "ls-files", "-z"))
+def decorated(paths):
+    pass
+def defaulted(paths=None, value=paths.read_path_records(ROOT, "ls-files", "-z")):
+    pass
+lambda paths=None, value=paths.read_path_records(ROOT, "ls-files", "-z"): None
+"""
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "test_reader.py").write_text(source, encoding="utf-8")
+
+            self.assertEqual(shared_reader_offenders(root), [])
+
+    def test_a_comprehension_walrus_shadows_the_enclosing_import(self):
+        source = """\
+import git_paths as paths
+def offender(items):
+    [(paths := item) for item in items]
+    paths.read_path_records(ROOT, "ls-files", "-z")
+"""
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "test_reader.py").write_text(source, encoding="utf-8")
+
+            self.assertEqual(shared_reader_offenders(root), ["test_reader.py:4"])
+
+    def test_a_comprehension_first_iterable_uses_the_enclosing_import(self):
+        source = """\
+import git_paths as paths
+[item for paths in paths.read_path_records(ROOT, "ls-files", "-z")]
+"""
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "test_reader.py").write_text(source, encoding="utf-8")
+
+            self.assertEqual(shared_reader_offenders(root), [])
+
+    def test_an_alias_imported_in_another_scope_is_not_adoption(self):
+        source = """\
+def compliant():
+    import git_paths as paths
+    paths.read_path_records(ROOT, "ls-files", "-z")
+
+def offender(paths):
+    paths.read_path_records(ROOT, "ls-files", "-z")
+"""
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "test_reader.py").write_text(source, encoding="utf-8")
+
+            self.assertEqual(shared_reader_offenders(root), ["test_reader.py:6"])
 
 
 if __name__ == "__main__":

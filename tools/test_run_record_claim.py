@@ -82,10 +82,10 @@ teaches the next session to delete the test.
 from __future__ import annotations
 
 import re
-import subprocess
 import unittest
 from pathlib import Path
 
+import git_paths
 from prose_bind import normalized
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -163,15 +163,10 @@ def tracked_prose() -> list[Path]:
     file written this session is graded after it is staged, by CI at push, and
     by the next local run.
     """
-    finished = subprocess.run(
-        ["git", "ls-files", "--cached", "--", "*.md", "*.py"],
-        cwd=REPO_ROOT,
-        capture_output=True,
-        encoding="utf-8",
-        errors="replace",
-        check=True,
+    records = git_paths.read_path_records(
+        REPO_ROOT, "ls-files", "-z", "--cached", "--", "*.md", "*.py"
     )
-    paths = [REPO_ROOT / line for line in finished.stdout.splitlines() if line.strip()]
+    paths = [REPO_ROOT / line for line in records]
     return [path for path in paths if path.resolve() != SELF]
 
 
