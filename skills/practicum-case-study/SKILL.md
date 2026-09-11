@@ -1012,6 +1012,18 @@ The `PROPOSED (verify before use)` block is written separately to the run direct
 
 ### 9. Check
 
+Before the render and coverage row, run:
+
+```bash
+python tools/pdf_engine.py
+```
+
+On exit 1, ask the clinician for permission to run the install line the check printed and run the
+check again after an attempted install. If permission is declined or the install fails, use the
+documented by-eye route below and record that the render production and coverage are not
+mechanically verified. Exit 2 from the check does not establish that the engine is missing and stops
+this step for investigation.
+
 **This is the second fan-out, and it runs after the draft exists.** Step 3's ran before a word was
 written and found sources; this one reads the document that was written and reports what is wrong
 with it. [#218](https://github.com/mshamblin5150-code/clinical-skills/issues/218).
@@ -1412,7 +1424,11 @@ Then walk this list, by eye — none of it is mechanical:
   above are.
 - Did the clinical-decisions reader compare the faculty material with the whole draft and account
   for every continuing or PRN endpoint and every wrapper-only section?
-- Did `python tools/render_scan.py <run-directory>` exit 0, and did a vision-capable reader compare
+- Did `python tools/render_scan.py <run-directory>` exit 0, or was its exit 2 accepted only because
+  this run's engine check reported the engine missing and the install did not happen? In the latter
+  case, does the completion report say the run is not mechanically verified and that the retention
+  and coverage rows were walked by eye? A finding still stops the run. In either case, did a
+  vision-capable reader compare
   every retained page image with the Markdown draft, with a substantiated verdict recorded under
   `the rendered document`, `SOURCE` naming `word-pdf`, `word-xps`, or `clinician`, and `PASS`
   naming the positive final retained pass?

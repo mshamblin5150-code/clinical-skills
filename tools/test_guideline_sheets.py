@@ -638,7 +638,7 @@ class TheCoderGainsNoObligation(ProseBind, unittest.TestCase):
 
 
 class TheIndexTellsAConsumerWhatToInstall(unittest.TestCase):
-    """AGENTS.md is what a consumer reads, and the answer is still nothing."""
+    """AGENTS.md tells a consumer which committed artifacts need no tool."""
 
     @classmethod
     def setUpClass(cls) -> None:

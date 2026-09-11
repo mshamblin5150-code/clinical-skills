@@ -21,7 +21,7 @@ Agent-agnostic skills for a nurse practitioner student's written work — clinic
 
 <!-- Additional skills are appended here as they are written. -->
 
-**Two skills are no longer Markdown alone, and it used to be one.** `icd10-cpt` ships the ICD-10-CM code set at `reference/icd10cm-2026.sqlite` and queries it with `tools/icd10_lookup.py`, so a code is looked up rather than recalled. **`clinical-note` now depends on the same pair**, because [#46](https://github.com/mshamblin5150-code/clinical-skills/issues/46) made it write codes into the Medatrax diagnosis fields and drift row 20 requires those codes verified rather than recalled. **There is still nothing to install** — the database is in this repo and `sqlite3` is in the Python standard library — but an agent that cannot run the script is working from recall, and every code it proposes must carry `verify this number`.
+**Two skills are no longer Markdown alone, and it used to be one.** `icd10-cpt` ships the ICD-10-CM code set at `reference/icd10cm-2026.sqlite` and queries it with `tools/icd10_lookup.py`, so a code is looked up rather than recalled. **`clinical-note` now depends on the same pair**, because [#46](https://github.com/mshamblin5150-code/clinical-skills/issues/46) made it write codes into the Medatrax diagnosis fields and drift row 20 requires those codes verified rather than recalled. **The lookup still needs nothing installed** — the database is in this repo and `sqlite3` is in the Python standard library — but an agent that cannot run the script is working from recall, and every code it proposes must carry `verify this number`.
 
 **One code family takes a second committed lookup.** A pediatric `Z68.5-` is a CDC growth-chart percentile, so `clinical-note` and `icd10-cpt` run `tools/cdc_percentile.py` against `reference/cdc-bmi-for-age-2022.csv` as well as checking the returned codes against ICD-10-CM. Where only whole-year age is known, the tool fills and discloses a midpoint month rather than withholding the band. An agent that cannot run it is working from recall, and every pediatric BMI code it proposes must carry `verify this number`. [#123](https://github.com/mshamblin5150-code/clinical-skills/issues/123).
 
@@ -32,7 +32,7 @@ Agent-agnostic skills for a nurse practitioner student's written work — clinic
 **`practicum-case-study` depends on `tools/case_study_render.py` to produce a bounded Word export
 and retained page pixels, and on `tools/render_scan.py` for mechanical rendered-page coverage.**
 `practicum-case-study` step 9 writes the retained-pass layout, route order, numerator, denominator, final-pass
-rule and exit meanings in full, so a consumer without Python can walk the same evidence by eye; it
+rule and exit meanings in full, so after the install has been tried a consumer without Python can walk the same evidence by eye; it
 cannot call the production or coverage mechanically verified. The commands do not replace
 `tools/checks_ledger.py`: `case_study_render.py` produces the pass, `render_scan.py` grades that
 canonical retained passes contain readable pixels for the final export's pages, and
@@ -52,7 +52,7 @@ reference URL a link with the editor's link control, and confirms the links in t
 `tools/reference_scan.py` unchanged, then `tools/discussion_post_scan.py` grades the signed word
 floor, reference minimum, body-number trace and citation-to-record trace while counting the ceiling,
 invoked sources, unfilled invoked properties, and pre-#496 markers without grading them. A consumer
-that cannot run the new command can walk the same rows
+that cannot run the new command can, after the install has been tried, walk the same rows
 from [discussion-post](skills/discussion-post/SKILL.md) step 6, but cannot call the run mechanically
 verified. Its submission HTML comes from `tools/post_html.py`, which writes every reference URL as a
 link. Its declared limits remain reader-owned and live in
@@ -72,12 +72,14 @@ window, waived only by the account answer in the profile.
 **`course-assignment` depends on committed graders.** `tools/deck_scan.py` grades its signed
 container and cost-record rows, `tools/deck_render.py` retains PowerPoint's page-faithful export and
 slide pixels, `tools/render_scan.py` grades final-pass coverage, and `tools/research_ledger.py`
-grades the per-run source-class and recency policy. A consumer without those commands can walk the
+grades the per-run source-class and recency policy. After the install has been tried, a consumer without those commands can walk the
 deck rows and the documented research-record contract in
 [course-assignment](skills/course-assignment/SKILL.md), but cannot call either run mechanically
 verified.
 
 **Run `/setup-clinical-skills` before the others.** Everything about *which* clinician — courses, hour targets, preceptors, sites, payer distribution, and which patient is which — is per-account and lives in `scratch/`, gitignored. `reference/medatrax-fields.md` holds how Medatrax behaves; the profile holds who you are. Where they disagree, the profile wins.
+
+**PDF engine prerequisites.** The `batch-shift`, `practicum-case-study`, `discussion-post`, and `course-assignment` skills need the PDF engine, PyMuPDF, on the machine that runs them; no other skill needs a Python package. Run `python tools/pdf_engine.py` to check whether it is present and to print the install line when it is not. `setup-clinical-skills` step 0 runs that check and asks before installing, and each of the four skills runs it again before the step that needs the engine. When the engine cannot be installed, the coursework skills walk their documented rows by eye and report that the run is not mechanically verified; `batch-shift` instead reads every page with the agent's own PDF reader. On Windows, `practicum-case-study` and `course-assignment` use Microsoft Word or PowerPoint for automatic page export; without the applicable application the clinician exports by hand, and a submission with no page-faithful export stops.
 
 ## Standing rules
 

@@ -37,6 +37,19 @@ python tools/phi_scan.py --all         # must exit 0 against what is committed t
 
 If `python` is not on PATH the hook degrades to a warning and lets the commit through by design. Say so out loud rather than leaving the clinician believing they are covered.
 
+**Check the PDF engine:**
+
+```bash
+python tools/pdf_engine.py
+```
+
+Exit 0 means the engine is installed. On exit 1, ask the clinician for permission to install it. If
+the clinician says yes, run the install line the check printed and run the check again. If the
+clinician says no, the install fails, or the second check exits 1, say that `batch-shift`,
+`practicum-case-study`, `discussion-post`, and `course-assignment` will use their documented reader
+or by-eye fallback. Exit 2 from either check means it could not determine whether the engine is
+installed; say so, do not treat it as an absent engine, and stop for investigation.
+
 **Create the two gitignored directories and confirm both are ignored:**
 
 ```bash
