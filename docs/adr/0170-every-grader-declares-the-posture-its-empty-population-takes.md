@@ -271,11 +271,22 @@ agrees with the declaration.
 
 **A partial read in any member but `specificity_scan`.** The four agents saw exposures in several
 members, each where one form goes unread beside forms that are read. They are filed together under
-the extractor-coverage rule.
+the extractor-coverage rule as [#1066](https://github.com/mshamblin5150-code/clinical-skills/issues/1066).
 
-**Text in a deck part the parser never opens.** Filed.
+**Text in a deck part the parser never opens.**
+[#1065](https://github.com/mshamblin5150-code/clinical-skills/issues/1065).
 
-**The non-member empty reads.** Filed.
+**The non-member empty reads.** [#1064](https://github.com/mshamblin5150-code/clinical-skills/issues/1064),
+which also carries `guidelines_catalog`'s empty-table parser defect, because its repair exposes an
+exit 0 that ruling belongs to.
+
+**Three defects the classification drives found beside the question.** `uptodate_store`'s docstring
+promises an exit status its module never returns
+([#1067](https://github.com/mshamblin5150-code/clinical-skills/issues/1067)); `differential_scan`
+prints row 22 as `NOT RUN` on a run that exits 1 on a row-22 finding
+([#1068](https://github.com/mshamblin5150-code/clinical-skills/issues/1068)); and the three discussion
+graders disagree on whether a refused reference label suppresses a graded finding
+([#1069](https://github.com/mshamblin5150-code/clinical-skills/issues/1069)).
 
 **A population read by indirection a builder's twin does not exercise.** The kit drives the inputs the
 test module supplies.
