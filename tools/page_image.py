@@ -9,6 +9,10 @@ from typing import Iterable, Iterator
 import pdf_engine
 
 
+EngineUnavailable = pdf_engine.EngineUnavailable
+SourceUnreadable = pdf_engine.SourceUnreadable
+
+
 RASTER_DPI = 120
 DECODE_PROBE_DPI = 1
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"

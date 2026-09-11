@@ -168,6 +168,11 @@ Run [clinical-note](../clinical-note/SKILL.md) against each confirmed encounter 
 
 Number the output and keep the source order.
 
+Write each pass's complete working note — body and tier blocks together — into the owning
+checkout's `scratch/runs/shift-<date>/` as `note-N.md`. These Markdown files are the run evidence
+read by the roll-up and terminal graders, not the finished document handed to the course. Keep them
+at the run-directory top level; `filled_vitals_census.py` reads that non-recursive population.
+
 ### 6. Roll up the shift
 
 First the **schedule table** — the Medatrax entry view, one row per encounter in visit order:

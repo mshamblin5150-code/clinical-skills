@@ -18,7 +18,6 @@ from pathlib import Path
 from console_codec import use_utf8
 import page_image
 import page_text
-import pdf_engine
 import repo_root
 
 
@@ -111,10 +110,10 @@ def main(argv: list[str] | None = None) -> int:
         with page_text.open_document(source) as document:
             pages = tuple(document.pages())
             page_texts = [page.plain_text() for page in pages]
-    except pdf_engine.EngineUnavailable:
+    except page_text.EngineUnavailable:
         print(f"PDF engine unavailable; no text written for: {source}", file=sys.stderr)
         return 2
-    except (pdf_engine.SourceUnreadable, OSError):
+    except (page_text.SourceUnreadable, OSError):
         print(f"Could not open day file: {source}", file=sys.stderr)
         return 2
     except Exception:
@@ -132,6 +131,33 @@ def main(argv: list[str] | None = None) -> int:
     )
     text_pages = len(page_texts) - len(textless)
 
+    transcriptions = {
+        number: day_directory / f"page-{number}.txt" for number in textless
+    }
+    missing = [number for number, path in transcriptions.items() if not path.is_file()]
+    payload: bytes | None = None
+    if not missing:
+        assembled = list(page_texts)
+        try:
+            for number, transcription in transcriptions.items():
+                assembled[number - 1] = transcription.read_text(encoding="utf-8")
+        except (OSError, UnicodeError):
+            print(f"Could not read transcription: {transcription}", file=sys.stderr)
+            return 2
+        payload = _page_join(assembled).encode("utf-8")
+
+    existing_identical = False
+    if payload is not None and target.exists():
+        try:
+            existing = target.read_bytes()
+        except OSError:
+            print(f"Could not read existing text file: {target}", file=sys.stderr)
+            return 2
+        existing_identical = existing == payload
+        if not existing_identical and not arguments.force:
+            print(f"Refusing to replace different text: {target}", file=sys.stderr)
+            return 2
+
     try:
         if not hash_path.exists():
             _atomic_write(hash_path, f"{source_hash}\n".encode("ascii"))
@@ -143,14 +169,10 @@ def main(argv: list[str] | None = None) -> int:
                 dpi=DAY_FILE_DPI,
                 page_numbers=textless,
             )
-    except (pdf_engine.EngineUnavailable, pdf_engine.SourceUnreadable, OSError):
+    except (page_image.EngineUnavailable, page_image.SourceUnreadable, OSError):
         print(f"Could not render day file: {source}", file=sys.stderr)
         return 2
 
-    transcriptions = {
-        number: day_directory / f"page-{number}.txt" for number in textless
-    }
-    missing = [number for number, path in transcriptions.items() if not path.is_file()]
     if missing:
         _report(text_pages=text_pages, rendered_pages=len(textless), target=target)
         print(f"Pages awaiting reading: {len(missing)}")
@@ -158,30 +180,13 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Awaiting: {day_directory / f'page-{number}.png'}")
         return 1
 
-    assembled = list(page_texts)
-    try:
-        for number, transcription in transcriptions.items():
-            assembled[number - 1] = transcription.read_text(encoding="utf-8")
-    except (OSError, UnicodeError):
-        print(f"Could not read transcription: {transcription}", file=sys.stderr)
-        return 2
-    payload = _page_join(assembled).encode("utf-8")
-
-    if target.exists():
-        try:
-            existing = target.read_bytes()
-        except OSError:
-            print(f"Could not read existing text file: {target}", file=sys.stderr)
-            return 2
-        if existing == payload:
-            _report(text_pages=text_pages, rendered_pages=len(textless), target=target)
-            print(f"Already byte-identical: {target}")
-            return 0
-        if not arguments.force:
-            print(f"Refusing to replace different text: {target}", file=sys.stderr)
-            return 2
+    if existing_identical:
+        _report(text_pages=text_pages, rendered_pages=len(textless), target=target)
+        print(f"Already byte-identical: {target}")
+        return 0
 
     try:
+        assert payload is not None
         _atomic_write(target, payload)
     except OSError:
         print(f"Could not write text file: {target}", file=sys.stderr)

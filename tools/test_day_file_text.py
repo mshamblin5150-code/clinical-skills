@@ -15,6 +15,10 @@ import pdf_engine
 from prose_bind import NAMING, bind
 
 
+ROOT = Path(__file__).resolve().parent.parent
+BATCH_SHIFT = ROOT / "skills" / "batch-shift" / "SKILL.md"
+
+
 class FakePage:
     def __init__(self, number: int, text: str) -> None:
         self.number = number
@@ -147,6 +151,16 @@ class DayFileTextCommand(unittest.TestCase):
         self.assertEqual(errors, "")
         self.assertEqual(self.corpus_file().read_text(encoding="utf-8"), "changed\n")
 
+    def test_a_different_existing_corpus_file_creates_no_run_artifact(self):
+        self.corpus_file().parent.mkdir(parents=True)
+        self.corpus_file().write_text("hand corrected\n", encoding="utf-8")
+
+        status, _output, errors = self.run_main()
+
+        self.assertEqual(status, 2)
+        self.assertIn(str(self.corpus_file()), errors)
+        self.assertFalse(self.day_directory().exists())
+
     def test_a_different_source_for_the_same_date_is_refused_before_opening(self):
         self.texts = [""]
         self.assertEqual(self.run_main()[0], 1)
@@ -205,6 +219,20 @@ class DayFileTextCommand(unittest.TestCase):
         self.assertEqual(
             (), bind(day_file_text.DECLARED_LIMITS, day_file_text.__doc__, mode=NAMING)
         )
+
+    def test_the_command_imports_both_adapters_and_never_the_engine(self):
+        source = (ROOT / "tools" / "day_file_text.py").read_text(encoding="utf-8")
+        self.assertIn("import page_text", source)
+        self.assertIn("import page_image", source)
+        self.assertNotIn("import pdf_engine", source)
+
+    def test_batch_shift_writes_note_markdown_where_its_terminal_grader_reads(self):
+        skill = BATCH_SHIFT.read_text(encoding="utf-8")
+        step_five = skill.split("### 5. Process each encounter", 1)[1].split(
+            "### 6. Roll up the shift", 1
+        )[0]
+        self.assertIn("scratch/runs/shift-<date>/", step_five)
+        self.assertIn("note-N.md", step_five)
 
 
 if __name__ == "__main__":

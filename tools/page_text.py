@@ -9,6 +9,10 @@ from typing import Iterator
 import pdf_engine
 
 
+EngineUnavailable = pdf_engine.EngineUnavailable
+SourceUnreadable = pdf_engine.SourceUnreadable
+
+
 OPERATOR_RENDER_SCALE = 12.0
 
 
