@@ -45,7 +45,7 @@ The orchestrator verifies the return. It may overrule a classification, but writ
 - `skill-file`: a skill instruction is a ruling. File a ticket containing the exact proposed diff and stop; do not edit the skill unattended.
 - `check`: add or tighten the mechanical check and its tests.
 
-Write every AAR-sourced ticket body first under `<run-directory>/aar/publications/`, then publish it with `gh --body-file`. The publish hook compares it with the run's own text. Describe conduct; do not reproduce the patient, classmate, preceptor, site, faculty, or board material. A refusal means rewrite the description without the copied span, never move the body file outside the AAR publication directory.
+Write every AAR-sourced ticket body first under `<run-directory>/aar/publications/`, then publish it with `gh --body-file`. Require each body to open with `**Filed from:** the after-action review of a <skill> run (<course> <module>), <YYYY-MM-DD>.` The publish hook compares it with the run's own text. Describe conduct; do not reproduce the patient, classmate, preceptor, site, faculty, or board material. A refusal means rewrite the description without the copied span, never move the body file outside the AAR publication directory.
 
 ## 4. Write and grade the record
 

@@ -37,6 +37,7 @@ from typing import NamedTuple
 import phi_scan
 import tracker_bodies
 import tracker_branch_scope
+import tracker_filed_from
 import tracker_readback
 import shell_reader
 from console_codec import use_utf8
@@ -128,6 +129,10 @@ NOT_REACHED = (
         "The check establishes that the comment carries the declared form and "
         "cannot establish that its counterfactual is true.",
     ),
+    (
+        "manual text mode has no issue publication route",
+        "The --text command grades body shape without a create or edit route, so it reports the Filed-from rule not graded rather than clean.",
+    ),
 )
 
 
@@ -202,6 +207,9 @@ class Finding(NamedTuple):
 class Analysis(NamedTuple):
     findings: tuple[Finding, ...]
     report: str
+
+
+_USE_ANALYSIS_ROUTE = object()
 
 
 INLINE_FLAGS = {
@@ -703,6 +711,7 @@ def analyze(
     issue: TrackerRecord | dict | None,
     remote_fresh: bool,
     route: tuple[str, ...] = ("issue", "comment"),
+    filed_from_route: tuple[str, ...] | None | object = _USE_ANALYSIS_ROUTE,
 ) -> Analysis:
     """Grade one title or body without returning its text or matched values."""
     publication = with_tracker_record(publication, route=route, context=issue)
@@ -769,6 +778,23 @@ def analyze(
 
     positive_unverified = branch.status == 0 and branch.verdict.ancestry_verified is False
 
+    if isinstance(issue, TrackerRecord):
+        current_body = issue.body
+    elif isinstance(issue, dict) and isinstance(issue.get("body"), str):
+        current_body = issue["body"]
+    else:
+        current_body = None
+    policy_route = route if filed_from_route is _USE_ANALYSIS_ROUTE else filed_from_route
+    filed_from = tracker_filed_from.grade_publication(
+        publication.text,
+        policy_route if publication.field == "body" else None,
+        current_body=current_body,
+    )
+    if filed_from.rule is not None:
+        findings.append(Finding(
+            filed_from.rule, 1, publication.field, filed_from.posture
+        ))
+
     if branch.status == 1:
         rule = branch.verdict.rule
         if rule not in tracker_branch_scope.BRANCH_RULES:
@@ -792,6 +818,8 @@ def analyze(
         lines.append(
             "positive Branch state accepted without ancestry verification"
         )
+    if publication.field == "body":
+        lines.append(filed_from.report)
     lines.extend(
         f"{row.posture}: {row.rule}: {row.count} finding(s) in {row.field}"
         for row in findings
@@ -966,6 +994,16 @@ def _hook_response(
     return {"hookSpecificOutput": specific}
 
 
+def _missing_issue_create_analysis() -> Analysis:
+    grade = tracker_filed_from.grade_publication("", ("issue", "create"))
+    if grade.rule is None:
+        raise ValueError("missing issue body returned no Filed-from finding")
+    return Analysis(
+        (Finding(grade.rule, 1, "body", grade.posture),),
+        grade.report,
+    )
+
+
 UNREADABLE_REMEDIES = {
     "missing-file": (
         "create the file first, then run `python tools/tracker_publish_hook.py "
@@ -1043,6 +1081,11 @@ def handle(payload: dict) -> dict:
                     )
                 )
             return _hook_response("deny", "\n".join(lines), UNSCANNED_REFUSAL)
+        if (
+            not extracted.publications
+            and (extracted.grade_route or extracted.route) == ("issue", "create")
+        ):
+            return _hook_response("deny", _missing_issue_create_analysis().report)
         if not extracted.publications:
             return {}
 
@@ -1096,6 +1139,11 @@ def handle(payload: dict) -> dict:
             )
             for publication in bound_publications
         ]
+        if (
+            (extracted.grade_route or extracted.route) == ("issue", "create")
+            and not any(row.field == "body" for row in bound_publications)
+        ):
+            analyses.append(_missing_issue_create_analysis())
         analyses.append(aar_quotation_analysis(extracted.publications))
         write_marker()
         lines = [
@@ -1136,6 +1184,7 @@ def main(argv: list[str] | None = None) -> int:
                 index=index,
                 issue=None,
                 remote_fresh=refresh_default_branch(),
+                filed_from_route=None,
             )
         except (OSError, UnicodeError, subprocess.SubprocessError, ValueError) as exc:
             print(

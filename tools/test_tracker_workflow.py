@@ -14,6 +14,7 @@ import phi_scan
 import test_module_sections
 import tracker_branch_scope
 import tracker_bodies
+import tracker_filed_from
 import tracker_merge_receipt
 import tracker_publish_hook
 import tracker_readback
@@ -203,6 +204,7 @@ class DeclaredLimitsAreBound(unittest.TestCase):
     CASES = (
         ("Tracker bodies", "tracker_bodies", tracker_bodies, True),
         ("Tracker branch scope", "tracker_branch_scope", tracker_branch_scope, False),
+        ("Tracker Filed-from line", "tracker_filed_from", tracker_filed_from, True),
         ("Tracker merge receipt", "tracker_merge_receipt", tracker_merge_receipt, True),
         ("Tracker publish hook", "tracker_publish_hook", tracker_publish_hook, True),
         ("Tracker readback", "tracker_readback", tracker_readback, True),
@@ -303,6 +305,21 @@ class EveryChangedTrackerRecordTriggersTheShapeScan(unittest.TestCase):
         self.assertIn("--event-name $env:GITHUB_EVENT_NAME", step)
         self.assertNotIn("--advisory", step)
         self.assertIn("exit $status", step)
+
+    def test_issue_opens_and_body_edits_run_the_filed_from_grader(self):
+        step = workflow_text().partition(
+            "Filed-from line preservation"
+        )[2].partition("\n      - name:")[0]
+
+        self.assertIn("github.event_name == 'issues'", step)
+        self.assertIn("github.event.action == 'opened'", step)
+        self.assertIn("github.event.action == 'edited'", step)
+        self.assertIn("github.event.changes.body", step)
+        self.assertIn("tracker_filed_from.py --github-event", step)
+        self.assertIn("--event-name $env:GITHUB_EVENT_NAME", step)
+        self.assertIn("### Tracker Filed-from line", step)
+        self.assertIn("exit $status", step)
+        self.assertNotIn("continue-on-error", step)
 
     def test_the_body_shape_workflow_uses_the_public_event_mode(self):
         self.assertTrue(hasattr(tracker_bodies, "load_github_event"))

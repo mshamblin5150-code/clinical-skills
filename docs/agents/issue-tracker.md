@@ -260,6 +260,22 @@ gh issue create --title "..." --label "needs-triage,grilling" --body-file - <<'E
 EOF
 ```
 
+Every ticket also carries the **Filed-from line** defined in
+[`CONTEXT.md`](../../CONTEXT.md#filed-from-line), whatever produced it. Its fixed
+label is `**Filed from:**`, and its fixed position is the first line after a
+record-level `Branch state` or `Cited record state` blockquote, or the body's
+first line when there is no such block. A body carrying the implementation
+map's exact producer stamp is exempt.
+
+The line is append-only. A respec keeps it word for word at that position. A
+correction of the line goes on its own dated line directly beneath the
+unchanged line; every other correction may sit anywhere below it and never
+above it. When a ticket created before
+`tracker_filed_from.FILED_FROM_CUTOFF` is respecced, move its existing origin
+sentence alone beneath the fixed label word for word and leave the rest of that
+paragraph in place. If no origin sentence existed, write a Filed-from line
+whose text is explicitly marked as a reconstruction.
+
 The vocabulary and how to choose between the labels is in [triage-labels.md](triage-labels.md). Two rules worth repeating here, because both have already been broken in this repo:
 
 - **A ticket with an open decision gets `grilling`, never `ready-for-agent`.** `ready-for-agent` is a promise that an unattended agent can build it without guessing.
@@ -279,6 +295,20 @@ Once per sweep, compare the whole vocabulary returned by `gh label list --limit 
 as complete only when it returns fewer than 1,000 labels; if it reaches the limit, paginate rather
 than calling the comparison clean. This is a whole-vocabulary check: auditing one ticket's labels
 at a time cannot reveal that a label has no entry in the vocabulary.
+
+Once per sweep, list every open ticket created at or after
+`tracker_filed_from.FILED_FROM_CUTOFF` whose body lacks the Filed-from line:
+
+```bash
+TICKET_CAP=1000
+gh issue list --state open --limit "$TICKET_CAP" \
+  --json number,url,body,createdAt,state |
+  python tools/tracker_filed_from.py --harvest - --cap "$TICKET_CAP"
+```
+
+Exit 0 is a complete clean read, 1 lists findings by URL, and 2 is not a clean
+verdict. The last includes a capped read that returns exactly the cap; paginate
+and combine the pages before calling the listing complete.
 
 Label at creation time. Coming back to label later is the step that gets skipped.
 

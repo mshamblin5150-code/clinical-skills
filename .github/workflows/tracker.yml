@@ -89,6 +89,21 @@ jobs:
             Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
           exit $status
 
+      - name: Filed-from line preservation
+        if: >-
+          always() &&
+          github.event_name == 'issues' &&
+          (github.event.action == 'opened' ||
+           (github.event.action == 'edited' &&
+            github.event.changes.body != null))
+        run: |
+          $report = python tools/tracker_filed_from.py --github-event $env:GITHUB_EVENT_PATH --event-name $env:GITHUB_EVENT_NAME
+          $status = $LASTEXITCODE
+          $report
+          @('### Tracker Filed-from line', '', '```', $report, '```') |
+            Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          exit $status
+
       - name: Implementation map producer stamp
         if: >-
           always() &&
