@@ -152,9 +152,12 @@ their per-module verdict, and a module that later earns an object leaves the lis
 
 A `module → reason` map in `tools/test_declared_limits.py`, in the arrangement of
 `test_module_sections.DECLARED_SECTIONS` and `run_grader.REFUSED`. An entry for a module that no
-longer exists, or that now binds a listed name, fails. A reason must be non-empty and nothing more,
-the bar `test_run_grader` applies to `REFUSED`. The walk stays a disk walk in that module, which is
-ADR 0165's constraint.
+longer exists, or that now binds a listed name, fails. When this record was ruled, a reason had to
+be non-empty and nothing more, the bar `test_run_grader` then applied to `REFUSED`. The walk stays a
+disk walk in that module, which is ADR 0165's constraint.
+
+Correction, 2026-09-11: [ADR 0174](0174-a-refusal-is-bounded-by-the-runner-s-contract-and-a-grader-lookalike-is-its-own-kind.md)
+raises the `REFUSED` bar: every value must also name the shared runner's side.
 
 ### 5. Every limits object carries at least one no-copy bind
 
