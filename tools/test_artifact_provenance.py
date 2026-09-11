@@ -21,6 +21,7 @@ sys.path.insert(0, str(TOOLS))
 
 import artifact_lock_test_support  # noqa: E402, F401
 import artifact_provenance  # noqa: E402
+import git_paths  # noqa: E402
 import guidelines_recs  # noqa: E402
 import uspstf_table  # noqa: E402
 from repo_root import InsideCheckout  # noqa: E402
@@ -203,17 +204,12 @@ class TextProducerIdentity(unittest.TestCase):
             }
         )
 
-        result = subprocess.run(
-            ["git", "-C", str(REPO), "ls-files", "--eol", "--", *paths],
-            check=True,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
+        records = git_paths.read_path_records(
+            REPO, "ls-files", "-z", "--eol", "--", *paths
         )
         rows = {
             line.split("\t", 1)[1]: line.split("\t", 1)[0]
-            for line in result.stdout.splitlines()
+            for line in records
         }
 
         self.assertEqual(set(rows), set(paths))

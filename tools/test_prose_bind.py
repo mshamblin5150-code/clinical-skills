@@ -1,11 +1,11 @@
 """Contract checks for issue #412's prose assertion helper."""
 
 import ast
-import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 import unittest
 
+import git_paths
 from prose_bind import (
     ENUMERATION,
     NAMING,
@@ -433,19 +433,14 @@ def _tracked(root: Path, pathspec: str) -> list[str]:
     unstaged modules remain invisible until they enter the index.
     """
 
-    result = subprocess.run(
-        ["git", "ls-files", "--cached", "--", pathspec],
-        cwd=root,
-        check=True,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
+    return list(
+        git_paths.read_path_records(
+            root, "ls-files", "-z", "--cached", "--", pathspec
+        )
     )
-    return result.stdout.splitlines()
 
 
-def repository_survivors(root: Path) -> tuple[set[tuple[str, str]], int]:
+def prose_bind_survivors(root: Path) -> tuple[set[tuple[str, str]], int]:
     """Walk transform-relevant raw prose binds in tracked test modules."""
 
     found: set[tuple[str, str]] = set()
@@ -717,7 +712,7 @@ self.assertIn("required prose", read(SKILL))
         self.assertEqual((set(), 0), self.walk(source, "skill.md"))
 
     def test_every_survivor_is_exactly_declared_and_reasoned(self):
-        found, resolved_reads = repository_survivors(REPO_ROOT)
+        found, resolved_reads = prose_bind_survivors(REPO_ROOT)
         self.assertGreaterEqual(resolved_reads, RESOLVED_READ_FLOOR)
         self.assertEqual(set(DECLARED_PROSE_BIND_EXCEPTIONS), found)
         for reason in DECLARED_PROSE_BIND_EXCEPTIONS.values():

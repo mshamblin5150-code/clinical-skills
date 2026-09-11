@@ -14,6 +14,122 @@ import git_paths
 
 TOOLS = Path(__file__).resolve().parent
 
+MOCK_EXPECTATION_METHODS = {
+    "assert_any_call",
+    "assert_any_await",
+    "assert_called",
+    "assert_called_once",
+    "assert_called_once_with",
+    "assert_called_with",
+    "assert_has_calls",
+    "assert_has_awaits",
+    "assert_awaited",
+    "assert_awaited_once",
+    "assert_awaited_once_with",
+    "assert_awaited_with",
+    "assert_not_awaited",
+    "assert_not_called",
+}
+
+
+def _literal_arguments(call: ast.Call) -> set[str]:
+    values: set[str] = set()
+
+    class DirectStringLiteralCollector(ast.NodeVisitor):
+        def visit_Constant(self, node: ast.Constant) -> None:
+            if isinstance(node.value, str):
+                values.add(node.value)
+
+        def visit_Call(self, node: ast.Call) -> None:
+            return
+
+    reader = DirectStringLiteralCollector()
+    for argument in call.args:
+        reader.visit(argument)
+    for keyword in call.keywords:
+        reader.visit(keyword.value)
+    return values
+
+
+def _git_paths_imports(tree: ast.Module) -> tuple[set[str], set[str]]:
+    modules: set[str] = set()
+    readers: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name == "git_paths":
+                    modules.add(alias.asname or alias.name)
+        elif isinstance(node, ast.ImportFrom) and node.module == "git_paths":
+            for alias in node.names:
+                if alias.name == "read_path_records":
+                    readers.add(alias.asname or alias.name)
+    return modules, readers
+
+
+def _is_mock_expectation(
+    call: ast.Call, parents: dict[ast.AST, ast.AST]
+) -> bool:
+    if (
+        isinstance(call.func, ast.Attribute)
+        and call.func.attr in MOCK_EXPECTATION_METHODS
+    ):
+        return True
+    is_mock_call = (
+        isinstance(call.func, ast.Attribute)
+        and isinstance(call.func.value, ast.Name)
+        and call.func.value.id == "mock"
+        and call.func.attr == "call"
+    )
+    if not is_mock_call:
+        return False
+    node: ast.AST | None = parents.get(call)
+    while node is not None:
+        if isinstance(node, ast.Call) and (
+            isinstance(node.func, ast.Attribute)
+            and node.func.attr in {"assert_has_calls", "assert_has_awaits"}
+        ):
+            return True
+        node = parents.get(node)
+    return False
+
+
+def shared_reader_offenders(root: Path) -> list[str]:
+    """Find path-listing Git calls that bypass the lossless shared reader."""
+    offenders = []
+    for path in sorted(root.glob("*.py")):
+        if path.name in {"git_paths.py", "test_git_paths.py"}:
+            continue
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        modules, readers = _git_paths_imports(tree)
+        parents = {
+            child: parent
+            for parent in ast.walk(tree)
+            for child in ast.iter_child_nodes(parent)
+        }
+        for call in (node for node in ast.walk(tree) if isinstance(node, ast.Call)):
+            literals = _literal_arguments(call)
+            path_listing = bool(
+                literals & {"ls-files", "ls-tree"}
+                or ("diff" in literals and literals & {"--name-only", "--numstat"})
+                or ("rev-list" in literals and "--objects" in literals)
+            )
+            function = call.func
+            uses_shared_reader = (
+                isinstance(function, ast.Name) and function.id in readers
+            ) or (
+                isinstance(function, ast.Attribute)
+                and isinstance(function.value, ast.Name)
+                and function.value.id in modules
+                and function.attr == "read_path_records"
+            )
+            if (
+                path_listing
+                and not uses_shared_reader
+                and not _is_mock_expectation(call, parents)
+            ):
+                offenders.append(f"{path.name}:{call.lineno}")
+    return offenders
+
 
 class PathRecordReader(unittest.TestCase):
     def test_argv_and_nul_parse_are_pinned(self):
@@ -65,7 +181,7 @@ class PathRecordReader(unittest.TestCase):
         self.assertEqual(paths, ())
 
     def test_text_mode_is_refused(self):
-        """A tracked walk must be lossless; an untracked path remains outside it."""
+        """A clean index walk covers tracked paths; an untracked path stays outside it."""
         with self.assertRaisesRegex(ValueError, "must request -z"):
             git_paths.read_path_records(Path("repo"), "ls-files")
 
@@ -119,7 +235,7 @@ class RealGitPathPopulation(unittest.TestCase):
 
 
 class SharedReaderAdoption(unittest.TestCase):
-    """Literal argv floor for non-test tools that list repository paths.
+    """Literal argv floor for tools that list repository paths.
 
     The walk reads string literals directly from each call. A subcommand built
     at run time or passed through a variable is invisible, so this is a floor
@@ -127,47 +243,75 @@ class SharedReaderAdoption(unittest.TestCase):
     can exist.
     """
 
-    @staticmethod
-    def _literal_arguments(call: ast.Call) -> set[str]:
-        values: set[str] = set()
-
-        class Direct(ast.NodeVisitor):
-            def visit_Constant(self, node: ast.Constant) -> None:
-                if isinstance(node.value, str):
-                    values.add(node.value)
-
-            def visit_Call(self, node: ast.Call) -> None:
-                return
-
-        reader = Direct()
-        for argument in call.args:
-            reader.visit(argument)
-        for keyword in call.keywords:
-            reader.visit(keyword.value)
-        return values
-
     def test_path_listing_subcommands_only_appear_through_git_paths(self):
-        offenders = []
-        for path in sorted(TOOLS.glob("*.py")):
-            if path.name.startswith("test_") or path.name == "git_paths.py":
-                continue
-            tree = ast.parse(path.read_text(encoding="utf-8"))
-            for call in (node for node in ast.walk(tree) if isinstance(node, ast.Call)):
-                literals = self._literal_arguments(call)
-                path_listing = bool(
-                    literals & {"ls-files", "ls-tree"}
-                    or ("diff" in literals and literals & {"--name-only", "--numstat"})
-                    or ("rev-list" in literals and "--objects" in literals)
-                )
-                function = call.func
-                shared = (
-                    isinstance(function, ast.Attribute)
-                    and isinstance(function.value, ast.Name)
-                    and function.value.id == "git_paths"
-                )
-                if path_listing and not shared:
-                    offenders.append(f"{path.name}:{call.lineno}")
-        self.assertEqual(offenders, [])
+        self.assertEqual(shared_reader_offenders(TOOLS), [])
+
+    def test_a_test_module_listing_paths_through_subprocess_is_refused(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "test_reader.py").write_text(
+                "import subprocess\n"
+                "subprocess.run(['git', 'ls-files'])\n",
+                encoding="utf-8",
+            )
+
+            self.assertEqual(
+                shared_reader_offenders(root),
+                ["test_reader.py:2"],
+            )
+
+    def test_import_aliases_and_mock_expectations_are_not_refused(self):
+        source = """\
+from unittest import mock
+from git_paths import read_path_records as records
+import git_paths as paths
+
+records(ROOT, "ls-files", "-z")
+paths.read_path_records(ROOT, "ls-tree", "-z")
+def local_imports():
+    from git_paths import read_path_records as local_records
+    import git_paths as local_paths
+    local_records(ROOT, "ls-files", "-z")
+    local_paths.read_path_records(ROOT, "ls-tree", "-z")
+run.assert_any_call(["git", "ls-files"])
+run.assert_any_await(["git", "ls-files"])
+run.assert_called(["git", "ls-files"])
+run.assert_called_once(["git", "ls-files"])
+run.assert_called_once_with(["git", "ls-files"])
+read.assert_called_with("ls-tree")
+run.assert_has_calls([mock.call(["git", "ls-files"])])
+run.assert_has_awaits([mock.call(["git", "ls-files"])])
+run.assert_awaited(["git", "ls-files"])
+run.assert_awaited_once(["git", "ls-files"])
+run.assert_awaited_once_with(["git", "ls-files"])
+run.assert_awaited_with(["git", "ls-files"])
+run.assert_not_awaited(["git", "ls-files"])
+run.assert_not_called(["git", "ls-files"])
+"""
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "test_reader.py").write_text(source, encoding="utf-8")
+
+            self.assertEqual(shared_reader_offenders(root), [])
+
+    def test_an_executable_listing_inside_a_mock_expectation_is_still_refused(self):
+        source = """\
+import subprocess
+probe.assert_called_with(subprocess.run(["git", "ls-files"]))
+"""
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "test_reader.py").write_text(source, encoding="utf-8")
+
+            self.assertEqual(shared_reader_offenders(root), ["test_reader.py:2"])
+
+    def test_an_unimported_git_paths_name_is_not_adoption(self):
+        source = 'git_paths.read_path_records(ROOT, "ls-files", "-z")\n'
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "test_reader.py").write_text(source, encoding="utf-8")
+
+            self.assertEqual(shared_reader_offenders(root), ["test_reader.py:1"])
 
 
 if __name__ == "__main__":
