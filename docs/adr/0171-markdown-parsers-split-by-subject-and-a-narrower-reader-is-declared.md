@@ -32,6 +32,14 @@ ruling-citation resolver. Three more readers belong to the same subject:
 A tree-wide search for the ruling heading and item patterns finds them in `test_skill_agreement.py`
 alone, so `ruling_ordinals` is the only implementation of its kind.
 
+### What the moving code reads from the module it leaves
+
+A walk of each moving definition's syntax tree, collecting every module-level name it reads, finds
+one name that stays: `exemptions` reads `EXEMPT_MARKER`. The same walk over the four liveness classes
+finds four cases reading stay-behind logic, listed under ruling 6; every other name those classes
+read from the module is `REPO_ROOT` or the file reader `read`. The walk reads names rather than calls,
+so it reports a constant such as `STEP_HEADING`; a search for call syntax would not have.
+
 ### Corrections to the ticket's own account
 
 - `paragraphs` and `exemptions` are not exercised only transitively. A case-study test calls
@@ -74,6 +82,12 @@ private destination helpers, `dead_links`, the exemption reader under ruling 2, 
 under ruling 5. `adr_read` receives `ruling_ordinals` with its heading and item patterns,
 `RulingCitation`, `ruling_citations`, `unresolved_ruling_citations`, and `RULING_EXEMPT_MARKER`.
 
+`walk_ruling_citations` and `declared_rulings` stay in `test_skill_agreement.py`: each walks a
+population, and a walk stays beside the check that uses it
+([ADR 0165](0165-tests-list-git-paths-through-git-paths-and-no-shared-tree-reader-is-built.md)
+ruling 2). `ruling_shape_findings` and the other ruling-shape assertion helpers stay with the
+assertions they serve. Anything this record does not name as moving stays.
+
 Both are libraries with no command. Each arrives with a limits object, because each has a real
 boundary to state
 ([ADR 0167](0167-the-limits-walk-reads-a-declared-name-list-and-a-module-without-limits-is-declared.md)
@@ -86,10 +100,10 @@ any new constant that looks like one.
 other than the moved parsers use them. `test_skill_agreement.py` imports them back.
 
 `exemptions` and `ruling_exemptions` collapse into `marker_exemptions(text, marker)`, and the caller
-passes the compiled marker pattern. `RULING_EXEMPT_MARKER` moves to `adr_read` beside
-`unresolved_ruling_citations`, and the ruling ceiling assertion imports it. `EXEMPT_MARKER`,
-`EXEMPT_CEILING`, `RULING_EXEMPT_CEILING`, `RULING_UNNUMBERED_CEILING` and every assertion reading them
-stay in `test_skill_agreement.py`.
+passes the compiled marker pattern. That also removes the only stay-behind name any moving definition
+reads. `RULING_EXEMPT_MARKER` moves to `adr_read` beside `unresolved_ruling_citations`, and the ruling
+ceiling assertion imports it. `EXEMPT_MARKER`, `EXEMPT_CEILING`, `RULING_EXEMPT_CEILING`,
+`RULING_UNNUMBERED_CEILING` and every assertion reading them stay in `test_skill_agreement.py`.
 
 The ground is the measurement that the two functions differ only in their pattern. ADR 0158 ruling 3
 is the nearest precedent, where a shared helper takes the variant as an argument rather than
@@ -125,25 +139,36 @@ word. `Citation` becomes `StepCitation` and its `skill` field becomes `subject`.
 `beside`, `carried` and `owner` are unchanged. The reader already takes its names and owner as
 arguments and holds no skill vocabulary.
 
-`owning_skill`, `declared_steps`, `graded_files`, `skill_names`, `stale_citations` and
-`undeclared_citations` stay in `test_skill_agreement.py`. Anything this record does not name as moving
-stays.
+`owning_skill`, `declared_steps`, `STEP_HEADING`, `graded_files`, `skill_names`, `walk_citations`,
+`stale_citations` and `undeclared_citations` stay in `test_skill_agreement.py`.
 
-## Ruling 6. The liveness classes move into test modules, and the link resolver gains a real-tree case
+## Ruling 6. A liveness case moves with the reader it proves, and the link resolver gains a real-tree case
 
-`TheStepResolverIsLive` and `TheDeadLinkResolverIsLive` move to `tools/test_markdown_read.py`;
-`TheRulingOrdinalParserIsLive` and `TheRulingCitationResolverIsLive` move to `tools/test_adr_read.py`.
-None can move into a library module: `suite.DECLARED_LIMITS` declares that discovery defines the
-suite's population and excludes every other file shape
+The cases of `TheStepResolverIsLive` and `TheDeadLinkResolverIsLive` move to
+`tools/test_markdown_read.py`, and the cases of `TheRulingOrdinalParserIsLive` and
+`TheRulingCitationResolverIsLive` move to `tools/test_adr_read.py`, except four cases that test a
+helper this record keeps. Those four stay in `test_skill_agreement.py`, under class names describing
+the helper each tests:
+
+| case | the helper it tests |
+| --- | --- |
+| `test_a_step_heading_is_read_and_a_numbered_list_is_not` | `declared_steps` and `STEP_HEADING` |
+| `test_graded_files_returns_a_nontrivial_population` | `graded_files` |
+| `test_a_restarted_addendum_sequence_is_ambiguous` | `ruling_shape_findings` |
+| `test_the_four_live_alternate_spellings_resolve_to_their_ordinals` | `declared_rulings` |
+
+Each new test module states its own repository root and reads files directly, so no test module
+imports another and no helper moves to make a class whole.
+
+No moved case can live in a library module: `suite.DECLARED_LIMITS` declares that discovery defines
+the suite's population and excludes every other file shape
 ([ADR 0164](0164-the-suite-runs-through-one-module-that-accounts-for-every-discovered-test.md)
-ruling 15), so a class outside a `test*.py` module stops running and nothing reports it.
+ruling 15), so a case outside a `test*.py` module stops running and nothing reports it.
 
 `test_markdown_read.py` adds a case driving `markdown_targets` over the committed ADR records and
 asserting a floor on destinations read, so the resolver's real-tree evidence no longer rests on a
 skill-agreement gate. The synthetic cases stay, because the committed records hold none of the forms
-they grade. The new case names its population where it reads it
-([ADR 0165](0165-tests-list-git-paths-through-git-paths-and-no-shared-tree-reader-is-built.md)
-ruling 2).
+they grade. The new case names its population where it reads it, on ADR 0165 ruling 2.
 
 ## Ruling 7. `test_run_record_claim` reads `paragraphs`
 
@@ -160,12 +185,18 @@ ruling 2).
 - **One exemption reader per module.** It publishes a duplicate across a module boundary.
 - **Converging the publish gate.** See ruling 4.
 - **A prose pointer in place of a real-tree case.** A pointer fails nothing when either side changes.
+- **Moving the helpers a stay-behind case tests.** `declared_steps` and `graded_files` are skill
+  vocabulary and population, `ruling_shape_findings` is an assertion, and `declared_rulings` is a walk
+  that stays beside its check.
+- **A new test module importing `test_skill_agreement`.** It rebuilds the inversion this record
+  removes.
 
 ## What this does not reach
 
 - Whether a resolving link points at the right section. Every reader here tests membership only.
 - A citation written in code, which every reader here masks as a mention.
 - Paragraph splitting in `docx_write`, which has a different contract.
+- A dependency assembled at run time, which the syntax-tree walk behind rulings 2 and 6 cannot see.
 - Any change to what a moved parser returns. Only ruling 3 changes a gate's input, and ruling 5 renames
   a type and a field.
 
