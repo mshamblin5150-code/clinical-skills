@@ -188,6 +188,11 @@ Recorded here so the builder does not rediscover them. Each was measured or read
 - **`_written_before_publish` matches the path as it was typed.** Resolving before that check
   degrades #897's condition back into `missing-file`, which is exactly the misclassification ADR 0096
   was written to fix. Resolution happens after it.
+  *(Corrected in place 2026-09-11, per ADR 0016. This note held while `written-before-publish` was a
+  kind of its own. [ADR 0179](0179-a-body-file-absent-when-the-hook-ran-is-one-condition-and-its-remedy-names-both-causes.md)
+  ruling 1 merges that kind into `missing-file` and removes `_written_before_publish`, so no check
+  remains to order resolution after, and its ruling 3 classifies a partial path with no readable
+  `cd` as `unrooted-path` whatever else the command writes.)*
 - **The registration block in `.claude/settings.json` is pinned byte-exactly by a test.** Nothing
   here changes how the hook is invoked, so no environment variable is passed in and no `os` import is
   needed — the module has none today.
