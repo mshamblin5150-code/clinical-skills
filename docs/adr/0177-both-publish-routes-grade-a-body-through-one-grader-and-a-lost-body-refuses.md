@@ -120,8 +120,10 @@ The direct writer already refuses #155's row; the command route now refuses it t
 post-publication workflow stays advisory under
 [ADR 0002](0002-ci-runs-the-suite-at-the-merge.md). It clears
 [ADR 0083](0083-the-pre-publish-hook-grades-the-record-rather-than-the-body-and-the-branch-scope-rule-refuses-per-trigger.md)
-ruling 4's bar on measurement rather than argument: no PHI, nine damaged bodies of nine firings with
-no refusal of correct text, and a remedy the agent applies alone.
+ruling 4's bar -- no PHI, no one-for-one false block, and a remedy that is a line of text rather than
+a ruling about a patient -- on measurement rather than argument: nine damaged bodies of nine firings
+with no refusal of correct text, and a remedy the agent applies alone, which is ADR 0099 ruling 5's
+gloss on that third clause.
 
 **The refusal names two remedies, and the difference between them is the part a message can get
 wrong.** A body that came through a cp1252 path is rewritten as UTF-8. A body that deliberately names
