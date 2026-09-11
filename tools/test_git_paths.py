@@ -33,13 +33,13 @@ MOCK_EXPECTATION_METHODS = {
 COMPREHENSION_SCOPES = (ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp)
 
 
-def _named_expression_targets(node: ast.AST) -> set[str]:
-    targets: set[str] = set()
+def _named_expression_targets(node: ast.AST) -> list[ast.Name]:
+    targets: list[ast.Name] = []
 
     class WalrusTargetCollector(ast.NodeVisitor):
         def visit_NamedExpr(self, named: ast.NamedExpr) -> None:
             if isinstance(named.target, ast.Name):
-                targets.add(named.target.id)
+                targets.append(named.target)
             self.visit(named.value)
 
         def visit_FunctionDef(self, nested: ast.FunctionDef) -> None:
@@ -76,17 +76,27 @@ def _literal_arguments(call: ast.Call) -> set[str]:
     return values
 
 
-def _scope_bindings(scope: ast.AST) -> dict[str, set[str]]:
-    bindings: dict[str, set[str]] = {}
+def _position(node: ast.AST) -> tuple[int, int]:
+    return (getattr(node, "lineno", 0), getattr(node, "col_offset", 0))
 
-    def bind(name: str, kind: str) -> None:
-        bindings.setdefault(name, set()).add(kind)
+
+def _scope_bindings(
+    scope: ast.AST,
+) -> dict[str, list[tuple[tuple[int, int], str]]]:
+    bindings: dict[str, list[tuple[tuple[int, int], str]]] = {}
+
+    def bind(name: str, kind: str, node: ast.AST) -> None:
+        bindings.setdefault(name, []).append((_position(node), kind))
 
     class BindingCollector(ast.NodeVisitor):
         def visit_Import(self, node: ast.Import) -> None:
             for alias in node.names:
                 name = alias.asname or alias.name.split(".", 1)[0]
-                bind(name, "git_paths_module" if alias.name == "git_paths" else "other")
+                bind(
+                    name,
+                    "git_paths_module" if alias.name == "git_paths" else "other",
+                    alias,
+                )
 
         def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
             for alias in node.names:
@@ -99,14 +109,14 @@ def _scope_bindings(scope: ast.AST) -> dict[str, set[str]]:
                     kind = "mock_patch"
                 else:
                     kind = "other"
-                bind(name, kind)
+                bind(name, kind, alias)
 
         def visit_Name(self, node: ast.Name) -> None:
             if isinstance(node.ctx, ast.Store):
-                bind(node.id, "other")
+                bind(node.id, "other", node)
 
         def visit_arg(self, node: ast.arg) -> None:
-            bind(node.arg, "other")
+            bind(node.arg, "other", node)
 
         def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
             if node is scope:
@@ -114,7 +124,7 @@ def _scope_bindings(scope: ast.AST) -> dict[str, set[str]]:
                 for statement in node.body:
                     self.visit(statement)
             else:
-                bind(node.name, "other")
+                bind(node.name, "other", node)
 
         visit_AsyncFunctionDef = visit_FunctionDef
 
@@ -128,11 +138,11 @@ def _scope_bindings(scope: ast.AST) -> dict[str, set[str]]:
                 for statement in node.body:
                     self.visit(statement)
             else:
-                bind(node.name, "other")
+                bind(node.name, "other", node)
 
         def visit_ExceptHandler(self, node: ast.ExceptHandler) -> None:
             if node.name:
-                bind(node.name, "other")
+                bind(node.name, "other", node)
             for statement in node.body:
                 self.visit(statement)
 
@@ -151,8 +161,8 @@ def _scope_bindings(scope: ast.AST) -> dict[str, set[str]]:
                 for generator in node.generators:
                     self.visit(generator.target)
             else:
-                for name in _named_expression_targets(node):
-                    bind(name, "other")
+                for target in _named_expression_targets(node):
+                    bind(target.id, "other", target)
 
         visit_ListComp = _visit_comprehension_scope
         visit_SetComp = _visit_comprehension_scope
@@ -173,12 +183,27 @@ def _resolves_to_import(
     kind: str,
     call: ast.Call,
     parents: dict[ast.AST, ast.AST],
-    binding_cache: dict[ast.AST, dict[str, set[str]]],
+    binding_cache: dict[
+        ast.AST, dict[str, list[tuple[tuple[int, int], str]]]
+    ],
 ) -> bool:
+    call_position = _position(call)
     for node in _enclosing_scopes(call, parents):
         bindings = binding_cache.setdefault(node, _scope_bindings(node))
-        if name in bindings:
-            return bindings[name] == {kind}
+        events = bindings.get(name, [])
+        preceding = [event for event in events if event[0] <= call_position]
+        if preceding:
+            return max(preceding)[1] == kind
+        if events and isinstance(
+            node,
+            (
+                ast.FunctionDef,
+                ast.AsyncFunctionDef,
+                ast.Lambda,
+                *COMPREHENSION_SCOPES,
+            ),
+        ):
+            return False
     return False
 
 
@@ -204,6 +229,8 @@ def _enclosing_scopes(
                     is_comprehension_scope = False
                     break
                 ancestor = parents.get(ancestor)
+        if is_comprehension_scope:
+            inside_function = True
         if (
             isinstance(node, ast.Module)
             or is_comprehension_scope
@@ -218,7 +245,9 @@ def _enclosing_scopes(
 def _is_mock_expectation(
     call: ast.Call,
     parents: dict[ast.AST, ast.AST],
-    binding_cache: dict[ast.AST, dict[str, set[str]]],
+    binding_cache: dict[
+        ast.AST, dict[str, list[tuple[tuple[int, int], str]]]
+    ],
 ) -> bool:
     if (
         isinstance(call.func, ast.Attribute)
@@ -267,7 +296,9 @@ def _is_mock_expectation(
 def _patch_call_uses_unittest_mock(
     call: ast.Call,
     parents: dict[ast.AST, ast.AST],
-    binding_cache: dict[ast.AST, dict[str, set[str]]],
+    binding_cache: dict[
+        ast.AST, dict[str, list[tuple[tuple[int, int], str]]]
+    ],
 ) -> bool:
     function = call.func
     if isinstance(function, ast.Name):
@@ -308,7 +339,9 @@ def _resolves_to_mock_object(
     name: str,
     call: ast.Call,
     parents: dict[ast.AST, ast.AST],
-    binding_cache: dict[ast.AST, dict[str, set[str]]],
+    binding_cache: dict[
+        ast.AST, dict[str, list[tuple[tuple[int, int], str]]]
+    ],
 ) -> bool:
     for scope in _enclosing_scopes(call, parents):
         if isinstance(scope, COMPREHENSION_SCOPES):
@@ -330,7 +363,17 @@ def _resolves_to_mock_object(
                         item.context_expr, parents, binding_cache
                     )
                 ):
-                    return True
+                    target_position = _position(item.optional_vars)
+                    call_position = _position(call)
+                    bindings = binding_cache.setdefault(
+                        scope, _scope_bindings(scope)
+                    )
+                    rebound = any(
+                        target_position < position <= call_position
+                        for position, _kind in bindings.get(name, [])
+                    )
+                    if not rebound:
+                        return True
     return False
 
 
@@ -346,7 +389,9 @@ def shared_reader_offenders(root: Path) -> list[str]:
             for parent in ast.walk(tree)
             for child in ast.iter_child_nodes(parent)
         }
-        binding_cache: dict[ast.AST, dict[str, set[str]]] = {}
+        binding_cache: dict[
+            ast.AST, dict[str, list[tuple[tuple[int, int], str]]]
+        ] = {}
         for call in (node for node in ast.walk(tree) if isinstance(node, ast.Call)):
             literals = _literal_arguments(call)
             path_listing = bool(
@@ -612,6 +657,45 @@ with patch() as run:
             (root / "test_reader.py").write_text(source, encoding="utf-8")
 
             self.assertEqual(shared_reader_offenders(root), ["test_reader.py:4"])
+
+    def test_a_receiver_rebound_after_patch_is_not_suppressed(self):
+        source = """\
+from unittest import mock
+with mock.patch("target") as run:
+    pass
+run = object()
+run.assert_called_with(["git", "ls-files"])
+"""
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "test_reader.py").write_text(source, encoding="utf-8")
+
+            self.assertEqual(shared_reader_offenders(root), ["test_reader.py:5"])
+
+    def test_a_class_import_is_not_visible_in_a_comprehension_body(self):
+        source = """\
+paths = probe
+class Reader:
+    import git_paths as paths
+    records = [paths.read_path_records(ROOT, "ls-files", "-z") for item in items]
+"""
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "test_reader.py").write_text(source, encoding="utf-8")
+
+            self.assertEqual(shared_reader_offenders(root), ["test_reader.py:4"])
+
+    def test_a_later_rebinding_does_not_poison_an_earlier_import_use(self):
+        source = """\
+import git_paths as paths
+paths.read_path_records(ROOT, "ls-files", "-z")
+paths = probe
+"""
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "test_reader.py").write_text(source, encoding="utf-8")
+
+            self.assertEqual(shared_reader_offenders(root), [])
 
     def test_a_comprehension_walrus_shadows_the_enclosing_import(self):
         source = """\
