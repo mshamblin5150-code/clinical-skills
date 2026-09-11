@@ -51,18 +51,26 @@ from prose_bind import NAMING, bind  # noqa: E402
 
 EXPECTED_COMMIT = artifact_provenance.checkout_commit(Path(__file__).resolve().parent.parent)
 
+with tempfile.TemporaryDirectory() as directory:
+    MISSING_ROOT_PARENT = Path(directory)
+
+
+def missing_root(field: str) -> Path:
+    """Return a test root whose temporary parent no longer exists."""
+    return MISSING_ROOT_PARENT / field
+
 
 def survey_inputs(
     *,
     recs_arguments: list[str] | None = None,
-    pdf_root: Path | None = None,
-    recs_root: Path | None = None,
-    text_root: Path | None = None,
+    pdf_root: Path = missing_root("pdf"),
+    recs_root: Path = missing_root("recs"),
+    text_root: Path = missing_root("text"),
     second_read_path: Path | None = None,
     allow_untrusted_provenance: bool = False,
     page_counts: dict[str, int] | None = None,
     source_classes: dict[str, str] | None = None,
-    recs_alias: Path | None = None,
+    recs_alias: Path = missing_root("recs-alias"),
     currency_registry: guidelines_currency.Registry | None = None,
 ) -> gate.SurveyInputs:
     catalog_facts = None
@@ -81,13 +89,31 @@ def survey_inputs(
     )
 
 
+class RootsRequirePaths(unittest.TestCase):
+    def test_each_field_rejects_an_empty_root(self):
+        roots = {
+            "pdf_root": missing_root("pdf"),
+            "recs_root": missing_root("recs"),
+            "text_root": missing_root("text"),
+            "recs_alias": missing_root("recs-alias"),
+        }
+        for field in roots:
+            with self.subTest(field=field):
+                inputs = roots | {field: None}
+                with self.assertRaisesRegex(
+                    ValueError,
+                    rf"{field}.*missing root is passed as a path that does not exist",
+                ):
+                    gate.Roots(**inputs)
+
+
 def grade(
     sheet_path: Path,
     recs_arguments: list[str] | None,
-    pdf_root: Path | None,
+    pdf_root: Path,
     quiet: bool = False,
-    recs_root: Path | None = None,
-    text_root: Path | None = None,
+    recs_root: Path = missing_root("recs"),
+    text_root: Path = missing_root("text"),
     second_read_path: Path | None = None,
     allow_untrusted_provenance: bool = False,
 ) -> int:
@@ -1489,7 +1515,9 @@ class EveryGateReturnsOneNamedShape(unittest.TestCase):
                 "WATERMARK",
                 gate.WatermarkResult,
                 gate.gate_watermark(
-                    parsed, None, expected_commit=EXPECTED_COMMIT
+                    parsed,
+                    missing_root("text"),
+                    expected_commit=EXPECTED_COMMIT,
                 ),
             ),
             (
@@ -1585,7 +1613,11 @@ class NullSheetReportsAreAssertionsRatherThanEmptyPasses(unittest.TestCase):
             gate.gate_citation_tier1(parsed),
             gate.gate_citation_tier2(parsed, Path("C:/nowhere")),
             gate.gate_range(parsed),
-            gate.gate_watermark(parsed, None, expected_commit=EXPECTED_COMMIT),
+            gate.gate_watermark(
+                parsed,
+                missing_root("text"),
+                expected_commit=EXPECTED_COMMIT,
+            ),
         )
 
         for result in results:
@@ -1735,6 +1767,39 @@ class ExtractionIdentityGate(unittest.TestCase):
         self.assertIn("manifest is unavailable", result.diagnostics[0])
         self.assertIn("NOT RUN", report_lines(result)[0])
         self.assertIn("NOT RUN", result.diagnostics[0])
+
+    def test_a_missing_text_root_gives_both_gates_the_manifest_reason(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "sheet.md"
+            path.write_text(
+                HEADER
+                + "\n## Thresholds\n\n"
+                + "| quantity | population | value | snippet | source | page | rec | class |\n"
+                + "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
+                + row(),
+                encoding="utf-8",
+            )
+            root = Path(directory) / "missing-text-root"
+            manifest = gate.guidelines_manifest.read(
+                root,
+                expected_commit=EXPECTED_COMMIT,
+            )
+
+            scan = gate.survey(
+                path,
+                survey_inputs(
+                    text_root=root,
+                    page_counts={"Society/doc": 60},
+                ),
+            )
+
+        reason = manifest.problems[0].message
+        extraction_identity = next(
+            result for result in scan.results if result.gate == "EXTRACTION IDENTITY"
+        )
+        watermark = next(result for result in scan.results if result.gate == "WATERMARK")
+        self.assertIn(reason, report_lines(extraction_identity)[0])
+        self.assertIn(reason, report_lines(watermark)[0])
 
     def test_survey_compares_the_sheet_with_its_text_root_manifest(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -2463,12 +2528,8 @@ class TheExitStatusSaysWhichKindOfNotGraded(unittest.TestCase):
     def test_a_recs_path_that_does_not_exist_is_2_and_not_0(self):
         self.assertEqual(self.grade_with(["C:/nowhere-at-all/recs.json"]), 2)
 
-    def test_no_recs_at_all_is_also_2(self):
-        self.assertEqual(self.grade_with([]), 2)
-
     def test_a_missing_recs_file_says_so_by_name(self):
-        """The two 2s are not the same event and the message has to distinguish them:
-        one is a run that never meant to check omission, the other is a typo."""
+        """An explicit path that does not exist is a typo and says so by name."""
         import contextlib
         import io
         import tempfile
@@ -2541,7 +2602,11 @@ class TheReportBodySaysCoverageDidNotRun(unittest.TestCase):
     standing next to it rather than to invent a convention.
     """
 
-    def report_for(self, recs_arguments: list[str]) -> str:
+    def report_for(
+        self,
+        recs_arguments: list[str],
+        recs_root: Path = missing_root("recs"),
+    ) -> str:
         import contextlib
         import io
         import tempfile
@@ -2551,7 +2616,13 @@ class TheReportBodySaysCoverageDidNotRun(unittest.TestCase):
             path.write_text(TheExitStatusSaysWhichKindOfNotGraded.CLEAN, encoding="utf-8")
             out = io.StringIO()
             with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
-                grade(path, recs_arguments, Path("C:/nowhere-at-all"), quiet=False)
+                grade(
+                    path,
+                    recs_arguments,
+                    Path("C:/nowhere-at-all"),
+                    quiet=False,
+                    recs_root=recs_root,
+                )
             return out.getvalue()
 
     def coverage_line(self, report: str) -> str:
@@ -2565,7 +2636,10 @@ class TheReportBodySaysCoverageDidNotRun(unittest.TestCase):
         self.assertNotIn("0 refusing", line)
 
     def test_no_recs_at_all_does_not_print_a_zero_count_either(self):
-        line = self.coverage_line(self.report_for([]))
+        with tempfile.TemporaryDirectory() as directory:
+            empty_root = Path(directory) / "recs"
+            empty_root.mkdir()
+            line = self.coverage_line(self.report_for([], empty_root))
         self.assertIn("NOT RUN", line)
         self.assertNotIn("0 refusing", line)
 
@@ -3865,12 +3939,13 @@ class BindingARecordToEachSource(unittest.TestCase):
     rather than guessed at, because guessing is what the ticket is about.
     """
 
-    def bind(self, sheet_, arguments, recs_root=None):
+    def bind(self, sheet_, arguments, recs_root=missing_root("recs")):
         records, why, errors, _ = gate.bind_recs(
             sheet_,
             arguments,
             recs_root,
             expected_commit=EXPECTED_COMMIT,
+            recs_alias=missing_root("recs-alias"),
         )
         return records, why, errors
 
@@ -4026,9 +4101,10 @@ class BindingARecordToEachSource(unittest.TestCase):
                 records, why, errors, _ = gate.bind_recs(
                     sheet(row()),
                     [str(path)],
-                    None,
+                    missing_root("recs"),
                     expected_commit=EXPECTED_COMMIT,
                     allow_untrusted_provenance=True,
+                    recs_alias=missing_root("recs-alias"),
                 )
 
         self.assertEqual(errors, [])
@@ -4095,8 +4171,9 @@ class BindingARecordToEachSource(unittest.TestCase):
         _, _, _, missing = gate.bind_recs(
             sheet(row()),
             ["src=C:/nowhere-at-all/recs.json"],
-            None,
+            missing_root("recs"),
             expected_commit=EXPECTED_COMMIT,
+            recs_alias=missing_root("recs-alias"),
         )
         self.assertEqual(missing, set())
 
@@ -4110,12 +4187,9 @@ class BindingARecordToEachSource(unittest.TestCase):
                 [],
                 Path(directory),
                 expected_commit=EXPECTED_COMMIT,
+                recs_alias=missing_root("recs-alias"),
             )
             self.assertEqual(missing, {"src"})
-
-    def test_no_argument_and_no_root_says_none_was_given(self):
-        _, why, _ = self.bind(sheet(row()), [], None)
-        self.assertIn("no --recs", why["src"])
 
     def test_a_file_that_parses_and_is_not_a_record_is_ungraded_too(self):
         """The same event through a door that looks legitimate: `null` and `[]` are
@@ -4142,11 +4216,10 @@ class BindingARecordToEachSource(unittest.TestCase):
             null = Path(directory) / "null.json"
             null.write_text("null", encoding="utf-8")
             cases = [
-                ([], None),                                    # never asked for
                 ([], Path(directory) / "empty-root"),          # never built
-                (["src=C:/nowhere-at-all/x.json"], None),      # a typo
-                ([f"src={broken}"], None),                     # does not parse
-                ([f"src={null}"], None),                       # parses, not a record
+                (["src=C:/nowhere-at-all/x.json"], missing_root("recs")),
+                ([f"src={broken}"], missing_root("recs")),
+                ([f"src={null}"], missing_root("recs")),
             ]
             for arguments, root in cases:
                 with self.subTest(arguments=arguments, root=root):
@@ -4181,7 +4254,7 @@ class TheReportNamesEverySourceItDidNotCheck(unittest.TestCase):
         + row(page="p9", rec="p9/kdigo/1", source="kdigo")
     )
 
-    def run_grade(self, arguments, recs_root=None):
+    def run_grade(self, arguments, recs_root=missing_root("recs")):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "sheet.md"
             path.write_text(self.TWO, encoding="utf-8")
@@ -4301,12 +4374,12 @@ class TheReportNamesEverySourceItDidNotCheck(unittest.TestCase):
         self.assertEqual(status, 0)
         self.assertIn("CITATION tier 0 NOT RUN", out.getvalue())
 
-    def test_one_record_for_a_two_source_sheet_is_2_and_names_the_other(self):
+    def test_one_record_for_a_two_source_sheet_warns_and_names_the_other(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "recs.json"
             path.write_text(json.dumps(record("p1/aha/1")), encoding="utf-8")
             status, out, err = self.run_grade([f"aha={path}"])
-        self.assertEqual(status, 2)
+        self.assertEqual(status, 0)
         self.assertIn("kdigo", self.coverage_line(out))
         self.assertIn("NOT RUN", self.coverage_line(out))
         self.assertIn("kdigo", err)
@@ -4487,15 +4560,13 @@ class TheReportNamesEverySourceItDidNotCheck(unittest.TestCase):
         self.assertEqual(len(line), 1)
         self.assertIn("NOT RUN", line[0])
 
-    def test_a_refusal_still_wins_over_a_source_that_was_not_checked(self):
-        """`differential_scan.py`'s ordering: 1 beats 2 where both hold, and the note
-        says the count is a floor."""
+    def test_a_refusal_still_wins_over_a_missing_automatic_record(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "recs.json"
             path.write_text(json.dumps(record("p1/aha/1", "p1/aha/2")), encoding="utf-8")
             status, _, err = self.run_grade([f"aha={path}"])
         self.assertEqual(status, 1)
-        self.assertIn("floor", err)
+        self.assertIn("kdigo", err)
 
 
 class TheRecordsStayOutsideTheRepo(unittest.TestCase):
@@ -4553,13 +4624,9 @@ class TheRecordsStayOutsideTheRepo(unittest.TestCase):
             empty_root = Path(directory) / "root"
             empty_root.mkdir()
             with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-                no_lookup_status = grade(
-                    path, [], Path("C:/nowhere-at-all"), quiet=True, recs_root=None
-                )
                 empty_root_status = grade(
                     path, [], Path("C:/nowhere-at-all"), quiet=True, recs_root=empty_root
                 )
-            self.assertEqual(no_lookup_status, 2)
             self.assertEqual(empty_root_status, 0)
 
 
@@ -5605,16 +5672,16 @@ class GateFiveIsDocumentedAsASmokeTest(unittest.TestCase):
         path = self.root / "read.json"
         path.write_text(json.dumps(second_read(seen("<130 mm Hg"))), encoding="utf-8")
         report = self._report(
-            sheet_path=self.sheet_path, recs_arguments=[], pdf_root=None,
-            text_root=None, second_read_path=path,
+            sheet_path=self.sheet_path, recs_arguments=[], pdf_root=missing_root("pdf"),
+            text_root=missing_root("text"), second_read_path=path,
         )
         self.assertIn("SECOND READ", report)
         self.assertIn("smoke test", report.lower())
 
     def test_without_a_second_read_the_body_says_it_did_not_run(self):
         report = self._report(
-            sheet_path=self.sheet_path, recs_arguments=[], pdf_root=None,
-            text_root=None, second_read_path=None,
+            sheet_path=self.sheet_path, recs_arguments=[], pdf_root=missing_root("pdf"),
+            text_root=missing_root("text"), second_read_path=None,
         )
         self.assertIn("SECOND READ", report)
         self.assertIn("NOT RUN", report)
@@ -5623,15 +5690,15 @@ class GateFiveIsDocumentedAsASmokeTest(unittest.TestCase):
         path = self.root / "read.json"
         path.write_text("[]", encoding="utf-8")
         status = grade(
-            sheet_path=self.sheet_path, recs_arguments=[], pdf_root=None,
-            text_root=None, second_read_path=path, quiet=True,
+            sheet_path=self.sheet_path, recs_arguments=[], pdf_root=missing_root("pdf"),
+            text_root=missing_root("text"), second_read_path=path, quiet=True,
         )
         self.assertEqual(status, 2)
 
     def test_a_second_read_path_that_does_not_resolve_is_a_typo_and_not_a_decision(self):
         status = grade(
-            sheet_path=self.sheet_path, recs_arguments=[], pdf_root=None,
-            text_root=None, second_read_path=self.root / "nowhere.json", quiet=True,
+            sheet_path=self.sheet_path, recs_arguments=[], pdf_root=missing_root("pdf"),
+            text_root=missing_root("text"), second_read_path=self.root / "nowhere.json", quiet=True,
         )
         self.assertEqual(status, 2)
 
@@ -5657,7 +5724,7 @@ class TheWatermarkBannerIsHardToReadPast(unittest.TestCase):
     def test_an_absent_corpus_prints_a_banner_that_survives_quiet(self):
         stream = io.StringIO()
         with contextlib.redirect_stdout(stream):
-            grade(sheet_path=self.sheet_path, recs_arguments=[], pdf_root=None,
+            grade(sheet_path=self.sheet_path, recs_arguments=[], pdf_root=missing_root("pdf"),
                        text_root=self.root / "nowhere", second_read_path=None, quiet=True)
         printed = stream.getvalue()
         self.assertIn("WATERMARK", printed)
@@ -5667,7 +5734,7 @@ class TheWatermarkBannerIsHardToReadPast(unittest.TestCase):
         text_corpus(self.root / "text", "Society/other", "a goal", boilerplate=["Jones et al"])
         stream = io.StringIO()
         with contextlib.redirect_stdout(stream):
-            grade(sheet_path=self.sheet_path, recs_arguments=[], pdf_root=None,
+            grade(sheet_path=self.sheet_path, recs_arguments=[], pdf_root=missing_root("pdf"),
                        text_root=self.root / "text", second_read_path=None)
         self.assertIn("src", stream.getvalue())
 
@@ -5832,7 +5899,7 @@ class TheNotProbedNoticeSurvivesQuiet(unittest.TestCase):
     def _quiet(self) -> tuple[str, str]:
         out, err = io.StringIO(), io.StringIO()
         with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
-            grade(sheet_path=self.sheet_path, recs_arguments=[], pdf_root=None,
+            grade(sheet_path=self.sheet_path, recs_arguments=[], pdf_root=missing_root("pdf"),
                        text_root=self.root / "text", second_read_path=None, quiet=True)
         return out.getvalue(), err.getvalue()
 
@@ -5898,7 +5965,7 @@ class GateFourRefusesUntilTheRenderedPageIsChecked(unittest.TestCase):
         out, err = io.StringIO(), io.StringIO()
         with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
             status = grade(
-                sheet_path=self.sheet_path, recs_arguments=[], pdf_root=None,
+                sheet_path=self.sheet_path, recs_arguments=[], pdf_root=missing_root("pdf"),
                 text_root=self.root / "text", second_read_path=None,
                 recs_root=self.root / "recs",
             )
@@ -6006,8 +6073,8 @@ class TheSmokeTestCaveatSurvivesQuiet(unittest.TestCase):
     def test_quiet_suppresses_the_report_and_not_the_caveat(self):
         out = io.StringIO()
         with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
-            grade(sheet_path=self.sheet_path, recs_arguments=[], pdf_root=None,
-                       text_root=None, second_read_path=self.read_path, quiet=True)
+            grade(sheet_path=self.sheet_path, recs_arguments=[], pdf_root=missing_root("pdf"),
+                       text_root=missing_root("text"), second_read_path=self.read_path, quiet=True)
         printed = out.getvalue()
         self.assertNotIn("SECOND READ     ", printed, "the report itself is suppressed")
         self.assertIn(gate.SECOND_READ_IS_A_SMOKE_TEST, printed)
@@ -6015,8 +6082,8 @@ class TheSmokeTestCaveatSurvivesQuiet(unittest.TestCase):
     def test_loud_keeps_the_caveat_beside_the_second_read_summary(self):
         out = io.StringIO()
         with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
-            grade(sheet_path=self.sheet_path, recs_arguments=[], pdf_root=None,
-                  text_root=None, second_read_path=self.read_path)
+            grade(sheet_path=self.sheet_path, recs_arguments=[], pdf_root=missing_root("pdf"),
+                  text_root=missing_root("text"), second_read_path=self.read_path)
         printed = out.getvalue()
         summary = printed.index("SECOND READ     0 refusing")
         caveat = printed.index(gate.SECOND_READ_IS_A_SMOKE_TEST)
@@ -6031,8 +6098,8 @@ class TheSmokeTestCaveatSurvivesQuiet(unittest.TestCase):
     def test_quiet_keeps_the_caveat_before_the_gate_banners(self):
         out = io.StringIO()
         with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
-            grade(sheet_path=self.sheet_path, recs_arguments=[], pdf_root=None,
-                  text_root=None, second_read_path=self.read_path, quiet=True)
+            grade(sheet_path=self.sheet_path, recs_arguments=[], pdf_root=missing_root("pdf"),
+                  text_root=missing_root("text"), second_read_path=self.read_path, quiet=True)
         printed = out.getvalue()
         self.assertLess(
             printed.index(gate.SECOND_READ_IS_A_SMOKE_TEST),
@@ -6122,8 +6189,8 @@ class AReadThatCoversNothingIsNotAGradedSheet(unittest.TestCase):
         out = io.StringIO()
         with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
             status = grade(
-                sheet_path=self.sheet_path, recs_arguments=[], pdf_root=None,
-                text_root=None, second_read_path=self.read_path,
+                sheet_path=self.sheet_path, recs_arguments=[], pdf_root=missing_root("pdf"),
+                text_root=missing_root("text"), second_read_path=self.read_path,
                 recs_root=self.root / "recs",
             )
         return status, out.getvalue()
