@@ -716,6 +716,14 @@ _Avoid_: browser access, logged-in fetch, subscription access, real session
 A path in a tracked Markdown file naming another tracked file or directory, distinct from a **citation**, which is tracker text. It resolves against the linking file's directory and is checked by exact-case membership in the Git index after any anchor fragment is dropped.
 _Avoid_: citation, URL, cross-reference
 
+**Step citation**:
+The word *step* and the number after it in prose, resolved to the skill whose numbered section it names: the one written just before it, the one carried from an earlier citation in the same paragraph, or the skill the file belongs to. It can name a section that was deleted or renumbered, which is what makes it worth resolving. Distinct from a **relative link**, which names a file, and from a **citation**, which is tracker text.
+_Avoid_: step reference, step link, cross-reference
+
+**Declared narrower reader**:
+A reader kept deliberately weaker than a shared reader of the same form, whose gap is written down as a **declared limit** of the check that uses it. It is chosen where converging would change what that check decides and no recorded defect asks for the change. Distinct from a **refusal**, which says a shared runner cannot express a module at all rather than that a better reader was declined.
+_Avoid_: weak reader, legacy parser, duplicate parser
+
 **Disclosure class**:
 What a tool's `--show` output may do once it leaves the process. Declared by that tool's own module docstring and by nothing else, so a roster of classes kept anywhere but the modules is a second copy rather than a record. Four are in use: *patient data*, read and never pasted; *private working material*, which names real people who are not patients and is equally unpasteable, though the PHI firewall will never flag it; *copyright-restrained*, a third party's expression where a line may be quoted into a ticket and a table may not; and *pasteable*, which is only ever a ruling and never an inference from silence. Where a module declares nothing the class is unpasteable, so forgetting refuses an output rather than clearing one. It is a property of an **output** and not of the data behind it, which is why it stopped tracking patient-data-or-not the moment a tool began naming people the firewall does not know.
 _Avoid_: PHI, sensitivity, redaction, safe to paste, output policy
