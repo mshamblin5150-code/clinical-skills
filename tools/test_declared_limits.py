@@ -278,15 +278,6 @@ class ResolutionContext:
             )
         return None
 
-    def nested_references(self, expression: ast.expr) -> set[ObjectRef]:
-        return {
-            reference
-            for node in ast.walk(expression)
-            if isinstance(node, (ast.Name, ast.Attribute))
-            for reference in [self.reference(node)]
-            if reference is not None
-        }
-
     def proven_view(self, expression: ast.expr) -> ObjectRef | None:
         direct = self.reference(expression)
         if direct is not None:
@@ -297,13 +288,29 @@ class ResolutionContext:
             and expression.func.id in {"frozenset", "list", "set", "tuple"}
             and len(expression.args) == 1
             and not expression.keywords
-            and isinstance(
-                expression.args[0], (ast.GeneratorExp, ast.ListComp, ast.SetComp)
-            )
         ):
             return None
-        references = self.nested_references(expression.args[0])
-        return next(iter(references)) if len(references) == 1 else None
+        source = self.reference(expression.args[0])
+        if source is not None:
+            return source
+        if not isinstance(expression.args[0], (ast.GeneratorExp, ast.ListComp, ast.SetComp)):
+            return None
+        comprehension = expression.args[0]
+        if len(comprehension.generators) != 1 or comprehension.generators[0].ifs:
+            return None
+        source = self.reference(comprehension.generators[0].iter)
+        target_names = {
+            node.id
+            for node in ast.walk(comprehension.generators[0].target)
+            if isinstance(node, ast.Name)
+        }
+        if not (
+            source is not None
+            and isinstance(comprehension.elt, ast.Name)
+            and comprehension.elt.id in target_names
+        ):
+            return None
+        return source
 
     def is_prose_bind_call(self, function: ast.expr, expected: str) -> bool:
         if isinstance(function, ast.Name):
@@ -454,6 +461,22 @@ class TheClassificationInstrumentIsLive(unittest.TestCase):
                 "from prose_bind import NAMING, bind\n"
                 "surface = 'indirect prose'\n"
                 "alias = discard(sample.DECLARED_LIMITS)\n"
+                "def test_bind():\n"
+                "    assert not bind(alias, surface, mode=NAMING)\n",
+            )
+            self.assertEqual(set(), bound_objects(root))
+
+    def test_a_fabricated_comprehension_is_not_a_view(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.write(root, "sample.py", "DECLARED_LIMITS = ('outside',)\n")
+            self.write(
+                root,
+                "test_sample.py",
+                "import sample\n"
+                "from prose_bind import NAMING, bind\n"
+                "surface = 'indirect prose'\n"
+                "alias = tuple('fabricated' for _ in sample.DECLARED_LIMITS)\n"
                 "def test_bind():\n"
                 "    assert not bind(alias, surface, mode=NAMING)\n",
             )
