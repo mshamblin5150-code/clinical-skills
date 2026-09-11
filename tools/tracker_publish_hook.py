@@ -19,8 +19,13 @@ of a path, and a Git Bash ``/c/...`` path is also tried in its Windows
 spelling. What is left -- a variable from the environment, a command
 substitution, a pipe -- is unreadable by construction and is refused above.
 
-What a clean run does not establish is owned by ``NOT_REACHED`` below rather
-than copied into this docstring or ``CLAUDE.md``.
+Every readable body is graded through ``tracker_bodies.grade``. On the command
+route, each returned row refuses as ``body:<kind>`` and carries the remedy from
+``BODY_REMEDIES``. The direct writer keeps its existing exception interface. A
+title stays outside that body grader and keeps only the C0-control and
+flanked-carriage-return predicates. What a clean run does not establish is
+owned by ``NOT_REACHED`` below rather than copied into this docstring or
+``CLAUDE.md``.
 """
 
 from __future__ import annotations
@@ -249,13 +254,47 @@ REDACTION_WALK_KINDS = (
     "phi:corpus-name",
     "phi:corpus-date",
     *(f"phi:{kind}" for kind in phi_scan.SHAPE_RULES),
-    "body:c0-control-character",
-    "body:carriage-return-flanked",
-    "body:literal-newline-escape",
-    "body:doubled-path-separator",
+    *(f"body:{kind}" for kind in tracker_bodies.KINDS),
     "verdict:missing-discriminator",
     *tracker_branch_scope.BRANCH_RULES,
 )
+
+LOST_BODY_REMEDY = (
+    "the body did not land; write it to a file and pass that file's "
+    "absolute path to --body-file"
+)
+BODY_REMEDIES = {
+    tracker_bodies.LOST_AT_DASH: LOST_BODY_REMEDY,
+    tracker_bodies.EMPTY_BODY: LOST_BODY_REMEDY,
+    tracker_bodies.LITERAL_AT_PATH: LOST_BODY_REMEDY,
+    tracker_bodies.DOUBLE_ENCODED: (
+        "rewrite text damaged through a cp1252 path as UTF-8; for a genuine "
+        "mention only, put the deliberately named sequence in backticks, "
+        "because backticks also hide damage"
+    ),
+    tracker_bodies.C0_CONTROL_CHARACTER: (
+        "remove the raw C0 control character and restore the intended text"
+    ),
+    tracker_bodies.CARRIAGE_RETURN_FLANKED: (
+        "replace the flanked carriage return with the intended text or line break"
+    ),
+    tracker_bodies.LITERAL_NEWLINE_ESCAPE: (
+        "replace the literal newline escape with the intended real line break"
+    ),
+    tracker_bodies.DOUBLED_PATH_SEPARATOR: (
+        "restore the intended single path separator"
+    ),
+}
+
+
+def body_remedy(kind: str, route: tuple[str, ...]) -> str:
+    """The repair for one body row on the publication route that produced it."""
+    if kind == tracker_bodies.EMPTY_BODY and route == ("pr", "review"):
+        return (
+            "omit the --body flag if this is an approval; otherwise supply "
+            "the intended review text"
+        )
+    return BODY_REMEDIES[kind]
 
 
 def redaction_walk_report(triggered: set[str]) -> str:
@@ -771,24 +810,30 @@ def analyze(
         Finding(f"phi:{rule}", count, publication.field, "advise")
         for rule, count in sorted(phi_counts.items())
     ]
-    if tracker_bodies.has_c0_control_character(publication.text):
-        findings.append(Finding(
-            "body:c0-control-character", 1, publication.field, "deny"
-        ))
-    if tracker_bodies.has_carriage_return_flanked(publication.text):
-        findings.append(Finding(
-            "body:carriage-return-flanked", 1, publication.field, "deny"
-        ))
-    if (publication.field == "body"
-            and tracker_bodies.has_literal_newline_escape(publication.text)):
-        findings.append(Finding(
-            "body:literal-newline-escape", 1, publication.field, "deny"
-        ))
-    if (publication.field == "body"
-            and tracker_bodies.has_doubled_path_separator(publication.text)):
-        findings.append(Finding(
-            "body:doubled-path-separator", 1, publication.field, "deny"
-        ))
+    if publication.field == "body":
+        body_findings = tracker_bodies.grade(
+            [
+                tracker_bodies.Record(
+                    "pre-publication",
+                    "body being published",
+                    tracker_bodies.ISSUE,
+                    publication.text,
+                )
+            ]
+        )
+        findings.extend(
+            Finding(f"body:{row.kind}", 1, publication.field, "deny")
+            for row in body_findings
+        )
+    else:
+        if tracker_bodies.has_c0_control_character(publication.text):
+            findings.append(Finding(
+                "body:c0-control-character", 1, publication.field, "deny"
+            ))
+        if tracker_bodies.has_carriage_return_flanked(publication.text):
+            findings.append(Finding(
+                "body:carriage-return-flanked", 1, publication.field, "deny"
+            ))
     comment_prose = (
         ordinary_paragraph_prose(publication.text)
         if publication.field == "body" and route in COMMENT_ROUTES
@@ -865,10 +910,14 @@ def analyze(
         )
     if publication.field == "body":
         lines.append(filed_from.report)
-    lines.extend(
-        f"{row.posture}: {row.rule}: {row.count} finding(s) in {row.field}"
-        for row in findings
-    )
+    for row in findings:
+        line = (
+            f"{row.posture}: {row.rule}: {row.count} finding(s) in {row.field}"
+        )
+        body_kind = row.rule.removeprefix("body:")
+        if body_kind in BODY_REMEDIES:
+            line += f"; remedy: {body_remedy(body_kind, route)}"
+        lines.append(line)
     if not findings:
         lines.append(f"scanned {publication.field}: 0 findings")
     return Analysis(tuple(findings), "\n".join(lines))
@@ -880,12 +929,13 @@ def authorize_issue_body(
     *,
     issue_number: int | None = None,
 ) -> None:
-    """Apply the shared lost-body and raw-control refusal for direct writers.
+    """Apply the complete shared body-grade refusal for direct writers.
 
     Most tracker writes arrive as a shell command and enter through ``handle``.
     An in-process writer already holds the exact body, so making it reconstruct
     shell quoting would add a second, weaker extraction path. This entry point
-    feeds those bytes to the same ``tracker_bodies`` predicate instead.
+    feeds that body string to the same ``tracker_bodies.grade`` call instead;
+    every row in ``tracker_bodies.KINDS`` therefore refuses on both routes.
     """
     findings = tracker_bodies.grade(
         [tracker_bodies.Record("direct publication", label, tracker_bodies.ISSUE, body)]

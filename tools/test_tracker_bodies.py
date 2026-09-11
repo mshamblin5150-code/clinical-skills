@@ -899,6 +899,12 @@ class DeclaredLimitsHaveOneOwner(unittest.TestCase):
         self.assertIn("an escape collapse that leaves only lost backticks", limits)
         self.assertIn("DEL U+007F", limits)
         self.assertIn("replacement character U+FFFD", limits)
+        title_limit = limits[
+            "an empty, at-dash, literal-at-path, or double-encoded title"
+        ]
+        self.assertIn("no title-file flag", title_limit)
+        self.assertIn("ADR 0177", title_limit)
+        self.assertIn("full tracker harvest", title_limit)
 
     def test_each_escape_collapse_predicate_declares_its_ceiling(self):
         limits = dict(tb.NOT_REACHED)
