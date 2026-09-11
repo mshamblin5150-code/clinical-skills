@@ -57,11 +57,14 @@ from pathlib import Path
 from typing import Callable, NamedTuple
 
 import artifact_lock
+import artifact_provenance
 from console_codec import use_utf8
+import git_paths
 import tracker_publish_hook
 
 SCHEMA = 1
 MAP_ISSUE = 596
+REPO_ROOT = Path(__file__).resolve().parent.parent
 STATE_BEGIN = "<!-- implementation-map:v1:state:begin -->"
 STATE_END = "<!-- implementation-map:v1:state:end -->"
 
@@ -117,6 +120,10 @@ DECLARED_LIMITS = (
     DeclaredLimit(
         "clean-check-derived-views",
         "A clean check grades the state block against the live tracker and does not establish that the published derived views match a fresh render; audit performs that comparison.",
+    ),
+    DeclaredLimit(
+        "producer-stamp-single-emitter",
+        "The producer stamp covers tools/implementation_map.py alone; a change in another module that affects rendered bytes is not detected.",
     ),
 )
 
@@ -187,7 +194,7 @@ def require_well_formed(state: dict) -> None:
     """Field-level shape gate. A state that parsed as JSON can still be
     missing the keys every accessor assumes; that must stop the run as a
     did-not-run, never escape as a traceback wearing exit 1."""
-    for key in ("packets", "edges", "collision_groups", "exclusions"):
+    for key in ("packets", "edges", "collision_groups", "exclusions", "adr_reviews"):
         rows = state.get(key, [])
         if not isinstance(rows, list):
             raise MapError(f"state.{key} is not a list")
@@ -216,6 +223,25 @@ def require_well_formed(state: dict) -> None:
     for row in state.get("exclusions", []):
         if "ticket" not in row:
             raise MapError(f"malformed exclusion {row!r}")
+    for row in state.get("adr_reviews", []):
+        if not isinstance(row.get("adr"), str) or not row["adr"].strip():
+            raise MapError(f"malformed ADR review {row!r}: needs an ADR path")
+        packets_ = row.get("packets")
+        no_work = row.get("no_work")
+        if packets_ is not None and (
+            not isinstance(packets_, list)
+            or not packets_
+            or not all(isinstance(pid, str) for pid in packets_)
+        ):
+            raise MapError(f"malformed ADR review {row!r}: packets must be nonempty strings")
+        if no_work is not None and (not isinstance(no_work, str) or not no_work.strip()):
+            raise MapError(f"malformed ADR review {row!r}: no-work sentence is blank")
+        if (packets_ is None) == (no_work is None):
+            raise MapError(
+                f"malformed ADR review {row!r}: needs packets or one no-work sentence"
+            )
+        if not re.fullmatch(r"[0-9a-f]{40}", str(row.get("commit", ""))):
+            raise MapError(f"malformed ADR review {row!r}: needs a full commit")
 
 
 def state_block(state: dict) -> str:
@@ -231,6 +257,153 @@ def state_hash(body: str) -> str:
     """Hash only canonical machine state, never the volatile derived views."""
     canonical = state_block(extract_state(body)).encode("utf-8")
     return hashlib.sha256(canonical).hexdigest()
+
+
+def _git_text(repo_root: Path, arguments: list[str], purpose: str) -> str:
+    completed = subprocess.run(
+        ["git", *arguments],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    if completed.returncode != 0:
+        detail = completed.stderr.strip().splitlines()
+        suffix = f": {detail[0][:200]}" if detail else ""
+        raise MapError(f"git {purpose}{suffix}")
+    return completed.stdout
+
+
+def adr_commits_after(
+    floor: str, repo_root: Path = REPO_ROOT, head: str = "HEAD"
+) -> tuple[tuple[str, tuple[str, ...]], ...]:
+    """First-parent commits above ``floor`` and ADR paths each changes."""
+    commits = tuple(
+        line.strip()
+        for line in _git_text(
+            repo_root,
+            ["rev-list", "--first-parent", "--reverse", f"{floor}..{head}"],
+            "log could not compare reconciled_through",
+        ).splitlines()
+        if line.strip()
+    )
+    result: list[tuple[str, tuple[str, ...]]] = []
+    for commit in commits:
+        try:
+            records = git_paths.read_path_records(
+                repo_root,
+                "diff", "-z", "--name-only", "--diff-filter=AM",
+                f"{commit}^1", commit, "--", "docs/adr/",
+            )
+        except git_paths.GitPathError as error:
+            raise MapError(
+                f"git diff could not read ADRs at {commit[:7]}: {error}"
+            ) from error
+        paths = tuple(sorted(Path(record).as_posix() for record in records))
+        result.append((commit, paths))
+    return tuple(result)
+
+
+def ensure_local_commit(repo_root: Path, commit: str) -> str:
+    """Resolve a default-branch commit, fetching it when a PR just created it."""
+    def resolve() -> str | None:
+        completed = subprocess.run(
+            ["git", "rev-parse", "--verify", f"{commit}^{{commit}}"],
+            cwd=repo_root,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+        value = completed.stdout.strip()
+        return value if completed.returncode == 0 and re.fullmatch(r"[0-9a-f]{40}", value) else None
+
+    resolved = resolve()
+    if resolved is not None:
+        return resolved
+    fetched = subprocess.run(
+        ["git", "fetch", "origin", "main"],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    resolved = resolve()
+    if fetched.returncode != 0 or resolved is None:
+        detail = fetched.stderr.strip().splitlines()
+        suffix = f": {detail[0][:200]}" if detail else ""
+        raise MapError(f"cannot read reviewed default-branch commit {commit}{suffix}")
+    return resolved
+
+
+def _review_covers(
+    review: dict, occurrence: str, positions: dict[str, int]
+) -> bool:
+    return (
+        review.get("commit") in positions
+        and occurrence in positions
+        and positions[review["commit"]] >= positions[occurrence]
+    )
+
+
+def unreconciled_adrs(
+    state: dict, repo_root: Path = REPO_ROOT, head: str = "HEAD"
+) -> tuple[str, ...]:
+    """ADRs above the reconciliation floor that have no review record."""
+    floor = state.get("reconciled_through")
+    if not isinstance(floor, str) or not floor.strip():
+        raise MapError("map state carries no reconciled_through commit")
+    commits = adr_commits_after(floor, repo_root, head)
+    positions = {floor: -1, **{commit: index for index, (commit, _paths) in enumerate(commits)}}
+    reviews = state.get("adr_reviews", [])
+    return tuple(
+        dict.fromkeys(
+            path
+            for commit, paths in commits
+            for path in paths
+            if not any(
+                row["adr"] == path and _review_covers(row, commit, positions)
+                for row in reviews
+            )
+        )
+    )
+
+
+def advance_reconciliation_floor(
+    state: dict, repo_root: Path = REPO_ROOT, head: str = "HEAD"
+) -> dict:
+    """Advance through the longest contiguous prefix whose ADRs are reviewed."""
+    new = json.loads(json.dumps(state))
+    floor = new.get("reconciled_through")
+    if not isinstance(floor, str) or not floor.strip():
+        raise MapError("map state carries no reconciled_through commit")
+    commits = adr_commits_after(floor, repo_root, head)
+    positions = {floor: -1, **{commit: index for index, (commit, _paths) in enumerate(commits)}}
+    reviews = new.get("adr_reviews", [])
+    passed = 0
+    for commit, paths in commits:
+        if not all(
+            any(
+                row["adr"] == path and _review_covers(row, commit, positions)
+                for row in reviews
+            )
+            for path in paths
+        ):
+            break
+        new["reconciled_through"] = commit
+        passed += 1
+    new["adr_reviews"] = [
+        row
+        for row in reviews
+        if any(
+            row["adr"] == path and _review_covers(row, commit, positions)
+            for commit, paths in commits[passed:]
+            for path in paths
+        )
+    ]
+    return new
 
 
 def preserve_refused_outcomes(
@@ -503,6 +676,12 @@ def validate_shape(state: dict) -> list[Finding]:
                     "collision-off-map",
                     f"collision group {group.get('name')!r} names unknown packet {pid}",
                 ))
+    review_paths = [row["adr"] for row in state.get("adr_reviews", [])]
+    for adr in review_paths:
+        if review_paths.count(adr) > 1:
+            findings.append(Finding("duplicate-adr-review", f"{adr} is reviewed twice"))
+        if not re.fullmatch(r"docs/adr/\d{4}[^/]*\.md", adr):
+            findings.append(Finding("bad-adr-review", f"{adr!r} is not an ADR path"))
     findings.extend(cycle_findings(state))
     return findings
 
@@ -939,7 +1118,7 @@ MERMAID_EDGE = re.compile(
     r'([A-Za-z0-9_]+)\s*$'
 )
 PRODUCER_STAMP = re.compile(
-    r"(?m)^- producer: `tools/implementation_map\.py at ([0-9a-f]{7,40})`$"
+    r"(?m)^- producer: `tools/implementation_map\.py sha256:([0-9a-f]{64})`$"
 )
 SNAPSHOT_COMMIT = re.compile(
     r"(?m)^- default-branch commit: `([0-9a-f]{7,40})`$"
@@ -966,11 +1145,11 @@ def producer_stamp_problem(body: str) -> str | None:
         )
     if len(SNAPSHOT_COMMIT.findall(snapshot)) != 1:
         return "derived Snapshot must carry exactly one default-branch commit"
-    expected = checkout_commit()
+    expected = producer_identity()
     if stamps[0] != expected:
         return (
-            f"producer stamp commit {stamps[0]} does not match executing "
-            f"checkout commit {expected}"
+            f"producer stamp sha256 {stamps[0]} does not match executing "
+            f"emitter sha256 {expected}"
         )
     return None
 
@@ -1132,8 +1311,8 @@ def render(state: dict, live: Live, snapshot: dict) -> str:
     parts.append(
         "## Snapshot\n\n"
         f"- default-branch commit: `{snapshot['commit']}`\n"
-        "- producer: `tools/implementation_map.py at "
-        f"{snapshot.get('producer_commit') or checkout_commit()}`\n"
+        "- producer: `tools/implementation_map.py sha256:"
+        f"{snapshot.get('producer_identity') or producer_identity()}`\n"
         f"- generated: {snapshot['date']}\n"
         f"- live ready-for-agent tickets: {ready_count}\n"
         f"- dependency graph packets: {graph_coverage.packet_nodes} drawn + "
@@ -1224,8 +1403,56 @@ DELTA_KEYS = {
     "note", "add_packets", "remove_packets", "add_tickets", "remove_tickets",
     "add_edges", "remove_edges", "add_collision_groups",
     "remove_collision_groups", "set_collision_kind", "add_exclusions",
-    "remove_exclusions",
+    "remove_exclusions", "review_adrs",
 }
+
+
+def affected_packet_ids(before: dict, after: dict, delta: dict) -> list[str]:
+    """Packet identities whose semantic map state this delta changes."""
+    before_rows = {row["id"]: row for row in before.get("packets", [])}
+    after_rows = {row["id"]: row for row in after.get("packets", [])}
+    affected = {
+        pid
+        for pid in set(before_rows) | set(after_rows)
+        if before_rows.get(pid) != after_rows.get(pid)
+    }
+
+    def packet_for_ticket(ticket: object) -> str | None:
+        if not isinstance(ticket, int):
+            return None
+        return packet_of(after, ticket) or packet_of(before, ticket)
+
+    def canonical(rows: list[dict]) -> dict[str, dict]:
+        return {
+            json.dumps(row, sort_keys=True, separators=(",", ":")): row
+            for row in rows
+        }
+
+    before_edges = canonical(before.get("edges", []))
+    after_edges = canonical(after.get("edges", []))
+    for key in set(before_edges) ^ set(after_edges):
+        edge = before_edges.get(key) or after_edges[key]
+        if edge.get("type") == "HARD":
+            affected.update(
+                pid
+                for ticket in (edge.get("from_ticket"), edge.get("to_ticket"))
+                if (pid := packet_for_ticket(ticket)) is not None
+            )
+        elif edge.get("type") == "REBUILD-SAVING":
+            affected.update(
+                pid for pid in (edge.get("from"), edge.get("to"))
+                if isinstance(pid, str)
+            )
+        elif edge.get("type") == "EXTERNAL-GATE" and isinstance(edge.get("to"), str):
+            affected.add(edge["to"])
+
+    before_groups = {row["name"]: row for row in before.get("collision_groups", [])}
+    after_groups = {row["name"]: row for row in after.get("collision_groups", [])}
+    for name in set(before_groups) | set(after_groups):
+        if before_groups.get(name) != after_groups.get(name):
+            affected.update(before_groups.get(name, {}).get("packets", []))
+            affected.update(after_groups.get(name, {}).get("packets", []))
+    return sorted(affected)
 
 
 def apply_delta(state: dict, delta: dict) -> dict:
@@ -1356,6 +1583,29 @@ def apply_delta(state: dict, delta: dict) -> dict:
         if existing_exclusion is not None:
             raise MapError(f"add_exclusions: #{row['ticket']} already excluded")
         new.setdefault("exclusions", []).append(row)
+    changed_packets = affected_packet_ids(state, new, delta)
+    for review in delta.get("review_adrs", []):
+        if not isinstance(review, dict):
+            raise MapError("review_adrs holds a non-object row")
+        adr = review.get("adr")
+        if not isinstance(adr, str) or not adr.strip():
+            raise MapError("review_adrs needs a nonblank ADR path")
+        commit = review.get("commit")
+        if not re.fullmatch(r"[0-9a-f]{40}", str(commit or "")):
+            raise MapError(f"review_adrs: {adr} needs a full derived commit")
+        record = {"adr": Path(adr).as_posix(), "commit": commit}
+        if changed_packets:
+            record["packets"] = changed_packets
+        else:
+            no_work = review.get("no_work")
+            if not isinstance(no_work, str) or not no_work.strip():
+                raise MapError(f"review_adrs: {adr} no-work sentence is blank")
+            record["no_work"] = no_work.strip()
+        reviews = [
+            row for row in new.get("adr_reviews", []) if row.get("adr") != record["adr"]
+        ]
+        reviews.append(record)
+        new["adr_reviews"] = reviews
     # Every shape finding is fatal to a delta -- an allowlist here would let
     # a future finding kind become silently non-fatal.
     require_well_formed(new)
@@ -1467,16 +1717,32 @@ def report(findings: list[Finding], walked: str) -> int:
     return 1
 
 
+def check_findings(
+    state: dict, live: Live, *, head: str = "HEAD"
+) -> list[Finding]:
+    """Every finding shared by ``check`` and its ``audit`` superset."""
+    findings = validate_shape(state) + validate_against_live(state, live)
+    if state.get("reconciled_through"):
+        findings.extend(
+            Finding(
+                "unreconciled-adr",
+                f"ADR {Path(path).name[:4]} ({path}) has no review record",
+            )
+            for path in unreconciled_adrs(state, head=head)
+        )
+    return findings
+
+
 def cmd_check(tracker, args) -> int:
     issue = locate_map(tracker)
     state = extract_state(issue["body"])
     live = Live(tracker, state)
-    findings = validate_shape(state) + validate_against_live(state, live)
+    findings = check_findings(state, live, head=tracker.default_branch_head())
     print(f"map: issue #{issue['number']} ({issue['title']!r})")
     return report(
         findings,
-        "state block and live tracker; derived views were not read; run audit "
-        "to compare them",
+        "state block and live tracker, plus ADR review records and local "
+        "first-parent git history; derived views were not read; run audit to compare them",
     )
 
 
@@ -1562,20 +1828,9 @@ def cmd_claim(tracker, args) -> int:
     return 0
 
 
-def checkout_commit() -> str:
-    """Return the commit containing the helper in this executing checkout."""
-    completed = subprocess.run(
-        ["git", "rev-parse", "HEAD"],
-        cwd=Path(__file__).resolve().parent,
-        capture_output=True,
-        encoding="utf-8",
-        errors="replace",
-    )
-    commit = completed.stdout.strip()
-    if completed.returncode != 0 or not re.fullmatch(r"[0-9a-f]{40}", commit):
-        detail = completed.stderr.strip() or "git returned no full commit"
-        raise MapError(f"cannot identify implementation-map producer: {detail}")
-    return commit
+def producer_identity() -> str:
+    """Content identity of the one declared implementation-map emitter."""
+    return artifact_provenance.text_file_identity(Path(__file__).resolve())
 
 
 def snapshot_for(tracker, args) -> dict:
@@ -1583,7 +1838,7 @@ def snapshot_for(tracker, args) -> dict:
     date = getattr(args, "date", None) or datetime.date.today().isoformat()
     return {
         "commit": commit,
-        "producer_commit": checkout_commit(),
+        "producer_identity": producer_identity(),
         "date": date,
     }
 
@@ -1723,8 +1978,14 @@ def cmd_apply_delta(tracker, args) -> int:
 
 def authored_outcomes(args) -> tuple[str, ...]:
     """Recover authored outcomes before a lock refusal strands the command."""
-    if getattr(args, "outcome", None):
-        return (args.outcome,)
+    authored = tuple(
+        value for value in (
+            getattr(args, "outcome", None),
+            getattr(args, "no_work", None),
+        ) if isinstance(value, str) and value.strip()
+    )
+    if authored:
+        return authored
     delta_path = getattr(args, "delta", None)
     if not delta_path:
         return ()
@@ -1735,34 +1996,63 @@ def authored_outcomes(args) -> tuple[str, ...]:
         return ()
     if not isinstance(delta, dict):
         return ()
-    return tuple(
+    outcomes = tuple(
         row.get("outcome", "")
         for row in delta.get("add_packets", [])
         if isinstance(row, dict) and isinstance(row.get("outcome", ""), str)
     )
+    no_work = tuple(
+        row.get("no_work", "")
+        for row in delta.get("review_adrs", [])
+        if isinstance(row, dict) and isinstance(row.get("no_work", ""), str)
+    )
+    return outcomes + no_work
 
 
 def _apply_delta_under_lock(tracker, args, issue_number: int) -> int:
     current = tracker.get_issue(issue_number)
     expected = state_hash(current["body"])
     state = extract_state(current["body"])
+    review_adrs = getattr(args, "review_adr", None) or []
     if args.delta:
         if args.ticket is not None or args.outcome is not None:
             raise MapError("--delta cannot be combined with --ticket or --outcome")
         with open(args.delta, encoding="utf-8") as handle:
             delta = json.load(handle)
     else:
-        if args.ticket is None:
+        if args.ticket is None and not review_adrs:
             raise MapError("apply-delta needs --delta or --ticket with --outcome")
-        delta = _direct_placement_delta(state, tracker, args.ticket, args.outcome)
-    new_state = apply_delta(state, delta)
+        if args.ticket is None:
+            if args.outcome is not None:
+                raise MapError("--outcome needs --ticket")
+            delta = {}
+        else:
+            delta = _direct_placement_delta(state, tracker, args.ticket, args.outcome)
+    if review_adrs:
+        if delta.get("review_adrs"):
+            raise MapError("--review-adr cannot be combined with delta review_adrs")
+        delta = dict(delta)
+        delta["review_adrs"] = [
+            {"adr": adr, "no_work": getattr(args, "no_work", None)}
+            for adr in review_adrs
+        ]
     reviewed_through = getattr(args, "commit", None) or tracker.default_branch_head()
+    if delta.get("review_adrs"):
+        reviewed_through = ensure_local_commit(REPO_ROOT, reviewed_through)
+        delta = dict(delta)
+        delta["review_adrs"] = [
+            {**row, "commit": reviewed_through}
+            for row in delta["review_adrs"]
+        ]
+    new_state = apply_delta(state, delta)
+    if delta.get("review_adrs"):
+        new_state = advance_reconciliation_floor(
+            new_state,
+            REPO_ROOT,
+            reviewed_through,
+        )
     live = Live(tracker, new_state)
     _, remainder = placement_coverage(new_state, live)
-    # The delta is the reconciliation. It may advance the anchor only when
-    # its independent ready-ticket population has no unread remainder.
-    if not remainder:
-        new_state["reconciled_through"] = reviewed_through
     args.commit = reviewed_through
     if args.dry_run:
         findings = validate_shape(new_state) + validate_against_live(new_state, live)
@@ -1772,10 +2062,14 @@ def _apply_delta_under_lock(tracker, args, issue_number: int) -> int:
             findings,
             "proposed state block and live tracker; derived views were not read",
         )
-        return 1 if remainder and rc == 0 else rc
+        return rc
     outcomes = tuple(
         row.get("outcome", "") for row in delta.get("add_packets", [])
         if isinstance(row, dict)
+    )
+    outcomes += tuple(
+        row.get("no_work", "") for row in delta.get("review_adrs", [])
+        if isinstance(row, dict) and isinstance(row.get("no_work"), str)
     )
     rc = publish_body(
         tracker,
@@ -1797,7 +2091,7 @@ def _apply_delta_under_lock(tracker, args, issue_number: int) -> int:
                 findings,
                 "reconciled state block and live tracker; derived views were not read",
             )
-    return 1 if remainder and rc == 0 else rc
+    return rc
 
 
 def cmd_init(tracker, args) -> int:
@@ -1872,7 +2166,7 @@ def cmd_audit(tracker, args) -> int:
     issue = locate_map(tracker)
     state = extract_state(issue["body"])
     live = Live(tracker, state)
-    findings = validate_shape(state) + validate_against_live(state, live)
+    findings = check_findings(state, live, head=tracker.default_branch_head())
     published = issue["body"]
     stamp_problem = producer_stamp_problem(published)
     if stamp_problem is not None:
@@ -1884,7 +2178,7 @@ def cmd_audit(tracker, args) -> int:
         live,
         {
             "commit": recorded_commit,
-            "producer_commit": checkout_commit(),
+            "producer_identity": producer_identity(),
             "date": "AUDIT",
         },
     )
@@ -1900,13 +2194,6 @@ def cmd_audit(tracker, args) -> int:
                 f"section {name!r} on the tracker differs from a fresh render; "
                 "run publish",
             ))
-    head = tracker.default_branch_head()
-    if recorded_commit not in ("?",) and not head.startswith(recorded_commit[:7]):
-        findings.append(Finding(
-            "stale-snapshot",
-            f"recorded commit {recorded_commit} is not the default-branch head "
-            f"{head}; the map has not been reconciled since",
-        ))
     print(f"map: issue #{issue['number']}")
     return report(
         findings,
@@ -1973,6 +2260,16 @@ def build_parser() -> argparse.ArgumentParser:
     p_delta.add_argument("--delta", help="reviewed delta JSON file")
     p_delta.add_argument("--ticket", type=int, help="additively place one ready ticket")
     p_delta.add_argument("--outcome", help="authored outcome for --ticket")
+    p_delta.add_argument(
+        "--review-adr",
+        action="append",
+        default=[],
+        help="repository-relative ADR path reviewed by this delta; repeatable",
+    )
+    p_delta.add_argument(
+        "--no-work",
+        help="authored sentence required when an ADR review changes no packet",
+    )
     p_delta.add_argument("--dry-run", action="store_true")
     p_delta.add_argument("--commit")
     p_delta.add_argument("--date")

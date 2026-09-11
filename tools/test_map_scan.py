@@ -38,10 +38,10 @@ def map_body(state, *, pointer=True, state_prefix="", stamp=True):
         else "## Maintenance rule\nMaintenance asks somebody to remember the reconciliation."
     )
     payload = json.dumps(state, indent=2, sort_keys=True)
-    producer_commit = map_scan.implementation_map.checkout_commit()
+    producer_hash = map_scan.implementation_map.producer_identity()
     snapshot = (
         "\n## Snapshot\n\n- default-branch commit: `abc1234`\n"
-        f"- producer: `tools/implementation_map.py at {producer_commit}`\n"
+        f"- producer: `tools/implementation_map.py sha256:{producer_hash}`\n"
         if stamp
         else ""
     )
@@ -69,7 +69,7 @@ class ScannerCase(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name)
-        subprocess.run(["git", "init", "-q"], cwd=self.root, check=True)
+        subprocess.run(["git", "init", "-q", "-b", "main"], cwd=self.root, check=True)
         subprocess.run(
             ["git", "config", "user.email", "tests@example.invalid"],
             cwd=self.root,
@@ -190,7 +190,126 @@ class ReconciliationObligation(ScannerCase):
         self.assertEqual(code, map_scan.FOUND)
         self.assertIn("unreconciled-adr", stdout)
         self.assertIn("ticket #596", stdout)
-        self.assertNotIn("Decision", stdout)
+        self.assertIn("ADR 0001", stdout)
+
+    def test_a_reviewed_adr_after_the_floor_is_clean(self):
+        self.add_adr_commit()
+        value = state(self.anchor)
+        head = subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=self.root, check=True,
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
+        ).stdout.strip()
+        value["adr_reviews"] = [
+            {"adr": "docs/adr/0001-decision.md", "commit": head, "no_work": "No packet changes."}
+        ]
+
+        code, stdout, _ = self.run_scan([self.map_issue(value)])
+
+        self.assertEqual(code, map_scan.CLEAN, stdout)
+
+    def test_a_correction_to_an_existing_adr_loads_that_adr_again(self):
+        path = self.root / "docs" / "adr" / "0001-decision.md"
+        path.write_text("# Original\n", encoding="utf-8")
+        subprocess.run(["git", "add", "."], cwd=self.root, check=True)
+        subprocess.run(["git", "commit", "-qm", "original ADR"], cwd=self.root, check=True)
+        floor = subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=self.root, check=True,
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
+        ).stdout.strip()
+        path.write_text("# Corrected\n", encoding="utf-8")
+        subprocess.run(["git", "commit", "-qam", "correct ADR"], cwd=self.root, check=True)
+
+        code, stdout, _ = self.run_scan([self.map_issue(state(floor))])
+
+        self.assertEqual(code, map_scan.FOUND)
+        self.assertIn("ADR 0001", stdout)
+
+    def test_an_old_review_cannot_discharge_a_correction_held_above_another_adr(self):
+        first = self.root / "docs" / "adr" / "0001-first.md"
+        first.write_text("# First\n", encoding="utf-8")
+        subprocess.run(["git", "add", "."], cwd=self.root, check=True)
+        subprocess.run(["git", "commit", "-qm", "first ADR"], cwd=self.root, check=True)
+        first_commit = subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=self.root, check=True,
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
+        ).stdout.strip()
+        second = self.root / "docs" / "adr" / "0002-second.md"
+        second.write_text("# Second\n", encoding="utf-8")
+        subprocess.run(["git", "add", "."], cwd=self.root, check=True)
+        subprocess.run(["git", "commit", "-qm", "second ADR"], cwd=self.root, check=True)
+        first.write_text("# First corrected\n", encoding="utf-8")
+        subprocess.run(["git", "commit", "-qam", "correct first ADR"], cwd=self.root, check=True)
+        value = state(self.anchor)
+        value["adr_reviews"] = [
+            {"adr": "docs/adr/0001-first.md", "commit": first_commit, "no_work": "No work."}
+        ]
+
+        advanced = map_scan.implementation_map.advance_reconciliation_floor(value, self.root)
+        unreviewed = map_scan.implementation_map.unreconciled_adrs(advanced, self.root)
+
+        self.assertNotIn(
+            "docs/adr/0001-first.md",
+            {row["adr"] for row in advanced["adr_reviews"]},
+        )
+        self.assertIn("docs/adr/0001-first.md", unreviewed)
+
+    def test_a_branch_that_merged_main_owns_only_its_own_adr(self):
+        subprocess.run(["git", "switch", "-qc", "feature"], cwd=self.root, check=True)
+        feature_adr = self.root / "docs" / "adr" / "0002-feature.md"
+        feature_adr.write_text("# Feature\n", encoding="utf-8")
+        subprocess.run(["git", "add", "."], cwd=self.root, check=True)
+        subprocess.run(["git", "commit", "-qm", "feature ADR"], cwd=self.root, check=True)
+        subprocess.run(["git", "switch", "main"], cwd=self.root, check=True, capture_output=True)
+        (self.root / "docs" / "adr").mkdir(parents=True, exist_ok=True)
+        main_adr = self.root / "docs" / "adr" / "0001-main.md"
+        main_adr.write_text("# Main\n", encoding="utf-8")
+        subprocess.run(["git", "add", "."], cwd=self.root, check=True)
+        subprocess.run(["git", "commit", "-qm", "main ADR"], cwd=self.root, check=True)
+        floor = subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=self.root, check=True,
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
+        ).stdout.strip()
+        subprocess.run(["git", "switch", "feature"], cwd=self.root, check=True, capture_output=True)
+        subprocess.run(["git", "merge", "--no-edit", "main"], cwd=self.root, check=True, capture_output=True)
+        subprocess.run(["git", "switch", "main"], cwd=self.root, check=True, capture_output=True)
+        subprocess.run(["git", "merge", "--no-ff", "--no-edit", "feature"], cwd=self.root, check=True, capture_output=True)
+
+        code, stdout, _ = self.run_scan([self.map_issue(state(floor))])
+
+        self.assertEqual(code, map_scan.FOUND)
+        self.assertIn("ADR 0002", stdout)
+        self.assertNotIn("ADR 0001", stdout)
+
+    def test_out_of_order_reviews_are_retained_until_the_floor_can_pass_both(self):
+        first = self.root / "docs" / "adr" / "0001-first.md"
+        first.write_text("# First\n", encoding="utf-8")
+        subprocess.run(["git", "add", "."], cwd=self.root, check=True)
+        subprocess.run(["git", "commit", "-qm", "first ADR"], cwd=self.root, check=True)
+        second = self.root / "docs" / "adr" / "0002-second.md"
+        second.write_text("# Second\n", encoding="utf-8")
+        subprocess.run(["git", "add", "."], cwd=self.root, check=True)
+        subprocess.run(["git", "commit", "-qm", "second ADR"], cwd=self.root, check=True)
+        value = state(self.anchor)
+        head = subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=self.root, check=True,
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
+        ).stdout.strip()
+        value["adr_reviews"] = [
+            {"adr": "docs/adr/0002-second.md", "commit": head, "no_work": "No work."}
+        ]
+
+        held = map_scan.implementation_map.advance_reconciliation_floor(value, self.root)
+        held["adr_reviews"].append(
+            {"adr": "docs/adr/0001-first.md", "commit": head, "no_work": "No work."}
+        )
+        advanced = map_scan.implementation_map.advance_reconciliation_floor(held, self.root)
+
+        self.assertEqual(held["reconciled_through"], self.anchor)
+        self.assertEqual(advanced["reconciled_through"], subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=self.root, check=True,
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
+        ).stdout.strip())
+        self.assertEqual(advanced["adr_reviews"], [])
 
     def test_a_missing_anchor_is_not_a_clean_scan(self):
         value = state(self.anchor)

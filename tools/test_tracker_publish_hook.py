@@ -1665,10 +1665,11 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
     def test_a_map_stamped_issue_body_is_not_graded_for_the_line(self) -> None:
         index = phi_scan.build_index(set(), set())
         commit = "a" * 40
+        producer = "b" * 64
         body = (
             "<!-- implementation-map:v1:state:end -->\n\n"
             "## Snapshot\n"
-            f"- producer: `tools/implementation_map.py at {commit}`\n"
+            f"- producer: `tools/implementation_map.py sha256:{producer}`\n"
             f"- default-branch commit: `{commit}`\n"
         )
         with tempfile.TemporaryDirectory() as temporary:
@@ -1683,7 +1684,7 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
                 mock.patch.object(hook, "fetch_readback"),
                 mock.patch.object(hook, "write_marker"),
                 mock.patch(
-                    "implementation_map.checkout_commit", return_value=commit
+                    "implementation_map.producer_identity", return_value=producer
                 ),
             ):
                 response = hook.handle(
