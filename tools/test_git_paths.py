@@ -30,6 +30,7 @@ MOCK_EXPECTATION_METHODS = {
     "assert_not_awaited",
     "assert_not_called",
 }
+MOCK_CONSTRUCTORS = {"AsyncMock", "MagicMock", "Mock", "NonCallableMock"}
 COMPREHENSION_SCOPES = (ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp)
 
 
@@ -107,6 +108,11 @@ def _scope_bindings(
                     kind = "unittest_mock_module"
                 elif node.module == "unittest.mock" and alias.name == "patch":
                     kind = "mock_patch"
+                elif (
+                    node.module == "unittest.mock"
+                    and alias.name in MOCK_CONSTRUCTORS
+                ):
+                    kind = "mock_constructor"
                 else:
                     kind = "other"
                 bind(name, kind, alias)
@@ -210,14 +216,30 @@ def _resolves_to_import(
 def _enclosing_scopes(
     subject: ast.AST, parents: dict[ast.AST, ast.AST]
 ) -> list[ast.AST]:
+    def is_within(roots: list[ast.AST]) -> bool:
+        ancestor: ast.AST | None = subject
+        while ancestor is not None:
+            if ancestor in roots:
+                return True
+            ancestor = parents.get(ancestor)
+        return False
+
     scopes: list[ast.AST] = []
     node: ast.AST | None = subject
     inside_function = False
     while node is not None:
-        is_function = isinstance(
+        is_function_node = isinstance(
             node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)
         )
-        is_visible_class = isinstance(node, ast.ClassDef) and not inside_function
+        function_body = [node.body] if isinstance(node, ast.Lambda) else getattr(
+            node, "body", []
+        )
+        is_function = is_function_node and is_within(function_body)
+        is_visible_class = (
+            isinstance(node, ast.ClassDef)
+            and not inside_function
+            and is_within(node.body)
+        )
         if is_function:
             inside_function = True
         is_comprehension_scope = isinstance(node, COMPREHENSION_SCOPES)
@@ -335,6 +357,32 @@ def _patch_call_uses_unittest_mock(
     )
 
 
+def _mock_constructor_uses_unittest_mock(
+    call: ast.Call,
+    parents: dict[ast.AST, ast.AST],
+    binding_cache: dict[
+        ast.AST, dict[str, list[tuple[tuple[int, int], str]]]
+    ],
+) -> bool:
+    function = call.func
+    if isinstance(function, ast.Name):
+        return _resolves_to_import(
+            function.id, "mock_constructor", call, parents, binding_cache
+        )
+    return (
+        isinstance(function, ast.Attribute)
+        and function.attr in MOCK_CONSTRUCTORS
+        and isinstance(function.value, ast.Name)
+        and _resolves_to_import(
+            function.value.id,
+            "unittest_mock_module",
+            call,
+            parents,
+            binding_cache,
+        )
+    )
+
+
 def _resolves_to_mock_object(
     name: str,
     call: ast.Call,
@@ -343,14 +391,76 @@ def _resolves_to_mock_object(
         ast.AST, dict[str, list[tuple[tuple[int, int], str]]]
     ],
 ) -> bool:
+    call_position = _position(call)
+
+    def binding_survives(scope: ast.AST, candidate: ast.AST) -> bool:
+        bindings = binding_cache.setdefault(scope, _scope_bindings(scope))
+        candidate_position = _position(candidate)
+        return not any(
+            candidate_position < position <= call_position
+            for position, _kind in bindings.get(name, [])
+        )
+
     for scope in _enclosing_scopes(call, parents):
         if isinstance(scope, COMPREHENSION_SCOPES):
             continue
+        if isinstance(scope, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            patch_decorators = [
+                decorator
+                for decorator in scope.decorator_list
+                if isinstance(decorator, ast.Call)
+                and _patch_call_uses_unittest_mock(
+                    decorator, parents, binding_cache
+                )
+                and len(decorator.args) < 2
+                and not any(
+                    keyword.arg == "new" for keyword in decorator.keywords
+                )
+            ]
+            positional = [*scope.args.posonlyargs, *scope.args.args]
+            injected = (
+                positional[-len(patch_decorators) :] if patch_decorators else []
+            )
+            for argument in injected:
+                if argument.arg == name and binding_survives(scope, argument):
+                    return True
         for node in ast.walk(scope):
-            if not isinstance(node, (ast.With, ast.AsyncWith)):
-                continue
             node_scopes = _enclosing_scopes(node, parents)
             if not node_scopes or node_scopes[0] is not scope:
+                continue
+            assigned_value: ast.AST | None = None
+            assigned_target: ast.AST | None = None
+            if isinstance(node, ast.Assign):
+                named_targets = [
+                    target for target in node.targets if isinstance(target, ast.Name)
+                ]
+                if len(named_targets) == 1 and named_targets[0].id == name:
+                    assigned_target = named_targets[0]
+                    assigned_value = node.value
+            elif (
+                isinstance(node, ast.AnnAssign)
+                and isinstance(node.target, ast.Name)
+                and node.target.id == name
+            ):
+                assigned_target = node.target
+                assigned_value = node.value
+            elif (
+                isinstance(node, ast.NamedExpr)
+                and isinstance(node.target, ast.Name)
+                and node.target.id == name
+            ):
+                assigned_target = node.target
+                assigned_value = node.value
+            if (
+                assigned_target is not None
+                and isinstance(assigned_value, ast.Call)
+                and _mock_constructor_uses_unittest_mock(
+                    assigned_value, parents, binding_cache
+                )
+                and binding_survives(scope, assigned_target)
+            ):
+                return True
+            if not isinstance(node, (ast.With, ast.AsyncWith)):
                 continue
             if node.lineno > call.lineno:
                 continue
@@ -363,16 +473,7 @@ def _resolves_to_mock_object(
                         item.context_expr, parents, binding_cache
                     )
                 ):
-                    target_position = _position(item.optional_vars)
-                    call_position = _position(call)
-                    bindings = binding_cache.setdefault(
-                        scope, _scope_bindings(scope)
-                    )
-                    rebound = any(
-                        target_position < position <= call_position
-                        for position, _kind in bindings.get(name, [])
-                    )
-                    if not rebound:
+                    if binding_survives(scope, item.optional_vars):
                         return True
     return False
 
@@ -690,6 +791,37 @@ class Reader:
 import git_paths as paths
 paths.read_path_records(ROOT, "ls-files", "-z")
 paths = probe
+"""
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "test_reader.py").write_text(source, encoding="utf-8")
+
+            self.assertEqual(shared_reader_offenders(root), [])
+
+    def test_mock_constructors_and_patch_decorators_create_mock_receivers(self):
+        source = """\
+from unittest import mock
+run = mock.Mock()
+run.assert_called_with(["git", "ls-files"])
+@mock.patch("target")
+def test_reader(patched):
+    patched.assert_called_once_with(["git", "ls-files"])
+"""
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "test_reader.py").write_text(source, encoding="utf-8")
+
+            self.assertEqual(shared_reader_offenders(root), [])
+
+    def test_definition_time_expressions_use_the_enclosing_import(self):
+        source = """\
+import git_paths as paths
+@decorate(paths.read_path_records(ROOT, "ls-files", "-z"))
+def decorated(paths):
+    pass
+def defaulted(paths=None, value=paths.read_path_records(ROOT, "ls-files", "-z")):
+    pass
+lambda paths=None, value=paths.read_path_records(ROOT, "ls-files", "-z"): None
 """
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
