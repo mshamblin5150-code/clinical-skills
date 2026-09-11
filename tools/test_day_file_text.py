@@ -200,7 +200,7 @@ class DayFileTextCommand(unittest.TestCase):
                     )
                 self.assertEqual(status, 2)
                 self.assertEqual(stdout.getvalue(), "")
-                self.assertIn(str(self.source), stderr.getvalue())
+                self.assertIn(str(self.source.resolve()), stderr.getvalue())
                 self.assertNotIn("secret engine detail", stderr.getvalue())
                 self.assertFalse((self.scratch / "runs" / "shift-2026-09-12").exists())
 
@@ -211,7 +211,7 @@ class DayFileTextCommand(unittest.TestCase):
 
         self.assertEqual(status, 2)
         self.assertEqual(output, "")
-        self.assertIn(str(self.source), errors)
+        self.assertIn(str(self.source.resolve()), errors)
         self.assertFalse(self.corpus_file().exists())
         self.assertFalse(self.day_directory().exists())
 
