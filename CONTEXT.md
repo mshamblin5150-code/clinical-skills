@@ -721,7 +721,7 @@ The word *step* and the number after it in prose, resolved to the skill whose nu
 _Avoid_: step reference, step link, cross-reference
 
 **Declared narrower reader**:
-A reader kept deliberately weaker than a shared reader of the same form, whose gap is written down as a **declared limit** of the check that uses it. It is chosen where converging would change what that check decides and no recorded defect asks for the change. Distinct from a **refusal**, which says a shared runner cannot express a module at all rather than that a better reader was declined.
+A reader kept deliberately weaker than a shared reader of the same form, whose gap is written down as a **declared limit** of the check that uses it. It is chosen where converging would change what that check decides and no recorded defect asks for the change. Distinct from a **refusal**, which is a verdict about what a shared runner can express rather than a choice between two readers.
 _Avoid_: weak reader, legacy parser, duplicate parser
 
 **Disclosure class**:
