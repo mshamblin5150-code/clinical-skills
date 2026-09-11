@@ -26,8 +26,11 @@ workflow or document reads it.
 ### A per-ticket label audit cannot see a missing row
 
 Sweep comments on #921, #874, #875, #836 and #837 each say the ticket's labels are correct, naming
-`codebase-architecture` among them, while `triage-labels.md` had no row for it. A sweep on #897 flagged
-that ticket for *lacking* the label, because the other tickets in that sweep carried it. A check of
+`codebase-architecture` among them, while `triage-labels.md` had no row for it. A sweep comment on #897
+treated the label as an expected slot. It called that ticket's `needs-triage` stale on the ground that
+every other ticket in the sweep carried `codebase-architecture` in that position. *Corrected 2026-09-10:
+this sentence first said the sweep flagged #897 for lacking the label, and the comment says no such
+thing. Found by the session's own tracker sweep.* A check of
 each ticket's labels passed at least five times over a label absent from the vocabulary. It compares a
 ticket's labels to one another and to the rows that exist, so a label with no row does not appear in
 anything it reads.
