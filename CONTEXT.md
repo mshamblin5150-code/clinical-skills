@@ -717,7 +717,7 @@ A path in a tracked Markdown file naming another tracked file or directory, dist
 _Avoid_: citation, URL, cross-reference
 
 **Step citation**:
-The word *step* and the number after it in prose, resolved to the skill whose numbered section it names: the one written just before it, the one carried from an earlier citation in the same paragraph, or the skill the file belongs to. It can name a section that was deleted or renumbered, which is what makes it worth resolving. Distinct from a **relative link**, which names a file, and from a **citation**, which is tracker text.
+The word *step* and the number after it in prose, resolved to the skill whose numbered section it names: the one written just before it, the one carried from an earlier citation in the same paragraph with no other skill named in between, or the skill the file belongs to. Resolving it catches a citation to a section that no longer exists, and not one renumbered into another section that does. Distinct from a **relative link**, which names a file, and from a **citation**, which is a ticket reference.
 _Avoid_: step reference, step link, cross-reference
 
 **Declared narrower reader**:

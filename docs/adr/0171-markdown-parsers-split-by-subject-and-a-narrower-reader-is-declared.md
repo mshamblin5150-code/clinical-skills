@@ -4,8 +4,8 @@
 [#835](https://github.com/mshamblin5150-code/clinical-skills/issues/835)'s grilling, 2026-09-09.
 [ADR 0158](0158-the-prose-bind-is-one-instrument-and-its-rule-carries-an-identity.md) ruling 6 sent
 the general-purpose Markdown parsers in `tools/test_skill_agreement.py` out of that module and left
-their destination open. Nothing imports a test module, so the tree's only ruling-ordinal parser and
-its strongest link resolver were unreachable from any tool.
+their destination open. No tool imports a test module, and nothing imports `test_skill_agreement`, so
+the tree's only ruling-ordinal parser and its strongest link resolver were unreachable from any tool.
 
 Grilled 2026-09-11 at `origin/main` `d148087`. Every figure below was measured at that commit unless
 it names another source.
@@ -30,45 +30,51 @@ ruling-citation resolver. Three more readers belong to the same subject:
   population.
 
 A tree-wide search for the ruling heading and item patterns finds them in `test_skill_agreement.py`
-alone, so `ruling_ordinals` is the only implementation of its kind.
+alone, so `ruling_ordinals` is the only implementation of its kind that a pattern search can find.
 
 ### What the moving code reads from the module it leaves
 
-A walk of each moving definition's syntax tree, collecting every module-level name it reads, finds
-one name that stays: `exemptions` reads `EXEMPT_MARKER`. The same walk over the four liveness classes
-finds four cases reading stay-behind logic, listed under ruling 6; every other name those classes
-read from the module is `REPO_ROOT` or the file reader `read`. The walk reads names rather than calls,
-so it reports a constant such as `STEP_HEADING`; a search for call syntax would not have.
+A walk of each moving definition's syntax tree, collecting every name it reads that the module itself
+defines, finds one name that stays: `exemptions` reads `EXEMPT_MARKER`. The same walk over the four
+liveness classes finds four cases reading stay-behind logic, listed under ruling 6; every other
+module-defined name those classes read is `REPO_ROOT` or the file reader `read`. The walk reads names
+rather than calls, so it reports a constant such as `STEP_HEADING`; a search for call syntax would
+not have. It does not count imported names.
 
 ### Corrections to the ticket's own account
 
 - `paragraphs` and `exemptions` are not exercised only transitively. A case-study test calls
   `paragraphs` directly and the escape-hatch ceiling assertion calls `exemptions` directly. What is
   true is narrower: none of the three substrate readers has a liveness class of its own.
-- The ruling-citation liveness class is `TheRulingCitationResolverIsLive`.
-- `TheDeadLinkResolverIsLive` is synthetic end to end. The only real-tree read of the link resolver is
-  `EveryRelativeLinkResolvesToAnIndexedPath`, a gate over the skill-agreement population.
+- Every case of `TheDeadLinkResolverIsLive` that drives the link resolver is synthetic. Its one
+  real-tree case tests `graded_files`, and ruling 6 keeps it with that helper. The only real-tree read
+  of the link resolver is `EveryRelativeLinkResolvesToAnIndexedPath`, a gate over the skill-agreement
+  population.
 
 ### The publish gate's link reader, against the population it reads
 
-`tracker_branch_scope.REPO_RELATIVE_MARKDOWN_PATH` grades published tracker text, so its agreement
-with `markdown_targets` over tracked files measured a different population. Against four destination
-forms:
+`tracker_branch_scope.REPO_RELATIVE_MARKDOWN_PATH` feeds the `branch:repo-relative-link` rule, which
+refuses every repository-relative Markdown link in tracker text, because such a link resolves against
+the issue URL rather than the repository. It is a refusal of the form, not a check that the path
+exists. Its agreement with `markdown_targets` over tracked files measured a different population.
+Driven through the gate's `grade` on a synthetic comment:
 
-| form | the publish gate's reader |
-| --- | --- |
-| a title after the destination | reads the path correctly |
-| a nested parenthesis | truncates; already declared in `tracker_branch_scope.NOT_REACHED` |
-| an angle-bracket destination | reads nothing; undeclared |
-| a reference-style link | reads nothing; undeclared |
+| form | the gate's reader | the refusal |
+| --- | --- | --- |
+| a title after the destination | reads the path correctly | fires |
+| a nested parenthesis | truncates the path | fires |
+| an angle-bracket destination without whitespace | reads it with its brackets | fires |
+| an angle-bracket destination containing whitespace | reads nothing | does not fire; undeclared |
+| a reference-style link definition | reads nothing | does not fire; undeclared |
 
 The 2026-09-10 sweep harvest holds 6,205 non-empty title and body fields across the issues endpoint
 and issue comments. Across them, `markdown_targets` read no repository-relative destination that the
-publish gate's reader missed. A control proves `markdown_targets` reads a reference-style link the
-gate's reader does not, so had any field carried a citation in one of the two silent forms, that
-column would not have been empty. Differences in the other direction were weak-only; the one audited
-is a link inside a code span, which `markdown_targets` masks and the raw pattern does not. The gate
-masks code before it extracts.
+gate's reader missed, and a raw count finds no field carrying an angle-bracket destination or a
+reference-style definition. A control proves `markdown_targets` reads a reference-style link the
+gate's reader does not, so a field carrying either silent form would have appeared. In the other
+direction, the gate's unmasked pattern read something `markdown_targets` did not in 19 fields; the one
+audited is a link inside a code span, which `markdown_targets` masks, and the gate masks code before it
+extracts.
 
 ## Ruling 1. Two modules, split by subject
 
@@ -79,20 +85,22 @@ splitter.
 
 `markdown_read` receives `unfenced_lines`, `paragraphs`, `MarkdownTarget`, `markdown_targets` with its
 private destination helpers, `dead_links`, the exemption reader under ruling 2, and the step reader
-under ruling 5. `adr_read` receives `ruling_ordinals` with its heading and item patterns,
-`RulingCitation`, `ruling_citations`, `unresolved_ruling_citations`, and `RULING_EXEMPT_MARKER`.
+under ruling 5. `adr_read` receives `ruling_ordinals`, `RulingCitation`, `ruling_citations`,
+`unresolved_ruling_citations`, and `RULING_EXEMPT_MARKER`. Each module also receives every module-level
+pattern its definitions read.
 
 `walk_ruling_citations` and `declared_rulings` stay in `test_skill_agreement.py`: each walks a
-population, and a walk stays beside the check that uses it
+population the test module grades, and a walk's population is named where it is used
 ([ADR 0165](0165-tests-list-git-paths-through-git-paths-and-no-shared-tree-reader-is-built.md)
 ruling 2). `ruling_shape_findings` and the other ruling-shape assertion helpers stay with the
-assertions they serve. Anything this record does not name as moving stays.
+assertions they serve. Anything else this record does not name as moving stays.
 
-Both are libraries with no command. Each arrives with a limits object, because each has a real
-boundary to state
-([ADR 0167](0167-the-limits-walk-reads-a-declared-name-list-and-a-module-without-limits-is-declared.md)
-ruling 3). ADR 0167 ruling 5 obliges a no-copy bind on each object, and ADR 0167 ruling 8 classifies
-any new constant that looks like one.
+Both are libraries with no command. Each arrives with a limits object rather than a no-limits entry,
+the choice
+[ADR 0167](0167-the-limits-walk-reads-a-declared-name-list-and-a-module-without-limits-is-declared.md)
+ruling 3 requires every non-test module to make, because each has a real boundary to state. ADR 0167
+ruling 5 obliges a no-copy bind on each object, and ADR 0167 ruling 8 classifies any new constant that
+looks like one.
 
 ## Ruling 2. The substrate is public, and the two exemption readers become one
 
@@ -117,20 +125,23 @@ inferring it, though that ruling concerned the mode of a prose bind rather than 
 
 No recorded defect asks for this. It is made because the module's thesis is that general-purpose
 Markdown parsers leave it, and a weaker one would otherwise stay. It is a measured no-op on today's
-`README.md`. It widens the gate to angle-bracket, reference-style, parenthesized and titled
-destinations, and narrows it in one direction: `markdown_targets` masks code, so a link written inside
-a code span stops being read as a link, while the code-token reader still reads the span.
+`README.md`. It adds angle-bracket and reference-style destinations the regex did not read as paths,
+and reads parenthesized and titled destinations correctly where the regex read a wrong path. It
+narrows the gate in one direction: `markdown_targets` masks code, so a link inside a code span or a
+fenced block stops being read as a link. The code-token reader still reads a code span, and nothing
+reads a fenced block.
 
 ## Ruling 4. The publish gate keeps its reader and declares the two silent forms
 
 `tracker_branch_scope` takes neither `markdown_targets` nor `dead_links`.
-`tracker_branch_scope.NOT_REACHED` gains two rows: an angle-bracket destination and a reference-style
-link each read as no citation, so a dead citation written either way publishes ungraded.
+`tracker_branch_scope.NOT_REACHED` gains two rows: a reference-style link definition, and an
+angle-bracket destination containing whitespace, each read as no repository-relative link, so a
+relative link written either way publishes without the refusal.
 
 The gate's reader is a declared narrower reader. No field in the harvest carried either form, and
-converging would change what a publication gate decides on no recorded defect. If a missed citation
-is recorded, converging is the remedy, and the harvest measurement above is its baseline rather than
-its justification.
+converging would change what a publication gate decides on no recorded defect. If such a link is
+recorded escaping the refusal, converging is the remedy, and the harvest measurement above is its
+baseline rather than its justification.
 
 ## Ruling 5. The step reader moves under neutral names
 
@@ -186,15 +197,17 @@ they grade. The new case names its population where it reads it, on ADR 0165 rul
 - **Converging the publish gate.** See ruling 4.
 - **A prose pointer in place of a real-tree case.** A pointer fails nothing when either side changes.
 - **Moving the helpers a stay-behind case tests.** `declared_steps` and `graded_files` are skill
-  vocabulary and population, `ruling_shape_findings` is an assertion, and `declared_rulings` is a walk
-  that stays beside its check.
+  vocabulary and population, `ruling_shape_findings` is an assertion, and `declared_rulings` walks a
+  population the test module grades.
 - **A new test module importing `test_skill_agreement`.** It rebuilds the inversion this record
   removes.
 
 ## What this does not reach
 
 - Whether a resolving link points at the right section. Every reader here tests membership only.
-- A citation written in code, which every reader here masks as a mention.
+- A citation written in code. `markdown_targets` masks code spans and fenced blocks as mentions; the
+  step-citation and ruling-citation readers mask neither, and `ruling_ordinals` masks fenced blocks
+  only.
 - Paragraph splitting in `docx_write`, which has a different contract.
 - A dependency assembled at run time, which the syntax-tree walk behind rulings 2 and 6 cannot see.
 - Any change to what a moved parser returns. Only ruling 3 changes a gate's input, and ruling 5 renames
