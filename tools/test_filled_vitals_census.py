@@ -29,12 +29,78 @@ from pathlib import Path
 import filled_vitals_census as fvc
 import grader_conformance
 import run_grader
+from prose_bind import NAMING, bind, section
 
 
 GraderConformance = grader_conformance.for_module(fvc)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 NOTES = REPO_ROOT / "fixtures" / "filled-anchor" / "notes"
+
+
+class TheDeclaredLimitsObjectOwnsBothProseSurfaces(unittest.TestCase):
+    POINTER = "filled_vitals_census.DECLARED_LIMITS"
+
+    def test_docstring_and_claude_section_each_point_once_without_copying_rows(self):
+        claude = section((REPO_ROOT / "CLAUDE.md").read_text(encoding="utf-8"), "### Filled-vitals census")
+        for surface in (fvc.__doc__ or "", claude):
+            with self.subTest(surface=surface[:40]):
+                self.assertEqual(1, surface.count(self.POINTER))
+                self.assertEqual((), bind(fvc.DECLARED_LIMITS, surface, mode=NAMING))
+
+    def test_the_partition_is_one_declared_reading_and_seven_behaviors(self):
+        dispositions = [row[2] for row in fvc.DECLARED_LIMITS]
+        self.assertEqual(1, dispositions.count(run_grader.EvidenceDisposition.DECLARED_READING))
+        self.assertEqual(7, dispositions.count(run_grader.EvidenceDisposition.BEHAVIOR))
+        self.assertTrue(all(subject and reason for subject, reason, _ in fvc.DECLARED_LIMITS))
+
+
+class EveryBehaviorLimitHasALiveControl(unittest.TestCase):
+    CONTROLS = {
+        "recognized height and weight units": "DeclaredLimitBoundaryControls.test_metric_body_values_are_unread_beside_recognized_units",
+        "recognized FILLED-asserted key lines": "DeclaredLimitBoundaryControls.test_an_unrecognized_key_is_invisible_beside_a_readable_note",
+        "sentence punctuation inside a declaration": "DeclaredLimitBoundaryControls.test_sentence_punctuation_interrupts_a_declaration",
+        "column-zero tier words": "TheTwoBoundariesAreLooseInOppositeDirections.test_a_prose_line_starting_filled_closes_rather_than_opens",
+        "height person-clause boundary": "AFilledHeightNamesTheAgeAndTheSex.test_the_scope_is_the_height_declaration_and_not_the_whole_block",
+        "next-vital declaration boundary": "Declarations.test_a_later_vitals_filled_marker_does_not_declare_the_pressure",
+        "shared declaration grammar and loose pain-score shape": "TheCensusSeesTheOtherVitalClasses.test_a_filled_severity_is_counted",
+    }
+
+    def test_each_behavior_subject_names_a_passing_control(self):
+        behavior = {subject for subject, _, disposition in fvc.DECLARED_LIMITS if disposition is run_grader.EvidenceDisposition.BEHAVIOR}
+        self.assertEqual(behavior, set(self.CONTROLS))
+        for subject, name in self.CONTROLS.items():
+            result = unittest.TestResult()
+            unittest.defaultTestLoader.loadTestsFromName(f"test_filled_vitals_census.{name}").run(result)
+            self.assertTrue(result.wasSuccessful(), f"{subject}: {result.errors + result.failures}")
+
+
+class DeclaredLimitBoundaryControls(unittest.TestCase):
+    def test_metric_body_values_are_unread_beside_recognized_units(self):
+        metric = fvc.read_fill(
+            "FILLED·asserted   HEIGHT 178 cm filled. WEIGHT 82 kg filled.\n"
+        )
+        recognized = fvc.read_fill(
+            "FILLED·asserted   HEIGHT 70 in filled. WEIGHT 181 lb filled.\n"
+        )
+        self.assertEqual((None, None), (metric.height_in, metric.weight_lb))
+        self.assertEqual((70, 181), (recognized.height_in, recognized.weight_lb))
+
+    def test_an_unrecognized_key_is_invisible_beside_a_readable_note(self):
+        result = fvc.survey(
+            [
+                "FILLEDÂ·asserted   HEIGHT 70 in filled. WEIGHT 181 lb filled.\n",
+                "FILLED·asserted   BP 118/76 filled.\n",
+            ]
+        )
+        self.assertEqual((2, 0, 0, 1), (result.notes, result.heights, result.weights, result.pressures))
+        self.assertEqual((1, 1), (result.asserted_keys, result.asserted_keys_read))
+
+    def test_sentence_punctuation_interrupts_a_declaration(self):
+        stopped = fvc.read_fill("FILLED·asserted   BP 118/76. filled.\n")
+        joined = fvc.read_fill("FILLED·asserted   BP 118/76, filled.\n")
+        self.assertIsNone(stopped.pressure)
+        self.assertEqual((118, 76), joined.pressure)
 
 # day-b's nine vital-less encounters, carried one stage down the pipeline. The
 # other three -- 2, 3 and 4 -- are the given-vitals controls, and the census must
@@ -450,6 +516,24 @@ class Declarations(unittest.TestCase):
             "FILLED·asserted   From the given pulse of 112, BP 138/86 filled.\n"
         )
         self.assertEqual(fill.pressure, (138, 86))
+
+    def test_a_later_vitals_filled_marker_does_not_declare_the_pressure(self):
+        fill = fvc.read_fill(
+            "FILLED·asserted   BP 152/94, HR 88 filled.\n"
+        )
+        self.assertIsNone(fill.pressure)
+
+    def test_given_before_the_next_vital_does_not_borrow_its_filled_marker(self):
+        fill = fvc.read_fill(
+            "FILLED·asserted   BP 152/94 given, HR 88 filled.\n"
+        )
+        self.assertIsNone(fill.pressure)
+
+    def test_given_after_a_filled_pressure_does_not_cancel_it(self):
+        fill = fvc.read_fill(
+            "FILLED·asserted   BP 138/86 filled, from the given pulse of 112.\n"
+        )
+        self.assertEqual((138, 86), fill.pressure)
 
     def test_a_counterfactual_height_is_not_the_filled_one(self):
         """Threshold-proximity disclosures name the adjacent value on purpose."""

@@ -228,6 +228,8 @@ Stdlib only — no package manager and no lockfile, and the census is not worth 
 
 ### Filled-vitals census
 
+The complete boundary of a clean result is declared in `filled_vitals_census.DECLARED_LIMITS`.
+
 The corpus census reads the clinician's shorthand. This one reads **a run's finished notes**, and it exists because [#67](https://github.com/mshamblin5150-code/clinical-skills/issues/67) is a defect no single note contains: nine notes each filling a plausible vital set, and one patient described nine times.
 
 ```bash
@@ -251,13 +253,13 @@ It counts only what a tier block **declares filled** — `clinical-note`'s own `
 
 **#97's own objection was that no N could be grounded, and that was true of a count and false of a false-alarm rate.** The corpus splits about evenly at 130/80, so an honest set of filled pressures should land like that many coin flips; what the clinician chose was **how often an honest run may be failed for nothing** — 2%, putting the cut at 8 of 9. **Six of nine passes deliberately**: it is a coin-flip outcome one time in four, and a bar failing it fires on an honest set at the rate warnings stop being read. **The height half needed no threshold and got none** — repetition is still not graded, because `clinical-note` blesses it where the encounter supplies no habitus datum *and* forbids the only remedy a repetition bar would leave.
 
-**Five vital classes are counted and not graded, and that gap is [#69](https://github.com/mshamblin5150-code/clinical-skills/issues/69)'s.** That ruling turned entirely on a filled temperature and two filled saturations while this tool read neither. It now counts temperature, heart rate, respiratory rate, saturation and pain score — **36 values across the twelve committed notes, against the 27 the graded rows read**, the severity being the one class none of the twelve declares — and grades none of them, the corpus offering no even split to ground a cutoff the way 130/80 grounds the pressure one. Everything else it prints stays R5.
-
 **Run it against `fixtures/filled-anchor/notes` and it exits 1, which is worth knowing before reading a non-zero as breakage.** **5 of its 9 heights name no age and sex and the other 4 already write the compliant form**, two with a percentile; its pressures clear B17, so the exit is the heights alone. **The obvious explanation is wrong and was published wrong first** — that set is day-b run 1, predating drift row 19, so the prediction was that all nine fail. Four do not. The prediction came from two notes during #97's grilling and was corrected by running the scanner over twelve, which is [#137](https://github.com/mshamblin5150-code/clinical-skills/issues/137) a further time and is why the compliant form is worth naming: **B18 asks for something this skill has already produced unprompted.**
 
 Covered by `tools/test_filled_vitals_census.py`, which runs against the twelve committed notes and pins the figures #67, #69 and #97 rest on, so editing that run record fails a test rather than quietly voiding an argument.
 
 ### Specificity scan
+
+The complete boundary of a clean result is declared in `specificity_scan.DECLARED_LIMITS`.
 
 The filled-vitals census reads a `clinical-note` run. This one reads an **`icd10-cpt` run**, and it is `fixtures/filled-anchor` **C5** made runnable — [#56](https://github.com/mshamblin5150-code/clinical-skills/issues/56).
 
@@ -267,11 +269,9 @@ python tools/specificity_scan.py <a run directory>
 
 **One enforced test and one advisory surface.** A `SPECIFICITY` flag must carry substance beyond its keyword — a bare `complete` and a bare `needs:` both fail. A code whose **official descriptor** says `unspecified` or `not specified` may read `complete` only with a substantive reason explaining why nothing the bedside can supply would move it; the scanner counts that shape for a reader and does not fail it automatically. The enforced test is there because *the reason is the evidence the check happened*: nobody writes `Z98.51 has no further axis` without having looked at `Z98.51`'s axes, and anybody can write `complete`.
 
-**The advisory count rests on C2 and is worth knowing about before trusting its figure.** It reads the descriptor sitting beside the flag, which is only meaningful because C2 requires that string be the **verbatim official** one. Against a paraphrase it is a question about the run's wording rather than about the code set. A run that failed C2 can still pass C5's reason test, but the advisory count has not measured the code set's language.
-
 **Counts only by default**, on `filled_vitals_census.py`'s terms and for its reason — a run directory under `scratch/` or `output/` is a patient record, and a code with its descriptor is a diagnosis attached to an encounter. **`--show` output is PHI**: read it, do not paste it.
 
-**Exit status distinguishes not having scanned from having found nothing** — 0 clean, 1 for a C5 failure, **2 for every way of not having scanned**: no directory, no worksheets in it, no argument. That is `guidelines_search.py`'s arrangement rather than `filled_vitals_census.py`'s, because a run whose output landed elsewhere would otherwise report a clean set of flags.
+**Exit status distinguishes not having scanned from having found nothing** — 0 clean, 1 for a C5 failure, **2 for every way of not having scanned**: no directory, no worksheets in it, no argument, no recognized for-entry flag, or recognized for-entry codes with an unread remainder. That is `guidelines_search.py`'s arrangement rather than `filled_vitals_census.py`'s, because a run whose output landed elsewhere would otherwise report a clean set of flags.
 
 Covered by `tools/test_specificity_scan.py`, which builds synthetic worksheets in this file and a temp directory. **That used to be because there was no committed `icd10-cpt` run to test against, and since [#124](https://github.com/mshamblin5150-code/clinical-skills/issues/124) there is** — `fixtures/filled-anchor/run-2/`, twelve worksheets. The tests stay synthetic anyway, on `test_icd10.py`'s reasoning: a test reading the run its own row graded would pass for two reasons, one of them being that the run and the scanner are wrong together. What the committed run buys is that **C5's figure is re-derivable rather than cited** — one command over a directory a reader can open. One test reads `skills/icd10-cpt/SKILL.md` and asserts the template says what the scanner checks, on `test_spelling_scan.py`'s reasoning: a scanner that has drifted from the file a reader opens is worse than none, because it reads as agreement.
 
@@ -323,6 +323,8 @@ Covered by `tools/test_differential_scan.py`, which builds synthetic notes in th
 
 ### Anchor scan
 
+The complete boundary of a clean result is declared in `anchor_scan.DECLARED_LIMITS`.
+
 The differential scan reads a `clinical-note` run. This one reads an **`icd10-cpt`** run again, and it is `fixtures/filled-anchor`'s **ANCHOR** class reduced to the part a machine can settle — [#124](https://github.com/mshamblin5150-code/clinical-skills/issues/124).
 
 ```bash
@@ -331,11 +333,7 @@ python tools/anchor_scan.py <a run directory>
 
 **Two tests, and neither needs a reader.** First, the mark and the listing must agree — every code carrying `SOURCE: filled` appears under `CODED, ANCHOR WAS FILLED`, and every code that block lists carries `SOURCE: filled` on its own entry. **Either direction alone is the failure**, which is `skills/icd10-cpt/SKILL.md`'s *"Both, not one instead of the other"* made runnable. Second, every for-entry pediatric `Z68.5-` band carries the affirmative `CONFIDENCE` line `verified against ICD-10-CM FY2026 and CDC 2022 Extended BMI-for-Age`. [#123](https://github.com/mshamblin5150-code/clinical-skills/issues/123) retired the old test that forbade an ICD-only verification claim and replaced it with this positive evidence that the committed calculator was used; a bare `verify this number`, or a sentence merely naming an unavailable table, fails that test.
 
-**A listing is a line format, not a substring** — `<code> - <value>`, the code pinned at the start of its line by a dash. That is deliberate and it is `fixtures/filled-anchor`'s own *Still unresolved* bullet: a run can write *"`Z68.25` needs no `SOURCE` line, the inputs were given"* **inside** the block, which puts the string exactly where a substring search looks.
-
 **The pre-#46 heading is not this block, and the lookbehind that says so is the load-bearing line in the parser.** Run 1 refused every filled anchor and wrote them under `NOT CODED, ANCHOR WAS FILLED`. A scanner reading that as the new block would report a clean pass for the exact behavior #46 reversed; this one reads a run reproducing run 1 as having **marked nothing** and exits 2.
-
-**A clean scan is not a walked row, and what it cannot reach is most of ANCHOR.** Whether a note's BMI had a filled input, whether `I10` was rightly absent on a filled pressure, whether case 4's `Z68.25` rests on two given values — each compares a worksheet to a note, and **the note is not in the run directory**. A3 in particular is invisible: a run that stopped coding the family altogether marks nothing and reads as unscanned.
 
 **Counts only by default**, on `specificity_scan.py`'s and `differential_scan.py`'s terms and for their reason: a run directory under `scratch/` or `output/` is a patient record, and a code with the value it rests on is a measurement attached to an encounter. **`--show` output is PHI**: read it, do not paste it.
 
@@ -343,6 +341,8 @@ python tools/anchor_scan.py <a run directory>
 
 Covered by `tools/test_anchor_scan.py`, which builds synthetic worksheets in that file and a temp directory. **Unlike its two siblings it now has a committed run to point at as well** — `fixtures/filled-anchor/run-2/`, the first `icd10-cpt` run this repo has kept — but the tests stay synthetic on `test_icd10.py`'s reasoning: a test reading the run it graded would pass for two reasons, one of them being that the run and the grader are wrong together.
 ### Block scan
+
+The complete boundary of a clean result is declared in `block_scan.DECLARED_LIMITS`.
 
 The differential scan reads a `clinical-note` run's differential. This one reads the same run's **tier block**, and it is `fixtures/day-a`'s **F1, F2 and F3** made runnable — [#120](https://github.com/mshamblin5150-code/clinical-skills/issues/120), whose own comment asks for it by name: *put any grader in `tools/`*, because the four graders that scored `filled-anchor` run 1 were written into the run directory and went with it when the worktree was removed.
 
@@ -353,10 +353,6 @@ python tools/block_scan.py <a run directory>
 **Three tests, none of which needs a reader.** `Primary Payment Method` and start-and-end times never open a `GAPS` entry — both are filled or estimated by design, and a GAPS line for either is the block teaching the clinician to skim. `Race/Ethnicity` appears under `FILLED·asserted` and never opens a GAPS entry; **that row has two limbs**, and the second is why it is not the first row's twin: a declared administrative value is a claim about the patient, so a block naming it nowhere has dropped it rather than passed by omission.
 
 **A row fires on what opens an entry, never on a mention inside one, and that is what makes it safe to run unattended.** A GAPS entry reading *"Site and preceptor. Not in the source. The site also decides the payment method above."* is **compliant** — its subject is the site, and the sentence explains a dependency. The first version of this scanner matched any mention and called three such sentences failures on day-a run 2; every one was prose about the rule. **Every violation these rows describe opens an entry, and nothing that opens an entry is prose about the rule.**
-
-**What it cannot reach is F4, and that is permanent rather than pending.** Deciding whether a `FLAG` names both the finding and the omitted action is reading a sentence, not matching a string — `BP 151/93 undiscussed` passes and `vitals not addressed` fails. F5, F6 and F7 turn on one case's age and sex and are questions about an **input** this never sees. All four stay counted by a reader.
-
-**The entry boundary is a reading, and [#127](https://github.com/mshamblin5150-code/clinical-skills/issues/127) is why it has to be.** An entry opens at a label line or a bullet; every other indented line is a **wrap**. That is right for a run repeating the label per entry, which is what day-a run 2 does, and a **floor** on the canonical aligned-continuation form where several entries share one label. So the wrap count is printed beside the findings, and an aligned line that *would* have opened a matching entry is reported as a **candidate** rather than a failure — counted, `--show`-able, and outside the exit status, on the arrangement `specificity_scan.py` uses for a flag on a `NOT FOR ENTRY` line.
 
 **Counts only by default**, on `filled_vitals_census.py`'s and `specificity_scan.py`'s terms and for their reason: a run directory under `scratch/` or `output/` is a patient record, and a GAPS entry names what an encounter did not supply about a person. **`--show` output is PHI**: read it, do not paste it.
 

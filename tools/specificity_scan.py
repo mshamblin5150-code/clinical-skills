@@ -19,21 +19,8 @@ the whole ``filled-anchor`` set exists for.
   has no further axis"* without having looked at ``Z98.51``'s axes; anybody can
   write ``complete``. **This reaches both branches deliberately** -- a ``needs:``
   naming no axis is the same defect wearing the other keyword.
-- **A descriptor saying "unspecified" and flagged ``complete`` is counted for
-  review, but does not fail C5 when the flag carries a reason.** Most instances
-  name an axis the bedside could supply, but ``R00.1 Bradycardia, unspecified``
-  and ``R19.7 Diarrhea, unspecified`` do not. No string test separates those
-  cases. The reason lets a reader judge the distinction; the count makes the
-  review surface visible without forcing a semantically false ``needs:``.
-
-**What the first pass does not test, and cannot.** Whether a substantive reason is
-true. [#154] found four reasons in ``filled-anchor/run-2`` that were specific,
-checkable, and false. ``--brief`` now gives a fresh reader code numbers and no
-worksheet answers; ``--second-read`` binds that reader's complete three-character
-categories, descriptors, billability values, and inherited tabular notes to the
-committed database. The reader's prose is paired with the original reason under
-``--show`` and deliberately
-not machine-graded. Agreement is a smoke test, never proof.
+The complete boundary of a clean result is declared in
+``specificity_scan.DECLARED_LIMITS``.
 
 **Counts only by default, and that is load-bearing rather than conventional.** A
 run directory lives under ``scratch/`` or ``output/`` and is a patient record. A
@@ -44,32 +31,10 @@ integers is printed unless ``--show`` asks; **``--show`` output is PHI** on
 **Exit status distinguishes not having scanned from having found nothing**, which
 ``guidelines_search.py`` is the precedent for: 0 when every flag passes, 1 when C5
 fails, and **2 for every way of not having scanned** -- no directory, no
-worksheets in it, no argument at all. A run whose output landed somewhere else
-would otherwise report a clean set of flags and look like a pass.
+worksheets in it, no argument at all, no recognized for-entry flag, or recognized
+for-entry codes with an unread remainder. A run whose output landed somewhere
+else would otherwise report a clean set of flags and look like a pass.
 
-Extractor limits worth knowing before quoting a number:
-
-- An entry opens on a line beginning ``ICD-10``, ``CPT`` or ``HCPCS`` followed by
-  a code and a descriptor, and a ``SPECIFICITY`` line is paired with the most
-  recent one above it. A run that writes its worksheet some other way reads here
-  as having flagged nothing, which is a floor on every count and **not** on the
-  exit status -- the bare-flag test still fires on an unpaired flag, because it
-  needs no descriptor.
-- A **differential** entry is graded on nothing, and that is enforced rather than
-  assumed. It is *supposed* to carry three parts and no ``SPECIFICITY`` line --
-  but a run that writes one anyway would be graded against a descriptor reading
-  ``..., unspecified`` **by design**, because the skill codes a differential at
-  the unspecified level on purpose. So a flag on a ``NOT FOR ENTRY`` line is
-  parsed, counted, and exempt from both the C5 test and the advisory; writing one is a C4 failure, which
-  counts parts, and C5 firing as well would name the wrong row. The count is
-  printed rather than dropped, because a non-zero there is worth going to look at.
-- ``Other ...`` is not ``unspecified``. ``R06.89 Other abnormalities of breathing``
-  says the finding fits no named code, not that the documentation is thin, and it
-  reads ``complete`` with a reason like anything else. ``Other specified ...`` is
-  likewise not ``not specified``.
-- A flag whose value starts with neither keyword is counted as unrecognized and
-  **fails nothing**. The template names two branches; policing a third would be
-  this script inventing a rule the skill does not state.
 """
 
 from __future__ import annotations
@@ -122,12 +87,57 @@ UNSPECIFIED = re.compile(r"(?i)\bunspecified\b|\bnot specified\b")
 SUBSTANCE = re.compile(r"[0-9A-Za-z]")
 
 BARE = "bare-flag"
+WELDED_KEYWORD = "welded-keyword"
 UNSPECIFIED_COMPLETE = "unspecified-complete"
 ROWS = {
     BARE: "fixtures/filled-anchor C5 - specificity flag carries substance",
+    WELDED_KEYWORD: "fixtures/filled-anchor C5 - keyword has a welded suffix",
     UNSPECIFIED_COMPLETE: "fixtures/filled-anchor C5 - unspecified descriptor advisory",
 }
 KINDS = tuple(ROWS)
+
+DECLARED_LIMITS = (
+    (
+        "whether a substantive specificity reason is true",
+        "The command checks for substance but cannot establish that the stated reason is correct.",
+        run_grader.EvidenceDisposition.DECLARED_READING,
+    ),
+    (
+        "whether complete exhausts an unspecified descriptor's axes",
+        "No string test separates a justified complete flag from an axis the bedside could supply.",
+        run_grader.EvidenceDisposition.DECLARED_READING,
+    ),
+    (
+        "alphanumeric substance after a keyword",
+        "Any later letter or digit passes the substance test, including a stock phrase.",
+        run_grader.EvidenceDisposition.BEHAVIOR,
+    ),
+    (
+        "unspecified-descriptor advisory input",
+        "The advisory reads only the entry-line descriptor and depends on the literal unspecified wording.",
+        run_grader.EvidenceDisposition.BEHAVIOR,
+    ),
+    (
+        "recognized code-entry and flag forms",
+        "Unrecognized code lines paired with unrecognized flags disappear beside readable entries; #1066 owns the partial-read repair.",
+        run_grader.EvidenceDisposition.BEHAVIOR,
+    ),
+    (
+        "nearest-entry flag pairing",
+        "A recognized flag pairs with the nearest recognized entry above it and has no lower boundary.",
+        run_grader.EvidenceDisposition.BEHAVIOR,
+    ),
+    (
+        "NOT FOR ENTRY flag exemption",
+        "A flag paired to an entry marked NOT FOR ENTRY is counted but exempt from findings and advisories.",
+        run_grader.EvidenceDisposition.BEHAVIOR,
+    ),
+    (
+        "values beginning with neither branch keyword",
+        "A genuinely different first word is counted as unrecognized and does not fail C5.",
+        run_grader.EvidenceDisposition.BEHAVIOR,
+    ),
+)
 
 SECOND_READ_IS_A_SMOKE_TEST = (
     "a separated second read is a smoke test and never proof: two readers can "
@@ -156,6 +166,10 @@ class Flag:
     @property
     def has_substance(self) -> bool:
         return bool(SUBSTANCE.search(self.remainder))
+
+    @property
+    def has_welded_keyword(self) -> bool:
+        return bool(self.keyword and re.match(r"[A-Za-z-]", self.remainder))
 
 
 @dataclass(frozen=True)
@@ -192,6 +206,7 @@ class Scan:
     # all, so a non-zero here is a C4 matter the reader should go looking at.
     not_for_entry_flags: int
     bare_flags: int
+    welded_keywords: int
     unspecified_complete: int
     # ``unspecified_complete`` is advisory and does not contribute to this count.
     failing_flags: int = 0
@@ -523,7 +538,9 @@ def flag_findings(flag: Flag) -> list[Finding]:
     found: list[Finding] = []
     if not flag.for_entry:
         return found
-    if flag.keyword and not flag.has_substance:
+    if flag.has_welded_keyword:
+        found.append(Finding(WELDED_KEYWORD, flag.code, flag.descriptor, flag.value))
+    elif flag.keyword and not flag.has_substance:
         found.append(Finding(BARE, flag.code, flag.descriptor, flag.value))
     return found
 
@@ -540,6 +557,7 @@ def advisory_findings(flags: list[Flag]) -> list[Finding]:
         for flag in flags
         if flag.for_entry
         and flag.keyword == "complete"
+        and not flag.has_welded_keyword
         and UNSPECIFIED.search(flag.descriptor)
     ]
 
@@ -558,6 +576,7 @@ def survey(per_worksheet: list[list[Flag]]) -> Scan:
         unrecognized_flags=sum(1 for f in flags if not f.keyword),
         not_for_entry_flags=sum(1 for f in flags if not f.for_entry),
         bare_flags=sum(1 for f in found if f.kind == BARE),
+        welded_keywords=sum(1 for f in found if f.kind == WELDED_KEYWORD),
         unspecified_complete=len(advisories),
         failing_flags=sum(1 for flag in flags if flag_findings(flag)),
         findings=tuple(found),
@@ -600,6 +619,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         f"    on a NOT FOR ENTRY line        {scan.not_for_entry_flags}",
         "",
         f"  C5 - flag carries no reason      {scan.bare_flags}",
+        f"  C5 - welded keyword              {scan.welded_keywords}",
         f"  advisory - complete on unspecified {scan.unspecified_complete}",
         f"  C5 - flags at fault              {scan.failing_flags}",
     ]

@@ -45,33 +45,13 @@ three graded rows:
   time. See ``tilt_beyond_chance`` for why that number is not an invented one.
 - **The person rule** -- every filled height's own clause names an age and a sex.
 
-Everything else is counted rather than enforced, which is ``fixtures/day-b`` R5.
-**That now includes the five vital classes this tool could not previously see at
-all** -- temperature, heart rate, respiratory rate, oxygen saturation and pain
-score. Issue #69 was ruled entirely on a filled temperature and two filled
-saturations while this module read none of them, and a bar written over three of
-five classes with nothing recording which three is what that ticket objected to.
-They are counted and not graded because the corpus supplies no even split for a
-temperature or a saturation to ground a cutoff on, the way it does at 130/80 for
-a pressure.
-
-**The fifth was nearly left out, and the near-miss is the reusable part.** The
-first pass here added four and wrote this paragraph enumerating them as though
-the gap were closed; review caught it against #69's own list. The pain score is
-the one with no label of its own -- it is written ``7/10 itching filled`` -- and
-the only one already carrying a clinician's ruling, #59's carve-out barring a
-filled ``0/10`` from drift row 19's *no anchor* exit. **Counting it is not that
-rule**, which is about a disclosure's wording and stays with a reader.
-``COUNTED_CLASSES`` is one tuple for exactly this reason: a sixth class is one
-entry, not six edits.
-
 **Run it against ``fixtures/filled-anchor/notes`` and it exits 1**, which is
 correct and worth knowing before reading it as breakage. **5 of its 9 heights
 name no age and sex; the other 4 already write the compliant form**, two of them
 with a percentile. Its pressures clear the tilt bar, so the exit status is the
 heights and nothing else. Measured 2026-08-17 and pinned by a test.
 
-**The obvious explanation for that is wrong and was published wrong first.**
+**The obvious explanation for that result is wrong and was published wrong first.**
 Those twelve notes are day-b **run 1** byte for byte apart from two redacted
 site names, written before drift row 19 existed, so the prediction was that
 every height fails. Four do not. The prediction was made from two notes during
@@ -82,81 +62,8 @@ already produced unprompted**, which is a much better argument for it than the
 one it was ruled on. **The counts over the set are untouched** and stay #67's
 evidence.
 
-Extractor limits worth knowing before quoting a number:
-
-- A tier block opens on a key that **heads a line** -- at column 0, and followed
-  by the end of the line or by an aligned column of two or more spaces. The
-  phrase "listed in FILLED·asserted" appears in note prose -- ``case-03`` writes
-  it -- and a matcher that opened a block there would read a whole note body as
-  declared content, which is exactly how a given value becomes a filled one.
-  **Column 0 alone was not enough and this was not hypothetical**: note prose is
-  hard-wrapped, ``case-04`` lands ``FILLED·asserted.`` at column 0 far above its
-  tier block, and the parser took it -- so that note's
-  real block was never read at all. ``case-06`` writes ``FILLED·asserted item
-  11.`` below its own, harmlessly. Issue #204.
-- **Three block forms are live and this reads all three**: one key with its items
-  aligned under it, one key alone on a line with its items beneath (``case-07``
-  and ``case-08``), and **one key per item**, which is how
-  ``skills/clinical-note/SKILL.md``'s own worked examples write a multi-item
-  block. The third used to end the block at its own **second** declaration, so
-  the first swallowed nothing and every one after it read as a block that ended
-  where it began -- and a shrunken denominator makes a graded row *less* likely
-  to fail rather than more. **How many declarations one run lost is #204's to
-  state and is deliberately not restated here**: it was measured against a
-  directory under ``scratch/``, nothing committed re-derives it, and this module
-  carried two different numbers for it before review caught them. Issue #204.
-- **A key the read block does not contain is reported and refused**, which is
-  what stops a fourth form doing quietly what the third one did. See
-  ``key_coverage`` for what that count reaches and what it does not: a key line
-  this rule does not recognize as a key is invisible to the parse and to the
-  count alike, so the coverage figure is a floor rather than a proof.
-- A declaration is a **labeled** value with ``filled`` after it and no sentence
-  end in between. So ``HEIGHT 5'10" (70 in) filled`` counts, the threshold
-  disclosure's adjacent ``5'5" gives 29.1`` does not, and neither does a given
-  value the block names to explain a BMI. A declaration that wraps across a line
-  break still counts; one interrupted by a period or a semicolon does not, and
-  reads here as absent.
-- **That window is 80 characters and it cuts both ways**, which is the cost of
-  the line above rather than a separate limit. A clause naming a *given* value
-  and reaching ``filled`` about a **different** value within one sentence would
-  read the given one as declared -- ``BMI from the given Ht 6'2" and Wt 200 lb
-  filled`` is the shape. A ``given`` anywhere in the span is therefore rejected,
-  which is a guard against one wording and not against every one. **Read the
-  block yourself before quoting a figure off a run that writes it unusually.**
-- **The person rule reads a height's own clause, never the whole block**, and the
-  clause runs from the height's label to the next declared value or the end of the
-  block. A block-wide test would pass a height on an age read for a *different*
-  value -- ``clinical-note``'s own canonical example names ``age 68`` on the
-  pressure line and nothing on the height line -- which is the 17-year-old
-  surviving his own fix. The cost of the narrow scope is that a run declaring its
-  height last has the rest of the block in scope.
-- **A sex has to be spelled.** A bare ``M`` or ``F`` is not accepted, because
-  ``T 98.4 F filled`` sits in these blocks and a Fahrenheit mark would otherwise
-  satisfy the rule for a neighboring height.
-- The counted classes are matched on the same labeled-value-then-``filled`` form
-  as the three graded ones, and are subject to every limit in this list. Nothing
-  about them reaches the exit status. **The pain score has no label**, so it is
-  matched on the ``N/10`` shape alone and is the loosest pattern here.
-- **A usage error exits 2 as well, and that changed** -- no argument, no such
-  directory and no notes in it all returned 1 before #97, which is the status a
-  B13 violation returns. Nothing asked for that; it is the sibling scanners'
-  arrangement and the reason is theirs, that a run reporting *nothing found*
-  and a run reporting *nothing read* must not share a status. Declared here
-  because a caller checking ``== 1`` for a violation would otherwise change
-  meaning silently.
-- A height is caught in the ``5'10"`` form and in bare ``70 in``. A run writing
-  it any other way reads as having declared no height, which is a floor on the
-  height figures -- and **not** a floor on ``repeated_bodies``, which needs both
-  values and so misses such a pair entirely rather than reporting it. A set whose
-  ``notes read`` far exceeds its ``declaring a filled height`` is the shape to
-  look at; the exit status will not tell you.
-- Not-normal is ``not corpus_census.is_normal_bp`` -- systolic 130 or above **or**
-  diastolic 80 or above, which is `day-b` B2's own wording. The predicate is
-  imported rather than restated, because two definitions of the line are how a
-  skill file and a grader come to disagree about the same reading.
-- Every count is over notes, not over patients. Two encounters for one patient in
-  a directory are two notes here, and a shared body between them is a repeat this
-  script cannot excuse. Read a non-zero exit before acting on it.
+The complete boundary of a clean result is declared in
+``filled_vitals_census.DECLARED_LIMITS``.
 """
 
 from __future__ import annotations
@@ -182,6 +89,49 @@ ROWS = {
     "B18": "every filled height names an age and a sex",
 }
 KINDS = tuple(ROWS)
+
+DECLARED_LIMITS = (
+    (
+        "the five counted vital classes",
+        "Temperature, heart rate, respiratory rate, saturation, and pain are counted but not graded because no corpus split grounds a bar.",
+        run_grader.EvidenceDisposition.DECLARED_READING,
+    ),
+    (
+        "recognized height and weight units",
+        "Height is read only as feet-and-inches or bare inches and weight only in pounds; #1066 owns other forms.",
+        run_grader.EvidenceDisposition.BEHAVIOR,
+    ),
+    (
+        "recognized FILLED-asserted key lines",
+        "An unrecognized key is invisible to both parsing and coverage, so the reported coverage is a floor; #1066 owns the repair.",
+        run_grader.EvidenceDisposition.BEHAVIOR,
+    ),
+    (
+        "sentence punctuation inside a declaration",
+        "A period or semicolon before filled ends the declaration and makes it absent.",
+        run_grader.EvidenceDisposition.BEHAVIOR,
+    ),
+    (
+        "column-zero tier words",
+        "Any column-zero tier word closes the asserted block, including a prose-shaped occurrence.",
+        run_grader.EvidenceDisposition.BEHAVIOR,
+    ),
+    (
+        "height person-clause boundary",
+        "A height clause runs to the next declaration read or the end of the block, so later-item age and sex can satisfy it.",
+        run_grader.EvidenceDisposition.BEHAVIOR,
+    ),
+    (
+        "next-vital declaration boundary",
+        "A declaration stops at the next vital label, preventing one value from borrowing another value's filled marker.",
+        run_grader.EvidenceDisposition.BEHAVIOR,
+    ),
+    (
+        "shared declaration grammar and loose pain-score shape",
+        "Counted classes use labeled-value-then-filled grammar, while pain is recognized by its N/10 shape alone.",
+        run_grader.EvidenceDisposition.BEHAVIOR,
+    ),
+)
 
 EXPECTED_COMPLETION_CHECKS = (aar_scan.EXPECTED_ROW,)
 
@@ -212,10 +162,14 @@ BLOCK_END = re.compile(
     r"(?m)^(?:DERIVED|FLAG|GAPS|UNKNOWN|PROPOSED|FILLED(?![·.\- ]?asserted\b))\b"
 )
 
-# A declaration is a label, a value, and ``filled`` -- with no sentence end
-# between the value and the word. ``{0,80}`` is what lets a declaration wrap
-# across a line break while stopping the match running into the next item.
-_TO_FILLED = r"[^.;]{0,80}?\bfilled\b"
+# A declaration is a label, a value, and ``filled`` -- with no sentence end or
+# another vital's label between the value and the word. ``{0,80}`` lets a
+# declaration wrap while preventing one vital from borrowing another's marker.
+_NEXT_VITAL_LABEL = (
+    r"\b(?:ht|height|wt|weight|bp|blood pressure|t|temp|temperature|hr|heart rate|"
+    r"pulse|rr|resp(?:iratory)? rate|spo2|sao2|o2 sat(?:uration)?|oxygen saturation)\b"
+)
+_TO_FILLED = rf"(?:(?!{_NEXT_VITAL_LABEL})[^.;]){{0,80}}?\bfilled\b"
 HEIGHT_DECL = re.compile(
     r"(?i)\b(?:ht|height)\b[\s.:]*(\d)\s*'\s*(\d{1,2})\s*\"?" + _TO_FILLED
 )

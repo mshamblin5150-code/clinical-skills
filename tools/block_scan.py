@@ -32,34 +32,8 @@ sentence is explaining the dependency. An earlier draft of this file matched any
 mention and called three such sentences failures. Every violation these rows
 describe opens an entry; nothing that opens an entry is prose about the rule.
 
-**What it does not test, and cannot.** F4 -- whether every ``FLAG`` names both the
-finding and what was not done with it. ``BP 151/93 undiscussed`` passes and
-``vitals not addressed`` fails, and telling those apart is reading a sentence for
-whether it names a thing, not matching a string. F5, F6 and F7 turn on one case's
-age and sex and are questions about an input this cannot see. All four stay
-counted by a reader.
-
-**The entry boundary is a reading, and [#127] is why it has to be.** An entry
-opens at a label that heads a line or at a bullet; every other indented line is a
-**wrap** of the entry above it. That is right for a run repeating the label per
-entry, which is what ``day-a`` run 2 does, and it is a **floor** on a run using
-the canonical aligned-continuation form, where several entries share one label
-and only the first opens the item this grades. So the wrap count is printed
-beside the findings, and an aligned line that *would* have opened a matching
-entry is reported as a **candidate** rather than a failure -- counted,
-``--show``-able, and not touching the exit status, on the arrangement
-``specificity_scan.py`` uses for a flag on a ``NOT FOR ENTRY`` line. A non-zero
-there is worth going to look at.
-
-**A tier label heads a line rather than merely landing at column 0.** It is alone,
-or its entry begins after an aligned column of two or more spaces. Hard-wrapped
-note prose can begin with ``FILLED-asserted.`` or ``FILLED-asserted item 11.``;
-before #297 each opened a phantom section, and prose carrying *race* could then
-discharge F3's absence limb. Such rejected label-like lines are a second
-candidate count, visible under ``--show`` and outside the exit status on the same
-arrangement as wrap candidates. **Starts are strict and ends are permissive**: a
-rejected label-like line still closes the section above, so a bulleted one cannot
-become an entry in the wrong section. That asymmetry is pinned in both directions.
+The complete boundary of a clean result is declared in
+``block_scan.DECLARED_LIMITS``.
 
 **Counts only by default, and that is load-bearing rather than conventional.** A
 run directory lives under ``scratch/`` or ``output/`` and is a patient record. A
@@ -76,12 +50,6 @@ this parser does not read would otherwise report zero violations and look like a
 pass, which is exactly what ``differential_scan.py`` found when it met the twelve
 committed ``day-b`` notes.
 
-One more extractor limit worth knowing before quoting a number: ``FILLED-asserted``
-and ``FILLED.asserted`` are read as ``FILLED·asserted``, because a run that lost
-the middle dot to an encoding is a formatting matter and not one of these rows.
-And **F3's second limb matches anywhere under ``FILLED·asserted``**, wraps
-included, so an entry merely mentioning race satisfies it -- judging whether the
-value is the declared one takes the reference file and a reader.
 """
 
 from __future__ import annotations
@@ -135,6 +103,14 @@ LABEL = re.compile(_LABEL_PREFIX + _HEADS_A_LINE + r"[ \t]*(.*)$")
 # reading rather than a violation, so it follows the existing wrapped-line
 # candidate arrangement and does not affect the exit status.
 LABEL_LIKE = re.compile(_LABEL_PREFIX + r"[ \t]*(.*)$")
+# Known encoding-loss shapes for the asserted key. They are not accepted as a
+# section start, but their presence makes F3's absence limb ungradeable for that
+# note. The GAPS limb remains independent and is still graded.
+UNRECOGNIZED_ASSERTED = re.compile(
+    r"^(?:>[ \t]*)*(?:[-*+][ \t]+)?\*{0,2}"
+    r"FILLED(?:\u00c2·|\ufffd)(?i:ASSERTED)\*{0,2}[ \t]*:?"
+    r"(?:[ \t]*$|[ \t]+\S)"
+)
 # A line that ends a section without opening one.
 CLOSER = re.compile(r"^[ \t>]*(?:```|~~~|#{1,6}[ \t]|(?:[-*_][ \t]*){3,}$)")
 # An indented line, or a bullet at the margin. The bullet opens a new entry; the
@@ -176,6 +152,49 @@ ROWS = {
     F3: "fixtures/day-a F3 - Race/Ethnicity misplaced",
 }
 KINDS = tuple(ROWS)
+
+DECLARED_LIMITS = (
+    (
+        "whether every FLAG names the finding and omitted response",
+        "F4 requires reading whether each sentence names both facts.",
+        run_grader.EvidenceDisposition.DECLARED_READING,
+    ),
+    (
+        "F5, F6, and F7 age-and-sex decisions",
+        "Those rows depend on case age and sex, which this command never receives.",
+        run_grader.EvidenceDisposition.DECLARED_READING,
+    ),
+    (
+        "aligned continuation entry boundaries",
+        "Aligned continuations are wraps; matching ones are candidates outside exit status under #127.",
+        run_grader.EvidenceDisposition.BEHAVIOR,
+    ),
+    (
+        "label-like lines that do not head a line",
+        "Rejected one-space, tab, or bold-colon label forms are candidates rather than section starts under #297.",
+        run_grader.EvidenceDisposition.BEHAVIOR,
+    ),
+    (
+        "closed vocabulary of row-opening subjects",
+        "Rows match fixed spellings at an entry start after markup; other openers and headings are neither graded nor candidates.",
+        run_grader.EvidenceDisposition.BEHAVIOR,
+    ),
+    (
+        "race mentions anywhere under FILLED-asserted",
+        "Any race or ethnicity mention in the asserted section satisfies F3's absence limb.",
+        run_grader.EvidenceDisposition.BEHAVIOR,
+    ),
+    (
+        "notes whose tier block is unreadable or absent",
+        "Such a note is graded on nothing beside readable notes; #1066 owns the partial-read repair.",
+        run_grader.EvidenceDisposition.BEHAVIOR,
+    ),
+    (
+        "unrecognized FILLED-asserted keys",
+        "Their notes do not grade F3's absence limb, while the independent GAPS limb still runs.",
+        run_grader.EvidenceDisposition.BEHAVIOR,
+    ),
+)
 
 # The second limb has no entry to point at, and this string is not note text.
 ABSENT = "(no Race/Ethnicity under FILLED-asserted)"
@@ -233,6 +252,7 @@ class Scan:
     # A column-zero tier label token that did not head a line. Counts by default;
     # the note text is available only under ``--show``. Issue #297.
     label_candidates: tuple[str, ...] = field(default=())
+    notes_f3_absence_not_graded: int = 0
 
 
 def _canonical(label: str) -> str:
@@ -248,8 +268,14 @@ def label_candidates(text: str) -> tuple[str, ...]:
     return tuple(
         raw
         for raw in text.splitlines()
-        if LABEL_LIKE.match(raw) and not LABEL.match(raw)
+        if (LABEL_LIKE.match(raw) or UNRECOGNIZED_ASSERTED.match(raw))
+        and not LABEL.match(raw)
     )
+
+
+def has_unrecognized_asserted_key(text: str) -> bool:
+    """Whether F3's asserted-key absence limb cannot be read for this note."""
+    return any(UNRECOGNIZED_ASSERTED.match(raw) for raw in text.splitlines())
 
 
 def read_block(text: str) -> dict[str, list[Entry]]:
@@ -272,7 +298,7 @@ def read_block(text: str) -> dict[str, list[Entry]]:
         # Starts are strict, but ends are permissive. A rejected label-like line
         # must still close the section above; otherwise a bulleted one is read as
         # an entry in that section and can discharge an absence limb. Issue #297.
-        if LABEL_LIKE.match(raw):
+        if LABEL_LIKE.match(raw) or UNRECOGNIZED_ASSERTED.match(raw):
             current = None
             continue
         if current is None or not raw.strip():
@@ -299,7 +325,7 @@ def read_block(text: str) -> dict[str, list[Entry]]:
 
 
 def block_findings(
-    block: dict[str, list[Entry]]
+    block: dict[str, list[Entry]], *, grade_f3_absence: bool = True
 ) -> tuple[list[Finding], list[Finding]]:
     """F1, F2 and F3 applied to one note's block.
 
@@ -319,7 +345,7 @@ def block_findings(
                 if pattern.search(MARKUP.sub("", wrap)):
                     candidates.append(Finding(row, GAPS, wrap))
     asserted = block.get(ASSERTED, [])
-    if not any(RACE_ANYWHERE.search(entry.text) for entry in asserted):
+    if grade_f3_absence and not any(RACE_ANYWHERE.search(entry.text) for entry in asserted):
         found.append(Finding(F3, ASSERTED, ABSENT))
     return found, candidates
 
@@ -327,10 +353,18 @@ def block_findings(
 def survey(
     blocks: list[dict[str, list[Entry]]],
     label_candidates: tuple[str, ...] = (),
+    f3_absence_not_graded: tuple[bool, ...] = (),
 ) -> Scan:
     """Count across a run. Takes parsed blocks rather than paths, so a ``Scan``
     never learns a filename -- a run directory's paths name the shift."""
-    per_note = [block_findings(block) for block in blocks]
+    if not f3_absence_not_graded:
+        f3_absence_not_graded = tuple(False for _ in blocks)
+    if len(f3_absence_not_graded) != len(blocks):
+        raise ValueError("one F3 absence posture is required per parsed block")
+    per_note = [
+        block_findings(block, grade_f3_absence=not not_graded)
+        for block, not_graded in zip(blocks, f3_absence_not_graded)
+    ]
     found = [f for note, _ in per_note for f in note]
     candidates = [c for _, note in per_note for c in note]
     return Scan(
@@ -348,6 +382,7 @@ def survey(
         findings=tuple(found),
         candidates=tuple(candidates),
         label_candidates=label_candidates,
+        notes_f3_absence_not_graded=sum(f3_absence_not_graded),
     )
 
 
@@ -371,6 +406,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         f"  notes at fault                   {scan.failing_notes}",
         f"  wrapped-line candidates          {len(scan.candidates)}",
         f"  label-line candidates            {len(scan.label_candidates)}",
+        f"  F3 absence limb {run_grader.NOT_GRADED:<16}{scan.notes_f3_absence_not_graded}",
     ]
     if show:
         lines += ["", "  findings (PHI - read, do not paste):"]
@@ -409,6 +445,9 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
             candidate
             for text in source.notes
             for candidate in label_candidates(text)
+        ),
+        f3_absence_not_graded=tuple(
+            has_unrecognized_asserted_key(text) for text in source.notes
         ),
     )
     diagnostics: list[str] = []

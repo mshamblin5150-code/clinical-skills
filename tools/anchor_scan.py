@@ -23,15 +23,8 @@ and that sentence is the whole of what this scans.
   ``CONFIDENCE``. A bare ``verify this number`` -- or a sentence merely naming an
   unavailable table -- proves the calculator was skipped.
 
-**What it cannot reach is the rest of ANCHOR, and that is permanent.** Whether a
-note's BMI *had* a filled input, whether ``I10`` was rightly absent on a filled
-pressure, whether case 4's ``Z68.25`` rests on two given values -- each is a
-comparison of a worksheet to a note, and a note is not in this directory. **A clean
-scan is not a walked row.** It says the marking is internally consistent, which is
-what a copied line loses; it says nothing about whether the right codes were
-marked. ``fixtures/filled-anchor``'s A3 in particular is invisible here: a run that
-stopped coding the family altogether marks nothing, lists nothing, and is reported
-below as **not having been scanned** rather than as clean.
+The complete boundary of a clean result is declared in
+``anchor_scan.DECLARED_LIMITS``.
 
 **That last behavior is the point rather than an edge case.** Run 1 refused every
 filled anchor it was offered and wrote them under the pre-#46 heading,
@@ -57,26 +50,6 @@ the not-scanned diagnostic and exit 2. Earlier versions returned first and print
 no report; the moved stdout makes the coverage failure inspectable and puts this
 grader on the shared finding-over-coverage ordering.
 
-Extractor limits worth knowing before quoting a number:
-
-- **A listing is a line whose code is pinned by a dash**, ``<code> - <value>``,
-  which is ``icd10-cpt`` step 4's own form. It is deliberately not a substring
-  search over the block: ``fixtures/filled-anchor``'s *Still unresolved* names the
-  hazard, a run writing *"Z68.25 needs no SOURCE line, the inputs were given"*
-  **inside** the block and putting the string exactly where a substring search
-  looks. A run that lists its codes some other way -- a table, a prose paragraph
-  -- reads here as having listed nothing, and every mark it carries then fails.
-  That is a floor on the shapes this reads, not a floor on the exit status.
-- **An entry opens on a line beginning ``ICD-10``, ``CPT`` or ``HCPCS``** followed
-  by a code and a descriptor, and a ``SOURCE`` or ``CONFIDENCE`` line pairs with
-  the most recent entry above it -- ``specificity_scan.py``'s pairing, for its
-  reason.
-- **A ``NOT FOR ENTRY`` entry is not a proposed code.** A differential carries
-  three parts and no ``SOURCE``, so it has nothing to mark and nothing to list.
-- **A ``SOURCE`` line marks its code when its value says ``filled``.** The skill
-  writes ``SOURCE`` only on a filled anchor, but its opening sentence describes the
-  line as saying *recorded or filled*, so a run writing ``SOURCE: recorded`` on an
-  ordinary code is read as having marked nothing rather than as having marked it.
 """
 
 from __future__ import annotations
@@ -154,6 +127,54 @@ ROWS = {
     PEDIATRIC_NOT_COMPUTED: "fixtures/filled-anchor A1 - CDC computation",
 }
 KINDS = tuple(ROWS)
+
+DECLARED_LIMITS = (
+    (
+        "whether the right codes were marked from filled note inputs",
+        "Questions outside the worksheet compare it with a note that is not in the run directory.",
+        run_grader.EvidenceDisposition.DECLARED_READING,
+    ),
+    (
+        "NOT FOR ENTRY entries",
+        "An entry marked NOT FOR ENTRY is excluded from the proposed-code population.",
+        run_grader.EvidenceDisposition.BEHAVIOR,
+    ),
+    (
+        "recognized code-entry openings",
+        "Only lines beginning ICD-10, CPT, or HCPCS open entries; #1066 owns partial reads of other forms.",
+        run_grader.EvidenceDisposition.BEHAVIOR,
+    ),
+    (
+        "recognized filled-anchor listing lines",
+        "A listing is read only as a code followed by a dash and value on its own line.",
+        run_grader.EvidenceDisposition.BEHAVIOR,
+    ),
+    (
+        "recognized SOURCE marks",
+        "Only a SOURCE label whose value says filled marks its paired code.",
+        run_grader.EvidenceDisposition.BEHAVIOR,
+    ),
+    (
+        "filled-anchor block closing headings",
+        "Any horizontal-rule or Markdown heading line ends the collected listing block.",
+        run_grader.EvidenceDisposition.BEHAVIOR,
+    ),
+    (
+        "filled-anchor block opening mentions",
+        "Any line naming the filled-anchor block heading opens collection, including prose mentions.",
+        run_grader.EvidenceDisposition.BEHAVIOR,
+    ),
+    (
+        "pediatric-band computation",
+        "The command accepts the required CONFIDENCE sentence and does not recompute BMI-for-age.",
+        run_grader.EvidenceDisposition.BEHAVIOR,
+    ),
+    (
+        "per-run gradeable coverage",
+        "A worksheet with no mark, listing, or pediatric band adds nothing beside readable worksheets; #1066 owns the repair.",
+        run_grader.EvidenceDisposition.BEHAVIOR,
+    ),
+)
 
 
 @dataclass(frozen=True)
