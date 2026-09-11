@@ -25,7 +25,7 @@ import unittest
 from pathlib import Path
 
 import specificity_scan as scan
-from grader_conformance import for_module
+from grader_conformance import EmptyPopulationInput, for_module
 from prose_bind import ProseBind
 
 GraderConformance = for_module(scan)
@@ -71,6 +71,32 @@ def entry(code: str, descriptor: str, specificity: str) -> str:
         f'  ANCHOR: "the note text"\n'
         f"  SPECIFICITY: {specificity}\n"
         f"  CONFIDENCE: verified against ICD-10-CM FY2026"
+    )
+
+
+def empty_population_input(root: Path) -> EmptyPopulationInput:
+    empty, twin = root / "empty", root / "twin"
+    empty.mkdir()
+    twin.mkdir()
+    bare_entry = (
+        "ICD-10  R12  Heartburn\n"
+        '  ANCHOR: "the note text"\n'
+        "  CONFIDENCE: verified against ICD-10-CM FY2026"
+    )
+    (empty / "codes.md").write_text(worksheet(bare_entry), encoding="utf-8")
+    (twin / "codes.md").write_text(
+        worksheet(
+            bare_entry.replace(
+                "  CONFIDENCE:",
+                "  SPECIFICITY: complete - R12 has no further axis\n  CONFIDENCE:",
+            )
+        ),
+        encoding="utf-8",
+    )
+    return EmptyPopulationInput(
+        (str(empty),),
+        population_size=lambda result: result.flags - result.not_for_entry_flags,
+        twin_argv=(str(twin),),
     )
 
 
@@ -366,6 +392,24 @@ class TheCommandExitsOnWhatItFound(unittest.TestCase):
 
     def test_a_bare_flag_exits_one(self):
         self.assertEqual(self._run(entry("I10", "Essential (primary) hypertension", "complete")), 1)
+
+    def test_an_unread_flag_form_leaves_a_reported_remainder_and_exits_two(self):
+        text = worksheet(
+            entry("I10", "Essential (primary) hypertension", "complete - no further axis"),
+            "ICD-10  R12  Heartburn\n  ANCHOR: synthetic\n"
+            "- SPECIFICITY: complete - R12 has no further axis\n",
+        )
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / "case-01.md"
+            path.write_text(text, encoding="utf-8")
+            stdout, stderr = io.StringIO(), io.StringIO()
+            with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+                status = scan.main([temp])
+
+        self.assertEqual(2, status)
+        self.assertIn("for-entry codes read             2", stdout.getvalue())
+        self.assertIn("without a paired flag          1", stdout.getvalue())
+        self.assertIn("2 for-entry code(s) were read and 1 have no paired", stderr.getvalue())
 
     def test_a_missing_directory_exits_two_rather_than_one(self):
         """Not having scanned is a different answer from having found nothing."""

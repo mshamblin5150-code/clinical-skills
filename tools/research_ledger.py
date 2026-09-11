@@ -1572,8 +1572,6 @@ def _load(parsed: run_grader.Parsed) -> Source:
     bar = read_bar(bar_path.read_text(encoding="utf-8", errors="replace"))
     text = path.read_text(encoding="utf-8", errors="replace")
     records = tuple(read_records(text))
-    if not records:
-        raise run_grader.SourceError(f"no claim records found in {path.name}")
 
     draft = parsed.value("--draft")
     prescriptions: tuple[Prescription, ...] | None = None
@@ -1669,6 +1667,8 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
         uptodate_has_account=source.uptodate_has_account,
     )
     diagnostics: list[str] = []
+    if not source.records:
+        diagnostics.append(f"no claim records found in {source.path.name}")
     if source.evidence_unreadable:
         diagnostics.append(
             f"no topic body found in {source.evidence_name} - a body is read by its"
@@ -1720,7 +1720,8 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
         scan.failing_records or scan.prescriptions_at_fault or scan.evidence_at_fault
     )
     coverage_failed = bool(
-        source.as_of is None
+        not source.records
+        or source.as_of is None
         or source.evidence_unreadable
         or source.stated_expiry_unscanned
         or (source.prescriptions is not None and not source.prescriptions)

@@ -19,7 +19,7 @@ from pathlib import Path
 import peer_critique_scan as scan
 
 SKILL = Path(__file__).resolve().parents[1] / "skills" / "peer-critique" / "SKILL.md"
-from grader_conformance import for_module
+from grader_conformance import EmptyPopulationInput, for_module
 from prose_bind import NAMING, bind
 
 
@@ -39,6 +39,19 @@ REREAD = (
     "READ: 2026-09-09\n"
     "VERDICT: matches - the board text equals the artifact\n"
 )
+
+
+def empty_population_input(root: Path) -> EmptyPopulationInput:
+    (root / "posts").mkdir()
+    (root / "posts" / "synthetic.md").write_text(
+        "AUTHOR: Maren Quill\n", encoding="utf-8"
+    )
+    (root / "critique.md").write_text("", encoding="utf-8")
+    (root / "claims.md").write_text("DATE: 2026-09-09\n", encoding="utf-8")
+    (root / "reread.md").write_text(REREAD, encoding="utf-8")
+    return EmptyPopulationInput(
+        (str(root),), population_size=lambda result: result.words or 0
+    )
 
 
 def build_run(

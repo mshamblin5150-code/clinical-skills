@@ -16,7 +16,7 @@ from pathlib import Path
 from unittest import mock
 
 import deck_scan as scan
-from grader_conformance import for_module
+from grader_conformance import EmptyPopulationInput, for_module
 
 
 GraderConformance = for_module(scan)
@@ -143,7 +143,35 @@ class Run:
             return self.grade("--submission", self.deck.stem)
 
 
+def empty_population_input(root: Path) -> EmptyPopulationInput:
+    empty_root, twin_root = root / "empty", root / "twin"
+    empty_root.mkdir()
+    twin_root.mkdir()
+    empty, twin = Run(empty_root), Run(twin_root)
+    empty.write_deck(
+        ("<p:sld xmlns:p='http://schemas.openxmlformats.org/presentationml/2006/main'/>",)
+    )
+    twin.write_deck((slide_xml("Synthetic title"),))
+    return EmptyPopulationInput(
+        (str(empty.root), "--pptx", str(empty.deck)),
+        population_size=lambda result: result.font_runs_read,
+        twin_argv=(str(twin.root), "--pptx", str(twin.deck)),
+    )
+
+
 class TheDeckContainerReadsOnlyTheSlideFace(unittest.TestCase):
+    def test_a_slide_with_no_face_text_exits_two_after_printing_its_report(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            run.write_deck(
+                ("<p:sld xmlns:p='http://schemas.openxmlformats.org/presentationml/2006/main'/>",)
+            )
+            status, stdout, stderr = run.grade()
+
+        self.assertEqual(2, status)
+        self.assertIn("font runs read    0", stdout)
+        self.assertIn("no text run was read from any slide face", stderr)
+
     def test_a_clean_deck_is_counted_without_private_text(self):
         with tempfile.TemporaryDirectory() as temp:
             run = Run(Path(temp))

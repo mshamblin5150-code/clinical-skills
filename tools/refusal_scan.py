@@ -122,12 +122,19 @@ class Scan:
     worksheets: int
     with_block: int
     refusals: int
+    malformed_marks: int
     per_worksheet: tuple[int, ...]
     findings: tuple[Finding, ...] = ()
 
     @property
     def subjects(self) -> int:
+        """Well-formed records that preserve the ruled coverage predicate."""
         return self.refusals
+
+    @property
+    def population(self) -> int:
+        """Every well-formed or malformed NOT CODED line in the declared population."""
+        return self.refusals + self.malformed_marks
 
 
 def _block_lines(lines: list[str]) -> tuple[list[str], bool]:
@@ -224,6 +231,7 @@ def survey(sheets: list[Worksheet]) -> Scan:
         worksheets=len(sheets),
         with_block=sum(sheet.has_block for sheet in sheets),
         refusals=sum(len(sheet.refusals) for sheet in sheets),
+        malformed_marks=sum(sheet.malformed_marks for sheet in sheets),
         per_worksheet=tuple(len(sheet.refusals) for sheet in sheets),
         findings=findings,
     )
@@ -235,6 +243,7 @@ def format_report(result: Scan, source: str, show: bool = False) -> str:
         f"worksheets                       {result.worksheets}",
         f"worksheets carrying block        {result.with_block}",
         f"refusal records                  {result.refusals}",
+        f"malformed NOT CODED lines        {result.malformed_marks}",
         "records per worksheet             "
         + ",".join(str(count) for count in result.per_worksheet),
         f"findings                         {len(result.findings)}",
@@ -262,11 +271,17 @@ def _load(parsed: run_grader.Parsed) -> Source:
 
 def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
     result = survey([read_worksheet(text) for text in source.texts])
+    diagnostics = (
+        ("no NOT CODED line was read from any refusal block",)
+        if result.subjects == 0
+        else ()
+    )
     return run_grader.Grade(
         scan=result,
         source=source.directory.name,
         findings_failed=bool(result.findings),
         coverage_failed=result.subjects == 0,
+        diagnostics=diagnostics,
     )
 
 

@@ -539,11 +539,18 @@ def grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
     aar_failed, aar_report = aar_scan.completion_gate(
         source.root, _parsed.value("--submission")
     )
+    no_slide_face_text = scanned.font_runs_read == 0
+    diagnostics = []
+    if no_slide_face_text:
+        diagnostics.append("no text run was read from any slide face")
+    if scanned.findings:
+        diagnostics.append("deck findings require review")
     return run_grader.Grade(
         scan=scanned,
         source=str(source.root),
         findings_failed=bool(scanned.findings) or aar_failed,
-        diagnostics=("deck findings require review",) if scanned.findings else (),
+        coverage_failed=no_slide_face_text,
+        diagnostics=tuple(diagnostics),
         reports=(rendered.report, aar_report),
     )
 

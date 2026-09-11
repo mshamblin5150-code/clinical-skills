@@ -41,7 +41,7 @@ from unittest import mock
 import case_study_scan as scan
 from prose_bind import ENUMERATION, bind
 import coursework_run
-from grader_conformance import for_module
+from grader_conformance import EmptyPopulationInput, for_module
 
 GraderConformance = for_module(scan)
 import docx_write
@@ -107,6 +107,21 @@ Signed by: M. S., RN, CEN, TCRN. August 19, 2026
 
 Ross, J. (2025). Pelvic inflammatory disease. UpToDate.
 """.format(rx=RX_TABLE)
+
+
+def empty_population_input(root: Path) -> EmptyPopulationInput:
+    empty, twin = root / "empty.md", root / "twin.md"
+    empty.write_text("# Unrecognized heading\n\nSynthetic prose.\n", encoding="utf-8")
+    twin.write_text(
+        "# Unrecognized heading\n\nSynthetic prose.\n\n"
+        "## Sanity Check\n\nModule 1 - confirmed\n",
+        encoding="utf-8",
+    )
+    return EmptyPopulationInput(
+        (str(empty),),
+        population_size=lambda result: result.sections,
+        twin_argv=(str(twin),),
+    )
 
 
 # One phrase per row, keyed on the module's own tuple, so a row added without a

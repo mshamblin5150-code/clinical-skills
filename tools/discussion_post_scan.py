@@ -74,6 +74,7 @@ import docx_write
 
 
 WORD_FLOOR = "word-floor"
+EMPTY_BODY = "empty-body"
 REFERENCE_MINIMUM = "reference-minimum"
 UNTRACED_NUMBER = "untraced-number"
 UNTRACED_CITATION = "untraced-citation"
@@ -91,6 +92,7 @@ UNLOCATED_READING = "unlocated-reading"
 BORROWED_LOCATOR = "borrowed-locator"
 ROWS = {
     WORD_FLOOR: "the post reaches the signed word floor",
+    EMPTY_BODY: "the post contains body text after headings are removed",
     REFERENCE_MINIMUM: "the post reaches the signed reference minimum",
     UNTRACED_NUMBER: "every graded body number traces to claims.md",
     UNTRACED_CITATION: "every in-text citation has a claim record for its source",
@@ -124,6 +126,7 @@ GATED_ROW_SETS = {
     "reference_boundary_graded": (
         (
             WORD_FLOOR,
+            EMPTY_BODY,
             REFERENCE_MINIMUM,
             UNTRACED_NUMBER,
             UNTRACED_CITATION,
@@ -1099,6 +1102,8 @@ def survey(source: RunSource) -> Scan:
             )
     if words < source.bar.word_floor:
         findings.append(Finding(WORD_FLOOR, source.draft.name, f"{words} words"))
+    if words == 0:
+        findings.append(Finding(EMPTY_BODY, source.draft.name, "no body words"))
     if len(source.references) < source.bar.reference_minimum:
         findings.append(
             Finding(

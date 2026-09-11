@@ -96,9 +96,17 @@ class ASecondBindingOfOneKindStillReplacesTheFirst(unittest.TestCase):
             with tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
                 (root / f"{module_name}.py").write_text(
-                    "from grader_conformance import for_module\n"
+                    "from grader_conformance import EmptyPopulationInput, for_module\n"
+                    "from pathlib import Path\n"
                     "import block_scan\n"
                     "import refusal_scan\n"
+                    "def empty_population_input(root):\n"
+                    "    empty, twin = root / 'empty', root / 'twin'\n"
+                    "    empty.mkdir()\n"
+                    "    twin.mkdir()\n"
+                    "    (empty / 'note.md').write_text('# Synthetic note\\n', encoding='utf-8')\n"
+                    "    (twin / 'note.md').write_text('```\\nGAPS              None\\n```\\n', encoding='utf-8')\n"
+                    "    return EmptyPopulationInput((str(empty),), lambda scan: scan.notes_with_block, twin_argv=(str(twin),))\n"
                     "_first = []\n"
                     "GraderConformance = for_module(refusal_scan)\n"
                     "_first.append(GraderConformance)\n"
@@ -113,7 +121,7 @@ class ASecondBindingOfOneKindStillReplacesTheFirst(unittest.TestCase):
                 )
                 self.assertEqual([], loader.errors)
                 synthetic = sys.modules[module_name]
-                self.assertEqual(6, len(discovered))
+                self.assertEqual(7, len(discovered))
                 self.assertNotIn(
                     synthetic._first[0], {test.__class__ for test in discovered}
                 )

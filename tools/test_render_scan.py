@@ -14,7 +14,7 @@ import discussion_post_scan
 import page_image
 import render_scan
 import run_grader
-from grader_conformance import for_module
+from grader_conformance import EmptyPopulationInput, for_module
 from prose_bind import NAMING, bind, section
 
 
@@ -155,6 +155,24 @@ class Run:
         ):
             status = render_scan.main([str(self.root), *extra])
         return status, stdout.getvalue(), stderr.getvalue()
+
+
+def empty_population_input(root: Path) -> EmptyPopulationInput:
+    empty, twin = root / "empty", root / "twin"
+    empty.mkdir()
+    twin.mkdir()
+    Run(empty).add_pass(1, pages=0, pixels=0)
+    Run(twin).add_pass(1, pages=1, pixels=1)
+    return EmptyPopulationInput(
+        (str(empty),),
+        population_size=lambda result: (
+            result.pass_coverage[-1].exported_pages or 0
+        ),
+        twin_argv=(str(twin),),
+        context_factory=lambda: mock.patch.dict(
+            sys.modules, {"pymupdf": FakePyMuPDF()}
+        ),
+    )
 
 
 class ACompleteFinalPassIsClean(unittest.TestCase):

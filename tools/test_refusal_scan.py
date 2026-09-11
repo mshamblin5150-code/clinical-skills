@@ -10,7 +10,7 @@ from pathlib import Path
 
 import refusal_scan as scan
 import run_grader
-from grader_conformance import for_module
+from grader_conformance import EmptyPopulationInput, for_module
 from prose_bind import NAMING, bind, section
 
 GraderConformance = for_module(scan)
@@ -62,6 +62,19 @@ def refusal(
     return "\n".join(lines)
 
 
+def empty_population_input(root: Path) -> EmptyPopulationInput:
+    empty, twin = root / "empty", root / "twin"
+    empty.mkdir()
+    twin.mkdir()
+    (empty / "codes.md").write_text(worksheet(), encoding="utf-8")
+    (twin / "codes.md").write_text(worksheet(refusal()), encoding="utf-8")
+    return EmptyPopulationInput(
+        (str(empty),),
+        population_size=lambda result: result.population,
+        twin_argv=(str(twin),),
+    )
+
+
 class TheParserReadsOnlyTheStepFourBlock(unittest.TestCase):
     def test_a_complete_refusal_is_clean(self):
         sheet = scan.read_worksheet(worksheet(refusal()))
@@ -92,6 +105,21 @@ class TheParserReadsOnlyTheStepFourBlock(unittest.TestCase):
         sheet = scan.read_worksheet(text)
         self.assertEqual(len(sheet.refusals), 1)
         self.assertEqual(scan.worksheet_findings(sheet), [])
+
+    def test_a_malformed_only_population_preserves_the_refusals_zero_coverage_predicate(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            (root / "codes.md").write_text(
+                worksheet("NOT CODED: M86.9"),
+                encoding="utf-8",
+            )
+            parsed = scan.run_grader.Parsed(source=str(root))
+            graded = scan.GRADER.grade(scan.GRADER.load(parsed), parsed)
+
+        self.assertEqual(1, graded.scan.population)
+        self.assertEqual(0, graded.scan.subjects)
+        self.assertTrue(graded.findings_failed)
+        self.assertTrue(graded.coverage_failed)
 
 
 class EveryRefusalCarriesTheThreeMechanicalParts(unittest.TestCase):
@@ -162,7 +190,10 @@ class TheCommandReportsWhetherItScanned(unittest.TestCase):
         )
 
     def test_no_refusals_is_unscanned(self):
-        self.assertEqual(self.run_over({"case-01.md": worksheet()})[0], 2)
+        stderr = io.StringIO()
+        with redirect_stderr(stderr):
+            self.assertEqual(self.run_over({"case-01.md": worksheet()})[0], 2)
+        self.assertIn("no NOT CODED line was read", stderr.getvalue())
 
     def test_a_missing_directory_is_unscanned(self):
         with tempfile.TemporaryDirectory() as raw:

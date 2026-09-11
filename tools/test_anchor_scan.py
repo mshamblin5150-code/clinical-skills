@@ -20,7 +20,7 @@ from pathlib import Path
 
 import anchor_scan as scan
 import run_grader
-from grader_conformance import for_module
+from grader_conformance import EmptyPopulationInput, for_module
 
 GraderConformance = for_module(scan)
 
@@ -50,6 +50,30 @@ def worksheet(entries: str = "", block: str | None = None,
         text += f"{heading}\n{block}\n\n"
     text += "--- NOT CODED, NOTHING ESTABLISHED IT ---\nnothing\n"
     return text
+
+
+def empty_population_input(root: Path) -> EmptyPopulationInput:
+    empty, twin = root / "empty", root / "twin"
+    empty.mkdir()
+    twin.mkdir()
+    (empty / "codes.md").write_text(worksheet(), encoding="utf-8")
+    (twin / "codes.md").write_text(
+        worksheet(
+            entry(
+                "Z68.52",
+                "Body mass index [BMI] pediatric, 5th percentile to less than 85th percentile for age",
+                confidence=(
+                    "verified against ICD-10-CM FY2026 and CDC 2022 Extended BMI-for-Age"
+                ),
+            )
+        ),
+        encoding="utf-8",
+    )
+    return EmptyPopulationInput(
+        (str(empty),),
+        population_size=lambda result: result.subjects,
+        twin_argv=(str(twin),),
+    )
 
 
 class TheParserFindsMarkedCodes(unittest.TestCase):

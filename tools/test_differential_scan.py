@@ -46,7 +46,7 @@ from unittest.mock import patch
 import artifact_lock_test_support  # noqa: F401
 import differential_scan as ds
 import run_grader
-from grader_conformance import for_module
+from grader_conformance import EmptyPopulationInput, for_module
 
 GraderConformance = for_module(ds)
 
@@ -60,6 +60,30 @@ CLEAN_SOAP = """A:
 Differential:
 1. Pain in right leg - M79.604: 4/10 pain over a chronic right leg wound, tib/fib film ordered today to rule out contiguous osteomyelitis, no result. NOT CODED: M86.9 Osteomyelitis, unspecified, nothing established it. Less likely.
 """
+
+
+def empty_population_input(root: Path) -> EmptyPopulationInput:
+    empty, twin = root / "empty", root / "twin"
+    empty.mkdir()
+    twin.mkdir()
+    (empty / "note.md").write_text("# Synthetic note\n", encoding="utf-8")
+    (twin / "note.md").write_text(
+        "# Synthetic note\n"
+        "Differential:\n"
+        "1. Pain in right leg - M79.604: documented symptom. Most likely.\n",
+        encoding="utf-8",
+    )
+    return EmptyPopulationInput(
+        (str(empty),),
+        # One numbered slot is one physical member observed through both the
+        # entry and labeled-block lenses; ``max`` avoids counting that same item twice.
+        population_size=lambda result: max(
+            result.differential_entries + result.conclusion_entries,
+            result.labeled_differential_blocks,
+            result.proposed_items,
+        ),
+        twin_argv=(str(twin),),
+    )
 
 # ``hedged-dx`` run 1's case 2, verbatim, and **left in the retired form on
 # purpose**. It is a byte-for-byte run record, so welding it here would falsify

@@ -26,7 +26,7 @@ from pathlib import Path
 
 import block_scan
 import run_grader
-from grader_conformance import for_module
+from grader_conformance import EmptyPopulationInput, for_module
 
 GraderConformance = for_module(block_scan)
 
@@ -68,6 +68,21 @@ RACE_UNDER_GAPS = RACE_MISSING.replace(
 )
 
 NO_BLOCK = "# Encounter\n\nSubjective ... Plan ...\n"
+
+
+def empty_population_input(root: Path) -> EmptyPopulationInput:
+    empty, twin = root / "empty", root / "twin"
+    empty.mkdir()
+    twin.mkdir()
+    (empty / "note.md").write_text(NO_BLOCK, encoding="utf-8")
+    (twin / "note.md").write_text(
+        NO_BLOCK + "\n" + CLEAN[CLEAN.index("```") :], encoding="utf-8"
+    )
+    return EmptyPopulationInput(
+        (str(empty),),
+        population_size=lambda result: result.notes_with_block,
+        twin_argv=(str(twin),),
+    )
 
 
 def write_run(notes: dict[str, str]) -> tempfile.TemporaryDirectory:

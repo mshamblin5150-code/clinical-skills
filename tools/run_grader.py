@@ -71,6 +71,132 @@ MEMBERS: set[str] = {
     "voice_model_scan",
 }
 
+
+class EmptyPopulationPosture(Enum):
+    """The closed family vocabulary for an empty load-bearing population."""
+
+    NOT_SCANNED = "not-scanned"
+    FINDING = "finding"
+    ESTABLISHED = "established"
+
+
+@dataclass(frozen=True)
+class EmptyPopulationDeclaration:
+    """One member's ruling for its load-bearing population when that set is empty."""
+
+    population: str
+    posture: EmptyPopulationPosture
+    finding: str | None
+    reason: str
+
+
+EMPTY_POPULATION_POSTURES: Mapping[str, EmptyPopulationDeclaration] = MappingProxyType(
+    {
+        "aar_scan": EmptyPopulationDeclaration(
+            "the submission's review record",
+            EmptyPopulationPosture.FINDING,
+            "missing-review",
+            "a requested submission owes one completed review record",
+        ),
+        "anchor_scan": EmptyPopulationDeclaration(
+            "marked, listed, and pediatric bands",
+            EmptyPopulationPosture.NOT_SCANNED,
+            None,
+            "only the matchers establish membership in those bands",
+        ),
+        "block_scan": EmptyPopulationDeclaration(
+            "notes carrying a tier block",
+            EmptyPopulationPosture.NOT_SCANNED,
+            None,
+            "only the tier-block matcher establishes that a note belongs",
+        ),
+        "case_study_scan": EmptyPopulationDeclaration(
+            "recognized sections",
+            EmptyPopulationPosture.NOT_SCANNED,
+            None,
+            "only the section matcher establishes a recognized case-study section",
+        ),
+        "checks_ledger": EmptyPopulationDeclaration(
+            "check records",
+            EmptyPopulationPosture.NOT_SCANNED,
+            None,
+            "only the record parser establishes a check record",
+        ),
+        "deck_scan": EmptyPopulationDeclaration(
+            "text runs read from slide faces",
+            EmptyPopulationPosture.NOT_SCANNED,
+            None,
+            "only the slide-face readers establish a readable text run",
+        ),
+        "differential_scan": EmptyPopulationDeclaration(
+            "differential and conclusion entries, labeled blocks, and FILLED-proposed items",
+            EmptyPopulationPosture.NOT_SCANNED,
+            None,
+            "only the note matchers establish membership in the named union",
+        ),
+        "discussion_post_scan": EmptyPopulationDeclaration(
+            "the draft's body text with headings removed",
+            EmptyPopulationPosture.FINDING,
+            "empty-body",
+            "an initial post owes substantive body text independently of its signed floors",
+        ),
+        "discussion_reply_scan": EmptyPopulationDeclaration(
+            "the replies' text",
+            EmptyPopulationPosture.FINDING,
+            "word-floor",
+            "a requested reply owes text and its existing word-floor row settles the absence",
+        ),
+        "filled_vitals_census": EmptyPopulationDeclaration(
+            "filled heights and filled pressures",
+            EmptyPopulationPosture.NOT_SCANNED,
+            None,
+            "only the filled-vitals matchers establish either population",
+        ),
+        "peer_critique_scan": EmptyPopulationDeclaration(
+            "the critique's text",
+            EmptyPopulationPosture.FINDING,
+            "word-floor",
+            "a requested critique owes text and its existing word-floor row settles the absence",
+        ),
+        "reference_scan": EmptyPopulationDeclaration(
+            "reference entries",
+            EmptyPopulationPosture.NOT_SCANNED,
+            None,
+            "only the reference-list parser establishes an entry",
+        ),
+        "refusal_scan": EmptyPopulationDeclaration(
+            "NOT CODED lines in the refusal block, well-formed and malformed",
+            EmptyPopulationPosture.NOT_SCANNED,
+            None,
+            "only the refusal-block matcher establishes a line in this population",
+        ),
+        "render_scan": EmptyPopulationDeclaration(
+            "the final pass's exported pages",
+            EmptyPopulationPosture.NOT_SCANNED,
+            None,
+            "only the retained-pass reader establishes an exported page",
+        ),
+        "research_ledger": EmptyPopulationDeclaration(
+            "claim records",
+            EmptyPopulationPosture.NOT_SCANNED,
+            None,
+            "only the claim-record parser establishes a record",
+        ),
+        "specificity_scan": EmptyPopulationDeclaration(
+            "for-entry SPECIFICITY flags",
+            EmptyPopulationPosture.NOT_SCANNED,
+            None,
+            "only the specificity matcher establishes a for-entry flag",
+        ),
+        "voice_model_scan": EmptyPopulationDeclaration(
+            "register headings",
+            EmptyPopulationPosture.NOT_SCANNED,
+            None,
+            "only the register-heading matcher establishes a register",
+        ),
+    }
+)
+
 REFUSED: Mapping[str, str] = MappingProxyType(
     {
         "corpus_census": "a census over the corpus, not a grader over a run",

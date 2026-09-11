@@ -15,7 +15,7 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 import discussion_reply_scan as scan
-from grader_conformance import for_module, gate_conformance
+from grader_conformance import EmptyPopulationInput, for_module, gate_conformance
 from prose_bind import NAMING, bind, prose_outside_code, section
 
 
@@ -83,6 +83,14 @@ class Run:
         (root / "claims.md").write_text(CLAIMS, encoding="utf-8")
         (root / "response-maren.md").write_text(BODY, encoding="utf-8")
         (root / "reread.md").write_text(REREAD, encoding="utf-8")
+
+
+def empty_population_input(root: Path) -> EmptyPopulationInput:
+    Run(root)
+    (root / "response-maren.md").write_text("**References**\n", encoding="utf-8")
+    return EmptyPopulationInput(
+        (str(root),), population_size=lambda result: result.words or 0
+    )
 
 
 APA_SHEET = REPO_ROOT / "skills" / "_shared" / "reference" / "apa7.md"
