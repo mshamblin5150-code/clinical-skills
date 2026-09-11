@@ -91,12 +91,14 @@ moment it is filed -- which catches what ``--jq '.body | length'`` does not,
 since a lost body has a length of 2 and reads as a number rather than as a
 failure.
 
-**The predicate runs at both publication hosts, with deliberately asymmetric
-posture.** ``tracker_publish_hook.py`` imports it and refuses a damaged title or
-body from the Claude Code publisher. ``.github/workflows/tracker.yml`` calls
-this command's ``--github-event`` mode for a changed body from either known
-publisher and reports after publication. The hook's remaining publisher limit
-is owned by ``tracker_publish_hook.NOT_REACHED`` rather than restated here.
+**The complete body grader runs at both publication hosts, with deliberately
+asymmetric posture.** ``tracker_publish_hook.py`` passes every readable body
+through ``grade`` and refuses each returned row from the Claude Code publisher;
+titles keep two predicates outside this body-only interface.
+``.github/workflows/tracker.yml`` calls this command's ``--github-event`` mode
+for a changed body from either known publisher and reports after publication.
+The hook's remaining publisher limit is owned by
+``tracker_publish_hook.NOT_REACHED`` rather than restated here.
 
 **A clean scan is not a body worth reading**, ``docs/agents/issue-tracker.md``
 says so beside the command, and a test asserts that sentence is still there.
@@ -188,6 +190,14 @@ SUBSUMED_BY = {
 }
 
 NOT_REACHED = (
+    (
+        "an empty, at-dash, literal-at-path, or double-encoded title",
+        "Titles stay outside the lost-body rows and double-encoded row. None "
+        "of 1,088 titles fired on 2026-09-11, and gh issue and gh pr have no "
+        "title-file flag through which the measured file-backed loss occurred. "
+        "The dated count comes from ADR 0177's full tracker harvest and title "
+        "grade in its measurement section.",
+    ),
     (
         "an escape collapse that leaves only lost backticks",
         "A collapse that removes backticks without leaving any other graded "

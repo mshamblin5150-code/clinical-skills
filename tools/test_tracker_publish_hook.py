@@ -20,6 +20,7 @@ from unittest import mock
 
 import artifact_lock_test_support  # noqa: F401
 import tracker_publish_hook as hook
+import tracker_bodies
 import phi_scan
 
 
@@ -169,17 +170,23 @@ class TheRecognizedPublishSetIsDeclared(unittest.TestCase):
 
 
 class DirectTrackerWritersCrossTheBodyGate(unittest.TestCase):
-    def test_every_ruled_body_shape_is_refused(self) -> None:
-        for body in (
-            "@-",
-            "word\bword",
-            "before\rafter",
-            r"before\nafter",
-            r"open D:\\folder",
-        ):
-            with self.subTest(body=repr(body)):
-                with self.assertRaisesRegex(ValueError, "tracker body refused"):
-                    hook.authorize_issue_body(body, "map", issue_number=596)
+    BODY_BY_KIND = {
+        tracker_bodies.LOST_AT_DASH: "@-",
+        tracker_bodies.EMPTY_BODY: " \n\t ",
+        tracker_bodies.LITERAL_AT_PATH: "@body.md",
+        tracker_bodies.DOUBLE_ENCODED: "before \u00e2\u20ac\u201d after",
+        tracker_bodies.C0_CONTROL_CHARACTER: "word\bword",
+        tracker_bodies.CARRIAGE_RETURN_FLANKED: "before\rafter",
+        tracker_bodies.LITERAL_NEWLINE_ESCAPE: r"before\nafter",
+        tracker_bodies.DOUBLED_PATH_SEPARATOR: r"open D:\\folder",
+    }
+
+    def test_every_declared_body_shape_is_refused(self) -> None:
+        self.assertEqual(set(self.BODY_BY_KIND), set(tracker_bodies.KINDS))
+        for kind, body in self.BODY_BY_KIND.items():
+            with self.subTest(kind=kind):
+                with self.assertRaisesRegex(ValueError, kind):
+                    hook.authorize_issue_body(body, "issue #596", issue_number=595)
 
     def test_a_map_body_without_a_producer_stamp_is_refused(self) -> None:
         with self.assertRaisesRegex(ValueError, "producer stamp"):
@@ -790,6 +797,12 @@ class PublishedFieldsAreGradedWithoutEchoingThem(unittest.TestCase):
             "phi:ssn": (marker + " 123-45-6789", None, None, None),
             "phi:phone": (marker + " 555-555-1212", None, None, None),
             "phi:us-short-date": (marker + " 1/2/2026", None, None, None),
+            "body:lost-at-dash": ("@-", None, None, None),
+            "body:empty-body": ("", None, None, None),
+            "body:literal-at-path": ("@body.md", None, None, None),
+            "body:double-encoded": (
+                "before \u00e2\u20ac\u201d after", None, None, None
+            ),
             "body:c0-control-character": (marker + "\bdamaged", None, None, None),
             "body:carriage-return-flanked": marker + "\rflanked",
             "body:literal-newline-escape": marker + r"\nliteral",
@@ -1196,7 +1209,14 @@ class PublishedFieldsAreGradedWithoutEchoingThem(unittest.TestCase):
     def test_title_exclusions_are_preserved(self) -> None:
         index = phi_scan.build_index(set(), set())
 
-        for title in (r"before\nafter", r"open D:\\folder"):
+        for title in (
+            "",
+            "@-",
+            "@body.md",
+            "before \u00e2\u20ac\u201d after",
+            r"before\nafter",
+            r"open D:\\folder",
+        ):
             with self.subTest(title=title):
                 result = hook.analyze(
                     hook.Publication("title", title),
@@ -1378,6 +1398,201 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
             "tool_name": "Bash",
             "tool_input": {"command": command},
         }
+
+    @staticmethod
+    def body_commands(body: str) -> dict[tuple[str, ...], str]:
+        inline = "'" + body + "'"
+        return {
+            ("issue", "create"): (
+                f"gh issue create --title Ticket --body {inline}"
+            ),
+            ("issue", "comment"): f"gh issue comment 595 --body {inline}",
+            ("issue", "edit"): f"gh issue edit 595 --body {inline}",
+            ("issue", "close"): f"gh issue close 595 --comment {inline}",
+            ("pr", "create"): f"gh pr create --title Change --body {inline}",
+            ("pr", "comment"): f"gh pr comment 595 --body {inline}",
+            ("pr", "edit"): f"gh pr edit 595 --body {inline}",
+            ("pr", "review"): f"gh pr review 595 --approve --body {inline}",
+            ("api",): (
+                "gh api --method PATCH repos/example/project/issues/595 "
+                f"-f body={inline}"
+            ),
+        }
+
+    @staticmethod
+    def body_file_commands(path: Path) -> dict[tuple[str, ...], str]:
+        return {
+            ("pr", "create"): f'gh pr create --title Change --body-file "{path}"',
+            ("pr", "edit"): f'gh pr edit 595 --body-file "{path}"',
+            ("issue", "comment"): f'gh issue comment 595 --body-file "{path}"',
+            ("pr", "comment"): f'gh pr comment 595 --body-file "{path}"',
+            ("issue", "edit"): f'gh issue edit 595 --body-file "{path}"',
+        }
+
+    def test_every_declared_body_row_denies_every_body_bearing_route(self) -> None:
+        bodies = DirectTrackerWritersCrossTheBodyGate.BODY_BY_KIND
+        self.assertEqual(set(bodies), set(tracker_bodies.KINDS))
+        index = phi_scan.build_index(set(), set())
+        for kind, body in bodies.items():
+            commands = self.body_commands(body)
+            self.assertEqual(set(commands), set(hook.PUBLISH_ROUTES))
+            for route, command in commands.items():
+                with (
+                    self.subTest(kind=kind, route=route),
+                    mock.patch.object(
+                        hook, "current_index", return_value=(index, ())
+                    ),
+                    mock.patch.object(
+                        hook, "refresh_default_branch", return_value=True
+                    ),
+                    mock.patch.object(
+                        hook,
+                        "fetch_readback",
+                        return_value=fetched_records(595),
+                    ),
+                    mock.patch.object(hook, "write_marker"),
+                ):
+                    response = hook.handle(self.payload(command))
+
+                specific = response["hookSpecificOutput"]
+                self.assertEqual(specific["permissionDecision"], "deny")
+                self.assertIn(f"body:{kind}", specific["additionalContext"])
+
+    def test_each_body_refusal_reports_its_remedy(self) -> None:
+        bodies = DirectTrackerWritersCrossTheBodyGate.BODY_BY_KIND
+        self.assertEqual(set(hook.BODY_REMEDIES), set(tracker_bodies.KINDS))
+        for kind, body in bodies.items():
+            with self.subTest(kind=kind):
+                result = hook.analyze(
+                    hook.Publication("body", body),
+                    index=phi_scan.build_index(set(), set()),
+                    issue=None,
+                    remote_fresh=True,
+                )
+
+                self.assertIn(
+                    f"remedy: {hook.BODY_REMEDIES[kind]}", result.report
+                )
+
+    def test_lost_body_remedies_name_the_absolute_body_file_route(self) -> None:
+        for kind in (
+            tracker_bodies.EMPTY_BODY,
+            tracker_bodies.LOST_AT_DASH,
+            tracker_bodies.LITERAL_AT_PATH,
+        ):
+            with self.subTest(kind=kind):
+                remedy = hook.BODY_REMEDIES[kind]
+                self.assertIn("body did not land", remedy)
+                self.assertIn("absolute path", remedy)
+                self.assertIn("--body-file", remedy)
+
+    def test_double_encoded_remedy_keeps_damage_and_mentions_apart(self) -> None:
+        remedy = hook.BODY_REMEDIES[tracker_bodies.DOUBLE_ENCODED]
+        self.assertIn("cp1252", remedy)
+        self.assertIn("UTF-8", remedy)
+        self.assertIn("backticks", remedy)
+        self.assertIn("genuine mention only", remedy)
+        self.assertIn("hide damage", remedy)
+
+    def test_empty_and_whitespace_only_body_files_are_refused(self) -> None:
+        routes = {
+            ("pr", "create"),
+            ("pr", "edit"),
+            ("issue", "comment"),
+            ("pr", "comment"),
+            ("issue", "edit"),
+        }
+        index = phi_scan.build_index(set(), set())
+        with tempfile.TemporaryDirectory() as temporary:
+            body_file = Path(temporary) / "body.md"
+            for body in ("", " \n\t "):
+                body_file.write_text(body, encoding="utf-8")
+                commands = self.body_file_commands(body_file)
+                for route in routes:
+                    with (
+                        self.subTest(body=repr(body), route=route),
+                        mock.patch.object(
+                            hook, "current_index", return_value=(index, ())
+                        ),
+                        mock.patch.object(
+                            hook, "refresh_default_branch", return_value=True
+                        ),
+                        mock.patch.object(
+                            hook,
+                            "fetch_readback",
+                            return_value=fetched_records(595),
+                        ),
+                        mock.patch.object(hook, "write_marker"),
+                    ):
+                        response = hook.handle(self.payload(commands[route]))
+
+                    specific = response["hookSpecificOutput"]
+                    self.assertEqual(specific["permissionDecision"], "deny")
+                    self.assertIn("body:empty-body", specific["additionalContext"])
+
+    def test_blank_issue_edit_with_a_filed_from_line_draws_both_denials(self) -> None:
+        index = phi_scan.build_index(set(), set())
+        current = (
+            "**Filed from:** the clinician's request, 2026-09-11.\n\n"
+            "Original body."
+        )
+        with (
+            mock.patch.object(hook, "current_index", return_value=(index, ())),
+            mock.patch.object(hook, "refresh_default_branch", return_value=True),
+            mock.patch.object(
+                hook,
+                "fetch_readback",
+                return_value=fetched_records(595, body=current),
+            ),
+            mock.patch.object(hook, "write_marker"),
+        ):
+            response = hook.handle(
+                self.payload("gh issue edit 595 --body ''")
+            )
+
+        report = response["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("deny: body:empty-body", report)
+        self.assertIn("deny: filed-from:edit", report)
+
+    def test_an_explicit_empty_pull_request_review_body_is_refused(self) -> None:
+        index = phi_scan.build_index(set(), set())
+        with (
+            mock.patch.object(hook, "current_index", return_value=(index, ())),
+            mock.patch.object(hook, "refresh_default_branch", return_value=True),
+            mock.patch.object(
+                hook, "fetch_readback", return_value=fetched_records(595)
+            ),
+            mock.patch.object(hook, "write_marker"),
+        ):
+            response = hook.handle(
+                self.payload("gh pr review 595 --approve --body ''")
+            )
+
+        specific = response["hookSpecificOutput"]
+        self.assertEqual(specific["permissionDecision"], "deny")
+        self.assertIn("body:empty-body", specific["additionalContext"])
+        self.assertIn("omit the --body flag", specific["additionalContext"])
+        self.assertIn("if this is an approval", specific["additionalContext"])
+        self.assertIn("otherwise supply", specific["additionalContext"])
+        self.assertNotIn(
+            "absolute path to --body-file", specific["additionalContext"]
+        )
+
+    def test_manual_text_mode_refuses_an_empty_file(self) -> None:
+        index = phi_scan.build_index(set(), set())
+        with tempfile.TemporaryDirectory() as temporary:
+            body = Path(temporary) / "body.md"
+            body.write_text("", encoding="utf-8")
+            with (
+                mock.patch.object(hook, "current_index", return_value=(index, ())),
+                mock.patch.object(
+                    hook, "refresh_default_branch", return_value=True
+                ),
+                contextlib.redirect_stdout(io.StringIO()),
+            ):
+                status = hook.main(["--text", str(body)])
+
+        self.assertEqual(status, 1)
 
     def assert_commands_allowed(self, commands: tuple[str, ...]) -> None:
         for command in commands:
