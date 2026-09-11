@@ -269,6 +269,11 @@ Not superseded:
 - **A `missing-flag` row in `specificity_scan`.** It grades C4 inside C5.
 - **Widening `SPECIFICITY` to read a list marker or bold.** The remainder makes the miss visible
   without guessing at forms, and the next unrecognized spelling is caught the same way.
+  *(Corrected 2026-09-11 by [#1038](https://github.com/mshamblin5150-code/clinical-skills/issues/1038)'s
+  grilling, at `8c0437e`: that holds for a flag spelled another way under a recognized code line, and not
+  for the code line itself. The remainder is computed over the entries `ENTRY` recognizes, so a
+  `- ICD-10` or table-row entry with a bold bare flag beside recognized entries exits 0. The rejection
+  stands; the reason it gave is narrower than written. See ADR 0178.)*
 - **Forbidding `0` in the discussion bar.** It contradicts the template, and the floor would stand in
   for a check it is not.
 - **Extending the rule to every command in `tools/`.** Those modules share no contract to hang it on.
