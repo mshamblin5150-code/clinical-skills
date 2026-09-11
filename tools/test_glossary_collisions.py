@@ -54,7 +54,9 @@ DECLARED_CANDIDATES = (
     Candidate(
         "Declared",
         Verdict.COLLISION,
-        "The tier is a note value; the Declared compounds name statements held as named things.",
+        "The tier is a note value; each Declared compound names something the repository "
+        "states on purpose, as a named object, a list entry or a message, and none is a "
+        "value in a note.",
     ),
     Candidate(
         "Drift",
@@ -69,7 +71,10 @@ DECLARED_CANDIDATES = (
     Candidate(
         "Citation",
         Verdict.COLLISION,
-        "The bare term is a tracker reference; the Citation compounds are bibliographic.",
+        "The bare term is a ticket reference; the Citation compounds name other kinds of "
+        "reference or how one is checked: bibliographic, legal, a document's own, a skill "
+        "step, or a gate's evidence tier. Citation set is the one compound about ticket "
+        "references, naming every one a publication makes.",
     ),
     Candidate(
         "Disposition",
