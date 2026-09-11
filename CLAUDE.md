@@ -156,6 +156,9 @@ in that paragraph is historical.
 **Correction, 2026-09-10:** `suite.py` is now the most recent direct command and calls `use_utf8`
 from that path. The preceding order remains historical.
 
+**Correction, 2026-09-10:** `tracker_filed_from.py` is now the most recent direct command and calls
+`use_utf8` from that path. The preceding order remains historical.
+
 ### Suite run
 
 `tools/suite.py` is the one complete-suite interface. It discovers the `test*.py` population under
@@ -1297,8 +1300,9 @@ readback. It extracts one citation set from the title and body together, adds
 the record being published to when that record already exists, and formats
 already-fetched GitHub records as current state, labels, update time, and body
 length. It never fetches, returns body text, asserts drift, or changes the
-publish decision. The publish hook owns the single batched GraphQL request and
-passes its result into this module.
+publish decision. The publish hook owns the single batched GraphQL request,
+passes its result into this module, and separately reads the target issue's
+current body text for Filed-from preservation without reporting that text.
 
 `tracker_scan.records_from_github` splits title and body so its finding names
 the field to edit. A readback names records rather than editable fields, so
@@ -1320,8 +1324,10 @@ The pre-publication `PreToolUse` hook is registered in
 `.claude/settings.json` and implemented by
 `tools/tracker_publish_hook.py`. It extracts publishable title and body fields
 from one `gh` command, reads current cited-record metadata in one request, and
-sends each field through `phi_scan` and `tracker_branch_scope` without returning
-matched values.
+sends each field through `phi_scan`, `tracker_branch_scope`, and
+`tracker_filed_from` without returning matched values. For an issue body edit,
+the last grader compares the proposal with the current body text from readback;
+when that read fails it reports the rule `NOT GRADED` and does not refuse on it.
 `PUBLISH_ROUTES` owns command classification; the settings condition is only a
 cost guard.
 
@@ -1345,6 +1351,27 @@ scan.
 Covered by `tools/test_tracker_publish_hook.py`, which drives synthetic command
 strings and hook payloads through the extractor, grader, and JSON protocol with
 temporary body files. It performs no publication.
+
+### Tracker Filed-from line
+
+`tools/tracker_filed_from.py` owns the fixed-position Filed-from parser and the
+single UTC cutoff in `FILED_FROM_CUTOFF`. The publish hook uses its issue-create
+and issue-edit policy before publication. Its `--github-event` mode reports the
+same loss after an issue open or body edit, and its `--harvest` mode lists open
+post-cutoff issues missing the line. A harvest that reaches its supplied cap is
+not complete and exits 2. All three readers reuse the implementation map's
+producer-stamp pattern for the exemption.
+
+The event and harvest commands read caller-supplied JSON and open no socket.
+Exit 0 means a complete clean grade, 1 means findings, and 2 means the requested
+grade was not completed. Reports name rules and record URLs but never print a
+body. The harvest reports its records read, eligible post-cutoff issue count,
+and unread remainder on every run. The complete boundary belongs to
+`tracker_filed_from.NOT_REACHED`; this section points to the object and copies
+none of its rows.
+
+Covered by `tools/test_tracker_filed_from.py`, which drives synthetic event and
+harvest JSON through the public functions and command boundary.
 
 ### Implementation map disagreement scan
 

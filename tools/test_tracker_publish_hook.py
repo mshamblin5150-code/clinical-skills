@@ -37,7 +37,11 @@ def git(
     )
 
 
-def fetched_records(number: int, labels: tuple[str, ...] = ()) -> dict:
+def fetched_records(
+    number: int,
+    labels: tuple[str, ...] = (),
+    body: str = "invented record body",
+) -> dict:
     """Return one complete invented GraphQL record keyed by its request number."""
     return {
         number: {
@@ -45,7 +49,7 @@ def fetched_records(number: int, labels: tuple[str, ...] = ()) -> dict:
             "state": "OPEN",
             "labels": {"nodes": [{"name": label} for label in labels]},
             "updatedAt": "2026-09-01T12:34:56Z",
-            "body": "invented record body",
+            "body": body,
             "url": f"https://github.com/example/project/issues/{number}",
         }
     }
@@ -1426,6 +1430,311 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
         self.assertIn("0 findings", specific["additionalContext"])
         write_marker.assert_called_once_with()
 
+    def test_an_issue_create_without_a_filed_from_line_is_denied(self) -> None:
+        index = phi_scan.build_index(set(), set())
+        with (
+            mock.patch.object(hook, "current_index", return_value=(index, ())),
+            mock.patch.object(hook, "refresh_default_branch", return_value=True),
+            mock.patch.object(hook, "fetch_readback") as fetch,
+            mock.patch.object(hook, "write_marker"),
+        ):
+            response = hook.handle(
+                self.payload(
+                    "gh issue create --title 'Ticket' "
+                    "--body 'A body without its filing record.'"
+                )
+            )
+
+        fetch.assert_not_called()
+        specific = response["hookSpecificOutput"]
+        self.assertEqual(specific["permissionDecision"], "deny")
+        self.assertIn("filed-from:create", specific["additionalContext"])
+
+    def test_a_title_only_issue_create_is_denied_as_an_empty_body(self) -> None:
+        index = phi_scan.build_index(set(), set())
+        with (
+            mock.patch.object(hook, "current_index", return_value=(index, ())),
+            mock.patch.object(hook, "refresh_default_branch", return_value=True),
+            mock.patch.object(hook, "fetch_readback"),
+            mock.patch.object(hook, "write_marker"),
+        ):
+            response = hook.handle(
+                self.payload("gh issue create --title 'Ticket without a body'")
+            )
+
+        specific = response["hookSpecificOutput"]
+        self.assertEqual(specific["permissionDecision"], "deny")
+        self.assertIn("filed-from:create", specific["additionalContext"])
+
+    def test_an_interactive_issue_create_is_denied_as_an_unreadable_body(self) -> None:
+        response = hook.handle(self.payload("gh issue create"))
+
+        specific = response["hookSpecificOutput"]
+        self.assertEqual(specific["permissionDecision"], "deny")
+        self.assertIn("filed-from:create", specific["additionalContext"])
+
+    def test_an_issue_create_accepts_the_line_at_each_fixed_position(self) -> None:
+        index = phi_scan.build_index(set(), set())
+        bodies = (
+            "**Filed from:** the clinician's request, 2026-09-11.\n\nBody.",
+            (
+                "> **Cited record state:** `docs/adr/9999-unmerged.md` is not "
+                "on `main` as of `2026-09-11`.\n"
+                "**Filed from:** the architecture review, 2026-09-11.\n\nBody."
+            ),
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for index_number, body in enumerate(bodies):
+                with self.subTest(index=index_number):
+                    body_file = root / f"body-{index_number}.md"
+                    body_file.write_text(body, encoding="utf-8")
+                    with (
+                        mock.patch.object(
+                            hook, "current_index", return_value=(index, ())
+                        ),
+                        mock.patch.object(
+                            hook, "refresh_default_branch", return_value=True
+                        ),
+                        mock.patch.object(hook, "fetch_readback") as fetch,
+                        mock.patch.object(hook, "write_marker"),
+                    ):
+                        response = hook.handle(
+                            self.payload(
+                                f'cd "{root}" && gh issue create --title Ticket '
+                                f'--body-file "{body_file.name}"'
+                            )
+                        )
+
+                    fetch.assert_not_called()
+                    specific = response["hookSpecificOutput"]
+                    self.assertNotIn("permissionDecision", specific)
+                    self.assertIn(
+                        "filed-from: 0 fixed-line findings",
+                        specific["additionalContext"],
+                    )
+
+    def test_an_issue_edit_that_drops_the_existing_line_is_denied(self) -> None:
+        index = phi_scan.build_index(set(), set())
+        current = (
+            "**Filed from:** the clinician's request, 2026-09-11.\n\n"
+            "Original body."
+        )
+        with (
+            mock.patch.object(hook, "current_index", return_value=(index, ())),
+            mock.patch.object(hook, "refresh_default_branch", return_value=True),
+            mock.patch.object(
+                hook,
+                "fetch_readback",
+                return_value=fetched_records(670, body=current),
+            ),
+            mock.patch.object(hook, "write_marker"),
+        ):
+            response = hook.handle(
+                self.payload(
+                    "gh issue edit 670 --body 'Replacement without the line.'"
+                )
+            )
+
+        specific = response["hookSpecificOutput"]
+        self.assertEqual(specific["permissionDecision"], "deny")
+        self.assertIn("filed-from:edit", specific["additionalContext"])
+
+    def test_an_issue_edit_that_alters_the_existing_line_is_denied(self) -> None:
+        index = phi_scan.build_index(set(), set())
+        current = "**Filed from:** the architecture review, 2026-09-11.\n\nOld."
+        proposed = "**Filed from:** a later rewrite, 2026-09-12.\n\nNew."
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            body_file = root / "body.md"
+            body_file.write_text(proposed, encoding="utf-8")
+            with (
+                mock.patch.object(hook, "current_index", return_value=(index, ())),
+                mock.patch.object(
+                    hook, "refresh_default_branch", return_value=True
+                ),
+                mock.patch.object(
+                    hook,
+                    "fetch_readback",
+                    return_value=fetched_records(670, body=current),
+                ),
+                mock.patch.object(hook, "write_marker"),
+            ):
+                response = hook.handle(
+                    self.payload(
+                        f'cd "{root}" && gh issue edit 670 '
+                        f'--body-file "{body_file.name}"'
+                    )
+                )
+
+        specific = response["hookSpecificOutput"]
+        self.assertEqual(specific["permissionDecision"], "deny")
+        self.assertIn("filed-from:edit", specific["additionalContext"])
+
+    def test_an_issue_edit_keeps_the_line_and_adds_a_correction_beneath_it(self) -> None:
+        index = phi_scan.build_index(set(), set())
+        filed_from = "**Filed from:** the clinician's request, 2026-09-11."
+        current = filed_from + "\n\nOriginal body."
+        proposed = (
+            filed_from
+            + "\n*Corrected 2026-09-12: filed during the build, not its review.*"
+            + "\n\nReplacement body."
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            body_file = root / "body.md"
+            body_file.write_text(proposed, encoding="utf-8")
+            with (
+                mock.patch.object(hook, "current_index", return_value=(index, ())),
+                mock.patch.object(
+                    hook, "refresh_default_branch", return_value=True
+                ),
+                mock.patch.object(
+                    hook,
+                    "fetch_readback",
+                    return_value=fetched_records(670, body=current),
+                ),
+                mock.patch.object(hook, "write_marker"),
+            ):
+                response = hook.handle(
+                    self.payload(
+                        f'cd "{root}" && gh issue edit 670 '
+                        f'--body-file "{body_file.name}"'
+                    )
+                )
+
+        specific = response["hookSpecificOutput"]
+        self.assertNotIn("permissionDecision", specific)
+        self.assertIn("filed-from: 0 fixed-line findings", specific["additionalContext"])
+
+    def test_an_issue_edit_without_an_existing_line_is_not_refused_on_this_rule(self) -> None:
+        index = phi_scan.build_index(set(), set())
+        with (
+            mock.patch.object(hook, "current_index", return_value=(index, ())),
+            mock.patch.object(hook, "refresh_default_branch", return_value=True),
+            mock.patch.object(
+                hook,
+                "fetch_readback",
+                return_value=fetched_records(670, body="Original body."),
+            ),
+            mock.patch.object(hook, "write_marker"),
+        ):
+            response = hook.handle(
+                self.payload("gh issue edit 670 --body 'Replacement body.'")
+            )
+
+        specific = response["hookSpecificOutput"]
+        self.assertNotIn("permissionDecision", specific)
+        self.assertIn("filed-from: 0 fixed-line findings", specific["additionalContext"])
+
+    def test_an_issue_edit_with_failed_readback_reports_not_graded(self) -> None:
+        index = phi_scan.build_index(set(), set())
+        with (
+            mock.patch.object(hook, "current_index", return_value=(index, ())),
+            mock.patch.object(hook, "refresh_default_branch", return_value=True),
+            mock.patch.object(hook, "fetch_readback", side_effect=OSError("offline")),
+            mock.patch.object(hook, "write_marker"),
+        ):
+            response = hook.handle(
+                self.payload("gh issue edit 670 --body 'Replacement body.'")
+            )
+
+        specific = response["hookSpecificOutput"]
+        self.assertNotIn("permissionDecision", specific)
+        self.assertIn(
+            "filed-from: NOT GRADED; current issue body was not read",
+            specific["additionalContext"],
+        )
+
+    def test_a_pull_request_create_is_not_graded_for_the_line(self) -> None:
+        index = phi_scan.build_index(set(), set())
+        with (
+            mock.patch.object(hook, "current_index", return_value=(index, ())),
+            mock.patch.object(hook, "refresh_default_branch", return_value=True),
+            mock.patch.object(hook, "fetch_readback"),
+            mock.patch.object(hook, "write_marker"),
+        ):
+            response = hook.handle(
+                self.payload("gh pr create --title 'PR' --body 'Ordinary PR body.'")
+            )
+
+        specific = response["hookSpecificOutput"]
+        self.assertNotIn("permissionDecision", specific)
+        self.assertIn("filed-from: NOT GRADED", specific["additionalContext"])
+
+    def test_a_map_stamped_issue_body_is_not_graded_for_the_line(self) -> None:
+        index = phi_scan.build_index(set(), set())
+        commit = "a" * 40
+        body = (
+            "<!-- implementation-map:v1:state:end -->\n\n"
+            "## Snapshot\n"
+            f"- producer: `tools/implementation_map.py at {commit}`\n"
+            f"- default-branch commit: `{commit}`\n"
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            body_file = root / "map.md"
+            body_file.write_text(body, encoding="utf-8")
+            with (
+                mock.patch.object(hook, "current_index", return_value=(index, ())),
+                mock.patch.object(
+                    hook, "refresh_default_branch", return_value=True
+                ),
+                mock.patch.object(hook, "fetch_readback"),
+                mock.patch.object(hook, "write_marker"),
+                mock.patch(
+                    "implementation_map.checkout_commit", return_value=commit
+                ),
+            ):
+                response = hook.handle(
+                    self.payload(
+                        f'cd "{root}" && gh issue create --title Map '
+                        f'--body-file "{body_file.name}"'
+                    )
+                )
+
+        specific = response["hookSpecificOutput"]
+        self.assertNotIn("permissionDecision", specific)
+        self.assertIn("implementation map producer stamp", specific["additionalContext"])
+
+    def test_an_api_issue_create_without_the_line_is_denied(self) -> None:
+        index = phi_scan.build_index(set(), set())
+        with (
+            mock.patch.object(hook, "current_index", return_value=(index, ())),
+            mock.patch.object(hook, "refresh_default_branch", return_value=True),
+            mock.patch.object(hook, "fetch_readback"),
+            mock.patch.object(hook, "write_marker"),
+        ):
+            response = hook.handle(
+                self.payload(
+                    "gh api --method POST repos/example/project/issues "
+                    "-f title=Ticket -f body='Missing filing record.'"
+                )
+            )
+
+        specific = response["hookSpecificOutput"]
+        self.assertEqual(specific["permissionDecision"], "deny")
+        self.assertIn("filed-from:create", specific["additionalContext"])
+
+    def test_manual_text_mode_reports_the_filed_from_rule_not_graded(self) -> None:
+        index = phi_scan.build_index(set(), set())
+        with tempfile.TemporaryDirectory() as temporary:
+            body = Path(temporary) / "body.md"
+            body.write_text("Ordinary body.", encoding="utf-8")
+            stdout = io.StringIO()
+            with (
+                mock.patch.object(hook, "current_index", return_value=(index, ())),
+                mock.patch.object(
+                    hook, "refresh_default_branch", return_value=True
+                ),
+                contextlib.redirect_stdout(stdout),
+            ):
+                status = hook.main(["--text", str(body)])
+
+        self.assertEqual(status, 0)
+        self.assertIn("filed-from: NOT GRADED; no route", stdout.getvalue())
+        self.assertNotIn("filed-from: 0 findings", stdout.getvalue())
+
     def test_a_missing_discriminator_is_reported_without_denying(self) -> None:
         index = phi_scan.build_index(set(), set())
         with (
@@ -1857,6 +2166,7 @@ class DeclaredLimitsHaveOneOwner(unittest.TestCase):
                 "an AAR paraphrase passes the quotation gate",
                 "the command-folder reader reaches literal absolute cd targets only",
                 "a stock discriminator clause can satisfy the verdict form check",
+                "manual text mode has no issue publication route",
             },
         )
 
