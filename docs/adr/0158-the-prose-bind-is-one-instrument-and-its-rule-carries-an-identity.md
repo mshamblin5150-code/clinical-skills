@@ -83,7 +83,7 @@ Fifteen authored declarers are outside it.
 
 **One reasoned finding was falsified by driving the code, and it is recorded because the method is the
 point.** `tracker_branch_scope`'s single-regex link matcher looked like a weak copy of
-`test_skill_agreement.dead_links`. Driven, `_citation_prose` already calls `prose_outside_code`, the
+`markdown_read.dead_links`. Driven, `_citation_prose` already calls `prose_outside_code`, the
 two agree on every tracked file, and there is no defect. The apparent one was an artifact of running
 the regex without the masking step that production already performs.
 

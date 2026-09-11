@@ -49,10 +49,26 @@ import re
 import subprocess
 import unittest
 from pathlib import Path
-from typing import Callable, Iterator, NamedTuple
 
+from adr_read import (
+    RULING_EXEMPT_MARKER,
+    RulingCitation,
+    ruling_citations,
+    ruling_ordinals,
+    unresolved_ruling_citations,
+)
 import git_paths
-from prose_bind import NAMING, ProseBind, bind, normalized, prose_outside_code
+from markdown_read import (
+    Exemption,
+    StepCitation,
+    dead_links,
+    markdown_targets,
+    marker_exemptions,
+    paragraphs,
+    step_citations,
+    unfenced_lines,
+)
+from prose_bind import NAMING, ProseBind, bind, normalized
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SELF = Path(__file__).resolve()
@@ -83,7 +99,6 @@ CATALOG = REPO_ROOT / "reference" / "guidelines-catalog.md"
 # society with a space. Nothing else is normalized, so a wrong name stays wrong.
 README_COPUBLICATION_SEPARATOR = "/"
 README_REFUSED_PATH_ROOTS = frozenset({"scratch", "output"})
-README_MARKDOWN_TARGET = re.compile(r"\]\(([^)]+)\)")
 README_CODE_TOKEN = re.compile(r"(?<!`)`([^`\n]+)`(?!`)")
 
 README_NOT_REACHED = (
@@ -210,44 +225,6 @@ class PendingTestsGateOnlyWhatTheirResultsWouldEstablish(ProseBind, unittest.Tes
 #: because the skills are not uniform about depth and the number is the subject.
 STEP_HEADING = re.compile(r"^#{2,4}\s+(\d+)\.\s")
 
-#: A citation of one. ``steps?`` for the plural opener of *steps 1 and 2*, which
-#: this reads as a citation of 1 and misses the 2 -- a floor rather than a
-#: ceiling, on ``differential_scan.py``'s terms. The separator admits any
-#: whitespace so a **hard-wrapped** citation is still seen. That costs nothing
-#: today -- it finds not one match the single-space form misses, measured
-#: 2026-08-19 -- and ``test_run_record_claim`` is where a wrapped phrase went
-#: unread by the very check written to find it.
-STEP_CITATION = re.compile(r"\bsteps?[-‑\s]+(\d+)\b", re.IGNORECASE)
-
-#: ADRs express rulings as numbered paragraphs, numbered nested headings, or a
-#: number in an H2 ruling heading. Addenda deliberately remain in the ruling
-#: sequence; another H2 takes numbered prose back out of it.
-ADR_HEADING = re.compile(r"^(#{2,4})\s+(.+?)\s*$")
-#: Declaration spellings are grounded in ADR headings and bold ruling items.
-#: They intentionally differ from ``RULING_CITATION``'s four-word prose
-#: vocabulary: accepting a citation word must not bless it as a writer's form.
-RULING_HEADING = re.compile(r"^(?:ruling|decision)\s+(\d+)\b", re.IGNORECASE)
-NUMBERED_HEADING = re.compile(r"^(\d+)\.\s")
-RULING_SECTION = re.compile(
-    r"^(?:what is ruled|the ruling|rulings|the decisions|ruled\b|(?:\w+\s+)?addendum\b)",
-    re.IGNORECASE,
-)
-RULING_ITEM = re.compile(r"^(?:\*\*(?:ruling\s+)?)?(\d+)\.\s", re.IGNORECASE)
-#: A fenced block is a specimen rather than document structure, and the record
-#: whose ruling shows a record shape puts a literal ``## `` line inside one.
-#: ADR 0087's ruling 2 does exactly that, and reading it as an H2 took the
-#: section marker down and hid rulings 3 to 9 from every citation in the tree.
-#: ``spelling_scan``'s mention-versus-use rule, which ``differential_scan``
-#: already adopted for the same reason.
-CODE_FENCE = re.compile(r"^\s*(```|~~~)")
-RULING_CITATION = re.compile(
-    r"\bADR\s+0*(\d+)(?:\]\([^\r\n]+?\))?(?:'s)?\s+"
-    r"(ruling|point|decision|rule)\s+(\d+)\b",
-    re.IGNORECASE,
-)
-RULING_EXEMPT_MARKER = re.compile(
-    r"<!--\s*unresolved-ruling-citations:\s*(\d+)\s*-->"
-)
 RULING_EXEMPT_CEILING = 2
 RULING_UNNUMBERED_MARKER = re.compile(r"<!--\s*no-numbered-rulings\s*-->")
 #: Raised 18 -> 19 on #790's stranding sweep, to admit ADR 0101. That
@@ -256,11 +233,6 @@ RULING_UNNUMBERED_MARKER = re.compile(r"<!--\s*no-numbered-rulings\s*-->")
 #: numbered-ruling convention entirely. The ceiling rises for a record
 #: that predates the rule, never to let a new one opt out of it.
 RULING_UNNUMBERED_CEILING = 19
-
-#: A reference-style Markdown destination. Link labels are deliberately opaque:
-#: only the destination participates in relative-path resolution.
-REFERENCE_DESTINATION = re.compile(r"(?m)^[ \t]{0,3}\[[^\]\r\n]+\]:[ \t]*")
-ABSOLUTE_TARGET = re.compile(r"^[a-z][a-z0-9+.-]*:", re.IGNORECASE)
 
 #: Under ``fixtures/``, these two names are prose about a run and everything
 #: else is the run. See ``graded_files``.
@@ -404,7 +376,7 @@ def readme_repository_paths() -> set[Path]:
 
     text = read(README)
     candidates = (
-        ((target, True) for target in README_MARKDOWN_TARGET.findall(text)),
+        ((target.target, True) for target in markdown_targets(text)),
         ((token, False) for token in README_CODE_TOKEN.findall(text)),
     )
     return {
@@ -517,65 +489,6 @@ def declared_steps(name: str) -> set[int]:
     }
 
 
-def ruling_ordinals(text: str) -> list[int]:
-    """Ruling ordinals in document order, across the record and its addenda."""
-    ordinals = []
-    # Early ADRs place their ruling list directly below the H1. Any later H2
-    # distinguishes the sections that follow, including correction lists.
-    in_ruling_section = True
-    accepts_items = True
-    for line in unfenced_lines(text):
-        heading = ADR_HEADING.match(line)
-        if heading:
-            level, title = len(heading.group(1)), heading.group(2)
-            numbered = RULING_HEADING.match(title)
-            if level == 2 and numbered:
-                ordinals.append(int(numbered.group(1)))
-                in_ruling_section = False
-                accepts_items = False
-            elif level == 2:
-                in_ruling_section = bool(RULING_SECTION.match(title))
-                accepts_items = in_ruling_section
-            elif in_ruling_section:
-                numbered_item = NUMBERED_HEADING.match(title)
-                if numbered_item and (
-                    accepts_items or int(numbered_item.group(1)) == len(ordinals) + 1
-                ):
-                    ordinals.append(int(numbered_item.group(1)))
-                    accepts_items = True
-                    continue
-                # A nested heading distinguishes its numbered material from
-                # the parent ruling list. The next expected ordinal may resume
-                # that parent list after the nested discussion.
-                accepts_items = bool(RULING_SECTION.match(title))
-            else:
-                accepts_items = False
-            continue
-        if in_ruling_section:
-            numbered = RULING_ITEM.match(line)
-            if numbered and (accepts_items or int(numbered.group(1)) == len(ordinals) + 1):
-                ordinals.append(int(numbered.group(1)))
-                accepts_items = True
-    return ordinals
-
-
-def unfenced_lines(text: str) -> Iterator[str]:
-    """Document lines excluding fenced specimens and their delimiters."""
-    fence = None
-    for line in text.splitlines():
-        opener = CODE_FENCE.match(line)
-        if fence is not None:
-            # Only the marker that opened the block closes it, so a nested
-            # fence of the other kind stays specimen text.
-            if opener and line.strip().startswith(fence):
-                fence = None
-            continue
-        if opener:
-            fence = opener.group(1)
-            continue
-        yield line
-
-
 def ruling_shape_findings(text: str) -> list[str]:
     """Every gap, restart, or other break in a record's ruling sequence."""
     findings = []
@@ -624,74 +537,6 @@ def unnumbered_ruling_ceiling_findings(texts: list[str]) -> list[str]:
     ]
 
 
-class RulingCitation(NamedTuple):
-    """One ADR coordinate citation found at the adjacency ruled by ADR 0075."""
-
-    line: int
-    record: int
-    number: int
-    word: str
-
-
-def ruling_citations(text: str) -> Iterator[RulingCitation]:
-    """Every adjacent ``ADR NNNN`` plus one of the four ordinal words."""
-    for found in RULING_CITATION.finditer(text):
-        yield RulingCitation(
-            text.count("\n", 0, found.start()) + 1,
-            int(found.group(1)),
-            int(found.group(3)),
-            found.group(2).lower(),
-        )
-
-
-def ruling_exemptions(text: str) -> list[Exemption]:
-    """Every ruling-citation marker paired with its next paragraph."""
-    blocks = list(paragraphs(text))
-    found = []
-    for index, (start, block) in enumerate(blocks):
-        if "\n" in block:
-            continue
-        matched = RULING_EXEMPT_MARKER.fullmatch(block.strip())
-        if not matched:
-            continue
-        declared = int(matched.group(1))
-        if index + 1 == len(blocks):
-            found.append(Exemption(start, start, start, declared))
-            continue
-        next_start, next_block = blocks[index + 1]
-        found.append(
-            Exemption(start, next_start, next_start + next_block.count("\n"), declared)
-        )
-    return found
-
-
-def unresolved_ruling_citations(
-    text: str,
-    declared: dict[int, set[int]],
-) -> list[str]:
-    """Dangling ADR coordinates not exactly covered by a counted marker."""
-    unresolved = [
-        cite
-        for cite in ruling_citations(text)
-        if cite.record not in declared or cite.number not in declared[cite.record]
-    ]
-    spans = ruling_exemptions(text)
-    covering = [span for span in spans if span.declared >= 1]
-    complaints = []
-    for cite in unresolved:
-        if not any(span.first <= cite.line <= span.last for span in covering):
-            complaints.append(
-                f"{cite.line}: ADR {cite.record:04d} {cite.word} {cite.number} does not exist"
-            )
-    for span in spans:
-        held = len([cite for cite in unresolved if span.first <= cite.line <= span.last])
-        if span.declared < 1:
-            complaints.append(f"{span.marker}: a marker declaring nothing exempts nothing")
-        elif held != span.declared:
-            complaints.append(f"{span.marker}: declares {span.declared}, paragraph holds {held}")
-    return sorted(complaints, key=lambda line: int(line.split(":")[0]))
-
-
 def declared_rulings() -> dict[int, set[int]]:
     """Each tracked ADR number joined to the shared parser's ordinal set."""
     declared = {}
@@ -720,7 +565,7 @@ def ruling_marker_ceiling_findings(texts: list[str]) -> list[str]:
     declared = sum(
         span.declared
         for text in texts
-        for span in ruling_exemptions(text)
+        for span in marker_exemptions(text, RULING_EXEMPT_MARKER)
     )
     if declared <= RULING_EXEMPT_CEILING:
         return []
@@ -728,306 +573,6 @@ def ruling_marker_ceiling_findings(texts: list[str]) -> list[str]:
         f"{declared} unresolved ruling citations exceed the ceiling of "
         f"{RULING_EXEMPT_CEILING}"
     ]
-
-
-def paragraphs(text: str) -> Iterator[tuple[int, str]]:
-    """Blocks of consecutive non-blank lines, with the line each one opens on.
-
-    The paragraph is the resolution scope rather than the line, because this
-    repo hard-wraps its prose: a subject named at the end of one line is carried
-    by the next, and a line-scoped reader would drop it.
-    """
-    block: list[str] = []
-    start = 1
-    for number, line in enumerate(text.splitlines(), 1):
-        if line.strip():
-            if not block:
-                start = number
-            block.append(line)
-        elif block:
-            yield start, "\n".join(block)
-            block = []
-    if block:
-        yield start, "\n".join(block)
-
-
-class MarkdownTarget(NamedTuple):
-    """One Markdown link destination and its source offset."""
-
-    offset: int
-    target: str
-
-
-def _angle_destination(text: str, start: int) -> tuple[str, int] | None:
-    """An angle-bracket destination beginning at ``start``."""
-    target = []
-    cursor = start + 1
-    while cursor < len(text):
-        if text[cursor] == "\\" and cursor + 1 < len(text):
-            target.append(text[cursor + 1])
-            cursor += 2
-            continue
-        if text[cursor] == ">":
-            return "".join(target), cursor + 1
-        if text[cursor] in "\r\n":
-            return None
-        target.append(text[cursor])
-        cursor += 1
-    return None
-
-
-def _raw_destination(
-    text: str,
-    start: int,
-    *,
-    inline: bool,
-) -> tuple[str, int] | None:
-    """A whitespace-free destination, retaining balanced parentheses."""
-    target = []
-    depth = 0
-    cursor = start
-    while cursor < len(text):
-        char = text[cursor]
-        if char == "\\" and cursor + 1 < len(text):
-            target.append(text[cursor + 1])
-            cursor += 2
-            continue
-        if char == "(":
-            depth += 1
-            target.append(char)
-            cursor += 1
-            continue
-        if char == ")":
-            if inline and depth == 0:
-                break
-            if depth == 0:
-                return None
-            depth -= 1
-            target.append(char)
-            cursor += 1
-            continue
-        if char.isspace() and depth == 0:
-            break
-        target.append(char)
-        cursor += 1
-    if depth or (not target and not inline):
-        return None
-    return "".join(target), cursor
-
-
-def _closing_inline_link(text: str, start: int) -> int | None:
-    """The offset after an inline link's optional title and closing parenthesis."""
-    cursor = start
-    while cursor < len(text) and text[cursor].isspace():
-        cursor += 1
-    if cursor < len(text) and text[cursor] == ")":
-        return cursor + 1
-    if cursor >= len(text) or text[cursor] not in "\"'(":
-        return None
-    opener = text[cursor]
-    closer = ")" if opener == "(" else opener
-    cursor += 1
-    while cursor < len(text):
-        if text[cursor] == "\\" and cursor + 1 < len(text):
-            cursor += 2
-            continue
-        if text[cursor] == closer:
-            cursor += 1
-            break
-        cursor += 1
-    else:
-        return None
-    while cursor < len(text) and text[cursor].isspace():
-        cursor += 1
-    return cursor + 1 if cursor < len(text) and text[cursor] == ")" else None
-
-
-def _inline_destination(text: str, start: int) -> tuple[str, int] | None:
-    """The destination and end offset for ``](...)`` beginning after ``(``."""
-    cursor = start
-    while cursor < len(text) and text[cursor].isspace():
-        cursor += 1
-    if cursor < len(text) and text[cursor] == "<":
-        parsed = _angle_destination(text, cursor)
-    else:
-        parsed = _raw_destination(text, cursor, inline=True)
-    if parsed is None:
-        return None
-    target, cursor = parsed
-    end = _closing_inline_link(text, cursor)
-    return (target, end) if end is not None else None
-
-
-def markdown_targets(text: str) -> Iterator[MarkdownTarget]:
-    """Inline and reference-style Markdown destinations outside code."""
-    prose = prose_outside_code(text)
-    for found in REFERENCE_DESTINATION.finditer(prose):
-        cursor = found.end()
-        if cursor < len(prose) and prose[cursor] == "<":
-            parsed = _angle_destination(prose, cursor)
-        else:
-            parsed = _raw_destination(prose, cursor, inline=False)
-        if parsed is not None:
-            yield MarkdownTarget(found.start(), parsed[0])
-
-    cursor = 0
-    while cursor < len(prose):
-        label = prose.find("[", cursor)
-        if label < 0:
-            return
-        close = prose.find("]", label + 1)
-        if close < 0:
-            return
-        if close + 1 >= len(prose) or prose[close + 1] != "(":
-            cursor = close + 1
-            continue
-        parsed = _inline_destination(prose, close + 2)
-        if parsed is None:
-            cursor = close + 1
-            continue
-        target, cursor = parsed
-        yield MarkdownTarget(label, target)
-
-
-def dead_links(
-    text: str,
-    owner: Path,
-    exists: Callable[[Path], bool],
-) -> list[tuple[int, str]]:
-    """Relative Markdown targets in ``text`` that ``exists`` cannot find."""
-    dead = []
-    parent = owner.parent.as_posix()
-    for found in markdown_targets(text):
-        target = found.target
-        if ABSOLUTE_TARGET.match(target) or target.startswith(("/", "//")):
-            continue
-        path_target = target.split("#", 1)[0]
-        resolved = owner if not path_target else Path(
-            posixpath.normpath(posixpath.join(parent, path_target))
-        )
-        if not exists(resolved):
-            dead.append((text.count("\n", 0, found.offset) + 1, target))
-    return dead
-
-
-class Exemption(NamedTuple):
-    """One ``unresolved-step-citations`` marker and the paragraph it covers."""
-
-    marker: int
-    first: int
-    last: int
-    declared: int
-
-
-def exemptions(text: str) -> list[Exemption]:
-    """Every marker in ``text``, paired with the line range of the next paragraph.
-
-    **A count rather than a license, and that is the whole of why this is not a
-    hole.** #246 asked whether the repo root could take #238's rule, and three
-    paragraphs of ``CLAUDE.md``'s own section *about* citations say no: each
-    **quotes** a citation -- ``GLOSSARY.md``'s line, offered as the evidence for
-    the ``carried`` limb, and two forms quoted **because they do not resolve**.
-    Naming a skill beside any of them would falsify the quotation, which is
-    ``differential_scan.py``'s
-    [#153](https://github.com/mshamblin5150-code/clinical-skills/issues/153) --
-    *describing the rule broke the tool that checks the rule* -- arriving on a
-    document instead of a parser.
-
-    **So the marker declares how many the paragraph holds**, and a further
-    citation wandering into an exempted paragraph fails exactly as it would
-    anywhere else. A bare *ignore this paragraph* would not, and that is the
-    difference between an opt-out and an off switch.
-
-    **On its own line and blank-line separated from what it covers.** Glue it to
-    the paragraph and ``paragraphs`` reads the two as one block, which this
-    declines to match -- so the paragraph stays graded. That is the safe
-    direction to be wrong in, and it is ``phi_scan.py``'s own-line pragma rule
-    rather than a new one.
-
-    **A marker with nothing under it covers itself**, so it reports zero against
-    a declared count and goes red. A stale marker left behind by a rewrite is a
-    license nobody is using, and this is the only thing that ever notices.
-    """
-    blocks = list(paragraphs(text))
-    found = []
-    for index, (start, block) in enumerate(blocks):
-        if "\n" in block:
-            continue
-        matched = EXEMPT_MARKER.fullmatch(block.strip())
-        if not matched:
-            continue
-        declared = int(matched.group(1))
-        if index + 1 == len(blocks):
-            found.append(Exemption(start, start, start, declared))
-            continue
-        next_start, next_block = blocks[index + 1]
-        last = next_start + next_block.count("\n")
-        found.append(Exemption(start, next_start, last, declared))
-    return found
-
-
-class Citation(NamedTuple):
-    """One ``step N``, and whose step N it turned out to be."""
-
-    line: int
-    number: int
-    skill: str | None
-    how: str
-
-
-def step_citations(text: str, owner: str | None, names: list[str]) -> Iterator[Citation]:
-    """Every ``step N`` in ``text``, resolved to the skill it names -- or to nothing.
-
-    **Three limbs, and they are how a person reads one rather than a heuristic.**
-
-    - ``beside`` -- a skill is named immediately before the words, with nothing
-      but its own link or path punctuation in between. ``[clinical-note](../
-      clinical-note/SKILL.md) step 5`` and ```icd10-cpt`` step 4`` are both this,
-      and it is the only limb that can name a skill other than the file's own.
-    - ``carried`` -- a bare ``step N`` continues the subject of the citation
-      before it, **unless another skill has been named in between**. That last
-      clause is the whole of it: *"[clinical-note] step 2 and [batch-shift], for
-      step 9's shorthand"* is ``setup-clinical-skills``'s own step 9, and
-      dropping the clause resolves it to ``batch-shift`` and fails a correct line.
-    - ``owner`` -- otherwise, the skill whose directory the file sits in.
-
-    **Both simpler rules were tried against the tree first and both failed.**
-    Nearest-name-anywhere fails two correct lines in
-    ``setup-clinical-skills/SKILL.md``; adjacency with no carry fails
-    ``clinical-note/GLOSSARY.md``'s *"on the same terms as the voice model in
-    step 8"*, which continues a ``setup-clinical-skills`` subject set earlier in
-    the same sentence. Three limbs is what it took to reach zero false alarms,
-    and each was added because a real line demanded it.
-
-    **A file outside ``skills/`` with nothing beside the citation is unresolved,
-    and stays that way.** ``anchor_scan.py`` said ``step-4`` six times meaning
-    ``icd10-cpt``, and no rule here could know that. The alternative is a guess,
-    and ``differential_scan.py``'s first version is what a positional guess
-    costs: it failed in both directions. Unresolved citations are counted and
-    reported; they are never failed -- which is what made
-    [#238](https://github.com/mshamblin5150-code/clinical-skills/issues/238)'s
-    repair safe to make: naming the skill beside those six converted them with no
-    change here. **The repo root followed on
-    [#246](https://github.com/mshamblin5150-code/clinical-skills/issues/246)**, on
-    the same terms and at the same price bar a handful of quotations -- see
-    ``ROOT_DOCUMENTS``. What is left unresolved is ``fixtures/`` prose.
-    """
-    beside = re.compile("(" + "|".join(re.escape(name) for name in names) + r")\S*\s*$")
-    anywhere = re.compile("|".join(re.escape(name) for name in names))
-    for start, block in paragraphs(text):
-        previous: str | None = None
-        end = 0
-        for found in STEP_CITATION.finditer(block):
-            before = block[: found.start()]
-            adjacent = beside.search(before)
-            if adjacent:
-                skill, how = adjacent.group(1), "beside"
-            elif previous and not anywhere.search(block[end : found.start()]):
-                skill, how = previous, "carried"
-            else:
-                skill, how = owner, "owner"
-            previous, end = skill, found.end()
-            yield Citation(start + before.count("\n"), int(found.group(1)), skill, how)
 
 
 def owning_skill(path: Path, names: list[str]) -> str | None:
@@ -1096,7 +641,7 @@ def graded_files() -> list[Path]:
     return kept
 
 
-def walk_citations() -> list[tuple[Path, Citation]]:
+def walk_citations() -> list[tuple[Path, StepCitation]]:
     """Every ``step N`` in every graded file, paired with the file it is in.
 
     Three tests in ``EveryCitedStepResolvesToADeclaredStep`` want this walk under
@@ -1128,10 +673,10 @@ def stale_citations(declared: dict[str, set[int]]) -> list[str]:
     for path in graded_files():
         owner = owning_skill(path, names)
         for cite in step_citations(read(path), owner, names):
-            if cite.skill is None or cite.number in declared[cite.skill]:
+            if cite.subject is None or cite.number in declared[cite.subject]:
                 continue
             where = path.relative_to(REPO_ROOT).as_posix()
-            stale.append(f"{where}:{cite.line} cites {cite.skill} step {cite.number} ({cite.how})")
+            stale.append(f"{where}:{cite.line} cites {cite.subject} step {cite.number} ({cite.how})")
     return stale
 
 
@@ -1162,8 +707,8 @@ def undeclared_citations(text: str, names: list[str], hatch: bool) -> list[str]:
     forgetful call would have got. Two call sites, both explicit.
     """
     cites = list(step_citations(text, None, names))
-    spans = exemptions(text)
-    unresolved = [cite for cite in cites if cite.skill is None]
+    spans = marker_exemptions(text, EXEMPT_MARKER)
+    unresolved = [cite for cite in cites if cite.subject is None]
     complaints = []
     # A marker declaring nothing covers nothing, so the citations beneath it are
     # still loose. Letting the span suppress them would make ``: 0`` the widest
@@ -1855,244 +1400,35 @@ class TheReferenceDeclaresWhichFieldsItHoldsValuesFor(unittest.TestCase):
                     )
 
 
-class TheStepResolverIsLive(unittest.TestCase):
-    """A resolver that named nothing would pass every assertion in the class below.
 
-    Each case here is a shape taken off the real tree rather than invented, and
-    the two marked *false alarm* are lines a simpler rule failed. They are the
-    reason the resolver has three limbs instead of one.
-    """
 
-    NAMES = ["setup-clinical-skills", "practicum-case-study", "clinical-note", "batch-shift"]
 
-    def resolve(self, text: str, owner: str | None = None) -> list[Citation]:
-        return list(step_citations(text, owner, self.NAMES))
 
+
+
+class TheDeclaredStepReaderIsLive(unittest.TestCase):
     def test_a_step_heading_is_read_and_a_numbered_list_is_not(self) -> None:
-        """The hashes are load-bearing, and a list item must not inflate the set.
-
-        Relax ``STEP_HEADING`` to tolerate a missing ``#`` and every ordinary
-        numbered list in a ``SKILL.md`` registers as a declared step. The set
-        inflates, and every stale citation then resolves clean -- the silent-pass
-        shape, arriving through the half of the check nobody looks at.
-        """
+        """A list item must not inflate the set of declared step headings."""
         self.assertEqual(declared_steps("icd10-cpt"), {1, 2, 3, 4, 5})
         self.assertEqual(declared_steps("setup-clinical-skills") & {0}, {0})
-        for not_a_heading in ("1. Read the chart", "  ### 2. Indented", "##### 3. Too deep"):
+        for not_a_heading in (
+            "1. Read the chart",
+            "  ### 2. Indented",
+            "##### 3. Too deep",
+        ):
             with self.subTest(line=not_a_heading):
                 self.assertIsNone(STEP_HEADING.match(not_a_heading))
         self.assertEqual(STEP_HEADING.match("### 4. Draft the body").group(1), "4")
 
-    def test_a_link_beside_the_words_names_the_skill(self) -> None:
-        cite, = self.resolve("See [batch-shift](../batch-shift/SKILL.md) step 6.", "clinical-note")
-        self.assertEqual((cite.skill, cite.number, cite.how), ("batch-shift", 6, "beside"))
 
-    def test_a_backticked_name_beside_the_words_names_the_skill(self) -> None:
-        """``anchor_scan.py`` and ``corpus_census.py`` cite this way, from ``tools/``."""
-        cite, = self.resolve("``clinical-note`` step 1 rests on whole day files.")
-        self.assertEqual((cite.skill, cite.how), ("clinical-note", "beside"))
-
-    def test_a_bare_path_beside_the_words_names_the_skill(self) -> None:
-        """``docx_write.py``'s form, and it is one of the citations #233 was filed over."""
-        cite, = self.resolve("``skills/practicum-case-study/SKILL.md`` step 9's sentence.")
-        self.assertEqual((cite.skill, cite.number), ("practicum-case-study", 9))
-
-    def test_a_bare_citation_takes_the_skill_whose_file_it_is(self) -> None:
-        cite, = self.resolve("| **Neither** | Report it -- see step 4 |", "batch-shift")
-        self.assertEqual((cite.skill, cite.how), ("batch-shift", "owner"))
-
-    def test_a_second_citation_carries_the_first_ones_subject(self) -> None:
-        """``voice.md``'s *"step 5, before drafting, and step 9"*.
-
-        The first resolves by ``owner`` rather than ``beside``, and that is the
-        point of the case: a **relative** link back to the skill's own file
-        spells no skill name anywhere, so only the directory settles it. The
-        second then carries the first's subject.
-        """
-        first, second = self.resolve(
-            "[SKILL.md](../SKILL.md) step 5, before drafting, and step 9, where the draft is read.",
-            "practicum-case-study",
-        )
-        self.assertEqual((first.skill, first.how), ("practicum-case-study", "owner"))
-        self.assertEqual((second.skill, second.how), ("practicum-case-study", "carried"))
-
-    def test_a_relative_self_link_is_not_a_named_skill(self) -> None:
-        """``[SKILL.md](../SKILL.md)`` names nothing, so outside ``skills/`` it is unresolved."""
-        cite, = self.resolve("[SKILL.md](../SKILL.md) step 5, before drafting.", None)
-        self.assertIsNone(cite.skill)
-
-    def test_the_subject_carries_across_a_hard_wrap(self) -> None:
-        """The paragraph is the scope, so a wrapped line does not restart it."""
-        first, second = self.resolve(
-            "[setup-clinical-skills](../setup-clinical-skills/SKILL.md) step 9 collects it,\n"
-            "on the same terms as the voice model in step 8.",
-            "clinical-note",
-        )
-        self.assertEqual(first.skill, "setup-clinical-skills")
-        self.assertEqual((second.skill, second.line, second.how), ("setup-clinical-skills", 2, "carried"))
-
-    def test_a_hard_wrapped_citation_is_still_read(self) -> None:
-        """No line in the tree wraps between the word and the number. One will."""
-        cite, = self.resolve("...which is [batch-shift](../batch-shift/SKILL.md) step\n3.", "clinical-note")
-        self.assertEqual((cite.skill, cite.number), ("batch-shift", 3))
-
-    def test_a_name_in_between_breaks_the_carry(self) -> None:
-        """False alarm 1, from ``setup-clinical-skills/SKILL.md``.
-
-        *"[clinical-note] step 2 and [batch-shift], for step 9's shorthand"* --
-        the ``step 9`` is ``setup``'s own, and both a nearest-name rule and a
-        carry with no interruption clause resolve it to a skill with 7 steps and
-        fail a correct line.
-        """
-        first, second = self.resolve(
-            "**Hard** -- [clinical-note](../clinical-note/SKILL.md) step 2 and "
-            "[batch-shift](../batch-shift/SKILL.md), for step 9's shorthand.",
-            "setup-clinical-skills",
-        )
-        self.assertEqual(first.skill, "clinical-note")
-        self.assertEqual((second.skill, second.how), ("setup-clinical-skills", "owner"))
-
-    def test_a_sentence_boundary_does_not_carry_a_stale_subject(self) -> None:
-        """False alarm 2, the other ``setup-clinical-skills`` line a nearest-name rule failed."""
-        cites = self.resolve(
-            "[clinical-note](../clinical-note/SKILL.md) expands shorthand at step 2. Read it\n"
-            "before asking; it is not restated here, on step 8's arrangement.",
-            "setup-clinical-skills",
-        )
-        self.assertEqual(cites[-1].skill, "setup-clinical-skills")
-
-    def test_a_bare_citation_outside_a_skill_stays_unresolved(self) -> None:
-        """``anchor_scan.py``'s ``step-4`` meant ``icd10-cpt`` and nothing here could know it.
-
-        The line is that module's, as it stood before #238 named the skill beside
-        it. Kept verbatim: the shape is what this grades, and a repaired tree is
-        not a reason to stop testing the shape it was repaired out of.
-        """
-        cite, = self.resolve("# Step 4's heading. The lookbehind is load-bearing.", None)
-        self.assertIsNone(cite.skill)
-
-    def test_the_plural_opener_is_a_floor_and_says_so(self) -> None:
-        """*steps 1 and 2* is read as a citation of 1. The 2 is missed, deliberately."""
-        self.assertEqual([c.number for c in self.resolve("if steps 1 and 2 move", "batch-shift")], [1])
-
-
-class TheDeadLinkResolverIsLive(unittest.TestCase):
-    """#538's relative-link resolver is driven against synthetic text."""
-
-    OWNER = Path("docs/adr/0054-relative-links.md")
-
-    def test_a_good_slug_passes(self) -> None:
-        existing = {Path("docs/adr/0016-real-record.md")}
-        exists = existing.__contains__
-
-        self.assertEqual(
-            dead_links("[ADR 0016](0016-real-record.md)", self.OWNER, exists),
-            [],
-        )
-
-    def test_a_plausible_wrong_slug_fails(self) -> None:
-        existing = {Path("docs/adr/0016-real-record.md")}
-        cases = (
-            (
-                "[ADR 0016](0016-plausible-record.md)",
-                [(1, "0016-plausible-record.md")],
-            ),
-            (
-                '[ADR 0016](0016-plausible-record.md "title")',
-                [(1, "0016-plausible-record.md")],
-            ),
-            (
-                "[ADR 0016](<0016 plausible record.md>)",
-                [(1, "0016 plausible record.md")],
-            ),
-            (
-                "[ADR 0016](0016-plausible(record).md)",
-                [(1, "0016-plausible(record).md")],
-            ),
-            (
-                "[ADR 0016][plausible]\n\n[plausible]: 0016-plausible-record.md",
-                [(3, "0016-plausible-record.md")],
-            ),
-        )
-        for text, expected in cases:
-            with self.subTest(text=text):
-                self.assertEqual(dead_links(text, self.OWNER, existing.__contains__), expected)
-
-    def test_an_anchor_is_dropped_without_hiding_a_missing_file(self) -> None:
-        existing = {Path("docs/adr/0016-real-record.md")}
-        exists = existing.__contains__
-
-        self.assertEqual(
-            dead_links("[section](0016-real-record.md#ruling)", self.OWNER, exists),
-            [],
-        )
-        self.assertEqual(
-            dead_links("[section](0016-missing.md#ruling)", self.OWNER, exists),
-            [(1, "0016-missing.md#ruling")],
-        )
-
-    def test_an_absolute_url_is_skipped_without_hiding_a_relative_target(self) -> None:
-        exists = set().__contains__
-
-        self.assertEqual(
-            dead_links("[ticket](https://github.com/example/repo/issues/1)", self.OWNER, exists),
-            [],
-        )
-        self.assertEqual(
-            dead_links("[record](missing.md)", self.OWNER, exists),
-            [(1, "missing.md")],
-        )
-
-    def test_code_targets_are_skipped_without_shifting_line_numbers(self) -> None:
-        text = (
-            "Inline example: `[record](missing.md)`\n"
-            "```markdown\n"
-            "[record](missing.md)\n"
-            "```\n"
-            "[record](missing.md)\n"
-        )
-
-        self.assertEqual(
-            dead_links(text, self.OWNER, set().__contains__),
-            [(5, "missing.md")],
-        )
-
-    def test_a_code_target_is_reported_when_unquoted(self) -> None:
-        self.assertEqual(
-            dead_links("[record](missing.md)", self.OWNER, set().__contains__),
-            [(1, "missing.md")],
-        )
-
+class TheGradedFilePopulationIsLive(unittest.TestCase):
     def test_graded_files_returns_a_nontrivial_population(self) -> None:
         files = graded_files()
         self.assertGreater(len(files), 50)
         self.assertIn(REPO_ROOT / "fixtures" / "day-a" / "shorthand" / "README.md", files)
 
-    def test_resolution_uses_the_linking_files_directory(self) -> None:
-        asked: list[Path] = []
 
-        def record(path: Path) -> bool:
-            asked.append(path)
-            return True
-
-        self.assertEqual(
-            dead_links(
-                "[fixture set](../README.md)",
-                Path("fixtures/day-a/shorthand/README.md"),
-                record,
-            ),
-            [],
-        )
-        self.assertEqual(asked, [Path("fixtures/day-a/README.md")])
-
-
-class TheRulingOrdinalParserIsLive(unittest.TestCase):
-    """#554's shared parser, driven before either tree-wide gate consumes it."""
-
-    def test_addenda_continue_across_a_shape_change(self) -> None:
-        record = next((REPO_ROOT / "docs" / "adr").glob("0049-*.md"))
-        self.assertEqual(ruling_ordinals(read(record)), list(range(1, 12)))
-
+class TheRulingShapeReaderIsLive(unittest.TestCase):
     def test_a_restarted_addendum_sequence_is_ambiguous(self) -> None:
         text = """\
 ## Rulings
@@ -2109,23 +1445,8 @@ class TheRulingOrdinalParserIsLive(unittest.TestCase):
             ["ruling 1 follows ruling 2; expected ruling 3"],
         )
 
-    def test_the_bold_item_word_is_read_and_the_bare_continuation_is_not(self) -> None:
-        record = """\
-## Ruled 2026-01-01
 
-**Ruling 1. A declared ruling.**
-ruling 5. **The sharp reason is #545's own consequence 2 rather than the precedent.**
-"""
-        self.assertEqual(ruling_ordinals(record), [1])
-
-    def test_decision_headings_are_read_but_point_and_rule_headings_are_not(self) -> None:
-        record = """\
-## Decision 1: a declared decision
-## Point 2: citation vocabulary is not declaration vocabulary
-## Rule 3: citation vocabulary is not declaration vocabulary
-"""
-        self.assertEqual(ruling_ordinals(record), [1])
-
+class TheDeclaredRulingPopulationIsLive(unittest.TestCase):
     def test_the_four_live_alternate_spellings_resolve_to_their_ordinals(self) -> None:
         expected = {
             94: set(range(1, 7)),
@@ -2135,24 +1456,6 @@ ruling 5. **The sharp reason is #545's own consequence 2 rather than the precede
         }
         declared = declared_rulings()
         self.assertEqual({number: declared[number] for number in expected}, expected)
-
-    def test_the_alternate_declaration_spellings_belong_to_exactly_four_records(self) -> None:
-        found = set()
-        for record in sorted((REPO_ROOT / "docs" / "adr").glob("*.md")):
-            text = read(record)
-            without_alternates = "\n".join(
-                ""
-                if re.match(
-                    r"^(?:\*\*ruling\s+\d+\.\s|#{2,4}\s+decision\s+\d+\b)",
-                    line,
-                    re.IGNORECASE,
-                )
-                else line
-                for line in text.splitlines()
-            )
-            if ruling_ordinals(text) != ruling_ordinals(without_alternates):
-                found.add(int(record.name[:4]))
-        self.assertEqual(found, {94, 96, 126, 127})
 
 
 class EveryADRHasOneRulingSequence(unittest.TestCase):
@@ -2228,34 +1531,6 @@ class AnEmptyRulingParseIsDeclared(unittest.TestCase):
         )
 
 
-class TheRulingCitationResolverIsLive(unittest.TestCase):
-    """#554's four coordinate words and adjacency bound, driven synthetically."""
-
-    def test_all_four_coordinate_words_are_read(self) -> None:
-        text = "\n".join(
-            (
-                "ADR 0016 ruling 1",
-                "ADR 0016's point 2",
-                "[ADR 0016](0016-record.md) decision 3",
-                "[ADR 0016](0016-record.md)'s rule 4",
-            )
-        )
-        self.assertEqual(
-            [(cite.record, cite.number, cite.word) for cite in ruling_citations(text)],
-            [(16, 1, "ruling"), (16, 2, "point"), (16, 3, "decision"), (16, 4, "rule")],
-        )
-
-    def test_proximity_does_not_bind_an_ordinal_to_the_wrong_record(self) -> None:
-        text = "ADR 0016's terms leave ruling 4 beside another subject"
-        self.assertEqual(list(ruling_citations(text)), [])
-
-    def test_a_dangling_ordinal_is_caught_against_the_shared_parser(self) -> None:
-        record = next((REPO_ROOT / "docs" / "adr").glob("0030-*.md"))
-        declared = {30: set(ruling_ordinals(read(record)))}
-        self.assertEqual(
-            unresolved_ruling_citations("ADR 0030 ruling 9", declared),
-            ["1: ADR 0030 ruling 9 does not exist"],
-        )
 
 
 class TheRulingCitationMarkerIsNarrow(unittest.TestCase):
@@ -2729,7 +2004,7 @@ class EveryCitedStepResolvesToADeclaredStep(unittest.TestCase):
         """
         seen = {"beside": 0, "carried": 0, "owner": 0, "unresolved": 0}
         for _path, cite in walk_citations():
-            seen[cite.how if cite.skill else "unresolved"] += 1
+            seen[cite.how if cite.subject else "unresolved"] += 1
         for limb, floor in (("beside", 20), ("carried", 5), ("owner", 25)):
             with self.subTest(limb=limb):
                 self.assertGreaterEqual(seen[limb], floor)
@@ -2745,7 +2020,7 @@ class EveryCitedStepResolvesToADeclaredStep(unittest.TestCase):
         have gone red on it. The three limbs above are what keep a resolver that
         quietly resolved *nothing* from reading as a clean run.
         """
-        unresolved = [cite for _path, cite in walk_citations() if cite.skill is None]
+        unresolved = [cite for _path, cite in walk_citations() if cite.subject is None]
         self.assertEqual([cite for cite in unresolved if cite.how != "owner"], [])
 
     def test_shared_instructions_never_depend_on_an_owning_skill(self) -> None:
@@ -2757,7 +2032,7 @@ class EveryCitedStepResolvesToADeclaredStep(unittest.TestCase):
             for path in graded_files()
             if path.is_relative_to(shared)
             for cite in step_citations(read(path), None, names)
-            if cite.skill is None
+            if cite.subject is None
         ]
         self.assertEqual(unresolved, [])
 
@@ -2817,7 +2092,7 @@ class EveryCitedStepResolvesToADeclaredStep(unittest.TestCase):
             [
                 f"{path.relative_to(REPO_ROOT).as_posix()}:{cite.line} step {cite.number}"
                 for path, cite in cites
-                if cite.skill is None
+                if cite.subject is None
             ],
             [],
             "a 'step N' in tools/ names no skill, so nothing checks it survives a "
@@ -2860,7 +2135,7 @@ class EveryCitedStepResolvesToADeclaredStep(unittest.TestCase):
         rule and rejected it: this repo writes ``step 4`` in backticks meaning a
         real citation all over the tree, so a punctuation heuristic would stop
         grading the citations most likely to be precise. What it named instead
-        was *a narrow opt-out marker*, and ``exemptions`` is that -- a declared
+        was *a narrow opt-out marker*, and ``marker_exemptions`` is that -- a declared
         **count**, so a new citation wandering into an exempted paragraph fails
         exactly as it would anywhere else.
 
@@ -2898,7 +2173,7 @@ class EveryCitedStepResolvesToADeclaredStep(unittest.TestCase):
                 if not hatch:
                     continue
                 self.assertLessEqual(
-                    sum(span.declared for span in exemptions(text)),
+                    sum(span.declared for span in marker_exemptions(text, EXEMPT_MARKER)),
                     EXEMPT_CEILING,
                     "the escape hatch is meant to be narrow, and the argument for it "
                     "is that the paragraphs needing it are few and nameable. Past the "
