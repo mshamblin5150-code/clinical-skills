@@ -194,8 +194,10 @@ flag, consistent with ADR 0134 ruling 5; it is a report line that says *not grad
 graded, left as it is.
 
 **Which lines survive `--quiet`** is [#986](https://github.com/mshamblin5150-code/clinical-skills/issues/986)'s,
-and **whether `gate_schema` is two gates** is
-[#1005](https://github.com/mshamblin5150-code/clinical-skills/issues/1005)'s. Neither is moved.
+and **whether `gate_schema` is two gates** was
+[#1005](https://github.com/mshamblin5150-code/clinical-skills/issues/1005)'s, ruled the same day by
+[ADR 0173](0173-gate-schema-stays-one-gate-because-both-of-its-halves-are-bounded-by-the-one-limits-object.md):
+it stays one gate, so no thirteenth `gate_` function arises. Neither is moved here.
 
 **The local list's name.** `survey` calls its failure list `refusals`, and `CONTEXT.md`'s **Refusal**
 is a `run_grader.REFUSED` entry. This record says *failure list* and *findings*; the collision is
