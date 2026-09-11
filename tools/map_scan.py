@@ -19,7 +19,6 @@ from __future__ import annotations
 import argparse
 import json
 import re
-import subprocess
 import sys
 from pathlib import Path
 from typing import NamedTuple, Sequence
@@ -178,22 +177,6 @@ def _label_names(row: dict) -> tuple[str, ...]:
     return tuple(sorted(set(names)))
 
 
-def _git_log_after(anchor: str, repo_root: Path) -> tuple[str, ...]:
-    process = subprocess.run(
-        ["git", "log", "--format=%H", f"{anchor}..HEAD", "--", "docs/adr/"],
-        cwd=repo_root,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-    )
-    if process.returncode != 0:
-        reason = process.stderr.strip().splitlines()
-        suffix = f": {reason[0][:200]}" if reason else ""
-        raise ScanError(f"git log could not compare reconciled_through{suffix}")
-    return tuple(line for line in process.stdout.splitlines() if line.strip())
-
-
 def scan(rows: Sequence[dict], repo_root: Path) -> ScanResult:
     maps = [row for row in rows if STATE_BEGIN in str(row.get("body") or "")]
     if len(maps) != 1:
@@ -279,18 +262,18 @@ def scan(rows: Sequence[dict], repo_root: Path) -> ScanResult:
         not_scanned.append("map state carries no reconciled_through commit")
     else:
         try:
-            commits = _git_log_after(anchor, repo_root)
-        except ScanError as error:
+            adrs = implementation_map.unreconciled_adrs(state, repo_root)
+        except implementation_map.MapError as error:
             not_scanned.append(str(error))
         else:
-            if commits:
+            for adr in adrs:
                 findings.append(
                     Finding(
                         "unreconciled-adr",
                         map_number,
                         ("-",),
                         "-",
-                        detail=f"commits {len(commits)}",
+                        detail=f"ADR {Path(adr).name[:4]} ({adr})",
                     )
                 )
     return ScanResult(tuple(findings), tuple(not_scanned))

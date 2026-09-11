@@ -19,13 +19,14 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 ISSUE_TRACKER = REPO_ROOT / "docs" / "agents" / "issue-tracker.md"
 AAR_SKILL = REPO_ROOT / "skills" / "aar" / "SKILL.md"
 MAP_COMMIT = "a" * 40
+MAP_PRODUCER = "b" * 64
 
 
 def map_body() -> str:
     return (
         "<!-- implementation-map:v1:state:end -->\n\n"
         "## Snapshot\n"
-        f"- producer: `tools/implementation_map.py at {MAP_COMMIT}`\n"
+        f"- producer: `tools/implementation_map.py sha256:{MAP_PRODUCER}`\n"
         f"- default-branch commit: `{MAP_COMMIT}`\n"
     )
 
@@ -125,7 +126,7 @@ class GithubIssueEventsAreReported(unittest.TestCase):
         )
 
         with mock.patch(
-            "implementation_map.checkout_commit", return_value=MAP_COMMIT
+            "implementation_map.producer_identity", return_value=MAP_PRODUCER
         ):
             scan = filed_from.grade_event(event, "issues")
 
@@ -133,7 +134,9 @@ class GithubIssueEventsAreReported(unittest.TestCase):
         self.assertIn("implementation map not graded", scan.report)
 
     def test_a_producer_looking_bullet_alone_does_not_exempt_a_body(self) -> None:
-        body = f"- producer: `tools/implementation_map.py at {MAP_COMMIT}`"
+        body = (
+            f"- producer: `tools/implementation_map.py sha256:{MAP_PRODUCER}`"
+        )
         event = opened_event(
             body,
             created_at=filed_from.FILED_FROM_CUTOFF.isoformat().replace("+00:00", "Z"),

@@ -1376,7 +1376,7 @@ harvest JSON through the public functions and command boundary.
 ### Implementation map disagreement scan
 
 `map_scan.py` reads the complete issues REST harvest offline and grades both
-readiness directions, the reconciliation anchor against committed ADRs, the
+readiness directions, per-ADR review records above the reconciliation floor, the
 coordination issue's pointer back to the grader, and the producer stamp in its
 derived Snapshot. Its GitHub-event mode grades that same stamp predicate on an
 edited #596 body. The fetch remains the caller's operation; the scanner opens
@@ -1408,9 +1408,11 @@ coordination issue. `check`, `claim`, `render`, and `audit` are read-only;
 `publish` rebuilds derived views without advancing `reconciled_through`; and
 `apply-delta` applies reviewed judgment. Its direct placement form takes one
 ready ticket and an authored outcome, then derives the packet shell and native
-HARD edges without inventing semantic prose. A partial reconciliation writes
-safe additions, holds the anchor, names the ready-ticket remainder, and exits
-with a finding.
+HARD edges without inventing semantic prose. `--review-adr` records each ADR a
+delta reviews; the record derives the packets changed by that delta or requires
+one authored `--no-work` sentence. `reconciled_through` is the floor beneath
+those records and advances across the contiguous reviewed first-parent prefix,
+independently of the ready-ticket remainder, which every run still names.
 
 Every tracker mutation holds the repository's nonblocking artifact lock and
 compares the state-block hash immediately before publication. The hash excludes
@@ -1420,12 +1422,20 @@ record whose path is printed. The rendered Mermaid block draws only packets
 carrying a HARD, GATE, or REBUILD-SAVING edge. Before publication it is checked
 for defined nodes, unique edges, accounted lines, and a complete partition of
 state packets into drawn and omitted free-standing sets, with its denominator
-and unread remainder reported. The derived Snapshot names the
-repository-relative producer and its commit. The body then crosses the
+and unread remainder reported. The derived Snapshot keeps the default-branch
+commit as information and stamps the git-normalized content identity of the
+repository-relative producer. The body then crosses the
 direct-writer entry point in `tracker_publish_hook.py` before `gh` receives it.
-`check` states that it walked the state block and live tracker without reading
-derived views; `audit` states the derived-section denominator and how many
-differed.
+`check` states that it also walked the ADR review records and local first-parent
+history without reading derived views; `audit` runs those same findings, then
+states the derived-section denominator and how many differed. There is no
+`stale-snapshot` finding.
+
+The `PostToolUse` hook in `tools/implementation_map_post_hook.py` adds context
+after a ready-ticket flip or a command that lands branch ADRs on the default
+branch. It reads no tracker record and never refuses the completed command. Its
+complete boundary belongs to `implementation_map_post_hook.DECLARED_LIMITS`;
+this section points to that object and copies none of its rows.
 
 The complete boundary belongs to `implementation_map.DECLARED_LIMITS`; this
 section points to that object and copies none of its rows. Covered by

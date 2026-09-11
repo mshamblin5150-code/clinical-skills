@@ -16,6 +16,7 @@ import importlib.util
 import io
 import json
 import re
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -914,7 +915,7 @@ class PublishReadsItselfBack(unittest.TestCase):
         self.assertEqual(authorize.call_args.args[1], "issue #596")
         self.assertEqual(authorize.call_args.kwargs, {"issue_number": 596})
 
-    def test_apply_delta_records_the_default_branch_commit_reviewed(self):
+    def test_apply_delta_without_an_adr_review_does_not_move_the_floor(self):
         tracker = FakeTracker(self.rows, blocked={2: [1]}, head="feed123")
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "delta.json"
@@ -926,7 +927,7 @@ class PublishReadsItselfBack(unittest.TestCase):
             )
         self.assertEqual(rc, 0, out)
         written = imap.extract_state(tracker.rows[50]["body"])
-        self.assertEqual(written["reconciled_through"], "feed123")
+        self.assertNotIn("reconciled_through", written)
 
     def test_apply_delta_places_one_newly_ready_ticket_without_json_surgery(self):
         state = state_with(
@@ -1000,6 +1001,222 @@ class PublishReadsItselfBack(unittest.TestCase):
         self.assertIn("ready ticket population: 3", out)
         self.assertIn("ready tickets still unmapped: 1: #4", out)
         self.assertIn("reconciled_through: old1234", out)
+
+    def test_adr_review_advances_the_floor_while_another_ready_ticket_is_unmapped(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+            subprocess.run(["git", "config", "user.email", "tests@example.invalid"], cwd=root, check=True)
+            subprocess.run(["git", "config", "user.name", "Map Tests"], cwd=root, check=True)
+            (root / "seed.txt").write_text("seed\n", encoding="utf-8")
+            subprocess.run(["git", "add", "."], cwd=root, check=True)
+            subprocess.run(["git", "commit", "-qm", "seed"], cwd=root, check=True)
+            floor = subprocess.run(
+                ["git", "rev-parse", "HEAD"], cwd=root, check=True,
+                capture_output=True, text=True, encoding="utf-8", errors="replace",
+            ).stdout.strip()
+            adr = root / "docs" / "adr" / "0168-decision.md"
+            adr.parent.mkdir(parents=True)
+            adr.write_text("# Decision\n", encoding="utf-8")
+            subprocess.run(["git", "add", "."], cwd=root, check=True)
+            subprocess.run(["git", "commit", "-qm", "ADR"], cwd=root, check=True)
+            head = subprocess.run(
+                ["git", "rev-parse", "HEAD"], cwd=root, check=True,
+                capture_output=True, text=True, encoding="utf-8", errors="replace",
+            ).stdout.strip()
+            state = state_with(
+                [packet("PA", [1], outcome="Existing work")],
+                reconciled_through=floor,
+            )
+            tracker = FakeTracker(
+                [
+                    issue(1, labels=["ready"]),
+                    issue(3, title="Reviewed work", labels=["ready"]),
+                    issue(4, labels=["ready"]),
+                    map_issue(state, 50),
+                ],
+                head=head,
+            )
+            with mock.patch.object(imap, "REPO_ROOT", root):
+                rc, out = run(
+                    imap.cmd_apply_delta,
+                    tracker,
+                    args(
+                        ticket=3,
+                        outcome="Build the reviewed behavior",
+                        review_adr=["docs/adr/0168-decision.md"],
+                        no_work=None,
+                        commit=head,
+                    ),
+                )
+
+        written = imap.extract_state(tracker.rows[50]["body"])
+        self.assertEqual(rc, 1, out)
+        self.assertEqual(written["reconciled_through"], head)
+        self.assertIn("ready tickets still unmapped: 1: #4", out)
+
+    def test_review_records_derive_changed_packets_and_require_no_work_prose(self):
+        before = state_with(
+            [packet("PA", [1], outcome="Existing work")],
+            reconciled_through="old1234",
+        )
+        delta = {
+            "review_adrs": [{"adr": "docs/adr/0168-decision.md", "commit": "f" * 40}],
+            "add_packets": [packet("PB", [2], outcome="New work")],
+        }
+
+        after = imap.apply_delta(before, delta)
+
+        self.assertEqual(
+            after["adr_reviews"],
+            [{"adr": "docs/adr/0168-decision.md", "commit": "f" * 40, "packets": ["PB"]}],
+        )
+        with self.assertRaisesRegex(imap.MapError, "no-work sentence is blank"):
+            imap.apply_delta(
+                before,
+                {"review_adrs": [{"adr": "docs/adr/0169-no-work.md", "commit": "f" * 40}]},
+            )
+
+    def test_review_records_name_removed_and_resequenced_packets(self):
+        before = state_with(
+            [packet("PA", [1], outcome="A"), packet("PB", [2], outcome="B")],
+            groups=[{"name": "shared seam", "packets": ["PA", "PB"]}],
+        )
+        after = imap.apply_delta(
+            before,
+            {
+                "remove_packets": ["PA"],
+                "set_collision_kind": [
+                    {"name": "shared seam", "kind": "sequence", "packets": ["PB"]}
+                ],
+                "review_adrs": [
+                    {"adr": "docs/adr/0168-decision.md", "commit": "f" * 40}
+                ],
+            },
+        )
+
+        self.assertEqual(after["adr_reviews"][0]["packets"], ["PA", "PB"])
+
+    def test_review_records_implicit_relationship_changes_from_packet_removal(self):
+        before = state_with(
+            [packet("PA", [1], outcome="A"), packet("PB", [2], outcome="B")],
+            edges=[
+                {"type": "HARD", "from_ticket": 1, "to_ticket": 2},
+                {"type": "EXTERNAL-GATE", "on": "issue:99", "to": "PB"},
+            ],
+            groups=[{"name": "shared seam", "packets": ["PA", "PB"]}],
+        )
+
+        after = imap.apply_delta(
+            before,
+            {
+                "remove_packets": ["PA"],
+                "review_adrs": [
+                    {"adr": "docs/adr/0168-decision.md", "commit": "f" * 40}
+                ],
+            },
+        )
+
+        self.assertEqual(after["adr_reviews"][0]["packets"], ["PA", "PB"])
+
+    def test_review_never_records_external_gate_identity_as_a_packet(self):
+        before = state_with([packet("PB", [2], outcome="B")])
+
+        after = imap.apply_delta(
+            before,
+            {
+                "add_edges": [
+                    {"type": "EXTERNAL-GATE", "on": "issue:99", "to": "PB"}
+                ],
+                "review_adrs": [
+                    {"adr": "docs/adr/0168-decision.md", "commit": "f" * 40}
+                ],
+            },
+        )
+
+        self.assertEqual(after["adr_reviews"][0]["packets"], ["PB"])
+
+    def test_refused_write_preserves_authored_no_work_sentences(self):
+        args_ = args(delta=None, ticket=None, outcome=None)
+        args_.review_adr = ["docs/adr/0169-no-work.md"]
+        args_.no_work = "The decision changes no implementation packet."
+
+        self.assertIn(
+            args_.no_work,
+            imap.authored_outcomes(args_),
+        )
+
+    def test_no_work_review_needs_no_packet_delta(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+            subprocess.run(["git", "config", "user.email", "tests@example.invalid"], cwd=root, check=True)
+            subprocess.run(["git", "config", "user.name", "Map Tests"], cwd=root, check=True)
+            (root / "seed.txt").write_text("seed\n", encoding="utf-8")
+            subprocess.run(["git", "add", "."], cwd=root, check=True)
+            subprocess.run(["git", "commit", "-qm", "seed"], cwd=root, check=True)
+            floor = subprocess.run(
+                ["git", "rev-parse", "HEAD"], cwd=root, check=True,
+                capture_output=True, text=True, encoding="utf-8", errors="replace",
+            ).stdout.strip()
+            adr = root / "docs" / "adr" / "0169-no-work.md"
+            adr.parent.mkdir(parents=True)
+            adr.write_text("# No work\n", encoding="utf-8")
+            subprocess.run(["git", "add", "."], cwd=root, check=True)
+            subprocess.run(["git", "commit", "-qm", "ADR"], cwd=root, check=True)
+            head = subprocess.run(
+                ["git", "rev-parse", "HEAD"], cwd=root, check=True,
+                capture_output=True, text=True, encoding="utf-8", errors="replace",
+            ).stdout.strip()
+            state = state_with([], reconciled_through=floor)
+            tracker = FakeTracker([map_issue(state, 50)], head=head)
+            with mock.patch.object(imap, "REPO_ROOT", root):
+                rc, out = run(
+                    imap.cmd_apply_delta,
+                    tracker,
+                    args(
+                        delta=None,
+                        ticket=None,
+                        outcome=None,
+                        review_adr=["docs/adr/0169-no-work.md"],
+                        no_work="This decision creates no implementation work.",
+                        commit=head,
+                    ),
+                )
+
+        written = imap.extract_state(tracker.rows[50]["body"])
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(written["reconciled_through"], head)
+        self.assertEqual(written["adr_reviews"], [])
+
+    def test_a_server_created_default_branch_commit_is_fetched_before_review(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            remote = root / "remote.git"
+            source = root / "source"
+            consumer = root / "consumer"
+            subprocess.run(["git", "init", "-q", "--bare", str(remote)], check=True)
+            subprocess.run(["git", "init", "-q", "-b", "main", str(source)], check=True)
+            subprocess.run(["git", "config", "user.email", "tests@example.invalid"], cwd=source, check=True)
+            subprocess.run(["git", "config", "user.name", "Map Tests"], cwd=source, check=True)
+            (source / "seed.txt").write_text("seed\n", encoding="utf-8")
+            subprocess.run(["git", "add", "."], cwd=source, check=True)
+            subprocess.run(["git", "commit", "-qm", "seed"], cwd=source, check=True)
+            subprocess.run(["git", "remote", "add", "origin", str(remote)], cwd=source, check=True)
+            subprocess.run(["git", "push", "-q", "-u", "origin", "main"], cwd=source, check=True)
+            subprocess.run(["git", "clone", "-q", "-b", "main", str(remote), str(consumer)], check=True)
+            (source / "server.txt").write_text("server merge\n", encoding="utf-8")
+            subprocess.run(["git", "add", "."], cwd=source, check=True)
+            subprocess.run(["git", "commit", "-qm", "server merge"], cwd=source, check=True)
+            subprocess.run(["git", "push", "-q"], cwd=source, check=True)
+            commit = subprocess.run(
+                ["git", "rev-parse", "HEAD"], cwd=source, check=True,
+                capture_output=True, text=True, encoding="utf-8", errors="replace",
+            ).stdout.strip()
+
+            resolved = imap.ensure_local_commit(consumer, commit)
+
+        self.assertEqual(resolved, commit)
 
     def test_direct_placement_is_inert_when_the_ticket_is_already_mapped(self):
         state = state_with(
@@ -1587,60 +1804,76 @@ class TheRenderedViews(unittest.TestCase):
         body = imap.render(self.state, live, {"commit": "c", "date": "d"})
         self.assertIn("live ready-for-agent tickets: 1", body)
 
-    def test_snapshot_names_the_repository_relative_producer_and_commit(self):
+    def test_snapshot_names_the_repository_relative_producer_hash_and_commit(self):
         body = imap.render(
             self.state,
             self.live,
             {
                 "commit": "abc1234",
-                "producer_commit": "def5678",
+                "producer_identity": "d" * 64,
                 "date": "d",
             },
         )
         snapshot = body.partition("## Snapshot")[2].partition("\n## ")[0]
 
         self.assertIn(
-            "- producer: `tools/implementation_map.py at def5678`",
+            f"- producer: `tools/implementation_map.py sha256:{'d' * 64}`",
             snapshot,
         )
         self.assertIn("- default-branch commit: `abc1234`", snapshot)
         self.assertNotIn(str(HERE.parent), snapshot)
 
     def test_producer_stamp_predicate_reads_the_derived_snapshot_once(self):
-        with mock.patch.object(imap, "checkout_commit", return_value="def5678"):
+        identity = "d" * 64
+        with mock.patch.object(imap, "producer_identity", return_value=identity):
             valid = imap.render(
                 self.state,
                 self.live,
                 {
                     "commit": "abc1234",
-                    "producer_commit": "def5678",
+                    "producer_identity": identity,
                     "date": "d",
                 },
             )
         missing = valid.replace(
-            "- producer: `tools/implementation_map.py at def5678`\n",
+            f"- producer: `tools/implementation_map.py sha256:{identity}`\n",
             "",
         ).replace(
             '"outcome": "two PRs"',
-            '"outcome": "tools/implementation_map.py at def5678"',
+            f'"outcome": "tools/implementation_map.py sha256:{identity}"',
         )
         mismatched = valid.replace(
-            "tools/implementation_map.py at def5678",
-            "tools/implementation_map.py at abc1234",
+            f"tools/implementation_map.py sha256:{identity}",
+            f"tools/implementation_map.py sha256:{'a' * 64}",
             1,
         )
 
-        with mock.patch.object(imap, "checkout_commit", return_value="def5678"):
+        with mock.patch.object(imap, "producer_identity", return_value=identity):
             self.assertIsNone(imap.producer_stamp_problem(valid))
             self.assertIn("exactly one", imap.producer_stamp_problem(missing))
             self.assertIn("does not match", imap.producer_stamp_problem(mismatched))
 
-    def test_snapshot_separates_default_branch_and_producer_commits(self):
-        with mock.patch.object(imap, "checkout_commit", return_value="def5678"):
+    def test_an_uncommitted_emitter_edit_invalidates_the_stamp(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            emitter = Path(temporary) / "implementation_map.py"
+            emitter.write_text("first emitter\n", encoding="utf-8")
+            with mock.patch.object(imap, "__file__", str(emitter)):
+                identity = imap.producer_identity()
+                body = imap.render(
+                    self.state,
+                    self.live,
+                    {"commit": "abc1234", "producer_identity": identity, "date": "d"},
+                )
+                emitter.write_text("edited emitter\n", encoding="utf-8")
+
+                self.assertIn("does not match", imap.producer_stamp_problem(body))
+
+    def test_snapshot_separates_default_branch_and_producer_identity(self):
+        with mock.patch.object(imap, "producer_identity", return_value="d" * 64):
             snapshot = imap.snapshot_for(self.tracker, args(commit="abc1234", date="d"))
 
         self.assertEqual(snapshot["commit"], "abc1234")
-        self.assertEqual(snapshot["producer_commit"], "def5678")
+        self.assertEqual(snapshot["producer_identity"], "d" * 64)
 
     def test_maintenance_names_the_offline_gate_and_its_limits_pointer(self):
         live = imap.Live(FakeTracker([
@@ -1796,7 +2029,7 @@ class AuditComparesPublishedToFresh(unittest.TestCase):
     def test_a_missing_producer_stamp_is_an_audit_finding(self):
         tracker = self._published_tracker()
         tracker.rows[50]["body"] = re.sub(
-            r"^- producer: `tools/implementation_map\.py at [0-9a-f]+`\n",
+            r"^- producer: `tools/implementation_map\.py sha256:[0-9a-f]+`\n",
             "",
             tracker.rows[50]["body"],
             flags=re.MULTILINE,
@@ -1814,12 +2047,12 @@ class AuditComparesPublishedToFresh(unittest.TestCase):
         self.assertEqual(rc, 1)
         self.assertIn("stale-derived-view", out)
 
-    def test_a_moved_head_makes_the_snapshot_stale(self):
+    def test_a_moved_head_is_informational_not_a_stale_snapshot_finding(self):
         tracker = self._published_tracker()
         tracker.head = "fffffff"
         rc, out = run(imap.cmd_audit, tracker, args())
-        self.assertEqual(rc, 1)
-        self.assertIn("stale-snapshot", out)
+        self.assertEqual(rc, 0, out)
+        self.assertNotIn("stale-snapshot", out)
 
 
 if __name__ == "__main__":

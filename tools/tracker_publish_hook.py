@@ -289,15 +289,27 @@ def _fragment_has_publish(fragment: str) -> bool:
     return _publish_tokens(fragment) is not None
 
 
-def _publish_tokens(command: str) -> tuple[list[str], int] | None:
-    for tokens, index in shell_reader.executable_calls(command, "gh"):
+def command_tokens(command: str, executable: str) -> tuple[tuple[list[str], int], ...]:
+    """Shared shell-token boundary for hooks that classify completed commands."""
+    return tuple(shell_reader.executable_calls(command, executable))
+
+
+def gh_command_tokens(
+    command: str, routes: tuple[tuple[str, ...], ...]
+) -> tuple[list[str], int] | None:
+    """Return the first parsed ``gh`` invocation matching a declared route."""
+    for tokens, index in command_tokens(command, "gh"):
         if index + 1 >= len(tokens):
             continue
         tail = tokens[index + 1 :]
         route = ("api",) if tail[0] == "api" else tuple(tail[:2])
-        if route in PUBLISH_ROUTES:
+        if route in routes:
             return tokens, index
     return None
+
+
+def _publish_tokens(command: str) -> tuple[list[str], int] | None:
+    return gh_command_tokens(command, PUBLISH_ROUTES)
 
 
 def _resolve_file_source(source: str, command: str) -> tuple[str, Path | None] | None:
