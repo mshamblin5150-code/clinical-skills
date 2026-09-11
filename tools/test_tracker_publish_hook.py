@@ -14,12 +14,27 @@ import tempfile
 import io
 import json
 import contextlib
+import subprocess
 import sys
 from unittest import mock
 
 import artifact_lock_test_support  # noqa: F401
 import tracker_publish_hook as hook
 import phi_scan
+
+
+def git(
+    *args: str, cwd: Path, check: bool = True
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["git", *args],
+        cwd=cwd,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        capture_output=True,
+        check=check,
+    )
 
 
 def fetched_records(number: int, labels: tuple[str, ...] = ()) -> dict:
@@ -34,6 +49,101 @@ def fetched_records(number: int, labels: tuple[str, ...] = ()) -> dict:
             "url": f"https://github.com/example/project/issues/{number}",
         }
     }
+
+
+class RefreshDefaultBranchNamesTheRefItReads(unittest.TestCase):
+    def setUp(self) -> None:
+        self.temp = tempfile.TemporaryDirectory()
+        self.root = Path(self.temp.name)
+        self.remote = self.root / "remote.git"
+        self.writer = self.root / "writer"
+        self.reader = self.root / "reader"
+
+        git("init", "--bare", "--initial-branch=main", str(self.remote), cwd=self.root)
+        git("clone", str(self.remote), str(self.writer), cwd=self.root)
+        git("config", "user.name", "Test Writer", cwd=self.writer)
+        git("config", "user.email", "writer@example.invalid", cwd=self.writer)
+        self.commit_main("one\n", "initial")
+        git("clone", str(self.remote), str(self.reader), cwd=self.root)
+
+    def tearDown(self) -> None:
+        self.temp.cleanup()
+
+    def commit_main(self, text: str, message: str, *, force: bool = False) -> str:
+        (self.writer / "tracked.txt").write_text(text, encoding="utf-8")
+        git("add", "--", "tracked.txt", cwd=self.writer)
+        git("commit", "-m", message, cwd=self.writer)
+        push_args = ("push", "--force", "origin", "HEAD:main") if force else (
+            "push",
+            "origin",
+            "HEAD:main",
+        )
+        git(*push_args, cwd=self.writer)
+        return git("rev-parse", "HEAD", cwd=self.writer).stdout.strip()
+
+    def advance_main(self) -> str:
+        return self.commit_main("two\n", "advance main")
+
+    def test_a_clone_without_a_fetch_refspec_updates_origin_main(self) -> None:
+        stale_tip = git("rev-parse", "origin/main", cwd=self.reader).stdout.strip()
+        latest_tip = self.advance_main()
+        git("fetch", "origin", "main", cwd=self.reader)
+        self.assertEqual(
+            git("rev-parse", "origin/main", cwd=self.reader).stdout.strip(),
+            latest_tip,
+        )
+        git("config", "--unset-all", "remote.origin.fetch", cwd=self.reader)
+        git("update-ref", "refs/remotes/origin/main", stale_tip, cwd=self.reader)
+
+        plain_fetch = git("fetch", "origin", "main", cwd=self.reader)
+
+        self.assertEqual(plain_fetch.returncode, 0)
+        self.assertEqual(
+            git("rev-parse", "origin/main", cwd=self.reader).stdout.strip(),
+            stale_tip,
+        )
+
+        refreshed = hook.refresh_default_branch(repo=self.reader)
+
+        self.assertTrue(refreshed)
+        self.assertEqual(
+            git("rev-parse", "origin/main", cwd=self.reader).stdout.strip(),
+            latest_tip,
+        )
+
+    def test_a_force_pushed_main_replaces_the_rewritten_away_ref(self) -> None:
+        rewritten_away_tip = self.advance_main()
+        git("fetch", "origin", "main", cwd=self.reader)
+        self.assertEqual(
+            git("rev-parse", "origin/main", cwd=self.reader).stdout.strip(),
+            rewritten_away_tip,
+        )
+
+        git("checkout", "--detach", "HEAD~1", cwd=self.writer)
+        replacement_tip = self.commit_main("replacement\n", "rewrite main", force=True)
+
+        unforced_fetch = git(
+            "fetch",
+            "--no-tags",
+            "origin",
+            "refs/heads/main:refs/remotes/origin/main",
+            cwd=self.reader,
+            check=False,
+        )
+
+        self.assertNotEqual(unforced_fetch.returncode, 0)
+        self.assertEqual(
+            git("rev-parse", "origin/main", cwd=self.reader).stdout.strip(),
+            rewritten_away_tip,
+        )
+
+        refreshed = hook.refresh_default_branch(repo=self.reader)
+
+        self.assertTrue(refreshed)
+        self.assertEqual(
+            git("rev-parse", "origin/main", cwd=self.reader).stdout.strip(),
+            replacement_tip,
+        )
 
 
 class TheRecognizedPublishSetIsDeclared(unittest.TestCase):
@@ -1730,6 +1840,7 @@ class DeclaredLimitsHaveOneOwner(unittest.TestCase):
         does not establish, and ADR 0104 adds the failed-readback path, on the
         rule this object already carried: a limit lives here rather than in the
         docstring or ``CLAUDE.md``. ADR 0109 adds the AAR paraphrase ceiling.
+        #999 ruling 5 adds the non-canonical-origin boundary.
         """
         self.assertEqual(
             set(dict(hook.NOT_REACHED)),
@@ -1742,6 +1853,7 @@ class DeclaredLimitsHaveOneOwner(unittest.TestCase):
                 "expansion is reconstructed and reaches only the same command",
                 "the refusing hook covers one of two publishers",
                 "a failed tracker readback leaves the publication context-blind",
+                "the fetched origin can be a non-canonical repository",
                 "an AAR paraphrase passes the quotation gate",
                 "the command-folder reader reaches literal absolute cd targets only",
                 "a stock discriminator clause can satisfy the verdict form check",
