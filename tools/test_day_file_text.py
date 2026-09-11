@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import io
 import tempfile
 import unittest
@@ -222,9 +223,14 @@ class DayFileTextCommand(unittest.TestCase):
 
     def test_the_command_imports_both_adapters_and_never_the_engine(self):
         source = (ROOT / "tools" / "day_file_text.py").read_text(encoding="utf-8")
-        self.assertIn("import page_text", source)
-        self.assertIn("import page_image", source)
-        self.assertNotIn("import pdf_engine", source)
+        imported = {
+            alias.name
+            for node in ast.walk(ast.parse(source))
+            if isinstance(node, ast.Import)
+            for alias in node.names
+        }
+        self.assertTrue({"page_text", "page_image"}.issubset(imported))
+        self.assertTrue({"pdf_engine", "fitz", "pymupdf"}.isdisjoint(imported))
 
     def test_batch_shift_writes_note_markdown_where_its_terminal_grader_reads(self):
         skill = BATCH_SHIFT.read_text(encoding="utf-8")
