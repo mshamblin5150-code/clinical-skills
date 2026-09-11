@@ -63,6 +63,7 @@ PRIMARY_SOURCE = "primary source, refuse"
 OPTIONAL_SECONDARY = "optional secondary, degrade and state the narrowing"
 
 ROLES = {
+    "day_file_text": (PRIMARY_SOURCE, "writes complete day-file text into the PHI corpus"),
     "case_study_render": (PRIMARY_SOURCE, "produces retained case-study page evidence"),
     "deck_render": (PRIMARY_SOURCE, "produces retained slide evidence"),
     "discussion_post_render": (PRIMARY_SOURCE, "produces retained initial-post page evidence"),
@@ -83,6 +84,9 @@ DECLARED_LIMITS = {
     "decode-resolution": "A decode at the probe DPI does not establish decoding at reading resolution.",
     "guidelines-extract-split": "Guidelines extraction still owns PDF extraction and page reconstruction.",
     "threshold-gates": "The three unlocked threshold_sheet gates in issue #410 remain out of scope.",
+    "skill-import-spellings": (
+        "The skill walk does not see an engine call in a shell block, a python -c line, or prose."
+    ),
 }
 
 

@@ -60,6 +60,7 @@ DECLARED_SECTIONS = {
     "checks_ledger": "Post-draft checks",
     "closing_keyword_scan": "Closing keyword scan",
     "corpus_census": "Corpus census",
+    "day_file_text": "Day-file text",
     "differential_scan": "Differential scan",
     "discussion_post_scan": "Discussion post grading",
     "discussion_post_render": "Discussion post grading",

@@ -162,6 +162,9 @@ from that path. The preceding order remains historical.
 **Correction, 2026-09-11:** `pdf_engine.py` is now the most recent direct command and calls
 `use_utf8` from that path. The preceding order remains historical.
 
+**Correction, 2026-09-11:** `day_file_text.py` is now the most recent direct command and calls
+`use_utf8` from that path. The preceding order remains historical.
+
 ### Suite run
 
 `tools/suite.py` is the one complete-suite interface. It discovers the `test*.py` population under
@@ -225,6 +228,17 @@ Stdlib only — no package manager and no lockfile, and the census is not worth 
 **It read five until [#108](https://github.com/mshamblin5150-code/clinical-skills/issues/108) removed the two duplicate text readers.** `uspstf_table.py` and `guidelines_catalog.py` now consume #80's extracted text and manifest; `pypdf` has left the tree, and one module owns page decoding, glyph repair and boilerplate stripping. `guidelines_recs.py` still opens PDFs for table geometry and `threshold_sheet.py` still renders the cited page through an independent path, so neither is a duplicate of the text extractor. Each PyMuPDF import sits inside the function that opens the file rather than at module scope, so importing the modules still needs nothing installed. The consumer-required `render_scan.py` command does need PyMuPDF at runtime; its tests install a fake public interface instead.
 
 **That sentence was false for one class, and the first CI run is what found it.** `tools/test_threshold_sheet.py`'s `TheRenderedPageEscapeHatch` calls `gate_citation_tier2`, which returns early with `pymupdf is not installed` — so on a clean machine one test failed outright and **two others passed for the wrong reason**, asserting `rendered == 0` against a gate that short-circuited before it could count anything. The maintainer's machine has PyMuPDF, so no local run could ever have shown it; #86's very first run on a bare Windows runner did, at 1,126 tests. The class now skips as a whole rather than in part, because a partial run here reads as a pass. **The honest form of the claim is that the suite runs with nothing installed and four tests skip when it is absent**, not that it needs nothing.
+
+### Day-file text
+
+`tools/day_file_text.py` is the sole writer that carries a day file into
+`scratch/day-file-text/`. It reads page text through `page_text`, renders textless pages through
+`page_image`, and waits for a `page-N.txt` transcription beside every retained `page-N.png` before
+assembling the corpus file. The shift's source digest, rendered pages, and transcriptions live under
+`scratch/runs/shift-<date>/day-file/`; the command refuses a different source for the same date and
+a different existing corpus file unless `--force` is explicit. Status 0 means the text was written
+or was already byte-identical, 1 means listed pages await reading, and 2 means no text was produced.
+Its output contains counts and paths, never extracted or transcribed text.
 
 ### Filled-vitals census
 

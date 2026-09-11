@@ -56,24 +56,25 @@ On exit 1, ask the clinician for permission to run the install line the check pr
 check again after an attempted install. If permission is declined or the install fails, open the day
 file with the agent's own PDF reader and read every page as an image. Stop only if the agent cannot
 open a PDF at all. Exit 2 from the check is not evidence that the engine is missing and stops this
-step for investigation.
+step for investigation. A run that used the agent's own PDF reader writes no corpus text; run the
+command below on the same document once the engine is installed.
 
-Day files are PDFs, and they come in two kinds. Check before parsing:
+When the check exits 0, run:
 
-- **Text layer present** — extract directly with PyMuPDF. **32 of the 49 files** in this clinician's catalog are like this, and they are the newer ones.
-- **Image-only scan** — `page.get_text()` returns nothing and each page holds a single image. **17 of 49**, all from one stretch of 2025. No OCR tool is needed: render each page and read it visually.
-
-```python
-import fitz
-d = fitz.open(path)
-if not "".join(p.get_text() for p in d).strip():
-    for i, pg in enumerate(d):
-        pg.get_pixmap(dpi=140).save(f"page{i+1}.png")   # then read the PNGs
+```bash
+python tools/day_file_text.py <the day file.pdf> --date YYYY-MM-DD
 ```
 
-140 DPI renders these legibly. A zero-length extraction is a scan, never an empty file — never report a scanned day as containing no notes.
+The command checks every page. Text-layer pages contribute their text; a textless page is rendered
+at 140 DPI into the shift's run directory and never treated as an empty day. Exit 0 means the
+complete text reached `scratch/day-file-text/`. On exit 1, read every listed `page-N.png`, write the
+transcription beside it as `page-N.txt`, and rerun the command. It writes the corpus file only after
+every rendered page has that transcription. Exit 2 means no text file was produced and stops this
+step for investigation; do not distinguish a refusal from a pending reading by inspecting the
+directory.
 
-**The clinician's scanner produces a text layer today** — ruled 2026-08-16 — so the second limb increasingly describes the archive rather than the file in front of you. **Run the check anyway.** It is two lines, it costs nothing when the answer is the expected one, and the failure it prevents is the one in the sentence above. The two counts belong to the closed catalog and are [#63](https://github.com/mshamblin5150-code/clinical-skills/issues/63)'s, not this step's; nothing here rests on them.
+The command is the only writer of the corpus file. Do not assemble or replace it by hand, and do not
+delete the retained pages or transcriptions from the run directory.
 
 ### 3. Find the boundaries
 
@@ -146,7 +147,7 @@ Unassigned lines: <verbatim, or "none">
 Low-confidence boundaries: <which splits you are unsure about, and why>
 Openers missing age or sex: <which encounters, and which field>
 Branch for the whole shift: <the one the clinician named, or "SOAP by default — say the word and it is an H&P">
-Day file read with: <PyMuPDF | the agent's own PDF reader>
+Day file read with: <PyMuPDF | the agent's own PDF reader — shift text did not reach the corpus>
 ```
 
 Show the first and last line of each encounter verbatim — that is what lets the clinician spot a bad boundary at a glance. Naming a low-confidence boundary explicitly is part of the output; silence there reads as certainty you do not have.

@@ -27,13 +27,21 @@ CONTRACT_OPENING = "**PDF engine prerequisites.**"
 def engine_dependent_skills(sources: dict[str, str]) -> set[str]:
     """Return skill names visible through the ticket's bounded derivation."""
     role_commands = tuple(f"{role}.py" for role in pdf_engine.ROLES)
+    return {
+        name
+        for name, source in sources.items()
+        if any(command in source for command in role_commands)
+    }
+
+
+def fenced_engine_imports(sources: dict[str, str]) -> set[str]:
+    """Return skill names holding a fenced Python engine import."""
     fenced_python = re.compile(r"```python\s*(.*?)```", re.DOTALL | re.IGNORECASE)
     direct_import = re.compile(r"(?m)^\s*(?:import|from)\s+(?:fitz|pymupdf)\b")
     return {
         name
         for name, source in sources.items()
-        if any(command in source for command in role_commands)
-        or any(direct_import.search(block) for block in fenced_python.findall(source))
+        if any(direct_import.search(block) for block in fenced_python.findall(source))
     }
 
 
@@ -58,13 +66,14 @@ class TheIndexNamesEveryEngineDependentSkill(unittest.TestCase):
         }
         cls.agents = AGENTS.read_text(encoding="utf-8")
 
-    def test_the_derivation_detects_both_live_inputs(self):
+    def test_the_role_command_derivation_and_fenced_import_prohibition_are_live(self):
         fixture = {
             "role": "Run `python tools/render_scan.py run`.\n",
             "direct": "```python\nimport fitz\n```\n",
             "clean": "Run `python tools/other.py`.\n",
         }
-        self.assertEqual({"role", "direct"}, engine_dependent_skills(fixture))
+        self.assertEqual({"role"}, engine_dependent_skills(fixture))
+        self.assertEqual({"direct"}, fenced_engine_imports(fixture))
 
         expanded = dict(self.sources)
         expanded["fixture-skill"] = "Run `python tools/render_scan.py run`.\n"
@@ -72,6 +81,9 @@ class TheIndexNamesEveryEngineDependentSkill(unittest.TestCase):
             engine_dependent_skills(expanded),
             declared_engine_skills(self.agents, set(expanded)),
         )
+
+    def test_no_skill_holds_a_fenced_python_engine_import(self):
+        self.assertEqual(set(), fenced_engine_imports(self.sources))
 
     def test_the_derived_and_declared_sets_match_in_both_directions(self):
         derived = engine_dependent_skills(self.sources)
