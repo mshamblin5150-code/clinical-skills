@@ -27,6 +27,7 @@ import docx_write
 import post_html
 import page_image
 from grader_conformance import for_module, gate_conformance
+from prose_bind import NAMING, bind
 from test_discussion_reply_scan import (
     BODY as REPLY_BODY,
     CLAIMS as REPLY_CLAIMS,
@@ -1962,6 +1963,7 @@ class ProseBarElementsStayDeclaredReadings(unittest.TestCase):
         self.assertTrue(all(len(reason.split()) > 8 for _key, reason in scan.NOT_REACHED))
         for _subject, _reason, disposition in scan.DECLARED_LIMITS:
             self.assertIsInstance(disposition, scan.EvidenceDisposition)
+        self.assertEqual((), bind(scan.DECLARED_LIMITS, scan.__doc__, mode=NAMING))
 
     def test_the_measured_canvas_block_quotation_is_not_a_declared_unknown(self):
         self.assertNotIn(

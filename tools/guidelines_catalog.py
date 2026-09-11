@@ -72,14 +72,6 @@ AUDIT = REPO_ROOT / "reference" / "guidelines-catalog-audit.md"
 DEFAULT_TEXT_SRC = Path("C:/codeing/guidelines-text")
 DEFAULT_PDF_SRC = Path("C:/codeing/guidelines-src")
 
-# ADR 0031's cheap check reports directory identity rather than verifying PDF
-# contents. Keep both residues beside the mechanism instead of letting a clean
-# filename-and-size comparison acquire a stronger meaning in prose.
-CORPUS_SIZE_CHECK_LIMITS = {
-    "same-name-same-size-rewrite": "a same-name same-size rewrite is outside its reach",
-    "report-not-verification": "the check reports a corpus; it does not verify PDF contents",
-}
-
 COLUMNS = (
     "society",
     "filename",
@@ -104,6 +96,14 @@ AUDITED_COLUMNS = NULLABLE
 # point here instead of maintaining prose copies that cannot fail when they
 # drift. These are limits of the public catalog/audit contract, not findings.
 NOT_REACHED = (
+    (
+        "same-name-same-size-rewrite",
+        "A same-name same-size rewrite is outside the corpus-size check's reach.",
+    ),
+    (
+        "report-not-verification",
+        "The corpus-size check reports a corpus; it does not verify PDF contents.",
+    ),
     (
         "resolution",
         "The catalog records only what the document prints. This offline auditor "
@@ -895,12 +895,13 @@ def check_audit_sizes(
 
 
 def _print_size_check_limits() -> None:
+    limits = dict(NOT_REACHED)
     print(
-        f"  {CORPUS_SIZE_CHECK_LIMITS['report-not-verification']}",
+        f"  {limits['report-not-verification']}",
         file=sys.stderr,
     )
     print(
-        f"  {CORPUS_SIZE_CHECK_LIMITS['same-name-same-size-rewrite']}; "
+        f"  {limits['same-name-same-size-rewrite']}; "
         "python tools/guidelines_catalog.py catches one",
         file=sys.stderr,
     )

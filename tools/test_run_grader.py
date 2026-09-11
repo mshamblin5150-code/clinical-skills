@@ -13,6 +13,7 @@ from unittest import mock
 
 import run_grader
 from grader_conformance import constructed_kinds
+from prose_bind import NAMING, bind
 
 
 @dataclass(frozen=True)
@@ -363,6 +364,7 @@ class TheMembershipClaimIsDerivedFromTheTree(unittest.TestCase):
         self.assertIn("__main__", run_grader.WALK_CEILING)
         self.assertIn("survey", run_grader.WALK_CEILING)
         self.assertIn("format_report", run_grader.WALK_CEILING)
+        self.assertEqual((), bind(run_grader.DECLARED_LIMITS, run_grader.__doc__, mode=NAMING))
 
     def test_every_nonmember_verdict_carries_a_reason(self):
         self.assertTrue(all(run_grader.REFUSED.values()))

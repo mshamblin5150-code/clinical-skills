@@ -5,6 +5,7 @@ from __future__ import annotations
 import unittest
 
 import adr_next
+from prose_bind import NAMING, bind
 
 
 class DeclaredLimitsAreBound(unittest.TestCase):
@@ -13,6 +14,7 @@ class DeclaredLimitsAreBound(unittest.TestCase):
         self.assertTrue(
             all(isinstance(limit, str) and limit for limit in adr_next.DECLARED_LIMITS)
         )
+        self.assertEqual((), bind(adr_next.DECLARED_LIMITS, adr_next.__doc__, mode=NAMING))
 
 
 if __name__ == "__main__":

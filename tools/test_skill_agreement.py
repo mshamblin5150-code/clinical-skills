@@ -52,7 +52,7 @@ from pathlib import Path
 from typing import Callable, Iterator, NamedTuple
 
 import git_paths
-from prose_bind import ProseBind, normalized, prose_outside_code
+from prose_bind import NAMING, ProseBind, bind, normalized, prose_outside_code
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SELF = Path(__file__).resolve()
@@ -501,6 +501,10 @@ class TheReadmeRepositoryPathsResolve(unittest.TestCase):
             ),
         )
         self.assertEqual(len(catalog_societies()), 9)
+        self.assertEqual(
+            (),
+            bind(README_NOT_REACHED, README.read_text(encoding="utf-8"), mode=NAMING),
+        )
 
 
 def declared_steps(name: str) -> set[int]:
