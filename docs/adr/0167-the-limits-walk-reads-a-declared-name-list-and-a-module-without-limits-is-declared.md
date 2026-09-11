@@ -98,9 +98,10 @@ bound only through `CLAUDE.md` and named by no test.
 and computed error modes are invisible"*; ADR 0112, ADR 0117 and `test_run_grader` cite both names.
 `guidelines_catalog.CORPUS_SIZE_CHECK_LIMITS` holds *"a same-name same-size rewrite is outside its
 reach"* beside the module's `NOT_REACHED`, and nothing outside the module names it.
-`guidelines_manifest.DISCOVERY_CEILING` is a tuple of tokens a walk looks for, and
+`guidelines_manifest.DISCOVERY_CEILING` is a tuple of tokens a walk looks for, not a limit.
 `threshold_sheet.SCOPE_SUMMARY_NOT_REACHED` is already a view of `DECLARED_LIMITS` under ADR 0074
-ruling 3; neither is a limit.
+ruling 3: its rows are new tuples built by a helper, and their limit strings are the same objects the
+module's `DECLARED_LIMITS` holds, so it is limits text but not an authored object.
 
 ### A warning's price depends on its pattern
 
@@ -108,10 +109,11 @@ Over module-level constants in non-test modules, excluding the nine names and th
 above: ADR 0120's `LIMITS_ISH` fires on **40**, mostly finding labels such as `NOT_SCANNED` and
 `NOT_FOR_ENTRY`. The pattern `(?<!DE)LIMIT|CEILING|LIMBS|ORPHAN|NOT_REACHED` fires on **23**: 9 are
 referenced inside a listed object in the same module (`scratch_census`'s seven `*_LIMIT`,
-`discussion_reply_scan`'s two), and **14** are not limits: five `EXIT_2_LIMBS`, two `DEFAULT_LIMIT`,
-`apa7_coverage.SECTION_LIMITS` and `MEDIA_LIMITS`, `peer_critique_scan.WORD_CEILING_COUNT`,
-`guidelines_manifest.DISCOVERY_CEILING`, `map_scan.LIMITS_POINTER`, `skills_mirror.ORPHANS`, and
-`threshold_sheet.SCOPE_SUMMARY_NOT_REACHED`.
+`discussion_reply_scan`'s two), and **14** are neither: thirteen are not limits (five
+`EXIT_2_LIMBS`, two `DEFAULT_LIMIT`, `apa7_coverage.SECTION_LIMITS` and `MEDIA_LIMITS`,
+`peer_critique_scan.WORD_CEILING_COUNT`, `guidelines_manifest.DISCOVERY_CEILING`,
+`map_scan.LIMITS_POINTER`, `skills_mirror.ORPHANS`), and one, `threshold_sheet.SCOPE_SUMMARY_NOT_REACHED`,
+is a view whose helper hides the reference to `DECLARED_LIMITS` from an AST reading.
 
 ## Ruled 2026-09-10
 
@@ -185,8 +187,10 @@ The name list stays at nine and each module keeps one limits object.
 Over module-level constants in non-test modules, a name matching
 `(?<!DE)LIMIT|CEILING|LIMBS|ORPHAN|NOT_REACHED` that is not a listed name passes only when a listed
 object in the same module references it, when its value is built from a listed object, or when it is
-on a declared *not a limit* map with a reason. The 14 constants measured above take entries. An entry
-naming a constant that no longer exists fails. ADR 0120's pointer pattern is untouched; it reads a
+on a declared map with a reason saying why it is not an authored limits object. The 14 constants
+measured above take entries: thirteen say what the constant is instead, and
+`SCOPE_SUMMARY_NOT_REACHED`'s says it is a view built through a helper. An entry naming a constant
+that no longer exists fails. ADR 0120's pointer pattern is untouched; it reads a
 different population.
 
 ## Superseded, in part
