@@ -27,11 +27,48 @@ from pathlib import Path
 import block_scan
 import run_grader
 from grader_conformance import EmptyPopulationInput, for_module
+from prose_bind import NAMING, bind, section
 
 GraderConformance = for_module(block_scan)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SKILL = REPO_ROOT / "skills" / "clinical-note" / "SKILL.md"
+
+
+class TheDeclaredLimitsObjectOwnsBothProseSurfaces(unittest.TestCase):
+    POINTER = "block_scan.DECLARED_LIMITS"
+
+    def test_docstring_and_claude_section_each_point_once_without_copying_rows(self):
+        claude = section((REPO_ROOT / "CLAUDE.md").read_text(encoding="utf-8"), "### Block scan")
+        for surface in (block_scan.__doc__ or "", claude):
+            with self.subTest(surface=surface[:40]):
+                self.assertEqual(1, surface.count(self.POINTER))
+                self.assertEqual((), bind(block_scan.DECLARED_LIMITS, surface, mode=NAMING))
+
+    def test_the_partition_is_two_declared_readings_and_six_behaviors(self):
+        dispositions = [row[2] for row in block_scan.DECLARED_LIMITS]
+        self.assertEqual(2, dispositions.count(run_grader.EvidenceDisposition.DECLARED_READING))
+        self.assertEqual(6, dispositions.count(run_grader.EvidenceDisposition.BEHAVIOR))
+        self.assertTrue(all(subject and reason for subject, reason, _ in block_scan.DECLARED_LIMITS))
+
+
+class EveryBehaviorLimitHasALiveControl(unittest.TestCase):
+    CONTROLS = {
+        "aligned continuation entry boundaries": "TheThreeRowsFireOnWhatOpensAnEntry.test_an_aligned_line_opening_with_the_field_is_a_candidate",
+        "label-like lines that do not head a line": "ALabelHeadsALineRatherThanOpeningAProseSentence.test_a_rejected_label_like_line_is_a_review_candidate",
+        "closed vocabulary of row-opening subjects": "TheThreeRowsFireOnWhatOpensAnEntry.test_a_list_numeral_and_markdown_heading_are_outside_the_row_openers",
+        "race mentions anywhere under FILLED-asserted": "TheThreeRowsFireOnWhatOpensAnEntry.test_race_named_in_a_wrap_under_asserted_satisfies_the_second_limb",
+        "notes whose tier block is unreadable or absent": "TheThreeRowsFireOnWhatOpensAnEntry.test_a_note_with_no_block_is_counted_and_grades_nothing",
+        "unrecognized FILLED-asserted keys": "ALabelHeadsALineRatherThanOpeningAProseSentence.test_a_garbled_asserted_key_is_a_candidate_and_its_absence_limb_is_not_graded",
+    }
+
+    def test_each_behavior_subject_names_a_passing_control(self):
+        behavior = {subject for subject, _, disposition in block_scan.DECLARED_LIMITS if disposition is run_grader.EvidenceDisposition.BEHAVIOR}
+        self.assertEqual(behavior, set(self.CONTROLS))
+        for subject, name in self.CONTROLS.items():
+            result = unittest.TestResult()
+            unittest.defaultTestLoader.loadTestsFromName(f"test_block_scan.{name}").run(result)
+            self.assertTrue(result.wasSuccessful(), f"{subject}: {result.errors + result.failures}")
 
 # The label is repeated per entry and prose wraps at the aligned column, which is
 # what ``day-a`` run 2 produced.
@@ -232,6 +269,33 @@ class ALabelHeadsALineRatherThanOpeningAProseSentence(unittest.TestCase):
         )
         self.assertEqual(rows(block_scan.survey([block])), ["F3"])
 
+    def test_a_garbled_asserted_key_is_a_candidate_and_its_absence_limb_is_not_graded(self):
+        garbled = CLEAN.replace("FILLED·asserted   Race", "FILLEDÂ·asserted   Race")
+        with write_run({"case-01.md": garbled}) as run:
+            stdout, stderr = io.StringIO(), io.StringIO()
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                status = block_scan.main([run])
+
+        self.assertEqual(0, status)
+        self.assertIn("label-line candidates            1", stdout.getvalue())
+        self.assertRegex(stdout.getvalue(), r"F3 absence limb not graded\s+1")
+        self.assertEqual("", stderr.getvalue())
+
+    def test_a_replacement_character_in_the_asserted_key_has_the_same_posture(self):
+        garbled = CLEAN.replace("FILLED·asserted   Race", "FILLED�asserted   Race")
+        self.assertEqual(1, len(block_scan.label_candidates(garbled)))
+
+    def test_the_gaps_limb_still_grades_a_note_with_an_unrecognized_asserted_key(self):
+        garbled = RACE_UNDER_GAPS.replace(
+            "FILLED·asserted   Primary", "FILLEDÂ·asserted   Primary"
+        )
+        scan = block_scan.survey(
+            [block_scan.read_block(garbled)],
+            label_candidates=block_scan.label_candidates(garbled),
+            f3_absence_not_graded=(True,),
+        )
+        self.assertEqual(["F3"], rows(scan))
+
 
 class TheThreeRowsFireOnWhatOpensAnEntry(unittest.TestCase):
     def test_a_clean_note_fails_nothing(self) -> None:
@@ -310,6 +374,15 @@ class TheThreeRowsFireOnWhatOpensAnEntry(unittest.TestCase):
         scan = block_scan.survey([block_scan.read_block(text)])
         self.assertEqual(scan.f2_failures, 0)
 
+    def test_a_list_numeral_and_markdown_heading_are_outside_the_row_openers(self):
+        numbered = CLEAN.replace(MARITAL, "GAPS              1. Primary Payment Method")
+        headed = CLEAN.replace(MARITAL, "#### GAPS\n- Primary Payment Method")
+        for text in (numbered, headed):
+            with self.subTest(text=text):
+                result = block_scan.survey([block_scan.read_block(text)])
+                self.assertEqual([], rows(result))
+                self.assertEqual((), result.candidates)
+
     def test_f3_fires_twice_when_race_is_dropped_and_reported(self) -> None:
         scan = block_scan.survey([block_scan.read_block(RACE_UNDER_GAPS)])
         self.assertEqual(rows(scan), ["F3", "F3"])
@@ -383,6 +456,13 @@ class TheReportCarriesNoNoteText(unittest.TestCase):
         report = block_scan.format_report(scan, source="a-run")
         self.assertIn("label-line candidates            1", report)
         self.assertNotIn("Race and ethnicity", report)
+
+    def test_the_f3_absence_not_graded_count_prints_on_every_run(self) -> None:
+        report = block_scan.format_report(
+            block_scan.survey([block_scan.read_block(CLEAN)]),
+            source="run",
+        )
+        self.assertRegex(report, r"F3 absence limb not graded\s+0")
 
     def test_show_reveals_rejected_label_like_lines_as_candidates(self) -> None:
         line = "FILLED·asserted item 11. Filled vitals are not results."

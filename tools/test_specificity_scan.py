@@ -25,8 +25,9 @@ import unittest
 from pathlib import Path
 
 import specificity_scan as scan
+import run_grader
 from grader_conformance import EmptyPopulationInput, for_module
-from prose_bind import ProseBind
+from prose_bind import NAMING, ProseBind, bind, section
 
 GraderConformance = for_module(scan)
 from icd10_lookup import describe, normalize, notes_for, open_database
@@ -34,6 +35,84 @@ from icd10_lookup import describe, normalize, notes_for, open_database
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SKILL = REPO_ROOT / "skills" / "icd10-cpt" / "SKILL.md"
 NOTES = REPO_ROOT / "fixtures" / "filled-anchor" / "notes"
+
+
+class TheDeclaredLimitsObjectOwnsBothProseSurfaces(unittest.TestCase):
+    POINTER = "specificity_scan.DECLARED_LIMITS"
+
+    def test_docstring_and_claude_section_each_point_once_without_copying_rows(self):
+        claude = section((REPO_ROOT / "CLAUDE.md").read_text(encoding="utf-8"), "### Specificity scan")
+        for surface in (scan.__doc__ or "", claude):
+            with self.subTest(surface=surface[:40]):
+                self.assertEqual(1, surface.count(self.POINTER))
+                self.assertEqual((), bind(scan.DECLARED_LIMITS, surface, mode=NAMING))
+
+    def test_the_partition_is_two_declared_readings_and_six_behaviors(self):
+        dispositions = [row[2] for row in scan.DECLARED_LIMITS]
+        self.assertEqual(2, dispositions.count(run_grader.EvidenceDisposition.DECLARED_READING))
+        self.assertEqual(6, dispositions.count(run_grader.EvidenceDisposition.BEHAVIOR))
+        self.assertTrue(all(subject and reason for subject, reason, _ in scan.DECLARED_LIMITS))
+
+
+class EveryBehaviorLimitHasALiveControl(unittest.TestCase):
+    CONTROLS = {
+        "alphanumeric substance after a keyword": "DeclaredLimitBoundaryControls.test_a_stock_phrase_satisfies_the_substance_shape",
+        "unspecified-descriptor advisory input": "DeclaredLimitBoundaryControls.test_a_wrapped_unspecified_word_is_outside_the_advisory",
+        "recognized code-entry and flag forms": "DeclaredLimitBoundaryControls.test_an_unrecognized_entry_and_flag_disappear_beside_a_readable_entry",
+        "nearest-entry flag pairing": "DeclaredLimitBoundaryControls.test_an_unpaired_flag_attaches_to_the_nearest_recognized_entry_above",
+        "NOT FOR ENTRY flag exemption": "TheParserPairsAFlagWithItsDescriptor.test_a_differential_flag_is_exempt_from_both_tests",
+        "values beginning with neither branch keyword": "AFlagCarriesSubstanceBeyondItsKeyword.test_n_a_and_an_empty_value_remain_neither_keyword",
+    }
+
+    def test_each_behavior_subject_names_a_passing_control(self):
+        behavior = {subject for subject, _, disposition in scan.DECLARED_LIMITS if disposition is run_grader.EvidenceDisposition.BEHAVIOR}
+        self.assertEqual(behavior, set(self.CONTROLS))
+        for subject, name in self.CONTROLS.items():
+            result = unittest.TestResult()
+            unittest.defaultTestLoader.loadTestsFromName(f"test_specificity_scan.{name}").run(result)
+            self.assertTrue(result.wasSuccessful(), f"{subject}: {result.errors + result.failures}")
+
+
+class DeclaredLimitBoundaryControls(unittest.TestCase):
+    def test_a_stock_phrase_satisfies_the_substance_shape(self):
+        flags = scan.read_flags(entry("I10", "Hypertension", "complete - nothing more to add"))
+        self.assertEqual([], scan.findings(flags))
+
+    def test_a_wrapped_unspecified_word_is_outside_the_advisory(self):
+        wrapped = scan.read_flags(
+            "ICD-10  J02.9  Acute pharyngitis,\n"
+            "               unspecified\n"
+            "  SPECIFICITY: complete - no further axis\n"
+        )
+        one_line = scan.read_flags(
+            entry("J02.9", "Acute pharyngitis, unspecified", "complete - no further axis")
+        )
+        self.assertEqual(0, scan.survey([wrapped]).unspecified_complete)
+        self.assertEqual(1, scan.survey([one_line]).unspecified_complete)
+
+    def test_an_unrecognized_entry_and_flag_disappear_beside_a_readable_entry(self):
+        text = worksheet(
+            entry("I10", "Hypertension", "complete - no further axis"),
+            "- ICD-10  J02.9  Acute pharyngitis, unspecified\n"
+            "- **SPECIFICITY:** complete",
+        )
+        with tempfile.TemporaryDirectory() as temp:
+            Path(temp, "case-01.md").write_text(text, encoding="utf-8")
+            stdout, stderr = io.StringIO(), io.StringIO()
+            with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+                status = scan.main([temp])
+        self.assertEqual(0, status)
+        self.assertIn("for-entry codes read             1", stdout.getvalue())
+        self.assertEqual("", stderr.getvalue())
+
+    def test_an_unpaired_flag_attaches_to_the_nearest_recognized_entry_above(self):
+        flags = scan.read_flags(
+            entry("99406", "Cessation counseling", "complete - time documented")
+            + "\n- ICD-10  J02.9  Acute pharyngitis, unspecified\n"
+            + "  SPECIFICITY: complete\n"
+        )
+        self.assertEqual(["99406", "99406"], [flag.code for flag in flags])
+        self.assertEqual(["bare-flag"], [finding.kind for finding in scan.findings(flags)])
 
 # The audit's extraction boundary, written down rather than described. A
 # diagnosis-list header runs to the next blank line; six of the twelve notes
@@ -279,6 +358,39 @@ class AFlagCarriesSubstanceBeyondItsKeyword(unittest.TestCase):
         text = entry("M79.10", "Myalgia, unspecified site", "needs: site")
         self.assertEqual(scan.findings(scan.read_flags(text)), [])
 
+    def test_letters_welded_to_complete_fail_their_own_row(self):
+        for value in ("completed", "completely specified — laterality documented"):
+            with self.subTest(value=value):
+                flag = scan.read_flags(entry("I10", "Essential hypertension", value))[0]
+                self.assertEqual("complete", flag.keyword)
+                self.assertEqual(
+                    ["welded-keyword"],
+                    [finding.kind for finding in scan.flag_findings(flag)],
+                )
+
+    def test_a_hyphen_welded_to_complete_fails_the_same_row(self):
+        flag = scan.read_flags(
+            entry("I10", "Essential hypertension", "complete-ish — checked")
+        )[0]
+        self.assertEqual(["welded-keyword"], [f.kind for f in scan.flag_findings(flag)])
+
+    def test_a_welded_complete_is_not_eligible_for_the_advisory(self):
+        flags = scan.read_flags(
+            entry("J02.9", "Acute pharyngitis, unspecified", "completed")
+        )
+        result = scan.survey([flags])
+        self.assertEqual(1, result.complete_flags)
+        self.assertEqual(0, result.unspecified_complete)
+
+    def test_n_a_and_an_empty_value_remain_neither_keyword(self):
+        for value in ("n/a", ""):
+            with self.subTest(value=value):
+                result = scan.survey(
+                    [scan.read_flags(entry("I10", "Essential hypertension", value))]
+                )
+                self.assertEqual(1, result.unrecognized_flags)
+                self.assertEqual(0, result.failing_flags)
+
 
 class AnUnspecifiedDescriptorIsAnAdvisoryReviewShape(unittest.TestCase):
     """The descriptor is counted for a reader, but a reason discharges C5."""
@@ -392,6 +504,12 @@ class TheCommandExitsOnWhatItFound(unittest.TestCase):
 
     def test_a_bare_flag_exits_one(self):
         self.assertEqual(self._run(entry("I10", "Essential (primary) hypertension", "complete")), 1)
+
+    def test_a_welded_keyword_exits_one(self):
+        self.assertEqual(
+            self._run(entry("I10", "Essential (primary) hypertension", "completed")),
+            1,
+        )
 
     def test_an_unread_flag_form_leaves_a_reported_remainder_and_exits_two(self):
         text = worksheet(

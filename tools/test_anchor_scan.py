@@ -21,6 +21,7 @@ from pathlib import Path
 import anchor_scan as scan
 import run_grader
 from grader_conformance import EmptyPopulationInput, for_module
+from prose_bind import NAMING, bind, section
 
 GraderConformance = for_module(scan)
 
@@ -29,6 +30,93 @@ SKILL = REPO_ROOT / "skills" / "icd10-cpt" / "SKILL.md"
 
 BLOCK = "--- CODED, ANCHOR WAS FILLED - CONFIRM BEFORE SUBMITTING ---"
 OLD_BLOCK = "--- NOT CODED, ANCHOR WAS FILLED ---"
+
+
+class TheDeclaredLimitsObjectOwnsBothProseSurfaces(unittest.TestCase):
+    POINTER = "anchor_scan.DECLARED_LIMITS"
+
+    def test_docstring_and_claude_section_each_point_once_without_copying_rows(self):
+        claude = section((REPO_ROOT / "CLAUDE.md").read_text(encoding="utf-8"), "### Anchor scan")
+        for surface in (scan.__doc__ or "", claude):
+            with self.subTest(surface=surface[:40]):
+                self.assertEqual(1, surface.count(self.POINTER))
+                self.assertEqual((), bind(scan.DECLARED_LIMITS, surface, mode=NAMING))
+
+    def test_the_partition_is_one_declared_reading_and_eight_behaviors(self):
+        dispositions = [row[2] for row in scan.DECLARED_LIMITS]
+        self.assertEqual(1, dispositions.count(run_grader.EvidenceDisposition.DECLARED_READING))
+        self.assertEqual(8, dispositions.count(run_grader.EvidenceDisposition.BEHAVIOR))
+        self.assertTrue(all(subject and reason for subject, reason, _ in scan.DECLARED_LIMITS))
+
+
+class EveryBehaviorLimitHasALiveControl(unittest.TestCase):
+    CONTROLS = {
+        "NOT FOR ENTRY entries": "TheParserFindsMarkedCodes.test_a_differential_entry_is_not_a_proposed_code",
+        "recognized code-entry openings": "DeclaredLimitBoundaryControls.test_an_unrecognized_code_and_source_form_contributes_nothing",
+        "recognized filled-anchor listing lines": "DeclaredLimitBoundaryControls.test_a_table_listing_is_unread_beside_the_code_dash_form",
+        "recognized SOURCE marks": "DeclaredLimitBoundaryControls.test_a_bold_source_label_does_not_mark_the_code",
+        "filled-anchor block closing headings": "DeclaredLimitBoundaryControls.test_a_subheading_ends_the_filled_anchor_block",
+        "filled-anchor block opening mentions": "DeclaredLimitBoundaryControls.test_a_prose_mention_opens_the_filled_anchor_block",
+        "pediatric-band computation": "DeclaredLimitBoundaryControls.test_the_required_sentence_is_not_a_recomputation",
+        "per-run gradeable coverage": "DeclaredLimitBoundaryControls.test_an_unread_worksheet_adds_nothing_beside_a_readable_one",
+    }
+
+    def test_each_behavior_subject_names_a_passing_control(self):
+        behavior = {subject for subject, _, disposition in scan.DECLARED_LIMITS if disposition is run_grader.EvidenceDisposition.BEHAVIOR}
+        self.assertEqual(behavior, set(self.CONTROLS))
+        for subject, name in self.CONTROLS.items():
+            result = unittest.TestResult()
+            unittest.defaultTestLoader.loadTestsFromName(f"test_anchor_scan.{name}").run(result)
+            self.assertTrue(result.wasSuccessful(), f"{subject}: {result.errors + result.failures}")
+
+
+class DeclaredLimitBoundaryControls(unittest.TestCase):
+    def test_an_unrecognized_code_and_source_form_contributes_nothing(self):
+        unread = scan.read_worksheet(
+            "- ICD-10  J02.9  Acute pharyngitis, unspecified\n"
+            "  **SOURCE:** filled\n"
+        )
+        self.assertEqual((0, frozenset()), (unread.proposed, unread.marked))
+
+    def test_a_table_listing_is_unread_beside_the_code_dash_form(self):
+        table = scan.read_worksheet(worksheet(block="| Z68.36 | BMI 36.4 |"))
+        line = scan.read_worksheet(worksheet(block="Z68.36 - BMI 36.4"))
+        self.assertEqual(frozenset(), table.listed)
+        self.assertEqual(frozenset({"Z68.36"}), line.listed)
+
+    def test_a_bold_source_label_does_not_mark_the_code(self):
+        text = entry("Z68.36", "Adult BMI", source="filled").replace("SOURCE:", "**SOURCE:**")
+        self.assertEqual(frozenset(), scan.read_worksheet(text).marked)
+
+    def test_a_subheading_ends_the_filled_anchor_block(self):
+        sheet = scan.read_worksheet(
+            f"{BLOCK}\n### Adult BMI band\nZ68.36 - BMI 36.4\n"
+        )
+        self.assertEqual(frozenset(), sheet.listed)
+
+    def test_a_prose_mention_opens_the_filled_anchor_block(self):
+        sheet = scan.read_worksheet(
+            "Accounting note names CODED, ANCHOR WAS FILLED for review.\n"
+            "Z68.36 - BMI 36.4\n"
+        )
+        self.assertEqual(frozenset({"Z68.36"}), sheet.listed)
+
+    def test_the_required_sentence_is_not_a_recomputation(self):
+        text = entry(
+            "Z68.54",
+            "Pediatric BMI above the 95th percentile",
+            confidence="verified against ICD-10-CM FY2026 and CDC 2022 Extended BMI-for-Age",
+        )
+        result = scan.read_worksheet(text)
+        self.assertEqual((), tuple(result.pediatric_not_computed))
+
+    def test_an_unread_worksheet_adds_nothing_beside_a_readable_one(self):
+        readable = scan.read_worksheet(
+            worksheet(entry("I10", "Hypertension", source="filled"), block="I10 - filled pressure")
+        )
+        result = scan.survey([readable, scan.read_worksheet(worksheet())])
+        self.assertEqual(2, result.worksheets)
+        self.assertEqual(2, result.subjects)
 
 
 def entry(code: str, descriptor: str, source: str | None = None,

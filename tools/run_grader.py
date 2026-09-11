@@ -47,6 +47,13 @@ DECLARED_LIMITS = (
         "count, and built-in open calls, indirect readers, and computed error modes are invisible",
         EvidenceDisposition.DECLARED_READING,
     ),
+    (
+        "run artifacts read through read_run_directory",
+        "Members that call read_run_directory open only top-level files matching "
+        "*.md (case-insensitively on Windows) whose stem is not README; artifacts "
+        "in subdirectories and files with other extensions are not read.",
+        EvidenceDisposition.BEHAVIOR,
+    ),
 )
 WALK_CEILING = DECLARED_LIMITS[0][1]
 TEXT_READ_WALK_CEILING = DECLARED_LIMITS[1][1]

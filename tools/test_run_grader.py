@@ -190,6 +190,26 @@ class TheRunDirectoryReaderOwnsTheSetPolicy(unittest.TestCase):
                 run_grader.read_run_directory(root),
             )
 
+    def test_subdirectories_and_non_markdown_artifacts_are_not_read(self):
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            (root / "top.md").write_text("top", encoding="utf-8")
+            (root / "other.txt").write_text("text", encoding="utf-8")
+            sub = root / "sub"
+            sub.mkdir()
+            (sub / "nested.md").write_text("nested", encoding="utf-8")
+
+            self.assertEqual(["top"], run_grader.read_run_directory(root))
+
+    def test_the_reader_limit_is_scoped_to_its_declared_consumers(self):
+        subject, reason, disposition = run_grader.DECLARED_LIMITS[2]
+
+        self.assertIn("read_run_directory", subject)
+        self.assertIn("top-level", reason)
+        self.assertIn("*.md", reason)
+        self.assertIn("README", reason)
+        self.assertIs(disposition, run_grader.EvidenceDisposition.BEHAVIOR)
+
     def test_an_artifact_that_cannot_be_opened_is_a_declared_source_failure(self):
         with tempfile.TemporaryDirectory() as name:
             root = Path(name)

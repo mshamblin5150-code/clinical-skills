@@ -32,10 +32,8 @@ class ObjectRef(NamedTuple):
 
 # An absence here is a decision, not proof that the module has no limitation.
 NO_LIMITS = {
-    "anchor_scan": "#1038 owns whether this run grader earns a limits object",
     "artifact_lock_test_support": "test support for artifact-lock fixtures, not a public checker",
     "assertion_record": "shared assertion-record data structures with no independent coverage claim",
-    "block_scan": "#1038 owns whether this run grader earns a limits object",
     "case_study_render": "the renderer produces retained evidence and does not grade its coverage",
     "cdc_percentile": "a deterministic table lookup whose source and fallback disclosures are explicit outputs",
     "console_codec": "a narrow console-encoding adapter with no asserted population walk",
@@ -45,7 +43,6 @@ NO_LIMITS = {
     "discussion_post_render": "the renderer formats already graded discussion-post content",
     "docx_read": "a document-reading adapter with no independent completeness claim",
     "docx_word_probe": "a Word automation probe that reports only the operation it performs",
-    "filled_vitals_census": "#1038 owns whether this run grader earns a limits object",
     "git_ancestry": "shared ancestry predicates with no declared repository-population conclusion",
     "git_paths": "a byte-preserving Git path adapter with no independent completeness claim",
     "guidelines_build": "build orchestration over contracts declared by the guideline tools it calls",
@@ -71,7 +68,6 @@ NO_LIMITS = {
     "scratch_work": "ticket-directory path and lifecycle helpers with no population assertion",
     "shell_reader": "a subprocess text adapter with no independent completeness claim",
     "skills_mirror": "a mirror command whose orphan output path is separately classified",
-    "specificity_scan": "#1038 owns whether this run grader earns a limits object",
     "spelling_scan": "an advisory spelling matcher whose vocabulary is its explicit boundary",
     "split_census": "a diagnostic census whose display limit is separately classified",
     "subject_ledger": "a ledger validator whose accepted row grammar defines its reach",
