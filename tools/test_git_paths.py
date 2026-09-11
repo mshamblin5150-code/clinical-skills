@@ -51,19 +51,77 @@ def _literal_arguments(call: ast.Call) -> set[str]:
     return values
 
 
-def _git_paths_imports(tree: ast.Module) -> tuple[set[str], set[str]]:
-    modules: set[str] = set()
-    readers: set[str] = set()
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
+def _scope_bindings(scope: ast.AST) -> dict[str, set[str]]:
+    bindings: dict[str, set[str]] = {}
+
+    def bind(name: str, kind: str) -> None:
+        bindings.setdefault(name, set()).add(kind)
+
+    class BindingCollector(ast.NodeVisitor):
+        def visit_Import(self, node: ast.Import) -> None:
             for alias in node.names:
-                if alias.name == "git_paths":
-                    modules.add(alias.asname or alias.name)
-        elif isinstance(node, ast.ImportFrom) and node.module == "git_paths":
+                name = alias.asname or alias.name.split(".", 1)[0]
+                bind(name, "git_paths_module" if alias.name == "git_paths" else "other")
+
+        def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
             for alias in node.names:
-                if alias.name == "read_path_records":
-                    readers.add(alias.asname or alias.name)
-    return modules, readers
+                name = alias.asname or alias.name
+                kind = (
+                    "read_path_records"
+                    if node.module == "git_paths" and alias.name == "read_path_records"
+                    else "other"
+                )
+                bind(name, kind)
+
+        def visit_Name(self, node: ast.Name) -> None:
+            if isinstance(node.ctx, ast.Store):
+                bind(node.id, "other")
+
+        def visit_arg(self, node: ast.arg) -> None:
+            bind(node.arg, "other")
+
+        def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+            if node is scope:
+                self.visit(node.args)
+                for statement in node.body:
+                    self.visit(statement)
+            else:
+                bind(node.name, "other")
+
+        visit_AsyncFunctionDef = visit_FunctionDef
+
+        def visit_Lambda(self, node: ast.Lambda) -> None:
+            if node is scope:
+                self.visit(node.args)
+                self.visit(node.body)
+
+        def visit_ClassDef(self, node: ast.ClassDef) -> None:
+            bind(node.name, "other")
+
+    collector = BindingCollector()
+    if isinstance(scope, ast.Module):
+        for statement in scope.body:
+            collector.visit(statement)
+    else:
+        collector.visit(scope)
+    return bindings
+
+
+def _resolves_to_import(
+    name: str,
+    kind: str,
+    call: ast.Call,
+    parents: dict[ast.AST, ast.AST],
+    binding_cache: dict[ast.AST, dict[str, set[str]]],
+) -> bool:
+    node: ast.AST | None = call
+    while node is not None:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda, ast.Module)):
+            bindings = binding_cache.setdefault(node, _scope_bindings(node))
+            if name in bindings:
+                return bindings[name] == {kind}
+        node = parents.get(node)
+    return False
 
 
 def _is_mock_expectation(
@@ -100,12 +158,12 @@ def shared_reader_offenders(root: Path) -> list[str]:
         if path.name in {"git_paths.py", "test_git_paths.py"}:
             continue
         tree = ast.parse(path.read_text(encoding="utf-8"))
-        modules, readers = _git_paths_imports(tree)
         parents = {
             child: parent
             for parent in ast.walk(tree)
             for child in ast.iter_child_nodes(parent)
         }
+        binding_cache: dict[ast.AST, dict[str, set[str]]] = {}
         for call in (node for node in ast.walk(tree) if isinstance(node, ast.Call)):
             literals = _literal_arguments(call)
             path_listing = bool(
@@ -115,12 +173,25 @@ def shared_reader_offenders(root: Path) -> list[str]:
             )
             function = call.func
             uses_shared_reader = (
-                isinstance(function, ast.Name) and function.id in readers
+                isinstance(function, ast.Name)
+                and _resolves_to_import(
+                    function.id,
+                    "read_path_records",
+                    call,
+                    parents,
+                    binding_cache,
+                )
             ) or (
                 isinstance(function, ast.Attribute)
                 and isinstance(function.value, ast.Name)
-                and function.value.id in modules
                 and function.attr == "read_path_records"
+                and _resolves_to_import(
+                    function.value.id,
+                    "git_paths_module",
+                    call,
+                    parents,
+                    binding_cache,
+                )
             )
             if (
                 path_listing
@@ -312,6 +383,21 @@ probe.assert_called_with(subprocess.run(["git", "ls-files"]))
             (root / "test_reader.py").write_text(source, encoding="utf-8")
 
             self.assertEqual(shared_reader_offenders(root), ["test_reader.py:1"])
+
+    def test_an_alias_imported_in_another_scope_is_not_adoption(self):
+        source = """\
+def compliant():
+    import git_paths as paths
+    paths.read_path_records(ROOT, "ls-files", "-z")
+
+def offender(paths):
+    paths.read_path_records(ROOT, "ls-files", "-z")
+"""
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "test_reader.py").write_text(source, encoding="utf-8")
+
+            self.assertEqual(shared_reader_offenders(root), ["test_reader.py:6"])
 
 
 if __name__ == "__main__":
