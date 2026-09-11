@@ -700,6 +700,14 @@ _Avoid_: pointer surface, reference, mention, citation
 A document that must reproduce every row of a declared object, in the object's own order, because a reader of that document is owed the whole inventory rather than a pointer. Distinct from a **naming surface**: an enumeration is required to be a copy, so the two obligations are contradictory over one population.
 _Avoid_: inventory, listing, table
 
+**Refusing check**:
+An invocation in the pre-commit hook whose non-zero status turns the commit away. Recognized by the status the line sets and never by the module it names, because one module may appear in the hook both advisorily and as a refuser, and a name alone reads commentary and advisory lines as members. Distinct from an **advisory check**, which prints and cannot change the outcome; the two differ only in whether their status is OR-ed in, so which one a line is cannot be read off the command.
+_Avoid_: gate, hook check, blocker, guard
+
+**Membership claim**:
+A sentence stating whether one thing belongs to a set, written where a reader needs only that. It goes stale when that member's own posture changes and never when the set grows, which is what distinguishes it from an **enumeration surface** sitting in the same paragraph: an enumeration is owed the whole inventory and decays on every addition anywhere. Distinct from a **naming surface**, which must point at a declared object; a membership claim names no object and carries the whole of what it asserts.
+_Avoid_: mention, partial roster, summary, aside
+
 **Rule identity**:
 A recorded fingerprint of the instrument that produced a stored measurement, kept beside the measurement so that a change to the instrument is distinguishable from a change to the thing measured. Without one, both arrive as the same signal, and the cheaper remedy cannot be told from the expensive one. Distinct from a **declared limit**, which says what a mechanism does not reach: this says which mechanism ran.
 _Avoid_: version, schema, checksum
