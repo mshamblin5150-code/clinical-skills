@@ -33,27 +33,28 @@ MOCK_EXPECTATION_METHODS = {
 COMPREHENSION_SCOPES = (ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp)
 
 
-def _looks_like_patch_call(node: ast.AST) -> bool:
-    if not isinstance(node, ast.Call):
-        return False
-    function = node.func
-    if isinstance(function, ast.Name):
-        return function.id == "patch"
-    if not isinstance(function, ast.Attribute):
-        return False
-    if function.attr == "patch":
-        return isinstance(function.value, ast.Name) and function.value.id == "mock"
-    return (
-        function.attr == "object"
-        and (
-            isinstance(function.value, ast.Name)
-            and function.value.id == "patch"
-            or isinstance(function.value, ast.Attribute)
-            and function.value.attr == "patch"
-            and isinstance(function.value.value, ast.Name)
-            and function.value.value.id == "mock"
-        )
-    )
+def _named_expression_targets(node: ast.AST) -> set[str]:
+    targets: set[str] = set()
+
+    class WalrusTargetCollector(ast.NodeVisitor):
+        def visit_NamedExpr(self, named: ast.NamedExpr) -> None:
+            if isinstance(named.target, ast.Name):
+                targets.add(named.target.id)
+            self.visit(named.value)
+
+        def visit_FunctionDef(self, nested: ast.FunctionDef) -> None:
+            return
+
+        visit_AsyncFunctionDef = visit_FunctionDef
+
+        def visit_Lambda(self, nested: ast.Lambda) -> None:
+            return
+
+        def visit_ClassDef(self, nested: ast.ClassDef) -> None:
+            return
+
+    WalrusTargetCollector().visit(node)
+    return targets
 
 
 def _literal_arguments(call: ast.Call) -> set[str]:
@@ -138,11 +139,7 @@ def _scope_bindings(scope: ast.AST) -> dict[str, set[str]]:
         def visit_With(self, node: ast.With) -> None:
             for item in node.items:
                 self.visit(item.context_expr)
-                if isinstance(item.optional_vars, ast.Name) and _looks_like_patch_call(
-                    item.context_expr
-                ):
-                    bind(item.optional_vars.id, "mock_object")
-                elif item.optional_vars is not None:
+                if item.optional_vars is not None:
                     self.visit(item.optional_vars)
             for statement in node.body:
                 self.visit(statement)
@@ -153,6 +150,9 @@ def _scope_bindings(scope: ast.AST) -> dict[str, set[str]]:
             if node is scope:
                 for generator in node.generators:
                     self.visit(generator.target)
+            else:
+                for name in _named_expression_targets(node):
+                    bind(name, "other")
 
         visit_ListComp = _visit_comprehension_scope
         visit_SetComp = _visit_comprehension_scope
@@ -175,7 +175,18 @@ def _resolves_to_import(
     parents: dict[ast.AST, ast.AST],
     binding_cache: dict[ast.AST, dict[str, set[str]]],
 ) -> bool:
-    node: ast.AST | None = call
+    for node in _enclosing_scopes(call, parents):
+        bindings = binding_cache.setdefault(node, _scope_bindings(node))
+        if name in bindings:
+            return bindings[name] == {kind}
+    return False
+
+
+def _enclosing_scopes(
+    subject: ast.AST, parents: dict[ast.AST, ast.AST]
+) -> list[ast.AST]:
+    scopes: list[ast.AST] = []
+    node: ast.AST | None = subject
     inside_function = False
     while node is not None:
         is_function = isinstance(
@@ -184,12 +195,24 @@ def _resolves_to_import(
         is_visible_class = isinstance(node, ast.ClassDef) and not inside_function
         if is_function:
             inside_function = True
-        if isinstance(node, (ast.Module, *COMPREHENSION_SCOPES)) or is_function or is_visible_class:
-            bindings = binding_cache.setdefault(node, _scope_bindings(node))
-            if name in bindings:
-                return bindings[name] == {kind}
+        is_comprehension_scope = isinstance(node, COMPREHENSION_SCOPES)
+        if is_comprehension_scope:
+            first_iterable = node.generators[0].iter
+            ancestor: ast.AST | None = subject
+            while ancestor is not None and ancestor is not node:
+                if ancestor is first_iterable:
+                    is_comprehension_scope = False
+                    break
+                ancestor = parents.get(ancestor)
+        if (
+            isinstance(node, ast.Module)
+            or is_comprehension_scope
+            or is_function
+            or is_visible_class
+        ):
+            scopes.append(node)
         node = parents.get(node)
-    return False
+    return scopes
 
 
 def _is_mock_expectation(
@@ -201,9 +224,8 @@ def _is_mock_expectation(
         isinstance(call.func, ast.Attribute)
         and call.func.attr in MOCK_EXPECTATION_METHODS
         and isinstance(call.func.value, ast.Name)
-        and _resolves_to_import(
+        and _resolves_to_mock_object(
             call.func.value.id,
-            "mock_object",
             call,
             parents,
             binding_cache,
@@ -230,9 +252,8 @@ def _is_mock_expectation(
             isinstance(node.func, ast.Attribute)
             and node.func.attr in {"assert_has_calls", "assert_has_awaits"}
             and isinstance(node.func.value, ast.Name)
-            and _resolves_to_import(
+            and _resolves_to_mock_object(
                 node.func.value.id,
-                "mock_object",
                 node,
                 parents,
                 binding_cache,
@@ -240,6 +261,76 @@ def _is_mock_expectation(
         ):
             return True
         node = parents.get(node)
+    return False
+
+
+def _patch_call_uses_unittest_mock(
+    call: ast.Call,
+    parents: dict[ast.AST, ast.AST],
+    binding_cache: dict[ast.AST, dict[str, set[str]]],
+) -> bool:
+    function = call.func
+    if isinstance(function, ast.Name):
+        return _resolves_to_import(
+            function.id, "mock_patch", call, parents, binding_cache
+        )
+    if not isinstance(function, ast.Attribute):
+        return False
+    if function.attr == "patch" and isinstance(function.value, ast.Name):
+        return _resolves_to_import(
+            function.value.id,
+            "unittest_mock_module",
+            call,
+            parents,
+            binding_cache,
+        )
+    if function.attr != "object":
+        return False
+    if isinstance(function.value, ast.Name):
+        return _resolves_to_import(
+            function.value.id, "mock_patch", call, parents, binding_cache
+        )
+    return (
+        isinstance(function.value, ast.Attribute)
+        and function.value.attr == "patch"
+        and isinstance(function.value.value, ast.Name)
+        and _resolves_to_import(
+            function.value.value.id,
+            "unittest_mock_module",
+            call,
+            parents,
+            binding_cache,
+        )
+    )
+
+
+def _resolves_to_mock_object(
+    name: str,
+    call: ast.Call,
+    parents: dict[ast.AST, ast.AST],
+    binding_cache: dict[ast.AST, dict[str, set[str]]],
+) -> bool:
+    for scope in _enclosing_scopes(call, parents):
+        if isinstance(scope, COMPREHENSION_SCOPES):
+            continue
+        for node in ast.walk(scope):
+            if not isinstance(node, (ast.With, ast.AsyncWith)):
+                continue
+            node_scopes = _enclosing_scopes(node, parents)
+            if not node_scopes or node_scopes[0] is not scope:
+                continue
+            if node.lineno > call.lineno:
+                continue
+            for item in node.items:
+                if (
+                    isinstance(item.optional_vars, ast.Name)
+                    and item.optional_vars.id == name
+                    and isinstance(item.context_expr, ast.Call)
+                    and _patch_call_uses_unittest_mock(
+                        item.context_expr, parents, binding_cache
+                    )
+                ):
+                    return True
     return False
 
 
@@ -508,6 +599,43 @@ class ClassBody:
             (root / "test_reader.py").write_text(source, encoding="utf-8")
 
             self.assertEqual(shared_reader_offenders(root), ["test_reader.py:1"])
+
+    def test_an_ordinary_patch_context_does_not_create_a_mock_receiver(self):
+        source = """\
+def patch():
+    return probe
+with patch() as run:
+    run.assert_called_with(["git", "ls-files"])
+"""
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "test_reader.py").write_text(source, encoding="utf-8")
+
+            self.assertEqual(shared_reader_offenders(root), ["test_reader.py:4"])
+
+    def test_a_comprehension_walrus_shadows_the_enclosing_import(self):
+        source = """\
+import git_paths as paths
+def offender(items):
+    [(paths := item) for item in items]
+    paths.read_path_records(ROOT, "ls-files", "-z")
+"""
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "test_reader.py").write_text(source, encoding="utf-8")
+
+            self.assertEqual(shared_reader_offenders(root), ["test_reader.py:4"])
+
+    def test_a_comprehension_first_iterable_uses_the_enclosing_import(self):
+        source = """\
+import git_paths as paths
+[item for paths in paths.read_path_records(ROOT, "ls-files", "-z")]
+"""
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "test_reader.py").write_text(source, encoding="utf-8")
+
+            self.assertEqual(shared_reader_offenders(root), [])
 
     def test_an_alias_imported_in_another_scope_is_not_adoption(self):
         source = """\
