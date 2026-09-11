@@ -1294,7 +1294,11 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
     """
     # A zero is earned only where the limb had a population to inspect. Another
     # limb's finding must not turn absence here into a plausible clean count.
-    row_22 = str(len(scan.findings)) if scan.differential_entries else "NOT RUN"
+    row_22 = (
+        str(len(scan.findings))
+        if scan.differential_entries or scan.conclusion_entries
+        else "NOT RUN"
+    )
     row_13 = str(len(scan.missing_code_items)) if scan.numbered_items else "NOT RUN"
     row_23 = (
         str(len(scan.ranking_findings))

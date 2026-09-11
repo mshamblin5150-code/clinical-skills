@@ -1336,6 +1336,22 @@ class TheConclusionIsReadByPositionNotPunctuation(unittest.TestCase):
     def test_a_colon_pinned_conclusion_asserting_a_refused_code_is_a_finding(self):
         self.assertEqual([f.code for f in scan_text(COLON_CONCLUSION).findings], ["J02.0"])
 
+    def test_a_conclusion_only_finding_prints_the_row_22_count(self):
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            (root / "case-01.md").write_text(
+                "A:\n\n"
+                "Final diagnosis: Streptococcal pharyngitis, suspected - J02.0\n"
+                "NOT CODED: J02.0 Streptococcal pharyngitis, no rapid strep resulted.\n",
+                encoding="utf-8",
+            )
+            printed = io.StringIO()
+            with redirect_stdout(printed), redirect_stderr(io.StringIO()):
+                status = ds.main([str(root)])
+
+        self.assertEqual(status, 1)
+        self.assertIn("row 22 - refused code in a slot  1", printed.getvalue())
+
     def test_the_pin_is_reported_as_malformed(self):
         self.assertEqual(scan_text(COLON_CONCLUSION).malformed_pins, 1)
 
