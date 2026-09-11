@@ -8,7 +8,10 @@ ruling 4 ruled that every label is documented there and none is deleted. One lab
 `codebase-architecture`, described on GitHub as *"Deepening opportunity found by an architecture
 review; orthogonal to the triage role"*.
 
-Grilled 2026-09-10 at `origin/main` `75861e0`. The session was brought forward to `6dde06c` before
+Grilled 2026-09-10 at `origin/main` `97bc244`. *Corrected 2026-09-10: this sentence first named `75861e0`, which is the base
+#1047's old body declared rather than the session's own, and the tree-names-nothing measurement below
+carried no commit although this record's merge falsified it. Found by the session's own tracker sweep.*
+The session was brought forward to `6dde06c` before
 this record was written. **Six questions were ruled by the clinician one at a time on that date**; the sixth widened ruling 2
 after a trace of the label's carriers found a ticket a build had filed.
 Nothing is built here; this is the record the build reads. Every count below is a dated measurement,
@@ -20,7 +23,7 @@ not a current property of the tracker.
 
 `gh label list` gives `codebase-architecture` a creation time of `2026-09-03T00:01:42Z`, five days
 after ADR 0072 ruled 2026-08-29 and on the day an architecture review's tickets were filed. Nothing
-in the tree names the label. `git log --all -S codebase-architecture` returns no commit, and no tool,
+in the tree at `97bc244` names the label. `git log --all -S codebase-architecture` returned no commit, and no tool,
 workflow or document reads it.
 
 ### A per-ticket label audit cannot see a missing row
@@ -37,7 +40,7 @@ anything it reads.
 
 ### The carriers, traced
 
-At session start 14 open tickets carried the label. #1047's body said nine; it had been corrected once
+At the session's first read of the tracker, 14 open tickets carried the label. #1047's body said nine; it had been corrected once
 already that day from ten. Each carrier was traced to what generated it:
 
 - **Placed by an architecture review:** #874, #875.
