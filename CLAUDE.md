@@ -1312,7 +1312,8 @@ that reason does not transfer and the two fields form one citation set here.
 
 A completed read reports unresolved numbers rather than dropping them. A
 text-bearing create that supplies no number reports the unbounded aggregate
-class explicitly; a text-free publication does not run the readback and stays
+class explicitly. A text-free issue create stops at the fixed-position filing
+gate; every other text-free publication does not run the readback and stays
 silent. The complete boundary belongs to `tracker_readback.NOT_REACHED`; this
 section points to the object and copies none of its rows.
 
