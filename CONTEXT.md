@@ -101,7 +101,7 @@ Moving a gating root's top-level rise under the **owning checkout**'s **Ticket d
 _Avoid_: clean up, clear, purge, sweep (in the tracker sense — see the tracker terms)
 
 **Run key**:
-The identity of a graded artifact, as course, module and artifact — every part read off the live LMS or off which skill is running, and no part typed. It names the directory holding that artifact's whole provenance record, and prefixes the filename of every submission made from it.
+The identity of one unit of work, and it names the directory holding that unit's whole provenance record. For a graded artifact it is course, module and artifact — every part read off the live LMS or off which skill is running, and no part typed — and it prefixes the filename of every submission made from it. For a shift it is `shift-` and the visit date, which step 1 of the shift has already settled. That date is part of what the shift *is*, not the date of a sitting: a shift split on Monday and finished on Tuesday is two sittings and one key.
 _Avoid_: slug, run id, folder name
 
 **Prompt**:
@@ -241,7 +241,7 @@ The half of a republished work's in-text date that precedes the slash — `1920`
 _Avoid_: original year, first year, prior date, source year, earlier element
 
 **Run directory**:
-The one place a graded artifact's provenance is kept — its bar, its board snapshots, its claim and check ledgers, and the evidence it was handed. Named by the run key, so it carries no date and outlives every sitting.
+The one place a unit of work's provenance is kept — a graded artifact's bar, its board snapshots, its claim and check ledgers and the evidence it was handed, or a shift's rendered day-file pages and their transcriptions. Named by the run key, so it carries no sitting date and outlives every sitting; a shift's key does carry its visit date, and that date is identity, not a sitting.
 _Avoid_: run folder, workspace, scratch dir
 
 **Submission**:
