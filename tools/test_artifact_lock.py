@@ -121,6 +121,27 @@ class LockIdentityLayout(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(Path(result.stdout.strip()), inherited_root)
 
+    def test_a_child_process_replaces_a_test_support_generated_root(self):
+        tools = Path(__file__).resolve().parent
+        result = subprocess.run(
+            [
+                os.environ.get("PYTHON", "python"),
+                "-c",
+                (
+                    "import artifact_lock_test_support as support; "
+                    "print(support.LOCK_ROOT)"
+                ),
+            ],
+            cwd=tools,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotEqual(Path(result.stdout.strip()), SUITE_LOCK_ROOT)
+
     def test_package_style_lock_bearing_modules_install_the_run_root(self):
         checkout = Path(__file__).resolve().parent.parent
         for module in (
