@@ -32,7 +32,8 @@ double-encoded shape is
 
 **The whole tracker, harvested 2026-09-11.** 5,350 records: 491 issues, 597 pull requests and 4,262
 comments, with review comments read and empty. The documented `gh api .../issues?state=all` fetch was
-refused by the hook at this base, so the harvest used `gh issue list --json` and `gh pr list --json`.
+refused by the hook at `5dae592`, a routing defect
+[#1084](https://github.com/mshamblin5150-code/clinical-skills/issues/1084) has since fixed, so the harvest used `gh issue list --json` and `gh pr list --json`.
 The harvesting subagent reported each surface's total matching a GraphQL count at harvest time; that
 match was not re-derived, because records created after the harvest have since moved the live totals.
 `tools/tracker_bodies.py` over that harvest reports:
@@ -89,7 +90,7 @@ differently is a split posture inside one module.
 A body the checker read whose text did not land -- nothing but whitespace, the two characters `@-`,
 or a single `@`-token -- is a **lost body**, now defined in `CONTEXT.md`. It is a finding and refuses.
 It is not an **unreadable body**, which the checker could not obtain, and not a route carrying no body
-flag, which stays silent.
+flag at all, which is silent on every route except an issue create.
 
 **Whitespace-only is lost on the ground #130 already ruled**: a body is never legitimately empty, and
 `grade` strips before testing. A hook that tested for zero length instead would disagree with the
