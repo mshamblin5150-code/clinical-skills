@@ -23,10 +23,13 @@ first `Not read:` sentence and the span labels is one block at the end of `gate_
 conflict rule, plus the `_not_read_scope_items` helper beside it: thirteen and twenty-two lines at
 `b55963e`. Everything else in the function is structural.
 
-**The premise the payoff rests on is false, and was false when #1005 was filed.** The ticket says
-every row in the `SCOPE_SUMMARY_NOT_REACHED` view bounds the scope-summary half *"and none bounds
-the first."* The first clause holds. The second does not: three rows of the same object, outside
-that view, bound the structural half, and each sentence names SCHEMA as the gate it limits.
+**The inference the payoff rests on is false, and was false when #1005 was filed.** The ticket's
+evidence sentence is about the rows *inside* the `SCOPE_SUMMARY_NOT_REACHED` view: every one bounds
+the scope-summary half *"and none bounds the first."* Read that way it is nearly true, with the one
+exception below, and it is not what fails. What fails is the conclusion drawn from it in *What it
+cost* and decision 3: that once split off, the structural half *"is free to join the grammar"* while
+`DECLARED_LIMITS` neither moves nor splits. Three rows of the same object, outside that view, bound
+the structural half, and each sentence names SCHEMA as the gate it limits.
 
 - `population-key-correctness-unverified` -- *SCHEMA checks that a population key is declared, never
   that the key describes the right patients.*
@@ -41,7 +44,7 @@ at `9bb259e`, the commit #1005 and ADR 0159 were measured at; they entered the o
 *Had the structural half carried no limits of its own, a reading of `DECLARED_LIMITS` outside the
 view would find no row whose sentence names SCHEMA; it finds these three.*
 
-**The view is not a pure scope-summary population either.** Its last row, `misdrawn span
+**The exception: the view is not a pure scope-summary population.** Its last row, `misdrawn span
 boundaries`, carries `PAGE_COVERAGE_CANNOT_GRADE_SPAN_BOUNDARIES` -- *page coverage catches an
 omitted span, not a misdrawn one* -- which limits the page-coverage gate. The view is ADR 0046's
 rows kept contiguous, not a partition of `gate_schema`.
@@ -71,9 +74,9 @@ and refusing on its findings. Nothing it refuses on moves, so decision 2's quest
 gates, or narrow to one -- does not arise. Decision 3 has no destination, and decision 4 has no
 second gate to type.
 
-**The baseline [#1064](https://github.com/mshamblin5150-code/clinical-skills/issues/1064) rules
-against is therefore unaffected by this record.** #1005's *Done when* froze `threshold_coverage`'s
-refusal set only on the branch where the gate split.
+**So [#1064](https://github.com/mshamblin5150-code/clinical-skills/issues/1064), still open, grills
+against today's refusal set.** #1005's *Done when* froze `threshold_coverage`'s refusal set only on
+the branch where the gate split, and that branch is ruled out.
 
 ## Considered options
 
