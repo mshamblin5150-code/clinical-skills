@@ -752,6 +752,14 @@ _Avoid_: unreachable, unavailable, blocked, tier-1 failure, load error, bad inpu
 Said of a graded population with no members, where the emptiness is settled by something other than the matcher that would have recognized one — a separate registry, a manifest, an argument, the filesystem. It is the condition under which a clean verdict over nothing is a true claim rather than a silent one, and it is the distinction an **unreadable source** is the other half of: there the subject could not be obtained, here there is no subject. Where the matcher is the only evidence, an empty population is *not scanned* instead, because empty and unrecognized are then the same reading. The term defines the boundary and asserts nothing about which modules sit inside it.
 _Avoid_: no results, nothing found, vacuous clean, trivially clean
 
+**Load-bearing population**:
+The one population a **declared member** names, possibly the union of several its matchers read, as the population whose emptiness would leave every row grading the artifact's content with nothing to grade. A row over which files or parts exist, over every line of the artifact, or over a separate completion record, is not such a row, since it stays graded when the content was never read; a population a matcher reads from inside a file stays in scope wherever in the command it is read. Any other population the same grader reads may be empty on its own, as a deck carrying no dollar figure is, and that emptiness is reported rather than gated.
+_Avoid_: subject population, primary population, graded population
+
+**Empty-population posture**:
+What a **declared member**'s exit status says when its **load-bearing population** has no members, declared with a reason: *not scanned*, where only the matcher saw the emptiness; *finding*, where the absence is settled without relying on the matcher and is the run's own unmet obligation; or *established*, where the emptiness is **established empty**. Which of the three a member takes is read off its declaration and never rediscovered from its code.
+_Avoid_: coverage limb (one way of expressing not scanned, not the posture), empty handling, vacuous pass
+
 **Index walk**:
 An enumeration of files as git's index lists them. It cannot see a file until that file is staged, so a clean result over it means no tracked file fails and never that no file fails. Distinct from a **disk walk**: the two populations differ exactly while a new file is being written, which is why a walk keeps the population it has rather than inheriting one from whatever reads the tree for it.
 _Avoid_: tracked walk, ls-files walk, repository walk
