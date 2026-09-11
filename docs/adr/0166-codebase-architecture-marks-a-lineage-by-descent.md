@@ -166,6 +166,10 @@ the same shape for `blocked`.
   ticket's label is not evidence of lineage membership in either direction.
 - **Whether a filer knows the ticket being worked is a member.** Descent is judged by the filing
   session at creation. Nothing checks it afterward except a sweep reading provenance lines.
+  *Corrected 2026-09-10: [ADR 0169](0169-a-ticket-states-what-filed-it-on-an-append-only-line.md)
+  requires every ticket to carry that line from filing, as a labeled **Filed-from line**, and rules a
+  publish-hook refusal and a workflow report for a body that drops or alters it. Until its build lands,
+  a respec can still remove the line.*
 - **A label created and deleted between two sweeps.** Ruling 5 compares the vocabulary at the moment
   a sweep runs.
 - **The `/improve-codebase-architecture` skill itself.** It is a plugin skill outside this repository,
