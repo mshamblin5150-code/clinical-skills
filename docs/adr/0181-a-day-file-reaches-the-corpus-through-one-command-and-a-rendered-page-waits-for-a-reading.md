@@ -244,6 +244,39 @@ pasteable into a ticket on the house rule every scanner here follows.
 - **The derivation still returns `batch-shift`** through the command name rather than the snippet,
   and `AGENTS.md` carries no copy of `pdf_engine.REMEDY`.
 
+## Correction, 2026-09-11, from the tracker sweep of this record's own branch
+
+**The measured line *"No producer in `tools/` returns 1"* is false as published**, and two sweep
+slices caught it independently. `tools/name_index.py:638` ends `return 1 if len(entries) <
+len(merged) else 0`, and `tools/skills_mirror.py:515` and `:521` return 1 when anything is unlinked;
+`CLAUDE.md:2453` and `:1492` document both statuses in as many words. The generalization was made
+from the three modules the session had open, which is
+[#137](https://github.com/mshamblin5150-code/clinical-skills/issues/137)'s shape arriving inside a
+record that cites the extractor-coverage rule.
+
+**The narrower true form**: the three document and page producers — `case_study_render`,
+`deck_render` and `docx_write` — return 0 and 2 only, and the two counterexamples return 1 to report
+a **shortfall in what they maintain** rather than an outcome of a production. **Ruling 9 stands on
+its own argument**, which is that a refusal and a pending read must be distinguishable without
+reading printed text; its supporting claim of novelty is withdrawn, and whether a shortfall status is
+a finding is [#1064](https://github.com/mshamblin5150-code/clinical-skills/issues/1064)'s per-module
+question rather than this record's.
+
+**Ruling 6 does not state everything the shift's run directory holds.** `skills/batch-shift/SKILL.md`
+step 7 already makes `python tools/filled_vitals_census.py <the run directory> --submission
+shift-<date>` the terminal grader and requires it to exit 0, and `filled_vitals_census.load` raises
+`no notes found` — exit 2 — when `run_grader.read_run_directory`'s non-recursive `*.md` glob finds
+nothing. So the run directory must also hold the shift's note Markdown; ruling 6 describes the
+`day-file/` subfolder alone and forbids nothing else. Before ruling 7 named a path this was
+unresolvable rather than live. The build reconciles the two.
+
+**Two copies of the retired framing survive ruling 8.** `tools/coursework_run.py:22` still reads
+*"A run is undated and each sitting is dated"* inside `key_of`'s docstring, and `CONTEXT.md`'s
+**Submission** entry still reads *"One per sitting, named by its run key and the date it was
+written"*. The first is scoped to coursework submission stems and arguably still true of them, which
+is exactly why it is a copy rather than a contradiction, and a prose edit to either fails nothing.
+Both are the build's.
+
 ## What this record does not settle
 
 **Whether any catalog day file mixes text-layer and scanned pages.** Ruling 4 is decided on the
