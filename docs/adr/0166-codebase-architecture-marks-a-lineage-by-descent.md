@@ -102,17 +102,23 @@ with the row, as ADR 0072 ruling 1 moved `blocked`'s, so the two do not describe
 
 ### 5. The sweep compares the whole label vocabulary once
 
-Once per sweep, the sweep compares `gh label list` against `triage-labels.md`, and a label with no row
-is a finding. This lands as prose in `docs/agents/issue-tracker.md` beside the `blocked` invariant. No
+Once per sweep, the sweep compares `gh label list` against `triage-labels.md`, and a label the file does
+not name is a finding. A label is named by a row in one of the file's tables or by the prose entry ADR
+0072 ruling 4 gave it: `in flight` has a pointer to its home in `issue-tracker.md`, and GitHub's default
+labels share one sentence. Demanding a table row for those would force the second copy that ruling
+refused. *Corrected 2026-09-10, before the build started: this ruling and ruling 6 first said "a label
+with no row", which read literally would have made `in flight` a finding on the first run. Two sweep
+readers found it independently. The clinician's intent, an undocumented label, is unchanged.* This lands as prose in `docs/agents/issue-tracker.md` beside the `blocked` invariant. No
 tool is built, on ADR 0072 ruling 3's reasoning: the tools open no sockets for this, and a grader would
 need a new harvest step to certify what a sweep can check by reading two lists.
 
 This is a comparison of the whole vocabulary, not the per-ticket audit sweeps already perform. The
 measurement above is why a per-ticket audit cannot replace it.
 
-### 6. Whoever creates a label adds its row
+### 6. Whoever creates a label adds its entry
 
-A session that creates a label adds its row to `triage-labels.md` in the same session. The rule lands
+A session that creates a label adds its entry to `triage-labels.md` in the same session: a table row,
+unless the label's definition already has a home elsewhere and the entry is a pointer to it. The rule lands
 in `issue-tracker.md`'s *Every issue you create gets a label* section as a pointer to
 `triage-labels.md`, not a second copy of the vocabulary. Ruling 5 is what catches the case where this
 rule is skipped, as it was on 2026-09-03.
