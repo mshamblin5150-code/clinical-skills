@@ -13,6 +13,7 @@ import ast
 import re
 import tempfile
 import unittest
+from dataclasses import dataclass
 from pathlib import Path
 from typing import NamedTuple
 
@@ -252,80 +253,83 @@ def _imports(tree: ast.Module) -> tuple[dict[str, str], dict[str, ObjectRef]]:
     return modules, objects
 
 
-def _expression_ref(
-    expression: ast.expr,
-    current_module: str,
-    module_aliases: dict[str, str],
-    object_aliases: dict[str, ObjectRef],
-    local_aliases: dict[str, ObjectRef],
-) -> ObjectRef | None:
-    if isinstance(expression, ast.Name):
-        if expression.id in local_aliases:
-            return local_aliases[expression.id]
-        if expression.id in object_aliases:
-            return object_aliases[expression.id]
-        if expression.id in LIMIT_CONSTANTS:
-            return ObjectRef(current_module, expression.id)
-    if (
-        isinstance(expression, ast.Attribute)
-        and isinstance(expression.value, ast.Name)
-        and expression.value.id in module_aliases
-    ):
-        return ObjectRef(module_aliases[expression.value.id], expression.attr)
-    return None
+@dataclass
+class ResolutionContext:
+    current_module: str
+    module_aliases: dict[str, str]
+    object_aliases: dict[str, ObjectRef]
+    local_aliases: dict[str, ObjectRef]
 
-
-def _nested_expression_refs(
-    expression: ast.expr,
-    current_module: str,
-    module_aliases: dict[str, str],
-    object_aliases: dict[str, ObjectRef],
-    local_aliases: dict[str, ObjectRef],
-) -> set[ObjectRef]:
-    return {
-        reference
-        for node in ast.walk(expression)
-        if isinstance(node, (ast.Name, ast.Attribute))
-        for reference in [
-            _expression_ref(
-                node, current_module, module_aliases, object_aliases, local_aliases
+    def reference(self, expression: ast.expr) -> ObjectRef | None:
+        if isinstance(expression, ast.Name):
+            if expression.id in self.local_aliases:
+                return self.local_aliases[expression.id]
+            if expression.id in self.object_aliases:
+                return self.object_aliases[expression.id]
+            if expression.id in LIMIT_CONSTANTS:
+                return ObjectRef(self.current_module, expression.id)
+        if (
+            isinstance(expression, ast.Attribute)
+            and isinstance(expression.value, ast.Name)
+            and expression.value.id in self.module_aliases
+        ):
+            return ObjectRef(
+                self.module_aliases[expression.value.id], expression.attr
             )
-        ]
-        if reference is not None
-    }
+        return None
 
+    def nested_references(self, expression: ast.expr) -> set[ObjectRef]:
+        return {
+            reference
+            for node in ast.walk(expression)
+            if isinstance(node, (ast.Name, ast.Attribute))
+            for reference in [self.reference(node)]
+            if reference is not None
+        }
 
-def _is_prose_bind_call(
-    function: ast.expr,
-    expected: str,
-    module_aliases: dict[str, str],
-    object_aliases: dict[str, ObjectRef],
-) -> bool:
-    if isinstance(function, ast.Name):
-        return object_aliases.get(function.id) == ObjectRef("prose_bind", expected)
-    return (
-        isinstance(function, ast.Attribute)
-        and function.attr == expected
-        and isinstance(function.value, ast.Name)
-        and module_aliases.get(function.value.id) == "prose_bind"
-    )
+    def proven_view(self, expression: ast.expr) -> ObjectRef | None:
+        direct = self.reference(expression)
+        if direct is not None:
+            return direct
+        if not (
+            isinstance(expression, ast.Call)
+            and isinstance(expression.func, ast.Name)
+            and expression.func.id in {"frozenset", "list", "set", "tuple"}
+            and len(expression.args) == 1
+            and not expression.keywords
+            and isinstance(
+                expression.args[0], (ast.GeneratorExp, ast.ListComp, ast.SetComp)
+            )
+        ):
+            return None
+        references = self.nested_references(expression.args[0])
+        return next(iter(references)) if len(references) == 1 else None
 
+    def is_prose_bind_call(self, function: ast.expr, expected: str) -> bool:
+        if isinstance(function, ast.Name):
+            return self.object_aliases.get(function.id) == ObjectRef(
+                "prose_bind", expected
+            )
+        return (
+            isinstance(function, ast.Attribute)
+            and function.attr == expected
+            and isinstance(function.value, ast.Name)
+            and self.module_aliases.get(function.value.id) == "prose_bind"
+        )
 
-def _is_naming_mode(
-    expression: ast.expr,
-    module_aliases: dict[str, str],
-    object_aliases: dict[str, ObjectRef],
-) -> bool:
-    if isinstance(expression, ast.Constant):
-        return expression.value == NAMING
-    if isinstance(expression, ast.Name):
-        return object_aliases.get(expression.id) == ObjectRef("prose_bind", "NAMING")
-    return (
-        isinstance(expression, ast.Attribute)
-        and expression.attr == "NAMING"
-        and isinstance(expression.value, ast.Name)
-        and module_aliases.get(expression.value.id) == "prose_bind"
-    )
+    def is_naming_mode(self, expression: ast.expr) -> bool:
+        if isinstance(expression, ast.Constant):
+            return expression.value == NAMING
+        if isinstance(expression, ast.Name):
+            return self.object_aliases.get(expression.id) == ObjectRef(
+                "prose_bind", "NAMING"
+            )
+        return (
+            isinstance(expression, ast.Attribute)
+            and expression.attr == "NAMING"
+            and isinstance(expression.value, ast.Name)
+            and self.module_aliases.get(expression.value.id) == "prose_bind"
+        )
 
 
 def bound_objects(root: Path = TOOLS) -> set[ObjectRef]:
@@ -340,25 +344,19 @@ def bound_objects(root: Path = TOOLS) -> set[ObjectRef]:
     for path in root.glob("test_*.py"):
         tree = _tree(path)
         module_aliases, object_aliases = _imports(tree)
-        local_aliases: dict[str, ObjectRef] = {}
+        resolver = ResolutionContext(path.stem, module_aliases, object_aliases, {})
         for node in ast.walk(tree):
             if (
                 isinstance(node, ast.Assign)
                 and len(node.targets) == 1
                 and isinstance(node.targets[0], ast.Name)
             ):
-                references = _nested_expression_refs(
-                    node.value, path.stem, module_aliases, object_aliases, local_aliases
-                )
-                if len(references) == 1:
-                    local_aliases[node.targets[0].id] = next(iter(references))
+                reference = resolver.proven_view(node.value)
+                if reference is not None:
+                    resolver.local_aliases[node.targets[0].id] = reference
         for call in (node for node in ast.walk(tree) if isinstance(node, ast.Call)):
-            copied = _is_prose_bind_call(
-                call.func, "copied_leaves", module_aliases, object_aliases
-            )
-            naming_bind = _is_prose_bind_call(
-                call.func, "bind", module_aliases, object_aliases
-            )
+            copied = resolver.is_prose_bind_call(call.func, "copied_leaves")
+            naming_bind = resolver.is_prose_bind_call(call.func, "bind")
             if (not copied and not naming_bind) or len(call.args) < 2:
                 continue
             if naming_bind:
@@ -366,13 +364,11 @@ def bound_objects(root: Path = TOOLS) -> set[ObjectRef]:
                     (keyword.value for keyword in call.keywords if keyword.arg == "mode"),
                     None,
                 )
-                if mode is None or not _is_naming_mode(mode, module_aliases, object_aliases):
+                if mode is None or not resolver.is_naming_mode(mode):
                     continue
             if isinstance(call.args[1], ast.Constant) and isinstance(call.args[1].value, str):
                 continue
-            reference = _expression_ref(
-                call.args[0], path.stem, module_aliases, object_aliases, local_aliases
-            )
+            reference = resolver.reference(call.args[0])
             if reference is not None:
                 found.update(_sources_for(reference, assignments))
     return found & authored
@@ -446,6 +442,22 @@ class TheClassificationInstrumentIsLive(unittest.TestCase):
                 {ObjectRef("sample", "DECLARED_LIMITS")},
                 authored_objects(root) - bound_objects(root),
             )
+
+    def test_an_arbitrary_transformation_is_not_a_view(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.write(root, "sample.py", "DECLARED_LIMITS = ('outside',)\n")
+            self.write(
+                root,
+                "test_sample.py",
+                "import sample\n"
+                "from prose_bind import NAMING, bind\n"
+                "surface = 'indirect prose'\n"
+                "alias = discard(sample.DECLARED_LIMITS)\n"
+                "def test_bind():\n"
+                "    assert not bind(alias, surface, mode=NAMING)\n",
+            )
+            self.assertEqual(set(), bound_objects(root))
 
     def test_a_planted_limits_looking_constant_fails(self):
         with tempfile.TemporaryDirectory() as directory:
