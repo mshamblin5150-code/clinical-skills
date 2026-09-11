@@ -104,6 +104,13 @@ mapping in `run_grader`, and a test fails unless every member appears exactly on
 match [ADR 0167](0167-the-limits-walk-reads-a-declared-name-list-and-a-module-without-limits-is-declared.md)
 ruling 8's limits-looking pattern: it is a behavior declaration, not a limits object.
 
+**It is a declaration the kit reads, not structure in the runner.**
+[ADR 0112](0112-the-grader-membership-ratchet-grades-adoption-rather-than-source-shape-and-not-members-distinguishes-refused-from-deferred.md)
+ruling 4 forecloses a gate inside `run_grader.run`, because the runner does not speak for its
+members. `run` gains no branch here: each member's own `load` and `grade` produce the status, and
+ruling 7's kit checks that status against the entry, the way `UNDECODABLE_BYTE_POSTURES` has sat
+beside `MEMBERS` since `0636c26`.
+
 ### 3. A member names one load-bearing population, possibly a named union
 
 The **load-bearing population** is the one population whose emptiness leaves every row grading the
