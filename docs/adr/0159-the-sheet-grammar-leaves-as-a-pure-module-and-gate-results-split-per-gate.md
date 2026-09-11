@@ -253,9 +253,11 @@ ruling 4's *a section does not oblige a limits object* is the rule.
 
 ## What this record does not settle
 
-**Whether `gate_schema` should be two gates.** The measurement says it is: one half's limits already
-have their own derived view. Splitting it would let the structural half join the grammar and would
-leave the scope rows with the code they bound. It is not ruled here because `threshold_coverage`
+**Whether `gate_schema` should be two gates.** The measurement says it answers two questions: one
+half's limits already have their own derived view. The other half's limits sit in the same object
+outside that view, so splitting it would not free the structural half to join the grammar; ruled no
+by [ADR 0173](0173-gate-schema-stays-one-gate-because-both-of-its-halves-are-bounded-by-the-one-limits-object.md).
+It is not ruled here because `threshold_coverage`
 reads `gate_schema(...).findings` and refuses on it, so the split changes what a second command
 refuses on — a behavior change inside a build whose landing term is byte-identity. Filed as
 [#1005](https://github.com/mshamblin5150-code/clinical-skills/issues/1005).
@@ -272,3 +274,12 @@ because editing a grader-family record from a module-shape ticket is #836's own 
 **Whether the emitted output is right.** Everything here is shape. A clean byte-identical diff proves
 the refactor preserved behavior; it proves nothing about whether the behavior preserved is the
 behavior anybody wants.
+
+**Corrected in place on 2026-09-11**, on
+[ADR 0016](0016-an-adr-number-is-claimed-when-it-is-handed-out-and-a-ratified-records-facts-may-be-corrected-in-place.md)'s
+terms. *What this record does not settle* said splitting `gate_schema` *"would let the structural
+half join the grammar and would leave the scope rows with the code they bound."* That was false at
+`9bb259e`: `population-key-correctness-unverified`, `download-address-reachability-unverified` and
+`download-basis-evidence-not-replayed` bound the structural half from outside the
+`SCOPE_SUMMARY_NOT_REACHED` view, so ruling 1's own ground pins that half too. #1005's grilling
+measured it and ADR 0173 rules the question. No ruling of this record changed.
