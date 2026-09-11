@@ -12,11 +12,13 @@ ruling 2's refusal of an object added for symmetry.
 
 Grilled 2026-09-11. The session began at `origin/main` `8c0437e`, where every measurement below was
 taken, and was merged forward to `b24aada` before this record was written. That merge changed none of
-the four modules, `run_grader.read_run_directory` or `tools/test_declared_limits.py`. **Eleven
-questions were ruled by the clinician on that date**, one at a time. The closing summary, including
-the conventions it applied without a question, was confirmed; the eleventh question re-put one line of
-that summary after drafting showed it untrue of the fix it named. Nothing is built here; this is the
-record the build reads.
+the four modules, `tools/test_declared_limits.py` or the committed fixtures; in `tools/run_grader.py`
+it moved one refusal entry and left `read_run_directory` untouched. **Eleven questions were ruled by
+the clinician on that date**, one at a time. The closing summary, including the conventions it applied
+without a question, was confirmed; the eleventh question re-put one line of that summary after drafting
+showed it untrue of the fix it named. The tracker sweep of this branch then found six places where this
+record was wider than its measurement or gave a false reason, re-derived each, and corrected them
+before merge. Nothing is built here; this is the record the build reads.
 
 ## Measured before ruling
 
@@ -93,6 +95,12 @@ Rebuilt on `run-2/case-01.md`:
 | Z68.26's `SOURCE:` written `NOTE:`, listing kept | 1 | listed, not marked 1 |
 | that, with `### Adult BMI band` inserted above the listing | 0 | marked 2, listed 2 |
 | the listing removed and restated as `Z68.26 - …` below the Accounting table row that names the block heading | 0 | marked 3, listed 3 |
+| only E66.3's entry label bolded, listing kept | 1 | marked, not listed 1 naming R06.89; listed, not marked 1 naming E66.3 |
+
+The last row is the same pairing rule as the bold-label shape below, in its other direction: a
+`SOURCE` line under a code line the entry pattern refuses is read and attributed to the recognized
+entry above, so the finding names a code that did nothing wrong. That direction is a defect and is
+tabled on #1104.
 
 The agent also drove, and the session did not rebuild:
 
@@ -100,7 +108,7 @@ The agent also drove, and the session did not rebuild:
 - A synthetic Z68.54 carrying BMI 23.0, age 17, male and the exact CDC sentence: exit 0, while
   `tools/cdc_percentile.py male 17 23.0 --age-years` gives Z68.52.
 - A second worksheet whose every mark and listing is unreadable, beside a clean one: exit 0; alone,
-  exit 2.
+  exit 2. #1066's table does not list this lead.
 
 The agent counted 15 clean shapes. The docstring names 2 literally and misses 7 generously, 3 of them
 this module's own (the bold mark, the subheading and the restated listing); `CLAUDE.md` names none
@@ -167,20 +175,30 @@ Rebuilt on `run-2/case-01.md`, with an entry added above `### Differential`:
 | `ICD-10  J02.9  Acute pharyngitis, unspecified` with `SPECIFICITY: complete` | 1 | for-entry codes read 14, flags at fault 1 |
 | the same entry as `- ICD-10  J02.9 …` with `- **SPECIFICITY:** complete` | 0 | for-entry codes read 13, flags at fault 0 |
 | the same entry as the table row `\| ICD-10 \| J02.9 \| … \| complete \|` | 0 | for-entry codes read 13, flags at fault 0 |
+| the same entry as `- ICD-10  J02.9 …` with a plain `SPECIFICITY: complete` | 1 | for-entry codes read 13, flags at fault 1, naming CPT 99406 |
 | the plain entry with `SPECIFICITY: completed` | 0 | flags at fault 0 |
 | the plain entry with `SPECIFICITY: complete.` | 1 | flags at fault 1 |
 
 The docstring says a worksheet written another way *"reads here as having flagged nothing, which is a
-floor on every count and **not** on the exit status"*. Since ADR 0170 ruling 10's build, the dashed
-entry beside recognized ones exits 0, and the agent measured a worksheet written wholly that way
-exiting 2, so the sentence is false in both directions. ADR 0170's rejected option said the next
-unrecognized spelling *"is caught the same way"*; the remainder is computed over the entries `ENTRY`
-recognizes, so a code line spelled another way is not. ADR 0170 carries a dated correction.
+floor on every count and **not** on the exit status -- the bare-flag test still fires on an unpaired
+flag"*. **Both halves hold for one shape and fail for another.** Where the flag under a dashed code
+line is also bold, neither is read and the run exits 0 beside recognized entries, and the agent
+measured a worksheet written wholly that way exiting 2, so *"not on the exit status"* is false there.
+Where the flag is plain, it is read and the bare-flag test fires, but against the recognized entry
+above it: CPT 99406 above, which did nothing wrong. That direction is a defect and is tabled on #1104.
 
-The agent also drove: a stock `complete - nothing more to add`, exit 0; a paraphrased descriptor
-without `unspecified`, advisory 0 against its twin's 1; `SPECIFICITY: n/a`, exit 0; and a for-entry
-code mismarked `NOT FOR ENTRY` with a bare flag, exit 0. It counted 21 clean shapes: the docstring
-misses 10 generously and `CLAUDE.md` 16; 8 escape both, four of them this module's own.
+ADR 0170's rejected option said the next unrecognized spelling *"is caught the same way"*. The
+remainder is computed over the entries `ENTRY` recognizes, so it holds for a flag spelled another way
+under a recognized code line and fails for a code line spelled another way whose flag is also
+unrecognized. ADR 0170 carries a dated correction.
+
+The `completed` row reads as `complete` with the welded `d` as its reason: `_keyword` matches by
+`startswith`, and `SUBSTANCE` accepts any letter or digit. The agent also drove: a stock
+`complete - nothing more to add`, exit 0; a paraphrased descriptor without `unspecified`, advisory 0
+against its twin's 1; `SPECIFICITY: n/a` and an empty `SPECIFICITY:`, each exit 0 with
+`neither keyword 1`; and a for-entry code mismarked `NOT FOR ENTRY` with a bare flag, exit 0. It
+counted 21 clean shapes: the docstring misses 10 generously and `CLAUDE.md` 16; 8 escape both, four
+of them this module's own.
 
 Committed run-2 exits 2 under this command, with 10 codes unpaired: 4 in `case-03.md`, 2 in
 `case-05.md`, 3 in `case-06.md` and 1 in `case-08.md`. That goes to #1104.
@@ -190,19 +208,24 @@ Committed run-2 exits 2 under this command, with 10 codes unpaired: 4 in `case-0
 `run_grader.read_run_directory` reads `sorted(directory.glob("*.md"))`, keeps files whose stem is not
 `readme`, and decodes them as UTF-8 with replacement. Its whole docstring is *"Read a run directory's
 Markdown artifacts in name order, excluding README."* `run_grader.DECLARED_LIMITS` holds grader-family
-discovery and direct text-read classification, and neither covers this. The subfolder and `.txt`
-shapes exit 0 in all four modules. `allow_extra_positionals` defaults to `True`, which drops a second
-source; [#1085](https://github.com/mshamblin5150-code/clinical-skills/issues/1085) already owns it.
+discovery and direct text-read classification, and neither covers this. At `77639e5` six of the 17
+members read a run through it: `anchor_scan`, `block_scan`, `differential_scan`,
+`filled_vitals_census`, `refusal_scan` and `specificity_scan`. The subfolder and `.txt` shapes exit 0
+in all four modules measured here. On Windows the glob matches regardless of case, so a directory
+holding `a.md`, `B.MD`, `c.txt` and `README.md` yields two files. `allow_extra_positionals` defaults to
+`True`, which drops a second source;
+[#1085](https://github.com/mshamblin5150-code/clinical-skills/issues/1085) already owns it.
 
 ### Correct input that fails
 
 Beyond the three defects above, the measurement reproduced graders failing correct worksheets and
 notes: `anchor_scan` on a wrapped or extended CDC sentence, `recorded, not filled`, a subheading in the
 step-4 block and a bold label that blames the entry above; `filled_vitals_census` on `36 y.o.`,
-`age: 36` and a spelled-out age; `specificity_scan` on run-2's four worksheets and a wrapped reason; and
-run-2's README and `assertions.md` claiming exit statuses the commands no longer return. Each is
-tabled on #1104. A `block_scan` bullet list after an unfenced block was reported to fail F1 and
-exited 0 on the session's rebuild, so it is unconfirmed and filed nowhere.
+`age: 36` and a spelled-out age; `specificity_scan` on run-2's four worksheets, a wrapped reason, and a
+plain flag under a dashed code line that blames the entry above; and run-2's README and
+`assertions.md` claiming exit statuses the commands no longer return. Each is tabled on #1104. A
+`block_scan` bullet list after an unfenced block was reported to fail F1 and exited 0 on the session's
+rebuild, so it is unconfirmed and filed nowhere.
 
 ## Ruled 2026-09-11
 
@@ -226,10 +249,10 @@ reading. The docstring is otherwise close to complete; the object is earned on t
 
 ### 4. `specificity_scan` earns `DECLARED_LIMITS`, and neither prose surface keeps a limit
 
-A code line behind a list marker or written as a table row exits 0 with its bare flag unread, and
-neither surface names it. The ticket asked which limit each surface keeps. Neither keeps one: the
-docstring's limit paragraphs and `CLAUDE.md`'s C2 paragraph become entries, and both surfaces point at
-the object.
+A code line behind a list marker or written as a table row, whose flag is also bold, exits 0 with its
+bare flag unread, and neither surface names it. The ticket asked which limit each surface keeps.
+Neither keeps one: the docstring's limit paragraphs and `CLAUDE.md`'s C2 paragraph become entries, and
+both surfaces point at the object.
 
 ### 5. What each object holds
 
@@ -245,6 +268,13 @@ the object.
 
 Subjects and dispositions are fixed here; reasons come from the surfaces under ruling 5, and a
 builder whose control shows a subject untrue reports it rather than writing it.
+
+**Two entries describe one direction of a pairing rule whose other direction is a #1104 defect**:
+`anchor_scan`'s entry-opening entry and `specificity_scan`'s code-line entry. Where the line under a
+refused code line is also unrecognized, the pair goes unread and the run is wrongly clean, which is the
+entry. Where it is recognized, it is attributed to the entry above and names the wrong code, which is
+#1104's. A #1104 repair that changes the pairing changes these entries' controls, and retires or
+narrows the entries in the same change.
 
 `block_scan.DECLARED_LIMITS`:
 
@@ -273,8 +303,9 @@ builder whose control shows a subject untrue reports it rather than writing it.
 - the rest of ANCHOR: each such question compares a worksheet to a note, a note is not in the run
   directory, and a clean run says nothing about whether the right codes were marked; declared reading.
 - a `NOT FOR ENTRY` entry is not a proposed code and is graded on nothing; behavior.
-- an entry opens only on a line beginning `ICD-10`, `CPT` or `HCPCS`, so a `SOURCE` or `CONFIDENCE`
-  line under any other code line pairs with the entry above it or with none; behavior, under ruling 8.
+- an entry opens only on a line beginning `ICD-10`, `CPT` or `HCPCS`, so a code line written another
+  way whose `SOURCE` line is also unrecognized contributes nothing to marks or listings; behavior,
+  under ruling 8.
 - a listing is `<code> - <value>` on its own line, and one in a table or prose is not read; behavior.
 - only a line opening `SOURCE:` whose first value line says `filled` marks a code, so a bold label or
   another value leaves the code unmarked; behavior, controlled by `**SOURCE:** filled` with its
@@ -303,20 +334,27 @@ builder whose control shows a subject untrue reports it rather than writing it.
   later item satisfy it; behavior.
 - a declaration's window stops at the next vital's label, so `BP 152/94, HR 88 filled.` declares no
   filled pressure; behavior, under ruling 10.
-- whatever else the docstring's limits list states that is a limit under ruling 5.
+- the counted classes share the labeled-value-then-`filled` form and every limit above, and the pain
+  score is matched on the `N/10` shape alone, so its count is the loosest; behavior.
+
+The docstring's other bullets stay prose under ruling 5. A spelled sex and counts over notes rather
+than patients each make a finding more likely rather than a clean result wider; the heads-a-line
+rule, the three block forms, the not-normal predicate and the usage exit describe what is read or
+returned.
 
 `specificity_scan.DECLARED_LIMITS`:
 
 - whether a substantive reason is true; declared reading.
 - whether a `complete` on an unspecified descriptor names an exhausted axis, which no string test
   separates; declared reading.
-- the substance test accepts any letter or digit after the keyword, so a stock phrase passes;
-  behavior, controlled by `complete - nothing more to add` exiting 0.
+- the substance test accepts any letter or digit after the keyword's word boundary, so a stock phrase
+  passes; behavior, controlled by `complete - nothing more to add` exiting 0.
 - the advisory count reads the descriptor on the entry line alone and rests on C2: a paraphrase
   without the word counts 0, and so does a verbatim descriptor wrapped before it; behavior.
 - an entry opens only on a line beginning `ICD-10`, `CPT` or `HCPCS`, so a code line behind a list
-  marker, in bold or as a table row, beside recognized entries, is invisible with its flag, and the
-  unread remainder cannot see it; behavior, under ruling 8.
+  marker, in bold or as a table row, whose flag is also spelled another way, is invisible with its
+  flag beside recognized entries, and the unread remainder cannot see it; behavior, under ruling 8,
+  controlled by the dashed code line with a bold bare flag exiting 0.
 - a flag pairs with the nearest entry above it, with no lower bound; behavior.
 - a flag on a `NOT FOR ENTRY` entry is exempt, so a for-entry code mismarked is graded on nothing;
   behavior.
@@ -344,16 +382,19 @@ A form that goes unread beside forms that are read is declared, with
 open owner and a control asserting today's result. The clinician ruled it for `block_scan`'s unreadable
 tier block. The closing summary applied it to `anchor_scan`'s per-run coverage and its unrecognized
 code labels, to `filled_vitals_census`'s two #1066 leads, and to `specificity_scan`'s unrecognized code
-lines, which #1066 did not list and gains as a measured lead. Gating any of them here was declined:
-it would decide #1066's family question inside one module.
+lines. #1066's table lists `block_scan`'s lead, `anchor_scan`'s code-label lead and
+`filled_vitals_census`'s two; it gains `anchor_scan`'s per-run coverage and `specificity_scan`'s code
+lines as measured leads. Gating any of them here was declined: it would decide #1066's family question
+inside one module.
 
 ### 9. The shared reader's blind spot is one entry in `run_grader.DECLARED_LIMITS`
 
-The entry says which run-directory artifacts a member reads: `read_run_directory` opens only top-level
-`*.md` files whose stem is not `readme`, so a subfolder, another extension or a file named README is
-never read. It is behavior, with a control in `tools/test_run_grader.py` showing an artifact in `sub/`
-and a `.txt` artifact unread. The four module objects do not repeat it. The dropped second positional
-stays #1085's.
+The entry says which run-directory artifacts a member reads when it reads its run through
+`read_run_directory`: only top-level files matching `*.md`, case-insensitively on Windows, whose stem
+is not `readme`, so a subfolder, a file whose extension is not `.md`, or a file named README is never
+read. It is behavior, with a control in `tools/test_run_grader.py` showing an artifact in `sub/` and a
+`.txt` artifact unread. The subject is scoped to members that call the reader and never claimed of the
+family. The four module objects do not repeat it. The dropped second positional stays #1085's.
 
 ### 10. Three contradictions between code and docstring are fixed here
 
@@ -371,22 +412,30 @@ boundary. ADR 0162's rejected option applied the same reasoning to `render_scan`
   is counted as a label-line candidate, and for that note F3's absence limb reports `not graded` rather
   than failing. The pattern is the builder's, and it must at least recognize the two-character
   `FILLEDÂ·asserted` and a replacement character in place of the dot. The docstring's formatting-matter
-  sentence is rewritten to say so. Its control: `FILLEDÂ·asserted` on the unchanged note reports one
-  label-line candidate and F3 not graded, and fails nothing.
-- **`specificity_scan`:** a value whose first word is `complete` or `needs` with further letters
-  welded on (`completed`, `completely`) is its own finding and exits 1, whatever follows. The
-  neither-keyword rule is untouched for a genuinely different word such as `n/a`, and an empty value
-  stays on that rule too. Its controls: `SPECIFICITY: completed` and
-  `SPECIFICITY: completely specified — laterality documented` each exit 1, and `SPECIFICITY: n/a`
-  exits 0.
+  sentence is rewritten to say so. F3's GAPS limb, an entry opening with race, still grades that note,
+  because `block_findings` reads it off the GAPS section and never off the key. The F3 row keeps
+  counting findings, and the report adds a line, printed on every run as #258 requires, giving how
+  many notes had the absence limb not graded, so a zero there says the limb ran on every note. Its
+  control: `FILLEDÂ·asserted` on the unchanged note reports one label-line candidate, one note with
+  the absence limb not graded, and fails nothing.
+- **`specificity_scan`:** the docstring says *"A flag carries substance beyond its keyword"*, and
+  `_keyword`'s `startswith` counts the rest of a welded word as that substance, which is #253's
+  prefix-read-as-word defect. A value whose first word is `complete` or `needs` with further letters or
+  a hyphen welded on (`completed`, `completely`, `complete-ish`) exits 1, whatever follows, on
+  #253's boundary. It is its own finding kind, a new `specificity_scan.ROWS` key `welded-keyword`
+  graded under C5 beside `bare-flag`. Such a flag still counts under the keyword it opens with and is
+  not eligible for the unspecified-descriptor advisory. The neither-keyword rule is untouched for a genuinely different
+  word such as `n/a`, and an empty value stays on that rule too. Its controls: `SPECIFICITY: completed`
+  and `SPECIFICITY: completely specified — laterality documented` each exit 1, and
+  `SPECIFICITY: n/a` exits 0.
 
 ### 11. The remaining defects go to #1104
 
 Correct input that fails, and prose about run-2's exit statuses, go to one `grilling` ticket split by
 grader: [#1104](https://github.com/mshamblin5150-code/clinical-skills/issues/1104). They do not bear
-on whether an object is earned or on what it holds. Several turn on a reading the clinician has not
-made, such as which age spellings name an age and whether `ALSO PROPOSED ABOVE` is a legitimate
-differential marker.
+on whether an object is earned or on what it holds, except where ruling 6 names the pairing rule both
+share. Several turn on a reading the clinician has not made, such as which age spellings name an age
+and whether `ALSO PROPOSED ABOVE` is a legitimate differential marker.
 
 ## Rejected options
 
@@ -397,16 +446,17 @@ differential marker.
 - **Only the measured shapes in each object, with the existing prose limits left in place.** That
   leaves two unbound copies beside each object, which is #867's shape.
 - **The shared reader's entry in each module's object.** Four copies of one function's behavior is
-  [#220](https://github.com/mshamblin5150-code/clinical-skills/issues/220)'s drift, and every other
-  member inherits the same reader.
+  [#220](https://github.com/mshamblin5150-code/clinical-skills/issues/220)'s drift, and the other
+  members that read a run through the same function inherit the same boundary.
 - **Filing the shared reader separately.** Where it is declared decides what the four objects hold.
 - **Gating `block_scan`'s partial read here.** It would decide #1066's family question in one module.
 - **Reading a garbled `FILLED·asserted` key as the key.** It widens a matcher, which #1066 names as the
   repair not to make, and the next garbling may be a spelling it still misses.
 - **Rejecting a `given` between a value and its `filled`, as the docstring says.** It leaves
   `BP 152/94, HR 88 filled.` counting a pressure the note never declared filled.
-- **Leaving `completed` to the neither-keyword rule.** It stays exit 0, so a flag with no reason still
-  passes the gate.
+- **Applying #253's boundary alone.** Today `completed` is read as `complete` with the welded `d` as its
+  reason. The boundary alone would move it to the neither-keyword rule, which counts it and fails
+  nothing, so a flag with no reason would still exit 0.
 - **Failing every neither-keyword flag.** It overturns the extra-branch rule `CLAUDE.md` records as
   deliberate.
 - **Declaring the three contradictions.** A declared limit records a boundary, not a disagreement
