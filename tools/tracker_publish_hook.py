@@ -111,6 +111,11 @@ NOT_REACHED = (
         "that the cited records are current.",
     ),
     (
+        "the fetched origin can be a non-canonical repository",
+        "Branch-scope grading fetches and reads the remote named origin even "
+        "when that remote is not mshamblin5150-code/clinical-skills.",
+    ),
+    (
         "an AAR paraphrase passes the quotation gate",
         "The AAR gate refuses copied spans and cannot recognize a paraphrase of private working material.",
     ),
@@ -833,10 +838,23 @@ def current_index() -> tuple[phi_scan.CorpusIndex, tuple[str, ...]]:
     return phi_scan.build_index(names, dates), tuple(phi_scan.missing_corpus_sources())
 
 
-def refresh_default_branch() -> bool:
+def refresh_default_branch(repo: Path | None = None) -> bool:
+    """Refresh ``origin/main`` without relying on the clone's fetch mapping.
+
+    The destination is explicit because ``_main_ancestry`` reads that ref. The
+    leading ``+`` also follows a rewritten remote branch: without it, a stuck
+    ref could verify a rewritten-away commit as on ``main``. The freshness gate
+    omits ``+`` safely because its failed fetch reaches no ancestry verdict.
+    """
     completed = subprocess.run(
-        ["git", "fetch", "origin", "main"],
-        cwd=Path(__file__).resolve().parent.parent,
+        [
+            "git",
+            "fetch",
+            "--no-tags",
+            "origin",
+            "+refs/heads/main:refs/remotes/origin/main",
+        ],
+        cwd=repo or Path(__file__).resolve().parent.parent,
         capture_output=True,
         encoding="utf-8",
         errors="replace",

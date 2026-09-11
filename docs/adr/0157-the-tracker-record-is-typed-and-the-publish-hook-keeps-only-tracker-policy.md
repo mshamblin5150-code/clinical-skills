@@ -321,6 +321,9 @@ plain form does not, `_main_ancestry` compares against a stale ref while `remote
 which would be a live hole in ADR 0105's mechanism. **Undriven**, decided by an experiment rather
 than by reading, and its own ticket.
 
+**Ruled 2026-09-10.** [Ticket #999's ruling comment](https://github.com/mshamblin5150-code/clinical-skills/issues/999#issuecomment-5628244227)
+measured both stale-ref paths and chose an explicit forced destination refspec for the hook.
+
 **Whether `aar_scan`'s non-quote-aware `gh` matcher disagrees with the hook's in practice.**
 Undriven. Ruling 4's conversion settles it.
 
