@@ -86,6 +86,7 @@ import unittest
 from pathlib import Path
 
 import git_paths
+from markdown_read import paragraphs
 from prose_bind import normalized
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -117,28 +118,11 @@ EXCEPTION = re.compile(r"SITE-A|SITE-B|site name|site-name|redact|notes/README",
 SELF = Path(__file__).resolve()
 
 
-def blocks(text: str) -> list[tuple[int, str]]:
-    """Contiguous non-blank lines, each with its 1-indexed first line number."""
-    found: list[tuple[int, str]] = []
-    lines = text.splitlines()
-    index = 0
-    while index < len(lines):
-        if not lines[index].strip():
-            index += 1
-            continue
-        end = index
-        while end < len(lines) and lines[end].strip():
-            end += 1
-        found.append((index + 1, "\n".join(lines[index:end])))
-        index = end
-    return found
-
-
 def bare_claim_lines(text: str) -> list[int]:
     """First line of each block claiming the set is a run record without the exception."""
     return [
         line
-        for line, block in blocks(text)
+        for line, block in paragraphs(text)
         for shape in [normalized(block)]
         if CLAIM.search(shape) and SUBJECT.search(shape) and not EXCEPTION.search(shape)
     ]
