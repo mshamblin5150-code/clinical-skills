@@ -14,9 +14,8 @@ copies.  FTS5 keeps literal retrieval cheap without turning similarity into
 evidence.  Topic coverage uses the widest of three independently counted
 markers: author mastheads, publisher-review lines, and last-update lines.  An
 input carrying none of those markers remains outside that floor; the command
-states that ceiling rather than calling it complete coverage.  Exit 0
-completed, exit 1 is a refused ingest, and exit 2 means the command could not
-read a required source or store.
+states that ceiling rather than calling it complete coverage.  Exit 0 means
+completed; exit 2 covers every refusal or unreadable source.
 """
 
 from __future__ import annotations
