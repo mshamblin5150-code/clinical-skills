@@ -8,7 +8,10 @@ ruling 4 ruled that every label is documented there and none is deleted. One lab
 `codebase-architecture`, described on GitHub as *"Deepening opportunity found by an architecture
 review; orthogonal to the triage role"*.
 
-Grilled 2026-09-10 at `origin/main` `75861e0`. The session was brought forward to `6dde06c` before
+Grilled 2026-09-10 at `origin/main` `97bc244`. *Corrected 2026-09-10: this sentence first named `75861e0`, which is the base
+#1047's old body declared rather than the session's own, and the tree-names-nothing measurement below
+carried no commit although this record's merge falsified it. Found by the session's own tracker sweep.*
+The session was brought forward to `6dde06c` before
 this record was written. **Six questions were ruled by the clinician one at a time on that date**; the sixth widened ruling 2
 after a trace of the label's carriers found a ticket a build had filed.
 Nothing is built here; this is the record the build reads. Every count below is a dated measurement,
@@ -20,21 +23,24 @@ not a current property of the tracker.
 
 `gh label list` gives `codebase-architecture` a creation time of `2026-09-03T00:01:42Z`, five days
 after ADR 0072 ruled 2026-08-29 and on the day an architecture review's tickets were filed. Nothing
-in the tree names the label. `git log --all -S codebase-architecture` returns no commit, and no tool,
+in the tree at `97bc244` names the label. `git log --all -S codebase-architecture` returned no commit, and no tool,
 workflow or document reads it.
 
 ### A per-ticket label audit cannot see a missing row
 
 Sweep comments on #921, #874, #875, #836 and #837 each say the ticket's labels are correct, naming
-`codebase-architecture` among them, while `triage-labels.md` had no row for it. A sweep on #897 flagged
-that ticket for *lacking* the label, because the other tickets in that sweep carried it. A check of
+`codebase-architecture` among them, while `triage-labels.md` had no row for it. A sweep comment on #897
+treated the label as an expected slot. It called that ticket's `needs-triage` stale on the ground that
+every other ticket in the sweep carried `codebase-architecture` in that position. *Corrected 2026-09-10:
+this sentence first said the sweep flagged #897 for lacking the label, and the comment says no such
+thing. Found by the session's own tracker sweep.* A check of
 each ticket's labels passed at least five times over a label absent from the vocabulary. It compares a
 ticket's labels to one another and to the rows that exist, so a label with no row does not appear in
 anything it reads.
 
 ### The carriers, traced
 
-At session start 14 open tickets carried the label. #1047's body said nine; it had been corrected once
+At the session's first read of the tracker, 14 open tickets carried the label. #1047's body said nine; it had been corrected once
 already that day from ten. Each carrier was traced to what generated it:
 
 - **Placed by an architecture review:** #874, #875.
@@ -102,17 +108,23 @@ with the row, as ADR 0072 ruling 1 moved `blocked`'s, so the two do not describe
 
 ### 5. The sweep compares the whole label vocabulary once
 
-Once per sweep, the sweep compares `gh label list` against `triage-labels.md`, and a label with no row
-is a finding. This lands as prose in `docs/agents/issue-tracker.md` beside the `blocked` invariant. No
+Once per sweep, the sweep compares `gh label list` against `triage-labels.md`, and a label the file does
+not name is a finding. A label is named by a row in one of the file's tables or by the prose entry ADR
+0072 ruling 4 gave it: `in flight` has a pointer to its home in `issue-tracker.md`, and GitHub's default
+labels share one sentence. Demanding a table row for those would force the second copy that ruling
+refused. *Corrected 2026-09-10, before the build started: this ruling and ruling 6 first said "a label
+with no row", which read literally would have made `in flight` a finding on the first run. Two sweep
+readers found it independently. The clinician's intent, an undocumented label, is unchanged.* This lands as prose in `docs/agents/issue-tracker.md` beside the `blocked` invariant. No
 tool is built, on ADR 0072 ruling 3's reasoning: the tools open no sockets for this, and a grader would
 need a new harvest step to certify what a sweep can check by reading two lists.
 
 This is a comparison of the whole vocabulary, not the per-ticket audit sweeps already perform. The
 measurement above is why a per-ticket audit cannot replace it.
 
-### 6. Whoever creates a label adds its row
+### 6. Whoever creates a label adds its entry
 
-A session that creates a label adds its row to `triage-labels.md` in the same session. The rule lands
+A session that creates a label adds its entry to `triage-labels.md` in the same session: a table row,
+unless the label's definition already has a home elsewhere and the entry is a pointer to it. The rule lands
 in `issue-tracker.md`'s *Every issue you create gets a label* section as a pointer to
 `triage-labels.md`, not a second copy of the vocabulary. Ruling 5 is what catches the case where this
 rule is skipped, as it was on 2026-09-03.
