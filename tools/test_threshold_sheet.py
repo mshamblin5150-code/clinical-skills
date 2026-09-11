@@ -364,6 +364,61 @@ class EditionCurrencyReport(unittest.TestCase):
             report_lines(result),
         )
 
+    def test_superseded_rows_do_not_change_the_run_status(self):
+        documents = tuple(
+            guidelines_currency.DocumentEntry(
+                f"{name}.pdf",
+                society,
+                f"10.1000/{name}",
+                "superseded",
+                "2026-09-05",
+                f"new-{name}.pdf",
+                line,
+            )
+            for line, (name, society) in enumerate(
+                (("aha", "AHA ACC"), ("kdigo", "KDIGO")), start=1
+            )
+        )
+        superseded = guidelines_currency.Registry((), documents, ())
+        empty = guidelines_currency.Registry((), (), ())
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            sheet_path = root / "sheet.md"
+            sheet_path.write_text(
+                TheReportNamesEverySourceItDidNotCheck.TWO, encoding="utf-8"
+            )
+            recs_root = root / "recs"
+            recs_root.mkdir()
+            (recs_root / "recs-aha.json").write_text(
+                json.dumps(record("p1/aha/1")), encoding="utf-8"
+            )
+            (recs_root / "recs-kdigo.json").write_text(
+                json.dumps(record("p9/kdigo/1")), encoding="utf-8"
+            )
+
+            statuses = []
+            for registry in (superseded, empty):
+                with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(
+                    io.StringIO()
+                ):
+                    scan = gate.survey(
+                        sheet_path,
+                        survey_inputs(
+                            recs_root=recs_root,
+                            pdf_root=Path("C:/nowhere-at-all"),
+                            page_counts={
+                                "Society/doc": 60,
+                                "Society/aha": 60,
+                                "Society/kdigo": 60,
+                            },
+                            currency_registry=registry,
+                        ),
+                    )
+                    statuses.append(gate._emit_scan(scan, quiet=False))
+
+        self.assertEqual(statuses, [0, 0])
+
 
 class Parsing(unittest.TestCase):
     def test_a_sheet_without_the_marker_is_not_graded_rather_than_clean(self):
@@ -1041,7 +1096,7 @@ class CitationTier0(unittest.TestCase):
 
         self.assertEqual(len(result.findings), 1)
         self.assertIn("not in its recommendation record", result.findings[0])
-        self.assertFalse(result.not_graded)
+        self.assertNotIn("NOT RUN", "\n".join(report_lines(result)))
 
     def test_an_exact_source_passes_the_same_text_under_the_auditors_normalization(self):
         result = gate.gate_citation_tier0(
@@ -1051,7 +1106,7 @@ class CitationTier0(unittest.TestCase):
         )
 
         self.assertEqual(result.findings, [])
-        self.assertFalse(result.not_graded)
+        self.assertNotIn("NOT RUN", "\n".join(report_lines(result)))
         self.assertEqual(report_lines(result), ("  CITATION tier 0 0",))
 
     def test_a_bound_source_reports_not_run_and_never_passes(self):
@@ -1062,7 +1117,6 @@ class CitationTier0(unittest.TestCase):
         )
 
         self.assertEqual(result.findings, [])
-        self.assertTrue(result.not_graded)
         self.assertIn("NOT RUN", report_lines(result)[0])
         self.assertIn("bound", report_lines(result)[0])
 
@@ -1250,7 +1304,7 @@ class CitationTier0(unittest.TestCase):
         result = gate.gate_citation_tier0(parsed, {"src": recs}, {})
 
         self.assertTrue(any("page transcription" in item for item in result.findings))
-        self.assertTrue(result.not_graded)
+        self.assertIn("NOT RUN", "\n".join(report_lines(result)))
 
     def test_an_incomplete_record_population_cannot_clean_pass_the_narrative_check(self):
         for incomplete_item in (
@@ -1265,7 +1319,7 @@ class CitationTier0(unittest.TestCase):
                 )
 
                 self.assertEqual(result.findings, [])
-                self.assertTrue(result.not_graded)
+                self.assertIn("NOT RUN", "\n".join(report_lines(result)))
                 self.assertIn("narrative negative check", report_lines(result)[0])
 
     def test_the_aaa_ever_smoker_definition_needs_no_fabricated_recommendation_id(self):
@@ -4094,6 +4148,92 @@ class TheReportNamesEverySourceItDidNotCheck(unittest.TestCase):
         self.assertEqual(status, 0)
         self.assertIn("RECOMMENDATION RECORD source 'aha' -- recs root", err)
         self.assertIn("RECOMMENDATION RECORD source 'kdigo' -- recs root", err)
+
+    def test_every_gate_result_reaches_every_shared_survey_channel(self):
+        gate_functions = [
+            (name, function)
+            for name, function in inspect.getmembers(gate, inspect.isfunction)
+            if name.startswith("gate_")
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            recs_root = Path(directory)
+            (recs_root / "recs-aha.json").write_text(
+                json.dumps(record("p1/aha/1")), encoding="utf-8"
+            )
+            (recs_root / "recs-kdigo.json").write_text(
+                json.dumps(record("p9/kdigo/1")), encoding="utf-8"
+            )
+            status, _, _ = self.run_grade([], recs_root)
+            self.assertEqual(status, 0)
+
+            for name, real_gate in gate_functions:
+                with self.subTest(gate=name):
+                    planted_gate = []
+                    finding = f"{name} planted finding"
+                    warning = f"{name} planted warning"
+                    diagnostic = f"{name} planted diagnostic"
+
+                    def plant(*args, **kwargs):
+                        result = real_gate(*args, **kwargs)
+                        planted_gate.append(result.gate)
+                        return dataclasses.replace(
+                            result,
+                            findings=[*result.findings, finding],
+                            warnings=[*result.warnings, warning],
+                            diagnostics=(*result.diagnostics, diagnostic),
+                            not_graded=True,
+                        )
+
+                    with mock.patch.object(gate, name, plant):
+                        status, out, err = self.run_grade([], recs_root)
+                    emitted = out + err
+                    self.assertEqual(status, 1)
+                    self.assertIn(f"  FAIL  {finding}", emitted)
+                    self.assertIn(f"  WARN  {warning}", emitted)
+                    self.assertIn(diagnostic, emitted)
+                    self.assertEqual(len(planted_gate), 1)
+                    self.assertIn(
+                        planted_gate[0] + " did not run completely",
+                        emitted,
+                    )
+
+                    def plant_not_graded(*args, **kwargs):
+                        return dataclasses.replace(
+                            real_gate(*args, **kwargs), not_graded=True
+                        )
+
+                    with mock.patch.object(gate, name, plant_not_graded):
+                        status, _, _ = self.run_grade([], recs_root)
+                    self.assertEqual(status, 2)
+
+    def test_a_bound_source_reports_tier_zero_not_run_but_exits_zero(self):
+        text = (
+            header("bound")
+            + "\n## Thresholds\n\n"
+            + "| quantity | population | value | snippet | source | page | rec | class |\n"
+            + "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
+            + row()
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            sheet_path = root / "sheet.md"
+            sheet_path.write_text(text, encoding="utf-8")
+            recs_root = root / "recs"
+            recs_root.mkdir()
+            (recs_root / "recs-src.json").write_text(
+                json.dumps(record("p41/goal/1", mode="bound")), encoding="utf-8"
+            )
+            out, err = io.StringIO(), io.StringIO()
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                status = grade(
+                    sheet_path,
+                    [],
+                    Path("C:/nowhere-at-all"),
+                    recs_root=recs_root,
+                )
+
+        self.assertEqual(status, 0)
+        self.assertIn("CITATION tier 0 NOT RUN", out.getvalue())
 
     def test_one_record_for_a_two_source_sheet_is_2_and_names_the_other(self):
         with tempfile.TemporaryDirectory() as directory:
