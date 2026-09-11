@@ -643,7 +643,7 @@ A published measurement whose producing instrument no longer exists, so no comma
 _Avoid_: historical figure, legacy number, dated result
 
 **Declared limit**:
-A boundary of what a mechanism reaches, held as a named object beside that mechanism rather than as prose about it. What may go in one is a sentence telling a reader that a clean result covers less than it appears to. Prose points at the object and copies no row of it, so a limit that stops being true fails a check instead of standing as a claim nobody re-derives. Distinct from a **declared rationale**, which is the same shape holding a different sentence.
+A boundary of what a mechanism reaches, held as a named object beside that mechanism rather than as prose about it. What may go in one is a sentence telling a reader that a clean result covers less than it appears to. Prose points at the object and copies no row of it, so a limit that stops being true fails a check instead of standing as a claim nobody re-derives. A place where a mechanism does the opposite of what its own documentation says is not one: that is a defect, and declaring it would record the disagreement rather than a boundary. Distinct from a **declared rationale**, which is the same shape holding a different sentence.
 _Avoid_: caveat, known issue, disclaimer, rationale
 
 **Form coverage**:
