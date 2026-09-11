@@ -792,6 +792,10 @@ _Avoid_: exclusion, not yet, pending, backlog
 One execution of every test discovery finds under `tools/`, complete only when each discovered test comes back exactly once with an outcome. Its denominator is what discovery found and never the tally of what came back, so a run that lost a test is incomplete rather than clean. Distinct from the gates the repo's refusing checks carry, which grade an artifact; a suite run grades the checkout's own tests.
 _Avoid_: gate, repo-wide gate, test run, CI, the tests
 
+**Mechanically verified**:
+A run every one of whose named checks ran as its command and came back clean. A run whose check was walked by eye instead — because the command, or the **engine** it needs, could not run on that machine and could not be installed there — may still be complete, but it is never mechanically verified, and it says so rather than leaving a reader to assume the stronger claim. The walk and the command read the same written rules; what differs is only whether a machine applied them.
+_Avoid_: verified, checked, validated, confirmed
+
 ### Tracker
 
 **Binding**:
