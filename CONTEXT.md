@@ -654,6 +654,10 @@ _Avoid_: scope, completeness, sheet coverage, supported types
 A named object beside a mechanism holding why it is built as it is — why an option was declined, or why a refusal refuses. The same shape as a **declared limit** and never a member of one, because it states a why rather than an unreached what. Which it is, is decided on the sentence and never on the constant's name: a `WHY_`-named constant carrying a coverage sentence is a limit, and a plainly-named one carrying reasoning is not.
 _Avoid_: declared limit, caveat, note, comment
 
+**Declared no-limits**:
+A recorded statement, with a reason, that a module carries no **declared limit**. It is what separates a module somebody decided needs none from one nobody looked at, which the absence of an object cannot show on its own. It answers the question for today and never says the module has no limits; a module that later earns a **declared limit** leaves it.
+_Avoid_: exemption, opt-out, limitless module, waiver
+
 **Evidence disposition**:
 How a **declared limit**'s row is supported — `behavior`, meaning the module's own suite drives the public seam and demonstrates the boundary, or `declared-reading`, meaning the answer needs a judgment no rule can re-derive. It rides on the row rather than in a second list beside it, so a row cannot lose its disposition without losing itself. The enum is one object per family and not one per repository: the grader family imports `run_grader`'s, and a module outside that family holding its own is declared at the code point rather than drifted.
 _Avoid_: evidence type, support level, limit kind, confidence
@@ -857,6 +861,10 @@ _Avoid_: ready, available, open, next
 **Reconciliation**:
 The reviewed judgment that places changed work into the map — written as a delta, reviewed against the ADR's rulings, then applied. It is semantic and cannot be derived: placement needs judgments no rule produces. Distinct from a **publish**, which re-renders the derived views from unchanged state and reconciles nothing, which is why the obligation to have reconciled is anchored on a field the delta sets rather than on the rendered snapshot a publish rewrites.
 _Avoid_: update, refresh, sync, rebuild
+
+**Unreconciled ADR**:
+An ADR added or changed on the default branch that no **reconciliation** has recorded as reviewed for the work it creates, splits, resequences or invalidates. The obligation is held per ADR and belongs to whoever merged it, so ADRs are discharged in any order and one session's review never vouches for another's; recording, with its reason, that an ADR creates no work discharges it as fully as placing a packet. Distinct from a **ready ticket** in no packet, which belongs to whoever made the ticket ready: the two arise together at the end of a grilling, and neither waits on the other.
+_Avoid_: anchor lag, unreconciled commit
 
 **Map disagreement**:
 A disagreement between the implementation map and the tracker. It has directions and they are named separately, because each was found by a different instrument and one was invisible to the check built for the other: a **ready ticket** in no packet, and a packeted ticket that has stopped being ready. A gate that grades one direction certifies nothing about the others, and the `blocked` label carries a third disagreement that is held by the sweep in prose rather than by any gate.
