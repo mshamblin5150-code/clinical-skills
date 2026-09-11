@@ -412,9 +412,14 @@ def _resolves_to_mock_object(
         for active_scope in _enclosing_scopes(call, parents):
             if active_scope is scope:
                 break
-            if name in binding_cache.setdefault(
+            events = binding_cache.setdefault(
                 active_scope, _scope_bindings(active_scope)
-            ):
+            ).get(name, [])
+            shadows = events and (
+                not isinstance(active_scope, ast.ClassDef)
+                or any(position <= call_position for position, _kind in events)
+            )
+            if shadows:
                 return False
         bindings = binding_cache.setdefault(scope, _scope_bindings(scope))
         candidate_position = _position(candidate)
@@ -849,6 +854,23 @@ run = mock.Mock()
             (root / "test_reader.py").write_text(source, encoding="utf-8")
 
             self.assertEqual(shared_reader_offenders(root), ["test_reader.py:3"])
+
+    def test_class_mock_resolution_follows_body_execution_order(self):
+        source = """\
+from unittest import mock
+run = mock.Mock()
+class LateRebinding:
+    run.assert_called_with(["git", "ls-files"])
+    run = object()
+class EarlyRebinding:
+    run = object()
+    run.assert_called_with(["git", "ls-files"])
+"""
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "test_reader.py").write_text(source, encoding="utf-8")
+
+            self.assertEqual(shared_reader_offenders(root), ["test_reader.py:8"])
 
     def test_a_nested_rebinding_stops_outer_mock_provenance(self):
         source = """\
