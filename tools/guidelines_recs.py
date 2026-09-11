@@ -173,7 +173,7 @@ RECS_PREFIX = "recs-"
 
 @dataclass(frozen=True)
 class RecommendationRecordLocation:
-    path: Path | None
+    path: Path
     origin: RecommendationRecordOrigin | None
     alias_absence: str | None = None
 
@@ -185,12 +185,10 @@ class RecommendationRecordLocation:
             return f"sweep alias {self.path}"
         if self.origin is RecommendationRecordOrigin.RECS_ROOT:
             return f"recs root {self.path}; sweep alias fallback: {self.alias_absence}"
-        missing = (
-            f"no recommendation record at {self.path}"
-            if self.path is not None
-            else "no automatic recommendation-record root"
+        return (
+            f"no recommendation record at {self.path}; "
+            f"sweep alias fallback: {self.alias_absence}"
         )
-        return f"{missing}; sweep alias fallback: {self.alias_absence}"
 
 
 class RecommendationRecordOrigin(Enum):
@@ -203,14 +201,14 @@ def locate_recommendation_record(
     *,
     document: str,
     key: str,
-    recs_alias: Path | None,
-    recs_root: Path | None,
+    recs_alias: Path,
+    recs_root: Path,
     corpus_documents: set[str] | frozenset[str],
 ) -> RecommendationRecordLocation:
     """Resolve one document from the sweep alias, then the exact-name recs root."""
 
     alias_absence: str
-    if recs_alias is None or not recs_alias.is_dir():
+    if not recs_alias.is_dir():
         alias_absence = f"no sweep alias at {recs_alias}"
     else:
         manifest_path = recs_alias / SWEEP_MANIFEST
@@ -257,8 +255,8 @@ def locate_recommendation_record(
                 else:
                     alias_absence = f"'{document}' is not a corpus document"
 
-    recs_path = recs_root / f"{RECS_PREFIX}{key}.json" if recs_root is not None else None
-    if recs_path is not None and recs_path.is_file():
+    recs_path = recs_root / f"{RECS_PREFIX}{key}.json"
+    if recs_path.is_file():
         return RecommendationRecordLocation(
             recs_path,
             RecommendationRecordOrigin.RECS_ROOT,

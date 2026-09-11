@@ -303,13 +303,23 @@ RECS_ALIAS_ENV = "CLINICAL_GUIDELINES_RECS_ALIAS"
 
 @dataclass(frozen=True)
 class Roots:
-    """Filesystem inputs shared by sheet producers and the survey."""
+    """Filesystem inputs shared by sheet producers and the survey.
+
+    See ADR 0180 for why every root is a path.
+    """
 
     recs_alias_environment: ClassVar[str] = RECS_ALIAS_ENV
-    pdf_root: Path | None
-    recs_root: Path | None
-    text_root: Path | None
-    recs_alias: Path | None
+    pdf_root: Path
+    recs_root: Path
+    text_root: Path
+    recs_alias: Path
+
+    def __post_init__(self) -> None:
+        for field_name in ("pdf_root", "recs_root", "text_root", "recs_alias"):
+            if not isinstance(getattr(self, field_name), Path):
+                raise ValueError(
+                    f"{field_name}: a missing root is passed as a path that does not exist"
+                )
 
     @classmethod
     def defaults(cls) -> "Roots":
@@ -1468,7 +1478,7 @@ def _citation_tier2_not_run(reason: str) -> CitationTier2Result:
 def _hold_tier2_resolution_declaration(
     sheet: Sheet,
     result: CitationTier2Result,
-    pdf_root: Path | None,
+    pdf_root: Path,
 ) -> CitationTier2Result:
     """Hold tier 2's declaration in both its skipped and live states."""
     findings = list(result.findings)
@@ -1478,7 +1488,6 @@ def _hold_tier2_resolution_declaration(
             "## Scope. A corpus-free reader cannot tell checked once from never checked."
         )
     elif not result.skipped:
-        assert pdf_root is not None  # A live tier-2 result can only come from a real root.
         if Path(sheet.resolved_corpus).resolve() != pdf_root.resolve():
             findings.append(
                 f"{sheet.path.name}  CITATION tier 2 resolved against {pdf_root}, but its "
@@ -1499,7 +1508,7 @@ def _hold_tier2_resolution_declaration(
     return replace(result, findings=findings, lines=lines)
 
 
-def gate_citation_tier2(sheet: Sheet, pdf_root: Path | None) -> CitationTier2Result:
+def gate_citation_tier2(sheet: Sheet, pdf_root: Path) -> CitationTier2Result:
     """Every snippet must appear on the page it cites.
 
     The result names failures and whether the gate skipped; its lines count rendered rows.
@@ -1516,7 +1525,7 @@ def gate_citation_tier2(sheet: Sheet, pdf_root: Path | None) -> CitationTier2Res
             "CITATION tier 2",
             lines=_report_lines(("  CITATION tier 2 NO ROWS",)),
         )
-    if pdf_root is None or not pdf_root.is_dir():
+    if not pdf_root.is_dir():
         return _hold_tier2_resolution_declaration(
             sheet,
             _citation_tier2_not_run(f"source PDFs not found at {pdf_root}"),
@@ -1675,7 +1684,7 @@ def _watermark_not_run(
 
 def gate_watermark(
     sheet: Sheet,
-    text_root: Path | None,
+    text_root: Path,
     *,
     expected_commit: str,
     allow_untrusted_provenance: bool = False,
@@ -1746,13 +1755,6 @@ def gate_watermark(
             "WATERMARK",
             lines=_report_lines(("  WATERMARK       NO ROWS",)),
         )
-    if text_root is None:
-        reason = f"extracted corpus not found at {text_root}"
-        return _watermark_not_run(
-            reason,
-            diagnostics=("  WATERMARK       1 manifest problem(s)",),
-        )
-    text_root = Path(text_root)
     if handoff is None:
         handoff = read_extraction(
             text_root,
@@ -2492,11 +2494,11 @@ def gate_second_read(
 def bind_recs(
     sheet: Sheet,
     arguments: list[str],
-    recs_root: Path | None,
+    recs_root: Path,
     *,
     expected_commit: str,
     allow_untrusted_provenance: bool = False,
-    recs_alias: Path | None = None,
+    recs_alias: Path,
     corpus_documents: set[str] | frozenset[str] = frozenset(),
 ) -> BoundRecommendationRecords:
     """Which recommendation record answers for each source the sheet declares.
@@ -2573,9 +2575,7 @@ def bind_recs(
                 RecommendationRecordOrigin.EXPLICIT_ARGUMENT,
             )
         records[key] = None
-        if path is None:
-            why_not[key] = "no --recs given for this source, so omission was not checked"
-        elif not path.is_file():
+        if not path.is_file():
             # The typo and the never-built record are not the same event, which is
             # `TheExitStatusSaysWhichKindOfNotGraded`'s finding read one level down: a
             # path somebody typed that does not resolve is a mistake, and a record
@@ -3017,19 +3017,13 @@ def survey(
             )
     edition_currency = gate_edition_currency(sheet, currency_registry)
     null_span = gate_null_span(sheet)
-    extraction_handoff = (
-        guidelines_manifest.read(
-            roots.text_root,
-            expected_commit=inputs.expected_commit,
-            allow_untrusted_provenance=inputs.allow_untrusted_provenance,
-        )
-        if roots.text_root is not None
-        else None
+    extraction_handoff = guidelines_manifest.read(
+        roots.text_root,
+        expected_commit=inputs.expected_commit,
+        allow_untrusted_provenance=inputs.allow_untrusted_provenance,
     )
-    current_extraction, identity_problems = (
-        extraction_identity_from_handoff(extraction_handoff)
-        if extraction_handoff is not None
-        else (None, ["no --text-root was available"])
+    current_extraction, identity_problems = extraction_identity_from_handoff(
+        extraction_handoff
     )
     extraction_identity = gate_extraction_identity(
         sheet,
