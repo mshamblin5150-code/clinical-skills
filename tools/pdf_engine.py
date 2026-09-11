@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from types import ModuleType
 
+from console_codec import use_utf8
+
 
 REMEDY = "Install the PDF engine with `python -m pip install pymupdf`."
 LEGACY_REQUIRE_MESSAGE = (
@@ -43,6 +45,20 @@ def engine_version() -> str | None:
         return None
 
 
+def main() -> int:
+    """Report whether the PDF engine can be acquired by this process."""
+    try:
+        version = engine_version()
+    except Exception as failure:
+        print(f"PDF engine check failed: {failure}")
+        return 2
+    if version is None:
+        print(REMEDY)
+        return 1
+    print(f"PDF engine installed: {version}")
+    return 0
+
+
 PRIMARY_SOURCE = "primary source, refuse"
 OPTIONAL_SECONDARY = "optional secondary, degrade and state the narrowing"
 
@@ -66,6 +82,10 @@ DECLARED_LIMITS = {
     "image-probe-window": "The inherited 60-byte image-probe acceptance window is not closed.",
     "decode-resolution": "A decode at the probe DPI does not establish decoding at reading resolution.",
     "guidelines-extract-split": "Guidelines extraction still owns PDF extraction and page reconstruction.",
-    "consumer-contract": "The consumer-facing install contract is not changed here.",
     "threshold-gates": "The three unlocked threshold_sheet gates in issue #410 remain out of scope.",
 }
+
+
+if __name__ == "__main__":
+    use_utf8()
+    raise SystemExit(main())

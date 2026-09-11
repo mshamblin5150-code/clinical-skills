@@ -159,6 +159,9 @@ from that path. The preceding order remains historical.
 **Correction, 2026-09-10:** `tracker_filed_from.py` is now the most recent direct command and calls
 `use_utf8` from that path. The preceding order remains historical.
 
+**Correction, 2026-09-11:** `pdf_engine.py` is now the most recent direct command and calls
+`use_utf8` from that path. The preceding order remains historical.
+
 ### Suite run
 
 `tools/suite.py` is the one complete-suite interface. It discovers the `test*.py` population under

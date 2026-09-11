@@ -4,6 +4,7 @@ import ast
 import contextlib
 import importlib
 import io
+import itertools
 import re
 import tempfile
 import unittest
@@ -387,7 +388,8 @@ class TheMembershipClaimIsDerivedFromTheTree(unittest.TestCase):
             population,
             run_grader.MEMBERS
             | set(run_grader.REFUSED)
-            | set(run_grader.DEFERRED),
+            | set(run_grader.DEFERRED)
+            | set(run_grader.GRADER_LOOKALIKES),
         )
         self.assertIn("__main__", run_grader.WALK_CEILING)
         self.assertIn("survey", run_grader.WALK_CEILING)
@@ -397,13 +399,32 @@ class TheMembershipClaimIsDerivedFromTheTree(unittest.TestCase):
     def test_every_nonmember_verdict_carries_a_reason(self):
         self.assertTrue(all(run_grader.REFUSED.values()))
         self.assertTrue(all(run_grader.DEFERRED.values()))
+        self.assertTrue(all(run_grader.GRADER_LOOKALIKES.values()))
         self.assertTrue(all(run_grader.OUTSIDE_WALK.values()))
 
-    def test_threshold_sheet_names_both_runner_mismatches(self):
-        reason = run_grader.REFUSED["threshold_sheet"]
+    def test_membership_verdicts_are_pairwise_disjoint(self):
+        verdicts = (
+            run_grader.MEMBERS,
+            run_grader.REFUSED,
+            run_grader.DEFERRED,
+            run_grader.GRADER_LOOKALIKES,
+        )
 
-        self.assertIn("quiet", reason)
-        self.assertIn("multiple sheets", reason)
+        for left, right in itertools.combinations(verdicts, 2):
+            self.assertFalse(set(left) & set(right))
+
+    def test_every_refusal_names_the_shared_runners_side(self):
+        required_terms = {
+            "threshold_sheet": ("runner", "quiet", "multiple sheets"),
+            "tracker_bodies": ("runner", "show", "one positional", "several files"),
+        }
+
+        self.assertEqual(set(run_grader.REFUSED), set(required_terms))
+        for module, terms in required_terms.items():
+            with self.subTest(module=module):
+                reason = run_grader.REFUSED[module]
+                for term in terms:
+                    self.assertIn(term, reason)
 
     def test_every_declared_member_delegates_and_adopts_the_kit(self):
         here = Path(__file__).parent

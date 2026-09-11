@@ -15,7 +15,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from contextlib import redirect_stderr
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest import mock
 
@@ -234,12 +234,54 @@ class PdfEngineResidueIsDeclared(unittest.TestCase):
                 "image-probe-window",
                 "decode-resolution",
                 "guidelines-extract-split",
-                "consumer-contract",
                 "threshold-gates",
             },
             set(pdf_engine.DECLARED_LIMITS),
         )
         self.assertEqual((), bind(pdf_engine.DECLARED_LIMITS, pdf_engine.__doc__, mode=NAMING))
+
+
+class PdfEngineCommandReportsTheCheckVerdict(unittest.TestCase):
+    def run_main(self) -> tuple[int, str]:
+        stdout = io.StringIO()
+        with redirect_stdout(stdout):
+            status = pdf_engine.main()
+        return status, stdout.getvalue()
+
+    def test_present_engine_is_status_zero_with_its_version(self):
+        with mock.patch.object(pdf_engine, "acquire") as acquire:
+            acquire.return_value.__version__ = "1.26.3"
+            status, output = self.run_main()
+
+        self.assertEqual(status, 0)
+        self.assertIn("installed", output)
+        self.assertIn("1.26.3", output)
+
+    def test_missing_engine_is_status_one_with_the_one_remedy(self):
+        with mock.patch.object(
+            pdf_engine,
+            "acquire",
+            side_effect=pdf_engine.EngineUnavailable(),
+        ):
+            status, output = self.run_main()
+
+        self.assertEqual(status, 1)
+        self.assertEqual(output.strip(), pdf_engine.REMEDY)
+
+    def test_unexpected_acquisition_failure_is_status_two(self):
+        with mock.patch.object(
+            pdf_engine,
+            "acquire",
+            side_effect=RuntimeError("probe failed"),
+        ):
+            status, output = self.run_main()
+
+        self.assertEqual(status, 2)
+        self.assertIn("probe failed", output)
+
+    def test_the_command_reuses_the_version_seam_s_unknown_value(self):
+        source = (TOOLS / "pdf_engine.py").read_text(encoding="utf-8")
+        self.assertEqual(source.count('"unknown"') + source.count("'unknown'"), 1)
 
 
 class GuidelinesRecommendationsConvertsAbsence(unittest.TestCase):

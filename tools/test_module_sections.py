@@ -85,6 +85,7 @@ DECLARED_SECTIONS = {
     "implementation_map_post_hook": "Implementation map helper",
     "map_scan": "Implementation map disagreement scan",
     "name_index": "PHI pre-commit hook",
+    "pdf_engine": "Console codec",
     "phi_scan": "PHI pre-commit hook",
     "post_html": "Discussion post grading",
     "reference_scan": "Reference scan",

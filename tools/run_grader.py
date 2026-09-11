@@ -199,17 +199,26 @@ EMPTY_POPULATION_POSTURES: Mapping[str, EmptyPopulationDeclaration] = MappingPro
 
 REFUSED: Mapping[str, str] = MappingProxyType(
     {
-        "corpus_census": "a census over the corpus, not a grader over a run",
         "threshold_sheet": (
             "the shared runner has no quiet path and grades one source to one status, "
             "while threshold_sheet must suppress reports under --quiet and --all must "
             "return the worst status across multiple sheets"
         ),
-        "tracker_bodies": "format_report takes no show flag and its report is safe to paste",
+        "tracker_bodies": (
+            "the shared runner passes show to format_report, which takes no show flag because "
+            "its report is safe to paste, and Parsed carries one positional source while the "
+            "harvest mode grades several files as one population"
+        ),
     }
 )
 
 DEFERRED: Mapping[str, str] = MappingProxyType({})
+
+GRADER_LOOKALIKES: Mapping[str, str] = MappingProxyType(
+    {
+        "corpus_census": "a census over the corpus, not a grader over a run",
+    }
+)
 
 # Named beside the walk because the population review considered them, but their
 # present source shape is below the predicate's stated floor.

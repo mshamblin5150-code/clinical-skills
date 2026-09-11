@@ -124,6 +124,16 @@ NOT_REACHED = (
         "A raw citation form matching a tracked path containing a literal percent can pass "
         "even when URL decoding points to a different repository path.",
     ),
+    (
+        "a reference-style link definition reads as no repository-relative link",
+        "A relative link written as a reference-style definition publishes without the "
+        "branch:repo-relative-link refusal.",
+    ),
+    (
+        "an angle-bracket destination containing whitespace reads as no repository-relative link",
+        "A relative link written as an angle-bracket destination containing whitespace "
+        "publishes without the branch:repo-relative-link refusal.",
+    ),
 )
 
 BRANCH_RULES = (

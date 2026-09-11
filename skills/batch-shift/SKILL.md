@@ -46,6 +46,18 @@ Where an unmapped name is known to work a single population — a pediatrician, 
 
 ### 2. Get the text out
 
+Run the engine check before opening the day file:
+
+```bash
+python tools/pdf_engine.py
+```
+
+On exit 1, ask the clinician for permission to run the install line the check printed, then run the
+check again after an attempted install. If permission is declined or the install fails, open the day
+file with the agent's own PDF reader and read every page as an image. Stop only if the agent cannot
+open a PDF at all. Exit 2 from the check is not evidence that the engine is missing and stops this
+step for investigation.
+
 Day files are PDFs, and they come in two kinds. Check before parsing:
 
 - **Text layer present** — extract directly with PyMuPDF. **32 of the 49 files** in this clinician's catalog are like this, and they are the newer ones.
@@ -134,6 +146,7 @@ Unassigned lines: <verbatim, or "none">
 Low-confidence boundaries: <which splits you are unsure about, and why>
 Openers missing age or sex: <which encounters, and which field>
 Branch for the whole shift: <the one the clinician named, or "SOAP by default — say the word and it is an H&P">
+Day file read with: <PyMuPDF | the agent's own PDF reader>
 ```
 
 Show the first and last line of each encounter verbatim — that is what lets the clinician spot a bad boundary at a glance. Naming a low-confidence boundary explicitly is part of the output; silence there reads as certainty you do not have.
