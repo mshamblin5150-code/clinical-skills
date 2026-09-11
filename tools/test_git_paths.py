@@ -30,7 +30,13 @@ MOCK_EXPECTATION_METHODS = {
     "assert_not_awaited",
     "assert_not_called",
 }
-MOCK_CONSTRUCTORS = {"AsyncMock", "MagicMock", "Mock", "NonCallableMock"}
+MOCK_CONSTRUCTORS = {
+    "AsyncMock",
+    "MagicMock",
+    "Mock",
+    "NonCallableMagicMock",
+    "NonCallableMock",
+}
 COMPREHENSION_SCOPES = (ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp)
 
 
@@ -383,6 +389,15 @@ def _mock_constructor_uses_unittest_mock(
     )
 
 
+def _patch_decorator_injects_mock(call: ast.Call) -> bool:
+    if any(keyword.arg == "new" for keyword in call.keywords):
+        return False
+    is_patch_object = (
+        isinstance(call.func, ast.Attribute) and call.func.attr == "object"
+    )
+    return len(call.args) < (3 if is_patch_object else 2)
+
+
 def _resolves_to_mock_object(
     name: str,
     call: ast.Call,
@@ -394,9 +409,16 @@ def _resolves_to_mock_object(
     call_position = _position(call)
 
     def binding_survives(scope: ast.AST, candidate: ast.AST) -> bool:
+        for active_scope in _enclosing_scopes(call, parents):
+            if active_scope is scope:
+                break
+            if name in binding_cache.setdefault(
+                active_scope, _scope_bindings(active_scope)
+            ):
+                return False
         bindings = binding_cache.setdefault(scope, _scope_bindings(scope))
         candidate_position = _position(candidate)
-        return not any(
+        return candidate_position <= call_position and not any(
             candidate_position < position <= call_position
             for position, _kind in bindings.get(name, [])
         )
@@ -412,10 +434,7 @@ def _resolves_to_mock_object(
                 and _patch_call_uses_unittest_mock(
                     decorator, parents, binding_cache
                 )
-                and len(decorator.args) < 2
-                and not any(
-                    keyword.arg == "new" for keyword in decorator.keywords
-                )
+                and _patch_decorator_injects_mock(decorator)
             ]
             positional = [*scope.args.posonlyargs, *scope.args.args]
             injected = (
@@ -806,12 +825,46 @@ run.assert_called_with(["git", "ls-files"])
 @mock.patch("target")
 def test_reader(patched):
     patched.assert_called_once_with(["git", "ls-files"])
+@mock.patch.object(Service, "method")
+def test_object_patch(patched):
+    patched.assert_called_with(["git", "ls-files"])
+run = mock.NonCallableMagicMock()
+run.assert_called_with(["git", "ls-files"])
 """
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             (root / "test_reader.py").write_text(source, encoding="utf-8")
 
             self.assertEqual(shared_reader_offenders(root), [])
+
+    def test_a_later_mock_constructor_does_not_retroactively_suppress(self):
+        source = """\
+from unittest import mock
+run = probe
+run.assert_called_with(["git", "ls-files"])
+run = mock.Mock()
+"""
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "test_reader.py").write_text(source, encoding="utf-8")
+
+            self.assertEqual(shared_reader_offenders(root), ["test_reader.py:3"])
+
+    def test_a_nested_rebinding_stops_outer_mock_provenance(self):
+        source = """\
+from unittest import mock
+def outer():
+    run = mock.Mock()
+    def inner():
+        nonlocal run
+        run = object()
+        run.assert_called_with(["git", "ls-files"])
+"""
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "test_reader.py").write_text(source, encoding="utf-8")
+
+            self.assertEqual(shared_reader_offenders(root), ["test_reader.py:7"])
 
     def test_definition_time_expressions_use_the_enclosing_import(self):
         source = """\
