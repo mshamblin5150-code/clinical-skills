@@ -671,6 +671,81 @@ class FileBackedTrackerTextIsRead(unittest.TestCase):
 
 
 class UnreadableTrackerTextIsClassified(unittest.TestCase):
+    def test_every_absent_body_file_prints_the_one_missing_file_remedy(self) -> None:
+        remedy = (
+            "no file was at this path when the hook ran, which is before any "
+            "part of this command runs, and a refused command runs none of its "
+            "stages; if this command writes the file, write it in a separate "
+            "command first, otherwise create it, then run `python "
+            "tools/tracker_publish_hook.py --text <path>` before retrying"
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            absent = (root / "body.md").as_posix()
+            absolute_commands = {
+                "redirect": (
+                    f'echo hi > "{absent}" && '
+                    f'gh issue comment 670 --body-file "{absent}"'
+                ),
+                "heredoc": (
+                    f'cat > "{absent}" <<EOF\nhi\nEOF\n'
+                    f'gh issue comment 670 --body-file "{absent}"'
+                ),
+                "python script": (
+                    f'python tools/mk.py "{absent}" && '
+                    f'gh issue comment 670 --body-file "{absent}"'
+                ),
+                "copy": (
+                    f'cp a.md "{absent}" && '
+                    f'gh issue comment 670 --body-file "{absent}"'
+                ),
+                "tee": (
+                    f'echo hi | tee "{absent}" && '
+                    f'gh issue comment 670 --body-file "{absent}"'
+                ),
+                "python heredoc": (
+                    "python - <<PY\n"
+                    f"from pathlib import Path\nPath(r'{absent}').write_text('hi')\n"
+                    "PY\n"
+                    f'gh issue comment 670 --body-file "{absent}"'
+                ),
+                "retry": f'gh issue comment 670 --body-file "{absent}"',
+                "redirect to path suffix": (
+                    f'echo hi > "{absent}.bak" && '
+                    f'gh issue comment 670 --body-file "{absent}"'
+                ),
+                "high prefix and copy": (
+                    f'echo "high " > "{absent}.x" && cp "{absent}.x" "{absent}" '
+                    f'&& gh issue comment 670 --body-file "{absent}"'
+                ),
+            }
+
+            for name, command in absolute_commands.items():
+                with self.subTest(name=name):
+                    specific = hook.handle(
+                        AnUnreadableBodyIsRefused.payload(command)
+                    )["hookSpecificOutput"]
+
+                    self.assertEqual(specific["permissionDecision"], "deny")
+                    self.assertIn(
+                        "tracker pre-publish: NOT SCANNED -- unreadable body "
+                        f"(missing-file); {remedy}",
+                        specific["additionalContext"],
+                    )
+
+            relative = hook.handle(
+                AnUnreadableBodyIsRefused.payload(
+                    "python mk.py body.md && "
+                    "gh issue comment 670 --body-file body.md"
+                )
+            )["hookSpecificOutput"]
+
+        self.assertEqual(relative["permissionDecision"], "deny")
+        self.assertIn(
+            "tracker pre-publish: NOT SCANNED -- unreadable body (unrooted-path)",
+            relative["additionalContext"],
+        )
+
     def test_each_ruled_residue_has_its_own_class(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             absent = Path(temporary) / "not-written.md"
@@ -678,10 +753,6 @@ class UnreadableTrackerTextIsClassified(unittest.TestCase):
                 "missing-file": f'gh issue comment 670 --body-file "{absent}"',
                 "external-variable": 'gh issue comment 670 --body-file "$BODY_PATH"',
                 "pipe": "printf text | gh issue comment 670 --body-file -",
-                "written-before-publish": (
-                    f'printf text > "{absent}"; '
-                    f'gh issue comment 670 --body-file "{absent}"'
-                ),
                 "command-substitution": (
                     'BODY_PATH="$(make-body)"; '
                     'gh issue comment 670 --body-file "$BODY_PATH"'
@@ -722,13 +793,13 @@ class UnreadableTrackerTextIsClassified(unittest.TestCase):
         self.assertEqual(result.publications, ())
         self.assertEqual(result.unreadable[0].kind, "unrooted-path")
 
-    def test_the_typed_write_is_classified_before_path_resolution(self) -> None:
+    def test_an_unrooted_path_is_classified_before_file_absence(self) -> None:
         result = hook.extract(
             "printf text > body.md; gh issue comment 670 --body-file body.md"
         )
 
         self.assertEqual(result.publications, ())
-        self.assertEqual(result.unreadable[0].kind, "written-before-publish")
+        self.assertEqual(result.unreadable[0].kind, "unrooted-path")
 
     def test_every_refusal_reports_the_folder_and_reconstructed_path(self) -> None:
         with tempfile.TemporaryDirectory() as command_directory:
