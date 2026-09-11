@@ -31,7 +31,7 @@ It fired four times in two days across five tickets, and twice it fired on the *
 
 **A number is claimed at the moment it is handed out.** `tools/adr_next.py` takes a title, reads every worktree's `docs/adr/` — the working tree and not only what is committed — writes the file with its heading already in it, and prints the path. The claim and the check are the same act.
 
-**A test asserts no two files in `docs/adr/` share a four-digit stem.** It lives in `tools/`, so `python -m unittest discover -s tools -t tools` runs it and CI runs it at every merge with no workflow edit.
+**A test asserts no two files in `docs/adr/` share a four-digit stem.** It lives in `tools/`, so `python tools/suite.py` runs it and CI runs it at every merge with no workflow edit.
 
 **The pre-commit hook warns, and never refuses.** When an ADR is staged it reads all worktrees and prints which other one claims the same number. Advisory, on the same terms as the skills-mirror and spelling checks already there, and it costs nothing on a commit that does not touch `docs/adr/`.
 
@@ -67,3 +67,7 @@ Correction, 2026-08-23: this sentence formerly read "its heading and status line
 No ratified record carried a status line when this record was committed; the clause
 described a house convention that did not exist then. [#472]. The ruling itself is
 unchanged.
+
+Correction, 2026-09-10: the suite command in the ruling now names `python tools/suite.py`.
+[ADR 0164](0164-the-suite-runs-through-one-module-that-accounts-for-every-discovered-test.md)
+replaced the copied unittest-discovery command with that module; this record's ruling is unchanged.

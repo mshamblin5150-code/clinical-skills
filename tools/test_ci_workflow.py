@@ -34,7 +34,7 @@ CLAUDE_MD = REPO_ROOT / "CLAUDE.md"
 
 #: The one command CLAUDE.md tells a maintainer to run. If CI runs a different
 #: one, a green check answers a question nobody asked.
-SUITE_COMMAND = "python -m unittest discover -s tools -t tools"
+SUITE_COMMAND = "python tools/suite.py"
 THRESHOLD_COMMAND = "python tools/threshold_sheet.py --all"
 THRESHOLD_STEP_NAME = "Threshold sheet gates, external evidence may not run"
 MAP_COMMAND = "python tools/map_scan.py $harvest"
@@ -117,6 +117,26 @@ class TheJobRunsWhatTheDocsRun(unittest.TestCase):
 
     def test_claude_md_documents_that_same_command(self):
         self.assertIn(SUITE_COMMAND, CLAUDE_MD.read_text(encoding="utf-8"))
+
+    def test_the_suite_report_reaches_the_summary_without_losing_its_status(self):
+        lines = workflow_text().splitlines()
+        command = next(i for i, line in enumerate(lines) if SUITE_COMMAND in line)
+        start = max(
+            i for i, line in enumerate(lines[: command + 1]) if re.match(r"^\s*- name:", line)
+        )
+        end = next(
+            (
+                i
+                for i, line in enumerate(lines[command + 1 :], command + 1)
+                if re.match(r"^\s*- name:", line)
+            ),
+            len(lines),
+        )
+        step = "\n".join(lines[start:end])
+
+        self.assertIn("$LASTEXITCODE", step)
+        self.assertIn("GITHUB_STEP_SUMMARY", step)
+        self.assertIn("exit $status", step)
 
     def test_nothing_is_installed(self):
         """#86's cost argument in one assertion. Three tools here need PyMuPDF,
