@@ -101,8 +101,8 @@ what an empty one does. This answers #1028's decision 2.
 
 Rules on the text of a body are shared by both routes under Ruling 1. Rules on how the command was
 typed -- the Filed-from refusal on issue create and edit, the unreadable-body refusal, and any check
-on whether a body arrived inline -- have nothing to read on the direct writer, which holds bytes and
-no command. The direct writer answers such a rule with an exemption keyed on something it already
+on whether a body arrived inline -- have nothing to read on the direct writer, which is handed a
+body string and no command. The direct writer answers such a rule with an exemption keyed on something it already
 stamps, which is
 [ADR 0169](0169-a-ticket-states-what-filed-it-on-an-append-only-line.md) ruling 10's arrangement, or
 with a declared limit.
