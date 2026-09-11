@@ -265,10 +265,20 @@ The vocabulary and how to choose between the labels is in [triage-labels.md](tri
 - **A ticket with an open decision gets `grilling`, never `ready-for-agent`.** `ready-for-agent` is a promise that an unattended agent can build it without guessing.
 - **Record dependencies rather than describing them in prose.** `gh issue edit <n> --add-blocked-by <m>` and `--add-blocking <m>` are supported, and they show up in `gh issue view`.
 
+A session that creates a label adds its entry to [triage-labels.md](triage-labels.md) in the same
+session: a table row, unless the label's definition already has a home elsewhere and the entry is a
+pointer to it.
+
 The sweep also holds the `blocked` invariant: every open ticket carrying `blocked` has an open
 `blocked_by` edge, or its body names a gate that no edge can record. If every gate has cleared and
 the body names none, remove `blocked` and re-triage the ticket. If a recordable gate lives only in
 prose, add the dependency edge instead.
+
+Once per sweep, compare the whole vocabulary returned by `gh label list --limit 1000` against
+[triage-labels.md](triage-labels.md). Any label that file does not name is a finding. Treat the read
+as complete only when it returns fewer than 1,000 labels; if it reaches the limit, paginate rather
+than calling the comparison clean. This is a whole-vocabulary check: auditing one ticket's labels
+at a time cannot reveal that a label has no entry in the vocabulary.
 
 Label at creation time. Coming back to label later is the step that gets skipped.
 
