@@ -143,7 +143,7 @@ extraction and the liveness case; discrimination is the fourth thing and no rule
 
 Four verdicts drawn from one command are one measurement repeated. **A rising count of sweeps
 recording a claim is not evidence for it**, and reading it as evidence of neglect — which is the
-reading the record invites and which #436's ruling makes feel authoritative — accelerates the error
+reading the record invites and which ADR 0016's reasoning makes feel authoritative — accelerates the error
 rather than catching it.
 
 **The neglect reading is rejected explicitly, not merely not chosen.** It is a true observation about
@@ -246,7 +246,7 @@ three**. So the record says on its face that the vendor disagrees with itself an
 
 **A dated bottom line alone is refused.** ADR 0016 rejects annotation-only correction in as many
 words — *a reader opens the file, reads the figure, copies it, and never scrolls to the footnote* —
-and #436 rules the same. Recording this correction below the sentence it corrects would be #795's own
+Recording this correction below the sentence it corrects would be #795's own
 defect committed inside its repair.
 
 **#795's second *Done when* is the one clause of the ticket that survives intact**, and it stated
@@ -287,3 +287,7 @@ is outside this record.
 
 **Anything about ADR 0083's five rulings.** Ruling 1 confirms their shared premise and touches
 nothing else, which is #795's own *What must not come out of this* honored.
+
+*Corrected 2026-09-12 under ADR 0016 and ADR 0191: “which #436's ruling makes feel authoritative” attributed a correction rule to #436, which rules nothing about corrections. The sentence now names ADR 0016's reasoning.*
+
+*Corrected 2026-09-12 under ADR 0016 and ADR 0191: “and #436 rules the same” attributed the same phantom rule to #436. The words were deleted because the sentence already names ADR 0016 as its ground.*
