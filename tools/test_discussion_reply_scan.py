@@ -337,7 +337,7 @@ class ACompleteRunPasses(unittest.TestCase):
         self.assertEqual(1, status)
         self.assertIn("editor-readback: 1", stdout.getvalue())
 
-    def test_a_republished_citation_resolves_on_its_second_year(self):
+    def test_a_republished_original_element_is_not_compared(self):
         with tempfile.TemporaryDirectory() as temp:
             run = Run(Path(temp))
             entry = (
@@ -353,7 +353,7 @@ class ACompleteRunPasses(unittest.TestCase):
             )
             response = run.root / "response-maren.md"
             response.write_text(
-                BODY.replace("(Quill, 2024)", "(Watson & Rayner, 1920/2013)").replace(
+                BODY.replace("(Quill, 2024)", "(Watson & Rayner, 1919/2013)").replace(
                     "Quill, R. (2024). Measuring usable access in community care. Journal of Care, 4(2), 10-18.",
                     entry,
                 ),
@@ -363,6 +363,35 @@ class ACompleteRunPasses(unittest.TestCase):
                 status = scan.main([temp])
 
         self.assertEqual(0, status)
+
+    def test_a_republished_second_year_must_match_the_claim_record(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            entry = (
+                "Watson, J. B., & Rayner, R. (2013). Conditioned emotional reactions. "
+                "(Original work published 1920)"
+            )
+            (run.root / "claims.md").write_text(
+                CLAIMS.replace(
+                    "Quill, R. (2024). Measuring usable access in community care. Journal of Care, 4(2), 10-18.",
+                    entry,
+                ).replace("PAGE-YEAR: 2024", "PAGE-YEAR: 2013"),
+                encoding="utf-8",
+            )
+            response = run.root / "response-maren.md"
+            response.write_text(
+                BODY.replace("(Quill, 2024)", "(Watson & Rayner, 1920/2014)").replace(
+                    "Quill, R. (2024). Measuring usable access in community care. Journal of Care, 4(2), 10-18.",
+                    entry,
+                ),
+                encoding="utf-8",
+            )
+            stdout = io.StringIO()
+            with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
+                status = scan.main([temp])
+
+        self.assertEqual(1, status)
+        self.assertIn("unresolved-citation: 1", stdout.getvalue())
 
     def test_a_reference_dated_to_the_day_counts_as_the_replys_reference(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -1197,6 +1226,10 @@ class EveryBehaviorLimitHasALiveHandler(unittest.TestCase):
         "whether a citation stopping mid-word resolves": (
             "CitationResolutionResidues.test_the_three_declared_prefix_edges_resolve",
             "EachReplyCarriesEvidence.test_a_shortened_title_citation_resolves",
+        ),
+        "whether a republished citation's original element matches its source": (
+            "ACompleteRunPasses.test_a_republished_original_element_is_not_compared",
+            "ACompleteRunPasses.test_a_republished_second_year_must_match_the_claim_record",
         ),
         "whether a believed record's restatement supports the number traced from it": (
             "NumbersTraceToTheRunLedger.test_numeric_identity_does_not_establish_restatement_support",

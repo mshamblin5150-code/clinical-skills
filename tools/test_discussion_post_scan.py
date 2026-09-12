@@ -2112,7 +2112,7 @@ class EveryBehaviorLimitHasALiveHandler(unittest.TestCase):
             "TheMechanicalBarRowsAreGraded.test_a_sourced_record_missing_ledger_fields_is_still_believed",
             "TheMechanicalBarRowsAreGraded.test_only_believed_claim_records_trace_body_numbers",
         ),
-        "whether a republished citation's original year matches its source": (
+        "whether a republished citation's original element matches its source": (
             "TheMechanicalBarRowsAreGraded.test_a_republished_original_year_is_not_joined_to_the_claim_record",
             "TheMechanicalBarRowsAreGraded.test_a_republished_second_year_must_match_the_claim_record",
         ),

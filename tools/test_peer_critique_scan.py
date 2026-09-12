@@ -145,6 +145,40 @@ class EveryRowFiresOnItsOwnDefect(unittest.TestCase):
             ),
         )
 
+    def test_a_republished_original_element_is_not_compared(self):
+        references = (
+            REFERENCES
+            + "\nWatson, J. B., & Rayner, R. (2013). Conditioned emotional reactions. "
+            "(Original work published 1920)\n"
+        )
+
+        self.assertNotIn(
+            scan.UNRESOLVED_CITATION,
+            kinds(
+                build_run(
+                    extra="\n\nA further point follows (Watson & Rayner, 1919/2013).\n",
+                    references=references,
+                )
+            ),
+        )
+
+    def test_a_republished_second_year_must_match_the_reference(self):
+        references = (
+            REFERENCES
+            + "\nWatson, J. B., & Rayner, R. (2013). Conditioned emotional reactions. "
+            "(Original work published 1920)\n"
+        )
+
+        self.assertIn(
+            scan.UNRESOLVED_CITATION,
+            kinds(
+                build_run(
+                    extra="\n\nA further point follows (Watson & Rayner, 1920/2014).\n",
+                    references=references,
+                )
+            ),
+        )
+
     def test_a_number_with_no_claim_record_is_a_finding(self):
         self.assertIn(scan.UNTRACED_NUMBER, kinds(build_run(extra="\n\nThe rate was 47 percent.\n")))
 
@@ -335,6 +369,10 @@ class EveryBehaviorLimitHasALiveHandler(unittest.TestCase):
         "whether a citation stopping mid-word resolves": (
             "CitationResolutionResidues.test_the_three_declared_prefix_edges_resolve",
             "EveryRowFiresOnItsOwnDefect.test_a_shortened_title_citation_resolves",
+        ),
+        "whether a republished citation's original element matches its source": (
+            "EveryRowFiresOnItsOwnDefect.test_a_republished_original_element_is_not_compared",
+            "EveryRowFiresOnItsOwnDefect.test_a_republished_second_year_must_match_the_reference",
         ),
         "whether a heading's prose answers the sub-questions the spec states under it": (
             "TheHeadingRowProvesPresenceAndNotAnswer.test_irrelevant_prose_under_a_required_heading_passes",

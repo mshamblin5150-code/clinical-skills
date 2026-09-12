@@ -129,6 +129,13 @@ LEGAL_READER_NOT_REACHED = (
 )
 CITATION_RESOLUTION_NOT_REACHED = (
     (
+        "whether a republished citation's original element matches its source",
+        "The shared date grammar keys untraced-citation and respent-record on the "
+        "second element only. No row compares the parsed original element with the "
+        "claim record or reference entry.",
+        EvidenceDisposition.BEHAVIOR,
+    ),
+    (
         "whether a shortened title resolves against more than one reference entry",
         "A citation shortened before two title keys diverge resolves against both entries because the relation has no ambiguity threshold.",
         EvidenceDisposition.BEHAVIOR,
