@@ -166,6 +166,47 @@ named from what a pass had in front of it is the defect this record was written 
 survived the grilling, the ADR, the review and the merge — caught only by a sweep that read every
 open ticket rather than the ones whose titles looked related.
 
+## Correction, 2026-09-12. Three figures above were counted over files no command loads
+
+Out of [#981](https://github.com/mshamblin5150-code/clinical-skills/issues/981), whose ruling is
+[ADR 0198](0198-a-number-is-certified-only-by-a-record-whose-refutation-pass-ran.md). The figures
+here were counted over `claims*.md`; **every number certifier resolves `claims.md` against the run
+directory by exact name**, so the glob read a wider population than any command does and the whole of
+what it found sits in the remainder. ADR 0198's context section carries the per-file tables.
+
+- **"48 `sourced` carrying no `REFUTATION` field at all"**, above and in ruling 3. In the file the
+  certifiers load the count is **zero**. All 48 are in that run's `claims-pre-refutation.md`, a
+  snapshot taken before the refutation pass whose name appears nowhere in `skills/`, `docs/` or
+  `tools/`.
+- **Ruling 6's "the larger of the two `course-assignment` ledgers was never graded, having no `DATE:`
+  header"**. The dateless 615-record file is `claims-staged-2026-09-03.md`, which nothing loads. That
+  run's `claims.md` carries a `DATE:` header and more records than the snapshot, so the interval in
+  which nothing looked is not the one that sentence describes. **Every other sentence of ruling 6
+  stands**, including its decision not to repair the live records.
+- **The 1,436-record denominator.** It is the glob's, not the certified population's.
+
+**Ruling 3's refusal is upheld and the reason it gave for it is withdrawn.** *"Importing the bar, the
+`as_of` date and most of `record_findings`"* is not what a field-presence test costs: an AST walk finds
+that the required-field loop reads neither, and 24 of the 28 record-level rows are dateless and
+bar-free. What a **row**-based certifier would import is a bar decision the refusal never named —
+under the default source-class vocabulary a `market source` record fires `unknown-source-class`, so
+such a certifier would disbelieve exactly the records a deck is built on. The refusal survives on that
+measurement.
+
+**Ruling 3's narrower clause is superseded.** *"The 48 live records missing a `REFUTATION` are a
+field-completeness defect that the ledger grader already owns, and having a certifier re-derive it is
+the rejected option through a side door"* is replaced by ADR 0198 ruling 1: a record certifies a figure
+only when it carries both the refutation verdict and the differing route it was reached by. Everything
+else in ruling 3 stands, and so do rulings 1, 2, 4 and 5.
+
+**And ruling 3's "No new finding kind" left a false message behind.** A figure traced only to a
+disbelieved record is reported as *absent from `claims.md`* while sitting on that file's page. The kind
+was the right call; ADR 0198 ruling 3 keeps it and fixes the detail.
+
+**The measurement defect itself is filed rather than fixed here**, because *which file is the ledger*
+has a different answer per artifact family: a certifier resolves `claims.md` by name, while a
+case-study run in the live corpus carries two dated ledgers and no `claims.md` at all.
+
 ## Ruling 4. The certifier still believes a disbelieved record's reference key, and the asymmetry is deliberate
 
 `reference_key_set` exists only to **recognize** narrative citations: `read_citations` walks back
