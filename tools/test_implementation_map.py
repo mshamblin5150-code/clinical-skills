@@ -2045,6 +2045,43 @@ class RevisionChainAttribution(unittest.TestCase):
         self.assertNotEqual(summary.unread_remainder, "0")
         self.assertIn("prior high-water revision r0 was not retained", text)
 
+    def test_an_interrupted_write_preserves_the_prior_ledger_and_cleans_the_sibling(self):
+        first_body = revision_body(self.first, "writer-a", "0" * 64)
+        history = imap.RevisionHistory(
+            revisions=(
+                imap.Revision("r1", "2026-09-12T01:00:00Z", first_body),
+            ),
+            older_remainder=False,
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            ledger = Path(temporary) / "breaks.md"
+            prior = imap.render_revision_ledger(
+                high_water="r0",
+                unread_remainder="0",
+                rows=(),
+            )
+            ledger.write_text(prior, encoding="utf-8")
+            real_write_text = Path.write_text
+
+            def interrupt_after_partial_write(path, text, **kwargs):
+                real_write_text(path, text[:20], **kwargs)
+                raise OSError("injected interrupted write")
+
+            with (
+                mock.patch.object(imap, "REVISION_LEDGER", ledger),
+                mock.patch.object(
+                    Path,
+                    "write_text",
+                    autospec=True,
+                    side_effect=interrupt_after_partial_write,
+                ),
+                self.assertRaisesRegex(OSError, "injected interrupted write"),
+            ):
+                imap.harvest_revision_chain(history)
+
+            self.assertEqual(ledger.read_text(encoding="utf-8"), prior)
+            self.assertEqual(tuple(ledger.parent.iterdir()), (ledger,))
+
     def test_a_full_host_window_declares_an_older_remainder(self):
         nodes = [
             {"id": f"r{index}", "editedAt": "2026-09-12T00:00:00Z", "diff": "body"}
