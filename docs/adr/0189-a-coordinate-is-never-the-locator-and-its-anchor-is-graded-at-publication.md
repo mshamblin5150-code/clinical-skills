@@ -106,7 +106,7 @@ true. It converts a silent landing on the wrong line into a search that finds no
 this thread proves the limit — #948's body quotes a sentence with a coordinate, and
 `grep -c "type the reply into the LMS" skills/discussion-reply/SKILL.md` returns **0**, because the
 passage no longer exists in any form. The anchor does not recover it; it stops the reader mistaking a
-plausible neighbouring line for the rule.
+plausible neighboring line for the rule.
 
 **Considered and rejected: ban it, as tracked prose bans it.** ADR 0139 ruling 5 took a zero ratchet
 because the population was already two. Here it is 326, and the ticket's own *what must not come out
@@ -252,7 +252,7 @@ can forget.
 
 ## What the build verifies
 
-- The recognizer and reader are one object each, imported by both the tracked-prose ratchet and the new grader, asserted by identity rather than by equal behaviour.
+- The recognizer and reader are one object each, imported by both the tracked-prose ratchet and the new grader, asserted by identity rather than by equal behavior.
 - The paragraph window and the anchor vocabulary, driven by fixtures in both directions, with a mutant that removes the anchor going red.
 - Refusal at the hook and report at the workflow, each driven through its real entry point rather than through the grader function.
 - The `docs/adr/` cutoff, driven by a throwaway repository whose record is committed on both sides of the cutoff date.
