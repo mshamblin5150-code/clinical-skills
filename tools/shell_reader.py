@@ -55,6 +55,10 @@ def shell_pieces(command: str) -> list[str]:
             if character == "(": substitution_depth += 1
             elif character == ")": substitution_depth -= 1
             index += 1; continue
+        if character == "\\" and index + 1 < len(command):
+            current.extend((character, command[index + 1]))
+            index += 2
+            continue
         if character == "#" and (index == 0 or command[index - 1].isspace() or command[index - 1] in ";|&"):
             while index < len(command) and command[index] not in "\r\n": index += 1
             continue
@@ -77,18 +81,119 @@ def is_command_prefix(tokens: list[str]) -> bool:
     return False
 
 
-def executable_calls(command: str, executable: str) -> Iterator[tuple[list[str], int]]:
-    """Yield quote-aware, command-position invocations of one executable."""
+def _shell_tokens(fragment: str) -> list[str] | None:
+    try:
+        return shlex.split(fragment, posix=True)
+    except ValueError:
+        return None
+
+
+def _source_tokens(fragment: str) -> list[str]:
+    tokens = []
+    for source in source_words(fragment):
+        cooked = _shell_tokens(source)
+        tokens.append(cooked[0] if cooked is not None and len(cooked) == 1 else source)
+    return tokens
+
+
+def _parsed_executable_calls(
+    command: str,
+    executable: str,
+    tokenizer: Callable[[str], list[str] | None] = _shell_tokens,
+) -> Iterator[tuple[str, list[str], int]]:
     for fragment in shell_pieces(command):
         if fragment in SEPARATORS:
             continue
-        try:
-            tokens = shlex.split(fragment, posix=True)
-        except ValueError:
+        tokens = tokenizer(fragment)
+        if tokens is None:
             continue
         for index, token in enumerate(tokens):
             if token == executable and is_command_prefix(tokens[:index]):
-                yield tokens, index
+                yield fragment, tokens, index
+
+
+def executable_calls(command: str, executable: str) -> Iterator[tuple[list[str], int]]:
+    """Yield quote-aware, command-position invocations of one executable."""
+    for _fragment, tokens, index in _parsed_executable_calls(command, executable):
+        yield tokens, index
+
+
+def source_words(fragment: str) -> tuple[str, ...]:
+    """Return shell words as typed, preserving their quote and escape segments."""
+    words: list[str] = []
+    current: list[str] = []
+    quote: str | None = None
+    substitution_depth = 0
+    index = 0
+    while index < len(fragment):
+        character = fragment[index]
+        if quote == "'":
+            current.append(character)
+            if character == "'":
+                quote = None
+            index += 1
+            continue
+        if quote == '"':
+            current.append(character)
+            if character == "\\" and index + 1 < len(fragment):
+                current.append(fragment[index + 1])
+                index += 2
+                continue
+            if character == '"':
+                quote = None
+            index += 1
+            continue
+        if substitution_depth:
+            current.append(character)
+            if character == "\\" and index + 1 < len(fragment):
+                current.append(fragment[index + 1])
+                index += 2
+                continue
+            if fragment.startswith("$(", index):
+                current.append("(")
+                substitution_depth += 1
+                index += 2
+                continue
+            if character == ")":
+                substitution_depth -= 1
+            index += 1
+            continue
+        if character.isspace():
+            if current:
+                words.append("".join(current))
+                current = []
+            index += 1
+            continue
+        if character == "\\" and index + 1 < len(fragment):
+            current.extend((character, fragment[index + 1]))
+            index += 2
+            continue
+        if character in "\"'":
+            quote = character
+            current.append(character)
+            index += 1
+            continue
+        if fragment.startswith("$(", index):
+            current.append("$(")
+            substitution_depth = 1
+            index += 2
+            continue
+        current.append(character)
+        index += 1
+    if current:
+        words.append("".join(current))
+    return tuple(words)
+
+
+def executable_source_calls(
+    command: str, executable: str
+) -> Iterator[tuple[list[str], tuple[str, ...], int]]:
+    """Yield executable calls with shell-cooked tokens and their typed words."""
+    for fragment, tokens, index in _parsed_executable_calls(
+        command, executable, _source_tokens
+    ):
+        sources = source_words(fragment)
+        yield tokens, sources, index
 
 
 def has_executable(command: str, executable: str) -> bool:

@@ -1167,12 +1167,15 @@ non-conforming branch-state block on #745's own sweep, and a dead citation on
 #708's, four publications going out ungraded in that second session alone.
 
 **What it reads is the command as typed rather than the shell's expansion of
-it**, so resolution is reconstructed: assignments made in the same command are
-substituted, including where a variable names only the leading part of a path,
-and a Git Bash `/c/...` path is also tried in its Windows spelling. **A form it
-cannot reconstruct is refused rather than guessed at.** The kinds and their
-remedies are `UNREADABLE_REMEDIES`'s to say, and what a clean run does not
-establish is `NOT_REACHED`'s; neither is listed here.
+it.** An inline body or title is readable only when every segment is
+single-quoted or an outside-quote escaped character, so the hook can reproduce
+what the shell will deliver. Body-file resolution is reconstructed:
+assignments made in the same command are substituted, including where a
+variable names only the leading part of a path, and a Git Bash `/c/...` path is
+also tried in its Windows spelling. **A form it cannot reconstruct is refused
+rather than guessed at.** The kinds and their remedies are
+`UNREADABLE_REMEDIES`'s to say, and what a clean run does not establish is
+`NOT_REACHED`'s; neither is listed here.
 
 **When a full harvest last really ran, and what it found, is what
 `python tools/tracker_scan.py --harvest` records and prints; the bare
