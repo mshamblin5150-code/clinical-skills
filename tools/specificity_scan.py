@@ -50,7 +50,7 @@ from pathlib import Path
 import run_grader
 from run_grader import NOT_GRADED
 import aar_scan
-from worksheet_grammar import ENTRY, FIELD, NOT_FOR_ENTRY, paired_entry
+from worksheet_grammar import ENTRY, NOT_FOR_ENTRY, entry_is_for_entry, paired_entry
 
 EXPECTED_COMPLETION_CHECKS = (aar_scan.EXPECTED_ROW,)
 from icd10_lookup import CATEGORY_LENGTH, describe, normalize, notes_for, open_database
@@ -118,6 +118,11 @@ DECLARED_LIMITS = (
     (
         "values beginning with neither branch keyword",
         "A genuinely different first word is counted as unrecognized and does not fail C5.",
+        run_grader.EvidenceDisposition.BEHAVIOR,
+    ),
+    (
+        "step-4 listing lines matching ENTRY",
+        "The flag walk stops before step 4, but entry coverage does not; a listing line that matches ENTRY therefore inflates the unread remainder.",
         run_grader.EvidenceDisposition.BEHAVIOR,
     ),
 )
@@ -237,25 +242,13 @@ def read_entries(text: str) -> list[WorksheetEntry]:
     """Every code entry, whether or not its required ``SPECIFICITY`` line exists."""
     found = list(ENTRY.finditer(text))
 
-    def header(index: int) -> str:
-        """One entry's lines up to its first field line or the next entry.
-
-        The span rather than the line, because a descriptor that wraps puts
-        ``NOT FOR ENTRY`` on the continuation. Bounded on both sides so the mark
-        cannot be borrowed from the entry below or from prose beneath the code.
-        """
-        start = found[index].start()
-        end = found[index + 1].start() if index + 1 < len(found) else len(text)
-        field = FIELD.search(text, start, end)
-        return text[start : field.start() if field else end]
-
     return [
         WorksheetEntry(
             start=match.start(),
             system=match.group("system"),
             code=match.group("code"),
             descriptor=match.group("descriptor"),
-            for_entry=not NOT_FOR_ENTRY.search(header(index)),
+            for_entry=entry_is_for_entry(text, found, index),
         )
         for index, match in enumerate(found)
     ]

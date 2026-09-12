@@ -60,7 +60,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import run_grader
-from worksheet_grammar import CODE, ENTRY, FIELD, NOT_FOR_ENTRY, paired_entry
+from worksheet_grammar import CODE, ENTRY, entry_is_for_entry, paired_entry
 
 SOURCE = re.compile(r"(?mi)^[ \t]*SOURCE[ \t]*:[ \t]*(.*?)[ \t]*$")
 CONFIDENCE = re.compile(r"(?mi)^[ \t]*CONFIDENCE[ \t]*:[ \t]*(.*?)[ \t]*$")
@@ -93,7 +93,7 @@ OTHER_HEADING = re.compile(r"^[ \t]*(?:-{3,}|#{1,6}[ \t])")
 # listed it correctly. ``icd10-cpt`` step 3 says CPT entries take the same shape as
 # ICD-10 ones, so a filled-anchored procedure owes the same block line.
 LISTING = re.compile(
-    rf"^[ \t]*({CODE})\b[ \t]+(?:--?|[–—])[ \t]+\S"
+    rf"^(?![^\r\n]*\*\*)[ \t]*({CODE})\b[ \t]+(?:--?|[–—])[ \t]+\S"
 )
 
 PEDIATRIC_BAND = re.compile(r"(?i)^Z68\.5")
@@ -229,20 +229,8 @@ def read_worksheet(text: str) -> Worksheet:
     """Parse one worksheet into its marks, listings and pediatric bands."""
     found = list(ENTRY.finditer(text))
 
-    def header(index: int) -> str:
-        """One entry's lines up to its first field line or the next entry.
-
-        The span rather than the line, because a descriptor that wraps puts
-        ``NOT FOR ENTRY`` on the continuation. Bounded on both sides so the mark
-        cannot be borrowed from the entry below or from prose beneath the code.
-        """
-        start = found[index].start()
-        end = found[index + 1].start() if index + 1 < len(found) else len(text)
-        field = FIELD.search(text, start, end)
-        return text[start : field.start() if field else end]
-
     entries = [
-        (match.start(), match.group("code"), not NOT_FOR_ENTRY.search(header(index)))
+        (match.start(), match.group("code"), entry_is_for_entry(text, found, index))
         for index, match in enumerate(found)
     ]
 

@@ -27,6 +27,21 @@ class EntryLines(unittest.TestCase):
 
         self.assertEqual([], list(grammar.ENTRY.finditer(text)))
 
+    def test_not_for_entry_is_line_scoped_inside_the_bounded_entry_header(self):
+        own_line = grammar.ENTRY.search(
+            "ICD-10  J20.9  Acute bronchitis, unspecified   NOT FOR ENTRY\n"
+        )
+        continued = grammar.ENTRY.search(
+            "ICD-10  K27.9  Peptic ulcer, without\n"
+            "               hemorrhage or perforation   NOT FOR ENTRY\n"
+        )
+        assert own_line is not None and continued is not None
+
+        self.assertFalse(grammar.entry_is_for_entry(own_line.group(0), [own_line], 0))
+        self.assertFalse(
+            grammar.entry_is_for_entry(continued.string, [continued], 0)
+        )
+
 
 class DetailPairing(unittest.TestCase):
     def setUp(self):

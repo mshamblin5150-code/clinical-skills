@@ -217,11 +217,7 @@ class TheParserFindsMarkedCodes(unittest.TestCase):
         self.assertEqual(sheet.marked, frozenset())
         self.assertEqual(sheet.orphaned_details, 1)
 
-    def test_a_wrapped_descriptor_still_carries_its_not_for_entry_mark(self):
-        # ``K27.9 Peptic ulcer, site unspecified, unspecified as acute or chronic,
-        # without hemorrhage or perforation`` does not fit a line, so the mark lands
-        # on the continuation. A single-line reading calls it a proposed code and
-        # publishes a differential count four short -- which is what it did.
+    def test_a_wrapped_descriptor_still_carries_its_line_scoped_marker(self):
         wrapped = (
             "ICD-10  K27.9  Peptic ulcer, site unspecified, unspecified as acute or chronic, without\n"
             "               hemorrhage or perforation   NOT FOR ENTRY\n"
@@ -273,6 +269,12 @@ class TheParserReadsTheStepFourBlock(unittest.TestCase):
         )
         sheet = scan.read_worksheet(worksheet(block=block))
         self.assertEqual(sheet.listed, frozenset({"Z68.36"}))
+
+    def test_it_refuses_bold_anywhere_in_the_listing_value(self):
+        sheet = scan.read_worksheet(
+            worksheet(block="Z68.36 - **BMI 36.4** from a filled height")
+        )
+        self.assertEqual(sheet.listed, frozenset())
 
     def test_it_reads_a_cpt_code(self):
         # A CPT code is five digits and matches nothing an ICD-10 pattern accepts.

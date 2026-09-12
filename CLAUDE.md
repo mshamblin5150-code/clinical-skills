@@ -122,7 +122,7 @@ Also not required to use the clinical skills, and deliberately not cited from [A
 
 ### Worksheet grammar
 
-`tools/worksheet_grammar.py` owns the `icd10-cpt` worksheet grammar imported by `anchor_scan` and `specificity_scan`: entry, code, field, and line-scoped `NOT FOR ENTRY` shapes plus the contiguous-indented pairing bound. A recognized detail separated from its nearest entry by a blank or unindented line is an orphaned detail line. Both graders print the orphan count on every run and never gate on it. The shared module has no command line; it therefore has no console-codec call.
+`tools/worksheet_grammar.py` owns the `icd10-cpt` worksheet grammar imported by `anchor_scan` and `specificity_scan`: entry, code, field, and line-scoped `NOT FOR ENTRY` shapes plus entry classification and the contiguous-indented pairing bound. New output puts `NOT FOR ENTRY` on the code's own physical line; classification still searches the bounded entry header so preserved worksheets whose official descriptor wrapped before that line-scoped marker remain readable. A recognized detail separated from its nearest entry by a blank or unindented line is an orphaned detail line. Both graders print the orphan count on every run and never gate on it. The shared module has no command line; it therefore has no console-codec call.
 
 ### Console codec
 

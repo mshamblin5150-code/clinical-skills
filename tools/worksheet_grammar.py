@@ -23,6 +23,22 @@ FIELD = re.compile(
 NOT_FOR_ENTRY = re.compile(r"(?mi)[ \t]NOT FOR ENTRY[ \t]*$")
 
 
+def entry_is_for_entry(
+    text: str, entries: list[re.Match[str]], index: int
+) -> bool:
+    """Whether one entry header lacks a line ending in ``NOT FOR ENTRY``.
+
+    A field or the next entry closes the header. This retains readable historical
+    worksheets whose official descriptor wrapped before the line-scoped marker.
+    """
+
+    start = entries[index].start()
+    end = entries[index + 1].start() if index + 1 < len(entries) else len(text)
+    field = FIELD.search(text, start, end)
+    header = text[start : field.start() if field else end]
+    return NOT_FOR_ENTRY.search(header) is None
+
+
 def detail_belongs_to_entry(text: str, entry: re.Match[str], detail: re.Match[str]) -> bool:
     """Whether ``detail`` is in ``entry``'s contiguous indented body.
 

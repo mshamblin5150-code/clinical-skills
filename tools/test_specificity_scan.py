@@ -49,10 +49,10 @@ class TheDeclaredLimitsObjectOwnsBothProseSurfaces(unittest.TestCase):
                 self.assertEqual(1, surface.count(self.POINTER))
                 self.assertEqual((), bind(scan.DECLARED_LIMITS, surface, mode=NAMING))
 
-    def test_the_partition_is_two_declared_readings_and_six_behaviors(self):
+    def test_the_partition_is_two_declared_readings_and_seven_behaviors(self):
         dispositions = [row[2] for row in scan.DECLARED_LIMITS]
         self.assertEqual(2, dispositions.count(run_grader.EvidenceDisposition.DECLARED_READING))
-        self.assertEqual(6, dispositions.count(run_grader.EvidenceDisposition.BEHAVIOR))
+        self.assertEqual(7, dispositions.count(run_grader.EvidenceDisposition.BEHAVIOR))
         self.assertTrue(all(subject and reason for subject, reason, _ in scan.DECLARED_LIMITS))
 
 
@@ -64,6 +64,7 @@ class EveryBehaviorLimitHasALiveControl(unittest.TestCase):
         "contiguous indented flag pairing": "DeclaredLimitBoundaryControls.test_a_blank_line_orphans_the_flag_instead_of_borrowing_an_entry",
         "NOT FOR ENTRY flag exemption": "TheParserPairsAFlagWithItsDescriptor.test_a_differential_flag_is_exempt_from_both_tests",
         "values beginning with neither branch keyword": "AFlagCarriesSubstanceBeyondItsKeyword.test_n_a_and_an_empty_value_remain_neither_keyword",
+        "step-4 listing lines matching ENTRY": "DeclaredLimitBoundaryControls.test_a_step_four_listing_that_matches_entry_inflates_the_unread_remainder",
     }
 
     def test_each_behavior_subject_names_a_passing_control(self):
@@ -76,6 +77,14 @@ class EveryBehaviorLimitHasALiveControl(unittest.TestCase):
 
 
 class DeclaredLimitBoundaryControls(unittest.TestCase):
+    def test_a_step_four_listing_that_matches_entry_inflates_the_unread_remainder(self):
+        text = (
+            entry("R12", "Heartburn", "complete - R12 has no further axis")
+            + "\n\n--- CODED, ANCHOR WAS FILLED ---\n"
+            + "ICD-10  Z68.36  - BMI 36.4 from a filled height\n"
+        )
+        self.assertEqual((2, 1), scan.entry_flag_coverage(text))
+
     def test_a_stock_phrase_satisfies_the_substance_shape(self):
         flags = scan.read_flags(entry("I10", "Hypertension", "complete - nothing more to add"))
         self.assertEqual([], scan.findings(flags))
@@ -266,11 +275,7 @@ class TheParserPairsAFlagWithItsDescriptor(unittest.TestCase):
         self.assertEqual(flags[0].descriptor, "Heartburn")
         self.assertEqual(flags[0].keyword, "complete")
 
-    def test_a_wrapped_descriptor_keeps_its_not_for_entry_exemption(self):
-        # The mark lands on the continuation line when the official descriptor runs
-        # past one. Reading only the code's own line calls this for-entry and then
-        # would count it in the ``unspecified`` advisory without the exemption,
-        # even though a differential is coded at that level on purpose.
+    def test_a_wrapped_descriptor_keeps_its_line_scoped_exemption(self):
         wrapped = (
             "ICD-10  K27.9  Peptic ulcer, site unspecified, unspecified as acute or chronic,"
             " without\n"
