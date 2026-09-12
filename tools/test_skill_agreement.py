@@ -255,8 +255,8 @@ FIXTURE_PROSE = {"README.md", "assertions.md"}
 #: homoglyph map, ``differential_scan``
 #: [#153](https://github.com/mshamblin5150-code/clinical-skills/issues/153) broke
 #: on prose describing the row it grades, and two files exempted themselves from
-#: ``phi_scan`` by explaining its pragma near the top. The three citations
-#: declared there today are the fourth instance, not an anomaly.
+#: ``phi_scan`` by explaining its pragma near the top. The citations declared
+#: there today are the fourth instance, not an anomaly.
 #:
 #: **No figure is stated for that asymmetry, and a draft of this docstring stated
 #: two.** One counted ``CLAUDE.md``'s own lines, which the very commit writing it
@@ -280,10 +280,10 @@ EXEMPT_MARKER = re.compile(r"<!--\s*unresolved-step-citations:\s*(\d+)\s*-->")
 
 #: How many citations the hatch may hold in the one document that has it. A
 #: ceiling and not a measurement: without one the marker is a wholesale opt-out
-#: and the gate is theater. Deliberately close to what is declared today, so the
-#: next one has to be argued for in a diff rather than typed. The count is not
-#: restated in prose anywhere: it would go stale one short of this ceiling, which
-#: is the one window where nothing here would fire.
+#: and the gate is theater. Deliberately close to what is declared today, so an
+#: exemption past this ceiling has to be argued for in a diff rather than typed.
+#: The count is not restated in prose anywhere: it would go stale one short of
+#: this ceiling, which is the one window where nothing here would fire.
 EXEMPT_CEILING = 4
 
 
@@ -1695,6 +1695,97 @@ class EveryCitedRulingResolvesToADeclaredRuling(unittest.TestCase):
             ruling_marker_ceiling_findings([read(path) for path in graded_files()]),
             [],
         )
+
+
+class ACeilingsProseNamesNoOrdinal(ProseBind, unittest.TestCase):
+    """#932. Both ceiling sentences named the wrong ordinal from the day they were written.
+
+    ``EXEMPT_CEILING`` is ``4`` and the assertion is ``assertLessEqual``, so the
+    first refused exemption is the **fifth**. ``CLAUDE.md`` and this module's own
+    constant comment both said the *fourth*, and both had said it since
+    2026-08-19 -- the declared sum has been 3 and the ceiling 4 for the whole of
+    that time, so neither sentence ever drifted. They were wrong on arrival.
+
+    **The repair is the relationship rather than the corrected ordinal.** ``a
+    fifth`` is ``EXEMPT_CEILING + 1`` spelled as a word, so it regenerates the
+    same defect the day the ceiling moves and nothing fails when it does. *An
+    exemption past the ceiling* is true at any ceiling and any declared count.
+
+    **This is a floor and is declared as one.** It holds that these two
+    sentences do not come back -- by revert, by merge, or by an author restoring
+    what reads like the original. A reworded ordinal claim escapes it entirely,
+    and no detector is available to reach that: over tracked Markdown,
+    ``test_constant_prose_counts.DEFINITE_COUNT`` returns four figures' worth of
+    matches across half the corpus, and it matches neither retired sentence,
+    because both are ordinal claims rather than ``the|those|these`` plus a
+    cardinal. That measurement is ADR 0192's declined option.
+
+    **The module half reads the constant's own comment block and never the whole
+    file**, because the first version read ``SELF`` and failed on the ``RETIRED``
+    tuple three lines below -- ``spelling_scan.py``'s mention-versus-use problem
+    arriving inside the check written for it, on its first run. A test holding a
+    retired phrase in order to refuse it is a mention; the comment above the
+    constant is the use.
+    """
+
+    RETIRED = (
+        "so a fourth has to be argued for in a diff rather than typed",
+        "the next one has to be argued for in a diff rather than typed",
+    )
+
+    @staticmethod
+    def comment_block(source: str, constant: str) -> str:
+        """The contiguous ``#:`` lines immediately above ``constant``."""
+        lines = source.splitlines()
+        index = next(
+            position
+            for position, line in enumerate(lines)
+            if line.startswith(f"{constant} = ")
+        )
+        block: list[str] = []
+        cursor = index - 1
+        while cursor >= 0 and lines[cursor].startswith("#:"):
+            block.append(lines[cursor][2:].strip())
+            cursor -= 1
+        return " ".join(reversed(block))
+
+    def test_the_comment_block_reader_finds_the_comment(self) -> None:
+        block = self.comment_block(read(SELF), "EXEMPT_CEILING")
+        self.assertIn("wholesale opt-out", block)
+        self.assertNotIn("RETIRED", block)
+        # The marker is stripped rather than left for ``normalized`` to swallow.
+        # ``PROSE_MARK`` removes the hash and keeps the colon, so an unstripped
+        # block leaves a stray ": " at every wrap and no needle spanning one can
+        # match. The first version left it, and the mutation that should have
+        # proved the bind live passed against a bind that could not fire.
+        self.assertNotIn(":  ", block)
+
+    def test_neither_ceiling_sentence_returns(self) -> None:
+        haystacks = (
+            ("CLAUDE.md", read(REPO_ROOT / "CLAUDE.md")),
+            ("EXEMPT_CEILING comment", self.comment_block(read(SELF), "EXEMPT_CEILING")),
+        )
+        for phrase in self.RETIRED:
+            for name, haystack in haystacks:
+                with self.subTest(phrase=phrase[:32], document=name):
+                    self.assertProseNotIn(phrase, haystack)
+
+    def test_the_instrument_is_live(self) -> None:
+        """A bind that could not fire would read exactly like one that passed.
+
+        Driven through ``comment_block``, with the phrase **wrapped across two
+        comment lines**, because that is the shape the real haystack has and an
+        inline control does not discriminate it: the inline form passed while
+        the wrapped form could not fire at all.
+        """
+        for phrase in self.RETIRED:
+            head, _, tail = phrase.partition(" has to be ")
+            planted = chr(10).join(
+                (f"#: {head}", f"#: has to be {tail}", "PLANTED = 1")
+            )
+            with self.subTest(phrase=phrase[:32]):
+                with self.assertRaises(AssertionError):
+                    self.assertProseNotIn(phrase, self.comment_block(planted, "PLANTED"))
 
 
 class TheTwoRootDocumentsAreNotOneKind(unittest.TestCase):
