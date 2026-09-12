@@ -67,6 +67,18 @@ That is [#137](https://github.com/mshamblin5150-code/clinical-skills/issues/137)
 Not one vocabulary, and not one object. The **rule** is shared and written into both modules; the **pattern** is not.
 
 - `discussion_reply_scan.REFERENCE_LABEL` accepts `**References**` and rejects plain `References` and `## References`. Nothing renders a reply, so the artifact's spelling is the board's spelling; `*References*` is italic and is rejected; trailing whitespace stays accepted, as today.
+*(Corrected in place 2026-09-12, on ADR 0016's terms, by
+[#948](https://github.com/mshamblin5150-code/clinical-skills/issues/948) and
+[ADR 0190](0190-the-canvas-editor-surface-is-one-shared-route-and-the-reply-prefers-the-raw-editor.md)
+ruling 8. **"Nothing renders a reply" is spent** — the reply renders through `tools/post_html.py`,
+which emits byte-identical `<p><strong>References</strong></p>` for `**References**` and for
+`## References`. So this ruling's own criterion, applied to the current tree, would accept the second
+spelling, and the grader rejects it. **No pattern moves.** The rejection's live ground is
+`skills/discussion-reply/SKILL.md:204`, **"Do not add a heading"** — `## References` is a heading in
+the source whatever it renders as, so the grader enforces that instruction rather than a rendering
+fact. The refusal of *accept both* above is untouched: it is about plain `References`, which still
+arrives unbolded.)*
+
 - `discussion_post_scan.REFERENCE_HEADING` is **unchanged**. `## References` is correct on two independent grounds — it is what renders bold, and it is the only form `reference_scan.py` can read.
 
 **The only pattern that changes in this ruling is `tools/discussion_reply_scan.py:53`.**

@@ -40,6 +40,20 @@ _Avoid_: main post, discussion post, original post
 A short conversational answer to one named classmate's initial post. A separate graded artifact with its own **House floor**, and never a second initial post. *Short* here is a contrast against the **Initial post** and the peer critique, never an instruction: the length is whatever it takes to leave the point unambiguous.
 _Avoid_: response, comment, peer review
 
+**Composer**:
+The editor a contribution is written into before it is posted. A **Board** carries two and its LMS
+labels both of them *Reply*: the topic-level one, which composes an **Initial post**, and the
+threaded one nested beneath a single entry, which composes a **Reply**. The pair is the reason a
+reading taken in one is not evidence about the other, so a record of one names which.
+_Avoid_: reply box, box, editor, text entry
+
+**Load route**:
+The mechanism that carries a finished contribution into a **Composer**. Ordered rather than
+interchangeable, and selected before the contribution is loaded rather than after a bad reading.
+Distinct from the **Submission** it carries, and from the **Posted reading** taken afterwards, which
+is the only account of what a **Reply** will be marked on.
+_Avoid_: paste, upload, paste route
+
 **Graded artifact**:
 One thing a course marks on its own — a board, a case study, a quiz. What identifies it is the artifact, not the module it sits in: a module normally holds several, so a module number names where something is rather than what it is.
 _Avoid_: assignment, deliverable, submission

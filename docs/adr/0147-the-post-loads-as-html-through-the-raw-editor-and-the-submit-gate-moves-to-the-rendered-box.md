@@ -221,6 +221,16 @@ fifteen thousand characters of clipboard work is not.
 upload shows a filename; neither loads fifteen kilobytes of markup into a box where a silent drop is
 invisible.
 
+*(Corrected in place 2026-09-12, on [ADR 0016](0016-an-adr-number-is-claimed-when-it-is-handed-out-and-a-ratified-records-facts-may-be-corrected-in-place.md)'s
+terms, by [#948](https://github.com/mshamblin5150-code/clinical-skills/issues/948) and
+[ADR 0190](0190-the-canvas-editor-surface-is-one-shared-route-and-the-reply-prefers-the-raw-editor.md)
+ruling 2. `discussion-reply` no longer types, so **and typed** describes the route at the time of
+ruling and not the current one. The exemption stands on length alone. ADR 0190 ruling 2 put the
+second gate to the clinician on that changed premise and he declined it, ruling instead that the
+reply's pre-submit readback becomes a graded comparison of the editor's serialized HTML against the
+built `.html`, with a non-clean comparison returning to him. The residue — that no reader who is not
+the author sees the loaded box before submit — is declared in that record rather than closed.)*
+
 ## Ruling 7 — the fallback is declared at gate 1, the route never switches after a bad reading, and there is no third rung
 
 The raw editor is an **instance and not a Canvas guarantee** — one board, one date. Its absence is
@@ -286,6 +296,14 @@ skill now builds its submission with `tools/post_html.py` and loads it through t
 interface. That interface is not the raw-editor toggle this ruling filed a measurement for, so
 [#948](https://github.com/mshamblin5150-code/clinical-skills/issues/948)'s toggle question stays
 open. The ruling's scope for #817 is unchanged.)*
+
+*(Corrected in place 2026-09-12, same terms, by #948. **The filed measurement is taken and the answer
+is yes.** A threaded reply composer on Bluefield NUR 5144 M2 Discussion carries the same
+`data-btn-id="rce-edit-btn"` toggle as the topic-level composer, and toggling it exposes a plain
+`<textarea>` with no CodeMirror — Canvas's raw editor. This ruling's *"a skill with no renderer and
+no output artifact"* is also spent on its first limb: the reply has rendered through
+`tools/post_html.py` since #1039. It has no output artifact still, and ADR 0190 ruling 6 keeps it
+that way. Measurement, discriminator and limits are in ADR 0190.)*
 
 **One correction to `discussion-post` about its sibling lands in this ticket's diff**, because it is
 false in the file this change is already editing. `skills/discussion-post/SKILL.md:253-254` claims
