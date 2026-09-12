@@ -50,13 +50,28 @@ class TheCourseAssignmentWorkflow(unittest.TestCase):
                 self.assertIn(f"`{row}`", self.skill)
 
     def test_the_commands_and_render_retention_are_explicit(self):
-        for command in ("research_ledger.py", "deck_scan.py", "deck_render.py", "render_scan.py"):
+        for command in (
+            "research_ledger.py",
+            "deck_scan.py",
+            "deck_render.py",
+            "render_scan.py",
+            "post_html.py",
+        ):
             self.assertIn(command, self.skill)
         self.assertIn("one page-faithful PDF", self.skill)
         self.assertIn("one 120-dpi PNG per slide", self.skill)
         self.assertIn("only the last pass", self.skill)
         self.assertIn("clinician-supplied PDF", self.skill)
         self.assertIn("explicit go-ahead", self.skill)
+
+    def test_the_live_submission_type_selects_one_carrier_before_the_gate(self):
+        self.assertIn("SUBMISSION-TYPE: file-upload | canvas-composer", self.skill)
+        self.assertIn("Branch on the signed `SUBMISSION-TYPE`", self.skill)
+        self.assertIn("For `file-upload`, the carrier is the finished `.pptx`", self.skill)
+        self.assertIn("For `canvas-composer`, write the exact deck-accompanying text", self.skill)
+        self.assertIn("submission-readback.html", self.skill)
+        self.assertIn("This is the existing submission gate", self.skill)
+        self.assertIn("do not switch routes or retry the load", self.skill)
 
     def test_declared_limits_are_pointed_to_without_a_second_copy(self):
         self.assertIn("deck_scan.DECLARED_LIMITS", self.skill)

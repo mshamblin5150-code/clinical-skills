@@ -366,7 +366,7 @@ class EachSkillStatesTheLabelItsPipelineAccepts(unittest.TestCase):
         self.assertIn("<p><strong>References</strong></p>", html_text)
 
 
-class TheCanvasPasteMeasurement(unittest.TestCase):
+class TheCanvasComposerRoute(unittest.TestCase):
     SHEET = ROOT / "skills" / "_shared" / "reference" / "canvas-editor.md"
     RECORD = ROOT / "skills" / "_shared" / "reference" / "canvas-editor-calibration.json"
 

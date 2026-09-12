@@ -28,6 +28,9 @@ scratch/runs/<course>-<module>-course-assignment/
     claims.md
     adversarial.md
     rendered.md
+    submission.md
+    submission.html
+    submission-readback.html
     render/pass-N/
 ```
 
@@ -239,19 +242,32 @@ the report counts them without grading their absence.
 
 ## 6. Approve, submit, and reread
 
-When the live page requires authored text to enter a Canvas Composer, read
-[canvas-editor.md](../_shared/reference/canvas-editor.md) and select its first supported **Load
-route**; a deck-only file upload does not trigger that sheet. Show the clinician the finished deck,
-notes, adversarial report, grader counts, final rendered slides, submission type, and selected route
-with its cost. Wait for the explicit go-ahead. Upload the `.pptx`, inspect the LMS submission page before
-committing the action, submit, and reread the posted artifact and timestamp. Record the submission
-URL, posted time, and whether the uploaded file matches in the private run directory.
+Branch on the signed `SUBMISSION-TYPE` before preparing the LMS carrier:
+
+- For `file-upload`, the carrier is the finished `.pptx`; the shared Canvas sheet does not trigger.
+- For `canvas-composer`, write the exact deck-accompanying text to `submission.md`, render it to
+  `submission.html` with `python tools/post_html.py <submission.md> <submission.html>`, read
+  [canvas-editor.md](../_shared/reference/canvas-editor.md), and select its first supported **Load
+  route** before loading. A Composer-only prose assignment is not the supported deck artifact and
+  stops this skill.
+
+Show the clinician the finished deck, notes, adversarial report, grader counts, final rendered
+slides, submission type, and the selected carrier. For a Canvas Composer, also show the selected
+route and its cost. This is the existing submission gate; wait for the explicit go-ahead once.
+
+For `file-upload`, upload the `.pptx` and inspect the LMS submission page before committing the
+action. For `canvas-composer`, load `submission.html` through the declared route, attach the `.pptx`
+when the live assignment requires it, and serialize the Composer HTML to
+`submission-readback.html`. Compare the built and serialized HTML as the shared sheet requires. A
+non-clean comparison stops and returns to the clinician; do not switch routes or retry the load.
+Then submit, reread the posted artifact and timestamp, and record the submission URL, posted time,
+and whether the submitted carrier and deck match in the private run directory.
 
 Invoke `/AAR` with the output deck stem as the submission key. Its completion report must say
 `the after-action review: clean`. Completion requires clean final
 ledger, deck, and render scans; a completed visual comparison; the clinician's submission approval;
 the posted reread; and the after-action review. Keep the signed bar, snapshots, claims,
-adversarial result, and retained render passes together under the run directory. Remove every
+adversarial result, Composer files when present, and retained render passes together under the run directory. Remove every
 temporary per-context path; if cleanup fails, report the exact remaining path.
 
 After `/AAR` is clean, run the completion grader with that same deck stem:

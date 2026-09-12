@@ -37,15 +37,16 @@ the load on its own.
 
 ## Read back the loaded contribution
 
-Before submission, read the Composer's serialized HTML: the raw textarea value while the raw
-editor is active, or `getContent` from the identified TinyMCE instance on the content-interface
-and typing routes. Compare it with the built HTML by paragraph text and by the ordered anchor
-destinations and anchor count. Attribute order, insignificant whitespace, and other serialization
-differences do not make the readback diverge.
+Before posting, read the Composer's serialized HTML: the raw textarea value while the raw editor is
+active; `getContent` from the identified TinyMCE instance on the content-interface route; or the
+identified rich-editor body's serialized `innerHTML` on the typing route when `getContent` is
+unavailable. Compare it with the built HTML by paragraph and other visible block text, and by the
+ordered anchor destinations and anchor count. Attribute order, insignificant whitespace, and other
+serialization differences do not make the readback diverge.
 
 The calling skill owns where that serialized HTML is retained and which independent check grades
-it. A clean pre-submission readback establishes neither that the correct Composer was chosen nor
-that Canvas preserved the same content after submission; the posted reading remains the account
+it. A clean pre-posting readback establishes neither that the correct Composer was chosen nor that
+Canvas preserved the same content after posting; the posted reading remains the account
 of the board state.
 
 The dated observations behind the surface discriminator, route, and known limits are in
