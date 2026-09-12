@@ -63,13 +63,9 @@ name, or full name when first names collide: `response-maren.md` or
 `response-maren-quill.md`. Classmate posts are manufactured teaching material and get no PHI
 detection layer, count, or report. They remain gitignored working material.
 
-Parallel readers or researchers each receive a new run-unique private path. They return findings
-to the orchestrating context and never append to `board-<date>.md`, `claims.md`, `reread.md`, or a
-reply file. The orchestrator is the sole writer of those artifacts, including `voice-status.md`.
-The canonical
-`scratch/runs/<run-key>/` directory is the orchestrator-owned provenance record, not a writer's
-private path. Apply standing rule 6's independent-checker and cleanup sequence to the temporary
-per-agent paths.
+For this skill, the canonical artifacts governed by [standing rule 6](../../AGENTS.md) are
+`board-<date>.md`, `claims.md`, `reread.md`, each reply file, and `voice-status.md`. They live in
+`scratch/runs/<run-key>/`; each worker's temporary path is separate and run-unique.
 
 ## 1. Read and rank the whole board
 
@@ -105,20 +101,21 @@ verification. Give it a new `RESTATEMENT`, `REFUTATION`, and `SECOND-ROUTE`; it 
 reply against reply and never compares a reply file with `post.md`, so a course-required initial-post
 source does not become unavailable to every reply.
 
-Create `claims.md` with a `DATE:` header and one `## CLAIM:` heading per claim before research
-begins. Start the heading with the response filename's target slug, for example
+This **Fan-out brief** applies [standing rule 6](../../AGENTS.md). Create `claims.md` with a `DATE:`
+header and one prewritten claim heading per claim. Start each heading with the response filename's
+target slug, for example
 `## CLAIM: [REPLY: maren] The combined program reported a 12% improvement.` This is the join that
-keeps the same number in another reply's record from tracing the wrong assertion. Fan out one
-research agent per claim. Each returns a reputable source from one of
+keeps the same number in another reply's record from tracing the wrong assertion. Each research
+worker takes one claim and returns a reputable source from one of
 four classes, `society guideline`, `peer-reviewed`, `government`, or `tertiary reference`, plus a
 full APA 7 reference, a restatement in the source's own terms, the URL or DOI actually opened and
 the read date, the page's stated year and where it appears, and the source's stated expiry or
-`none stated`. The orchestrator alone writes the records.
+`none stated`.
 
-Every research and refutation brief first reads the rules in
+The refutation leg of this **Fan-out brief** applies [standing rule 6](../../AGENTS.md) and first
+reads the rules in
 [sourcing.md](../_shared/reference/sourcing.md) and applies them to every returned claim or negative.
-Then send every sourced record to a different agent briefed to refute it. The second agent tries to
-prove the reference, locator, year, bibliographic details, or restatement wrong and returns
+It tries to prove the reference, locator, year, bibliographic details, or restatement wrong and returns
 `stands`, `refuted`, `paywalled`, or `unreadable` with a substantive reason. A refuted record is repaired or made
 honestly unsourced before drafting; it is never cited. The refuter also returns
 `SECOND-ROUTE: <research route> -> <refutation route>` with substantive halves that differ after
@@ -158,7 +155,8 @@ years is the target, within five is ordinarily expected, and an older source may
 nothing newer exists and the record says what was searched. The research and refutation agents
 open the sources.
 
-After all records and refutations are gathered, a fresh non-authoring context runs:
+After all records and refutations are gathered, this **Grader handoff** under
+[standing rule 6](../../AGENTS.md) runs:
 
 ```bash
 python tools/research_ledger.py scratch/runs/<run-key>/claims.md
@@ -224,7 +222,8 @@ a retired `AMPLIFICATION` marker as a pre-#496 marker that is not graded.
 
 ## 4. Independently grade, show, and post reply one
 
-After the drafting context returns the response, a fresh non-authoring context runs:
+After the drafting context returns the response, this **Grader handoff** under
+[standing rule 6](../../AGENTS.md) runs:
 
 ```bash
 python tools/discussion_reply_scan.py scratch/runs/<run-key>
@@ -245,7 +244,7 @@ material and must not be pasted.
 Exit 0 means every scanned reply and posted reading passes, 1 means a finding, and 2 means the run
 was not completely scannable. Before a new reply is posted, its one expected finding is
 `missing-posted-reading`; every other row must be clean. Fix any other finding through the original
-drafting context, preserve the first checker result, and have another fresh context grade the
+drafting context, preserve the first checker result, and repeat the declared grading surface for the
 correction. After posting, the board-side record below must clear that final finding.
 
 The `editor-readback` row has no candidate before a posting HTML file exists. Once

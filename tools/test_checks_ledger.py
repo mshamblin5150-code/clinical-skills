@@ -1176,10 +1176,6 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
         self.assertTrue(ledger_lines)
         self.assertFalse(any("output/" in line for line in ledger_lines))
 
-    def test_the_skill_keeps_one_writer_on_the_checks_file(self):
-        self.assertIn("They return their record; they do not write it", self.skill)
-        self.assertIn("Write the check headings down before spawning anything", self.skill)
-
     def test_every_worked_example_in_the_skill_passes_the_scanner(self):
         """**The one that catches drift a substring cannot see.** A documented
         record shape the grader would refuse teaches the next run to write a

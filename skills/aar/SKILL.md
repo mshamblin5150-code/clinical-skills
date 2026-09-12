@@ -21,10 +21,11 @@ Pass `--transcript <path>` only when the harness exposed the exact current trans
 
 The extract keeps every human turn, assistant text block, subagent result, and tool name and status since the prior watermark. It drops ordinary tool-result bodies. Do not delete, reorder, or narrow its entries. The population is not the orchestrator's to edit. Read the generated `ENTRY-KINDS` legend in the extract; `aar_scan.ENTRY_KINDS` owns that vocabulary and this skill copies none of it.
 
-## 2. Classify in a fresh adversarial context
+## 2. Classify adversarially
 
-The classifier first reads and applies [sourcing.md](../_shared/reference/sourcing.md).
-Give a fresh non-authoring context only the private extract and the memory index. The classifier returns:
+This **Second reader** under [standing rule 6](../../AGENTS.md) first reads and applies
+[sourcing.md](../_shared/reference/sourcing.md), receives only the private extract and the memory
+index, and returns:
 
 - every **correction**: a claim asserted, later contradicted, with the contradiction standing;
 - the corrector: `clinician`, `agent-or-tool`, or `orchestrator`;

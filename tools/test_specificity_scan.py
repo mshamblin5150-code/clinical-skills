@@ -968,9 +968,10 @@ class TheSkillSaysWhatThisChecks(ProseBind, unittest.TestCase):
     def test_the_skill_names_this_scanner(self):
         self.assertIn("tools/specificity_scan.py", self.skill)
 
-    def test_the_skill_requires_a_fresh_reader_who_cannot_see_the_worksheet(self):
-        self.assertIn("fresh reader", self.skill)
-        self.assertIn("must not see the worksheet", self.skill)
+    def test_the_skill_requires_a_second_reader_who_cannot_see_the_worksheet(self):
+        self.assertIn("**Second reader** under [standing rule 6](../../AGENTS.md)", self.skill)
+        flat = " ".join(self.skill.replace("**", "").split()).lower()
+        self.assertIn("must not see the worksheet", flat)
 
     def test_the_skill_documents_both_second_read_commands(self):
         self.assertIn("--brief", self.skill)

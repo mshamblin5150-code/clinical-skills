@@ -968,7 +968,7 @@ class TheSkillSaysWhatThisCannotDo(unittest.TestCase):
         """
         opens = "#### The house style is a command now"
         section = self.step[self.step.index(opens) :]
-        section = section[: section.index("\n**One reader per row")]
+        section = section[: section.index("\n**One record per check**")]
         self.assertIn("python tools/case_study_scan.py", section)
         self.assertIn("**that output is PHI**: read it, do not paste it", re.sub(r"\s+", " ", section))
 

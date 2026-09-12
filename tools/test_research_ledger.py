@@ -34,6 +34,7 @@ from typing import get_args, get_type_hints
 from unittest import mock
 
 import checks_ledger
+import briefing_surface
 import docx_write
 import reference_scan
 import research_ledger as ledger
@@ -1659,18 +1660,9 @@ class TheSourcingRulesDeclareWhatTheGraderCannotSee(unittest.TestCase):
 
 
 class EveryRuledFanOutReadsTheSharedSourcingRules(unittest.TestCase):
-    """ADR 0149's one-home rule and its named briefing surfaces."""
+    """ADR 0149's one-home rule over the derived briefing-skill partition."""
 
     LINK = "[sourcing.md](../_shared/reference/sourcing.md)"
-    SURFACES = {
-        "discussion-post": 3,
-        "discussion-reply": 1,
-        "course-assignment": 2,
-        "practicum-case-study": 2,
-        "icd10-cpt": 1,
-        "peer-critique": 1,
-        "aar": 1,
-    }
     LOCAL_OMIT_RULE = re.compile(
         r"omit\w* (?:(?:the other|every) source fields?|the other fields)"
     )
@@ -1722,11 +1714,12 @@ class EveryRuledFanOutReadsTheSharedSourcingRules(unittest.TestCase):
             with self.subTest(phrase=phrase):
                 self.assertIsNotNone(self.LOCAL_OMIT_RULE.search(phrase))
 
-    def test_each_named_briefing_surface_points_to_that_file(self):
-        for skill, occurrences in self.SURFACES.items():
-            with self.subTest(skill=skill):
-                text = (REPO_ROOT / "skills" / skill / "SKILL.md").read_text(encoding="utf-8")
-                self.assertEqual(text.count(self.LINK), occurrences)
+    def test_each_derived_briefing_skill_points_to_that_file(self):
+        paths = briefing_surface.briefed_skill_paths(REPO_ROOT / "skills")
+        self.assertTrue(paths)
+        for path in paths:
+            with self.subTest(skill=path.parent.name):
+                self.assertIn(self.LINK, path.read_text(encoding="utf-8"))
 
     def test_each_published_record_shape_names_the_unreadable_vocabulary_and_pair(self):
         for skill in (
@@ -2083,12 +2076,6 @@ class TheSkillSaysWhatThisChecks(ProseBind, unittest.TestCase):
             with self.subTest(refutation=name):
                 self.assertIn(f"`{name}`", self.skill)
 
-    def test_the_skill_sends_a_different_agent_to_refute(self):
-        """The independence is the whole of #231's second half and no row here
-        can see it, so the instruction has to carry it."""
-        self.assertIn("not the one that wrote the record", self.skill)
-        self.assertIn("try to prove it wrong", self.skill)
-
     def test_the_skill_says_the_refutation_pass_needs_no_network_in_tools(self):
         """#231's decision 1: nothing in ``tools/`` touches the network, and the
         reason is that the agent is already on the page."""
@@ -2100,17 +2087,6 @@ class TheSkillSaysWhatThisChecks(ProseBind, unittest.TestCase):
         self.assertIn("stands where nothing newer exists", self.skill)
         self.assertProseNotIn("five years the outside limit", self.skill)
         self.assertProseNotIn("written as historical or dropped", self.skill)
-
-    def test_the_skill_keeps_one_writer_on_the_ledger(self):
-        """#206. Two writers on one file lose records, and the grader has no
-        expected count to notice a short ledger with."""
-        self.assertIn("They return their record; they do not write it", self.skill)
-        self.assertIn("Write the claim list down before spawning anything", self.skill)
-
-    def test_the_skill_writes_down_the_fallback_for_a_harness_without_subagents(self):
-        """#214's open question 1, and #218 takes the same answer."""
-        self.assertIn("no subagent tool", self.skill)
-        self.assertIn("one at a time in the main\ncontext", self.skill)
 
     def _flat(self) -> str:
         """The skill with its hard wraps collapsed.

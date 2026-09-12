@@ -38,8 +38,8 @@ class TheCourseAssignmentWorkflow(unittest.TestCase):
 
     def test_research_refutation_and_adversarial_reads_have_distinct_subjects(self):
         self.assertIn("Research produces claim records", self.skill)
-        self.assertIn("Refutation attacks each record that exists", self.skill)
-        self.assertIn("adversarial pass attacks the rendered artifact for records that do not exist", self.skill)
+        self.assertIn("refutation leg attacks the reference", self.skill)
+        self.assertIn("attacks the rendered artifact for records that do not exist", self.skill)
         self.assertIn("keyed to slide number", self.skill)
 
     def test_the_population_split_and_every_grader_row_are_written_out(self):

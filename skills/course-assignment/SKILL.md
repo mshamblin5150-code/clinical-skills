@@ -101,19 +101,19 @@ STATED-EXPIRY: none stated | <ISO date> - <where stated> | <ISO date>, supersede
 
 Apply the shared sourcing rules below to `unsourced` and `unreadable` records. `INSTRUMENTS` is
 also required for `REFUTATION: unreadable` and forbidden elsewhere. Research produces claim records.
-Every research and refutation brief first reads and applies
+This **Fan-out brief** applies [standing rule 6](../../AGENTS.md). Every research and refutation
+brief first reads and applies
 [sourcing.md](../_shared/reference/sourcing.md).
-Refutation attacks each record that exists in a different context and
-tries to disprove the reference, locator, year, bibliographic details, and restatement. It returns
+Each refutation leg attacks the reference, locator, year, bibliographic details, and restatement. It returns
 `stands`, `refuted`, `paywalled`, or `unreadable` with a reason and a genuinely different second route. The
-orchestrator alone writes the records.
+route requirement is a local narrowing.
 
 If the clinician's profile says an available research agent has an authenticated route, that agent
 must try it before giving up on retrieval. An authenticated-route failure is evidence, not a
 substitution for the required record; when no source can be recovered, preserve `STATUS: unsourced`
 and remove the unsupported claim from the deck.
 
-After those two passes, a fresh checker runs:
+After those two passes, this **Grader handoff** under [standing rule 6](../../AGENTS.md) runs:
 
 ```bash
 python tools/research_ledger.py scratch/runs/<course>-<module>-course-assignment/claims.md
@@ -139,16 +139,16 @@ slide claims the actual site. This is a reader-owned convention, not something t
 
 The adversarial investor reader first reads and applies
 [sourcing.md](../_shared/reference/sourcing.md). After the deck exists, give only the rendered slide images, the speaker-note text, and `claims.md`
-to a fresh adversarial context. The adversarial pass attacks the rendered artifact for records that do not exist.
+to this **Second reader** under [standing rule 6](../../AGENTS.md). It attacks the rendered artifact for records that do not exist.
 It reads as the investor named by the assignment and returns every unsupported
-assertion keyed to slide number. The orchestrator writes the result to `adversarial.md`. Research,
+assertion keyed to slide number for `adversarial.md`. Research,
 Refutation, and this adversarial read have three distinct subjects, and each may fail while the
 other two pass. Add records for supported claims or remove the assertions; never convert a miss
 into an unrecorded hedge.
 
 ## 4. Grade the PowerPoint package
 
-A fresh non-authoring context runs:
+This **Grader handoff** under [standing rule 6](../../AGENTS.md) runs:
 
 ```bash
 python tools/deck_scan.py scratch/runs/<course>-<module>-course-assignment --pptx output/course-assignments/<course>-<module>-course-assignment-<date>.pptx
@@ -215,14 +215,14 @@ and the install did not happen. Only in that case may its exit 2 be accepted; re
 not mechanically verified and that the retained-render and coverage rows were walked by eye. A
 finding still stops the run.
 
-A vision-capable, non-authoring context opens every PNG in the final pass and compares it with the
+This vision-capable **Second reader** under [standing rule 6](../../AGENTS.md) opens every PNG in
+the final pass and compares it with the
 deck and signed bar. It reports clipping, overflow, overlap, unreadable contrast, missing or
 misplaced text, broken images, and any generated site image or conceptual image lacking its
-caption. A package scan cannot substitute for this visual read. Preserve the original finding,
-repair through the authoring context, render into the next pass, and give the correction to a new
-non-authoring checker.
+caption. A package scan cannot substitute for this visual read. Preserve the original finding and
+repair through the authoring context; the correction takes the same Second reader surface.
 
-The orchestrator writes each non-authoring visual reader's result to `rendered.md`, one record per
+The orchestrator writes each visual reader's result to `rendered.md`, one record per
 read pass:
 
 ```text

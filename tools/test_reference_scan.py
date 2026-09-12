@@ -1541,11 +1541,6 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
         defect is fixed by the run, not reported to him."""
         self.assertIn("its findings are not handed back", self.skill)
 
-    def test_the_skill_writes_down_the_fallback_for_a_harness_without_subagents(self):
-        """#218's second decision, taking #214's answer rather than inventing a
-        second one."""
-        self.assertIn("no subagent tool", self.skill)
-
     def test_the_post_draft_checks_write_their_headings_first(self):
         """#206's lost-record shape and the ledger's answer to it: a heading whose
         verdict never arrived is visible, and a check that never ran is not."""
