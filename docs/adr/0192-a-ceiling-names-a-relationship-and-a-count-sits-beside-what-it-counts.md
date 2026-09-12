@@ -105,7 +105,7 @@ with nothing joining them. **Deleting them makes `EXEMPT_CEILING`'s comment true
 ADR 0059 ruling 3's quotation of it needed no correction; the exemplar that ruling cites now holds.
 
 **Adjacency is not the same as being immune.** Somebody can still change a value and not its
-neighbouring comment. What adjacency buys is that the two sit in one hunk, so the omission is in
+neighboring comment. What adjacency buys is that the two sit in one hunk, so the omission is in
 front of whoever writes and whoever reviews the diff — which is the whole of what *argued for in a
 diff rather than typed* ever meant.
 
