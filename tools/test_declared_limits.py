@@ -67,7 +67,6 @@ NO_LIMITS = {
     "repo_root": "checkout-root resolution helpers with no population assertion",
     "scratch_work": "ticket-directory path and lifecycle helpers with no population assertion",
     "shell_reader": "a subprocess text adapter with no independent completeness claim",
-    "skills_mirror": "a mirror command whose orphan output path is separately classified",
     "spelling_scan": "an advisory spelling matcher whose vocabulary is its explicit boundary",
     "split_census": "a diagnostic census whose display limit is separately classified",
     "subject_ledger": "a ledger validator whose accepted row grammar defines its reach",

@@ -1598,7 +1598,7 @@ cannot hold a different answer than the tracked tree does. It is gitignored, so 
 the mirror itself.
 
 ```bash
-python tools/skills_mirror.py            # report; exits 1 if anything is not linked
+python tools/skills_mirror.py            # report; exits 1 if unlinked, 2 if no skills were found
 python tools/skills_mirror.py --repair   # relink everything
 ```
 
@@ -1620,6 +1620,9 @@ Mirror-only files are moved, never deleted, to
 `.claude/skills-orphaned/<name>/<UTC stamp>/` before the entry is relinked. Both locations are
 per-checkout and gitignored. The settings test proves registration only; silence still means the
 hook did not fire rather than that another check established the mirror was clean. [#820](https://github.com/mshamblin5150-code/clinical-skills/issues/820).
+
+The command's complete boundary belongs to `skills_mirror.NOT_REACHED`; this section points at that
+object and copies none of its rows.
 
 **`copy-stale` says which kind of stale, and that is [#198](https://github.com/mshamblin5150-code/clinical-skills/issues/198) — ruled by the clinician on 2026-08-19.** The comparison is byte-exact, so a mirror copy made before anything rewrote a skill file with `\n` reads `copy-stale` on carriage returns and nothing else. **That is the one word this repo cites as evidence a retired rule has already been followed** — [#93](https://github.com/mshamblin5150-code/clinical-skills/issues/93)'s first comment reasons from an instance in a worktree that is gone, so it can no longer be told apart from three carriage returns, which is the cost rather than the false alarm. **Normalizing the comparison was option 1 and was declined**: a copy that differs on disk is still a copy, and a byte check is the thing that cannot be argued with. So the check is untouched and the report names the reason — `content` or `line endings only` — with **both counts on every run**, whether or not each fired, on `checks_ledger.py`'s precedent.
 
