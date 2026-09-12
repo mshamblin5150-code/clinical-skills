@@ -41,6 +41,8 @@ scratch/runs/<course>-<module>-discussion/
     claims.md
     post.md
     response-<name>.md
+    response-<name>.html
+    response-<name>-readback.html
     reread.md
     voice-status.md
 ```
@@ -241,10 +243,14 @@ markers. Reference entries must be separated by blank lines and copied from the 
 material and must not be pasted.
 
 Exit 0 means every scanned reply and posted reading passes, 1 means a finding, and 2 means the run
-was not completely scannable. Before a new reply is submitted, its one expected finding is
+was not completely scannable. Before a new reply is posted, its one expected finding is
 `missing-posted-reading`; every other row must be clean. Fix any other finding through the original
 drafting context, preserve the first checker result, and have another fresh context grade the
-correction. After submission, the board-side record below must clear that final finding.
+correction. After posting, the board-side record below must clear that final finding.
+
+The `editor-readback` row has no candidate before a posting HTML file exists. Once
+`response-<name>.html` exists, the row requires its `response-<name>-readback.html` pair and grades
+the two files' paragraph text, anchor destinations, and anchor count.
 
 Walk `discussion_reply_scan.NOT_REACHED` after a clean scan; it is the single inventory of what the
 command cannot decide. A clean scan grades only the mechanically visible set and is not a checked
@@ -253,9 +259,12 @@ voice or a checked board. The clinician answers the substance questions from the
 Show the clean reply and an invoked-source table to the clinician. For every retained invoked
 source, the table shows the invoked source, its domain, and the property it spends. Ask separately whether the substance is
 right and whether each invoked source sounds like the clinician; this is one approval with two named
-questions, not two gates. When `voice-status.md` exists, show its unmodeled-voice declaration
-alongside the reply. Only an explicit go-ahead for this reply authorizes posting.
-Build the submission HTML from the approved response:
+questions, not two gates. Before showing that gate, inspect the threaded Canvas Composer and read
+[canvas-editor.md](../_shared/reference/canvas-editor.md). Choose its first supported **Load route**
+before loading, and tell the clinician which route will be used and what that route costs as part of
+the same approval. When `voice-status.md` exists, show its unmodeled-voice declaration alongside the
+reply. Only an explicit go-ahead for this reply authorizes posting.
+Build the posting HTML from the approved response:
 
 ```bash
 python tools/post_html.py scratch/runs/<run-key>/response-<name>.md scratch/runs/<run-key>/response-<name>.html
@@ -263,13 +272,12 @@ python tools/post_html.py scratch/runs/<run-key>/response-<name>.md scratch/runs
 
 The builder keeps the authored paragraphs, renders the bold `References` label, and writes every URL
 as a link whose text is the URL itself, so each reference can be followed from the board; the
-result is the reply omitting the `INVOKED` comments. In the browser, load that HTML into the reply
-editor through the editor's own content interface rather than typing it, then read the editor's
-serialized HTML back before submitting: every paragraph must match the response and every
-reference URL must still be a link. A keystroke used to make the editor register the change goes at
-the end of the opening line, never after a URL. If the editor exposes no content interface, tell the
-clinician before typing the reply instead, and make every reference URL a link with the editor's
-link control. Submit it, then reread the posted board version. Use the
+result is the reply omitting the `INVOKED` comments. Load it by the route already declared under
+`canvas-editor.md`, then write the Composer's serialized HTML to
+`response-<name>-readback.html`. Rerun `discussion_reply_scan.py` before posting. A non-clean
+`editor-readback` comparison stops and returns to the clinician; do not switch routes or retry the
+load. A clean comparison authorizes no posting by itself: the clinician's existing go-ahead is
+the single posting gate. Submit it, then reread the posted board version. Use the
 entry's Copy Link control to read its own `?entry_id=` deep link; do not copy a classmate's locator
 from `posts/`. Append this record to the run's one `reread.md`:
 
@@ -305,8 +313,8 @@ same terms as reply one. Invoke `/AAR` for reply two's response filename after i
 
 Do not report completion until the terminal two-submission grader exits 0 and reports `the after-action review: clean`. Report the two posted addressees, the pre-post and post-reading grader exits, each posted-reading
 verdict, the invoked-source count for each reply, and any pre-#496 marker count.
-Keep every `board-<date>.md`, `posts/`, `post.md` when present, `claims.md`, both replies, and
-`reread.md`, plus `voice-status.md` when present, together under the run key as the private
+Keep every `board-<date>.md`, `posts/`, `post.md` when present, `claims.md`, both replies, their
+built HTML and editor readbacks, and `reread.md`, plus `voice-status.md` when present, together under the run key as the private
 provenance record. Remove
 every temporary per-agent path after the independent checks; if cleanup fails, report the exact
 remaining path.

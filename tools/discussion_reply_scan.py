@@ -17,6 +17,7 @@ import re
 import sys
 from collections import Counter
 from dataclasses import dataclass
+from html.parser import HTMLParser
 from pathlib import Path
 
 from discussion_artifact import (
@@ -69,6 +70,7 @@ UNKNOWN_VERDICT = "unknown-verdict"
 BARE_VERDICT = "bare-verdict"
 UNLOCATED_READING = "unlocated-reading"
 BORROWED_LOCATOR = "borrowed-locator"
+EDITOR_READBACK = "editor-readback"
 ROWS = {
     ADDRESSED_NAME: "the addressed first name is on the run roster",
     WORD_FLOOR: f"the reply contains at least {WORD_FLOOR_COUNT} words",
@@ -83,6 +85,7 @@ ROWS = {
     BARE_VERDICT: "every posted reading says what it found",
     UNLOCATED_READING: "every posted reply reading carries its board entry id",
     BORROWED_LOCATOR: "every posted reply reading carries its own locator",
+    EDITOR_READBACK: "every retained editor readback matches the built reply HTML",
 }
 KINDS = tuple(ROWS)
 
@@ -144,13 +147,13 @@ DECLARED_LIMITS = (
         EvidenceDisposition.DECLARED_READING,
     ),
     (
-        "whether the posted reply matches the graded artifact",
-        "The reply is loaded into the editor from its built HTML, and no row compares the submitted board text with the response artifact that the command graded.",
+        "whether the posted reply matches the retained editor readback",
+        "The editor-readback row compares the built HTML with the Composer before posting; the posted-reading record reports the later board state without mechanically comparing its text.",
         EvidenceDisposition.DECLARED_READING,
     ),
     (
-        "whether each reference URL reached the board as a link",
-        "The command reads the response Markdown only and never the built HTML or the posted entry, so a reference URL left unlinked on the board is caught only by the posted reading.",
+        "whether each reference URL remained a link after posting",
+        "The editor-readback row grades anchors before posting, while the command never reads the posted entry's DOM; the posted reading remains the only account of the board's links.",
         EvidenceDisposition.DECLARED_READING,
     ),
     (
@@ -220,6 +223,13 @@ class Reply:
 
 
 @dataclass(frozen=True)
+class EditorPair:
+    response: str
+    built: str | None
+    readback: str | None
+
+
+@dataclass(frozen=True)
 class RunSource:
     path: Path
     replies: tuple[Reply, ...]
@@ -229,6 +239,7 @@ class RunSource:
     posts_total: int
     readings: tuple[PostedReading, ...]
     initial_post_url: str | None
+    editor_pairs: tuple[EditorPair, ...]
 
 
 @dataclass(frozen=True)
@@ -242,6 +253,8 @@ class Scan:
     numeric_claims: int | None
     invoked_sources: int | None
     pre_496_markers: int | None
+    editor_units_read: int
+    editor_units_total: int
     reference_boundary_graded: bool
     findings: tuple[Finding, ...] = ()
     citation_coverage: CitationCoverage = CitationCoverage()
@@ -257,6 +270,103 @@ def _split_reply(path: Path) -> Reply:
         references=section.references,
         refused_label=section.refused_label,
     )
+
+
+@dataclass(frozen=True)
+class _EditorShape:
+    units: tuple[tuple[str, str], ...]
+    anchors: tuple[str, ...]
+    read: int
+    total: int
+
+
+class _EditorHTML(HTMLParser):
+    UNIT_TAGS = frozenset(("p", "li", "th", "td", "blockquote"))
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self._unit_stack: list[tuple[str, list[str]]] = []
+        self.units: list[tuple[str, str]] = []
+        self.anchors: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        tag = tag.casefold()
+        if tag == "a":
+            href = next((value for name, value in attrs if name == "href"), None)
+            if href is not None:
+                self.anchors.append(href)
+        if tag in self.UNIT_TAGS:
+            self._unit_stack.append((tag, []))
+
+    def handle_endtag(self, tag: str) -> None:
+        tag = tag.casefold()
+        if self._unit_stack and tag == self._unit_stack[-1][0]:
+            unit_tag, unit_text = self._unit_stack.pop()
+            self.units.append(
+                (unit_tag, " ".join("".join(unit_text).split()))
+            )
+
+    def handle_data(self, data: str) -> None:
+        for _tag, unit_text in self._unit_stack:
+            unit_text.append(data)
+
+
+EDITOR_UNIT = re.compile(r"(?i)<(?:p|li|th|td|blockquote)(?=[\s>/])")
+
+
+def _editor_shape(markup: str) -> _EditorShape:
+    parser = _EditorHTML()
+    parser.feed(markup)
+    parser.close()
+    return _EditorShape(
+        units=tuple(parser.units),
+        anchors=tuple(parser.anchors),
+        read=len(parser.units),
+        total=len(EDITOR_UNIT.findall(markup)),
+    )
+
+
+def _editor_readback_result(
+    source: RunSource,
+) -> tuple[tuple[Finding, ...], int, int]:
+    findings: list[Finding] = []
+    units_read = 0
+    units_total = 0
+    for pair in source.editor_pairs:
+        built = _editor_shape(pair.built) if pair.built is not None else None
+        readback = (
+            _editor_shape(pair.readback) if pair.readback is not None else None
+        )
+        for shape in (built, readback):
+            if shape is not None:
+                units_read += shape.read
+                units_total += shape.total
+        if pair.built is None:
+            detail = "editor readback exists without the built HTML"
+        elif pair.readback is None:
+            detail = "built HTML has no editor readback"
+        else:
+            assert built is not None and readback is not None
+            differences: list[str] = []
+            if built.read != built.total:
+                differences.append(f"built HTML units read {built.read} of {built.total}")
+            if readback.read != readback.total:
+                differences.append(
+                    f"editor readback units read {readback.read} of {readback.total}"
+                )
+            if readback.units != built.units:
+                differences.append("visible block text differs")
+            if len(readback.anchors) != len(built.anchors):
+                differences.append(
+                    f"anchor count is {len(readback.anchors)}, expected {len(built.anchors)}"
+                )
+            elif readback.anchors != built.anchors:
+                differences.append("anchor destinations differ")
+            if not differences:
+                continue
+            detail = "; ".join(differences)
+        findings.append(Finding(EDITOR_READBACK, pair.response, detail))
+    return tuple(findings), units_read, units_total
 
 
 def _slug(value: str) -> str:
@@ -501,6 +611,26 @@ def load(parsed: run_grader.Parsed) -> RunSource:
             if initial_post_path.is_file()
             else None
         )
+        editor_pairs = tuple(
+            EditorPair(
+                response=path.name,
+                built=(
+                    path.with_suffix(".html").read_text(encoding="utf-8")
+                    if path.with_suffix(".html").exists()
+                    else None
+                ),
+                readback=(
+                    path.with_name(f"{path.stem}-readback.html").read_text(
+                        encoding="utf-8"
+                    )
+                    if path.with_name(f"{path.stem}-readback.html").exists()
+                    else None
+                ),
+            )
+            for path in response_paths
+            if path.with_suffix(".html").exists()
+            or path.with_name(f"{path.stem}-readback.html").exists()
+        )
     except (OSError, UnicodeError, ValueError) as failure:
         raise run_grader.SourceError(f"could not read the run: {failure}") from failure
     if len(roster) != len(post_paths):
@@ -523,6 +653,7 @@ def load(parsed: run_grader.Parsed) -> RunSource:
             if initial_post_match is not None
             else None
         ),
+        editor_pairs=editor_pairs,
     )
 
 
@@ -587,6 +718,9 @@ def _posted_reading_findings(source: RunSource) -> tuple[Finding, ...]:
 
 def survey(source: RunSource) -> Scan:
     reference_boundary_graded = not any(reply.refused_label for reply in source.replies)
+    editor_findings, editor_units_read, editor_units_total = _editor_readback_result(
+        source
+    )
     if not reference_boundary_graded:
         address_findings = tuple(
             finding
@@ -604,8 +738,14 @@ def survey(source: RunSource) -> Scan:
             numeric_claims=None,
             invoked_sources=None,
             pre_496_markers=None,
+            editor_units_read=editor_units_read,
+            editor_units_total=editor_units_total,
             reference_boundary_graded=False,
-        findings=address_findings + _posted_reading_findings(source),
+            findings=(
+                address_findings
+                + editor_findings
+                + _posted_reading_findings(source)
+            ),
         )
     reference_key_sets = tuple(_reference_keys(reply) for reply in source.replies)
     citations = tuple(
@@ -657,7 +797,7 @@ def survey(source: RunSource) -> Scan:
         finding
         for reply in source.replies
         for finding in _invoked_findings(reply)
-    ) + _posted_reading_findings(source)
+    ) + editor_findings + _posted_reading_findings(source)
     return Scan(
         responses=len(source.replies),
         posts_read=len(source.roster),
@@ -680,6 +820,8 @@ def survey(source: RunSource) -> Scan:
         pre_496_markers=sum(
             len(AMPLIFICATION.findall(reply.body)) for reply in source.replies
         ),
+        editor_units_read=editor_units_read,
+        editor_units_total=editor_units_total,
         reference_boundary_graded=True,
         findings=findings,
         citation_coverage=coverage,
@@ -710,6 +852,11 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
             if scan.reference_boundary_graded
             else f"pre-#496 markers: {NOT_GRADED}"
         ),
+        (
+            f"editor HTML units read: {scan.editor_units_read} of "
+            f"{scan.editor_units_total}; unread "
+            f"{scan.editor_units_total - scan.editor_units_read}"
+        ),
         f"findings: {len(scan.findings)}",
     ]
     for kind in ROWS:
@@ -720,6 +867,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
             BARE_VERDICT,
             UNLOCATED_READING,
             BORROWED_LOCATOR,
+            EDITOR_READBACK,
         } and not scan.reference_boundary_graded:
             lines.append(f"{kind}: {NOT_GRADED}")
         else:
@@ -753,7 +901,11 @@ def grade(source: RunSource, _parsed: run_grader.Parsed) -> run_grader.Grade[Sca
     return run_grader.Grade(
         scan=scanned,
         source=str(source.path),
-        findings_failed=(bool(scanned.findings) and scanned.reference_boundary_graded) or aar_failed,
+        findings_failed=(
+            any(finding.kind == EDITOR_READBACK for finding in scanned.findings)
+            or (bool(scanned.findings) and scanned.reference_boundary_graded)
+            or aar_failed
+        ),
         coverage_failed=not scanned.reference_boundary_graded,
         diagnostics=refused,
         reports=(aar_report,),
