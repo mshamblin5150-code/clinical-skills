@@ -27,6 +27,14 @@ title stays outside that body grader and keeps only the C0-control and
 flanked-carriage-return predicates. What a clean run does not establish is
 owned by ``NOT_REACHED`` below rather than copied into this docstring or
 ``CLAUDE.md``.
+
+**One row advises on a retired citation**: a paragraph stating the
+correct-in-place rule beside ``#436``, which rules nothing about corrections.
+ADR 0191 ruled it reported rather than refused, because a record discussing the
+defect quotes the pairing on purpose and tracker prose carries no
+mention-versus-use exemption. It grades one literal pairing, grown on recorded
+instances, and how narrow that is belongs to ``NOT_REACHED`` with every other
+ceiling.
 """
 
 from __future__ import annotations
@@ -153,6 +161,14 @@ NOT_REACHED = (
         "manual text mode has no issue publication route",
         "The --text command grades body shape without a create or edit route, so it reports the Filed-from rule not graded rather than clean.",
     ),
+    (
+        "the retired-citation row reaches one literal pairing",
+        "It reports the correct-in-place rule stated beside #436 and nothing "
+        "else. A paraphrase of the rule, the same rule attributed to another "
+        "wrong record, and a citation whose claim about any other record is "
+        "false are all outside it. Nothing here can establish that a cited "
+        "record says what a sentence claims it says.",
+    ),
 )
 
 
@@ -265,6 +281,28 @@ DISCRIMINATOR_CLAUSE = re.compile(
     r"\bunder the claim['’]s negation\b",
     re.IGNORECASE,
 )
+RETIRED_CITATION = "citation:retired-correction-rule"
+#: The correct-in-place rule as the tracker states it, matched without regard to
+#: case. Records carrying one of these wordings attribute it to #436, which rules
+#: nothing about corrections. Grown on evidence written in this repository, the
+#: way ``spelling_scan``'s table grows, rather than by a rule over citations. How
+#: many records that was on 2026-09-12 is ADR 0191's to state: it is a count over
+#: a live tracker that nothing here re-derives, and the repair that record orders
+#: drives it to zero.
+CORRECT_IN_PLACE_PHRASES = (
+    "below the advice",
+    "acts on the advice",
+    "acting on the advice",
+)
+RETIRED_CORRECTION_TICKET = re.compile(r"(?:#|issues/)436\b")
+RETIRED_CITATION_REMEDY = (
+    "#436 is a 160-char extraction ticket and rules nothing about corrections; "
+    "cite ADR 0191, which rules this for the tracker. When repairing a record "
+    "written before it, ADR 0016 goes in the sentence and ADR 0191 on the "
+    "dated line, because that record's sentence says what a past session "
+    "relied on"
+)
+PARAGRAPH_BREAK = re.compile(r"\n[ \t]*\n")
 REDACTION_WALK_KINDS = (
     "phi:corpus-name",
     "phi:corpus-date",
@@ -272,8 +310,30 @@ REDACTION_WALK_KINDS = (
     *(f"body:{kind}" for kind in tracker_bodies.KINDS),
     tracker_coordinates.UNANCHORED,
     "verdict:missing-discriminator",
+    RETIRED_CITATION,
     *tracker_branch_scope.BRANCH_RULES,
 )
+
+
+def retired_citation_paragraphs(text: str) -> int:
+    """Count paragraphs stating the correct-in-place rule beside the retired #436.
+
+    The unit is the paragraph rather than a character window, and that is
+    measured rather than chosen: over the population ADR 0191 states, a window is
+    flat from the widest observed separation upward and the paragraph rule
+    reproduces the identical members with no value to defend. It counts a
+    deliberate quotation too -- tracker prose carries no mention-versus-use
+    exemption, and the two this repository does have are a Python pragma and an
+    own-line marker, neither of which a tracker record can use -- which is why
+    the row advises and never denies.
+    """
+    return sum(
+        1
+        for paragraph in PARAGRAPH_BREAK.split(text.replace("\r\n", "\n").casefold())
+        if any(phrase in paragraph for phrase in CORRECT_IN_PLACE_PHRASES)
+        and RETIRED_CORRECTION_TICKET.search(paragraph)
+    )
+
 
 LOST_BODY_REMEDY = (
     "the body did not land; write it to a file and pass that file's "
@@ -982,6 +1042,11 @@ def analyze(
         findings.append(Finding(
             "verdict:missing-discriminator", 1, publication.field, "advise"
         ))
+    retired_citations = retired_citation_paragraphs(publication.text)
+    if retired_citations:
+        findings.append(Finding(
+            RETIRED_CITATION, retired_citations, publication.field, "advise"
+        ))
 
     branch = tracker_branch_scope.grade_record(record, remote_fresh=remote_fresh)
     if publication.field == "title":
@@ -1050,6 +1115,8 @@ def analyze(
             line += f"; remedy: {body_remedy(body_kind, route)}"
         if row.rule == tracker_coordinates.UNANCHORED:
             line += f"; remedy: {COORDINATE_REMEDY}"
+        if row.rule == RETIRED_CITATION:
+            line += f"; remedy: {RETIRED_CITATION_REMEDY}"
         lines.append(line)
     if not findings:
         lines.append(f"scanned {publication.field}: 0 findings")

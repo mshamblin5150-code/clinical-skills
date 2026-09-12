@@ -850,6 +850,28 @@ _Avoid_: opt-out, waiver, suppression, allowlist, exception list
 The cap on a **Hatch**'s declared total. It is always graded and refuses past itself, which is the **opposite** obligation from the maximum a **Bar** states: a course maximum is transcribed and never honored, because honoring one deletes the clauses that bound a claim. Both senses are live in this repository at once, so which is meant is supplied and never inferred from the word. A ceiling is a cap and never a measurement -- moving one to meet what is on disk retires the check rather than discharging it -- and the first addition it refuses is the one **past** it, not the one that reaches it.
 _Avoid_: limit, cap, maximum, threshold, budget, quota
 
+### Delegation
+
+**Briefing surface**:
+A passage in a skill file that hands work to a context other than the one reading it. It is the unit the structural rules are graded over, so a passage that spawns nothing is not one however much it describes delegation. Every briefing surface is a **Fan-out brief**, a **Second reader** or a **Grader handoff**, and which one it is decides what it must say and what it does when no second context can be obtained.
+_Avoid_: brief, dispatch, delegation, spawn site
+
+**Fan-out brief**:
+A **Briefing surface** sending one worker per item, each returning one record into one prewritten file. The mechanism is the record and the brief rather than the parallelism, so the same briefs worked one at a time are the same fan-out and the file cannot tell. Distinct from a **Second reader**, which is one reader whose independence is itself the deliverable.
+_Avoid_: fan out, parallel research, worker pool, batch dispatch
+
+**Second reader**:
+A **Briefing surface** handing one artifact to one context that did not author it, to read what its author cannot see. Where a **Fan-out brief** degrades to serial work honestly, this one cannot: a self-authored second read is not a second read, so the surface does not complete rather than completing with a declaration.
+_Avoid_: reviewer, verifier, double check, second pass
+
+**Grader handoff**:
+A **Briefing surface** giving a non-authoring context a completed artifact and a committed command. It writes no record and returns a result, which is why it takes neither the prewrite rule nor the one-writer rule, and why its result survives being produced by the author so long as it is reported verbatim rather than summarized.
+_Avoid_: check, independent check, grading pass, review step
+
+**Narrowing**:
+What a **Briefing surface** states that the shared rule does not contain — a blinding whitelist, a capability requirement, an ordering gate. It is the only thing a surface writes for itself, because anything else it states about delegation is a copy of a rule that already binds it. Distinct from a **Hatch**, which excuses a finding rather than adding an obligation.
+_Avoid_: exception, override, local rule, carve-out
+
 ### Tracker
 
 **Binding**:
@@ -968,10 +990,18 @@ _Avoid_: line number, pointer, locator, reference, cite
 The durable half of a coordinate citation: a symbol name, a quoted span, a prose quotation, or the block beneath — anything in the same paragraph a reader can search for that is not the number. It is checked for **presence and never for resolution**, because resolving one needs file contents at a stated commit, which is the limit the tracker's citation grader declares rather than closes. So an anchor does not keep a coordinate true; it converts a silent landing on the wrong line into a search that finds nothing, and that conversion is the whole of what it buys. It survives an edit above it and a move to another file; it does not survive a deletion or a rename, and a same-file history search reads both of those as the same thing. **Not the sense `anchor_scan` and `icd10-cpt` give the word**, where an ANCHOR is the note text a code rests on, nor the sense in **Marker anchor**, which is a position rather than a locator; three senses, one word, and the collision is recorded here because a heading-derived fire cannot see the one that lives in a module.
 _Avoid_: locator, landmark, symbol, context, marker
 
+**Carried claim**:
+A statement in a tracker body that a reader takes away and uses elsewhere — an instruction, a build premise, a *Done when* item, a figure, a **coordinate**, a **citation**. It is defined by what a reader does with it rather than by its grammar, so a command somebody runs and a figure nobody acts on but everybody copies are one kind; splitting them would put the same reasoning under two rules and leave the class between them unruled. Distinct from a **dated reading** — a sweep verdict, true when it was written — which is superseded rather than corrected, and from the **Filed-from line**, which is append-only and is the declared exception. What repairs one is an **in-place correction**.
+_Avoid_: advice, note, statement, finding, body text
+
+**In-place correction**:
+The repair of a **carried claim** written at the claim itself, with a dated line recording what it said and why it changed. Where that line sits is the tracker's procedure to state and not part of the term. Distinct from a footer, which is the same words at the bottom of a long record and reaches nobody who already carried the claim, and from the comment that carries a correction's *evidence*, which is a published reading and not the repair. It is named because *corrected in place* already means three things here — a body edit, a ratified record's dated footer, and leaving a paragraph untouched during a migration — and only the first is this. **Not the sense the bare Correction gives the word**, which is a reversal observed in a session's transcript: that one is an event read off a record and this one is an act on a published record, so neither narrows the other.
+_Avoid_: edit, fix, amendment, footnote, annotation
+
 ### Review
 
 **Correction**:
-An observed reversal in a session's transcript — a claim was asserted, later contradicted, and the contradiction stood. It is an event that happened rather than a judgment about what might have gone wrong, which is what lets it be read off a record instead of introspected about. Its **corrector** is a field on it and not a second event, because the fix's destination differs by who did the correcting: the clinician, an agent or tool, or the orchestrator catching itself. Which party was *in error* is a further field and not the same one — a correction whose corrector was wrong is a supported outcome rather than an edge case. Distinct from a **preference stated for the first time**, which is a new fact and reverses nothing; counting one as a correction inflates the record with things nothing was wrong about.
+An observed reversal in a session's transcript — a claim was asserted, later contradicted, and the contradiction stood. It is an event that happened rather than a judgment about what might have gone wrong, which is what lets it be read off a record instead of introspected about. Its **corrector** is a field on it and not a second event, because the fix's destination differs by who did the correcting: the clinician, an agent or tool, or the orchestrator catching itself. Which party was *in error* is a further field and not the same one — a correction whose corrector was wrong is a supported outcome rather than an edge case. Distinct from a **preference stated for the first time**, which is a new fact and reverses nothing; counting one as a correction inflates the record with things nothing was wrong about. **Not the sense in In-place correction**, which is the repair of a carried claim in a tracker record — an act rather than an event, and neither sense narrows the other.
 _Avoid_: mistake, error, defect, feedback, pushback
 
 **Disposition**:
