@@ -94,9 +94,20 @@ real `&`.
 ### What the reply path was doing, and the hole in it
 
 `skills/discussion-reply/SKILL.md:258-272`. The reply builds its HTML with `tools/post_html.py` and
-loads it *"through the editor's own content interface"*. **That phrase appears four times in this
-repository and is defined in none of them** — `:267`, `:270`, ADR 0050 `:343`, ADR 0036 `:37`. No
-control, no property, no tool. Compare `skills/discussion-post/SKILL.md:348` and `:361`, which name
+loads it *"through the editor's own content interface"*. **Before this record existed that phrase
+appeared five times across four files and was defined in none of them** — `:267` and `:270`, ADR
+0050 `:343`, ADR 0036 `:37`, and ADR 0147's own 2026-09-10 correction. No control, no property, no
+tool.
+
+*(Corrected before merge, 2026-09-12, by this ticket's own tracker sweep, which was briefed to
+falsify the session's claims rather than to accept them. The session first wrote **four times**, and
+both halves of that were wrong: the count, and the enumeration, which omitted ADR 0147. The cause is
+the instrument — a line-based `grep`, and ADR 0147's instance is **hard-wrapped**, with `content`
+closing one line and `interface` opening the next. That is `test_run_record_claim.py`'s recorded
+finding, arriving inside a record whose own subject is a claim nobody re-derived, and it is why the
+figure is stated against a base rather than as a present-tense property: this record adds six
+occurrences of its own, so a bare count here would falsify itself on commit. Re-derived with
+whitespace normalized before the correction was believed.)* Compare `skills/discussion-post/SKILL.md:348` and `:361`, which name
 the toggle and the switch exactly. Two consequences: the injection route is invented fresh each
 sitting, and the skill's own fallback — *"If the editor exposes no content interface"* — cannot be
 evaluated, because nothing says what would count as one.
@@ -168,9 +179,15 @@ Canvas has two HTML editors — raw, a textarea, and pretty, a CodeMirror that r
 it remembers the last-used mode per user. A plain click landed in **raw** on this account on this
 date, and that is a fact about this account rather than about Canvas. The status bar states it: it
 offers *"Switch to pretty HTML Editor"* when you are in raw. **`discussion-post` carries the same
-unguarded assumption at `skills/discussion-post/SKILL.md:361` and is corrected in this record's
-diff**, on ADR 0147 ruling 9's own precedent of fixing a false line in the file it was already
-editing.
+unguarded assumption at `skills/discussion-post/SKILL.md:361` and is corrected by the build that
+lands these rulings**, on ADR 0147 ruling 9's own precedent of fixing a false line in the file it was
+already editing.
+
+*(Corrected before merge, 2026-09-12, by this ticket's own sweep. This sentence read **is corrected
+in this record's diff**, which was false of the commit carrying it: no skill file moves in a grilling
+session, and the ADR says so in its own opening. The phrasing was copied from ADR 0147 ruling 9,
+where it was true, without checking that the fact transferred. Every correction this record
+prescribes for a skill file — this one and ruling 7's — belongs to the build.)*
 
 ## Ruling 4 — the rule lives in one shared reference sheet
 
@@ -237,8 +254,9 @@ shape rather than a reason, which #948's own *What must not come out of this* fo
 ## Ruling 7 — the ampersand measurement discharges the pointer and unblocks #991 without ruling it
 
 `skills/peer-critique/SKILL.md:266` — *"Whether the board's reply box shares the defect is unmeasured,
-which is #948's open question"* — is false as of 2026-09-12 and is corrected to state the
-measurement. The observation goes into ruling 4's calibration record, and the figures and the
+which is #948's open question"* — is false as of 2026-09-12 and **the build corrects it** to state
+the measurement. It is false in the tree until that lands, which makes it the most urgent item the
+build carries: a live skill telling its reader that a measured question is unmeasured. The observation goes into ruling 4's calibration record, and the figures and the
 raw-editor limit are handed to #991.
 
 **This does not rule #991.** Its option 3 is *"never put a reference list in this box; put it on the
@@ -311,7 +329,22 @@ term exists to retire.
 
 - **Whether a raw-editor load survives the board's ampersand handling.** Both measured boards predate
   #817. The box does not double-escape on the routes that produced those 68 entries; a raw-editor
-  load specifically is unmeasured.
+  load specifically is unmeasured. **Neither is a post made today**: the reading is of stored bytes
+  written before #817, not of a load performed now.
+- **Whether the board's own page render is what was measured.** #991 read `document.body.innerText`
+  off a live rendered Canvas page. This read the stored `message` from the view API and re-rendered
+  it in a detached element. **That is a faithful proxy only if Canvas's page render applies no
+  further processing to the stored message**, which is exactly the axis a render-time second escape
+  would hide on, and it is not established here. Two of the 81 also sit inside `href` attribute
+  values and were reconciled arithmetically rather than read in rendered form — a double escape
+  there yields a broken link rather than a visible entity, which `innerText` is blind to by
+  construction. *(Added before merge, 2026-09-12, by this ticket's own sweep. The first draft
+  declared the route limit and not the instrument limit, and a measurement's proxy is exactly the
+  thing a limits section exists to name.)*
+- **Which composer produced those 68 entries.** Ruling 1 establishes that the repository had no field
+  to tell the two apart, so the ampersand reading is of the board's stored output and not of either
+  composer. The instance disclosure under ruling 1 — one institution, one Canvas instance, one
+  account, one date — applies to that table too.
 - **Whether the reply is right.** Ruling 2 buys a mechanical comparison of what was loaded against
   what was built. **It is not a checked reply, and a clean comparison establishes nothing about
   substance, voice or the board.** ADR 0050's *"Do not read a clean `reread.md` as a checked post"*
