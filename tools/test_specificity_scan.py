@@ -64,7 +64,7 @@ class EveryBehaviorLimitHasALiveControl(unittest.TestCase):
         "contiguous indented flag pairing": "DeclaredLimitBoundaryControls.test_a_blank_line_orphans_the_flag_instead_of_borrowing_an_entry",
         "NOT FOR ENTRY flag exemption": "TheParserPairsAFlagWithItsDescriptor.test_a_differential_flag_is_exempt_from_both_tests",
         "values beginning with neither branch keyword": "AFlagCarriesSubstanceBeyondItsKeyword.test_n_a_and_an_empty_value_remain_neither_keyword",
-        "step-4 listing lines matching ENTRY": "DeclaredLimitBoundaryControls.test_a_step_four_listing_that_matches_entry_inflates_the_unread_remainder",
+        "`icd10-cpt` step-4 listing lines matching ENTRY": "DeclaredLimitBoundaryControls.test_a_step_four_listing_that_matches_entry_inflates_the_unread_remainder",
     }
 
     def test_each_behavior_subject_names_a_passing_control(self):

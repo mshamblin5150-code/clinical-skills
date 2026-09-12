@@ -121,8 +121,8 @@ DECLARED_LIMITS = (
         run_grader.EvidenceDisposition.BEHAVIOR,
     ),
     (
-        "step-4 listing lines matching ENTRY",
-        "The flag walk stops before step 4, but entry coverage does not; a listing line that matches ENTRY therefore inflates the unread remainder.",
+        "`icd10-cpt` step-4 listing lines matching ENTRY",
+        "The flag walk stops before `icd10-cpt` step 4, but entry coverage does not; a listing line that matches ENTRY therefore inflates the unread remainder.",
         run_grader.EvidenceDisposition.BEHAVIOR,
     ),
 )
