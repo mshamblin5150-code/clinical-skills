@@ -1606,6 +1606,126 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
             "tool_input": {"command": command},
         }
 
+    def test_a_commandless_monitor_payload_is_silent(self) -> None:
+        self.assertEqual(
+            hook.handle(
+                {
+                    "hook_event_name": "PreToolUse",
+                    "tool_name": "Monitor",
+                    "tool_input": {"session_id": "monitor-1"},
+                }
+            ),
+            {},
+        )
+
+    def test_an_unmodeled_shell_refuses_a_loose_publish_route(self) -> None:
+        command = (
+            "if (Test-Path 'body.md') { "
+            "gh issue comment 1124 --body-file 'body.md' }"
+        )
+        modeled = hook.handle(self.payload(command))
+        unmodeled = hook.handle(
+            {
+                "hook_event_name": "PreToolUse",
+                "tool_name": "PowerShell",
+                "tool_input": {"command": command},
+            }
+        )
+
+        self.assertEqual(modeled, {})
+        specific = unmodeled["hookSpecificOutput"]
+        self.assertEqual(specific["permissionDecision"], "deny")
+        self.assertEqual(
+            specific["permissionDecisionReason"], hook.UNSCANNED_REFUSAL
+        )
+        self.assertIn("unmodeled shell", specific["additionalContext"])
+        self.assertIn("PowerShell", specific["additionalContext"])
+
+    def test_an_unmodeled_shell_leaves_read_only_gh_alone(self) -> None:
+        payload = {
+            "hook_event_name": "PreToolUse",
+            "tool_name": "PowerShell",
+            "tool_input": {
+                "command": "if ($true) { gh issue view 1124 --json body }"
+            },
+        }
+
+        self.assertEqual(hook.handle(payload), {})
+
+    def test_any_unmodeled_roster_value_refuses_by_default(self) -> None:
+        payload = {
+            "hook_event_name": "PreToolUse",
+            "tool_name": "FutureShell",
+            "tool_input": {"command": "gh issue comment 1124 --body 'text'"},
+        }
+
+        with mock.patch.dict(
+            hook.COMMAND_TOOLS, {"FutureShell": "future-shell"}
+        ):
+            specific = hook.handle(payload)["hookSpecificOutput"]
+
+        self.assertEqual(specific["permissionDecision"], "deny")
+        self.assertIn("unmodeled shell", specific["additionalContext"])
+
+    def test_an_unmodeled_shell_classifies_an_attached_short_body_flag(self) -> None:
+        payload = {
+            "hook_event_name": "PreToolUse",
+            "tool_name": "PowerShell",
+            "tool_input": {"command": "gh issue comment 1124 -bbody"},
+        }
+
+        specific = hook.handle(payload)["hookSpecificOutput"]
+
+        self.assertEqual(specific["permissionDecision"], "deny")
+        self.assertIn("unmodeled shell", specific["additionalContext"])
+
+    def test_an_unmodeled_shell_checks_later_candidates_case_insensitively(self) -> None:
+        payload = {
+            "hook_event_name": "PreToolUse",
+            "tool_name": "PowerShell",
+            "tool_input": {
+                "command": (
+                    "gh issue view 1124 --json body; "
+                    "GH issue comment 1124 --body text"
+                )
+            },
+        }
+
+        specific = hook.handle(payload)["hookSpecificOutput"]
+
+        self.assertEqual(specific["permissionDecision"], "deny")
+        self.assertIn("unmodeled shell", specific["additionalContext"])
+
+    def test_an_unmodeled_shell_classifies_a_newline_command_boundary(self) -> None:
+        payload = {
+            "hook_event_name": "PreToolUse",
+            "tool_name": "PowerShell",
+            "tool_input": {
+                "command": (
+                    "Write-Output 'ready'\n"
+                    "gh issue comment 1124 --body text"
+                )
+            },
+        }
+
+        specific = hook.handle(payload)["hookSpecificOutput"]
+
+        self.assertEqual(specific["permissionDecision"], "deny")
+
+    def test_monitor_uses_the_modeled_reader(self) -> None:
+        payload = {
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Monitor",
+            "tool_input": {
+                "command": "gh issue comment 1124 --body-file 'missing.md'"
+            },
+        }
+
+        specific = hook.handle(payload)["hookSpecificOutput"]
+
+        self.assertIn("unreadable body", specific["additionalContext"])
+        self.assertNotIn("unmodeled shell", specific["additionalContext"])
+
     @staticmethod
     def body_commands(body: str) -> dict[tuple[str, ...], str]:
         inline = "'" + body + "'"
@@ -2581,19 +2701,19 @@ class ProjectSettingsRegisterTheHook(unittest.TestCase):
         settings = json.loads(path.read_text(encoding="utf-8"))
 
         registrations = settings["hooks"]["PreToolUse"]
-        self.assertEqual(len(registrations), 1)
-        self.assertEqual(registrations[0]["matcher"], "Bash")
+        by_tool = {row["matcher"]: row["hooks"] for row in registrations}
+        self.assertEqual(set(by_tool), set(hook.COMMAND_TOOLS))
         self.assertEqual(
-            registrations[0]["hooks"],
-            [
-                {
-                    "type": "command",
-                    "if": "Bash(gh *)",
-                    "command": "python \"$CLAUDE_PROJECT_DIR/tools/tracker_publish_hook.py\"",
-                    "timeout": 30,
-                }
-            ],
+            by_tool["Bash"][0].get("if"),
+            "Bash(gh *)",
         )
+        for tool in ("PowerShell", "Monitor"):
+            with self.subTest(tool=tool):
+                self.assertNotIn("if", by_tool[tool][0])
+        for handlers in by_tool.values():
+            self.assertEqual(len(handlers), 1)
+            self.assertIn("tracker_publish_hook.py", handlers[0]["command"])
+            self.assertEqual(handlers[0]["timeout"], 30)
 
     def test_a_plain_same_command_variable_is_resolved(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

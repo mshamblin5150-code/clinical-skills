@@ -561,10 +561,15 @@ class EveryScopedCompletionGraderExpectsTheReview(unittest.TestCase):
         root = Path(__file__).resolve().parent.parent
         settings = json.loads((root / ".claude" / "settings.json").read_text(encoding="utf-8"))
         registered = settings["hooks"]["SessionEnd"]
+        aar_handlers = [
+            handler
+            for registration in registered
+            for handler in registration["hooks"]
+            if "aar_scan.py" in handler["command"]
+        ]
 
-        self.assertEqual(len(registered), 1)
-        self.assertIn("aar_scan.py", registered[0]["hooks"][0]["command"])
-        self.assertIn("--session-end", registered[0]["hooks"][0]["command"])
+        self.assertEqual(len(aar_handlers), 1)
+        self.assertIn("--session-end", aar_handlers[0]["command"])
 
 
 class OrphanedSitting(unittest.TestCase):

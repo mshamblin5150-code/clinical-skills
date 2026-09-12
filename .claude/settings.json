@@ -11,11 +11,49 @@
             "timeout": 30
           }
         ]
+      },
+      {
+        "matcher": "PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"$CLAUDE_PROJECT_DIR/tools/tracker_publish_hook.py\"",
+            "timeout": 30
+          }
+        ]
+      },
+      {
+        "matcher": "Monitor",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"$CLAUDE_PROJECT_DIR/tools/tracker_publish_hook.py\"",
+            "timeout": 30
+          }
+        ]
       }
     ],
     "PostToolUse": [
       {
         "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"$CLAUDE_PROJECT_DIR/tools/implementation_map_post_hook.py\""
+          }
+        ]
+      },
+      {
+        "matcher": "PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"$CLAUDE_PROJECT_DIR/tools/implementation_map_post_hook.py\""
+          }
+        ]
+      },
+      {
+        "matcher": "Monitor",
         "hooks": [
           {
             "type": "command",
@@ -40,6 +78,15 @@
           {
             "type": "command",
             "command": "python \"$CLAUDE_PROJECT_DIR/tools/aar_scan.py\" --session-end",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"$CLAUDE_PROJECT_DIR/tools/command_tool_roster.py\" --session-end",
             "timeout": 10
           }
         ]

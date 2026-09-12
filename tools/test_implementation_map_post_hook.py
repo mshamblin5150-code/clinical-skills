@@ -14,8 +14,14 @@ import artifact_lock_test_support  # noqa: F401
 
 
 class CommandContext(unittest.TestCase):
-    def payload(self, command: str, response: object = "") -> dict:
-        return {"tool_input": {"command": command}, "tool_response": response}
+    def payload(
+        self, command: str, response: object = "", tool_name: str = "Bash"
+    ) -> dict:
+        return {
+            "tool_name": tool_name,
+            "tool_input": {"command": command},
+            "tool_response": response,
+        }
 
     def test_ready_flip_names_the_existing_ticket_and_command(self):
         response = hook.handle(
@@ -42,6 +48,32 @@ class CommandContext(unittest.TestCase):
 
     def test_nonmatching_command_is_silent(self):
         self.assertEqual(hook.handle(self.payload("gh issue edit 920 --add-label bug")), {})
+
+    def test_an_unmodeled_shell_reports_that_no_map_work_was_derived(self):
+        response = hook.handle(
+            self.payload(
+                "gh issue edit 920 --add-label ready-for-agent",
+                tool_name="PowerShell",
+            )
+        )
+
+        context = response["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("not derived", context)
+        self.assertIn("PowerShell", context)
+        self.assertIn("unmodeled shell", context)
+
+    def test_monitor_uses_the_modeled_command_reader(self):
+        response = hook.handle(
+            self.payload(
+                "gh issue edit 920 --add-label ready-for-agent",
+                tool_name="Monitor",
+            )
+        )
+
+        self.assertIn(
+            "apply-delta --ticket 920",
+            response["hookSpecificOutput"]["additionalContext"],
+        )
 
     def test_ready_flip_in_another_repository_is_silent(self):
         with mock.patch.object(
@@ -101,7 +133,9 @@ class AdrMergeContext(unittest.TestCase):
         with mock.patch.object(hook, "REPO_ROOT", self.root), mock.patch.object(
             hook, "_pr_lands_session_branch", return_value=True
         ):
-            response = hook.handle({"tool_input": {"command": "gh pr merge --merge"}})
+            response = hook.handle(
+                {"tool_name": "Bash", "tool_input": {"command": "gh pr merge --merge"}}
+            )
 
         specific = response["hookSpecificOutput"]
         self.assertIn("ADR 0168", specific["additionalContext"])
@@ -120,6 +154,7 @@ class AdrMergeContext(unittest.TestCase):
         with mock.patch.object(hook, "REPO_ROOT", self.root):
             response = hook.handle(
                 {
+                    "tool_name": "Bash",
                     "tool_input": {"command": "git push origin HEAD:main"},
                     "tool_response": {"stdout": f"{old[:7]}..{head[:7]} HEAD -> main"},
                 }
@@ -136,7 +171,12 @@ class AdrMergeContext(unittest.TestCase):
     def test_other_pr_or_nondefault_base_is_silent(self):
         with mock.patch.object(hook, "_pr_lands_session_branch", return_value=False):
             self.assertEqual(
-                hook.handle({"tool_input": {"command": "gh pr merge 123 --merge"}}),
+                hook.handle(
+                    {
+                        "tool_name": "Bash",
+                        "tool_input": {"command": "gh pr merge 123 --merge"},
+                    }
+                ),
                 {},
             )
 
@@ -183,7 +223,12 @@ class AdrMergeContext(unittest.TestCase):
         ):
             self.assertEqual(
                 hook.handle(
-                    {"tool_input": {"command": "gh pr merge --repo other/project --merge"}}
+                    {
+                        "tool_name": "Bash",
+                        "tool_input": {
+                            "command": "gh pr merge --repo other/project --merge"
+                        },
+                    }
                 ),
                 {},
             )
@@ -212,8 +257,15 @@ class ProjectRegistration(unittest.TestCase):
             Path(__file__).resolve().parents[1].joinpath(".claude/settings.json").read_text(encoding="utf-8")
         )
         registrations = settings["hooks"]["PostToolUse"]
-        self.assertEqual(registrations[0]["matcher"], "Bash")
-        self.assertIn("implementation_map_post_hook.py", registrations[0]["hooks"][0]["command"])
+        by_tool = {row["matcher"]: row["hooks"] for row in registrations}
+        self.assertEqual(set(by_tool), set(hook.tracker_publish_hook.COMMAND_TOOLS))
+        for tool, handlers in by_tool.items():
+            with self.subTest(tool=tool):
+                self.assertEqual(len(handlers), 1)
+                self.assertNotIn("if", handlers[0])
+                self.assertIn(
+                    "implementation_map_post_hook.py", handlers[0]["command"]
+                )
 
     def test_declared_limits_are_owned_here(self):
         self.assertEqual(len(hook.DECLARED_LIMITS), 5)
