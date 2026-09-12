@@ -1,12 +1,13 @@
 ---
 name: practicum-case-study
-description: Turn a practicum case study's faculty material into a finished, APA-formatted graded submission — full workup, MDM, plan, prescriptions, patient education and references — delivered as a .docx. Use when the clinician hands over a course case study, a module video's intake data, or a "case study" Word document.
+description: Turn a practicum case study's faculty material into a finished, APA-formatted graded submission — full workup, MDM, plan, prescriptions, patient education and references — routed by the live LMS submission type. Use when the clinician hands over a course case study, a module video's intake data, or a "case study" Word document.
 ---
 
 The input is **the live assignment URL and faculty material for a graded case study** — an intake
 block transcribed from a module video, usually with the clinician's own rough differential and plan
-underneath it. The output is the finished academic document that gets submitted, plus the `.docx`
-it is submitted as and the run directory that proves what produced it.
+underneath it. The output is the finished academic document, its rendered `.docx`, and the run
+directory that proves what produced it. The live LMS submission type decides whether the `.docx`
+is the submitted artifact or an archive of a contribution loaded into a Canvas Composer.
 
 This is **not** [clinical-note](../clinical-note/SKILL.md), and the difference is not the format.
 A clinical note documents a patient the clinician saw. A case study answers a faculty prompt about
@@ -29,8 +30,23 @@ module from the LMS breadcrumbs. The fixed artifact word for this skill is `case
 directory is `scratch/runs/<course>-<module>-case-study/`. Never type a course or module from
 memory. Transcribe the live assignment and course syllabus requirements into that directory's
 `bar.md`; the assignment overrides the syllabus where both state the same element, and the syllabus
-fills the assignment's silence. Show the transcription and precedence to the clinician, and do not
-write its `SIGNED:` ISO date or draft until the clinician explicitly approves it.
+fills the assignment's silence. Before rendering, read the live submission type and record exactly
+one of these fields in the bar:
+
+```text
+SUBMISSION-TYPE: file-upload
+SUBMISSION-TYPE: canvas-composer
+```
+
+On `canvas-composer`, read
+[canvas-editor.md](../_shared/reference/canvas-editor.md) because the finished case study will enter
+the assignment's Canvas Composer. The read selects that sheet's first supported **Load route**. On
+`file-upload`, the route is the rendered `.docx`. Show the transcription, precedence, submission
+type, selected route, and its cost to the clinician at the existing bar approval; this adds no gate.
+Do not write the bar's `SIGNED:` ISO date or draft until the clinician explicitly approves it.
+Everything after selection on the Composer branch, including a size refusal and attachment
+fallback, remains owned by [#1154](https://github.com/mshamblin5150-code/clinical-skills/issues/1154)
+and is not silently resolved by treating the `.docx` as the deliverable.
 
 The signed bar also carries the research policy exactly once:
 
@@ -53,7 +69,7 @@ worked clinical case here, this skill owns the patient-bearing board snapshot to
 `board-<date>.md`, `posts/`, and the signed `bar.md` in this same case-study run directory. The
 routing skill reads only enough of the prompt to choose this branch.
 
-**Only the submission goes under `output/`.** Write the Markdown and `.docx` side by side in
+**Only the finished artifacts go under `output/`.** Write the Markdown and `.docx` side by side in
 `output/case-studies/` as `<course>-<module>-case-study-<date>.md` and `.docx`. The run directory is
 undated because it names the assignment; the output is dated because it names one sitting. A
 filename carries no patient name. `output_root()` resolves this directory to the main checkout, and

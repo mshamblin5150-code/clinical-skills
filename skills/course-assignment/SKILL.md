@@ -40,7 +40,7 @@ standing rule 6 governs independent checks and cleanup.
 
 ## 1. Read the live assignment and establish the bar
 
-Read the assignment prompt, point value, due date, upload types, linked examples, rubric, and every
+Read the assignment prompt, point value, due date, submission type, upload types, linked examples, rubric, and every
 stated artifact rule. Follow links and report access failures rather than treating an unread link
 as evidence. Open the course syllabus and read any assignment-wide requirements. The assignment
 page overrides the syllabus on the same element; the syllabus fills silence. Record any conflict
@@ -53,6 +53,7 @@ date. Then write these mechanical fields exactly once at the top of `bar.md`:
 ASSIGNMENT: <live assignment URL>
 SIGNED: <ISO date after clinician approval>
 ARTIFACT: deck
+SUBMISSION-TYPE: file-upload | canvas-composer
 SLIDE-MAX: <integer>
 BULLETS-PER-SLIDE: <integer>
 WORDS-PER-BULLET: <integer>
@@ -62,9 +63,10 @@ SOURCE-CLASSES: <one or more values separated by |>
 RECENCY-WINDOW-YEARS: <positive integer>
 ```
 
-Below the fields, copy the relevant assignment and syllabus wording and record the precedence
-decision. Then show `bar.md` to the clinician and wait for explicit confirmation that the transcription,
-direction, source classes, recency window, and precedence are right. Only then write `SIGNED:` and
+Write one `SUBMISSION-TYPE` value read from the live page, not the two-value notation above. Below
+the fields, copy the relevant assignment and syllabus wording and record the precedence decision.
+Then show `bar.md` to the clinician and wait for explicit confirmation that the transcription,
+direction, source classes, recency window, submission type, and precedence are right. Only then write `SIGNED:` and
 continue. A missing field is not a default: both graders exit 2 because the run was not scanned.
 
 The source-class vocabulary is `society guideline`, `peer-reviewed`, `government`,
@@ -237,8 +239,11 @@ the report counts them without grading their absence.
 
 ## 6. Approve, submit, and reread
 
-Show the clinician the finished deck, notes, adversarial report, grader counts, and final rendered
-slides. Wait for the explicit go-ahead. Upload the `.pptx`, inspect the LMS submission page before
+When the live page requires authored text to enter a Canvas Composer, read
+[canvas-editor.md](../_shared/reference/canvas-editor.md) and select its first supported **Load
+route**; a deck-only file upload does not trigger that sheet. Show the clinician the finished deck,
+notes, adversarial report, grader counts, final rendered slides, submission type, and selected route
+with its cost. Wait for the explicit go-ahead. Upload the `.pptx`, inspect the LMS submission page before
 committing the action, submit, and reread the posted artifact and timestamp. Record the submission
 URL, posted time, and whether the uploaded file matches in the private run directory.
 

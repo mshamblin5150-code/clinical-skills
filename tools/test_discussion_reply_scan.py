@@ -200,6 +200,76 @@ class DatedReferenceEntriesAreReferences(unittest.TestCase):
 
 
 class ACompleteRunPasses(unittest.TestCase):
+    def test_an_editor_readback_that_loses_an_anchor_fails(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            built = (
+                "<p>Maren, the paragraph text stays the same.</p>"
+                '<p><a href="https://example.org/reference">'
+                "https://example.org/reference</a></p>\n"
+            )
+            readback = (
+                "<p>Maren, the paragraph text stays the same.</p>"
+                "<p>https://example.org/reference</p>\n"
+            )
+            (run.root / "response-maren.html").write_text(built, encoding="utf-8")
+            (run.root / "response-maren-readback.html").write_text(
+                readback, encoding="utf-8"
+            )
+            stdout = io.StringIO()
+            with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
+                status = scan.main([temp])
+
+        self.assertEqual(1, status)
+        self.assertIn("editor-readback: 1", stdout.getvalue())
+
+    def test_an_editor_readback_with_different_paragraph_text_fails(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            (run.root / "response-maren.html").write_text(
+                "<p>Maren, this is the approved paragraph.</p>\n", encoding="utf-8"
+            )
+            (run.root / "response-maren-readback.html").write_text(
+                "<p>Maren, this is a changed paragraph.</p>\n", encoding="utf-8"
+            )
+            stdout = io.StringIO()
+            with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
+                status = scan.main([temp])
+
+        self.assertEqual(1, status)
+        self.assertIn("editor-readback: 1", stdout.getvalue())
+
+    def test_harmless_editor_serialization_keeps_a_clean_readback(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            (run.root / "response-maren.html").write_text(
+                '<p>Maren, one line.</p><p><a href="https://example.org/a?x=1&amp;y=2">'
+                "Reference</a></p>\n",
+                encoding="utf-8",
+            )
+            (run.root / "response-maren-readback.html").write_text(
+                '<p> Maren,\n one line. </p>\n<p><a target="_blank" '
+                'href="https://example.org/a?x=1&amp;y=2">Reference</a></p>\n',
+                encoding="utf-8",
+            )
+            with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                status = scan.main([temp])
+
+        self.assertEqual(0, status)
+
+    def test_built_html_without_an_editor_readback_fails(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            (run.root / "response-maren.html").write_text(
+                "<p>Maren, this reply was built.</p>\n", encoding="utf-8"
+            )
+            stdout = io.StringIO()
+            with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
+                status = scan.main([temp])
+
+        self.assertEqual(1, status)
+        self.assertIn("editor-readback: 1", stdout.getvalue())
+
     def test_a_republished_citation_resolves_on_its_second_year(self):
         with tempfile.TemporaryDirectory() as temp:
             run = Run(Path(temp))

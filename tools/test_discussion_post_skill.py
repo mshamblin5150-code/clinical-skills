@@ -27,6 +27,8 @@ ROOT = Path(__file__).resolve().parent.parent
 POST = ROOT / "skills" / "discussion-post" / "SKILL.md"
 REPLY = ROOT / "skills" / "discussion-reply" / "SKILL.md"
 CASE_STUDY = ROOT / "skills" / "practicum-case-study" / "SKILL.md"
+PEER_CRITIQUE = ROOT / "skills" / "peer-critique" / "SKILL.md"
+COURSE_ASSIGNMENT = ROOT / "skills" / "course-assignment" / "SKILL.md"
 AGENTS = ROOT / "AGENTS.md"
 
 
@@ -146,11 +148,17 @@ class TheWorkflowCarriesEveryRatifiedGate(unittest.TestCase):
     def test_both_workflows_post_every_reference_url_as_a_link(self):
         post = read(POST)
         reply = read(REPLY)
+        canvas_editor = read(
+            ROOT / "skills" / "_shared" / "reference" / "canvas-editor.md"
+        )
 
         for name, text in (("discussion-post", post), ("discussion-reply", reply)):
             with self.subTest(skill=name):
                 self.assertRegex(text, r"link whose text is the URL\s+itself")
-        self.assertRegex(post, r"make every reference URL a link with the editor's link control")
+        self.assertRegex(
+            canvas_editor,
+            r"make every reference URL a link with the link control",
+        )
         self.assertRegex(reply, r"reference URL\s+on the board is not a link")
 
     def test_the_two_gates_separate_loading_from_submission(self):
@@ -359,12 +367,14 @@ class EachSkillStatesTheLabelItsPipelineAccepts(unittest.TestCase):
 
 
 class TheCanvasPasteMeasurement(unittest.TestCase):
-    RECORD = ROOT / "skills" / "discussion-post" / "reference" / "canvas-paste-calibration.json"
+    SHEET = ROOT / "skills" / "_shared" / "reference" / "canvas-editor.md"
+    RECORD = ROOT / "skills" / "_shared" / "reference" / "canvas-editor-calibration.json"
 
     def test_scope_is_carried_in_schema_fields_and_the_observation_is_recorded(self):
         records = json.loads(read(self.RECORD))
         self.assertIsInstance(records, list)
-        self.assertEqual(len(records), 2)
+        self.assertEqual(len(records), 4)
+        self.assertTrue(all(record["composer_surface"] for record in records))
         record = records[0]
         for field in ("measured_on", "institution", "course", "theme", "instrument"):
             with self.subTest(field=field):
@@ -383,6 +393,38 @@ class TheCanvasPasteMeasurement(unittest.TestCase):
         )
         self.assertFalse(block["rendered_block_quotation"]["meets_apa_half_inch"])
         self.assertTrue(block["discarded_without_submission"])
+
+        threaded = records[2]
+        self.assertEqual(threaded["measured_on"], "2026-09-12")
+        self.assertIn("numeric-suffix discriminator", threaded["composer_surface"])
+        self.assertEqual(
+            threaded["raw_html_toggle"]["raw_status_control"],
+            "Switch to pretty HTML Editor",
+        )
+
+        ampersands = records[3]
+        self.assertEqual(ampersands["stored_double_escaped_ampersands"], 0)
+        self.assertIn("proxy", ampersands["limits"])
+
+    def test_the_shared_sheet_owns_the_order_and_raw_editor_confirmation(self):
+        sheet = read(self.SHEET)
+        raw = sheet.index("**Raw HTML:**")
+        interface = sheet.index("**Content interface:**")
+        typing = sheet.index("**Typing:**")
+
+        self.assertLess(raw, interface)
+        self.assertLess(interface, typing)
+        self.assertIn("Switch to pretty HTML Editor", sheet)
+        self.assertIn("message-body-root", sheet)
+        self.assertIn("message-body-<digits>", sheet)
+
+    def test_each_canvas_consumer_points_at_the_shared_sheet(self):
+        for skill in (POST, REPLY, PEER_CRITIQUE, CASE_STUDY, COURSE_ASSIGNMENT):
+            with self.subTest(skill=skill.parent.name):
+                self.assertEqual(
+                    1,
+                    read(skill).count("../_shared/reference/canvas-editor.md"),
+                )
 
 
 class VerifiedSourcesComposeAcrossTheBoard(unittest.TestCase):

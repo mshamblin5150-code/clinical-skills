@@ -315,7 +315,9 @@ the same block and inline parsers as the Word renderer. An authored `> ` line be
 `<blockquote>` with the
 marker consumed. A Bluefield NUR 5144 M2 measurement on 2026-09-08 found that the tag survived and
 its text rendered 19.8 pixels right of ordinary paragraph text, not at APA's 0.5-inch left indent;
-the dated geometry is in `reference/canvas-paste-calibration.json`. A clean scan does not claim
+the dated geometry is in
+[_shared/reference/canvas-editor-calibration.json](../_shared/reference/canvas-editor-calibration.json).
+A clean scan does not claim
 exact APA indentation, and the pixel-backed box reading still verifies the current form before
 Gate 2. Own-line comments are absent. A mid-line or multi-line HTML comment
 remains a real delimiter so `rendered-comments` can refuse it rather than hiding it in the box.
@@ -345,22 +347,18 @@ check again after an attempted install. If permission is declined or the install
 rendered-page rules in this step by eye and retain that result for the completion report. Exit 2
 from the check does not establish that the engine is missing and stops this step for investigation.
 
-Before Gate 1, inspect the editor for the raw-HTML toggle labeled like *Click or shift-click for the
-html editor*. If it is present, tell the clinician the post will be loaded as HTML. If it is absent,
-declare the typing fallback and its cost before asking: the agent will type the post into the rich
-editor, omit every working comment, interleave `ctrl+b` around each section heading and the
-References label, and make every reference URL a link with the editor's link control. The route is
-chosen at Gate 1 and never changes after a bad reading. There is no Word-paste third route; with proper heading styles the measured clipboard path produces visibly
-wrong headings.
+Before Gate 1, inspect the topic-level Canvas Composer and read
+[canvas-editor.md](../_shared/reference/canvas-editor.md). Choose its first supported **Load route**
+before loading, and declare the route and its cost to the clinician at Gate 1. This trigger applies
+because the live assignment accepts the initial post through the topic-level Composer.
 
 Show the final post and clean source-check summary to the clinician. **Gate 1** is the clinician's
 explicit approval of the post and authorizes loading it into the box, not submission. That approval
 also confirms that every edit implicated by a destination-guard refusal was recovered into the
 authoritative Markdown and, where it changes a factual claim, the claim ledger.
 
-On the primary route, switch to the raw editor, load the exact `.html` contents, and switch back to
-the rich editor. On the fallback route, type and format the post as declared at Gate 1. Inspect the
-rendered box before doing anything else.
+Load the exact `.html` contents by the route declared at Gate 1, following `canvas-editor.md`, and
+inspect the rendered Composer before doing anything else.
 
 Create the next retained `render/pass-N/`. Copy the exact output `.html` into that pass as
 `post.html`, and retain enough PNG captures of the scrolling Canvas box to make every rendered
