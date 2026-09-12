@@ -20,6 +20,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 SKILL = REPO_ROOT / "skills" / "icd10-cpt" / "SKILL.md"
 ASSERTIONS = REPO_ROOT / "fixtures" / "filled-anchor" / "assertions.md"
 RUN_README = REPO_ROOT / "fixtures" / "filled-anchor" / "run-2" / "README.md"
+POSITIVE_RUN = REPO_ROOT / "fixtures" / "worksheet-grammar-positive-control"
 EXPECTED_VECTOR = "6, 1, 1, 3, 3, 1, 9, 8, 3, 8, 2, 7"
 
 
@@ -380,3 +381,11 @@ class EveryDeclaredLimitIsMeasuredAndBound(unittest.TestCase):
         subject, reason, _disposition = scan.DECLARED_LIMITS[0]
         self.assertTrue(bind(scan.DECLARED_LIMITS, f"See the object. {subject}", mode=NAMING))
         self.assertTrue(bind(scan.DECLARED_LIMITS, f"See the object. {reason}", mode=NAMING))
+
+
+class ThePositiveControlCarriesACompleteRefusal(unittest.TestCase):
+    def test_the_generated_worksheet_has_one_clean_record(self):
+        texts = list(run_grader.read_run_directory(POSITIVE_RUN))
+        result = scan.survey([scan.read_worksheet(text) for text in texts])
+
+        self.assertEqual((1, 1, 0), (result.with_block, result.refusals, len(result.findings)))

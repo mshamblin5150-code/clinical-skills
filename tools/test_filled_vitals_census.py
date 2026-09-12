@@ -36,6 +36,7 @@ GraderConformance = grader_conformance.for_module(fvc)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 NOTES = REPO_ROOT / "fixtures" / "filled-anchor" / "notes"
+SKILL = REPO_ROOT / "skills" / "clinical-note" / "SKILL.md"
 
 
 class TheDeclaredLimitsObjectOwnsBothProseSurfaces(unittest.TestCase):
@@ -48,10 +49,10 @@ class TheDeclaredLimitsObjectOwnsBothProseSurfaces(unittest.TestCase):
                 self.assertEqual(1, surface.count(self.POINTER))
                 self.assertEqual((), bind(fvc.DECLARED_LIMITS, surface, mode=NAMING))
 
-    def test_the_partition_is_one_declared_reading_and_seven_behaviors(self):
+    def test_the_partition_is_one_declared_reading_and_eight_behaviors(self):
         dispositions = [row[2] for row in fvc.DECLARED_LIMITS]
         self.assertEqual(1, dispositions.count(run_grader.EvidenceDisposition.DECLARED_READING))
-        self.assertEqual(7, dispositions.count(run_grader.EvidenceDisposition.BEHAVIOR))
+        self.assertEqual(8, dispositions.count(run_grader.EvidenceDisposition.BEHAVIOR))
         self.assertTrue(all(subject and reason for subject, reason, _ in fvc.DECLARED_LIMITS))
 
 
@@ -64,6 +65,7 @@ class EveryBehaviorLimitHasALiveControl(unittest.TestCase):
         "height person-clause boundary": "AFilledHeightNamesTheAgeAndTheSex.test_the_scope_is_the_height_declaration_and_not_the_whole_block",
         "next-vital declaration boundary": "Declarations.test_a_later_vitals_filled_marker_does_not_declare_the_pressure",
         "shared declaration grammar and loose pain-score shape": "TheCensusSeesTheOtherVitalClasses.test_a_filled_severity_is_counted",
+        "age-unit vocabulary": "AFilledHeightNamesTheAgeAndTheSex.test_non_numeric_or_unitless_ages_are_rejected",
     }
 
     def test_each_behavior_subject_names_a_passing_control(self):
@@ -814,9 +816,31 @@ class AFilledHeightNamesTheAgeAndTheSex(unittest.TestCase):
         self.assertFalse(fvc.names_person("HEIGHT 5'10\" filled. T 98.4 F filled. 36 yo."))
 
     def test_the_pediatric_age_forms_read(self):
-        for age in ("a 17-year-old boy", "17 yo male", "age 17, male", "a 9-month-old girl"):
+        for age in (
+            "a 17-year-old boy",
+            "17 yo male",
+            "17 y.o. male",
+            "17:yr. male",
+            "age: 17, male",
+            "a 9/month/old girl",
+        ):
             with self.subTest(age=age):
                 self.assertTrue(fvc.names_person(f"Reasoned from {age}."))
+
+    def test_non_numeric_or_unitless_ages_are_rejected(self):
+        for clause in (
+            "thirty-six-year-old male",
+            "36 adult male",
+            "year-old 36 male",
+            "age unknown, male",
+        ):
+            with self.subTest(clause=clause):
+                self.assertFalse(fvc.names_person(clause))
+
+    def test_the_skill_states_the_age_vocabulary(self):
+        text = SKILL.read_text(encoding="utf-8")
+        self.assertIn("age in digits followed by a year, month, week, or day unit", text)
+        self.assertIn("number spelled as a word does not name the age", text)
 
     def test_the_scope_is_the_height_declaration_and_not_the_whole_block(self):
         """The canonical block names the age on the *pressure* line.

@@ -167,6 +167,27 @@ def write_codex_transcript(path: Path, run: Path | None = None) -> None:
     path.write_text("\n".join(json.dumps(item) for item in rows) + "\n", encoding="utf-8")
 
 
+class GithubPublicationEvidence(unittest.TestCase):
+    def test_a_successful_codex_command_execution_proves_the_gh_call(self):
+        with tempfile.TemporaryDirectory() as temp:
+            transcript = Path(temp) / "codex.jsonl"
+            event = {
+                "type": "event_msg",
+                "payload": {
+                    "type": "item_completed",
+                    "item": {
+                        "type": "CommandExecution",
+                        "command": ["pwsh", "-Command", "gh issue create --title follow-up"],
+                        "status": "completed",
+                        "exit_code": 0,
+                    },
+                },
+            }
+            transcript.write_text(json.dumps(event) + "\n", encoding="utf-8")
+
+            self.assertTrue(aar_scan._successful_gh_call((transcript,)))
+
+
 def invoke_main(arguments: list[str], stdin: str | None = None) -> tuple[int, str, str]:
     stdout = io.StringIO()
     stderr = io.StringIO()

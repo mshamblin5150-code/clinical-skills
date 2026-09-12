@@ -74,6 +74,7 @@ NO_LIMITS = {
     "threshold_coverage": "a registry derivation whose catalog and filesystem joins define its reach",
     "threshold_draft": "a scaffold builder rather than a verification command",
     "threshold_grammar": "shared parsing grammar with no independent coverage conclusion",
+    "worksheet_grammar": "shared worksheet grammar with no independent coverage conclusion",
     "tracker_records": "tracker-record data parsing shared by commands that declare their own limits",
     "tracker_population": "a deterministic probe adapter whose accepted input schemas define its reach",
     "tracker_scan": "an orchestrator whose nonstandard grader shape is classified by run_grader",

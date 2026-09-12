@@ -672,6 +672,26 @@ def _tracked_diff_names() -> set[Path]:
 def _successful_gh_call(transcripts: Iterable[Path]) -> bool:
     for transcript in transcripts:
         rows = read_transcript(transcript)
+        for row in rows:
+            if row.get("type") != "event_msg":
+                continue
+            payload = row.get("payload")
+            if not isinstance(payload, dict) or payload.get("type") != "item_completed":
+                continue
+            item = payload.get("item")
+            if not isinstance(item, dict) or item.get("type") != "CommandExecution":
+                continue
+            command = item.get("command")
+            commands = command if isinstance(command, list) else [command]
+            if (
+                item.get("status") == "completed"
+                and item.get("exit_code") == 0
+                and any(
+                    isinstance(value, str) and shell_reader.has_executable(value, "gh")
+                    for value in commands
+                )
+            ):
+                return True
         tools = _tool_index(rows)
         gh_ids: set[str] = set()
         for row in rows:
