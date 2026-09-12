@@ -1624,6 +1624,14 @@ Mirror-only files are moved, never deleted, to
 per-checkout and gitignored. The settings test proves registration only; silence still means the
 hook did not fire rather than that another check established the mirror was clean. [#820](https://github.com/mshamblin5150-code/clinical-skills/issues/820).
 
+The same session-start context reports **Base distance** in both directions against the cached
+`origin/main`. Its population is the raw commit distance; its finding is the subset touching
+`skills/`, `reference/`, `AGENTS.md`, or a non-test `tools/*.py` path those instructions name. That
+tool subset is derived from the tree on every reading. The line also states when the cached ref last
+moved. It never fetches, never prints a clean verdict, and never changes the advisory exit status.
+The mirror's retained pre-repair record remains about the mirror; the base line is context only.
+[#979](https://github.com/mshamblin5150-code/clinical-skills/issues/979).
+
 The command's complete boundary belongs to `skills_mirror.NOT_REACHED`; this section points at that
 object and copies none of its rows.
 

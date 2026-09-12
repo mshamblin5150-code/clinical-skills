@@ -9,11 +9,13 @@ Same reasoning as test_icd10.py never opening the shipped database.
 """
 
 import ast
+import datetime
 import io
 import json
 import os
+import subprocess
 import unittest
-from contextlib import redirect_stdout
+from contextlib import nullcontext, redirect_stdout
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
@@ -23,6 +25,19 @@ from prose_bind import NAMING, bind
 
 
 TOOLS = Path(__file__).resolve().parent
+
+
+def git(root: Path, *arguments: str, env=None) -> str:
+    return subprocess.run(
+        ["git", *arguments],
+        cwd=root,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=True,
+        encoding="utf-8",
+        errors="replace",
+    ).stdout.strip()
 
 
 def make_skill(root: Path, name: str, body: str = "# skill\n", extra=None):
@@ -95,6 +110,81 @@ class TempCheckout(unittest.TestCase):
     def tearDown(self):
         self._tmp.cleanup()
 
+    def make_git_checkout(self, branch="feature"):
+        git(self.root, "init", "-b", "main")
+        git(self.root, "config", "user.email", "tests@example.com")
+        git(self.root, "config", "user.name", "Tests")
+        make_skill(
+            self.root,
+            "clinical-note",
+            body="Run `python tools/cited.py`.\n",
+        )
+        (self.root / "reference").mkdir()
+        (self.root / "reference" / "sheet.md").write_text("sheet\n", encoding="utf-8")
+        (self.root / "tools").mkdir()
+        (self.root / "tools" / "cited.py").write_text("", encoding="utf-8")
+        (self.root / "AGENTS.md").write_text("# Instructions\n", encoding="utf-8")
+        git(self.root, "add", "AGENTS.md", "reference", "skills", "tools/cited.py")
+        committed = dict(os.environ)
+        committed["GIT_AUTHOR_DATE"] = "2026-09-12T17:00:00+00:00"
+        committed["GIT_COMMITTER_DATE"] = "2026-09-12T17:00:00+00:00"
+        git(self.root, "commit", "-m", "base", env=committed)
+        moved = dict(os.environ)
+        moved["GIT_COMMITTER_DATE"] = "2026-09-12T18:00:00+00:00"
+        git(
+            self.root,
+            "update-ref",
+            "--create-reflog",
+            "refs/remotes/origin/main",
+            "HEAD",
+            env=moved,
+        )
+        git(self.root, "checkout", "-b", branch)
+        sm.link(
+            self.root / ".claude" / "skills" / "clinical-note",
+            self.root / "skills" / "clinical-note",
+        )
+
+    def commit(self, path: str, text: str, message: str):
+        target = self.root / path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(text, encoding="utf-8")
+        git(self.root, "add", path)
+        dated = dict(os.environ)
+        dated["GIT_AUTHOR_DATE"] = "2026-09-12T18:00:00+00:00"
+        dated["GIT_COMMITTER_DATE"] = "2026-09-12T18:00:00+00:00"
+        git(self.root, "commit", "-m", message, env=dated)
+
+    def move_origin_to_head(self):
+        moved = dict(os.environ)
+        moved["GIT_COMMITTER_DATE"] = "2026-09-12T18:00:00+00:00"
+        git(
+            self.root,
+            "update-ref",
+            "refs/remotes/origin/main",
+            "HEAD",
+            env=moved,
+        )
+
+    def session_context(self, now, git_side_effect=None):
+        buf = io.StringIO()
+        git_patch = (
+            patch.object(sm, "_git", side_effect=git_side_effect)
+            if git_side_effect is not None
+            else nullcontext()
+        )
+        with patch("sys.stdin", io.StringIO('{"hook_event_name": "SessionStart"}')):
+            with patch.object(sm, "utc_now", return_value=now):
+                with git_patch:
+                    with redirect_stdout(buf):
+                        code = sm.main(
+                            ["--session-start", "--root", str(self.root)]
+                        )
+        context = json.loads(buf.getvalue())["hookSpecificOutput"][
+            "additionalContext"
+        ]
+        return code, context
+
 
 class RepoRootTests(unittest.TestCase):
     def test_root_resolution_runs_no_subprocess(self):
@@ -131,6 +221,83 @@ class RepoRootTests(unittest.TestCase):
         with patch.dict(os.environ, {"GIT_WORK_TREE": "."}):
             os.environ.pop("GIT_DIR", None)
             self.assertEqual(sm.repo_root(), expected)
+
+
+class RunRelevantPathTests(TempCheckout):
+    def test_the_set_follows_citations_in_both_directions(self):
+        make_skill(
+            self.root,
+            "clinical-note",
+            body=(
+                "Run `python tools/cited.py`.\n"
+                "The gate is `tools/test_cited.py`.\n"
+            ),
+        )
+        tools = self.root / "tools"
+        tools.mkdir()
+        for name in ("cited.py", "test_cited.py", "uncited.py"):
+            (tools / name).write_text("", encoding="utf-8")
+        (self.root / "AGENTS.md").write_text(
+            "Also run `python tools/from_agents.py`.\n",
+            encoding="utf-8",
+        )
+        (tools / "from_agents.py").write_text("", encoding="utf-8")
+
+        self.assertEqual(
+            sm.run_relevant_paths(self.root),
+            [
+                "AGENTS.md",
+                "reference",
+                "skills",
+                "tools/cited.py",
+                "tools/from_agents.py",
+            ],
+        )
+
+
+class BaseDistanceGitTests(TempCheckout):
+    def test_the_read_uses_only_the_declared_local_git_commands(self):
+        self.make_git_checkout()
+        real_run = subprocess.run
+        with patch.object(sm.subprocess, "run", wraps=real_run) as run:
+            sm.read_base_distance(self.root)
+
+        commands = [call.args[0] for call in run.call_args_list]
+        self.assertEqual(
+            commands[0],
+            [
+                "git",
+                "log",
+                "-g",
+                "-1",
+                "--date=iso-strict",
+                "--format=%gD",
+                "refs/remotes/origin/main",
+            ],
+        )
+        self.assertEqual(
+            commands[1],
+            [
+                "git",
+                "rev-list",
+                "--left-right",
+                "--count",
+                "origin/main...HEAD",
+            ],
+        )
+        self.assertEqual(
+            commands[2],
+            [
+                "git",
+                "rev-list",
+                "--left-right",
+                "--count",
+                "origin/main...HEAD",
+                "--",
+                *sm.run_relevant_paths(self.root),
+            ],
+        )
+        self.assertFalse(any("fetch" in command for command in commands))
 
 
 def _root_shaped(directory: ast.AST) -> bool:
@@ -546,7 +713,12 @@ class CliTests(TempCheckout):
         context = json.loads(buf.getvalue())["hookSpecificOutput"][
             "additionalContext"
         ]
-        self.assertEqual(context, sm.NO_SKILLS)
+        self.assertIn(sm.NO_SKILLS, context)
+        self.assertIn(
+            "base: <branch> -- NOT ESTABLISHED: branch-name and "
+            "origin/main movement-time read failed",
+            context,
+        )
 
     def test_quiet_help_names_the_empty_population_exception(self):
         buf = io.StringIO()
@@ -580,7 +752,7 @@ class CliTests(TempCheckout):
         self.assertEqual(status_of(self.root, "clinical-note").status, sm.STALE)
         self.assertFalse((self.root / ".claude" / "skills-mirror-reports").exists())
 
-    def test_clean_main_session_records_the_report_and_emits_one_context_line(self):
+    def test_clean_main_session_records_the_report_and_emits_base_context(self):
         make_skill(self.root, "clinical-note")
         sm.link(
             self.root / ".claude" / "skills" / "clinical-note",
@@ -597,7 +769,11 @@ class CliTests(TempCheckout):
             {
                 "hookSpecificOutput": {
                     "hookEventName": "SessionStart",
-                    "additionalContext": "skills mirror: 1 of 1 linked",
+                    "additionalContext": (
+                        "skills mirror: 1 of 1 linked\n\n"
+                        "base: <branch> -- NOT ESTABLISHED: "
+                        "branch-name and origin/main movement-time read failed"
+                    ),
                 }
             },
         )
@@ -607,6 +783,141 @@ class CliTests(TempCheckout):
         self.assertEqual(len(records), 1)
         self.assertIn("clinical-note", records[0].read_text(encoding="utf-8"))
         self.assertIn(sm.LINKED, records[0].read_text(encoding="utf-8"))
+
+    def test_session_start_says_no_newer_commit_is_known(self):
+        self.make_git_checkout()
+        now = datetime.datetime(2026, 9, 12, 18, 20, tzinfo=datetime.timezone.utc)
+        code, context = self.session_context(now)
+        self.assertEqual(code, 0)
+        self.assertIn(
+            "base: feature -- no newer commit known;\n"
+            "      origin/main last moved 20 minutes ago",
+            context,
+        )
+        self.assertNotIn("current", context.lower())
+
+    def test_a_detached_checkout_still_reports_its_base_distance(self):
+        self.make_git_checkout()
+        commit = git(self.root, "rev-parse", "HEAD")
+        git(self.root, "checkout", "--detach")
+        now = datetime.datetime(2026, 9, 12, 18, 20, tzinfo=datetime.timezone.utc)
+        code, context = self.session_context(now)
+
+        self.assertEqual(code, 0)
+        self.assertIn(
+            f"base: detached@{commit[:12]} -- no newer commit known;\n"
+            "      origin/main last moved 20 minutes ago",
+            context,
+        )
+
+    def test_session_start_reports_raw_and_run_relevant_behind_counts(self):
+        self.make_git_checkout()
+        git(self.root, "checkout", "main")
+        self.commit("reference/sheet.md", "changed\n", "relevant")
+        self.commit("README.md", "noise\n", "not run relevant")
+        self.move_origin_to_head()
+        git(self.root, "checkout", "feature")
+        now = datetime.datetime(2026, 9, 12, 18, 20, tzinfo=datetime.timezone.utc)
+        code, context = self.session_context(now)
+        self.assertEqual(code, 0)
+        self.assertIn(
+            "base: feature -- at least 2 commits behind origin/main\n"
+            "      (1 changes what a clinical run reads); "
+            "origin/main last moved 20 minutes ago",
+            context,
+        )
+
+    def test_an_ahead_checkout_suppresses_the_clean_line(self):
+        self.make_git_checkout()
+        self.commit("reference/sheet.md", "feature\n", "feature work")
+        now = datetime.datetime(2026, 9, 12, 18, 20, tzinfo=datetime.timezone.utc)
+        code, context = self.session_context(now)
+        self.assertEqual(code, 0)
+        self.assertIn(
+            "base: feature -- carrying at most 1 commit not in origin/main\n"
+            "      (1 changes what a clinical run reads); "
+            "origin/main last moved 20 minutes ago",
+            context,
+        )
+        self.assertNotIn("no newer commit known", context)
+
+    def test_session_start_reports_both_directions_when_they_diverge(self):
+        self.make_git_checkout(branch="clinical_skills-ticket-1170")
+        self.commit("reference/feature.md", "feature\n", "feature work")
+        git(self.root, "checkout", "main")
+        self.commit("skills/clinical-note/new.md", "rule\n", "new rule")
+        self.commit("README.md", "noise\n", "not run relevant")
+        self.move_origin_to_head()
+        git(self.root, "checkout", "clinical_skills-ticket-1170")
+        now = datetime.datetime(2026, 9, 12, 18, 20, tzinfo=datetime.timezone.utc)
+        code, context = self.session_context(now)
+        self.assertEqual(code, 0)
+        self.assertIn(
+            "base: clinical_skills-ticket-1170 -- carrying at most 1 commit not in "
+            "origin/main\n"
+            "      (1 changes what a clinical run reads), and at least 2 commits "
+            "behind it\n"
+            "      (1 changes what a clinical run reads); "
+            "origin/main last moved 20 minutes ago",
+            context,
+        )
+
+    def test_a_failed_distance_read_keeps_the_branch_and_ref_age(self):
+        self.make_git_checkout()
+        real_git = sm._git
+
+        def fail_raw_distance(root, *arguments):
+            if arguments == (
+                "rev-list",
+                "--left-right",
+                "--count",
+                "origin/main...HEAD",
+            ):
+                raise subprocess.CalledProcessError(1, ["git", *arguments])
+            return real_git(root, *arguments)
+
+        now = datetime.datetime(2026, 9, 12, 18, 20, tzinfo=datetime.timezone.utc)
+        code, context = self.session_context(now, fail_raw_distance)
+        self.assertEqual(code, 0)
+        self.assertIn(
+            "base: feature -- NOT ESTABLISHED: raw distance read failed; "
+            "origin/main last moved 20 minutes ago",
+            context,
+        )
+
+    def test_a_failed_branch_read_keeps_the_ref_age(self):
+        self.make_git_checkout()
+        now = datetime.datetime(2026, 9, 12, 18, 20, tzinfo=datetime.timezone.utc)
+        with patch.object(
+            sm,
+            "checkout_label",
+            side_effect=sm.BaseReadFailed("branch-name"),
+        ):
+            code, context = self.session_context(now)
+
+        self.assertEqual(code, 0)
+        self.assertIn(
+            "base: <branch> -- NOT ESTABLISHED: branch-name read failed; "
+            "origin/main last moved 20 minutes ago",
+            context,
+        )
+
+    def test_a_failed_run_relevant_path_read_remains_advisory(self):
+        self.make_git_checkout()
+        now = datetime.datetime(2026, 9, 12, 18, 20, tzinfo=datetime.timezone.utc)
+        with patch.object(
+            sm,
+            "run_relevant_paths",
+            side_effect=OSError("unreadable instruction"),
+        ):
+            code, context = self.session_context(now)
+
+        self.assertEqual(code, 0)
+        self.assertIn(
+            "base: feature -- NOT ESTABLISHED: run-relevant path-set read failed; "
+            "origin/main last moved 20 minutes ago",
+            context,
+        )
 
     def test_broken_main_session_reports_then_drains_and_repairs(self):
         make_skill(self.root, "clinical-note", body="rule kept\n")

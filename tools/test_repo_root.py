@@ -19,6 +19,7 @@ from pathlib import Path
 from repo_root import (
     ForeignCheckout,
     InsideCheckout,
+    checkout_git_dir,
     enclosing_checkout,
     ensure_main_checkout,
     ensure_outside_checkout,
@@ -180,6 +181,21 @@ class EnclosingCheckout(Checkouts):
         scratch = self.main / "scratch"
         self.assertFalse(scratch.exists())
         self.assertIsNone(enclosing_checkout(scratch / "name-index.json", permitted=[scratch]))
+
+
+class CheckoutGitDir(Checkouts):
+    def test_a_plain_checkout_names_its_git_directory(self):
+        self.assertEqual(checkout_git_dir(self.main), self.main / ".git")
+
+    def test_a_worktree_resolves_its_relative_pointer(self):
+        tree = self.worktree("../../../.git/worktrees/ticket-93")
+        self.assertEqual(
+            checkout_git_dir(tree),
+            (self.main / ".git" / "worktrees" / "ticket-93").resolve(),
+        )
+
+    def test_a_path_outside_a_checkout_has_no_git_directory(self):
+        self.assertIsNone(checkout_git_dir(self.root / "elsewhere"))
 
 
 class EnsureOutsideCheckout(Checkouts):

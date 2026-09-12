@@ -215,6 +215,30 @@ def enclosing_checkout(
     return None
 
 
+def checkout_git_dir(path: Path | str) -> Path | None:
+    """The Git directory for the checkout containing ``path``, or ``None``.
+
+    A plain checkout keeps it at its root. A linked worktree carries a pointer
+    file whose target may be absolute or relative to that worktree.
+    """
+    checkout = enclosing_checkout(path)
+    if checkout is None:
+        return None
+    marker = checkout / ".git"
+    if marker.is_dir():
+        return marker
+    try:
+        pointer = marker.read_text(encoding="utf-8").strip()
+    except OSError:
+        return None
+    if not pointer.startswith("gitdir: "):
+        return None
+    git_dir = Path(pointer.removeprefix("gitdir: "))
+    if not git_dir.is_absolute():
+        git_dir = checkout / git_dir
+    return git_dir.resolve()
+
+
 def ensure_outside_checkout(
     path: Path | str,
     permitted: Iterable[Path | str] = (),

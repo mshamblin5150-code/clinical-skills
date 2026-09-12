@@ -52,8 +52,11 @@ like `corpus_census.py` and unlike `harvest_review.py`.
 full pre-repair report under `.claude/skills-mirror-reports/`, moves mirror-only files
 under `.claude/skills-orphaned/<name>/<UTC stamp>/`, and then relinks the entry. A
 subagent payload returns without inspecting or writing because its parent already owns
-the repair. Hook output is JSON carrying `hookSpecificOutput.additionalContext`; plain
-stdout text does not reach the model.
+the repair. Its context also reports the checkout's base distance from the cached
+`origin/main`, including the derived run-relevant subset and when that ref last moved.
+The report is local and advisory: it never fetches and never changes the hook's status.
+Hook output is JSON carrying `hookSpecificOutput.additionalContext`; plain stdout text
+does not reach the model.
 
 What a clean run does not establish belongs to ``skills_mirror.NOT_REACHED`` below.
 This docstring points at that object and deliberately copies none of its rows.
@@ -66,6 +69,7 @@ import datetime
 import filecmp
 import json
 import os
+import re
 import shutil
 import stat
 import subprocess
@@ -74,6 +78,7 @@ from pathlib import Path
 from typing import Iterable, NamedTuple
 
 from console_codec import require_python_floor, use_utf8
+from repo_root import checkout_git_dir
 
 MIRROR = Path(".claude") / "skills"
 CANONICAL = Path("skills")
@@ -103,6 +108,7 @@ LINE_ENDINGS = "line endings only"
 REPORTS = Path(".claude") / "skills-mirror-reports"
 ORPHANS = Path(".claude") / "skills-orphaned"
 NO_SKILLS = "no skills found under skills/"
+TOOL_PATH = re.compile(r"(?<![A-Za-z0-9_])tools/([A-Za-z0-9_]+\.py)")
 
 NOT_REACHED = (
     (
@@ -130,6 +136,26 @@ NOT_REACHED = (
         "Session start remains advisory and returns success so its structured context "
         "can be consumed.",
     ),
+    (
+        "that a checkout is current",
+        "Base distance reads the cached origin/main without fetching; a zero means "
+        "only that the local copy names no newer commit.",
+    ),
+    (
+        "the complete set of files a clinical run reads",
+        "The run-relevant path set reaches named tool modules and the declared roots, "
+        "not files reached through an unnamed import or another indirect path.",
+    ),
+    (
+        "when origin/main was last checked",
+        "The timestamp comes from the cached ref's last movement; a fetch that found "
+        "nothing records no movement.",
+    ),
+    (
+        "the state of the issue tracker",
+        "Commit distance reads repository refs only and does not inspect tracker "
+        "records that may have changed independently.",
+    ),
 )
 
 
@@ -148,6 +174,28 @@ class RepairResult(NamedTuple):
     repaired: int
     drained: list[Path]
     failures: list[str]
+
+
+class BaseDistance(NamedTuple):
+    branch: str
+    behind: int
+    ahead: int
+    run_behind: int
+    run_ahead: int
+    moved_at: datetime.datetime
+
+
+class BaseReadFailed(Exception):
+    def __init__(
+        self,
+        label: str,
+        branch: str = "<branch>",
+        moved_at: datetime.datetime | None = None,
+    ):
+        super().__init__(label)
+        self.label = label
+        self.branch = branch
+        self.moved_at = moved_at
 
 
 def _normalized(data: bytes) -> bytes:
@@ -183,6 +231,219 @@ def repo_root() -> Path:
     answer local without consulting redirectable process state.
     """
     return Path(__file__).resolve().parent.parent
+
+
+def run_relevant_paths(root: Path) -> list[str]:
+    """Pathspec for what a clinical run reads, derived from its instructions."""
+    prose = [root / "AGENTS.md"]
+    skills = root / CANONICAL
+    if skills.is_dir():
+        prose.extend(path for path in skills.rglob("*") if path.is_file())
+
+    cited_tools = set()
+    for path in prose:
+        if not path.is_file():
+            continue
+        for name in TOOL_PATH.findall(path.read_text(encoding="utf-8")):
+            if not name.startswith("test_"):
+                cited_tools.add(f"tools/{name}")
+
+    return sorted({"AGENTS.md", "reference", "skills", *cited_tools})
+
+
+def utc_now() -> datetime.datetime:
+    return datetime.datetime.now(datetime.timezone.utc)
+
+
+def _git(root: Path, *arguments: str) -> str:
+    return subprocess.run(
+        ["git", *arguments],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        check=True,
+        encoding="utf-8",
+        errors="replace",
+    ).stdout.strip()
+
+
+def _distance_pair(value: str) -> tuple[int, int]:
+    left, right = value.split()
+    return int(left), int(right)
+
+
+def _git_read(root: Path, label: str, *arguments: str) -> str:
+    try:
+        return _git(root, *arguments)
+    except (OSError, subprocess.CalledProcessError) as exc:
+        raise BaseReadFailed(label) from exc
+
+
+def checkout_label(root: Path) -> str:
+    """Branch name from the checkout's HEAD file, or a detached commit label."""
+    try:
+        git_dir = checkout_git_dir(root)
+        if git_dir is None:
+            raise ValueError("no enclosing checkout")
+        head = (git_dir / "HEAD").read_text(encoding="utf-8").strip()
+    except (OSError, ValueError) as exc:
+        raise BaseReadFailed("branch-name") from exc
+
+    prefix = "ref: refs/heads/"
+    if head.startswith(prefix):
+        return head.removeprefix(prefix)
+    if re.fullmatch(r"[0-9a-fA-F]{40,64}", head):
+        return f"detached@{head[:12]}"
+    raise BaseReadFailed("branch-name")
+
+
+def read_base_distance(root: Path) -> BaseDistance:
+    branch_failure = None
+    try:
+        branch = checkout_label(root)
+    except BaseReadFailed as exc:
+        branch = exc.branch
+        branch_failure = exc
+    try:
+        moved = _git_read(
+            root,
+            "origin/main movement-time",
+            "log",
+            "-g",
+            "-1",
+            "--date=iso-strict",
+            "--format=%gD",
+            "refs/remotes/origin/main",
+        )
+        match = re.search(r"@\{(.+)\}$", moved)
+        if match is None:
+            raise ValueError("no dated reflog selector")
+        moved_at = datetime.datetime.fromisoformat(
+            match.group(1).replace("Z", "+00:00")
+        )
+    except BaseReadFailed as exc:
+        if branch_failure is not None:
+            raise BaseReadFailed(
+                f"{branch_failure.label} and {exc.label}", branch
+            ) from exc
+        raise BaseReadFailed(exc.label, branch) from exc
+    except ValueError as exc:
+        raise BaseReadFailed("origin/main movement-time", branch) from exc
+    if branch_failure is not None:
+        raise BaseReadFailed(branch_failure.label, branch, moved_at)
+    try:
+        behind, ahead = _distance_pair(
+            _git_read(
+                root,
+                "raw distance",
+                "rev-list",
+                "--left-right",
+                "--count",
+                "origin/main...HEAD",
+            )
+        )
+    except BaseReadFailed as exc:
+        raise BaseReadFailed(exc.label, branch, moved_at) from exc
+    except ValueError as exc:
+        raise BaseReadFailed("raw distance", branch, moved_at) from exc
+    try:
+        relevant_paths = run_relevant_paths(root)
+    except (OSError, UnicodeError) as exc:
+        raise BaseReadFailed(
+            "run-relevant path-set", branch, moved_at
+        ) from exc
+    try:
+        run_behind, run_ahead = _distance_pair(
+            _git_read(
+                root,
+                "run-relevant distance",
+                "rev-list",
+                "--left-right",
+                "--count",
+                "origin/main...HEAD",
+                "--",
+                *relevant_paths,
+            )
+        )
+    except BaseReadFailed as exc:
+        raise BaseReadFailed(exc.label, branch, moved_at) from exc
+    except ValueError as exc:
+        raise BaseReadFailed("run-relevant distance", branch, moved_at) from exc
+    return BaseDistance(
+        branch,
+        behind,
+        ahead,
+        run_behind,
+        run_ahead,
+        moved_at,
+    )
+
+
+def _age_words(then: datetime.datetime, now: datetime.datetime) -> str:
+    seconds = max(0, int((now - then).total_seconds()))
+    if seconds < 60:
+        return "less than a minute ago"
+    minutes = seconds // 60
+    if minutes < 60:
+        return f"{minutes} minute{'s' if minutes != 1 else ''} ago"
+    hours = minutes // 60
+    if hours < 24:
+        return f"{hours} hour{'s' if hours != 1 else ''} ago"
+    days = hours // 24
+    return f"{days} day{'s' if days != 1 else ''} ago"
+
+
+def _commits(value: int) -> str:
+    return f"{value} commit{'s' if value != 1 else ''}"
+
+
+def _run_changes(value: int) -> str:
+    verb = "changes" if value == 1 else "change"
+    return f"{value} {verb} what a clinical run reads"
+
+
+def render_base_distance(reading: BaseDistance, now: datetime.datetime) -> str:
+    age = _age_words(reading.moved_at, now)
+    if reading.ahead:
+        lines = [
+            f"base: {reading.branch} -- carrying at most {_commits(reading.ahead)} "
+            "not in origin/main",
+            f"      ({_run_changes(reading.run_ahead)})",
+        ]
+        if reading.behind:
+            lines[-1] += f", and at least {_commits(reading.behind)} behind it"
+            lines.append(
+                f"      ({_run_changes(reading.run_behind)}); "
+                f"origin/main last moved {age}"
+            )
+        else:
+            lines[-1] += f"; origin/main last moved {age}"
+        return "\n".join(lines)
+    if reading.behind:
+        return (
+            f"base: {reading.branch} -- at least {_commits(reading.behind)} "
+            "behind origin/main\n"
+            f"      ({_run_changes(reading.run_behind)}); "
+            f"origin/main last moved {age}"
+        )
+    return (
+        f"base: {reading.branch} -- no newer commit known;\n"
+        f"      origin/main last moved {age}"
+    )
+
+
+def base_context(root: Path) -> str:
+    try:
+        return render_base_distance(read_base_distance(root), utc_now())
+    except BaseReadFailed as exc:
+        context = (
+            f"base: {exc.branch} -- NOT ESTABLISHED: {exc.label} read failed"
+        )
+        if exc.moved_at is not None:
+            context += (
+                f"; origin/main last moved {_age_words(exc.moved_at, utc_now())}"
+            )
+        return context
 
 
 def skill_names(root: Path) -> list[str]:
@@ -526,6 +787,7 @@ def main(argv=None) -> int:
             )
             context_lines.extend(f"FAILED  {failure}" for failure in failures)
             context = "\n".join(context_lines)
+        context = f"{context}\n\n{base_context(root)}"
         print(json.dumps(hook_response(context)))
         # SessionStart is advisory. Returning success is what lets Claude Code
         # consume the structured failure context instead of turning a fired
