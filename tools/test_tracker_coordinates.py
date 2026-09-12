@@ -22,6 +22,36 @@ from prose_bind import NAMING, bind, section as markdown_section
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
+def init_git_repository(root: Path, *, with_initial_commit: bool = False) -> Path:
+    adr = root / "docs" / "adr"
+    adr.mkdir(parents=True)
+    subprocess.run(
+        ["git", "init", "--initial-branch=main"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "Test Writer"], cwd=root, check=True
+    )
+    subprocess.run(
+        ["git", "config", "user.email", "writer@example.invalid"],
+        cwd=root,
+        check=True,
+    )
+    if with_initial_commit:
+        readme = root / "README.md"
+        readme.write_text("Existing repository.\n", encoding="utf-8")
+        subprocess.run(["git", "add", "README.md"], cwd=root, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "initial"],
+            cwd=root,
+            check=True,
+            capture_output=True,
+        )
+    return adr
+
+
 class ThePublicTextGrade(unittest.TestCase):
     def test_removing_the_anchor_exposes_the_coordinate(self):
         anchored = (
@@ -240,22 +270,7 @@ class TheForwardOnlyAdrWalk(unittest.TestCase):
     def test_last_touch_selects_records_on_either_side_of_the_cutoff(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            adr = root / "docs" / "adr"
-            adr.mkdir(parents=True)
-            subprocess.run(
-                ["git", "init", "--initial-branch=main"],
-                cwd=root,
-                check=True,
-                capture_output=True,
-            )
-            subprocess.run(
-                ["git", "config", "user.name", "Test Writer"], cwd=root, check=True
-            )
-            subprocess.run(
-                ["git", "config", "user.email", "writer@example.invalid"],
-                cwd=root,
-                check=True,
-            )
+            adr = init_git_repository(root)
 
             old = adr / "0001-old.md"
             old.write_text("Unanchored tools/old.py:12\n", encoding="utf-8")
@@ -299,6 +314,50 @@ class TheForwardOnlyAdrWalk(unittest.TestCase):
 
 
 class TheWrittenContract(unittest.TestCase):
+    def test_a_staged_uncommitted_adr_is_eligible_and_graded(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            adr = init_git_repository(root, with_initial_commit=True)
+            staged = adr / "0001-staged.md"
+            staged.write_text("Unanchored tools/staged.py:12\n", encoding="utf-8")
+            subprocess.run(["git", "add", "docs/adr"], cwd=root, check=True)
+
+            scan = coordinates.grade_adrs(root)
+
+        self.assertEqual((1, 1), (scan.records, scan.eligible))
+        self.assertEqual(
+            ["docs/adr/0001-staged.md"],
+            [row.locator for row in scan.findings],
+        )
+
+    def test_a_failed_last_touch_git_read_is_not_scanned(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            adr = init_git_repository(root, with_initial_commit=True)
+            staged = adr / "0001-staged.md"
+            staged.write_text(
+                "Anchored by `symbol` at tools/staged.py:12.\n", encoding="utf-8"
+            )
+            subprocess.run(["git", "add", "docs/adr"], cwd=root, check=True)
+            failed = subprocess.CompletedProcess(("git",), 128, "", "failure")
+            real_run = subprocess.run
+
+            def fail_last_touch(command, *args, **kwargs):
+                if command[:3] == ["git", "log", "-1"]:
+                    return failed
+                return real_run(command, *args, **kwargs)
+
+            with mock.patch.object(
+                coordinates.subprocess,
+                "run",
+                side_effect=fail_last_touch,
+            ):
+                with self.assertRaisesRegex(
+                    coordinates.SourceError,
+                    coordinates.ADR_LAST_TOUCH_UNREADABLE,
+                ):
+                    coordinates.grade_adrs(root)
+
     def test_every_surface_points_at_the_declared_limits_and_copies_no_row(self):
         issue_tracker = (REPO_ROOT / "docs" / "agents" / "issue-tracker.md").read_text(
             encoding="utf-8"

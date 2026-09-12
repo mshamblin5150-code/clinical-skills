@@ -1568,8 +1568,9 @@ an anchor in its paragraph or in the quoted block immediately beneath it. The
 pre-publication hook refuses an unanchored coordinate and names the repair;
 the tracker workflow reports the same changed record after publication. With
 no arguments, the command grades tracked ADRs forward from its declared cutoff
-using each record's own last-touching commit. Exit 0 is clean, 1 is a finding,
-and 2 means the requested population was not scanned completely.
+using each committed record's own last-touching commit. An indexed ADR with no
+commit is eligible and graded in the same walk. Exit 0 is clean, 1 is a
+finding, and 2 means the requested population was not scanned completely.
 
 The complete boundary belongs to `tracker_coordinates.DECLARED_LIMITS`; this
 section copies none of its rows.
