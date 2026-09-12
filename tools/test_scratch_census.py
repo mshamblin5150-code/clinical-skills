@@ -463,7 +463,7 @@ class AccountedSetTests(unittest.TestCase):
     def test_the_census_refuses_from_the_hook_and_is_not_advisory(self) -> None:
         """Assert the hook's refusal structurally, never by running the hook.
 
-        The hook runs seven graders, and ``phi_scan`` cannot pass in the
+        The hook runs multiple graders, and ``phi_scan`` cannot pass in the
         throwaway checkout. An end-to-end test would therefore refuse for a
         reason other than the census behavior under test.
         """

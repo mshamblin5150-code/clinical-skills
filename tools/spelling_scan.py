@@ -69,14 +69,10 @@ Known limits, stated so nobody reads this as the rule itself:
   the limit is what stops a clean line over-claiming; it is not what closes a
   gap.
 - Advisory in the pre-commit hook, and deliberately: a spelling is not worth
-  refusing a commit over. **Two things here can refuse one** -- standing rule 1
-  via ``phi_scan.py``, and since #83 ``threshold_sheet.py`` when a
-  ``reference/thresholds/*.md`` is staged. This line read *"standing rule 1 stays
-  the only thing that refuses a commit in this repo"* until 2026-08-19; that was
-  the **fourth** copy of a claim false since #83, after ``AGENTS.md`` and
-  ``CLAUDE.md`` corrected theirs and ``tools/hooks/pre-commit`` recorded killing
-  what it called the third. Found by a tracker sweep, in the one file whose own
-  docstring is what a reader checks the rule against.
+  refusing a commit over. The current inventory of checks that can refuse, with
+  their provenance and staging conditions, lives in ``tools/hooks/pre-commit``.
+  This line once claimed standing rule 1 was the only refuser; a tracker sweep
+  found that the hook's posture had changed while this prose had not.
 """
 
 from __future__ import annotations
