@@ -776,6 +776,10 @@ _Avoid_: subject population, primary population, graded population
 What a **declared member**'s exit status says when its **load-bearing population** has no members, declared with a reason: *not scanned*, where only the matcher saw the emptiness; *finding*, where the absence is settled without relying on the matcher and is the run's own unmet obligation; or *established*, where the emptiness is **established empty**. Which of the three a member takes is read off its declaration and never rediscovered from its code.
 _Avoid_: coverage limb (one way of expressing not scanned, not the posture), empty handling, vacuous pass
 
+**Population denominator**:
+An exact or bounded count of a surface's records, reached by a route independent of the read being graded, against which that read's own record count is compared. A count the read itself supplies is not one: a positionally truncated read is a valid payload of valid rows, so it cannot detect its own shortness, and an instrument that reads its own possibly short output settles nothing about whether it is complete. Distinct from a **load-bearing population**, which names *which* population a grader's rows depend on; this names the independently derived *size* a read is checked against.
+_Avoid_: total, record count, population size, coverage check
+
 **Index walk**:
 An enumeration of files as git's index lists them. It cannot see a file until that file is staged, so a clean result over it means no tracked file fails and never that no file fails. Distinct from a **disk walk**: the two populations differ exactly while a new file is being written, which is why a walk keeps the population it has rather than inheriting one from whatever reads the tree for it.
 _Avoid_: tracked walk, ls-files walk, repository walk
@@ -869,6 +873,10 @@ _Avoid_: freshness, currency, up to date, staleness
 **Record fingerprint**:
 One record's state, labels, last-updated time and body length, read back at the moment a publication naming it goes out. It reports and never compares: it carries no baseline, so it says what is true now and never that anything moved — which is what keeps it honest where a sweep moves the very records it later cites. It says a record moved only in the sense that a reader can see it did; it never says what changed inside one, so a verdict about a body's content is sent to look rather than told it is wrong.
 _Avoid_: readback, snapshot, diff, staleness check
+
+**Finding verdict**:
+A committed human judgment that one published occurrence matching a PHI shape rule is not an identifier, keyed to the record it sits in and the digest of its containing line, and stating its reason without repeating the literal. It clears exactly one occurrence at that key: the digest expires the verdict when the line's own content changes, which sends the occurrence back to be looked at rather than concealing it. Not a **ruling**, which is a ratified ADR decision identified by its record and its ordinal — the same word is used for both in the tree today, and that collision is declared and unclassified.
+_Avoid_: ruling, triage, suppression, exception, allowlist entry
 
 **Packet**:
 The map's unit of work: the tickets built together on one branch, carrying one outcome. A packet is not a ticket — a ruling may combine two tickets into one packet or leave a ticket in none — so the count of packets and the count of open tickets answer different questions.

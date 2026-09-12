@@ -153,6 +153,7 @@ PROSE_CLAUSES = {
 
 DECLARED_LIMITS = (
     "Two compound headings that share a word do not fire without a bare heading; Section read and Section number are the confirmed instance.",
+    "Two headings sharing no word cannot fire however close their senses; Ruling and Finding verdict are the confirmed instance, and such a pair is recorded only by the distinction clause and _Avoid_ row in one of the two entries.",
     "The candidate predicate cannot decide whether a fire is a sense collision or a narrowing.",
     "The narrowing verdicts are a hand-kept list whose distinction from an allowlist is claimed rather than proved.",
     "A required distinction clause can be present and still be wrong.",
