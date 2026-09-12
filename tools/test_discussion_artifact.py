@@ -141,8 +141,14 @@ class CitationResolutionIsDirectional(unittest.TestCase):
             with self.subTest(entry=entry):
                 self.assertEqual(expected, artifact.reference_keys(entry))
 
-    def test_the_three_resolution_residues_share_one_declared_object(self):
-        self.assertEqual(3, len(artifact.CITATION_RESOLUTION_NOT_REACHED))
+    def test_resolution_residues_share_one_declared_object(self):
+        self.assertIn(
+            "whether a republished citation's original element matches its source",
+            {
+                subject
+                for subject, _reason, _disposition in artifact.CITATION_RESOLUTION_NOT_REACHED
+            },
+        )
         self.assertTrue(
             all(
                 disposition is EvidenceDisposition.BEHAVIOR
