@@ -154,10 +154,10 @@ the one thing a proactive `mkdir` looked like it would address — is untouched 
 
 And it runs the wrong way against a declared hazard.
 [ADR 0059](0059-the-scratch-census-walks-every-checkout-that-owns-a-scratch-root-and-the-worktree-half-is-held-at-zero.md)
-ruling 5 and ADR 0091 ruling 3 both record that `git worktree remove` takes a scratch root with it
-and nothing warns. Creating a root in every new worktree increases the number of roots that can
-accumulate material and then be silently destroyed, in exchange for a cosmetic change to a line
-nobody grades.
+in its *The measurement that reopened it* section and ADR 0091 ruling 3 both record that
+`git worktree remove` takes a scratch root with it and nothing warns. Creating a root in every new
+worktree increases the number of roots that can accumulate material and then be silently destroyed,
+in exchange for a cosmetic change to a line nobody grades.
 
 The ticket's own third candidate — a local mode on `scratch_work.py` — is closed rather than left
 open. It was measured on the thread, not reasoned: the command was run from a worktree and returned
@@ -273,3 +273,8 @@ clone in that state should be able to do anything else is not asked.
 
 **The exact wording after `absent;` in ruling 3**, and the exact per-state remedy strings in ruling 4.
 Those are the builder's.
+
+Correction, 2026-09-12: ruling 5 formerly attributed the worktree-removal hazard to ADR 0059 ruling
+5. ADR 0059's *The measurement that reopened it* section records the hazard; ruling 5 addresses
+subprocess cost. The hazard and this record's ruling are unchanged.
+[#1136](https://github.com/mshamblin5150-code/clinical-skills/issues/1136).
