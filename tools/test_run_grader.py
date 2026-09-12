@@ -437,6 +437,12 @@ class TheMembershipClaimIsDerivedFromTheTree(unittest.TestCase):
         required_terms = {
             "threshold_sheet": ("runner", "quiet", "multiple sheets"),
             "tracker_bodies": ("runner", "show", "one positional", "several files"),
+            "tracker_coordinates": (
+                "runner",
+                "one positional",
+                "tracker events",
+                "ADR",
+            ),
         }
 
         self.assertEqual(set(run_grader.REFUSED), set(required_terms))

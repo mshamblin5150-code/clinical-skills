@@ -97,6 +97,7 @@ NOT_LIMITS = {
     "peer_critique_scan.EXIT_2_LIMBS": "the command's classified exit-2 outcomes",
     "peer_critique_scan.WORD_CEILING_COUNT": "the course's reported, ungraded word expectation",
     "prose_bind.LIMIT_CONSTANTS": "the exact object-name vocabulary consumed by both limits walks",
+    "prose_bind.PATH_COORDINATE_CEILING": "the shared coordinate recognizer, whose bounded coverage is declared by its consuming grader",
     "render_scan.EXIT_2_LIMBS": "the command's classified exit-2 outcomes",
     "scratch_census.EXIT_2_LIMBS": "the command's classified exit-2 outcomes",
     "skills_mirror.ORPHANS": "the output directory for unmatched skill copies",

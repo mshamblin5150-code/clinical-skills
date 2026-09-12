@@ -46,6 +46,54 @@ def _is_backslash_escaped(text: str, index: int) -> bool:
     return backslashes % 2 == 1
 
 
+# This object declares the check's ceiling: a portable path containing a
+# directory separator or filename dot, followed by a positive decimal
+# coordinate. Bare words before a colon are not path-shaped.
+PATH_COORDINATE_CEILING = re.compile(
+    r"(?<![\w./:-])(?:"
+    r"(?:[A-Za-z0-9_.-]+/)+[A-Za-z0-9_.-]+"
+    r"|[A-Za-z_][A-Za-z0-9_-]*\.[A-Za-z][A-Za-z0-9_.-]*"
+    r"):[1-9][0-9]*\b"
+)
+FENCE = re.compile(
+    r"^(?:(?:[ ]{0,3}>[ ]?)+)?"
+    r"(?:[ \t]*(?:[-+*]|[0-9]+[.)])[ \t]+)?"
+    r"[ \t]*(`{3,}|~{3,})(.*)$"
+)
+
+
+def prose_outside_fences(text: str) -> str:
+    """Return prose outside Markdown fences while preserving line positions.
+
+    This is deliberately narrower than :func:`prose_outside_code`: inline code
+    remains visible because tracker coordinates inside code spans are graded.
+    """
+
+    kept: list[str] = []
+    marker = ""
+    width = 0
+    for line in text.splitlines(keepends=True):
+        match = FENCE.match(line)
+        if not marker:
+            if match:
+                marker = match.group(1)[0]
+                width = len(match.group(1))
+                kept.append("\n" if line.endswith("\n") else "")
+            else:
+                kept.append(line)
+            continue
+        if (
+            match
+            and match.group(1)[0] == marker
+            and len(match.group(1)) >= width
+            and not match.group(2).strip()
+        ):
+            marker = ""
+            width = 0
+        kept.append("\n" if line.endswith("\n") else "")
+    return "".join(kept)
+
+
 LIST_PREFIX = re.compile(r" {0,3}(?:[-+*]|[0-9]{1,9}[.)])[ \t]{1,4}")
 QUOTE_PREFIX = re.compile(r" {0,3}>[ \t]?")
 

@@ -14,7 +14,13 @@ from unittest import mock
 import test_console_codec
 from git_paths import read_path_records
 import python_floor
-from prose_bind import NAMING, bind
+import prose_bind
+from prose_bind import (
+    NAMING,
+    PATH_COORDINATE_CEILING,
+    bind,
+    prose_outside_fences,
+)
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -29,50 +35,6 @@ FLOOR_STATEMENT = re.compile(
     r")\b",
     re.IGNORECASE,
 )
-
-# This object declares the check's ceiling: a portable path containing a
-# directory separator or filename dot, followed by a positive decimal
-# coordinate. Bare words before a colon are not path-shaped.
-PATH_COORDINATE_CEILING = re.compile(
-    r"(?<![\w./:-])(?:"
-    r"(?:[A-Za-z0-9_.-]+/)+[A-Za-z0-9_.-]+"
-    r"|[A-Za-z_][A-Za-z0-9_-]*\.[A-Za-z][A-Za-z0-9_.-]*"
-    r"):[1-9][0-9]*\b"
-)
-FENCE = re.compile(
-    r"^(?:(?:[ ]{0,3}>[ ]?)+)?"
-    r"(?:[ \t]*(?:[-+*]|[0-9]+[.)])[ \t]+)?"
-    r"[ \t]*(`{3,}|~{3,})(.*)$"
-)
-
-
-def prose_outside_fences(text: str) -> str:
-    """Return prose outside Markdown fences while preserving line positions."""
-
-    kept: list[str] = []
-    marker = ""
-    width = 0
-    for line in text.splitlines(keepends=True):
-        match = FENCE.match(line)
-        if not marker:
-            if match:
-                marker = match.group(1)[0]
-                width = len(match.group(1))
-                kept.append("\n" if line.endswith("\n") else "")
-            else:
-                kept.append(line)
-            continue
-        if (
-            match
-            and match.group(1)[0] == marker
-            and len(match.group(1)) >= width
-            and not match.group(2).strip()
-        ):
-            marker = ""
-            width = 0
-        kept.append("\n" if line.endswith("\n") else "")
-    return "".join(kept)
-
 
 def tracked_prose(root: Path) -> tuple[str, ...]:
     """Return tracked Markdown outside ``docs/adr/``.
@@ -118,6 +80,10 @@ def stated_floors(path: Path) -> tuple[tuple[str, tuple[int, int]], ...]:
 
 
 class TheCoordinateInstrumentIsLive(unittest.TestCase):
+    def test_python_floor_uses_the_shared_objects(self):
+        self.assertIs(PATH_COORDINATE_CEILING, prose_bind.PATH_COORDINATE_CEILING)
+        self.assertIs(prose_outside_fences, prose_bind.prose_outside_fences)
+
     def test_inline_code_is_read(self):
         text = "The anchor is `tools/hooks/pre-commit:12`."
         self.assertIsNotNone(PATH_COORDINATE_CEILING.search(prose_outside_fences(text)))

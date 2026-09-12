@@ -89,6 +89,22 @@ jobs:
             Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
           exit $status
 
+      - name: Changed tracker coordinate accompaniment
+        if: >-
+          always() &&
+          (github.event.action == 'opened' ||
+           github.event.action == 'created' ||
+           github.event.action == 'submitted' ||
+           (github.event.action == 'edited' &&
+            github.event.changes.body != null))
+        run: |
+          $report = python tools/tracker_coordinates.py --github-event $env:GITHUB_EVENT_PATH --event-name $env:GITHUB_EVENT_NAME
+          $status = $LASTEXITCODE
+          $report
+          @('### Tracker coordinate accompaniment', '', '```', $report, '```') |
+            Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          exit $status
+
       - name: Filed-from line preservation
         if: >-
           always() &&

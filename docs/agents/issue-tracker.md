@@ -163,6 +163,13 @@ though bare numbers are deliberately not graded. The check's blind spots have
 one owner in `tracker_branch_scope.NOT_REACHED`; this document copies none of
 those rows.
 
+A coordinate in tracker text is never the locator. Write the symbol name,
+quoted span, prose quotation, or quoted block beside it; the reader resolves by
+that anchor and treats the coordinate only as a dated position. Publication
+grades accompaniment, not whether the anchor still resolves or is the right
+one. The complete boundary belongs to `tracker_coordinates.DECLARED_LIMITS`,
+and this document copies none of its rows.
+
 A negative block is a dated claim about the publication moment, not a
 present-tense claim that the branch remains unmerged. Its commit is the anchor;
 run `git merge-base --is-ancestor <full commit SHA> origin/main` to settle its
@@ -285,7 +292,8 @@ above it. When a ticket created before
 `tracker_filed_from.FILED_FROM_CUTOFF` is respecced, move its existing origin
 sentence alone beneath the fixed label word for word and leave the rest of that
 paragraph in place. If no origin sentence existed, write a Filed-from line
-whose text is explicitly marked as a reconstruction.
+whose text is explicitly marked as a reconstruction. A ready ticket's body
+carries no unanchored coordinate.
 
 The vocabulary and how to choose between the labels is in [triage-labels.md](triage-labels.md). Two rules worth repeating here, because both have already been broken in this repo:
 

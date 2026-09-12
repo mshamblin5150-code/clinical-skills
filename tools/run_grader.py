@@ -216,6 +216,11 @@ REFUSED: Mapping[str, str] = MappingProxyType(
             "its report is safe to paste, and Parsed carries one positional source while the "
             "harvest mode grades several files as one population"
         ),
+        "tracker_coordinates": (
+            "the shared runner accepts one positional run source, while this command grades "
+            "changed tracker events or a forward-only ADR population selected from per-file "
+            "git history"
+        ),
     }
 )
 
