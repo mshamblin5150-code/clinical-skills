@@ -1,7 +1,8 @@
 # A published figure names its population and is re-derived at publication
 
 Out of [#961](https://github.com/mshamblin5150-code/clinical-skills/issues/961), grilled on
-2026-09-12. Measured at `45b0cee`. Nothing is built here; this is the record the build reads.
+2026-09-12. Measured at `3ffcd3d`, excluding this record from every population it counts. Nothing is
+built here; this is the record the build reads.
 
 [ADR 0149](0149-a-pointer-is-not-a-source-and-a-failed-read-is-not-a-negative.md) ruling 1 split
 this subject out of [#818](https://github.com/mshamblin5150-code/clinical-skills/issues/818) and
@@ -17,10 +18,21 @@ and the fourth to the exhaustive sweep out of
 
 ## What was measured before ruling, on 2026-09-12
 
-**The base moved during the grilling and every figure below was re-derived on the new one.** The gate
-read `STALE` after the last decision was taken; the branch was brought forward to `45b0cee` and the
-counts re-taken. All of them re-derive identically. That is recorded because the alternative — a
-ruling whose evidence was measured against a base it no longer names — is this record's own subject.
+**The base moved twice while this record was being written, and the second time the figures moved with
+it.** The gate read `STALE` after the last decision was taken; the branch was brought forward to
+`45b0cee` and every count re-taken, and all of them re-derived identically. It read `STALE` a second
+time before the merge, at `428d6f2`, and on that base the citation and measured-at counts had both
+changed. Every figure below is the second re-derivation, at `3ffcd3d`.
+
+**Part of that second movement was this record entering the population it counts**, which is species
+2 arriving inside the ruling on species 2. This ADR cites `extractor-coverage` four times and carries
+a measured-at declaration, so an unguarded re-count would have read its own text back as evidence for
+its own argument. **Every population below therefore excludes this record**, on `ADR 0135:68`'s
+declared form — *"The honest population is every tracked `.md` except the records stating this
+measurement."* The denominator is 194 rather than 195 for that reason.
+
+Neither movement was caught by reading. Both were caught by the freshness gate refusing before
+publication, which is ruling 6's whole argument arriving before ruling 6 was published.
 
 **Three of the four species are ungoverned, and the fourth is governed by a rule whose trigger stops
 one scope short.** Measured by testing each species against `CLAUDE.md`'s extractor-coverage section,
@@ -44,13 +56,13 @@ scope noun at all — *"Before a figure is allowed to settle a claim"* — and a
 today. `docs/agents/issue-tracker.md:118` narrows to a sweep confirming or overturning an existing
 written claim.
 
-**`extractor-coverage` is a heavily cited name.** 31 of 192 ADRs cite it, 38 mentions; **2** of those
+**`extractor-coverage` is a heavily cited name.** 32 of 194 ADRs cite it, 39 mentions; **2** of those
 are anchor-bearing markdown links, in `docs/adr/0161` and `docs/agents/issue-tracker.md:117`. The
 rest are prose, and most cite the population half. The matcher is the literal string over
-`docs/adr/*.md` against a denominator of 192; it is a floor, because an ADR writing *"CLAUDE.md's
-population rule"* does not match it.
+`docs/adr/*.md` against a denominator of 194, this record excluded; it is a floor, because an ADR
+writing *"CLAUDE.md's population rule"* does not match it.
 
-**The measured-at convention already exists, unstandardized and enforced by nothing.** 15 of 192 ADRs
+**The measured-at convention already exists, unstandardized and enforced by nothing.** 15 of 194 ADRs
 carry one, in at least four spellings — a capitalized *Measured at* with a short SHA and a full stop,
 the same phrase uncapitalized and unpunctuated, and the sentence *Every measurement below was taken
 in process at* followed by a short SHA. Same matcher shape, same floor.
@@ -145,18 +157,18 @@ table — this record's own subject, arriving inside its grilling.
 `### Extractor coverage` moves from `## Maintainer tooling` to `## Agent skills`, unrenamed.
 
 **Splitting the section was ruled and then reversed on a measurement.** The first ruling moved the
-general obligation out and left the tool-specific half behind. 31 ratified ADRs cite
+general obligation out and left the tool-specific half behind. 32 ratified ADRs cite
 `extractor-coverage` by name and most cite the half that would have moved, so they would name a rule
 no longer in the section they name — [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143)'s
 shape arriving inside the change whose subject is #143's shape.
 
 **Moving the whole section costs nothing in citations because a markdown anchor is derived from
 heading text rather than position.** `#extractor-coverage` still resolves, both live links survive,
-and all 31 prose citations stay true.
+and all 32 prose citations stay true.
 
 **Two costs are declared rather than left to be found.** The section name becomes narrower than its
 contents, since rule 2 is a re-derivation at publication and not an extraction; renaming would repair
-that and break 31 citations, so the name stays and the mismatch is stated in the section. And the
+that and break 32 citations, so the name stays and the mismatch is stated in the section. And the
 move relocates genuinely tool-facing text onto the agent-skills shelf, which is a smaller wrong than
 a publication rule under a heading opening *"not required to use the clinical skills."*
 
