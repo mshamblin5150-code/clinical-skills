@@ -403,6 +403,17 @@ class MainInATempRepo(ATempRepo):
             self.harvest("tracker-reviews.json", []),
         )
 
+    def population(self, paths, **overrides):
+        populations = {
+            Path(path).name: len(json.loads(Path(path).read_text(encoding="utf-8")))
+            for path in paths
+        }
+        populations.update(overrides)
+        return self.harvest("tracker-population.json", {
+            "version": 1,
+            "populations": populations,
+        })
+
     def run_main(self, *argv):
         buffer = io.StringIO()
         with redirect_stdout(buffer):
@@ -443,12 +454,15 @@ class TrackerScanExitStatuses(MainInATempRepo):
 class AFullHarvestWritesOnlyItsMarker(MainInATempRepo):
     """Only the documented, corpus-live three-surface run advances the marker."""
 
-    def test_a_completed_harvest_writes_a_dated_counts_only_marker(self):
+    def test_a_completed_harvest_writes_a_dated_split_count_marker(self):
         paths = self.full_harvest(
             [{"number": 9, "title": "t", "body": f"seen by {NAME}"}],
         )
+        population = self.population(paths)
 
-        status, _ = self.run_main("--harvest", *paths)
+        status, _ = self.run_main(
+            "--harvest", *paths, "--population", population
+        )
 
         self.assertEqual(status, tracker_scan.FOUND)
         marker = json.loads(
@@ -457,9 +471,16 @@ class AFullHarvestWritesOnlyItsMarker(MainInATempRepo):
             )
         )
         self.assertEqual(marker, {
-            "version": 1,
+            "version": 2,
             "ran_on": CalendarDate.today().isoformat(),
-            "finding_counts": {"corpus-name": 1},
+            "population": {
+                "tracker-comments.json": 0,
+                "tracker-issues.json": 1,
+                "tracker-reviews.json": 0,
+            },
+            "finding_counts": {
+                "corpus-name": {"ruled": 0, "unruled": 1},
+            },
         })
         serialized = json.dumps(marker)
         self.assertNotIn(NAME, serialized)
@@ -469,8 +490,11 @@ class AFullHarvestWritesOnlyItsMarker(MainInATempRepo):
         paths = self.full_harvest(
             [{"number": 1, "title": "a title", "body": "no identifier"}],
         )
+        population = self.population(paths)
 
-        status, out = self.run_main("--harvest", *paths)
+        status, out = self.run_main(
+            "--harvest", *paths, "--population", population
+        )
 
         self.assertEqual(status, tracker_scan.CLEAN)
         self.assertIn("0 day(s)", out)
@@ -502,6 +526,7 @@ class AFullHarvestWritesOnlyItsMarker(MainInATempRepo):
         paths = self.full_harvest(
             [{"number": 1, "title": "a title", "body": "no identifier"}],
         )
+        population = self.population(paths)
         prior = {
             "version": 1,
             "ran_on": (CalendarDate.today() - timedelta(days=30)).isoformat(),
@@ -514,7 +539,8 @@ class AFullHarvestWritesOnlyItsMarker(MainInATempRepo):
         phi_scan.corpus_identifiers = lambda: (set(), set())
 
         status, _ = self.run_main(
-            "--harvest", *paths, phi_scan.ALLOW_NO_CORPUS_FLAG
+            "--harvest", *paths, "--population", population,
+            phi_scan.ALLOW_NO_CORPUS_FLAG
         )
 
         self.assertEqual(status, tracker_scan.CLEAN)
@@ -524,6 +550,7 @@ class AFullHarvestWritesOnlyItsMarker(MainInATempRepo):
         paths = self.full_harvest(
             [{"number": 1, "title": "a title", "body": "no identifier"}],
         )
+        self.population(paths)
         prose = (
             Path(__file__).resolve().parent.parent / "CLAUDE.md"
         ).read_text(encoding="utf-8")
@@ -541,6 +568,84 @@ class AFullHarvestWritesOnlyItsMarker(MainInATempRepo):
         self.assertEqual(status, tracker_scan.CLEAN)
         self.assertIn("0 day(s)", out)
         self.assertTrue((self.repo / phi_scan.TRACKER_HARVEST_MARKER).exists())
+
+    def test_an_absent_population_file_is_not_a_clean_full_harvest(self):
+        paths = self.full_harvest(
+            [{"number": 1, "title": "a title", "body": "no identifier"}],
+        )
+
+        status, out = self.run_main("--harvest", *paths)
+
+        self.assertEqual(status, tracker_scan.NOT_SCANNED)
+        self.assertIn("population", out.lower())
+        self.assertFalse((self.repo / phi_scan.TRACKER_HARVEST_MARKER).exists())
+
+    def test_a_short_harvest_cannot_exit_clean_or_write_the_marker(self):
+        paths = self.full_harvest(
+            [{"number": 1, "title": "a title", "body": "no identifier"}],
+        )
+        population = self.population(paths, **{"tracker-issues.json": 2})
+
+        status, out = self.run_main(
+            "--harvest", *paths, "--population", population
+        )
+
+        self.assertEqual(status, tracker_scan.NOT_SCANNED)
+        self.assertIn("tracker-issues.json", out)
+        self.assertIn("1 of population 2", out)
+        self.assertFalse((self.repo / phi_scan.TRACKER_HARVEST_MARKER).exists())
+
+    def test_a_harvest_at_or_above_each_population_is_complete(self):
+        paths = self.full_harvest(
+            [{"number": 1, "title": "a title", "body": "no identifier"}],
+        )
+        population = self.population(paths, **{"tracker-issues.json": 0})
+
+        status, out = self.run_main(
+            "--harvest", *paths, "--population", population
+        )
+
+        self.assertEqual(status, tracker_scan.CLEAN)
+        self.assertTrue((self.repo / phi_scan.TRACKER_HARVEST_MARKER).exists())
+        self.assertRegex(out, r"tracker-issues.json population\s+0")
+        self.assertRegex(out, r"tracker-issues.json unread remainder\s+0")
+
+    def test_the_marker_distinguishes_a_ruled_finding_from_no_finding(self):
+        line = f"seen by {NAME}"
+        paths = self.full_harvest([{
+            "number": 9,
+            "html_url": "https://github.com/example/repo/issues/9",
+            "title": "t",
+            "body": line,
+        }])
+        population = self.population(paths)
+        target = self.repo / "reference" / "tracker-scan-rulings.json"
+        target.parent.mkdir()
+        target.write_text(json.dumps({
+            "version": 2,
+            "commit_findings": [],
+            "harvest_findings": [{
+                "record": "https://github.com/example/repo/issues/9 body",
+                "rule": "corpus-name",
+                "line_sha256": hashlib.sha256(line.encode()).hexdigest(),
+                "verdict": "noise",
+                "reason": "the published record is not identifying",
+            }],
+        }), encoding="utf-8")
+
+        status, _ = self.run_main(
+            "--harvest", *paths, "--population", population
+        )
+
+        self.assertEqual(status, tracker_scan.CLEAN)
+        marker = json.loads(
+            (self.repo / phi_scan.TRACKER_HARVEST_MARKER).read_text(
+                encoding="utf-8"
+            )
+        )
+        self.assertEqual(marker["finding_counts"], {
+            "corpus-name": {"ruled": 1, "unruled": 0},
+        })
 
     def test_a_harvest_that_did_not_scan_writes_no_marker(self):
         gone = str(Path(self.tmp.name) / "gone.json")
@@ -749,7 +854,6 @@ class AHarvestRulingRemovesOnlyThatExactPublishedFinding(MainInATempRepo):
             "commit_findings": [],
             "harvest_findings": [{
                 "record": self.record,
-                "line": 1,
                 "rule": "corpus-name",
                 "line_sha256": line_digest,
                 "verdict": "noise",
@@ -786,6 +890,65 @@ class AHarvestRulingRemovesOnlyThatExactPublishedFinding(MainInATempRepo):
         self.assertEqual(status, tracker_scan.FOUND)
         self.assertIn("corpus-name", out)
         self.assertNotIn("ruled findings", out)
+
+    def test_editing_above_the_ruled_line_keeps_the_verdict_live(self):
+        line = f"{NAME} was on the list"
+        self.write_rulings(hashlib.sha256(line.encode()).hexdigest())
+
+        status, out = self.run_main(
+            "--harvest", self.a_harvest(f"ordinary preface\n{line}")
+        )
+
+        self.assertEqual(status, tracker_scan.CLEAN)
+        self.assertIn("ruled findings", out)
+        self.assertIn("1", out)
+
+    def test_a_harvest_row_carrying_a_line_number_is_refused(self):
+        line = f"{NAME} was on the list"
+        self.write_rulings(hashlib.sha256(line.encode()).hexdigest())
+        target = self.repo / "reference" / "tracker-scan-rulings.json"
+        data = json.loads(target.read_text(encoding="utf-8"))
+        data["harvest_findings"][0]["line"] = 1
+        target.write_text(json.dumps(data), encoding="utf-8")
+
+        status, out = self.run_main("--harvest", self.a_harvest(line))
+
+        self.assertEqual(status, tracker_scan.FOUND)
+        self.assertIn("harvest row 1 must not carry line", out)
+
+    def test_the_report_counts_ruling_rows_that_match_nothing(self):
+        self.write_rulings("0" * 64)
+
+        status, out = self.run_main(
+            "--harvest", self.a_harvest(f"{NAME} was on the list")
+        )
+
+        self.assertEqual(status, tracker_scan.FOUND)
+        self.assertIn("unmatched verdict rows", out)
+        self.assertRegex(out, r"unmatched verdict rows\s+1")
+
+    def test_draft_verdicts_contain_the_key_and_no_matched_value(self):
+        line = f"{NAME} was on the list"
+        draft = Path(self.tmp.name) / "draft-verdicts.json"
+
+        status, _ = self.run_main(
+            "--harvest", self.a_harvest(line), "--draft-verdicts", str(draft)
+        )
+
+        self.assertEqual(status, tracker_scan.FOUND)
+        data = json.loads(draft.read_text(encoding="utf-8"))
+        self.assertEqual(data, {
+            "version": 2,
+            "commit_findings": [],
+            "harvest_findings": [{
+                "record": self.record,
+                "rule": "corpus-name",
+                "line_sha256": hashlib.sha256(line.encode()).hexdigest(),
+                "verdict": "",
+                "reason": "",
+            }],
+        })
+        self.assertNotIn(NAME, draft.read_text(encoding="utf-8"))
 
     def test_a_malformed_harvest_ledger_applies_no_rulings(self):
         target = self.repo / "reference" / "tracker-scan-rulings.json"
@@ -915,6 +1078,19 @@ class TheCommittedRulingPopulationIsLive(unittest.TestCase):
         self.assertNotEqual(match_digest, first.line_sha256)
         mutant = first._replace(line_sha256=match_digest)
         self.assertNotIn(mutant, observed)
+
+
+class TheCommittedHarvestVerdictPopulationIsLoadable(unittest.TestCase):
+    """The one-time public triage remains valid under the shipped schema."""
+
+    def test_every_harvest_row_loads_without_a_line_number(self):
+        path = phi_scan.REPO_ROOT / tracker_scan.RULINGS_PATH
+        rows = json.loads(path.read_text(encoding="utf-8"))["harvest_findings"]
+        _, rulings = tracker_scan.load_rulings(phi_scan.REPO_ROOT)
+
+        self.assertTrue(rows)
+        self.assertTrue(all("line" not in row for row in rows))
+        self.assertEqual(len(rows), rulings.total())
 
 
 class TheGitSurfaceRefusesUntilPullHeadsArePersistentAndPresent(MainInATempRepo):

@@ -89,16 +89,27 @@ gh issue view <number> --json number,body,url | python tools/tracker_bodies.py -
 
 **A clean scan is not a body worth reading.** The first three rows ask whether text landed; the fourth reads only the two bounded encoding shapes above; the fifth reads only its bounded C0 set; and #777's rows read only their declared escape-collapse symptoms. A body truncated at a shell metacharacter, or the right words about the wrong ticket, can have text, match no row, and pass. The complete boundary belongs to `tracker_bodies.NOT_REACHED`.
 
-### Commit finding rulings
+### Finding verdicts
 
-**Commit findings already ruled by a person live in
-`reference/tracker-scan-rulings.json`.** `tracker_scan.py --commits` reports how
-many exact findings that ledger removed. Each row holds the full commit id,
-line, rule and a SHA-256 match digest, never the match itself; changing any limb
-leaves the finding live. Add a row only after reading `--show` locally and
-deciding its `verdict` and `reason`. A malformed ledger is not an empty ledger:
-the run says the rulings were not applied and cannot exit clean on the commit
-surface.
+**Finding verdicts live in `reference/tracker-scan-rulings.json`.** A commit row
+holds the full commit id, line, rule and SHA-256 digest of the containing line.
+A harvest row holds the public record locator, rule and line digest; it carries
+no line number because edits above an unchanged occurrence must not expire its
+verdict. Each row clears one occurrence. Add a harvest row only after reading
+`--show` on that already-public surface and positively classifying the match as
+non-identifying; escalate anything else. Reasons name the kind and never repeat
+the literal.
+
+`tracker_scan.py --draft-verdicts <path>` writes pasteable candidate rows with
+blank verdicts and reasons and no matched value. The report counts both applied
+verdicts and verdict rows that matched nothing. A malformed ledger is not an
+empty ledger: the run says the verdicts were not applied and cannot exit clean
+on the affected surface.
+
+`tools/tracker_population.py` documents and parses the three kept `gh` probes
+that produce a full harvest's independent population manifest. Run those
+probes before the paginated harvest; `tracker_scan.py --population <path>`
+reports each denominator and unread remainder and refuses a short read.
 
 ### Discriminating measurements in sweep verdicts
 

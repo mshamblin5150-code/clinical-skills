@@ -1015,9 +1015,10 @@ def tracker_harvest_notice(
 ) -> str:
     """State when the corpus-bearing clone last completed a tracker harvest.
 
-    The marker carries only a date and finding counts. This reader spends only
-    the date: counts remain the producing command's to state, and elapsed days
-    are reported without turning any age into a stale/clean verdict.
+    The marker carries a date, the independently derived population, and split
+    ruled/unruled finding counts. This reader spends only the date: the other
+    fields remain the producing command's to state, and elapsed days are
+    reported without turning any age into a stale/clean verdict.
     """
     root = REPO_ROOT if repo is None else repo
     marker = root / TRACKER_HARVEST_MARKER
@@ -1027,18 +1028,38 @@ def tracker_harvest_notice(
         data = json.loads(marker.read_text(encoding="utf-8"))
         ran_on = CalendarDate.fromisoformat(data["ran_on"])
         counts = data["finding_counts"]
+        population = data["population"]
         valid_counts = (
             isinstance(counts, dict)
             and all(
                 isinstance(rule, str)
                 and rule
-                and isinstance(count, int)
-                and not isinstance(count, bool)
-                and count >= 0
+                and isinstance(count, dict)
+                and set(count) == {"ruled", "unruled"}
+                and all(
+                    isinstance(value, int)
+                    and not isinstance(value, bool)
+                    and value >= 0
+                    for value in count.values()
+                )
                 for rule, count in counts.items()
             )
         )
-        if data.get("version") != 1 or not valid_counts:
+        valid_population = (
+            isinstance(population, dict)
+            and set(population) == {
+                "tracker-comments.json",
+                "tracker-issues.json",
+                "tracker-reviews.json",
+            }
+            and all(
+                isinstance(value, int)
+                and not isinstance(value, bool)
+                and value >= 0
+                for value in population.values()
+            )
+        )
+        if data.get("version") != 2 or not valid_counts or not valid_population:
             raise ValueError("unsupported tracker harvest marker")
         age = ((CalendarDate.today() if today is None else today) - ran_on).days
         if age < 0:

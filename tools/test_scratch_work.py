@@ -110,7 +110,18 @@ class DocumentedHarvestTests(unittest.TestCase):
                 write = text[match.start() : match.end() + 160]
                 if '"$H/tracker-issues.json"' not in write:
                     continue
-                block = text[max(0, match.start() - 220) : match.end() + 160]
+                fence_start = text.rfind("```", 0, match.start())
+                fence_end = text.find("```", match.end())
+                if fence_start >= 0 and fence_end >= 0:
+                    block = text[fence_start:fence_end]
+                else:
+                    doc_start = text.rfind('"""', 0, match.start())
+                    doc_end = text.find('"""', match.end())
+                    block = (
+                        text[doc_start:doc_end]
+                        if doc_start >= 0 and doc_end >= 0
+                        else ""
+                    )
                 harvests.append((path, block))
 
         self.assertTrue(harvests)

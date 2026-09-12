@@ -75,6 +75,7 @@ NO_LIMITS = {
     "threshold_draft": "a scaffold builder rather than a verification command",
     "threshold_grammar": "shared parsing grammar with no independent coverage conclusion",
     "tracker_records": "tracker-record data parsing shared by commands that declare their own limits",
+    "tracker_population": "a deterministic probe adapter whose accepted input schemas define its reach",
     "tracker_scan": "an orchestrator whose nonstandard grader shape is classified by run_grader",
     "uptodate_store": "a private-store command whose manifest and unfiled reports state its reach",
     "uspstf_interval_reach": "a focused interval-analysis helper whose input table is explicit",
