@@ -141,7 +141,7 @@ The adversarial investor reader first reads and applies
 [sourcing.md](../_shared/reference/sourcing.md). After the deck exists, give only the rendered slide images, the speaker-note text, and `claims.md`
 to this **Second reader** under [standing rule 6](../../AGENTS.md). It attacks the rendered artifact for records that do not exist.
 It reads as the investor named by the assignment and returns every unsupported
-assertion keyed to slide number. The orchestrator writes the result to `adversarial.md`. Research,
+assertion keyed to slide number for `adversarial.md`. Research,
 Refutation, and this adversarial read have three distinct subjects, and each may fail while the
 other two pass. Add records for supported claims or remove the assertions; never convert a miss
 into an unrecorded hedge.

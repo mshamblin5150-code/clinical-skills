@@ -46,6 +46,25 @@ class BriefingSurfaceCoverage(unittest.TestCase):
             briefing_surface.surface_findings(Path("sample/SKILL.md"), text),
         )
 
+    def test_a_semantic_rule_pointer_is_not_pinned_to_one_markdown_rendering(self):
+        text = (
+            "This **Second reader** applies standing rule 6 in "
+            "[AGENTS.md](../../AGENTS.md). It receives only the subject codes.\n"
+        )
+
+        self.assertEqual((), briefing_surface.surface_findings(Path("sample/SKILL.md"), text))
+
+    def test_the_actual_orchestrating_context_copy_is_a_finding(self):
+        text = (
+            "This **Second reader** applies [standing rule 6](../../AGENTS.md). "
+            "The orchestrating context writes it.\n"
+        )
+
+        self.assertEqual(
+            ("sample/SKILL.md:1: briefing surface copies standing rule 6",),
+            briefing_surface.surface_findings(Path("sample/SKILL.md"), text),
+        )
+
     def test_every_detected_surface_in_the_skill_population_is_declared(self):
         paths = briefing_surface.briefed_skill_paths(REPO_ROOT / "skills")
 

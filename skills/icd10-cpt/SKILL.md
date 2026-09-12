@@ -187,7 +187,7 @@ worksheet**, its descriptor, its anchor, or its `SPECIFICITY` line.
 
 For each subject code, open `reference/icd10cm-2026.sqlite`; inspect whatever parents, children,
 siblings, and inherited tabular notes bear on specificity; and return the following record. The
-orchestrating context writes it:
+record has this shape:
 
 ```json
 {

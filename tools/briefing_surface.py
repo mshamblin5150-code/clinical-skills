@@ -29,11 +29,12 @@ DETECTOR = re.compile(
     re.IGNORECASE,
 )
 KIND = re.compile(r"\b(Fan-out brief|Second reader|Grader handoff)\b", re.IGNORECASE)
-RULE_POINTER = re.compile(r"\[standing rule 6\]\(\.\./\.\./AGENTS\.md\)", re.IGNORECASE)
+RULE_NAME = re.compile(r"\bstanding rule 6\b", re.IGNORECASE)
+RULE_HOME = re.compile(r"(?:\]\(\.\./\.\./AGENTS\.md(?:#[^)]*)?\)|\bAGENTS\.md\b)", re.IGNORECASE)
 FENCE = re.compile(r"^[ \t]*(`{3,}|~{3,})")
 RULE_SIX = re.compile(r"(?ms)^6\. \*\*.*?(?=^7\. \*\*|\Z)")
 LOCAL_COPY = re.compile(
-    r"orchestrat(?:or|ing context) alone writes|sole writer|"
+    r"orchestrat(?:or|ing context)(?: alone)? writes (?:it|the\b)|sole writer|"
     r"return(?:s|ed)? (?:its|their|the) record[^.]{0,40}do not write|"
     r"one context never grades|fresh non-authoring|new non-authoring|"
     r"(?:try|briefed) to (?:break|disprove)[^.]{0,80}(?:not to )?confirm|"
@@ -151,7 +152,11 @@ def surface_findings(path: Path, text: str) -> tuple[str, ...]:
         match = next(((span, body) for span, body in paragraphs if number in span), None)
         paragraph = match[1] if match is not None else ""
         kinds = {match.casefold() for match in KIND.findall(paragraph)}
-        if len(kinds) != 1 or RULE_POINTER.search(paragraph) is None:
+        if (
+            len(kinds) != 1
+            or RULE_NAME.search(paragraph) is None
+            or RULE_HOME.search(paragraph) is None
+        ):
             findings.append(
                 f"{path.as_posix()}:{number}: detector line is outside a declared briefing surface"
             )
