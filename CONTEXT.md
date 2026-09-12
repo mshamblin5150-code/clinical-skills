@@ -214,6 +214,10 @@ _Avoid_: expiration, sunset, shelf life, validity window
 The pair of a normalized author phrase and a year that a citation and a reference entry must both produce before the citation counts as resolved. It is a name rather than an identity — one entry may yield several, and a yearless one resolves against any year.
 _Avoid_: reference id, source id, match key
 
+**Citation resolution**:
+The directional relation one **Citation key** bears to an artifact's reference key set. The years must agree, a yearless entry key answering to any. The author halves must be equal where the entry yielded a personal surname, and the citation's may be a character prefix of the entry's where it did not — which is every entry whose author slot is a title or a group name, because APA replaces a missing author in text with a shortened title. So it is neither membership nor symmetric: a citation naming a shortened title resolves against the entry, and the entry's key does not resolve against the citation's. Distinct from the looser sense of resolving a path, a filename or a step citation, where one name is turned into one thing that either exists or does not.
+_Avoid_: match, key match, lookup, membership, citation hit
+
 **Grouping key**:
 The first significant word a reference entry is alphabetized and letter-disambiguated by, ignoring a leading `A`, `An`, or `The`. Deliberately not a **Citation key**, which one entry may yield several of and which answers whether a citation resolved: the two are different questions, and keying the `a`/`b` rows on the resolution key refuses a correct list while teaching the next run to write a wrong one. A key derived so a further citation form resolves is added beside it, never in place of it.
 _Avoid_: entry key, author key, sort key, match key
@@ -879,7 +883,7 @@ A statement in a merged pull request's artifact text that the merge changes a na
 _Avoid_: reference, link, mention, tag
 
 **Citation**:
-A ticket reference naming a precedent, a ruling or a defect shape, making no claim on that ticket. Most references in this repo's prose are citations, so their presence is not evidence that a merge meant to bind anything. Distinct from **Citation key**, **Legal citation**, and **Stated citation**, which are bibliographic rather than tracker references.
+A ticket reference naming a precedent, a ruling or a defect shape, making no claim on that ticket. Most references in this repo's prose are citations, so their presence is not evidence that a merge meant to bind anything. Distinct from **Citation key**, **Citation resolution**, **Legal citation**, and **Stated citation**, which are bibliographic rather than tracker references.
 _Avoid_: reference, mention, cross-reference
 
 **Citation set**:

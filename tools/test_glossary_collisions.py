@@ -73,7 +73,8 @@ DECLARED_CANDIDATES = (
         Verdict.COLLISION,
         "The bare term is a ticket reference; the Citation compounds name other kinds of "
         "reference or how one is checked: bibliographic, legal, a document's own, a skill "
-        "step, or a gate's evidence tier. Citation set is the one compound about ticket "
+        "step, a gate's evidence tier, or the relation a citation bears to a reference key "
+        "set. Citation set is the one compound about ticket "
         "references, naming every one a publication makes.",
     ),
     Candidate(
@@ -159,8 +160,8 @@ PROSE_CLAUSES = {
         "stated on purpose and held as a named thing, and none is a value in a note."
     ),
     "Citation": (
-        "Distinct from **Citation key**, **Legal citation**, and **Stated citation**, "
-        "which are bibliographic rather than tracker references."
+        "Distinct from **Citation key**, **Citation resolution**, **Legal citation**, "
+        "and **Stated citation**, which are bibliographic rather than tracker references."
     ),
     "Corpus drift": (
         "Distinct from **Drift**, the clinical finding carried into the Objective "
