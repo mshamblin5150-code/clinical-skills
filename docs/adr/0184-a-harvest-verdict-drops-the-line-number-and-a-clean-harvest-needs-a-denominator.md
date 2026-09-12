@@ -204,7 +204,7 @@ silently.
 
 The report gains a permanent line counting **ruling rows that matched nothing**. This is the half
 that outlives the triage: ruling 3 reduces the decay without removing it, because a ruling still
-expires when the ruled line's own content is edited, which is the correct behaviour. Without that
+expires when the ruled line's own content is edited, which is the correct behavior. Without that
 line, a ledger slowly filling with dead rows reads exactly like a ledger that is working — the same
 non-discrimination ruling 4 refuses one artifact over.
 
