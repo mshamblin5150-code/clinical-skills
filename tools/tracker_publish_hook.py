@@ -12,12 +12,13 @@ returned *allow* whenever it could not parse its own input, so the one limb
 that refuses evaporated exactly when the hook was least able to vouch for the
 text. Each kind's remedy names the by-hand command that grades the file.
 
-**What it reads is the command as typed, not the shell's expansion of it**, so
-resolution is reconstructed rather than observed: assignments made in the same
-command are substituted, including where a variable names only the leading part
-of a path, and a Git Bash ``/c/...`` path is also tried in its Windows
-spelling. What is left -- a variable from the environment, a command
-substitution, a pipe -- is unreadable by construction and is refused above.
+**What it reads is the command as typed, not the shell's expansion of it.** An
+inline body or title is readable only when every segment is single-quoted or an
+outside-quote escaped character, so the hook can reproduce exactly what the
+shell will deliver. Body-file resolution is reconstructed rather than observed:
+same-command assignments are substituted, including where a variable names only
+the leading part of a path, and a Git Bash ``/c/...`` path is also tried in its
+Windows spelling. What is left unreadable is refused above.
 
 Every readable body is graded through ``tracker_bodies.grade``. On the command
 route, each returned row refuses as ``body:<kind>`` and carries the remedy from
@@ -99,10 +100,17 @@ NOT_REACHED = (
         "never saw.",
     ),
     (
-        "expansion is reconstructed and reaches only the same command",
-        "A variable assigned in an earlier command, an exported one, and "
-        "anything a subshell computes are not resolvable here. Each is refused "
-        "rather than guessed at, so the floor does not become a silent pass.",
+        "assignment expansion is reconstructed and reaches only the same command",
+        "A variable assigned in an earlier command or exported by the environment "
+        "is not resolvable here. A substitution behind a same-command variable is "
+        "refused rather than guessed at; directly supplied inline values instead "
+        "cross the quoting-fidelity refusal before their text is graded.",
+    ),
+    (
+        "no route rule covers the cause side of escape collapse",
+        "A residual reproducible inline body is not thereby text-graded for a "
+        "partial literal-newline collapse. The body grader declares its own text "
+        "boundary; no additional command-form rule refuses that cause.",
     ),
     (
         "the refusing hook covers one of two publishers",
@@ -343,6 +351,19 @@ def _publish_tokens(command: str) -> tuple[list[str], int] | None:
     return gh_command_tokens(command, PUBLISH_ROUTES)
 
 
+def _publish_source_tokens(
+    command: str,
+) -> tuple[list[str], tuple[str, ...], int] | None:
+    for tokens, sources, index in shell_reader.executable_source_calls(command, "gh"):
+        if index + 1 >= len(tokens):
+            continue
+        tail = tokens[index + 1 :]
+        route = ("api",) if tail[0] == "api" else tuple(tail[:2])
+        if route in PUBLISH_ROUTES:
+            return tokens, sources, index
+    return None
+
+
 def _resolve_file_source(source: str, command: str) -> tuple[str, Path | None] | None:
     if shell_reader.is_absolute_path(source):
         return source, None
@@ -419,16 +440,73 @@ def aar_quotation_analysis(publications: tuple[Publication, ...]) -> Analysis:
     return Analysis(findings, report)
 
 
-def _resolve_plain_value(
-    field: str,
-    value: str,
-    assignments: dict[str, str],
-    substitutions: frozenset[str],
+def _reproduce_inline_value(source: str) -> str | None:
+    """Reproduce a value made only of literal shell segments."""
+    reproduced: list[str] = []
+    index = 0
+    while index < len(source):
+        if source[index] == "'":
+            closing = source.find("'", index + 1)
+            if closing < 0:
+                return None
+            reproduced.append(source[index + 1 : closing])
+            index = closing + 1
+            continue
+        if source[index] == "\\" and index + 1 < len(source):
+            if source[index + 1] != "\n":
+                reproduced.append(source[index + 1])
+            index += 2
+            continue
+        return None
+    return "".join(reproduced)
+
+
+def _before_shell_redirection(source: str) -> str:
+    quote: str | None = None
+    index = 0
+    while index < len(source):
+        character = source[index]
+        if quote == "'":
+            if character == "'":
+                quote = None
+            index += 1
+            continue
+        if quote == '"':
+            if character == "\\" and index + 1 < len(source):
+                index += 2
+                continue
+            if character == '"':
+                quote = None
+            index += 1
+            continue
+        if character == "\\" and index + 1 < len(source):
+            index += 2
+            continue
+        if character in "\"'":
+            quote = character
+            index += 1
+            continue
+        if character in "<>":
+            return source[:index]
+        index += 1
+    return source
+
+
+def _read_inline_value(
+    field: str, source: str, prefix: str = ""
 ) -> Publication | Unreadable:
-    expanded, kind = shell_reader.expand(value, assignments, substitutions)
-    if kind is not None:
-        return Unreadable(field, kind, value)
-    return Publication(field, expanded)
+    reproduced = _reproduce_inline_value(_before_shell_redirection(source))
+    if reproduced is None:
+        return Unreadable(field, "expansion-exposed-inline", source)
+    if prefix:
+        if not reproduced.startswith(prefix):
+            return Unreadable(field, "invalid-command", source)
+        reproduced = reproduced[len(prefix) :]
+    return Publication(field, reproduced)
+
+
+def _source_without_literal_prefix(source: str, prefix: str) -> str:
+    return source[len(prefix) :] if source.startswith(prefix) else source
 
 
 def _raw_publish_route(command: str) -> tuple[str, ...] | None:
@@ -593,8 +671,21 @@ def extract(command: str) -> Extraction:
     route = ("api",) if tail[0] == "api" else tuple(tail[:2])
     if route not in PUBLISH_ROUTES:
         return Extraction(None, None, (), ())
+    source_publish = _publish_source_tokens(command)
+    if source_publish is None:
+        unreadable = Unreadable("body", "invalid-command", "inline")
+        return Extraction(route, None, (), (unreadable,), route)
+    source_tokens, sources, source_start = source_publish
+    source_tail = source_tokens[source_start + 1 :]
+    source_route = (
+        ("api",) if source_tail[0] == "api" else tuple(source_tail[:2])
+    )
+    if source_route != route:
+        unreadable = Unreadable("body", "invalid-command", "inline")
+        return Extraction(route, None, (), (unreadable,), route)
     route_width = len(route)
-    arguments = tail[route_width:]
+    arguments = source_tail[route_width:]
+    argument_sources = sources[source_start + 1 + route_width :]
     number = _record_number(route, arguments)
     grade_route = _api_grade_route(arguments) if route == ("api",) else route
     if route == ("api",) and grade_route is None:
@@ -605,6 +696,7 @@ def extract(command: str) -> Extraction:
     index = 0
     while index < len(arguments):
         token = arguments[index]
+        source_token = argument_sources[index]
         body_flag = (
             token in INLINE_FLAGS
             or token in FILE_FLAGS
@@ -623,9 +715,7 @@ def extract(command: str) -> Extraction:
             and token in ("--comment", "-c")
             and index + 1 < len(arguments)
         ):
-            read = _resolve_plain_value(
-                "body", arguments[index + 1], assignments, substitutions
-            )
+            read = _read_inline_value("body", argument_sources[index + 1])
             if isinstance(read, Unreadable):
                 return Extraction(route, number, tuple(publications), (read,), grade_route)
             publications.append(read)
@@ -642,7 +732,19 @@ def extract(command: str) -> Extraction:
                         return Extraction(route, number, tuple(publications), (read,))
                     publications.append(read)
                 else:
-                    read = _resolve_plain_value(key, value, assignments, substitutions)
+                    source_argument = argument_sources[index + 1]
+                    literal_prefix = key + "="
+                    source_has_literal_prefix = source_argument.startswith(
+                        literal_prefix
+                    )
+                    source_value = _source_without_literal_prefix(
+                        source_argument, literal_prefix
+                    )
+                    read = _read_inline_value(
+                        key,
+                        source_value,
+                        "" if source_has_literal_prefix else literal_prefix,
+                    )
                     if isinstance(read, Unreadable):
                         return Extraction(route, number, tuple(publications), (read,), grade_route)
                     publications.append(read)
@@ -693,8 +795,8 @@ def extract(command: str) -> Extraction:
             index += 2
             continue
         if token in INLINE_FLAGS and index + 1 < len(arguments):
-            read = _resolve_plain_value(
-                INLINE_FLAGS[token], arguments[index + 1], assignments, substitutions
+            read = _read_inline_value(
+                INLINE_FLAGS[token], argument_sources[index + 1]
             )
             if isinstance(read, Unreadable):
                 return Extraction(route, number, tuple(publications), (read,), grade_route)
@@ -721,8 +823,18 @@ def extract(command: str) -> Extraction:
                 None,
             )
             if close_equals is not None:
-                read = _resolve_plain_value(
-                    "body", close_equals, assignments, substitutions
+                source_prefix = next(
+                    flag + "="
+                    for flag in ("--comment", "-c")
+                    if token.startswith(flag + "=")
+                )
+                source_value = _source_without_literal_prefix(
+                    source_token, source_prefix
+                )
+                read = _read_inline_value(
+                    "body",
+                    source_value,
+                    "" if source_token.startswith(source_prefix) else source_prefix,
                 )
                 if isinstance(read, Unreadable):
                     return Extraction(
@@ -749,8 +861,10 @@ def extract(command: str) -> Extraction:
         for flag, field in INLINE_FLAGS.items():
             prefix = flag + "="
             if token.startswith(prefix):
-                read = _resolve_plain_value(
-                    field, token[len(prefix) :], assignments, substitutions
+                read = _read_inline_value(
+                    field,
+                    _source_without_literal_prefix(source_token, prefix),
+                    "" if source_token.startswith(prefix) else prefix,
                 )
                 if isinstance(read, Unreadable):
                     return Extraction(route, number, tuple(publications), (read,), grade_route)
@@ -1095,6 +1209,12 @@ UNREADABLE_REMEDIES = {
         "run the substitution separately and then run `python "
         "tools/tracker_publish_hook.py --text <path>` before retrying"
     ),
+    "expansion-exposed-inline": (
+        "single-quote every segment of the body value, escaping an apostrophe "
+        "between segments, or write the body to a file and pass its absolute "
+        "path to --body-file; the value must be requoted before its content can "
+        "be graded"
+    ),
     "invalid-input": (
         "repair the JSON input and run `python tools/tracker_publish_hook.py "
         "--text <path>` before retrying"
@@ -1108,6 +1228,16 @@ UNREADABLE_REMEDIES = {
         "`python tools/tracker_publish_hook.py --text <path>` before retrying"
     ),
 }
+
+
+def unreadable_remedy(row: Unreadable) -> str:
+    if row.kind == "expansion-exposed-inline" and row.field == "title":
+        return (
+            "single-quote every segment of the title value, escaping an "
+            "apostrophe between segments; the value must be requoted before "
+            "its content can be graded"
+        )
+    return UNREADABLE_REMEDIES[row.kind]
 
 
 def _source_label(source: str) -> str:
@@ -1141,7 +1271,7 @@ def handle(payload: dict) -> dict:
                 lines.extend(
                     (
                         f"tracker pre-publish: NOT SCANNED -- unreadable {row.field} "
-                        f"({row.kind}); {UNREADABLE_REMEDIES[row.kind]}",
+                        f"({row.kind}); {unreadable_remedy(row)}",
                         "tracker pre-publish: resolved against: "
                         + resolved_against
                         + f"; reconstructed path: {reconstructed}",

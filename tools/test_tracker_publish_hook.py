@@ -16,6 +16,7 @@ import json
 import contextlib
 import subprocess
 import sys
+import os
 from unittest import mock
 
 import artifact_lock_test_support  # noqa: F401
@@ -203,7 +204,7 @@ class DirectTrackerWritersCrossTheBodyGate(unittest.TestCase):
 class InlineTrackerTextIsRead(unittest.TestCase):
     def test_title_and_body_are_separate_publication_fields(self) -> None:
         result = hook.extract(
-            'gh issue edit 670 --title "A revised title" --body "The revised body"'
+            "gh issue edit 670 --title 'A revised title' --body 'The revised body'"
         )
 
         self.assertEqual(result.route, ("issue", "edit"))
@@ -256,16 +257,14 @@ class InlineTrackerTextIsRead(unittest.TestCase):
             [("body", "Other closing text")],
         )
 
-    def test_plain_inline_variables_are_resolved_before_scanning(self) -> None:
+    def test_a_plain_inline_variable_is_refused_before_scanning(self) -> None:
         result = hook.extract(
             "BODY='Expanded tracker text'; "
             'gh issue comment 670 --body "$BODY"'
         )
 
-        self.assertEqual(
-            [(row.field, row.text) for row in result.publications],
-            [("body", "Expanded tracker text")],
-        )
+        self.assertEqual(result.publications, ())
+        self.assertEqual(result.unreadable[0].kind, "expansion-exposed-inline")
 
     def test_numeric_create_fields_are_not_guessed_to_be_record_numbers(self) -> None:
         result = hook.extract(
@@ -325,6 +324,131 @@ class InlineTrackerTextIsRead(unittest.TestCase):
 
         self.assertEqual(issue.grade_route, ("issue", "create"))
         self.assertEqual(pull.grade_route, ("pr", "create"))
+
+
+class InlineTrackerTextMustBeShellReproducible(unittest.TestCase):
+    @staticmethod
+    def shell_value(value: str, *, variables: dict[str, str] | None = None) -> str:
+        command = f"printf '%s' {value}"
+        environment = os.environ.copy()
+        environment.update(variables or {})
+        git_bash = Path("C:/Program Files/Git/bin/bash.exe")
+        executable = str(git_bash) if git_bash.is_file() else "bash"
+        return subprocess.run(
+            [executable, "-c", command],
+            text=True,
+            encoding="utf-8",
+            errors="strict",
+            capture_output=True,
+            check=True,
+            env=environment,
+        ).stdout
+
+    def test_an_escaped_apostrophe_splice_matches_the_real_shell(self) -> None:
+        value = r"'it'\''s'"
+
+        result = hook.extract(f"gh issue comment 670 --body {value}")
+
+        self.assertEqual(result.unreadable, ())
+        self.assertEqual(result.publications[0].text, self.shell_value(value))
+
+    def test_outside_quote_escaped_separators_match_the_real_shell(self) -> None:
+        for value in (r"'a'\|'b'", r"'a'\;'b'", r"'a'\&'b'", "'a'\\\n'b'"):
+            with self.subTest(value=value):
+                result = hook.extract(f"gh issue comment 670 --body {value}")
+
+                self.assertEqual(result.unreadable, ())
+                self.assertEqual(result.publications[0].text, self.shell_value(value))
+
+    def test_one_expansion_exposed_segment_refuses_the_whole_value(self) -> None:
+        value = "'a'\"$T\"'c'"
+        shell_text = self.shell_value(value, variables={"T": "set"})
+
+        result = hook.extract(f"T=set; gh issue comment 670 --body {value}")
+
+        self.assertEqual(shell_text, "asetc")
+        self.assertEqual(result.publications, ())
+        self.assertEqual(result.unreadable[0].kind, "expansion-exposed-inline")
+
+    def test_a_direct_substitution_is_refused_before_text_grading(self) -> None:
+        payload = AnUnreadableBodyIsRefused.payload(
+            "gh issue comment 670 --body \"$(printf '@-')\""
+        )
+
+        with mock.patch.object(hook, "current_index") as current_index:
+            specific = hook.handle(payload)["hookSpecificOutput"]
+
+        current_index.assert_not_called()
+        self.assertEqual(specific["permissionDecision"], "deny")
+        self.assertIn("unreadable body (expansion-exposed-inline)", specific["additionalContext"])
+        self.assertNotIn("body:lost-at-dash", specific["additionalContext"])
+        self.assertNotIn("0 findings", specific["additionalContext"])
+
+    def test_an_unquoted_substitution_gets_the_field_specific_quoting_remedy(self) -> None:
+        for command, field in (
+            ("gh issue comment 670 --body $(printf body)", "body"),
+            ("gh issue edit 670 --title $(printf title)", "title"),
+        ):
+            with self.subTest(field=field):
+                specific = hook.handle(
+                    AnUnreadableBodyIsRefused.payload(command)
+                )["hookSpecificOutput"]
+
+                self.assertEqual(specific["permissionDecision"], "deny")
+                report = specific["additionalContext"]
+                self.assertIn(
+                    f"unreadable {field} (expansion-exposed-inline)", report
+                )
+                self.assertIn("must be requoted", report)
+                if field == "title":
+                    self.assertNotIn("--body-file", report)
+
+    def test_a_title_refusal_names_single_quoting_not_a_body_file(self) -> None:
+        response = hook.handle(
+            AnUnreadableBodyIsRefused.payload(
+                'gh issue edit 670 --title "Expanded $TITLE"'
+            )
+        )
+
+        report = response["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("unreadable title (expansion-exposed-inline)", report)
+        self.assertIn("single-quote", report)
+        self.assertNotIn("--body-file", report)
+
+    def test_a_wholly_single_quoted_api_field_is_reproducible(self) -> None:
+        result = hook.extract(
+            "gh api repos/example/project/issues/670/comments "
+            "-f 'body=API comment'"
+        )
+
+        self.assertEqual(result.unreadable, ())
+        self.assertEqual(result.publications[0].text, "API comment")
+
+    def test_a_wholly_single_quoted_attached_flag_is_reproducible(self) -> None:
+        for command in (
+            "gh issue comment 670 '--body=Attached body'",
+            "gh issue close 670 '--comment=Closing body'",
+        ):
+            with self.subTest(command=command):
+                result = hook.extract(command)
+
+                self.assertEqual(result.unreadable, ())
+                self.assertEqual(len(result.publications), 1)
+
+    def test_an_unspaced_redirection_is_not_part_of_the_inline_value(self) -> None:
+        for command, field in (
+            ("gh issue comment 670 --body 'clean'>out", "body"),
+            ("gh issue comment 670 '--body=clean'>out", "body"),
+            ("gh issue edit 670 --title 'clean'>out", "title"),
+        ):
+            with self.subTest(command=command):
+                result = hook.extract(command)
+
+                self.assertEqual(result.unreadable, ())
+                self.assertEqual(
+                    [(row.field, row.text) for row in result.publications],
+                    [(field, "clean")],
+                )
 
 
 class FileBackedTrackerTextIsRead(unittest.TestCase):
@@ -1475,12 +1599,12 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
         inline = "'" + body + "'"
         return {
             ("issue", "create"): (
-                f"gh issue create --title Ticket --body {inline}"
+                f"gh issue create --title 'Ticket' --body {inline}"
             ),
             ("issue", "comment"): f"gh issue comment 595 --body {inline}",
             ("issue", "edit"): f"gh issue edit 595 --body {inline}",
             ("issue", "close"): f"gh issue close 595 --comment {inline}",
-            ("pr", "create"): f"gh pr create --title Change --body {inline}",
+            ("pr", "create"): f"gh pr create --title 'Change' --body {inline}",
             ("pr", "comment"): f"gh pr comment 595 --body {inline}",
             ("pr", "edit"): f"gh pr edit 595 --body {inline}",
             ("pr", "review"): f"gh pr review 595 --approve --body {inline}",
@@ -1493,7 +1617,7 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
     @staticmethod
     def body_file_commands(path: Path) -> dict[tuple[str, ...], str]:
         return {
-            ("pr", "create"): f'gh pr create --title Change --body-file "{path}"',
+            ("pr", "create"): f"gh pr create --title 'Change' --body-file \"{path}\"",
             ("pr", "edit"): f'gh pr edit 595 --body-file "{path}"',
             ("issue", "comment"): f'gh issue comment 595 --body-file "{path}"',
             ("pr", "comment"): f'gh pr comment 595 --body-file "{path}"',
@@ -1837,7 +1961,7 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
                     ):
                         response = hook.handle(
                             self.payload(
-                                f'cd "{root}" && gh issue create --title Ticket '
+                                f"cd \"{root}\" && gh issue create --title 'Ticket' "
                                 f'--body-file "{body_file.name}"'
                             )
                         )
@@ -2025,7 +2149,7 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
             ):
                 response = hook.handle(
                     self.payload(
-                        f'cd "{root}" && gh issue create --title Map '
+                        f"cd \"{root}\" && gh issue create --title 'Map' "
                         f'--body-file "{body_file.name}"'
                     )
                 )
@@ -2045,7 +2169,7 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
             response = hook.handle(
                 self.payload(
                     "gh api --method POST repos/example/project/issues "
-                    "-f title=Ticket -f body='Missing filing record.'"
+                    "-f title='Ticket' -f body='Missing filing record.'"
                 )
             )
 
@@ -2196,8 +2320,8 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
         ):
             response = hook.handle(
                 self.payload(
-                    'gh issue edit 723 --title "damaged\btitle" '
-                    '--body "damaged\bbody"'
+                    "gh issue edit 723 --title 'damaged\btitle' "
+                    "--body 'damaged\bbody'"
                 )
             )
 
@@ -2496,7 +2620,8 @@ class DeclaredLimitsHaveOneOwner(unittest.TestCase):
                 "retained pre-edit revisions remain readable",
                 "workspace trust can silently suppress registration",
                 "a file rewritten after the scan is graded on its earlier text",
-                "expansion is reconstructed and reaches only the same command",
+                "assignment expansion is reconstructed and reaches only the same command",
+                "no route rule covers the cause side of escape collapse",
                 "the refusing hook covers one of two publishers",
                 "a failed tracker readback leaves the publication context-blind",
                 "the fetched origin can be a non-canonical repository",
@@ -2620,12 +2745,10 @@ class ThePathFormsThatEscapedAreResolved(unittest.TestCase):
 
         self.assertEqual(got.unreadable[0].kind, "command-substitution")
 
-    def test_an_inline_body_expands_the_same_way(self) -> None:
-        """``_expand`` serves the inline field too, where the value is the text
-        rather than a path, so the two cannot drift apart."""
-        got = hook.extract('S="text"; gh issue comment 670 --body "$S/tail"')
+    def test_a_single_quoted_inline_variable_stays_literal(self) -> None:
+        got = hook.extract("S='text'; gh issue comment 670 --body '$S/tail'")
 
-        self.assertEqual(got.publications[0].text, "text/tail")
+        self.assertEqual(got.publications[0].text, "$S/tail")
 
 
 class AnAarPublicationCannotQuoteItsRun(unittest.TestCase):

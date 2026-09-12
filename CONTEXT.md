@@ -93,12 +93,16 @@ The rule that a **scratch root**'s unaccounted count may fall and may not rise. 
 _Avoid_: threshold, limit, cap, budget
 
 **Gating root**:
-A **scratch root** that can refuse the commit being made — the **owning checkout**'s and the **committing checkout**'s, and no other. The line is that a session writes into exactly those two, so the refused party is always a candidate author of what was found. Every other root is a **peer root**: reported on every run and graded never, because a session cannot reach it, did not dirty it, and has no authorized **Drain** out of it. A gating root that passes still prints on a gating line — the label names what a root *could* do to this commit, never what it did.
+A **scratch root** that can refuse the commit being made — the **owning checkout**'s and the **committing checkout**'s, and no other. The line is that a session writes into exactly those two, so the refused party is always a candidate author of what was found. Every other root is a **peer root**: counted on every run and graded never, because a session cannot reach it, did not dirty it, and has no authorized **Drain** out of it. A gating root that passes still prints on a gating line — the label names what a root *could* do to this commit, never what it did.
 _Avoid_: graded root, active root, local root
 
 **Drain**:
 Moving a gating root's top-level rise under the **owning checkout**'s **Ticket directory**. The authorized remedy is a move rather than a deletion — it reads nothing, classifies nothing, publishes nothing and deletes nothing. A worktree drains into the durable owning root; an owning-root rise drains beneath its own accounted `sessions/` entry. Neither path changes the baseline.
 _Avoid_: clean up, clear, purge, sweep (in the tracker sense — see the tracker terms)
+
+**Stale registration**:
+A worktree that `git worktree list` still reports and whose directory is gone. Distinct from an **unreadable source**, where the directory is there and cannot be read: a stale registration holds nothing, because there is nothing left to hold it. It is always a **peer root** — the **owning checkout** resolves through its `.git` pointer and the **committing checkout** is the one a **Session** is standing in, so neither can be in this state.
+_Avoid_: dead worktree, orphaned worktree, stale root, missing root
 
 **Run key**:
 The identity of one unit of work, and it names the directory holding that unit's whole provenance record. For a graded artifact it is course, module and artifact — every part read off the live LMS or off which skill is running, and no part typed — and it prefixes the filename of every submission made from it. For a shift it is `shift-` and the visit date, which step 1 of the shift has already settled. That date is part of what the shift *is*, not the date of a sitting: a shift split on Monday and finished on Tuesday is two sittings and one key.
@@ -287,6 +291,10 @@ _Avoid_: test data, sample, example
 **Preserved run record**:
 The immutable evidence of what one run produced, retained byte for byte apart from its declared redactions. It is not edited to repair a stale reference, because that would falsify the run rather than fix it.
 _Avoid_: fixture, sample output, test result
+
+**Divergent run**:
+A **preserved run record** whose output departs from the skill as that skill is written, so a grader's finding against it is a correct verdict rather than a defect in the grader. The classes are named where the record lives, and the record is never edited to pass — editing it would falsify the run and destroy the evidence the divergence is made of. Distinct from a **fixture**, which is built to be graded clean, and from a grader bug, which is what a finding against conforming output would be.
+_Avoid_: bad run, failing fixture, broken output, noncompliant
 
 **Assertion**:
 A claim in the clinician's own words about what a correct run must contain.
@@ -807,6 +815,14 @@ _Avoid_: non-grader, exclusion, false positive, census
 **Suite run**:
 One execution of every test discovery finds under `tools/`, complete only when each discovered test comes back exactly once with an outcome. Its denominator is what discovery found and never the tally of what came back, so a run that lost a test is incomplete rather than clean. Distinct from the gates the repo's refusing checks carry, which grade an artifact; a suite run grades the checkout's own tests.
 _Avoid_: gate, repo-wide gate, test run, CI, the tests
+
+**Worksheet grammar**:
+The single object holding what a line of an `icd10-cpt` worksheet is — what opens a code entry, what a code looks like, what opens a field, what marks a line not for entry — imported by every grader that reads one. It exists because two graders reading the same file must agree about what a line is, or they grade different populations of one document and nothing reports the disagreement. Distinct from a helper two modules happen to have written alike, where a shared object would forbid a divergence the copies exist to permit.
+_Avoid_: shared regexes, parser, common patterns, entry rules
+
+**Orphaned detail line**:
+A recognized field line that pairs with no entry, because every candidate above it is separated by a blank or unindented line. It is counted and printed, never a finding: the line was read and could not be attributed, which is not the same as not having scanned. Its count is what stops a bound trading a loud false finding for a quiet true miss, so a zero there is a claim that there was nothing to attribute rather than silence.
+_Avoid_: unpaired flag, dangling field, dropped line, unmatched
 
 **Mechanically verified**:
 A run every one of whose named checks ran as its command and came back clean. A run whose check was walked by eye instead — because the command, or the **engine** it needs, could not run on that machine and could not be installed there — may still be complete, but it is never mechanically verified, and it says so rather than leaving a reader to assume the stronger claim. The walk and the command read the same written rules; what differs is only whether a machine applied them.
