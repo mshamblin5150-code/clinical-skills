@@ -109,6 +109,11 @@ ICD-10  <code>  <official descriptor>
   CONFIDENCE: <verified against ICD-10-CM FY2026 | verify this number>
 ```
 
+**Every field value owns one physical line.** `SOURCE:` and `SPECIFICITY:` are
+open-ended values and may carry any text that fits on that line. A fixed phrase
+owns the rest of its line: `NOT FOR ENTRY` and the affirmative CDC `CONFIDENCE`
+sentence run to end of line with no tail after them.
+
 **`SOURCE` appears only where the anchor was filled**, so an ordinary code keeps its five parts and a filled-anchored one carries six. It is a line on the code itself and not only a step-4 heading, for the reason step 4 gives about `NOT CODED`: **a block heading does not survive being copied one line at a time**, and the proposed-code list is exactly the block a clinician scans for things to enter.
 
 CPT entries take the same shape, plus the note text documenting anything the code's requirements hinge on — repair length, wound complexity, time.
@@ -324,11 +329,17 @@ They get their own section, and **three parts rather than five**:
 
 ```
 --- DIFFERENTIAL, DOCUMENTS MDM, NOT FOR ENTRY ---
+<the diagnosis, why it was considered, and — when the code is proposed above — why it repeats here>
 ICD-10  J20.9  Acute bronchitis, unspecified   NOT FOR ENTRY
   CONFIDENCE: verified against ICD-10-CM FY2026
 ```
 
 **`NOT FOR ENTRY` is on the code's own line, and the heading is not enough by itself.** That is step 4's reasoning applied to a second block, for the same reason: a block heading does not survive being copied one line at a time. A note runs its differential five to seven deep, so this is five to seven code numbers sitting above the ones the clinician is actually there to enter.
+
+**The marker refuses this physical line, not the code everywhere.** When a code
+is proposed for entry above and appears again to document the differential, its
+differential line still ends in `NOT FOR ENTRY`. The prose line above it is where
+the worksheet explains why that otherwise repeated code belongs in the MDM.
 
 **Two of the five parts drop, and two do not.**
 
@@ -355,9 +366,14 @@ ICD-10  J20.9  Acute bronchitis, unspecified   NOT FOR ENTRY
 --- NOT CODED, NOTHING ESTABLISHED IT ---
 <the suspected diagnosis, and what documents the suspicion>
   NOT CODED: <code and official descriptor>
+  CONFIDENCE: <verified against the applicable committed code set | verify this number>
   needs: <the result that would establish it>
   proposed instead: <the code the encounter does document>
 ```
+
+A `CODED, ANCHOR WAS FILLED` listing is exactly one unadorned line: the bare code,
+a dash, and its value. It carries no code-system token, bullet, or bold markers.
+A `NOT CODED` record may carry the one-line `CONFIDENCE` field shown above.
 
 This is the section with the most value in it. It tells the clinician what to document *at the bedside next time* so the encounter codes cleanly, which is worth more over a rotation than any single code proposal.
 

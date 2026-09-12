@@ -40,6 +40,9 @@ ENTRY = re.compile(
     rf"^[ \t]*(?:ICD-?10(?:-CM)?|CPT|HCPCS)[ \t]+({CODE})\b",
     re.IGNORECASE,
 )
+# Intentionally local rather than imported from ``worksheet_grammar``: this
+# scanner grades the ``icd10-cpt`` step-4 refusal block, while that grammar marks differential
+# entry lines. The identical phrase does not make the two populations one.
 NOT_FOR_ENTRY = re.compile(r"NOT FOR ENTRY[ \t]*$", re.IGNORECASE)
 
 MISSING_NEEDS = "missing needs"

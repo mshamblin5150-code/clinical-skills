@@ -50,33 +50,16 @@ from pathlib import Path
 import run_grader
 from run_grader import NOT_GRADED
 import aar_scan
+from worksheet_grammar import ENTRY, NOT_FOR_ENTRY, entry_is_for_entry, paired_entry
 
 EXPECTED_COMPLETION_CHECKS = (aar_scan.EXPECTED_ROW,)
 from icd10_lookup import CATEGORY_LENGTH, describe, normalize, notes_for, open_database
 
-# ``ICD-10  M19.90  Unspecified osteoarthritis, unspecified site``. The trailing
-# ``NOT FOR ENTRY`` mark belongs to the differential shape and is not descriptor.
-ENTRY = re.compile(
-    r"(?mi)^[ \t]*(ICD-?10(?:-CM)?|CPT|HCPCS)[ \t]+"
-    r"([A-Z0-9][A-Z0-9.]*)[ \t]+(.+?)[ \t]*$"
-)
 SPECIFICITY = re.compile(r"(?mi)^[ \t]*SPECIFICITY[ \t]*:[ \t]*(.*?)[ \t]*$")
-
-# A code's own parts. These close an entry's header, so ``NOT FOR ENTRY`` is
-# looked for above the first of them and never in the prose below.
-FIELD = re.compile(r"(?mi)^[ \t]*(?:ANCHOR|SOURCE|SPECIFICITY|CONFIDENCE|NOTE)[ \t]*:")
-
-# ``NOT FOR ENTRY`` at the end of any line of the entry's header, not only the
-# code's own. **An official descriptor can run past a line** -- ``K27.9 Peptic
-# ulcer, site unspecified, unspecified as acute or chronic, without hemorrhage or
-# perforation`` is 96 characters -- and the mark then lands on the continuation. A
-# single-line reading calls such an entry for-entry and then grades it on the
-# descriptor test, which fires on ``..., unspecified`` **by design** in a
-# differential. So the wrap produced a false C5 finding on exactly the shape the
-# exemption below exists to protect. Found by a reader, in the run [#124]
-# committed; no flag in that run was affected, because none of its wrapped
-# differential entries carries a ``SPECIFICITY`` line at all.
-NOT_FOR_ENTRY = re.compile(r"(?mi)[ \t]NOT FOR ENTRY[ \t]*$")
+STEP_FOUR_START = re.compile(
+    r"(?im)^---[ \t]+(?:CODED,[ \t]*ANCHOR[ \t]+WAS[ \t]+FILLED\b|"
+    r"NOT[ \t]+CODED,[ \t]+NOTHING[ \t]+ESTABLISHED[ \t]+IT\b).*---[ \t]*$"
+)
 
 # The code set's own words for *an axis exists and this code does not name it*.
 # ``Other specified ...`` is deliberately outside it -- see the module docstring.
@@ -123,8 +106,8 @@ DECLARED_LIMITS = (
         run_grader.EvidenceDisposition.BEHAVIOR,
     ),
     (
-        "nearest-entry flag pairing",
-        "A recognized flag pairs with the nearest recognized entry above it and has no lower boundary.",
+        "contiguous indented flag pairing",
+        "A flag belongs to the nearest entry above only across non-blank indented lines; orphans are reported, not gated.",
         run_grader.EvidenceDisposition.BEHAVIOR,
     ),
     (
@@ -135,6 +118,11 @@ DECLARED_LIMITS = (
     (
         "values beginning with neither branch keyword",
         "A genuinely different first word is counted as unrecognized and does not fail C5.",
+        run_grader.EvidenceDisposition.BEHAVIOR,
+    ),
+    (
+        "`icd10-cpt` step-4 listing lines matching ENTRY",
+        "The flag walk stops before `icd10-cpt` step 4, but entry coverage does not; a listing line that matches ENTRY therefore inflates the unread remainder.",
         run_grader.EvidenceDisposition.BEHAVIOR,
     ),
 )
@@ -162,6 +150,8 @@ class Flag:
     value: str
     for_entry: bool = True
     system: str = ""
+    paired: bool = True
+    entry_start: int | None = None
 
     @property
     def has_substance(self) -> bool:
@@ -214,6 +204,7 @@ class Scan:
     advisories: tuple[Finding, ...] = ()
     for_entry_codes: int = 0
     for_entry_codes_without_flag: int = 0
+    orphaned_details: int = 0
 
 
 @dataclass
@@ -251,49 +242,38 @@ def read_entries(text: str) -> list[WorksheetEntry]:
     """Every code entry, whether or not its required ``SPECIFICITY`` line exists."""
     found = list(ENTRY.finditer(text))
 
-    def header(index: int) -> str:
-        """One entry's lines up to its first field line or the next entry.
-
-        The span rather than the line, because a descriptor that wraps puts
-        ``NOT FOR ENTRY`` on the continuation. Bounded on both sides so the mark
-        cannot be borrowed from the entry below or from prose beneath the code.
-        """
-        start = found[index].start()
-        end = found[index + 1].start() if index + 1 < len(found) else len(text)
-        field = FIELD.search(text, start, end)
-        return text[start : field.start() if field else end]
-
     return [
         WorksheetEntry(
             start=match.start(),
-            system=match.group(1),
-            code=match.group(2),
-            descriptor=match.group(3),
-            for_entry=not NOT_FOR_ENTRY.search(header(index)),
+            system=match.group("system"),
+            code=match.group("code"),
+            descriptor=match.group("descriptor"),
+            for_entry=entry_is_for_entry(text, found, index),
         )
         for index, match in enumerate(found)
     ]
 
 
-def read_flags(text: str) -> list[Flag]:
+def read_flags_with_orphans(text: str) -> tuple[list[Flag], int]:
     """Every ``SPECIFICITY`` line in one worksheet, paired with its entry.
 
-    Pairing is positional -- the most recent entry line above the flag -- because
-    the skill's template puts the two three lines apart and nothing else in the
-    output carries a code and its official descriptor on one line.
+    Pairing is positional and bounded: the nearest entry above owns the flag only
+    while every intervening line is non-blank and indented.
     """
+    entry_matches = list(ENTRY.finditer(text))
     entries = read_entries(text)
+    by_start = {entry.start: entry for entry in entries}
+    step_four = next((match.start() for match in STEP_FOUR_START.finditer(text)), len(text))
     flags: list[Flag] = []
     for match in SPECIFICITY.finditer(text):
-        system, code, descriptor, for_entry = "", "", "", True
-        for entry in entries:
-            if entry.start < match.start():
-                system = entry.system
-                code = entry.code
-                for_entry = entry.for_entry
-                descriptor = NOT_FOR_ENTRY.sub("", entry.descriptor)
-            else:
-                break
+        if match.start() >= step_four:
+            continue
+        owned_match = paired_entry(text, entry_matches, match)
+        entry = by_start.get(owned_match.start()) if owned_match is not None else None
+        system = entry.system if entry else ""
+        code = entry.code if entry else ""
+        for_entry = entry.for_entry if entry else True
+        descriptor = NOT_FOR_ENTRY.sub("", entry.descriptor) if entry else ""
         keyword, remainder = _keyword(match.group(1))
         flags.append(
             Flag(
@@ -304,9 +284,17 @@ def read_flags(text: str) -> list[Flag]:
                 value=match.group(1),
                 for_entry=for_entry,
                 system=system,
+                paired=entry is not None,
+                entry_start=entry.start if entry else None,
             )
         )
-    return flags
+    return flags, sum(1 for flag in flags if not flag.paired)
+
+
+def read_flags(text: str) -> list[Flag]:
+    """Every in-population ``SPECIFICITY`` line, with an orphan kept visible."""
+
+    return read_flags_with_orphans(text)[0]
 
 
 def for_entry_icd10(items: list[list[Flag | WorksheetEntry]]) -> list[Flag | WorksheetEntry]:
@@ -536,7 +524,7 @@ def flag_findings(flag: Flag) -> list[Finding]:
     descriptor the skill asked for.
     """
     found: list[Finding] = []
-    if not flag.for_entry:
+    if not flag.paired or not flag.for_entry:
         return found
     if flag.has_welded_keyword:
         found.append(Finding(WELDED_KEYWORD, flag.code, flag.descriptor, flag.value))
@@ -555,7 +543,8 @@ def advisory_findings(flags: list[Flag]) -> list[Finding]:
     return [
         Finding(UNSPECIFIED_COMPLETE, flag.code, flag.descriptor, flag.value)
         for flag in flags
-        if flag.for_entry
+        if flag.paired
+        and flag.for_entry
         and flag.keyword == "complete"
         and not flag.has_welded_keyword
         and UNSPECIFIED.search(flag.descriptor)
@@ -574,7 +563,7 @@ def survey(per_worksheet: list[list[Flag]]) -> Scan:
         complete_flags=sum(1 for f in flags if f.keyword == "complete"),
         needs_flags=sum(1 for f in flags if f.keyword == "needs"),
         unrecognized_flags=sum(1 for f in flags if not f.keyword),
-        not_for_entry_flags=sum(1 for f in flags if not f.for_entry),
+        not_for_entry_flags=sum(1 for f in flags if f.paired and not f.for_entry),
         bare_flags=sum(1 for f in found if f.kind == BARE),
         welded_keywords=sum(1 for f in found if f.kind == WELDED_KEYWORD),
         unspecified_complete=len(advisories),
@@ -588,17 +577,13 @@ def entry_flag_coverage(text: str) -> tuple[int, int]:
     """Count for-entry codes and those with no positional ``SPECIFICITY`` partner."""
 
     entries = read_entries(text)
-    flag_starts = tuple(match.start() for match in SPECIFICITY.finditer(text))
-    population = 0
-    remainder = 0
-    for index, entry in enumerate(entries):
-        if not entry.for_entry:
-            continue
-        population += 1
-        end = entries[index + 1].start if index + 1 < len(entries) else len(text)
-        if not any(entry.start < start < end for start in flag_starts):
-            remainder += 1
-    return population, remainder
+    paired = {
+        flag.entry_start
+        for flag in read_flags(text)
+        if flag.paired and flag.for_entry and flag.entry_start is not None
+    }
+    for_entry = [entry for entry in entries if entry.for_entry]
+    return len(for_entry), sum(1 for entry in for_entry if entry.start not in paired)
 
 
 def format_report(scan: Scan, source: str, show: bool = False) -> str:
@@ -617,6 +602,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         f"    needs                          {scan.needs_flags}",
         f"    neither keyword                {scan.unrecognized_flags}",
         f"    on a NOT FOR ENTRY line        {scan.not_for_entry_flags}",
+        f"  orphaned detail lines           {scan.orphaned_details}",
         "",
         f"  C5 - flag carries no reason      {scan.bare_flags}",
         f"  C5 - welded keyword              {scan.welded_keywords}",
@@ -677,6 +663,7 @@ class Source:
     per_worksheet_entries: tuple[tuple[WorksheetEntry, ...], ...]
     for_entry_codes: int
     for_entry_codes_without_flag: int
+    orphaned_details: int
 
 
 def _load(parsed: run_grader.Parsed) -> Source:
@@ -687,12 +674,14 @@ def _load(parsed: run_grader.Parsed) -> Source:
     if not worksheets:
         raise run_grader.SourceError(f"no worksheets found in {directory.name}")
     coverage = tuple(entry_flag_coverage(text) for text in worksheets)
+    flag_records = tuple(read_flags_with_orphans(text) for text in worksheets)
     return Source(
         directory,
-        tuple(tuple(read_flags(text)) for text in worksheets),
+        tuple(tuple(flags) for flags, _orphans in flag_records),
         tuple(tuple(read_entries(text)) for text in worksheets),
         sum(item[0] for item in coverage),
         sum(item[1] for item in coverage),
+        sum(orphans for _flags, orphans in flag_records),
     )
 
 
@@ -722,6 +711,7 @@ def _grade(
         scan,
         for_entry_codes=source.for_entry_codes,
         for_entry_codes_without_flag=source.for_entry_codes_without_flag,
+        orphaned_details=source.orphaned_details,
     )
     diagnostics: list[str] = []
     reports: list[str] = []

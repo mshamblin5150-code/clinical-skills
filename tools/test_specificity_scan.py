@@ -33,8 +33,10 @@ GraderConformance = for_module(scan)
 from icd10_lookup import describe, normalize, notes_for, open_database
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+POSITIVE_RUN = REPO_ROOT / "fixtures" / "worksheet-grammar-positive-control"
 SKILL = REPO_ROOT / "skills" / "icd10-cpt" / "SKILL.md"
 NOTES = REPO_ROOT / "fixtures" / "filled-anchor" / "notes"
+RUN_2 = REPO_ROOT / "fixtures" / "filled-anchor" / "run-2"
 
 
 class TheDeclaredLimitsObjectOwnsBothProseSurfaces(unittest.TestCase):
@@ -47,10 +49,10 @@ class TheDeclaredLimitsObjectOwnsBothProseSurfaces(unittest.TestCase):
                 self.assertEqual(1, surface.count(self.POINTER))
                 self.assertEqual((), bind(scan.DECLARED_LIMITS, surface, mode=NAMING))
 
-    def test_the_partition_is_two_declared_readings_and_six_behaviors(self):
+    def test_the_partition_is_two_declared_readings_and_seven_behaviors(self):
         dispositions = [row[2] for row in scan.DECLARED_LIMITS]
         self.assertEqual(2, dispositions.count(run_grader.EvidenceDisposition.DECLARED_READING))
-        self.assertEqual(6, dispositions.count(run_grader.EvidenceDisposition.BEHAVIOR))
+        self.assertEqual(7, dispositions.count(run_grader.EvidenceDisposition.BEHAVIOR))
         self.assertTrue(all(subject and reason for subject, reason, _ in scan.DECLARED_LIMITS))
 
 
@@ -59,9 +61,10 @@ class EveryBehaviorLimitHasALiveControl(unittest.TestCase):
         "alphanumeric substance after a keyword": "DeclaredLimitBoundaryControls.test_a_stock_phrase_satisfies_the_substance_shape",
         "unspecified-descriptor advisory input": "DeclaredLimitBoundaryControls.test_a_wrapped_unspecified_word_is_outside_the_advisory",
         "recognized code-entry and flag forms": "DeclaredLimitBoundaryControls.test_an_unrecognized_entry_and_flag_disappear_beside_a_readable_entry",
-        "nearest-entry flag pairing": "DeclaredLimitBoundaryControls.test_an_unpaired_flag_attaches_to_the_nearest_recognized_entry_above",
+        "contiguous indented flag pairing": "DeclaredLimitBoundaryControls.test_a_blank_line_orphans_the_flag_instead_of_borrowing_an_entry",
         "NOT FOR ENTRY flag exemption": "TheParserPairsAFlagWithItsDescriptor.test_a_differential_flag_is_exempt_from_both_tests",
         "values beginning with neither branch keyword": "AFlagCarriesSubstanceBeyondItsKeyword.test_n_a_and_an_empty_value_remain_neither_keyword",
+        "`icd10-cpt` step-4 listing lines matching ENTRY": "DeclaredLimitBoundaryControls.test_a_step_four_listing_that_matches_entry_inflates_the_unread_remainder",
     }
 
     def test_each_behavior_subject_names_a_passing_control(self):
@@ -74,6 +77,14 @@ class EveryBehaviorLimitHasALiveControl(unittest.TestCase):
 
 
 class DeclaredLimitBoundaryControls(unittest.TestCase):
+    def test_a_step_four_listing_that_matches_entry_inflates_the_unread_remainder(self):
+        text = (
+            entry("R12", "Heartburn", "complete - R12 has no further axis")
+            + "\n\n--- CODED, ANCHOR WAS FILLED ---\n"
+            + "ICD-10  Z68.36  - BMI 36.4 from a filled height\n"
+        )
+        self.assertEqual((2, 1), scan.entry_flag_coverage(text))
+
     def test_a_stock_phrase_satisfies_the_substance_shape(self):
         flags = scan.read_flags(entry("I10", "Hypertension", "complete - nothing more to add"))
         self.assertEqual([], scan.findings(flags))
@@ -105,14 +116,15 @@ class DeclaredLimitBoundaryControls(unittest.TestCase):
         self.assertIn("for-entry codes read             1", stdout.getvalue())
         self.assertEqual("", stderr.getvalue())
 
-    def test_an_unpaired_flag_attaches_to_the_nearest_recognized_entry_above(self):
-        flags = scan.read_flags(
+    def test_a_blank_line_orphans_the_flag_instead_of_borrowing_an_entry(self):
+        flags, orphans = scan.read_flags_with_orphans(
             entry("99406", "Cessation counseling", "complete - time documented")
             + "\n- ICD-10  J02.9  Acute pharyngitis, unspecified\n"
             + "  SPECIFICITY: complete\n"
         )
-        self.assertEqual(["99406", "99406"], [flag.code for flag in flags])
-        self.assertEqual(["bare-flag"], [finding.kind for finding in scan.findings(flags)])
+        self.assertEqual(["99406", ""], [flag.code for flag in flags])
+        self.assertEqual(1, orphans)
+        self.assertEqual([], scan.findings(flags))
 
 # The audit's extraction boundary, written down rather than described. A
 # diagnosis-list header runs to the next blank line; six of the twelve notes
@@ -263,11 +275,7 @@ class TheParserPairsAFlagWithItsDescriptor(unittest.TestCase):
         self.assertEqual(flags[0].descriptor, "Heartburn")
         self.assertEqual(flags[0].keyword, "complete")
 
-    def test_a_wrapped_descriptor_keeps_its_not_for_entry_exemption(self):
-        # The mark lands on the continuation line when the official descriptor runs
-        # past one. Reading only the code's own line calls this for-entry and then
-        # would count it in the ``unspecified`` advisory without the exemption,
-        # even though a differential is coded at that level on purpose.
+    def test_a_wrapped_descriptor_keeps_its_line_scoped_exemption(self):
         wrapped = (
             "ICD-10  K27.9  Peptic ulcer, site unspecified, unspecified as acute or chronic,"
             " without\n"
@@ -324,10 +332,30 @@ class TheParserPairsAFlagWithItsDescriptor(unittest.TestCase):
         flags = scan.read_flags(text)
         self.assertEqual([f.code for f in flags], ["10060"])
 
+    def test_running_prose_with_or_in_the_code_position_is_not_an_entry(self):
+        text = "CPT or E/M reference at all.\n  SPECIFICITY: complete\n"
+        flags, orphans = scan.read_flags_with_orphans(text)
+        self.assertEqual(("", False), (flags[0].code, flags[0].paired))
+        self.assertEqual(1, orphans)
+        self.assertEqual([], scan.findings(flags))
+
+    def test_a_step_four_specificity_line_is_outside_the_pairing_population(self):
+        text = (
+            entry("I10", "Hypertension", "complete - no further axis")
+            + "\n\n--- NOT CODED, NOTHING ESTABLISHED IT ---\n"
+            + "  NOT CODED: 99406  Cessation counseling\n"
+            + "  SPECIFICITY: complete\n"
+        )
+        flags, orphans = scan.read_flags_with_orphans(text)
+        self.assertEqual((["I10"], 0), ([flag.code for flag in flags], orphans))
+
     def test_a_flag_with_no_entry_above_it_still_parses(self):
-        flags = scan.read_flags("  SPECIFICITY: complete\n")
+        flags, orphans = scan.read_flags_with_orphans("  SPECIFICITY: complete\n")
         self.assertEqual(flags[0].descriptor, "")
         self.assertEqual(flags[0].code, "")
+        self.assertFalse(flags[0].paired)
+        self.assertEqual(orphans, 1)
+        self.assertEqual(scan.findings(flags), [])
 
 
 class AFlagCarriesSubstanceBeyondItsKeyword(unittest.TestCase):
@@ -475,6 +503,10 @@ class TheReportCarriesNoTextWithoutShow(unittest.TestCase):
         self.assertIn("bare-flag", report)
         self.assertIn("unspecified-complete", report)
 
+    def test_the_orphan_count_is_always_printed(self):
+        report = scan.format_report(self.survey, source="a-run")
+        self.assertIn("orphaned detail lines", report)
+
     def test_the_unspecified_count_is_labeled_advisory(self):
         report = scan.format_report(self.survey, source="a-run", show=False)
         self.assertIn("advisory - complete on unspecified", report)
@@ -491,6 +523,16 @@ class TheReportCarriesNoTextWithoutShow(unittest.TestCase):
         self.assertIn("R00.1", report)
         self.assertIn("unspecified-complete", report)
 
+
+class TheCommittedRunCoverageIsPinned(unittest.TestCase):
+    def test_code_shape_removes_the_prose_entry_and_leaves_nine_without_flags(self):
+        texts = list(run_grader.read_run_directory(RUN_2))
+        coverage = [scan.entry_flag_coverage(text) for text in texts]
+        self.assertEqual((209, 9), tuple(map(sum, zip(*coverage))))
+
+    def test_step_four_detail_lines_do_not_become_orphans(self):
+        texts = list(run_grader.read_run_directory(RUN_2))
+        self.assertEqual(0, sum(scan.read_flags_with_orphans(text)[1] for text in texts))
 
 class TheCommandExitsOnWhatItFound(unittest.TestCase):
     def _run(self, *entries: str) -> int:
@@ -968,6 +1010,16 @@ class TheSkillSaysWhatThisChecks(ProseBind, unittest.TestCase):
         finally:
             connection.close()
         self.assertEqual(result.refusals, ())
+
+
+class ThePositiveControlCoversEveryForEntryCode(unittest.TestCase):
+    def test_the_generated_worksheet_has_no_flag_remainder_or_fault(self):
+        texts = list(run_grader.read_run_directory(POSITIVE_RUN))
+        coverage = [scan.entry_flag_coverage(text) for text in texts]
+        result = scan.survey([scan.read_flags(text) for text in texts])
+
+        self.assertEqual((12, 0), tuple(map(sum, zip(*coverage))))
+        self.assertEqual((0, 0), (result.failing_flags, result.orphaned_details))
 
 
 if __name__ == "__main__":

@@ -13,6 +13,7 @@ the file a reader opens is worse than none, because it reads as agreement.
 from __future__ import annotations
 
 import io
+import re
 import tempfile
 import unittest
 from contextlib import redirect_stdout
@@ -27,6 +28,8 @@ GraderConformance = for_module(scan)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SKILL = REPO_ROOT / "skills" / "icd10-cpt" / "SKILL.md"
+POSITIVE_RUN = REPO_ROOT / "fixtures" / "worksheet-grammar-positive-control"
+POSITIVE_SOURCE = REPO_ROOT / "fixtures" / "filled-anchor" / "notes" / "case-01.md"
 
 BLOCK = "--- CODED, ANCHOR WAS FILLED - CONFIRM BEFORE SUBMITTING ---"
 OLD_BLOCK = "--- NOT CODED, ANCHOR WAS FILLED ---"
@@ -42,10 +45,10 @@ class TheDeclaredLimitsObjectOwnsBothProseSurfaces(unittest.TestCase):
                 self.assertEqual(1, surface.count(self.POINTER))
                 self.assertEqual((), bind(scan.DECLARED_LIMITS, surface, mode=NAMING))
 
-    def test_the_partition_is_one_declared_reading_and_eight_behaviors(self):
+    def test_the_partition_is_one_declared_reading_and_nine_behaviors(self):
         dispositions = [row[2] for row in scan.DECLARED_LIMITS]
         self.assertEqual(1, dispositions.count(run_grader.EvidenceDisposition.DECLARED_READING))
-        self.assertEqual(8, dispositions.count(run_grader.EvidenceDisposition.BEHAVIOR))
+        self.assertEqual(9, dispositions.count(run_grader.EvidenceDisposition.BEHAVIOR))
         self.assertTrue(all(subject and reason for subject, reason, _ in scan.DECLARED_LIMITS))
 
 
@@ -54,9 +57,10 @@ class EveryBehaviorLimitHasALiveControl(unittest.TestCase):
         "NOT FOR ENTRY entries": "TheParserFindsMarkedCodes.test_a_differential_entry_is_not_a_proposed_code",
         "recognized code-entry openings": "DeclaredLimitBoundaryControls.test_an_unrecognized_code_and_source_form_contributes_nothing",
         "recognized filled-anchor listing lines": "DeclaredLimitBoundaryControls.test_a_table_listing_is_unread_beside_the_code_dash_form",
-        "recognized SOURCE marks": "DeclaredLimitBoundaryControls.test_a_bold_source_label_does_not_mark_the_code",
+        "recognized SOURCE marks": "DeclaredLimitBoundaryControls.test_only_a_value_beginning_with_filled_marks_the_code",
         "filled-anchor block closing headings": "DeclaredLimitBoundaryControls.test_a_subheading_ends_the_filled_anchor_block",
-        "filled-anchor block opening mentions": "DeclaredLimitBoundaryControls.test_a_prose_mention_opens_the_filled_anchor_block",
+        "filled-anchor block opening form": "DeclaredLimitBoundaryControls.test_only_the_delimited_line_opens_the_filled_anchor_block",
+        "contiguous indented detail pairing": "DeclaredLimitBoundaryControls.test_a_blank_line_orphans_a_recognized_source",
         "pediatric-band computation": "DeclaredLimitBoundaryControls.test_the_required_sentence_is_not_a_recomputation",
         "per-run gradeable coverage": "DeclaredLimitBoundaryControls.test_an_unread_worksheet_adds_nothing_beside_a_readable_one",
     }
@@ -88,18 +92,47 @@ class DeclaredLimitBoundaryControls(unittest.TestCase):
         text = entry("Z68.36", "Adult BMI", source="filled").replace("SOURCE:", "**SOURCE:**")
         self.assertEqual(frozenset(), scan.read_worksheet(text).marked)
 
+    def test_only_a_value_beginning_with_filled_marks_the_code(self):
+        affirmative = scan.read_worksheet(entry("Z68.36", "Adult BMI", source="filled - height"))
+        negated = scan.read_worksheet(entry("Z68.36", "Adult BMI", source="recorded, not filled"))
+        self.assertEqual(frozenset({"Z68.36"}), affirmative.marked)
+        self.assertEqual((frozenset(), 1), (negated.marked, negated.orphaned_details))
+
     def test_a_subheading_ends_the_filled_anchor_block(self):
         sheet = scan.read_worksheet(
             f"{BLOCK}\n### Adult BMI band\nZ68.36 - BMI 36.4\n"
         )
         self.assertEqual(frozenset(), sheet.listed)
 
-    def test_a_prose_mention_opens_the_filled_anchor_block(self):
-        sheet = scan.read_worksheet(
+    def test_only_the_delimited_line_opens_the_filled_anchor_block(self):
+        prose = scan.read_worksheet(
             "Accounting note names CODED, ANCHOR WAS FILLED for review.\n"
             "Z68.36 - BMI 36.4\n"
         )
-        self.assertEqual(frozenset({"Z68.36"}), sheet.listed)
+        prefixed = scan.read_worksheet(
+            "### --- CODED, ANCHOR WAS FILLED - CONFIRM BEFORE SUBMITTING ---\n"
+            "Z68.36 - BMI 36.4\n"
+        )
+        delimited = scan.read_worksheet(f"{BLOCK}\nZ68.36 - BMI 36.4\n")
+        self.assertEqual((frozenset(), False), (prose.listed, prose.has_block))
+        self.assertEqual((frozenset(), False), (prefixed.listed, prefixed.has_block))
+        self.assertEqual((frozenset({"Z68.36"}), True), (delimited.listed, delimited.has_block))
+
+    def test_an_unrecognized_block_is_reported_without_inventing_listing_findings(self):
+        sheet = scan.read_worksheet(
+            entry("Z68.36", "Adult BMI", source="filled - height")
+            + "### --- CODED, ANCHOR WAS FILLED - CONFIRM BEFORE SUBMITTING ---\n"
+            + "Z68.36 - BMI 36.4\n"
+        )
+
+        self.assertFalse(sheet.has_block)
+        self.assertEqual([], scan.worksheet_findings(sheet))
+
+    def test_a_blank_line_orphans_a_recognized_source(self):
+        sheet = scan.read_worksheet(
+            "ICD-10  Z68.36  Adult BMI\n\n  SOURCE: filled - height\n"
+        )
+        self.assertEqual((frozenset(), 1), (sheet.marked, sheet.orphaned_details))
 
     def test_the_required_sentence_is_not_a_recomputation(self):
         text = entry(
@@ -177,17 +210,14 @@ class TheParserFindsMarkedCodes(unittest.TestCase):
         self.assertEqual(sheet.marked, frozenset())
         self.assertEqual(sheet.proposed, 1)
 
-    def test_a_source_line_that_does_not_say_filled_does_not_mark(self):
+    def test_a_source_line_that_does_not_begin_with_filled_is_an_orphan(self):
         sheet = scan.read_worksheet(
             worksheet(entry("I10", "Essential (primary) hypertension", source="recorded"))
         )
         self.assertEqual(sheet.marked, frozenset())
+        self.assertEqual(sheet.orphaned_details, 1)
 
-    def test_a_wrapped_descriptor_still_carries_its_not_for_entry_mark(self):
-        # ``K27.9 Peptic ulcer, site unspecified, unspecified as acute or chronic,
-        # without hemorrhage or perforation`` does not fit a line, so the mark lands
-        # on the continuation. A single-line reading calls it a proposed code and
-        # publishes a differential count four short -- which is what it did.
+    def test_a_wrapped_descriptor_still_carries_its_line_scoped_marker(self):
         wrapped = (
             "ICD-10  K27.9  Peptic ulcer, site unspecified, unspecified as acute or chronic, without\n"
             "               hemorrhage or perforation   NOT FOR ENTRY\n"
@@ -231,14 +261,20 @@ class TheParserReadsTheStepFourBlock(unittest.TestCase):
         sheet = scan.read_worksheet(worksheet(block="Z68.36 - BMI 36.4 from a filled height"))
         self.assertEqual(sheet.listed, frozenset({"Z68.36"}))
 
-    def test_it_reads_an_em_dash_and_a_bullet_and_bold(self):
+    def test_it_reads_each_dash_but_not_a_bullet_or_bold(self):
         block = (
             "Z68.36 — BMI 36.4 from a filled height\n"
             "- E66.3 – overweight, from a filled height\n"
             "**R03.0** - elevated reading, filled pressure\n"
         )
         sheet = scan.read_worksheet(worksheet(block=block))
-        self.assertEqual(sheet.listed, frozenset({"Z68.36", "E66.3", "R03.0"}))
+        self.assertEqual(sheet.listed, frozenset({"Z68.36"}))
+
+    def test_it_refuses_bold_anywhere_in_the_listing_value(self):
+        sheet = scan.read_worksheet(
+            worksheet(block="Z68.36 - **BMI 36.4** from a filled height")
+        )
+        self.assertEqual(sheet.listed, frozenset())
 
     def test_it_reads_a_cpt_code(self):
         # A CPT code is five digits and matches nothing an ICD-10 pattern accepts.
@@ -247,13 +283,22 @@ class TheParserReadsTheStepFourBlock(unittest.TestCase):
         sheet = scan.read_worksheet(worksheet(block="99406 - cessation counseling, a filled plan item"))
         self.assertEqual(sheet.listed, frozenset({"99406"}))
 
-    def test_it_reads_a_listing_that_names_its_code_set(self):
+    def test_it_refuses_a_listing_that_names_its_code_set(self):
         block = (
             "CPT 12001 - the simple designation rests on a filled exploration\n"
             "ICD-10 Z68.36 - BMI 36.4 from a filled height\n"
         )
         sheet = scan.read_worksheet(worksheet(block=block))
-        self.assertEqual(sheet.listed, frozenset({"12001", "Z68.36"}))
+        self.assertEqual(sheet.listed, frozenset())
+
+    def test_a_confidence_line_in_the_not_coded_block_is_outside_pairing(self):
+        text = (
+            entry("I10", "Hypertension")
+            + "\n\n--- NOT CODED, NOTHING ESTABLISHED IT ---\n"
+            + "  NOT CODED: 99406  Cessation counseling\n"
+            + "  CONFIDENCE: verify this number\n"
+        )
+        self.assertEqual(0, scan.read_worksheet(text).orphaned_details)
 
     def test_a_marked_cpt_code_listed_in_the_block_is_clean(self):
         sheet = scan.read_worksheet(
@@ -523,21 +568,19 @@ class TheCommittedRunsFiguresArePinned(unittest.TestCase):
     def test_twelve_worksheets(self):
         self.assertEqual(self.scan.worksheets, 12)
 
-    def test_two_hundred_and_ten_codes_proposed_for_entry(self):
-        # 297 entries less the 87 marked ``NOT FOR ENTRY``. **This read 214 until a
+    def test_two_hundred_and_nine_codes_proposed_for_entry(self):
+        # 296 code-shaped entries less the 87 marked ``NOT FOR ENTRY``. **This read 214 until a
         # reader found the four whose descriptors wrap**, and the suite was green
         # over the wrong number the whole time -- which is what a figure pinned to a
         # parser buys and does not buy.
-        self.assertEqual(self.scan.proposed, 210)
+        self.assertEqual(self.scan.proposed, 209)
 
-    def test_twenty_nine_marks_and_twenty_nine_listings(self):
-        # The two being equal is A1/A2/A5's mechanical limb; the value being 29 is
-        # the figure the README states.
+    def test_twenty_nine_marks_and_twenty_three_strict_listings(self):
         self.assertEqual(self.scan.marked, 29)
-        self.assertEqual(self.scan.listed, 29)
+        self.assertEqual(self.scan.listed, 23)
 
-    def test_every_worksheet_carries_the_step_four_block(self):
-        self.assertEqual(self.scan.with_block, 12)
+    def test_ten_worksheets_carry_the_strict_step_four_block(self):
+        self.assertEqual(self.scan.with_block, 10)
 
     def test_the_preserved_run_exposes_its_two_pre_calculator_bands(self):
         # The run is byte-for-byte evidence from before #123. Rewriting its two
@@ -545,9 +588,11 @@ class TheCommittedRunsFiguresArePinned(unittest.TestCase):
         # check must therefore find both rather than bless or mutate them.
         self.assertEqual(self.scan.pediatric_bands, 2)
         self.assertEqual(self.scan.pediatric_not_computed, 2)
+        self.assertEqual(5, len(self.scan.findings))
+        self.assertEqual(3, self.scan.unlisted_marks)
         self.assertEqual(
             {finding.kind for finding in self.scan.findings},
-            {scan.PEDIATRIC_NOT_COMPUTED},
+            {scan.UNLISTED_MARK, scan.PEDIATRIC_NOT_COMPUTED},
         )
 
 
@@ -562,6 +607,59 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
 
     def test_the_skill_sends_the_pediatric_band_to_the_cdc_tool(self):
         self.assertIn("cdc_percentile.py", self.text)
+
+    def test_the_skill_pins_the_narrow_listing_and_line_boundaries(self):
+        self.assertIn("carries no code-system token, bullet, or bold markers", self.text)
+        self.assertIn("Every field value owns one physical line", self.text)
+        self.assertIn("marker refuses this physical line, not the code everywhere", self.text)
+
+    def test_the_differential_template_has_a_home_for_its_reason(self):
+        self.assertIn("why that otherwise repeated code belongs in the MDM", self.text)
+
+    def test_a_not_coded_record_may_carry_confidence(self):
+        self.assertIn("A `NOT CODED` record may carry", self.text)
+
+
+class ThePositiveControlStaysGradeable(unittest.TestCase):
+    def setUp(self):
+        self.worksheet = (POSITIVE_RUN / "case-01.md").read_text(encoding="utf-8")
+
+    def test_the_real_generated_worksheet_clears_the_anchor_grammar(self):
+        result = scan.survey([scan.read_worksheet(self.worksheet)])
+
+        self.assertEqual(1, result.with_block)
+        self.assertEqual((3, 3, 0), (result.marked, result.listed, result.orphaned_details))
+        self.assertEqual((), result.findings)
+
+    def test_every_quoted_anchor_is_one_physical_source_line(self):
+        source_lines = set(POSITIVE_SOURCE.read_text(encoding="utf-8").splitlines())
+        anchors = re.findall(r'(?mi)^[ \t]*ANCHOR[ \t]*:[ \t]*"(.*)"[ \t]*$', self.worksheet)
+
+        self.assertTrue(anchors)
+        self.assertTrue(all(any(anchor in line for line in source_lines) for anchor in anchors))
+
+    def test_the_adult_bmi_anchor_carries_both_eligibility_facts(self):
+        block = re.search(
+            r"(?ms)^ICD-10[ \t]+Z68\.26\b.*?(?=^(?:ICD-10|CPT|HCPCS)[ \t]+|\Z)",
+            self.worksheet,
+        )
+        self.assertIsNotNone(block)
+        assert block is not None
+        self.assertIn("36-year-old male", block.group())
+        self.assertIn("BMI 26.5", block.group())
+
+    def test_the_overweight_anchor_is_a_complete_source_claim(self):
+        expected = (
+            "BMI 26.5 = 703 x 185 / 70^2 = 130,055 / 4,900 = 26.54. "
+            "Overweight band."
+        )
+        block = re.search(
+            r"(?ms)^ICD-10[ \t]+E66\.3\b.*?(?=^(?:ICD-10|CPT|HCPCS)[ \t]+|\Z)",
+            self.worksheet,
+        )
+        self.assertIsNotNone(block)
+        assert block is not None
+        self.assertIn(f'ANCHOR: "{expected}"', block.group())
 
 
 if __name__ == "__main__":

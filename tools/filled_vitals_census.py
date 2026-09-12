@@ -131,6 +131,11 @@ DECLARED_LIMITS = (
         "Counted classes use labeled-value-then-filled grammar, while pain is recognized by its N/10 shape alone.",
         run_grader.EvidenceDisposition.BEHAVIOR,
     ),
+    (
+        "age-unit vocabulary",
+        "An age uses digits with a year, month, week, or day unit, or digits after age; punctuation is not graded and spelled numbers stay unread.",
+        run_grader.EvidenceDisposition.BEHAVIOR,
+    ),
 )
 
 EXPECTED_COMPLETION_CHECKS = (aar_scan.EXPECTED_ROW,)
@@ -231,10 +236,12 @@ COUNTED_CLASSES: tuple[tuple[str, str, "re.Pattern[str]"], ...] = (
 # The two halves of #97's person rule. An age is spelled in any of the corpus's
 # forms; a sex is **spelled**, never a bare ``M`` or ``F`` -- ``T 98.4 F filled``
 # is in these blocks and would otherwise satisfy a neighboring height.
+_AGE_SEPARATOR = r"[\s\-‐‑‒–.:/]*"
+_AGE_UNIT = r"(?:y[.:/]?o|years?|yrs?|yr|y|months?|mos?|mo|weeks?|wks?|wk|days?|d)"
 NAMES_AGE = re.compile(
-    r"(?i)\b(?:age[ds]?\s*\d{1,3}"
-    r"|\d{1,3}\s*[-‐‑‒– ]?\s*(?:year|yr|y/o|yo)s?\b"
-    r"|\d{1,2}\s*[-‐‑‒– ]?\s*(?:month|week|day)s?[-– ]?old)"
+    rf"(?ix)(?:\bage(?:d|s)?{_AGE_SEPARATOR}\d{{1,3}}\b"
+    rf"|\b\d{{1,3}}{_AGE_SEPARATOR}{_AGE_UNIT}(?:[.:/])?"
+    rf"(?:{_AGE_SEPARATOR}old)?(?![A-Za-z]))"
 )
 NAMES_SEX = re.compile(
     r"(?i)\b(?:male|female|man|men|woman|women|boy|girl|gentleman|lady|"

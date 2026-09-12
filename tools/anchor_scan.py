@@ -60,33 +60,11 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import run_grader
+from worksheet_grammar import CODE, ENTRY, entry_is_for_entry, paired_entry
 
-# ``ICD-10  Z68.36  Body mass index [BMI] 36.0-36.9, adult``. Shared with
-# ``specificity_scan.py`` by shape rather than by import: the two read the same
-# worksheet and each states its own pairing, so neither silently inherits the
-# other's idea of what an entry is.
-ENTRY = re.compile(
-    r"(?mi)^[ \t]*(?:ICD-?10(?:-CM)?|CPT|HCPCS)[ \t]+"
-    r"([A-Z0-9][A-Z0-9.]*)[ \t]+(.+?)[ \t]*$"
-)
 SOURCE = re.compile(r"(?mi)^[ \t]*SOURCE[ \t]*:[ \t]*(.*?)[ \t]*$")
 CONFIDENCE = re.compile(r"(?mi)^[ \t]*CONFIDENCE[ \t]*:[ \t]*(.*?)[ \t]*$")
-
-# A code's own parts. These close an entry's header, so ``NOT FOR ENTRY`` is
-# looked for above the first of them and never in the prose below.
-FIELD = re.compile(r"(?mi)^[ \t]*(?:ANCHOR|SOURCE|SPECIFICITY|CONFIDENCE|NOTE)[ \t]*:")
-
-# ``NOT FOR ENTRY`` at the end of any line of the entry's header, not only the
-# code's own. An official descriptor can run past a line -- ``K27.9 Peptic ulcer,
-# site unspecified, unspecified as acute or chronic, without hemorrhage or
-# perforation`` is 96 characters -- and the mark then lands on the continuation.
-# **A single-line reading counts four of this run's differential codes as proposed
-# for entry**, which is exactly the defect [#70] describes: mandating a per-entry
-# marker does not remove the ambiguity, it moves it from *what is an entry* to
-# *what is a line*. Found by a reader after the suite was green.
-NOT_FOR_ENTRY = re.compile(r"(?mi)[ \t]NOT FOR ENTRY[ \t]*$")
-
-FILLED = re.compile(r"(?i)\bfilled\b")
+FILLED = re.compile(r"(?i)^filled\b")
 CDC_COMPUTED = re.compile(
     r"(?i)^verified against ICD-10-CM FY2026 and "
     r"CDC 2022 Extended BMI-for-Age\.?$"
@@ -95,13 +73,18 @@ CDC_COMPUTED = re.compile(
 # ``icd10-cpt`` step 4's heading. The lookbehind is the load-bearing part: ``NOT
 # CODED, ANCHOR WAS FILLED`` is the pre-#46 heading, and reading it as this block
 # would score a run that refused every filled anchor as one that marked them all.
-BLOCK_HEADING = re.compile(r"(?i)(?<!not )\bcoded,[ \t]*anchor[ \t]+was[ \t]+filled\b")
+BLOCK_HEADING = re.compile(
+    r"(?i)^---[ \t]+CODED,[ \t]*ANCHOR[ \t]+WAS[ \t]+FILLED\b.*---[ \t]*$"
+)
+STEP_FOUR_START = re.compile(
+    r"(?im)^---[ \t]+(?:CODED,[ \t]*ANCHOR[ \t]+WAS[ \t]+FILLED\b|"
+    r"NOT[ \t]+CODED,[ \t]+NOTHING[ \t]+ESTABLISHED[ \t]+IT\b).*---[ \t]*$"
+)
 
 # Any other ``--- ... ---`` or Markdown heading closes the block.
 OTHER_HEADING = re.compile(r"^[ \t]*(?:-{3,}|#{1,6}[ \t])")
 
-# ``Z68.36 - BMI 36.4 ...``, with an optional bullet, optional bold markers and an
-# optional code-set name in front. The code is pinned at the start of its line by a
+# ``Z68.36 - BMI 36.4 ...``. The bare code is pinned at the start of its line by a
 # dash, which is what makes this a line format rather than a substring search.
 #
 # **Three code shapes, and the second two are why this is not the ICD-10 pattern.**
@@ -109,10 +92,8 @@ OTHER_HEADING = re.compile(r"^[ \t]*(?:-{3,}|#{1,6}[ \t])")
 # written for ``Z68.36`` reads a marked ``99406`` as unlistable and fails a run that
 # listed it correctly. ``icd10-cpt`` step 3 says CPT entries take the same shape as
 # ICD-10 ones, so a filled-anchored procedure owes the same block line.
-CODE = r"(?:[A-Z][0-9][0-9A-Z](?:\.[0-9A-Z]{1,4})?|[0-9]{5}|[A-Z][0-9]{4})"
 LISTING = re.compile(
-    rf"^[ \t]*(?:[-*+][ \t]+)?\*{{0,2}}(?:(?:ICD-?10(?:-CM)?|CPT|HCPCS)[ \t]+)?"
-    rf"({CODE})\b\*{{0,2}}[ \t]+(?:--?|[–—])[ \t]+\S"
+    rf"^(?![^\r\n]*\*\*)[ \t]*({CODE})\b[ \t]+(?:--?|[–—])[ \t]+\S"
 )
 
 PEDIATRIC_BAND = re.compile(r"(?i)^Z68\.5")
@@ -151,7 +132,7 @@ DECLARED_LIMITS = (
     ),
     (
         "recognized SOURCE marks",
-        "Only a SOURCE label whose value says filled marks its paired code.",
+        "Only a SOURCE label whose value begins with filled marks its paired code; other values join the orphan count.",
         run_grader.EvidenceDisposition.BEHAVIOR,
     ),
     (
@@ -160,8 +141,13 @@ DECLARED_LIMITS = (
         run_grader.EvidenceDisposition.BEHAVIOR,
     ),
     (
-        "filled-anchor block opening mentions",
-        "Any line naming the filled-anchor block heading opens collection, including prose mentions.",
+        "filled-anchor block opening form",
+        "Only the delimited heading at line start opens the filled-anchor block; a Markdown prefix does not.",
+        run_grader.EvidenceDisposition.BEHAVIOR,
+    ),
+    (
+        "contiguous indented detail pairing",
+        "A detail belongs to the nearest entry above only across non-blank indented lines; orphans are reported, not gated.",
         run_grader.EvidenceDisposition.BEHAVIOR,
     ),
     (
@@ -195,6 +181,7 @@ class Worksheet:
     has_block: bool
     pediatric: tuple[str, ...]
     pediatric_not_computed: tuple[str, ...]
+    orphaned_details: int = 0
 
 
 @dataclass(frozen=True)
@@ -210,6 +197,7 @@ class Scan:
     unlisted_marks: int
     unmarked_listings: int
     pediatric_not_computed: int
+    orphaned_details: int = 0
     findings: tuple[Finding, ...] = ()
 
     @property
@@ -225,7 +213,7 @@ def _block_lines(text: str) -> tuple[list[str], bool]:
     found = False
     inside = False
     for line in lines:
-        if BLOCK_HEADING.search(line):
+        if BLOCK_HEADING.match(line):
             found = True
             inside = True
             continue
@@ -241,38 +229,35 @@ def read_worksheet(text: str) -> Worksheet:
     """Parse one worksheet into its marks, listings and pediatric bands."""
     found = list(ENTRY.finditer(text))
 
-    def header(index: int) -> str:
-        """One entry's lines up to its first field line or the next entry.
-
-        The span rather than the line, because a descriptor that wraps puts
-        ``NOT FOR ENTRY`` on the continuation. Bounded on both sides so the mark
-        cannot be borrowed from the entry below or from prose beneath the code.
-        """
-        start = found[index].start()
-        end = found[index + 1].start() if index + 1 < len(found) else len(text)
-        field = FIELD.search(text, start, end)
-        return text[start : field.start() if field else end]
-
     entries = [
-        (match.start(), match.group(1), not NOT_FOR_ENTRY.search(header(index)))
+        (match.start(), match.group("code"), entry_is_for_entry(text, found, index))
         for index, match in enumerate(found)
     ]
 
-    def owner(position: int) -> tuple[int, str, bool] | None:
-        """The entry a detail line belongs to -- the nearest one above it."""
-        owned = None
-        for index, (start, code, for_entry) in enumerate(entries):
-            if start < position:
-                owned = (index, code, for_entry)
-            else:
-                break
-        return owned
+    step_four = next(
+        (match.start() for match in STEP_FOUR_START.finditer(text)), len(text)
+    )
+
+    def owner(match: re.Match[str]) -> tuple[int, str, bool] | None:
+        """The entry a detail line belongs to inside the pairing population."""
+        if match.start() >= step_four:
+            return None
+        owned_match = paired_entry(text, found, match)
+        if owned_match is None:
+            return None
+        index = found.index(owned_match)
+        return index, owned_match.group("code"), entries[index][2]
 
     marked: set[str] = set()
+    orphaned = 0
     for match in SOURCE.finditer(text):
-        held = owner(match.start())
+        if match.start() >= step_four:
+            continue
+        held = owner(match)
         if held and held[2] and FILLED.search(match.group(1)):
             marked.add(held[1])
+        elif held is None or not FILLED.search(match.group(1)):
+            orphaned += 1
 
     pediatric_entries = [
         (index, code)
@@ -282,7 +267,11 @@ def read_worksheet(text: str) -> Worksheet:
     pediatric_indexes = {index for index, _code in pediatric_entries}
     computed: set[int] = set()
     for match in CONFIDENCE.finditer(text):
-        held = owner(match.start())
+        if match.start() >= step_four:
+            continue
+        held = owner(match)
+        if held is None:
+            orphaned += 1
         if held and held[2] and held[0] in pediatric_indexes and CDC_COMPUTED.fullmatch(match.group(1)):
             computed.add(held[0])
 
@@ -298,19 +287,30 @@ def read_worksheet(text: str) -> Worksheet:
         pediatric_not_computed=tuple(
             code for index, code in pediatric_entries if index not in computed
         ),
+        orphaned_details=orphaned,
     )
 
 
 def worksheet_findings(sheet: Worksheet) -> list[Finding]:
     """The two tests, applied to one worksheet."""
-    found = [
-        Finding(UNLISTED_MARK, code, "carries SOURCE: filled, absent from the icd10-cpt step-4 block")
-        for code in sorted(sheet.marked - sheet.listed)
-    ]
-    found += [
-        Finding(UNMARKED_LISTING, code, "listed under CODED, ANCHOR WAS FILLED, carries no SOURCE line")
-        for code in sorted(sheet.listed - sheet.marked)
-    ]
+    found: list[Finding] = []
+    if sheet.has_block:
+        found.extend(
+            Finding(
+                UNLISTED_MARK,
+                code,
+                "carries SOURCE: filled, absent from the icd10-cpt step-4 block",
+            )
+            for code in sorted(sheet.marked - sheet.listed)
+        )
+        found.extend(
+            Finding(
+                UNMARKED_LISTING,
+                code,
+                "listed under CODED, ANCHOR WAS FILLED, carries no SOURCE line",
+            )
+            for code in sorted(sheet.listed - sheet.marked)
+        )
     found += [
         Finding(
             PEDIATRIC_NOT_COMPUTED,
@@ -336,6 +336,7 @@ def survey(sheets: list[Worksheet]) -> Scan:
         unlisted_marks=sum(1 for f in found if f.kind == UNLISTED_MARK),
         unmarked_listings=sum(1 for f in found if f.kind == UNMARKED_LISTING),
         pediatric_not_computed=sum(1 for f in found if f.kind == PEDIATRIC_NOT_COMPUTED),
+        orphaned_details=sum(sheet.orphaned_details for sheet in sheets),
         findings=tuple(found),
     )
 
@@ -354,6 +355,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         f"    carrying SOURCE: filled          {scan.marked}",
         f"  codes listed in the block          {scan.listed}",
         f"  pediatric Z68.5- bands             {scan.pediatric_bands}",
+        f"  orphaned detail lines               {scan.orphaned_details}",
         "",
         f"  A1/A2/A5 - marked, not listed      {scan.unlisted_marks}",
         f"  A1/A2/A5 - listed, not marked      {scan.unmarked_listings}",

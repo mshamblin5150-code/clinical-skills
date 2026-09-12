@@ -104,8 +104,9 @@ now carries its reason, and initially a code whose descriptor said `unspecified`
   paragraph above tells about C4 and #46, and the same one [fixtures/README](../README.md) has now
   recorded across every run this repo has made. The rows were not re-scored from run-1 output; that
   output no longer exists, and scoring it would have produced a number belonging to neither commit.
-  **Run 2 scored C5 and it passes** — 0 faults over 200 flags, one command over a directory a
-  reader can now open.
+  **Run 2 scored C5 and it passes, qualified by coverage** — 0 faults over 200 paired flags, while
+  nine of 209 for-entry codes have no paired flag and make the command exit 2. The row verdict
+  stands; the command no longer overstates the population it covered.
 - **`REPORTED` read `1/1` for run 1, and that was a withdrawal rather than a correction.** R1 held
   on all twelve and stands. **R2's verdict was withdrawn**, on the same rule ANCHOR was withdrawn
   under: the row it was scored against had been replaced. The bare `complete` on `Z98.51` that cost
