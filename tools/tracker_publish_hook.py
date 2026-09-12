@@ -324,9 +324,10 @@ RAW_PUBLISH_ROUTE = re.compile(
     r"(?:\A|[;&|]\s*)gh\s+(?:(api)\b|([A-Za-z]+)\s+([A-Za-z]+)\b)"
 )
 LOOSE_PUBLISH_ROUTE = re.compile(
-    r"(?:\A|[;&|{(]\s*|\b(?:then|do|else)\s+)"
+    r"(?:\A|\r?\n\s*|[;&|{(]\s*|\b(?:then|do|else)\s+)"
     r"gh\s+(?:(api)\b|([A-Za-z]+)\s+([A-Za-z]+)\b)"
-    r"(?P<arguments>[^\r\n]*)"
+    r"(?P<arguments>[^;&|}\r\n]*)",
+    re.IGNORECASE,
 )
 LOOSE_PUBLICATION_FLAG = re.compile(
     r"(?<!\S)(?:(?:--body(?:-file)?|--title|--comment|--input|"
@@ -536,15 +537,19 @@ def _raw_publish_route(command: str) -> tuple[str, ...] | None:
 
 def _loose_publish_route(command: str) -> tuple[str, ...] | None:
     """Classify a likely publication without reproducing an unmodeled shell."""
-    match = LOOSE_PUBLISH_ROUTE.search(command)
-    if match is None:
-        return None
-    route = ("api",) if match.group(1) == "api" else (match.group(2), match.group(3))
-    if route not in PUBLISH_ROUTES:
-        return None
-    if route == ("issue", "create"):
-        return route
-    return route if LOOSE_PUBLICATION_FLAG.search(match.group("arguments")) else None
+    for match in LOOSE_PUBLISH_ROUTE.finditer(command):
+        route = (
+            ("api",)
+            if match.group(1)
+            else (match.group(2).lower(), match.group(3).lower())
+        )
+        if route not in PUBLISH_ROUTES:
+            continue
+        if route == ("issue", "create"):
+            return route
+        if LOOSE_PUBLICATION_FLAG.search(match.group("arguments")):
+            return route
+    return None
 
 
 def _api_method(arguments: list[str]) -> str:

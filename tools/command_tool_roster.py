@@ -6,10 +6,12 @@ its ``tool_use`` input carries a text ``command`` field, which is the field the
 two repository command hooks consume. The roster is
 ``tracker_publish_hook.COMMAND_TOOLS`` rather than a second hand-kept list.
 
-A complete read exits 0. An unreadable input or an unregistered tool exits 2
-and writes a counts-free finding to stderr. SessionEnd cannot prevent session
-termination, so that status reports the gap to the user without claiming that
-the publication was prevented. The complete boundary belongs to
+A complete read exits 0. Every completed transcript read reports the
+independently counted command-field denominator, the readable member count,
+and the unread remainder. An unreadable input, an incomplete extraction, or an
+unregistered tool exits 2 and writes the finding to stderr. SessionEnd cannot
+prevent session termination, so that status reports the gap to the user without
+claiming that the publication was prevented. The complete boundary belongs to
 ``command_tool_roster.DECLARED_LIMITS``.
 """
 
@@ -41,6 +43,9 @@ NOT_REACHED = tuple(reason for _subject, reason in DECLARED_LIMITS)
 
 @dataclass(frozen=True)
 class Scan:
+    command_calls: int
+    commands_read: int
+    unread: int
     command_tools: tuple[str, ...]
     unregistered: tuple[str, ...]
 
@@ -48,6 +53,9 @@ class Scan:
 def scan_transcript(path: Path) -> Scan:
     """Read one Claude transcript and compare command tools with the roster."""
     command_tools: set[str] = set()
+    command_calls = 0
+    commands_read = 0
+    unread = 0
     try:
         lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
     except OSError as exc:
@@ -70,18 +78,33 @@ def scan_transcript(path: Path) -> Scan:
                 continue
             tool_input = block.get("input")
             name = block.get("name")
-            if (
-                isinstance(name, str)
-                and isinstance(tool_input, dict)
-                and isinstance(tool_input.get("command"), str)
+            if not isinstance(tool_input, dict) or "command" not in tool_input:
+                continue
+            command_calls += 1
+            if not isinstance(name, str) or not isinstance(
+                tool_input.get("command"), str
             ):
-                command_tools.add(name)
+                unread += 1
+                continue
+            commands_read += 1
+            command_tools.add(name)
     ordered = tuple(sorted(command_tools))
     return Scan(
+        command_calls=command_calls,
+        commands_read=commands_read,
+        unread=unread,
         command_tools=ordered,
         unregistered=tuple(
             name for name in ordered if name not in tracker_publish_hook.COMMAND_TOOLS
         ),
+    )
+
+
+def coverage_report(scan: Scan) -> str:
+    """Report the independently counted command-field population."""
+    return (
+        f"command fields: {scan.command_calls}; commands read: "
+        f"{scan.commands_read}; unread: {scan.unread}"
     )
 
 
@@ -108,17 +131,27 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 2
+    coverage = coverage_report(scan)
+    if scan.unread:
+        print(
+            "command-tool roster: NOT CHECKED -- " + coverage,
+            file=sys.stderr,
+        )
+        return 2
     if scan.unregistered:
         print(
             "command-tool roster: INCOMPLETE -- unregistered command tools: "
             + ", ".join(scan.unregistered)
-            + "; publication was not prevented for any unregistered tool",
+            + "; publication was not prevented for any unregistered tool; "
+            + coverage,
             file=sys.stderr,
         )
         return 2
     print(
         "command-tool roster: complete -- observed command tools: "
         + (", ".join(scan.command_tools) if scan.command_tools else "none")
+        + "; "
+        + coverage
     )
     return 0
 

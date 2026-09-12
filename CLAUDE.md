@@ -170,6 +170,9 @@ from that path. The preceding order remains historical.
 **Correction, 2026-09-11:** `day_file_text.py` is now the most recent direct command and calls
 `use_utf8` from that path. The preceding order remains historical.
 
+**Correction, 2026-09-12:** `command_tool_roster.py` is now the most recent direct command and calls
+`use_utf8` from that path. The preceding order remains historical.
+
 ### Suite run
 
 `tools/suite.py` is the one complete-suite interface. It discovers the `test*.py` population under
@@ -1384,13 +1387,14 @@ have no `if` condition.
 `tools/command_tool_roster.py --session-end` is a separate `SessionEnd` hook.
 It reads every command-bearing tool name in the supplied transcript, including
 subagent transcripts, and compares that population with `COMMAND_TOOLS`. A
-complete read exits 0 and writes its counts-free report to hook debug output.
-An unreadable transcript or an unregistered command tool exits 2 and writes a
-counts-free finding to stderr; `SessionEnd` displays that finding but cannot
-block termination or prevent a publication that already occurred. This is a
-completeness report, not a roster-enforcement gate. Its complete boundary is
-`command_tool_roster.DECLARED_LIMITS`; this section points to that object and
-copies none of its rows.
+complete read exits 0 and writes the independently counted command-field
+denominator, readable member count, and unread remainder to hook debug output.
+An unreadable transcript, partial extraction, or unregistered command tool
+exits 2 and writes the same coverage plus its finding to stderr; `SessionEnd`
+displays that finding but cannot block termination or prevent a publication
+that already occurred. This is a completeness report, not a roster-enforcement
+gate. Its complete boundary is `command_tool_roster.DECLARED_LIMITS`; this
+section points to that object and copies none of its rows.
 
 The hook protocol returns exit 0 with an allow-or-deny decision in its JSON
 response. Its manual `--text` mode returns 0 when no refusing finding exists, 1

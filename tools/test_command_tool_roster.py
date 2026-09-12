@@ -78,6 +78,23 @@ class TranscriptRoster(unittest.TestCase):
         self.assertEqual(scan.command_tools, ("Bash", "FutureShell"))
         self.assertEqual(scan.unregistered, ("FutureShell",))
 
+    def test_command_field_population_is_independent_of_readable_commands(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            transcript = Path(directory) / "session.jsonl"
+            write_transcript(
+                transcript,
+                tool_call("Bash", {"command": "echo ready"}),
+                tool_call("FutureShell", {"command": None}),
+                tool_call("Read", {"file_path": "README.md"}),
+            )
+
+            scan = roster.scan_transcript(transcript)
+
+        self.assertEqual(scan.command_calls, 2)
+        self.assertEqual(scan.commands_read, 1)
+        self.assertEqual(scan.unread, 1)
+        self.assertEqual(scan.command_tools, ("Bash",))
+
     def test_session_end_surfaces_an_unregistered_tool_without_preventing_exit(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             transcript = Path(directory) / "session.jsonl"
@@ -123,6 +140,30 @@ class TranscriptRoster(unittest.TestCase):
         self.assertIn("command-tool roster: complete", stdout)
         self.assertIn("Monitor, PowerShell", stdout)
         self.assertEqual(stderr, "")
+
+    def test_a_partial_command_read_cannot_report_a_clean_roster(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            transcript = Path(directory) / "session.jsonl"
+            write_transcript(
+                transcript,
+                tool_call("Bash", {"command": "echo ready"}),
+                tool_call("FutureShell", {"command": None}),
+            )
+            payload = json.dumps(
+                {
+                    "hook_event_name": "SessionEnd",
+                    "transcript_path": str(transcript),
+                }
+            )
+
+            status, stdout, stderr = invoke_main(["--session-end"], payload)
+
+        self.assertEqual(status, 2)
+        self.assertEqual(stdout, "")
+        self.assertIn("command-tool roster: NOT CHECKED", stderr)
+        self.assertIn("command fields: 2", stderr)
+        self.assertIn("commands read: 1", stderr)
+        self.assertIn("unread: 1", stderr)
 
     def test_a_subagent_session_is_scanned(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

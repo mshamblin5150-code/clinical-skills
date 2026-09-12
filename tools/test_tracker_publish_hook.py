@@ -1679,6 +1679,39 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
         self.assertEqual(specific["permissionDecision"], "deny")
         self.assertIn("unmodeled shell", specific["additionalContext"])
 
+    def test_an_unmodeled_shell_checks_later_candidates_case_insensitively(self) -> None:
+        payload = {
+            "hook_event_name": "PreToolUse",
+            "tool_name": "PowerShell",
+            "tool_input": {
+                "command": (
+                    "gh issue view 1124 --json body; "
+                    "GH issue comment 1124 --body text"
+                )
+            },
+        }
+
+        specific = hook.handle(payload)["hookSpecificOutput"]
+
+        self.assertEqual(specific["permissionDecision"], "deny")
+        self.assertIn("unmodeled shell", specific["additionalContext"])
+
+    def test_an_unmodeled_shell_classifies_a_newline_command_boundary(self) -> None:
+        payload = {
+            "hook_event_name": "PreToolUse",
+            "tool_name": "PowerShell",
+            "tool_input": {
+                "command": (
+                    "Write-Output 'ready'\n"
+                    "gh issue comment 1124 --body text"
+                )
+            },
+        }
+
+        specific = hook.handle(payload)["hookSpecificOutput"]
+
+        self.assertEqual(specific["permissionDecision"], "deny")
+
     def test_monitor_uses_the_modeled_reader(self) -> None:
         payload = {
             "hook_event_name": "PreToolUse",
