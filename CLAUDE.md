@@ -13,6 +13,20 @@ Two constraints that are not about permission:
 - **A subagent must not paste PHI back.** Everything under `scratch/` and `output/` is a patient record. A subagent reading them reports counts, file paths and findings — never note text, names or dates. `tools/corpus_census.py` is the worked example: it reads the corpus and can only emit integers.
 - **Take a subagent's result as a claim, not a fact.** Its conclusions get checked the same as anyone's, and figures it reports get re-derived before they are written into a skill file. This is [ADR 0001](docs/adr/0001-fixture-asserts-on-named-findings.md)'s reasoning applied to agents: a report by the pass that produced it is a baseline, not a verification.
 
+### Extractor coverage
+
+**This section keeps its stable, widely cited heading even though the name is now narrower than its contents:** the publication-time rule below governs re-derivation as well as extraction.
+
+**A matcher never gets to turn a partial read into a clean whole.** Any figure that a ruling, verdict or routing decision rests on names its measured population and the matcher used. A figure reported only for context does not trigger this clause. When the matcher extracts or counts members of a fixture set — or of any other bounded population — it derives the population independently of the extraction, reports the denominator and unread remainder on every run, and refuses to present an incomplete read as clean. A deliberately partial report may keep its ordinary status only when its contract names the bound beside the result; silence never means full coverage.
+
+**A load-bearing figure is re-derived at publication against the thing measured, not against the draft's copy of it**, whenever that thing can have moved since the reading or can contain the record being written. An opted-in `**Measured at:** <full commit SHA>` declaration is graded at the tracker and staged-ADR publication seams; the complete ceilings of that grade belong to `tracker_measurements.DECLARED_LIMITS` and are not copied here.
+
+**Coverage is a floor, not proof that the extractor recognizes every form.** A rule that cannot recognize a member cannot count it as unread, and a numerator and denominator built from the same matcher can agree while both omit it. So the tool states that ceiling beside the implementation, tests against real committed members rather than only hand-written examples, and is fed at least one zero-match or partial-match mutant before its coverage claim is believed. The population, the extraction, and the liveness case are three independent pieces of evidence.
+
+**A measurement settles a claim only when the instrument discriminates between that claim and its negation.** Before a figure is allowed to settle a claim, state what the instrument would have printed if the claim were false. If it would print the same thing, the measurement settles nothing, however reliably the instrument runs or how often the command is repeated. This is distinct from liveness: liveness is a property of the instrument, while discrimination is a property of the pairing of instrument and claim. The population, extraction, liveness case, and discrimination are independent pieces of evidence. Tracker sweeps apply the narrower trigger and vocabulary in the [sweep-specific discriminator rule](docs/agents/issue-tracker.md#discriminating-measurements-in-sweep-verdicts).
+
+**Do not make a catalog of known fixture formats the control.** Preserved run records cannot be normalized to serve a matcher, and a prose list of their known variations goes stale when the next tool asks a new question. The executable coverage belongs with each extractor and its tests; fixture prose may explain why the record is heterogeneous, but it does not certify what a tool read. `filled_vitals_census.key_coverage`, `differential_scan.survey`, and `test_console_codec.py::EveryToolTakesIt` are the working precedents. This is [#137](https://github.com/mshamblin5150-code/clinical-skills/issues/137)'s option 4, adopted after the ticket's own two-format account was re-measured as several independent forms and its proposed-item split proved three-valued rather than two.
+
 ### Issue tracker
 
 GitHub issues on `mshamblin5150-code/clinical-skills`, via the `gh` CLI. See `docs/agents/issue-tracker.md`.
@@ -109,16 +123,6 @@ The command reads `git worktree list --porcelain`, then reads every registered w
 ## Maintainer tooling
 
 Also not required to use the clinical skills, and deliberately not cited from [AGENTS.md](AGENTS.md) — a consumer needs the Markdown and nothing else.
-
-### Extractor coverage
-
-**A matcher never gets to turn a partial read into a clean whole.** Any maintainer tool that extracts or counts members of a fixture set — or of any other bounded population — derives the population independently of the extraction, reports the denominator and unread remainder on every run, and refuses to present an incomplete read as clean. A deliberately partial report may keep its ordinary status only when its contract names the bound beside the result; silence never means full coverage.
-
-**Coverage is a floor, not proof that the extractor recognizes every form.** A rule that cannot recognize a member cannot count it as unread, and a numerator and denominator built from the same matcher can agree while both omit it. So the tool states that ceiling beside the implementation, tests against real committed members rather than only hand-written examples, and is fed at least one zero-match or partial-match mutant before its coverage claim is believed. The population, the extraction, and the liveness case are three independent pieces of evidence.
-
-**A measurement settles a claim only when the instrument discriminates between that claim and its negation.** Before a figure is allowed to settle a claim, state what the instrument would have printed if the claim were false. If it would print the same thing, the measurement settles nothing, however reliably the instrument runs or how often the command is repeated. This is distinct from liveness: liveness is a property of the instrument, while discrimination is a property of the pairing of instrument and claim. The population, extraction, liveness case, and discrimination are independent pieces of evidence. Tracker sweeps apply the narrower trigger and vocabulary in the [sweep-specific discriminator rule](docs/agents/issue-tracker.md#discriminating-measurements-in-sweep-verdicts).
-
-**Do not make a catalog of known fixture formats the control.** Preserved run records cannot be normalized to serve a matcher, and a prose list of their known variations goes stale when the next tool asks a new question. The executable coverage belongs with each extractor and its tests; fixture prose may explain why the record is heterogeneous, but it does not certify what a tool read. `filled_vitals_census.key_coverage`, `differential_scan.survey`, and `test_console_codec.py::EveryToolTakesIt` are the working precedents. This is [#137](https://github.com/mshamblin5150-code/clinical-skills/issues/137)'s option 4, adopted after the ticket's own two-format account was re-measured as several independent forms and its proposed-item split proved three-valued rather than two.
 
 ### Worksheet grammar
 
@@ -1568,6 +1572,22 @@ using each record's own last-touching commit. Exit 0 is clean, 1 is a finding,
 and 2 means the requested population was not scanned completely.
 
 The complete boundary belongs to `tracker_coordinates.DECLARED_LIMITS`; this
+section copies none of its rows.
+
+### Tracker measurements
+
+`tools/tracker_measurements.py` owns the exact, record-level `**Measured at:**
+<full commit SHA>` declaration and its forward cutoff. The publication hook
+refuses a stale or malformed declaration through both tracker-writing routes;
+the tracker workflow reports the same changed record after publication. The
+pre-commit hook runs `python tools/tracker_measurements.py --staged-adrs` and
+refuses a staged ADR whose declaration differs from that checkout's `HEAD`.
+With no arguments, the command audits committed ADRs at or after its cutoff
+against each record's last-touch parent so CI can reproduce the publication
+decision. Exit 0 is clean, 1 is a finding, and 2 means the requested population
+was not scanned completely.
+
+The complete boundary belongs to `tracker_measurements.DECLARED_LIMITS`; this
 section copies none of its rows.
 
 ### Skills mirror

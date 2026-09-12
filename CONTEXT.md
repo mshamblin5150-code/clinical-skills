@@ -798,6 +798,10 @@ _Avoid_: no results, nothing found, vacuous clean, trivially clean
 The one population a **declared member** names, possibly the union of several its matchers read, as the population whose emptiness would leave every row grading the artifact's content with nothing to grade. A row over which files or parts exist, over every line of the artifact, or over a separate completion record, is not such a row, since it stays graded when the content was never read; a population a matcher reads from inside a file stays in scope wherever in the command it is read. Any other population the same grader reads may be empty on its own, as a deck carrying no dollar figure is, and that emptiness is reported rather than gated.
 _Avoid_: subject population, primary population, graded population
 
+**Measured population**:
+The population an instrument actually read, as distinct from the one the record names.
+_Avoid_: primary population, scope, sample, corpus
+
 **Empty-population posture**:
 What a **declared member**'s exit status says when its **load-bearing population** has no members, declared with a reason: *not scanned*, where only the matcher saw the emptiness; *finding*, where the absence is settled without relying on the matcher and is the run's own unmet obligation; or *established*, where the emptiness is **established empty**. Which of the three a member takes is read off its declaration and never rediscovered from its code.
 _Avoid_: coverage limb (one way of expressing not scanned, not the posture), empty handling, vacuous pass

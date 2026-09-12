@@ -148,6 +148,19 @@ jobs:
             Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
           exit $status
 
+      # The local hook refuses an opted-in staged ADR before publication. This
+      # committed walk reproduces that decision from each eligible ADR's
+      # last-touch parent and reports the forward-only population. #961.
+      - name: Publication measurement base, committed ADRs
+        if: always()
+        run: |
+          $report = python tools/tracker_measurements.py 2>&1
+          $status = $LASTEXITCODE
+          $report
+          @('### Publication measurement base', '', '```', $report, '```') |
+            Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          exit $status
+
       # The pre-commit hook can refuse a threshold-sheet edit, but it does not
       # run on an automatic merge commit. The runner cannot hold the clinical
       # source corpus or second-read records, so the tool itself says which
