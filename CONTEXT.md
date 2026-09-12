@@ -227,6 +227,14 @@ _Avoid_: claim, entry, source record
 To consume a finite thing so that nothing else may consume it. A citation spends a claim record; a reply spends a source an earlier reply may then not spend again. Distinct from the looser sense of a load-bearing invocation, where a domain's real behavior is spent as the argument and nothing is used up.
 _Avoid_: use, claim, take
 
+**Number certifier**:
+A check whose subject is one figure in a graded document, refusing it unless a [[Believed record]] carries it. One exists per artifact family, so the figure's shape differs — a body numeral, a costed dollar amount — while the relation does not.
+_Avoid_: number check, trace check, figure validator, number gate
+
+**Believed record**:
+A [[Claim record]] a [[Number certifier]] will trace a figure to: one claiming a source, and carrying both a refutation verdict and the [[Second route]] that verdict was reached by. A record missing either half has had no recorded second agent, and a figure resting only on one is refused as untraced rather than as disbelieved.
+_Avoid_: valid record, accepted record, good record, sourced record
+
 **Stated expiry**:
 The date a source prints on itself as the day it ceases to have effect. Read off the document, never derived from how often its publisher reissues — a source with a known replacement schedule and no printed date has none, and a claim ledger records that it has none rather than leaving the question unasked.
 _Avoid_: expiration, sunset, shelf life, validity window
