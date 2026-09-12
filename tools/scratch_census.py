@@ -111,6 +111,96 @@ class RootCount:
     files: int
 
 
+@dataclass(frozen=True)
+class PeerPopulation:
+    roots: tuple[Path, ...]
+    counts: tuple[RootCount, ...]
+    absent: tuple[Path, ...]
+    empty: tuple[RootCount, ...]
+    material: tuple[RootCount, ...]
+    unreadable: tuple[Path, ...]
+    stale: tuple[Path, ...]
+
+
+def peer_population(
+    roots: tuple[Path, ...],
+    gating_roots: set[Path],
+    counts: list[RootCount],
+    absent: list[Path],
+    unavailable: dict[Path, str],
+    *,
+    unaccounted_available: bool,
+) -> PeerPopulation:
+    peer_roots = tuple(root for root in roots if root not in gating_roots)
+    peer_counts = tuple(item for item in counts if item.root not in gating_roots)
+    peer_absent = tuple(root for root in absent if root not in gating_roots)
+    peer_unreadable = tuple(
+        root
+        for root, state in unavailable.items()
+        if root not in gating_roots and state == "unreadable"
+    )
+    peer_stale = tuple(
+        root
+        for root, state in unavailable.items()
+        if root not in gating_roots and state == "stale registration"
+    )
+    peer_material = tuple(
+        item
+        for item in peer_counts
+        if item.files > 0 or (unaccounted_available and item.unaccounted > 0)
+    )
+    material_roots = {item.root for item in peer_material}
+    peer_empty = tuple(
+        item for item in peer_counts if item.root not in material_roots
+    )
+    return PeerPopulation(
+        roots=peer_roots,
+        counts=peer_counts,
+        absent=peer_absent,
+        empty=peer_empty,
+        material=peer_material,
+        unreadable=peer_unreadable,
+        stale=peer_stale,
+    )
+
+
+def print_peer_population(
+    peers: PeerPopulation,
+    *,
+    show_all: bool,
+    unaccounted_available: bool,
+) -> None:
+    print(
+        f"REPORT ONLY: {len(peers.roots)} peer roots; "
+        f"{len(peers.absent)} no root, {len(peers.empty)} empty, "
+        f"{len(peers.material)} carrying material, "
+        f"{len(peers.unreadable)} unreadable, {len(peers.stale)} stale"
+    )
+    counts_by_root = {item.root: item for item in peers.counts}
+    material_roots = {item.root for item in peers.material}
+    unreadable_roots = set(peers.unreadable)
+    selected_roots = peers.roots if show_all else tuple(
+        root
+        for root in peers.roots
+        if root in material_roots or root in unreadable_roots
+    )
+    for root in selected_roots:
+        item = counts_by_root.get(root)
+        if item is not None:
+            noun = "file" if item.files == 1 else "files"
+            if unaccounted_available:
+                state = f"{item.files} {noun}, {item.unaccounted} unaccounted"
+            else:
+                state = f"{item.files} {noun}; unaccounted not scanned"
+        elif root in unreadable_roots:
+            state = "unreadable"
+        elif root in peers.stale:
+            state = "stale registration"
+        else:
+            state = "absent"
+        print(f"REPORT ONLY: {root / 'scratch'}: {state}; never graded")
+
+
 def run_git(cwd: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
     try:
         return subprocess.run(
@@ -306,33 +396,33 @@ def main(argv: list[str]) -> int:
     owning = roots[0]
     if accounted_error is not None:
         gating_roots = {owning, checkout}
-        peer_reported = False
+        peers = peer_population(
+            roots,
+            gating_roots,
+            counts,
+            absent,
+            unavailable,
+            unaccounted_available=False,
+        )
+        print_peer_population(
+            peers,
+            show_all=argv == ["--worktrees"],
+            unaccounted_available=False,
+        )
         for root in roots:
+            if root not in gating_roots:
+                continue
             state = unavailable.get(root)
             if state is None and root in absent:
                 state = "absent"
             elif state is None:
                 state = "not scanned"
-            if root in gating_roots:
-                print(f"GATING: {root / 'scratch'}: {state}")
-            else:
-                peer_reported = True
-                print(
-                    f"REPORT ONLY: {root / 'scratch'}: {state}; never graded"
-                )
-        if not peer_reported:
-            print("REPORT ONLY: none")
+            print(f"GATING: {root / 'scratch'}: {state}")
         print(f"NOT SCANNED: {accounted_error}", file=sys.stderr)
         print("NOT SCANNED: the accounted set could not be derived")
+        if argv == ["--worktrees"] and stale_roots:
+            print("REMEDY: run git worktree prune")
         return 2
-    if argv == ["--worktrees"]:
-        try:
-            measured_roots = tuple(item.root for item in counts if item.root != owning)
-            merged, clean, ahead = worktree_breakdown(owning, measured_roots)
-            print(f"worktree state: {merged} merged; {clean} clean; {ahead} ahead")
-        except CensusNotRun as error:
-            print(f"worktree state: NOT SCANNED ({error})")
-
     owning_count = next((item for item in counts if item.root == owning), None)
     owning_finding = (
         owning_count is not None and owning_count.unaccounted > OWNING_BASELINE
@@ -344,22 +434,33 @@ def main(argv: list[str]) -> int:
     committing_finding = (
         committing_count is not None and committing_count.unaccounted > 0
     )
-    peer_counts = [item for item in other_counts if item.root != checkout]
     gating_unavailable = [root for root in absent if root == owning] + [
         root for root in unavailable if root in (owning, checkout)
     ]
     committing_absent = checkout != owning and checkout in absent
-    peer_unavailable = [
-        (root, "absent")
-        for root in absent
-        if root not in (owning, checkout)
-    ] + [
-        (root, state)
-        for root, state in unavailable.items()
-        if root not in (owning, checkout)
-    ]
     finding = owning_finding or committing_finding
     not_scanned = bool(gating_unavailable)
+
+    peers = peer_population(
+        roots,
+        {owning, checkout},
+        counts,
+        absent,
+        unavailable,
+        unaccounted_available=True,
+    )
+    print_peer_population(
+        peers,
+        show_all=argv == ["--worktrees"],
+        unaccounted_available=True,
+    )
+    if argv == ["--worktrees"]:
+        try:
+            measured_roots = tuple(item.root for item in counts if item.root != owning)
+            merged, clean, ahead = worktree_breakdown(owning, measured_roots)
+            print(f"worktree state: {merged} merged; {clean} clean; {ahead} ahead")
+        except CensusNotRun as error:
+            print(f"worktree state: NOT SCANNED ({error})")
 
     if owning_count is not None:
         print(
@@ -378,16 +479,6 @@ def main(argv: list[str]) -> int:
     for root in gating_unavailable:
         state = unavailable.get(root, "absent")
         print(f"GATING: {root / 'scratch'}: {state}; not scanned")
-    for item in peer_counts:
-        print(
-            f"REPORT ONLY: {item.root / 'scratch'}: "
-            f"{item.unaccounted} unaccounted; never graded"
-        )
-    for root, state in peer_unavailable:
-        print(f"REPORT ONLY: {root / 'scratch'}: {state}; never graded")
-    if not peer_counts and not peer_unavailable:
-        print("REPORT ONLY: none")
-
     if owning_finding and owning_count is not None:
         above = owning_count.unaccounted - OWNING_BASELINE
         noun = "entry" if above == 1 else "entries"
@@ -425,6 +516,8 @@ def main(argv: list[str]) -> int:
         if any(unavailable.get(root) == "unreadable" for root in gating_unavailable):
             print("        do not delete a scratch root to clear this")
         print("NOT SCANNED: one or more required roots could not be read")
+    if argv == ["--worktrees"] and stale_roots:
+        print("REMEDY: run git worktree prune")
 
     if finding:
         return 1
