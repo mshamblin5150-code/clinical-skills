@@ -318,6 +318,17 @@ any spelling, which is exactly the blind spot
 [#921](https://github.com/mshamblin5150-code/clinical-skills/issues/921) is about, arriving in a
 record published while that ticket was open.
 
+*(Corrected in place 2026-09-12, on
+[ADR 0016](0016-an-adr-number-is-claimed-when-it-is-handed-out-and-a-ratified-records-facts-may-be-corrected-in-place.md)'s
+terms, found by [#948](https://github.com/mshamblin5150-code/clinical-skills/issues/948)'s grilling.
+**This record's cardinality has moved and its membership has not.** `ROLES` held ten rows when this
+was ruled; it holds 11 today, and the "six of ten are not graders" split above is now
+8 primary source to 3 optional secondary. The ruling-8 walk pins membership in
+both directions and **does not pin a count**, so those rows arrived with the suite green and correct
+— the figures above are historical and the module is the only current authority for them, on
+[#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143)'s terms. Re-derive with
+`len(pdf_engine.ROLES)` rather than from this paragraph.)*
+
 **Its ceiling is stated beside the claim**: an engine name assembled at run time, or a distribution
 string held in a constant and passed to `version()`, is invisible. That ceiling is **not hypothetical**
 -- `guidelines_build` reaches the engine by a distribution literal today and the body's matcher cannot
