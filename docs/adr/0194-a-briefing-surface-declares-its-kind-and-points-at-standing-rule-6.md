@@ -37,7 +37,7 @@ verification machinery than any other file here, all of it performed by the auth
 | | measured | shape |
 | --- | --- | --- |
 | prewrite the headings | temporal at `discussion-reply:108`, `peer-critique:130`, `practicum-case-study:532`, `:1055`; positional only in `discussion-post` and `course-assignment`; inverted in `aar`, which fixes the population before the spawn and writes headings after; absent in `icd10-cpt` | a family |
-| one writer | stated twice in each of the six fan-out skills | near-invariant, one exception |
+| one writer | stated twice in each of the five fan-out skills, and once in `aar` in its own words | near-invariant, one exception |
 | independence | stated everywhere, in four incompatible vocabularies | a family with a real tightening and real looseners |
 | serial fallback | `practicum-case-study` only, at `:474`, `:812`, `:1262` | not a shared rule |
 
@@ -74,7 +74,7 @@ refute-rather-than-confirm brief, which is stronger than non-authoring; and blin
 skill.** `test_research_ledger.py:2089`, `:2107`, `:2108`, `:2112`; `test_checks_ledger.py:1180`,
 `:1181`; `test_reference_scan.py:1539`, `:1549` all read `practicum-case-study`;
 `test_specificity_scan.py:973` reads `icd10-cpt`. **`grep -rl "non-authoring" tools/*.py` returns
-nothing**, so the vocabulary five of the six fan-out skills use to state independence is bound by
+nothing**, so the vocabulary the other five briefed skills use to state independence is bound by
 nothing at all.
 
 **`EveryRuledFanOutReadsTheSharedSourcingRules` at `tools/test_research_ledger.py:1661` binds
@@ -194,7 +194,7 @@ Saying nothing and relying on the rule's reach was refused. Ruling 4's content i
 degrades and a second reader stops, and a rule nothing can attribute to a kind is a rule nothing can
 apply — this ticket's own subject arriving inside its fix. Declaring the kind once per section was
 refused because a mixed section is the normal case here rather than the exception: a fan-out and its
-grader handoff sit under one heading in every one of the six skills, and `practicum-case-study` step
+grader handoff sit under one heading in every one of the five fan-out skills, and `practicum-case-study` step
 9 is both at once.
 
 The cost is one clause at each surface, on the order of forty, most of them a single noun inserted
