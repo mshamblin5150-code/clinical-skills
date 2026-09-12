@@ -287,6 +287,14 @@ can forget.
 - **The commit-message exemption's own edge.** Ruling 9 rests on a commit message being attached to the tree it measured. A commit message quoting a coordinate for a file it does not touch is **not** self-anchoring, and nothing distinguishes those.
 - **When a `docs/adr/` record is pulled in.** Ruling 6 grades a record edited for any reason, including an unrelated typo, so the archaeology arrives at a moment nobody chose. That is the right direction to fail and it is a cost.
 - **Whether the anchor an author wrote is the right one.** A backticked identifier unrelated to the coordinate satisfies the rule, which is what keeps the false-alarm rate near zero and what makes the 96% a ceiling.
+- **An anchor can go false while its coordinate stays true, which inverts this record's model.** The
+  argument throughout is that the number decays and the symbol survives. [#773](https://github.com/mshamblin5150-code/clinical-skills/issues/773)
+  is the reverse and was found by the closing sweep: it cites `README.md` line 87 for a sentence, that
+  line still resolves and is still the right line, and the sentence was **rewritten underneath the
+  coordinate**. A reader following either half lands correctly and reads something that contradicts the
+  quotation, and neither half tells them. Two of the sweep's three stale tickets have this shape rather
+  than the drifting-coordinate one, so it is not rare — the accompaniment rule does nothing for it, and
+  ruling 2's claim is narrow enough to survive only because it never promised otherwise.
 - **The recognizer sees one spelling of a coordinate.** `PATH_COORDINATE_CEILING` requires the path and
   the number welded by a colon. Three spellings this repository actually writes are invisible to it:
 
