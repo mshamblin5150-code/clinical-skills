@@ -36,7 +36,6 @@ Harvest first, then scan::
         "$H/tracker-comments-population.http" \
         "$H/tracker-reviews-population.http" \
         --write "$H/tracker-population.json"
-    H=$(python tools/scratch_work.py ticket "$TICKET_NUMBER")
     gh api --paginate "repos/OWNER/REPO/issues?state=all&per_page=100" \\
         > "$H/tracker-issues.json"
     gh api --paginate "repos/OWNER/REPO/issues/comments?per_page=100" \\

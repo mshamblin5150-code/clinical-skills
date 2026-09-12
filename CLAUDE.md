@@ -1113,6 +1113,16 @@ Covered by `tools/test_discussion_reply_scan.py`.
 
 **It deduplicates a destination and enforces nothing.** Every documented tracker harvest calls it so none computes a mutable branch key; `scratch_census.py` remains the gate for material written outside the accounted namespace. A follow-up Session on one ticket deliberately reopens its predecessor's Ticket directory and finds the work. The unresolved concurrency and worktree-removal boundaries live in `scratch_census.DECLARED_LIMITS` rather than being copied here.
 
+### Tracker population
+
+`tools/tracker_population.py` derives the three-file manifest that bounds a
+full tracker harvest. It reads the kept GraphQL issue/pull-request totals and
+the two kept `per_page=1` HTTP comment probes; it opens no socket. A comments
+probe with `rel="last"` contributes that last page, while a probe without the
+header must carry zero or one JSON row and contributes its array length. Any
+other probe shape exits 2 without writing the manifest. Run these probes before
+the paginated harvest so tracker growth cannot produce a false complete result.
+
 ### Tracker scan
 
 Every tool above reads a file somebody can point at. This one reads **what a public flip publishes that a file scanner does not**, and it is [#212](https://github.com/mshamblin5150-code/clinical-skills/issues/212)'s remaining surface made runnable. `phi_scan --all` walks `git ls-files`, which is the tip and nothing else; #212's ruling comment was blocked on issue and pull-request text, pull-request diffs, and commit messages, and [#104](https://github.com/mshamblin5150-code/clinical-skills/issues/104) records the last of those as scanned by nothing.
@@ -1125,7 +1135,6 @@ gh api graphql -f owner=OWNER -f name=REPO -f query='query($owner:String!,$name:
 gh api --include "repos/OWNER/REPO/issues/comments?per_page=1&page=1" > "$H/tracker-comments-population.http"
 gh api --include "repos/OWNER/REPO/pulls/comments?per_page=1&page=1" > "$H/tracker-reviews-population.http"
 python tools/tracker_population.py "$H/tracker-issues-population.json" "$H/tracker-comments-population.http" "$H/tracker-reviews-population.http" --write "$H/tracker-population.json"
-H=$(python tools/scratch_work.py ticket "$TICKET_NUMBER")
 gh api --paginate "repos/OWNER/REPO/issues?state=all&per_page=100" > "$H/tracker-issues.json"
 gh api --paginate "repos/OWNER/REPO/issues/comments?per_page=100" > "$H/tracker-comments.json"
 gh api --paginate "repos/OWNER/REPO/pulls/comments?per_page=100" > "$H/tracker-reviews.json"
@@ -1135,16 +1144,6 @@ git config --add remote.origin.fetch "+refs/pull/*/head:refs/remotes/origin/pr/*
 git fetch origin
 python tools/tracker_scan.py --commits --history --paths
 ```
-
-### Tracker population
-
-`tools/tracker_population.py` derives the three-file manifest that bounds a
-full tracker harvest. It reads the kept GraphQL issue/pull-request totals and
-the two kept `per_page=1` HTTP comment probes; it opens no socket. A comments
-probe with `rel="last"` contributes that last page, while a probe without the
-header must carry zero or one JSON row and contributes its array length. Any
-other probe shape exits 2 without writing the manifest. Run these probes before
-the paginated harvest so tracker growth cannot produce a false complete result.
 
 **The recurring trigger is the tracker event, owned by Actions.** Issue and
 pull-request titles and bodies, issue comments, review bodies and review
