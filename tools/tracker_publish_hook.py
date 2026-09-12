@@ -63,6 +63,12 @@ PUBLISH_ROUTES = (
     ("pr", "review"),
     ("api",),
 )
+MODELED_SHELL = "bash"
+COMMAND_TOOLS = {
+    "Bash": MODELED_SHELL,
+    "Monitor": MODELED_SHELL,
+    "PowerShell": None,
+}
 PUBLISH_MARKER = phi_scan.TRACKER_PUBLISH_MARKER
 
 # Measured before being written, per ADR 0109 ruling 13. Across 371 real issue
@@ -323,6 +329,16 @@ API_RECORD_NUMBER = re.compile(r"/(?:issues|pulls?)/(?P<number>[0-9]+)(?:/|\Z)")
 RAW_PUBLISH_ROUTE = re.compile(
     r"(?:\A|[;&|]\s*)gh\s+(?:(api)\b|([A-Za-z]+)\s+([A-Za-z]+)\b)"
 )
+LOOSE_PUBLISH_ROUTE = re.compile(
+    r"(?:\A|\r?\n\s*|[;&|{(]\s*|\b(?:then|do|else)\s+)"
+    r"gh\s+(?:(api)\b|([A-Za-z]+)\s+([A-Za-z]+)\b)"
+    r"(?P<arguments>[^;&|}\r\n]*)",
+    re.IGNORECASE,
+)
+LOOSE_PUBLICATION_FLAG = re.compile(
+    r"(?<!\S)(?:(?:--body(?:-file)?|--title|--comment|--input|"
+    r"--raw-field|--field)(?:\s|=|\Z)|-[btFcf](?:\S*|\s|\Z))"
+)
 HEREDOC = re.compile(
     r"<<-?\s*['\"]?(?P<tag>[A-Za-z_][A-Za-z0-9_]*)['\"]?[ \t]*\r?\n"
     r"(?P<body>.*?)\r?\n(?P=tag)(?:\r?\n|\Z)",
@@ -523,6 +539,23 @@ def _raw_publish_route(command: str) -> tuple[str, ...] | None:
         return ("api",)
     route = (match.group(2), match.group(3))
     return route if route in PUBLISH_ROUTES else None
+
+
+def _loose_publish_route(command: str) -> tuple[str, ...] | None:
+    """Classify a likely publication without reproducing an unmodeled shell."""
+    for match in LOOSE_PUBLISH_ROUTE.finditer(command):
+        route = (
+            ("api",)
+            if match.group(1)
+            else (match.group(2).lower(), match.group(3).lower())
+        )
+        if route not in PUBLISH_ROUTES:
+            continue
+        if route == ("issue", "create"):
+            return route
+        if LOOSE_PUBLICATION_FLAG.search(match.group("arguments")):
+            return route
+    return None
 
 
 def _api_method(arguments: list[str]) -> str:
@@ -1273,8 +1306,24 @@ def handle(payload: dict) -> dict:
         if not isinstance(tool_input, dict):
             raise ValueError("tool_input is not an object")
         command = tool_input.get("command")
+        if command is None:
+            return {}
         if not isinstance(command, str):
             raise ValueError("tool_input.command is not text")
+        tool_name = payload.get("tool_name")
+        if not isinstance(tool_name, str):
+            raise ValueError("tool_name is not text")
+        if COMMAND_TOOLS.get(tool_name) != MODELED_SHELL:
+            route = _loose_publish_route(command)
+            if route is None:
+                return {}
+            return _hook_response(
+                "deny",
+                "tracker pre-publish: NOT SCANNED -- "
+                f"{tool_name} carries an unmodeled shell; save the tracker text "
+                "to a file and publish it through Bash so the text can be graded",
+                UNSCANNED_REFUSAL,
+            )
         extracted = extract(command)
         if extracted.route is None:
             return {}

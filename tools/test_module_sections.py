@@ -59,6 +59,7 @@ DECLARED_SECTIONS = {
     "cdc_percentile": "CDC BMI-for-age table",
     "checks_ledger": "Post-draft checks",
     "closing_keyword_scan": "Closing keyword scan",
+    "command_tool_roster": "Tracker publish hook",
     "corpus_census": "Corpus census",
     "day_file_text": "Day-file text",
     "differential_scan": "Differential scan",

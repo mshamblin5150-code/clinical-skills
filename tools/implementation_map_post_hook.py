@@ -262,9 +262,19 @@ def _pre_push_base(command: str, response: object) -> str:
 def handle(payload: dict) -> dict:
     """Return additional context only; malformed and nonmatching inputs are silent."""
     try:
+        tool_name = payload["tool_name"]
         command = payload["tool_input"]["command"]
-        if not isinstance(command, str):
+        if not isinstance(tool_name, str) or not isinstance(command, str):
             return {}
+        if (
+            tracker_publish_hook.COMMAND_TOOLS.get(tool_name)
+            != tracker_publish_hook.MODELED_SHELL
+        ):
+            return _specific(
+                "Implementation-map work was not derived from the completed "
+                f"{tool_name} command because it carries an unmodeled shell; "
+                "inspect the completed command by hand."
+            )
         ticket = _ready_flip(command, payload.get("tool_response", ""))
         if ticket is not None:
             return _specific(
