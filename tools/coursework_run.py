@@ -19,8 +19,9 @@ TRAILING_DATE = re.compile(r"-\d{4}-\d{2}-\d{2}$")
 def key_of(stem: str) -> str:
     """Return the assignment key carried by a submission stem.
 
-    A run is undated and each sitting is dated, so the only syntax removed is a
-    trailing ISO date. Companion phase tokens do not exist under ``output/``.
+    A coursework run key omits the sitting date while each submission carries
+    one, so the only syntax removed is a trailing ISO date. Companion phase
+    tokens do not exist under ``output/``.
     """
     return TRAILING_DATE.sub("", stem)
 

@@ -245,7 +245,7 @@ The one place a unit of work's provenance is kept — a graded artifact's bar, i
 _Avoid_: run folder, workspace, scratch dir
 
 **Submission**:
-The finished document handed to the course, and the only artifact here a course marks. One per sitting, named by its run key and the date it was written, living in the checkout a person looks in rather than in whichever tree a run stood in.
+The finished document handed to the course, and the only artifact here a course marks. A graded artifact has one per sitting, named by its graded-artifact run key and that sitting's date, living in the checkout a person looks in rather than in whichever tree a run stood in.
 _Avoid_: final, output, deliverable
 
 **Posted reading**:
