@@ -1299,6 +1299,12 @@ def render(state: dict, live: Live, snapshot: dict) -> str:
     covered_packets = (
         graph_coverage.packet_nodes + graph_coverage.omitted_packet_nodes
     )
+    superseded = snapshot.get("superseded_state_hash")
+    superseded_line = (
+        f"- superseded state: `sha256:{superseded}`"
+        if superseded is not None
+        else "- superseded state: none"
+    )
     parts: list[str] = []
     parts.append(
         "This is a coordination artifact, not an implementation ticket: a "
@@ -1313,6 +1319,8 @@ def render(state: dict, live: Live, snapshot: dict) -> str:
         f"- default-branch commit: `{snapshot['commit']}`\n"
         "- producer: `tools/implementation_map.py sha256:"
         f"{snapshot.get('producer_identity') or producer_identity()}`\n"
+        f"- writer: `{snapshot.get('writer_identity', 'preview')}`\n"
+        f"{superseded_line}\n"
         f"- generated: {snapshot['date']}\n"
         f"- live ready-for-agent tickets: {ready_count}\n"
         f"- dependency graph packets: {graph_coverage.packet_nodes} drawn + "
@@ -1833,12 +1841,18 @@ def producer_identity() -> str:
     return artifact_provenance.text_file_identity(Path(__file__).resolve())
 
 
-def snapshot_for(tracker, args) -> dict:
+def snapshot_for(tracker, args, *, superseded_state_hash: str | None = None) -> dict:
     commit = getattr(args, "commit", None) or tracker.default_branch_head()
     date = getattr(args, "date", None) or datetime.date.today().isoformat()
+    writer_identity = getattr(args, "_map_writer_identity", None)
+    if writer_identity is None:
+        writer_identity = f"run-{uuid.uuid4().hex}"
+        args._map_writer_identity = writer_identity
     return {
         "commit": commit,
         "producer_identity": producer_identity(),
+        "writer_identity": writer_identity,
+        "superseded_state_hash": superseded_state_hash,
         "date": date,
     }
 
@@ -1874,7 +1888,15 @@ def publish_body(
     refused_outcomes: tuple[str, ...] = (),
 ) -> int:
     live = Live(tracker, state)
-    body = render(state, live, snapshot_for(tracker, args))
+    body = render(
+        state,
+        live,
+        snapshot_for(
+            tracker,
+            args,
+            superseded_state_hash=expected_state_hash,
+        ),
+    )
     graph_coverage = verify_mermaid(state, mermaid(state, live))
     accounted = (
         graph_coverage.nodes + graph_coverage.edges + graph_coverage.directives

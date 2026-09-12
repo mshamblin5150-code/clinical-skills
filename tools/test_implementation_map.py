@@ -1374,6 +1374,10 @@ class PublishReadsItselfBack(unittest.TestCase):
                 imap.extract_state(tracker.rows[number]["body"]), self.state
             )
             self.assertEqual(tracker.rows[number]["labels"], ["triage"])
+            self.assertIn(
+                "- superseded state: none",
+                tracker.rows[number]["body"],
+            )
             # a second init refuses: one map per repository
             with self.assertRaises(imap.MapError):
                 run(imap.cmd_init, tracker, ns)
@@ -1822,6 +1826,28 @@ class TheRenderedViews(unittest.TestCase):
         )
         self.assertIn("- default-branch commit: `abc1234`", snapshot)
         self.assertNotIn(str(HERE.parent), snapshot)
+
+    def test_snapshot_names_its_writer_and_the_state_it_supersedes(self):
+        expected = imap.state_hash(imap.state_block(self.state))
+        body = imap.render(
+            self.state,
+            self.live,
+            {
+                "commit": "abc1234",
+                "producer_identity": "d" * 64,
+                "writer_identity": "writer-7",
+                "superseded_state_hash": expected,
+                "date": "d",
+            },
+        )
+        snapshot = body.partition("## Snapshot")[2].partition("\n## ")[0]
+
+        self.assertIn("- writer: `writer-7`", snapshot)
+        self.assertIn(f"- superseded state: `sha256:{expected}`", snapshot)
+        without_stamp = body.replace("- writer: `writer-7`\n", "").replace(
+            f"- superseded state: `sha256:{expected}`\n", ""
+        )
+        self.assertEqual(imap.state_hash(body), imap.state_hash(without_stamp))
 
     def test_producer_stamp_predicate_reads_the_derived_snapshot_once(self):
         identity = "d" * 64
