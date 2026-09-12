@@ -75,12 +75,14 @@ class ProducerEditHandoffTests(unittest.TestCase):
         "artifact_lock.py",
         "artifact_provenance.py",
         "console_codec.py",
+        "git_paths.py",
         "guidelines_extract.py",
         "guidelines_index.py",
         "guidelines_manifest.py",
         "guidelines_search.py",
         "page_text.py",
         "pdf_engine.py",
+        "python_floor.py",
         "repo_root.py",
     )
 

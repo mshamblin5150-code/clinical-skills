@@ -14,7 +14,7 @@ import re
 import subprocess
 import sys
 
-from console_codec import use_utf8
+from console_codec import require_python_floor, use_utf8
 import git_paths
 import tracker_publish_hook
 
@@ -298,4 +298,5 @@ def main() -> int:
 
 if __name__ == "__main__":
     use_utf8()
+    require_python_floor()
     raise SystemExit(main())

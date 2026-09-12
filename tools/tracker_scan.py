@@ -163,7 +163,7 @@ from typing import Iterable, NamedTuple, Sequence, TypeVar
 
 import phi_scan
 import git_paths
-from console_codec import use_utf8
+from console_codec import require_python_floor, use_utf8
 from phi_scan import CorpusIndex, Finding
 from tracker_records import (
     EVENT_RECORD_KEYS,
@@ -1062,4 +1062,5 @@ def main(argv: list[str]) -> int:
 
 if __name__ == "__main__":
     use_utf8()
+    require_python_floor()
     raise SystemExit(main(sys.argv[1:]))

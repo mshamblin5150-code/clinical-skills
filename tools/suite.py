@@ -22,7 +22,7 @@ from typing import TextIO
 
 import run_grader
 import repo_root
-from console_codec import use_utf8
+from console_codec import require_python_floor, use_utf8
 
 
 TOOLS = Path(__file__).resolve().parent
@@ -472,4 +472,5 @@ def main(
 
 if __name__ == "__main__":
     use_utf8()
+    require_python_floor()
     raise SystemExit(main(sys.argv[1:]))

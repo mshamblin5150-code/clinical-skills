@@ -27,6 +27,8 @@ import re
 import unittest
 from pathlib import Path
 
+import python_floor
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 WORKFLOW = REPO_ROOT / ".github" / "workflows" / "checks.yml"
 TRACKER_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "tracker.yml"
@@ -42,6 +44,7 @@ MAP_STEP_NAME = "Implementation map disagreement"
 
 RUNNER = "windows-latest"
 PYTHON_VERSION = "3.14"
+FLOOR_VERSION = ".".join(str(part) for part in python_floor.CONSUMER_FLOOR)
 
 
 def workflow_text():
@@ -160,6 +163,19 @@ class TheJobMatchesWhatIsWrittenDown(unittest.TestCase):
         run a Python nobody asked for. Quoting is cheap and 3.14 will not be the
         last version written here."""
         self.assertRegex(workflow_text(), r"python-version:\s*['\"]")
+
+
+class TheFloorJobRunsTheWholeSuite(unittest.TestCase):
+    def test_a_second_windows_job_runs_at_the_declared_consumer_floor(self):
+        text = workflow_text()
+        self.assertRegex(text, r"(?m)^  floor:\s*$")
+        floor_job = text.partition("\n  floor:\n")[2]
+        self.assertIn(f"python-version: '{FLOOR_VERSION}'", floor_job)
+        self.assertIn(f"runs-on: {RUNNER}", floor_job)
+        self.assertIn(SUITE_COMMAND, floor_job)
+
+    def test_the_floor_version_is_distinct_from_the_maintainer_job(self):
+        self.assertNotEqual(PYTHON_VERSION, FLOOR_VERSION)
 
 
 class BothMergeRoutesAreCovered(unittest.TestCase):
@@ -484,6 +500,18 @@ class TheFileIsValidYaml(unittest.TestCase):
             step["with"]["python-version"] for step in steps if "python-version" in step.get("with", {})
         ]
         self.assertEqual(versions, [PYTHON_VERSION])
+
+    def test_the_floor_job_survives_with_its_complete_suite_command(self):
+        job = self.load()["jobs"]["floor"]
+        self.assertEqual(job["runs-on"], RUNNER)
+        versions = [
+            step["with"]["python-version"]
+            for step in job["steps"]
+            if "python-version" in step.get("with", {})
+        ]
+        self.assertEqual(versions, [FLOOR_VERSION])
+        commands = " ".join(step.get("run", "") for step in job["steps"])
+        self.assertIn(SUITE_COMMAND, commands)
 
     def test_the_tracker_if_survives_with_all_five_events(self):
         try:

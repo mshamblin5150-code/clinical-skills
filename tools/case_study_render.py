@@ -19,7 +19,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-from console_codec import use_utf8
+from console_codec import require_python_floor, use_utf8
 import office_process
 import page_image
 import pdf_engine
@@ -180,4 +180,5 @@ def main(argv: list[str]) -> int:
 
 if __name__ == "__main__":
     use_utf8()
+    require_python_floor()
     raise SystemExit(main(sys.argv[1:]))

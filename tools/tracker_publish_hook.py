@@ -46,7 +46,7 @@ import tracker_branch_scope
 import tracker_filed_from
 import tracker_readback
 import shell_reader
-from console_codec import use_utf8
+from console_codec import require_python_floor, use_utf8
 from tracker_records import TrackerRecord, from_command, from_graphql
 from tracker_bodies import ordinary_paragraph_prose
 
@@ -1413,4 +1413,5 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     use_utf8()
+    require_python_floor()
     raise SystemExit(main())

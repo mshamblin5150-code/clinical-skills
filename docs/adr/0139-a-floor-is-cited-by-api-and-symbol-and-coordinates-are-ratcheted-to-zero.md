@@ -155,3 +155,6 @@ than closing it.
 
 **Whether a pin exists that neither walk can see.** Both instruments are floors on literal shapes,
 stated in the measurement above.
+
+Superseded in part, 2026-09-12: ADR 0187 ruling 10 replaces ruling 3's evidence-only floor check
+with the repository walk and discharges ruling 4.
