@@ -11,13 +11,13 @@ Issues and PRDs for this repo live as GitHub issues on the public `mshamblin5150
 **`--body` takes a string and cannot read a heredoc.** `--body-file` (`-F`) is the flag that reads standard input, and only when given `-`. Get this wrong and the failure is silent — see *The `@-` trap* below.
 
 ```bash
-gh issue create --title "..." --body-file - <<'EOF'
+gh issue create --title '...' --body-file - <<'EOF'
 Body text, as many lines as you like.
 Single-quoted 'EOF' so $vars and `backticks` stay literal.
 EOF
 ```
 
-The same `--body-file -` works for `gh issue comment` and `gh issue edit`. Single-line bodies may use `--body "..."`.
+The same `--body-file -` works for `gh issue comment` and `gh issue edit`. A single-line inline body uses single-quoted `--body '...'`; splice an apostrophe as `'the run'\''s record'` so no segment is exposed to expansion.
 
 A body-file path needs either `cd "<folder>" && ` in front of the command or the whole path in quotes.
 
@@ -28,7 +28,7 @@ A body-file path needs either `cd "<folder>" && ` in front of the command or the
 - **Comment**: `gh issue comment <number> --body-file - <<'EOF' … EOF`
 - **Edit a body**: `gh issue edit <number> --body-file - <<'EOF' … EOF`
 - **Labels**: `gh issue edit <number> --add-label "..."` / `--remove-label "..."`
-- **Close**: `gh issue close <number> --comment "..."`
+- **Close**: `gh issue close <number> --comment '...'`
 
 `gh` infers the repo from `git remote -v` when run inside the clone.
 
@@ -255,7 +255,7 @@ Labeling does not cover this. Labeling at creation makes a ticket findable *afte
 **A ticket filed with no label is a ticket nobody can find.** `--label` takes a comma-separated list and works on `gh issue create` as well as `gh issue edit`:
 
 ```bash
-gh issue create --title "..." --label "needs-triage,grilling" --body-file - <<'EOF'
+gh issue create --title '...' --label "needs-triage,grilling" --body-file - <<'EOF'
 ...
 EOF
 ```
