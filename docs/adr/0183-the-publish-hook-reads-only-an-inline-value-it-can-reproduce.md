@@ -11,16 +11,17 @@ ruling 3 before this grilling opened.
 
 Grilled 2026-09-11 to an empty frontier. **Seven rulings, by the clinician, on that date.** Nothing
 is built here; this is the record the build reads. The build is
-<<BUILD-TICKET>>; #916 closes on ruling 5
+[#1123](https://github.com/mshamblin5150-code/clinical-skills/issues/1123); #916 closes on ruling 5
 and carries no build of its own.
 
-## Measured before ruling, at `6db417e` and re-derived at `45a0a5b`
+## Measured before ruling, at `6db417e` and re-derived at `45a0a5b` and `8e0b754`
 
-Freshness gate `FRESH` at `6db417e` before any reading. It reported `STALE` before recording, the
-branch was merged to `45a0a5b`, and **every comparison below was re-driven on the new base**: that
-merge touched `docs/adr/` and `tools/day_file_text.py` and did not touch `tools/tracker_publish_hook.py`,
-`tools/tracker_bodies.py`, `tools/shell_reader.py` or `.claude/settings.json`. Gate `FRESH` again at
-`45a0a5b`.
+Freshness gate `FRESH` at `6db417e` before any reading. **It reported `STALE` twice and every
+comparison below was re-driven on each new base rather than carried over.** The first merge, to
+`45a0a5b`, touched `docs/adr/` and `tools/day_file_text.py`; the second, to `8e0b754`, touched
+`docs/adr/` alone. Neither touched `tools/tracker_publish_hook.py`, `tools/tracker_bodies.py`,
+`tools/shell_reader.py` or `.claude/settings.json`, which is where every comparison below reads. Gate
+`FRESH` at `8e0b754` immediately before publication.
 
 Two kinds of figure appear here and they are not equally durable.
 
@@ -223,13 +224,13 @@ leaves the next session re-deriving the ticket from scratch.
 
 Ruling 5's row is only *true* once ruling 1 lands — before the refusal exists the cause side is not
 merely uncovered, it is open in a larger way — so the row and the refusal are one packet by sequence
-rather than two packets in a collision group. <<BUILD-TICKET>> carries rulings 1 through 5. #916 closes with no
+rather than two packets in a collision group. [#1123](https://github.com/mshamblin5150-code/clinical-skills/issues/1123) carries rulings 1 through 5. #916 closes with no
 commit binding it.
 
 **That shape has a recorded failure mode and this record is written against it.** ADR 0136 ruling 7
 said *filed* and named no number, so a reader of the ratified record could not reach #916 — the sweep
 of 2026-09-06 found exactly that. Both ticket numbers are therefore named in this record's own
-rulings, and <<BUILD-TICKET>>'s body cites #916, or ruling 6 rebuilds the defect it is guarding.
+rulings, and [#1123](https://github.com/mshamblin5150-code/clinical-skills/issues/1123)'s body cites #916, or ruling 6 rebuilds the defect it is guarding.
 
 ## Ruling 7 — two surfaces are handed off rather than covered, and both are named
 
@@ -237,7 +238,7 @@ rulings, and <<BUILD-TICKET>>'s body cites #916, or ruling 6 rebuilds the defect
 `Bash`, and 45 publish uses came through PowerShell. That is not a form the hook misreads, it is a
 tool it is not registered for, and its fix carries a question this grilling did not ask — whether
 `tracker_publish_hook` must learn PowerShell quoting, whose rules differ. It is
-<<POWERSHELL-TICKET>> and not part of <<BUILD-TICKET>>.
+[#1124](https://github.com/mshamblin5150-code/clinical-skills/issues/1124) and not part of [#1123](https://github.com/mshamblin5150-code/clinical-skills/issues/1123).
 
 **[#1107](https://github.com/mshamblin5150-code/clinical-skills/issues/1107) is inherited unchanged.**
 A quoting-keyed refusal runs only where `route` is recognized, and a publication inside `bash <<'SH'`
@@ -273,7 +274,7 @@ prevention for the harness that published every measured damaged record.
 - **Correct ADR 0096 in place rather than write this record.** Refused: its ruling 1 is not wrong, it
   has a door it never measured, and a correction appended there leaves the new refusal discoverable
   only from a record whose headline is about something else.
-- **Fold the PowerShell surface into <<BUILD-TICKET>>.** Refused under ruling 7.
+- **Fold the PowerShell surface into [#1123](https://github.com/mshamblin5150-code/clinical-skills/issues/1123).** Refused under ruling 7.
 - **Auto-repair, and reporting the mechanism upstream.** Both were refused by ADR 0136 ruling 7 and
   are not reopened.
 
