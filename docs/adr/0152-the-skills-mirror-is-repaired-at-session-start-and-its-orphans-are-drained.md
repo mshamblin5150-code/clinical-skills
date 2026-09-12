@@ -256,10 +256,17 @@ refusal was made against a check that **fetches**, and the objection is sound ab
 the head of every session including offline ones is the wrong trade. What was not measured here is
 that the report needs no fetch. Reading the cached `origin/main` costs 46 ms and opens nothing, and
 every registered checkout shares one ref store, so any session's fetch refreshes the copy for all of
-them — 162 movements in the seven days before 2026-09-12, median gap 20 minutes. The
+them — 164 movements in the seven days before 2026-09-12, median gap 20 minutes. The
 `SessionStart` hook this record builds therefore also states the base it just linked into, as a floor
 that can prove a checkout behind and can never call one current. **Ruling 7's boundary sentence is
 unchanged and is what ADR 0200 files.** The measurement in this record's own preamble — the main
 checkout 130 commits behind `origin/main` — is spent, and ADR 0200 records that it has been spent
 seven times over.
+
+*Figure corrected 2026-09-12, hours after the paragraph above merged: it read **162**, which was the
+reading at `5e519ed4`. `main` moved twice more before publication and every figure was re-derived at
+`1b279ed`, where it is **164** — but only ADR 0200's copy was updated and this neighboring one was
+left. One figure in two files, one refreshed and its twin missed, is the shape `CLAUDE.md` records
+under* Console codec*, arriving inside the record that cites it. Found by the tracker sweep of this
+record's own branch rather than by anything that fails.*
 
