@@ -51,6 +51,8 @@ scratch/runs/<course>-<module>-peer-critique/
     posts/
     claims.md
     critique.md
+    critique.html
+    critique-<surface>-readback.html
     reread.md
     voice-status.md
 ```
@@ -250,25 +252,40 @@ tone is one the clinician will sign are all readings, and the clinician answers 
 
 ## 6. Show, then post to both surfaces
 
-Show the clean critique to the clinician with the word count, the grader exits, and a short list of
-what the critique credits the classmate for. Ask whether the substance is right and whether the
-register is his. Only an explicit go-ahead authorizes posting.
+Before showing the gate, identify every destination that is a Canvas Composer and read
+[canvas-editor.md](../_shared/reference/canvas-editor.md). Select that destination's first supported
+**Load route**. Show the clean critique to the clinician with the word count, the grader exits, a
+short list of what the critique credits the classmate for, and each selected route with its cost.
+Ask whether the substance is right and whether the register is his. Only an explicit go-ahead
+authorizes posting.
 
 **There are two surfaces and they are not the same artifact.** The spec calls the critique a
 discussion board reply, so **the board is the graded surface**. Where the LMS has also assigned a
 peer review, its comment box is bookkeeping that must carry at least one comment before the review
 registers as finished.
 
-**Both surfaces can damage what is typed into them, and neither is cleared.** The submission comment
+**Both surfaces can damage what is loaded into them, and neither is cleared.** The submission comment
 box renders a literal `&` as a visible `&amp;`, which lands in the APA reference list, where the
 ampersand is mandatory; that is
 [#991](https://github.com/mshamblin5150-code/clinical-skills/issues/991) and its remedy is unsettled.
-Whether the board's reply box shares the defect is unmeasured, which is
-[#948](https://github.com/mshamblin5150-code/clinical-skills/issues/948)'s open question. The
-escaping `tools/post_html.py` applies governs an initial post's raw HTML editor, not a reply box.
+Already-posted discussion entries measured on 2026-09-12 did not share that double escape on their
+historical routes. The originating Composer and a raw-editor load specifically remain unmeasured,
+and the detached rendering was not the live Canvas page; the dated observation and limits are in
+[canvas-editor-calibration.json](../_shared/reference/canvas-editor-calibration.json).
 Until #991 is ruled, ask the clinician which surface carries the reference list rather than choosing
-one. On whichever surfaces are used, re-read the exact content in the box immediately before
-posting, then read the rendered DOM after posting, and report every damaged character.
+one.
+
+Build the approved critique once:
+
+```bash
+python tools/post_html.py scratch/runs/<run-key>/critique.md scratch/runs/<run-key>/critique.html
+```
+
+When the board destination or assigned peer-review destination is a Canvas Composer, load the built
+HTML by the route declared at the existing approval above. Retain its serialized HTML as
+`critique-<surface>-readback.html` and compare it with the built HTML on the sheet's terms before
+posting. On every surface used, read the rendered DOM after posting and report every damaged
+character.
 
 **Nothing on the LMS is edited after it is posted.** A defect found in a posted artifact is recorded
 and filed, not repaired in place.
