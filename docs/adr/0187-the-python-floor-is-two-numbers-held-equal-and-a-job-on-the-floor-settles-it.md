@@ -24,6 +24,13 @@ Freshness gate `FRESH` before reading the ticket, `STALE` when the record was op
 advanced mid-session — and `FRESH` again after the branch was brought forward, with every figure
 below re-derived on the new base. Each figure was taken by running a command.
 
+`main` advanced a second time before this record was pushed, and the merge touched
+`tools/test_tracker_publish_hook.py`, which is where the 3.11 witnesses live. **Every figure in this
+section was re-derived on that merged tree and every one is unchanged.** Re-deriving rather than
+trusting the merge is [#86](https://github.com/mshamblin5150-code/clinical-skills/issues/86)'s
+lesson, and it is worth recording here because the file the merge touched is the one this record's
+central measurement reads.
+
 **The tree-wide floor is 3.11 and the non-test floor is 3.10.** The derivation was an AST walk with
 three confidence tiers, driven against a positive control carrying every vocabulary item, a negative
 control of 3.7-only code, and a pair of files identical but for `from __future__ import annotations`,
