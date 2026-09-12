@@ -221,6 +221,10 @@ REFUSED: Mapping[str, str] = MappingProxyType(
             "changed tracker events or a forward-only ADR population selected from per-file "
             "git history"
         ),
+        "tracker_measurements": (
+            "the shared runner accepts one positional run source, while this command grades "
+            "changed tracker events, staged ADRs, or a forward-only committed ADR population"
+        ),
     }
 )
 

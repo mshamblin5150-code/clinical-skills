@@ -443,6 +443,12 @@ class TheMembershipClaimIsDerivedFromTheTree(unittest.TestCase):
                 "tracker events",
                 "ADR",
             ),
+            "tracker_measurements": (
+                "runner",
+                "one positional",
+                "tracker events",
+                "ADR",
+            ),
         }
 
         self.assertEqual(set(run_grader.REFUSED), set(required_terms))

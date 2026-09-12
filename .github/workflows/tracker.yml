@@ -105,6 +105,22 @@ jobs:
             Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
           exit $status
 
+      - name: Changed tracker publication measurement base
+        if: >-
+          always() &&
+          (github.event.action == 'opened' ||
+           github.event.action == 'created' ||
+           github.event.action == 'submitted' ||
+           (github.event.action == 'edited' &&
+            github.event.changes.body != null))
+        run: |
+          $report = python tools/tracker_measurements.py --github-event $env:GITHUB_EVENT_PATH --event-name $env:GITHUB_EVENT_NAME
+          $status = $LASTEXITCODE
+          $report
+          @('### Publication measurement base', '', '```', $report, '```') |
+            Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          exit $status
+
       - name: Filed-from line preservation
         if: >-
           always() &&

@@ -113,13 +113,15 @@ reports each denominator and unread remainder and refuses a short read.
 
 ### Discriminating measurements in sweep verdicts
 
-The general requirement lives in the
-[extractor-coverage rule](../../CLAUDE.md#extractor-coverage); this section does
-not restate it. In a tracker sweep it applies when a figure is used to confirm
-or overturn an existing written claim, including a ticket body, ADR finding,
-docstring, or prior verdict. The verdict supplies one clause stating what the
-instrument would report under the claim's negation. A figure reported only for
-context does not trigger the clause.
+The general requirements live in the
+[extractor-coverage rule](../../CLAUDE.md#extractor-coverage); this section
+narrows the discrimination rule alone and does not restate it. The population
+and publication-time re-derivation rules apply in a sweep without this
+narrowing. Discrimination applies when a figure is used to confirm or overturn
+an existing written claim, including a ticket body, ADR finding, docstring, or
+prior verdict. The verdict supplies one clause stating what the instrument
+would report under the claim's negation. A figure reported only for context
+does not trigger that clause.
 
 `Re-derived` means a fresh instrument; `re-run` means the same command again. A
 sweep that repeats a prior verdict says which occurred. Re-running one

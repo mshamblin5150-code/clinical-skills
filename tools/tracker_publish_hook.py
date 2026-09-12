@@ -51,6 +51,7 @@ from typing import NamedTuple
 import phi_scan
 import tracker_bodies
 import tracker_coordinates
+import tracker_measurements
 import tracker_branch_scope
 import tracker_filed_from
 import tracker_readback
@@ -1025,6 +1026,12 @@ def analyze(
             publication.text, f"{publication.field} being published"
         )
     )
+    findings.extend(
+        Finding(row.rule, 1, publication.field, "deny")
+        for row in tracker_measurements.grade_current(
+            publication.text, f"{publication.field} being published"
+        )
+    )
     comment_prose = (
         ordinary_paragraph_prose(publication.text)
         if publication.field == "body" and route in COMMENT_ROUTES
@@ -1149,6 +1156,10 @@ def authorize_issue_body(
             f"tracker body refused for {label}: {tracker_coordinates.UNANCHORED}; "
             f"remedy: {COORDINATE_REMEDY}"
         )
+    measurement_findings = tracker_measurements.grade_current(body, label)
+    if measurement_findings:
+        rules = ", ".join(row.rule for row in measurement_findings)
+        raise ValueError(f"tracker body refused for {label}: {rules}")
     if issue_number is not None:
         # Lazy import avoids the module-level cycle: implementation_map uses
         # this direct-writer gate when it publishes the same body.
