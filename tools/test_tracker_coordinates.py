@@ -10,6 +10,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+from unittest import mock
 from datetime import timedelta
 
 import prose_bind
@@ -216,6 +217,15 @@ class TheGithubEventCommand(unittest.TestCase):
 
 
 class TheForwardOnlyAdrWalk(unittest.TestCase):
+    def test_python_310_accepts_gits_utc_z_timestamp(self):
+        with mock.patch.object(coordinates.subprocess, "run") as run:
+            run.return_value = subprocess.CompletedProcess(
+                ("git",), 0, "2026-09-12T09:51:06Z\n", ""
+            )
+            stamp = coordinates._last_touch(Path("unused"), "docs/adr/0189.md")
+
+        self.assertEqual(coordinates.ADR_CUTOFF, stamp)
+
     def test_unreadable_git_population_is_not_scanned(self):
         with tempfile.TemporaryDirectory() as temporary:
             stdout = io.StringIO()

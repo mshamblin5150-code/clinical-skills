@@ -209,7 +209,8 @@ def _last_touch(root: Path, relative: str) -> datetime:
     if completed.returncode != 0 or not stamp:
         raise SourceError(f"{ADR_LAST_TOUCH_UNREADABLE}: {relative}")
     try:
-        return datetime.fromisoformat(stamp)
+        normalized = stamp[:-1] + "+00:00" if stamp.endswith("Z") else stamp
+        return datetime.fromisoformat(normalized)
     except ValueError as error:
         raise SourceError(f"{ADR_LAST_TOUCH_UNREADABLE}: {relative}") from error
 
