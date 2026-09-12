@@ -82,6 +82,27 @@ _Avoid_: this checkout, the current worktree, local checkout
 The checkout a `tools/` module file is sitting in — what `Path(__file__).resolve().parent.parent` returns. In a worktree that is **the worktree**, and that is the right answer for almost everything here: a test reading a committed fixture, a walk over the files being committed, a subprocess reading a ref shared with the **owning checkout**. It is the wrong answer for gitignored account-owned state, which is the only thing that takes `main_repo_root()`. **The two are not ranked** — neither is a fallback for the other, and a site using the literal is not a site that has not been migrated yet.
 _Avoid_: repo root, the repo, tools root, unqualified "root"
 
+**Base distance**:
+How far a checkout's **Checkout commit** sits from the last-known default branch, in both
+directions, read from the cached copy of that branch rather than from a fetch. Against a copy that
+has not been refreshed, **behind is a floor and ahead is a ceiling** — an old copy makes a
+checkout look less behind than it is and more ahead than it is — so it can establish that a
+checkout is behind and can never establish that one is not. Distinct from **Base freshness**, which
+fetches and therefore has a clean verdict: base distance has none, and its zero reads *no newer
+commit known*. It does not move while a session runs, because the checkout commit does not.
+_Avoid_: freshness, currency, staleness, commits behind, up to date
+
+**Run-relevant commit**:
+A commit touching what a clinical run reads — the skills, the reference sheets, `AGENTS.md`, and
+the `tools/` commands a skill file names. Derived from the tree on every reading and never a
+hand-kept list, so a skill that begins citing a new command is covered without anyone maintaining a
+constant. It is the finding half of a **Base distance**, whose raw count is the population: most
+commits here move neither the instructions a run follows nor the graders it invokes, so a raw
+distance overstates how stale a run's instructions are by an order of magnitude. A **floor** on what
+a run reads rather than the whole of it, since a file reached through a path no skill file names is
+outside the derivation.
+_Avoid_: relevant commit, breaking change, skill change, instruction change
+
 **Tracked path**:
 The bytes git stores for an entry, as distinct from the string a git command prints for it. `ls-files`, `ls-tree` and `diff --name-only` C-quote any non-ASCII path; `rev-list --objects` does not quote and truncates at a newline; text-mode decoding rewrites a carriage return and so collapses two distinct paths onto one. A path is only itself when read through `-z` and decoded `surrogateescape` from **bytes** — every other form is a rendering, and a comparison against one is a comparison against a rendering rather than against the repository.
 _Avoid_: filename, the path git returns, path string
@@ -947,8 +968,8 @@ A published body whose backslash escapes were interpreted by some stage of its *
 _Avoid_: corruption, mojibake, encoding error, mangled, damage
 
 **Base freshness**:
-Whether a checkout's `HEAD` contains the freshly fetched default branch. It is a claim about commits and about no tracker record, so a publication can be current on it and stale in every fact it states — the two move independently, and a tracker record moves without a commit. Distinct from a **Record fingerprint**, which is the tracker half of the same moment: this one asserts a relationship and is a finding when it fails, and that one asserts nothing at all.
-_Avoid_: freshness, currency, up to date, staleness
+Whether a checkout's `HEAD` contains the freshly fetched default branch. **The fetch is definitional** — a reading taken from a cached copy is a **Base distance** and cannot reach this claim, however small its number. It is a claim about commits and about no tracker record, so a publication can be current on it and stale in every fact it states — the two move independently, and a tracker record moves without a commit. Distinct from a **Record fingerprint**, which is the tracker half of the same moment: this one asserts a relationship and is a finding when it fails, and that one asserts nothing at all.
+_Avoid_: freshness, currency, up to date, staleness, base distance
 
 **Record fingerprint**:
 One record's state, labels, last-updated time and body length, read back at the moment a publication naming it goes out. It reports and never compares: it carries no baseline, so it says what is true now and never that anything moved — which is what keeps it honest where a sweep moves the very records it later cites. It says a record moved only in the sense that a reader can see it did; it never says what changed inside one, so a verdict about a body's content is sent to look rather than told it is wrong.

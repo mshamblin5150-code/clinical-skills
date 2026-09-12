@@ -248,3 +248,18 @@ and nothing prunes it.
 **Whether `SessionStart` fires before the skill listing is built.** The body is read at invocation, so
 a repair at session start reaches it; the description in the listing may come from the pre-repair
 mirror. No clinical rule lives in a description, and this was not measured.
+
+**Correction, 2026-09-12, on [#979](https://github.com/mshamblin5150-code/clinical-skills/issues/979)'s grilling.**
+Ruling 7's refusal stands as reasoning and is superseded in scope by
+[ADR 0200](0200-the-served-base-is-reported-without-a-fetch-and-never-called-current.md). That
+refusal was made against a check that **fetches**, and the objection is sound about one: a socket at
+the head of every session including offline ones is the wrong trade. What was not measured here is
+that the report needs no fetch. Reading the cached `origin/main` costs 46 ms and opens nothing, and
+every registered checkout shares one ref store, so any session's fetch refreshes the copy for all of
+them — 162 movements in the seven days before 2026-09-12, median gap 20 minutes. The
+`SessionStart` hook this record builds therefore also states the base it just linked into, as a floor
+that can prove a checkout behind and can never call one current. **Ruling 7's boundary sentence is
+unchanged and is what ADR 0200 files.** The measurement in this record's own preamble — the main
+checkout 130 commits behind `origin/main` — is spent, and ADR 0200 records that it has been spent
+seven times over.
+
