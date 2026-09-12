@@ -193,7 +193,7 @@ def survey(records: Sequence[tracker_bodies.Record]) -> Scan:
     return Scan(len(records), findings)
 
 
-def _last_touch(root: Path, relative: str) -> datetime:
+def _last_touch(root: Path, relative: str) -> datetime | None:
     try:
         completed = subprocess.run(
             ["git", "log", "-1", "--format=%cI", "--", relative],
@@ -206,8 +206,10 @@ def _last_touch(root: Path, relative: str) -> datetime:
     except OSError as error:
         raise SourceError(f"{ADR_LAST_TOUCH_UNREADABLE}: {relative}") from error
     stamp = completed.stdout.strip()
-    if completed.returncode != 0 or not stamp:
+    if completed.returncode != 0:
         raise SourceError(f"{ADR_LAST_TOUCH_UNREADABLE}: {relative}")
+    if not stamp:
+        return None
     try:
         normalized = stamp[:-1] + "+00:00" if stamp.endswith("Z") else stamp
         return datetime.fromisoformat(normalized)
@@ -216,10 +218,11 @@ def _last_touch(root: Path, relative: str) -> datetime:
 
 
 def grade_adrs(root: Path) -> AdrScan:
-    """Grade tracked ADRs whose own last-touching commit meets the cutoff.
+    """Grade indexed ADRs with no commit or a last touch meeting the cutoff.
 
     A clean result means no eligible tracked ADR carries an unanchored
-    coordinate. Untracked or unstaged ADRs remain invisible to the Git index.
+    coordinate. An untracked new ADR remains invisible to the Git index; a
+    staged ADR with no commit is eligible for this forward-only walk.
     """
 
     try:
@@ -238,7 +241,8 @@ def grade_adrs(root: Path) -> AdrScan:
     findings: list[Finding] = []
     eligible = 0
     for relative in relatives:
-        if _last_touch(root, relative) < ADR_CUTOFF:
+        last_touch = _last_touch(root, relative)
+        if last_touch is not None and last_touch < ADR_CUTOFF:
             continue
         eligible += 1
         try:
