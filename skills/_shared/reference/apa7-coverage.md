@@ -1,7 +1,7 @@
 # APA 7 manual coverage
 
 <!-- schema: apa7-coverage/1 -->
-<!-- rule-identity: tools/prose_bind.py sha256=2728c2180a31e66232b14160c12da6963f32d2af3c564af0fb520b0433a7826e -->
+<!-- rule-identity: tools/prose_bind.py sha256=ef2b91920686b3306d6a0d9dd42792fdbb033bd919268408d355de62a325b579 -->
 
 This registry records the signed-in Publication Manual read completed for issue #976. The
 evidence and refutation cells are paraphrases, not manual transcription. A digest binds each

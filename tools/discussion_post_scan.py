@@ -23,7 +23,6 @@ from __future__ import annotations
 import re
 import sys
 import zipfile
-from collections.abc import Collection, Iterator
 from dataclasses import dataclass
 from datetime import date
 from html.parser import HTMLParser
@@ -34,6 +33,7 @@ from discussion_artifact import (
     AMPLIFICATION,
     CLAIM_BLOCK,
     CLAIM_REFERENCE,
+    CITATION_RESOLUTION_NOT_REACHED,
     Citation,
     CitationCoverage,
     LEGAL_SECTION_NUMBER,
@@ -43,6 +43,7 @@ from discussion_artifact import (
     INVOKED,
     InvokedSource,
     PostedReading,
+    ReferenceKeySet,
     RENDERED_SOURCES,
     RESTATEMENT,
     WORD,
@@ -56,7 +57,6 @@ from discussion_artifact import (
     read_posted_readings,
     read_reference_section,
     reference_key,
-    reference_keys,
     split_references,
     strip_discussion_markers,
 )
@@ -148,6 +148,7 @@ GATED_ROW_SETS = {
 ABSENT_BY_DESIGN_FIELDS = ("word_ceiling",)
 
 DECLARED_LIMITS = (
+    *CITATION_RESOLUTION_NOT_REACHED,
     (
         "whether a believed record's restatement supports the number traced from it",
         "The certifier reads numeric tokens and never judges whether the record's restatement supports the fact asserted in the post.",
@@ -309,7 +310,7 @@ class RunSource:
 @dataclass(frozen=True)
 class ClaimRecord:
     numbers: frozenset[str]
-    references: frozenset[tuple[str, str]]
+    references: ReferenceKeySet
 
 
 @dataclass(frozen=True)
@@ -326,25 +327,17 @@ class RenderedReading:
 
 
 @dataclass(frozen=True)
-class ClaimReferenceIndex(Collection[tuple[str, str]]):
-    records: tuple[ClaimRecord, ...]
-    keys: frozenset[tuple[str, str]]
+class ClaimReferenceIndex(ReferenceKeySet):
+    records: tuple[ClaimRecord, ...] = ()
 
     @classmethod
     def from_records(cls, records: tuple[ClaimRecord, ...]) -> ClaimReferenceIndex:
+        keys = ReferenceKeySet.union(tuple(record.references for record in records))
         return cls(
+            keys.keys,
+            keys.prefix_keys,
             records,
-            frozenset(key for record in records for key in record.references),
         )
-
-    def __contains__(self, key: object) -> bool:
-        return key in self.keys
-
-    def __iter__(self) -> Iterator[tuple[str, str]]:
-        return iter(self.keys)
-
-    def __len__(self) -> int:
-        return len(self.keys)
 
     def matching_record_indices(
         self, citation_keys: tuple[tuple[str, str], ...]
@@ -352,7 +345,7 @@ class ClaimReferenceIndex(Collection[tuple[str, str]]):
         return tuple(
             index
             for index, record in enumerate(self.records)
-            if any(key in record.references for key in citation_keys)
+            if any(record.references.resolves(key) for key in citation_keys)
         )
 
 
@@ -460,9 +453,11 @@ def _claim_records(claims: str) -> tuple[ClaimRecord, ...]:
             )
         reference = CLAIM_REFERENCE.search(block)
         keys = (
-            reference_keys(reference.group("value").replace("\n", " "))
+            ReferenceKeySet.from_references(
+                (reference.group("value").replace("\n", " "),)
+            )
             if reference is not None
-            else ()
+            else ReferenceKeySet()
         )
         # Reference keys remain visible even when the record cannot certify a
         # number. Removing them would hide a narrative citation rather than
@@ -472,7 +467,7 @@ def _claim_records(claims: str) -> tuple[ClaimRecord, ...]:
                 numbers=frozenset(
                     value.casefold() for value in NUMBER.findall(trace_text)
                 ),
-                references=frozenset(keys),
+                references=keys,
             )
         )
     return tuple(records)

@@ -683,6 +683,30 @@ class EachReplyCarriesEvidence(unittest.TestCase):
         self.assertEqual(1, status)
         self.assertIn("unresolved-citation: 1", stdout.getvalue())
 
+    def test_a_shortened_title_citation_resolves(self):
+        original = "Quill, R. (2024). Measuring usable access in community care. Journal of Care, 4(2), 10-18."
+        entry = "Nursing today (2nd ed.). (2020). Publisher."
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            (run.root / "claims.md").write_text(
+                CLAIMS.replace(original, entry).replace(
+                    "PAGE-YEAR: 2024", "PAGE-YEAR: 2020"
+                ),
+                encoding="utf-8",
+            )
+            (run.root / "response-maren.md").write_text(
+                BODY.replace("(Quill, 2024)", "(Nursing, 2020)").replace(
+                    original, entry
+                ),
+                encoding="utf-8",
+            )
+            stdout = io.StringIO()
+            with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
+                status = scan.main([temp])
+
+        self.assertEqual(0, status)
+        self.assertIn("unresolved-citation: 0", stdout.getvalue())
+
     def test_each_source_in_a_multi_source_parenthesis_is_resolved(self):
         with tempfile.TemporaryDirectory() as temp:
             run = Run(Path(temp))
@@ -1162,6 +1186,18 @@ class EveryDeclaredLimitHasOneCheckedInventory(unittest.TestCase):
 
 class EveryBehaviorLimitHasALiveHandler(unittest.TestCase):
     HANDLERS = {
+        "whether a shortened title resolves against more than one reference entry": (
+            "CitationResolutionResidues.test_the_three_declared_prefix_edges_resolve",
+            "EachReplyCarriesEvidence.test_a_shortened_title_citation_resolves",
+        ),
+        "whether a citation naming part of a group author's name resolves": (
+            "CitationResolutionResidues.test_the_three_declared_prefix_edges_resolve",
+            "EachReplyCarriesEvidence.test_a_shortened_title_citation_resolves",
+        ),
+        "whether a citation stopping mid-word resolves": (
+            "CitationResolutionResidues.test_the_three_declared_prefix_edges_resolve",
+            "EachReplyCarriesEvidence.test_a_shortened_title_citation_resolves",
+        ),
         "whether a believed record's restatement supports the number traced from it": (
             "NumbersTraceToTheRunLedger.test_numeric_identity_does_not_establish_restatement_support",
             "NumbersTraceToTheRunLedger.test_only_believed_claim_records_trace_body_numbers",
@@ -1197,6 +1233,24 @@ class EveryBehaviorLimitHasALiveHandler(unittest.TestCase):
                         result.wasSuccessful(),
                         f"{subject}: {named}: {result.errors + result.failures}",
                     )
+
+
+class CitationResolutionResidues(unittest.TestCase):
+    def test_the_three_declared_prefix_edges_resolve(self):
+        today = scan.ReferenceKeySet.from_references(
+            ("Nursing today. (2020). Publisher.",)
+        )
+        tomorrow = scan.ReferenceKeySet.from_references(
+            ("Nursing tomorrow. (2020). Publisher.",)
+        )
+        group = scan.ReferenceKeySet.from_references(
+            ("World Health Organization. (2020). A title.",)
+        )
+
+        self.assertTrue(today.resolves(("nursing", "2020")))
+        self.assertTrue(tomorrow.resolves(("nursing", "2020")))
+        self.assertTrue(group.resolves(("worldhealth", "2020")))
+        self.assertTrue(today.resolves(("nursingtod", "2020")))
 
 
 if __name__ == "__main__":

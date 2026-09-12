@@ -129,6 +129,22 @@ class EveryRowFiresOnItsOwnDefect(unittest.TestCase):
             kinds(build_run(extra="\n\nA further point (Nguyen, 2024).\n")),
         )
 
+    def test_a_shortened_title_citation_resolves(self):
+        references = (
+            REFERENCES
+            + "\nNursing today (2nd ed.). (2020). Publisher.\n"
+        )
+
+        self.assertNotIn(
+            scan.UNRESOLVED_CITATION,
+            kinds(
+                build_run(
+                    extra="\n\nA further point follows (Nursing, 2020).\n",
+                    references=references,
+                )
+            ),
+        )
+
     def test_a_number_with_no_claim_record_is_a_finding(self):
         self.assertIn(scan.UNTRACED_NUMBER, kinds(build_run(extra="\n\nThe rate was 47 percent.\n")))
 
@@ -154,6 +170,24 @@ class TheCitationYearIsNotABodyNumber(unittest.TestCase):
     def test_a_resolved_citation_year_does_not_trace_as_a_numeral(self):
         # Every heading carries "(Ross, 2025)"; none of those years is a claim.
         self.assertNotIn(scan.UNTRACED_NUMBER, kinds(build_run()))
+
+
+class CitationResolutionResidues(unittest.TestCase):
+    def test_the_three_declared_prefix_edges_resolve(self):
+        today = scan.ReferenceKeySet.from_references(
+            ("Nursing today. (2020). Publisher.",)
+        )
+        tomorrow = scan.ReferenceKeySet.from_references(
+            ("Nursing tomorrow. (2020). Publisher.",)
+        )
+        group = scan.ReferenceKeySet.from_references(
+            ("World Health Organization. (2020). A title.",)
+        )
+
+        self.assertTrue(today.resolves(("nursing", "2020")))
+        self.assertTrue(tomorrow.resolves(("nursing", "2020")))
+        self.assertTrue(group.resolves(("worldhealth", "2020")))
+        self.assertTrue(today.resolves(("nursingtod", "2020")))
 
 
 class TheWordCeilingIsReportedAndNeverGraded(unittest.TestCase):
@@ -290,6 +324,18 @@ class TheDeclaredLimitsAreDerivedAndBound(unittest.TestCase):
 
 class EveryBehaviorLimitHasALiveHandler(unittest.TestCase):
     HANDLERS = {
+        "whether a shortened title resolves against more than one reference entry": (
+            "CitationResolutionResidues.test_the_three_declared_prefix_edges_resolve",
+            "EveryRowFiresOnItsOwnDefect.test_a_shortened_title_citation_resolves",
+        ),
+        "whether a citation naming part of a group author's name resolves": (
+            "CitationResolutionResidues.test_the_three_declared_prefix_edges_resolve",
+            "EveryRowFiresOnItsOwnDefect.test_a_shortened_title_citation_resolves",
+        ),
+        "whether a citation stopping mid-word resolves": (
+            "CitationResolutionResidues.test_the_three_declared_prefix_edges_resolve",
+            "EveryRowFiresOnItsOwnDefect.test_a_shortened_title_citation_resolves",
+        ),
         "whether a heading's prose answers the sub-questions the spec states under it": (
             "TheHeadingRowProvesPresenceAndNotAnswer.test_irrelevant_prose_under_a_required_heading_passes",
             "TheHeadingRowProvesPresenceAndNotAnswer.test_an_empty_required_heading_still_fails",

@@ -1032,7 +1032,9 @@ class TheCitationParserReadsTheShapesAPAActuallyWrites(unittest.TestCase):
         self.assertEqual(1, document.citation_coverage.unread)
 
     def test_discussion_reader_stops_an_author_at_the_sentence_boundary(self):
-        reference = artifact.reference_keys("HRSA. (n.d.). Designation guide.")
+        reference = artifact.ReferenceKeySet.from_references(
+            ("HRSA. (n.d.). Designation guide.",)
+        )
         citations = artifact.read_citations(
             "West Virginia. The HRSA (n.d.) designates the site.", reference
         )
@@ -1080,7 +1082,9 @@ class TheCitationParserReadsTheShapesAPAActuallyWrites(unittest.TestCase):
 
     def test_sentence_boundary_mutant_restores_the_discussion_key_disagreement(self):
         body = "West Virginia. The HRSA (n.d.) designates the site."
-        keys = artifact.reference_keys("HRSA. (n.d.). Designation guide.")
+        keys = artifact.ReferenceKeySet.from_references(
+            ("HRSA. (n.d.). Designation guide.",)
+        )
         self.assertEqual(0, len(artifact.citation_coverage(body, keys).disagreements))
         old_phrase = (
             artifact.NAME
@@ -1101,9 +1105,11 @@ class TheCitationParserReadsTheShapesAPAActuallyWrites(unittest.TestCase):
 
     def test_dropping_evidence_first_restores_the_statutes_wrong_discussion_key(self):
         body = "(Consolidated Appropriations Act, 2023, 2022)"
-        keys = artifact.reference_keys(
-            "Consolidated Appropriations Act, 2023, Pub. L. No. 117-328, "
-            "§ 1263, 136 Stat. 4459 (2022)."
+        keys = artifact.ReferenceKeySet.from_references(
+            (
+                "Consolidated Appropriations Act, 2023, Pub. L. No. 117-328, "
+                "§ 1263, 136 Stat. 4459 (2022).",
+            )
         )
         expected = artifact.author_key("Consolidated Appropriations Act, 2023")
         self.assertEqual(expected, artifact.author_key(artifact.read_citations(body, keys)[0].author))
@@ -1115,7 +1121,9 @@ class TheCitationParserReadsTheShapesAPAActuallyWrites(unittest.TestCase):
     def test_discussion_evidence_still_splits_a_wrong_legal_date(self):
         body = "(Consolidated Appropriations Act, 2023, 2024)"
         key = artifact.author_key("Consolidated Appropriations Act, 2023")
-        citations = artifact.read_citations(body, {(key, "2022")})
+        citations = artifact.read_citations(
+            body, artifact.ReferenceKeySet.exact({(key, "2022")})
+        )
 
         self.assertEqual(
             [(key, "2024")],
@@ -1185,14 +1193,14 @@ class RepublishedDateExamplesComeFromApaSectionThirtyOne(unittest.TestCase):
         watson = [row for row in examples if row[0].startswith("Watson,")]
         self.assertEqual(len(watson), 2)
         for reference, citation, _expected_year, _disposition in watson:
-            reference_pairs = set(artifact.reference_keys(reference))
+            reference_pairs = artifact.ReferenceKeySet.from_references((reference,))
             occurrences = artifact.citation_occurrence_keys(
                 artifact.read_citations(citation, reference_pairs)
             )
             with self.subTest(citation=citation):
                 self.assertTrue(
                     any(
-                        key in reference_pairs
+                        reference_pairs.resolves(key)
                         for occurrence in occurrences
                         for key in occurrence
                     )

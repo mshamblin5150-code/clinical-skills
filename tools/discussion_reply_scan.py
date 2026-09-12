@@ -24,6 +24,7 @@ from discussion_artifact import (
     AMPLIFICATION,
     CLAIM_BLOCK,
     CLAIM_REFERENCE,
+    CITATION_RESOLUTION_NOT_REACHED,
     NUMBER,
     INVOKED,
     REFERENCE_YEAR,
@@ -32,6 +33,7 @@ from discussion_artifact import (
     Citation,
     CitationCoverage,
     PostedReading,
+    ReferenceKeySet,
     author_key,
     citation_occurrence_keys,
     citation_coverage,
@@ -121,6 +123,7 @@ INVOKED_PROPERTY_LIMIT = (
     "The row refuses an empty field or lexical restatement of the domain noun; the clinician judges whether the remaining words state the real behavior.",
 )
 DECLARED_LIMITS = (
+    *CITATION_RESOLUTION_NOT_REACHED,
     (
         "whether a believed record's restatement supports the number traced from it",
         "The certifier reads numeric tokens and never judges whether the record's restatement supports the fact asserted in the reply.",
@@ -453,11 +456,8 @@ def _claimed_references(reply: Reply, claims: str) -> tuple[str, ...]:
     )
 
 
-def _reference_keys(reply: Reply) -> set[tuple[str, str]]:
-    keys: set[tuple[str, str]] = set()
-    for entry in _valid_references(reply):
-        keys.update(reference_keys(entry))
-    return keys
+def _reference_keys(reply: Reply) -> ReferenceKeySet:
+    return ReferenceKeySet.from_references(_valid_references(reply))
 
 
 def _legal_reference_name_findings(reply: Reply) -> tuple[Finding, ...]:
@@ -475,7 +475,7 @@ def _legal_reference_name_findings(reply: Reply) -> tuple[Finding, ...]:
 def _citation_findings(
     reply: Reply,
     citations: tuple[Citation, ...],
-    references: set[tuple[str, str]],
+    references: ReferenceKeySet,
 ) -> tuple[Finding, ...]:
     return tuple(
         Finding(
@@ -484,7 +484,7 @@ def _citation_findings(
             f"{citation.author}, {citation.year} has no matching reference",
         )
         for citation, keys in zip(citations, citation_occurrence_keys(citations))
-        if not any(key in references for key in keys)
+        if not any(references.resolves(key) for key in keys)
     )
 
 
