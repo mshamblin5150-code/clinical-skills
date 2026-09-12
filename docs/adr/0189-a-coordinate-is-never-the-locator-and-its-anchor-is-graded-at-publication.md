@@ -16,25 +16,27 @@ an already-published stale coordinate gets corrected.
 Grilled 2026-09-12 to an empty frontier. **Nine rulings, by the clinician, on that date.** Nothing is
 built here; this is the record the build reads.
 
-## Measured before ruling, at `084152c`
+## Measured at `084152c`, re-derived at `b42d135` after `main` moved mid-session
 
-Freshness gate `FRESH` at `084152c` before any reading. Every figure below was measured at that
-commit against a harvest of the 60 open tracker records and their 467 comments, and against the
-tracked tree. The tracker figures move whenever anybody comments; they are a dated measurement and
-not a current property of the tracker.
+Freshness gate `FRESH` at `084152c` before any reading, `STALE` before publication. The branch was
+brought forward and **every figure below was re-derived on the new base**, which is #320's ruling
+and is also this record's own subject arriving on it: the first measurement was correct and its base
+was gone. Each tracker figure is stated at the second base and moves whenever anybody comments; each
+tree figure re-derived unchanged except where said.
 
-**The naive gate catches almost nothing.** Of 357 coordinate occurrences in open tracker records, 355
-name a file that resolves and **2 name a line beyond that file's end**. *Had the class been
-line-numbers-pointing-past-EOF, that count would be most of 357; it is two, both the same coordinate
-on one ticket.* A check asking *does line N exist* fires on 0.6% of the population. The defect is a
-line that is present and says something else.
+**The naive gate catches almost nothing.** Of 328 coordinate occurrences in the 67 open tracker
+records and their 464 comments, 327 name a file that resolves and **one names a line beyond that
+file's end**. *Had the class been line-numbers-pointing-past-EOF, that count would be most of 328;
+it is one.* A check asking *does line N exist* fires on 0.3% of the population. The defect is a line
+that is present and says something else.
 
-**The remedy is already the practice.** 314 of the 326 occurrences outside fenced blocks — **96%** —
+**The remedy is already the practice.** 293 of the 305 occurrences outside fenced blocks — **96%** —
 carry a symbol name, a quoted span, a prose quotation or a quoted block in the same paragraph. What
 is missing is not the content but a rule naming which of the two a reader resolves by.
 
-**The population is invisible to the grader that owns tracker citations.** 347 of 357 occurrences are
-bare prose rather than URLs, and `tracker_branch_scope` reads only URL and Markdown-link destinations.
+**The population is invisible to the grader that owns tracker citations.** Nearly every occurrence is
+bare prose rather than URLs — 318 of 328 — and `tracker_branch_scope` reads only URL and Markdown-link
+destinations.
 Re-derived in-process against the live module:
 
 ```
@@ -58,7 +60,7 @@ prose_outside_fences("use `tools/foo.py:12` here")  -> 'use `tools/foo.py:12` he
 ```
 
 **`docs/adr/` is the larger and more decayed population, and it is reachable.** 369 coordinates
-outside fenced blocks across 187 records, 92% anchored, and **23 of the 369 name a file that no
+outside fenced blocks across 189 records, 92% anchored, and **23 of the 369 name a file that no
 longer resolves at all** — 6%, against effectively none in the tracker. Tracked Markdown outside
 `docs/adr/` holds **zero**, which is ADR 0139 ruling 5's ratchet holding.
 
@@ -66,9 +68,11 @@ longer resolves at all** — 6%, against effectively none in the tracker. Tracke
 #987's three ADR-into-ADR citations still resolve while every `tools/*.py` citation had drifted, and
 proposed *what the coordinate points into* as a cheaper key than record kind. Only **10** of the 369
 `docs/adr/` coordinates point into another ADR, so the observation rests on about three instances.
-The two other proposed keys fail outright: four repeat-sweeps that copied one coordinate forward
-without re-measuring all carried base commits, and `ready-for-agent` covers 30 of 357 occurrences on
-exactly **one** ticket.
+The two other proposed keys fail outright. Four repeat-sweeps that copied one coordinate forward
+without re-measuring all carried base commits. And `ready-for-agent` covered 30 of 357 occurrences on
+exactly **one** ticket at the first base and covers **zero** at the second, that ticket having left
+the open set inside the session — so the key is not merely narrow, it is volatile enough that two
+honest measurements hours apart disagree about whether it selects anything at all.
 
 **Commit messages carry 34 occurrences across 25 of the last 1500 commits.**
 
@@ -109,7 +113,7 @@ passage no longer exists in any form. The anchor does not recover it; it stops t
 plausible neighboring line for the rule.
 
 **Considered and rejected: ban it, as tracked prose bans it.** ADR 0139 ruling 5 took a zero ratchet
-because the population was already two. Here it is 326, and the ticket's own *what must not come out
+because the population was already two. Here it is 305, and the ticket's own *what must not come out
 of this* forbids a gate that fires on a dated sweep measurement — those are the passes that found the
 class.
 
@@ -123,10 +127,15 @@ the instances the thread found by hand rather than by any check.
 
 Measured against the live corpus:
 
-| window | complies | violates |
-| --- | ---: | ---: |
-| same physical line, or the block beneath | 78% | 79 |
-| same paragraph, or the block beneath | **96%** | **12** |
+| window | complies | violates | records |
+| --- | ---: | ---: | ---: |
+| same physical line, or the block beneath | 88% | 37 | 11 |
+| same paragraph, or the block beneath | **96%** | **12** | **8** |
+
+Both rows are one instrument over one population of 305. A draft of this table paired the line row
+from a cruder pass — no fence masking, no prose quotations — against the paragraph row from the final
+one, reading 78% against 96% and overstating the gap by ten points. Caught by re-deriving on the new
+base rather than by anything that fails.
 
 The line window fails on the commonest correct shape — a coordinate, a colon, and the quoted content
 as its own block — and on a bulleted item whose symbol opens the bullet. The anchor vocabulary is a
@@ -224,7 +233,7 @@ residue and let it fire.
 
 ## Ruling 8. Nothing already published is repaired, and no harvest is built
 
-The 314 stale-but-anchored coordinates need nothing — the anchor beside them still resolves. The 12
+The 293 stale-but-anchored coordinates need nothing — the anchor beside them still resolves. The 12
 unanchored ones are comments, and `docs/agents/issue-tracker.md` says *"Do not rewrite or delete the
 dated branch-state record after merge. A comment is evidence of what was true when written."* That
 answers the ticket's decision 4: **no.**
@@ -234,8 +243,9 @@ decisive: a missing Filed-from line **can** be added to a body, which is what th
 unanchored coordinate in a published comment has no repair ADR 0048 permits. A harvest would produce a
 standing list nobody may act on, which reads as a backlog and is a monument.
 
-The one actionable slice is a `ready-for-agent` body, which can be respec'd. That is 30 of 357
-occurrences on a single ticket — a sentence in the respec instruction, not a mode.
+The one actionable slice is a `ready-for-agent` body, which can be respec'd. That was 30 of 357
+occurrences on a single ticket at the first base and is zero at the second — a sentence in the respec
+instruction, not a mode.
 
 ## Ruling 9. Tracker surfaces only, and commit messages are out on a stated property
 
