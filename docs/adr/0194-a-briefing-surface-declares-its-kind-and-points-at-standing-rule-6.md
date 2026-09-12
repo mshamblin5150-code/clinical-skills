@@ -219,16 +219,28 @@ same file partition derives it. One edit removes two hand-kept populations.
 
 ## Ruling 8. The browser-brief family is filed rather than widened
 
-Three skills send a research or refutation subagent into the clinician's signed-in Chrome, and a
-recorded incident on 2026-09-10 had one navigate the tab the run later posts from. The
-authenticated-route rule is already copied four times across `discussion-post` and
-`discussion-reply`; the own-tab rule is stated nowhere.
+A recorded incident on 2026-09-10 had a refutation subagent navigate the clinician's live Canvas tab
+away, the tab the run later posts from. The authenticated-route rule is already copied four times
+across `discussion-post` and `discussion-reply`; the own-tab rule is stated nowhere.
 
 That is this record's shape and not its subject. The four rules here are all about who writes and
 who reads a record; the browser rules are about not disturbing the clinician's live session, and
-nothing about the rulings above changes if they exist. **It is filed as its own ticket.** The
-mechanism ruled here — standing rule 6 as the home, a declared kind, a two-level derived
+nothing about the rulings above changes if they exist.
+
+**It is already filed, as
+[#1120](https://github.com/mshamblin5150-code/clinical-skills/issues/1120), and that ticket is wider
+than this thread priced it.** The grilling sized the family at the three skills #962's comment
+names; #1120 re-derived six, because `course-assignment`, `peer-critique` and
+`setup-clinical-skills` also reach the signed-in session. *Had the split been the three, its
+`grep -ln` would print three files; it prints six.* Nothing further is filed here, and the widening
+is recorded because it was found by searching the tracker before filing rather than by the
+measurement above.
+
+The mechanism ruled here — standing rule 6 as the home, a declared kind, a two-level derived
 population — holds a browser rule with no redesign, and that is asserted rather than measured.
+**It does not settle #1120's first decision.** A browser rule governs a side effect on the
+clinician's session rather than who writes or reads a record, so whether standing rule 6 is its home
+too is that ticket's question and not this one's.
 
 ## What this record does not settle
 
