@@ -1371,6 +1371,27 @@ when that read fails it reports the rule `NOT GRADED` and does not refuse on it.
 `PUBLISH_ROUTES` owns command classification; the settings condition is only a
 cost guard.
 
+`tracker_publish_hook.COMMAND_TOOLS` is the shared roster of command-bearing
+tools and the shell each carries. `Bash` and `Monitor` carry the modeled bash
+grammar and use the precise classifier; `PowerShell` is unmodeled, so a loose
+classifier recognizes only a likely `PUBLISH_ROUTES` publication and refuses it
+unread. The loose and precise anchors deliberately disagree: a false refusal
+costs a retype through `Bash`, while a missed publication cannot be withdrawn.
+Read-only `gh` commands remain outside both publication paths. The `Bash`
+registration keeps its cost guard; the `PowerShell` and `Monitor` registrations
+have no `if` condition.
+
+`tools/command_tool_roster.py --session-end` is a separate `SessionEnd` hook.
+It reads every command-bearing tool name in the supplied transcript, including
+subagent transcripts, and compares that population with `COMMAND_TOOLS`. A
+complete read exits 0 and writes its counts-free report to hook debug output.
+An unreadable transcript or an unregistered command tool exits 2 and writes a
+counts-free finding to stderr; `SessionEnd` displays that finding but cannot
+block termination or prevent a publication that already occurred. This is a
+completeness report, not a roster-enforcement gate. Its complete boundary is
+`command_tool_roster.DECLARED_LIMITS`; this section points to that object and
+copies none of its rows.
+
 The hook protocol returns exit 0 with an allow-or-deny decision in its JSON
 response. Its manual `--text` mode returns 0 when no refusing finding exists, 1
 when one does, and 2 when the input cannot be read. PHI findings remain
@@ -1474,7 +1495,11 @@ states the derived-section denominator and how many differed. There is no
 The `PostToolUse` hook in `tools/implementation_map_post_hook.py` adds context
 after a ready-ticket flip or a command that lands branch ADRs on the default
 branch. It reads no tracker record and never refuses the completed command. Its
-complete boundary belongs to `implementation_map_post_hook.DECLARED_LIMITS`;
+modeled tools use the shared command reader; an unmodeled tool receives context
+stating that no implementation-map work was derived and must be inspected by
+hand. The three tool registrations mirror `COMMAND_TOOLS`, with no `if`
+condition on any of them. The complete boundary belongs to
+`implementation_map_post_hook.DECLARED_LIMITS`;
 this section points to that object and copies none of its rows.
 
 The complete boundary belongs to `implementation_map.DECLARED_LIMITS`; this
