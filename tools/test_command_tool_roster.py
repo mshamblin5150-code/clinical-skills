@@ -165,6 +165,23 @@ class TranscriptRoster(unittest.TestCase):
         self.assertIn("commands read: 1", stderr)
         self.assertIn("unread: 1", stderr)
 
+    def test_an_unreadable_transcript_reports_every_coverage_field(self) -> None:
+        payload = json.dumps(
+            {
+                "hook_event_name": "SessionEnd",
+                "transcript_path": "no-such-transcript.jsonl",
+            }
+        )
+
+        status, stdout, stderr = invoke_main(["--session-end"], payload)
+
+        self.assertEqual(status, 2)
+        self.assertEqual(stdout, "")
+        self.assertIn("command-tool roster: NOT CHECKED", stderr)
+        self.assertIn("command fields: NOT READ", stderr)
+        self.assertIn("commands read: NOT READ", stderr)
+        self.assertIn("unread: NOT READ", stderr)
+
     def test_a_subagent_session_is_scanned(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             transcript = Path(directory) / "subagent.jsonl"

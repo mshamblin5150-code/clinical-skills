@@ -39,6 +39,9 @@ DECLARED_LIMITS = (
     ),
 )
 NOT_REACHED = tuple(reason for _subject, reason in DECLARED_LIMITS)
+NOT_READ_COVERAGE = (
+    "command fields: NOT READ; commands read: NOT READ; unread: NOT READ"
+)
 
 
 @dataclass(frozen=True)
@@ -121,13 +124,20 @@ def session_end(payload: object) -> Scan:
 def main(argv: list[str] | None = None) -> int:
     arguments = list(sys.argv[1:] if argv is None else argv)
     if arguments != ["--session-end"]:
-        print("command-tool roster: NOT CHECKED -- unsupported arguments", file=sys.stderr)
+        print(
+            "command-tool roster: NOT CHECKED -- unsupported arguments; "
+            + NOT_READ_COVERAGE,
+            file=sys.stderr,
+        )
         return 2
     try:
         scan = session_end(json.load(sys.stdin))
     except (UnicodeError, json.JSONDecodeError, ValueError) as exc:
         print(
-            "command-tool roster: NOT CHECKED -- " + str(exc),
+            "command-tool roster: NOT CHECKED -- "
+            + str(exc)
+            + "; "
+            + NOT_READ_COVERAGE,
             file=sys.stderr,
         )
         return 2
