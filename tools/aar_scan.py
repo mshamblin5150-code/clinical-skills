@@ -11,6 +11,7 @@ It keeps human turns, assistant text, subagent result bodies, and tool names and
 statuses. Tool-result bodies are otherwise dropped. The packet fixes the
 candidate population; a fresh adversarial reader, not this command, classifies
 which candidates are observed corrections and writes the review record.
+``ENTRY_KINDS`` owns the extract label vocabulary and its generated legend.
 
 The second form grades that record. Counts are safe to paste; ``--show`` names
 private findings and must not be pasted. A run directory and every artifact
@@ -22,7 +23,8 @@ that object and does not maintain a second copy of its rows. #814.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from datetime import datetime, timezone
 from hashlib import sha256
 import json
 from pathlib import Path
@@ -40,6 +42,7 @@ import run_grader
 
 
 NOT_GRADED = run_grader.NOT_GRADED
+REVIEW_CLASSIFIER_ENTRY_CUTOFF = datetime(2026, 9, 12, tzinfo=timezone.utc)
 
 
 SCOPED_SKILLS = frozenset(
@@ -89,10 +92,102 @@ CORRECTORS = frozenset({"clinician", "agent-or-tool", "orchestrator"})
 PRIVATE_TEXT_SUFFIXES = frozenset({".md", ".txt", ".json"})
 SUBAGENT_TOOLS = frozenset({"Agent", "Task", "Monitor", "TaskStop"})
 
+ENTRY_KIND_DESCRIPTIONS: Mapping[str, str] = MappingProxyType(
+    {
+        "clinician": "user row with no harness flag or recognized envelope",
+        "assistant": "assistant text block",
+        "tool-call": "tool invocation",
+        "tool-status": "tool completion status",
+        "subagent-launch": "subagent launch acknowledgment",
+        "subagent-result": "subagent return body",
+        "task-notification": "task notification envelope",
+        "skill-prompt": "flagged skill prompt injection",
+        "harness-meta": "flagged harness row with no recognized envelope",
+        "compaction-summary": "harness compaction summary",
+        "inter-agent-metadata": "Codex inter-agent communication marker",
+        "system-reminder": "system reminder envelope",
+        "command-name": "command-name envelope",
+        "local-command-stdout": "local command output envelope",
+        "ci-monitor-event": "CI monitor envelope",
+        "recommended-plugins": "recommended-plugins envelope",
+        "codex-delegation": "Codex delegation envelope",
+        "environment-context": "environment-context envelope",
+        "prior-review": "a prior classifier return identified by its review record",
+    }
+)
+ENTRY_KINDS = tuple(ENTRY_KIND_DESCRIPTIONS)
+ENVELOPE_KINDS: Mapping[str, str] = MappingProxyType(
+    {
+        "task-notification": "task-notification",
+        "system-reminder": "system-reminder",
+        "command-name": "command-name",
+        "local-command-stdout": "local-command-stdout",
+        "ci-monitor-event": "ci-monitor-event",
+        "recommended_plugins": "recommended-plugins",
+        "codex_delegation": "codex-delegation",
+        "environment_context": "environment-context",
+    }
+)
+ENVELOPE_ENTRY_KINDS = frozenset(
+    {
+        "task-notification",
+        "system-reminder",
+        "command-name",
+        "local-command-stdout",
+        "ci-monitor-event",
+        "recommended-plugins",
+        "codex-delegation",
+        "environment-context",
+    }
+)
+ENVELOPE_TAG = re.compile(r"<(?P<tag>[a-z][a-z0-9_-]*)(?:\s|>)")
+TASK_ID = re.compile(r"<task-id>\s*(?P<id>[^<\s]+)\s*</task-id>")
+TOOL_USE_ID = re.compile(r"<tool-use-id>\s*(?P<id>[^<\s]+)\s*</tool-use-id>")
+AGENT_ID = re.compile(r"(?im)^agentId:\s*(?P<id>\S+)")
+SKILL_PROMPT_PREFIX = "Base directory for this skill:"
+SUBAGENT_LAUNCH_PREFIX = "Async agent launched successfully."
+CODEX_ROW_TYPES = frozenset(
+    {
+        "event_msg",
+        "response_item",
+        "turn_context",
+        "token_usage_record",
+        "inter_agent_communication_metadata",
+        "world_state",
+        "session_meta",
+        "compacted",
+    }
+)
+CODEX_RESPONSE_TYPES = frozenset(
+    {
+        "agent_message",
+        "custom_tool_call",
+        "custom_tool_call_output",
+        "function_call",
+        "function_call_output",
+        "message",
+        "reasoning",
+    }
+)
+CLAUDE_ROW_TYPES = frozenset(
+    {
+        "assistant",
+        "attachment",
+        "file-history-snapshot",
+        "progress",
+        "queue-operation",
+        "system",
+        "user",
+    }
+)
+
 ROWS: Mapping[str, str] = MappingProxyType(
     {
         "missing-review": "the submission has no review record",
         "unscannable-review": "the review record or its evidence cannot be scanned",
+        "unscannable-extract": "the extract cannot be scanned",
+        "missing-classifier-entry": "a post-cutoff review does not identify its classifier return",
+        "unmarked-prior-review": "a prior watermark has no classifier return identity",
         "missing-header-field": "a required review header field is absent",
         "wrong-submission": "the review names another submission",
         "non-numeric-coverage": "the population or unread count is not numeric",
@@ -149,6 +244,10 @@ DECLARED_LIMITS = (
         "run-key discovery",
         "SessionEnd can point only to an existing run directory named in a retained tool call; a scoped sitting that never named one cannot be pointed at safely.",
     ),
+    (
+        "subagent launch-result drift",
+        "Launch accounting covers only this extract population and an unjoined launch means only that no matching result is present in this population.",
+    ),
 )
 NOT_REACHED = tuple(reason for _subject, reason in DECLARED_LIMITS)
 
@@ -188,6 +287,7 @@ class Candidate:
     transcript_id: str
     kind: str
     text: str
+    aliases: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -215,6 +315,22 @@ class Review:
 @dataclass(frozen=True)
 class Finding(run_grader.Finding):
     detail: str
+
+
+class UnknownExtractFormat(ValueError):
+    pass
+
+
+@dataclass(frozen=True)
+class ExtractDiagnostics:
+    harness_versions: tuple[str, ...]
+    undeclared_envelopes: int
+    undeclared_codex_row_types: int
+    undeclared_codex_payload_types: int
+    subagent_launches: int
+    joined_results: int
+    unjoined_launches: int
+    notifications_without_join_key: int
 
 
 @dataclass(frozen=True)
@@ -260,6 +376,25 @@ def _codex_content_text(payload: Mapping[str, Any], block_type: str) -> str:
         for block in content
         if isinstance(block, dict) and block.get("type") == block_type
     ).strip()
+
+
+def _codex_compaction_text(payload: Mapping[str, Any]) -> str:
+    direct = _text(payload.get("message")).strip()
+    if direct:
+        return direct
+    history = payload.get("replacement_history")
+    if not isinstance(history, list):
+        return "compaction summary unavailable"
+    for item in reversed(history):
+        if not isinstance(item, dict) or item.get("type") != "compaction":
+            continue
+        for field in ("summary", "message", "text"):
+            value = _text(item.get(field)).strip()
+            if value:
+                return value
+        if item.get("encrypted_content"):
+            return "encrypted compaction summary"
+    return "compaction summary unavailable"
 
 
 def read_transcript(path: Path) -> list[dict[str, Any]]:
@@ -319,6 +454,58 @@ def _human_text(row: Mapping[str, Any]) -> str:
     return value
 
 
+def _envelope_kind(value: str) -> str | None:
+    for match in ENVELOPE_TAG.finditer(value):
+        kind = ENVELOPE_KINDS.get(match.group("tag"))
+        if kind is not None:
+            return kind
+    return None
+
+
+def _human_kind(row: Mapping[str, Any], value: str) -> str:
+    envelope = _envelope_kind(value)
+    if envelope is not None:
+        return envelope
+    if row.get("isCompactSummary") is True:
+        return "compaction-summary"
+    if row.get("isMeta") is True:
+        return "skill-prompt" if value.startswith(SKILL_PROMPT_PREFIX) else "harness-meta"
+    return "clinician"
+
+
+def _human_identifier(uuid: str, kind: str, value: str) -> str:
+    if kind == "task-notification":
+        matched = TASK_ID.search(value)
+        if matched:
+            return matched.group("id")
+    return uuid
+
+
+def _human_candidate(
+    uuid: str,
+    transcript_id: str,
+    value: str,
+    *,
+    default_kind: str,
+    row: Mapping[str, Any] | None = None,
+) -> Candidate:
+    kind = _human_kind(row, value) if row is not None else (_envelope_kind(value) or default_kind)
+    identifier = _human_identifier(uuid, kind, value)
+    return Candidate(
+        identifier,
+        transcript_id,
+        _declared_entry_kind(kind),
+        value,
+        (uuid,) if identifier != uuid else (),
+    )
+
+
+def _declared_entry_kind(kind: str) -> str:
+    if kind not in ENTRY_KINDS:
+        raise ValueError(f"undeclared extract entry kind {kind}")
+    return kind
+
+
 def reduce_transcript(path: Path) -> list[Candidate]:
     """The fixed candidate population, in transcript order."""
     rows = read_transcript(path)
@@ -330,7 +517,11 @@ def reduce_transcript(path: Path) -> list[Candidate]:
         if row.get("type") == "user":
             human = _human_text(row)
             if human:
-                candidates.append(Candidate(uuid, transcript_id, "clinician", human))
+                candidates.append(
+                    _human_candidate(
+                        uuid, transcript_id, human, default_kind="clinician", row=row
+                    )
+                )
             for index, block in enumerate(_content_blocks(row.get("message")), 1):
                 if block.get("type") != "tool_result":
                     continue
@@ -350,7 +541,11 @@ def reduce_transcript(path: Path) -> list[Candidate]:
                             Candidate(
                                 f"{uuid}#subagent-{index}",
                                 transcript_id,
-                                "subagent-result",
+                                _declared_entry_kind(
+                                    "subagent-launch"
+                                    if body.startswith(SUBAGENT_LAUNCH_PREFIX)
+                                    else "subagent-result"
+                                ),
                                 body,
                             )
                         )
@@ -365,12 +560,13 @@ def reduce_transcript(path: Path) -> list[Candidate]:
         elif row.get("type") == "assistant":
             for index, block in enumerate(_content_blocks(row.get("message")), 1):
                 if block.get("type") == "text" and _text(block.get("text")).strip():
+                    body = _text(block.get("text")).strip()
                     candidates.append(
-                        Candidate(
+                        _human_candidate(
                             f"{uuid}#text-{index}",
                             transcript_id,
-                            "assistant",
-                            _text(block.get("text")).strip(),
+                            body,
+                            default_kind="assistant",
                         )
                     )
                 elif block.get("type") == "tool_use":
@@ -392,7 +588,12 @@ def reduce_transcript(path: Path) -> list[Candidate]:
                 body = _codex_content_text(payload, block_type)
                 if body and role in {"user", "assistant"}:
                     candidates.append(
-                        Candidate(identifier, transcript_id, "clinician" if role == "user" else "assistant", body)
+                        _human_candidate(
+                            identifier,
+                            transcript_id,
+                            body,
+                            default_kind="clinician" if role == "user" else "assistant",
+                        )
                     )
             elif payload_type in {"custom_tool_call", "function_call"}:
                 candidates.append(
@@ -408,6 +609,35 @@ def reduce_transcript(path: Path) -> list[Candidate]:
                 body = _codex_content_text(payload, "input_text")
                 if body:
                     candidates.append(Candidate(identifier, transcript_id, "subagent-result", body))
+        elif row.get("type") == "compacted":
+            payload = row.get("payload")
+            body = _codex_compaction_text(payload if isinstance(payload, dict) else {})
+            candidates.append(Candidate(uuid, transcript_id, "compaction-summary", body))
+        elif row.get("type") == "inter_agent_communication_metadata":
+            candidates.append(
+                Candidate(uuid, transcript_id, "inter-agent-metadata", "inter-agent communication metadata")
+            )
+        elif row.get("type") == "attachment":
+            attachment = row.get("attachment")
+            body = (
+                _text(attachment.get("prompt")).strip()
+                if isinstance(attachment, dict)
+                else ""
+            )
+            if body:
+                candidates.append(
+                    _human_candidate(
+                        uuid, transcript_id, body, default_kind="harness-meta"
+                    )
+                )
+        elif row.get("type") == "queue-operation":
+            body = _text(row.get("content")).strip()
+            if body:
+                candidates.append(
+                    _human_candidate(
+                        uuid, transcript_id, body, default_kind="harness-meta"
+                    )
+                )
     return candidates
 
 
@@ -475,11 +705,11 @@ def snapshot(memory_index: Path) -> dict[str, str | None]:
     return {str(path.resolve()): _hash(path) for path in paths}
 
 
-def _last_watermarks(run: Path) -> dict[str, str]:
-    watermarks: dict[str, str] = {}
+def _review_cursors(run: Path) -> dict[str, list[tuple[str, str]]]:
+    cursors: dict[str, list[tuple[str, str]]] = {}
     root = run / "aar"
     if not root.is_dir():
-        return watermarks
+        return cursors
     for path in sorted(root.glob("*.md")):
         if path.name.endswith(".extract.md"):
             continue
@@ -489,14 +719,50 @@ def _last_watermarks(run: Path) -> dict[str, str]:
             continue
         transcripts = [value.strip() for value in review.fields.get("TRANSCRIPTS", "").split(",")]
         if transcripts and review.fields.get("WATERMARK"):
-            watermarks[transcripts[-1]] = review.fields["WATERMARK"]
-    return watermarks
+            cursors.setdefault(transcripts[-1], []).append(
+                (
+                    review.fields["WATERMARK"],
+                    review.fields.get("CLASSIFIER-ENTRY", ""),
+                )
+            )
+    return cursors
+
+
+def _furthest_cursor(
+    rows: Iterable[Candidate], cursors: Iterable[tuple[str, str]]
+) -> tuple[str, str] | None:
+    candidates_by_identifier = {
+        identifier: index
+        for index, candidate in enumerate(rows)
+        for identifier in (candidate.identifier, *candidate.aliases)
+    }
+    available = tuple(cursors)
+    if not available:
+        return None
+    return max(
+        available,
+        key=lambda cursor: candidates_by_identifier.get(cursor[0], -1),
+    )
+
+
+def _unmarked_prior_reviews(run: Path, transcripts: Iterable[Path]) -> int:
+    cursors = _review_cursors(run)
+    return sum(
+        1
+        for transcript in transcripts
+        for selected in [_furthest_cursor(reduce_transcript(transcript), cursors.get(transcript.stem, ()))]
+        if selected is not None and not _substance(selected[1])
+    )
 
 
 def _after_watermark(candidates: list[Candidate], watermark: str | None) -> list[Candidate]:
     if watermark is None:
         return candidates
-    indexes = [index for index, row in enumerate(candidates) if row.identifier == watermark]
+    indexes = [
+        index
+        for index, row in enumerate(candidates)
+        if row.identifier == watermark or watermark in row.aliases
+    ]
     if not indexes:
         raise ValueError("prior watermark is not in its transcript population")
     return candidates[indexes[-1] + 1 :]
@@ -512,7 +778,7 @@ def collect_population(run: Path, transcript: Path) -> tuple[list[Candidate], tu
         if orphan.resolve() != transcript.resolve():
             transcripts.append(orphan)
     transcripts.append(transcript)
-    watermarks = _last_watermarks(run)
+    cursors = _review_cursors(run)
     population: list[Candidate] = []
     seen: set[str] = set()
     for source in transcripts:
@@ -520,8 +786,84 @@ def collect_population(run: Path, transcript: Path) -> tuple[list[Candidate], tu
             continue
         seen.add(source.stem)
         rows = reduce_transcript(source)
-        population.extend(_after_watermark(rows, watermarks.get(source.stem)))
+        selected = _furthest_cursor(rows, cursors.get(source.stem, ()))
+        watermark, prior_review = selected or ("", "")
+        current = _after_watermark(rows, watermark or None)
+        if prior_review:
+            current = [
+                replace(candidate, kind="prior-review")
+                if candidate.identifier == prior_review
+                else candidate
+                for candidate in current
+            ]
+        population.extend(current)
     return population, tuple(transcripts)
+
+
+def _notification_keys(value: str) -> set[str]:
+    return {
+        match.group("id")
+        for pattern in (TASK_ID, TOOL_USE_ID)
+        for match in pattern.finditer(value)
+    }
+
+
+def extract_diagnostics(
+    transcripts: Iterable[Path], population: Iterable[Candidate]
+) -> ExtractDiagnostics:
+    candidates = tuple(population)
+    rows = [row for path in transcripts for row in read_transcript(path)]
+    versions = tuple(sorted({_text(row.get("version")) for row in rows if _text(row.get("version"))}))
+    codex = any(row.get("type") in CODEX_ROW_TYPES for row in rows)
+    undeclared_rows = (
+        sum(
+            1
+            for row in rows
+            if _text(row.get("type")) not in CODEX_ROW_TYPES | CLAUDE_ROW_TYPES
+        )
+        if codex
+        else 0
+    )
+    undeclared_payloads = sum(
+        1
+        for row in rows
+        if row.get("type") == "response_item"
+        and _text(_codex_payload(row).get("type")) not in CODEX_RESPONSE_TYPES
+    )
+    undeclared_envelopes = sum(
+        1
+        for candidate in candidates
+        if candidate.kind not in ENVELOPE_ENTRY_KINDS
+        for match in ENVELOPE_TAG.finditer(candidate.text)
+        if match.group("tag") not in ENVELOPE_KINDS
+    )
+    launches = [candidate for candidate in candidates if candidate.kind == "subagent-launch"]
+    launch_keys = {
+        matched.group("id")
+        for candidate in launches
+        for matched in [AGENT_ID.search(candidate.text)]
+        if matched is not None
+    }
+    notifications = [candidate for candidate in candidates if candidate.kind == "task-notification"]
+    result_keys = {
+        key
+        for candidate in notifications
+        if "<result>" in candidate.text
+        for key in _notification_keys(candidate.text)
+    }
+    joined = len(launch_keys & result_keys)
+    return ExtractDiagnostics(
+        harness_versions=versions,
+        undeclared_envelopes=undeclared_envelopes,
+        undeclared_codex_row_types=undeclared_rows,
+        undeclared_codex_payload_types=undeclared_payloads,
+        subagent_launches=len(launches),
+        joined_results=joined,
+        unjoined_launches=len(launches) - joined,
+        notifications_without_join_key=sum(
+            1 for candidate in notifications if not _notification_keys(candidate.text)
+        ),
+    )
 
 
 def write_extract(
@@ -535,24 +877,43 @@ def write_extract(
         raise ValueError("candidate population is empty")
     destination = extract_path(run, submission)
     destination.parent.mkdir(parents=True, exist_ok=True)
+    diagnostics = extract_diagnostics(transcripts, population)
     lines = [
         "# PRIVATE AAR EXTRACT",
+        "FORMAT: 2",
+        "EXTRACTED-AT: " + datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         f"SUBMISSION: {submission}",
         "TRANSCRIPTS: " + ", ".join(path.stem for path in transcripts),
         "TRANSCRIPT-PATHS: " + " | ".join(str(path.resolve()) for path in transcripts),
         f"POPULATION: {len(population)}",
         f"WATERMARK: {population[-1].identifier}",
         f"MEMORY-INDEX: {memory_index.resolve()}",
+        "HARNESS-VERSIONS: " + (", ".join(diagnostics.harness_versions) or "none observed"),
+        f"UNDECLARED-ENVELOPES: {diagnostics.undeclared_envelopes}",
+        f"UNDECLARED-CODEX-ROW-TYPES: {diagnostics.undeclared_codex_row_types}",
+        f"UNDECLARED-CODEX-PAYLOAD-TYPES: {diagnostics.undeclared_codex_payload_types}",
+        f"SUBAGENT-LAUNCHES: {diagnostics.subagent_launches}",
+        f"SUBAGENT-JOINED-RESULTS: {diagnostics.joined_results}",
+        f"SUBAGENT-UNJOINED: {diagnostics.unjoined_launches}",
+        f"NOTIFICATIONS-WITHOUT-JOIN-KEY: {diagnostics.notifications_without_join_key}",
+        f"UNMARKED-PRIOR-REVIEWS: {_unmarked_prior_reviews(run, transcripts)}",
+        "ENTRY-KINDS: "
+        + " | ".join(
+            f"{kind} = {description}"
+            for kind, description in ENTRY_KIND_DESCRIPTIONS.items()
+        ),
         "",
     ]
     for row in population:
+        text_lines = row.text.splitlines() or [""]
         lines.extend(
             [
                 f"## ENTRY: {row.identifier}",
                 f"TRANSCRIPT: {row.transcript_id}",
                 f"KIND: {row.kind}",
+                f"TEXT-LINES: {len(text_lines)}",
                 "TEXT:",
-                row.text,
+                *text_lines,
                 "",
             ]
         )
@@ -631,17 +992,73 @@ def _extract_metadata(path: Path) -> tuple[dict[str, str], set[str]]:
         lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
     except OSError as exc:
         raise ValueError(f"cannot read extract {path.name}") from exc
-    fields = _parse_fields(lines[:8])
-    identifiers = {
-        line.partition(":")[2].strip()
-        for line in lines
-        if line.startswith("## ENTRY:")
-    }
+    try:
+        header_end = lines.index("")
+    except ValueError as exc:
+        raise ValueError("extract header has no blank-line terminator") from exc
+    fields = _parse_fields(lines[:header_end])
+    format_version = fields.get("FORMAT", "1")
+    if format_version == "1":
+        identifiers = {
+            line.partition(":")[2].strip()
+            for line in lines[header_end + 1 :]
+            if line.startswith("## ENTRY:")
+        }
+        return fields, identifiers
+    if format_version != "2":
+        raise UnknownExtractFormat(f"unknown extract format {format_version}")
+    if not fields.get("EXTRACTED-AT"):
+        raise ValueError("format 2 extract has no EXTRACTED-AT field")
+    _utc_timestamp(fields["EXTRACTED-AT"], "EXTRACTED-AT")
+    identifiers: set[str] = set()
+    index = header_end + 1
+    while index < len(lines):
+        if not lines[index]:
+            index += 1
+            continue
+        if not lines[index].startswith("## ENTRY:"):
+            raise ValueError(f"extract entry expected at line {index + 1}")
+        identifier = lines[index].partition(":")[2].strip()
+        if not identifier or identifier in identifiers:
+            raise ValueError("extract entry identifier is absent or duplicated")
+        identifiers.add(identifier)
+        index += 1
+        entry_fields: list[str] = []
+        while index < len(lines) and not lines[index].startswith("TEXT-LINES:"):
+            entry_fields.append(lines[index])
+            index += 1
+        parsed_entry_fields = _parse_fields(entry_fields)
+        if not _substance(parsed_entry_fields.get("TRANSCRIPT", "")):
+            raise ValueError(f"extract entry {identifier} has no TRANSCRIPT field")
+        if parsed_entry_fields.get("KIND") not in ENTRY_KINDS:
+            raise ValueError(f"extract entry {identifier} has an unknown KIND field")
+        if index >= len(lines):
+            raise ValueError(f"extract entry {identifier} has no TEXT-LINES field")
+        count_value = lines[index].partition(":")[2].strip()
+        try:
+            text_lines = int(count_value)
+        except ValueError as exc:
+            raise ValueError(f"extract entry {identifier} has a non-numeric TEXT-LINES field") from exc
+        if text_lines < 0 or index + text_lines + 1 >= len(lines):
+            raise ValueError(f"extract entry {identifier} has a truncated body")
+        if lines[index + 1] != "TEXT:":
+            raise ValueError(f"extract entry {identifier} has no TEXT field")
+        index += text_lines + 2
     return fields, identifiers
 
 
 def _substance(value: str) -> bool:
     return bool(re.search(r"[A-Za-z0-9]{3}", value))
+
+
+def _utc_timestamp(value: str, label: str) -> datetime:
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ValueError(f"{label} is not an ISO timestamp") from exc
+    if parsed.tzinfo is None:
+        raise ValueError(f"{label} has no UTC offset")
+    return parsed.astimezone(timezone.utc)
 
 
 def _baseline(run: Path, submission: str) -> dict[str, str | None]:
@@ -721,16 +1138,36 @@ def survey(run: Path, submission: str) -> Scan:
         return Scan(submission, 0, 0, 0, 0, 0, len(orphan_paths(run)), (Finding("missing-review", submission),))
     try:
         review = read_review(record_path)
-        extract_fields, identifiers = _extract_metadata(extract_path(run, submission))
         baseline = _baseline(run, submission)
     except ValueError as exc:
         return Scan(submission, 1, 0, 0, 0, 0, len(orphan_paths(run)), (Finding("unscannable-review", str(exc)),))
+    try:
+        extract_fields, identifiers = _extract_metadata(extract_path(run, submission))
+    except UnknownExtractFormat:
+        raise
+    except ValueError as exc:
+        return Scan(submission, 1, 0, 0, 0, 0, len(orphan_paths(run)), (Finding("unscannable-extract", str(exc)),))
 
     for field in HEADER_FIELDS:
         value = review.fields.get(field, "")
         present = bool(value.strip()) if field in {"POPULATION", "UNREAD"} else _substance(value)
         if not present:
             findings.append(Finding("missing-header-field", field))
+    extracted_at = extract_fields.get("EXTRACTED-AT", "")
+    post_cutoff = (
+        extract_fields.get("FORMAT", "1") == "2"
+        and _utc_timestamp(extracted_at, "EXTRACTED-AT")
+        >= REVIEW_CLASSIFIER_ENTRY_CUTOFF
+    )
+    if post_cutoff and not _substance(review.fields.get("CLASSIFIER-ENTRY", "")):
+        findings.append(Finding("missing-classifier-entry", "CLASSIFIER-ENTRY"))
+    if extract_fields.get("UNMARKED-PRIOR-REVIEWS", "0") != "0":
+        findings.append(
+            Finding(
+                "unmarked-prior-review",
+                extract_fields.get("UNMARKED-PRIOR-REVIEWS", ""),
+            )
+        )
     if review.fields.get("SUBMISSION") != submission:
         findings.append(Finding("wrong-submission", review.fields.get("SUBMISSION", "")))
     try:
@@ -1035,7 +1472,13 @@ def grade(run: Path, parsed: run_grader.Parsed) -> run_grader.Grade[Scan] | run_
             ),
         )
 
-    scan = survey(run, submission)
+    try:
+        scan = survey(run, submission)
+    except UnknownExtractFormat as exc:
+        return run_grader.EarlyExit(
+            2,
+            stderr=(f"after-action review NOT SCANNED: {exc}",),
+        )
     return run_grader.Grade(
         scan=scan,
         source=run.name,
