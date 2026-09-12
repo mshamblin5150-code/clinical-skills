@@ -6,7 +6,7 @@ Sixteen tracker records, two ratified records and a standing practice rest on on
 
 [#436](https://github.com/mshamblin5150-code/clinical-skills/issues/436) rules nothing about corrections. It is titled *"guidelines_recs bound records are labels: the 160-char window cuts mid-word and reads the wrong recommendation for 44.5% of the corpus"*, and it was closed on 2026-08-29.
 
-Found by [#803](https://github.com/mshamblin5150-code/clinical-skills/issues/803)'s sweep on 2026-09-06 and filed as [#934](https://github.com/mshamblin5150-code/clinical-skills/issues/934). Re-derived 2026-09-12 against a full REST harvest of 1,157 issue records and 4,476 comments. Grilled 2026-09-12; the clinician ruled every point below on the same day.
+Found by [#803](https://github.com/mshamblin5150-code/clinical-skills/issues/803)'s sweep on 2026-09-06 and filed as [#934](https://github.com/mshamblin5150-code/clinical-skills/issues/934). Re-derived 2026-09-12 against a full REST harvest, proven complete against the GraphQL issue and pull-request totals and the comments probe's last page before it was read. That proof is required rather than tidy: [#993](https://github.com/mshamblin5150-code/clinical-skills/issues/993) records the committed REST reader returning short valid populations with status 0, and a #934 comment asked for the proof by name. The harvest's size is dated and is deliberately not restated outside this paragraph. Grilled 2026-09-12; the clinician ruled every point below on the same day.
 
 **The failure this repairs is not a broken link.** A dead citation announces itself; a live one to an unrelated closed ticket does not, and the rule being miscited is itself the rule about corrections, so the failure it describes is the one that protected it.
 
@@ -43,7 +43,7 @@ That comment is the whole authority behind sixteen records, and it makes no clai
 
 ### Two ratified records carry the miscitation
 
-[ADR 0140](0140-a-measurement-must-discriminate-and-a-re-run-is-not-a-re-derivation.md) names the real authority and then adds four words that are false:
+[ADR 0140](0140-a-measurement-must-discriminate-and-a-re-run-is-not-a-re-derivation.md) names the real authority and then adds five words that are false:
 
 > ADR 0016 rejects annotation-only correction in as many words — *a reader opens the file, reads the figure, copies it, and never scrolls to the footnote* — and #436 rules the same.
 
@@ -91,15 +91,17 @@ The eight comments have their citation corrected in place and **nothing else** �
 
 ### 5. The in-line replacement is ADR 0016, and the dated line names this record
 
-This record postdates every record being corrected, and most of the sixteen state **the ground a past session acted on** — *"Edited in place rather than commented, on #436's ruling: …"* — so pointing them here would write an anachronism into eighteen records, two of them ratified. Naming ADR 0016 in line makes the sentence true as a historical statement and checkable today; the dated line beneath carries this record as the rule that now governs.
+This record postdates every record being corrected, and most of the sixteen state **the ground a past session acted on** — *"Edited in place rather than commented, on #436's ruling: …"* — so pointing them here would write an anachronism into every one of them, two being ratified records. Naming ADR 0016 in line makes the sentence true as a historical statement and checkable today; the dated line beneath carries this record as the rule that now governs.
 
-ADR 0140's repair is therefore deleting the four words *"and #436 rules the same"* and adding the dated line.
+ADR 0140's repair is therefore deleting the five words *"and #436 rules the same"* and adding the dated line. **It carries a second instance the phrase predicate cannot see** — *"which #436's ruling makes feel authoritative"*, attributing the same phantom rule in different words — and both are repaired together.
 
-### 6. This supersedes ADR 0169 ruling 7's second sentence
+### 6. This supersedes one sentence of ADR 0169 ruling 7
 
 *"Other corrections of the body may go anywhere below the line, never above it."* is superseded by ruling 3. Its remaining sentences — the append-only line, its correction directly beneath, no escape — are untouched and become the declared exception.
 
-**Superseded by name rather than amended**, on [ADR 0058](0058-a-bound-label-reads-to-its-own-recommendation-and-every-window-adr-0029-measured-was-forward.md)'s arrangement: a reader arriving at ADR 0169 by an old link must not be standing on a falsified ground with no marker on it. *"May go anywhere below"* is a granted permission and this withdraws it, which is why it is a supersession and not a clarification.
+**Superseded by quotation rather than by ordinal**, and that is this record's own subject arriving inside it: the sentence above is ruling 7's **third**, a first draft of this heading called it the second, and ruling 7's second sentence is the one ruling 3 *preserves* — so a reader who counted would have withdrawn the exception this record grants. A live citation resolving to the wrong thing is what ADR 0191 exists to repair, and it was caught by review rather than by anything that fails.
+
+*"May go anywhere below"* is a granted permission and this withdraws it, which is why it is a supersession and not a clarification. **ADR 0169 carries a dated marker saying so**, on [ADR 0033](0033-the-scratch-baseline-is-a-count-because-the-set-is-phi-and-the-repo-is-public.md)'s arrangement rather than [ADR 0058](0058-a-bound-label-reads-to-its-own-recommendation-and-every-window-adr-0029-measured-was-forward.md)'s: a reader arriving at ADR 0169 by an old link must not be standing on a falsified ground with no marker on it, and 0058 states that reason while leaving ADR 0029 unmarked, so following it would have been inheriting the sentence without the act. The marker records the supersession and changes no ruling.
 
 ### 7. The written home is `docs/agents/issue-tracker.md`, in one paragraph
 
@@ -109,15 +111,23 @@ Both terms enter `CONTEXT.md`'s **Tracker** section with their `_Avoid_` rows. *
 
 ### 8. The pairing is reported at publication and never refused
 
-One advisory row in `tools/tracker_publish_hook.py`: a publication whose paragraph carries the rule sentence beside a `#436` reference prints a line naming the true authority, at the moment the copy happens. It **advises and never denies**, because a record legitimately discussing this defect quotes the sentence beside #436 on purpose — #934's body does, its sweep comments do, and so does this record — which is `spelling_scan`'s mention-versus-use problem, and the only exemption this repository has is backticks, which does not transfer to tracker prose.
+One advisory row in `tools/tracker_publish_hook.py`: a publication whose paragraph carries the rule sentence beside a `#436` reference prints a line naming the true authority, at the moment the copy happens. It **advises and never denies**, because a record legitimately discussing this defect quotes the sentence beside #436 on purpose — #934's body does, its sweep comments do, and so does this record — which is `spelling_scan`'s mention-versus-use problem. **Tracker prose has no mention-versus-use exemption**: the two this repository has are a backticked span in a file a scanner walks and a counted Python pragma, and the own-line marker it built when neither transferred is a tracked-file device, not something a published comment can carry.
 
-A general check is refused and stays refused: **nothing can verify that a cited ticket says what a sentence claims it says.** This grades one literal pairing with sixteen instances of evidence behind it, which is the bar `spelling_scan`'s table grows on.
+A general check is refused and stays refused: **nothing can verify that a cited ticket says what a sentence claims it says.** This grades one literal pairing, grown on the instances recorded above, which is the bar `spelling_scan`'s table grows on.
 
-### 9. The record repair is a second ticket with a derived denominator
+### 9. The record repair is a second ticket, and its denominator is derived for one part and enumerated for two
 
-The tracked half — this record, the two terms, the paragraph, the advisory row and its tests — is an ordinary pull request. #934 is respecified to the eighteen-record repair alone and is `blocked` until this record is on `main`, since every dated line cites it.
+The tracked half — this record, the two terms, the paragraph, the advisory row and its tests — is an ordinary pull request. #934 is respecified to the record repair alone.
 
-**Its closing condition is a command's output rather than a list somebody keeps.** The population is derived by the same paragraph predicate the advisory row uses, so a partial repair is measurable and the ticket closes when the count reaches zero. Every count in #934's history was hand-maintained, and every sweep that checked one found it stale.
+**The repair has three populations and only one of them is derived.** Conflating them is how a closing condition comes to mean nothing:
+
+- **The tracker records citing #436**, derived by the same paragraph predicate the advisory row uses, over a REST harvest, excluding #934's own body and comments — which quote the sentence in order to report it, and which the predicate fires on. That exclusion is one record number rather than a kept list, so the derivation survives it.
+- **#781's comment**, which carries the sentence and cites nobody. There is nothing to correct: it is the origin, and it is a member of the phrase population and of no repair.
+- **The two ratified records**, ADR 0140 and ADR 0146, which are tracked files the predicate never reads and are therefore enumerated by name. ADR 0140 carries two instances and one of them states the miscitation in words the predicate cannot match at all.
+
+**The first population's closing condition is a command's output rather than a list somebody keeps**, and that is what #934 has never had: every count in its history was hand-maintained and every sweep that checked one found it stale. The other two are closed sets of known size, and saying so is the honest form — **a derived count that silently excluded a member the instrument cannot see would be this repository's extractor-coverage rule broken inside the record citing it.**
+
+**What is not built is the walk itself.** `retired_citation_paragraphs` takes one string; nothing here harvests the tracker and applies it. #934's build spec carries that walk, importing the predicate rather than restating it, on `tracker_filed_from.py --harvest`'s precedent.
 
 ## Rejected options
 
@@ -125,11 +135,11 @@ The tracked half — this record, the two terms, the paragraph, the advisory row
 
 **Keep "advice" and define it wide in the glossary.** Rejected. A reader who has not opened `CONTEXT.md` reads the plain English word, reads it narrowly, and corrects a figure by footer. That failure is silent, which is the class this record exists for.
 
-**Leave every comment alone.** Rejected. The alternative repair is one new comment per affected ticket — fourteen more comments, each sitting below the miscitation it corrects, which is the defect wearing the repair's clothes. The 2026-09-06 wave that put the sentence on #828, #795 twice, #836 and #772 was five comments in fourteen minutes, each copying the last.
+**Leave every comment alone.** Rejected. The alternative repair is one new comment per affected ticket — fourteen more comments, each sitting below the miscitation it corrects, which is the defect wearing the repair's clothes. The 2026-09-06 wave that put the sentence on #828, #795 twice, #836 and #772 was two comments 31 seconds apart and three more inside 11 minutes, ten and a half hours later — each copying the last. *(A first draft of this sentence read "five comments in fourteen minutes", which re-derives to neither span: a figure a reader carries away, wrong in the record that defines what a carried claim is, caught by review.)*
 
 **Swap the citation with no dated line**, on the ground that GitHub's retained revision is the record. Rejected. A record that changed with no marker is one the next sweep re-derives as never having been wrong, which is how this survived seven sweeps.
 
-**Point all eighteen records at this ADR.** Rejected under ruling 5. Uniform, one string, and it makes an explicit claim about what a past session relied on false in a fresh way.
+**Point every corrected record at this ADR.** Rejected under ruling 5. Uniform, one string, and it makes an explicit claim about what a past session relied on false in a fresh way.
 
 **Refuse the pairing at publication.** Rejected under ruling 8. It refuses the ticket documenting the defect and every sweep comment reporting it, and any escape marker is one a copying session can paste too.
 

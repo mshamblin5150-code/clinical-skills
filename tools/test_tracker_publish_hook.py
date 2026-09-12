@@ -3014,14 +3014,21 @@ class TheRetiredCorrectionCitationIsReported(unittest.TestCase):
             [], [row for row in result.findings if row.posture == "deny"]
         )
 
-    def test_the_bare_number_and_the_link_form_both_count(self) -> None:
-        bare = (
-            "On #436's ruling that a correction below the advice is not a"
-            " correction for anyone who acts on the advice, this is due a body"
-            " edit."
-        )
+    def test_each_reference_form_counts_on_its_own(self) -> None:
+        """One control per branch: the published footer carries both at once.
 
-        for label, text in (("link", self.FOOTER), ("bare", bare)):
+        ``self.FOOTER`` is a Markdown link whose text is ``#436`` and whose
+        target ends ``issues/436``, so it satisfies either alternative and
+        discriminates neither. These do not.
+        """
+        forms = {
+            "bare": "On #436's ruling, no correction below the advice reaches anyone.",
+            "url only": (
+                "On https://github.com/mshamblin5150-code/clinical-skills/issues/436"
+                ", no correction below the advice reaches anyone."
+            ),
+        }
+        for label, text in forms.items():
             with self.subTest(form=label):
                 self.assertEqual(
                     [
@@ -3031,6 +3038,23 @@ class TheRetiredCorrectionCitationIsReported(unittest.TestCase):
                     ],
                     [1],
                 )
+
+    def test_a_longer_number_starting_436_is_not_the_retired_ticket(self) -> None:
+        """The word boundary is the narrowing; #4360 is a different ticket."""
+        text = "On #4360's ruling, no correction below the advice reaches anyone."
+
+        self.assertEqual(hook.retired_citation_paragraphs(text), 0)
+
+    def test_a_sentence_initial_wording_is_read(self) -> None:
+        """``test_allergy_reaction``'s case-sensitive NUMERAL, one module over.
+
+        A figure opening a sentence went silently ungraded there. Here it is the
+        rule opening one, and the defect would be latent rather than live: no
+        published member happens to capitalize it.
+        """
+        text = "On #436's ruling. Below the advice is not a correction."
+
+        self.assertEqual(hook.retired_citation_paragraphs(text), 1)
 
     def test_each_wording_is_read_on_its_own(self) -> None:
         """One control per phrase, because two in one control pass on either."""
