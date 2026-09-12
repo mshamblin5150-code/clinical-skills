@@ -48,6 +48,7 @@ import argparse
 import datetime
 import hashlib
 import json
+import os
 import re
 import subprocess
 import sys
@@ -581,14 +582,21 @@ def harvest_revision_chain(history: RevisionHistory) -> HarvestSummary:
     unread_remainder = "0" if not unread else "; ".join(dict.fromkeys(unread))
     high_water = revisions[0].revision_id if revisions else prior_high_water
     REVISION_LEDGER.parent.mkdir(parents=True, exist_ok=True)
-    REVISION_LEDGER.write_text(
-        render_revision_ledger(
-            high_water=high_water,
-            unread_remainder=unread_remainder,
-            rows=tuple(rows),
-        ),
-        encoding="utf-8",
+    temporary = REVISION_LEDGER.with_name(
+        f".{REVISION_LEDGER.name}.{uuid.uuid4().hex}.tmp"
     )
+    try:
+        temporary.write_text(
+            render_revision_ledger(
+                high_water=high_water,
+                unread_remainder=unread_remainder,
+                rows=tuple(rows),
+            ),
+            encoding="utf-8",
+        )
+        os.replace(temporary, REVISION_LEDGER)
+    finally:
+        temporary.unlink(missing_ok=True)
     print(
         f"revision chain: {len(revisions)} retained revisions; "
         f"{appended} break(s) appended; unread remainder {unread_remainder}"
