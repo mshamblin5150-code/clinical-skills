@@ -106,6 +106,10 @@ def _paragraph_lines(visible: str, line_number: int) -> tuple[int, int]:
 
 
 def _begins_block(line: str) -> bool:
+    quote = BLOCK_QUOTE.match(line)
+    while quote is not None:
+        line = line[quote.end() :]
+        quote = BLOCK_QUOTE.match(line)
     return LIST_ITEM_START.match(line) is not None or HEADING_START.match(line) is not None
 
 
@@ -120,10 +124,16 @@ def _has_paragraph_anchor(paragraph: str) -> bool:
         for match in PROSE_QUOTATION.finditer(without_coordinates)
     ):
         return True
-    return any(
-        SEARCHABLE_ANCHOR.search(match.group(1)) is not None
-        for match in BACKTICK_SPAN.finditer(without_coordinates)
-    )
+    for match in BACKTICK_SPAN.finditer(paragraph):
+        content = match.group(1)
+        remainder = PATH_COORDINATE_CEILING.sub("", content)
+        if remainder == content:
+            return bool(content.strip())
+        if SEARCHABLE_ANCHOR.search(remainder) is not None:
+            return True
+        if re.search(r"[0-9=<>+*/&|~-]", remainder):
+            return True
+    return False
 
 
 def _has_following_block(lines: list[str], paragraph_end: int) -> bool:

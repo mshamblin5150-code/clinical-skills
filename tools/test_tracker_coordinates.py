@@ -108,6 +108,17 @@ class ThePublicTextGrade(unittest.TestCase):
         )
         self.assertEqual((), coordinates.grade(quoted, "record"))
 
+    def test_list_items_inside_a_blockquote_are_distinct_paragraphs(self):
+        text = (
+            "> - `first_symbol` remains at `tools/old.py:12`.\n"
+            "> - Moved to `tools/new.py:14`."
+        )
+
+        self.assertEqual(
+            ["tools/new.py:14"],
+            [row.coordinate for row in coordinates.grade(text, "record")],
+        )
+
     def test_a_coordinate_cannot_be_its_own_quotation_or_empty_block_anchor(self):
         text = (
             'The locator is "tools/quoted.py:12".\n\n'
@@ -126,6 +137,16 @@ class ThePublicTextGrade(unittest.TestCase):
         )
 
         self.assertEqual(["tools/new.py:14"], [row.coordinate for row in findings])
+
+    def test_any_separate_nonempty_backticked_span_is_an_anchor(self):
+        for anchor in ("==", "404"):
+            with self.subTest(anchor=anchor):
+                self.assertEqual(
+                    (),
+                    coordinates.grade(
+                        f"`{anchor}` identifies tools/example.py:12.", "record"
+                    ),
+                )
 
     def test_the_recognizer_floor_documents_the_unmatched_spellings(self):
         examples = (
