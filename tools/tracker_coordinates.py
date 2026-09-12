@@ -56,9 +56,9 @@ DECLARED_LIMITS = (
 BACKTICK_SPAN = re.compile(r"(?<!`)`([^`\r\n]+)`(?!`)")
 PROSE_QUOTATION = re.compile(r'(?:"[^"\r\n]+"|“[^”\r\n]+”)')
 BLOCK_QUOTE = re.compile(r" {0,3}>[ \t]?")
-MARKDOWN_BLOCK_START = re.compile(
-    r"^(?: {0,3}(?:[-+*]|[0-9]+[.)])[ \t]+| {0,3}#{1,6}[ \t]+| {0,3}>[ \t]?)"
-)
+LIST_ITEM_START = re.compile(r"^[ \t]*(?:[-+*]|[0-9]+[.)])[ \t]+")
+HEADING_START = re.compile(r"^ {0,3}#{1,6}[ \t]+")
+SEARCHABLE_ANCHOR = re.compile(r"[A-Za-z_][A-Za-z0-9_.-]*")
 NEXT_BLOCK_LINES = 3
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -88,24 +88,42 @@ def _paragraph_lines(visible: str, line_number: int) -> tuple[int, int]:
     lines = visible.splitlines()
     start = line_number
     while start > 0 and lines[start - 1].strip():
-        if MARKDOWN_BLOCK_START.match(lines[start]):
+        if _begins_block(lines[start]) or _quote_state_changes(
+            lines[start - 1], lines[start]
+        ):
             break
         start -= 1
-        if MARKDOWN_BLOCK_START.match(lines[start]):
+        if _begins_block(lines[start]):
             break
     end = line_number + 1
     while end < len(lines) and lines[end].strip():
-        if MARKDOWN_BLOCK_START.match(lines[end]):
+        if _begins_block(lines[end]) or _quote_state_changes(
+            lines[end - 1], lines[end]
+        ):
             break
         end += 1
     return start, end
 
 
+def _begins_block(line: str) -> bool:
+    return LIST_ITEM_START.match(line) is not None or HEADING_START.match(line) is not None
+
+
+def _quote_state_changes(left: str, right: str) -> bool:
+    return (BLOCK_QUOTE.match(left) is None) != (BLOCK_QUOTE.match(right) is None)
+
+
 def _has_paragraph_anchor(paragraph: str) -> bool:
     without_coordinates = PATH_COORDINATE_CEILING.sub("", paragraph)
-    if PROSE_QUOTATION.search(without_coordinates):
+    if any(
+        SEARCHABLE_ANCHOR.search(match.group(0)) is not None
+        for match in PROSE_QUOTATION.finditer(without_coordinates)
+    ):
         return True
-    return BACKTICK_SPAN.search(without_coordinates) is not None
+    return any(
+        SEARCHABLE_ANCHOR.search(match.group(1)) is not None
+        for match in BACKTICK_SPAN.finditer(without_coordinates)
+    )
 
 
 def _has_following_block(lines: list[str], paragraph_end: int) -> bool:

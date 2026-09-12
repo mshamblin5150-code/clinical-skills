@@ -92,6 +92,22 @@ class ThePublicTextGrade(unittest.TestCase):
             [row.coordinate for row in coordinates.grade(text, "record")],
         )
 
+    def test_nested_list_items_are_distinct_but_blockquote_lines_share_a_paragraph(self):
+        nested = (
+            "    - `nested_symbol` remains at `tools/old.py:12`.\n"
+            "    - Moved to `tools/new.py:14`."
+        )
+        quoted = (
+            "> `quoted_symbol` remains stable.\n"
+            "> It is used at tools/quoted.py:15."
+        )
+
+        self.assertEqual(
+            ["tools/new.py:14"],
+            [row.coordinate for row in coordinates.grade(nested, "record")],
+        )
+        self.assertEqual((), coordinates.grade(quoted, "record"))
+
     def test_a_coordinate_cannot_be_its_own_quotation_or_empty_block_anchor(self):
         text = (
             'The locator is "tools/quoted.py:12".\n\n'
@@ -103,6 +119,13 @@ class ThePublicTextGrade(unittest.TestCase):
             ["tools/quoted.py:12", "tools/empty.py:13"],
             [row.coordinate for row in coordinates.grade(text, "record")],
         )
+
+    def test_punctuation_left_in_a_code_span_is_not_an_anchor(self):
+        findings = coordinates.grade(
+            "The location is `tools/new.py:14.`", "record"
+        )
+
+        self.assertEqual(["tools/new.py:14"], [row.coordinate for row in findings])
 
     def test_the_recognizer_floor_documents_the_unmatched_spellings(self):
         examples = (
