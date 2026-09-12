@@ -103,6 +103,14 @@ DECLARED_CANDIDATES = (
         "rests on -- so the word carries three and none narrows another.",
     ),
     Candidate(
+        "Correction",
+        Verdict.COLLISION,
+        "The bare term is an observed reversal in a session's transcript, which the "
+        "after-action review counts; an In-place correction is the repair of a carried "
+        "claim written at the claim. One is an event read off a record and the other is "
+        "an act on a published record, so neither narrows the other. Ruled 2026-09-12.",
+    ),
+    Candidate(
         "Assertion",
         Verdict.NARROWING,
         "A Promoted assertion is an assertion whose bar has become binary.",

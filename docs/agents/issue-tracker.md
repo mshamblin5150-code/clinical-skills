@@ -287,8 +287,17 @@ map's exact producer stamp is exempt.
 
 The line is append-only. A respec keeps it word for word at that position. A
 correction of the line goes on its own dated line directly beneath the
-unchanged line; every other correction may sit anywhere below it and never
-above it. When a ticket created before
+unchanged line, and no correction of anything else goes above it. **Every other
+correction is written at the text it corrects**, which is
+[ADR 0191](../adr/0191-a-carried-claim-is-corrected-where-it-stands-and-436-never-ruled-it.md)
+and supersedes the earlier permission to place one anywhere below the line: a
+**carried claim** — an instruction, a build premise, a *Done when* item, a
+figure, a coordinate, a citation — is repaired where it stands, with a dated
+line recording what it said and why it changed directly beneath it, because a
+correction below a carried claim reaches nobody who carried it. A sweep verdict
+is a dated reading rather than a carried claim and is superseded by the next
+comment rather than corrected. In a comment, whose whole text is already within
+a reader's reach, the dated line goes at the foot. When a ticket created before
 `tracker_filed_from.FILED_FROM_CUTOFF` is respecced, move its existing origin
 sentence alone beneath the fixed label word for word and leave the rest of that
 paragraph in place. If no origin sentence existed, write a Filed-from line

@@ -1396,6 +1396,15 @@ that already occurred. This is a completeness report, not a roster-enforcement
 gate. Its complete boundary is `command_tool_roster.DECLARED_LIMITS`; this
 section points to that object and copies none of its rows.
 
+One row advises and never denies on a **retired citation**: a paragraph stating
+the correct-in-place rule beside `#436`, which rules nothing about corrections.
+[ADR 0191](docs/adr/0191-a-carried-claim-is-corrected-where-it-stands-and-436-never-ruled-it.md)
+ruled it reported rather than refused, because a record discussing the defect
+quotes the pairing on purpose and tracker prose has no mention-versus-use
+exemption. The unit is the paragraph rather than a character window, measured
+rather than chosen. How narrow the row is belongs to
+`tracker_publish_hook.NOT_REACHED`; this section copies none of it.
+
 The hook protocol returns exit 0 with an allow-or-deny decision in its JSON
 response. Its manual `--text` mode returns 0 when no refusing finding exists, 1
 when one does, and 2 when the input cannot be read. PHI findings remain
