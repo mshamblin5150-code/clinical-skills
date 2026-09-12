@@ -269,6 +269,7 @@ class ACompleteRunPasses(unittest.TestCase):
 
         self.assertEqual(1, status)
         self.assertIn("editor-readback: 1", stdout.getvalue())
+        self.assertIn("editor HTML units read: 1 of 1; unread 0", stdout.getvalue())
 
     def test_a_changed_block_quotation_cannot_hide_outside_paragraphs(self):
         with tempfile.TemporaryDirectory() as temp:

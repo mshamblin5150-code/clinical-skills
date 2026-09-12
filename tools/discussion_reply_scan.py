@@ -333,15 +333,20 @@ def _editor_readback_result(
     units_read = 0
     units_total = 0
     for pair in source.editor_pairs:
+        built = _editor_shape(pair.built) if pair.built is not None else None
+        readback = (
+            _editor_shape(pair.readback) if pair.readback is not None else None
+        )
+        for shape in (built, readback):
+            if shape is not None:
+                units_read += shape.read
+                units_total += shape.total
         if pair.built is None:
             detail = "editor readback exists without the built HTML"
         elif pair.readback is None:
             detail = "built HTML has no editor readback"
         else:
-            built = _editor_shape(pair.built)
-            readback = _editor_shape(pair.readback)
-            units_read += built.read + readback.read
-            units_total += built.total + readback.total
+            assert built is not None and readback is not None
             differences: list[str] = []
             if built.read != built.total:
                 differences.append(f"built HTML units read {built.read} of {built.total}")
