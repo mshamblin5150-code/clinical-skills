@@ -3,7 +3,15 @@
 Out of [#966](https://github.com/mshamblin5150-code/clinical-skills/issues/966), grilled on
 2026-09-12. Nothing is built here; this is the record the build reads.
 
-**Measured at:** 7c555b7e8e579991c74f1a06a9329d72a472a2a5
+**Measured at:** a78175614fcdd744afff2e9fbfcd6c65c27b6185
+
+*Re-declared from `7c555b7e` on 2026-09-12. The base moved once between the last measurement and
+this edit, and every artifact the figures below rest on — `tools/implementation_map.py`,
+`tools/artifact_lock.py`, `tools/test_implementation_map.py`, `CONTEXT.md` and `CLAUDE.md` — is
+byte-identical across that move, which carried two ADR files and nothing else. The figures therefore
+re-derive by construction rather than by re-running them, and the record is re-declared to one base
+as [ADR 0196](0196-a-published-figure-names-its-population-and-is-re-derived-at-publication.md)
+ruling 7 requires.*
 
 #966 reported that two sequential placements each succeeded and each dropped the other's packet, and
 named three causes: a time-of-check-to-time-of-use window between the state-hash comparison and the
@@ -327,7 +335,14 @@ harvest with no denominator and no unread remainder, so a harvest that drops the
 print *"no implementation map … Run `init` to create one"* — an instruction pointing at the weakest
 writer. That is
 [#993](https://github.com/mshamblin5150-code/clinical-skills/issues/993)'s class, inherited rather than
-entangled, and it is filed separately rather than widening this.
+entangled, and it is carried on that ticket rather than widening this.
+
+*Corrected 2026-09-12, before any tracker text was published. This sentence read "and it is filed
+separately rather than widening this," which was the disposition taken before #993 was read. That
+ticket already measures the truncation directly — three identical `--paginate` calls returning 151,
+67 and 645 records, all exit 0 — and already records `check` returning `exit 2 no implementation
+map`, which is the `find_map_issues` miss this paragraph derives. Filing would have been the
+duplicate the search rule exists to prevent, so the finding is added as a comment there.*
 
 **Where the break ledger lives, by name.** Ruling 5 fixes its shape and its precedent, not its path.
 
