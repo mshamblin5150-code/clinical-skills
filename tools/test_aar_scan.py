@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import importlib
+import ast
 import json
 from pathlib import Path
 import tempfile
@@ -233,7 +234,8 @@ class CommandModes(unittest.TestCase):
             "    orchestrator veto\n"
             "    subagent silence\n"
             "    transcript flush\n"
-            "    run-key discovery\n",
+            "    run-key discovery\n"
+            "    subagent launch-result drift\n",
         )
 
     def test_the_extract_mode_writes_and_reports_its_private_packet(self) -> None:
@@ -328,6 +330,162 @@ class CommandModes(unittest.TestCase):
 
 
 class ReductionByEntryShape(unittest.TestCase):
+    def test_claude_user_rows_are_labeled_by_harness_envelope_and_flags(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            transcript = Path(directory) / "session-1.jsonl"
+            rows = [
+                row("user", "typed", {"content": "Please keep the assessment concise."}),
+                row(
+                    "user",
+                    "notification",
+                    {"content": "[SYSTEM NOTIFICATION — NOT USER INPUT]\n<task-notification>done</task-notification>"},
+                ),
+                row(
+                    "user",
+                    "skill",
+                    {"content": "Base directory for this skill: C:\\skills\\aar\nInstructions"},
+                    isMeta=True,
+                ),
+                row("user", "meta", {"content": "Harness resumed the task."}, isMeta=True),
+                row(
+                    "user",
+                    "compact",
+                    {"content": "Summary of the earlier context."},
+                    isCompactSummary=True,
+                ),
+            ]
+            transcript.write_text(
+                "\n".join(json.dumps(item) for item in rows) + "\n",
+                encoding="utf-8",
+            )
+
+            candidates = aar_scan.reduce_transcript(transcript)
+
+        self.assertEqual(
+            [candidate.kind for candidate in candidates],
+            [
+                "clinician",
+                "task-notification",
+                "skill-prompt",
+                "harness-meta",
+                "compaction-summary",
+            ],
+        )
+    def test_subagent_launch_acknowledgment_is_not_labeled_as_a_result(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            transcript = Path(directory) / "session-1.jsonl"
+            rows = [
+                row(
+                    "assistant",
+                    "a1",
+                    {
+                        "content": [
+                            {"type": "tool_use", "id": "agent-call", "name": "Agent", "input": {}}
+                        ]
+                    },
+                ),
+                row(
+                    "user",
+                    "launch",
+                    {
+                        "content": [
+                            {
+                                "type": "tool_result",
+                                "tool_use_id": "agent-call",
+                                "content": "Async agent launched successfully.\nagentId: agent-7",
+                            }
+                        ]
+                    },
+                ),
+            ]
+            transcript.write_text(
+                "\n".join(json.dumps(item) for item in rows) + "\n",
+                encoding="utf-8",
+            )
+
+            candidates = aar_scan.reduce_transcript(transcript)
+
+        self.assertEqual(
+            [candidate.kind for candidate in candidates],
+            ["tool-call", "subagent-launch", "tool-status"],
+        )
+
+    def test_attachment_task_notification_is_a_first_class_entry(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            transcript = Path(directory) / "session-1.jsonl"
+            transcript.write_text(
+                json.dumps(
+                    {
+                        "type": "attachment",
+                        "uuid": "attachment-row",
+                        "attachment": {
+                            "type": "queued_command",
+                            "commandMode": "task-notification",
+                            "prompt": (
+                                "[SYSTEM NOTIFICATION - NOT USER INPUT]\n"
+                                "<task-notification><task-id>reader-9</task-id>"
+                                "<result>Finished.</result></task-notification>"
+                            ),
+                        },
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            candidates = aar_scan.reduce_transcript(transcript)
+
+        self.assertEqual(
+            [(candidate.identifier, candidate.kind) for candidate in candidates],
+            [("reader-9", "task-notification")],
+        )
+
+    def test_assistant_and_queue_notification_envelopes_are_first_class_entries(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            transcript = Path(directory) / "session-1.jsonl"
+            banner = (
+                "[SYSTEM NOTIFICATION - NOT USER INPUT]\n"
+                "<task-notification><task-id>reader-10</task-id>"
+                "<result>Finished.</result></task-notification>"
+            )
+            transcript.write_text(
+                "\n".join(
+                    json.dumps(item)
+                    for item in (
+                        row(
+                            "assistant",
+                            "assistant-row",
+                            {"content": [{"type": "text", "text": banner}]},
+                        ),
+                        {
+                            "type": "queue-operation",
+                            "uuid": "queue-row",
+                            "operation": "enqueue",
+                            "content": banner.replace("reader-10", "reader-11"),
+                        },
+                        {
+                            "type": "queue-operation",
+                            "uuid": "unknown-queue-row",
+                            "operation": "enqueue",
+                            "content": "<future-harness-event>Queued.</future-harness-event>",
+                        },
+                    )
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            candidates = aar_scan.reduce_transcript(transcript)
+
+        self.assertEqual(
+            [(candidate.identifier, candidate.kind) for candidate in candidates],
+            [
+                ("reader-10", "task-notification"),
+                ("reader-11", "task-notification"),
+                ("unknown-queue-row", "harness-meta"),
+            ],
+        )
+
     def test_keeps_conversation_and_status_but_drops_ordinary_result_body(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             transcript = Path(directory) / "session-1.jsonl"
@@ -370,6 +528,45 @@ class ReductionByEntryShape(unittest.TestCase):
             self.assertNotIn("patient-bearing output", joined)
             self.assertNotIn("private developer instruction", joined)
 
+    def test_codex_labels_harness_envelopes_compaction_and_delegation_metadata(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            transcript = Path(directory) / "rollout.jsonl"
+            rows = [
+                codex_row(
+                    {
+                        "type": "message",
+                        "id": "context-1",
+                        "role": "user",
+                        "content": [
+                            {"type": "input_text", "text": "<environment_context>private context</environment_context>"}
+                        ],
+                    }
+                ),
+                {
+                    "type": "compacted",
+                    "payload": {
+                        "message": "Summary of the earlier context.",
+                        "replacement_history": [],
+                    },
+                },
+                {
+                    "type": "inter_agent_communication_metadata",
+                    "payload": {"trigger_turn": True},
+                },
+            ]
+            transcript.write_text(
+                "\n".join(json.dumps(item) for item in rows) + "\n",
+                encoding="utf-8",
+            )
+
+            candidates = aar_scan.reduce_transcript(transcript)
+
+        self.assertEqual(
+            [candidate.kind for candidate in candidates],
+            ["environment-context", "compaction-summary", "inter-agent-metadata"],
+        )
+        self.assertEqual(candidates[1].text, "Summary of the earlier context.")
+
     def test_codex_function_call_keeps_its_namespace(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             transcript = Path(directory) / "rollout.jsonl"
@@ -407,6 +604,58 @@ class ReductionByEntryShape(unittest.TestCase):
             self.assertEqual(found, (run.resolve(),))
 
 
+class EntryKindsAreBound(unittest.TestCase):
+    def test_every_candidate_kind_is_literal_or_passes_the_declared_kind_guard(self) -> None:
+        tree = ast.parse(Path(aar_scan.__file__).read_text(encoding="utf-8"))
+        checked = 0
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Name):
+                continue
+            if node.func.id != "Candidate" or len(node.args) < 3:
+                continue
+            checked += 1
+            kind = node.args[2]
+            if isinstance(kind, ast.Constant) and isinstance(kind.value, str):
+                self.assertIn(kind.value, aar_scan.ENTRY_KINDS)
+                continue
+            self.assertIsInstance(kind, ast.Call)
+            self.assertIsInstance(kind.func, ast.Name)
+            self.assertEqual(kind.func.id, "_declared_entry_kind")
+        self.assertGreater(checked, 0)
+
+    def test_the_envelope_table_and_envelope_kind_vocabulary_match_both_ways(self) -> None:
+        self.assertEqual(
+            set(aar_scan.ENVELOPE_KINDS.values()),
+            set(aar_scan.ENVELOPE_ENTRY_KINDS),
+        )
+        self.assertLessEqual(
+            set(aar_scan.ENVELOPE_ENTRY_KINDS),
+            set(aar_scan.ENTRY_KINDS),
+        )
+        self.assertEqual(
+            {
+                aar_scan._envelope_kind(f"prefix <{tag}>body</{tag}>")
+                for tag in aar_scan.ENVELOPE_KINDS
+            },
+            set(aar_scan.ENVELOPE_ENTRY_KINDS),
+        )
+
+    def test_the_measured_codex_row_type_vocabulary_is_declared(self) -> None:
+        self.assertEqual(
+            aar_scan.CODEX_ROW_TYPES,
+            {
+                "compacted",
+                "event_msg",
+                "inter_agent_communication_metadata",
+                "response_item",
+                "session_meta",
+                "token_usage_record",
+                "turn_context",
+                "world_state",
+            },
+        )
+
+
 class SubmissionRecord(unittest.TestCase):
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory()
@@ -427,6 +676,251 @@ class SubmissionRecord(unittest.TestCase):
         aar_scan.write_extract(self.run, self.transcript, self.submission, self.memory)
         return aar_scan._extract_metadata(aar_scan.extract_path(self.run, self.submission))
 
+    def test_version_two_extract_frames_a_body_that_quotes_an_entry_heading(self) -> None:
+        self.transcript.write_text(
+            json.dumps(
+                row(
+                    "user",
+                    "u-collision",
+                    {"content": "Classifier discussion:\n## ENTRY: not-an-entry\nStill one body."},
+                )
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        aar_scan.write_extract(self.run, self.transcript, self.submission, self.memory)
+        path = aar_scan.extract_path(self.run, self.submission)
+        text = path.read_text(encoding="utf-8")
+        fields, identifiers = aar_scan._extract_metadata(path)
+
+        self.assertEqual(fields["FORMAT"], "2")
+        self.assertEqual(
+            fields["ENTRY-KINDS"],
+            " | ".join(
+                f"{kind} = {description}"
+                for kind, description in aar_scan.ENTRY_KIND_DESCRIPTIONS.items()
+            ),
+        )
+        self.assertIn("TEXT-LINES: 3", text)
+        self.assertEqual(identifiers, {"u-collision"})
+
+    def test_extract_header_reports_matcher_remainders_and_launch_accounting(self) -> None:
+        rows = [
+            row(
+                "assistant",
+                "a1",
+                {"content": [{"type": "tool_use", "id": "agent-call", "name": "Agent", "input": {}}]},
+                version="2.1.266",
+            ),
+            row(
+                "user",
+                "launch",
+                {
+                    "content": [
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": "agent-call",
+                            "content": "Async agent launched successfully.\nagentId: reader-7",
+                        }
+                    ]
+                },
+                version="2.1.266",
+            ),
+            {
+                "type": "attachment",
+                "uuid": "notification",
+                "attachment": {
+                    "type": "queued_command",
+                    "commandMode": "task-notification",
+                    "prompt": (
+                        "[SYSTEM NOTIFICATION - NOT USER INPUT]\n"
+                        "<task-notification><task-id>reader-7</task-id>"
+                        "<result>Finished.</result></task-notification>"
+                    ),
+                },
+                "version": "2.1.266",
+            },
+            row("user", "new-wrapper", {"content": "<future-wrapper>Injected.</future-wrapper>"}),
+            row(
+                "assistant",
+                "assistant-wrapper",
+                {
+                    "content": [
+                        {"type": "text", "text": "<future-assistant>Injected.</future-assistant>"}
+                    ]
+                },
+            ),
+            {"type": "future_row", "payload": {}},
+            {"type": "response_item", "payload": {"type": "future_item"}},
+        ]
+        self.transcript.write_text(
+            "\n".join(json.dumps(item) for item in rows) + "\n",
+            encoding="utf-8",
+        )
+
+        aar_scan.write_extract(self.run, self.transcript, self.submission, self.memory)
+        fields, _identifiers = aar_scan._extract_metadata(
+            aar_scan.extract_path(self.run, self.submission)
+        )
+
+        self.assertEqual(fields["HARNESS-VERSIONS"], "2.1.266")
+        self.assertEqual(fields["UNDECLARED-ENVELOPES"], "2")
+        self.assertEqual(fields["UNDECLARED-CODEX-ROW-TYPES"], "1")
+        self.assertEqual(fields["UNDECLARED-CODEX-PAYLOAD-TYPES"], "1")
+        self.assertEqual(fields["SUBAGENT-LAUNCHES"], "1")
+        self.assertEqual(fields["SUBAGENT-JOINED-RESULTS"], "1")
+        self.assertEqual(fields["SUBAGENT-UNJOINED"], "0")
+        self.assertEqual(fields["NOTIFICATIONS-WITHOUT-JOIN-KEY"], "0")
+
+    def test_an_unknown_extract_format_is_not_scanned(self) -> None:
+        self.write_clean()
+        path = aar_scan.extract_path(self.run, self.submission)
+        path.write_text(
+            path.read_text(encoding="utf-8").replace("FORMAT: 2", "FORMAT: 99", 1),
+            encoding="utf-8",
+        )
+
+        status, stdout, stderr = invoke_main(
+            [str(self.run), "--submission", self.submission]
+        )
+
+        self.assertEqual(status, 2)
+        self.assertEqual(stdout, "")
+        self.assertIn("unknown extract format 99", stderr)
+
+    def test_a_malformed_known_extract_is_an_extract_finding(self) -> None:
+        self.write_clean()
+        path = aar_scan.extract_path(self.run, self.submission)
+        path.write_text(
+            path.read_text(encoding="utf-8").replace("TEXT-LINES: 1", "TEXT-LINES: many", 1),
+            encoding="utf-8",
+        )
+
+        scan = aar_scan.survey(self.run, self.submission)
+
+        self.assertEqual([finding.kind for finding in scan.findings], ["unscannable-extract"])
+
+    def test_a_prior_review_result_is_relabelled_by_recorded_identity(self) -> None:
+        self.transcript.write_text(
+            "\n".join(
+                json.dumps(item)
+                for item in [
+                    row("user", "watermark", {"content": "First sitting."}),
+                    row(
+                        "user",
+                        "notification-row",
+                        {
+                            "content": (
+                                "<task-notification><task-id>reader-1</task-id>"
+                                "<result>Earlier verdicts.</result></task-notification>"
+                            )
+                        },
+                    ),
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        aar = self.run / "aar"
+        aar.mkdir()
+        (aar / "first.md").write_text(
+            "\n".join(
+                [
+                    "# AFTER-ACTION REVIEW",
+                    "SUBMISSION: first",
+                    f"TRANSCRIPTS: {self.transcript.stem}",
+                    "WATERMARK: watermark",
+                    "CLASSIFIER-ENTRY: reader-1",
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+
+        population, _transcripts = aar_scan.collect_population(self.run, self.transcript)
+
+        self.assertEqual([(item.identifier, item.kind) for item in population], [("reader-1", "prior-review")])
+
+    def test_prior_records_select_the_furthest_watermark_not_the_last_filename(self) -> None:
+        self.transcript.write_text(
+            "\n".join(
+                json.dumps(row("user", identifier, {"content": identifier}))
+                for identifier in ("first", "second", "third")
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        aar = self.run / "aar"
+        aar.mkdir()
+        (aar / "review.md").write_text(
+            f"TRANSCRIPTS: {self.transcript.stem}\nWATERMARK: second\nCLASSIFIER-ENTRY: current-reader\n",
+            encoding="utf-8",
+        )
+        (aar / "review.pass1.md").write_text(
+            f"TRANSCRIPTS: {self.transcript.stem}\nWATERMARK: first\n",
+            encoding="utf-8",
+        )
+
+        population, _transcripts = aar_scan.collect_population(self.run, self.transcript)
+
+        self.assertEqual([candidate.identifier for candidate in population], ["third"])
+        aar_scan.write_extract(self.run, self.transcript, self.submission, self.memory)
+        fields, _identifiers = aar_scan._extract_metadata(
+            aar_scan.extract_path(self.run, self.submission)
+        )
+        self.assertEqual(fields["UNMARKED-PRIOR-REVIEWS"], "0")
+
+    def test_a_legacy_notification_uuid_remains_a_valid_watermark_alias(self) -> None:
+        self.transcript.write_text(
+            "\n".join(
+                json.dumps(item)
+                for item in [
+                    row(
+                        "user",
+                        "legacy-notification-uuid",
+                        {
+                            "content": (
+                                "<task-notification><task-id>reader-legacy</task-id>"
+                                "<result>Finished.</result></task-notification>"
+                            )
+                        },
+                    ),
+                    row("user", "after", {"content": "Continue."}),
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        aar = self.run / "aar"
+        aar.mkdir()
+        (aar / "legacy.md").write_text(
+            f"TRANSCRIPTS: {self.transcript.stem}\nWATERMARK: legacy-notification-uuid\n",
+            encoding="utf-8",
+        )
+
+        population, _transcripts = aar_scan.collect_population(self.run, self.transcript)
+
+        self.assertEqual([candidate.identifier for candidate in population], ["after"])
+
+    def test_a_prior_watermark_without_classifier_identity_is_reported(self) -> None:
+        aar = self.run / "aar"
+        aar.mkdir()
+        (aar / "legacy.md").write_text(
+            f"TRANSCRIPTS: {self.transcript.stem}\nWATERMARK: u1\n",
+            encoding="utf-8",
+        )
+
+        aar_scan.write_extract(self.run, self.transcript, self.submission, self.memory)
+        fields, _identifiers = aar_scan._extract_metadata(
+            aar_scan.extract_path(self.run, self.submission)
+        )
+
+        self.assertEqual(fields["UNMARKED-PRIOR-REVIEWS"], "1")
+        self.write_clean()
+        scan = aar_scan.survey(self.run, self.submission)
+        self.assertIn("unmarked-prior-review", [finding.kind for finding in scan.findings])
+
     def write_clean(self) -> None:
         fields, _identifiers = self.extract()
         record = "\n".join(
@@ -439,6 +933,7 @@ class SubmissionRecord(unittest.TestCase):
                 f"WATERMARK: {fields['WATERMARK']}",
                 f"MEMORY-INDEX: {self.memory}",
                 "CLASSIFIER: fresh adversarial reader",
+                "CLASSIFIER-ENTRY: reader-1",
                 "DISAGREEMENTS: none recorded",
                 "CORRECTIONS: none",
                 "SUSTAINS: none",
@@ -461,6 +956,18 @@ class SubmissionRecord(unittest.TestCase):
         self.assertEqual(scan.findings, ())
         self.assertEqual(scan.unread, 0)
         self.assertIsNone(aar_scan.completion_finding(self.run, [self.submission]))
+
+    def test_a_post_cutoff_review_requires_the_classifier_entry_identity(self) -> None:
+        self.write_clean()
+        review = aar_scan.review_path(self.run, self.submission)
+        review.write_text(
+            review.read_text(encoding="utf-8").replace("CLASSIFIER-ENTRY: reader-1\n", ""),
+            encoding="utf-8",
+        )
+
+        scan = aar_scan.survey(self.run, self.submission)
+
+        self.assertIn("missing-classifier-entry", [finding.kind for finding in scan.findings])
 
     def test_a_clean_graded_command_drains_orphan_pointers_after_reporting(self) -> None:
         self.write_clean()
@@ -509,6 +1016,7 @@ class SubmissionRecord(unittest.TestCase):
                 f"WATERMARK: {fields['WATERMARK']}",
                 f"MEMORY-INDEX: {self.memory}",
                 "CLASSIFIER: fresh adversarial reader",
+                "CLASSIFIER-ENTRY: reader-1",
                 "DISAGREEMENTS: none recorded",
                 "SUSTAINS: none",
                 f"## CORRECTION: {event}",

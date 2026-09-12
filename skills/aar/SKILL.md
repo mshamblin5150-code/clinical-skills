@@ -19,7 +19,7 @@ python tools/aar_scan.py <run-directory> --submission <submission-key> --memory-
 
 Pass `--transcript <path>` only when the harness exposed the exact current transcript path. Otherwise the command selects the newest scoped main transcript that names this run directory. It also consumes every orphan pointer as input, but does not clear one until the finished record grades clean.
 
-The extract keeps every human turn, assistant text block, subagent result, and tool name and status since the prior watermark. It drops ordinary tool-result bodies. Do not delete, reorder, or narrow its entries. The population is not the orchestrator's to edit.
+The extract keeps every human turn, assistant text block, subagent result, and tool name and status since the prior watermark. It drops ordinary tool-result bodies. Do not delete, reorder, or narrow its entries. The population is not the orchestrator's to edit. Read the generated `ENTRY-KINDS` legend in the extract; `aar_scan.ENTRY_KINDS` owns that vocabulary and this skill copies none of it.
 
 ## 2. Classify in a fresh adversarial context
 
@@ -33,6 +33,8 @@ Give a fresh non-authoring context only the private extract and the memory index
 - every **sustain**: something the sitting got right that a later sitting could otherwise undo.
 
 A preference stated for the first time is not a correction. A correction whose corrector was wrong is supported; identify who was actually in error. The classifier reads the memory index so it can distinguish missing knowledge from knowledge that already existed and went unread.
+
+An entry labeled `prior-review` is a previous classifier's return, not fresh evidence. Re-derive every verdict it contains from the other entries in this extract; do not adopt or exclude it. Retain the extract identifier of this sitting's classifier return for `CLASSIFIER-ENTRY` in the record.
 
 The orchestrator verifies the return. It may overrule a classification, but writes both verdicts, who overruled whom, and a substantive reason. It never removes an entry from the fixed population.
 
@@ -60,6 +62,7 @@ UNREAD: 0
 WATERMARK: <copy from the extract>
 MEMORY-INDEX: <path read by the classifier>
 CLASSIFIER: fresh adversarial reader - <identity>
+CLASSIFIER-ENTRY: <extract identifier that will carry this classifier's return>
 DISAGREEMENTS: none recorded
 CORRECTIONS: none
 SUSTAINS: none

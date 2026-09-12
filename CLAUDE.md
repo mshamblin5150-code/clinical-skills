@@ -844,7 +844,7 @@ Each scoped completion grader declares the same expected row, `the after-action 
 
 An AAR-sourced tracker body is written under `<run>/aar/publications/`. `tracker_publish_hook.py` then refuses a normalized copied span at its measured floor while ordinary tracker bodies remain unchanged. The gate checks quotation, not identity or PHI, and its ceiling belongs to `tracker_publish_hook.NOT_REACHED`.
 
-The complete scanner boundary belongs to `aar_scan.DECLARED_LIMITS`; this section does not copy its rows.
+The complete scanner boundary belongs to `aar_scan.DECLARED_LIMITS`, and the extract-entry vocabulary belongs to `aar_scan.ENTRY_KINDS`; this section copies neither object's rows.
 
 ### Post-draft checks
 
