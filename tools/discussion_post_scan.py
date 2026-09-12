@@ -71,6 +71,7 @@ EXPECTED_COMPLETION_CHECKS = (aar_scan.EXPECTED_ROW,)
 import coursework_run
 from run_grader import EvidenceDisposition
 import docx_write
+from research_ledger import REFUTATION_EVIDENCE_COMPLEMENT
 
 
 WORD_FLOOR = "word-floor"
@@ -94,7 +95,7 @@ ROWS = {
     WORD_FLOOR: "the post reaches the signed word floor",
     EMPTY_BODY: "the post contains body text after headings are removed",
     REFERENCE_MINIMUM: "the post reaches the signed reference minimum",
-    UNTRACED_NUMBER: "every graded body number traces to claims.md",
+    UNTRACED_NUMBER: "every graded body number traces to a believed claim record",
     UNTRACED_CITATION: "every in-text citation has a claim record for its source",
     RESPENT_RECORD: "every in-text citation has its own claim record",
     BOLD_HEADINGS: "every submission heading is a bold paragraph",
@@ -147,6 +148,13 @@ GATED_ROW_SETS = {
 }
 ABSENT_BY_DESIGN_FIELDS = ("word_ceiling",)
 
+UNJOINED_SOURCE_FIELDS = ", ".join(REFUTATION_EVIDENCE_COMPLEMENT)
+UNJOINED_SOURCE_FIELDS_LIMIT = (
+    f"whether a sourced record missing one or more of {UNJOINED_SOURCE_FIELDS} is still believed",
+    f"Field completeness for {UNJOINED_SOURCE_FIELDS} belongs to research_ledger; this certifier still reads numbers and reference keys from a record carrying both substantive refutation-evidence fields.",
+    EvidenceDisposition.BEHAVIOR,
+)
+
 DECLARED_LIMITS = (
     *CITATION_RESOLUTION_NOT_REACHED,
     (
@@ -154,11 +162,7 @@ DECLARED_LIMITS = (
         "The certifier reads numeric tokens and never judges whether the record's restatement supports the fact asserted in the post.",
         EvidenceDisposition.BEHAVIOR,
     ),
-    (
-        "whether a sourced record missing required fields is still believed",
-        "Field completeness belongs to research_ledger; this certifier still reads numbers and reference keys from a record whose sourced status is recognizable.",
-        EvidenceDisposition.BEHAVIOR,
-    ),
+    UNJOINED_SOURCE_FIELDS_LIMIT,
     (
         "the authority for render wiring",
         "The governing architecture record for this declaration is ADR 0125.",
@@ -304,6 +308,7 @@ class RunSource:
 class ClaimRecord:
     numbers: frozenset[str]
     references: ReferenceKeySet
+    all_numbers: frozenset[str] = frozenset()
 
 
 @dataclass(frozen=True)
@@ -439,11 +444,15 @@ def _claim_records(claims: str) -> tuple[ClaimRecord, ...]:
         lines = block.splitlines()
         heading = lines[0] if lines else ""
         restatement = RESTATEMENT.search(block)
-        trace_text = ""
-        if claim_record_can_certify_values(block):
-            trace_text = heading + "\n" + (
-                restatement.group("value") if restatement else ""
-            )
+        trace_text = heading + "\n" + (
+            restatement.group("value") if restatement else ""
+        )
+        all_numbers = frozenset(
+            value.casefold() for value in NUMBER.findall(trace_text)
+        )
+        numbers = (
+            all_numbers if claim_record_can_certify_values(block) else frozenset()
+        )
         reference = CLAIM_REFERENCE.search(block)
         keys = (
             ReferenceKeySet.from_references(
@@ -457,9 +466,8 @@ def _claim_records(claims: str) -> tuple[ClaimRecord, ...]:
         # refusing its unsupported claim.
         records.append(
             ClaimRecord(
-                numbers=frozenset(
-                    value.casefold() for value in NUMBER.findall(trace_text)
-                ),
+                numbers=numbers,
+                all_numbers=all_numbers,
                 references=keys,
             )
         )
@@ -1105,6 +1113,9 @@ def survey(source: RunSource) -> Scan:
     traced_numbers = frozenset(
         value for record in records for value in record.numbers
     )
+    all_claim_numbers = frozenset(
+        value for record in records for value in record.all_numbers
+    )
     distinct_numbers = tuple(dict.fromkeys(value.casefold() for value in numbers))
     for value in distinct_numbers:
         if value not in traced_numbers:
@@ -1112,7 +1123,11 @@ def survey(source: RunSource) -> Scan:
                 Finding(
                     UNTRACED_NUMBER,
                     source.draft.name,
-                    f"{value} is absent from claims.md",
+                    (
+                        f"{value} appears only in a disbelieved claim record"
+                        if value in all_claim_numbers
+                        else f"{value} is absent from claims.md"
+                    ),
                 )
             )
     citation_requirements: list[tuple[Citation, tuple[int, ...]]] = []

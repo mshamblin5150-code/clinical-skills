@@ -85,7 +85,10 @@ class Run:
         self.deck = root / "synthetic.pptx"
         (root / "bar.md").write_text(BAR, encoding="utf-8")
         (root / "claims.md").write_text(
-            "DATE: 2026-09-02\n\n## CLAIM: Build-out costs $47,000.\n",
+            "DATE: 2026-09-02\n\n## CLAIM: Build-out costs $47,000.\n"
+            "STATUS: sourced\n"
+            "REFUTATION: stands - the source states this cost.\n"
+            "SECOND-ROUTE: publisher HTML -> market report PDF\n",
             encoding="utf-8",
         )
 
@@ -212,6 +215,12 @@ class TheDeckContainerReadsOnlyTheSlideFace(unittest.TestCase):
 
 
 class CostedClaimsReadSlidesAndSpeakerNotes(unittest.TestCase):
+    def test_the_field_completeness_residue_names_the_refutation_complement(self):
+        self.assertIn(
+            ", ".join(scan.REFUTATION_EVIDENCE_COMPLEMENT),
+            scan.SOURCED_FIELD_COMPLETENESS_LIMIT.limit,
+        )
+
     def test_an_unrecorded_cost_on_either_population_is_a_finding(self):
         with tempfile.TemporaryDirectory() as temp:
             run = Run(Path(temp))
@@ -229,7 +238,10 @@ class CostedClaimsReadSlidesAndSpeakerNotes(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             run = Run(Path(temp))
             (run.root / "claims.md").write_text(
-                "DATE: 2026-09-02\n\n## CLAIM: Build-out costs $47,000 and equipment costs $19,500.\n",
+                "DATE: 2026-09-02\n\n## CLAIM: Build-out costs $47,000 and equipment costs $19,500.\n"
+                "STATUS: sourced\n"
+                "REFUTATION: stands - the source states both costs.\n"
+                "SECOND-ROUTE: publisher HTML -> market report PDF\n",
                 encoding="utf-8",
             )
             run.write_deck((slide_xml("Plan", "Build-out $47,000"),), (notes_xml("Equipment $19,500"),))
@@ -262,7 +274,8 @@ class CostedClaimsReadSlidesAndSpeakerNotes(unittest.TestCase):
             run = Run(Path(temp))
             (run.root / "claims.md").write_text(
                 "DATE: 2026-09-02\n\n## CLAIM: Build-out costs $47,000.\n"
-                "STATUS: sourced\nREFUTATION: stands - the source states this cost.\n",
+                "STATUS: sourced\nREFUTATION: stands - the source states this cost.\n"
+                "SECOND-ROUTE: publisher HTML -> market report PDF\n",
                 encoding="utf-8",
             )
             run.write_deck((slide_xml("Plan", "Build-out $47,000"),))
@@ -270,24 +283,51 @@ class CostedClaimsReadSlidesAndSpeakerNotes(unittest.TestCase):
 
         self.assertEqual(0, status)
 
-    def test_a_sourced_record_missing_ledger_fields_is_still_believed(self):
+    def test_a_sourced_record_missing_non_refutation_fields_is_still_believed(self):
         with tempfile.TemporaryDirectory() as temp:
             run = Run(Path(temp))
             (run.root / "claims.md").write_text(
-                "DATE: 2026-09-02\n\n## CLAIM: Build-out costs $47,000.\nSTATUS: sourced\n",
+                "DATE: 2026-09-02\n\n## CLAIM: Build-out costs $47,000.\n"
+                "STATUS: sourced\n"
+                "REFUTATION: stands - the source states this cost.\n"
+                "SECOND-ROUTE: publisher HTML -> market report PDF\n",
                 encoding="utf-8",
             )
             run.write_deck((slide_xml("Plan", "Build-out $47,000"),))
             status, _, _ = run.grade()
 
         self.assertEqual(0, status)
+
+    def test_a_cost_only_in_a_disbelieved_record_says_so(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            (run.root / "claims.md").write_text(
+                "DATE: 2026-09-02\n\n## CLAIM: Build-out costs $47,000.\n"
+                "STATUS: unsourced - no source found.\n",
+                encoding="utf-8",
+            )
+            run.write_deck((slide_xml("Plan", "Build-out $47,000"),))
+            status, stdout, _ = run.grade("--show")
+
+        self.assertEqual(1, status)
+        self.assertIn("$47000 appears only in a disbelieved claim record", stdout)
+
+    def test_a_cost_absent_from_every_record_keeps_the_existing_detail(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            run.write_deck((slide_xml("Plan", "Unrecorded $19,500"),))
+            status, stdout, _ = run.grade("--show")
+
+        self.assertEqual(1, status)
+        self.assertIn("$19500 has no claim record", stdout)
 
     def test_token_identity_does_not_establish_claim_support(self):
         with tempfile.TemporaryDirectory() as temp:
             run = Run(Path(temp))
             (run.root / "claims.md").write_text(
                 "DATE: 2026-09-02\n\n## CLAIM: An unrelated item costs $47,000.\n"
-                "STATUS: sourced\nREFUTATION: stands - the source states the unrelated cost.\n",
+                "STATUS: sourced\nREFUTATION: stands - the source states the unrelated cost.\n"
+                "SECOND-ROUTE: publisher HTML -> market report PDF\n",
                 encoding="utf-8",
             )
             run.write_deck((slide_xml("Plan", "Build-out $47,000"),))
@@ -299,7 +339,10 @@ class CostedClaimsReadSlidesAndSpeakerNotes(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             run = Run(Path(temp))
             (run.root / "claims.md").write_text(
-                "DATE: 2026-09-02\n\n## CLAIM: The site needs renovation.\nRESTATEMENT: Costs $47,000.\n",
+                "DATE: 2026-09-02\n\n## CLAIM: The site needs renovation.\n"
+                "STATUS: sourced\nRESTATEMENT: Costs $47,000.\n"
+                "REFUTATION: stands - the source states the renovation need.\n"
+                "SECOND-ROUTE: publisher HTML -> market report PDF\n",
                 encoding="utf-8",
             )
             run.write_deck((slide_xml("Plan", "Build-out $47,000"),))
@@ -312,7 +355,9 @@ class CostedClaimsReadSlidesAndSpeakerNotes(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             run = Run(Path(temp))
             (run.root / "claims.md").write_text(
-                "DATE: 2026-09-02\n\n## CLAIM: Initial fee is $470.\n",
+                "DATE: 2026-09-02\n\n## CLAIM: Initial fee is $470.\n"
+                "STATUS: sourced\nREFUTATION: stands - the source states this fee.\n"
+                "SECOND-ROUTE: publisher HTML -> market report PDF\n",
                 encoding="utf-8",
             )
             run.write_deck((slide_xml("Plan", "Build-out $47000"),))

@@ -19,6 +19,26 @@ from run_grader import EvidenceDisposition
 APA_SHEET = Path(__file__).resolve().parents[1] / "skills" / "_shared" / "reference" / "apa7.md"
 
 
+class ClaimValueCertificationRequiresRefutationEvidence(unittest.TestCase):
+    def test_both_refutation_evidence_fields_need_substance(self):
+        complete = (
+            "STATUS: sourced\n"
+            "REFUTATION: stands - the result was confirmed.\n"
+            "SECOND-ROUTE: publisher HTML -> journal PDF\n"
+        )
+        cases = (
+            complete.replace("REFUTATION: stands - the result was confirmed.\n", ""),
+            complete.replace("REFUTATION: stands - the result was confirmed.", "REFUTATION: --"),
+            complete.replace("SECOND-ROUTE: publisher HTML -> journal PDF\n", ""),
+            complete.replace("SECOND-ROUTE: publisher HTML -> journal PDF", "SECOND-ROUTE: ->"),
+        )
+
+        self.assertTrue(artifact.claim_record_can_certify_values(complete))
+        for block in cases:
+            with self.subTest(block=block):
+                self.assertFalse(artifact.claim_record_can_certify_values(block))
+
+
 def republished_work_rows() -> tuple[tuple[str, str], ...]:
     sheet = APA_SHEET.read_text(encoding="utf-8")
     section = sheet.split(

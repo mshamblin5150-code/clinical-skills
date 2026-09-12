@@ -234,7 +234,7 @@ refuses partial roster coverage, then verifies the response filename and address
 against that roster, the 150-word floor, one APA author-year reference backed by the corresponding
 tagged claim record, every recognized APA narrative or parenthetical author-year citation resolving
 to that response's own list, every Arabic numeral in the body tracing to an exact token in that
-response's tagged `CLAIM` heading or `RESTATEMENT`, and no source appearing in more than one
+response's believed tagged `CLAIM` heading or `RESTATEMENT`, and no source appearing in more than one
 response. Citation years and page locators, and the reference list, are excluded from the
 numeric-claim walk. The enforced word count excludes the reference list and the invisible working
 markers. Reference entries must be separated by blank lines and copied from the ledger's

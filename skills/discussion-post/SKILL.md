@@ -278,7 +278,7 @@ python tools/discussion_post_scan.py scratch/runs/<course>-<module>-discussion -
 
 `reference_scan.py` walks the APA list and citation resolution unchanged. Its exit must be 0.
 `discussion_post_scan.py` grades the signed word floor and reference minimum. Its
-`untraced-number` row requires every distinct body-number value to appear in a claim record;
+`untraced-number` row requires every distinct body-number value to appear in a believed claim record;
 repeating a value does not spend another record. Its `untraced-citation` row requires every
 in-text citation to have a claim record for its source, while `respent-record` requires each
 citation to carry its own record. One record may therefore trace a number and carry the citation
