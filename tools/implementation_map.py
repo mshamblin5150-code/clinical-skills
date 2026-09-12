@@ -60,11 +60,14 @@ import artifact_lock
 import artifact_provenance
 from console_codec import require_python_floor, use_utf8
 import git_paths
+import repo_root
 import tracker_publish_hook
 
 SCHEMA = 1
 MAP_ISSUE = 596
+REVISION_WINDOW = 100
 REPO_ROOT = Path(__file__).resolve().parent.parent
+REVISION_LEDGER = REPO_ROOT / "reference" / "implementation-map-revision-breaks.md"
 STATE_BEGIN = "<!-- implementation-map:v1:state:begin -->"
 STATE_END = "<!-- implementation-map:v1:state:end -->"
 
@@ -80,6 +83,32 @@ class DeclaredLimit(NamedTuple):
     limit: str
 
 
+class Revision(NamedTuple):
+    revision_id: str
+    edited_at: str
+    body: str
+
+
+class RevisionHistory(NamedTuple):
+    revisions: tuple[Revision, ...]
+    older_remainder: bool
+
+
+class RevisionBreak(NamedTuple):
+    earlier_revision: str
+    earlier_writer: str
+    later_revision: str
+    later_writer: str
+    declared_predecessor: str
+    actual_predecessor: str
+    later_edited_at: str
+
+
+class HarvestSummary(NamedTuple):
+    breaks_appended: int
+    unread_remainder: str
+
+
 DECLARED_LIMITS = (
     DeclaredLimit(
         "semantic-placement",
@@ -92,6 +121,10 @@ DECLARED_LIMITS = (
     DeclaredLimit(
         "cross-machine-prevention",
         "The operating-system lock coordinates only this machine; the state hash can refuse but cannot prevent a remote race.",
+    ),
+    DeclaredLimit(
+        "revision-attribution-window",
+        f"Attribution reaches only the revisions the harvest read, bounded by a sliding {REVISION_WINDOW}-revision window; the ledger states its high-water mark and unread remainder rather than claiming an unbroken chain.",
     ),
     DeclaredLimit(
         "ready-window",
@@ -130,6 +163,10 @@ DECLARED_LIMITS = (
 
 class MapError(Exception):
     """A reason the run could not happen. Converted to exit 2 at main()."""
+
+
+class StateHashMismatch(Exception):
+    """A map overwrite lost its compare window and may be re-derived."""
 
 
 class Finding:
@@ -413,7 +450,7 @@ def preserve_refused_outcomes(
     kept = [outcome for outcome in outcomes if outcome.strip()]
     if not kept:
         return None
-    directory = Path(tempfile.gettempdir()) / "clinical-skills-map-refusals"
+    directory = refused_outcome_directory()
     directory.mkdir(parents=True, exist_ok=True)
     path = directory / f"issue-{issue_number}-{uuid.uuid4().hex}.json"
     path.write_text(
@@ -425,6 +462,138 @@ def preserve_refused_outcomes(
         encoding="utf-8",
     )
     return path
+
+
+def refused_outcome_directory() -> Path:
+    """Durable, accounted home for authored outcomes a write refused."""
+    return repo_root.scratch_root() / "runs" / "map-refusals"
+
+
+def pending_outcome_records() -> tuple[Path, ...]:
+    """Enumerate rescued outcomes without creating their directory."""
+    directory = refused_outcome_directory()
+    if not directory.is_dir():
+        return ()
+    return tuple(sorted(directory.glob("issue-*.json")))
+
+
+SNAPSHOT_WRITER = re.compile(r"(?m)^- writer: `([^`]+)`$")
+SNAPSHOT_SUPERSEDED = re.compile(
+    r"(?m)^- superseded state: `sha256:([0-9a-f]{64})`$"
+)
+
+
+def revision_stamp(body: str) -> tuple[str | None, str | None]:
+    writer = SNAPSHOT_WRITER.search(body)
+    superseded = SNAPSHOT_SUPERSEDED.search(body)
+    return (
+        writer.group(1) if writer else None,
+        superseded.group(1) if superseded else None,
+    )
+
+
+def render_revision_ledger(
+    *,
+    high_water: str | None,
+    unread_remainder: str,
+    rows: tuple[RevisionBreak, ...],
+) -> str:
+    lines = [
+        "# Implementation map revision-chain breaks",
+        "",
+        "This command-maintained ledger records only attributed breaks in the retained "
+        "implementation-map revision chain.",
+        "",
+        f"- high-water revision: `{high_water or 'none'}`",
+        f"- unread remainder: {unread_remainder}",
+        "",
+        "| Earlier revision | Earlier writer | Later revision | Later writer | Declared predecessor | Actual predecessor | Later edited at |",
+        "| --- | --- | --- | --- | --- | --- | --- |",
+    ]
+    for row in rows:
+        cells = tuple(str(value).replace("|", "\\|") for value in row)
+        lines.append("| " + " | ".join(cells) + " |")
+    return "\n".join(lines) + "\n"
+
+
+def _read_revision_ledger(path: Path) -> tuple[str | None, tuple[RevisionBreak, ...]]:
+    if not path.exists():
+        return None, ()
+    text = path.read_text(encoding="utf-8")
+    match = re.search(r"(?m)^- high-water revision: `([^`]+)`$", text)
+    high_water = None if match is None or match.group(1) == "none" else match.group(1)
+    rows: list[RevisionBreak] = []
+    for line in text.splitlines():
+        if not line.startswith("| ") or line.startswith("| ---") or "Earlier revision" in line:
+            continue
+        cells = tuple(
+            cell.strip().replace("\\|", "|")
+            for cell in line.strip("|").split("|")
+        )
+        if len(cells) == len(RevisionBreak._fields):
+            rows.append(RevisionBreak(*cells))
+    return high_water, tuple(rows)
+
+
+def harvest_revision_chain(history: RevisionHistory) -> HarvestSummary:
+    """Verify retained stamped revisions and durably ledger only chain breaks."""
+    prior_high_water, existing = _read_revision_ledger(REVISION_LEDGER)
+    known_pairs = {(row.earlier_revision, row.later_revision) for row in existing}
+    rows = list(existing)
+    appended = 0
+    unread: list[str] = []
+    revisions = history.revisions
+    revision_ids = {revision.revision_id for revision in revisions}
+    if history.older_remainder:
+        unread.append("at least one revision precedes the retained window")
+    if prior_high_water is not None and prior_high_water not in revision_ids:
+        unread.append(f"prior high-water revision {prior_high_water} was not retained")
+    chronological = tuple(reversed(revisions))
+    for earlier, later in zip(chronological, chronological[1:]):
+        later_writer, declared = revision_stamp(later.body)
+        if later_writer is None or declared is None:
+            unread.append(f"revision {later.revision_id} has no complete producer stamp")
+            continue
+        try:
+            actual = state_hash(earlier.body)
+        except MapError:
+            unread.append(f"revision {earlier.revision_id} has no readable state block")
+            continue
+        if declared == actual:
+            continue
+        pair = (earlier.revision_id, later.revision_id)
+        if pair in known_pairs:
+            continue
+        earlier_writer, _ = revision_stamp(earlier.body)
+        rows.append(
+            RevisionBreak(
+                earlier.revision_id,
+                earlier_writer or "unattributed",
+                later.revision_id,
+                later_writer,
+                declared,
+                actual,
+                later.edited_at,
+            )
+        )
+        known_pairs.add(pair)
+        appended += 1
+    unread_remainder = "0" if not unread else "; ".join(dict.fromkeys(unread))
+    high_water = revisions[0].revision_id if revisions else prior_high_water
+    REVISION_LEDGER.parent.mkdir(parents=True, exist_ok=True)
+    REVISION_LEDGER.write_text(
+        render_revision_ledger(
+            high_water=high_water,
+            unread_remainder=unread_remainder,
+            rows=tuple(rows),
+        ),
+        encoding="utf-8",
+    )
+    print(
+        f"revision chain: {len(revisions)} retained revisions; "
+        f"{appended} break(s) appended; unread remainder {unread_remainder}"
+    )
+    return HarvestSummary(appended, unread_remainder)
 
 
 def map_artifact(tracker, issue_number: int) -> Path:
@@ -517,6 +686,43 @@ class GitHub:
             "assignees": sorted(a["login"] for a in row.get("assignees", [])),
             "body": row.get("body") or "",
         }
+
+    def user_content_edits(self, number: int) -> RevisionHistory:
+        owner, name = self.repo.split("/", 1)
+        query = """
+query($owner:String!, $name:String!, $number:Int!) {
+  repository(owner:$owner, name:$name) {
+    issue(number:$number) {
+      userContentEdits(first:$WINDOW) {
+        pageInfo { hasNextPage }
+        nodes { id editedAt diff }
+      }
+    }
+  }
+}
+""".replace("$WINDOW", str(REVISION_WINDOW))
+        out = self._run(
+            [
+                "api", "graphql", "-f", f"query={query}",
+                "-F", f"owner={owner}", "-F", f"name={name}",
+                "-F", f"number={number}",
+            ]
+        )
+        try:
+            connection = json.loads(out)["data"]["repository"]["issue"][
+                "userContentEdits"
+            ]
+            revisions = tuple(
+                Revision(row["id"], row["editedAt"], row["diff"])
+                for row in connection["nodes"]
+            )
+            older_remainder = (
+                bool(connection["pageInfo"]["hasNextPage"])
+                or len(revisions) >= REVISION_WINDOW
+            )
+        except (KeyError, TypeError, json.JSONDecodeError) as err:
+            raise MapError("tracker revision history had an unreadable shape") from err
+        return RevisionHistory(revisions, older_remainder)
 
     def update_issue_body(self, number: int, body: str) -> None:
         payload = json.dumps({"body": body})
@@ -1747,6 +1953,7 @@ def cmd_check(tracker, args) -> int:
     live = Live(tracker, state)
     findings = check_findings(state, live, head=tracker.default_branch_head())
     print(f"map: issue #{issue['number']} ({issue['title']!r})")
+    print(f"pending outcome records: {len(pending_outcome_records())}")
     return report(
         findings,
         "state block and live tracker, plus ADR review records and local "
@@ -1886,6 +2093,7 @@ def publish_body(
     *,
     expected_state_hash: str | None = None,
     refused_outcomes: tuple[str, ...] = (),
+    raise_on_state_change: bool = False,
 ) -> int:
     live = Live(tracker, state)
     body = render(
@@ -1930,6 +2138,8 @@ def publish_body(
         current = tracker.get_issue(number)
         if state_hash(current["body"]) != expected_state_hash:
             reason = "tracker state block changed after this reconciliation read it"
+            if raise_on_state_change:
+                raise StateHashMismatch(reason)
             record = preserve_refused_outcomes(
                 refused_outcomes, issue_number=number, reason=reason
             )
@@ -1952,8 +2162,31 @@ def publish_body(
             f"sent (the write DID happen; inspect issue #{number})"
         )
         return 1
+    history_reader = getattr(tracker, "user_content_edits", None)
+    if callable(history_reader):
+        try:
+            harvest_revision_chain(history_reader(number))
+        except (MapError, OSError) as err:
+            print(
+                "REVISION HARVEST FAILED (the write DID happen; "
+                f"inspect issue #{number}): {err}"
+            )
+            return 1
     print(f"published: issue #{number}, state intact on read-back")
     return 0
+
+
+def revalidate_after_publish(tracker, state: dict, *, activity: str) -> int:
+    """Report every map disagreement visible after a successful overwrite."""
+    live = Live(tracker, state)
+    findings = validate_shape(state) + validate_against_live(state, live)
+    if not findings:
+        return 0
+    print(f"{activity}; live findings follow")
+    return report(
+        findings,
+        "published state block and live tracker; derived views were not read",
+    )
 
 
 def cmd_publish(tracker, args) -> int:
@@ -1967,13 +2200,20 @@ def cmd_publish(tracker, args) -> int:
             current = tracker.get_issue(issue["number"])
             expected = state_hash(current["body"])
             state = extract_state(current["body"])
-            return publish_body(
+            rc = publish_body(
                 tracker,
                 issue["number"],
                 state,
                 args,
                 expected_state_hash=expected,
             )
+            if rc == 0:
+                return revalidate_after_publish(
+                    tracker,
+                    state,
+                    activity="map published",
+                )
+            return rc
     except artifact_lock.ArtifactBusy as err:
         raise MapError(str(err)) from err
 
@@ -2032,6 +2272,33 @@ def authored_outcomes(args) -> tuple[str, ...]:
 
 
 def _apply_delta_under_lock(tracker, args, issue_number: int) -> int:
+    for attempt in range(1, 4):
+        try:
+            return _apply_delta_attempt(tracker, args, issue_number)
+        except StateHashMismatch as err:
+            if attempt < 3:
+                print(
+                    f"STATE CHANGED: re-deriving reconciliation "
+                    f"(attempt {attempt + 1} of 3)"
+                )
+                continue
+            outcomes = authored_outcomes(args)
+            record = preserve_refused_outcomes(
+                outcomes,
+                issue_number=issue_number,
+                reason=str(err),
+            )
+            print(
+                f"STATE CHANGED: refusing to overwrite issue #{issue_number} "
+                "after 3 attempts"
+            )
+            if record is not None:
+                print(f"outcome record: {record}")
+            return 1
+    raise AssertionError("bounded retry did not return")
+
+
+def _apply_delta_attempt(tracker, args, issue_number: int) -> int:
     current = tracker.get_issue(issue_number)
     expected = state_hash(current["body"])
     state = extract_state(current["body"])
@@ -2100,26 +2367,25 @@ def _apply_delta_under_lock(tracker, args, issue_number: int) -> int:
         args,
         expected_state_hash=expected,
         refused_outcomes=outcomes,
+        raise_on_state_change=True,
     )
     report_placement_coverage(state, new_state, live)
     if rc == 0:
         # Surface what the applied delta now expects of the tracker -- above
         # all a declared HARD edge whose native mirror the agent still owes.
-        live = Live(tracker, new_state)
-        findings = validate_shape(new_state) + validate_against_live(new_state, live)
-        if findings:
-            print("delta applied; live findings follow")
-            return report(
-                findings,
-                "reconciled state block and live tracker; derived views were not read",
-            )
+        return revalidate_after_publish(
+            tracker,
+            new_state,
+            activity="delta applied",
+        )
     return rc
 
 
 def cmd_init(tracker, args) -> int:
+    lock_number = args.adopt if args.adopt is not None else 0
     try:
         with artifact_lock.hold(
-            map_artifact(tracker, 0),
+            map_artifact(tracker, lock_number),
             "implementation-map initialization",
             mode="write",
         ):
@@ -2147,7 +2413,14 @@ def _init_under_lock(tracker, args) -> int:
         raise MapError(f"initial state does not validate: {details}")
     if args.adopt:
         number = args.adopt
-        rc = publish_body(tracker, number, state, args)
+        current = tracker.get_issue(number)
+        rc = publish_body(
+            tracker,
+            number,
+            state,
+            args,
+            expected_state_hash=state_hash(current["body"]),
+        )
     else:
         live = Live(tracker, state)
         body = render(state, live, snapshot_for(tracker, args))
@@ -2171,14 +2444,11 @@ def _init_under_lock(tracker, args) -> int:
         rc = 0
         print(f"created: issue #{number}, state intact on read-back")
     if rc == 0:
-        live = Live(tracker, state)
-        findings = validate_shape(state) + validate_against_live(state, live)
-        if findings:
-            print("map created; live findings follow")
-            return report(
-                findings,
-                "initial state block and live tracker; derived views were not read",
-            )
+        return revalidate_after_publish(
+            tracker,
+            state,
+            activity="map created",
+        )
     return rc
 
 

@@ -1492,11 +1492,13 @@ one authored `--no-work` sentence. `reconciled_through` is the floor beneath
 those records and advances across the contiguous reviewed first-parent prefix,
 independently of the ready-ticket remainder, which every run still names.
 
-Every tracker mutation holds the repository's nonblocking artifact lock and
-compares the state-block hash immediately before publication. The hash excludes
-derived views, so concurrent publishes do not conflict; a changed machine state
-refuses a stale delta and preserves its authored outcomes in a unique temporary
-record whose path is printed. The rendered Mermaid block draws only packets
+Every map overwrite takes the map's own nonblocking artifact-lock identity,
+compares the state-block hash immediately before publication, and re-validates
+against the tracker after publication. Concurrent overwrites from different
+machines do not conflict and can clobber; the revision-chain harvest detects and
+attributes that loss after the fact rather than preventing it. A refusal
+preserves its authored outcome in an accounted scratch record whose path the run
+names and `check` lists. The rendered Mermaid block draws only packets
 carrying a HARD, GATE, or REBUILD-SAVING edge. Before publication it is checked
 for defined nodes, unique edges, accounted lines, and a complete partition of
 state packets into drawn and omitted free-standing sets, with its denominator

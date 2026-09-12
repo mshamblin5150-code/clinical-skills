@@ -12,6 +12,7 @@ render -> read-back preserving machine state byte for byte.
 """
 from __future__ import annotations
 
+import ast
 import importlib.util
 import io
 import json
@@ -136,6 +137,115 @@ def run(fn, tracker, ns):
     with redirect_stdout(out):
         rc = fn(tracker, ns)
     return rc, out.getvalue()
+
+
+def revision_body(state, writer, superseded):
+    return (
+        imap.state_block(state)
+        + "\n\n## Snapshot\n\n"
+        + f"- writer: `{writer}`\n"
+        + f"- superseded state: `sha256:{superseded}`\n"
+    )
+
+
+def replace_in_function(source, function_name, old, new):
+    tree = ast.parse(source)
+    function = next(
+        node
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef) and node.name == function_name
+    )
+    lines = source.splitlines(keepends=True)
+    start = function.lineno - 1
+    end = function.end_lineno
+    segment = "".join(lines[start:end])
+    if old not in segment:
+        raise AssertionError(f"{old!r} not found in {function_name}")
+    lines[start:end] = [segment.replace(old, new, 1)]
+    return "".join(lines)
+
+
+def map_overwriter_obligations(source):
+    """Walk direct call sites; calls assembled by indirection are invisible."""
+    tree = ast.parse(source)
+    functions = {
+        node.name: node for node in tree.body if isinstance(node, ast.FunctionDef)
+    }
+    calls = {}
+    for name, function in functions.items():
+        called = set()
+        for node in ast.walk(function):
+            if not isinstance(node, ast.Call):
+                continue
+            if isinstance(node.func, ast.Name):
+                called.add(node.func.id)
+            elif isinstance(node.func, ast.Attribute):
+                called.add(node.func.attr)
+        calls[name] = called
+
+    def reachable(name):
+        found = set()
+        pending = [name]
+        while pending:
+            current = pending.pop()
+            if current in found:
+                continue
+            found.add(current)
+            pending.extend(calls.get(current, ()) & functions.keys())
+        return found
+
+    def has_lock(names):
+        for name in names:
+            for node in ast.walk(functions[name]):
+                if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
+                    continue
+                if node.func.attr != "hold" or not node.args:
+                    continue
+                artifact = node.args[0]
+                if (
+                    isinstance(artifact, ast.Call)
+                    and isinstance(artifact.func, ast.Name)
+                    and artifact.func.id == "map_artifact"
+                    and len(artifact.args) == 2
+                    and not (
+                        isinstance(artifact.args[1], ast.Constant)
+                        and artifact.args[1].value == 0
+                    )
+                ):
+                    return True
+        return False
+
+    def has_keyword(names, function_name, keyword):
+        return any(
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == function_name
+            and any(item.arg == keyword for item in node.keywords)
+            for name in names
+            for node in ast.walk(functions[name])
+        )
+
+    def has_call(names, function_name):
+        return any(
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == function_name
+            for name in names
+            for node in ast.walk(functions[name])
+        )
+
+    overwriters = {}
+    for root in sorted(name for name in functions if name.startswith("cmd_")):
+        names = reachable(root)
+        if not any("update_issue_body" in calls.get(name, ()) for name in names):
+            continue
+        label = "cmd_init --adopt" if root == "cmd_init" else root
+        overwriters[label] = {
+            "map-lock": has_lock(names),
+            "state-hash": has_keyword(names, "publish_body", "expected_state_hash"),
+            "revalidation": has_call(names, "revalidate_after_publish"),
+        }
+    return overwriters
 
 
 # ---------------------------------------------------------------------------
@@ -915,6 +1025,27 @@ class PublishReadsItselfBack(unittest.TestCase):
         self.assertEqual(authorize.call_args.args[1], "issue #596")
         self.assertEqual(authorize.call_args.kwargs, {"issue_number": 596})
 
+    def test_publish_revalidates_and_names_an_unmapped_ready_ticket(self):
+        tracker = FakeTracker(
+            self.rows + [issue(3, labels=["ready"])],
+            blocked={2: [1]},
+        )
+
+        rc, out = run(imap.cmd_publish, tracker, args())
+
+        self.assertEqual(rc, 1, out)
+        self.assertIn("FINDING unmapped-ready", out)
+        self.assertIn("#3", out)
+
+    def test_successful_publish_harvests_the_revision_chain(self):
+        tracker = FakeTracker(self.rows, blocked={2: [1]})
+        tracker.user_content_edits = mock.Mock(return_value="history")
+        with mock.patch.object(imap, "harvest_revision_chain") as harvest:
+            rc, out = run(imap.cmd_publish, tracker, args())
+
+        self.assertEqual(rc, 0, out)
+        harvest.assert_called_once_with("history")
+
     def test_apply_delta_without_an_adr_review_does_not_move_the_floor(self):
         tracker = FakeTracker(self.rows, blocked={2: [1]}, head="feed123")
         with tempfile.TemporaryDirectory() as tmp:
@@ -1331,6 +1462,90 @@ class PublishReadsItselfBack(unittest.TestCase):
         finally:
             record_path.unlink(missing_ok=True)
 
+    def test_apply_delta_rederives_after_one_state_hash_mismatch(self):
+        concurrent = state_with(
+            [
+                packet("PA", [1]),
+                packet("PB", [2]),
+                packet("PX", [9], outcome="Concurrent judgment"),
+            ],
+            edges=[hard(1, 2)],
+        )
+
+        class ChangesOnce(FakeTracker):
+            def __init__(self, rows, blocked=None, head="abc1234"):
+                super().__init__(rows, blocked, head)
+                self.get_calls = 0
+                self.head_calls = 0
+
+            def default_branch_head(self):
+                self.head_calls += 1
+                return super().default_branch_head()
+
+            def get_issue(self, number):
+                self.get_calls += 1
+                if self.get_calls == 2:
+                    self.rows[number]["body"] = imap.state_block(concurrent)
+                return super().get_issue(number)
+
+        tracker = ChangesOnce(
+            self.rows + [issue(3, labels=["ready"]), issue(9, state="closed")],
+            blocked={2: [1]},
+            head="feed123",
+        )
+
+        rc, out = run(
+            imap.cmd_apply_delta,
+            tracker,
+            args(commit=None, ticket=3, outcome="Authored placement"),
+        )
+
+        self.assertEqual(rc, 0, out)
+        written = imap.extract_state(tracker.rows[50]["body"])
+        self.assertEqual(imap.packet_of(written, 3), "P3")
+        self.assertEqual(imap.packet_of(written, 9), "PX")
+        self.assertEqual(tracker.head_calls, 1)
+
+    def test_apply_delta_exhausts_three_state_hash_attempts_and_preserves_once(self):
+        class AlwaysChanges(FakeTracker):
+            def __init__(self, rows, blocked=None, head="abc1234"):
+                super().__init__(rows, blocked, head)
+                self.get_calls = 0
+                self.head_calls = 0
+
+            def default_branch_head(self):
+                self.head_calls += 1
+                return super().default_branch_head()
+
+            def get_issue(self, number):
+                self.get_calls += 1
+                if self.get_calls % 2 == 0:
+                    changed = imap.extract_state(self.rows[number]["body"])
+                    changed["in_flight_labels"] = [f"remote-{self.get_calls}"]
+                    self.rows[number]["body"] = imap.state_block(changed)
+                return super().get_issue(number)
+
+        tracker = AlwaysChanges(
+            self.rows + [issue(3, labels=["ready"])],
+            blocked={2: [1]},
+            head="feed123",
+        )
+        with mock.patch.object(
+            imap, "preserve_refused_outcomes", return_value=Path("record.json")
+        ) as preserve:
+            rc, out = run(
+                imap.cmd_apply_delta,
+                tracker,
+                args(commit=None, ticket=3, outcome="Authored placement"),
+            )
+
+        self.assertEqual(rc, 1, out)
+        self.assertEqual(tracker.get_calls, 6)
+        self.assertEqual(tracker.head_calls, 1)
+        self.assertIn("3 attempts", out)
+        preserve.assert_called_once()
+        self.assertEqual(preserve.call_args.args[0], ("Authored placement",))
+
     def test_busy_lock_refusal_preserves_the_directly_authored_outcome(self):
         tracker = FakeTracker(self.rows, blocked={2: [1]})
         with mock.patch.object(
@@ -1355,6 +1570,25 @@ class PublishReadsItselfBack(unittest.TestCase):
             )
         finally:
             record_path.unlink(missing_ok=True)
+
+    def test_refused_outcomes_are_accounted_and_check_enumerates_them(self):
+        tracker = FakeTracker(self.rows, blocked={2: [1]})
+        with tempfile.TemporaryDirectory() as temporary:
+            scratch = Path(temporary) / "scratch"
+            with mock.patch.object(
+                imap.repo_root, "scratch_root", return_value=scratch
+            ):
+                record = imap.preserve_refused_outcomes(
+                    ("Authored placement",),
+                    issue_number=50,
+                    reason="busy",
+                )
+                rc, out = run(imap.cmd_check, tracker, args())
+
+            self.assertIsNotNone(record)
+            self.assertEqual(record.parent, scratch / "runs" / "map-refusals")
+            self.assertEqual(rc, 0, out)
+            self.assertIn("pending outcome records: 1", out)
 
     def test_init_creates_once_and_only_once(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -1381,6 +1615,42 @@ class PublishReadsItselfBack(unittest.TestCase):
             # a second init refuses: one map per repository
             with self.assertRaises(imap.MapError):
                 run(imap.cmd_init, tracker, ns)
+
+    def test_init_adopt_locks_the_adopted_issue_and_compares_its_hash(self):
+        original = imap.state_block(self.state)
+
+        class AdoptTarget(FakeTracker):
+            def issues(self):
+                return [row for row in super().issues() if row["number"] != 77]
+
+        tracker = AdoptTarget(
+            [
+                issue(1, labels=["ready"]),
+                issue(2, labels=["ready"]),
+                issue(77, title="Adopt me", body=original),
+            ],
+            blocked={2: [1]},
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "state.json"
+            path.write_text(json.dumps(self.state), encoding="utf-8")
+            ns = args(state=str(path), title="Map", label=[], adopt=77)
+            with mock.patch.object(
+                imap.artifact_lock, "hold", wraps=imap.artifact_lock.hold
+            ) as hold, mock.patch.object(
+                imap, "publish_body", wraps=imap.publish_body
+            ) as publish:
+                rc, out = run(imap.cmd_init, tracker, ns)
+
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(
+            hold.call_args.args[0],
+            imap.map_artifact(tracker, 77),
+        )
+        self.assertEqual(
+            publish.call_args.kwargs["expected_state_hash"],
+            imap.state_hash(original),
+        )
 
     def test_render_previews_a_state_file_before_any_map_exists(self):
         tracker = FakeTracker([issue(1), issue(2)], blocked={2: [1]})
@@ -1637,6 +1907,13 @@ class TheInTreeToolDeclaresItsBoundary(unittest.TestCase):
         row = imap.DECLARED_LIMITS[0]
         self.assertTrue(bind(imap.DECLARED_LIMITS, f"See the object. {row.key}.", mode=NAMING))
         self.assertTrue(bind(imap.DECLARED_LIMITS, f"See the object. {row.limit}", mode=NAMING))
+        self.assertEqual(
+            [row.key for row in imap.DECLARED_LIMITS].count(
+                "revision-attribution-window"
+            ),
+            1,
+        )
+        self.assertIn("Every map overwrite takes", prose)
 
     def test_the_ratified_command_split_stays_public(self):
         parser = imap.build_parser()
@@ -1651,6 +1928,159 @@ class TheInTreeToolDeclaresItsBoundary(unittest.TestCase):
         )
         self.assertIs(imap.COMMANDS["publish"], imap.cmd_publish)
         self.assertIs(imap.COMMANDS["apply-delta"], imap.cmd_apply_delta)
+
+    def test_the_overwriter_walk_binds_all_three_obligations(self):
+        source = (HERE / "implementation_map.py").read_text(encoding="utf-8")
+
+        obligations = map_overwriter_obligations(source)
+
+        self.assertEqual(
+            set(obligations),
+            {"cmd_publish", "cmd_apply_delta", "cmd_init --adopt"},
+        )
+        self.assertNotIn("create_issue", obligations)
+        self.assertTrue(all(all(rows.values()) for rows in obligations.values()))
+
+    def test_removing_any_overwriter_obligation_turns_the_walk_red(self):
+        source = (HERE / "implementation_map.py").read_text(encoding="utf-8")
+        cases = (
+            ("cmd_publish", "cmd_publish", "map-lock", 'map_artifact(tracker, issue["number"])', "map_artifact(tracker, 0)"),
+            ("cmd_apply_delta", "cmd_apply_delta", "map-lock", 'map_artifact(tracker, issue["number"])', "map_artifact(tracker, 0)"),
+            ("cmd_init --adopt", "cmd_init", "map-lock", "map_artifact(tracker, lock_number)", "map_artifact(tracker, 0)"),
+            ("cmd_publish", "cmd_publish", "state-hash", "expected_state_hash=expected,", ""),
+            ("cmd_apply_delta", "_apply_delta_attempt", "state-hash", "expected_state_hash=expected,", ""),
+            ("cmd_init --adopt", "_init_under_lock", "state-hash", "expected_state_hash=state_hash(current[\"body\"]),", ""),
+            ("cmd_publish", "cmd_publish", "revalidation", "revalidate_after_publish(", "skipped_revalidation("),
+            ("cmd_apply_delta", "_apply_delta_attempt", "revalidation", "revalidate_after_publish(", "skipped_revalidation("),
+            ("cmd_init --adopt", "_init_under_lock", "revalidation", "revalidate_after_publish(", "skipped_revalidation("),
+        )
+        for writer, function, obligation, old, new in cases:
+            with self.subTest(writer=writer, obligation=obligation):
+                mutated = replace_in_function(source, function, old, new)
+                self.assertFalse(
+                    map_overwriter_obligations(mutated)[writer][obligation]
+                )
+
+    def test_a_fourth_overwriter_is_discovered_without_joining_a_name_list(self):
+        source = (HERE / "implementation_map.py").read_text(encoding="utf-8")
+        source += """
+def cmd_fourth(tracker, args):
+    with artifact_lock.hold(map_artifact(tracker, args.issue), "fourth", mode="write"):
+        return publish_body(
+            tracker,
+            args.issue,
+            {},
+            args,
+            expected_state_hash="hash",
+        )
+"""
+
+        obligations = map_overwriter_obligations(source)
+
+        self.assertIn("cmd_fourth", obligations)
+        self.assertFalse(obligations["cmd_fourth"]["revalidation"])
+
+
+class RevisionChainAttribution(unittest.TestCase):
+    def setUp(self):
+        self.first = state_with([packet("PA", [1], outcome="first")])
+        self.second = state_with([packet("PA", [1], outcome="second")])
+        self.third = state_with([packet("PA", [1], outcome="third")])
+
+    def test_one_planted_break_appends_one_row_naming_both_writers(self):
+        first_body = revision_body(self.first, "writer-a", "0" * 64)
+        second_body = revision_body(
+            self.second,
+            "writer-b",
+            imap.state_hash(first_body),
+        )
+        third_body = revision_body(self.third, "writer-c", "f" * 64)
+        history = imap.RevisionHistory(
+            revisions=(
+                imap.Revision("r3", "2026-09-12T03:00:00Z", third_body),
+                imap.Revision("r2", "2026-09-12T02:00:00Z", second_body),
+                imap.Revision("r1", "2026-09-12T01:00:00Z", first_body),
+            ),
+            older_remainder=False,
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            ledger = Path(temporary) / "breaks.md"
+            with mock.patch.object(imap, "REVISION_LEDGER", ledger):
+                summary = imap.harvest_revision_chain(history)
+            text = ledger.read_text(encoding="utf-8")
+
+        self.assertEqual(summary.breaks_appended, 1)
+        self.assertEqual(text.count("| r2 | writer-b | r3 | writer-c |"), 1)
+        self.assertIn("- high-water revision: `r3`", text)
+        self.assertIn("- unread remainder: 0", text)
+
+    def test_a_prior_high_water_outside_the_window_reports_a_remainder(self):
+        first_body = revision_body(self.first, "writer-a", "0" * 64)
+        second_body = revision_body(
+            self.second,
+            "writer-b",
+            imap.state_hash(first_body),
+        )
+        history = imap.RevisionHistory(
+            revisions=(
+                imap.Revision("r2", "2026-09-12T02:00:00Z", second_body),
+                imap.Revision("r1", "2026-09-12T01:00:00Z", first_body),
+            ),
+            older_remainder=True,
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            ledger = Path(temporary) / "breaks.md"
+            ledger.write_text(
+                imap.render_revision_ledger(
+                    high_water="r0",
+                    unread_remainder="0",
+                    rows=(),
+                ),
+                encoding="utf-8",
+            )
+            with mock.patch.object(imap, "REVISION_LEDGER", ledger):
+                summary = imap.harvest_revision_chain(history)
+            text = ledger.read_text(encoding="utf-8")
+
+        self.assertNotEqual(summary.unread_remainder, "0")
+        self.assertIn("prior high-water revision r0 was not retained", text)
+
+    def test_a_full_host_window_declares_an_older_remainder(self):
+        nodes = [
+            {"id": f"r{index}", "editedAt": "2026-09-12T00:00:00Z", "diff": "body"}
+            for index in range(imap.REVISION_WINDOW)
+        ]
+        payload = json.dumps(
+            {
+                "data": {
+                    "repository": {
+                        "issue": {
+                            "userContentEdits": {
+                                "pageInfo": {"hasNextPage": False},
+                                "nodes": nodes,
+                            }
+                        }
+                    }
+                }
+            }
+        )
+        tracker = imap.GitHub("owner/repo")
+        with mock.patch.object(tracker, "_run", return_value=payload) as run_:
+            history = tracker.user_content_edits(596)
+
+        query_argument = next(
+            argument for argument in run_.call_args.args[0] if argument.startswith("query=")
+        )
+        queried_window = int(re.search(r"first:(\d+)", query_argument).group(1))
+        limit = next(
+            row.limit
+            for row in imap.DECLARED_LIMITS
+            if row.key == "revision-attribution-window"
+        )
+        self.assertEqual(queried_window, imap.REVISION_WINDOW)
+        self.assertIn(str(imap.REVISION_WINDOW), limit)
+        self.assertEqual(len(history.revisions), imap.REVISION_WINDOW)
+        self.assertTrue(history.older_remainder)
 
 
 def _exc_name(exc):
