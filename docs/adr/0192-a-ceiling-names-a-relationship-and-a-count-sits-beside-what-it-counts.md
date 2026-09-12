@@ -142,10 +142,18 @@ verdict is owed and none is written.
 
 ## What this record does not settle
 
-**Why `RULING_EXEMPT_CEILING` is 2.** One exemption is declared against it, it carries no comment at
-all, and ADR 0075 and ADR 0133 both cite it as a precedent without stating its reason. Filed
-separately: writing that reason is a decision, and inventing a rationale for a number nobody here
-chose is what this repository refuses.
+**Where `RULING_EXEMPT_CEILING`'s reason and digit live.** The constant carries no comment at all,
+and its reason is in ADR 0075 ruling 7 -- *"a ceiling of 2 held just above the one declaration"*.
+**Ruling 2 is therefore already violated for that ceiling**, in a direction this record does not
+repair: the digit is restated in ADR 0075 and again in ADR 0128, both remote from the constant, and
+ADR 0128 also states the live slack as *"one slot already spent"*, which is a count of declared
+exemptions written where nothing joins it to them. Filed separately, because moving a reason out of
+two ratified records is a decision about those records rather than a repair to this one.
+
+*This paragraph read that ADR 0075 and ADR 0133 cite the constant **without** stating its reason.
+That was false and was caught before the merge by grepping the records rather than reasoning from
+the constant's silence -- the same failure this record's own subject is made of, committed inside
+it.*
 
 **Whether any surviving adjacent count is correct.** Ruling 2 is about where a count may stand, not
 about whether it is right. `RULING_UNNUMBERED_CEILING`'s comment is true today because somebody
