@@ -93,12 +93,16 @@ The rule that a **scratch root**'s unaccounted count may fall and may not rise. 
 _Avoid_: threshold, limit, cap, budget
 
 **Gating root**:
-A **scratch root** that can refuse the commit being made — the **owning checkout**'s and the **committing checkout**'s, and no other. The line is that a session writes into exactly those two, so the refused party is always a candidate author of what was found. Every other root is a **peer root**: reported on every run and graded never, because a session cannot reach it, did not dirty it, and has no authorized **Drain** out of it. A gating root that passes still prints on a gating line — the label names what a root *could* do to this commit, never what it did.
+A **scratch root** that can refuse the commit being made — the **owning checkout**'s and the **committing checkout**'s, and no other. The line is that a session writes into exactly those two, so the refused party is always a candidate author of what was found. Every other root is a **peer root**: counted on every run and graded never, because a session cannot reach it, did not dirty it, and has no authorized **Drain** out of it. A gating root that passes still prints on a gating line — the label names what a root *could* do to this commit, never what it did.
 _Avoid_: graded root, active root, local root
 
 **Drain**:
 Moving a gating root's top-level rise under the **owning checkout**'s **Ticket directory**. The authorized remedy is a move rather than a deletion — it reads nothing, classifies nothing, publishes nothing and deletes nothing. A worktree drains into the durable owning root; an owning-root rise drains beneath its own accounted `sessions/` entry. Neither path changes the baseline.
 _Avoid_: clean up, clear, purge, sweep (in the tracker sense — see the tracker terms)
+
+**Stale registration**:
+A worktree that `git worktree list` still reports and whose directory is gone. Distinct from an **unreadable source**, where the directory is there and cannot be read: a stale registration holds nothing, because there is nothing left to hold it. It is always a **peer root** — the **owning checkout** resolves through its `.git` pointer and the **committing checkout** is the one a **Session** is standing in, so neither can be in this state.
+_Avoid_: dead worktree, orphaned worktree, stale root, missing root
 
 **Run key**:
 The identity of one unit of work, and it names the directory holding that unit's whole provenance record. For a graded artifact it is course, module and artifact — every part read off the live LMS or off which skill is running, and no part typed — and it prefixes the filename of every submission made from it. For a shift it is `shift-` and the visit date, which step 1 of the shift has already settled. That date is part of what the shift *is*, not the date of a sitting: a shift split on Monday and finished on Tuesday is two sittings and one key.
