@@ -850,6 +850,28 @@ _Avoid_: opt-out, waiver, suppression, allowlist, exception list
 The cap on a **Hatch**'s declared total. It is always graded and refuses past itself, which is the **opposite** obligation from the maximum a **Bar** states: a course maximum is transcribed and never honored, because honoring one deletes the clauses that bound a claim. Both senses are live in this repository at once, so which is meant is supplied and never inferred from the word. A ceiling is a cap and never a measurement -- moving one to meet what is on disk retires the check rather than discharging it -- and the first addition it refuses is the one **past** it, not the one that reaches it.
 _Avoid_: limit, cap, maximum, threshold, budget, quota
 
+### Delegation
+
+**Briefing surface**:
+A passage in a skill file that hands work to a context other than the one reading it. It is the unit the structural rules are graded over, so a passage that spawns nothing is not one however much it describes delegation. Every briefing surface is a **Fan-out brief**, a **Second reader** or a **Grader handoff**, and which one it is decides what it must say and what it does when no second context can be obtained.
+_Avoid_: brief, dispatch, delegation, spawn site
+
+**Fan-out brief**:
+A **Briefing surface** sending one worker per item, each returning one record into one prewritten file. The mechanism is the record and the brief rather than the parallelism, so the same briefs worked one at a time are the same fan-out and the file cannot tell. Distinct from a **Second reader**, which is one reader whose independence is itself the deliverable.
+_Avoid_: fan out, parallel research, worker pool, batch dispatch
+
+**Second reader**:
+A **Briefing surface** handing one artifact to one context that did not author it, to read what its author cannot see. Where a **Fan-out brief** degrades to serial work honestly, this one cannot: a self-authored second read is not a second read, so the surface does not complete rather than completing with a declaration.
+_Avoid_: reviewer, verifier, double check, second pass
+
+**Grader handoff**:
+A **Briefing surface** giving a non-authoring context a completed artifact and a committed command. It writes no record and returns a result, which is why it takes neither the prewrite rule nor the one-writer rule, and why its result survives being produced by the author so long as it is reported verbatim rather than summarized.
+_Avoid_: check, independent check, grading pass, review step
+
+**Narrowing**:
+What a **Briefing surface** states that the shared rule does not contain — a blinding whitelist, a capability requirement, an ordering gate. It is the only thing a surface writes for itself, because anything else it states about delegation is a copy of a rule that already binds it. Distinct from a **Hatch**, which excuses a finding rather than adding an obligation.
+_Avoid_: exception, override, local rule, carve-out
+
 ### Tracker
 
 **Binding**:
