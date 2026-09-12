@@ -117,9 +117,10 @@ no reach, no candidacy — is the collateral this removes.
 declared rather than closed.** Ruling 2 leaves a peer's loose entry gated only by that worktree's own
 next commit; a session that ends without committing again is caught by nothing, and
 `git worktree remove` then disposes of unrecoverable patient material with nobody's word on it.
-**That hazard is not created here** — ADR 0059 ruling 5 records seven of eight worktrees merged,
-clean and removable, and that *"an ordinary `git worktree remove` or prune takes their roots with
-them and nothing warns."* **Ruling 2 makes it more reachable**, because universal refusal was doing
+**That hazard is not created here** — ADR 0059's *The measurement that reopened it* section records
+seven of eight worktrees merged, clean and removable, and that *"an ordinary `git worktree remove`
+or prune takes their roots with them and nothing warns."* **Ruling 2 makes it more reachable**,
+because universal refusal was doing
 the noticing by accident, and that is stated in `DECLARED_LIMITS` rather than argued away.
 
 Two closures were refused. Gating the owning checkout's committer on every root is a backstop that
@@ -230,3 +231,8 @@ temporary entry is a permanent hole in the accounting. Ruling 4 makes the transi
 rather than making the remedy fit it.
 
 **The swap hole, unchanged and one entry wide in the owning root.** ADR 0033's reasoning is untouched.
+
+Correction, 2026-09-12: ruling 3 formerly attributed the seven-of-eight worktree measurement and
+quoted removal hazard to ADR 0059 ruling 5. They appear in ADR 0059's *The measurement that reopened
+it* section; ruling 5 addresses subprocess cost. The hazard and this record's ruling are unchanged.
+[#1136](https://github.com/mshamblin5150-code/clinical-skills/issues/1136).
