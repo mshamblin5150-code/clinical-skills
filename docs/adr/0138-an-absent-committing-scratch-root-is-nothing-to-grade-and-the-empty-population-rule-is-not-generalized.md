@@ -234,12 +234,12 @@ coverage limb is a decision and not a repair.
 
 ### 10. There is no end-to-end test, and that limit is declared where the substring search lives
 
-`tools/hooks/pre-commit` runs seven graders, and `phi_scan.py` is one of them. In a throwaway
+`tools/hooks/pre-commit` runs its declared graders, and `phi_scan.py` is one of them. In a throwaway
 checkout there is no corpus, so `phi_scan` exits 2 and the hook refuses **for a different reason than
 the one under test**. A test asserting the hook does not refuse would fail on a correct fix; one
 asserting it does refuse would pass while the census was right and `phi_scan` was merely corpus-less.
 
-So the end-to-end path is unavailable in a fixture without standing up a fake corpus or stubbing six
+So the end-to-end path is unavailable in a fixture without standing up a fake corpus or stubbing the
 unrelated graders, and both make the test assert the harness rather than the hook. `:377` is the
 honest instrument and it is reading as more than it is: it proves the hook contains a line, and
 nothing about what that line does. Its docstring says so.

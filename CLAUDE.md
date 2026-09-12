@@ -1560,7 +1560,13 @@ python tools/spelling_scan.py --record   # the preserved run record, form by for
 
 **Advisory in both spelling hooks**, alongside `skills_mirror.py` and on the same reasoning: `pre-commit` checks staged source and filenames, and `commit-msg` checks the message Git is about to record. A spelling is not worth refusing a commit over, so both warn and return success.
 
-**These checks can refuse a commit here, and this is not one of them.** Standing rule 1 via `phi_scan.py` and, since #466, the unconditional local `scratch_census.py`; `threshold_sheet.py`, `threshold_coverage.py`, and `subject_ledger.py` on their staged threshold surfaces; and `uptodate_sheet.py` when an UpToDate topic sheet is staged. The threshold and UpToDate directory READMEs trigger none of those conditional graders. This sentence and two others said *"standing rule 1 remains the only thing that refuses a commit here"* for one merge after that stopped being true, which is [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143)'s shape applied to a rule rather than a figure: the branch that added the second refuser did not sweep for prose asserting there was only one.
+**The spelling scanner is advisory and cannot refuse a commit.** The current inventory of checks
+that can refuse, with their provenance and staging conditions, lives in `tools/hooks/pre-commit`.
+This sentence and two others once said *"standing rule 1 remains the only thing that refuses a
+commit here"* for one merge after that stopped being true, which is
+[#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143)'s shape applied to a rule
+rather than a figure: the branch that changed the hook posture did not sweep the prose that
+described it.
 
 It prints a path, a line number for content and its own table's entry — **never the text it matched** — so its output is safe to paste, and there is no `--show`. Since [#104](https://github.com/mshamblin5150-code/clinical-skills/issues/104), it reads Markdown and Python contents plus filenames, and the local `commit-msg` hook reads the commit message. Ticket and PR text remain the clinician's explicit manual surface. Python mentions use a counted `# spelling-scan: mentions N` immediately above the exact AST statement; a stale count fails rather than widening the exemption. The other limit remains: it holds the table rather than the language, so a clean scan means no *listed* form was used.
 
@@ -2183,9 +2189,8 @@ unruled value rather than a blank or an implicit singleton.
 
 **It can refuse a commit.** Since #429 the pre-commit hook runs it when the catalog, the registry or
 a threshold sheet is staged, and it refuses a missing or duplicate topic, an unrecorded state, or an
-orphaned sheet. **That makes it one of the checks that can turn a commit away**, alongside standing
-rule 1, the local scratch census, `threshold_sheet.py`, `subject_ledger.py`, and the staged
-UpToDate sheet grader.
+orphaned sheet. Its membership and staging condition are recorded in `tools/hooks/pre-commit`,
+which holds the current inventory of checks that can turn a commit away.
 
 **Exit status** — 0, 1 for a registry finding, 2 for every way of not having audited.
 
@@ -2383,9 +2388,19 @@ Standing rule 1 is enforced rather than remembered. **Git does not clone hooks, 
 git config core.hooksPath tools/hooks
 ```
 
-After that, `tools/hooks/pre-commit` runs `tools/phi_scan.py`, `tools/scratch_census.py`, and the staged spelling check on every commit in that clone; staged threshold, subject, coverage, and UpToDate topic artifacts run their own conditional graders. `tools/hooks/commit-msg` checks the proposed message for spelling and GitHub closing keywords. Both spelling checks and the closing-keyword check are advisory.
+After that, `tools/hooks/pre-commit` runs `tools/phi_scan.py`, `tools/scratch_census.py`, and the
+staged spelling check on every commit in that clone. The hook records its staged-conditional graders
+beside their triggering paths instead of copying that inventory here. `tools/hooks/commit-msg`
+checks the proposed message for spelling and GitHub closing keywords. Both spelling checks and the
+closing-keyword check are advisory.
 
-**Standing rule 1 is no longer the only thing that can refuse a commit here, and that changed deliberately.** Since #466 its second unconditional local check, `scratch_census.py`, refuses a rise above the owning checkout's module baseline or the committing checkout's zero ratchet; peer worktrees report and are never graded. It is permanently absent from CI because no runner owns a scratch root. Since #83 a staged threshold sheet also runs `tools/threshold_sheet.py --all --quiet`, and a failing gate refuses. #181 narrowed both edges: the directory README does not trigger the grader, and a recommendation record never built under `--recs-root` prints `COVERAGE NOT RUN` through `--quiet` but does not refuse; explicit path errors, unreadable records, and findings from present records remain non-zero. Since #429, a catalog, registry, or threshold-sheet edit also runs `tools/threshold_coverage.py`; it refuses a missing or duplicate topic, an unrecorded state, or an orphaned sheet. Since #689, staging either `reference/thresholds/coverage.md` or `reference/thresholds/subjects.md` runs `tools/subject_ledger.py`; it refuses drift in their two-way subject bind, including deletion or a rename away. Since #901, staging an UpToDate topic sheet runs `tools/uptodate_sheet.py --all --quiet`; it refuses malformed bibliographic or distillation metadata and an excessive exact-language share against the private source. The reasoning is narrow: a fabricated citation, a false corpus denominator, an unevidenced subject equivalence, or a malformed citable topic sheet is clinical guidance a consumer may rely on, while an absent uncommitted build artifact is a property of the machine. **The conditional checks cost nothing on a commit that touches none of their artifacts** — which is what keeps them from becoming checks people learn to `--no-verify` around — and both unconditional checks have their status OR-ed in, so nothing above can suppress either. `skills_mirror.py`, `spelling_scan.py`, and `closing_keyword_scan.py` stay advisory.
+**Refusing checks are added deliberately because their findings protect clinical guidance a
+consumer may rely on.** A fabricated citation, a false corpus denominator, an unevidenced subject
+equivalence, or a malformed citable topic sheet warrants refusal; an absent uncommitted build
+artifact is a property of the machine. `tools/hooks/pre-commit` is the current inventory of which
+checks refuse, why they do so, and which staged paths trigger them. Conditional checks cost nothing
+when none of their artifacts is staged, and the unconditional statuses are OR-ed so one check
+cannot suppress another. Advisory checks remain advisory.
 
 **Two layers, and the asymmetry between them is the design.**
 

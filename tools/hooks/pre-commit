@@ -43,9 +43,8 @@ for python in python python3 py; do
 
         status=0
 
-        # **The second thing in this repo that can refuse a commit, and the first
-        # since standing rule 1.** That is a deliberate change in posture, ruled on
-        # in #83 decision 1 rather than drifted into. The reasoning: a fabricated
+        # **The second refusing check.** #83, and the first since standing rule 1.
+        # That is a deliberate change in posture rather than drift. The reasoning: a fabricated
         # citation in a threshold sheet is a number a clinician may act on, and the
         # checks that catch one are deterministic and unambiguous. A warning in a
         # hook is read past.
@@ -65,7 +64,7 @@ for python in python python3 py; do
             "$python" "$repo_root/tools/threshold_sheet.py" --all --quiet >&2 || status=1
         fi
 
-        # **The third refusing check.** The topic registry is the directory's denominator, not a clinical sheet,
+        # **The third refusing check.** #429. The topic registry is the directory's denominator, not a clinical sheet,
         # and has its own auditor. A catalog edit can change its population; a sheet
         # edit can orphan either side of a `sheet` row. README prose changes neither.
         if git diff --cached --name-only --diff-filter=ACM \
@@ -74,7 +73,7 @@ for python in python python3 py; do
             "$python" "$repo_root/tools/threshold_coverage.py" >&2 || status=1
         fi
 
-        # **The fourth refusing check.** The subject column and its evidence ledger
+        # **The fourth refusing check.** #689. The subject column and its evidence ledger
         # are one two-way bind. Run the grader when either half is staged so neither
         # can drift alone. Treat renames as delete-plus-add so moving either half
         # away still runs it.
@@ -83,12 +82,12 @@ for python in python python3 py; do
             "$python" "$repo_root/tools/subject_ledger.py" >&2 || status=1
         fi
 
-        # **The fifth refusing check.** It cannot run in CI because scratch roots
+        # **The fifth refusing check.** #466. It cannot run in CI because scratch roots
         # are gitignored patient records. The ordinary command stays at two Git
         # subprocesses; the slower removability measurement is opt-in.
         "$python" "$repo_root/tools/scratch_census.py" >&2 || status=1
 
-        # **The sixth refusing check.** A published UpToDate sheet carries
+        # **The sixth refusing check.** #901. A published UpToDate sheet carries
         # citable clinical guidance. Grade the complete publisher directory
         # only when a topic sheet is staged; its README is the format, not a
         # topic. The source manifest is gitignored, so this is a local gate.
@@ -98,7 +97,7 @@ for python in python python3 py; do
             "$python" "$repo_root/tools/uptodate_sheet.py" --all --quiet >&2 || status=1
         fi
 
-        # **The seventh refusing check.** Currency itself only reports. This gate
+        # **The seventh refusing check.** #912. Currency itself only reports. This gate
         # refuses damage to the catalog-bound registry when either half is staged;
         # no hook invocation performs a society-index read.
         if git diff --cached --name-only --no-renames --diff-filter=ACDM \
@@ -106,7 +105,7 @@ for python in python python3 py; do
             "$python" "$repo_root/tools/guidelines_currency.py" >&2 || status=1
         fi
 
-        # **The eighth refusing check.** The APA sheet and its manual-reading
+        # **The eighth refusing check.** #976. The APA sheet and its manual-reading
         # registry are one digest-bound pair. Run the complete two-way audit when
         # either half is staged; renames are delete-plus-add so moving a half away
         # cannot strand the other one silently. Counts intentionally survive quiet.
@@ -115,7 +114,7 @@ for python in python python3 py; do
             "$python" "$repo_root/tools/apa7_coverage.py" --quiet >&2 || status=1
         fi
 
-        # Standing rule 1, and it is no longer `exec`ed. It still refuses on its own
+        # **Standing rule 1's refusing check.** It is no longer `exec`ed and still refuses on its own
         # and nothing above can suppress it -- the status is OR-ed, never replaced.
         #
         # Since #93 a non-zero here means one of two things: 1, PHI was found, or
