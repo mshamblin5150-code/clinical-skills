@@ -110,6 +110,7 @@ DECLARED_SECTIONS = {
     "tracker_filed_from": "Tracker Filed-from line",
     "tracker_freshness": "Tracker freshness",
     "tracker_merge_receipt": "Tracker merge receipt",
+    "tracker_population": "Tracker population",
     "tracker_publish_hook": "Tracker publish hook",
     "tracker_scan": "Tracker scan",
     "uspstf_interval_reach": "USPSTF interval reach",

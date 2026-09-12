@@ -77,7 +77,12 @@ def comment_population(text: str) -> int:
             match = re.search(r"<([^>]+)>", item)
             if match is None:
                 break
-            pages = parse_qs(urlparse(match.group(1)).query).get("page", [])
+            query = parse_qs(urlparse(match.group(1)).query)
+            if query.get("per_page") != ["1"]:
+                raise PopulationError(
+                    'comment population rel="last" is not from per_page=1'
+                )
+            pages = query.get("page", [])
             if len(pages) == 1 and pages[0].isdigit():
                 return _count(int(pages[0]), 'rel="last" page')
         raise PopulationError('comment population probe has an invalid rel="last"')

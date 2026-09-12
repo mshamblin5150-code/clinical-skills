@@ -927,9 +927,9 @@ class AHarvestRulingRemovesOnlyThatExactPublishedFinding(MainInATempRepo):
         self.assertIn("unmatched verdict rows", out)
         self.assertRegex(out, r"unmatched verdict rows\s+1")
 
-    def test_draft_rulings_contain_the_key_and_no_matched_value(self):
+    def test_draft_verdicts_contain_the_key_and_no_matched_value(self):
         line = f"{NAME} was on the list"
-        draft = Path(self.tmp.name) / "draft-rulings.json"
+        draft = Path(self.tmp.name) / "draft-verdicts.json"
 
         status, _ = self.run_main(
             "--harvest", self.a_harvest(line), "--draft-verdicts", str(draft)

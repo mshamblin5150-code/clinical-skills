@@ -1125,6 +1125,7 @@ gh api graphql -f owner=OWNER -f name=REPO -f query='query($owner:String!,$name:
 gh api --include "repos/OWNER/REPO/issues/comments?per_page=1&page=1" > "$H/tracker-comments-population.http"
 gh api --include "repos/OWNER/REPO/pulls/comments?per_page=1&page=1" > "$H/tracker-reviews-population.http"
 python tools/tracker_population.py "$H/tracker-issues-population.json" "$H/tracker-comments-population.http" "$H/tracker-reviews-population.http" --write "$H/tracker-population.json"
+H=$(python tools/scratch_work.py ticket "$TICKET_NUMBER")
 gh api --paginate "repos/OWNER/REPO/issues?state=all&per_page=100" > "$H/tracker-issues.json"
 gh api --paginate "repos/OWNER/REPO/issues/comments?per_page=100" > "$H/tracker-comments.json"
 gh api --paginate "repos/OWNER/REPO/pulls/comments?per_page=100" > "$H/tracker-reviews.json"
@@ -1134,6 +1135,16 @@ git config --add remote.origin.fetch "+refs/pull/*/head:refs/remotes/origin/pr/*
 git fetch origin
 python tools/tracker_scan.py --commits --history --paths
 ```
+
+### Tracker population
+
+`tools/tracker_population.py` derives the three-file manifest that bounds a
+full tracker harvest. It reads the kept GraphQL issue/pull-request totals and
+the two kept `per_page=1` HTTP comment probes; it opens no socket. A comments
+probe with `rel="last"` contributes that last page, while a probe without the
+header must carry zero or one JSON row and contributes its array length. Any
+other probe shape exits 2 without writing the manifest. Run these probes before
+the paginated harvest so tracker growth cannot produce a false complete result.
 
 **The recurring trigger is the tracker event, owned by Actions.** Issue and
 pull-request titles and bodies, issue comments, review bodies and review

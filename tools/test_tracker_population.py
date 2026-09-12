@@ -44,6 +44,14 @@ class PopulationRoutesAreIndependent(unittest.TestCase):
         with self.assertRaises(tracker_population.PopulationError):
             tracker_population.comment_population(response([{}, {}]))
 
+    def test_a_last_page_from_any_page_size_beside_one_is_refused(self):
+        link = (
+            '<https://api.github.test/comments?per_page=100&page=2>; rel="next", '
+            '<https://api.github.test/comments?per_page=100&page=37>; rel="last"'
+        )
+        with self.assertRaises(tracker_population.PopulationError):
+            tracker_population.comment_population(response([{}], link))
+
 
 class TheCommandWritesTheScannerManifest(unittest.TestCase):
     def test_three_kept_probes_produce_the_per_file_manifest(self):

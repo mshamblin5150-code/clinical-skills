@@ -36,6 +36,7 @@ Harvest first, then scan::
         "$H/tracker-comments-population.http" \
         "$H/tracker-reviews-population.http" \
         --write "$H/tracker-population.json"
+    H=$(python tools/scratch_work.py ticket "$TICKET_NUMBER")
     gh api --paginate "repos/OWNER/REPO/issues?state=all&per_page=100" \\
         > "$H/tracker-issues.json"
     gh api --paginate "repos/OWNER/REPO/issues/comments?per_page=100" \\
@@ -446,11 +447,6 @@ def load_harvest_with_counts(
         counts[path.name] = len(data)
         records.extend(records_from_github(data, path.name))
     return records, counts
-
-
-def load_harvest(paths: Sequence[Path]) -> list[Record]:
-    """Compatibility reader for callers that need records only."""
-    return load_harvest_with_counts(paths)[0]
 
 
 def load_population(path: Path, harvest: Sequence[Path]) -> dict[str, int]:
