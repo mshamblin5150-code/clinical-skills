@@ -154,7 +154,7 @@ import artifact_provenance
 import guidelines_extract
 import page_text
 import pdf_engine
-from console_codec import use_utf8
+from console_codec import require_python_floor, use_utf8
 from repo_root import InsideCheckout, ensure_outside_checkout
 
 MODE_EXACT = "exact"
@@ -1623,4 +1623,5 @@ def main(argv: list[str]) -> int:
 
 if __name__ == "__main__":
     use_utf8()
+    require_python_floor()
     raise SystemExit(main(sys.argv[1:]))

@@ -182,3 +182,26 @@ jobs:
       - name: PHI shape layer only, corpus layer cannot run in CI
         if: always()
         run: python tools/phi_scan.py --all --allow-no-corpus
+
+  # ADR 0187's executable floor. The full suite is deliberate: an import-only
+  # smoke job stays green below the runtime APIs the consumer commands call.
+  # This remains a separate advisory job so a future tooling-floor rise has to
+  # split the measurement rather than silently raising a consumer install.
+  floor:
+    name: complete suite at the consumer floor
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.10'
+
+      - name: Interpreter
+        run: python -VV
+
+      - name: Test complete suite at the declared floor
+        run: python tools/suite.py

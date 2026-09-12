@@ -4763,6 +4763,8 @@ class TheHookGradesSheetsAndNotTheDirectoryReadme(unittest.TestCase):
                 "page_text.py",
                 "pdf_engine.py",
                 "console_codec.py",
+                "python_floor.py",
+                "git_paths.py",
                 "repo_root.py",
             ):
                 shutil.copy2(gate.REPO_ROOT / "tools" / name, tools / name)

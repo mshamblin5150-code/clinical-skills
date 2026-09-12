@@ -79,7 +79,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterator
 
-from console_codec import use_utf8
+from console_codec import require_python_floor, use_utf8
 import guidelines_manifest
 from guidelines_manifest import MANIFEST_NAME
 from repo_root import ensure_outside_checkout, main_repo_root
@@ -449,4 +449,5 @@ def main(argv: list[str]) -> int:
 
 if __name__ == "__main__":
     use_utf8()
+    require_python_floor()
     raise SystemExit(main(sys.argv[1:]))

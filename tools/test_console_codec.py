@@ -20,11 +20,12 @@ corpus text.
 """
 
 import ast
+import contextlib
 import io
 import unittest
 from pathlib import Path
 
-from console_codec import use_utf8
+from console_codec import require_python_floor, use_utf8
 
 TOOLS = Path(__file__).resolve().parent
 
@@ -102,6 +103,24 @@ class TheHelper(unittest.TestCase):
         self.assertEqual((out.encoding, err.encoding), ("utf-8", "utf-8"))
 
 
+class ThePythonFloorGuard(unittest.TestCase):
+    def test_an_interpreter_below_the_consumer_floor_gets_one_line_and_exit_2(self):
+        error = io.StringIO()
+        with contextlib.redirect_stderr(error), self.assertRaises(SystemExit) as stopped:
+            require_python_floor((3, 9))
+        self.assertEqual(2, stopped.exception.code)
+        self.assertEqual(1, len(error.getvalue().splitlines()))
+        self.assertIn("Python 3.10 or newer", error.getvalue())
+
+    def test_the_declared_floor_and_newer_continue_silently(self):
+        for version in ((3, 10), (3, 14)):
+            with self.subTest(version=version):
+                error = io.StringIO()
+                with contextlib.redirect_stderr(error):
+                    require_python_floor(version)
+                self.assertEqual("", error.getvalue())
+
+
 def main_guard(module: ast.Module) -> ast.If | None:
     """The module-level ``if __name__ == "__main__":`` node, or None."""
     for node in module.body:
@@ -118,20 +137,20 @@ def main_guard(module: ast.Module) -> ast.If | None:
     return None
 
 
-def imports_helper(module: ast.Module) -> bool:
+def imports_helper(module: ast.Module, helper: str = "use_utf8") -> bool:
     return any(
         isinstance(node, ast.ImportFrom)
         and node.module == "console_codec"
-        and any(alias.name == "use_utf8" for alias in node.names)
+        and any(alias.name == helper for alias in node.names)
         for node in ast.walk(module)
     )
 
 
-def calls_helper(node: ast.AST) -> bool:
+def calls_helper(node: ast.AST, helper: str = "use_utf8") -> bool:
     return any(
         isinstance(child, ast.Call)
         and isinstance(child.func, ast.Name)
-        and child.func.id == "use_utf8"
+        and child.func.id == helper
         for child in ast.walk(node)
     )
 
@@ -222,6 +241,24 @@ class EveryToolTakesIt(unittest.TestCase):
                     f"{MAIN_GUARD}",
                 )
 
+    def test_every_command_line_tool_guards_the_python_floor_after_utf8(self):
+        for path, module in self.command_line_tools():
+            with self.subTest(tool=path.name):
+                if delegates_to_run_grader(module):
+                    continue
+                guard = main_guard(module)
+                calls = [
+                    child.func.id
+                    for child in guard.body
+                    if isinstance(child, ast.Expr)
+                    and isinstance(child.value, ast.Call)
+                    and isinstance(child.value.func, ast.Name)
+                    for child in (child.value,)
+                    if child.func.id in {"use_utf8", "require_python_floor"}
+                ]
+                self.assertTrue(imports_helper(module, "require_python_floor"), path.name)
+                self.assertEqual(["use_utf8", "require_python_floor"], calls[:2], path.name)
+
     def test_the_shared_runner_takes_the_console_policy_for_its_members(self):
         module = ast.parse((TOOLS / "run_grader.py").read_text(encoding="utf-8"))
         run = next(
@@ -231,6 +268,24 @@ class EveryToolTakesIt(unittest.TestCase):
         )
         self.assertTrue(imports_helper(module))
         self.assertTrue(calls_helper(run))
+
+    def test_the_shared_runner_guards_the_python_floor_after_utf8(self):
+        module = ast.parse((TOOLS / "run_grader.py").read_text(encoding="utf-8"))
+        run = next(
+            node
+            for node in module.body
+            if isinstance(node, ast.FunctionDef) and node.name == "run"
+        )
+        calls = [
+            statement.value.func.id
+            for statement in run.body
+            if isinstance(statement, ast.Expr)
+            and isinstance(statement.value, ast.Call)
+            and isinstance(statement.value.func, ast.Name)
+            and statement.value.func.id in {"use_utf8", "require_python_floor"}
+        ]
+        self.assertTrue(imports_helper(module, "require_python_floor"))
+        self.assertEqual(["use_utf8", "require_python_floor"], calls[:2])
 
 
 class TheOtherEndOfTheSameBoundary(unittest.TestCase):

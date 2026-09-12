@@ -228,7 +228,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from console_codec import use_utf8
+from console_codec import require_python_floor, use_utf8
 from repo_root import scratch_root
 
 # A note opens with "Note 1" at the start of a line. Case-insensitive: the corpus
@@ -2505,4 +2505,5 @@ def main(argv: list[str]) -> int:
 
 if __name__ == "__main__":
     use_utf8()
+    require_python_floor()
     raise SystemExit(main(sys.argv))

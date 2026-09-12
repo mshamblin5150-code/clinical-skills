@@ -84,7 +84,7 @@ The model is optional and only affects graded writing. It does not replace a rub
 
 ## Getting started
 
-You need Git and Python 3.10 or newer. See `AGENTS.md` for skill-specific prerequisites.
+You need Git. The consumer floor is Python 3.10 or newer, and the tooling floor is Python 3.10 or newer. See `AGENTS.md` for skill-specific prerequisites.
 
 1. Install Python.
 
@@ -96,7 +96,7 @@ You need Git and Python 3.10 or newer. See `AGENTS.md` for skill-specific prereq
 
    Check the package name before accepting it: `Python.Python.2` appears in the same search results and is the obsolete major version. Close the terminal completely and reopen it after installation so the new PATH is loaded.
 
-   **macOS:** install Python unconditionally. The [2026-09-01 setup ruling](https://github.com/mshamblin5150-code/clinical-skills/issues/401#issuecomment-5499117118) records Apple's command-line-tools Python as 3.9.6 from primary-source research; that is below this repository's 3.10 floor. Install [Homebrew](https://brew.sh/) if needed, run the `shellenv` commands its installer prints to add Homebrew to your shell, and then run:
+   **macOS:** install Python unconditionally. The [2026-09-01 setup ruling](https://github.com/mshamblin5150-code/clinical-skills/issues/401#issuecomment-5499117118) records Apple's command-line-tools Python as 3.9.6 from primary-source research; that is below the consumer floor. Install [Homebrew](https://brew.sh/) if needed, run the `shellenv` commands its installer prints to add Homebrew to your shell, and then run:
 
    ```bash
    brew install python@3.13

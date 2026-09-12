@@ -105,7 +105,7 @@ from datetime import date as CalendarDate
 from pathlib import Path
 from typing import NamedTuple, Sequence
 
-from console_codec import use_utf8
+from console_codec import require_python_floor, use_utf8
 import git_paths
 from name_index import coverage as index_coverage, looks_like_a_name
 from repo_root import scratch_root
@@ -1467,4 +1467,5 @@ def review_hint(findings: Sequence[Finding], unreviewed: set[str]) -> str:
 
 if __name__ == "__main__":
     use_utf8()
+    require_python_floor()
     raise SystemExit(main(sys.argv[1:]))

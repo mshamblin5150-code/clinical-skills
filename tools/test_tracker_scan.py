@@ -1219,7 +1219,7 @@ class TheModuleTakesTheDirectorysStandingRules(unittest.TestCase):
 
     def test_it_puts_the_console_on_utf8_from_main(self):
         source = Path(tracker_scan.__file__).read_text(encoding="utf-8")
-        self.assertIn("from console_codec import use_utf8", source)
+        self.assertIn("from console_codec import require_python_floor, use_utf8", source)
         self.assertIn("use_utf8()", source)
 
     def test_it_names_show_output_as_phi(self):

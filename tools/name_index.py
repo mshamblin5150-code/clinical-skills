@@ -156,7 +156,7 @@ from pathlib import Path
 from typing import Iterable, Sequence
 
 import corpus_census as cc
-from console_codec import use_utf8
+from console_codec import require_python_floor, use_utf8
 from repo_root import enclosing_checkout, scratch_root
 
 # `guidelines_search.py`'s convention, already in `specificity_scan`,
@@ -640,4 +640,5 @@ def main(argv: list) -> int:
 
 if __name__ == "__main__":
     use_utf8()
+    require_python_floor()
     raise SystemExit(main(sys.argv[1:]))

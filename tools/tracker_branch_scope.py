@@ -22,7 +22,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any, NamedTuple
 from urllib.parse import unquote
 
-from console_codec import use_utf8
+from console_codec import require_python_floor, use_utf8
 import git_paths
 import git_ancestry
 from tracker_records import TrackerRecord, from_actions_event
@@ -435,4 +435,5 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     use_utf8()
+    require_python_floor()
     raise SystemExit(main())

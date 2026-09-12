@@ -89,6 +89,7 @@ DECLARED_SECTIONS = {
     "pdf_engine": "Console codec",
     "phi_scan": "PHI pre-commit hook",
     "post_html": "Discussion post grading",
+    "python_floor": "Continuous integration",
     "reference_scan": "Reference scan",
     "reference_class_census": "Reference-class census",
     "refusal_scan": "Refusal scan",
