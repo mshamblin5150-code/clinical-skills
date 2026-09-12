@@ -235,6 +235,7 @@ class PdfEngineResidueIsDeclared(unittest.TestCase):
                 "decode-resolution",
                 "guidelines-extract-split",
                 "threshold-gates",
+                "skill-import-spellings",
             },
             set(pdf_engine.DECLARED_LIMITS),
         )
@@ -463,6 +464,55 @@ class PageImageOwnsRasterizationAndTheProbe(unittest.TestCase):
             self.assertEqual(
                 page_image.page_read_error(renamed),
                 "does not carry a PNG signature",
+            )
+
+    def test_rasterize_can_select_pages_without_renumbering_them(self):
+        calls = []
+
+        class Pixmap:
+            def save(self, path):
+                Path(path).write_bytes(page_image.PNG_SIGNATURE + b"pixels")
+
+        class Page:
+            def __init__(self, number):
+                self.number = number
+
+            def get_pixmap(self, **arguments):
+                calls.append((self.number, arguments))
+                return Pixmap()
+
+        class Document:
+            def __len__(self):
+                return 3
+
+            def __iter__(self):
+                return iter((Page(1), Page(2), Page(3)))
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_arguments):
+                return None
+
+        engine = type("Engine", (), {"open": staticmethod(lambda _path: Document())})()
+        with tempfile.TemporaryDirectory() as temporary, mock.patch.object(
+            page_image.pdf_engine, "acquire", return_value=engine
+        ):
+            root = Path(temporary)
+            self.assertEqual(
+                page_image.rasterize(
+                    root / "source.pdf",
+                    root,
+                    name="page",
+                    dpi=140,
+                    page_numbers=(2,),
+                ),
+                1,
+            )
+            self.assertEqual(calls, [(2, {"dpi": 140})])
+            self.assertEqual(
+                sorted(path.name for path in root.glob("*.png")),
+                ["page-2.png"],
             )
 
 

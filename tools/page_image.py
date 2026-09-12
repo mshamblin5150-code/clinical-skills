@@ -4,9 +4,13 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Iterator
+from typing import Iterable, Iterator
 
 import pdf_engine
+
+
+EngineUnavailable = pdf_engine.EngineUnavailable
+SourceUnreadable = pdf_engine.SourceUnreadable
 
 
 RASTER_DPI = 120
@@ -34,14 +38,20 @@ def rasterize(
     *,
     name: str,
     dpi: int = RASTER_DPI,
+    page_numbers: Iterable[int] | None = None,
 ) -> int:
     """Write one staged PNG per page, collecting every failed page number."""
     with _opened(export) as document:
         pages = len(document)
         if pages < 1:
             raise pdf_engine.SourceUnreadable(EMPTY_EXPORT)
+        selected = None if page_numbers is None else set(page_numbers)
+        found: set[int] = set()
         missed: list[tuple[int, str]] = []
         for number, page in enumerate(document, start=1):
+            if selected is not None and number not in selected:
+                continue
+            found.add(number)
             target = destination / f"{name}-{number}.png"
             partial = destination / f".{name}-{number}.building.png"
             try:
@@ -50,6 +60,10 @@ def rasterize(
             except Exception as failure:
                 partial.unlink(missing_ok=True)
                 missed.append((number, str(failure)))
+        if selected is not None:
+            missed.extend(
+                (number, "page does not exist") for number in sorted(selected - found)
+            )
     if missed:
         raise pdf_engine.SourceUnreadable(
             "could not rasterize page(s) "
@@ -58,7 +72,7 @@ def rasterize(
                 for number, detail in missed
             )
         )
-    return pages
+    return pages if selected is None else len(selected)
 
 
 def export_page_count(export: Path) -> int:
