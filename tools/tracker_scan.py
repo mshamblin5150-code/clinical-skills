@@ -30,6 +30,12 @@ Harvest first, then scan::
     : "${TICKET_NUMBER:?set TICKET_NUMBER to the current ticket number}"
     H=$(python tools/scratch_work.py ticket "$TICKET_NUMBER")
     mkdir -p "$H"
+    # Derive these three counts first, by ADR 0184's GraphQL and per_page=1
+    # header routes, then record them in this input file.
+    printf '%s\n' '{"version":1,"populations":{' \\
+        '"tracker-issues.json":ISSUES,' \\
+        '"tracker-comments.json":COMMENTS,' \\
+        '"tracker-reviews.json":REVIEWS}}' > "$H/tracker-population.json"
     gh api --paginate "repos/OWNER/REPO/issues?state=all&per_page=100" \\
         > "$H/tracker-issues.json"
     gh api --paginate "repos/OWNER/REPO/issues/comments?per_page=100" \\
@@ -37,7 +43,8 @@ Harvest first, then scan::
     gh api --paginate "repos/OWNER/REPO/pulls/comments?per_page=100" \\
         > "$H/tracker-reviews.json"
     python tools/tracker_scan.py --harvest "$H/tracker-issues.json" \
-        "$H/tracker-comments.json" "$H/tracker-reviews.json"
+        "$H/tracker-comments.json" "$H/tracker-reviews.json" \
+        --population "$H/tracker-population.json"
 
     git config --add remote.origin.fetch \
         "+refs/pull/*/head:refs/remotes/origin/pr/*"
@@ -116,14 +123,26 @@ repeated rows. A mismatch stays in the report; a malformed ledger applies no
 rulings and makes the run not-scanned unless an unruled finding supplies the
 stronger exit 1. The report states how many exact findings the ledger removed,
 so a clean result never silently means *nothing was detected before rulings*.
+``--draft-rulings <path>`` writes candidate rows with blank verdicts and
+reasons, and no matched value. The report permanently states how many ledger
+rows matched nothing.
+
+**A full harvest needs its independently derived population file.** Its version
+1 JSON maps each of the three documented harvest filenames to a nonnegative
+record count under ``populations``. Derive the issue count from GraphQL's issue
+and pull-request totals, and each comment count from the ``rel="last"`` header
+at ``per_page=1``; where that header is absent, the probe array's own length is
+the exact zero-or-one count. Fetch the population first and the harvest second.
+The scanner compares each file independently and will not write the durable
+marker or exit clean if any read is short.
 
 Exit status distinguishes not having scanned from having found nothing -- 0
 clean, 1 for a finding, **2 for every way of not having scanned**: no surface
 named, a harvest file absent or not a JSON list, no record in any surface, a
-git command that failed, no persistent pull-head refspec, no pull-head ref
-without the acknowledgment, and no corpus without ``--allow-no-corpus`` or
-``clinical.phiAllowNoCorpus``. **Where a finding and a not-scanned limb both
-hold, 1 wins**, on `phi_scan.py`'s own ordering -- returning 2 would file the
+git command that failed, a missing, malformed or short full-harvest population,
+no persistent pull-head refspec, no pull-head ref without the acknowledgment,
+and no corpus without ``--allow-no-corpus`` or ``clinical.phiAllowNoCorpus``.
+**Where a finding and a not-scanned limb both hold, 1 wins**, on `phi_scan.py`'s own ordering -- returning 2 would file the
 strongest thing known about the surface under the weakest heading -- and every
 banner prints beside it so the finding reads as a floor.
 """
@@ -220,7 +239,6 @@ class RulingKey(NamedTuple):
 
 class HarvestRulingKey(NamedTuple):
     record: str
-    line: int
     rule: str
     line_sha256: str
 
@@ -237,7 +255,7 @@ class ScannedFinding(Finding):
 
 def _ruling_fields(
     path: Path, row: object, number: int, surface: str = ""
-) -> tuple[dict, int, str, str, tuple[str, str]]:
+) -> tuple[dict, int | None, str, str, tuple[str, str]]:
     """Validate the fields shared by every line-level ruling row."""
     label = f"{surface + ' ' if surface else ''}row {number}"
     if not isinstance(row, dict):
@@ -247,7 +265,11 @@ def _ruling_fields(
     digest = row.get("line_sha256")
     verdict = row.get("verdict")
     reason = row.get("reason")
-    if not isinstance(line, int) or isinstance(line, bool) or line < 1:
+    if surface == "harvest":
+        if "line" in row:
+            raise RulingError(f"{path}: {label} must not carry line")
+        line = None
+    elif not isinstance(line, int) or isinstance(line, bool) or line < 1:
         raise RulingError(f"{path}: {label} has an invalid line")
     if not isinstance(rule, str) or not rule:
         raise RulingError(f"{path}: {label} has an invalid rule")
@@ -419,6 +441,44 @@ def load_harvest(paths: Sequence[Path]) -> list[Record]:
     return records
 
 
+def load_population(path: Path, harvest: Sequence[Path]) -> dict[str, int]:
+    """Read the independent per-file population for one full harvest."""
+    data = load_json(path)
+    if not isinstance(data, dict) or data.get("version") != 1:
+        raise HarvestError(f"{path}: population version must be 1")
+    populations = data.get("populations")
+    if not isinstance(populations, dict):
+        raise HarvestError(f"{path}: populations must be an object")
+    names = [item.name for item in harvest]
+    if len(names) != len(set(names)):
+        raise HarvestError("harvest file names must be unique")
+    if set(populations) != set(names):
+        raise HarvestError(
+            f"{path}: populations must name exactly the harvest files"
+        )
+    for name, count in populations.items():
+        if (
+            not isinstance(name, str)
+            or not name
+            or not isinstance(count, int)
+            or isinstance(count, bool)
+            or count < 0
+        ):
+            raise HarvestError(f"{path}: invalid population for {name!r}")
+    return dict(populations)
+
+
+def harvest_record_counts(paths: Sequence[Path]) -> dict[str, int]:
+    """Count tracker records in each input, before title/body expansion."""
+    counts: dict[str, int] = {}
+    for path in paths:
+        data = load_json(path)
+        if not isinstance(data, list):
+            raise HarvestError(f"{path.name}: not a JSON list")
+        counts[path.name] = len(data)
+    return counts
+
+
 def load_json(path: Path) -> object:
     try:
         raw = path.read_text(encoding="utf-8")
@@ -496,6 +556,7 @@ def load_rulings(
     decisions: dict[RulingKey, tuple[str, str]] = {}
     for number, row in enumerate(commit_rows, 1):
         row, line, rule, digest, decision = _ruling_fields(path, row, number)
+        assert line is not None
         commit = row.get("commit")
         if not isinstance(commit, str) or not re.fullmatch(r"[0-9a-f]{40}", commit):
             raise RulingError(f"{path}: row {number} has an invalid commit")
@@ -516,7 +577,7 @@ def load_rulings(
             raise RulingError(
                 f"{path}: harvest row {number} has an invalid record"
             )
-        key = HarvestRulingKey(record, line, rule, digest)
+        key = HarvestRulingKey(record, rule, digest)
         _add_ruling(
             path, key, decision, harvest_decisions, harvest_rulings,
             f"harvest row {number} conflicts with an earlier line ruling",
@@ -528,7 +589,7 @@ def partition_ruled_findings(
     findings: Sequence[ScannedFinding],
     rulings: Counter[RulingKey],
     harvest_rulings: Counter[HarvestRulingKey] | None = None,
-) -> tuple[list[ScannedFinding], list[ScannedFinding]]:
+) -> tuple[list[ScannedFinding], list[ScannedFinding], int, int]:
     """Separate only findings whose commit or record identity matches exactly."""
     unruled: list[ScannedFinding] = []
     ruled: list[ScannedFinding] = []
@@ -545,7 +606,7 @@ def partition_ruled_findings(
             available[key] -= 1
         elif not match:
             harvest_key = HarvestRulingKey(
-                finding.path, finding.line, finding.rule, finding.line_sha256
+                finding.path, finding.rule, finding.line_sha256
             )
             if available_harvest[harvest_key] > 0:
                 ruled.append(finding)
@@ -554,7 +615,7 @@ def partition_ruled_findings(
                 unruled.append(finding)
         else:
             unruled.append(finding)
-    return unruled, ruled
+    return unruled, ruled, available.total(), available_harvest.total()
 
 
 def reachable_objects(repo: Path) -> dict[str, str]:
@@ -717,22 +778,70 @@ def format_report(
 
 def write_harvest_marker(
     repo: Path,
-    findings: Sequence[ScannedFinding],
+    unruled: Sequence[ScannedFinding],
+    ruled: Sequence[ScannedFinding],
+    population: dict[str, int],
     ran_on: CalendarDate | None = None,
 ) -> None:
     """Atomically record one completed full harvest without matched values."""
     target = repo / phi_scan.TRACKER_HARVEST_MARKER
     temporary = target.with_name(target.name + ".tmp")
     target.parent.mkdir(parents=True, exist_ok=True)
+    rules = sorted({finding.rule for finding in (*unruled, *ruled)})
+    unruled_counts = Counter(finding.rule for finding in unruled)
+    ruled_counts = Counter(finding.rule for finding in ruled)
     payload = {
-        "version": 1,
+        "version": 2,
         "ran_on": (CalendarDate.today() if ran_on is None else ran_on).isoformat(),
-        "finding_counts": dict(sorted(Counter(f.rule for f in findings).items())),
+        "population": dict(sorted(population.items())),
+        "finding_counts": {
+            rule: {
+                "ruled": ruled_counts[rule],
+                "unruled": unruled_counts[rule],
+            }
+            for rule in rules
+        },
     }
     temporary.write_text(
         json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
     temporary.replace(target)
+
+
+def write_ruling_draft(
+    path: Path,
+    findings: Sequence[ScannedFinding],
+) -> None:
+    """Write pasteable candidate verdict rows without any matched value."""
+    commit_rows = []
+    harvest_rows = []
+    for finding in findings:
+        commit_match = COMMIT_FINDING.fullmatch(finding.path)
+        common = {
+            "rule": finding.rule,
+            "line_sha256": finding.line_sha256,
+            "verdict": "",
+            "reason": "",
+        }
+        if commit_match:
+            commit_rows.append({
+                "commit": commit_match.group(1),
+                "line": finding.line,
+                **common,
+            })
+        elif HARVEST_RECORD.fullmatch(finding.path):
+            harvest_rows.append({"record": finding.path, **common})
+    payload = {
+        "version": 2,
+        "commit_findings": commit_rows,
+        "harvest_findings": harvest_rows,
+    }
+    temporary = path.with_name(path.name + ".tmp")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    temporary.replace(path)
 
 
 def is_full_harvest(args: argparse.Namespace) -> bool:
@@ -753,6 +862,8 @@ def main(argv: list[str]) -> int:
         description="Scan tracker text, commit messages, blobs and paths for PHI.",
     )
     parser.add_argument("--harvest", nargs="+", type=Path, default=[])
+    parser.add_argument("--population", type=Path)
+    parser.add_argument("--draft-rulings", type=Path)
     parser.add_argument("--github-event", type=Path)
     parser.add_argument("--event-name", choices=tuple(EVENT_RECORD_KEYS))
     parser.add_argument("--commits", action="store_true")
@@ -788,6 +899,7 @@ def main(argv: list[str]) -> int:
     rulings: Counter[RulingKey] = Counter()
     harvest_rulings: Counter[HarvestRulingKey] = Counter()
     unscanned = False
+    population: dict[str, int] | None = None
 
     try:
         if args.harvest:
@@ -839,6 +951,43 @@ def main(argv: list[str]) -> int:
         print(f"tracker-scan: DID NOT SCAN -- {error}", file=sys.stderr)
         return NOT_SCANNED
 
+    full_harvest = is_full_harvest(args)
+    if full_harvest:
+        if args.population is None:
+            banners.append(
+                "DID NOT ESTABLISH the full harvest population -- "
+                "pass --population <tracker-population.json>."
+            )
+            unscanned = True
+        else:
+            try:
+                population = load_population(args.population, args.harvest)
+                observed = harvest_record_counts(args.harvest)
+                short = [
+                    (name, observed[name], population[name])
+                    for name in sorted(population)
+                    if observed[name] < population[name]
+                ]
+                if short:
+                    banners.extend(
+                        "DID NOT ESTABLISH a complete harvest -- "
+                        f"{name}: {count} of population {expected} record(s)."
+                        for name, count, expected in short
+                    )
+                    unscanned = True
+            except HarvestError as error:
+                banners.append(
+                    "DID NOT ESTABLISH the full harvest population -- "
+                    + str(error)
+                )
+                unscanned = True
+    elif args.population is not None:
+        banners.append(
+            "DID NOT USE the population -- it applies only to the documented "
+            "full harvest."
+        )
+        unscanned = True
+
     if args.commits or args.harvest:
         try:
             rulings, harvest_rulings = load_rulings(repo)
@@ -867,14 +1016,26 @@ def main(argv: list[str]) -> int:
     names, dates = phi_scan.corpus_identifiers()
     coverage = phi_scan.corpus_coverage()
     findings = scan_records(records, phi_scan.build_index(names, dates))
-    findings, ruled = partition_ruled_findings(
+    findings, ruled, unmatched_commit, unmatched_harvest = partition_ruled_findings(
         findings, rulings, harvest_rulings
     )
+    if args.commits or args.harvest:
+        unmatched = (
+            (unmatched_commit if args.commits else 0)
+            + (unmatched_harvest if args.harvest else 0)
+        )
+        context.append(("unmatched ruling rows", unmatched))
     if ruled:
         context.append(("ruled findings", len(ruled)))
-    if is_full_harvest(args) and not missing and not unscanned:
+    if args.draft_rulings is not None:
         try:
-            write_harvest_marker(repo, findings)
+            write_ruling_draft(args.draft_rulings, findings)
+        except OSError as error:
+            banners.append("DID NOT WRITE the ruling draft -- " + str(error))
+            unscanned = True
+    if full_harvest and population is not None and not missing and not unscanned:
+        try:
+            write_harvest_marker(repo, findings, ruled, population)
         except OSError as error:
             banners.append(
                 "DID NOT RECORD the full harvest marker -- " + str(error)

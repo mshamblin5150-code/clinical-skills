@@ -1121,10 +1121,15 @@ Every tool above reads a file somebody can point at. This one reads **what a pub
 : "${TICKET_NUMBER:?set TICKET_NUMBER to the current ticket number}"
 H=$(python tools/scratch_work.py ticket "$TICKET_NUMBER")
 mkdir -p "$H"
+# Before the harvest, derive ADR 0184's three independent counts into:
+# {"version":1,"populations":{"tracker-issues.json":N,"tracker-comments.json":N,"tracker-reviews.json":N}}
+# Issues use GraphQL issues.totalCount + pullRequests.totalCount. Each comments
+# endpoint uses rel="last" at per_page=1, or that probe array's length when the
+# header is absent.
 gh api --paginate "repos/OWNER/REPO/issues?state=all&per_page=100" > "$H/tracker-issues.json"
 gh api --paginate "repos/OWNER/REPO/issues/comments?per_page=100" > "$H/tracker-comments.json"
 gh api --paginate "repos/OWNER/REPO/pulls/comments?per_page=100" > "$H/tracker-reviews.json"
-python tools/tracker_scan.py --harvest "$H/tracker-issues.json" "$H/tracker-comments.json" "$H/tracker-reviews.json"
+python tools/tracker_scan.py --harvest "$H/tracker-issues.json" "$H/tracker-comments.json" "$H/tracker-reviews.json" --population "$H/tracker-population.json"
 
 git config --add remote.origin.fetch "+refs/pull/*/head:refs/remotes/origin/pr/*"
 git fetch origin
@@ -1177,13 +1182,15 @@ rather than guessed at.** The kinds and their remedies are
 `UNREADABLE_REMEDIES`'s to say, and what a clean run does not establish is
 `NOT_REACHED`'s; neither is listed here.
 
-**When a full harvest last really ran, and what it found, is what
+**When a denominator-graded full harvest last really ran, what population it
+covered, and what it found is what
 `python tools/tracker_scan.py --harvest` records and prints; the bare
 `python tools/phi_scan.py` commit path states that marker's age** -- ADR 0077
 ruling 7, on
 [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143)'s terms.
-The date and finding counts live only in the committed marker and the command's
-report; this paragraph carries neither. This paragraph used to carry the result
+The date, per-file population and ruled/unruled finding counts live only in the
+committed marker and the command's report; this paragraph carries none. This
+paragraph used to carry the result
 itself and it went stale in the direction nobody notices. **The carrying
 record and the finding ticket are two records four days apart, and a first
 draft of this sentence merged them into one**:

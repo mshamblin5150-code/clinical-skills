@@ -130,5 +130,265 @@
       "reason": "The date-of-service mention is accepted under the 2026-08-18 history ruling recorded on #212."
     }
   ],
-  "harvest_findings": []
+  "harvest_findings": [
+    {
+      "line_sha256": "5a7befcad0d8f145d5fe2becee0200df9de298c48d90eba47c22b8b90ab8c513",
+      "reason": "The hyphen-separated numbers are legal section citations, not a date.",
+      "record": "https://github.com/mshamblin5150-code/clinical-skills/issues/716 body",
+      "rule": "us-short-date",
+      "verdict": "noise"
+    },
+    {
+      "line_sha256": "5b269dec73e3649d38ebfa81b7e77d895fe7e6e4fb8df6c3378855a5bebe4b06",
+      "reason": "The slash-separated numbers report repository counts or line anchors, not a date.",
+      "record": "https://github.com/mshamblin5150-code/clinical-skills/issues/261 body",
+      "rule": "us-short-date",
+      "verdict": "noise"
+    },
+    {
+      "line_sha256": "f35ae00aad6c2771efedf3d9cee976f2f9e631a575069b2ae607b2f703517bf3",
+      "reason": "The slash-separated numbers report repository counts or line anchors, not a date.",
+      "record": "https://github.com/mshamblin5150-code/clinical-skills/issues/195 body",
+      "rule": "us-short-date",
+      "verdict": "noise"
+    },
+    {
+      "line_sha256": "fda9de9103a7818e0abe0a891c324e2c9101184ecc8161cd645e56fa2001c0ba",
+      "reason": "The matched date is a public document capture stamp, not a patient date.",
+      "record": "https://github.com/mshamblin5150-code/clinical-skills/pull/105 body",
+      "rule": "us-short-date",
+      "verdict": "noise"
+    },
+    {
+      "line_sha256": "db0814af4ddf00498837334f33fec169d8a78a28ad05b86a9b4f9ce06351c8f1",
+      "reason": "The matched date is a public document capture stamp, not a patient date.",
+      "record": "https://github.com/mshamblin5150-code/clinical-skills/issues/80 body",
+      "rule": "us-short-date",
+      "verdict": "noise"
+    },
+    {
+      "line_sha256": "5b1a49b07370e5282bf01c246d272031070b7d86f6d78d109b19ea77399983d9",
+      "reason": "The slash-separated numbers report repository counts or line anchors, not a date.",
+      "record": "https://github.com/mshamblin5150-code/clinical-skills/pull/77 body",
+      "rule": "us-short-date",
+      "verdict": "noise"
+    },
+    {
+      "line_sha256": "f17ca5d3db0872e340fa345b0dd10e7f50037ce4fa040211de90359b01957e06",
+      "reason": "The slash-separated numbers report repository counts or line anchors, not a date.",
+      "record": "https://github.com/mshamblin5150-code/clinical-skills/pull/40 body",
+      "rule": "us-short-date",
+      "verdict": "noise"
+    },
+    {
+      "line_sha256": "f17ca5d3db0872e340fa345b0dd10e7f50037ce4fa040211de90359b01957e06",
+      "reason": "The slash-separated numbers report repository counts or line anchors, not a date.",
+      "record": "https://github.com/mshamblin5150-code/clinical-skills/pull/40 body",
+      "rule": "us-short-date",
+      "verdict": "noise"
+    },
+    {
+      "line_sha256": "9783250eacc977093c7dfe92d389913cedc8e75419792a7c324551f36029449d",
+      "reason": "The matched value is an invented impossible-date example in scanner documentation, not a patient date.",
+      "record": "https://github.com/mshamblin5150-code/clinical-skills/issues/21 body",
+      "rule": "us-short-date",
+      "verdict": "noise"
+    },
+    {
+      "line_sha256": "64e8c74962e612f3f3881c9401940681841696e51c2ceb68df17d68d659478f6",
+      "reason": "The matched value is an invented impossible-date example in scanner documentation, not a patient date.",
+      "record": "https://github.com/mshamblin5150-code/clinical-skills/issues/21 body",
+      "rule": "us-short-date",
+      "verdict": "noise"
+    },
+    {
+      "line_sha256": "5d03bd42ee3b787b5be0b6575e0405473b59938134406deaf7af8196716bced8",
+      "reason": "The matched value is an invented impossible-date example in scanner documentation, not a patient date.",
+      "record": "https://github.com/mshamblin5150-code/clinical-skills/issues/20 body",
+      "rule": "us-short-date",
+      "verdict": "noise"
+    },
+    {
+      "line_sha256": "c1d5b04d5ba27f4342d5cb15b8743121231ab557fb2531f84905c8c83bdd3a01",
+      "reason": "The matched value is an invented impossible-date example in scanner documentation, not a patient date.",
+      "record": "https://github.com/mshamblin5150-code/clinical-skills/issues/20 body",
+      "rule": "us-short-date",
+      "verdict": "noise"
+    },
+    {
+      "line_sha256": "e2ff7ab2988e8d62816475cfaaf7a26e7d633e73758e45558367a951257e8349",
+      "reason": "The matched value is an invented impossible-date example in scanner documentation, not a patient date.",
+      "record": "https://github.com/mshamblin5150-code/clinical-skills/issues/18#issuecomment-5258381991 body",
+      "rule": "us-short-date",
+      "verdict": "noise"
+    },
+    {
+      "line_sha256": "3cc79f387cf1884f0652f9df087a624f64de0973c622fecc4a194d65107586d5",
+      "reason": "The matched value is an invented impossible-date example in scanner documentation, not a patient date.",
+      "record": "https://github.com/mshamblin5150-code/clinical-skills/issues/20#issuecomment-5259499707 body",
+      "rule": "us-short-date",
+      "verdict": "noise"
+    },
+    {
+      "line_sha256": "ad0b332cc4e33a09f1fa4397875bbfee77d6f7de1281fffad669ffae5755898a",
+      "reason": "The slash-separated numbers report repository counts or line anchors, not a date.",
+      "record": "https://github.com/mshamblin5150-code/clinical-skills/issues/127#issuecomment-5304521486 body",
+      "rule": "us-short-date",
+      "verdict": "noise"
+    },
+    {
+      "line_sha256": "54033e090944946675e20ea299bf1d84961be9a120fed262c67003d48c26e0d2",
+      "reason": "The slash-separated numbers report repository counts or line anchors, not a date.",
+      "record": "https://github.com/mshamblin5150-code/clinical-skills/issues/93#issuecomment-5306760199 body",
+      "rule": "us-short-date",
+      "verdict": "noise"
+    },
+    {
+      "line_sha256": "5efc9b9a4e2860f09b18a9eaf7de4e711251e81f86a06b8ebbb28973d983b12d",
+      "reason": "The slash-separated numbers report repository counts or line anchors, not a date.",
+      "record": "https://github.com/mshamblin5150-code/clinical-skills/issues/134#issuecomment-5306767819 body",
+      "rule": "us-short-date",
+      "verdict": "noise"
+    },
+    {
+      "line_sha256": "5efc9b9a4e2860f09b18a9eaf7de4e711251e81f86a06b8ebbb28973d983b12d",
+      "reason": "The slash-separated numbers report repository counts or line anchors, not a date.",
+      "record": "https://github.com/mshamblin5150-code/clinical-skills/issues/134#issuecomment-5306767819 body",
+      "rule": "us-short-date",
+      "verdict": "noise"
+    },
+    {
+      "line_sha256": "13e2f510658ba3160f60fc1c12d2d1f8b7e28f45baddc3b815745791cc689e9c",
+      "reason": "The slash-separated numbers report repository counts or line anchors, not a date.",
+      "record": "https://github.com/mshamblin5150-code/clinical-skills/issues/173#issuecomment-5310702827 body",
+      "rule": "us-short-date",
+      "verdict": "noise"
+    },
+    {
+      "line_sha256": "13e2f510658ba3160f60fc1c12d2d1f8b7e28f45baddc3b815745791cc689e9c",
+      "reason": "The slash-separated numbers report repository counts or line anchors, not a date.",
+      "record": "https://github.com/mshamblin5150-code/clinical-skills/issues/173#issuecomment-5310702827 body",
+      "rule": "us-short-date",
+      "verdict": "noise"
+    },
+    {
+      "line_sha256": "286dd545015bb9cc50d2dbdb227406cd9d76d32c15552aa74c039d8f6a7d0e64",
+      "reason": "The slash-separated numbers report repository counts or line anchors, not a date.",
+      "record": "https://github.com/mshamblin5150-code/clinical-skills/issues/151#issuecomment-5315550200 body",
+      "rule": "us-short-date",
+      "verdict": "noise"
+    },
+    {
+      "line_sha256": "286dd545015bb9cc50d2dbdb227406cd9d76d32c15552aa74c039d8f6a7d0e64",
+      "reason": "The slash-separated numbers report repository counts or line anchors, not a date.",
+      "record": "https://github.com/mshamblin5150-code/clinical-skills/issues/151#issuecomment-5315550200 body",
+      "rule": "us-short-date",
+      "verdict": "noise"
+    },
+    {
+      "line_sha256": "192e3cf37fb68eea839bb237ad3558ed5a6daac27742f0125b7f28a598c7e747",
+      "reason": "The slash-separated numbers report repository counts or line anchors, not a date.",
+      "record": "https://github.com/mshamblin5150-code/clinical-skills/issues/261#issuecomment-5347664022 body",
+      "rule": "us-short-date",
+      "verdict": "noise"
+    },
+    {
+      "line_sha256": "a5020ecd2d59c9782e7c7e2704d8be2ca2546a90172affc875562e5653e549e0",
+      "reason": "The slash-separated numbers report repository counts or line anchors, not a date.",
+      "record": "https://github.com/mshamblin5150-code/clinical-skills/issues/149#issuecomment-5349081746 body",
+      "rule": "us-short-date",
+      "verdict": "noise"
+    },
+    {
+      "line_sha256": "62f3e94aea4a2c306da378bf9d94857b13d8f7d3e53f7d5d274426e7c34d50cd",
+      "reason": "The slash-separated numbers report repository counts or line anchors, not a date.",
+      "record": "https://github.com/mshamblin5150-code/clinical-skills/issues/127#issuecomment-5350921559 body",
+      "rule": "us-short-date",
+      "verdict": "noise"
+    },
+    {
+      "line_sha256": "62f3e94aea4a2c306da378bf9d94857b13d8f7d3e53f7d5d274426e7c34d50cd",
+      "reason": "The slash-separated numbers report repository counts or line anchors, not a date.",
+      "record": "https://github.com/mshamblin5150-code/clinical-skills/issues/127#issuecomment-5350921559 body",
+      "rule": "us-short-date",
+      "verdict": "noise"
+    },
+    {
+      "line_sha256": "45c6f8d3cce5f5083ecd9b76cde348f9e49862fa72777df8104ddb59de59996a",
+      "reason": "The slash-separated numbers report repository counts or line anchors, not a date.",
+      "record": "https://github.com/mshamblin5150-code/clinical-skills/issues/277#issuecomment-5350974960 body",
+      "rule": "us-short-date",
+      "verdict": "noise"
+    },
+    {
+      "line_sha256": "d778e4ddfbcb529e105804df167f2fa112176055a91bc79da9b9688067503fed",
+      "reason": "The matched range names repository work dates, not a patient date.",
+      "record": "https://github.com/mshamblin5150-code/clinical-skills/issues/296#issuecomment-5351044665 body",
+      "rule": "us-short-date",
+      "verdict": "noise"
+    },
+    {
+      "line_sha256": "bc7f48981d2351cad1de6f7e07a1bf5f23ba44b2e2c151cb5525a61020de8b57",
+      "reason": "The matched range names repository work dates, not a patient date.",
+      "record": "https://github.com/mshamblin5150-code/clinical-skills/issues/290#issuecomment-5351058988 body",
+      "rule": "us-short-date",
+      "verdict": "noise"
+    },
+    {
+      "line_sha256": "46008f0e8bac751f498b311c0d8dcd2dd0d81aa22014d6f30fd7d31572555661",
+      "reason": "The slash-separated numbers report repository counts or line anchors, not a date.",
+      "record": "https://github.com/mshamblin5150-code/clinical-skills/issues/260#issuecomment-5351219460 body",
+      "rule": "us-short-date",
+      "verdict": "noise"
+    },
+    {
+      "line_sha256": "d6f870402689bb5c32583a9e156c029f72c332ade2876a125933ad598bef10ed",
+      "reason": "The slash-separated numbers report repository counts or line anchors, not a date.",
+      "record": "https://github.com/mshamblin5150-code/clinical-skills/issues/264#issuecomment-5351219580 body",
+      "rule": "us-short-date",
+      "verdict": "noise"
+    },
+    {
+      "line_sha256": "11579981f8edec2f2b2bbace208c96602f3d7861f3778e5255140096a681adb5",
+      "reason": "The slash-separated numbers report repository counts or line anchors, not a date.",
+      "record": "https://github.com/mshamblin5150-code/clinical-skills/issues/299#issuecomment-5357583845 body",
+      "rule": "us-short-date",
+      "verdict": "noise"
+    },
+    {
+      "line_sha256": "e645145d6d9faaa82712ce337c5432099d1e862449877fde35de05df77b3500e",
+      "reason": "The slash-separated numbers report repository counts or line anchors, not a date.",
+      "record": "https://github.com/mshamblin5150-code/clinical-skills/issues/429#issuecomment-5445323498 body",
+      "rule": "us-short-date",
+      "verdict": "noise"
+    },
+    {
+      "line_sha256": "58368fd855fb85dbf4efa06745576ed361f5bb7714587c4aff78977826b540c7",
+      "reason": "The slash-separated numbers report repository counts or line anchors, not a date.",
+      "record": "https://github.com/mshamblin5150-code/clinical-skills/issues/429#issuecomment-5465931092 body",
+      "rule": "us-short-date",
+      "verdict": "noise"
+    },
+    {
+      "line_sha256": "83e311c970e5bdc9c28c8c22c92ec958440b84ad85a8730213ebfc7c1a8be963",
+      "reason": "The slash-separated numbers report repository counts or line anchors, not a date.",
+      "record": "https://github.com/mshamblin5150-code/clinical-skills/issues/551#issuecomment-5466275651 body",
+      "rule": "us-short-date",
+      "verdict": "noise"
+    },
+    {
+      "line_sha256": "13c930727d330e4df8f5c3a1817072a0c7689be914b05d4781d73968990924e4",
+      "reason": "The slash-separated numbers report repository counts or line anchors, not a date.",
+      "record": "https://github.com/mshamblin5150-code/clinical-skills/issues/756#issuecomment-5501575408 body",
+      "rule": "us-short-date",
+      "verdict": "noise"
+    },
+    {
+      "line_sha256": "0675c688b94b290fe238a5889621eceab7fd4d0da0e7d7289928ec9a7feabcae",
+      "reason": "The matched number is a public-law citation component, not a telephone number.",
+      "record": "https://github.com/mshamblin5150-code/clinical-skills/issues/941#issuecomment-5587419213 body",
+      "rule": "phone",
+      "verdict": "noise"
+    }
+  ]
 }

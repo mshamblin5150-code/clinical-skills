@@ -1,7 +1,19 @@
 {
   "finding_counts": {
-    "us-short-date": 36
+    "phone": {
+      "ruled": 1,
+      "unruled": 0
+    },
+    "us-short-date": {
+      "ruled": 36,
+      "unruled": 0
+    }
   },
-  "ran_on": "2026-09-06",
-  "version": 1
+  "population": {
+    "tracker-comments.json": 4385,
+    "tracker-issues.json": 1129,
+    "tracker-reviews.json": 0
+  },
+  "ran_on": "2026-09-11",
+  "version": 2
 }

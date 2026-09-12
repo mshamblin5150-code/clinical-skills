@@ -1174,9 +1174,14 @@ class TheCommitPathCoverageNoticesReachTheCommitter(unittest.TestCase):
     def test_a_marker_states_its_exact_age(self):
         ran_on = CalendarDate.today() - timedelta(days=37)
         marker = {
-            "version": 1,
+            "version": 2,
             "ran_on": ran_on.isoformat(),
             "finding_counts": {},
+            "population": {
+                "tracker-comments.json": 0,
+                "tracker-issues.json": 1,
+                "tracker-reviews.json": 0,
+            },
         }
 
         err = self.run_main(self.coverage(551, 551), marker)[2]
@@ -1188,11 +1193,16 @@ class TheCommitPathCoverageNoticesReachTheCommitter(unittest.TestCase):
         for age in (0, 400):
             with self.subTest(age=age):
                 marker = {
-                    "version": 1,
+                    "version": 2,
                     "ran_on": (
                         CalendarDate.today() - timedelta(days=age)
                     ).isoformat(),
                     "finding_counts": {},
+                    "population": {
+                        "tracker-comments.json": 0,
+                        "tracker-issues.json": 1,
+                        "tracker-reviews.json": 0,
+                    },
                 }
                 err = self.run_main(self.coverage(551, 551), marker)[2]
                 self.assertIn(f"{age} day(s)", err)
