@@ -178,12 +178,16 @@ ICD-10  R00.1  Bradycardia, unspecified
 
 **What the worksheet's own pass cannot settle is whether its reason is true.** A reason can be specific, checkable, and false while every descriptor is official and every string test passes. The worksheet that wrote the reason is not its verifier; preserved run evidence and its verdict stay withheld under [#147](https://github.com/mshamblin5150-code/clinical-skills/issues/147). [#154](https://github.com/mshamblin5150-code/clinical-skills/issues/154).
 
-#### A fresh reader checks every ICD-10 specificity reason
+#### A separated read checks every ICD-10 specificity reason
 
 The blinded verifier first reads and applies [sourcing.md](../_shared/reference/sourcing.md).
-After every worksheet in a run is written, give a **fresh reader in a separate context** the for-entry ICD-10 code numbers and nothing else. The fresh reader **must not see the worksheet**, its descriptor, its anchor, or its `SPECIFICITY` line. Parallelism is only a speed property; a serial harness may run the reader later, provided its context contains the brief and not the worksheet.
+This **Second reader** under [standing rule 6](../../AGENTS.md) receives the for-entry ICD-10 code
+numbers and nothing else after every worksheet in the run is written. It **must not see the
+worksheet**, its descriptor, its anchor, or its `SPECIFICITY` line.
 
-The reader is briefed to **try to break each reason**, not to confirm it. For each subject code, open `reference/icd10cm-2026.sqlite`; inspect whatever parents, children, siblings, and inherited tabular notes bear on specificity; and record:
+For each subject code, open `reference/icd10cm-2026.sqlite`; inspect whatever parents, children,
+siblings, and inherited tabular notes bear on specificity; and return the following record. The
+orchestrating context writes it:
 
 ```json
 {
@@ -222,9 +226,9 @@ python tools/specificity_scan.py <run directory> --brief > scratch/specificity-b
 python tools/specificity_scan.py <run directory> --second-read scratch/specificity-second-read.json
 ```
 
-The brief contains diagnosis codes and is PHI; keep it in `scratch/` and do not paste it. The second command checks every category member, descriptor, billability value, and complete inherited-note set against `reference/icd10cm-2026.sqlite`. Exit 1 means a family/source fact or specificity flag failed. Exit 2 means the second read was absent, malformed, or did not cover every for-entry ICD-10 code. `--show` places the original reason beside the fresh reader's `"about"` prose for the final eye check; that output is PHI too.
+The brief contains diagnosis codes and is PHI; keep it in `scratch/` and do not paste it. The second command checks every category member, descriptor, billability value, and complete inherited-note set against `reference/icd10cm-2026.sqlite`. Exit 1 means a family/source fact or specificity flag failed. Exit 2 means the second read was absent, malformed, or did not cover every for-entry ICD-10 code. `--show` places the original reason beside the separated reader's `"about"` prose for the final eye check; that output is PHI too.
 
-Without the scanner, do the same walk by eye: list each distinct for-entry ICD-10 code without copying its reason; hand that list alone to the fresh reader; require every field above; compare every source field to `tools/icd10_lookup.py` and the committed database; then place the original reason beside `"about"`. The command saves that mechanical comparison; it does not replace the reader.
+Without the scanner, do the same walk by eye: list each distinct for-entry ICD-10 code without copying its reason; hand that list alone to the separated reader; require every field above; compare every source field to `tools/icd10_lookup.py` and the committed database; then place the original reason beside `"about"`. The command saves that mechanical comparison; it does not replace the reader.
 
 **`about` is never machine-graded.** It is free prose beside free prose, so judging whether the two agree is itself a reading. A source-field disagreement is a hard failure; a clean source comparison plus a human agreement is a **smoke test and never proof**. Two readers can misread the same code family the same way. This is separation as an instrument, not a claim that a second reason cannot also be wrong.
 
@@ -430,7 +434,7 @@ Every proposed code has a code number, a descriptor, an anchor, a specificity fl
 
 **Every specificity flag carries substance beyond its keyword — a bare `complete` and a bare `needs:` both fail.** Present-but-bare is the one way a part can be there and still fail, which is why it is said here as well as in step 3. A descriptor saying `unspecified` or `not specified` may read `complete` only when the reason explains why nothing the bedside can supply would move the code; `python tools/specificity_scan.py <run directory>` enforces the reason and reports that shape as advisory for a reader.
 
-**Every for-entry ICD-10 code has a separated second read by a fresh reader who did not see the worksheet.** Every subject code is covered; every source fact agrees with the committed FY2026 release; and the original reason has been read beside the independent `"about"` account. A missing, partial, or self-authored read is not completion. Agreement is a smoke test and never proof.
+**Every for-entry ICD-10 code has a separated read whose reader did not see the worksheet.** Every subject code is covered; every source fact agrees with the committed FY2026 release; and the original reason has been read beside the independent `"about"` account. A missing or partial read is not completion. Agreement is a smoke test and never proof.
 
 **A differential code is the one shape with fewer, and it is not an exception to that sentence** — it is a different thing being written down. Number, descriptor, confidence, three parts, plus `NOT FOR ENTRY` on the line. Anything with five parts or six is a code proposed for entry; anything with three is documentation of reasoning. **The count is still how the two are told apart** — the gap is five-or-six against three, and nothing lands between — which is why neither shape may borrow from the other.
 

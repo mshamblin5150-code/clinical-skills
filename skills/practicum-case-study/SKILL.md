@@ -78,10 +78,10 @@ temporary export outside every checkout.
 
 The drafting context on that routed branch **does not see the classmate posts**. Give it the faculty
 prompt and material, the signed bar, and the voice model, but not `posts/`. After the draft exists,
-send the draft and the snapshotted posts to a fresh differentiation reader. The reader reports what
-the existing posts converge on and where the clinician's completed draft already differs; the
-orchestrator alone writes that return to `<run-directory>/differentiation.md` and shows it to the
-clinician before approval. The report does not silently rewrite the draft.
+this **Second reader** under [standing rule 6](../../AGENTS.md) receives only the draft and the
+snapshotted posts. It reports what the existing posts converge on and where the clinician's
+completed draft already differs. Write that return to `<run-directory>/differentiation.md`, show it
+to the clinician before approval, and do not silently rewrite the draft from it.
 
 ## What it is graded by
 
@@ -293,16 +293,16 @@ numeric decision point, `reference/guidelines-catalog.md` and `tools/guidelines_
 society corpus. **A missing row in a threshold sheet is not a negative finding**; a missing USPSTF
 row is one about the USPSTF, and never a statement that the item is unindicated.
 
-**What none of that reaches gets researched, not deferred.** A claim with no source in hand is
+**What none of that reaches gets researched, not deferred.** This is a **Fan-out brief** under
+[standing rule 6](../../AGENTS.md): each claim with no source in hand goes to one research worker. It is
 **not** written into the `PROPOSED` block with `verify this` against it and handed back — that was
 the first run's behavior and it is the clinician's ruling of 2026-08-18 that it is wrong. *"That
 needs to be fanned out to a research agent."* The reasoning is that a graded paper is where an
 unsourced claim costs points, and handing the clinician a list of things to look up moves the work
 rather than doing it.
 
-So: spawn a research subagent per unsourced claim, in parallel. **Step 3 is the mechanism** — the
-brief each agent is sent, the ledger they all write into, and the command that grades it. What one
-agent must return:
+**Step 3 is the mechanism** — the brief each worker receives, the ledger the orchestrator composes,
+and the command that grades it. Each worker must return:
 
 - **A reputable source.** A society guideline, a peer-reviewed paper, a government body, or a
   tertiary clinical reference. Not a content farm and not a summary of a summary.
@@ -343,7 +343,7 @@ which was correct under the rule as written and wrong.
 
 [#215](https://github.com/mshamblin5150-code/clinical-skills/issues/215) carries the reasoning, and
 [#214](https://github.com/mshamblin5150-code/clinical-skills/issues/214) built this rule and the
-fan-out that applies it together, because a rule split from its enforcement is how the two drift
+research dispatch that applies it together, because a rule split from its enforcement is how the two drift
 apart. `tools/research_ledger.py` is where the two meet — see step 3.
 
 **A claim that survives all that and is still unsourced does not go in the body.** It goes in the
@@ -464,16 +464,9 @@ decision rather than an oversight.
 
 ## Steps
 
-**Every command below that reads a ledger, check record or draft produced during a parallel run is
-a checker handoff, not an author self-check.** The writing context finishes the artifact and returns
-it to the orchestrator. The orchestrator gathers it into a completed-state path no writer can
-modify, then gives that path and the stated command to a fresh non-authoring context. The checker
-reports the result and does not edit. On a failure, the orchestrator records that first result before
-returning the named finding to the writer; after the repair, it gathers a new completed state and
-another fresh non-authoring context runs the command again. This is
-[standing rule 6](../../AGENTS.md) applied to this skill. Where the harness has no subagent tool, the
-serial fallbacks stated below remain the available floor; no parallel artifact is shared in that
-case.
+Every briefing surface below declares its kind and applies
+[standing rule 6](../../AGENTS.md). Its local text states only the artifact, capability, ordering,
+or blinding that narrows the shared rule.
 
 ### 1. Read the faculty material
 
@@ -498,7 +491,8 @@ than what sounds right.
 
 ### 3. Research what the evidence does not cover
 
-**This is the fan-out, and it runs before a word of the body is drafted.** List the clinical claims
+**This is a Fan-out brief under [standing rule 6](../../AGENTS.md), and it runs before a word of the
+body is drafted.** List the clinical claims
 the document is going to rest on — every differential's discriminator, every threshold, every dose,
 every number said out loud to the patient — and strike the ones the companion evidence, the USPSTF
 table, the threshold sheets or the guideline corpus already cover. **What is left is the work of
@@ -529,14 +523,14 @@ states a dose, **the heading states a number too**: that is what puts the record
 `NUMERIC_CLAIM_UNQUANTIFIED` above, so the restatement has to answer with a number and the chain
 runs from the table's dose to a source.
 
-**Write the claim list down before spawning anything.** `<claims-ledger>`, its `DATE`
-header and one `## CLAIM:` heading per claim, and nothing under them yet. That ordering is what
-makes a lost answer visible: a heading whose record never arrived has no `STATUS`, and the grader
-refuses a record with no `STATUS`.
+For this surface, the prewritten destination is `<claims-ledger>` with its `DATE` header, one
+`## CLAIM:` heading per claim, and nothing under them yet. A heading whose record never arrived has
+no `STATUS`, and the grader refuses a record with no `STATUS`.
 
-Every research and refutation brief first reads the rules in
+This **Fan-out brief** applies [standing rule 6](../../AGENTS.md). Every research and refutation
+brief first reads the rules in
 [sourcing.md](../_shared/reference/sourcing.md) and applies them to every returned claim or negative.
-**One agent per remaining claim, all of them at once.** Each gets the same brief, and the brief is
+Each remaining claim gets the same brief, and the brief is
 **six returns** and the recency rule above — a reputable source in one of four classes, a full
 APA 7 reference, the claim restated in the source's own terms, **the locator it actually opened with
 the date it opened it, the year the page itself carries with where the page says so, and the
@@ -546,16 +540,11 @@ answer.
 
 **The last two are not extra bookkeeping**, and a run that treats them as optional writes a ledger
 the grader refuses: they are what turns *"I found a source"* into something the clinician can audit
-in one click. See the paragraphs under the record shape below, and note that a **seventh** return
-comes from a different agent afterwards.
+in one click. See the paragraphs under the record shape below; the refutation leg supplies a
+**seventh** return afterwards.
 
-**They return their record; they do not write it.** One writer to the ledger, and it is the context
-that spawned them, filling each heading in as its answer comes back. **N agents appending to one
-Markdown file lose records to each other**, and a ledger holding three of eight claims because two
-appends collided would grade clean and let the run draft —
-[#206](https://github.com/mshamblin5150-code/clinical-skills/issues/206)'s shared-artifact channel
-with the sign flipped. Where the harness returns nothing usable, write one file per claim and
-concatenate; what is not allowed is two writers on one file.
+Fill each prewritten heading as its returned answer arrives. Where the harness returns nothing
+usable, collect one returned record per claim before the orchestrator composes the ledger.
 
 **One record per claim**, filled in under its heading:
 
@@ -599,7 +588,8 @@ It refuses a `SECOND-ROUTE` whose normalized halves are equal.
 It refuses a `STATED-EXPIRY` outside the three forms.
 It refuses a stated expiry at or before `DATE` without the deliberate-supersession reason.
 
-**Two of those returns are what stops a citation nobody can check, and the third is a second agent.**
+**Two of those returns are what stops a citation nobody can check, and the third comes from the
+refutation leg.**
 A reference in correct APA form is not evidence that the document exists — an invented one looks
 like scholarship, which is exactly why *a wrong citation is worse than no citation: it survives
 review.*
@@ -612,10 +602,8 @@ click instead of a claim nobody can check. `PAGE-YEAR` has to agree with the yea
 where a source genuinely carries no date, `REFERENCE` reads `n.d.` and `PAGE-YEAR` says the page
 states none, and the two agree that way.
 
-**Then a refutation pass, by a second agent — not the one that wrote the record.** One per sourced
-claim, all at once, into the same ledger by the same one writer. The brief is adversarial: *here is
-a reference and a restatement,* ***try to prove it wrong****.* Not *check whether this is right*,
-because an agent asked that says yes. It looks for the document at the locator, checks the year, the
+**The refutation leg of this Fan-out brief applies [standing rule 6](../../AGENTS.md).** Each sourced
+claim is checked at the locator for the year, the
 volume, the numbering and the pages, and reads whether the source says what the restatement says it
 says. It also returns `SECOND-ROUTE: <research route> -> <refutation route>`. The ASCII `->`
 separator and both substantive halves are required, and the two normalized halves must differ.
@@ -656,7 +644,7 @@ grader does reach is a refutation that is the restatement pasted back.
 
 **The ledger is gitignored**, because `scratch/` is, and that is where a case study's working
 material belongs — not in a tracked notes directory. Where the harness ships a general research
-skill, borrow the fan-out from it and change that one thing: they write findings into the repo,
+skill, borrow its research dispatch and change that one thing: they write findings into the repo,
 and a case study's working material is a patient record.
 
 **What makes a record bad, in full, so this can be walked without running anything.** A record
@@ -695,7 +683,8 @@ can be several of them at once:
 **not** a defect at all — it is the honest outcome the `PROPOSED` block exists for. An `unreadable`
 record is likewise not a negative; it preserves that neither instrument read the source.
 
-**Once the prescriptions exist, hand the ledger and draft to a fresh checker as well** -- #289's
+**Once the prescriptions exist, this Grader handoff under
+[standing rule 6](../../AGENTS.md) reads the ledger and draft as well** -- #289's
 rows read the draft as well as the ledger the way #298's row below reads the evidence dump:
 
 ```bash
@@ -730,7 +719,8 @@ prescriptions reached no claim record at all, so there was not one drug-row-and-
 to measure a string test against. [#97](https://github.com/mshamblin5150-code/clinical-skills/issues/97)'s
 precedent is that a cut point is grounded where the corpus offers one and refused where it does not.
 
-**And give a fresh checker the ledger and what you were actually handed** -- #298's row, ruled by
+**This Grader handoff under [standing rule 6](../../AGENTS.md) receives the ledger and what you were
+actually handed** -- #298's row, ruled by
 the clinician 2026-08-20, grades what the run says it read:
 
 First ingest that deliberately supplied file into the shared account-owned store. Use a stable
@@ -790,7 +780,8 @@ citation in the ledger -- a mass false finding rather than a scan.
 join and its rationale; the implemented boundary is named only in
 `research_ledger.DECLARED_LIMITS`.
 
-**Then hand the ledger to a fresh checker, and do not draft until that checker reports it clean:**
+**This Grader handoff under [standing rule 6](../../AGENTS.md) must report the ledger clean before
+drafting starts:**
 
 ```bash
 python tools/research_ledger.py <claims-ledger>
@@ -809,13 +800,8 @@ eye instead.** The command saves the reading; it is not where the rule lives. Th
 `icd10-cpt`'s arrangement with `tools/specificity_scan.py`, and [AGENTS.md](../../AGENTS.md) keeps
 the two classes of tool citation apart deliberately.
 
-**Where the harness has no subagent tool, the same briefs are worked one at a time in the main
-context, into the same ledger.** The mechanism is the ledger and the brief; the parallelism is a
-speed property, and the grader cannot tell the difference. This settles
-[#214](https://github.com/mshamblin5150-code/clinical-skills/issues/214)'s open question 1, and
-[#218](https://github.com/mshamblin5150-code/clinical-skills/issues/218) takes the same answer
-rather than inventing a second one. **Where the harness cannot research at all** — no subagent, no
-search, nothing to read — the record is written `STATUS: unsourced` with that said plainly, and the
+**Where the harness cannot research at all** — no subagent, no search, nothing to read — the record
+is written `STATUS: unsourced` with that said plainly, and the
 deferral behavior is what is left: the claim goes to `PROPOSED` and, if it is a number, out of the
 document. Deferral is the floor when research is impossible, never the choice when it is merely
 work.
@@ -873,7 +859,8 @@ point in the document.
 **Omitting them has never cost a point, which is not the same as being safe** — it is the mode
 finding again, one section down. See *Three modes, and none of them subtracts a section* above.
 
-**Then hand the ledger and draft to a fresh checker**, which grades the half of step 3 that could
+**This Grader handoff under [standing rule 6](../../AGENTS.md) receives the ledger and draft** and
+grades the half of step 3 that could
 not run before the tables existed:
 
 ```bash
@@ -925,8 +912,7 @@ sorted.
 topic appears in one clinician's corpus under three different years. The companion document states
 each topic's own revision date — use it.
 
-**Then hand the list to a fresh checker, because the pass that wrote an entry cannot see what is
-wrong with it:**
+**This Grader handoff under [standing rule 6](../../AGENTS.md) receives the list:**
 
 ```bash
 python tools/reference_scan.py output/case-studies/<course>-<module>-case-study-<date>.md --as-of <the exam date>
@@ -1040,22 +1026,22 @@ documented by-eye route below and record that the render production and coverage
 mechanically verified. Exit 2 from the check does not establish that the engine is missing and stops
 this step for investigation.
 
-**This is the second fan-out, and it runs after the draft exists.** Step 3's ran before a word was
-written and found sources; this one reads the document that was written and reports what is wrong
-with it. [#218](https://github.com/mshamblin5150-code/clinical-skills/issues/218).
+**This is the group of Second reader surfaces under [standing rule 6](../../AGENTS.md), and it runs
+after the draft exists.** Step 3's research surface ran before a word was written and found sources;
+this group reads the document that was written and reports what is wrong with it.
+[#218](https://github.com/mshamblin5150-code/clinical-skills/issues/218).
 
 **The reason it is not just a careful reread is that a run cannot audit its own work.** The same
 recall that produced a reference entry, a differential order or an MDM discriminator produces the
 check of it, so the check has to come from somewhere that recall does not reach —
 [AGENTS.md](../../AGENTS.md)'s *a report by the pass that produced it is a baseline, not a
 verification*, and [ADR 0001](../../docs/adr/0001-fixture-asserts-on-named-findings.md) one level
-up. Two places qualify: a string test, where the rule is mechanical, and a **fresh reader** given
+up. Two places qualify: a string test, where the rule is mechanical, and a separated reader given
 the draft and the rule and nothing else, where it is not.
 
-**Write the check headings down before spawning anything.** `<checks-ledger>`, one
-`## CHECK:` heading per row of the table below, and nothing under them yet. That ordering is step
-3's and it is here for step 3's reason: a heading whose verdict never arrived is visible, and a
-check that was never run is not.
+For these surfaces, the prewritten destination is `<checks-ledger>` with one `## CHECK:` heading per
+row of the table below and nothing under them yet. A heading whose verdict never arrived is visible,
+and a check that was never run is not.
 
 | Check | What it reads | How | A `clean` says what it walked |
 | --- | --- | --- | --- |
@@ -1117,7 +1103,7 @@ a new pass number. The final pass must keep exactly one PNG for every page in it
 and all render passes remain in the run directory as evidence after the private checker paths are
 removed.
 
-Hand the completed run directory to a fresh checker:
+This **Grader handoff** under [standing rule 6](../../AGENTS.md) receives the completed run directory:
 
 ```bash
 python tools/render_scan.py <run-directory>
@@ -1141,8 +1127,8 @@ grades which pages were imaged; `checks_ledger.py` still grades that a reader re
 looked for. A run needs both. A complete pixel count cannot prove the reader opened every image or
 read it carefully.
 
-**The orchestrating context produces `<numbering-readback>` before the fan-out** and is its sole
-writer. Run `python tools/docx_read.py "<the case study document>" --numbering` and redirect its
+**The orchestrating context produces `<numbering-readback>` for the separated-reader group.** Run
+`python tools/docx_read.py "<the case study document>" --numbering` and redirect its
 output to a new run-unique path under `scratch/`; give the numbering reader that text and the
 Markdown draft, never the raw `.docx`. Remove the readback with the run's other private paths after
 the checks complete.
@@ -1172,8 +1158,8 @@ time... this prevents me from using this skill for future work."*
 [#220](https://github.com/mshamblin5150-code/clinical-skills/issues/220) ruled insufficient: **a
 prose edit to a rule fails nothing.**
 
-**A fresh checker runs it on the Markdown before step 8 renders it, and another fresh checker runs
-it after every repair:**
+**This Grader handoff under [standing rule 6](../../AGENTS.md) runs on the Markdown before step 8
+renders it and repeats after every repair:**
 
 ```bash
 python tools/case_study_scan.py output/case-studies/<course>-<module>-case-study-<date>.md
@@ -1257,22 +1243,14 @@ prewritten heading remains incomplete and the document is not submitted. A text-
 Markdown cannot substitute for the visual check.
 
 Every step 9 reader first reads and applies [sourcing.md](../_shared/reference/sourcing.md).
-**One reader per row, all of them at once, and none of them is the context that wrote the draft.**
-Each gets the draft, the rule its row names, and the instruction to report findings rather than fix
-them. **Where the harness has no subagent tool, the same briefs are worked one at a time in the main
-context, into the same file** — step 3's ruling, taken whole rather than answered a second way. The
-mechanism is the file and the brief; the parallelism is a speed property, and nothing downstream can
-tell the difference.
+**Each row is a Second reader surface under [standing rule 6](../../AGENTS.md).** Each gets the draft,
+the rule its row names, and the instruction to report findings rather than fix them. If no second
+context can be obtained, the row remains incomplete and the document is not submitted.
 
-**They return their record; they do not write it.** One writer to the checks file, and it is the
-context that spawned them, filling each heading in as its verdict comes back — step 3's rule and
-[#206](https://github.com/mshamblin5150-code/clinical-skills/issues/206)'s, arriving at the second
-fan-out. **N readers appending to one Markdown file lose records to each other**, and since
-[#240](https://github.com/mshamblin5150-code/clinical-skills/issues/240) the grader below catches
-one that landed on top of another — two records under one check, where the file can hold one
-answer. What it cannot catch is a write that landed on nothing, so the ordering rule above is still
-what makes a lost verdict visible. Where the harness returns nothing usable, write one file per
-check and concatenate; what is not allowed is two writers on one file.
+The orchestrator fills each prewritten heading as its verdict arrives. Since
+[#240](https://github.com/mshamblin5150-code/clinical-skills/issues/240), the grader below catches two
+records under one check. What it cannot catch is a write that landed on nothing, so the prewritten
+headings remain what makes a lost verdict visible.
 
 **One record per check**, filled in under its heading:
 
@@ -1377,8 +1355,8 @@ reader can satisfy it with one stock sentence — `specificity_scan.py`'s limit,
 converts the records on the marked rows from unfalsifiable to *checkable by eye*, which is what the walk below
 is for and previously had nothing to work with.
 
-**Then hand the checks file to a fresh checker, and do not submit until that checker reports it
-clean:**
+**This Grader handoff under [standing rule 6](../../AGENTS.md) must report the checks file clean
+before submission:**
 
 ```bash
 python tools/checks_ledger.py <checks-ledger>

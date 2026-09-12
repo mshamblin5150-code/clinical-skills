@@ -72,11 +72,9 @@ POST-URL: <permalink where the LMS exposes one>
 and get no PHI detection layer, count, or report. They remain gitignored working material, and a
 classmate's name is private working material that is never pasted into a ticket.
 
-Parallel readers or researchers each receive a new run-unique private path. They return findings to
-the orchestrating context and never append to `board-<date>.md`, `spec-<date>.md`, `claims.md`,
-`reread.md`, or `critique.md`. The orchestrator is the sole writer of those artifacts, including
-`voice-status.md`. Apply standing rule 6's independent-checker and cleanup sequence to the temporary
-per-agent paths.
+For this skill, the canonical artifacts governed by [standing rule 6](../../AGENTS.md) are
+`board-<date>.md`, `spec-<date>.md`, `claims.md`, `reread.md`, `critique.md`, and
+`voice-status.md`; each worker's temporary path is separate and run-unique.
 
 ## 1. Read the spec, the classmate, and the clinician's own post
 
@@ -127,11 +125,10 @@ Every factual claim the critique adds needs a record. A paraphrase of the classm
 statement of agreement, and the clinician's own clinical argument need none. A number, threshold,
 guideline requirement, drug regimen, screening grade, or empirical assertion does.
 
-Create `claims.md` with a `DATE:` header and one `## CLAIM:` heading per claim before research
-begins. Fan out one research agent per claim, then send every sourced record to a **different**
-agent briefed to refute it. Every research and refutation brief first reads
+This **Fan-out brief** applies [standing rule 6](../../AGENTS.md). Create `claims.md` with a `DATE:`
+header and one prewritten `## CLAIM:` heading per claim. Each research worker takes one claim, and
+each sourced record gets its refutation leg. Every research and refutation brief first reads
 [sourcing.md](../_shared/reference/sourcing.md) and applies it to every returned claim or negative.
-The orchestrator alone writes the records.
 
 Each record uses the full research-ledger shape:
 
@@ -165,7 +162,8 @@ independently and confirms the passage exists where the record says it does.
 **A publisher's web rendering and its journal of record can disagree.** Where both exist, name which
 one the critique cites and quote that one; do not attribute a web page's wording to the article.
 
-After all records and refutations are gathered, a fresh non-authoring context runs:
+After all records and refutations are gathered, this **Grader handoff** under
+[standing rule 6](../../AGENTS.md) runs:
 
 ```bash
 python tools/research_ledger.py scratch/runs/<run-key>/claims.md
@@ -208,7 +206,8 @@ most often gets wrong.
 
 ## 5. Independently grade
 
-After the drafting context returns the critique, a fresh non-authoring context runs:
+After the drafting context returns the critique, this **Grader handoff** under
+[standing rule 6](../../AGENTS.md) runs:
 
 ```bash
 python tools/peer_critique_scan.py scratch/runs/<run-key>

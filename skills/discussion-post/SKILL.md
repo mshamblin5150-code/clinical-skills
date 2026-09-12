@@ -57,11 +57,9 @@ The `.html` is the submission loaded into Canvas. The Markdown is its source of 
 `.docx` is its archival paper-shaped rendering. `output/` holds the submission and its renders;
 provenance stays in the run directory.
 
-Parallel readers and researchers each receive a new run-unique private path that no sibling reads
-or writes. They return findings to the orchestrating context and never append to the canonical run
-files. The orchestrator is the sole writer of `board-<date>.md`, `bar.md`, `claims.md`, `post.md`,
-`differentiation.md`, `reread.md`, and `voice-status.md`. Apply standing rule 6's independent-checker and
-cleanup sequence to every temporary path.
+For this skill, the canonical artifacts governed by [standing rule 6](../../AGENTS.md) are
+`board-<date>.md`, `bar.md`, `claims.md`, `post.md`, `differentiation.md`, `reread.md`, and
+`voice-status.md`; each worker's temporary path is separate and run-unique.
 
 ## 1. Route from the prompt, then snapshot the nonpatient board
 
@@ -193,13 +191,13 @@ record says why; membership in a catalog does not establish standing.
 
 Every research and refutation brief first reads the rules in
 [sourcing.md](../_shared/reference/sourcing.md) and applies them to every returned claim or negative.
-Fan out one research context per claim. Each returns the source class, full APA 7 reference,
+This **Fan-out brief** applies [standing rule 6](../../AGENTS.md). Each research worker takes one
+claim and returns the source class, full APA 7 reference,
 restatement, opened URL or DOI and read date, the page's stated year and locator, and the source's
 stated expiry or `none stated`. Transcribe only an expiry the document states; do not infer one from
 a publication cadence. `42 C.F.R. § 414.56 (2025)` is the known case where `none stated` is correct:
-the codification year is provenance, and the annual reissue schedule is not a stated expiry. The
-orchestrator alone writes the records. Then send every `sourced` record to a different context
-briefed to disprove the reference, locator, year, bibliographic details, or restatement. It returns
+the codification year is provenance, and the annual reissue schedule is not a stated expiry. Each
+`sourced` record gets a refutation leg. It returns
 `stands`, `refuted`, or `paywalled` with a substantive reason. There is no carve-out for legal
 primary sources: a refuter checks whether the cited section says what the draft claims. It also
 returns `SECOND-ROUTE: <research route> -> <refutation route>`; both halves must have substance and
@@ -218,7 +216,8 @@ read. The new claim still gets its own record, a new `RESTATEMENT`, and a new `R
 the page already opened. `SECOND-ROUTE` belongs to the new refutation and is never inherited. A
 claim is never inherited from another sentence.
 
-After every research and refutation result is gathered, a fresh non-authoring context runs:
+After every research and refutation result is gathered, this **Grader handoff** under
+[standing rule 6](../../AGENTS.md) runs:
 
 ```bash
 python tools/research_ledger.py scratch/runs/<course>-<module>-discussion/claims.md
@@ -246,7 +245,8 @@ is deleted rather than left as decoration.
 
 ## 5. Differentiate only after the clinician's draft exists
 
-Give a fresh reader `posts/` and the completed working draft. Have it report where the classmate
+Give this **Second reader** under [standing rule 6](../../AGENTS.md) `posts/` and the completed
+working draft. Have it report where the classmate
 posts converge and where the clinician's already differs. Write that report to
 `differentiation.md` and show it to the clinician. This is a differentiation read, not permission
 to import classmates' claims or normalize the draft toward their median.
@@ -268,8 +268,7 @@ scanner both read. Both renderers consume `docx_write.blocks`, so own-line comme
 renders without a second omission rule. `discussion-reply` builds its reply submission with the
 same HTML renderer.
 
-Fresh, non-authoring contexts run each source grader. One context never grades an artifact it
-authored, and a repair is checked by another fresh context:
+Each source grader is a **Grader handoff** under [standing rule 6](../../AGENTS.md):
 
 ```bash
 python tools/research_ledger.py scratch/runs/<course>-<module>-discussion/claims.md
@@ -293,8 +292,8 @@ The `bold-headings`, `rendered-comments`, `submission-text`, `rendered-text`, an
 Step 7 writes both renders; step 8 supplies the Canvas-box evidence and runs the artifact rows.
 
 Exit 0 means the scanner's source rows pass, 1 means a finding, and 2 means it did not completely
-scan. Preserve the original checker result, fix findings through the drafting context, and have a
-new non-authoring context check the correction. Then walk `discussion_post_scan.NOT_REACHED` item
+scan. Preserve the original checker result, fix findings through the drafting context, and repeat
+the declared grading surface on the correction. Then walk `discussion_post_scan.NOT_REACHED` item
 by item against the live pages, signed bar, draft, and ledger. In particular, read whether an ISBN
 or other prose bar element is present and whether a reference supports the proposition the bar
 requires; do not substitute a reference count for either judgment.
@@ -365,7 +364,8 @@ Create the next retained `render/pass-N/`. Copy the exact output `.html` into th
 block visible. The destination is the rasterizer: a text-only reread does not replace these pixels.
 A vision reader first reads and applies [sourcing.md](../_shared/reference/sourcing.md) before it
 reports anything from the retained render.
-A fresh non-authoring context compares the captures with the Markdown and accounts for every
+This vision-capable **Second reader** under [standing rule 6](../../AGENTS.md) compares the captures
+with the Markdown and accounts for every
 nonblank block derived through `docx_write.blocks`. The denominator comes from the submitted HTML
 render, never from the record and never from the capture count. Append this exact shape to the
 private `post.md`:
