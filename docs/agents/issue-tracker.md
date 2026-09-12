@@ -100,11 +100,16 @@ verdict. Each row clears one occurrence. Add a harvest row only after reading
 non-identifying; escalate anything else. Reasons name the kind and never repeat
 the literal.
 
-`tracker_scan.py --draft-rulings <path>` writes pasteable candidate rows with
+`tracker_scan.py --draft-verdicts <path>` writes pasteable candidate rows with
 blank verdicts and reasons and no matched value. The report counts both applied
-verdicts and ruling rows that matched nothing. A malformed ledger is not an
-empty ledger: the run says the rulings were not applied and cannot exit clean
+verdicts and verdict rows that matched nothing. A malformed ledger is not an
+empty ledger: the run says the verdicts were not applied and cannot exit clean
 on the affected surface.
+
+`tools/tracker_population.py` documents and parses the three kept `gh` probes
+that produce a full harvest's independent population manifest. Run those
+probes before the paginated harvest; `tracker_scan.py --population <path>`
+reports each denominator and unread remainder and refuses a short read.
 
 ### Discriminating measurements in sweep verdicts
 

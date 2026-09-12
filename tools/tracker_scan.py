@@ -30,12 +30,12 @@ Harvest first, then scan::
     : "${TICKET_NUMBER:?set TICKET_NUMBER to the current ticket number}"
     H=$(python tools/scratch_work.py ticket "$TICKET_NUMBER")
     mkdir -p "$H"
-    # Derive these three counts first, by ADR 0184's GraphQL and per_page=1
-    # header routes, then record them in this input file.
-    printf '%s\n' '{"version":1,"populations":{' \\
-        '"tracker-issues.json":ISSUES,' \\
-        '"tracker-comments.json":COMMENTS,' \\
-        '"tracker-reviews.json":REVIEWS}}' > "$H/tracker-population.json"
+    # Run tracker_population.py's documented gh probes first, then:
+    python tools/tracker_population.py \
+        "$H/tracker-issues-population.json" \
+        "$H/tracker-comments-population.http" \
+        "$H/tracker-reviews-population.http" \
+        --write "$H/tracker-population.json"
     gh api --paginate "repos/OWNER/REPO/issues?state=all&per_page=100" \\
         > "$H/tracker-issues.json"
     gh api --paginate "repos/OWNER/REPO/issues/comments?per_page=100" \\
@@ -123,7 +123,7 @@ repeated rows. A mismatch stays in the report; a malformed ledger applies no
 rulings and makes the run not-scanned unless an unruled finding supplies the
 stronger exit 1. The report states how many exact findings the ledger removed,
 so a clean result never silently means *nothing was detected before rulings*.
-``--draft-rulings <path>`` writes candidate rows with blank verdicts and
+``--draft-verdicts <path>`` writes candidate rows with blank verdicts and
 reasons, and no matched value. The report permanently states how many ledger
 rows matched nothing.
 
@@ -433,12 +433,24 @@ def _label(item: dict, source: str) -> str:
     return f"{source}#{number}" if number else source
 
 
-def load_harvest(paths: Sequence[Path]) -> list[Record]:
+def load_harvest_with_counts(
+    paths: Sequence[Path],
+) -> tuple[list[Record], dict[str, int]]:
+    """Parse each harvest file once into records and source populations."""
     records: list[Record] = []
+    counts: dict[str, int] = {}
     for path in paths:
         data = load_json(path)
+        if not isinstance(data, list):
+            raise HarvestError(f"{path.name}: not a JSON list")
+        counts[path.name] = len(data)
         records.extend(records_from_github(data, path.name))
-    return records
+    return records, counts
+
+
+def load_harvest(paths: Sequence[Path]) -> list[Record]:
+    """Compatibility reader for callers that need records only."""
+    return load_harvest_with_counts(paths)[0]
 
 
 def load_population(path: Path, harvest: Sequence[Path]) -> dict[str, int]:
@@ -466,17 +478,6 @@ def load_population(path: Path, harvest: Sequence[Path]) -> dict[str, int]:
         ):
             raise HarvestError(f"{path}: invalid population for {name!r}")
     return dict(populations)
-
-
-def harvest_record_counts(paths: Sequence[Path]) -> dict[str, int]:
-    """Count tracker records in each input, before title/body expansion."""
-    counts: dict[str, int] = {}
-    for path in paths:
-        data = load_json(path)
-        if not isinstance(data, list):
-            raise HarvestError(f"{path.name}: not a JSON list")
-        counts[path.name] = len(data)
-    return counts
 
 
 def load_json(path: Path) -> object:
@@ -750,16 +751,20 @@ def format_report(
     show: bool,
 ) -> str:
     lines = ["tracker-scan"]
+    labels = [kind + " records" for kind in Counter(r.kind for r in records)]
+    labels.extend(label for label, _ in context)
+    labels.extend(finding.rule for finding in findings)
+    width = max([30, *(len(label) + 1 for label in labels)])
     for kind, count in sorted(Counter(r.kind for r in records).items()):
-        lines.append(f"  {kind + ' records':<30}{count}")
+        lines.append(f"  {kind + ' records':<{width}}{count}")
     for label, count in context:
-        lines.append(f"  {label:<30}{count}")
+        lines.append(f"  {label:<{width}}{count}")
     lines.append("")
 
     by_rule = Counter(f.rule for f in findings)
     if by_rule:
         for rule in sorted(by_rule):
-            lines.append(f"  {rule:<30}{by_rule[rule]}")
+            lines.append(f"  {rule:<{width}}{by_rule[rule]}")
         lines.append("")
         lines.append(f"  {len({f.path for f in findings})} record(s) carry a finding")
         if show:
@@ -808,7 +813,7 @@ def write_harvest_marker(
     temporary.replace(target)
 
 
-def write_ruling_draft(
+def write_verdict_draft(
     path: Path,
     findings: Sequence[ScannedFinding],
 ) -> None:
@@ -863,7 +868,7 @@ def main(argv: list[str]) -> int:
     )
     parser.add_argument("--harvest", nargs="+", type=Path, default=[])
     parser.add_argument("--population", type=Path)
-    parser.add_argument("--draft-rulings", type=Path)
+    parser.add_argument("--draft-verdicts", type=Path)
     parser.add_argument("--github-event", type=Path)
     parser.add_argument("--event-name", choices=tuple(EVENT_RECORD_KEYS))
     parser.add_argument("--commits", action="store_true")
@@ -900,10 +905,12 @@ def main(argv: list[str]) -> int:
     harvest_rulings: Counter[HarvestRulingKey] = Counter()
     unscanned = False
     population: dict[str, int] | None = None
+    observed_harvest: dict[str, int] = {}
 
     try:
         if args.harvest:
-            records.extend(load_harvest(args.harvest))
+            harvested, observed_harvest = load_harvest_with_counts(args.harvest)
+            records.extend(harvested)
         if args.github_event:
             records.extend(load_github_event(args.github_event, args.event_name))
 
@@ -962,11 +969,18 @@ def main(argv: list[str]) -> int:
         else:
             try:
                 population = load_population(args.population, args.harvest)
-                observed = harvest_record_counts(args.harvest)
+                for name in sorted(population):
+                    context.extend((
+                        (f"{name} population", population[name]),
+                        (
+                            f"{name} unread remainder",
+                            max(population[name] - observed_harvest[name], 0),
+                        ),
+                    ))
                 short = [
-                    (name, observed[name], population[name])
+                    (name, observed_harvest[name], population[name])
                     for name in sorted(population)
-                    if observed[name] < population[name]
+                    if observed_harvest[name] < population[name]
                 ]
                 if short:
                     banners.extend(
@@ -1024,14 +1038,14 @@ def main(argv: list[str]) -> int:
             (unmatched_commit if args.commits else 0)
             + (unmatched_harvest if args.harvest else 0)
         )
-        context.append(("unmatched ruling rows", unmatched))
+        context.append(("unmatched verdict rows", unmatched))
     if ruled:
         context.append(("ruled findings", len(ruled)))
-    if args.draft_rulings is not None:
+    if args.draft_verdicts is not None:
         try:
-            write_ruling_draft(args.draft_rulings, findings)
+            write_verdict_draft(args.draft_verdicts, findings)
         except OSError as error:
-            banners.append("DID NOT WRITE the ruling draft -- " + str(error))
+            banners.append("DID NOT WRITE the verdict draft -- " + str(error))
             unscanned = True
     if full_harvest and population is not None and not missing and not unscanned:
         try:

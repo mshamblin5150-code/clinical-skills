@@ -1121,11 +1121,10 @@ Every tool above reads a file somebody can point at. This one reads **what a pub
 : "${TICKET_NUMBER:?set TICKET_NUMBER to the current ticket number}"
 H=$(python tools/scratch_work.py ticket "$TICKET_NUMBER")
 mkdir -p "$H"
-# Before the harvest, derive ADR 0184's three independent counts into:
-# {"version":1,"populations":{"tracker-issues.json":N,"tracker-comments.json":N,"tracker-reviews.json":N}}
-# Issues use GraphQL issues.totalCount + pullRequests.totalCount. Each comments
-# endpoint uses rel="last" at per_page=1, or that probe array's length when the
-# header is absent.
+gh api graphql -f owner=OWNER -f name=REPO -f query='query($owner:String!,$name:String!){repository(owner:$owner,name:$name){issues{totalCount} pullRequests{totalCount}}}' > "$H/tracker-issues-population.json"
+gh api --include "repos/OWNER/REPO/issues/comments?per_page=1&page=1" > "$H/tracker-comments-population.http"
+gh api --include "repos/OWNER/REPO/pulls/comments?per_page=1&page=1" > "$H/tracker-reviews-population.http"
+python tools/tracker_population.py "$H/tracker-issues-population.json" "$H/tracker-comments-population.http" "$H/tracker-reviews-population.http" --write "$H/tracker-population.json"
 gh api --paginate "repos/OWNER/REPO/issues?state=all&per_page=100" > "$H/tracker-issues.json"
 gh api --paginate "repos/OWNER/REPO/issues/comments?per_page=100" > "$H/tracker-comments.json"
 gh api --paginate "repos/OWNER/REPO/pulls/comments?per_page=100" > "$H/tracker-reviews.json"

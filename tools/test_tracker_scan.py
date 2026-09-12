@@ -601,12 +601,14 @@ class AFullHarvestWritesOnlyItsMarker(MainInATempRepo):
         )
         population = self.population(paths, **{"tracker-issues.json": 0})
 
-        status, _ = self.run_main(
+        status, out = self.run_main(
             "--harvest", *paths, "--population", population
         )
 
         self.assertEqual(status, tracker_scan.CLEAN)
         self.assertTrue((self.repo / phi_scan.TRACKER_HARVEST_MARKER).exists())
+        self.assertRegex(out, r"tracker-issues.json population\s+0")
+        self.assertRegex(out, r"tracker-issues.json unread remainder\s+0")
 
     def test_the_marker_distinguishes_a_ruled_finding_from_no_finding(self):
         line = f"seen by {NAME}"
@@ -922,15 +924,15 @@ class AHarvestRulingRemovesOnlyThatExactPublishedFinding(MainInATempRepo):
         )
 
         self.assertEqual(status, tracker_scan.FOUND)
-        self.assertIn("unmatched ruling rows", out)
-        self.assertRegex(out, r"unmatched ruling rows\s+1")
+        self.assertIn("unmatched verdict rows", out)
+        self.assertRegex(out, r"unmatched verdict rows\s+1")
 
     def test_draft_rulings_contain_the_key_and_no_matched_value(self):
         line = f"{NAME} was on the list"
         draft = Path(self.tmp.name) / "draft-rulings.json"
 
         status, _ = self.run_main(
-            "--harvest", self.a_harvest(line), "--draft-rulings", str(draft)
+            "--harvest", self.a_harvest(line), "--draft-verdicts", str(draft)
         )
 
         self.assertEqual(status, tracker_scan.FOUND)
