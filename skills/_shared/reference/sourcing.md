@@ -21,3 +21,7 @@ omits every field required of a sourced record: `SOURCE`, `REFERENCE`, `RESTATEM
 `RESOLVED`, `PAGE-YEAR`, `REFUTATION`, `SECOND-ROUTE`, and `STATED-EXPIRY`. An unreadable record
 retains `INSTRUMENTS`, whose two substantive halves name the distinct failed routes. A clean
 sourceless record does not establish that a rejected source was named well enough to recheck.
+
+A sourced claim record may certify a value only when both `REFUTATION` and `SECOND-ROUTE` carry
+substance. If either is absent or empty, the record does not establish that the second agent's
+refutation pass ran and cannot certify a value.

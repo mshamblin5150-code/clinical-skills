@@ -316,6 +316,16 @@ REQUIRED_WHEN_SOURCED = (
     "STATED-EXPIRY",
 )
 
+REFUTATION_EVIDENCE_FIELDS = (
+    "REFUTATION",
+    "SECOND-ROUTE",
+)
+REFUTATION_EVIDENCE_COMPLEMENT = tuple(
+    field
+    for field in REQUIRED_WHEN_SOURCED
+    if field not in REFUTATION_EVIDENCE_FIELDS
+)
+
 # Every required sourced field makes a claim about a source. Deriving this
 # population prevents a later sourced-field addition from silently escaping the
 # sourceless-record rule.

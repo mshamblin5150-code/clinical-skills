@@ -165,7 +165,7 @@ The rows are:
 - `font-points`: one finding for each slide carrying an unmeasured font run or a run violating the
   signed `FONT-POINTS` in the signed `FONT-DIRECTION`.
 - `untraced-costed-figure`: one finding for each distinct dollar value on a slide or in speaker
-  notes that appears in no claim record.
+  notes that appears in no believed claim record.
 - `rendered-record`: one finding for each malformed record or failed terminal join to the deck,
   highest retained pass, slide count, PNG count, unseen count, or clean visual verdict.
 

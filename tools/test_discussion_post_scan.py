@@ -111,6 +111,7 @@ RECENCY: current
 RESOLVED: https://example.org/usable-access - read 2026-08-22
 PAGE-YEAR: 2024 - stated on the article masthead.
 REFUTATION: stands - the results table reports the same measure.
+SECOND-ROUTE: publisher HTML -> journal PDF rendered at 600 dpi
 
 ## CLAIM: The regulation supplies legal context.
 STATUS: sourced
@@ -121,6 +122,7 @@ RECENCY: guideline in force
 RESOLVED: https://example.org/regulation - read 2026-08-22
 PAGE-YEAR: 2024 - stated on the regulation page.
 REFUTATION: stands - the section number resolves to the cited regulation.
+SECOND-ROUTE: regulation HTML -> official PDF
 """
 
 BODY = """\
@@ -1584,7 +1586,7 @@ class TheMechanicalBarRowsAreGraded(unittest.TestCase):
         self.assertEqual(0, status)
         self.assertIn("untraced-number: 0", stdout)
 
-    def test_a_sourced_record_missing_ledger_fields_is_still_believed(self):
+    def test_a_sourced_record_missing_non_refutation_fields_is_still_believed(self):
         with tempfile.TemporaryDirectory() as temp:
             run = Run(Path(temp))
             incomplete = CLAIMS
@@ -1594,7 +1596,7 @@ class TheMechanicalBarRowsAreGraded(unittest.TestCase):
                 "RECENCY: current\n",
                 "RESOLVED: https://example.org/usable-access - read 2026-08-22\n",
                 "PAGE-YEAR: 2024 - stated on the article masthead.\n",
-                "REFUTATION: stands - the results table reports the same measure.\n",
+                "STATED-EXPIRY: none stated\n",
             ):
                 incomplete = incomplete.replace(line, "", 1)
             (run.root / "claims.md").write_text(
@@ -1605,6 +1607,27 @@ class TheMechanicalBarRowsAreGraded(unittest.TestCase):
 
         self.assertEqual(0, status)
         self.assertIn("untraced-number: 0", stdout)
+
+    def test_a_number_only_in_a_disbelieved_record_says_so(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            (run.root / "claims.md").write_text(
+                CLAIMS.replace("STATUS: sourced", "STATUS: unsourced - no source found.", 1),
+                encoding="utf-8",
+            )
+            status, stdout, _ = run.grade("--show")
+
+        self.assertEqual(1, status)
+        self.assertIn("12% appears only in a disbelieved claim record", stdout)
+
+    def test_a_number_absent_from_every_record_keeps_the_existing_detail(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            run.draft.write_text(BODY.replace("12% improvement", "15% improvement"), encoding="utf-8")
+            status, stdout, _ = run.grade("--show")
+
+        self.assertEqual(1, status)
+        self.assertIn("15% is absent from claims.md", stdout)
 
     def test_numeric_identity_does_not_establish_restatement_support(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -2072,6 +2095,11 @@ class TheRenderedDocumentContractIsPublished(unittest.TestCase):
         ):
             with self.subTest(row=row):
                 self.assertIn(f"`{row}`", text)
+        self.assertEqual(
+            "every graded body number traces to a believed claim record",
+            scan.ROWS[scan.UNTRACED_NUMBER],
+        )
+        self.assertIn("appear in a believed claim record", text)
 
     def test_the_skill_publishes_the_counted_render_route(self):
         text = self.skill_text()
@@ -2108,8 +2136,8 @@ class EveryBehaviorLimitHasALiveHandler(unittest.TestCase):
             "TheMechanicalBarRowsAreGraded.test_numeric_identity_does_not_establish_restatement_support",
             "TheMechanicalBarRowsAreGraded.test_only_believed_claim_records_trace_body_numbers",
         ),
-        "whether a sourced record missing required fields is still believed": (
-            "TheMechanicalBarRowsAreGraded.test_a_sourced_record_missing_ledger_fields_is_still_believed",
+        scan.UNJOINED_SOURCE_FIELDS_LIMIT[0]: (
+            "TheMechanicalBarRowsAreGraded.test_a_sourced_record_missing_non_refutation_fields_is_still_believed",
             "TheMechanicalBarRowsAreGraded.test_only_believed_claim_records_trace_body_numbers",
         ),
         "whether a republished citation's original element matches its source": (

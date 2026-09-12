@@ -240,9 +240,11 @@ def claim_record_can_certify_values(block: str) -> bool:
     vocabularies and their keyword parser.
     """
     from research_ledger import (
+        REFUTATION_EVIDENCE_FIELDS,
         REFUTATION_REFUTED,
         REFUTATION_VALUES,
         STATUSES,
+        SUBSTANCE,
         UNREADABLE,
         UNSOURCED,
         keyword_of,
@@ -257,7 +259,22 @@ def claim_record_can_certify_values(block: str) -> bool:
         refutation_match.group("value") if refutation_match else "",
         REFUTATION_VALUES,
     )[0]
-    return status not in {UNSOURCED, UNREADABLE} and refutation != REFUTATION_REFUTED
+    evidence_matches = (
+        re.search(
+            rf"(?mi)^{re.escape(field)}\s*:\s*(?P<value>[^\n]*)$",
+            block,
+        )
+        for field in REFUTATION_EVIDENCE_FIELDS
+    )
+    has_refutation_evidence = all(
+        match is not None and SUBSTANCE.search(match.group("value"))
+        for match in evidence_matches
+    )
+    return (
+        status not in {UNSOURCED, UNREADABLE}
+        and refutation != REFUTATION_REFUTED
+        and has_refutation_evidence
+    )
 
 
 @dataclass(frozen=True)

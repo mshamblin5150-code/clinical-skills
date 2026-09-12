@@ -1442,6 +1442,33 @@ class TheRefutationPassIsASecondAgentTryingToProveTheCitationWrong(unittest.Test
 class TheRefutationDeclaresASecondRoute(unittest.TestCase):
     """#500's two-half declared difference at the public record-finding seam."""
 
+    def test_refutation_evidence_and_its_complement_partition_required_fields(self):
+        self.assertEqual(
+            ("REFUTATION", "SECOND-ROUTE"),
+            ledger.REFUTATION_EVIDENCE_FIELDS,
+        )
+        self.assertEqual(
+            (
+                "SOURCE",
+                "REFERENCE",
+                "RESTATEMENT",
+                "RECENCY",
+                "RESOLVED",
+                "PAGE-YEAR",
+                "STATED-EXPIRY",
+            ),
+            ledger.REFUTATION_EVIDENCE_COMPLEMENT,
+        )
+        self.assertEqual(
+            set(ledger.REQUIRED_WHEN_SOURCED),
+            set(ledger.REFUTATION_EVIDENCE_FIELDS)
+            | set(ledger.REFUTATION_EVIDENCE_COMPLEMENT),
+        )
+        self.assertFalse(
+            set(ledger.REFUTATION_EVIDENCE_FIELDS)
+            & set(ledger.REFUTATION_EVIDENCE_COMPLEMENT)
+        )
+
     def test_a_different_second_route_passes(self):
         self.assertEqual(kinds(ledger_text(CLEAN)), [])
 
@@ -1683,6 +1710,10 @@ class EveryRuledFanOutReadsTheSharedSourcingRules(unittest.TestCase):
         self.assertIn("resolvable and was independently re-opened", flat)
         self.assertIn("reports the corpus it read and what it did not open", flat)
         self.assertIn("retry with a second independent instrument", flat)
+        self.assertIn(
+            "A sourced claim record may certify a value only when both REFUTATION and SECOND-ROUTE carry substance",
+            flat.replace("`", ""),
+        )
 
     def test_the_sourceless_record_rule_has_one_home(self):
         rule = "A sourceless record makes no claim about a source"

@@ -56,6 +56,7 @@ RECENCY: current
 RESOLVED: https://example.org/usable-access - read 2026-08-22
 PAGE-YEAR: 2024 - stated on the article masthead.
 REFUTATION: stands - the article reports the measure in its results table.
+SECOND-ROUTE: publisher HTML -> journal PDF rendered at 600 dpi
 """
 
 REREAD = """\
@@ -885,14 +886,16 @@ class NumbersTraceToTheRunLedger(unittest.TestCase):
         self.assertEqual(0, status)
         self.assertIn("untraced-number: 0", stdout.getvalue())
 
-    def test_a_sourced_record_missing_ledger_fields_is_still_believed(self):
+    def test_a_sourced_record_missing_non_refutation_fields_is_still_believed(self):
         with tempfile.TemporaryDirectory() as temp:
             run = Run(Path(temp))
             (run.root / "claims.md").write_text(
                 "DATE: 2026-08-22\n\n"
                 "## CLAIM: [REPLY: maren] The combined program reported a 12% improvement.\n"
                 "STATUS: sourced\n"
-                "REFERENCE: Quill, R. (2024). Measuring usable access in community care. Journal of Care, 4(2), 10-18.\n",
+                "REFERENCE: Quill, R. (2024). Measuring usable access in community care. Journal of Care, 4(2), 10-18.\n"
+                "REFUTATION: stands - the article reports the measure in its results table.\n"
+                "SECOND-ROUTE: publisher HTML -> journal PDF rendered at 600 dpi\n",
                 encoding="utf-8",
             )
             stdout = io.StringIO()
@@ -901,6 +904,33 @@ class NumbersTraceToTheRunLedger(unittest.TestCase):
 
         self.assertEqual(0, status)
         self.assertIn("untraced-number: 0", stdout.getvalue())
+
+    def test_a_number_only_in_a_disbelieved_record_says_so(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            (run.root / "claims.md").write_text(
+                CLAIMS.replace("STATUS: sourced", "STATUS: unsourced - no source found.", 1),
+                encoding="utf-8",
+            )
+            stdout = io.StringIO()
+            with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
+                status = scan.main([temp, "--show"])
+
+        self.assertEqual(1, status)
+        self.assertIn("12% appears only in a disbelieved claim record", stdout.getvalue())
+
+    def test_a_number_absent_from_every_record_keeps_the_existing_detail(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            (run.root / "response-maren.md").write_text(
+                BODY.replace("12%", "17%", 1), encoding="utf-8"
+            )
+            stdout = io.StringIO()
+            with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
+                status = scan.main([temp, "--show"])
+
+        self.assertEqual(1, status)
+        self.assertIn("17% is absent from claims.md", stdout.getvalue())
 
     def test_numeric_identity_does_not_establish_restatement_support(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -1189,6 +1219,16 @@ class AdvisoryAndCoverageBehavior(unittest.TestCase):
 
 
 class EveryDeclaredLimitHasOneCheckedInventory(unittest.TestCase):
+    def test_the_number_row_promises_a_believed_claim_record(self):
+        self.assertEqual(
+            "every body number traces to a believed claim record",
+            scan.ROWS[scan.UNTRACED_NUMBER],
+        )
+        self.assertIn(
+            "response's believed tagged",
+            DISCUSSION_REPLY_SKILL.read_text(encoding="utf-8"),
+        )
+
     def test_the_declared_limits_are_complete_and_substantive(self):
         self.assertEqual(
             tuple((subject, reason) for subject, reason, _ in scan.DECLARED_LIMITS),
@@ -1235,8 +1275,8 @@ class EveryBehaviorLimitHasALiveHandler(unittest.TestCase):
             "NumbersTraceToTheRunLedger.test_numeric_identity_does_not_establish_restatement_support",
             "NumbersTraceToTheRunLedger.test_only_believed_claim_records_trace_body_numbers",
         ),
-        "whether a sourced record missing required fields is still believed": (
-            "NumbersTraceToTheRunLedger.test_a_sourced_record_missing_ledger_fields_is_still_believed",
+        scan.UNJOINED_SOURCE_FIELDS_LIMIT[0]: (
+            "NumbersTraceToTheRunLedger.test_a_sourced_record_missing_non_refutation_fields_is_still_believed",
             "NumbersTraceToTheRunLedger.test_only_believed_claim_records_trace_body_numbers",
         ),
         "whether reference-dependent rows ran after a refused reference label": (

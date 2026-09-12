@@ -48,6 +48,7 @@ class TheCourseAssignmentWorkflow(unittest.TestCase):
         for row in deck_scan.ROWS:
             with self.subTest(row=row):
                 self.assertIn(f"`{row}`", self.skill)
+        self.assertIn("appears in no believed claim record", self.skill)
 
     def test_the_commands_and_render_retention_are_explicit(self):
         for command in (

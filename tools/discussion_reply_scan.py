@@ -56,6 +56,7 @@ import aar_scan
 
 EXPECTED_COMPLETION_CHECKS = (aar_scan.EXPECTED_ROW,)
 from run_grader import EvidenceDisposition
+from research_ledger import REFUTATION_EVIDENCE_COMPLEMENT
 
 
 ADDRESSED_NAME = "addressed-name"
@@ -78,7 +79,7 @@ ROWS = {
     WORD_FLOOR: f"the reply contains at least {WORD_FLOOR_COUNT} words",
     REFERENCE_MINIMUM: "the reply contains at least one reference",
     UNRESOLVED_CITATION: "every in-text citation resolves within the reply",
-    UNTRACED_NUMBER: "every body number traces to claims.md",
+    UNTRACED_NUMBER: "every body number traces to a believed claim record",
     RESPENT_SOURCE: "a later reply does not spend an earlier reply's source",
     INVOKED_PROPERTY: "every invoked source names a property beyond its domain noun",
     LEGAL_REFERENCE_NAME: "every legal reference entry names its regulation",
@@ -114,6 +115,13 @@ GATED_ROW_SETS = {
 }
 ABSENT_BY_DESIGN_FIELDS = ()
 
+UNJOINED_SOURCE_FIELDS = ", ".join(REFUTATION_EVIDENCE_COMPLEMENT)
+UNJOINED_SOURCE_FIELDS_LIMIT = (
+    f"whether a sourced record missing one or more of {UNJOINED_SOURCE_FIELDS} is still believed",
+    f"Field completeness for {UNJOINED_SOURCE_FIELDS} belongs to research_ledger; this certifier still reads numbers and reference keys from a record carrying both substantive refutation-evidence fields.",
+    EvidenceDisposition.BEHAVIOR,
+)
+
 UNMARKED_INVOKED_SOURCE_LIMIT = (
     "whether every invoked source was marked",
     "The command can grade only INVOKED markers that exist and cannot see an invoked source the drafter never marked.",
@@ -129,11 +137,7 @@ DECLARED_LIMITS = (
         "The certifier reads numeric tokens and never judges whether the record's restatement supports the fact asserted in the reply.",
         EvidenceDisposition.BEHAVIOR,
     ),
-    (
-        "whether a sourced record missing required fields is still believed",
-        "Field completeness belongs to research_ledger; this certifier still reads numbers and reference keys from a record whose sourced status is recognizable.",
-        EvidenceDisposition.BEHAVIOR,
-    ),
+    UNJOINED_SOURCE_FIELDS_LIMIT,
     (
         "whether every roster post was readable",
         "The command refuses a known unread file but cannot establish that the captured posts directory is the complete live board roster.",
@@ -497,20 +501,33 @@ def _number_findings(
     reply: Reply, citations: tuple[Citation, ...], claims: str
 ) -> tuple[Finding, ...]:
     traced: set[str] = set()
+    mentioned: set[str] = set()
     target = reply.path.stem.removeprefix("response-")
     for claim, block in _scoped_claim_blocks(claims, target):
+        restatement = RESTATEMENT.search(block)
+        trace_text = claim + "\n" + (
+            restatement.group("value") if restatement else ""
+        )
+        block_numbers = {
+            value.casefold() for value in NUMBER.findall(trace_text)
+        }
+        mentioned.update(block_numbers)
         if not claim_record_can_certify_values(block):
             # _claimed_references intentionally still reads this block. A
             # disbelieved record cannot certify a number, but its reference key
             # remains visible so narrative citation recognition cannot vanish.
             continue
-        restatement = RESTATEMENT.search(block)
-        trace_text = claim + "\n" + (
-            restatement.group("value") if restatement else ""
-        )
-        traced.update(value.casefold() for value in NUMBER.findall(trace_text))
+        traced.update(block_numbers)
     return tuple(
-        Finding(UNTRACED_NUMBER, reply.path.name, f"{value} is absent from claims.md")
+        Finding(
+            UNTRACED_NUMBER,
+            reply.path.name,
+            (
+                f"{value} appears only in a disbelieved claim record"
+                if value.casefold() in mentioned
+                else f"{value} is absent from claims.md"
+            ),
+        )
         for value in dict.fromkeys(_numeric_values(reply, citations))
         if value.casefold() not in traced
     )

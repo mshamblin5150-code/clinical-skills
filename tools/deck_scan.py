@@ -22,6 +22,7 @@ import run_grader
 import aar_scan
 import render_pass
 from discussion_artifact import CLAIM_BLOCK, claim_record_can_certify_values
+from research_ledger import REFUTATION_EVIDENCE_COMPLEMENT
 
 
 A = "{http://schemas.openxmlformats.org/drawingml/2006/main}"
@@ -79,15 +80,18 @@ class DeclaredLimit:
     limit: str
 
 
+UNJOINED_SOURCE_FIELDS = ", ".join(REFUTATION_EVIDENCE_COMPLEMENT)
+SOURCED_FIELD_COMPLETENESS_LIMIT = DeclaredLimit(
+    "sourced-field-completeness-unjoined",
+    f"A sourced record missing one or more of {UNJOINED_SOURCE_FIELDS} is still believed by the cost certifier when both refutation-evidence fields carry substance; field completeness belongs to research_ledger.",
+)
+
 DECLARED_LIMITS = (
     DeclaredLimit(
         "claim-support-unverified",
         "A clean cost trace does not establish that a believed record supports the cost token read from its heading.",
     ),
-    DeclaredLimit(
-        "sourced-field-completeness-unjoined",
-        "A sourced record missing required fields is still believed by the cost certifier; field completeness belongs to research_ledger.",
-    ),
+    SOURCED_FIELD_COMPLETENESS_LIMIT,
     DeclaredLimit(
         "adversarial-completeness-unverified",
         "The adversarial artifact read has no closed expected set, so no mechanical row proves that it found every unsupported assertion.",
@@ -445,13 +449,15 @@ def _costs(text: str) -> set[str]:
     return {match.group("amount").replace(",", "") for match in COST.finditer(text)}
 
 
-def _claim_costs(text: str) -> set[str]:
-    return {
-        amount
-        for match in CLAIM_BLOCK.finditer(text)
-        if claim_record_can_certify_values(match.group("block"))
-        for amount in _costs(match.group("block").splitlines()[0])
-    }
+def _claim_costs(text: str) -> tuple[set[str], set[str]]:
+    traced: set[str] = set()
+    mentioned: set[str] = set()
+    for match in CLAIM_BLOCK.finditer(text):
+        amounts = _costs(match.group("block").splitlines()[0])
+        mentioned.update(amounts)
+        if claim_record_can_certify_values(match.group("block")):
+            traced.update(amounts)
+    return traced, mentioned
 
 
 def survey(source: Source) -> Scan:
@@ -482,9 +488,14 @@ def survey(source: Source) -> Scan:
         if font_failures:
             findings.append(Finding(FONT_POINTS, slide.number, font_failures[0]))
     artifact_costs = _costs("\n".join([*(slide.text for slide in source.slides), *source.notes]))
-    recorded_costs = _claim_costs(source.claims)
+    recorded_costs, mentioned_costs = _claim_costs(source.claims)
     for amount in sorted(artifact_costs - recorded_costs):
-        findings.append(Finding(UNTRACED_COST, None, f"${amount} has no claim record"))
+        detail = (
+            f"${amount} appears only in a disbelieved claim record"
+            if amount in mentioned_costs
+            else f"${amount} has no claim record"
+        )
+        findings.append(Finding(UNTRACED_COST, None, detail))
     return Scan(
         len(source.slides),
         bullets_read,
