@@ -952,6 +952,14 @@ _Avoid_: architecture thread, architecture ticket, deepening ticket, refactor wo
 The statement in a ticket's body of what produced the ticket — a member's grilling or build, a closing sweep, an architecture review, a run or its after-action review, or the clinician's own request. It is the evidence descent is judged from and never the judgment itself: a line naming a run says the ticket descends from no ticket, which is an answer rather than an absence. Every ticket carries one from filing, so a body without it is missing a record rather than stating that nothing produced it. A respec keeps it word for word, because the filing session is the only one that saw where the ticket came from, and a rewrite that paraphrases it replaces that session's reading with the respecer's.
 _Avoid_: provenance line, origin, parent, source line, descent line
 
+**Coordinate**:
+A `path:NNN` written into a record, naming where something stood on a day. It is never the locator, and the reason is a property of line numbers rather than of anyone's care: a coordinate is falsified by an edit anywhere above it, in a file its record does not touch, by an author who never read it — so it can be wrong at the moment of publication with nobody at fault, and it can move backwards, so a reader cannot repair one by assuming the file only grew. Distinct from an **Anchor**, which is what a reader resolves by; a coordinate travels beside one or it points at nothing. Distinct too from a repository path citation, whose defect is merge state and which heals itself when the path lands — dating a coordinate heals nothing, which is why the two take opposite postures.
+_Avoid_: line number, pointer, locator, reference, cite
+
+**Anchor**:
+The durable half of a coordinate citation: a symbol name, a quoted span, a prose quotation, or the block beneath — anything in the same paragraph a reader can search for that is not the number. It is checked for **presence and never for resolution**, because resolving one needs file contents at a stated commit, which is the limit the tracker's citation grader declares rather than closes. So an anchor does not keep a coordinate true; it converts a silent landing on the wrong line into a search that finds nothing, and that conversion is the whole of what it buys. It survives an edit above it and a move to another file; it does not survive a deletion or a rename, and a same-file history search reads both of those as the same thing. **Not the sense `anchor_scan` and `icd10-cpt` give the word**, where an ANCHOR is the note text a code rests on, nor the sense in **Marker anchor**, which is a position rather than a locator; three senses, one word, and the collision is recorded here because a heading-derived fire cannot see the one that lives in a module.
+_Avoid_: locator, landmark, symbol, context, marker
+
 ### Review
 
 **Correction**:

@@ -14,6 +14,7 @@ import phi_scan
 import test_module_sections
 import tracker_branch_scope
 import tracker_bodies
+import tracker_coordinates
 import tracker_filed_from
 import tracker_merge_receipt
 import tracker_publish_hook
@@ -291,6 +292,21 @@ class EveryChangedTrackerRecordTriggersTheShapeScan(unittest.TestCase):
         self.assertNotIn("github.event.action != 'edited'", step)
         self.assertNotIn("github.event.action == 'labeled'", step)
         self.assertNotIn("gh api", step)
+
+    def test_changed_bodies_report_the_coordinate_grade_through_its_event_mode(self):
+        step = workflow_text().partition(
+            "Changed tracker coordinate accompaniment"
+        )[2].partition("\n      - name:")[0]
+
+        self.assertIn("tracker_coordinates.py --github-event", step)
+        self.assertIn("GITHUB_EVENT_PATH", step)
+        self.assertIn("GITHUB_EVENT_NAME", step)
+        self.assertIn("GITHUB_STEP_SUMMARY", step)
+        self.assertIn("### Tracker coordinate accompaniment", step)
+        self.assertIn("github.event.changes.body", step)
+        for action in ("opened", "created", "submitted", "edited"):
+            self.assertIn(f"github.event.action == '{action}'", step)
+        self.assertIn("exit $status", step)
 
     def test_an_edited_map_body_runs_the_refusing_producer_stamp_check(self):
         step = workflow_text().partition(

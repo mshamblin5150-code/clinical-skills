@@ -42,6 +42,7 @@ from typing import NamedTuple
 
 import phi_scan
 import tracker_bodies
+import tracker_coordinates
 import tracker_branch_scope
 import tracker_filed_from
 import tracker_readback
@@ -269,6 +270,7 @@ REDACTION_WALK_KINDS = (
     "phi:corpus-date",
     *(f"phi:{kind}" for kind in phi_scan.SHAPE_RULES),
     *(f"body:{kind}" for kind in tracker_bodies.KINDS),
+    tracker_coordinates.UNANCHORED,
     "verdict:missing-discriminator",
     *tracker_branch_scope.BRANCH_RULES,
 )
@@ -299,6 +301,10 @@ BODY_REMEDIES = {
         "restore the intended single path separator"
     ),
 }
+COORDINATE_REMEDY = (
+    "place an anchor beside the coordinate: a backticked identifier or span, "
+    "a prose quotation, or an immediately following fenced or quoted block"
+)
 
 
 def body_remedy(kind: str, route: tuple[str, ...]) -> str:
@@ -953,6 +959,12 @@ def analyze(
             findings.append(Finding(
                 "body:carriage-return-flanked", 1, publication.field, "deny"
             ))
+    findings.extend(
+        Finding(row.rule, 1, publication.field, "deny")
+        for row in tracker_coordinates.grade(
+            publication.text, f"{publication.field} being published"
+        )
+    )
     comment_prose = (
         ordinary_paragraph_prose(publication.text)
         if publication.field == "body" and route in COMMENT_ROUTES
@@ -1036,6 +1048,8 @@ def analyze(
         body_kind = row.rule.removeprefix("body:")
         if body_kind in BODY_REMEDIES:
             line += f"; remedy: {body_remedy(body_kind, route)}"
+        if row.rule == tracker_coordinates.UNANCHORED:
+            line += f"; remedy: {COORDINATE_REMEDY}"
         lines.append(line)
     if not findings:
         lines.append(f"scanned {publication.field}: 0 findings")
@@ -1062,6 +1076,12 @@ def authorize_issue_body(
     if findings:
         kinds = ", ".join(row.kind for row in findings)
         raise ValueError(f"tracker body refused for {label}: {kinds}")
+    coordinate_findings = tracker_coordinates.grade(body, label)
+    if coordinate_findings:
+        raise ValueError(
+            f"tracker body refused for {label}: {tracker_coordinates.UNANCHORED}; "
+            f"remedy: {COORDINATE_REMEDY}"
+        )
     if issue_number is not None:
         # Lazy import avoids the module-level cycle: implementation_map uses
         # this direct-writer gate when it publishes the same body.

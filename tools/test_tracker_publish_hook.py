@@ -22,6 +22,7 @@ from unittest import mock
 import artifact_lock_test_support  # noqa: F401
 import tracker_publish_hook as hook
 import tracker_bodies
+import tracker_coordinates
 import phi_scan
 
 
@@ -1014,6 +1015,7 @@ class PublishedFieldsAreGradedWithoutEchoingThem(unittest.TestCase):
             "body:carriage-return-flanked": marker + "\rflanked",
             "body:literal-newline-escape": marker + r"\nliteral",
             "body:doubled-path-separator": marker + r" C:\\folder",
+            tracker_coordinates.UNANCHORED: marker + " tools/example.py:12",
             "verdict:missing-discriminator": marker + "\n**Verdict:** HOLDS",
             "branch:repo-relative-link": (marker + " [x](docs/x.md)", None, None, None),
             "branch:near-miss": (marker + " https://github.com/example/repo/blob/main/docs/adr/0083-not-the-real-slug.md", None, None, None),
@@ -1503,6 +1505,21 @@ class PublishedFieldsAreGradedWithoutEchoingThem(unittest.TestCase):
         )
         self.assertIn("title path triggers", result.report)
 
+    def test_an_unanchored_coordinate_in_a_title_is_denied(self) -> None:
+        result = hook.analyze(
+            hook.Publication("title", "Moved to tools/example.py:12"),
+            index=phi_scan.build_index(set(), set()),
+            issue=None,
+            remote_fresh=True,
+        )
+
+        coordinate_findings = [
+            row for row in result.findings
+            if row.rule == tracker_coordinates.UNANCHORED
+        ]
+        self.assertEqual(["deny"], [row.posture for row in coordinate_findings])
+        self.assertIn(hook.COORDINATE_REMEDY, result.report)
+
     def test_title_record_keeps_graphql_identity_and_issue_container(self) -> None:
         context = hook.TrackerRecord(
             "old", "https://github.com/example/repo/issues/834", 834,
@@ -1755,6 +1772,35 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
             ("pr", "comment"): f'gh pr comment 595 --body-file "{path}"',
             ("issue", "edit"): f'gh issue edit 595 --body-file "{path}"',
         }
+
+    def test_an_unanchored_coordinate_is_denied_through_the_real_command_route(self) -> None:
+        index = phi_scan.build_index(set(), set())
+        with (
+            mock.patch.object(hook, "current_index", return_value=(index, ())),
+            mock.patch.object(hook, "refresh_default_branch", return_value=True),
+            mock.patch.object(
+                hook,
+                "fetch_readback",
+                return_value=fetched_records(595),
+            ),
+            mock.patch.object(hook, "write_marker"),
+        ):
+            response = hook.handle(
+                self.payload(
+                    "gh issue comment 595 --body 'Moved to tools/example.py:12'"
+                )
+            )
+
+        specific = response["hookSpecificOutput"]
+        self.assertEqual("deny", specific["permissionDecision"])
+        self.assertIn(tracker_coordinates.UNANCHORED, specific["additionalContext"])
+        self.assertIn("anchor", specific["additionalContext"])
+
+    def test_an_unanchored_coordinate_is_denied_to_the_direct_writer(self) -> None:
+        with self.assertRaisesRegex(ValueError, tracker_coordinates.UNANCHORED):
+            hook.authorize_issue_body(
+                "Moved to tools/example.py:12", "implementation map"
+            )
 
     def test_every_declared_body_row_denies_every_body_bearing_route(self) -> None:
         bodies = DirectTrackerWritersCrossTheBodyGate.BODY_BY_KIND

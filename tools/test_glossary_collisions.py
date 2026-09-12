@@ -94,6 +94,15 @@ DECLARED_CANDIDATES = (
         "the first is #388's.",
     ),
     Candidate(
+        "Anchor",
+        Verdict.COLLISION,
+        "The bare term is the searchable text beside a coordinate that a reader "
+        "resolves by; a Marker anchor is which end of a recommendation a marker "
+        "sits on, a position rather than a locator. A third sense is recorded in "
+        "the bare entry's own body -- anchor_scan's ANCHOR, the note text a code "
+        "rests on -- so the word carries three and none narrows another.",
+    ),
+    Candidate(
         "Assertion",
         Verdict.NARROWING,
         "A Promoted assertion is an assertion whose bar has become binary.",
@@ -320,16 +329,16 @@ class DeclaredCandidatePopulationIsBound(unittest.TestCase):
     def test_a_new_fire_is_unruled_and_not_automatically_a_collision(self) -> None:
         new_fire = CONTEXT.read_text(encoding="utf-8") + """\
 
-**Anchor**:
+**Bellwether**:
 The bare sense.
 
-**Anchor detail**:
+**Bellwether detail**:
 The compound sense.
 """
         with self.assertRaises(AssertionError) as raised:
             assert_candidate_population(new_fire)
 
-        self.assertIn("unruled glossary candidates: Anchor", str(raised.exception))
+        self.assertIn("unruled glossary candidates: Bellwether", str(raised.exception))
         self.assertNotIn("collision", str(raised.exception))
 
 

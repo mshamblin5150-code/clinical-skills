@@ -1548,6 +1548,19 @@ python tools/tracker_bodies.py "$H"/tracker-*.json
 
 Covered by `tools/test_tracker_bodies.py`, which builds synthetic harvests and GitHub events in that file and a temp directory. **The real tracker is deliberately not a fixture**, on `test_tracker_scan.py`'s position: it is fetched over the network and changes every time anybody comments, so a test keyed on it would be measuring the day it ran. **No count of issues, pull requests or lost bodies is asserted anywhere in it**, on the same grounds as the paragraph above. One class reads `docs/agents/issue-tracker.md` and asserts the rules it checks are still written there, on `test_spelling_scan.py`'s reasoning.
 
+### Tracker coordinate accompaniment
+
+`tools/tracker_coordinates.py` requires every tracker line coordinate to carry
+an anchor in its paragraph or in the quoted block immediately beneath it. The
+pre-publication hook refuses an unanchored coordinate and names the repair;
+the tracker workflow reports the same changed record after publication. With
+no arguments, the command grades tracked ADRs forward from its declared cutoff
+using each record's own last-touching commit. Exit 0 is clean, 1 is a finding,
+and 2 means the requested population was not scanned completely.
+
+The complete boundary belongs to `tracker_coordinates.DECLARED_LIMITS`; this
+section copies none of its rows.
+
 ### Skills mirror
 
 `.claude/skills/` is how Claude Code loads these skills natively. Each named skill and the shared

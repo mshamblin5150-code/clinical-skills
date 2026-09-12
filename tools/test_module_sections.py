@@ -109,6 +109,7 @@ DECLARED_SECTIONS = {
     "threshold_sheet": "Threshold sheets",
     "tracker_bodies": "Tracker bodies",
     "tracker_branch_scope": "Tracker branch scope",
+    "tracker_coordinates": "Tracker coordinate accompaniment",
     "tracker_filed_from": "Tracker Filed-from line",
     "tracker_freshness": "Tracker freshness",
     "tracker_merge_receipt": "Tracker merge receipt",
