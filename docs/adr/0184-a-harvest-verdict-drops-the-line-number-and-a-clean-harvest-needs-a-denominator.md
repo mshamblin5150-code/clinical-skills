@@ -29,7 +29,7 @@ text, which is the fact the ticket's PHI posture was decided without.
 prints `path:line [rule] match`; the default redacts to the first character. The *digest* is of the
 containing line, which `--show` never prints.
 
-**Nothing anywhere prints `line_sha256`.** It is computed at `tracker_scan.py:674-677` and consumed
+**Nothing anywhere prints `line_sha256`.** It is computed at `tracker_scan.py:675-677` and consumed
 only internally. A ruler must recompute `sha256` of the containing line, matching
 `record.text.splitlines()` boundaries and UTF-8 encoding, with no way to check the answer.
 
@@ -40,7 +40,7 @@ finding-side one.*
 
 **The marker is written from the unruled list.** `main` reassigns `findings, ruled =
 partition_ruled_findings(...)` at `:870-872`, then calls `write_harvest_marker(repo, findings)` at
-`:876`. So a completed triage of all 29 rewrites `reference/tracker-scan-harvest.json` to
+`:877`. So a completed triage of all 29 rewrites `reference/tracker-scan-harvest.json` to
 `"finding_counts": {}` — byte-identical to a harvest of a tracker that never carried a finding.
 
 **`finding_counts` has no programmatic reader.** Written at `tracker_scan.py:730`, read at
@@ -324,12 +324,34 @@ detect a short read; the other consumers that thread names are untouched.
 **Whether `rel="last"` is absent on the issues endpoint.** Inherited from #993's measurement and not
 re-derived here.
 
-**Whether #993's correction was measured against an empty population.** `pulls/comments` emits no
-`Link` header because it has 0 records, which in header terms is indistinguishable from an endpoint
-declining to emit `rel="last"`. Filed separately.
-
 **Whether the GraphQL exit status can be trusted.** A counting call exited 1 while returning
 complete, correct data for every resolvable alias, the status coming from `NOT_FOUND` errors where
 `issue(number:)` was handed pull-request numbers — the same container-and-surface split
 `tracker_bodies.py` records for `gh issue list`, and the inverse of #993 on the same toolchain.
-Filed separately; nothing in #918's scope reads GraphQL.
+Filed as [#1126](https://github.com/mshamblin5150-code/clinical-skills/issues/1126); nothing in
+#918's scope reads GraphQL.
+
+## Correction, 2026-09-11, on this record's own publication day
+
+**One row is withdrawn from *What this record does not settle*, and it was falsified by a fact this
+record already held.** That row read *"Whether #993's correction was measured against an empty
+population"*, reasoning that `pulls/comments` emits no `Link` header purely because it has 0 records,
+so an absent header cannot be told from an endpoint declining to emit `rel="last"`.
+
+The trap is real and the conjecture is false, on two independent grounds. #993's correction reports
+`rel="next"` **present**, and at `per_page=1` a next page requires a population of at least 2. And
+`/issues` holds **1121** records by this record's own denominator table, so it cannot have been
+empty. **The correction stands unqualified on that axis.**
+
+It is withdrawn here rather than deleted, because the trap applies to the next endpoint anybody
+probes, and because the number that refutes it is in the table eight paragraphs above the row. A
+conjecture contradicted by one's own published measurement is worth more as a recorded error than as
+a silent edit. Recorded on #993's thread as well.
+
+**Two line anchors were also wrong, in the direction that matters least and is still a defect.**
+`write_harvest_marker(repo, findings)` is at `:877`, not `:876`, which is the `try:` above it; the
+digest is computed at `:675-677`, not `:674-677`, whose first line is `finding.match`. Both cited
+`tools/tracker_scan.py` at `8d7204a`, which the base move to `5460c6f` did not touch — so these were
+wrong when written rather than gone stale, which is the
+[#928](https://github.com/mshamblin5150-code/clinical-skills/issues/928) class and not the #1121
+one. Corrected in place above.
