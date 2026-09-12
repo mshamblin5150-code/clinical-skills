@@ -160,13 +160,6 @@ DECLARED_LIMITS = (
         EvidenceDisposition.BEHAVIOR,
     ),
     (
-        "whether a republished citation's original year matches its source",
-        "The shared date grammar keys untraced-citation and respent-record on the "
-        "second element only. No row compares the parsed original year with the "
-        "claim record or reference entry.",
-        EvidenceDisposition.BEHAVIOR,
-    ),
-    (
         "the authority for render wiring",
         "The governing architecture record for this declaration is ADR 0125.",
         EvidenceDisposition.DECLARED_READING,
