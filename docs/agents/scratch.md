@@ -74,7 +74,7 @@ accounted-for set in **one** `git grep` pass over tracked files, and reports the
   coverage both hold, 1 wins**, on `differential_scan.py`'s ordering.
 - **Two gating roots.** The **owning checkout** keeps a grandfathered integer baseline, because its
   residue predates the rule and clearing it needs the clinician's word. The committing checkout
-  has a zero ratchet from day one. Every peer worktree reports its count and is never graded.
+  has a zero ratchet from day one. Every peer worktree is counted and never graded.
 - **The baseline is the module's to state and appears in no prose, including here.** Not a list,
   not hashes, and not a digit in this document or in either ADR. `EXEMPT_CEILING` is the precedent:
   a figure restated in prose goes stale one short of the ceiling, which is the one window where
