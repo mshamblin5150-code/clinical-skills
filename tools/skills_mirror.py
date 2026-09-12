@@ -54,6 +54,9 @@ under `.claude/skills-orphaned/<name>/<UTC stamp>/`, and then relinks the entry.
 subagent payload returns without inspecting or writing because its parent already owns
 the repair. Hook output is JSON carrying `hookSpecificOutput.additionalContext`; plain
 stdout text does not reach the model.
+
+What a clean run does not establish belongs to ``skills_mirror.NOT_REACHED`` below.
+This docstring points at that object and deliberately copies none of its rows.
 """
 
 from __future__ import annotations
@@ -99,6 +102,35 @@ CONTENT = "content"
 LINE_ENDINGS = "line endings only"
 REPORTS = Path(".claude") / "skills-mirror-reports"
 ORPHANS = Path(".claude") / "skills-orphaned"
+NO_SKILLS = "no skills found under skills/"
+
+NOT_REACHED = (
+    (
+        "the state of another checkout's mirror",
+        "Inspection is confined to the selected checkout; neither the main checkout "
+        "nor a sibling worktree is read.",
+    ),
+    (
+        "the state after another worktree is materialized",
+        "The result is a momentary reading, and a later worktree creation can replace "
+        "junctions with copies without this invocation observing it.",
+    ),
+    (
+        "a CI representation of the local mirror",
+        "The mirror is gitignored, so a repository runner has no tracked installation "
+        "state to inspect.",
+    ),
+    (
+        "wiring when the skill population is empty",
+        "Exit 2 establishes only that no skill entry was found under the selected "
+        "root; it establishes no link or copy status.",
+    ),
+    (
+        "a verdict from session-start status",
+        "Session start remains advisory and returns success so its structured context "
+        "can be consumed.",
+    ),
+)
 
 
 class Difference(NamedTuple):
@@ -143,25 +175,14 @@ def difference_reason(canonical_file: Path, mirror_file: Path) -> str | None:
     return CONTENT
 
 
-def repo_root(start: Path | None = None) -> Path:
+def repo_root() -> Path:
     """The checkout this script belongs to -- worktree root, not the main checkout.
 
-    `git rev-parse --show-toplevel` is asked from the script's own directory rather
-    than the process cwd, so running it from anywhere reports on the right tree.
-    A worktree is a different toplevel than the checkout it was branched from, and
-    conflating the two is precisely the bug this file is about.
+    ``tools/`` sits one level under that root. A worktree is a different checkout
+    than the one it was branched from, and resolving from this module keeps the
+    answer local without consulting redirectable process state.
     """
-    here = (start or Path(__file__).resolve().parent)
-    try:
-        out = subprocess.run(
-            ["git", "-C", str(here), "rev-parse", "--show-toplevel"],
-            capture_output=True, text=True, check=True,
-            encoding="utf-8", errors="replace",
-        )
-        return Path(out.stdout.strip()).resolve()
-    except (OSError, subprocess.CalledProcessError):
-        # No git, or not a checkout. tools/ sits one level under the root.
-        return here.parent.resolve()
+    return Path(__file__).resolve().parent.parent
 
 
 def skill_names(root: Path) -> list[str]:
@@ -372,10 +393,10 @@ def repair(
 
 
 def render(entries: list[Entry], root: Path, verbose: bool) -> list[str]:
-    lines = [f"skills mirror: {root}"]
     if not entries:
-        lines.append("  no skills found under skills/ -- nothing to mirror.")
-        return lines
+        return [NO_SKILLS]
+
+    lines = [f"skills mirror: {root}"]
 
     width = max(len(e.name) for e in entries)
     for entry in entries:
@@ -467,7 +488,10 @@ def main(argv=None) -> int:
     )
     parser.add_argument(
         "--quiet", action="store_true",
-        help="print nothing when every skill is linked; still exits non-zero when not",
+        help=(
+            "print nothing when every skill is linked; an empty skill population "
+            "still prints its diagnostic and exits non-zero"
+        ),
     )
     parser.add_argument(
         "--root", type=Path, default=None,
@@ -489,7 +513,9 @@ def main(argv=None) -> int:
         record_report(root, report, stamp=stamp)
         broken = [entry for entry in entries if not entry.ok]
         failures = []
-        if not broken:
+        if not entries:
+            context = NO_SKILLS
+        elif not broken:
             context = f"skills mirror: {len(entries)} of {len(entries)} linked"
         else:
             repaired, drained, failures = repair(root, entries, stamp=stamp)
@@ -507,6 +533,9 @@ def main(argv=None) -> int:
         return 0
 
     entries = inspect(root)
+    if not entries:
+        print(NO_SKILLS)
+        return 2
 
     if args.repair:
         repaired, drained, failures = repair(root, entries)

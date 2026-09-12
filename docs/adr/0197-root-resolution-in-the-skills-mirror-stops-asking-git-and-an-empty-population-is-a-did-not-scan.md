@@ -1,6 +1,6 @@
 # Root resolution in the skills mirror stops asking git and an empty population is a did-not-scan
 
-**Measured at:** 7c555b7e8e579991c74f1a06a9329d72a472a2a5
+**Measured at:** 7037edb456bfc35c204579ce6688798fa57b1b09
 
 [#978](https://github.com/mshamblin5150-code/clinical-skills/issues/978) reports that
 `skills_mirror.repo_root()` is redirected by an inherited Git environment and reports a clean scan of
@@ -213,22 +213,8 @@ such a claim gets a declared boundary beside the implementation, and `refusal_sc
 precedent for a module that had no limits object, had its absence asserted in prose, and then earned
 one on a measurement.
 
-The object names at least these, and the ADR, the module docstring and `CLAUDE.md` point at it and
-copy no row:
-
-- **A clean run is about one checkout.** The mirror is per-checkout and gitignored, so a clean run
-  here says nothing about the main checkout's mirror or any sibling worktree's, and no instrument
-  reads the others.
-- **It is a reading of the moment, not of the next materialization.** `git worktree add` copies
-  `.claude/` and follows junctions, which is the defect this module exists for, so a clean run is
-  invalidated by the next worktree created from this tree and nothing reports that.
-- **CI can never represent it.** `.claude/` is gitignored, so no runner has a mirror to read. ADR
-  0152 already records that the mirror cannot be graded while that holds.
-- **The exit-2 limb is a population claim and not a wiring claim.** It says `skills/` held no entries
-  to mirror. After ruling 1 the root is right by construction, and the limb exists for a wrong
-  `--root` and a renamed `skills/`.
-- **The `--session-start` status carries no verdict** and never will, because that path is advisory
-  by ADR 0152 ruling 1.
+The complete boundary belongs to `skills_mirror.NOT_REACHED`. This ADR, the module docstring, and
+`CLAUDE.md` point at that object and copy no row; the object is the one inventory a reader checks.
 
 **`--session-start` is not given a `--root` of its own.** `CLAUDE_PROJECT_DIR` is available in the
 settings registration and passing it would be a second mechanism against a failure ruling 1 has

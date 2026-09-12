@@ -8,6 +8,7 @@ real tree would rewrite the developer's install as a side effect of running test
 Same reasoning as test_icd10.py never opening the shipped database.
 """
 
+import ast
 import io
 import json
 import os
@@ -18,6 +19,10 @@ from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 import skills_mirror as sm
+from prose_bind import NAMING, bind
+
+
+TOOLS = Path(__file__).resolve().parent
 
 
 def make_skill(root: Path, name: str, body: str = "# skill\n", extra=None):
@@ -89,6 +94,144 @@ class TempCheckout(unittest.TestCase):
 
     def tearDown(self):
         self._tmp.cleanup()
+
+
+class RepoRootTests(unittest.TestCase):
+    def test_root_resolution_runs_no_subprocess(self):
+        expected = Path(sm.__file__).resolve().parent.parent
+
+        with patch.object(
+            sm.subprocess,
+            "run",
+            side_effect=AssertionError("root resolution must not ask git"),
+        ) as run:
+            self.assertEqual(sm.repo_root(), expected)
+
+        run.assert_not_called()
+
+    def test_an_absolute_git_dir_does_not_redirect_the_script_root(self):
+        expected = Path(sm.__file__).resolve().parent.parent
+        git_dir = sm.subprocess.run(
+            ["git", "rev-parse", "--absolute-git-dir"],
+            cwd=expected,
+            capture_output=True,
+            text=True,
+            check=True,
+            encoding="utf-8",
+            errors="replace",
+        ).stdout.strip()
+
+        with patch.dict(os.environ, {"GIT_DIR": git_dir}):
+            os.environ.pop("GIT_WORK_TREE", None)
+            self.assertEqual(sm.repo_root(), expected)
+
+    def test_a_relative_git_work_tree_does_not_redirect_the_script_root(self):
+        expected = Path(sm.__file__).resolve().parent.parent
+
+        with patch.dict(os.environ, {"GIT_WORK_TREE": "."}):
+            os.environ.pop("GIT_DIR", None)
+            self.assertEqual(sm.repo_root(), expected)
+
+
+def _root_shaped(directory: ast.AST) -> bool:
+    if (
+        isinstance(directory, ast.Call)
+        and isinstance(directory.func, ast.Name)
+        and directory.func.id == "str"
+        and len(directory.args) == 1
+    ):
+        directory = directory.args[0]
+    if isinstance(directory, ast.Name):
+        return directory.id.lower() in {"cwd", "repo", "root", "repo_root"}
+    if isinstance(directory, ast.BoolOp):
+        return all(_root_shaped(choice) for choice in directory.values)
+    return (
+        isinstance(directory, ast.Attribute)
+        and directory.attr == "parent"
+        and isinstance(directory.value, ast.Attribute)
+        and directory.value.attr == "parent"
+    )
+
+
+def git_subprocesses_below_root(tools: Path) -> list[str]:
+    """Direct Git calls whose directly supplied directory is not root-shaped.
+
+    This AST floor reads one call. A command or directory assembled at run time is
+    invisible to it, so a clean result does not mean another form cannot arrive
+    quietly; it reaches only literal command lists and direct ``-C``/``cwd`` values.
+    """
+    offenders = []
+    for path in sorted(tools.glob("*.py")):
+        if path.name.startswith("test_"):
+            continue
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for call in (node for node in ast.walk(tree) if isinstance(node, ast.Call)):
+            if not (
+                isinstance(call.func, ast.Attribute)
+                and isinstance(call.func.value, ast.Name)
+                and call.func.value.id == "subprocess"
+                and call.func.attr in {"call", "check_call", "check_output", "Popen", "run"}
+            ):
+                continue
+            if not call.args or not isinstance(call.args[0], (ast.List, ast.Tuple)):
+                continue
+            command = call.args[0].elts
+            if not command or getattr(command[0], "value", None) != "git":
+                continue
+            directories = [
+                command[index + 1]
+                for index, part in enumerate(command[:-1])
+                if getattr(part, "value", None) == "-C"
+            ]
+            directories.extend(
+                keyword.value for keyword in call.keywords if keyword.arg == "cwd"
+            )
+            if any(not _root_shaped(directory) for directory in directories):
+                offenders.append(f"{path.name}:{call.lineno}")
+    return offenders
+
+
+class GitSubprocessRootTests(unittest.TestCase):
+    def test_non_test_tools_do_not_hand_git_a_directory_below_the_root(self):
+        self.assertEqual(git_subprocesses_below_root(TOOLS), [])
+
+    def test_the_walk_rejects_a_below_root_directory(self):
+        with TemporaryDirectory() as directory:
+            tools = Path(directory)
+            (tools / "below.py").write_text(
+                "import subprocess\n"
+                "from pathlib import Path\n"
+                "subprocess.run(['git', 'status'], "
+                "cwd=Path(__file__).resolve().parent)\n",
+                encoding="utf-8",
+            )
+            self.assertEqual(
+                git_subprocesses_below_root(tools),
+                ["below.py:3"],
+            )
+
+
+class DeclaredLimitsTests(unittest.TestCase):
+    def test_module_adr_and_claude_point_at_one_object_without_copying_rows(self):
+        root = TOOLS.parent
+        claude = (root / "CLAUDE.md").read_text(encoding="utf-8")
+        start = claude.index("### Skills mirror")
+        end = claude.index("\n### ", start + 1)
+        surfaces = {
+            "module docstring": sm.__doc__,
+            "ADR 0197": (
+                root
+                / "docs"
+                / "adr"
+                / "0197-root-resolution-in-the-skills-mirror-stops-asking-git-and-an-empty-population-is-a-did-not-scan.md"
+            ).read_text(encoding="utf-8"),
+            "CLAUDE.md skills mirror section": claude[start:end],
+        }
+
+        for label, prose in surfaces.items():
+            with self.subTest(surface=label):
+                self.assertIn("skills_mirror.NOT_REACHED", prose)
+                self.assertEqual((), bind(sm.NOT_REACHED, prose, mode=NAMING))
 
 
 class DiscoveryTests(TempCheckout):
@@ -380,6 +523,39 @@ class CliTests(TempCheckout):
         code, out = self.run_main("--quiet")
         self.assertEqual(code, 0)
         self.assertEqual(out, "")
+
+    def test_empty_population_is_exit_two_and_loud_even_when_quiet(self):
+        for arguments in ((), ("--quiet",)):
+            with self.subTest(arguments=arguments):
+                code, out = self.run_main(*arguments)
+                self.assertEqual(code, 2)
+                self.assertEqual(out, f"{sm.NO_SKILLS}\n")
+
+    def test_empty_population_is_exit_two_in_repair_mode(self):
+        code, out = self.run_main("--repair", "--quiet")
+        self.assertEqual(code, 2)
+        self.assertEqual(out, f"{sm.NO_SKILLS}\n")
+
+    def test_empty_population_session_start_is_advisory_and_names_failure(self):
+        buf = io.StringIO()
+        with patch("sys.stdin", io.StringIO('{"hook_event_name": "SessionStart"}')):
+            with redirect_stdout(buf):
+                code = sm.main(["--session-start", "--root", str(self.root)])
+
+        self.assertEqual(code, 0)
+        context = json.loads(buf.getvalue())["hookSpecificOutput"][
+            "additionalContext"
+        ]
+        self.assertEqual(context, sm.NO_SKILLS)
+
+    def test_quiet_help_names_the_empty_population_exception(self):
+        buf = io.StringIO()
+        with self.assertRaises(SystemExit) as stopped:
+            with redirect_stdout(buf):
+                sm.main(["--help"])
+
+        self.assertEqual(stopped.exception.code, 0)
+        self.assertIn("empty skill population", " ".join(buf.getvalue().split()))
 
     def test_session_start_subagent_returns_without_touching_the_mirror(self):
         make_skill(self.root, "clinical-note", body="rule kept\n")
