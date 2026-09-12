@@ -98,8 +98,8 @@ worktree residue spends ruling 1 by never grading the population it was widened 
 reads nothing, classifies nothing, publishes nothing and deletes nothing; it moves material out of a
 root that vanishes on `git worktree remove` into the one that does not, and the owning checkout's
 baseline is then re-recorded in a diff by however many arrived. **A drain loosens the ratchet
-visibly, which is the correct direction**: `EXEMPT_CEILING`'s comment asks that the next one be
-argued for in a diff rather than typed, and a drain is that argument.
+visibly, which is the correct direction**: `EXEMPT_CEILING`'s comment asks that an exemption past
+that ceiling be argued for in a diff rather than typed, and a drain is that argument.
 
 **7. The documented harvest moves into the namespace and gains no producer.** Every copy of the
 harvest block writes into `scratch/sessions/<key>/`. **There are five, and the grilling argued the
@@ -154,3 +154,5 @@ is a reading and it stays one.
 **Deletion, which is still nobody's to schedule.** Ruling 11 of #417 carved #466 out precisely
 because `ready-for-agent` cannot sit over an `rm` on unrecoverable patient material. A drain is a
 move and is authorized; disposal remains the clinician's, per file, and no work list may schedule it.
+
+*Corrected in place 2026-09-12, from [#932](https://github.com/mshamblin5150-code/clinical-skills/issues/932)'s grilling.* Ruling 6 quoted `EXEMPT_CEILING`'s comment as asking that *the next one* be argued for in a diff. That was off by one and had been since both were written on 2026-08-19: the ceiling is `4`, the declared sum is `3`, and the assertion is `assertLessEqual`, so the next exemption is typed freely and only the one past the ceiling is refused. The comment it drew on has been reworded to name the relationship rather than an ordinal, so the clause here paraphrases that principle instead of quoting a sentence the module no longer contains. **The ruling is unchanged** — a drain loosens the ratchet visibly and in a diff, which is what the sentence was reaching for and what the corrected clause says. Ruling 3's quotation is untouched and needed no correction: it was accurate as a transcription, and the two bare prose restatements that made it false as a claim about the tree were deleted under #932, so it is now true as well.

@@ -842,6 +842,14 @@ _Avoid_: unpaired flag, dangling field, dropped line, unmatched
 A run every one of whose named checks ran as its command and came back clean. A run whose check was walked by eye instead — because the command, or the **engine** it needs, could not run on that machine and could not be installed there — may still be complete, but it is never mechanically verified, and it says so rather than leaving a reader to assume the stronger claim. The walk and the command read the same written rules; what differs is only whether a machine applied them.
 _Avoid_: verified, checked, validated, confirmed
 
+**Hatch**:
+A declared, counted opt-out from a check, covering a named span and capped by a **Ceiling**. It declares a number rather than opening a hole, so a new finding wandering into an exempted span fails exactly as it would anywhere else, and a count of zero exempts nothing. The marker sits on its own line, because one mentioned mid-sentence is not a marker and a document that could exempt itself by describing the rule would exempt the paragraph most likely to describe it. Distinct from a **Pragma**, which is file-scoped, uncounted and self-applied, and from a **Declared limit**, which states what a clean run does not establish rather than excusing a finding a run made.
+_Avoid_: opt-out, waiver, suppression, allowlist, exception list
+
+**Ceiling**:
+The cap on a **Hatch**'s declared total. It is always graded and refuses past itself, which is the **opposite** obligation from the maximum a **Bar** states: a course maximum is transcribed and never honored, because honoring one deletes the clauses that bound a claim. Both senses are live in this repository at once, so which is meant is supplied and never inferred from the word. A ceiling is a cap and never a measurement -- moving one to meet what is on disk retires the check rather than discharging it -- and the first addition it refuses is the one **past** it, not the one that reaches it.
+_Avoid_: limit, cap, maximum, threshold, budget, quota
+
 ### Tracker
 
 **Binding**:
