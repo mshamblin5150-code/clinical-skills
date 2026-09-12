@@ -121,7 +121,7 @@ import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 
-from console_codec import use_utf8
+from console_codec import require_python_floor, use_utf8
 from repo_root import ForeignCheckout, ensure_main_checkout
 
 # Twips throughout. One inch is 1440.
@@ -1480,4 +1480,5 @@ def main(argv: list) -> int:
 
 if __name__ == "__main__":
     use_utf8()
+    require_python_floor()
     raise SystemExit(main(sys.argv[1:]))

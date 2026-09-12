@@ -12,7 +12,7 @@ from pathlib import Path
 import guidelines_catalog
 import threshold_grammar
 import threshold_sheet
-from console_codec import use_utf8
+from console_codec import require_python_floor, use_utf8
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -353,4 +353,5 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     use_utf8()
+    require_python_floor()
     raise SystemExit(main())

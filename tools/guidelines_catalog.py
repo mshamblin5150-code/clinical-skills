@@ -62,7 +62,7 @@ from pathlib import Path
 
 import artifact_lock
 import artifact_provenance
-from console_codec import use_utf8
+from console_codec import require_python_floor, use_utf8
 from guidelines_extract import CLASSES, publication_year_page_counts
 from guidelines_manifest import Manifest, read_or_raise
 
@@ -1230,4 +1230,5 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     use_utf8()
+    require_python_floor()
     raise SystemExit(main())

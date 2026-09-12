@@ -129,7 +129,7 @@ from tracker_records import (
     from_command,
 )
 
-from console_codec import use_utf8
+from console_codec import require_python_floor, use_utf8
 from prose_bind import prose_outside_code as _shared_prose_outside_code
 
 CLEAN = 0
@@ -903,4 +903,5 @@ def main(argv: list[str], stdin=None) -> int:
 
 if __name__ == "__main__":
     use_utf8()
+    require_python_floor()
     raise SystemExit(main(sys.argv[1:]))

@@ -64,12 +64,13 @@ import filecmp
 import json
 import os
 import shutil
+import stat
 import subprocess
 import sys
 from pathlib import Path
 from typing import Iterable, NamedTuple
 
-from console_codec import use_utf8
+from console_codec import require_python_floor, use_utf8
 
 MIRROR = Path(".claude") / "skills"
 CANONICAL = Path("skills")
@@ -288,7 +289,15 @@ def _is_link(path: Path) -> bool:
     if os.path.islink(path):
         return True
     isjunction = getattr(os.path, "isjunction", None)
-    return bool(isjunction and isjunction(path))
+    if isjunction and isjunction(path):
+        return True
+    if os.name == "nt":
+        try:
+            attributes = os.lstat(path).st_file_attributes
+        except (AttributeError, OSError):
+            return False
+        return bool(attributes & stat.FILE_ATTRIBUTE_REPARSE_POINT)
+    return False
 
 
 def link(mirror_entry: Path, canonical: Path) -> None:
@@ -523,4 +532,5 @@ def main(argv=None) -> int:
 
 if __name__ == "__main__":
     use_utf8()
+    require_python_floor()
     sys.exit(main())

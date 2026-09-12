@@ -1,13 +1,14 @@
-"""One line of process-level policy: the console takes UTF-8, and never raises.
+"""Command-path policy: configure UTF-8, then refuse an old interpreter.
 
-    from console_codec import use_utf8
+    from console_codec import require_python_floor, use_utf8
 
     if __name__ == "__main__":
         use_utf8()
+        require_python_floor()
         raise SystemExit(main(sys.argv[1:]))
 
 The shared grader family instead delegates ``main()`` to ``run_grader.run()``,
-which owns the same call before it parses, loads or prints anything.
+which owns both calls before it parses, loads or prints anything.
 
 **The defect this exists for is an exit status, not a mangled character.** On Windows
 the default stdout codec is cp1252, and the text these tools print is full of
@@ -23,11 +24,13 @@ whose codec genuinely will not move still has to print a legible line with a ``?
 it rather than raise, because the thing being protected is the exit status and not
 the glyph.
 
-**Called from the command path, never at import.** Reconfiguring ``sys.stdout`` is
-a decision about a process. Direct tools call it under ``__main__``; grader members
-reach it through ``run_grader.run()``. Importing either module changes no stream.
-``tools/test_console_codec.py`` parses both arrangements and asserts the call is
-owned on each path, so this is a mechanism rather than a habit.
+**Called from the command path, never at import.** Reconfiguring ``sys.stdout`` and
+refusing an interpreter are decisions about a process. Direct tools call both under
+``__main__``; grader members reach them through ``run_grader.run()``. UTF-8 is first
+so the refusal is one legible line even on the older interpreter. Importing either
+module changes no stream and exits no process. ``tools/test_console_codec.py`` parses
+both arrangements and asserts the ordered calls are owned on each path, so this is a
+mechanism rather than a habit.
 
 **What that placement does not cover, stated rather than discovered later.** A tool
 printing *before* ``main`` would print through the old codec; nothing here does, and
@@ -86,3 +89,26 @@ def use_utf8(*streams: TextIO) -> None:
                 reconfigure(errors=ON_ERROR)
             except UNMOVABLE:
                 pass
+
+
+def require_python_floor(version: tuple[int, int] | None = None) -> None:
+    """Refuse a command run below the repository's declared consumer floor.
+
+    The import stays inside the command-path helper so importing
+    ``console_codec`` remains free of the floor instrument and its Git-facing
+    dependencies.  ``version`` is injectable only so the refusal can be tested
+    on the maintainer's newer interpreter.
+    """
+
+    from python_floor import CONSUMER_FLOOR
+
+    running = version if version is not None else sys.version_info[:2]
+    if running >= CONSUMER_FLOOR:
+        return
+    needed = ".".join(str(part) for part in CONSUMER_FLOOR)
+    actual = ".".join(str(part) for part in running)
+    print(
+        f"Python {needed} or newer is required; this interpreter is Python {actual}.",
+        file=sys.stderr,
+    )
+    raise SystemExit(2)

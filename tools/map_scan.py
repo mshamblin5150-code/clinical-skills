@@ -23,7 +23,7 @@ import sys
 from pathlib import Path
 from typing import NamedTuple, Sequence
 
-from console_codec import use_utf8
+from console_codec import require_python_floor, use_utf8
 import implementation_map
 
 CLEAN = 0
@@ -379,4 +379,5 @@ def main(argv: Sequence[str], *, repo_root: Path | None = None) -> int:
 
 if __name__ == "__main__":
     use_utf8()
+    require_python_floor()
     raise SystemExit(main(sys.argv[1:]))

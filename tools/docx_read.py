@@ -63,7 +63,7 @@ import zipfile
 from pathlib import Path
 from xml.etree import ElementTree
 
-from console_codec import use_utf8
+from console_codec import require_python_floor, use_utf8
 
 NS = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
 
@@ -321,4 +321,5 @@ def main(argv: list) -> int:
 
 if __name__ == "__main__":
     use_utf8()
+    require_python_floor()
     raise SystemExit(main(sys.argv[1:]))

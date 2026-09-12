@@ -17,7 +17,7 @@ from pathlib import Path
 from xml.etree import ElementTree
 
 import docx_write
-from console_codec import use_utf8
+from console_codec import require_python_floor, use_utf8
 
 
 @dataclass(frozen=True)
@@ -591,4 +591,5 @@ def main(argv=None) -> int:
 
 if __name__ == "__main__":
     use_utf8()
+    require_python_floor()
     raise SystemExit(main())

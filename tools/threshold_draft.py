@@ -27,7 +27,7 @@ import guidelines_manifest
 import threshold_grammar
 import threshold_coverage
 from artifact_provenance import checkout_commit
-from console_codec import use_utf8
+from console_codec import require_python_floor, use_utf8
 from guidelines_recs import (
     RECS_PREFIX,
     RecommendationRecordLocation,
@@ -637,4 +637,5 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     use_utf8()
+    require_python_floor()
     raise SystemExit(main())

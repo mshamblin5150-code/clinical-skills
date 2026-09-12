@@ -281,8 +281,19 @@ prevention for the harness that published every measured damaged record.
 ## What none of this reaches
 
 - **A nested publication**, per ruling 7. #1107 owns it.
-- **The `PowerShell` tool and the argv-list and `implementation_map` routes**, which supply no command
-  string the hook reads.
+- **The argv-list and `implementation_map` routes**, which supply no command string the hook reads.
+- **The `PowerShell` tool**, which is a separate cause and is
+  [#1124](https://github.com/mshamblin5150-code/clinical-skills/issues/1124).
+
+  **Corrected in place 2026-09-12, after merging and before anything was built against it.** These
+  were one bullet reading *"The `PowerShell` tool and the argv-list and `implementation_map` routes,
+  which supply no command string the hook reads."* **That reason is true of two of the three and
+  false of the first**: the `PowerShell` tool's `tool_input` is field-identical to `Bash`'s and
+  carries a `command` string the hook could read — it is a tool the matcher does not name, which is
+  what ruling 7 says eleven lines above. Folding three routes under one reason hid that they have two
+  causes and therefore two remedies. Found by #1124's grilling, 2026-09-12;
+  [ADR 0188](0188-a-publication-in-an-unmodeled-shell-is-refused-and-the-tool-roster-is-keyed-by-shell.md)
+  carries the split. ADR 0038's correction header is the precedent.
 - **A partial literal-newline collapse**, per ruling 5 — declared, not graded, from either side.
 - **Backtick loss with no other symptom**, which ADR 0136 already leaves ungraded with a dated
   residue. Ruling 1 prevents the *form* that produces it from this publisher and grades no published

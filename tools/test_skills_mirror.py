@@ -193,6 +193,18 @@ class StatusTests(TempCheckout):
         self.assertEqual(entry.status, sm.FOREIGN)
         self.assertEqual(entry.target, (other / "skills" / "clinical-note").resolve())
 
+    @unittest.skipUnless(os.name == "nt", "Windows junction fallback")
+    def test_a_junction_is_a_link_before_os_path_isjunction_exists(self):
+        other = self.root / "other-checkout"
+        make_skill(other, "clinical-note")
+        make_skill(self.root, "clinical-note")
+        junction = self.root / ".claude" / "skills" / "clinical-note"
+        sm.link(junction, other / "skills" / "clinical-note")
+
+        with patch.object(sm.os.path, "isjunction", None, create=True):
+            self.assertTrue(sm._is_link(junction))
+            self.assertEqual(status_of(self.root, "clinical-note").status, sm.FOREIGN)
+
     def test_a_file_where_a_directory_belongs(self):
         make_skill(self.root, "clinical-note")
         (self.root / ".claude" / "skills" / "clinical-note").write_text("x", encoding="utf-8")

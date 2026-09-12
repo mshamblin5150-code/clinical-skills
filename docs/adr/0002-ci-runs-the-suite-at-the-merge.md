@@ -28,16 +28,7 @@ A third merge (#179) had 66 tests that neither side had run, and was green — a
 
 **That leaves a real gap this ADR does not close.** AGENTS.md promises *"There is still nothing to install"*, and a job pinned to 3.14 says nothing about whether a consumer on an older interpreter can look up a code. Two different floors are in play — the tooling's and the consumer path's — and **CI measures neither**.
 
-**What the floor actually is, and why the first answer here was wrong.** This paragraph originally read *"the floor is 3.10 in any case: `int | None` is PEP 604, and there is no 3.11-or-later syntax anywhere in `tools/` — checked, not assumed."* The number survives and **both halves of the reasoning do not**. A future annotations import stringizes annotations at definition time, but it does not exempt a module: `typing.get_type_hints` can evaluate those annotations again. Modules without that import are not all tests either; `tools/prose_bind.py` is non-test tooling imported by test modules throughout the suite. The evidence for the floor is:
-
-| | |
-| --- | --- |
-| `zip(strict=)` in non-test tooling | a **runtime API** added in 3.10, which no future import defuses |
-| `test_console_codec.main_guard` returning `ast.If \| None` | an annotation evaluated at definition time, requiring PEP 604 runtime support |
-
-**And "checked, not assumed" was overstated, which is the part worth keeping.** The check was a grep for a hand-picked list of newer syntax — the same partial-instrument move [#137](https://github.com/mshamblin5150-code/clinical-skills/issues/137) is about, made while writing a ticket that cites it. `ast.parse(..., feature_version=(3, 9))` parses every module here cleanly, because `int | None` in an annotation is valid *grammar* at any version and fails only at runtime, so that instrument is blind too. **The only interpreter on this machine is 3.14**, so the suite has never run on 3.10 or 3.11 and nobody has evidence that it would. The floor is inferred by static reading, and static reading has now been wrong about it twice.
-
-That does not change the ruling — a single job matching the maintainer's machine is what was decided, and an unverified floor is an argument for claiming less rather than for running more. But if the floor is ever to be a claim this repo makes, **only a job that runs on it can settle it**, and that is a second decision rather than a correction.
+**Superseded by [ADR 0187](0187-the-python-floor-is-two-numbers-held-equal-and-a-job-on-the-floor-settles-it.md) ruling 1.** This record's single-number floor was the wrong shape. The repository now declares a consumer floor and a tooling floor separately, derives both with `tools/python_floor.py`, and runs the complete suite in a second job at the consumer floor. This ADR's `windows-latest` maintainer job and its reasoning stand.
 
 **Both triggers, because `main` is reached two ways.** `pull_request` checks out the merge result rather than the branch head, which is the tree this ADR is about; `push` to `main` catches the local-merge-and-push route that `pull_request` never sees.
 
@@ -97,3 +88,6 @@ Correction, 2026-09-07: the floor evidence formerly named stale line coordinates
 populations, said modules without the future annotations import were tests, said stringized
 annotations were never evaluated, and said no consumer imported a floor-setting module. The facts
 were corrected under ADR 0016; the advisory `windows-latest` and Python 3.14 decision is unchanged.
+
+Superseded in part, 2026-09-12: ADR 0187 ruling 14 replaces this record's single-number floor
+paragraph; its maintainer CI job, platform reasoning and advisory posture stand.

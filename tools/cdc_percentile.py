@@ -28,7 +28,7 @@ from dataclasses import dataclass, replace
 from functools import lru_cache
 from pathlib import Path
 
-from console_codec import use_utf8
+from console_codec import require_python_floor, use_utf8
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_CHART = REPO_ROOT / "reference" / "cdc-bmi-for-age-2022.csv"
@@ -256,4 +256,5 @@ def main(argv: list[str]) -> int:
 
 if __name__ == "__main__":
     use_utf8()
+    require_python_floor()
     raise SystemExit(main(sys.argv[1:]))

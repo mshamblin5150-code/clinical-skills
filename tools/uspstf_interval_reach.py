@@ -26,7 +26,7 @@ from pathlib import Path
 
 import artifact_provenance
 import guidelines_recs
-from console_codec import use_utf8
+from console_codec import require_python_floor, use_utf8
 from guidelines_manifest import read_or_raise
 from uspstf_table import INTERVAL_ABSENCES, INTERVAL_PHRASE, normalize, split_sentences
 
@@ -255,4 +255,5 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     use_utf8()
+    require_python_floor()
     sys.exit(main())

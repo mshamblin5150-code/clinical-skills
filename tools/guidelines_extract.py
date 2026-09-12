@@ -306,7 +306,7 @@ from collections.abc import Iterable
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
-from console_codec import use_utf8
+from console_codec import require_python_floor, use_utf8
 from guidelines_manifest import MANIFEST_NAME, Record, serialize_record
 from repo_root import InsideCheckout, ensure_outside_checkout
 
@@ -1948,4 +1948,5 @@ def main(argv: list[str]) -> int:
 
 if __name__ == "__main__":
     use_utf8()
+    require_python_floor()
     raise SystemExit(main(sys.argv[1:]))

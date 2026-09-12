@@ -17,7 +17,7 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Any, Callable, Generic, Mapping, TypeVar
 
-from console_codec import use_utf8
+from console_codec import require_python_floor, use_utf8
 
 
 TSource = TypeVar("TSource")
@@ -590,6 +590,7 @@ def run(command: Grader[TSource, TScan], argv: list[str]) -> int:
     """Run one grader with source failures before output and status at the tail."""
 
     use_utf8()
+    require_python_floor()
     try:
         parsed = parse(command, argv)
     except ParseError as failure:

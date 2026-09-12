@@ -25,6 +25,18 @@ import tracker_bodies
 import phi_scan
 
 
+@contextlib.contextmanager
+def working_directory(path: str):
+    """Temporarily enter ``path`` on interpreters before ``contextlib.chdir``."""
+
+    previous = Path.cwd()
+    os.chdir(path)
+    try:
+        yield
+    finally:
+        os.chdir(previous)
+
+
 def git(
     *args: str, cwd: Path, check: bool = True
 ) -> subprocess.CompletedProcess[str]:
@@ -472,7 +484,7 @@ class FileBackedTrackerTextIsRead(unittest.TestCase):
             body.parent.mkdir()
             body.write_text("Command-rooted body", encoding="utf-8")
             with tempfile.TemporaryDirectory() as hook_directory:
-                with contextlib.chdir(hook_directory):
+                with working_directory(hook_directory):
                     result = hook.extract(
                         f'cd "{root}" && gh issue comment 670 '
                         '--body-file scratch/body.md'
@@ -768,7 +780,7 @@ class FileBackedTrackerTextIsRead(unittest.TestCase):
                 json.dumps({"body": "Rooted input body"}), encoding="utf-8"
             )
             with tempfile.TemporaryDirectory() as hook_directory:
-                with contextlib.chdir(hook_directory):
+                with working_directory(hook_directory):
                     result = hook.extract(
                         f'cd "{root}" && gh api repos/example/project/issues/670 '
                         '--input request.json'
@@ -894,7 +906,7 @@ class UnreadableTrackerTextIsClassified(unittest.TestCase):
         with tempfile.TemporaryDirectory() as hook_directory:
             body = Path(hook_directory) / "body.md"
             body.write_text("Must not be read from the hook cwd", encoding="utf-8")
-            with contextlib.chdir(hook_directory):
+            with working_directory(hook_directory):
                 without_cd = hook.extract(
                     "gh issue comment 670 --body-file body.md"
                 )
