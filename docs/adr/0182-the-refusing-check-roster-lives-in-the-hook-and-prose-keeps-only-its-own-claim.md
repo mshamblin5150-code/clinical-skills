@@ -163,6 +163,43 @@ moves, which is how the fix produces a ninth surface.
 - `docs/adr/0138:237` and `tools/test_scratch_census.py:466` no longer state a count;
   `docs/adr/0132:150` is unchanged.
 
+## Correction, 2026-09-11, from the tracker sweep of this record's own branch
+
+**Ruling 4's tense test is narrower than it reads, and this record cited neither the ruling that
+already governs the adjacent class nor the gap between them.**
+
+[ADR 0131](0131-the-shared-sheet-directory-moves-whole-and-the-mirror-gains-a-non-skill-rule.md)
+ruling 6 rules that **a path in a ratified record is a dated statement about the tree at
+ratification, and editing one to keep it true would falsify the record.** Ruling 4 above says the
+test separating a corrected record from an untouched one is **tense** — and a bare path citation has
+no tense. A reader applying ruling 4 literally to `docs/adr/0132`'s sibling class would repair a path
+mention that ADR 0131 forbids repairing.
+
+**The two are reconcilable and this record did not do the reconciling.** Ruling 4 was derived from
+one class only: a **present-tense assertion about the tree that carries a count** — `runs seven
+graders`. ADR 0131 ruling 6 governs a different class, a **path citation**, which asserts nothing
+with a verb and is dated by ratification. Ruling 4 does not reach it and never did; the sentence was
+written as though it reached every claim in a ratified record.
+
+**So ruling 4 is scoped, here, to the class it measured.** Within this record's own population, the
+repaired set is `docs/adr/0138`'s `runs seven graders` and `tools/test_scratch_census.py`'s copy of
+it; the untouched set is `docs/adr/0132`'s `The sixth refuser, joining …`. **Nothing here licenses
+correcting a path, a link, or any other dated citation in a ratified record**, and ADR 0131 ruling 6
+continues to govern those.
+
+**A third class exists that neither record's test reaches**, found on the same sweep against
+[#987](https://github.com/mshamblin5150-code/clinical-skills/issues/987): a figure in a ratified
+record that was **false when written** rather than made false by drift. Tense does not separate it,
+because it was never true; ADR 0131's dated-statement reading does not protect it, because it records
+no correct state. It is out of scope here and it is #987's to rule.
+
+**The instrument that found this is worth as much as the finding.** It was a sweep reader pointed at
+#987 during this record's own session, re-deriving a ticket whose subject is a copied figure — not a
+reading of this record. The first framing it returned was *"ADR 0182 and ADR 0131 ruling 6 give
+opposite answers"*, which is wrong: they give answers about different classes. **The claim was taken
+as a claim and checked**, which is this repository's rule for a subagent's result, and what survived
+the check is the gap rather than the contradiction.
+
 ## What this record does not settle
 
 - **Whether a roster has arrived in an unlisted file.** Declared, measured to be undetectable at
