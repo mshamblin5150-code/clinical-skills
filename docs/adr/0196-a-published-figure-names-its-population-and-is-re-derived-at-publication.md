@@ -1,7 +1,7 @@
 # A published figure names its population and is re-derived at publication
 
 Out of [#961](https://github.com/mshamblin5150-code/clinical-skills/issues/961), grilled on
-2026-09-12. Measured at `3ffcd3d`, excluding this record from every population it counts. Nothing is
+2026-09-12. Measured at `81ab421`, excluding this record from every population it counts. Nothing is
 built here; this is the record the build reads.
 
 [ADR 0149](0149-a-pointer-is-not-a-source-and-a-failed-read-is-not-a-negative.md) ruling 1 split
@@ -18,18 +18,19 @@ and the fourth to the exhaustive sweep out of
 
 ## What was measured before ruling, on 2026-09-12
 
-**The base moved twice while this record was being written, and the second time the figures moved with
+**The base moved three times while this record was being written, and twice the figures moved with
 it.** The gate read `STALE` after the last decision was taken; the branch was brought forward to
 `45b0cee` and every count re-taken, and all of them re-derived identically. It read `STALE` a second
 time before the merge, at `428d6f2`, and on that base the citation and measured-at counts had both
-changed. Every figure below is the second re-derivation, at `3ffcd3d`.
+changed. It read `STALE` a third time, at `1468b4b`, which moved the denominator again. Every figure
+below is the third re-derivation, at `81ab421`.
 
 **Part of that second movement was this record entering the population it counts**, which is species
 2 arriving inside the ruling on species 2. This ADR cites `extractor-coverage` four times and carries
 a measured-at declaration, so an unguarded re-count would have read its own text back as evidence for
 its own argument. **Every population below therefore excludes this record**, on `ADR 0135:68`'s
 declared form — *"The honest population is every tracked `.md` except the records stating this
-measurement."* The denominator is 194 rather than 195 for that reason.
+measurement."* The denominator is 195 rather than 196 for that reason.
 
 Neither movement was caught by reading. Both were caught by the freshness gate refusing before
 publication, which is ruling 6's whole argument arriving before ruling 6 was published.
@@ -56,13 +57,13 @@ scope noun at all — *"Before a figure is allowed to settle a claim"* — and a
 today. `docs/agents/issue-tracker.md:118` narrows to a sweep confirming or overturning an existing
 written claim.
 
-**`extractor-coverage` is a heavily cited name.** 32 of 194 ADRs cite it, 39 mentions; **2** of those
+**`extractor-coverage` is a heavily cited name.** 32 of 195 ADRs cite it, 39 mentions; **2** of those
 are anchor-bearing markdown links, in `docs/adr/0161` and `docs/agents/issue-tracker.md:117`. The
 rest are prose, and most cite the population half. The matcher is the literal string over
-`docs/adr/*.md` against a denominator of 194, this record excluded; it is a floor, because an ADR
+`docs/adr/*.md` against a denominator of 195, this record excluded; it is a floor, because an ADR
 writing *"CLAUDE.md's population rule"* does not match it.
 
-**The measured-at convention already exists, unstandardized and enforced by nothing.** 15 of 194 ADRs
+**The measured-at convention already exists, unstandardized and enforced by nothing.** 15 of 195 ADRs
 carry one, in at least four spellings — a capitalized *Measured at* with a short SHA and a full stop,
 the same phrase uncapitalized and unpunctuated, and the sentence *Every measurement below was taken
 in process at* followed by a short SHA. Same matcher shape, same floor.
