@@ -220,6 +220,8 @@ run — so the hook this record preserves can silently measure `tools/` and repo
 separately; the fix is a resolution that cannot be redirected by inherited environment, not a change
 to any ruling above.
 
+**Correction, 2026-09-12, on [#978](https://github.com/mshamblin5150-code/clinical-skills/issues/978)'s grilling.** Three rows of the measurement above are false and the ruling they sit under stands. Measured on git 2.54.0.windows.1 with hooks whose whole body is `env | grep -E '^GIT_'`, and recorded in [ADR 0197](0197-root-resolution-in-the-skills-mirror-stops-asking-git-and-an-empty-population-is-a-did-not-scan.md): **git exports no `GIT_WORK_TREE` to any hook**, so the reproduction above is a real reproduction and is not the shape git produces; the live vector is an **absolute `GIT_DIR`**, exported only inside a linked worktree, and either variable alone suffices, so *relative* is doing no work; and **`post-checkout` is not an affected hook** — `git worktree add` runs it with no `GIT_*` set at all — while **`pre-commit` inside a worktree is**. What makes this module the one affected is not that it asks from the script's directory rather than from cwd, it is that the directory it asks from is **below the checkout root**, which is where git places the work tree when `GIT_DIR` is set alone. *A tool that had used the process cwd would have been right here* was measured true and is untouched.
+
 **Ruling 2 is confirmed live by the same session.** A `--repair` run here relinked nine entries and
 refused `practicum-case-study` on exactly the six sheets ADR 0131 ruling 1 moved. The prediction
 that the unattended remedy completes on nine and stalls permanently on the graded-`.docx` skill is a
