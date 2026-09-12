@@ -9,9 +9,9 @@ wrong, for a reason nobody on the thread stated.
 
 Grilled 2026-09-12 to an empty frontier. **Four rulings, by the clinician, on that date.**
 
-## Measured before ruling, at `9c78d3f`
+## Measured before ruling, at `9c78d3f` and re-derived at `d816d08e`
 
-Freshness gate `FRESH` before any reading.
+Freshness gate `FRESH` at `9c78d3f` before any reading. It reported `STALE` before the push, `origin/main` was merged in, and every figure below was re-derived on the new base rather than published from the old one. The merge touched no file this record changes; the two detector figures moved anyway, because they are counted over the whole tree. Gate `FRESH` again at `d816d08e`.
 
 **The hatch has one free slot.** `marker_exemptions(CLAUDE.md, EXEMPT_MARKER)` returns three spans,
 declared sum 3, against `EXEMPT_CEILING` of 4, asserted as `assertLessEqual`. *Under the filed
@@ -75,9 +75,9 @@ ruling 4's method applied to a second object. Every proposed widening of
 | widening | findings | declared exemptions would go | reaches this defect? |
 | --- | ---: | --- | --- |
 | current, constant string literals | 1 | 1 | no |
-| **plus tracked Markdown** | **1,206**, in half the corpus | 1 to about 1,206 | **no** |
+| **plus tracked Markdown** | **1,210**, in 257 of 514 files | 1 to about 1,210 | **no** |
 | plus Python comments, non-test only | 39 | 1 to about 40 | **no** |
-| plus Python comments including test modules | 72 | 1 to about 73 | only the sentence deleted here |
+| plus Python comments including test modules | 71 | 1 to about 72 | only the sentence deleted here |
 
 *Under a widening being the answer, at least one row reaches a defect this record is about. None
 does.* Re-derive with `DEFINITE_COUNT` over the index; the figures move with the tree and are
