@@ -155,6 +155,15 @@ A bottom footer was ruled first and then refused, for the reason
 refused correcting a figure by annotation only: a reader who acts on the line does not scroll to the
 footer. *Amended before merge.*
 
+*Corrected 2026-09-12.* **The third sentence above — *"Other corrections of the body may go anywhere
+below the line, never above it."* — is superseded by
+[ADR 0191](0191-a-carried-claim-is-corrected-where-it-stands-and-436-never-ruled-it.md) ruling 3 and
+is left as written**, being the dated record of what was decided on 2026-09-10. Every other
+correction is now written at the text it corrects; the permission to place one anywhere below this
+line is withdrawn. The rest of this ruling — the append-only line, its own correction directly
+beneath it, and no escape — is unchanged and is ADR 0191's declared exception, on ADR 0033's
+arrangement for a superseded ruling.
+
 ### 8. The after-action review names the skill, course, module and date
 
 `skills/aar/SKILL.md`, where it tells the review to write each ticket body under

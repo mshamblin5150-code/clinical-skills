@@ -1017,6 +1017,11 @@ class PublishedFieldsAreGradedWithoutEchoingThem(unittest.TestCase):
             "body:doubled-path-separator": marker + r" C:\\folder",
             tracker_coordinates.UNANCHORED: marker + " tools/example.py:12",
             "verdict:missing-discriminator": marker + "\n**Verdict:** HOLDS",
+            hook.RETIRED_CITATION: (
+                marker
+                + " on #436's ruling: a correction below the advice is not a"
+                " correction for anyone who acts on the advice."
+            ),
             "branch:repo-relative-link": (marker + " [x](docs/x.md)", None, None, None),
             "branch:near-miss": (marker + " https://github.com/example/repo/blob/main/docs/adr/0083-not-the-real-slug.md", None, None, None),
             "branch:unresolved-path": (marker + " https://github.com/example/repo/blob/main/docs/adr/9999-not-on-main.md", None, None, None),
@@ -2788,7 +2793,8 @@ class DeclaredLimitsHaveOneOwner(unittest.TestCase):
         does not establish, and ADR 0104 adds the failed-readback path, on the
         rule this object already carried: a limit lives here rather than in the
         docstring or ``CLAUDE.md``. ADR 0109 adds the AAR paraphrase ceiling.
-        #999 ruling 5 adds the non-canonical-origin boundary.
+        #999 ruling 5 adds the non-canonical-origin boundary. ADR 0191 ruling 8
+        adds the retired-citation row's one-pairing ceiling.
         """
         self.assertEqual(
             set(dict(hook.NOT_REACHED)),
@@ -2807,6 +2813,7 @@ class DeclaredLimitsHaveOneOwner(unittest.TestCase):
                 "the command-folder reader reaches literal absolute cd targets only",
                 "a stock discriminator clause can satisfy the verdict form check",
                 "manual text mode has no issue publication route",
+                "the retired-citation row reaches one literal pairing",
             },
         )
 
@@ -2970,6 +2977,152 @@ class AnAarPublicationCannotQuoteItsRun(unittest.TestCase):
 
     def test_the_paraphrase_ceiling_is_declared(self) -> None:
         self.assertTrue(any("paraphrase" in subject for subject, _reason in hook.NOT_REACHED))
+
+
+class TheRetiredCorrectionCitationIsReported(unittest.TestCase):
+    """ADR 0191 ruling 8, over the shapes the tracker actually published.
+
+    The controls are written here rather than read out of a committed file on
+    purpose: every live member of the population is what #934's repair removes,
+    so a test keyed on one would go red when the repair lands. Their wording is
+    copied from the records the 2026-09-12 harvest measured.
+    """
+
+    FOOTER = (
+        "*Corrected 2026-09-06 by the tracker sweep. Edited in place rather than"
+        " commented, on [#436](https://github.com/mshamblin5150-code/"
+        "clinical-skills/issues/436)'s ruling: a correction below the advice is"
+        " not a correction for anyone who acts on the advice.*"
+    )
+
+    def analysis(self, text: str) -> hook.Analysis:
+        return hook.analyze(
+            hook.Publication("body", text),
+            index=phi_scan.build_index(set(), set()),
+            issue=None,
+            remote_fresh=True,
+        )
+
+    def test_a_published_footer_is_reported_and_never_denied(self) -> None:
+        result = self.analysis(self.FOOTER)
+
+        self.assertIn(
+            (hook.RETIRED_CITATION, 1, "body", "advise"),
+            [(row.rule, row.count, row.field, row.posture) for row in result.findings],
+        )
+        self.assertEqual(
+            [], [row for row in result.findings if row.posture == "deny"]
+        )
+
+    def test_each_reference_form_counts_on_its_own(self) -> None:
+        """One control per branch: the published footer carries both at once.
+
+        ``self.FOOTER`` is a Markdown link whose text is ``#436`` and whose
+        target ends ``issues/436``, so it satisfies either alternative and
+        discriminates neither. These do not.
+        """
+        forms = {
+            "bare": "On #436's ruling, no correction below the advice reaches anyone.",
+            "url only": (
+                "On https://github.com/mshamblin5150-code/clinical-skills/issues/436"
+                ", no correction below the advice reaches anyone."
+            ),
+        }
+        for label, text in forms.items():
+            with self.subTest(form=label):
+                self.assertEqual(
+                    [
+                        row.count
+                        for row in self.analysis(text).findings
+                        if row.rule == hook.RETIRED_CITATION
+                    ],
+                    [1],
+                )
+
+    def test_a_longer_number_starting_436_is_not_the_retired_ticket(self) -> None:
+        """The word boundary is the narrowing; #4360 is a different ticket."""
+        text = "On #4360's ruling, no correction below the advice reaches anyone."
+
+        self.assertEqual(hook.retired_citation_paragraphs(text), 0)
+
+    def test_a_sentence_initial_wording_is_read(self) -> None:
+        """``test_allergy_reaction``'s case-sensitive NUMERAL, one module over.
+
+        A figure opening a sentence went silently ungraded there. Here it is the
+        rule opening one, and the defect would be latent rather than live: no
+        published member happens to capitalize it.
+        """
+        text = "On #436's ruling. Below the advice is not a correction."
+
+        self.assertEqual(hook.retired_citation_paragraphs(text), 1)
+
+    def test_each_wording_is_read_on_its_own(self) -> None:
+        """One control per phrase, because two in one control pass on either."""
+        wordings = {
+            "below the advice": "a correction below the advice is not a correction",
+            "acts on the advice": "no correction for anyone who acts on the advice",
+            "acting on the advice": "no correction for anyone acting on the advice",
+        }
+        self.assertEqual(set(wordings), set(hook.CORRECT_IN_PLACE_PHRASES))
+        for phrase, sentence in wordings.items():
+            with self.subTest(phrase=phrase):
+                text = f"On #436's ruling, {sentence}."
+                self.assertEqual(hook.retired_citation_paragraphs(text), 1)
+
+    def test_the_rule_stated_without_the_citation_is_left_alone(self) -> None:
+        """#781's comment reasons the rule out and cites nobody; it is not a finding."""
+        text = (
+            "A correction one screen below advice is not a correction for anyone"
+            " who acts on the advice."
+        )
+
+        self.assertEqual(
+            [],
+            [
+                row
+                for row in self.analysis(text).findings
+                if row.rule == hook.RETIRED_CITATION
+            ],
+        )
+
+    def test_the_citation_in_another_paragraph_is_left_alone(self) -> None:
+        """A record about #436's real subject beside an unrelated correction."""
+        text = (
+            "The 160-char window in #436 cut records mid-word.\n\n"
+            "A correction below the advice reaches nobody who acted on it."
+        )
+
+        self.assertEqual(hook.retired_citation_paragraphs(text), 0)
+
+    def test_each_paragraph_is_counted(self) -> None:
+        self.assertEqual(
+            hook.retired_citation_paragraphs(self.FOOTER + "\n\n" + self.FOOTER), 2
+        )
+
+    def test_the_report_names_the_remedy_and_echoes_no_text(self) -> None:
+        marker = "salted-retired-citation-marker-934"
+        report = self.analysis(marker + " " + self.FOOTER).report
+
+        self.assertIn(f"advise: {hook.RETIRED_CITATION}", report)
+        self.assertIn("ADR 0016", report)
+        self.assertIn("ADR 0191", report)
+        self.assertNotIn(marker, report)
+
+    def test_a_deliberate_quotation_is_reported_too_and_that_is_declared(self) -> None:
+        """The mention-versus-use limit is why the row advises rather than denies."""
+        quoting = (
+            "The sentence, published verbatim across the tracker:\n\n"
+            "> *on #436's ruling: a correction below the advice is not a"
+            " correction for anyone who acts on the advice*"
+        )
+
+        self.assertEqual(hook.retired_citation_paragraphs(quoting), 1)
+        self.assertTrue(
+            any(
+                "retired-citation row reaches one literal pairing" in subject
+                for subject, _reason in hook.NOT_REACHED
+            )
+        )
 
 
 if __name__ == "__main__":
