@@ -45,9 +45,9 @@ present in the data — 827 of 827 notifications carry a `task-id`, 792 of 827 a
 
 **Two instruments of this session were wrong first and are recorded because the next reader reaches
 for them.** A first-line anchor on the notification envelope matched 827 of 827 historical rows and
-would have missed the wrapper this very session uses, which prefixes a `[SYSTEM NOTIFICATION — NOT
-USER INPUT]` banner and occurs **0 times** in the 386 transcripts; the measurement was retaken on
-containment. And the first launch-accounting join was launches to `tool_result`, which returns
+would have missed the banner-prefixed wrapper; the measurement was retaken on containment.
+**This paragraph claimed that banner occurs 0 times in the 386 transcripts, and that is false — see
+correction 5.** And the first launch-accounting join was launches to `tool_result`, which returns
 **1,770 of 1,770** on every transcript and discriminates nothing — it is the ticket's own item 4
 arriving on the ticket's own decision 3.
 
@@ -58,15 +58,19 @@ field, spanning 16 versions from 2.1.220 to 2.1.266.
 `write_extract` writes bodies raw and `_extract_metadata` scans every line of the file for that
 marker.
 
-**The second transcript format is barely read.** 5,189 Codex rollouts, 14.3 GB, 1,942 naming this
-repository. Over a 60-file sample: 349 `role: user` messages, **all labeled `clinician`**; 71 carry a
+**The second transcript format is barely read.** **Three populations, and the selector for each is
+named because the correction below is that they were conflated.** `find ~/.codex -name '*.jsonl'`
+gave 5,189 files and 14.3 GB; `grep -rl clinical_skills ~/.codex` gave 1,942; and **the 60-file
+sample was drawn from `~/.codex/sessions/**/*.jsonl`, which holds 1,204** — so the sample's
+denominator is 1,204 and never 5,189. Over that sample: 349 `role: user` messages, **all labeled `clinician`**; 71 carry a
 harness envelope (`<recommended_plugins>` 27, `<codex_delegation>` 23, `<environment_context>` 21);
 278 carry no tag; **0 carry any harness flag**, so two of the three limbs available on the Claude side
 do not exist there. The 349 are only **72 distinct** bodies, because Codex re-sends context each
 turn. Its row types are `event_msg` 5,987, `response_item` 5,167, `turn_context` 340,
-`inter_agent_communication_metadata` 70, `session_meta` 60, `compacted` 23 — and `reduce_transcript`
-reads `response_item` only, so Codex compaction and Codex delegation are both structural and both
-unread. There is no `user_message` event, so nothing marks a typed turn.
+`token_usage_record` 142, `inter_agent_communication_metadata` 70, `world_state` 68, `session_meta`
+60, `compacted` 23 — **eight, and this sentence published six until the correction below** — and
+`reduce_transcript` reads `response_item` only, so Codex compaction and Codex delegation are both
+structural and both unread. There is no `user_message` event, so nothing marks a typed turn.
 
 ## Ruled 2026-09-12
 
@@ -233,6 +237,16 @@ scan, never a guess.** Ruling 6's field becomes a finding only for records writt
 declared UTC cutoff, which is `tracker_filed_from.FILED_FROM_CUTOFF`'s arrangement already in this
 tree.
 
+**The extract header is read to its blank-line terminator rather than by a fixed line count**, which
+is the repair [#1066](https://github.com/mshamblin5150-code/clinical-skills/issues/1066)'s `aar_scan`
+lead actually needs. The header `write_extract` emits is **exactly 8 lines** and `_extract_metadata`
+reads `lines[:8]` — flush, so this ruling's own `FORMAT:` field still fits and **ruling 9's generated
+legend is the second addition that silently drops the last field line**. Reading to the terminator is
+reading the structure the writer already emits, not widening a matcher, so it stays inside #1066's
+*what must not come out of this*. *(Correction, 2026-09-12: this paragraph was missing. The repair was
+ruled in the grilling and recorded only under* Rejected options *below, where a builder working the
+ruling list would never reach it — found by the tracker sweep of this record's own branch.)*
+
 **A tolerant reader is refused outright.** Falling back to scanning when `TEXT-LINES` is absent keeps
 ruling 10's hole alive permanently, reachable by any extract that omits a field. *A framing that can
 be declined is not framing.* A hard cutover is honest and converts every historical review into a
@@ -287,3 +301,83 @@ the tool result prints 1,770 of 1,770, always. Measured before it was believed.
 **Splitting this into two records.** The format changes exist *because* of the vocabulary changes —
 `TEXT-LINES` because ruling 6 puts a colliding body in the population, the header terminator because
 rulings 7 and 9 add fields. Two records would each be missing the other's reason.
+
+## Correction, 2026-09-12
+
+**Found by the exhaustive tracker sweep of this record's own branch, hours after it merged.** Four
+items, three of them defects in this record and one a build dependency it never named. They are kept
+here rather than silently repaired, because the first two are this record's own subject arriving on
+this record.
+
+**1. The Codex row-type list published six types and the measurement found eight.** `token_usage_record`
+142 and `world_state` 68 were dropped in transcription between the measurement and the write-up. The
+sentence is corrected above and says so where it stands. **This is a partial read presented as
+complete, in the record whose ruling 1 makes printing the remainder the condition of reading content
+at all** — and it lands on ruling 11, which requires that same vocabulary *measured exhaustively*. A
+reader taking the six as the population would have built against a closed set that was already wrong.
+
+**2. The Codex populations were conflated and no selector was named.** 5,189 is every `*.jsonl` under
+`~/.codex`; 1,942 is what names this repository; the 60-file sample was drawn from
+`~/.codex/sessions/`, which holds **1,204**. Three numbers, one paragraph, and the stated denominator
+was not the sampled one. Corrected above by naming each selector. The disclaimer that nothing
+committed re-derives a harness figure does not cover this: without a selector the next reader cannot
+tell a moved corpus from a different glob.
+
+**3. The header-terminator repair was recorded only under *Rejected options*.** It is ruling 12's
+now. A builder working the numbered list would have shipped `FORMAT:` and the generated legend — two
+header additions against a header read at a flush `lines[:8]` — and left the defect that #1066's lead
+is about, while both this record and that ticket read as though it were settled.
+
+**4. Ruling 6 has a build dependency on [#1015](https://github.com/mshamblin5150-code/clinical-skills/issues/1015),
+the one ticket this record never names.** Recovering the `prior-review` identifier means reading the
+prior record, and `_last_watermarks` is what reads prior records: it globs `aar/*.md` sorted, skips
+only `*.extract.md`, and assigns on each pass, so **the last file read wins**. #1015's defect 3 is
+that a kept per-pass record therefore rewinds the watermark. **A ruling 6 build inherits that defect
+unless the two are built together**, and nothing in the numbered rulings says so. Re-derived at
+`595fbb88`; `grep -c prior-review tools/aar_scan.py` is 0, so nothing is built yet and the sequencing
+is still free.
+
+**What none of the four changes:** no ruling is reversed, and no figure outside the Codex paragraph
+moved. Every Claude-format measurement was re-derived by a second reader at `595fbb88` and stands.
+
+**5. The banner's `0` was a partial read presented as a corpus fact, and it was load-bearing.**
+This record claimed the `[SYSTEM NOTIFICATION ...]` wrapper *"occurs 0 times in the 386
+transcripts"* and reasoned from that zero that the wrapper is new. Re-measured over the same
+directories, counting rows of **every** type rather than the one the original instrument read:
+
+| | |
+| --- | ---: |
+| rows containing the banner | **469**, in 65 transcripts |
+| by row type: `attachment` / `assistant` / `user` / `queue-operation` | 459 / 6 / **2** / 2 |
+| earliest | **2026-09-05** |
+| carrying a `task-id` / a `<result>` | 465 / 310 |
+
+*Under the published claim that walk prints 0 rows and 0 files; it printed 469 and 65.* The zero was
+true only of the population the instrument walked — `_human_text` over `type: "user"` rows — and the
+sentence named a corpus. **That is [#961](https://github.com/mshamblin5150-code/clinical-skills/issues/961)'s
+unstated-instrument species, published in a ratified record**, and it is this record's own ruling 1
+failing inside the record that makes it: a matcher's remainder was not printed, so a partial read
+read as a clean whole. The inference drawn from it — that the wrapper is new — is refuted by the
+2026-09-05 first sighting. **Even the narrow claim is false by two**: the banner reaches `user` rows
+twice.
+
+**6. It supplies a measured candidate cause for the 1,076, which *What this does not reach* calls
+unmeasured.** Those 469 rows carry `task-notification`, 465 carry a `task-id` and **310 carry a
+`<result>`** — subagent results sitting on a row type `reduce_transcript` never branches on. The
+string `attachment` appears in `tools/aar_scan.py` **0 times**. So an unknown share of the 1,076
+launches with no notification in the population have one in the *transcript*, on an unread row type.
+That does not retire the residue, and it moves it from *cause unknown* to *one measured candidate,
+unquantified*.
+
+**7. A builder seeding the envelope set from this record's own text would match 1 of 469.** The
+banner is spelled here with an em dash; **the corpus writes a hyphen-minus in all but ten of the
+occurrences near it**, and this record's copy is additionally hard-wrapped mid-phrase. Ruling 3 has
+the builder declare an envelope set matched by containment — seeded from this prose it would match
+almost nothing, and against a row type ruling 3 does not reach at all. **The envelope set is seeded
+from the corpus, never from this record**, and `attachment` rows are inside ruling 11's exhaustive
+row-type measurement rather than outside it.
+
+**How 5, 6 and 7 were found:** the exhaustive tracker sweep of this record's own branch, by the
+reader assigned #961 — a ticket about unstated instruments in published claims, and one this work
+had no other reason to open. That is the sweep rule's own argument: a relevance filter selects on
+what you already understand.
