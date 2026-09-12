@@ -601,6 +601,28 @@ class ACompletePostPasses(unittest.TestCase):
         self.assertEqual(0, status)
         self.assertIn("untraced-citation: 0", stdout)
 
+    def test_a_shortened_title_citation_resolves_to_its_claim_record(self):
+        original = "Quill, R. (2024). Measuring usable access. Journal of Care, 4(2), 10-18."
+        entry = "Nursing today (2nd ed.). (2020). Publisher."
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            run.draft.write_text(
+                BODY.replace("(Quill, 2024, p. 6)", "(Nursing, 2020)").replace(
+                    original, entry
+                ),
+                encoding="utf-8",
+            )
+            (run.root / "claims.md").write_text(
+                CLAIMS.replace(original, entry).replace(
+                    "PAGE-YEAR: 2024", "PAGE-YEAR: 2020", 1
+                ),
+                encoding="utf-8",
+            )
+            status, stdout, _ = run.grade()
+
+        self.assertEqual(0, status)
+        self.assertIn("untraced-citation: 0", stdout)
+
     def test_a_parenthetical_two_author_citation_matches_its_reference(self):
         with tempfile.TemporaryDirectory() as temp:
             run = Run(Path(temp))
@@ -968,22 +990,22 @@ REFUTATION: stands - the page addresses the cited proposition.
             "(Patient rights, 2024)",
         )
         for entry_name, (entry, expected) in entries.items():
-            keys = frozenset(artifact.reference_keys(entry))
+            keys = artifact.ReferenceKeySet.from_references((entry,))
             for form, should_resolve in zip(forms, expected):
                 with self.subTest(entry=entry_name, form=form):
                     citations = artifact.read_citations(
                         f"Under {form}, the rule applies.", keys
                     )
                     resolved = any(
-                        key in keys
+                        keys.resolves(key)
                         for occurrence in artifact.citation_occurrence_keys(citations)
                         for key in occurrence
                     )
                     self.assertEqual(should_resolve, resolved)
 
     def test_a_name_narrative_is_read_from_the_reference_key_set(self):
-        keys = frozenset(
-            artifact.reference_keys("Patient rights, 42 C.F.R. § 482.13 (2024).")
+        keys = artifact.ReferenceKeySet.from_references(
+            ("Patient rights, 42 C.F.R. § 482.13 (2024).",)
         )
 
         citations = artifact.read_citations("Patient rights (2024) governs care.", keys)
@@ -999,7 +1021,9 @@ REFUTATION: stands - the page addresses the cited proposition.
         self.assertEqual((), keys)
 
     def test_an_unmatched_year_is_not_reclassified_as_a_citation(self):
-        keys = frozenset({(artifact.author_key("Patient rights"), "2024")})
+        keys = artifact.ReferenceKeySet.exact(
+            {(artifact.author_key("Patient rights"), "2024")}
+        )
         body = "The policy was finalized (2024)."
 
         citations = artifact.read_citations(body, keys)
@@ -1008,7 +1032,7 @@ REFUTATION: stands - the page addresses the cited proposition.
         self.assertEqual(("2024",), scan._numeric_values(body, citations))
 
     def test_the_longest_matching_reference_name_wins(self):
-        keys = frozenset(
+        keys = artifact.ReferenceKeySet.exact(
             {
                 (artifact.author_key("Rights"), "2024"),
                 (artifact.author_key("Patient rights"), "2024"),
@@ -1024,7 +1048,7 @@ REFUTATION: stands - the page addresses the cited proposition.
             "Rights, A. Very long regulation name title, "
             "42 C.F.R. § 482.13 (2024)."
         )
-        keys = frozenset(artifact.reference_keys(reference))
+        keys = artifact.ReferenceKeySet.from_references((reference,))
         expected_key = "rightsaverylongregulationnametitle"
 
         citations = artifact.read_citations(
@@ -1040,18 +1064,20 @@ REFUTATION: stands - the page addresses the cited proposition.
         self.assertEqual("quill", artifact.author_key("Quill, R. J."))
 
     def test_text_beyond_the_longest_key_bound_does_not_change_the_walk(self):
-        class CountedKeys(frozenset):
+        class CountedKeys(artifact.ReferenceKeySet):
             checks = 0
 
-            def __contains__(self, key):
-                self.checks += 1
-                return super().__contains__(key)
+            def resolves(self, key):
+                object.__setattr__(self, "checks", self.checks + 1)
+                return super().resolves(key)
 
         keys = CountedKeys(
-            {
+            frozenset(
+                {
                 (artifact.author_key("Patient rights"), "2024"),
                 (artifact.author_key("Rights"), "2024"),
-            }
+                }
+            )
         )
         with mock.patch.object(
             artifact, "author_key", wraps=artifact.author_key
@@ -1062,7 +1088,7 @@ REFUTATION: stands - the page addresses the cited proposition.
             short_normalizations = normalizer.call_count
             short_checks = keys.checks
             normalizer.reset_mock()
-            keys.checks = 0
+            object.__setattr__(keys, "checks", 0)
             long = artifact.read_citations(
                 "Rights, A. "
                 + ("unrelated " * 1_000)
@@ -2066,6 +2092,18 @@ class TheRenderedDocumentContractIsPublished(unittest.TestCase):
 
 class EveryBehaviorLimitHasALiveHandler(unittest.TestCase):
     HANDLERS = {
+        "whether a shortened title resolves against more than one reference entry": (
+            "CitationResolutionResidues.test_the_three_declared_prefix_edges_resolve",
+            "ACompletePostPasses.test_a_shortened_title_citation_resolves_to_its_claim_record",
+        ),
+        "whether a citation naming part of a group author's name resolves": (
+            "CitationResolutionResidues.test_the_three_declared_prefix_edges_resolve",
+            "ACompletePostPasses.test_a_shortened_title_citation_resolves_to_its_claim_record",
+        ),
+        "whether a citation stopping mid-word resolves": (
+            "CitationResolutionResidues.test_the_three_declared_prefix_edges_resolve",
+            "ACompletePostPasses.test_a_shortened_title_citation_resolves_to_its_claim_record",
+        ),
         "whether a believed record's restatement supports the number traced from it": (
             "TheMechanicalBarRowsAreGraded.test_numeric_identity_does_not_establish_restatement_support",
             "TheMechanicalBarRowsAreGraded.test_only_believed_claim_records_trace_body_numbers",
@@ -2121,6 +2159,34 @@ class EveryBehaviorLimitHasALiveHandler(unittest.TestCase):
                         result.wasSuccessful(),
                         f"{subject}: {named}: {result.errors + result.failures}",
                     )
+
+
+class CitationResolutionResidues(unittest.TestCase):
+    def test_the_three_declared_prefix_edges_resolve(self):
+        today = artifact.ReferenceKeySet.from_references(
+            ("Nursing today. (2020). Publisher.",)
+        )
+        tomorrow = artifact.ReferenceKeySet.from_references(
+            ("Nursing tomorrow. (2020). Publisher.",)
+        )
+        group = artifact.ReferenceKeySet.from_references(
+            ("World Health Organization. (2020). A title.",)
+        )
+        index = scan.ClaimReferenceIndex.from_records(
+            (
+                scan.ClaimRecord(frozenset(), today),
+                scan.ClaimRecord(frozenset(), tomorrow),
+            )
+        )
+
+        self.assertTrue(today.resolves(("nursing", "2020")))
+        self.assertTrue(tomorrow.resolves(("nursing", "2020")))
+        self.assertEqual(
+            (0, 1),
+            index.matching_record_indices((("nursing", "2020"),)),
+        )
+        self.assertTrue(group.resolves(("worldhealth", "2020")))
+        self.assertTrue(today.resolves(("nursingtod", "2020")))
 
 
 class TheSharedConformanceKitStatesItsBoundary(unittest.TestCase):

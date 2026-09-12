@@ -2,7 +2,8 @@
 
 The module owns syntax both graders consume and the reference-aware citation
 boundary they share. It knows nothing about a signed bar, a roster, or which
-findings either grader emits.
+findings either grader emits. The citation relation's behavioral boundary is
+``CITATION_RESOLUTION_NOT_REACHED``.
 """
 
 from __future__ import annotations
@@ -13,6 +14,8 @@ import unicodedata
 from collections.abc import Collection, Iterator
 from dataclasses import dataclass
 from urllib.parse import parse_qs, urlparse
+
+from run_grader import EvidenceDisposition
 
 
 WORD = re.compile(r"\b[\w'-]+\b", re.UNICODE)
@@ -122,6 +125,23 @@ LEGAL_READER_NOT_REACHED = (
     (
         "legal form and authority status",
         "The code-section reader does not validate cases, legislative materials, proposed rules, executive orders, patents, constitutions, treaties, parallel reporters, official-version choice, state-specific form, or whether an authority remains current.",
+    ),
+)
+CITATION_RESOLUTION_NOT_REACHED = (
+    (
+        "whether a shortened title resolves against more than one reference entry",
+        "A citation shortened before two title keys diverge resolves against both entries because the relation has no ambiguity threshold.",
+        EvidenceDisposition.BEHAVIOR,
+    ),
+    (
+        "whether a citation naming part of a group author's name resolves",
+        "The no-personal-surname branch also contains group authors, so its prefix relation accepts a partial organization name.",
+        EvidenceDisposition.BEHAVIOR,
+    ),
+    (
+        "whether a citation stopping mid-word resolves",
+        "Normalized keys retain no word boundaries, so a character prefix ending inside a title word still resolves.",
+        EvidenceDisposition.BEHAVIOR,
     ),
 )
 _TITLE_NUMBER_LEGAL_AUTHOR = (
@@ -554,8 +574,82 @@ def citation_occurrence_keys(
     return tuple(occurrences)
 
 
-def reference_keys(reference: str) -> tuple[tuple[str, str], ...]:
-    """Return citation keys evidenced by one APA reference entry."""
+CitationKey = tuple[str, str]
+
+
+@dataclass(frozen=True)
+class ReferenceKeySet:
+    """Reference keys plus the directional citation relation they support."""
+
+    keys: frozenset[CitationKey] = frozenset()
+    prefix_keys: frozenset[CitationKey] = frozenset()
+
+    @classmethod
+    def from_references(cls, references: Collection[str]) -> ReferenceKeySet:
+        keyed = tuple(
+            item
+            for reference in references
+            for item in _reference_key_data(reference)
+        )
+        return cls(
+            frozenset((author, year) for author, year, _prefix in keyed),
+            frozenset(
+                (author, year)
+                for author, year, prefix in keyed
+                if prefix
+            ),
+        )
+
+    @classmethod
+    def exact(cls, keys: Collection[CitationKey]) -> ReferenceKeySet:
+        """Build a set whose supplied keys require exact author equality."""
+
+        return cls(frozenset(keys))
+
+    @classmethod
+    def union(cls, sets: Collection[ReferenceKeySet]) -> ReferenceKeySet:
+        """Combine reference-key sets without losing their relation kind."""
+
+        return cls(
+            frozenset(key for item in sets for key in item.keys),
+            frozenset(key for item in sets for key in item.prefix_keys),
+        )
+
+    def resolves(self, citation_key: CitationKey) -> bool:
+        citation_author, citation_year_value = citation_key
+        return bool(citation_author) and any(
+            (not reference_year or reference_year == citation_year_value)
+            and self._author_resolves(citation_author, reference_author, reference_year)
+            for reference_author, reference_year in self.keys
+        )
+
+    def recognizes_author(self, citation_author: str) -> bool:
+        """Return whether the author half names any key, independent of year."""
+
+        return bool(citation_author) and any(
+            self._author_resolves(citation_author, reference_author, reference_year)
+            for reference_author, reference_year in self.keys
+        )
+
+    def _author_resolves(
+        self,
+        citation_author: str,
+        reference_author: str,
+        reference_year: str,
+    ) -> bool:
+        if (reference_author, reference_year) in self.prefix_keys:
+            return reference_author.startswith(citation_author)
+        return reference_author == citation_author
+
+    def __iter__(self) -> Iterator[CitationKey]:
+        return iter(self.keys)
+
+    def __len__(self) -> int:
+        return len(self.keys)
+
+
+def _reference_key_data(reference: str) -> tuple[tuple[str, str, bool], ...]:
+    """Return each reference key and whether its author accepts a prefix."""
 
     year = REFERENCE_YEAR.search(reference)
     author_text = (
@@ -571,6 +665,7 @@ def reference_keys(reference: str) -> tuple[tuple[str, str], ...]:
         author_text,
     )
     keys: list[str]
+    prefix = False
     if legal is not None:
         name_text = author_text[: legal.start()].rstrip("., ")
         keys = [author_key(name_text)] if name_text else []
@@ -579,14 +674,25 @@ def reference_keys(reference: str) -> tuple[tuple[str, str], ...]:
         if len(surnames) > 1:
             keys.insert(0, author_key(" and ".join(surnames)))
     else:
-        keys = [author_key(author_text)]
+        title_proper = re.sub(r"(?:\s*\([^()]*\))+\s*$", "", author_text)
+        keys = [author_key(title_proper)]
+        prefix = True
     years = [year.group("year").casefold()] if year is not None else [""]
-    keyed: list[tuple[str, str]] = []
+    keyed: list[tuple[str, str, bool]] = []
     for key in dict.fromkeys(keys):
         if not key:
             continue
-        keyed.append((key, years[0]))
+        keyed.append((key, years[0], prefix))
     return tuple(keyed)
+
+
+def reference_keys(reference: str) -> tuple[CitationKey, ...]:
+    """Return citation keys evidenced by one APA reference entry."""
+
+    return tuple(
+        (author, year)
+        for author, year, _prefix in _reference_key_data(reference)
+    )
 
 
 def legal_reference_lacks_name(reference: str) -> bool:
@@ -636,7 +742,7 @@ def _valid_evidenced_author(body: str, author: str, start: int, end: int) -> boo
 
 def _evidenced_citations(
     body: str,
-    reference_key_set: Collection[tuple[str, str]],
+    reference_key_set: ReferenceKeySet,
     legal_spans: frozenset[tuple[int, int]],
 ) -> tuple[Citation, ...]:
     """Read exact reference keys before allowing the fallback grammar to split."""
@@ -663,7 +769,7 @@ def _evidenced_citations(
                 key = author_key(author)
                 if (
                     len(key) <= max_key_length
-                    and any(reference_key == key for reference_key, _ in reference_key_set)
+                    and reference_key_set.recognizes_author(key)
                     and _valid_evidenced_author(body, author, start, end)
                 ):
                     for remaining in EVIDENCE_DATE_VALUE.finditer(
@@ -693,7 +799,7 @@ def _evidenced_citations(
                 break
             if not _valid_evidenced_author(body, author, word_start, block.end()):
                 continue
-            if any(reference_key == key for reference_key, _ in reference_key_set):
+            if reference_key_set.recognizes_author(key):
                 longest = Citation(author, year_values[0], word_start, block.end())
                 break
         if longest is not None:
@@ -709,7 +815,7 @@ def _evidenced_citations(
 
 def _read_citations(
     body: str,
-    reference_key_set: Collection[tuple[str, str]] = (),
+    reference_key_set: ReferenceKeySet = ReferenceKeySet(),
 ) -> tuple[tuple[Citation, ...], CitationCoverage]:
     """Read APA citations, including narrative names evidenced by references."""
 
@@ -881,14 +987,14 @@ def _read_citations(
 
 def read_citations(
     body: str,
-    reference_key_set: Collection[tuple[str, str]] = (),
+    reference_key_set: ReferenceKeySet = ReferenceKeySet(),
 ) -> tuple[Citation, ...]:
     return _read_citations(body, reference_key_set)[0]
 
 
 def citation_coverage(
     body: str,
-    reference_key_set: Collection[tuple[str, str]] = (),
+    reference_key_set: ReferenceKeySet = ReferenceKeySet(),
 ) -> CitationCoverage:
     return _read_citations(body, reference_key_set)[1]
 

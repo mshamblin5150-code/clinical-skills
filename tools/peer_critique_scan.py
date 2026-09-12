@@ -28,13 +28,14 @@ from pathlib import Path
 
 from discussion_artifact import (
     CLAIM_BLOCK,
+    CITATION_RESOLUTION_NOT_REACHED,
     NUMBER,
+    ReferenceKeySet,
     RESTATEMENT,
     WORD,
     citation_occurrence_keys,
     read_citations,
     read_reference_section,
-    reference_keys,
     strip_discussion_markers,
 )
 import run_grader
@@ -107,6 +108,7 @@ INVALID_INVOCATION = "invalid invocation"
 EXIT_2_LIMBS = (INVALID_INVOCATION, NO_RUN_DIRECTORY, NO_CRITIQUE, NO_ROSTER, REFUSED_LABEL)
 
 DECLARED_LIMITS = (
+    *CITATION_RESOLUTION_NOT_REACHED,
     (
         "whether an absent item was ever in the case the assignment supplied",
         "The command reads the critique and never the case material, so it cannot tell a classmate's omission from a datum the assignment never gave anyone.",
@@ -261,11 +263,8 @@ def _numeric_findings(source: RunSource) -> tuple[Finding, ...]:
     return tuple(findings)
 
 
-def _reference_key_set(source: RunSource) -> frozenset[tuple[str, str]]:
-    keys: set[tuple[str, str]] = set()
-    for reference in source.references:
-        keys.update(reference_keys(reference))
-    return frozenset(keys)
+def _reference_key_set(source: RunSource) -> ReferenceKeySet:
+    return ReferenceKeySet.from_references(source.references)
 
 
 def _citation_findings(source: RunSource) -> tuple[Finding, ...]:
@@ -278,7 +277,7 @@ def _citation_findings(source: RunSource) -> tuple[Finding, ...]:
             f"{citation.author}, {citation.year} has no matching reference",
         )
         for citation, keys in zip(citations, citation_occurrence_keys(citations))
-        if not any(key in references for key in keys)
+        if not any(references.resolves(key) for key in keys)
     )
 
 
