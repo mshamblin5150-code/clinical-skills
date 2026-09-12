@@ -281,7 +281,8 @@ partial instrument this repository keeps recording.
 
 Grading it to zero was declined under ruling 3's reasoning. Whether a module belongs in the
 *depends on* tier is an editorial judgment about whether the skill works without it, which no walk can
-settle, so the nine are filed for a person instead.
+settle, so the nine are filed for a person instead, as
+[#1130](https://github.com/mshamblin5150-code/clinical-skills/issues/1130).
 
 ## Ruling 12. A consumer below the floor gets one legible line
 
@@ -357,7 +358,8 @@ evaluates `FenceOpening | None` at definition time and would raise on 3.9 before
 existed to have guarded it.
 
 **Whether `AGENTS.md` should declare the nine.** Ruling 11 reports them and ruling 3 declines to
-legislate the tier. The judgment is a person's and is filed.
+legislate the tier. The judgment is a person's and is filed as
+[#1130](https://github.com/mshamblin5150-code/clinical-skills/issues/1130).
 
 **macOS and the `os.symlink` branch**, which stay #773's under ruling 13.
 
