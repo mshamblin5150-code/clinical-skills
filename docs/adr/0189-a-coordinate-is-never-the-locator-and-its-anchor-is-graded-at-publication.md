@@ -176,10 +176,18 @@ publishers"* — the GitHub web UI bypasses it entirely.
 input is the record's own text, so it adds nothing to the hook's cost and cannot fail for an
 environmental reason.
 
+**And that is exactly ADR 0177 ruling 3's test for a rule that must hold on both routes, so the direct
+writer runs it too.** `implementation_map` publishes through `tracker_publish_hook.authorize_issue_body`
+rather than through `analyze`, at two call sites, so a rule wired only into `analyze` would leave the
+implementation map's own body ungraded. Found by the closing sweep against this record rather than
+written into it, which is [#1148](https://github.com/mshamblin5150-code/clinical-skills/issues/1148)'s
+subject arriving on the record that would otherwise have added a sixth family to its table.
+
 **Considered and rejected: widen `tracker_branch_scope`.** Its `NOT_REACHED` row *"citation
 coordinates need file contents"* would survive untouched, since this rule never checks whether a
-coordinate is correct — which also means [#1002](https://github.com/mshamblin5150-code/clinical-skills/issues/1002)'s
-instruction not to reword that row is honoured either way. The cost is the reader: the module would
+coordinate is correct — so the instruction not to reword that row, written into
+[#1002](https://github.com/mshamblin5150-code/clinical-skills/issues/1002)'s body and standing there after
+its close, is honored either way. The cost is the reader: the module would
 hold two Markdown readers with opposite inline-code policies, and ADR 0171 ruling 4 has already
 declined converging that module's reader without a recorded escape.
 
@@ -263,6 +271,7 @@ can forget.
 ## What the build verifies
 
 - The recognizer and reader are one object each, imported by both the tracked-prose ratchet and the new grader, asserted by identity rather than by equal behavior.
+- The recognizer's coverage stated beside it as a floor, with the unmatched spellings below written as tests that document the ceiling rather than close it.
 - The paragraph window and the anchor vocabulary, driven by fixtures in both directions, with a mutant that removes the anchor going red.
 - Refusal at the hook and report at the workflow, each driven through its real entry point rather than through the grader function.
 - The `docs/adr/` cutoff, driven by a throwaway repository whose record is committed on both sides of the cutoff date.
@@ -278,4 +287,29 @@ can forget.
 - **The commit-message exemption's own edge.** Ruling 9 rests on a commit message being attached to the tree it measured. A commit message quoting a coordinate for a file it does not touch is **not** self-anchoring, and nothing distinguishes those.
 - **When a `docs/adr/` record is pulled in.** Ruling 6 grades a record edited for any reason, including an unrelated typo, so the archaeology arrives at a moment nobody chose. That is the right direction to fail and it is a cost.
 - **Whether the anchor an author wrote is the right one.** A backticked identifier unrelated to the coordinate satisfies the rule, which is what keeps the false-alarm rate near zero and what makes the 96% a ceiling.
+- **The recognizer sees one spelling of a coordinate.** `PATH_COORDINATE_CEILING` requires the path and
+  the number welded by a colon. Three spellings this repository actually writes are invisible to it:
+
+```
+'write_marker() is called at line 1345'                  MISSED
+'the early return at `:1259`'                            MISSED
+'in `tools/tracker_publish_hook.py`, at line 1345'       MISSED
+'tools/tracker_publish_hook.py:1345'                     MATCH
+```
+
+  So a clean run means *no welded coordinate stands alone*, never *no coordinate stands alone*. The
+  numerator and the denominator of every measurement in this record are built from that one matcher,
+  so both can be wrong together — the extractor-coverage rule applied to this record's own instrument.
+  Found by the closing sweep, on [#1151](https://github.com/mshamblin5150-code/clinical-skills/issues/1151),
+  which is evidence the split spelling occurs in practice rather than a hypothetical.
+- **A third publisher.** Ruling 4 rests on `tracker_publish_hook.NOT_REACHED`'s *"the refusing hook
+  covers one of two publishers"*. `.github/workflows/tracker.yml`'s `merge-receipts` job publishes with
+  `gh issue comment` under `github.token`, and neither the hook nor the changed-record job grades it, so
+  the new rule inherits that hole on arrival. That sentence being wrong by one is
+  [#1146](https://github.com/mshamblin5150-code/clinical-skills/issues/1146)'s subject, and this record
+  is one more that rests on it.
+- **The exit-2 contract is unreadable where it is reported.** The workflow captures stdout only, so a
+  finding and a did-not-scan render alike in the step summary —
+  [#1152](https://github.com/mshamblin5150-code/clinical-skills/issues/1152) defects 3 and 4. The status
+  is honest and the surface it is read on does not distinguish it.
 - **The tracker figures.** Every count above is dated to `084152c` and moves whenever anybody comments.
