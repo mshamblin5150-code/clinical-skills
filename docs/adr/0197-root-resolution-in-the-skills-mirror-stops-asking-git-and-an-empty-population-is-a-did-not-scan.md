@@ -1,6 +1,6 @@
 # Root resolution in the skills mirror stops asking git and an empty population is a did-not-scan
 
-**Measured at:** 7c555b7e8e579991c74f1a06a9329d72a472a2a5
+**Measured at:** 7037edb456bfc35c204579ce6688798fa57b1b09
 
 [#978](https://github.com/mshamblin5150-code/clinical-skills/issues/978) reports that
 `skills_mirror.repo_root()` is redirected by an inherited Git environment and reports a clean scan of
