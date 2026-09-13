@@ -66,6 +66,10 @@ a **Peer critique** is posted to. Not a **Composer**: it takes plain text, is no
 is what the course counts as the review having been done.
 _Avoid_: submission comment box, comment box, reply box
 
+**Departure**:
+A place where a run's draft narrows or departs from something the clinician instructed — a stated duration shortened, an instruction applied in fewer places than it names. It is listed for his reading before the go-ahead, and the go-ahead after that reading is his ruling on it. Distinct from a claim the run contributed, which is proposed for verification rather than ruled on, and from a defect, which is repaired without asking.
+_Avoid_: deviation, override, change, narrowing
+
 **Graded artifact**:
 One thing a course marks on its own — a board, a case study, a quiz. What identifies it is the artifact, not the module it sits in: a module normally holds several, so a module number names where something is rather than what it is.
 _Avoid_: assignment, deliverable, submission
