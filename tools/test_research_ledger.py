@@ -63,6 +63,7 @@ REFERENCE: Abbassi-Ghanavati, M. (2009). Pregnancy and laboratory studies.
     Obstetrics and Gynecology, 114(6), 1326-1331.
 RESTATEMENT: The table gives a third-trimester white cell range of 5.6 to
     16.9 x 10^9/L in normal pregnancy.
+PASSAGE: Table 1, third-trimester reference-ranges row on page 1327.
 RECENCY: nothing newer - searched 2026-08-19, no later reference-range table exists.
 RESOLVED: https://doi.org/10.1097/AOG.0b013e3181c2bde8 - read 2026-08-19
 PAGE-YEAR: 2009 - stated on the article's masthead and in the journal citation.
@@ -769,6 +770,7 @@ INSTRUMENTS: web fetch -> curl
             "SOURCE": "peer-reviewed",
             "REFERENCE": "Invented, A. (2026). Unread source.",
             "RESTATEMENT": "The unread source states this claim.",
+            "PASSAGE": "Results table on page 4.",
             "RECENCY": "current",
             "RESOLVED": "https://example.test/unread - read 2026-09-08",
             "PAGE-YEAR": "2026 - on the unread page",
@@ -782,6 +784,24 @@ INSTRUMENTS: web fetch -> curl
                 record = base + f"{name}: {value}\n"
                 found = kinds(ledger_text(record))
                 self.assertIn(ledger.SOURCELESS_WITH_SOURCE_FIELD, found)
+
+    def test_passage_is_forbidden_on_both_sourceless_statuses(self):
+        records = (
+            """\
+## CLAIM: No guideline addresses this question.
+STATUS: unsourced - searched the guideline corpus and found no statement.
+PASSAGE: Recommendation table on page 4.
+""",
+            """\
+## CLAIM: The sought guideline contains a recommendation on this question.
+STATUS: unreadable - both attempts failed before either read the source.
+INSTRUMENTS: web fetch -> curl
+PASSAGE: Recommendation table on page 4.
+""",
+        )
+        for record in records:
+            with self.subTest(status=ledger.read_records(ledger_text(record))[0].status):
+                self.assertIn(ledger.SOURCELESS_WITH_SOURCE_FIELD, kinds(ledger_text(record)))
 
     def test_instruments_are_forbidden_on_both_other_statuses(self):
         unsourced = """\
@@ -809,6 +829,10 @@ INSTRUMENTS: web fetch -> curl
 
 
 class ARequiredFieldIsPresentAndCarriesSomething(unittest.TestCase):
+    def test_a_sourced_record_missing_passage_is_a_finding(self):
+        record = replace_field(CLEAN, "PASSAGE", None)
+        self.assertIn(ledger.MISSING_FIELD, kinds(ledger_text(record)))
+
     def test_every_sourced_field_is_required(self):
         for name in ledger.REQUIRED_WHEN_SOURCED:
             with self.subTest(field=name):
@@ -1474,6 +1498,7 @@ class TheRefutationDeclaresASecondRoute(unittest.TestCase):
                 "SOURCE",
                 "REFERENCE",
                 "RESTATEMENT",
+                "PASSAGE",
                 "RECENCY",
                 "RESOLVED",
                 "PAGE-YEAR",
@@ -1697,6 +1722,14 @@ class TheSourcingRulesDeclareWhatTheGraderCannotSee(unittest.TestCase):
         self.assertIn("corpus it read", row.limit)
         self.assertIn("did not open", row.limit)
 
+    def test_an_absence_refutation_quote_is_a_declared_reading(self):
+        limits = {row.key: row for row in ledger.DECLARED_LIMITS}
+        row = limits["absence-refutation-passage-quote-unverified"]
+        self.assertIs(row.evidence, ledger.EvidenceDisposition.DECLARED_READING)
+        self.assertIn("refutation reporting absent language", row.limit)
+        self.assertIn("read and quoted", row.limit)
+        self.assertIn("PASSAGE", row.limit)
+
     def test_the_instrument_rows_belong_to_818(self):
         for kind in (
             ledger.UNEXPECTED_INSTRUMENTS,
@@ -1716,7 +1749,7 @@ class EveryRuledFanOutReadsTheSharedSourcingRules(unittest.TestCase):
         r"omit\w* (?:(?:the other|every) source fields?|the other fields)"
     )
 
-    def test_the_shared_file_contains_the_five_rules_and_no_sixth_rule(self):
+    def test_the_shared_file_contains_exactly_the_declared_rules(self):
         text = SOURCING.read_text(encoding="utf-8")
         flat = " ".join(text.split())
         self.assertEqual(
@@ -1725,6 +1758,7 @@ class EveryRuledFanOutReadsTheSharedSourcingRules(unittest.TestCase):
                 "A pointer is not a source",
                 "A resolving locator is not verification",
                 "A failed read is not a negative",
+                "An absence-based refutation reads and quotes the passage",
                 "A sourceless record makes no claim about a source",
                 "A claim heading is the claim the document will make",
             ],
@@ -1822,6 +1856,19 @@ class EveryRuledFanOutReadsTheSharedSourcingRules(unittest.TestCase):
 class ASourcelessRecordCarriesNoneOfTheSourceFields(unittest.TestCase):
     """ADR 0153's complete source-field population, derived from the sourced shape."""
 
+    SOURCE_FIELD_VALUES = {
+        "SOURCE": "peer-reviewed",
+        "REFERENCE": "Someone, A. (2020). A study. Journal, 1(1), 1-9.",
+        "RESTATEMENT": "The study reports the result.",
+        "PASSAGE": "Results table on page 4.",
+        "RECENCY": "current",
+        "RESOLVED": "https://doi.org/10.1/x - read 2026-08-19",
+        "PAGE-YEAR": "2020 - on the masthead.",
+        "REFUTATION": "stands - checked the landing page.",
+        "SECOND-ROUTE": "publisher HTML -> journal PDF rendered at 600 dpi",
+        "STATED-EXPIRY": "none stated",
+    }
+
     def _unsourced(self) -> str:
         record = replace_field(
             CLEAN, "STATUS", "unsourced - searched PubMed, IDSA and UpToDate, nothing addresses it."
@@ -1834,17 +1881,7 @@ class ASourcelessRecordCarriesNoneOfTheSourceFields(unittest.TestCase):
         self.assertEqual(kinds(ledger_text(self._unsourced())), [])
 
     def test_each_source_field_contradicts_it_on_its_own(self):
-        values = {
-            "SOURCE": "peer-reviewed",
-            "REFERENCE": "Someone, A. (2020). A study. Journal, 1(1), 1-9.",
-            "RESTATEMENT": "The study reports the result.",
-            "RECENCY": "current",
-            "RESOLVED": "https://doi.org/10.1/x - read 2026-08-19",
-            "PAGE-YEAR": "2020 - on the masthead.",
-            "REFUTATION": "stands - checked the landing page.",
-            "SECOND-ROUTE": "publisher HTML -> journal PDF rendered at 600 dpi",
-            "STATED-EXPIRY": "none stated",
-        }
+        values = self.SOURCE_FIELD_VALUES
         self.assertEqual(ledger.SOURCE_FIELDS, ledger.REQUIRED_WHEN_SOURCED)
         self.assertEqual(set(values), set(ledger.SOURCE_FIELDS))
         for name, value in values.items():
@@ -1853,17 +1890,7 @@ class ASourcelessRecordCarriesNoneOfTheSourceFields(unittest.TestCase):
                 self.assertEqual(kinds(ledger_text(record)), [ledger.SOURCELESS_WITH_SOURCE_FIELD])
 
     def test_the_cli_reports_each_source_field_separately(self):
-        values = {
-            "SOURCE": "peer-reviewed",
-            "REFERENCE": "Someone, A. (2020). A study. Journal, 1(1), 1-9.",
-            "RESTATEMENT": "The study reports the result.",
-            "RECENCY": "current",
-            "RESOLVED": "https://doi.org/10.1/x - read 2026-08-19",
-            "PAGE-YEAR": "2020 - on the masthead.",
-            "REFUTATION": "stands - checked the landing page.",
-            "SECOND-ROUTE": "publisher HTML -> journal PDF rendered at 600 dpi",
-            "STATED-EXPIRY": "none stated",
-        }
+        values = self.SOURCE_FIELD_VALUES
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
             claims = root / "claims.md"
@@ -3717,6 +3744,7 @@ STATUS: sourced
 SOURCE: tertiary reference
 REFERENCE: {uptodate_entry(title)}
 RESTATEMENT: The topic states the thing the claim says it states.
+PASSAGE: Introduction, first paragraph.
 RECENCY: current - the topic was last updated in 2026.
 RESOLVED: https://www.uptodate.com/contents/some-slug - read 2026-08-19
 PAGE-YEAR: 2026 - stated in the topic's own last-updated line.

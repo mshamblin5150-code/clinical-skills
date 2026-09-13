@@ -550,18 +550,18 @@ no `STATUS`, and the grader refuses a record with no `STATUS`.
 This **Fan-out brief** applies [standing rule 6](../../AGENTS.md). Every research and refutation
 brief first reads the rules in
 [sourcing.md](../_shared/reference/sourcing.md) and applies them to every returned claim or negative.
-Each remaining claim gets the same brief, and the brief is
-**six returns** and the recency rule above — a reputable source in one of four classes, a full
-APA 7 reference, the claim restated in the source's own terms, **the locator it actually opened with
-the date it opened it, the year the page itself carries with where the page says so, and the
-source's stated expiry or `none stated`**. Tell it
+Each remaining claim gets the same brief and the recency rule above: a reputable source in one of
+four classes, a full APA 7 reference, the claim restated in the source's own terms, where in the
+source its supporting language sits, **the locator it actually opened with the date it opened it,
+the year the page itself carries with where the page says so, and the source's stated expiry or
+`none stated`**. Tell it
 the source classes by name, because a returned source outside them is a finding rather than an
 answer.
 
 **The last two are not extra bookkeeping**, and a run that treats them as optional writes a ledger
 the grader refuses: they are what turns *"I found a source"* into something the clinician can audit
-in one click. See the paragraphs under the record shape below; the refutation leg supplies a
-**seventh** return afterwards.
+in one click. See the paragraphs under the record shape below; the refutation leg supplies its
+return afterwards.
 
 Fill each prewritten heading as its returned answer arrives. Where the harness returns nothing
 usable, collect one returned record per claim before the orchestrator composes the ledger.
@@ -578,6 +578,7 @@ REFERENCE: Abbassi-Ghanavati, M., Greer, L. G., & Cunningham, F. G. (2009). Preg
     laboratory studies. Obstetrics and Gynecology, 114(6), 1326-1331.
 RESTATEMENT: The table gives a third-trimester white cell range of 5.6 to 16.9 x 10^9/L in
     normal pregnancy.
+PASSAGE: Table 1, third-trimester reference-ranges row on page 1327.
 RECENCY: nothing newer - searched 2026-08-19, no later reference-range table for pregnancy exists.
 RESOLVED: https://doi.org/10.1097/AOG.0b013e3181c2bde8 - read 2026-08-19
 PAGE-YEAR: 2009 - stated on the article's masthead and in the journal citation.

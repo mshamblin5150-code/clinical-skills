@@ -140,6 +140,7 @@ STATUS: sourced | unsourced | unreadable - <what was searched or what prevented 
 SOURCE: society guideline | peer-reviewed | government | tertiary reference
 REFERENCE: <full APA 7 entry>
 RESTATEMENT: <what the source says, including the critique's exact numeric token where applicable>
+PASSAGE: <where in the source the supporting language sits>
 RECENCY: current | within five | nothing newer - <reason> | guideline in force - <reason>
 RESOLVED: <URL or DOI> - read <ISO date>
 PAGE-YEAR: <year and where the page states it>

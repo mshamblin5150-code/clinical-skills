@@ -173,6 +173,7 @@ STATUS: sourced | unsourced | unreadable - <what was searched or what prevented 
 SOURCE: society guideline | peer-reviewed | government | tertiary reference
 REFERENCE: <full APA 7 entry>
 RESTATEMENT: <what the source says, including the draft's exact numeric token where applicable>
+PASSAGE: <where in the source the supporting language sits>
 RECENCY: current | within five | nothing newer - <reason> | guideline in force - <reason>
 RESOLVED: <URL or DOI> - read <ISO date>
 PAGE-YEAR: <year and where the page states it>
@@ -192,10 +193,10 @@ record says why; membership in a catalog does not establish standing.
 Every research and refutation brief first reads the rules in
 [sourcing.md](../_shared/reference/sourcing.md) and applies them to every returned claim or negative.
 This **Fan-out brief** applies [standing rule 6](../../AGENTS.md). Each research worker takes one
-claim and returns the source class, full APA 7 reference,
-restatement, opened URL or DOI and read date, the page's stated year and locator, and the source's
-stated expiry or `none stated`. Transcribe only an expiry the document states; do not infer one from
-a publication cadence. `42 C.F.R. § 414.56 (2025)` is the known case where `none stated` is correct:
+claim and returns the source class, full APA 7 reference, restatement, where in the source the
+supporting language sits, opened URL or DOI and read date, the page's stated year and locator, and
+the source's stated expiry or `none stated`. Transcribe only an expiry the document states; do not
+infer one from a publication cadence. `42 C.F.R. § 414.56 (2025)` is the known case where `none stated` is correct:
 the codification year is provenance, and the annual reissue schedule is not a stated expiry. Each
 `sourced` record gets a refutation leg. It returns
 `stands`, `refuted`, or `paywalled` with a substantive reason. There is no carve-out for legal
@@ -213,8 +214,9 @@ or writing `STATUS: unsourced` because an access wall stopped the search.
 A source already verified elsewhere in this board's ledger may discharge a second page-level
 read. The new claim still gets its own record, a new `RESTATEMENT`, and a new `REFUTATION`; only
 `REFERENCE`, `RESOLVED`, `PAGE-YEAR`, and `STATED-EXPIRY` may be inherited because those describe
-the page already opened. `SECOND-ROUTE` belongs to the new refutation and is never inherited. A
-claim is never inherited from another sentence.
+the page already opened. `PASSAGE` belongs to the claim and is never inherited. `SECOND-ROUTE`
+belongs to the new refutation and is never inherited. A claim is never inherited from another
+sentence.
 
 After every research and refutation result is gathered, this **Grader handoff** under
 [standing rule 6](../../AGENTS.md) runs:

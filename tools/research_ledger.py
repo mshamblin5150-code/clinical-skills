@@ -66,6 +66,7 @@ DECLARED_LIMITS = (
     DeclaredLimit("source-support-unchecked", "The grader cannot determine whether a source supports its recorded restatement.", EvidenceDisposition.DECLARED_READING),
     DeclaredLimit("pointer-primary-material-unverified", "The grader cannot establish that derived material has primary material retained and gradeable against it, or resolvable and independently re-opened.", EvidenceDisposition.DECLARED_READING),
     DeclaredLimit("negative-search-population-unverified", "The grader cannot establish that a negative reports the corpus it read and what it did not open.", EvidenceDisposition.DECLARED_READING),
+    DeclaredLimit("absence-refutation-passage-quote-unverified", "The grader cannot establish that a refutation reporting absent language read and quoted the record's PASSAGE.", EvidenceDisposition.DECLARED_READING),
     DeclaredLimit("sourceless-recheckability-unverified", "A clean sourceless record does not establish that a rejected source was named well enough for a reader to recheck it.", EvidenceDisposition.DECLARED_READING),
     DeclaredLimit("unsourced-draft-exclusion-unchecked", "A clean ledger does not establish that unsourced claims stayed outside the draft.", EvidenceDisposition.DECLARED_READING),
     DeclaredLimit("network-resolution-absent", "No grading path fetches a locator or resolves a citation over the network.", EvidenceDisposition.DECLARED_READING),
@@ -106,7 +107,7 @@ NOT_REACHED = tuple(row.limit for row in DECLARED_LIMITS)
 # under a document heading without the parser caring.
 CLAIM = re.compile(r"(?mi)^[ \t]*#+[ \t]*CLAIM[ \t]*:[ \t]*(.*?)[ \t]*$")
 FIELD = re.compile(
-    r"(?mi)^[ \t]*(STATUS|SOURCE|REFERENCE|RESTATEMENT|RECENCY"
+    r"(?mi)^[ \t]*(STATUS|SOURCE|REFERENCE|RESTATEMENT|PASSAGE|RECENCY"
     r"|RESOLVED|PAGE-YEAR|REFUTATION|SECOND-ROUTE|INSTRUMENTS|STATED-EXPIRY|DROPPED)"
     r"[ \t]*:[ \t]*(.*?)[ \t]*$"
 )
@@ -319,6 +320,7 @@ REQUIRED_WHEN_SOURCED = (
     "SOURCE",
     "REFERENCE",
     "RESTATEMENT",
+    "PASSAGE",
     "RECENCY",
     "RESOLVED",
     "PAGE-YEAR",
