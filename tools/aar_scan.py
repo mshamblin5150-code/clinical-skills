@@ -35,6 +35,7 @@ from types import MappingProxyType
 from typing import Any, Iterable, Mapping
 
 from console_codec import use_utf8
+from discussion_artifact import REREAD_BLOCK
 import git_paths
 import shell_reader
 import repo_root
@@ -43,6 +44,7 @@ import run_grader
 
 NOT_GRADED = run_grader.NOT_GRADED
 REVIEW_CLASSIFIER_ENTRY_CUTOFF = datetime(2026, 9, 12, tzinfo=timezone.utc)
+POSTED_READING_FINGERPRINT_CUTOFF = datetime(2026, 9, 13, tzinfo=timezone.utc)
 
 
 SCOPED_SKILLS = frozenset(
@@ -186,6 +188,7 @@ ROWS: Mapping[str, str] = MappingProxyType(
         "missing-review": "the submission has no review record",
         "unscannable-review": "the review record or its evidence cannot be scanned",
         "unscannable-extract": "the extract cannot be scanned",
+        "posted-reading-mismatch": "the extract has no current fingerprint of its posted reading",
         "missing-classifier-entry": "a post-cutoff review does not identify its classifier return",
         "unmarked-prior-review": "a prior watermark has no classifier return identity",
         "missing-header-field": "a required review header field is absent",
@@ -343,6 +346,14 @@ class Scan:
     unread: int
     orphaned: int
     findings: tuple[Finding, ...]
+    rounds: tuple[RoundScan, ...] = ()
+
+
+@dataclass(frozen=True)
+class RoundScan:
+    number: int
+    corrections: int
+    unlanded: int
 
 
 def _text(value: Any) -> str:
@@ -648,16 +659,71 @@ def _safe_submission(value: str) -> str:
     return safe
 
 
-def review_path(run: Path, submission: str) -> Path:
-    return run / "aar" / f"{_safe_submission(submission)}.md"
+def _round_stem(submission: str, round_number: int) -> str:
+    if round_number < 1:
+        raise ValueError("review round must be positive")
+    safe = _safe_submission(submission)
+    return safe if round_number == 1 else f"{safe}.round-{round_number}"
 
 
-def extract_path(run: Path, submission: str) -> Path:
-    return run / "aar" / f"{_safe_submission(submission)}.extract.md"
+def review_path(run: Path, submission: str, round_number: int = 1) -> Path:
+    return run / "aar" / f"{_round_stem(submission, round_number)}.md"
 
 
-def baseline_path(run: Path, submission: str) -> Path:
-    return run / "aar" / f"{_safe_submission(submission)}.baseline.json"
+def extract_path(run: Path, submission: str, round_number: int = 1) -> Path:
+    return run / "aar" / f"{_round_stem(submission, round_number)}.extract.md"
+
+
+def baseline_path(run: Path, submission: str, round_number: int = 1) -> Path:
+    return run / "aar" / f"{_round_stem(submission, round_number)}.baseline.json"
+
+
+def _review_round_numbers(run: Path, submission: str) -> tuple[int, ...]:
+    root = run / "aar"
+    if not root.is_dir():
+        return ()
+    safe = re.escape(_safe_submission(submission))
+    pattern = re.compile(
+        rf"^{safe}(?:\.round-(?P<round>[1-9][0-9]*))?"
+        rf"(?:\.extract\.md|\.baseline\.json|\.md)$"
+    )
+    numbers: set[int] = set()
+    for path in root.iterdir():
+        if not path.is_file():
+            continue
+        match = pattern.fullmatch(path.name)
+        if match:
+            numbers.add(int(match.group("round") or "1"))
+    return tuple(sorted(numbers))
+
+
+def _next_review_round(run: Path, submission: str) -> int:
+    existing = _review_round_numbers(run, submission)
+    return existing[-1] + 1 if existing else 1
+
+
+def _posted_reading_block(run: Path, submission: str) -> str:
+    path = run / "reread.md"
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as exc:
+        raise ValueError(
+            f"reread.md has no REREAD record for {submission}"
+        ) from exc
+    matches = [
+        match
+        for match in REREAD_BLOCK.finditer(text)
+        if match.group("artifact").strip() == submission
+    ]
+    if len(matches) != 1:
+        raise ValueError(
+            f"reread.md must have exactly one REREAD record for {submission}"
+        )
+    return matches[0].group(0).strip()
+
+
+def _posted_reading_fingerprint(run: Path, submission: str) -> str:
+    return sha256(_posted_reading_block(run, submission).encode("utf-8")).hexdigest()
 
 
 def orphan_paths(run: Path) -> tuple[Path, ...]:
@@ -872,10 +938,12 @@ def write_extract(
     submission: str,
     memory_index: Path,
 ) -> tuple[Path, int]:
+    posted_reading_fingerprint = _posted_reading_fingerprint(run, submission)
     population, transcripts = collect_population(run, transcript)
     if not population:
         raise ValueError("candidate population is empty")
-    destination = extract_path(run, submission)
+    round_number = _next_review_round(run, submission)
+    destination = extract_path(run, submission, round_number)
     destination.parent.mkdir(parents=True, exist_ok=True)
     diagnostics = extract_diagnostics(transcripts, population)
     lines = [
@@ -883,6 +951,7 @@ def write_extract(
         "FORMAT: 2",
         "EXTRACTED-AT: " + datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         f"SUBMISSION: {submission}",
+        f"POSTED-READING-FINGERPRINT: {posted_reading_fingerprint}",
         "TRANSCRIPTS: " + ", ".join(path.stem for path in transcripts),
         "TRANSCRIPT-PATHS: " + " | ".join(str(path.resolve()) for path in transcripts),
         f"POPULATION: {len(population)}",
@@ -918,7 +987,7 @@ def write_extract(
             ]
         )
     destination.write_text("\n".join(lines), encoding="utf-8")
-    baseline_path(run, submission).write_text(
+    baseline_path(run, submission, round_number).write_text(
         json.dumps(snapshot(memory_index), sort_keys=True) + "\n",
         encoding="utf-8",
     )
@@ -998,6 +1067,9 @@ def _extract_metadata(path: Path) -> tuple[dict[str, str], set[str]]:
         raise ValueError("extract header has no blank-line terminator") from exc
     fields = _parse_fields(lines[:header_end])
     format_version = fields.get("FORMAT", "1")
+    extracted_at = fields.get("EXTRACTED-AT", "")
+    if extracted_at:
+        _utc_timestamp(extracted_at, "EXTRACTED-AT")
     if format_version == "1":
         identifiers = {
             line.partition(":")[2].strip()
@@ -1009,7 +1081,6 @@ def _extract_metadata(path: Path) -> tuple[dict[str, str], set[str]]:
         raise UnknownExtractFormat(f"unknown extract format {format_version}")
     if not fields.get("EXTRACTED-AT"):
         raise ValueError("format 2 extract has no EXTRACTED-AT field")
-    _utc_timestamp(fields["EXTRACTED-AT"], "EXTRACTED-AT")
     identifiers: set[str] = set()
     index = header_end + 1
     while index < len(lines):
@@ -1061,9 +1132,13 @@ def _utc_timestamp(value: str, label: str) -> datetime:
     return parsed.astimezone(timezone.utc)
 
 
-def _baseline(run: Path, submission: str) -> dict[str, str | None]:
+def _baseline(
+    run: Path, submission: str, round_number: int = 1
+) -> dict[str, str | None]:
     try:
-        payload = json.loads(baseline_path(run, submission).read_text(encoding="utf-8"))
+        payload = json.loads(
+            baseline_path(run, submission, round_number).read_text(encoding="utf-8")
+        )
     except (OSError, UnicodeError, json.JSONDecodeError) as exc:
         raise ValueError("baseline is absent or unreadable") from exc
     if not isinstance(payload, dict):
@@ -1130,19 +1205,21 @@ def _successful_gh_call(transcripts: Iterable[Path]) -> bool:
     return False
 
 
-def survey(run: Path, submission: str) -> Scan:
+def _survey_round(run: Path, submission: str, round_number: int) -> Scan:
     findings: list[Finding] = []
-    record_path = review_path(run, submission)
+    record_path = review_path(run, submission, round_number)
     records = int(record_path.is_file())
     if not records:
         return Scan(submission, 0, 0, 0, 0, 0, len(orphan_paths(run)), (Finding("missing-review", submission),))
     try:
         review = read_review(record_path)
-        baseline = _baseline(run, submission)
+        baseline = _baseline(run, submission, round_number)
     except ValueError as exc:
         return Scan(submission, 1, 0, 0, 0, 0, len(orphan_paths(run)), (Finding("unscannable-review", str(exc)),))
     try:
-        extract_fields, identifiers = _extract_metadata(extract_path(run, submission))
+        extract_fields, identifiers = _extract_metadata(
+            extract_path(run, submission, round_number)
+        )
     except UnknownExtractFormat:
         raise
     except ValueError as exc:
@@ -1159,6 +1236,21 @@ def survey(run: Path, submission: str) -> Scan:
         and _utc_timestamp(extracted_at, "EXTRACTED-AT")
         >= REVIEW_CLASSIFIER_ENTRY_CUTOFF
     )
+    fingerprint_cutoff = bool(extracted_at) and (
+        _utc_timestamp(extracted_at, "EXTRACTED-AT")
+        >= POSTED_READING_FINGERPRINT_CUTOFF
+    )
+    if fingerprint_cutoff:
+        recorded_fingerprint = extract_fields.get("POSTED-READING-FINGERPRINT", "")
+        try:
+            current_fingerprint = _posted_reading_fingerprint(run, submission)
+        except ValueError:
+            current_fingerprint = ""
+        if (
+            not re.fullmatch(r"[0-9a-f]{64}", recorded_fingerprint)
+            or recorded_fingerprint != current_fingerprint
+        ):
+            findings.append(Finding("posted-reading-mismatch", submission))
     if post_cutoff and not _substance(review.fields.get("CLASSIFIER-ENTRY", "")):
         findings.append(Finding("missing-classifier-entry", "CLASSIFIER-ENTRY"))
     if extract_fields.get("UNMARKED-PRIOR-REVIEWS", "0") != "0":
@@ -1253,6 +1345,36 @@ def survey(run: Path, submission: str) -> Scan:
     )
 
 
+def survey(run: Path, submission: str) -> Scan:
+    round_numbers = _review_round_numbers(run, submission) or (1,)
+    scans = tuple(
+        _survey_round(run, submission, round_number)
+        for round_number in round_numbers
+    )
+    rounds = tuple(
+        RoundScan(
+            number=round_number,
+            corrections=scan.corrections,
+            unlanded=sum(
+                finding.kind.startswith("unlanded-") for finding in scan.findings
+            ),
+        )
+        for round_number, scan in zip(round_numbers, scans)
+        if scan.records or extract_path(run, submission, round_number).is_file()
+    )
+    return Scan(
+        submission=submission,
+        records=sum(scan.records for scan in scans),
+        population=sum(scan.population for scan in scans),
+        corrections=sum(scan.corrections for scan in scans),
+        sustains=sum(scan.sustains for scan in scans),
+        unread=sum(scan.unread for scan in scans),
+        orphaned=len(orphan_paths(run)),
+        findings=tuple(finding for scan in scans for finding in scan.findings),
+        rounds=rounds,
+    )
+
+
 def format_report(scan: Scan, source: str, show: bool = False) -> str:
     lines = [
         f"after-action review over {source}",
@@ -1265,6 +1387,11 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         f"  orphaned sittings               {scan.orphaned}",
         f"  findings                        {len(scan.findings)}",
     ]
+    lines.extend(
+        f"  round {round.number} corrections {round.corrections}; "
+        f"unlanded {round.unlanded}"
+        for round in scan.rounds
+    )
     if show and scan.findings:
         lines.extend(["", "  findings (private - read, do not paste):"])
         lines.extend(f"    {row.kind}: {row.detail}" for row in scan.findings)

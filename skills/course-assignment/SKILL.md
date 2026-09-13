@@ -260,8 +260,19 @@ action. For `canvas-composer`, load `submission.html` through the declared route
 when the live assignment requires it, and serialize the Composer HTML to
 `submission-readback.html`. Compare the built and serialized HTML as the shared sheet requires. A
 non-clean comparison stops and returns to the clinician; do not switch routes or retry the load.
-Then submit, reread the posted artifact and timestamp, and record the submission URL, posted time,
-and whether the submitted carrier and deck match in the private run directory.
+Then submit and read the posted artifact back from the LMS. Append this exact record to
+`reread.md`, using the output deck stem as the heading on both submission branches:
+
+```text
+## REREAD: <deck stem>
+POST-URL: <the submitted artifact's LMS URL>
+POSTED: <the LMS's posted timestamp>
+READ: <ISO date of this reading>
+VERDICT: matches - <whether the submitted carrier and deck match>
+```
+
+Use `diverges - <what differs>` when the posted artifact does not match. A divergence stops the
+completion path for clinician direction.
 
 Invoke `/AAR` with the output deck stem as the submission key. Its completion report must say
 `the after-action review: clean`. Completion requires clean final

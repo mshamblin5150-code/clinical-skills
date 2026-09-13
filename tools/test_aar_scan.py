@@ -248,6 +248,14 @@ class CommandModes(unittest.TestCase):
             memory = root / "memory" / "MEMORY.md"
             memory.parent.mkdir()
             memory.write_text("# Index\n", encoding="utf-8")
+            (run / "reread.md").write_text(
+                "## REREAD: post-1\n"
+                "POST-URL: https://example.org/submissions/1\n"
+                "POSTED: 2026-09-13T12:00:00Z\n"
+                "READ: 2026-09-13\n"
+                "VERDICT: matches - the posted artifact was read back\n",
+                encoding="utf-8",
+            )
 
             status, stdout, stderr = invoke_main(
                 [
@@ -668,6 +676,14 @@ class SubmissionRecord(unittest.TestCase):
         self.memory.parent.mkdir()
         self.memory.write_text("# Index\n", encoding="utf-8")
         self.submission = "post-2026-09-02"
+        (self.run / "reread.md").write_text(
+            f"## REREAD: {self.submission}\n"
+            "POST-URL: https://example.org/submissions/1\n"
+            "POSTED: 2026-09-13T12:00:00Z\n"
+            "READ: 2026-09-13\n"
+            "VERDICT: matches - the posted artifact was read back\n",
+            encoding="utf-8",
+        )
 
     def tearDown(self) -> None:
         self.temporary.cleanup()
@@ -921,8 +937,14 @@ class SubmissionRecord(unittest.TestCase):
         scan = aar_scan.survey(self.run, self.submission)
         self.assertIn("unmarked-prior-review", [finding.kind for finding in scan.findings])
 
-    def write_clean(self) -> None:
-        fields, _identifiers = self.extract()
+    def write_clean(self, round_number: int = 1, *, extract: bool = True) -> None:
+        destination = aar_scan.extract_path(self.run, self.submission, round_number)
+        if extract and not destination.is_file():
+            fields, _identifiers = self.extract()
+        else:
+            fields, _identifiers = aar_scan._extract_metadata(
+                destination
+            )
         record = "\n".join(
             [
                 "# AFTER-ACTION REVIEW",
@@ -940,7 +962,200 @@ class SubmissionRecord(unittest.TestCase):
                 "",
             ]
         )
+        aar_scan.review_path(self.run, self.submission, round_number).write_text(
+            record, encoding="utf-8"
+        )
+
+    def test_extract_refuses_before_the_submission_has_a_posted_reading(self) -> None:
+        (self.run / "reread.md").unlink()
+
+        with self.assertRaisesRegex(ValueError, "REREAD"):
+            self.extract()
+
+        self.assertFalse(aar_scan.extract_path(self.run, self.submission).exists())
+
+    def test_the_exact_posted_reading_is_fingerprinted_not_the_whole_file(self) -> None:
+        self.write_clean()
+        extract = aar_scan.extract_path(self.run, self.submission)
+        fields, _identifiers = aar_scan._extract_metadata(extract)
+
+        self.assertRegex(fields["POSTED-READING-FINGERPRINT"], r"^[0-9a-f]{64}$")
+        reread = self.run / "reread.md"
+        reread.write_text(
+            reread.read_text(encoding="utf-8")
+            + "\n## REREAD: another-submission\n"
+            + "POST-URL: https://example.org/submissions/2\n"
+            + "POSTED: 2026-09-13T13:00:00Z\n"
+            + "READ: 2026-09-13\n"
+            + "VERDICT: matches - another artifact was read back\n",
+            encoding="utf-8",
+        )
+
+        self.assertNotIn(
+            "posted-reading-mismatch",
+            [finding.kind for finding in aar_scan.survey(self.run, self.submission).findings],
+        )
+
+    def test_a_changed_or_missing_posted_reading_fingerprint_fails_the_grade(self) -> None:
+        self.write_clean()
+        reread = self.run / "reread.md"
+        reread.write_text(
+            reread.read_text(encoding="utf-8").replace(
+                "the posted artifact was read back", "the posted artifact changed"
+            ),
+            encoding="utf-8",
+        )
+        self.assertIn(
+            "posted-reading-mismatch",
+            [finding.kind for finding in aar_scan.survey(self.run, self.submission).findings],
+        )
+
+    def test_a_current_extract_cannot_drop_its_format_and_fingerprint_to_look_legacy(self) -> None:
+        self.write_clean()
+        extract = aar_scan.extract_path(self.run, self.submission)
+        extract.write_text(
+            "\n".join(
+                line
+                for line in extract.read_text(encoding="utf-8").splitlines()
+                if line != "FORMAT: 2"
+                and not line.startswith("POSTED-READING-FINGERPRINT:")
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        self.assertIn(
+            "posted-reading-mismatch",
+            [finding.kind for finding in aar_scan.survey(self.run, self.submission).findings],
+        )
+
+        extract = aar_scan.extract_path(self.run, self.submission)
+        extract.write_text(
+            "\n".join(
+                line
+                for line in extract.read_text(encoding="utf-8").splitlines()
+                if not line.startswith("POSTED-READING-FINGERPRINT:")
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        self.assertIn(
+            "posted-reading-mismatch",
+            [finding.kind for finding in aar_scan.survey(self.run, self.submission).findings],
+        )
+
+    def test_a_second_round_keeps_the_first_round_and_its_landing_baseline(self) -> None:
+        fields, identifiers = self.extract()
+        event = sorted(identifiers)[0]
+        target = self.memory.parent / "landing.md"
+        first_record = "\n".join(
+            [
+                "# AFTER-ACTION REVIEW",
+                f"SUBMISSION: {self.submission}",
+                f"TRANSCRIPTS: {fields['TRANSCRIPTS']}",
+                f"POPULATION: {fields['POPULATION']}",
+                "UNREAD: 0",
+                f"WATERMARK: {fields['WATERMARK']}",
+                f"MEMORY-INDEX: {self.memory}",
+                "CLASSIFIER: fresh adversarial reader",
+                "CLASSIFIER-ENTRY: reader-1",
+                "DISAGREEMENTS: none recorded",
+                "SUSTAINS: none",
+                f"## CORRECTION: {event}",
+                "CORRECTOR: clinician",
+                "IN-ERROR: orchestrator",
+                "SUMMARY: the durable memory needed one correction",
+                "CLASSIFIER: durable memory",
+                "ORCHESTRATOR: agree - the memory was corrected",
+                "DISPOSITION: memory-write",
+                f"TARGET: {target}",
+                "LANDING: memory entry added",
+                "",
+            ]
+        )
+        aar_scan.review_path(self.run, self.submission).write_text(first_record, encoding="utf-8")
+        target.write_text("landed\n", encoding="utf-8")
+        first_extract = aar_scan.extract_path(self.run, self.submission).read_bytes()
+        first_baseline = aar_scan.baseline_path(self.run, self.submission).read_bytes()
+
+        with self.transcript.open("a", encoding="utf-8") as stream:
+            stream.write(json.dumps(row("user", "round-2", {"content": "Review again."})) + "\n")
+        destination, _count = aar_scan.write_extract(
+            self.run, self.transcript, self.submission, self.memory
+        )
+        self.assertEqual(destination, aar_scan.extract_path(self.run, self.submission, 2))
+        self.write_clean(2, extract=False)
+
+        scan = aar_scan.survey(self.run, self.submission)
+
+        self.assertEqual(scan.records, 2)
+        self.assertNotIn("unlanded-memory", [finding.kind for finding in scan.findings])
+        self.assertEqual(aar_scan.extract_path(self.run, self.submission).read_bytes(), first_extract)
+        self.assertEqual(aar_scan.baseline_path(self.run, self.submission).read_bytes(), first_baseline)
+        self.assertTrue(aar_scan.review_path(self.run, self.submission, 2).is_file())
+
+    def test_every_round_is_reported_and_an_earlier_unlanded_round_still_fails(self) -> None:
+        fields, identifiers = self.extract()
+        event = sorted(identifiers)[0]
+        target = self.memory.parent / "never-landed.md"
+        record = "\n".join(
+            [
+                "# AFTER-ACTION REVIEW",
+                f"SUBMISSION: {self.submission}",
+                f"TRANSCRIPTS: {fields['TRANSCRIPTS']}",
+                f"POPULATION: {fields['POPULATION']}",
+                "UNREAD: 0",
+                f"WATERMARK: {fields['WATERMARK']}",
+                f"MEMORY-INDEX: {self.memory}",
+                "CLASSIFIER: fresh adversarial reader",
+                "CLASSIFIER-ENTRY: reader-1",
+                "DISAGREEMENTS: none recorded",
+                "SUSTAINS: none",
+                f"## CORRECTION: {event}",
+                "CORRECTOR: clinician",
+                "IN-ERROR: orchestrator",
+                "SUMMARY: the durable memory needed one correction",
+                "CLASSIFIER: durable memory",
+                "ORCHESTRATOR: agree - the memory should be corrected",
+                "DISPOSITION: memory-write",
+                f"TARGET: {target}",
+                "LANDING: memory entry absent",
+                "",
+            ]
+        )
         aar_scan.review_path(self.run, self.submission).write_text(record, encoding="utf-8")
+        with self.transcript.open("a", encoding="utf-8") as stream:
+            stream.write(json.dumps(row("user", "round-2", {"content": "Review again."})) + "\n")
+        aar_scan.write_extract(self.run, self.transcript, self.submission, self.memory)
+        self.write_clean(2, extract=False)
+
+        scan = aar_scan.survey(self.run, self.submission)
+        report = aar_scan.format_report(scan, self.run.name)
+
+        self.assertIn("unlanded-memory", [finding.kind for finding in scan.findings])
+        self.assertIn("round 1 corrections 1; unlanded 1", report)
+        self.assertIn("round 2 corrections 0; unlanded 0", report)
+
+    def test_an_empty_current_extract_in_a_round_walking_grade_still_fails(self) -> None:
+        self.write_clean()
+        with self.transcript.open("a", encoding="utf-8") as stream:
+            stream.write(json.dumps(row("user", "round-2", {"content": "Review again."})) + "\n")
+        aar_scan.write_extract(self.run, self.transcript, self.submission, self.memory)
+        self.write_clean(2, extract=False)
+        extract = aar_scan.extract_path(self.run, self.submission, 2)
+        lines = extract.read_text(encoding="utf-8").splitlines()
+        header_end = lines.index("")
+        empty_header = [
+            "POPULATION: 0" if line.startswith("POPULATION:") else line
+            for line in lines[:header_end]
+        ]
+        extract.write_text("\n".join((*empty_header, "", "")), encoding="utf-8")
+
+        status, _stdout, _stderr = invoke_main(
+            [str(self.run), "--submission", self.submission]
+        )
+
+        self.assertEqual(status, 1)
 
     def test_missing_record_is_the_expected_row(self) -> None:
         scan = aar_scan.survey(self.run, self.submission)

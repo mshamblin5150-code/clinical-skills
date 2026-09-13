@@ -412,7 +412,7 @@ After submission, read the initial entry's Copy Link and the board's posted time
 output artifact. Append this record to the run's one `reread.md`, preserving any reply records:
 
 ```text
-## REREAD: post.md
+## REREAD: <output Markdown stem>
 POST-URL: <the initial post's own deep link>
 POSTED: <the board's posted timestamp>
 READ: <ISO date of this reading>

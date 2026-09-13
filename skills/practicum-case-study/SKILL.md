@@ -1459,7 +1459,23 @@ page. `tools/render_scan.py` guarantees only that the final exported page count 
 The `the rendered document` reader is what turns those pixels into a visually checked document;
 its substantiated verdict is required before submission.
 
-**Invoke `/AAR` before declaring the submission complete.** Use the dated output Markdown stem as the submission key. After `/AAR` exits clean, rerun the post-draft completion grader:
+After every check above is clean, show the clinician the finished artifact and selected submission
+route and wait for the explicit go-ahead. Post through the branch recorded in `bar.md`. The
+`file-upload` branch posts the `.docx`; the `canvas-composer` branch remains governed by #1154 for
+its inline size refusal, attachment fallback, and which file is graded. Once either branch has a
+posted entry, read that entry back and append this record to `<run-directory>/reread.md`:
+
+```text
+## REREAD: <output Markdown stem>
+POST-URL: <the posted entry's LMS URL>
+POSTED: <the LMS's posted timestamp>
+READ: <ISO date of this reading>
+VERDICT: matches - <what was compared with the submitted artifact>
+```
+
+Use `diverges - <what differs>` when the posted entry does not match and stop for clinician
+direction. Then invoke `/AAR` with the dated output Markdown stem as the submission key. After
+`/AAR` exits clean, rerun the post-draft completion grader:
 
 ```bash
 python tools/checks_ledger.py <checks-ledger> --submission <output-Markdown-stem>
