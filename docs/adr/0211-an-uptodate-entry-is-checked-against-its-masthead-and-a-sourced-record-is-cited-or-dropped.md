@@ -54,8 +54,15 @@ entry with the stored row and fails the run on a mismatch:
   The entry's surname decides the split, so a multi-word surname matches. Initials are not compared.
 - **Year.** The entry's year equals the year of the stored `last_updated` date.
 
-The check runs where the membership join already runs, under `--evidence`. A cited topic the store
-does not hold is already refused by the membership row, so it is not a second finding here.
+The check runs where the membership join already runs, under `--evidence`, and takes that row's gate:
+where [ADR 0212](0212-the-evidence-row-grades-only-an-ingested-file-and-an-untitled-dump-is-filed-as-a-titled-copy.md)
+ruling 1 leaves the membership row `not graded` because the named file is not in the store, this row
+prints `not graded` too. A cited topic the store does not hold is already refused by the membership
+row, so it is not a second finding here.
+
+A titled copy's titles are declared rather than graded (ADR 0212 ruling 5), and this row joins on
+them. A block given the wrong title is compared against the wrong masthead, so the row reports an
+author or year mismatch on that topic: a finding that points at the title as well as at the entry.
 
 ### 3. What stays outside the check is declared, not silent
 
