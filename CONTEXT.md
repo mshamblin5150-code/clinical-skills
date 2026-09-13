@@ -54,6 +54,18 @@ Distinct from the **Submission** it carries, and from the **Posted reading** tak
 is the only account of what a **Reply** will be marked on.
 _Avoid_: paste, upload, paste route
 
+**Peer critique**:
+The eight-heading scholarly response to one classmate's case study, carrying its own references. A
+separate graded artifact from the **Reply** the clinician leaves the same classmate on the **Board**:
+the two answer one person on two surfaces, and neither stands in for the other.
+_Avoid_: peer review, critique reply, response
+
+**Peer-review comment**:
+The comment left on a classmate's submission where the course assigns a peer review, and the surface
+a **Peer critique** is posted to. Not a **Composer**: it takes plain text, is not a board entry, and
+is what the course counts as the review having been done.
+_Avoid_: submission comment box, comment box, reply box
+
 **Graded artifact**:
 One thing a course marks on its own — a board, a case study, a quiz. What identifies it is the artifact, not the module it sits in: a module normally holds several, so a module number names where something is rather than what it is.
 _Avoid_: assignment, deliverable, submission
