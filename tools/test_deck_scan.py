@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import io
 import hashlib
+import re
 import tempfile
 import unittest
 import zipfile
@@ -158,7 +159,21 @@ class Run:
             encoding="utf-8",
         )
 
+    def write_reread(self, *, fingerprint: str | None = None) -> None:
+        digest = file_digest.sha256(self.deck) if fingerprint is None else fingerprint
+        (self.root / "reread.md").write_text(
+            f"## REREAD: {self.deck.stem}\n"
+            "POST-URL: https://example.test/submission\n"
+            "POSTED: 2026-09-13\n"
+            "READ: 2026-09-13\n"
+            f"SUBMISSION-SHA256: {digest}\n"
+            "VERDICT: matches - the submitted deck was read back from the LMS\n",
+            encoding="utf-8",
+        )
+
     def terminal(self, *, bind: bool = True) -> tuple[int, str, str]:
+        if bind and not (self.root / "reread.md").is_file():
+            self.write_reread()
         with mock.patch.object(
             scan.aar_scan,
             "completion_gate",
@@ -564,6 +579,40 @@ class TheRenderedDeckRecordNamesTheTerminalPass(unittest.TestCase):
 
         self.assertEqual(no_pass, 1)
         self.assertEqual(no_record, 1)
+
+    def test_submission_accepts_a_matching_deck_fingerprint(self):
+        with tempfile.TemporaryDirectory() as temp:
+            status, stdout, stderr = self.a_run(Path(temp)).terminal()
+
+        self.assertEqual(0, status)
+        self.assertEqual("", stderr)
+        self.assertIn("submission-fingerprint: 0", stdout)
+
+    def test_submission_refuses_a_missing_deck_fingerprint(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = self.a_run(Path(temp))
+            run.write_reread()
+            reread = run.root / "reread.md"
+            reread.write_text(
+                re.sub(r"^SUBMISSION-SHA256:.*\n", "", reread.read_text(encoding="utf-8"), flags=re.MULTILINE),
+                encoding="utf-8",
+            )
+            status, stdout, stderr = run.terminal()
+
+        self.assertEqual(1, status)
+        self.assertIn("deck findings require review", stderr)
+        self.assertIn("submission-fingerprint: 1", stdout)
+
+    def test_submission_refuses_a_deck_edited_after_the_reading(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = self.a_run(Path(temp))
+            run.write_reread()
+            run.write_deck((slide_xml("Plan", "Expansion $47,000"),))
+            status, stdout, stderr = run.terminal()
+
+        self.assertEqual(1, status)
+        self.assertIn("deck findings require review", stderr)
+        self.assertIn("submission-fingerprint: 1", stdout)
 
     def test_preflight_refuses_a_pass_without_a_fingerprint(self):
         with tempfile.TemporaryDirectory() as temp:

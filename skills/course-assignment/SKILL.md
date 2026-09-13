@@ -180,6 +180,8 @@ The rows are:
   are excluded.
 - `rendered-record`: one finding for each malformed record or failed terminal join to the deck,
   highest retained pass, slide count, PNG count, unseen count, or clean visual verdict.
+- `submission-fingerprint`: one finding when the terminal posted-reading record is missing its fingerprint
+  or its fingerprint does not match the submitted `.pptx`.
 - Heading-read enforcement uses `missing-heading-read`, `duplicate-heading-read`,
   `unread-heading-read`, `unknown-heading-read-route`, `heading-read-sentence-count`,
   `heading-read-unknown-heading`, `heading-read-dropped-heading`,
@@ -192,7 +194,9 @@ The command's reader-owned boundaries are in `deck_scan.DECLARED_LIMITS`:
 `sourced-field-completeness-unjoined`,
 `adversarial-completeness-unverified`, `image-provenance-unverified`,
 `render-scan-run-unverified`, `render-source-unproven`, and
-`adversarial-bytes-unbound`. Walk them against the finished artifact; this skill points to
+`adversarial-bytes-unbound`, `platform-repair-after-reading-unobserved`,
+`submission-without-posting-evidence-unknown`, `platform-bytes-unproven`, and
+`reader-attention-unobservable`. Walk them against the finished artifact; this skill points to
 their keys and carries no second copy of any limit sentence.
 
 ## 5. Render and inspect every slide
@@ -300,16 +304,20 @@ Then submit and read the posted artifact back from the LMS. Append this exact re
 POST-URL: <the submitted artifact's LMS URL>
 POSTED: <the LMS's posted timestamp>
 READ: <ISO date of this reading>
+SUBMISSION-SHA256: <SHA-256 of the output .pptx>
 VERDICT: matches - <whether the submitted carrier and deck match>
 ```
 
 Use `diverges - <what differs>` when the posted artifact does not match. A divergence stops the
 completion path for clinician direction.
 
-Invoke `/AAR` with the output deck stem as the submission key. Its completion report must say
+Compute the fingerprint with `python -c "from pathlib import Path; from tools.file_digest import sha256; print(sha256(Path(r'<output .pptx>')))"` and write it before `/AAR`
+extracts the record; adding or changing the line afterwards makes that review stale because
+`aar_scan` fingerprints the whole block. Invoke `/AAR`
+with the output deck stem as the submission key. Its completion report must say
 `the after-action review: clean`. Completion requires clean final
-ledger, deck, and render scans; a completed visual comparison; the clinician's submission approval;
-the posted reread; and the after-action review. Keep the signed bar, snapshots, claims,
+ledger, deck, and render scans, a walk of `deck_scan.NOT_REACHED`, a completed visual comparison, the clinician's submission approval,
+the posted reading, and the after-action review. Keep the signed bar, snapshots, claims,
 adversarial result, Composer files when present, and retained render passes together under the run directory. Remove every
 temporary per-context path; if cleanup fails, report the exact remaining path.
 

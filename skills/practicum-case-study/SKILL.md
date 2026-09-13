@@ -1405,6 +1405,7 @@ be several of them at once:
 | no retained pass, or a rendered-document record whose `PASS` does not name the highest retained pass | both the pre-go-ahead `--document` run and the `--submission` run require the highest retained pass |
 | the highest retained pass has no fingerprint, or its fingerprint differs from the output Markdown | the retained pixels were not produced from the draft being graded; re-render into a new pass |
 | any `## CHECK:` record has no `DRAFT`, or its `DRAFT` differs from the output Markdown | that row was not read against the current draft and must be rerun |
+| the submission's posted reading has no `SUBMISSION-SHA256`, or it differs from the output Markdown | the reading is not bound to the current submitted source |
 | a missing-heading-read record | the required `## HEADING-READ:` record is absent, so no final draft-to-heading reading can block the go-ahead |
 | a duplicate-heading-read record | more than one record names the expected draft, so no single final reading is authoritative |
 | an unread-heading-read record | a heading-read-shaped candidate was not read as the expected record, so the reported coverage is partial |
@@ -1564,6 +1565,10 @@ Then walk this list, by eye — none of it is mechanical:
 - The rendered-record SOURCE is declared and never proven.
 - The clinician's PDF is not tied to the Word document's bytes.
 - A check record is bound to the draft and not to claims.md or evidence.txt.
+- A platform-side repair after the recorded reading can change the submitted artifact without changing the output Markdown fingerprint.
+- The command cannot infer that an absent posted-reading record represents a live submission rather than a document that was never posted.
+- The output digest identifies the local Markdown and does not prove which bytes the learning platform retained.
+- A valid fingerprint proves file identity and cannot establish the attention or judgment behind the recorded verdict.
 
 **A rendered `.docx` is not a checked document.** `tools/docx_write.py` guarantees the file opens,
 the page numbers land and the reference list hangs on its own page. It cannot read a differential,
@@ -1583,11 +1588,15 @@ posted entry, read that entry back and append this record to `<run-directory>/re
 POST-URL: <the posted entry's LMS URL>
 POSTED: <the LMS's posted timestamp>
 READ: <ISO date of this reading>
+SUBMISSION-SHA256: <SHA-256 of the output Markdown>
 VERDICT: matches - <what was compared with the submitted artifact>
 ```
 
 Use `diverges - <what differs>` when the posted entry does not match and stop for clinician
-direction. Then invoke `/AAR` with the dated output Markdown stem as the submission key. After
+direction. Compute the fingerprint with `python -c "from pathlib import Path; from tools.file_digest import sha256; print(sha256(Path(r'<output Markdown>')))"` and write it
+before `/AAR` extracts the record; adding or changing the line afterwards makes that review stale
+because `aar_scan` fingerprints the whole block.
+Then invoke `/AAR` with the dated output Markdown stem as the submission key. After
 `/AAR` exits clean, rerun the post-draft completion grader:
 
 ```bash

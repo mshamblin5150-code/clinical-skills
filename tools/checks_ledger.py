@@ -176,6 +176,7 @@ from run_grader import NOT_GRADED
 import aar_scan
 import heading_read
 import research_ledger
+from discussion_artifact import PostedReading, read_posted_readings
 
 EXPECTED_COMPLETION_CHECKS = (aar_scan.EXPECTED_ROW,)
 from run_grader import EvidenceDisposition
@@ -237,6 +238,26 @@ DECLARED_LIMITS = (
     DeclaredLimit(
         "record-inputs-beyond-draft-unbound",
         "A check record is bound to the draft and not to claims.md or evidence.txt.",
+        EvidenceDisposition.DECLARED_READING,
+    ),
+    DeclaredLimit(
+        "platform-repair-after-reading-unobserved",
+        "A platform-side repair after the recorded reading can change the submitted artifact without changing the output Markdown fingerprint.",
+        EvidenceDisposition.DECLARED_READING,
+    ),
+    DeclaredLimit(
+        "submission-without-posting-evidence-unknown",
+        "The command cannot infer that an absent posted-reading record represents a live submission rather than a document that was never posted.",
+        EvidenceDisposition.DECLARED_READING,
+    ),
+    DeclaredLimit(
+        "platform-bytes-unproven",
+        "The output digest identifies the local Markdown and does not prove which bytes the learning platform retained.",
+        EvidenceDisposition.DECLARED_READING,
+    ),
+    DeclaredLimit(
+        "reader-attention-unobservable",
+        "A valid fingerprint proves file identity and cannot establish the attention or judgment behind the recorded verdict.",
         EvidenceDisposition.DECLARED_READING,
     ),
 )
@@ -372,6 +393,7 @@ INVALID_RENDERED_RECORD = "invalid-rendered-record"
 RENDER_PASS_MISMATCH = "render-pass-mismatch"
 DRAFT_FINGERPRINT_MISMATCH = "draft-fingerprint-mismatch"
 RENDER_FINGERPRINT_MISMATCH = "render-fingerprint-mismatch"
+SUBMISSION_FINGERPRINT = "submission-fingerprint"
 
 # Which ruling each row belongs to, so a reader knows which ticket to go and read.
 # **Spelled out rather than built from ``KINDS``**, and that is the whole of what
@@ -394,6 +416,7 @@ ROWS = {
     DRAFT_FINGERPRINT_MISMATCH: "#1020",
     RENDER_FINGERPRINT_MISMATCH: "#1020",
     **{kind: "#1032" for kind in heading_read.KINDS},
+    SUBMISSION_FINGERPRINT: "#1035",
 }
 KINDS = tuple(ROWS)
 HEADING_READ_ROWS = {kind: ROWS[kind] for kind in heading_read.KINDS}
@@ -780,6 +803,7 @@ class BoundChecksSource:
     document_bytes: bytes
     document_digest: str
     claims: tuple[research_ledger.Record, ...]
+    readings: tuple[PostedReading, ...]
 
 
 def _submission_document(submission: str) -> Path:
@@ -822,6 +846,15 @@ def _load(parsed: run_grader.Parsed) -> BoundChecksSource:
         if claims_path.is_file()
         else ""
     )
+    reread_path = path.parent / "reread.md"
+    try:
+        readings = (
+            read_posted_readings(reread_path.read_text(encoding="utf-8"))
+            if reread_path.is_file()
+            else ()
+        )
+    except (OSError, UnicodeError, ValueError) as failure:
+        raise run_grader.SourceError(f"could not read reread.md: {failure}") from failure
     return BoundChecksSource(
         path,
         text,
@@ -830,6 +863,7 @@ def _load(parsed: run_grader.Parsed) -> BoundChecksSource:
         document_bytes,
         digest,
         tuple(research_ledger.read_records(claims_text)),
+        readings,
     )
 
 
@@ -929,6 +963,29 @@ def _grade(
                         DRAFT_FINGERPRINT_MISMATCH,
                         record.check,
                         "DRAFT is missing or differs from the output Markdown; re-run this check",
+                    )
+                )
+        if submission is not None:
+            reading = next(
+                (item for item in source.readings if item.artifact == submission), None
+            )
+            if reading is None:
+                extra.append(
+                    Finding(
+                        SUBMISSION_FINGERPRINT,
+                        "the posted reading",
+                        f"reread.md has no REREAD record for {submission}",
+                    )
+                )
+            elif (
+                not reading.submission_sha256_is_valid
+                or reading.submission_sha256 != source.document_digest
+            ):
+                extra.append(
+                    Finding(
+                        SUBMISSION_FINGERPRINT,
+                        "the posted reading",
+                        f"{source.document.name} SUBMISSION-SHA256 is missing, malformed, or stale",
                     )
                 )
         scan = _add_findings(scan, extra)

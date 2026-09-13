@@ -435,6 +435,7 @@ output artifact. Append this record to the run's one `reread.md`, preserving any
 POST-URL: <the initial post's own deep link>
 POSTED: <the board's posted timestamp>
 READ: <ISO date of this reading>
+SUBMISSION-SHA256: <SHA-256 of the output Markdown>
 VERDICT: matches - <what the reading found>
 ```
 
@@ -448,7 +449,10 @@ must be 0.
 Then walk `discussion_post_scan.NOT_REACHED`, whose posted-reading row declares that reply records
 belong to the sibling grader.
 
-Now invoke `/AAR` with the output Markdown stem as the submission key. After it exits clean, rerun
+Compute `SUBMISSION-SHA256` before `/AAR` extracts the record with
+`python -c "from pathlib import Path; from tools.file_digest import sha256; print(sha256(Path(r'<output Markdown>')))"`;
+adding or changing the line after extraction makes the after-action review stale because `aar_scan`
+fingerprints the whole block. Now invoke `/AAR` with the output Markdown stem as the submission key. After it exits clean, rerun
 the same grader one final time with the same `--draft`, `--html`, and `--docx` plus
 `--submission <output-Markdown-stem>`. Its report must include `the after-action review: clean`;
 the earlier pre-post and rendered passes deliberately report that row as not graded.

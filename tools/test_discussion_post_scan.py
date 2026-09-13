@@ -15,6 +15,7 @@ import re
 import sys
 import tempfile
 import unittest
+import zipfile
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest import mock
@@ -25,6 +26,7 @@ import coursework_run
 import discussion_reply_scan as reply_scan
 import discussion_artifact as artifact
 import docx_write
+import file_digest
 import post_html
 import page_image
 from grader_conformance import EmptyPopulationInput, for_module, gate_conformance
@@ -1204,6 +1206,7 @@ REFUTATION: stands - the page addresses the cited proposition.
                 encoding="utf-8",
             )
             run.write_heading_read()
+            run.refresh_fingerprint()
             with mock.patch.object(
                 reply_scan, "read_citations", wraps=artifact.read_citations
             ) as reader, mock.patch.object(
@@ -1265,6 +1268,7 @@ class APostedInitialEntryHasItsOwnReading(unittest.TestCase):
             f"POST-URL: {self.POST_URL}\n"
             "POSTED: 2026-08-28T19:30:00-04:00\n"
             "READ: 2026-08-28\n"
+            f"SUBMISSION-SHA256: {file_digest.sha256(run.draft)}\n"
             "VERDICT: matches - The headings, paragraphs, and references are present.\n",
             encoding="utf-8",
         )
@@ -1277,6 +1281,97 @@ class APostedInitialEntryHasItsOwnReading(unittest.TestCase):
         self.assertEqual(0, status)
         self.assertEqual("", stderr)
         self.assertIn("missing-posted-reading: 0", stdout)
+
+    def test_a_missing_initial_post_fingerprint_is_a_finding(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = self.posted_run(Path(temp))
+            reread = run.root / "reread.md"
+            reread.write_text(
+                re.sub(r"^SUBMISSION-SHA256:.*\n", "", reread.read_text(encoding="utf-8"), flags=re.MULTILINE),
+                encoding="utf-8",
+            )
+            status, stdout, stderr = run.grade()
+
+        self.assertEqual(1, status)
+        self.assertEqual("", stderr)
+        self.assertIn("submission-fingerprint: 1", stdout)
+
+    def test_a_one_word_source_edit_makes_the_reading_fingerprint_stale(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = self.posted_run(Path(temp))
+            run.draft.write_text(BODY.replace("meaningful", "useful", 1), encoding="utf-8")
+            status, stdout, stderr = run.grade()
+
+        self.assertEqual(1, status)
+        self.assertEqual("", stderr)
+        self.assertIn("submission-fingerprint: 1", stdout)
+
+    def test_the_posted_reading_refuses_an_edited_html_file(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = self.posted_run(Path(temp))
+            html = run.root / "post.html"
+            html.write_text(post_html.render(BODY).replace("meaningful", "useful", 1), encoding="utf-8")
+            status, stdout, stderr = run.grade("--html", str(html), "--show")
+
+        self.assertEqual(1, status)
+        self.assertEqual("", stderr)
+        self.assertIn("submission-fingerprint", stdout)
+        self.assertIn("post.html", stdout)
+
+    def test_the_posted_reading_refuses_an_edited_docx_part(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = self.posted_run(Path(temp))
+            document = run.root / "post.docx"
+            parts = docx_write.parts(BODY)
+            parts["word/styles.xml"] = b"edited"
+            with zipfile.ZipFile(document, "w", zipfile.ZIP_DEFLATED) as archive:
+                for name, content in parts.items():
+                    archive.writestr(name, content)
+            status, stdout, stderr = run.grade("--docx", str(document), "--show")
+
+        self.assertEqual(1, status)
+        self.assertEqual("", stderr)
+        self.assertIn("submission-fingerprint", stdout)
+        self.assertIn("post.docx", stdout)
+
+    def test_the_posted_reading_accepts_unchanged_generated_carriers(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = self.posted_run(Path(temp))
+            html = run.root / "post.html"
+            document = run.root / "post.docx"
+            html.write_text(post_html.render(BODY), encoding="utf-8", newline="")
+            docx_write.write_docx(BODY, document)
+            run.record_canvas_render(html)
+            status, stdout, stderr = run.grade("--html", str(html), "--docx", str(document))
+
+        self.assertEqual(0, status)
+        self.assertEqual("", stderr)
+        self.assertIn("submission-fingerprint: 0", stdout)
+
+    def test_a_synthetic_rerender_cannot_overwrite_the_only_stale_evidence(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = self.posted_run(Path(temp))
+            html = run.root / "post.html"
+            document = run.root / "post.docx"
+            html.write_text(post_html.render(BODY), encoding="utf-8", newline="")
+            docx_write.write_docx(BODY, document)
+            run.record_canvas_render(html)
+
+            changed = BODY.replace("meaningful", "useful", 1)
+            run.draft.write_text(changed, encoding="utf-8")
+            html.write_text(post_html.render(changed), encoding="utf-8", newline="")
+            docx_write.write_docx(changed, document)
+            (run.root / "render" / "pass-1" / "post.html").write_bytes(html.read_bytes())
+
+            status, stdout, stderr = run.grade(
+                "--html", str(html), "--docx", str(document)
+            )
+
+        self.assertEqual(1, status)
+        self.assertEqual("", stderr)
+        self.assertIn("submission-fingerprint: 1", stdout)
+        self.assertIn("submission-text: 0", stdout)
+        self.assertIn("rendered-pages: 0", stdout)
 
     def test_a_reply_record_does_not_cover_the_initial_post(self):
         with tempfile.TemporaryDirectory() as temp:

@@ -40,6 +40,7 @@ from discussion_artifact import (
     strip_discussion_markers,
 )
 import run_grader
+import file_digest
 from run_grader import NOT_GRADED, EvidenceDisposition
 from research_ledger import REFUTATION_EVIDENCE_COMPLEMENT
 import aar_scan
@@ -60,6 +61,7 @@ UNTRACED_NUMBER = "untraced-number"
 MISSING_POSTED_READING = "missing-posted-reading"
 UNKNOWN_VERDICT = "unknown-verdict"
 BARE_VERDICT = "bare-verdict"
+SUBMISSION_FINGERPRINT = "submission-fingerprint"
 
 #: The floor the spec states. A critique under it has not answered eight headings.
 WORD_FLOOR_COUNT = 500
@@ -93,6 +95,7 @@ ROWS = {
     MISSING_POSTED_READING: "the posted critique has been reread and recorded",
     UNKNOWN_VERDICT: "every posted reading carries a recognized verdict",
     BARE_VERDICT: "every posted reading verdict carries substantive text",
+    SUBMISSION_FINGERPRINT: "the posted reading is bound to the current critique Markdown",
 }
 ROWS.update({kind: "the heading read agrees with critique.md and current claim headings" for kind in heading_read.KINDS})
 KINDS = tuple(ROWS)
@@ -157,6 +160,26 @@ DECLARED_LIMITS = (
         "the legacy peer-review page's display of a stored ampersand",
         "The artifact's literal-ampersand count stays reported and ungraded. The stored comment text is gradable against the plain-text source by a posted reading; the legacy page's visible entity is outside the command and classified by ADR 0204 as accepted display behavior.",
         EvidenceDisposition.BEHAVIOR,
+    ),
+    (
+        "whether a platform-side repair after the recorded reading changed the comparison",
+        "The fingerprint binds the record to critique.md, while a later platform edit can change the posted comment without changing that file.",
+        EvidenceDisposition.DECLARED_READING,
+    ),
+    (
+        "whether a run with no posting evidence was ever submitted",
+        "The command cannot infer that a missing critique record represents a live submission rather than an artifact that was never posted.",
+        EvidenceDisposition.DECLARED_READING,
+    ),
+    (
+        "whether the learning platform stored the fingerprinted bytes",
+        "The critique digest identifies the local Markdown and does not prove which bytes the learning platform retained.",
+        EvidenceDisposition.DECLARED_READING,
+    ),
+    (
+        "whether the reader actually compared the artifact",
+        "A valid fingerprint proves file identity and cannot establish the attention or judgment behind the recorded verdict.",
+        EvidenceDisposition.DECLARED_READING,
     ),
 )
 NOT_REACHED = tuple((subject, reason) for subject, reason, _ in DECLARED_LIMITS)
@@ -324,15 +347,26 @@ def _reread_findings(source: RunSource) -> tuple[Finding, ...]:
     from discussion_artifact import read_posted_readings
 
     readings = read_posted_readings(source.reread)
-    if not readings:
+    reading = next(
+        (item for item in readings if item.artifact == "critique.md"), None
+    )
+    if reading is None:
         return (Finding(MISSING_POSTED_READING, "critique.md", "no posted reading recorded"),)
     findings = []
-    for reading in readings:
-        verdict = (reading.verdict or "").strip().casefold()
-        if verdict not in RECOGNIZED_VERDICTS:
-            findings.append(Finding(UNKNOWN_VERDICT, reading.artifact, verdict or "absent"))
-        elif not (reading.verdict_detail or "").strip():
-            findings.append(Finding(BARE_VERDICT, reading.artifact, verdict))
+    verdict = (reading.verdict or "").strip().casefold()
+    if verdict not in RECOGNIZED_VERDICTS:
+        findings.append(Finding(UNKNOWN_VERDICT, reading.artifact, verdict or "absent"))
+    elif not (reading.verdict_detail or "").strip():
+        findings.append(Finding(BARE_VERDICT, reading.artifact, verdict))
+    digest = file_digest.sha256(source.path / "critique.md")
+    if not reading.submission_sha256_is_valid or reading.submission_sha256 != digest:
+        findings.append(
+            Finding(
+                SUBMISSION_FINGERPRINT,
+                reading.artifact,
+                "critique.md SUBMISSION-SHA256 is missing, malformed, or stale",
+            )
+        )
     return tuple(findings)
 
 
@@ -523,6 +557,7 @@ def grade(source: RunSource, parsed: run_grader.Parsed) -> run_grader.Grade[Scan
         MISSING_POSTED_READING,
         UNKNOWN_VERDICT,
         BARE_VERDICT,
+        SUBMISSION_FINGERPRINT,
     }
     structural_failed = any(finding.kind in structural_kinds for finding in scanned.findings)
     heading_failed = any(finding.kind in heading_read.KINDS for finding in scanned.findings)

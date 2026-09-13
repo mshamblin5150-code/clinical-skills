@@ -24,7 +24,12 @@ import heading_read
 import research_ledger
 import file_digest
 import render_pass
-from discussion_artifact import CLAIM_BLOCK, claim_record_can_certify_values
+from discussion_artifact import (
+    CLAIM_BLOCK,
+    PostedReading,
+    claim_record_can_certify_values,
+    read_posted_readings,
+)
 from discussion_post_scan import traceable_numeric_values
 from research_ledger import REFUTATION_EVIDENCE_COMPLEMENT
 
@@ -48,6 +53,7 @@ WORDS_PER_BULLET = "words-per-bullet"
 FONT_POINTS = "font-points"
 UNTRACED_FIGURE = "untraced-figure"
 RENDERED_RECORD = "rendered-record"
+SUBMISSION_FINGERPRINT = "submission-fingerprint"
 ROWS = (
     SLIDE_COUNT,
     BULLETS_PER_SLIDE,
@@ -55,6 +61,7 @@ ROWS = (
     FONT_POINTS,
     UNTRACED_FIGURE,
     RENDERED_RECORD,
+    SUBMISSION_FINGERPRINT,
 ) + heading_read.KINDS
 KINDS = ROWS
 HEADING_READ_ROWS = {kind: "the heading read agrees with the deck bytes and current claim headings" for kind in heading_read.KINDS}
@@ -118,6 +125,22 @@ DECLARED_LIMITS = (
         "adversarial-bytes-unbound",
         "adversarial.md is not bound to the deck's bytes.",
     ),
+    DeclaredLimit(
+        "platform-repair-after-reading-unobserved",
+        "A platform-side repair after the recorded reading can change the submitted artifact without changing the local deck fingerprint.",
+    ),
+    DeclaredLimit(
+        "submission-without-posting-evidence-unknown",
+        "The command cannot infer that an absent posted-reading record represents a live submission rather than a deck that was never posted.",
+    ),
+    DeclaredLimit(
+        "platform-bytes-unproven",
+        "The deck digest identifies the local PowerPoint file and does not prove which bytes the learning platform retained.",
+    ),
+    DeclaredLimit(
+        "reader-attention-unobservable",
+        "A valid fingerprint proves file identity and cannot establish the attention or judgment behind the recorded verdict.",
+    ),
 )
 NOT_REACHED = tuple(row.limit for row in DECLARED_LIMITS)
 
@@ -175,6 +198,7 @@ class Source:
     claims: str
     rendered_text: str | None
     heading_read_text: str
+    readings: tuple[PostedReading, ...]
 
 
 @dataclass(frozen=True)
@@ -310,6 +334,7 @@ def load(parsed: run_grader.Parsed) -> Source:
         raise run_grader.SourceError("--pptx needs a PowerPoint file")
     deck = Path(deck_value)
     bar_path, claims_path, rendered_path = root / "bar.md", root / "claims.md", root / "rendered.md"
+    reread_path = root / "reread.md"
     if not bar_path.is_file() or not claims_path.is_file():
         raise run_grader.SourceError("run needs bar.md and claims.md before it can be scanned")
     if not deck.is_file():
@@ -337,9 +362,53 @@ def load(parsed: run_grader.Parsed) -> Source:
         raise run_grader.SourceError(f"could not read the deck run: {failure}") from failure
     try:
         rendered_text = rendered_path.read_text(encoding="utf-8") if rendered_path.is_file() else None
-    except (OSError, UnicodeError) as failure:
-        raise run_grader.SourceError(f"could not read rendered.md: {failure}") from failure
-    return Source(root, deck, deck_bytes, bar, slides, notes, claims, rendered_text, heading_read_text)
+        readings = (
+            read_posted_readings(reread_path.read_text(encoding="utf-8"))
+            if reread_path.is_file()
+            else ()
+        )
+    except (OSError, UnicodeError, ValueError) as failure:
+        raise run_grader.SourceError(f"could not read the terminal deck records: {failure}") from failure
+    return Source(
+        root,
+        deck,
+        deck_bytes,
+        bar,
+        slides,
+        notes,
+        claims,
+        rendered_text,
+        heading_read_text,
+        readings,
+    )
+
+
+def _submission_fingerprint_findings(
+    source: Source, submission: str | None
+) -> tuple[Finding, ...]:
+    if submission is None:
+        return ()
+    reading = next(
+        (item for item in source.readings if item.artifact == submission), None
+    )
+    if reading is None:
+        return (
+            Finding(
+                SUBMISSION_FINGERPRINT,
+                None,
+                f"reread.md has no REREAD record for {submission}",
+            ),
+        )
+    digest = file_digest.sha256(source.deck)
+    if reading.submission_sha256_is_valid and reading.submission_sha256 == digest:
+        return ()
+    return (
+        Finding(
+            SUBMISSION_FINGERPRINT,
+            None,
+            f"{source.deck.name} SUBMISSION-SHA256 is missing, malformed, or stale",
+        ),
+    )
 
 
 def _rendered_records(text: str) -> tuple[RenderedRecord, ...]:
@@ -587,7 +656,9 @@ def grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
         rendered.unrecorded_passes,
         scanned.heading_reads,
         scanned.heading_read_unread,
-        scanned.findings + rendered.findings,
+        scanned.findings
+        + rendered.findings
+        + _submission_fingerprint_findings(source, _parsed.value("--submission")),
     )
     aar_failed, aar_report = aar_scan.completion_gate(
         source.root, _parsed.value("--submission")
