@@ -243,6 +243,10 @@ _Avoid_: claim, entry, source record
 The first line of a [[Claim record]]: the claim the graded document will make, including any number it will state. It is a working statement before research, corrected wherever its source does not support it, and a heading changed after its refutation is a new claim.
 _Avoid_: claim question, claim title, prompt
 
+**Dropped record**:
+A [[Claim record]] whose source the graded document was going to rest on, and no longer does, and which says why. Its research stays in the ledger; only its obligation to reach the reference list is released. A record whose claim was cut without saying so is not dropped, it is an uncited source.
+_Avoid_: unused record, orphan record, deleted claim, abandoned claim
+
 **Spend**:
 To consume a finite thing so that nothing else may consume it. A citation spends a claim record; a reply spends a source an earlier reply may then not spend again. Distinct from the looser sense of a load-bearing invocation, where a domain's real behavior is spent as the argument and nothing is used up.
 _Avoid_: use, claim, take
