@@ -243,6 +243,14 @@ _Avoid_: claim, entry, source record
 The first line of a [[Claim record]]: the claim the graded document will make, including any number it will state. It is a working statement before research, corrected wherever its source does not support it, and a heading changed after its refutation is a new claim.
 _Avoid_: claim question, claim title, prompt
 
+**Tested heading**:
+The digest of a [[Claim heading]] as it stood when its refutation was taken, kept in the refutation so that the refutation expires the moment the heading changes. Only whitespace is ignored; a change of case or punctuation is a change of claim. It says the refutation was taken against the heading now standing, never that the refuter actually tested it.
+_Avoid_: heading digest, heading hash, refuted heading, claim fingerprint
+
+**Heading read**:
+A fresh reader's pairing of every factual sentence in a finished draft with the [[Claim heading]] it rests on, taken before the go-ahead and holding only the draft and the claim ledger. A sentence no heading states is unrecorded; a sentence claiming more than its heading, or other than it, is drifted. It establishes that the draft and the ledger agree, not that either is right, and it expires when the draft or any heading it names changes.
+_Avoid_: draft-to-ledger read, draft check, claim audit, faithfulness check
+
 **Dropped record**:
 A [[Claim record]] whose source the graded document was going to rest on, and no longer does, and which says why. Its research stays in the ledger; only its obligation to reach the reference list is released. A record whose claim was cut without saying so is not dropped, it is an uncited source.
 _Avoid_: unused record, orphan record, deleted claim, abandoned claim
