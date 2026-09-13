@@ -802,7 +802,7 @@ REFUTATION: stands - the page addresses the cited proposition.
         self.assertEqual(1, len(citations))
         self.assertEqual("2024", citations[0].year)
         self.assertEqual("(42 C.F.R. § 482.13, 2024)", body[citations[0].start:citations[0].end])
-        self.assertEqual((), scan._numeric_values(body))
+        self.assertEqual((), scan.traceable_numeric_values(body))
 
     def test_the_shared_section_grammar_reads_subsections_without_taking_a_spaced_year(self):
         section = re.compile(artifact.LEGAL_SECTION_NUMBER)
@@ -839,7 +839,7 @@ REFUTATION: stands - the page addresses the cited proposition.
         ):
             with self.subTest(body=body):
                 self.assertEqual((), artifact.read_citations(body))
-                self.assertEqual(expected_numbers, scan._numeric_values(body))
+                self.assertEqual(expected_numbers, scan.traceable_numeric_values(body))
 
     def test_subsectioned_section_forms_drive_both_readers_independently(self):
         cases = (
@@ -863,7 +863,7 @@ REFUTATION: stands - the page addresses the cited proposition.
                         legal_span,
                         body[citations[0].start : citations[0].end],
                     )
-                self.assertEqual((), scan._numeric_values(body, citations))
+                self.assertEqual((), scan.traceable_numeric_values(body, citations))
 
     def test_the_ruled_legal_sources_drive_both_readers_independently(self):
         cases = (
@@ -883,7 +883,7 @@ REFUTATION: stands - the page addresses the cited proposition.
                     f"({source} § {section}, 2024)",
                     body[citations[0].start : citations[0].end],
                 )
-                self.assertEqual((), scan._numeric_values(body, citations))
+                self.assertEqual((), scan.traceable_numeric_values(body, citations))
 
     def test_a_session_law_drives_both_readers_independently(self):
         body = "The rule applies (Pub. L. No. 117-328, § 1263, 2022)."
@@ -895,7 +895,7 @@ REFUTATION: stands - the page addresses the cited proposition.
             ("publno1173281263", "2022"),
             next(iter(artifact.citation_occurrence_keys(citations)))[0],
         )
-        self.assertEqual((), scan._numeric_values(body, citations))
+        self.assertEqual((), scan.traceable_numeric_values(body, citations))
 
     def test_an_unlisted_or_bare_source_does_not_become_a_legal_citation(self):
         for body in ("The Code § 5 (2024).", "§ 5 (2024)."):
@@ -1031,7 +1031,7 @@ REFUTATION: stands - the page addresses the cited proposition.
         citations = artifact.read_citations(body, keys)
 
         self.assertEqual((), citations)
-        self.assertEqual(("2024",), scan._numeric_values(body, citations))
+        self.assertEqual(("2024",), scan.traceable_numeric_values(body, citations))
 
     def test_the_longest_matching_reference_name_wins(self):
         keys = artifact.ReferenceKeySet.exact(

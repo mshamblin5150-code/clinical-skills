@@ -41,6 +41,10 @@ class TheCourseAssignmentWorkflow(unittest.TestCase):
         self.assertIn("refutation leg attacks the reference", self.skill)
         self.assertIn("attacks the rendered artifact for records that do not exist", self.skill)
         self.assertIn("keyed to slide number", self.skill)
+        self.assertIn("value or sense differs from the claim heading", self.skill)
+        self.assertIn("qualifier appears on the same slide face as its claim", self.skill)
+        self.assertIn("speaker notes do not satisfy the qualifier", self.skill)
+        self.assertIn("heading no longer matches the slide text it sources", self.skill)
 
     def test_the_population_split_and_every_grader_row_are_written_out(self):
         self.assertIn("slide face alone", self.skill)
@@ -48,7 +52,7 @@ class TheCourseAssignmentWorkflow(unittest.TestCase):
         for row in deck_scan.ROWS:
             with self.subTest(row=row):
                 self.assertIn(f"`{row}`", self.skill)
-        self.assertIn("appears in no believed claim record", self.skill)
+        self.assertIn("appears in no believed claim-record heading", self.skill)
 
     def test_the_commands_and_render_retention_are_explicit(self):
         for command in (

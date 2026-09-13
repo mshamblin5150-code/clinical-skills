@@ -193,7 +193,7 @@ class TheDeckContainerReadsOnlyTheSlideFace(unittest.TestCase):
             run = Run(Path(temp))
             run.write_deck(
                 (slide_xml("Plan", "Build-out costs $47,000", "Lease term is two years"),),
-                (notes_xml("Narrative may exceed six words and use 12-point type."),),
+                (notes_xml("Narrative may exceed six words and use small type."),),
             )
             status, stdout, stderr = run.grade()
 
@@ -227,7 +227,7 @@ class TheDeckContainerReadsOnlyTheSlideFace(unittest.TestCase):
         self.assertIn(f"{scan.FONT_POINTS}: 1", stdout)
 
 
-class CostedClaimsReadSlidesAndSpeakerNotes(unittest.TestCase):
+class FiguresReadSlidesAndSpeakerNotes(unittest.TestCase):
     def test_the_field_completeness_residue_names_the_refutation_complement(self):
         self.assertIn(
             ", ".join(scan.REFUTATION_EVIDENCE_COMPLEMENT),
@@ -244,7 +244,58 @@ class CostedClaimsReadSlidesAndSpeakerNotes(unittest.TestCase):
 
         self.assertEqual(1, face_status)
         self.assertEqual(1, notes_status)
-        self.assertIn(f"{scan.UNTRACED_COST}: 1", stdout)
+        self.assertIn(f"{scan.UNTRACED_FIGURE}: 1", stdout)
+
+    def test_an_unrecorded_non_dollar_number_is_a_finding(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            run.write_deck((slide_xml("Plan", "Serve 325 households"),))
+            status, stdout, _ = run.grade()
+
+        self.assertEqual(1, status)
+        self.assertIn("untraced-figure: 1", stdout)
+        self.assertIn("figures           1", stdout)
+
+    def test_a_non_dollar_number_in_a_believed_claim_heading_passes(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            (run.root / "claims.md").write_text(
+                "DATE: 2026-09-02\n\n## CLAIM: The program serves 325 households.\n"
+                "STATUS: sourced\n"
+                "REFUTATION: stands - the source states this figure.\n"
+                "SECOND-ROUTE: publisher HTML -> market report PDF\n",
+                encoding="utf-8",
+            )
+            run.write_deck((slide_xml("Plan", "Serve 325 households"),))
+            status, _, _ = run.grade()
+
+        self.assertEqual(0, status)
+
+    def test_a_non_dollar_number_only_in_a_restatement_does_not_trace_the_deck(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            (run.root / "claims.md").write_text(
+                "DATE: 2026-09-02\n\n## CLAIM: The program serves local households.\n"
+                "STATUS: sourced\nRESTATEMENT: The program serves 325 households.\n"
+                "REFUTATION: stands - the source states the service population.\n"
+                "SECOND-ROUTE: publisher HTML -> market report PDF\n",
+                encoding="utf-8",
+            )
+            run.write_deck((slide_xml("Plan", "Serve 325 households"),))
+            status, stdout, _ = run.grade()
+
+        self.assertEqual(1, status)
+        self.assertIn(f"{scan.UNTRACED_FIGURE}: 1", stdout)
+
+    def test_citation_year_page_locator_and_statute_number_do_not_fire(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            run.write_deck(
+                (slide_xml("Authority (Agency, 2024)", "p. 12", "42 U.S.C. section 300"),)
+            )
+            status, _, _ = run.grade()
+
+        self.assertEqual(0, status)
 
 
     def test_recorded_costs_on_both_populations_pass(self):
@@ -280,7 +331,7 @@ class CostedClaimsReadSlidesAndSpeakerNotes(unittest.TestCase):
                     status, stdout, _ = run.grade()
 
                 self.assertEqual(1, status)
-                self.assertIn(f"{scan.UNTRACED_COST}: 1", stdout)
+                self.assertIn(f"{scan.UNTRACED_FIGURE}: 1", stdout)
 
     def test_a_sourced_standing_record_still_traces_its_cost(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -323,7 +374,7 @@ class CostedClaimsReadSlidesAndSpeakerNotes(unittest.TestCase):
             status, stdout, _ = run.grade("--show")
 
         self.assertEqual(1, status)
-        self.assertIn("$47000 appears only in a disbelieved claim record", stdout)
+        self.assertIn("47,000 appears only in a disbelieved claim record", stdout)
 
     def test_a_cost_absent_from_every_record_keeps_the_existing_detail(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -332,7 +383,7 @@ class CostedClaimsReadSlidesAndSpeakerNotes(unittest.TestCase):
             status, stdout, _ = run.grade("--show")
 
         self.assertEqual(1, status)
-        self.assertIn("$19500 has no claim record", stdout)
+        self.assertIn("19,500 has no claim record", stdout)
 
     def test_token_identity_does_not_establish_claim_support(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -362,7 +413,7 @@ class CostedClaimsReadSlidesAndSpeakerNotes(unittest.TestCase):
             status, stdout, _ = run.grade()
 
         self.assertEqual(1, status)
-        self.assertIn(f"{scan.UNTRACED_COST}: 1", stdout)
+        self.assertIn(f"{scan.UNTRACED_FIGURE}: 1", stdout)
 
     def test_ungrouped_costs_are_not_truncated_to_three_digits(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -377,7 +428,7 @@ class CostedClaimsReadSlidesAndSpeakerNotes(unittest.TestCase):
             status, stdout, _ = run.grade()
 
         self.assertEqual(1, status)
-        self.assertIn(f"{scan.UNTRACED_COST}: 1", stdout)
+        self.assertIn(f"{scan.UNTRACED_FIGURE}: 1", stdout)
 
     def test_table_text_is_in_the_container_and_claim_populations(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -387,13 +438,18 @@ class CostedClaimsReadSlidesAndSpeakerNotes(unittest.TestCase):
 
         self.assertEqual(1, status)
         self.assertIn(f"{scan.WORDS_PER_BULLET}: 1", stdout)
-        self.assertIn(f"{scan.UNTRACED_COST}: 1", stdout)
+        self.assertIn(f"{scan.UNTRACED_FIGURE}: 1", stdout)
 
 
 class TheRenderedDeckRecordNamesTheTerminalPass(unittest.TestCase):
     def a_run(self, root: Path, *, slides: int = 1) -> Run:
         run = Run(root)
-        run.write_deck(tuple(slide_xml(f"Slide {index}", "Within limit") for index in range(1, slides + 1)))
+        run.write_deck(
+            tuple(
+                slide_xml(f"Slide {chr(64 + index)}", "Within limit")
+                for index in range(1, slides + 1)
+            )
+        )
         return run
 
     def test_a_matching_highest_pass_and_clean_review_complete_the_deck(self):

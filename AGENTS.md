@@ -70,7 +70,7 @@ the current dump to that accumulated manifest population and applies the signed 
 window, waived only by the account answer in the profile.
 
 **`course-assignment` depends on committed graders.** `tools/deck_scan.py` grades its signed
-container and cost-record rows, `tools/deck_render.py` retains PowerPoint's page-faithful export and
+container and figure-record rows, `tools/deck_render.py` retains PowerPoint's page-faithful export and
 slide pixels, `tools/render_scan.py` grades final-pass coverage, and `tools/research_ledger.py`
 grades the per-run source-class and recency policy. After the install has been tried, a consumer without those commands can walk the
 deck rows and the documented research-record contract in

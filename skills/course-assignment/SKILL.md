@@ -81,7 +81,7 @@ the grader does not decide whether that reading was correct.
 ## 2. Research before production
 
 Derive the claim set from the assignment and planned deck. Include every factual assertion and
-every costed figure that may appear on a slide or in speaker notes. Create `claims.md` with a
+every figure that may appear on a slide or in speaker notes. Create `claims.md` with a
 `DATE:` header and one `## CLAIM:` record per claim:
 
 ```text
@@ -141,8 +141,14 @@ slide claims the actual site. This is a reader-owned convention, not something t
 The adversarial investor reader first reads and applies
 [sourcing.md](../_shared/reference/sourcing.md). After the deck exists, give only the rendered slide images, the speaker-note text, and `claims.md`
 to this **Second reader** under [standing rule 6](../../AGENTS.md). It attacks the rendered artifact for records that do not exist.
-It reads as the investor named by the assignment and returns every unsupported
-assertion keyed to slide number for `adversarial.md`. Research,
+It also compares each slide with the believed records behind it and reports when a figure or
+assertion's value or sense differs from the claim heading, when a record qualifier is absent, or
+when a record heading no longer matches the slide text it sources. For this check, a
+qualifier appears on the same slide face as its claim; speaker notes do not satisfy the qualifier.
+If the condition cannot fit the signed bullet limit, move or split the claim. It reads as the
+investor named by the assignment and
+returns every unsupported assertion and agreement finding keyed to slide number for
+`adversarial.md`. Correcting a stale heading creates a new claim under ADR 0208 ruling 3. Research,
 Refutation, and this adversarial read have three distinct subjects, and each may fail while the
 other two pass. Add records for supported claims or remove the assertions; never convert a miss
 into an unrecorded hedge.
@@ -165,15 +171,17 @@ The rows are:
   `WORDS-PER-BULLET`.
 - `font-points`: one finding for each slide carrying an unmeasured font run or a run violating the
   signed `FONT-POINTS` in the signed `FONT-DIRECTION`.
-- `untraced-costed-figure`: one finding for each distinct dollar value on a slide or in speaker
-  notes that appears in no believed claim record.
+- `untraced-figure`: one finding for each distinct figure on a slide or in speaker notes that
+  appears in no believed claim-record heading. Citation years, page locators, and statute numbers
+  are excluded.
 - `rendered-record`: one finding for each malformed record or failed terminal join to the deck,
   highest retained pass, slide count, PNG count, unseen count, or clean visual verdict.
 
 The default report prints counts only. `--show` exposes artifact text and remains private. Exit 0
 is clean, 1 means a finding, and 2 means the command did not completely scan the run, bar, or deck.
 The command's reader-owned boundaries are in `deck_scan.DECLARED_LIMITS`:
-`claim-support-unverified`, `sourced-field-completeness-unjoined`,
+`claim-support-unverified`, `record-slide-agreement-unverified`,
+`sourced-field-completeness-unjoined`,
 `adversarial-completeness-unverified`, `image-provenance-unverified`,
 `render-scan-run-unverified`, `render-source-unproven`, and
 `adversarial-bytes-unbound`. Walk them against the finished artifact; this skill points to

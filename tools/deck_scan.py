@@ -3,7 +3,7 @@
 
     python tools/deck_scan.py <run directory> --pptx <PowerPoint file> [--show] [--submission <key>]
 
-Container rows read only ``ppt/slides/``. The cost-claim row reads both slide
+Container rows read only ``ppt/slides/``. The figure-claim row reads both slide
 faces and ``ppt/notesSlides/``. Counts print by default because a course
 artifact can contain private material; ``--show`` exposes finding details.
 """
@@ -23,6 +23,7 @@ import aar_scan
 import file_digest
 import render_pass
 from discussion_artifact import CLAIM_BLOCK, claim_record_can_certify_values
+from discussion_post_scan import traceable_numeric_values
 from research_ledger import REFUTATION_EVIDENCE_COMPLEMENT
 
 
@@ -32,9 +33,6 @@ FIELD = re.compile(r"(?mi)^(?P<name>[A-Z][A-Z-]+)\s*:\s*(?P<value>[^\n]+?)\s*$")
 SLIDE_PART = re.compile(r"^ppt/slides/slide(?P<number>[1-9]\d*)\.xml$")
 NOTES_PART = re.compile(r"^ppt/notesSlides/notesSlide(?P<number>[1-9]\d*)\.xml$")
 WORD = re.compile(r"(?:\$?\d[\d,.]*|[A-Za-z]+(?:[-'\u2019][A-Za-z]+)*)")
-COST = re.compile(
-    r"(?<![\w$])\$\s*(?P<amount>(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d{2})?)(?![\d,])"
-)
 RENDERED_HEADER = re.compile(r"(?i)^[ \t]*#+[ \t]*RENDERED[ \t]*:[ \t]*(.*?)[ \t]*$")
 RENDERED_FIELD = re.compile(
     r"(?i)^[ \t]*(PASS|SLIDES|SOURCE|UNSEEN|READ|VERDICT)[ \t]*:[ \t]*(.*?)[ \t]*$"
@@ -46,14 +44,14 @@ SLIDE_COUNT = "slide-count"
 BULLETS_PER_SLIDE = "bullets-per-slide"
 WORDS_PER_BULLET = "words-per-bullet"
 FONT_POINTS = "font-points"
-UNTRACED_COST = "untraced-costed-figure"
+UNTRACED_FIGURE = "untraced-figure"
 RENDERED_RECORD = "rendered-record"
 ROWS = (
     SLIDE_COUNT,
     BULLETS_PER_SLIDE,
     WORDS_PER_BULLET,
     FONT_POINTS,
-    UNTRACED_COST,
+    UNTRACED_FIGURE,
     RENDERED_RECORD,
 )
 KINDS = ROWS
@@ -84,13 +82,17 @@ class DeclaredLimit:
 UNJOINED_SOURCE_FIELDS = ", ".join(REFUTATION_EVIDENCE_COMPLEMENT)
 SOURCED_FIELD_COMPLETENESS_LIMIT = DeclaredLimit(
     "sourced-field-completeness-unjoined",
-    f"A sourced record missing one or more of {UNJOINED_SOURCE_FIELDS} is still believed by the cost certifier when both refutation-evidence fields carry substance; field completeness belongs to research_ledger.",
+    f"A sourced record missing one or more of {UNJOINED_SOURCE_FIELDS} is still believed by the figure certifier when both refutation-evidence fields carry substance; field completeness belongs to research_ledger.",
 )
 
 DECLARED_LIMITS = (
     DeclaredLimit(
         "claim-support-unverified",
-        "A clean cost trace does not establish that a believed record supports the cost token read from its heading.",
+        "A clean figure trace does not establish that a believed record supports the figure read from its heading.",
+    ),
+    DeclaredLimit(
+        "record-slide-agreement-unverified",
+        "No mechanical row checks that a believed record agrees with the slide it sources; the adversarial agreement read protects only the deck the reader was given, which is not bound to the final deck until #1229.",
     ),
     SOURCED_FIELD_COMPLETENESS_LIMIT,
     DeclaredLimit(
@@ -176,7 +178,7 @@ class Scan:
     bullets_read: int
     words_read: int
     font_runs_read: int
-    costs_read: int
+    figures_read: int
     rendered_records: int
     retained_passes: int
     unrecorded_passes: int
@@ -451,18 +453,18 @@ def _rendered_grade(
     )
 
 
-def _costs(text: str) -> set[str]:
-    return {match.group("amount").replace(",", "") for match in COST.finditer(text)}
+def _figures(text: str) -> set[str]:
+    return set(traceable_numeric_values(text))
 
 
-def _claim_costs(text: str) -> tuple[set[str], set[str]]:
+def _claim_figures(text: str) -> tuple[set[str], set[str]]:
     traced: set[str] = set()
     mentioned: set[str] = set()
     for match in CLAIM_BLOCK.finditer(text):
-        amounts = _costs(match.group("block").splitlines()[0])
-        mentioned.update(amounts)
+        figures = _figures(match.group("block").splitlines()[0])
+        mentioned.update(figures)
         if claim_record_can_certify_values(match.group("block")):
-            traced.update(amounts)
+            traced.update(figures)
     return traced, mentioned
 
 
@@ -493,21 +495,21 @@ def survey(source: Source) -> Scan:
                 font_failures.append(detail)
         if font_failures:
             findings.append(Finding(FONT_POINTS, slide.number, font_failures[0]))
-    artifact_costs = _costs("\n".join([*(slide.text for slide in source.slides), *source.notes]))
-    recorded_costs, mentioned_costs = _claim_costs(source.claims)
-    for amount in sorted(artifact_costs - recorded_costs):
+    artifact_figures = _figures("\n".join([*(slide.text for slide in source.slides), *source.notes]))
+    recorded_figures, mentioned_figures = _claim_figures(source.claims)
+    for figure in sorted(artifact_figures - recorded_figures):
         detail = (
-            f"${amount} appears only in a disbelieved claim record"
-            if amount in mentioned_costs
-            else f"${amount} has no claim record"
+            f"{figure} appears only in a disbelieved claim record"
+            if figure in mentioned_figures
+            else f"{figure} has no claim record"
         )
-        findings.append(Finding(UNTRACED_COST, None, detail))
+        findings.append(Finding(UNTRACED_FIGURE, None, detail))
     return Scan(
         len(source.slides),
         bullets_read,
         words_read,
         font_runs_read,
-        len(artifact_costs),
+        len(artifact_figures),
         0,
         0,
         0,
@@ -523,7 +525,7 @@ def format_report(scan: Scan, _source: str, show: bool = False) -> str:
         f"  bullets read      {scan.bullets_read}",
         f"  words read        {scan.words_read}",
         f"  font runs read    {scan.font_runs_read}",
-        f"  costed figures    {scan.costs_read}",
+        f"  figures           {scan.figures_read}",
         f"  rendered records  {scan.rendered_records}",
         f"  retained passes   {scan.retained_passes}",
         f"  retained passes without a record {scan.unrecorded_passes}",
@@ -547,7 +549,7 @@ def grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
         scanned.bullets_read,
         scanned.words_read,
         scanned.font_runs_read,
-        scanned.costs_read,
+        scanned.figures_read,
         rendered.records,
         rendered.passes,
         rendered.unrecorded_passes,
