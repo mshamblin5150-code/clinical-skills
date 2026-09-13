@@ -1461,10 +1461,21 @@ edited #596 body. The fetch remains the caller's operation; the scanner opens
 no socket:
 
 ```powershell
+$issueProbe = Join-Path $env:RUNNER_TEMP 'tracker-issues-population.json'
+$commentProbe = Join-Path $env:RUNNER_TEMP 'tracker-comments-population.http'
+$reviewProbe = Join-Path $env:RUNNER_TEMP 'tracker-reviews-population.http'
+$population = Join-Path $env:RUNNER_TEMP 'tracker-population.json'
+gh api graphql -f owner=OWNER -f name=REPO -f query='query($owner:String!,$name:String!){repository(owner:$owner,name:$name){issues{totalCount} pullRequests{totalCount}}}' |
+  Out-File -FilePath $issueProbe -Encoding utf8
+gh api --include 'repos/OWNER/REPO/issues/comments?per_page=1&page=1' |
+  Out-File -FilePath $commentProbe -Encoding utf8
+gh api --include 'repos/OWNER/REPO/pulls/comments?per_page=1&page=1' |
+  Out-File -FilePath $reviewProbe -Encoding utf8
+python tools/tracker_population.py $issueProbe $commentProbe $reviewProbe --write $population
 $harvest = Join-Path $env:RUNNER_TEMP 'implementation-map-issues.json'
 gh api --paginate 'repos/OWNER/REPO/issues?state=all&per_page=100' |
   Out-File -FilePath $harvest -Encoding utf8
-python tools/map_scan.py $harvest
+python tools/map_scan.py $harvest --population $population
 ```
 
 Readiness and obligation findings and did-not-scan results fail after a merge;
@@ -1493,8 +1504,11 @@ those records and advances across the contiguous reviewed first-parent prefix,
 independently of the ready-ticket remainder, which every run still names.
 
 Every map overwrite takes the map's own nonblocking artifact-lock identity,
-compares the state-block hash immediately before publication, and re-validates
-against the tracker after publication. Concurrent overwrites from different
+compares the state-block hash through a fresh single-record read immediately
+before publication, and after publication re-validates against the
+process-lifetime population-gated tracker snapshot. Publication changes only
+the map body; the fresh state-hash and read-back path remains `get_issue`.
+Concurrent overwrites from different
 machines do not conflict and can clobber; the revision-chain harvest detects and
 attributes that loss after the fact rather than preventing it. A refusal
 preserves its authored outcome in an accounted scratch record whose path the run
@@ -1533,10 +1547,20 @@ The tracker scan reads the tracker's PHI shapes. This one reads **whether a body
 : "${TICKET_NUMBER:?set TICKET_NUMBER to the current ticket number}"
 H=$(python tools/scratch_work.py ticket "$TICKET_NUMBER")
 mkdir -p "$H"
+gh api graphql -f owner=OWNER -f name=REPO \
+  -f query='query($owner:String!,$name:String!){repository(owner:$owner,name:$name){issues{totalCount} pullRequests{totalCount}}}' \
+  > "$H/tracker-issues-population.json"
+gh api --include "repos/OWNER/REPO/issues/comments?per_page=1&page=1" > "$H/tracker-comments-population.http"
+gh api --include "repos/OWNER/REPO/pulls/comments?per_page=1&page=1" > "$H/tracker-reviews-population.http"
+python tools/tracker_population.py \
+  "$H/tracker-issues-population.json" "$H/tracker-comments-population.http" \
+  "$H/tracker-reviews-population.http" --write "$H/tracker-population.json"
 gh api --paginate "repos/OWNER/REPO/issues?state=all&per_page=100" > "$H/tracker-issues.json"
 gh api --paginate "repos/OWNER/REPO/issues/comments?per_page=100" > "$H/tracker-comments.json"
 gh api --paginate "repos/OWNER/REPO/pulls/comments?per_page=100" > "$H/tracker-reviews.json"
-python tools/tracker_bodies.py "$H"/tracker-*.json
+python tools/tracker_bodies.py \
+  "$H/tracker-issues.json" "$H/tracker-comments.json" "$H/tracker-reviews.json" \
+  --population "$H/tracker-population.json"
 ```
 
 **It opens no socket and writes into `scratch/`**, both on `tracker_scan.py`'s terms and for its reasons: the fetch is a documented `gh` command whose output is a file, and that file is the tracker's entire text.

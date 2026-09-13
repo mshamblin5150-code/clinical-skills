@@ -6,6 +6,8 @@ the map issue's pointer to this module, and its producer stamp. Event mode
 grades that same stamp on an edited #596 body. The complete boundary is
 ``map_scan.DECLARED_LIMITS``; its rows are not copied into this docstring or the
 maintainer documentation.
+Harvest mode also requires the independent three-surface population manifest
+written by ``tracker_population.py`` and refuses a short issues read.
 
 Exit status is 0 clean, 1 refusing findings, and 2 when the scan could not run.
 The producer-stamp row is advisory in harvest mode and refusing in changed-map
@@ -25,6 +27,7 @@ from typing import NamedTuple, Sequence
 
 from console_codec import require_python_floor, use_utf8
 import implementation_map
+import tracker_scan
 
 CLEAN = 0
 FOUND = 1
@@ -317,6 +320,7 @@ def scan_github_event(path: Path, event_name: str) -> ScanResult:
 def _arguments(argv: Sequence[str]):
     parser = argparse.ArgumentParser(description="Grade an offline issue harvest")
     parser.add_argument("harvest", nargs="?")
+    parser.add_argument("--population")
     parser.add_argument("--github-event")
     parser.add_argument("--event-name")
     parser.add_argument(
@@ -340,13 +344,49 @@ def main(argv: Sequence[str], *, repo_root: Path | None = None) -> int:
     if args.harvest and args.github_event:
         print("did not scan: choose a harvest or a GitHub event", file=sys.stderr)
         return NOT_SCANNED
+    if args.github_event and args.population:
+        print("did not scan: --population applies only to a harvest", file=sys.stderr)
+        return NOT_SCANNED
     try:
         if args.github_event:
             if not args.event_name:
                 raise ScanError("GitHub event mode needs --event-name")
             result = scan_github_event(Path(args.github_event), args.event_name)
         else:
-            rows = read_harvest(Path(args.harvest))
+            harvest = Path(args.harvest)
+            rows = read_harvest(harvest)
+            if not args.population:
+                raise ScanError(
+                    "DID NOT ESTABLISH the full harvest population -- "
+                    "pass --population <tracker-population.json>."
+                )
+            try:
+                manifest_harvest = [
+                    harvest.with_name(name)
+                    for name in sorted(tracker_scan.FULL_HARVEST_FILES)
+                ]
+                populations, short = tracker_scan.population_coverage(
+                    Path(args.population),
+                    manifest_harvest,
+                    {"tracker-issues.json": len(rows)},
+                )
+            except tracker_scan.HarvestError as error:
+                raise ScanError(
+                    "DID NOT ESTABLISH the full harvest population -- " + str(error)
+                ) from error
+            population = populations["tracker-issues.json"]
+            print(
+                f"tracker-issues.json population {population}; unread remainder "
+                f"{max(population - len(rows), 0)}; records read {len(rows)}"
+            )
+            issue_short = [
+                item for item in short if item[0] == "tracker-issues.json"
+            ]
+            if issue_short:
+                raise ScanError(
+                    "DID NOT ESTABLISH a complete harvest -- "
+                    f"{harvest.name}: {len(rows)} of population {population} record(s)."
+                )
             result = scan(rows, repo_root or Path.cwd())
     except ScanError as error:
         print(f"did not scan: {error}", file=sys.stderr)
