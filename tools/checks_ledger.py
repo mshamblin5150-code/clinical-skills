@@ -281,6 +281,11 @@ EXPECTED_CHECKS = (
     # Added on
     # [#306](https://github.com/mshamblin5150-code/clinical-skills/issues/306).
     "the clinical decisions no command reaches",
+    # A non-authoring reader walks the whole draft after one round of repairs or
+    # clinician revisions, looking for old versions left in sections that restate
+    # the changed content. Added on
+    # [#1017](https://github.com/mshamblin5150-code/clinical-skills/issues/1017).
+    "the leftovers of every change after the first draft",
     # The reader gets reconstructed text rather than the raw archive, because
     # Word draws list markers from ``numbering.xml`` and the paragraph text does
     # not contain them. Added on
@@ -316,6 +321,7 @@ SUBSTANTIATED_CLEAN = (
     "the dose against the record that sourced it",
     "the threshold sheets against this patient",
     "the clinical decisions no command reaches",
+    "the leftovers of every change after the first draft",
     "the numbering in context",
     "the rendered document",
 )
