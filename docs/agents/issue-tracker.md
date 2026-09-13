@@ -342,8 +342,9 @@ The measured denominator route is `Link rel="last"` at `per_page=1` on the
 labels endpoint; on 2026-09-12, `gh api --include
 "repos/OWNER/REPO/labels?per_page=1&page=1"` established an 18-label
 denominator, and the independent `gh api --paginate --slurp
-"repos/OWNER/REPO/labels?per_page=100" --jq 'add | length'` harvest counted 18
-label records against it.
+"repos/OWNER/REPO/labels?per_page=100" | python -c 'import json, sys;
+print(sum(len(page) for page in json.load(sys.stdin)))'` harvest counted 18 label
+records against it.
 
 Once per sweep, list every open ticket created at or after
 `tracker_filed_from.FILED_FROM_CUTOFF` whose body lacks the Filed-from line:
