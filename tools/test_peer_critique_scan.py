@@ -386,7 +386,7 @@ class EveryBehaviorLimitHasALiveHandler(unittest.TestCase):
             "TheWordCeilingIsReportedAndNeverGraded.test_a_critique_past_the_ceiling_is_clean",
             "TheWordCeilingIsReportedAndNeverGraded.test_the_ceiling_is_reported_beside_the_count",
         ),
-        "whether a literal ampersand survives the surface the critique is posted to": (
+        "the legacy peer-review page's display of a stored ampersand": (
             "TheAmpersandIsCountedAndNeverGraded.test_an_ampersand_in_the_body_is_counted",
             "TheAmpersandIsCountedAndNeverGraded.test_an_ampersand_is_not_a_finding",
         ),

@@ -85,5 +85,24 @@
   "rendered_visible_entities": 0,
   "observation": "The stored board entries did not exhibit the submission-comment-box double escape on the routes that produced them.",
   "limits": "Both boards predate the raw-editor route, no entry is a current posted measurement, and detached rendering is a proxy for the live Canvas page render. Two ampersands occurred in href values and were outside the rendered text read."
+},
+{
+  "measured_on": "2026-09-12",
+  "institution": "Bluefield",
+  "course": "NUR 5144",
+  "board": "M1 case-study peer review",
+  "theme": "the course theme active on the measurement date; its identifier was not exposed",
+  "instrument": "REST stored comment, GraphQL formatted HTML, legacy-page server HTML, and live rendered text",
+  "source_shape": "already-posted peer clinical critique carrying three ampersands in its reference list",
+  "surface": "peer-review comment",
+  "composer_surface": "not a Composer; plain-text peer-review comment",
+  "ampersand_observation": {
+    "stored_comment_text": {"real_ampersands": 3, "single_escaped_ampersands": 0, "double_escaped_ampersands": 0},
+    "formatted_html": {"real_ampersands": 0, "single_escaped_ampersands": 3, "double_escaped_ampersands": 0},
+    "legacy_page_server_html": {"real_ampersands": 0, "single_escaped_ampersands": 0, "double_escaped_ampersands": 3},
+    "legacy_page_rendered_text": {"real_ampersands": 0, "visible_entities": 3, "double_escaped_ampersands": 0}
+  },
+  "observation": "Canvas stored all three ampersands literally and its formatted HTML escaped each once. Only the legacy peer-review submission page escaped them a second time and displayed three visible entities.",
+  "limits": "Which screen the instructor grades from, which page the classmate reads, less-than and greater-than characters, and behavior outside this institution, Canvas instance, account, and date were not measured."
 }
 ]
