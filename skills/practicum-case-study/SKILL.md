@@ -567,7 +567,7 @@ usable, collect one returned record per claim before the orchestrator composes t
 ```
 DATE: 2026-08-19
 
-## CLAIM: A white count of 15,000 is within physiologic leukocytosis in pregnancy.
+## CLAIM: A white count of 15,000 is within the third-trimester reference range for normal pregnancy.
 STATUS: sourced
 SOURCE: peer-reviewed
 REFERENCE: Abbassi-Ghanavati, M., Greer, L. G., & Cunningham, F. G. (2009). Pregnancy and
@@ -578,7 +578,7 @@ RECENCY: nothing newer - searched 2026-08-19, no later reference-range table for
 RESOLVED: https://doi.org/10.1097/AOG.0b013e3181c2bde8 - read 2026-08-19
 PAGE-YEAR: 2009 - stated on the article's masthead and in the journal citation.
 REFUTATION: stands - the volume, issue and pages match the publisher's landing page, and the
-    third-trimester row is on page 1327.
+    third-trimester row on page 1327 covers 15,000 as the heading states.
 SECOND-ROUTE: publisher landing page -> journal PDF and table on page 1327
 STATED-EXPIRY: none stated
 ```
@@ -620,8 +620,8 @@ states none, and the two agree that way.
 
 **The refutation leg of this Fan-out brief applies [standing rule 6](../../AGENTS.md).** Each sourced
 claim is checked at the locator for the year, the
-volume, the numbering and the pages, and reads whether the source says what the restatement says it
-says. It also returns `SECOND-ROUTE: <research route> -> <refutation route>`. The ASCII `->`
+volume, the numbering and the pages, and reads whether the source says what the heading and
+restatement say it says. It also returns `SECOND-ROUTE: <research route> -> <refutation route>`. The ASCII `->`
 separator and both substantive halves are required, and the two normalized halves must differ.
 Before writing `paywalled`, try the clinician's authenticated Chrome route through
 `mcp__claude-in-chrome__*`; the in-app Browser pane is not that signed-in route. Refuter

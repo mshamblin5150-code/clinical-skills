@@ -2132,7 +2132,7 @@ class EveryBehaviorLimitHasALiveHandler(unittest.TestCase):
             "CitationResolutionResidues.test_the_three_declared_prefix_edges_resolve",
             "ACompletePostPasses.test_a_shortened_title_citation_resolves_to_its_claim_record",
         ),
-        "whether a believed record's restatement supports the number traced from it": (
+        "whether a believed record's heading and restatement support the number traced from it": (
             "TheMechanicalBarRowsAreGraded.test_numeric_identity_does_not_establish_restatement_support",
             "TheMechanicalBarRowsAreGraded.test_only_believed_claim_records_trace_body_numbers",
         ),

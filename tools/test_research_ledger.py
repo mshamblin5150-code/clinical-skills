@@ -56,7 +56,7 @@ AS_OF = date(2026, 8, 19)
 # A record that passes every row, so a test can change one field and know the
 # finding it gets back belongs to that field.
 CLEAN = """\
-## CLAIM: A white count of 15,000 is within physiologic leukocytosis in pregnancy.
+## CLAIM: A white count of 15,000 is within the third-trimester reference range for normal pregnancy.
 STATUS: sourced
 SOURCE: peer-reviewed
 REFERENCE: Abbassi-Ghanavati, M. (2009). Pregnancy and laboratory studies.
@@ -67,7 +67,7 @@ RECENCY: nothing newer - searched 2026-08-19, no later reference-range table exi
 RESOLVED: https://doi.org/10.1097/AOG.0b013e3181c2bde8 - read 2026-08-19
 PAGE-YEAR: 2009 - stated on the article's masthead and in the journal citation.
 REFUTATION: stands - the volume, issue and pages match the publisher's landing
-    page, and the third-trimester row is on page 1327.
+    page, and the third-trimester row on page 1327 covers 15,000 as the heading states.
 SECOND-ROUTE: publisher HTML -> journal PDF rendered at 600 dpi
 STATED-EXPIRY: none stated
 """
@@ -805,7 +805,7 @@ class ARequiredFieldIsPresentAndCarriesSomething(unittest.TestCase):
 
     def test_a_claim_heading_with_no_claim_is_a_finding(self):
         record = CLEAN.replace(
-            "## CLAIM: A white count of 15,000 is within physiologic leukocytosis in pregnancy.",
+            "## CLAIM: A white count of 15,000 is within the third-trimester reference range for normal pregnancy.",
             "## CLAIM:",
             1,
         )
@@ -834,14 +834,20 @@ class TheSourceClassComesFromTheVocabulary(unittest.TestCase):
 class TheRestatementIsNotTheClaimAgain(unittest.TestCase):
     """The cheap half of the limb #214 calls the one that matters most."""
 
+    def _record_with_claim(self, claim: str) -> str:
+        lines = CLEAN.splitlines()
+        lines[0] = f"## CLAIM: {claim}"
+        return "\n".join(lines) + "\n"
+
     def test_pasting_the_claim_back_is_a_finding(self):
         claim = "A white count of 15,000 is within physiologic leukocytosis in pregnancy."
-        record = replace_field(CLEAN, "RESTATEMENT", claim)
+        record = replace_field(self._record_with_claim(claim), "RESTATEMENT", claim)
         self.assertIn(ledger.RESTATEMENT_ECHOES_CLAIM, kinds(ledger_text(record)))
 
     def test_repunctuating_the_claim_is_still_the_claim(self):
+        claim = "A white count of 15,000 is within physiologic leukocytosis in pregnancy."
         record = replace_field(
-            CLEAN,
+            self._record_with_claim(claim),
             "RESTATEMENT",
             "A white count of 15,000, is within physiologic leukocytosis in pregnancy",
         )
@@ -853,8 +859,9 @@ class TheRestatementIsNotTheClaimAgain(unittest.TestCase):
     def test_equality_only_and_never_similarity(self):
         """Anything looser would be a guess about paraphrase, and paraphrase is
         the whole point of the field."""
+        claim = "A white count of 15,000 is within physiologic leukocytosis in pregnancy."
         record = replace_field(
-            CLEAN,
+            self._record_with_claim(claim),
             "RESTATEMENT",
             "A white count of 15,000 is within physiologic leukocytosis in pregnancy, the table says.",
         )
@@ -1694,7 +1701,7 @@ class EveryRuledFanOutReadsTheSharedSourcingRules(unittest.TestCase):
         r"omit\w* (?:(?:the other|every) source fields?|the other fields)"
     )
 
-    def test_the_shared_file_contains_the_three_rules_and_no_fourth_rule(self):
+    def test_the_shared_file_contains_the_four_rules_and_no_fifth_rule(self):
         text = SOURCING.read_text(encoding="utf-8")
         flat = " ".join(text.split())
         self.assertEqual(
@@ -1703,6 +1710,7 @@ class EveryRuledFanOutReadsTheSharedSourcingRules(unittest.TestCase):
                 "A pointer is not a source",
                 "A failed read is not a negative",
                 "A sourceless record makes no claim about a source",
+                "A claim heading is the claim the document will make",
             ],
         )
         self.assertIn("Derived material may carry a sentence", flat)
@@ -1714,6 +1722,32 @@ class EveryRuledFanOutReadsTheSharedSourcingRules(unittest.TestCase):
             "A sourced claim record may certify a value only when both REFUTATION and SECOND-ROUTE carry substance",
             flat.replace("`", ""),
         )
+
+    def test_the_claim_heading_rule_and_refutation_briefs_agree(self):
+        shared = " ".join(SOURCING.read_text(encoding="utf-8").split()).replace("`", "")
+        self.assertIn("heading is the claim the finished document will make", shared)
+        self.assertIn("including any number the document will state", shared)
+        self.assertIn("heading the source does not support", shared)
+        self.assertIn("corrected", shared)
+        self.assertIn("refuted", shared)
+        self.assertIn("heading changed after its refutation is a new claim", shared)
+        self.assertIn("fresh REFUTATION and SECOND-ROUTE", shared)
+
+        enumerations = {
+            "practicum-case-study": "source says what the heading and restatement say it says",
+            "course-assignment": (
+                "attacks the reference, locator, year, bibliographic details, heading, and restatement"
+            ),
+            "discussion-reply": (
+                "prove the reference, locator, year, bibliographic details, heading, or restatement wrong"
+            ),
+        }
+        for skill, enumeration in enumerations.items():
+            with self.subTest(skill=skill):
+                text = (REPO_ROOT / "skills" / skill / "SKILL.md").read_text(
+                    encoding="utf-8"
+                )
+                self.assertIn(enumeration, " ".join(text.split()))
 
     def test_the_sourceless_record_rule_has_one_home(self):
         rule = "A sourceless record makes no claim about a source"
@@ -2383,7 +2417,7 @@ class TheFindingsComeBackInReportOrder(unittest.TestCase):
         """
         record = replace_field(CLEAN, "CLAIM", None)
         record = record.replace(
-            "## CLAIM: A white count of 15,000 is within physiologic leukocytosis in pregnancy.",
+            "## CLAIM: A white count of 15,000 is within the third-trimester reference range for normal pregnancy.",
             "## CLAIM: A second claim, whose source class is not in the vocabulary.",
         )
         record = replace_field(record, "RESTATEMENT", "The source gives a range.")
