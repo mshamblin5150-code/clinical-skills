@@ -1,6 +1,6 @@
 # A grounding claim names what was read and a falsified record is marked
 
-**Measured at:** 2f814d1f9d6e6bf0b86b6730eaab85a049531afc
+**Measured at:** 00bad566273963c75dc536b9005c8ccc5473d95d
 
 [ADR 0039](0039-a-legal-reference-entry-keys-on-both-its-name-and-its-section-and-a-narrative-citation-is-read-against-the-reference-set.md)
 line 9 grounds its in-text legal form on *"guide consensus across seven independent university
@@ -8,7 +8,8 @@ library guides"* and cites four. [#987](https://github.com/mshamblin5150-code/cl
 reports the figure, its copies, and a path in the same sentence that no longer exists. Grilled
 2026-09-12; the clinician ruled every point below on the same day. Freshness gate `FRESH` at both
 checkpoints, `main` having advanced to `2f814d1f` mid-session, where every measurement below
-re-derived unchanged. Nothing is built here; this is the record the build reads.
+re-derived unchanged, and again at `00bad566` when this record merged. Nothing is built here; this
+is the record the build reads.
 
 **The ticket is right about the sentence and wrong about three things around it**, and each was
 wrong in the direction that made the repair look bigger than it is.
@@ -63,15 +64,36 @@ never checked, 0 gone stale. The sheet carries no library guide and no Imperva c
 [ADR 0131](0131-the-shared-sheet-directory-moves-whole-and-the-mirror-gains-a-non-skill-rule.md)
 ruling 6, 2026-09-05: *"**The mentions in ratified ADRs stay.** A path in a ratified record is a
 dated statement about the tree at ratification, and editing one to keep it true would falsify the
-record."* Twelve ADR files carry the retired path and **zero** files outside `docs/adr/` do; the
-directory was scoped out deliberately. ADR 0039's mention is inline code, so that record's own
+record."* Twelve ADR files carried the retired path before this one and **zero** files outside
+`docs/adr/` did; the directory was scoped out deliberately. **This record quotes the path in order to
+rule on it and is the thirteenth**, so the population contains the record measuring it — which is
+why the figure is stated with its own membership named rather than as a bare count. ADR 0039's mention is inline code, so that record's own
 correction — a Markdown link from `docs/adr/` into a moved directory is a suite failure with no
 permitted repair — does not reach it either.
+
+**[ADR 0139](0139-a-floor-is-cited-by-api-and-symbol-and-coordinates-are-ratcheted-to-zero.md)
+ruling 2 already scopes that sentence and draws the line this record needs.** It holds that ADR 0131
+ruling 6 *"governs the paths that record's own ruling 1 was deliberately moving"* — which
+`practicum-case-study/reference/` is — and that **"a pointer is not a decision."** It also sets the
+limit that keeps this ticket small: *"This does not license editing the other 266… a mass rewrite of
+the decision log and is not ruled here."*
 
 **What ruling 6 does not cover is a clause that instructs.** ADR 0039's is
 *"That caveat travels with the claim, on `...apa7.md`'s terms"* — a live pointer, and the caveat it
 points at was retired by name and is absent from the sheet. Repointing it to
 `skills/_shared/reference/apa7.md` would resolve the path and still point at nothing.
+
+### A figure false at ratification is a third class, and ADR 0182 handed it here
+
+[ADR 0182](0182-the-refusing-check-roster-lives-in-the-hook-and-prose-keeps-only-its-own-claim.md)`:190`
+names it and declines it in the same breath: *"a figure in a ratified record that was **false when
+written** rather than made false by drift. Tense does not separate it, because it was never true;
+ADR 0131's dated-statement reading does not protect it, because it records no correct state. **It is
+out of scope here and it is #987's to rule.**"*
+
+So there are three classes, not two. ADR 0182 ruling 4's test is **tense** — drift against dated at
+ratification. ADR 0131 ruling 6's test is **dated statement** — a path that recorded a correct state.
+A figure that was wrong on the day escapes both, and ADR 0039's is one.
 
 ### ADR 0145 recounts the figure in order to revive the caveat
 
@@ -127,12 +149,23 @@ number under a word that stays false. It also leaves a figure for the next recor
 this one has been copied three times. Eliminating the figure is the only permanent answer to
 #987's own *"a fifth copy"*.
 
+**Two homes, and they are not competing.** #987's 2026-09-10 sweep comment asks that the records
+*"point them at the registry row, not restate a number"* — correct for the **ground**, which is now
+`apa7-coverage.md`'s §11.3 and §11.5 rows and `apa7.md` §8's provenance. ADR 0039 remains the home of
+the **guide reading**, which is a different claim and the one its own sentence makes. Ruling 5's
+pointers carry no number either way, so neither home can go stale into the other.
+
 ### 2. Line 9 is corrected in place under ADR 0016, with a dated line
 
 ADR 0039's rulings begin at `:45`; line 9 sits in the narrative section above them. It is
 therefore not *"the paragraph that does the deciding"* and
 [ADR 0016](0016-an-adr-number-is-claimed-when-it-is-handed-out-and-a-ratified-records-facts-may-be-corrected-in-place.md)'s
 permission applies without qualification. **No ruling of ADR 0039 changes.**
+
+**This is the third class being ruled**, and it is ruled where ADR 0182 said it would be. A figure
+false at ratification is a correctable fact: it protects no dated state, so nothing is preserved by
+leaving it, and ADR 0016's reader argument at `:52` applies to it more strongly than to a figure that
+merely drifted. Ruling 1 governs what replaces it, which for this class is preferably nothing.
 
 ### 3. The superseded grounding is marked, not edited
 
@@ -148,6 +181,11 @@ ADR 0131 ruling 6 protects the *path*; nothing protects an instruction to follow
 been retired. Repointing resolves the path and preserves a pointer to nothing, which is worse than
 a stale one because it reads as current.
 
+**ADR 0139 ruling 2 supplies the line rather than this record inventing one** — *"a pointer is not a
+decision"* — and supplies the limit that keeps the repair to one clause: it declines to license the
+same argument across the roughly 45 ratified records naming a moved path. The other eleven records
+carrying this directory state it; ADR 0039's instructs. **Only the instructing one is touched.**
+
 ### 5. ADR 0088 and ADR 0145 take different treatments
 
 ADR 0088 gets a pointer to ADR 0039's grounding, carrying **no number**, so it cannot go stale when
@@ -156,6 +194,17 @@ that *Publication Manual* §11.5 supplies the rule its ruling 5 said did not exi
 discharged the deferral on 2026-09-08, and that `:15`'s revival of the caveat falls with the
 premise. **Ruling 5's text is left as written**, being the dated record of what was decided on
 2026-09-07 — ADR 0033's arrangement, by way of ADR 0169's.
+
+**The nearer precedent is at sentence level and is worth naming.**
+[ADR 0112](0112-the-grader-membership-ratchet-grades-adoption-rather-than-source-shape-and-not-members-distinguishes-refused-from-deferred.md)
+ruling 2 holds a deciding sentence and a present-tense fact in one paragraph; #1006's branch
+corrected the fact in place with a dated line, left the deciding sentence as written, and superseded
+it from
+[ADR 0174](0174-a-refusal-is-bounded-by-the-runner-s-contract-and-a-grader-lookalike-is-its-own-kind.md).
+That is ADR 0016 applied where it says *"the paragraph that does the deciding"* and the unit is
+actually a sentence. ADR 0145 ruling 5 is that shape: a false premise and a sound deferral in one
+block. **ADR 0039 line 9 is not** — it is fact throughout, which is why ruling 2 corrects it and this
+one only marks.
 
 ### 6. #497's ruling comment is left exactly as posted
 
@@ -241,3 +290,23 @@ live ratified position and not an oversight to be swept up.
 
 **That anybody notices the next one.** Nothing checks that a ratified record's ground is still
 what it says, and ADR 0016 already declares that gap at `:64`.
+
+---
+
+*Corrected 2026-09-12, hours after ratification.* **The grilling read #987's body and not its six
+comments, so this record was published without engaging three ratified records those comments
+named** — and one of them,
+[ADR 0182](0182-the-refusing-check-roster-lives-in-the-hook-and-prose-keeps-only-its-own-claim.md)`:190`,
+had been corrected in place during its own session **specifically to hand this class to #987**. The
+additions above are the citations and the class name; **no ruling changed**, and each was checked
+against the record before it was added rather than accepted from the comment. What was added:
+ADR 0139 ruling 2 as the authority for *"a pointer is not a decision"* and for the no-mass-rewrite
+limit, in the measurement section and in ruling 4; ADR 0182's handoff and the third class, named in
+the measurement section and ruled in ruling 2; ADR 0112 and ADR 0174's sentence-level precedent in
+ruling 5; and the registry-row home in ruling 1.
+
+**A grilling that reads a ticket's body and not its comments is a partial read presented as
+complete**, which is this repository's own recurring shape arriving in a record whose subject is a
+claim nobody re-derived. Every one of the six comments was a tracker sweep, which is the mechanism
+built to catch exactly what this session missed — and two of them had already found findings this
+session re-derived independently, hours of work that reading them first would have saved.

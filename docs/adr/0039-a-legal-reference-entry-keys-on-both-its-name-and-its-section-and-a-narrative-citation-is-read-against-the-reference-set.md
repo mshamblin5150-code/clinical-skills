@@ -6,7 +6,7 @@
 
 The ticket offers three directions, all of which take the in-text citation to be the C.F.R. section — `42 C.F.R. § 414.56` — and ask how to make an APA entry resolve against it.
 
-**APA 7 does not cite a federal regulation by its section.** The in-text form is the name of the regulation and the year: parenthetical `(Protection of Human Subjects, 2009)`, narrative `Protection of Human Subjects (2009)`. This is guide consensus across seven independent university library guides ([Widener](https://widener.libguides.com/APA_7th/legalworks), [Bradley](https://bradley.libguides.com/apa7th/legal), [CCCS](https://cccs.libguides.com/c.php?g=1465210&p=10899490), [NMU](https://nmu.libguides.com/c.php?g=1434311&p=10647807)) and **not a read of APA's own page** — `apastyle.apa.org` sits behind Imperva and returned an incident ID rather than a document on 2026-08-26. That caveat travels with the claim, on `skills/practicum-case-study/reference/apa7.md`'s terms.
+**APA 7 does not cite a federal regulation by its section.** The in-text form is the name of the regulation and the year: parenthetical `(Protection of Human Subjects, 2009)`, narrative `Protection of Human Subjects (2009)`. The guide grounding does not comprise independent attestations: [Widener](https://widener.libguides.com/APA_7th/legalworks) and [CCCS](https://cccs.libguides.com/c.php?g=1465210&p=10899490) state the form directly, [Bradley](https://bradley.libguides.com/apa7th/legal) gives only the general legal in-text rule, and [NMU](https://nmu.libguides.com/c.php?g=1434311&p=10647807) carries no federal regulation example. Widener, Bradley, and CCCS reproduce the `Protection of Human Subjects` example from the *Publication Manual* §11.7 / p. 365 template, which CCCS and NMU cite by number. The finding was grounded in those pages and **not a read of APA's own page** — `apastyle.apa.org` sits behind Imperva and returned an incident ID rather than a document on 2026-08-26.
 
 So the ticket's framing is one level too low. Driven in process, the reference entry keys as:
 
@@ -129,3 +129,8 @@ Shipping A+C alone closes both limbs the ticket names and leaves the canonical f
 **The post grader's draft `References` block.** Counted, not keyed. Named in ruling 4 as pre-existing and out of scope.
 
 **Whether faculty mark the in-text spelling.** Ruling 2 declines to police it on the absence of evidence, not on evidence of absence.
+
+*Corrected 2026-09-12.* The guide-grounding sentence above formerly said *"This is guide consensus across seven independent university
+library guides."* The figure was false when written, and the linked pages are not independent attestations; [ADR 0201](0201-a-grounding-claim-names-what-was-read-and-a-falsified-record-is-marked.md) rulings 1 and 2 require the corrected reading in place under ADR 0016. **No ruling of this record changes.**
+
+*Superseded grounding marked 2026-09-12.* The statement *"and **not** a read of APA's own page"* correctly records the ground on 2026-08-26 and is left as written, but [ADR 0088](0088-a-legal-reference-is-read-by-its-section-and-never-refused-for-its-name-and-the-sheet-s-authority-is-apa-s-own-page.md) ruling 6 retired that caveat; the later *Publication Manual* read replaced the ground. The recorded Imperva result survives unchanged, as do all rulings of this record. [ADR 0201](0201-a-grounding-claim-names-what-was-read-and-a-falsified-record-is-marked.md) ruling 3 records the correction.

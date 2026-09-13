@@ -75,7 +75,7 @@ A sub-count beside the two already there, and one sentence saying a legal entry 
 
 ## Ruling 6 — the sheet's authority is APA's own page, and the library-guide caveat is retired
 
-ADR 0039 recorded `apastyle.apa.org` behind Imperva, returning an incident ID rather than a document, and grounded its legal rulings in seven university library guides. **That block is on the tooling, not on the account.** Re-derived 2026-08-30 with a screenshot and a network trace showing the `_Incapsula_Resource` call and the interstitial; the same URL opened in the maintainer's own browser with **no check at all**.
+ADR 0039 recorded `apastyle.apa.org` behind Imperva, returning an incident ID rather than a document, and grounded its legal rulings in [ADR 0039's guide reading](0039-a-legal-reference-entry-keys-on-both-its-name-and-its-section-and-a-narrative-citation-is-read-against-the-reference-set.md#the-measurement-moved-the-root-of-the-tree-above-the-tickets-own-options). **That block is on the tooling, not on the account.** Re-derived 2026-08-30 with a screenshot and a network trace showing the `_Incapsula_Resource` call and the interstitial; the same URL opened in the maintainer's own browser with **no check at all**.
 
 Passing a bot check is not an action available to an agent here, so the route is the maintainer's browser and that is a standing fact about how this repository reads APA.
 
