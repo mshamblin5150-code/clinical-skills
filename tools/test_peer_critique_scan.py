@@ -18,6 +18,7 @@ from contextlib import redirect_stdout
 from pathlib import Path
 
 import peer_critique_scan as scan
+import research_ledger
 
 SKILL = Path(__file__).resolve().parents[1] / "skills" / "peer-critique" / "SKILL.md"
 from grader_conformance import EmptyPopulationInput, for_module
@@ -40,6 +41,28 @@ REREAD = (
     "READ: 2026-09-09\n"
     "VERDICT: matches - the board text equals the artifact\n"
 )
+
+
+def claim_record(
+    number: int,
+    *,
+    status: str = "sourced",
+    refutation: str = "stands - the result was confirmed",
+    second_route: str | None = "publisher HTML -> journal PDF",
+    dropped: str | None = None,
+) -> str:
+    fields = [
+        f"## CLAIM: a claim carrying {number}",
+        f"RESTATEMENT: the result was {number}",
+        f"STATUS: {status}",
+        f"REFUTATION: {refutation}",
+        f"TESTED-HEADING: {research_ledger.heading_digest(f'a claim carrying {number}')}",
+    ]
+    if second_route is not None:
+        fields.append(f"SECOND-ROUTE: {second_route}")
+    if dropped is not None:
+        fields.append(f"DROPPED: {dropped}")
+    return "\n".join(fields) + "\n"
 
 
 def empty_population_input(root: Path) -> EmptyPopulationInput:
@@ -288,14 +311,80 @@ class TheNumericWalkMatchesTokensAndNotMeaning(unittest.TestCase):
     def test_a_number_traced_to_an_unrelated_restatement_passes(self):
         """The declared blind spot: the token matches, the meaning is unread."""
 
-        claims = "DATE: 2026-09-09\n\n## CLAIM: a claim\nRESTATEMENT: an unrelated 47 appears here\n"
+        claims = claim_record(47).replace(
+            "RESTATEMENT: the result was 47",
+            "RESTATEMENT: an unrelated 47 appears here",
+        )
         self.assertNotIn(
             scan.UNTRACED_NUMBER,
             kinds(build_run(claims=claims, extra="\n\nThe rate was 47 percent.\n")),
         )
 
     def test_a_number_absent_from_every_record_still_fails(self):
-        self.assertIn(scan.UNTRACED_NUMBER, kinds(build_run(extra="\n\nThe rate was 91 percent.\n")))
+        findings = [
+            finding
+            for finding in graded(build_run(extra="\n\nThe rate was 91 percent.\n")).findings
+            if finding.kind == scan.UNTRACED_NUMBER
+        ]
+        self.assertEqual("91 is absent from claims.md", findings[0].detail)
+
+
+class OnlyBelievedClaimRecordsCertifyBodyNumbers(unittest.TestCase):
+    def test_standing_refuted_unsourced_incomplete_and_dropped_records(self):
+        cases = {
+            "standing": (claim_record(42), False),
+            "refuted": (
+                claim_record(42, refutation="refuted - the source contradicts the claim"),
+                True,
+            ),
+            "unsourced": (claim_record(42, status="unsourced"), True),
+            "refutation-incomplete": (claim_record(42, second_route=None), True),
+            "dropped": (
+                claim_record(42, dropped="the draft no longer makes this claim"),
+                True,
+            ),
+        }
+
+        for name, (claims, should_fail) in cases.items():
+            with self.subTest(name=name):
+                findings = [
+                    finding
+                    for finding in graded(
+                        build_run(claims=claims, extra="\n\nThe rate was 42 percent.\n")
+                    ).findings
+                    if finding.kind == scan.UNTRACED_NUMBER
+                ]
+                self.assertEqual(should_fail, bool(findings))
+                if should_fail:
+                    self.assertEqual(
+                        "42 appears only in a disbelieved claim record",
+                        findings[0].detail,
+                    )
+
+    def test_report_counts_distinct_body_numerals_and_claim_records(self):
+        result = graded(
+            build_run(
+                claims=claim_record(42) + "\n" + claim_record(47),
+                extra="\n\nThe rates were 42, 42, and 47 percent.\n",
+            )
+        )
+        report = scan.format_report(result, "source")
+
+        self.assertEqual(2, result.numeric_claims)
+        self.assertEqual(2, result.claim_records)
+        self.assertIn("numeric claims: 2", report)
+        self.assertIn("claim records: 2", report)
+
+    def test_both_counts_are_not_graded_when_the_reference_boundary_is_refused(self):
+        result = graded(
+            build_run(references=REFERENCES.replace("**References**", "References"))
+        )
+        report = scan.format_report(result, "source")
+
+        self.assertIsNone(result.numeric_claims)
+        self.assertIsNone(result.claim_records)
+        self.assertIn(f"numeric claims: {scan.NOT_GRADED}", report)
+        self.assertIn(f"claim records: {scan.NOT_GRADED}", report)
 
 
 class TheCommandRefusesAnUnscannableRun(unittest.TestCase):
@@ -354,6 +443,20 @@ class TheReportRedactsUntilShow(unittest.TestCase):
 
 
 class TheDeclaredLimitsAreDerivedAndBound(unittest.TestCase):
+    def test_field_completeness_limit_is_derived_from_the_ledger_contract(self):
+        fields = ", ".join(research_ledger.REFUTATION_EVIDENCE_COMPLEMENT)
+
+        self.assertEqual(fields, scan.UNJOINED_SOURCE_FIELDS)
+        self.assertEqual(
+            (
+                f"whether a sourced record missing one or more of {fields} is still believed",
+                f"Field completeness for {fields} belongs to research_ledger; this certifier still reads numbers from a record carrying substantive refutation-evidence fields.",
+                scan.EvidenceDisposition.BEHAVIOR,
+            ),
+            scan.UNJOINED_SOURCE_FIELDS_LIMIT,
+        )
+        self.assertIn(scan.UNJOINED_SOURCE_FIELDS_LIMIT, scan.DECLARED_LIMITS)
+
     def test_not_reached_is_derived_from_declared_limits(self):
         self.assertEqual(
             tuple((subject, reason) for subject, reason, _ in scan.DECLARED_LIMITS),
@@ -405,6 +508,9 @@ class EveryBehaviorLimitHasALiveHandler(unittest.TestCase):
         "whether a believed record's heading and restatement support the number traced from it": (
             "TheNumericWalkMatchesTokensAndNotMeaning.test_a_number_traced_to_an_unrelated_restatement_passes",
             "TheNumericWalkMatchesTokensAndNotMeaning.test_a_number_absent_from_every_record_still_fails",
+        ),
+        "whether a sourced record missing one or more of SOURCE, REFERENCE, RESTATEMENT, PASSAGE, RECENCY, RESOLVED, PAGE-YEAR, STATED-EXPIRY is still believed": (
+            "OnlyBelievedClaimRecordsCertifyBodyNumbers.test_standing_refuted_unsourced_incomplete_and_dropped_records",
         ),
         "whether the critique's word count should have been cut to the stated ceiling": (
             "TheWordCeilingIsReportedAndNeverGraded.test_a_critique_past_the_ceiling_is_clean",
