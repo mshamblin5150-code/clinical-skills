@@ -10,7 +10,7 @@ That ruling decides the ticket's open question 3 before the design tree opens, a
 
 ## APA's site is reachable, and ADR 0039's caveat is a fact about the fetch tool
 
-[ADR 0039](0039-a-legal-reference-entry-keys-on-both-its-name-and-its-section-and-a-narrative-citation-is-read-against-the-reference-set.md) records that `apastyle.apa.org` *"sits behind Imperva and returned an incident ID rather than a document"*, and rests its legal rulings on seven library guides instead. Re-derived 2026-09-07: `curl` and `WebFetch` receive an Incapsula interstitial — **HTTP 200, 212 bytes, no document**, which is worse than a refusal because the status reads as success. Chrome renders the same URLs normally.
+[ADR 0039](0039-a-legal-reference-entry-keys-on-both-its-name-and-its-section-and-a-narrative-citation-is-read-against-the-reference-set.md) records that `apastyle.apa.org` *"sits behind Imperva and returned an incident ID rather than a document"*, and rests its legal rulings on [that record's guide reading](0039-a-legal-reference-entry-keys-on-both-its-name-and-its-section-and-a-narrative-citation-is-read-against-the-reference-set.md#the-measurement-moved-the-root-of-the-tree-above-the-tickets-own-options) instead. Re-derived 2026-09-07: `curl` and `WebFetch` receive an Incapsula interstitial — **HTTP 200, 212 bytes, no document**, which is worse than a refusal because the status reads as success. Chrome renders the same URLs normally.
 
 So APA's own pages are readable evidence for any future record, and a `200` from that host is not. The guide-consensus caveat travels with ADR 0039's *legal* claims for the separate reason in ruling 5, not because the site cannot be read.
 
@@ -96,6 +96,9 @@ There is no rule to check the scanner against. Settling it needs a clinician rul
 That record states *"The row's live precision is 0 of 2."* The Bible finding is now confirmed false against APA's own page. The statute finding fires on `(Consolidated Appropriations Act, 2023)`, which is non-conforming under **both** guide conventions — a true positive with a misleading message — and the correct repair under the St. Scholastica convention *also* fires. **The honest figure is 1 confirmed false and 1 undecidable until this repository rules a legal convention.**
 
 The earlier record is not edited, on the practice ADR 0135 ruling 8 states for itself: its verdict that the limb *does not cure the symptom* holds, and only the precision sentence is corrected here.
+
+
+*Corrected 2026-09-12.* **The statements *"APA publishes no legal reference examples"* and *"There is no rule to check the scanner against"* are superseded by [ADR 0201](0201-a-grounding-claim-names-what-was-read-and-a-falsified-record-is-marked.md) ruling 5 and are left as written.** *Publication Manual* §11.5 — `read-root` in `apa7-coverage.md`, checked 2026-09-08 — supplies the rule; [#941](https://github.com/mshamblin5150-code/clinical-skills/issues/941) read it and closed on it at 2026-09-08T21:52:41Z, so the earlier revival of ADR 0039's guide caveat falls with that premise. The ruling's separation of the statute root from this ticket survives unchanged.
 
 ## Ruling 6 — both graders are repaired together, from one shared grammar object
 
