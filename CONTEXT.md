@@ -312,7 +312,7 @@ The finished document handed to the course, and the only artifact here a course 
 _Avoid_: final, output, deliverable
 
 **Posted reading**:
-The record of a graded contribution as it stands on the board after submission — the board's own locator for it, the board's timestamp, and a verdict on whether what is on the board is what the artifact says. Read off the board and never off the artifact, so a run that did not go back has none rather than acquiring one. Distinct from a **Submission**, which is the document a course marks: a reply has no submission, so the posted reading is the only account of what will be marked.
+The record of a graded contribution as it stands where it was posted after submission — a course board or a clinical portal — carrying that surface's own locator for it, its timestamp, and a verdict on whether what was posted is what the artifact says. Read off the posted surface and never off the artifact, so a run that did not go back has none rather than acquiring one. It is also the hand-off an **After-action review** must follow, and its heading names the submission it belongs to. Distinct from a **Submission**, which is the document a course marks: a reply has no submission, so the posted reading is the only account of what will be marked.
 _Avoid_: reread, confirmation, post-check, board diff
 
 **Evidence dump**:
@@ -1072,6 +1072,10 @@ _Avoid_: destination, outcome, action, remedy, landing
 **After-action review**:
 The pass a skill makes over its own **sitting** once it has produced that sitting's terminal output, harvesting every **correction** and giving each one a **disposition**. Keyed to the submission and not to the run, because a run directory outlives every sitting and one record per run would be overwritten by the next sitting with nothing saying so. It runs *after* the work is handed over and before the tickets it raises are filed, so its subject is a finished thing rather than a thing in progress. Its own verdict is whether every correction landed, never whether a review was written — a written review that changed nothing is the silent pass it exists to close.
 _Avoid_: retrospective, postmortem, reflection, debrief, self-review
+
+**Review round**:
+One extract, classification, landing and record over a single **submission**. A submission can take more than one, and each keeps its own record, extract and baseline, so a later round can neither overwrite an earlier one nor re-rule the corrections it recorded; the review is finished only when every round is. Distinct from a **Sitting**, which is an occasion of working on the artifact and produces its own submission: rounds repeat inside one submission, sittings do not.
+_Avoid_: pass, rerun, second review, attempt
 
 **Envelope**:
 The wrapper a harness writes around text it delivers into a session in the shape of a typed turn — a task notification, an injected skill prompt, a compaction summary. Naming it is how an extract says *who wrote the wrapper* without claiming to know who wrote the contents, which is the whole of the distinction: a notification carrying a reader's finding is the harness's envelope around an agent's words, and reading it as the clinician speaking files an agent-sourced **correction** against the wrong **corrector**. Recognizing one is reading content rather than shape, which is permitted for labeling and refused for dropping — a wrong label is visible to the reader holding the body, a wrong drop is visible to nobody — and it is a matcher either way, so the count it fails to recognize is printed beside the count it did. **Not the sense [ADR 0157](docs/adr/0157-the-tracker-record-is-typed-and-the-publish-hook-keeps-only-tracker-policy.md) gives the word**, where an envelope is the serialization packaging around a tracker record and the question is which fields are semantic; two senses, one word, recorded here rather than left latent.
