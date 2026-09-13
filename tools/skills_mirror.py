@@ -108,7 +108,17 @@ LINE_ENDINGS = "line endings only"
 REPORTS = Path(".claude") / "skills-mirror-reports"
 ORPHANS = Path(".claude") / "skills-orphaned"
 NO_SKILLS = "no skills found under skills/"
+UNSUPPRESSED_LINES = (
+    "empty-population",
+    "broken-mirror",
+    "repair-failure",
+    "session-start-artifact",
+)
 TOOL_PATH = re.compile(r"(?<![A-Za-z0-9_])tools/([A-Za-z0-9_]+\.py)")
+
+
+def _quiet_keeps(name: str) -> bool:
+    return name in UNSUPPRESSED_LINES
 
 NOT_REACHED = (
     (
@@ -759,7 +769,6 @@ def main(argv=None) -> int:
         help="checkout to inspect (default: the one this script lives in)",
     )
     args = parser.parse_args(argv)
-
     if args.session_start:
         payload = json.load(sys.stdin)
         if "agent_id" in payload:
@@ -788,7 +797,8 @@ def main(argv=None) -> int:
             context_lines.extend(f"FAILED  {failure}" for failure in failures)
             context = "\n".join(context_lines)
         context = f"{context}\n\n{base_context(root)}"
-        print(json.dumps(hook_response(context)))
+        if _quiet_keeps("session-start-artifact"):
+            print(json.dumps(hook_response(context)))
         # SessionStart is advisory. Returning success is what lets Claude Code
         # consume the structured failure context instead of turning a fired
         # hook back into silence.
@@ -796,28 +806,31 @@ def main(argv=None) -> int:
 
     entries = inspect(root)
     if not entries:
-        print(NO_SKILLS)
+        if _quiet_keeps("empty-population"):
+            print(NO_SKILLS)
         return 2
 
     if args.repair:
         repaired, drained, failures = repair(root, entries)
         entries = inspect(root)
         broken = [entry for entry in entries if not entry.ok]
-        if broken or failures or not args.quiet:
+        if (broken and _quiet_keeps("broken-mirror")) or not args.quiet:
             for line in render(entries, root, args.verbose):
-                print(line)
+                print(line, file=sys.stderr if broken else sys.stdout)
+        if not args.quiet:
             if repaired:
                 print(f"\nrelinked {repaired} skill(s).")
             for path in drained:
                 print(f"DRAINED  {path.relative_to(root).as_posix()}")
+        if failures and _quiet_keeps("repair-failure"):
             for failure in failures:
-                print(f"FAILED  {failure}")
+                print(f"FAILED  {failure}", file=sys.stderr)
         return 1 if failures or broken else 0
 
     broken = [e for e in entries if not e.ok]
-    if broken or not args.quiet:
+    if (broken and _quiet_keeps("broken-mirror")) or not args.quiet:
         for line in render(entries, root, args.verbose):
-            print(line)
+            print(line, file=sys.stderr if broken else sys.stdout)
     return 1 if broken else 0
 
 

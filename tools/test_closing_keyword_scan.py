@@ -178,8 +178,8 @@ class GitHubPullRequestInput(unittest.TestCase):
         document = {"title": "Fix: #94", "body": ""}
         output = io.StringIO()
         with (
-            contextlib.redirect_stdout(output),
-            contextlib.redirect_stderr(io.StringIO()),
+            contextlib.redirect_stdout(io.StringIO()),
+            contextlib.redirect_stderr(output),
             mock.patch("sys.stdin", io.StringIO(json.dumps(document))),
         ):
             status = scan.main(["--github-json", "-"])

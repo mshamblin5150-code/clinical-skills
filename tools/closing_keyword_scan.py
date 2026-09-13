@@ -32,6 +32,13 @@ from typing import Any, NamedTuple
 from console_codec import require_python_floor, use_utf8
 
 
+UNSUPPRESSED_LINES = ("finding", "not-graded")
+
+
+def _quiet_keeps(name: str) -> bool:
+    return name in UNSUPPRESSED_LINES
+
+
 # The dated measurement and the deliberately wider margins are named in
 # DECLARED_LIMITS. Keep the matcher beside that declaration rather than
 # restoring a second prose grammar here.
@@ -188,13 +195,15 @@ def _read(path: str) -> str:
 
 
 def _render(findings: list[Finding], quiet: bool) -> None:
-    for finding in findings:
-        print(
-            f"closing-keyword-scan: {finding.source}:{finding.line}: "
-            f"{finding.keyword!r} would close #{finding.ticket}; reword it, or use "
-            f"'Closes #{finding.ticket}' alone on a line only when the whole "
-            "ticket is done."
-        )
+    if _quiet_keeps("finding"):
+        for finding in findings:
+            print(
+                f"closing-keyword-scan: {finding.source}:{finding.line}: "
+                f"{finding.keyword!r} would close #{finding.ticket}; reword it, or use "
+                f"'Closes #{finding.ticket}' alone on a line only when the whole "
+                "ticket is done.",
+                file=sys.stderr,
+            )
     if not findings and not quiet:
         print("closing-keyword-scan: no hazardous GitHub closing keyword found.")
 
@@ -226,7 +235,11 @@ def main(argv: list[str] | None = None) -> int:
             for path in args.paths:
                 findings.extend(scan_text(_read(path), path))
     except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as exc:
-        print(f"closing-keyword-scan: could not grade input: {exc}", file=sys.stderr)
+        if _quiet_keeps("not-graded"):
+            print(
+                f"closing-keyword-scan: could not grade input: {exc}",
+                file=sys.stderr,
+            )
         return 2
 
     _render(findings, args.quiet)

@@ -15,7 +15,7 @@ import json
 import os
 import subprocess
 import unittest
-from contextlib import nullcontext, redirect_stdout
+from contextlib import nullcontext, redirect_stderr, redirect_stdout
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
@@ -679,7 +679,7 @@ class RepairTests(TempCheckout):
 class CliTests(TempCheckout):
     def run_main(self, *argv):
         buf = io.StringIO()
-        with redirect_stdout(buf):
+        with redirect_stdout(buf), redirect_stderr(buf):
             code = sm.main([*argv, "--root", str(self.root)])
         return code, buf.getvalue()
 
@@ -719,6 +719,17 @@ class CliTests(TempCheckout):
             "origin/main movement-time read failed",
             context,
         )
+
+    def test_session_start_is_a_named_selected_artifact_under_quiet(self):
+        buf = io.StringIO()
+        payload = io.StringIO('{"hook_event_name": "SessionStart"}')
+        with patch("sys.stdin", payload), redirect_stdout(buf):
+            status = sm.main(
+                ["--session-start", "--quiet", "--root", str(self.root)]
+            )
+
+        self.assertEqual(status, 0)
+        self.assertIn("hookSpecificOutput", buf.getvalue())
 
     def test_quiet_help_names_the_empty_population_exception(self):
         buf = io.StringIO()

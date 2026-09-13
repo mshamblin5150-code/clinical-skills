@@ -310,6 +310,18 @@ from console_codec import require_python_floor, use_utf8
 from guidelines_manifest import MANIFEST_NAME, Record, serialize_record
 from repo_root import InsideCheckout, ensure_outside_checkout
 
+UNSUPPRESSED_LINES = ("failure", "not-graded")
+
+
+def _quiet_keeps(name: str) -> bool:
+    return name in UNSUPPRESSED_LINES
+
+
+def _not_graded(message: str) -> SystemExit:
+    """Class one setup refusal while preserving the command's exit-one contract."""
+    return SystemExit(message if _quiet_keeps("not-graded") else 1)
+
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 # Figures whose producers #404 deletes. Each row names why it is historical rather
@@ -1793,11 +1805,11 @@ def build_parser() -> argparse.ArgumentParser:
 def _run(args: argparse.Namespace, source_root: Path, out_root: Path) -> int:
     """Extract one corpus while ``main`` owns its shared output lock."""
     if pdf_engine.engine_version() is None:
-        raise SystemExit(pdf_engine.LEGACY_REQUIRE_MESSAGE)
+        raise _not_graded(pdf_engine.LEGACY_REQUIRE_MESSAGE)
 
     pdfs = sorted(source_root.rglob("*.pdf"), key=lambda p: p.relative_to(source_root).as_posix())
     if not pdfs:
-        raise SystemExit(f"no PDFs under {source_root}")
+        raise _not_graded(f"no PDFs under {source_root}")
 
     jobs = [(source_root, path.relative_to(source_root), out_root) for path in pdfs]
     workers = args.jobs if args.jobs > 0 else (os.cpu_count() or 1)
@@ -1843,6 +1855,12 @@ def _run(args: argparse.Namespace, source_root: Path, out_root: Path) -> int:
     manifest = write_manifest(out_root, records, source_root)
 
     failures = [record for record in records if record.error]
+    if args.quiet:
+        if failures and _quiet_keeps("failure"):
+            print(f"FAILED {len(failures)}:", file=sys.stderr)
+            for record in failures:
+                print(f"  {record.source}: {record.error}", file=sys.stderr)
+        return 1 if failures else 0
     # Every class, not only the captures. Since #185 this is the vocabulary
     # `reference/guidelines-catalog.md` publishes and `guidelines_search.py --class`
     # filters on, so the breakdown is the one command that re-derives the figures
@@ -1914,9 +1932,9 @@ def _run(args: argparse.Namespace, source_root: Path, out_root: Path) -> int:
 
     if failures:
         print()
-        print(f"FAILED {len(failures)}:")
+        print(f"FAILED {len(failures)}:", file=sys.stderr)
         for record in failures:
-            print(f"  {record.source}: {record.error}")
+            print(f"  {record.source}: {record.error}", file=sys.stderr)
         return 1
     return 0
 
@@ -1924,7 +1942,7 @@ def _run(args: argparse.Namespace, source_root: Path, out_root: Path) -> int:
 def main(argv: list[str]) -> int:
     args = build_parser().parse_args(argv)
     if not args.source.is_dir():
-        raise SystemExit(f"not a directory: {args.source}")
+        raise _not_graded(f"not a directory: {args.source}")
 
     source_root = args.source.resolve()
     # Before the dependency check, not after it. Where the output lands is a
@@ -1937,12 +1955,13 @@ def main(argv: list[str]) -> int:
             args.out or default_output(source_root), detail=WHY_OUTSIDE
         )
     except InsideCheckout as refused:
-        raise SystemExit(str(refused)) from refused
+        raise _not_graded(str(refused)) from refused
     try:
         with artifact_lock.hold(out_root, "extracting guideline text"):
             return _run(args, source_root, out_root)
     except artifact_lock.ArtifactBusy as busy:
-        print(str(busy), file=sys.stderr)
+        if _quiet_keeps("not-graded"):
+            print(str(busy), file=sys.stderr)
         return 2
 
 

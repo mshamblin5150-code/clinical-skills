@@ -934,7 +934,7 @@ class TierTwoHoldsItsResolutionDeclaration(unittest.TestCase):
                 result = gate.gate_citation_tier2(self.parsed(), root)
 
         self.assertTrue(result.skipped)
-        self.assertIn("pymupdf is not installed", "\n".join(report_lines(result)))
+        self.assertIn("pymupdf is not installed", "\n".join(stdout_lines(result)))
 
     def test_a_resolution_mention_outside_scope_cannot_satisfy_the_hold(self):
         text = HEADER.replace(
@@ -1148,8 +1148,8 @@ class CitationTier0(unittest.TestCase):
         )
 
         self.assertEqual(result.findings, [])
-        self.assertIn("NOT RUN", report_lines(result)[0])
-        self.assertIn("bound", report_lines(result)[0])
+        self.assertIn("NOT RUN", stdout_lines(result)[0])
+        self.assertIn("bound", stdout_lines(result)[0])
 
     def test_a_bound_report_derives_both_denominators_and_tier_two_skips(self):
         parsed = sheet(
@@ -1174,7 +1174,7 @@ class CitationTier0(unittest.TestCase):
             {},
         )
 
-        report = "\n".join(report_lines(result))
+        report = "\n".join(line.text for line in result.lines)
         self.assertIn("3 row(s) ungraded here", report)
         self.assertIn("2 cite a recommendation identifier", report)
         self.assertIn("all 3 keep tier 1", report)
@@ -1335,7 +1335,7 @@ class CitationTier0(unittest.TestCase):
         result = gate.gate_citation_tier0(parsed, {"src": recs}, {})
 
         self.assertTrue(any("page transcription" in item for item in result.findings))
-        self.assertIn("NOT RUN", "\n".join(report_lines(result)))
+        self.assertIn("NOT RUN", "\n".join(stdout_lines(result)))
 
     def test_an_incomplete_record_population_cannot_clean_pass_the_narrative_check(self):
         for incomplete_item in (
@@ -1350,8 +1350,8 @@ class CitationTier0(unittest.TestCase):
                 )
 
                 self.assertEqual(result.findings, [])
-                self.assertIn("NOT RUN", "\n".join(report_lines(result)))
-                self.assertIn("narrative negative check", report_lines(result)[0])
+                self.assertIn("NOT RUN", "\n".join(stdout_lines(result)))
+                self.assertIn("narrative negative check", stdout_lines(result)[0])
 
     def test_the_aaa_ever_smoker_definition_needs_no_fabricated_recommendation_id(self):
         recommendation_rows = "".join(
@@ -1419,7 +1419,7 @@ class TierZeroRenderedCounterScope(unittest.TestCase):
             },
             {},
         )
-        report = "\n".join(report_lines(result))
+        report = "\n".join(line.text for line in result.lines)
 
         self.assertIn(
             "tier 2 grades all but the 1 bound-source row(s) that declare RENDERED:",
@@ -1459,7 +1459,8 @@ class TierZeroRenderedCounterScope(unittest.TestCase):
                     for key, source in parsed.sources.items()
                 }
                 report = "\n".join(
-                    report_lines(gate.gate_citation_tier0(parsed, records, {}))
+                    line.text
+                    for line in gate.gate_citation_tier0(parsed, records, {}).lines
                 )
                 exact_rendered = sum(
                     item.source in exact
@@ -1643,7 +1644,10 @@ class NullSheetReportsAreAssertionsRatherThanEmptyPasses(unittest.TestCase):
 
         report = gate.format_report(scan)
         self.assertEqual(scan.status, 1)
-        self.assertIn("zero-row sheet still has unread span", "\n".join(scan.diagnostics))
+        self.assertIn(
+            "zero-row sheet still has unread span",
+            "\n".join(line.text for line in scan.diagnostics),
+        )
         for label in ("CITATION tier 1", "CITATION tier 2", "RANGE", "WATERMARK"):
             with self.subTest(gate=label):
                 self.assertRegex(report, rf"(?m)^\s+{re.escape(label)}\s+NO ROWS$")
@@ -1763,10 +1767,9 @@ class ExtractionIdentityGate(unittest.TestCase):
         )
 
         self.assertEqual(result.warnings, [])
-        self.assertIn("manifest is unavailable", report_lines(result)[0])
-        self.assertIn("manifest is unavailable", result.diagnostics[0])
-        self.assertIn("NOT RUN", report_lines(result)[0])
-        self.assertIn("NOT RUN", result.diagnostics[0])
+        self.assertIn("manifest is unavailable", stdout_lines(result)[0])
+        self.assertIn("NOT RUN", stdout_lines(result)[0])
+        self.assertEqual(result.diagnostics, ())
 
     def test_a_missing_text_root_gives_both_gates_the_manifest_reason(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -1798,8 +1801,8 @@ class ExtractionIdentityGate(unittest.TestCase):
             result for result in scan.results if result.gate == "EXTRACTION IDENTITY"
         )
         watermark = next(result for result in scan.results if result.gate == "WATERMARK")
-        self.assertIn(reason, report_lines(extraction_identity)[0])
-        self.assertIn(reason, report_lines(watermark)[0])
+        self.assertIn(reason, stdout_lines(extraction_identity)[0])
+        self.assertIn(reason, stdout_lines(watermark)[0])
 
     def test_survey_compares_the_sheet_with_its_text_root_manifest(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -1857,7 +1860,7 @@ class ExtractionIdentityGate(unittest.TestCase):
 
         self.assertEqual(reader.call_count, 2)
 
-    def test_all_quiet_counts_and_names_the_affected_sheets(self):
+    def test_all_quiet_has_no_unclassified_extraction_summary(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             paths = (root / "one.md", root / "two.md")
@@ -1885,7 +1888,7 @@ class ExtractionIdentityGate(unittest.TestCase):
                 status = gate.main(["--all", "--quiet"])
 
         self.assertEqual(status, 0)
-        self.assertIn("EXTRACTION IDENTITY 1 affected sheet(s): one.md", stderr.getvalue())
+        self.assertNotIn("affected sheet(s)", stderr.getvalue())
 
 
 class ACompletedScanCanBeRenderedWithoutRunningAGate(unittest.TestCase):
@@ -1901,15 +1904,36 @@ class ACompletedScanCanBeRenderedWithoutRunningAGate(unittest.TestCase):
         with self.assertRaises(dataclasses.FrozenInstanceError):
             result.gate = "other"
 
-    def test_each_line_carries_its_own_suppressibility_and_placement(self):
+    def test_each_line_carries_its_kind_and_derives_suppressibility(self):
         line = gate.Line(
             "visible in quiet mode",
-            suppressible=False,
+            kind=gate.LineKind.COVERAGE_QUALIFIER,
             placement=gate.LinePlacement.TRAILING,
         )
 
         self.assertFalse(line.suppressible)
         self.assertEqual(line.placement, gate.LinePlacement.TRAILING)
+        self.assertEqual(
+            {kind.value for kind in gate.LineKind},
+            {"finding", "coverage-qualifier", "state"},
+        )
+        self.assertTrue(gate.Line("ordinary state").suppressible)
+        self.assertFalse(
+            gate.Line("a finding", kind=gate.LineKind.FINDING).suppressible
+        )
+
+    def test_line_constructors_and_report_frame_are_classed_by_kind(self):
+        parsed = sheet(row())
+
+        state = gate._state_lines(("ordinary state",))
+        qualifiers = gate._coverage_qualifier_lines(("coverage not established",))
+        frame = (*gate._report_opening(parsed), *gate._report_footer(parsed))
+
+        self.assertEqual({line.kind for line in state + frame}, {gate.LineKind.STATE})
+        self.assertEqual(
+            {line.kind for line in qualifiers},
+            {gate.LineKind.COVERAGE_QUALIFIER},
+        )
 
     def test_format_report_only_reads_the_scan_it_is_given(self):
         parsed = sheet(row())
@@ -1925,17 +1949,62 @@ class ACompletedScanCanBeRenderedWithoutRunningAGate(unittest.TestCase):
         self.assertIn("== test-sheet.md", report)
         self.assertIn("SCHEMA          0", report)
 
-    def test_loud_cli_emission_uses_the_pure_formatter(self):
+    def test_loud_cli_emission_uses_the_typed_scan_lines(self):
         scan = gate.Scan(
             sheet=sheet(row()),
             results=(gate.GateResult("SCHEMA", lines=report_output(("  SCHEMA          0",))),),
         )
         with mock.patch.object(
-            gate, "format_report", wraps=gate.format_report
-        ) as formatter, contextlib.redirect_stdout(io.StringIO()):
+            gate, "_in_position_lines", wraps=gate._in_position_lines
+        ) as lines, contextlib.redirect_stdout(io.StringIO()):
             gate._emit_scan(scan, quiet=False)
 
-        formatter.assert_called_once_with(scan)
+        lines.assert_called_once_with(scan)
+
+    def test_diagnostic_kind_decides_stream_and_quiet_survival(self):
+        scan = gate.Scan(
+            sheet=sheet(row()),
+            diagnostics=(
+                gate.Line("ordinary provenance"),
+                gate.Line(
+                    "coverage was not established",
+                    kind=gate.LineKind.COVERAGE_QUALIFIER,
+                ),
+                gate.Line("FAIL broken", kind=gate.LineKind.FINDING),
+            ),
+        )
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            gate._emit_scan(scan, quiet=True)
+
+        self.assertNotIn("ordinary provenance", out.getvalue())
+        self.assertIn("coverage was not established", err.getvalue())
+        self.assertIn("FAIL broken", err.getvalue())
+
+    def test_a_finding_line_uses_stderr_regardless_of_placement(self):
+        scan = gate.Scan(
+            sheet=sheet(row()),
+            results=(
+                gate.GateResult(
+                    "synthetic",
+                    lines=(
+                        gate.Line("FAIL in position", kind=gate.LineKind.FINDING),
+                        gate.Line(
+                            "FAIL trailing",
+                            kind=gate.LineKind.FINDING,
+                            placement=gate.LinePlacement.TRAILING,
+                        ),
+                    ),
+                ),
+            ),
+        )
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            gate._emit_scan(scan, quiet=True)
+
+        self.assertEqual(out.getvalue(), "")
+        self.assertIn("FAIL in position", err.getvalue())
+        self.assertIn("FAIL trailing", err.getvalue())
 
 
 class CoverageGate(unittest.TestCase):
@@ -2122,7 +2191,7 @@ class CoverageGate(unittest.TestCase):
     def test_every_coverage_run_declares_the_narrative_floor(self):
         result = gate.gate_coverage(sheet(row()), {"src": self.RECS})
 
-        qualifier = "\n".join(report_lines(result))
+        qualifier = "\n".join(stdout_lines(result))
         self.assertIn("narrative row", qualifier)
         self.assertIn("outside the recommendation index", qualifier)
         self.assertIn("Scope", qualifier)
@@ -2139,7 +2208,7 @@ class CoverageGate(unittest.TestCase):
             {"src": self.RECS},
         )
 
-        self.assertIn("1 page transcription", "\n".join(report_lines(result)))
+        self.assertIn("1 page transcription", "\n".join(stdout_lines(result)))
 
     def test_it_fires_on_one_unread_item_not_only_on_total_absence(self):
         """#153's lesson, from this ticket's own comment: fire on ANY unread item.
@@ -2163,7 +2232,7 @@ class CoverageGate(unittest.TestCase):
         refusals, warnings = result.findings, result.warnings
         self.assertEqual((refusals, warnings), ([], []))
         self.assertTrue(result.not_graded)
-        self.assertIn("src", "\n".join(report_lines(result)))
+        self.assertIn("src", "\n".join(stdout_lines(result)))
 
 
 class RangeGate(unittest.TestCase):
@@ -2448,7 +2517,7 @@ class QuietSuppressesTheReportAndNeverAFinding(unittest.TestCase):
         _, out, _ = self.run_grade(True, self.BROKEN)
         self.assertIn("CITATION TIER 2 DID NOT RUN", out)
 
-    def test_all_quiet_suppresses_exactly_the_31_report_lines(self):
+    def test_all_quiet_suppresses_state_and_aggregates_each_qualifier(self):
         def stdout_for(*arguments: str) -> str:
             out, err = io.StringIO(), io.StringIO()
             with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
@@ -2461,22 +2530,64 @@ class QuietSuppressesTheReportAndNeverAFinding(unittest.TestCase):
             for path in paths:
                 path.write_text("fixture selected through --all", encoding="utf-8")
 
-            reports = (tuple(f"  one report line {index}" for index in range(7)),
-                       tuple(f"  two report line {index}" for index in range(8)))
             scans = {
                 path: gate.Scan(
                     gate.Sheet(path),
-                    (gate.GateResult("fixture", lines=report_output(report)),),
+                    (
+                        gate.GateResult(
+                            "fixture",
+                            lines=(
+                                *gate._state_lines((f"  state for {path.name}",)),
+                                *gate._coverage_qualifier_lines(
+                                    ("  WATERMARK DID NOT RUN -- synthetic reason",)
+                                ),
+                            ),
+                        ),
+                    ),
                 )
-                for path, report in zip(paths, reports, strict=True)
+                for path in paths
             }
             with mock.patch.object(gate, "SHEET_ROOT", root), mock.patch.object(
                 gate, "survey", side_effect=lambda path, *_, **__: scans[path]
             ):
-                loud = stdout_for()
                 quiet = stdout_for("--quiet")
 
-        self.assertEqual(len(loud.splitlines()) - len(quiet.splitlines()), 31)
+        self.assertNotIn("state for", quiet)
+        self.assertEqual(quiet.count("WATERMARK DID NOT RUN"), 1)
+        self.assertIn("WATERMARK DID NOT RUN for 2 of 2 sheets", quiet)
+
+    def test_all_qualifier_identity_does_not_include_its_stream(self):
+        qualifier = gate.Line(
+            "  same qualifier",
+            kind=gate.LineKind.COVERAGE_QUALIFIER,
+        )
+        scan = gate.Scan(
+            gate.Sheet(Path("one.md")),
+            (gate.GateResult("fixture", lines=(qualifier,)),),
+            diagnostics=(qualifier,),
+        )
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            status = gate._emit_all([scan], quiet=True)
+
+        self.assertEqual(status, 0)
+        self.assertEqual((out.getvalue() + err.getvalue()).count("same qualifier"), 1)
+        self.assertIn("1 of 1 sheets", out.getvalue() + err.getvalue())
+
+    def test_all_empty_population_is_a_typed_coverage_qualifier(self):
+        with tempfile.TemporaryDirectory() as directory:
+            out, err = io.StringIO(), io.StringIO()
+            with (
+                mock.patch.object(gate, "SHEET_ROOT", Path(directory)),
+                contextlib.redirect_stdout(out),
+                contextlib.redirect_stderr(err),
+            ):
+                status = gate.main(["--all", "--quiet"])
+
+        self.assertEqual(status, 2)
+        self.assertEqual(out.getvalue(), "")
+        self.assertIn("no sheet under", err.getvalue())
+        self.assertIn("0 of 0 sheets", err.getvalue())
 
     def test_all_excludes_the_topic_coverage_registry_and_subject_ledger(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -3157,9 +3268,10 @@ class ScopeSpanTable(unittest.TestCase):
         ])
         result = gate.gate_page_coverage(parsed, {"Society/doc": 60})
         self.assertEqual(result.findings, [])
-        rendered = "\n".join(stdout_lines(result))
+        rendered = "\n".join(report_lines(result))
         self.assertIn("page_count: 60", rendered)
         self.assertIn("unaccounted pages: none", rendered)
+        self.assertEqual(stdout_lines(result), ())
 
     def test_a_multi_source_span_table_must_name_its_source(self):
         text = TWO_SOURCE_HEADER.replace("**Source: `aha`**\n\n", "")
@@ -3182,7 +3294,7 @@ class ScopeSpanTable(unittest.TestCase):
         result = gate.gate_page_coverage(parsed, {"Society/doc": 60})
         self.assertEqual(len(result.findings), 1)
         self.assertIn("51", result.findings[0])
-        self.assertIn("unaccounted pages: 51", "\n".join(stdout_lines(result)))
+        self.assertIn("unaccounted pages: 51", "\n".join(report_lines(result)))
 
     def test_an_unresolved_source_page_count_is_not_graded(self):
         result = gate.gate_page_coverage(gate.parse(HEADER, Path("test-sheet.md")), {})
@@ -3820,7 +3932,7 @@ class CoverageIsPerSource(unittest.TestCase):
         sheet_ = two_source_sheet(row(rec="p1/aha/1", source="aha"))
         result = gate.gate_coverage(sheet_, {"aha": None, "kdigo": None})
         self.assertTrue(result.not_graded)
-        report = "\n".join(report_lines(result))
+        report = "\n".join(stdout_lines(result))
         self.assertIn("aha", report)
         self.assertIn("kdigo", report)
 
@@ -3833,7 +3945,7 @@ class CoverageIsPerSource(unittest.TestCase):
         )
         refusals = result.findings
         self.assertTrue(result.not_graded)
-        self.assertIn("kdigo", "\n".join(report_lines(result)))
+        self.assertIn("kdigo", "\n".join(stdout_lines(result)))
         self.assertEqual(len(refusals), 1)
         self.assertIn("p1/aha/2", refusals[0])
 
@@ -4254,14 +4366,14 @@ class TheReportNamesEverySourceItDidNotCheck(unittest.TestCase):
         + row(page="p9", rec="p9/kdigo/1", source="kdigo")
     )
 
-    def run_grade(self, arguments, recs_root=missing_root("recs")):
+    def run_grade(self, arguments, recs_root=missing_root("recs"), *, quiet=False):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "sheet.md"
             path.write_text(self.TWO, encoding="utf-8")
             out, err = io.StringIO(), io.StringIO()
             with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
                 status = grade(
-                    path, arguments, Path("C:/nowhere-at-all"), quiet=False, recs_root=recs_root
+                    path, arguments, Path("C:/nowhere-at-all"), quiet=quiet, recs_root=recs_root
                 )
             return status, out.getvalue(), err.getvalue()
 
@@ -4282,11 +4394,17 @@ class TheReportNamesEverySourceItDidNotCheck(unittest.TestCase):
                 json.dumps(record("p9/kdigo/1")), encoding="utf-8"
             )
 
-            status, _, err = self.run_grade([], recs_root)
+            status, out, err = self.run_grade([], recs_root)
+            quiet_status, quiet_out, quiet_err = self.run_grade(
+                [], recs_root, quiet=True
+            )
 
         self.assertEqual(status, 0)
         self.assertIn("RECOMMENDATION RECORD source 'aha' -- recs root", err)
         self.assertIn("RECOMMENDATION RECORD source 'kdigo' -- recs root", err)
+        self.assertNotIn("RECOMMENDATION RECORD", out)
+        self.assertEqual(quiet_status, 0)
+        self.assertNotIn("RECOMMENDATION RECORD", quiet_out + quiet_err)
 
     def test_every_gate_result_reaches_every_shared_survey_channel(self):
         gate_functions = [
@@ -4486,7 +4604,7 @@ class TheReportNamesEverySourceItDidNotCheck(unittest.TestCase):
                 )
 
         self.assertEqual(status, 2)
-        self.assertIn(f"sweep alias {record_path}", err.getvalue())
+        self.assertNotIn(f"sweep alias {record_path}", err.getvalue())
         self.assertIn("untrusted record", err.getvalue())
 
     def test_all_keeps_an_earlier_untrusted_status_when_a_later_sheet_is_clean(self):
@@ -4887,8 +5005,8 @@ class WatermarkGate(ReadingManifestConformance, unittest.TestCase):
                 expected_commit=EXPECTED_COMMIT,
                 allow_untrusted_provenance=allow,
             )
-        report = "\n".join(report_lines(result))
-        marker = "NOT RUN -- "
+        report = "\n".join(line.text for line in result.lines)
+        marker = "DID NOT RUN -- "
         if marker in report:
             return False, report.split(marker, 1)[1].splitlines()[0]
         return True, ""
@@ -4917,7 +5035,7 @@ class WatermarkGate(ReadingManifestConformance, unittest.TestCase):
                 expected_commit=EXPECTED_COMMIT,
             )
             failures = result.findings
-            report = "\n".join(report_lines(result))
+            report = "\n".join(stdout_lines(result))
 
         self.assertEqual(failures, [])
         self.assertIn("another task is rebuilding", report)
@@ -5020,7 +5138,7 @@ class WatermarkGate(ReadingManifestConformance, unittest.TestCase):
         failures = result.findings
         self.assertNotIn("NOT RUN", "\n".join(report_lines(result)))
         self.assertEqual(failures, [])
-        self.assertIn("NOT PROBED for 1 of 1 source(s): src", "\n".join(report_lines(result)))
+        self.assertIn("NOT PROBED for 1 of 1 source(s): src", "\n".join(stdout_lines(result)))
 
     def test_a_source_with_no_manifest_entry_is_reported_and_never_clean(self):
         text_corpus(self.root, "Society/other", "a goal of <130 mm Hg",
@@ -5029,7 +5147,7 @@ class WatermarkGate(ReadingManifestConformance, unittest.TestCase):
             sheet(row()), self.root, expected_commit=EXPECTED_COMMIT
         )
         self.assertNotIn("NOT RUN", "\n".join(report_lines(result)))
-        self.assertIn("NOT PROBED for 1 of 1 source(s): src", "\n".join(report_lines(result)))
+        self.assertIn("NOT PROBED for 1 of 1 source(s): src", "\n".join(stdout_lines(result)))
 
     def test_an_absent_corpus_is_a_skip_and_never_a_pass(self):
         """Tier 2's arrangement and for tier 2's reason: the extracted corpus lives
@@ -5042,7 +5160,7 @@ class WatermarkGate(ReadingManifestConformance, unittest.TestCase):
         )
         failures = result.findings
         self.assertEqual(failures, [])
-        self.assertIn("NOT RUN", "\n".join(report_lines(result)))
+        self.assertIn("DID NOT RUN", "\n".join(stdout_lines(result)))
 
     def test_a_manifest_from_the_unchanged_extractor_is_graded(self):
         text_corpus(self.root, "Society/doc", "an SBP goal of <130 mm Hg")
@@ -5078,8 +5196,8 @@ class WatermarkGate(ReadingManifestConformance, unittest.TestCase):
         result = gate.gate_watermark(
             sheet(row()), self.root, expected_commit=EXPECTED_COMMIT
         )
-        report = "\n".join(report_lines(result))
-        self.assertIn("NOT RUN", report)
+        report = "\n".join(stdout_lines(result))
+        self.assertIn("DID NOT RUN", report)
         self.assertIn("manifest", report.lower())
 
     def test_a_foreign_manifest_is_not_graded_without_the_override(self):
@@ -5098,7 +5216,7 @@ class WatermarkGate(ReadingManifestConformance, unittest.TestCase):
         result = gate.gate_watermark(
             sheet(row()), self.root, expected_commit=EXPECTED_COMMIT
         )
-        report = "\n".join(report_lines(result))
+        report = "\n".join(stdout_lines(result))
         with self.assertWarnsRegex(RuntimeWarning, "untrusted"):
             result = gate.gate_watermark(
                 sheet(row()),
@@ -5151,7 +5269,7 @@ class WatermarkGate(ReadingManifestConformance, unittest.TestCase):
             )
 
         self.assertTrue(result.not_graded)
-        self.assertIn("NOT GRADED", "\n".join(report_lines(result)))
+        self.assertIn("NOT GRADED", "\n".join(stdout_lines(result)))
 
     def test_the_command_exits_two_when_the_untrusted_pass_is_not_declared(self):
         corpus, _ = self._dirty_corpus()
@@ -5267,6 +5385,31 @@ class WatermarkGate(ReadingManifestConformance, unittest.TestCase):
         )
 
         self.assertIn("0 manifest problem(s)", "\n".join(result.diagnostics))
+        self.assertEqual(
+            gate._watermark_diagnostic_lines(result)[0].kind,
+            gate.LineKind.STATE,
+        )
+
+    def test_quiet_survey_suppresses_the_clean_manifest_problem_count(self):
+        text_corpus(self.root, "Society/doc", "an SBP goal of <130 mm Hg")
+        sheet_path = self.root / "sheet.md"
+        sheet_path.write_text(
+            header() + "\n## Thresholds\n\n" + row(), encoding="utf-8"
+        )
+        recs_path = self.root / "recs.json"
+        recs_path.write_text(json.dumps(record("p41/goal/1")), encoding="utf-8")
+        out, err = io.StringIO(), io.StringIO()
+
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            grade(
+                sheet_path,
+                [str(recs_path)],
+                Path("C:/nowhere-at-all"),
+                quiet=True,
+                text_root=self.root,
+            )
+
+        self.assertNotIn("0 manifest problem(s)", out.getvalue() + err.getvalue())
 
     def test_one_bad_sibling_does_not_discard_a_valid_documents_probes(self):
         text_corpus(
@@ -5289,6 +5432,10 @@ class WatermarkGate(ReadingManifestConformance, unittest.TestCase):
         self.assertNotIn("NOT RUN", "\n".join(report_lines(result)))
         self.assertEqual(len(failures), 1)
         self.assertIn("1 manifest problem(s)", "\n".join(result.diagnostics))
+        self.assertEqual(
+            gate._watermark_diagnostic_lines(result)[0].kind,
+            gate.LineKind.COVERAGE_QUALIFIER,
+        )
 
     def test_the_value_cell_is_probed_as_well_as_the_snippet(self):
         """#83 says *inside an extracted table row*, and both cells are transcribed

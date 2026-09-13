@@ -771,6 +771,18 @@ POPULATIONS = {
     "commit-message": "the supplied commit message -- no tracked file is scanned",
 }
 
+UNSUPPRESSED_LINES = (
+    "finding-report",
+    "population-qualifier",
+    "vocabulary-qualifier",
+    "not-graded",
+    "record-artifact",
+)
+
+
+def _quiet_keeps(name: str) -> bool:
+    return name in UNSUPPRESSED_LINES
+
 
 # spelling-scan: mentions 1
 def scanned_population(mode: str) -> str:
@@ -890,7 +902,7 @@ def vocabulary_covered() -> str:
 
 def render(report: Report, quiet: bool, mode: str) -> list[str]:
     lines: list[str] = []
-    if report.findings:
+    if report.findings and _quiet_keeps("finding-report"):
         lines.append(
             "spelling-scan: listed British spelling found. Standing rule 4: "
             "American English, always."
@@ -936,8 +948,9 @@ def render(report: Report, quiet: bool, mode: str) -> list[str]:
     # combination here -- and it is the whole distinction, since `--quiet --all`
     # has no caller in this repo and the argument cannot rest on who runs it.
     # #258.
-    if report.findings or not quiet:
+    if (report.findings and _quiet_keeps("population-qualifier")) or not quiet:
         lines.append(scanned_population(mode))
+    if (report.findings and _quiet_keeps("vocabulary-qualifier")) or not quiet:
         lines.append(vocabulary_covered())
     return lines
 
@@ -975,8 +988,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.record:
         views = record_views(tracked_markdown(), read_tracked)
-        for line in render_records(views):
-            print(line)
+        if _quiet_keeps("record-artifact"):
+            for line in render_records(views):
+                print(line)
         return 0
 
     # The mode travels with the report because the report cannot say what it
@@ -996,8 +1010,9 @@ def main(argv: list[str] | None = None) -> int:
     else:
         mode, report = "staged", scan_staged()
 
+    stream = sys.stderr if report.findings else sys.stdout
     for line in render(report, args.quiet, mode):
-        print(line)
+        print(line, file=stream)
     return 1 if report.findings else 0
 
 
@@ -1007,6 +1022,7 @@ if __name__ == "__main__":
     try:
         status = main()
     except (MentionDeclarationError, git_paths.GitPathError) as exc:
-        print(f"spelling-scan: {exc}", file=sys.stderr)
+        if _quiet_keeps("not-graded"):
+            print(f"spelling-scan: {exc}", file=sys.stderr)
         status = 2
     sys.exit(status)

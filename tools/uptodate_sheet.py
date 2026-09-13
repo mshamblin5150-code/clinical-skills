@@ -27,6 +27,14 @@ from urllib.parse import urlparse
 from console_codec import require_python_floor, use_utf8
 import uptodate_store
 
+
+UNSUPPRESSED_LINES = ("finding", "empty-population", "not-graded")
+
+
+def _quiet_keeps(name: str) -> bool:
+    return name in UNSUPPRESSED_LINES
+
+
 REQUIRED_FIELDS = (
     "AUTHORS",
     "TITLE",
@@ -230,17 +238,20 @@ def main(argv: list[str]) -> int:
     args = parser.parse_args(argv)
     paths = _paths(args.all, args.paths)
     if not paths:
-        print("uptodate-sheet: no topic sheet was selected", file=sys.stderr)
+        if _quiet_keeps("empty-population"):
+            print("uptodate-sheet: no topic sheet was selected", file=sys.stderr)
         return 2
     try:
         scans = [(path, grade_path(path, args.store)) for path in paths]
     except (OSError, UnicodeError, ValueError, SourceError) as error:
-        print(f"uptodate-sheet: not graded - {error}", file=sys.stderr)
+        if _quiet_keeps("not-graded"):
+            print(f"uptodate-sheet: not graded - {error}", file=sys.stderr)
         return 2
     findings = [(path, row) for path, scan in scans for row in scan.findings]
     if findings:
-        for path, finding in findings:
-            print(f"{path.name}: {finding.kind}: {finding.detail}", file=sys.stderr)
+        if _quiet_keeps("finding"):
+            for path, finding in findings:
+                print(f"{path.name}: {finding.kind}: {finding.detail}", file=sys.stderr)
         return 1
     if not args.quiet:
         for path, scan in scans:

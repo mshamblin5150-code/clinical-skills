@@ -199,6 +199,14 @@ class Ticket103Ruling(unittest.TestCase):
         self.assertIn(f"{RECORD_FORMS} forms, {RECORD_OCCURRENCES} occurrences",
                       output.getvalue())
 
+    def test_record_is_a_named_selected_artifact_under_quiet(self):
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            status = scan.main(["--record", "--quiet"])
+
+        self.assertEqual(status, 0)
+        self.assertIn("forms", output.getvalue())
+
 
 class Evidence(unittest.TestCase):
     """Preserved run output is evidence. It is counted and never refused."""
@@ -1012,7 +1020,7 @@ class Reporting(unittest.TestCase):
             message = Path(raw) / "COMMIT_EDITMSG"
             message.write_text("Describe the neighbouring row\n", encoding="utf-8")
             output = io.StringIO()
-            with contextlib.redirect_stdout(output):
+            with contextlib.redirect_stderr(output):
                 status = scan.main(["--commit-message", str(message), "--quiet"])
         self.assertEqual(status, 1)
         self.assertIn("COMMIT_EDITMSG:1", output.getvalue())
@@ -1025,7 +1033,7 @@ class CommandLineModes(unittest.TestCase):
                             scan.Evidence({}, ()))
         output = io.StringIO()
         with mock.patch.object(scan, "scan_staged", return_value=dirty):
-            with contextlib.redirect_stdout(output):
+            with contextlib.redirect_stderr(output):
                 status = scan.main(["--quiet"])
         self.assertEqual(status, 1)
         self.assertIn("a.py:1", output.getvalue())
@@ -1035,7 +1043,7 @@ class CommandLineModes(unittest.TestCase):
         output = io.StringIO()
         with (
             mock.patch.object(scan, "tracked_files", return_value=["grey-data.csv"]),
-            contextlib.redirect_stdout(output),
+            contextlib.redirect_stderr(output),
         ):
             status = scan.main(["--all", "--quiet"])
         self.assertEqual(status, 1)
@@ -1047,7 +1055,7 @@ class CommandLineModes(unittest.TestCase):
             path = Path(raw) / "grey.py"
             path.write_text("clean_value = 1\n", encoding="utf-8")
             output = io.StringIO()
-            with contextlib.redirect_stdout(output):
+            with contextlib.redirect_stderr(output):
                 status = scan.main([str(path), "--quiet"])
         self.assertEqual(status, 1)
         self.assertIn("grey.py", output.getvalue())
