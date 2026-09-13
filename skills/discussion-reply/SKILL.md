@@ -302,6 +302,7 @@ from `posts/`. Append this record to the run's one `reread.md`:
 POST-URL: <the posted reply's own deep link>
 POSTED: <the board's posted timestamp>
 READ: <ISO date of this reading>
+SUBMISSION-SHA256: <SHA-256 of response-<name>.md>
 VERDICT: matches - <what the reading found>
 ```
 
@@ -312,7 +313,10 @@ the already graded response artifact. A board repair is available only when the 
 that live coursework edit; no repair is automatic. Do not capture or diff the board against the
 artifact. Rerun `discussion_reply_scan.py` after writing the record; its exit must now be 0.
 
-That posted reply is one submission. Invoke `/AAR` with its response filename as the submission key, then rerun `discussion_reply_scan.py <run-directory> --submission <response-filename>`. The report must include `the after-action review: clean` before reply two begins.
+Compute the fingerprint with `python -c "from pathlib import Path; from tools.file_digest import sha256; print(sha256(Path(r'<response-<name>.md>')))"` and write it before
+`/AAR` extracts the record; adding or changing the line afterwards makes that review stale because
+`aar_scan` fingerprints the whole block. That
+posted reply is one submission. Invoke `/AAR` with its response filename as the submission key, then rerun `discussion_reply_scan.py <run-directory> --submission <response-filename>`. The report must include `the after-action review: clean` before reply two begins.
 
 ## 5. Draft and post reply two sequentially
 

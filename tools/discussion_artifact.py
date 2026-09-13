@@ -225,9 +225,10 @@ REREAD_BLOCK = re.compile(
     r"(?P<body>.*?)(?=^## REREAD:|\Z)"
 )
 REREAD_FIELD = re.compile(
-    r"(?mi)^(?P<name>POST-URL|POSTED|READ|VERDICT)\s*:\s*(?P<value>[^\n]*)$"
+    r"(?mi)^(?P<name>POST-URL|POSTED|READ|SUBMISSION-SHA256|VERDICT)\s*:\s*(?P<value>[^\n]*)$"
 )
-REREAD_FIELDS = ("POST-URL", "POSTED", "READ", "VERDICT")
+REREAD_FIELDS = ("POST-URL", "POSTED", "READ", "SUBMISSION-SHA256", "VERDICT")
+SHA256 = re.compile(r"[0-9a-f]{64}", re.ASCII)
 POSTED_READING_VERDICTS = frozenset({"matches", "diverges"})
 AUTOMATED_RENDERED_SOURCES = frozenset(("word-pdf", "word-xps"))
 RENDERED_SOURCES = AUTOMATED_RENDERED_SOURCES | {"canvas-box", "clinician"}
@@ -300,6 +301,7 @@ class PostedReading:
     post_url: str
     posted: str
     read: str
+    submission_sha256: str
     verdict: str
     verdict_detail: str
     missing_fields: tuple[str, ...]
@@ -313,6 +315,10 @@ class PostedReading:
     @property
     def verdict_is_known(self) -> bool:
         return self.verdict in POSTED_READING_VERDICTS
+
+    @property
+    def submission_sha256_is_valid(self) -> bool:
+        return SHA256.fullmatch(self.submission_sha256) is not None
 
     @property
     def verdict_has_substance(self) -> bool:
@@ -362,6 +368,7 @@ def read_posted_readings(text: str) -> tuple[PostedReading, ...]:
                 post_url=fields.get("POST-URL", ""),
                 posted=fields.get("POSTED", ""),
                 read=fields.get("READ", ""),
+                submission_sha256=fields.get("SUBMISSION-SHA256", ""),
                 verdict=verdict,
                 verdict_detail=detail,
                 missing_fields=tuple(

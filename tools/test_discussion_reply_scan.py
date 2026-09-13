@@ -17,6 +17,7 @@ from pathlib import Path
 
 import discussion_reply_scan as scan
 import research_ledger
+import file_digest
 from grader_conformance import EmptyPopulationInput, for_module, gate_conformance
 from prose_bind import NAMING, bind, prose_outside_code, section
 
@@ -67,6 +68,7 @@ REREAD = """\
 POST-URL: https://example.org/courses/1/discussion_topics/2?entry_id=31
 POSTED: 2026-08-28T20:10:00-04:00
 READ: 2026-08-28
+SUBMISSION-SHA256: {submission_sha256}
 VERDICT: matches - The paragraphs, references, and bold label are present.
 """
 
@@ -85,8 +87,12 @@ class Run:
             encoding="utf-8",
         )
         (root / "claims.md").write_text(CLAIMS, encoding="utf-8")
-        (root / "response-maren.md").write_text(BODY, encoding="utf-8")
-        (root / "reread.md").write_text(REREAD, encoding="utf-8")
+        response = root / "response-maren.md"
+        response.write_text(BODY, encoding="utf-8")
+        (root / "reread.md").write_text(
+            REREAD.format(submission_sha256=file_digest.sha256(response)),
+            encoding="utf-8",
+        )
         self.write_heading_read()
 
     def write_heading_read(self) -> None:
@@ -101,6 +107,18 @@ class Run:
                 "VERDICT: clean\n"
             )
         (self.root / "heading-read.md").write_text("\n".join(records), encoding="utf-8")
+
+    def refresh_fingerprint(self) -> None:
+        reread = self.root / "reread.md"
+        reread.write_text(
+            re.sub(
+                r"(?m)^SUBMISSION-SHA256:.*$",
+                "SUBMISSION-SHA256: "
+                + file_digest.sha256(self.root / "response-maren.md"),
+                reread.read_text(encoding="utf-8"),
+            ),
+            encoding="utf-8",
+        )
 
 
 class TheHeadingReadPrecedesEachReplyGoAhead(unittest.TestCase):
@@ -433,6 +451,7 @@ class ACompleteRunPasses(unittest.TestCase):
                 encoding="utf-8",
             )
             run.write_heading_read()
+            run.refresh_fingerprint()
             with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
                 status = scan.main([temp])
 
@@ -487,6 +506,7 @@ class ACompleteRunPasses(unittest.TestCase):
                 encoding="utf-8",
             )
             run.write_heading_read()
+            run.refresh_fingerprint()
             stdout = io.StringIO()
             with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
                 status = scan.main([temp])
@@ -532,6 +552,47 @@ class EveryPostedReplyHasALocatedReading(unittest.TestCase):
         with redirect_stdout(stdout), redirect_stderr(stderr):
             status = scan.main([str(run.root)])
         return status, stdout.getvalue(), stderr.getvalue()
+
+    def test_a_matching_reply_fingerprint_passes(self):
+        with tempfile.TemporaryDirectory() as temp:
+            status, stdout, stderr = self.grade(Run(Path(temp)))
+
+        self.assertEqual(0, status)
+        self.assertEqual("", stderr)
+        self.assertIn("submission-fingerprint: 0", stdout)
+
+    def test_a_missing_reply_fingerprint_is_a_finding(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            reread = run.root / "reread.md"
+            reread.write_text(
+                reread.read_text(encoding="utf-8").replace(
+                    "SUBMISSION-SHA256: "
+                    + file_digest.sha256(run.root / "response-maren.md")
+                    + "\n",
+                    "",
+                ),
+                encoding="utf-8",
+            )
+            status, stdout, stderr = self.grade(run)
+
+        self.assertEqual(1, status)
+        self.assertEqual("", stderr)
+        self.assertIn("submission-fingerprint: 1", stdout)
+
+    def test_a_one_word_reply_edit_makes_its_fingerprint_stale(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            response = run.root / "response-maren.md"
+            response.write_text(
+                response.read_text(encoding="utf-8").replace("persuasive", "useful", 1),
+                encoding="utf-8",
+            )
+            status, stdout, stderr = self.grade(run)
+
+        self.assertEqual(1, status)
+        self.assertEqual("", stderr)
+        self.assertIn("submission-fingerprint: 1", stdout)
 
     def test_an_absent_reread_file_is_a_finding_and_other_rows_still_run(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -646,6 +707,7 @@ class EveryPostedReplyHasALocatedReading(unittest.TestCase):
                 encoding="utf-8",
             )
             run.write_heading_read()
+            run.refresh_fingerprint()
             stdout = io.StringIO()
             with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
                 status = scan.main([temp])
@@ -808,6 +870,7 @@ class EachReplyCarriesEvidence(unittest.TestCase):
                 encoding="utf-8",
             )
             run.write_heading_read()
+            run.refresh_fingerprint()
             stdout = io.StringIO()
             with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
                 status = scan.main([temp])
@@ -846,6 +909,7 @@ class EachReplyCarriesEvidence(unittest.TestCase):
                 encoding="utf-8",
             )
             run.write_heading_read()
+            run.refresh_fingerprint()
             with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
                 status = scan.main([temp])
 
@@ -883,6 +947,7 @@ class EachReplyCarriesEvidence(unittest.TestCase):
                 encoding="utf-8",
             )
             run.write_heading_read()
+            run.refresh_fingerprint()
             stdout = io.StringIO()
             with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
                 status = scan.main([temp])
@@ -1118,6 +1183,7 @@ class AdvisoryAndCoverageBehavior(unittest.TestCase):
                 encoding="utf-8",
             )
             run.write_heading_read()
+            run.refresh_fingerprint()
             stdout = io.StringIO()
             with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
                 status = scan.main([temp])
@@ -1241,6 +1307,7 @@ class AdvisoryAndCoverageBehavior(unittest.TestCase):
                     encoding="utf-8",
                 )
                 run.write_heading_read()
+                run.refresh_fingerprint()
                 stdout = io.StringIO()
                 with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
                     status = scan.main([temp])
@@ -1264,6 +1331,7 @@ class AdvisoryAndCoverageBehavior(unittest.TestCase):
                     encoding="utf-8",
                 )
                 run.write_heading_read()
+                run.refresh_fingerprint()
                 stdout = io.StringIO()
                 with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
                     status = scan.main([temp])
@@ -1280,6 +1348,7 @@ class AdvisoryAndCoverageBehavior(unittest.TestCase):
                 encoding="utf-8",
             )
             run.write_heading_read()
+            run.refresh_fingerprint()
             stdout = io.StringIO()
             with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
                 status = scan.main([temp])

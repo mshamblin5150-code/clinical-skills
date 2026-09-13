@@ -224,7 +224,7 @@ The default report is counts only; `--show` prints classmate names and finding d
 is private working material and must not be pasted. Exit 0 means every mechanical row passes, 1 means
 a finding, and 2 means the run was not completely scannable.
 
-It reads the roster from `posts/*.md`, then grades eleven rows, every one of which is written out
+It reads the roster from `posts/*.md`, then grades the rows below, every one of which is written out
 here so a reader who cannot run the command walks the same checks:
 
 | Row | A clean run means |
@@ -240,6 +240,7 @@ here so a reader who cannot run the command walks the same checks:
 | `missing-posted-reading` | the posted critique has been reread and recorded |
 | `unknown-verdict` | every posted reading carries a recognized verdict |
 | `bare-verdict` | every posted reading verdict carries substantive text |
+| `submission-fingerprint` | the terminal posted-reading fingerprint matches `critique.md` |
 
 The final-draft reading adds `missing-heading-read`, `duplicate-heading-read`,
 `unread-heading-read`, `unknown-heading-read-route`,
@@ -315,6 +316,7 @@ Append this record to the run's one `reread.md`:
 POST-URL: <the reviewed submission's page>
 POSTED: <the comment's posted timestamp>
 READ: <ISO date of this reading>
+SUBMISSION-SHA256: <SHA-256 of critique.md>
 VERDICT: matches - <character comparison and source/stored ampersand counts>
 LEGACY-DISPLAY: expected - <visible &amp; count> | differs - <what the page showed> | unreadable - <reason>
 ```
@@ -325,7 +327,10 @@ Replace `matches` with `diverges` when the stored comment and plain-text build d
 require substantive text after the keyword. Rerun `peer_critique_scan.py` after writing the record;
 its exit must now be 0.
 
-That posted critique is one submission. Invoke `/AAR` with `critique.md` as the submission key, then
+Compute the fingerprint with `python -c "from pathlib import Path; from tools.file_digest import sha256; print(sha256(Path(r'<critique.md>')))"` and write it before `/AAR`
+extracts the record; adding or changing the line afterwards makes that review stale because
+`aar_scan` fingerprints the whole block. That posted
+critique is one submission. Invoke `/AAR` with `critique.md` as the submission key, then
 rerun `python tools/peer_critique_scan.py <run-directory> --submission critique.md`. The report must
 include `the after-action review: clean`.
 

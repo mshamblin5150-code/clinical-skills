@@ -19,6 +19,7 @@ from pathlib import Path
 
 import peer_critique_scan as scan
 import research_ledger
+import file_digest
 
 SKILL = Path(__file__).resolve().parents[1] / "skills" / "peer-critique" / "SKILL.md"
 from grader_conformance import EmptyPopulationInput, for_module
@@ -39,6 +40,7 @@ REREAD = (
     "POST-URL: https://example.org/t?entry_id=1\n"
     "POSTED: 2026-09-09\n"
     "READ: 2026-09-09\n"
+    "SUBMISSION-SHA256: {submission_sha256}\n"
     "VERDICT: matches - the board text equals the artifact\n"
 )
 
@@ -70,9 +72,13 @@ def empty_population_input(root: Path) -> EmptyPopulationInput:
     (root / "posts" / "synthetic.md").write_text(
         "AUTHOR: Maren Quill\n", encoding="utf-8"
     )
-    (root / "critique.md").write_text("", encoding="utf-8")
+    critique = root / "critique.md"
+    critique.write_text("", encoding="utf-8")
     (root / "claims.md").write_text("DATE: 2026-09-09\n", encoding="utf-8")
-    (root / "reread.md").write_text(REREAD, encoding="utf-8")
+    (root / "reread.md").write_text(
+        REREAD.format(submission_sha256=file_digest.sha256(critique)),
+        encoding="utf-8",
+    )
     digest = hashlib.sha256((root / "critique.md").read_bytes()).hexdigest()
     (root / "heading-read.md").write_text(
         f"## HEADING-READ: critique.md\nDRAFT: {digest}\n"
@@ -104,9 +110,8 @@ def build_run(
         f"**{heading}**\n\n" + ("" if heading in empty else f"{filler} (Ross, 2025).") + "\n"
         for heading in headings
     )
-    (directory / "critique.md").write_text(
-        f"{opening}\n\n{sections}{extra}{references}", encoding="utf-8"
-    )
+    critique = f"{opening}\n\n{sections}{extra}{references}"
+    (directory / "critique.md").write_text(critique, encoding="utf-8")
     (directory / "claims.md").write_text(claims, encoding="utf-8")
     digest = hashlib.sha256((directory / "critique.md").read_bytes()).hexdigest()
     (directory / "heading-read.md").write_text(
@@ -115,7 +120,12 @@ def build_run(
         encoding="utf-8",
     )
     if reread is not None:
-        (directory / "reread.md").write_text(reread, encoding="utf-8")
+        (directory / "reread.md").write_text(
+            reread.format(
+                submission_sha256=file_digest.sha256(directory / "critique.md")
+            ),
+            encoding="utf-8",
+        )
     return directory
 
 
@@ -131,6 +141,19 @@ def kinds(directory: Path) -> list[str]:
 class TheCleanRunPasses(unittest.TestCase):
     def test_a_compliant_critique_reports_no_finding(self):
         self.assertEqual([], kinds(build_run()))
+
+    def test_a_missing_critique_fingerprint_is_a_finding(self):
+        directory = build_run(reread=REREAD.replace("SUBMISSION-SHA256: {submission_sha256}\n", ""))
+        self.assertIn(scan.SUBMISSION_FINGERPRINT, kinds(directory))
+
+    def test_a_one_word_critique_edit_makes_its_fingerprint_stale(self):
+        directory = build_run()
+        critique = directory / "critique.md"
+        critique.write_text(
+            critique.read_text(encoding="utf-8").replace("word", "term", 1),
+            encoding="utf-8",
+        )
+        self.assertIn(scan.SUBMISSION_FINGERPRINT, kinds(directory))
 
     def test_every_required_heading_is_counted(self):
         self.assertEqual(len(HEADINGS), graded(build_run()).headings_found)

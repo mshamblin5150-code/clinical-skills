@@ -291,6 +291,7 @@ class PostedReadingsAreSharedArtifacts(unittest.TestCase):
 POST-URL: https://example.org/courses/1/discussion_topics/2?entry_id=31
 POSTED: 2026-08-28T20:10:00-04:00
 READ: 2026-08-28
+SUBMISSION-SHA256: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
 VERDICT: matches - The paragraphs, references, and bold label are present.
 """
         )
@@ -306,6 +307,21 @@ VERDICT: matches - The paragraphs, references, and bold label are present.
 
     def test_an_absent_file_can_be_represented_by_no_records(self):
         self.assertEqual((), artifact.read_posted_readings(""))
+
+    def test_a_malformed_fingerprint_is_parsed_for_a_grader_to_refuse(self):
+        records = artifact.read_posted_readings(
+            """\
+## REREAD: response-maren.md
+POST-URL: https://example.org/topic?entry_id=31
+POSTED: 2026-08-28T20:10:00-04:00
+READ: 2026-08-28
+SUBMISSION-SHA256: NOT-A-DIGEST
+VERDICT: matches - The entry was read from the board.
+"""
+        )
+
+        self.assertEqual("NOT-A-DIGEST", records[0].submission_sha256)
+        self.assertFalse(records[0].submission_sha256_is_valid)
 
     def test_duplicate_entry_records_are_unreadable(self):
         record = """\

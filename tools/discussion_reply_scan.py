@@ -51,6 +51,7 @@ from discussion_artifact import (
     strip_discussion_markers,
 )
 import run_grader
+import file_digest
 from run_grader import NOT_GRADED
 import aar_scan
 import heading_read
@@ -76,6 +77,7 @@ BARE_VERDICT = "bare-verdict"
 UNLOCATED_READING = "unlocated-reading"
 BORROWED_LOCATOR = "borrowed-locator"
 EDITOR_READBACK = "editor-readback"
+SUBMISSION_FINGERPRINT = "submission-fingerprint"
 ROWS = {
     ADDRESSED_NAME: "the addressed first name is on the run roster",
     WORD_FLOOR: f"the reply contains at least {WORD_FLOOR_COUNT} words",
@@ -91,6 +93,7 @@ ROWS = {
     UNLOCATED_READING: "every posted reply reading carries its board entry id",
     BORROWED_LOCATOR: "every posted reply reading carries its own locator",
     EDITOR_READBACK: "every retained editor readback matches the built reply HTML",
+    SUBMISSION_FINGERPRINT: "every posted reading is bound to its current reply Markdown",
 }
 ROWS.update({kind: "the heading read agrees with each final reply and its scoped claim headings" for kind in heading_read.KINDS})
 KINDS = tuple(ROWS)
@@ -208,6 +211,26 @@ DECLARED_LIMITS = (
         "whether reference-dependent rows ran after a refused reference label",
         "When the reference label is refused, the command does not grade the dependent reply and reference rows; their not graded output is coverage refusal, not zero findings.",
         EvidenceDisposition.BEHAVIOR,
+    ),
+    (
+        "whether a platform-side repair after the recorded reading changed the comparison",
+        "The fingerprint binds the record to its reply file, while a later platform edit can change the posted entry without changing that file.",
+        EvidenceDisposition.DECLARED_READING,
+    ),
+    (
+        "whether a run with no posting evidence was ever submitted",
+        "The command cannot infer that a missing reply record represents a live submission rather than an artifact that was never posted.",
+        EvidenceDisposition.DECLARED_READING,
+    ),
+    (
+        "whether the learning platform stored the fingerprinted bytes",
+        "The reply digest identifies the local Markdown and does not prove which bytes the learning platform retained.",
+        EvidenceDisposition.DECLARED_READING,
+    ),
+    (
+        "whether the reader actually compared the artifact",
+        "A valid fingerprint proves file identity and cannot establish the attention or judgment behind the recorded verdict.",
+        EvidenceDisposition.DECLARED_READING,
     ),
 )
 NOT_REACHED = tuple((subject, reason) for subject, reason, _ in DECLARED_LIMITS)
@@ -726,6 +749,15 @@ def _posted_reading_findings(source: RunSource) -> tuple[Finding, ...]:
                     "missing " + ", ".join(reading.missing_record_fields),
                 )
             )
+        digest = file_digest.sha256(reply.path)
+        if not reading.submission_sha256_is_valid or reading.submission_sha256 != digest:
+            findings.append(
+                Finding(
+                    SUBMISSION_FINGERPRINT,
+                    reply.path.name,
+                    f"{reply.path.name} SUBMISSION-SHA256 is missing, malformed, or stale",
+                )
+            )
         if not reading.verdict_is_known:
             findings.append(
                 Finding(UNKNOWN_VERDICT, reply.path.name, "verdict is outside the vocabulary")
@@ -932,6 +964,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
             BORROWED_LOCATOR,
             EDITOR_READBACK,
             *heading_read.KINDS,
+            SUBMISSION_FINGERPRINT,
         } and not scan.reference_boundary_graded:
             lines.append(f"{kind}: {NOT_GRADED}")
         else:

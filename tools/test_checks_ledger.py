@@ -180,7 +180,8 @@ def run(argv: list[str], *, bind: bool = True) -> tuple[int, str, str]:
             submission = arguments[arguments.index("--submission") + 1]
             output = checks_path.parent / "output"
             output.mkdir(exist_ok=True)
-            (output / f"{submission}.md").write_bytes(DRAFT_TEXT.encode())
+            document = output / f"{submission}.md"
+            document.write_bytes(DRAFT_TEXT.encode())
             checks_path.write_text(
                 checks_path.read_text(encoding="utf-8").replace(
                     "## HEADING-READ: draft.md",
@@ -188,6 +189,17 @@ def run(argv: list[str], *, bind: bool = True) -> tuple[int, str, str]:
                 ),
                 encoding="utf-8",
             )
+            reread = checks_path.parent / "reread.md"
+            if not reread.is_file():
+                reread.write_text(
+                    f"## REREAD: {submission}\n"
+                    "POST-URL: https://example.test/submission\n"
+                    "POSTED: 2026-09-13\n"
+                    "READ: 2026-09-13\n"
+                    f"SUBMISSION-SHA256: {DRAFT_SHA}\n"
+                    "VERDICT: matches - the submitted document was read back from the LMS\n",
+                    encoding="utf-8",
+                )
             output_patch = mock.patch.object(
                 checks.repo_root, "output_root", return_value=output
             )
@@ -1014,6 +1026,58 @@ class TheCommandExitsOnWhatItFound(unittest.TestCase):
         self.assertEqual(stale, 1)
         self.assertEqual(clean, 0)
 
+    def test_submission_accepts_a_matching_output_markdown_fingerprint(self):
+        directory, path = in_a_file(whole_file())
+        with directory, mock.patch.object(
+            checks.aar_scan,
+            "completion_gate",
+            return_value=(False, "the after-action review: clean"),
+        ):
+            status, stdout, stderr = run([str(path), "--submission", "case-study"])
+
+        self.assertEqual(0, status)
+        self.assertEqual("", stderr)
+        self.assertIn("submission-fingerprint", stdout)
+
+    def test_submission_refuses_a_missing_output_markdown_fingerprint(self):
+        directory, path = in_a_file(whole_file())
+        with directory, mock.patch.object(
+            checks.aar_scan,
+            "completion_gate",
+            return_value=(False, "the after-action review: clean"),
+        ):
+            run([str(path), "--submission", "case-study"])
+            reread = path.parent / "reread.md"
+            reread.write_text(
+                re.sub(r"^SUBMISSION-SHA256:.*\n", "", reread.read_text(encoding="utf-8"), flags=re.MULTILINE),
+                encoding="utf-8",
+            )
+            status, stdout, stderr = run([str(path), "--submission", "case-study"])
+
+        self.assertEqual(1, status)
+        self.assertIn("#1035", stderr)
+        self.assertIn("submission-fingerprint", stdout)
+
+    def test_submission_refuses_output_markdown_edited_after_the_reading(self):
+        directory, path = in_a_file(whole_file())
+        with directory, mock.patch.object(
+            checks.aar_scan,
+            "completion_gate",
+            return_value=(False, "the after-action review: clean"),
+        ):
+            run([str(path), "--submission", "case-study"])
+            output = path.parent / "output"
+            document = output / "case-study.md"
+            document.write_text(DRAFT_TEXT + "changed word\n", encoding="utf-8")
+            with mock.patch.object(checks.repo_root, "output_root", return_value=output):
+                status, stdout, stderr = run(
+                    [str(path), "--submission", "case-study"], bind=False
+                )
+
+        self.assertEqual(1, status)
+        self.assertIn("#1035", stderr)
+        self.assertIn("submission-fingerprint", stdout)
+
     def test_submission_with_no_retained_pass_is_a_finding(self):
         directory, path = in_a_file(whole_file())
         with directory, mock.patch.object(
@@ -1370,6 +1434,7 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
         checks.heading_read.DRAFT_MISMATCH: "a heading-read-draft-mismatch",
         checks.heading_read.DEFECT_VERDICT: "a heading-read-defect verdict",
         checks.heading_read.REPORTED_FINDING: "a heading-read-finding line",
+        checks.SUBMISSION_FINGERPRINT: "the submission's posted reading has no `SUBMISSION-SHA256`, or it differs from the output Markdown",
     }
 
     def test_the_skill_writes_out_every_row_the_grader_applies(self):

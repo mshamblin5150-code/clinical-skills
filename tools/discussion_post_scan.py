@@ -73,6 +73,8 @@ EXPECTED_COMPLETION_CHECKS = (aar_scan.EXPECTED_ROW,)
 import coursework_run
 from run_grader import EvidenceDisposition
 import docx_write
+import file_digest
+import post_html
 from research_ledger import REFUTATION_EVIDENCE_COMPLEMENT
 
 
@@ -93,6 +95,7 @@ UNKNOWN_VERDICT = "unknown-verdict"
 BARE_VERDICT = "bare-verdict"
 UNLOCATED_READING = "unlocated-reading"
 BORROWED_LOCATOR = "borrowed-locator"
+SUBMISSION_FINGERPRINT = "submission-fingerprint"
 ROWS = {
     WORD_FLOOR: "the post reaches the signed word floor",
     EMPTY_BODY: "the post contains body text after headings are removed",
@@ -110,6 +113,7 @@ ROWS = {
     BARE_VERDICT: "the posted reading says what it found",
     UNLOCATED_READING: "the posted reading carries its board entry id",
     BORROWED_LOCATOR: "the posted reading locator belongs to the initial post",
+    SUBMISSION_FINGERPRINT: "the posted reading is bound to the current submission files",
     **{kind: "the heading read agrees with the final draft and current claim headings" for kind in heading_read.KINDS},
 }
 KINDS = tuple(ROWS)
@@ -237,6 +241,26 @@ DECLARED_LIMITS = (
         "When the reference label is refused, the command does not grade the dependent body and reference rows; their not graded output is coverage refusal, not zero findings.",
         EvidenceDisposition.BEHAVIOR,
     ),
+    (
+        "whether a platform-side repair after the recorded reading changed the comparison",
+        "The fingerprint binds the record to its source file, while a later platform edit can change the posted entry without changing that file.",
+        EvidenceDisposition.DECLARED_READING,
+    ),
+    (
+        "whether a run with no posting evidence was ever submitted",
+        "The command cannot infer a submission from silence when neither the working record nor reread.md carries posting evidence.",
+        EvidenceDisposition.DECLARED_READING,
+    ),
+    (
+        "whether the learning platform stored the fingerprinted bytes",
+        "The digest identifies a local source and generated carriers but does not prove which bytes the learning platform retained.",
+        EvidenceDisposition.DECLARED_READING,
+    ),
+    (
+        "whether the reader actually compared the artifact",
+        "A valid fingerprint proves file identity and cannot establish the attention or judgment behind the recorded verdict.",
+        EvidenceDisposition.DECLARED_READING,
+    ),
 )
 NOT_REACHED = tuple((subject, reason) for subject, reason, _ in DECLARED_LIMITS)
 
@@ -287,6 +311,7 @@ class RenderPass:
 class RunSource:
     path: Path
     draft: Path
+    draft_text: str
     body: str
     references: tuple[str, ...]
     claims: str
@@ -301,6 +326,8 @@ class RunSource:
     docx: Path | None
     rendered_paragraph_texts: tuple[str, ...]
     expected_paragraph_texts: tuple[str, ...]
+    html_matches_rebuild: bool | None
+    docx_matches_rebuild: bool | None
     rendered_readings: tuple[RenderedReading, ...]
     render_passes: tuple[tuple[int, RenderPass], ...]
     missing_pass_numbers: int
@@ -688,6 +715,21 @@ def _docx_paragraph_texts(path: Path) -> tuple[str, ...]:
     return _paragraph_texts(document)
 
 
+def _docx_matches_rebuild(path: Path, markdown: str) -> bool:
+    expected = {
+        name: value.encode("utf-8") if isinstance(value, str) else value
+        for name, value in docx_write.parts(markdown).items()
+    }
+    try:
+        with zipfile.ZipFile(path) as archive:
+            actual = {name: archive.read(name) for name in archive.namelist()}
+    except (OSError, KeyError, zipfile.BadZipFile) as failure:
+        raise run_grader.SourceError(
+            f"could not read the rendered document: {failure}"
+        ) from failure
+    return actual == expected
+
+
 def _rendered_readings(text: str) -> tuple[RenderedReading, ...]:
     readings: list[RenderedReading] = []
     for block in RENDERED_BLOCK.finditer(text):
@@ -843,29 +885,38 @@ def load(parsed: run_grader.Parsed) -> RunSource:
     ) = _html_properties(html, draft_text) if html is not None else (0, 0, None, None)
     render_passes, missing_pass_numbers = _render_passes(root)
     return RunSource(
-        root,
-        draft,
-        section.body,
-        section.references,
-        claims,
-        draft_bytes,
-        heading_read_text,
-        bar,
-        html,
-        submission_heading_failures,
-        submission_comment_count,
-        submission_text_mismatches,
-        submitted_blocks,
-        docx,
-        rendered_paragraph_texts,
-        _expected_paragraph_texts(draft_text) if docx is not None else (),
-        _rendered_readings(post_text) if html is not None else (),
-        render_passes,
-        missing_pass_numbers,
-        section.refused_label,
-        post_fields.get("POST-URL"),
-        post_fields.get("POSTED"),
-        readings,
+        path=root,
+        draft=draft,
+        draft_text=draft_text,
+        body=section.body,
+        references=section.references,
+        claims=claims,
+        draft_bytes=draft_bytes,
+        heading_read_text=heading_read_text,
+        bar=bar,
+        html=html,
+        submission_heading_failures=submission_heading_failures,
+        submission_comment_count=submission_comment_count,
+        submission_text_mismatches=submission_text_mismatches,
+        submitted_blocks=submitted_blocks,
+        docx=docx,
+        rendered_paragraph_texts=rendered_paragraph_texts,
+        expected_paragraph_texts=_expected_paragraph_texts(draft_text) if docx is not None else (),
+        html_matches_rebuild=(
+            html.read_bytes() == post_html.render(draft_text).encode("utf-8")
+            if html is not None
+            else None
+        ),
+        docx_matches_rebuild=(
+            _docx_matches_rebuild(docx, draft_text) if docx is not None else None
+        ),
+        rendered_readings=_rendered_readings(post_text) if html is not None else (),
+        render_passes=render_passes,
+        missing_pass_numbers=missing_pass_numbers,
+        refused_label=section.refused_label,
+        post_url=post_fields.get("POST-URL"),
+        post_posted=post_fields.get("POSTED"),
+        readings=readings,
     )
 
 
@@ -916,6 +967,31 @@ def _posted_reading_findings(source: RunSource) -> tuple[Finding, ...]:
                 BORROWED_LOCATOR,
                 submission,
                 f"POST-URL does not match {submission}",
+            )
+        )
+    digest = file_digest.sha256(source.draft)
+    if not reading.submission_sha256_is_valid or reading.submission_sha256 != digest:
+        findings.append(
+            Finding(
+                SUBMISSION_FINGERPRINT,
+                submission,
+                f"{source.draft.name} SUBMISSION-SHA256 is missing, malformed, or stale",
+            )
+        )
+    if source.html is not None and not source.html_matches_rebuild:
+        findings.append(
+            Finding(
+                SUBMISSION_FINGERPRINT,
+                submission,
+                f"{source.html.name} differs from post_html's rebuild of {source.draft.name}",
+            )
+        )
+    if source.docx is not None and not source.docx_matches_rebuild:
+        findings.append(
+            Finding(
+                SUBMISSION_FINGERPRINT,
+                submission,
+                f"{source.docx.name} parts differ from docx_write.parts() for {source.draft.name}",
             )
         )
     return tuple(findings)
@@ -1322,6 +1398,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
             UNLOCATED_READING,
             BORROWED_LOCATOR,
             *heading_read.KINDS,
+            SUBMISSION_FINGERPRINT,
         } and not scan.reference_boundary_graded:
             lines.append(f"{kind}: {NOT_GRADED}")
         elif kind == RENDERED_PAGES and not scan.rendered_pages_graded:
@@ -1351,7 +1428,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
 def grade(source: RunSource, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
     scanned = survey(source)
     submission_failed = any(
-        finding.kind in {BOLD_HEADINGS, RENDERED_COMMENTS, SUBMISSION_TEXT, RENDERED_PAGES}
+        finding.kind in {BOLD_HEADINGS, RENDERED_COMMENTS, SUBMISSION_TEXT, RENDERED_PAGES, SUBMISSION_FINGERPRINT}
         for finding in scanned.findings
     )
     heading_failed = any(
