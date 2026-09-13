@@ -807,6 +807,10 @@ _Avoid_: citation, URL, cross-reference
 The word *step* and the number after it in prose, resolved to the skill whose numbered section it names: the one written just before it, the one carried from an earlier citation in the same paragraph with no other skill named in between, or the skill the file belongs to. Resolving it catches a citation to a section that no longer exists, and not one renumbered into another section that does. Distinct from a **relative link**, which names a file, and from a **citation**, which is a ticket reference.
 _Avoid_: step reference, step link, cross-reference
 
+**Cross-reference**:
+A number written inside a graded document naming a numbered item in one of that document's own sections — *Plan item 3*, *MDM entry 4*, *differential 2* — resolved against the section it names and never against a section guessed from where the sentence sits. Resolving it catches an item that no longer exists, and not one renumbered so that the number now lands on a different item. Distinct from a **pointer**, which is derived material outside the artifact that may direct a search, and from a **step citation**, which names a section of a skill rather than an item of the document. **Not the sense in Codification cross-reference**, which is a legal citation inside a reference entry naming where a law was codified; one is a number resolved inside the document and the other names a provision outside it, and neither narrows the other.
+_Avoid_: pointer, item citation, back-reference, item reference
+
 **Declared narrower reader**:
 A reader kept deliberately weaker than a shared reader of the same form, whose gap is written down as a **declared limit** of the check that uses it. It is chosen where converging would change what that check decides and no recorded defect asks for the change. Distinct from a **refusal**, which is a verdict about what a shared runner can express rather than a choice between two readers.
 _Avoid_: weak reader, legacy parser, duplicate parser

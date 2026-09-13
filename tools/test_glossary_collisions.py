@@ -112,6 +112,14 @@ DECLARED_CANDIDATES = (
         "an act on a published record, so neither narrows the other. Ruled 2026-09-12.",
     ),
     Candidate(
+        "Cross-reference",
+        Verdict.COLLISION,
+        "The bare term is a number resolved against a numbered item in the same graded "
+        "document; a Codification cross-reference is a legal citation naming where a law "
+        "was codified. One resolves inside the artifact and the other names a provision "
+        "outside it, so neither narrows the other. Ruled 2026-09-13 on #1019.",
+    ),
+    Candidate(
         "Assertion",
         Verdict.NARROWING,
         "A Promoted assertion is an assertion whose bar has become binary.",
