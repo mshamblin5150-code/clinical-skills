@@ -239,6 +239,10 @@ _Avoid_: sources file, bibliography, notes
 One entry in a claim ledger. It is the unit a citation spends and the unit a number is traced against, and those are different relations: a citation consumes a record so that no other citation may consume the same one, while a number only has to appear somewhere in the ledger. So one record can answer a figure and the citation beside it in the same sentence, and a source cited twice needs two.
 _Avoid_: claim, entry, source record
 
+**Claim heading**:
+The first line of a [[Claim record]]: the claim the graded document will make, including any number it will state. It is a working statement before research, corrected wherever its source does not support it, and a heading changed after its refutation is a new claim.
+_Avoid_: claim question, claim title, prompt
+
 **Spend**:
 To consume a finite thing so that nothing else may consume it. A citation spends a claim record; a reply spends a source an earlier reply may then not spend again. Distinct from the looser sense of a load-bearing invocation, where a domain's real behavior is spent as the argument and nothing is used up.
 _Avoid_: use, claim, take
