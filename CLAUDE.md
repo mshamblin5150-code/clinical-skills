@@ -1053,11 +1053,14 @@ concession.** The course spec states a range; a floor is a finding because a cri
 not answered eight headings, and a ceiling is a count because no stated maximum is honored. The
 clauses a ceiling removes first are the ones that bound a claim.
 
-**The literal ampersand is counted for a reason outside this repository.** A Canvas submission
-comment box double-escapes it, and an APA reference list is where the ampersand is mandatory —
-[#991](https://github.com/mshamblin5150-code/clinical-skills/issues/991). The count is reported
-from the artifact; whether a given page damages it is a property of that page, which is why the row
-is a count rather than a finding.
+**The literal ampersand is counted because the posted reading has one exact comparison to make.**
+The stored comment text is compared with the source, including its ampersand count. The 2026-09-12
+Bluefield observation found that Canvas stored a literal `&` correctly and its formatted HTML
+carried it correctly, while the legacy peer-review page displayed it as `&amp;`.
+[ADR 0204](docs/adr/0204-a-peer-critique-posts-to-the-peer-review-comment-and-its-ampersand-is-typed-literally.md)
+records that observation and [#991](https://github.com/mshamblin5150-code/clinical-skills/issues/991)
+is its build. That dated display behavior is accepted and remains outside the grader, so the source
+count is reported rather than graded.
 
 **Counts only by default; `--show` names classmates and is private working material.**
 

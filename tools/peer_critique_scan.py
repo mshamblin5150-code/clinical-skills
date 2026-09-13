@@ -140,8 +140,8 @@ DECLARED_LIMITS = (
         EvidenceDisposition.BEHAVIOR,
     ),
     (
-        "whether a literal ampersand survives the surface the critique is posted to",
-        "The count is reported from the artifact, and whether a given LMS box double-escapes it is a property of that page rather than of this file.",
+        "the legacy peer-review page's display of a stored ampersand",
+        "The artifact's literal-ampersand count stays reported and ungraded. The stored comment text is gradable against the plain-text source by a posted reading; the legacy page's visible entity is outside the command and classified by ADR 0204 as accepted display behavior.",
         EvidenceDisposition.BEHAVIOR,
     ),
 )

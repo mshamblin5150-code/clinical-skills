@@ -373,9 +373,10 @@ class TheCanvasComposerRoute(unittest.TestCase):
     def test_scope_is_carried_in_schema_fields_and_the_observation_is_recorded(self):
         records = json.loads(read(self.RECORD))
         self.assertIsInstance(records, list)
-        self.assertEqual(len(records), 4)
         self.assertTrue(all(record["composer_surface"] for record in records))
-        record = records[0]
+        record = next(
+            item for item in records if item["measured_on"] == "2026-08-22"
+        )
         for field in ("measured_on", "institution", "course", "theme", "instrument"):
             with self.subTest(field=field):
                 self.assertTrue(record[field])
@@ -384,7 +385,11 @@ class TheCanvasComposerRoute(unittest.TestCase):
         self.assertTrue(record["rendered_type_scale"])
         self.assertNotIn("editor", record["observed_in"])
 
-        block = records[1]
+        block = next(
+            item
+            for item in records
+            if item["source_shape"] == "raw HTML editor <blockquote>"
+        )
         self.assertEqual(block["measured_on"], "2026-09-08")
         self.assertEqual(block["source_shape"], "raw HTML editor <blockquote>")
         self.assertTrue(block["rendered_block_quotation"]["tag_survived"])
@@ -394,7 +399,11 @@ class TheCanvasComposerRoute(unittest.TestCase):
         self.assertFalse(block["rendered_block_quotation"]["meets_apa_half_inch"])
         self.assertTrue(block["discarded_without_submission"])
 
-        threaded = records[2]
+        threaded = next(
+            item
+            for item in records
+            if "numeric-suffix discriminator" in item["composer_surface"]
+        )
         self.assertEqual(threaded["measured_on"], "2026-09-12")
         self.assertIn("numeric-suffix discriminator", threaded["composer_surface"])
         self.assertEqual(
@@ -402,7 +411,9 @@ class TheCanvasComposerRoute(unittest.TestCase):
             "Switch to pretty HTML Editor",
         )
 
-        ampersands = records[3]
+        ampersands = next(
+            item for item in records if "stored_double_escaped_ampersands" in item
+        )
         self.assertEqual(ampersands["stored_double_escaped_ampersands"], 0)
         self.assertIn("proxy", ampersands["limits"])
 

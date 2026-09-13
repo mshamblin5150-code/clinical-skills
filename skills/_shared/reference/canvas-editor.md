@@ -4,6 +4,16 @@ Read this sheet after a skill has established that authored bytes must enter a C
 **Composer**. The calling skill owns whether its graded artifact uses a Composer; this sheet owns
 how the finished contribution reaches it and how the loaded result is read back.
 
+## Name the non-Composer surface
+
+ADR 0204 classifies the peer-review comment as a non-Composer surface. Its 2026-09-12 Bluefield
+observation found that surface accepted plain text rather than the HTML build and load routes below.
+A Peer critique therefore loads an exact plain-text build with every character literal, then its
+posted reading compares Canvas's stored comment text with that build.
+The 2026-09-12 Bluefield observation found the legacy peer-review page's visible `&amp;` was display
+behavior rather than evidence that the stored comment differed. That four-instrument observation
+and its limits are in the calibration record; it does not establish current behavior elsewhere.
+
 ## Identify the composer
 
 Read the live TinyMCE editor id before loading anything:
