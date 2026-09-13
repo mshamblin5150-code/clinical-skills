@@ -96,6 +96,25 @@ General: Alert, in no acute distress.
 Pelvic inflammatory disease, due to the cervical motion tenderness and the
 purulent discharge.
 
+## MDM
+
+1. Pelvic inflammatory disease is favored by cervical motion tenderness (Ross, 2025).
+2. Cervicitis remains possible because of the purulent discharge (Ross, 2025).
+
+## Plan:
+
+1. Obtain a pregnancy test.
+2. Obtain gonorrhea and chlamydia testing.
+3. Treat pelvic inflammatory disease.
+4. Review return precautions.
+5. Arrange primary care follow-up.
+6. Counsel regarding partner evaluation.
+7. Reassess if symptoms worsen.
+
+## Patient Education:
+
+1. Return promptly for worsening pain, vomiting, syncope, or fever.
+
 ## Rx:
 
 {rx}
@@ -112,14 +131,10 @@ Ross, J. (2025). Pelvic inflammatory disease. UpToDate.
 def empty_population_input(root: Path) -> EmptyPopulationInput:
     empty, twin = root / "empty.md", root / "twin.md"
     empty.write_text("# Unrecognized heading\n\nSynthetic prose.\n", encoding="utf-8")
-    twin.write_text(
-        "# Unrecognized heading\n\nSynthetic prose.\n\n"
-        "## Sanity Check\n\nModule 1 - confirmed\n",
-        encoding="utf-8",
-    )
+    twin.write_text(CLEAN, encoding="utf-8")
     return EmptyPopulationInput(
         (str(empty),),
-        population_size=lambda result: result.sections,
+        population_size=lambda result: int(not result.missing_required_sections),
         twin_argv=(str(twin),),
     )
 
@@ -132,8 +147,15 @@ def empty_population_input(root: Path) -> EmptyPopulationInput:
 ROW_PHRASES = {
     scan.BULLET_MARKER: "no bullet anywhere in the document",
     scan.INTAKE_TABLE: (
-        "no table under Demographics, the Review of Systems or the Physical Examination"
+        "no table under Demographics, the Review of Systems, the Physical Examination, or "
+        "Developmental History"
     ),
+    scan.INTAKE_FIELD_LAYOUT: (
+        "no paragraph holding two or more field labels in the Review of Systems, "
+        "Physical Examination, or Developmental History"
+    ),
+    scan.MDM_ENTRY_NO_CITATION: "every top-level numbered MDM entry carrying an in-text citation",
+    scan.CROSS_REFERENCE_OUT_OF_RANGE: "every named cross-reference resolving within its section",
     scan.ROS_NO_CLOSER: "the Review of Systems closing with the all-other-systems disclaimer",
     scan.EXAM_CLAIMS_UNEXAMINED: "the Physical Examination not carrying one",
     scan.SCAFFOLDING_PHRASE: "no scaffolding language",
@@ -187,7 +209,7 @@ class TheCleanDraftIsClean(unittest.TestCase):
 
     def test_every_section_is_found(self):
         found = {section.name for section in scan.read_sections(CLEAN)[0]}
-        for name in scan.INTAKE_SECTIONS:
+        for name in (scan.DEMOGRAPHICS, scan.REVIEW_OF_SYSTEMS, scan.PHYSICAL_EXAMINATION):
             self.assertIn(name, found)
         self.assertIn(scan.RX, found)
         self.assertIn(scan.MOST_LIKELY, found)
@@ -255,6 +277,142 @@ class TheIntakeTableRow(unittest.TestCase):
 
     def test_the_prescription_table_does_not(self):
         self.assertNotIn(scan.INTAKE_TABLE, kinds(CLEAN))
+
+
+class TheIntakeFieldLayoutRow(unittest.TestCase):
+    """ROS, examination, and Developmental History carry one field per line."""
+
+    def test_a_run_on_review_of_systems_paragraph_fires(self):
+        text = CLEAN.replace(
+            "General: + fatigue and fever, - chills and weight loss.",
+            "General: + fatigue and fever. Cardiovascular: No chest pain.",
+        )
+        self.assertIn(scan.INTAKE_FIELD_LAYOUT, kinds(text))
+
+    def test_the_documented_neurologic_line_passes(self):
+        text = CLEAN.replace(
+            "General: Alert, in no acute distress.",
+            "Neurologic: Alert and oriented x3, strength 5/5 in all extremities, "
+            "reflexes 2+ and symmetric.",
+        )
+        self.assertNotIn(scan.INTAKE_FIELD_LAYOUT, kinds(text))
+
+    def test_the_documented_demographics_line_is_not_read(self):
+        self.assertNotIn(scan.INTAKE_FIELD_LAYOUT, kinds(CLEAN))
+
+    def test_a_run_on_developmental_history_paragraph_fires(self):
+        text = CLEAN.replace(
+            "## Physical Examination",
+            "## Developmental History\n\nGross motor: Walks independently. "
+            "Fine motor: Uses a pincer grasp.\n\n## Physical Examination",
+        )
+        self.assertIn(scan.INTAKE_FIELD_LAYOUT, kinds(text))
+
+    def test_growth_assessment_is_not_read(self):
+        text = CLEAN.replace(
+            "## Physical Examination",
+            "## Growth Assessment\n\nWeight: 12 kg. Height: 86 cm. BMI: 16.2 kg/m2.\n\n"
+            "## Physical Examination",
+        )
+        self.assertNotIn(scan.INTAKE_FIELD_LAYOUT, kinds(text))
+
+
+class EveryMdmEntryCarriesACitation(unittest.TestCase):
+    def test_an_uncited_top_level_entry_fires(self):
+        text = CLEAN.replace(
+            "2. Cervicitis remains possible because of the purulent discharge (Ross, 2025).",
+            "2. Cervicitis remains possible because of the purulent discharge.",
+        )
+        self.assertIn(scan.MDM_ENTRY_NO_CITATION, kinds(text))
+
+    def test_a_citation_in_a_continuation_paragraph_discharges_the_entry(self):
+        text = CLEAN.replace(
+            "1. Pelvic inflammatory disease is favored by cervical motion tenderness (Ross, 2025).",
+            "1. Pelvic inflammatory disease is favored by cervical motion tenderness.\n\n"
+            "This discriminator is supported by the expected presentation (Ross, 2025).",
+        )
+        self.assertNotIn(scan.MDM_ENTRY_NO_CITATION, kinds(text))
+
+
+class CrossReferencesResolveAgainstTheNamedSection(unittest.TestCase):
+    def test_a_plan_item_past_the_section_count_fires(self):
+        text = CLEAN.replace(
+            "## References",
+            "The follow-up is detailed in Plan item 9.\n\n## References",
+        )
+        result = survey(text)
+        self.assertIn(scan.CROSS_REFERENCE_OUT_OF_RANGE, [f.kind for f in result.findings])
+        self.assertEqual(result.named_cross_references, 1)
+        self.assertEqual(result.resolved_cross_references, 0)
+
+    def test_every_named_form_is_case_insensitive_and_ranges_take_the_largest_number(self):
+        text = CLEAN.replace(
+            "## References",
+            "See pLaN ItEmS 2-3, mdm ENTRY 2, Patient Education item 1, and "
+            "DIFFERENTIAL 2.\n\n## References",
+        )
+        result = survey(text)
+        self.assertEqual(result.named_cross_references, 4)
+        self.assertEqual(result.resolved_cross_references, 4)
+        self.assertNotIn(scan.CROSS_REFERENCE_OUT_OF_RANGE, [f.kind for f in result.findings])
+
+    def test_a_descending_range_takes_its_largest_number(self):
+        text = CLEAN.replace(
+            "## References",
+            "See Plan items 9-2.\n\n## References",
+        )
+        self.assertIn(scan.CROSS_REFERENCE_OUT_OF_RANGE, kinds(text))
+
+    def test_a_dot_dot_range_takes_its_largest_number(self):
+        text = CLEAN.replace(
+            "## References",
+            "See Plan items 2 .. 9.\n\n## References",
+        )
+        self.assertIn(scan.CROSS_REFERENCE_OUT_OF_RANGE, kinds(text))
+
+    def test_an_inserted_item_leaves_an_in_range_pointer_clean(self):
+        text = CLEAN.replace(
+            "1. Obtain a pregnancy test.",
+            "1. Inserted plan item.\n2. Obtain a pregnancy test.",
+        ).replace("## References", "See Plan item 3.\n\n## References")
+        directory, path = draft_file(text)
+        try:
+            status, _, _ = run([str(path)])
+        finally:
+            directory.cleanup()
+        self.assertEqual(status, 0)
+
+    def test_an_unnamed_entry_is_counted_and_never_resolved(self):
+        text = CLEAN.replace("## References", "See entry 4.\n\n## References")
+        result = survey(text)
+        self.assertEqual(result.unnamed_cross_references, 1)
+        self.assertEqual(result.named_cross_references, 0)
+        directory, path = draft_file(text)
+        try:
+            status, out, _ = run([str(path)])
+        finally:
+            directory.cleanup()
+        self.assertEqual(status, 0, out)
+
+    def test_the_report_counts_each_class(self):
+        text = CLEAN.replace(
+            "## References",
+            "See Plan items 2-3 and entry 4.\n\n## References",
+        )
+        report = scan.format_report(survey(text), "draft.md")
+        self.assertIn("cross-references read", report)
+        self.assertIn("cross-references resolved", report)
+        self.assertIn("unnamed item or entry references", report)
+
+    def test_show_lists_the_landing_item_and_the_unnamed_reference(self):
+        text = CLEAN.replace(
+            "## References",
+            "See Plan item 3 and entry 4.\n\n## References",
+        )
+        report = scan.format_report(survey(text), "draft.md", show=True)
+        self.assertIn("Plan item 3", report)
+        self.assertIn("Treat pelvic inflammatory disease.", report)
+        self.assertIn("entry 4", report)
 
 
 class TheTwoCloserRows(unittest.TestCase):
@@ -677,6 +835,63 @@ class TheExitStatus(unittest.TestCase):
         self.assertIn("no run directory", err)
 
 
+class RequiredSectionsGateTheScan(unittest.TestCase):
+    def misspelled_ros(self) -> str:
+        return CLEAN.replace("## Review of Systems", "## Reveiw of Systems")
+
+    def test_a_misspelled_required_heading_exits_two(self):
+        directory, path = draft_file(self.misspelled_ros())
+        try:
+            status, out, _ = run([str(path)])
+        finally:
+            directory.cleanup()
+        self.assertEqual(status, 2, out)
+        layout_line = next(
+            line for line in out.splitlines() if line.startswith(scan.INTAKE_FIELD_LAYOUT)
+        )
+        self.assertIn("not graded", layout_line)
+        table_line = next(
+            line for line in out.splitlines() if line.startswith(scan.INTAKE_TABLE)
+        )
+        self.assertIn("not graded", table_line)
+
+    def test_each_required_section_is_gated(self):
+        headings = (
+            "Review of Systems",
+            "Physical Examination",
+            "Differential Diagnoses",
+            "MDM",
+            "Plan:",
+            "Patient Education:",
+        )
+        for heading in headings:
+            with self.subTest(heading=heading):
+                result = survey(CLEAN.replace("## " + heading, "## Missing " + heading))
+                self.assertIn(heading, result.missing_required_sections)
+
+    def test_a_finding_still_wins_over_a_missing_required_section(self):
+        directory, path = draft_file(self.misspelled_ros() + "\n- a bullet\n")
+        try:
+            status, out, _ = run([str(path)])
+        finally:
+            directory.cleanup()
+        self.assertEqual(status, 1, out)
+
+    def test_an_optional_unrecognized_developmental_heading_exits_zero(self):
+        text = CLEAN.replace(
+            "## Physical Examination",
+            "## Developmental Milestones\n\nSynthetic prose.\n\n## Physical Examination",
+        )
+        directory, path = draft_file(text)
+        try:
+            status, out, _ = run([str(path)])
+        finally:
+            directory.cleanup()
+        self.assertEqual(status, 0, out)
+        self.assertIn("headings not recognized", out)
+        self.assertIn("headings not recognized              1", out)
+
+
 class ProposedMaterialIsNotASubmission(unittest.TestCase):
     def test_a_proposed_heading_is_a_finding(self):
         fired = kinds(CLEAN + "\n## PROPOSED (verify before use)\n\nA proposed plan.\n")
@@ -862,6 +1077,9 @@ class EveryDeclaredLimitHasAnEvidenceDisposition(unittest.TestCase):
     BLOCK_CITATION_PLACEMENT = (
         "whether a block quotation's parenthetical or narrative citation placement is correct"
     )
+    WRONG_CROSS_REFERENCE = "a cross-reference inside range that lands on the wrong item"
+    UNNAMED_CROSS_REFERENCE = "an unnamed cross-reference is never resolved"
+    OPTIONAL_HEADING = "a misspelled optional heading disables its row"
 
     def test_every_limit_has_exactly_one_known_disposition(self):
         self.assertEqual(
@@ -877,7 +1095,14 @@ class EveryDeclaredLimitHasAnEvidenceDisposition(unittest.TestCase):
                 for key, disposition in scan.DECLARED_LIMITS
                 if disposition is scan.EvidenceDisposition.BEHAVIOR
             ],
-            [self.WELDED, self.SOURCED_DOSE, self.NARRATIVE_QUOTATION],
+            [
+                self.WELDED,
+                self.SOURCED_DOSE,
+                self.NARRATIVE_QUOTATION,
+                self.WRONG_CROSS_REFERENCE,
+                self.UNNAMED_CROSS_REFERENCE,
+                self.OPTIONAL_HEADING,
+            ],
         )
         self.assertEqual(
             [
@@ -918,6 +1143,23 @@ class EveryDeclaredLimitHasAnEvidenceDisposition(unittest.TestCase):
         self.assertEqual(
             research_ledger.prescription_findings([prescription], [sourced]), []
         )
+
+    def test_an_in_range_cross_reference_cannot_detect_a_wrong_landing(self):
+        text = CLEAN.replace("## References", "See Plan item 3.\n\n## References")
+        self.assertNotIn(scan.CROSS_REFERENCE_OUT_OF_RANGE, kinds(text))
+
+    def test_an_unnamed_cross_reference_is_counted_and_not_resolved(self):
+        result = survey(CLEAN.replace("## References", "See item 3.\n\n## References"))
+        self.assertEqual(result.unnamed_cross_references, 1)
+        self.assertEqual(result.resolved_cross_references, 0)
+
+    def test_a_misspelled_optional_heading_disables_the_layout_row(self):
+        text = CLEAN.replace(
+            "## Physical Examination",
+            "## Developmental Historry\n\nGross motor: Walks. Fine motor: Grasps.\n\n"
+            "## Physical Examination",
+        )
+        self.assertNotIn(scan.INTAKE_FIELD_LAYOUT, kinds(text))
 
 
 class TheSkillSaysWhatThisCannotDo(unittest.TestCase):
@@ -999,6 +1241,38 @@ class TheDocumentedShapesPass(unittest.TestCase):
         block = text[text.index("### The Review of Systems and the Physical Examination") :]
         block = block[: block.index("### Never bullets")]
         self.assertNotIn("| --- |", block)
+
+    def test_the_section_one_a_examples_pass_the_field_layout_row(self):
+        text = STYLE.read_text("utf-8")
+        block = text[text.index("## 1a.") : text.index("### Never bullets")]
+        quotes = [b.text for b in docx_write.blocks(block) if b.kind == "block-quotation"]
+        section_for = {
+            "Age:": scan.DEMOGRAPHICS,
+            "General:": scan.REVIEW_OF_SYSTEMS,
+            "Gastrointestinal:": scan.REVIEW_OF_SYSTEMS,
+            "Gross motor:": scan.DEVELOPMENTAL_HISTORY,
+            "Fine motor:": scan.DEVELOPMENTAL_HISTORY,
+            "Language:": scan.DEVELOPMENTAL_HISTORY,
+            "Social:": scan.DEVELOPMENTAL_HISTORY,
+            "Neurologic:": scan.PHYSICAL_EXAMINATION,
+            "Weight:": "Growth Assessment",
+        }
+        examples = [
+            (section_for[prefix], quote)
+            for quote in quotes
+            for prefix in section_for
+            if quote.startswith(prefix)
+        ]
+        self.assertEqual({name for name, _ in examples}, set(section_for.values()))
+        for section, example in examples:
+            with self.subTest(section=section, example=example):
+                draft = CLEAN.replace(
+                    "## Physical Examination",
+                    "## {section}\n\n{example}\n\n## Physical Examination".format(
+                        section=section, example=example
+                    ),
+                )
+                self.assertNotIn(scan.INTAKE_FIELD_LAYOUT, kinds(draft))
 
     def test_the_scaffolding_set_is_the_sheets_own_table(self):
         """Every ``Written`` cell of section 1a's table is a phrase this refuses."""

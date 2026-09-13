@@ -56,6 +56,24 @@ Same shape, one line per system, with the positives and the negatives signed:
 > General: + fatigue and fever, - chills and weight loss.
 > Gastrointestinal: + lower abdominal pain and mild nausea, - vomiting and diarrhea.
 
+Developmental History takes the same shape, one line per domain:
+
+> Gross motor: Walks independently.
+> Fine motor: Uses a pincer grasp.
+> Language: Uses two-word phrases.
+> Social: Engages in parallel play.
+
+A system's line carries one label; write its sub-findings in running words:
+
+> Neurologic: Alert and oriented x3, strength 5/5 in all extremities, reflexes 2+ and symmetric.
+
+Growth measurements stay a running line:
+
+> Weight: [weight]. Height: [height]. BMI: [BMI].
+
+A growth-and-development examination or assessment stays prose rather than taking the
+Developmental History domain shape.
+
 **The Review of Systems closes with a disclaimer and the Physical Examination does not.** His
 instruction: *"I would put at the bottom of that ROS a disclaimer that all other systems reviewed and
 are negative."* A Review of Systems is a question set and the closer is what makes the unlisted
@@ -169,7 +187,8 @@ Ruled-out entries end on the verdict — `making this less likely`, `is not a st
 the entry's own header line** — `- Cholecystitis - unlikely.` — with the reasoning underneath. Use
 that form.
 
-Every clinical claim carries a citation. Density runs one to three citations per entry.
+Every clinical claim carries a citation. Every numbered MDM entry carries at least one in-text
+citation. Density runs one to three citations per entry.
 
 ## 6. Plan — orders, not prose
 

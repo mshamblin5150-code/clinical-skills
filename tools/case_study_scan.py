@@ -59,7 +59,9 @@ on a document that got it right.
 clean, 1 for a defect, **2 for every way of not having scanned**: no argument, no
 file, **no section this recognizes in the document**, **a skeleton that
 disagrees with the one ``SKILL.md`` publishes**, and **a ``SKILL.md`` this
-could not read at all**. The third limb is
+could not read at all**. A missing Review of Systems, Physical Examination,
+Differential Diagnoses, MDM, Plan, or Patient Education section also means the
+draft was not scanned completely. The third limb is
 ``differential_scan.py``'s reasoning -- a draft whose headings are written in a
 shape this cannot read would otherwise report zero defects and stand where a
 graded document should. The fourth is ``guidelines_catalog.check_legend``'s: two
@@ -95,8 +97,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import docx_write
-from discussion_artifact import read_citations
 import coursework_run
+import reference_scan
 import run_grader
 from run_grader import EvidenceDisposition
 
@@ -125,13 +127,62 @@ SKELETON = (
     "References",
 )
 
-# The three intake subsections ``style.md`` section 1a names. They are not
+# The intake subsections ``style.md`` section 1a names. They are not
 # skeleton items -- they sit inside item 2 -- so they are held separately and are
 # not part of the ``SKILL.md`` agreement check.
 DEMOGRAPHICS = "Demographics"
 REVIEW_OF_SYSTEMS = "Review of Systems"
 PHYSICAL_EXAMINATION = "Physical Examination"
-INTAKE_SECTIONS = (DEMOGRAPHICS, REVIEW_OF_SYSTEMS, PHYSICAL_EXAMINATION)
+DEVELOPMENTAL_HISTORY = "Developmental History"
+INTAKE_SECTIONS = (
+    DEMOGRAPHICS,
+    REVIEW_OF_SYSTEMS,
+    PHYSICAL_EXAMINATION,
+    DEVELOPMENTAL_HISTORY,
+)
+
+# A field label at the start of a paragraph or after sentence punctuation. The
+# open vocabulary is the point: a new system or developmental domain is read
+# without being added here. A second label in one paragraph is the run-on shape.
+FIELD_LABEL = re.compile(
+    r"(?:^|(?<=[.!?])\s+)"
+    r"(?:[A-Z][A-Za-z'/-]*(?:\s+[A-Za-z][A-Za-z'/-]*){0,3}):\s"
+)
+FIELD_LAYOUT_SECTIONS = (
+    REVIEW_OF_SYSTEMS,
+    PHYSICAL_EXAMINATION,
+    DEVELOPMENTAL_HISTORY,
+)
+
+CROSS_REFERENCE_RANGE = (
+    r"(?P<first>\d+)"
+    r"(?:\s*(?:\.\.|-|–|—|to|through)\s*(?P<last>\d+))?"
+)
+CROSS_REFERENCE_PATTERNS = (
+    (
+        "Plan:",
+        re.compile(r"\bPlan\s+items?\s+" + CROSS_REFERENCE_RANGE, re.I),
+    ),
+    (
+        "MDM",
+        re.compile(r"\bMDM\s+entr(?:y|ies)\s+" + CROSS_REFERENCE_RANGE, re.I),
+    ),
+    (
+        "Patient Education:",
+        re.compile(
+            r"\bPatient\s+Education\s+items?\s+" + CROSS_REFERENCE_RANGE,
+            re.I,
+        ),
+    ),
+    (
+        "Differential Diagnoses",
+        re.compile(r"\bdifferential\s+" + CROSS_REFERENCE_RANGE, re.I),
+    ),
+)
+UNNAMED_CROSS_REFERENCE = re.compile(
+    r"\b(?:item|entry)\s+" + CROSS_REFERENCE_RANGE,
+    re.I,
+)
 
 # What a finding names where the block it fired on sits under no heading this
 # reads -- which is an ordinary place for one to be, since the bullet and the
@@ -143,8 +194,20 @@ OUTSIDE_ANY_SECTION = "no section this reads"
 LABEL_LEVEL = 99
 
 MOST_LIKELY = "Most Likely Clinical Diagnosis"
+MDM = "MDM"
+PLAN = "Plan:"
+PATIENT_EDUCATION = "Patient Education:"
 RX = "Rx:"
 SIGNED_BY = "Signed by:"
+
+REQUIRED_SECTIONS = (
+    REVIEW_OF_SYSTEMS,
+    PHYSICAL_EXAMINATION,
+    "Differential Diagnoses",
+    MDM,
+    PLAN,
+    PATIENT_EDUCATION,
+)
 
 # Where ``SKILL.md`` publishes the skeleton, and the shape of one of its items.
 SKELETON_OPENS = "The skeleton, in order:"
@@ -244,6 +307,9 @@ EM_DASH = "—"
 
 BULLET_MARKER = "bullet-marker"
 INTAKE_TABLE = "intake-table"
+INTAKE_FIELD_LAYOUT = "intake-field-layout"
+MDM_ENTRY_NO_CITATION = "mdm-entry-no-citation"
+CROSS_REFERENCE_OUT_OF_RANGE = "cross-reference-out-of-range"
 ROS_NO_CLOSER = "ros-no-closer"
 EXAM_CLAIMS_UNEXAMINED = "exam-claims-unexamined"
 SCAFFOLDING_PHRASE = "scaffolding-phrase"
@@ -262,6 +328,9 @@ UNMARKED_BLOCK_QUOTATION = "unmarked-block-quotation"
 ROWS = {
     BULLET_MARKER: "style.md 1a, SKILL.md - never bullets, anywhere",
     INTAKE_TABLE: "style.md 1a - defined fields, never a table",
+    INTAKE_FIELD_LAYOUT: "style.md 1a - one intake field or developmental domain per line",
+    MDM_ENTRY_NO_CITATION: "style.md 5 - every numbered MDM entry carries a citation",
+    CROSS_REFERENCE_OUT_OF_RANGE: "SKILL.md - a named cross-reference resolves inside its section",
     ROS_NO_CLOSER: "style.md 1a - the ROS closes with the disclaimer",
     EXAM_CLAIMS_UNEXAMINED: "style.md 1a - and the exam does not",
     SCAFFOLDING_PHRASE: "style.md 1a - no scaffolding language, and NKDA over the expansion",
@@ -277,6 +346,23 @@ ROWS = {
     ),
 }
 KINDS = tuple(ROWS)
+
+ROW_SECTION_REQUIREMENTS = {
+    INTAKE_TABLE: (REVIEW_OF_SYSTEMS, PHYSICAL_EXAMINATION),
+    INTAKE_FIELD_LAYOUT: (REVIEW_OF_SYSTEMS, PHYSICAL_EXAMINATION),
+    MDM_ENTRY_NO_CITATION: (MDM,),
+    CROSS_REFERENCE_OUT_OF_RANGE: (
+        "Differential Diagnoses",
+        MDM,
+        PLAN,
+        PATIENT_EDUCATION,
+    ),
+    ROS_NO_CLOSER: (REVIEW_OF_SYSTEMS,),
+    EXAM_CLAIMS_UNEXAMINED: (PHYSICAL_EXAMINATION,),
+    DIAGNOSIS_ALL_BOLD: (MOST_LIKELY,),
+    RX_TABLE_SHAPE: (RX,),
+    NO_STOP_CRITERION: (RX,),
+}
 
 # **What no row here reaches, named rather than left to be discovered.**
 # ``skills/practicum-case-study/SKILL.md`` step 9 names the same items and a test
@@ -326,6 +412,14 @@ DECLARED_LIMITS = (
         "whether a block quotation's parenthetical or narrative citation placement is correct",
         EvidenceDisposition.DECLARED_READING,
     ),
+    ("care-setting agreement across sections", EvidenceDisposition.DECLARED_READING),
+    (
+        "a cross-reference inside range that lands on the wrong item",
+        EvidenceDisposition.BEHAVIOR,
+    ),
+    ("an unnamed cross-reference is never resolved", EvidenceDisposition.BEHAVIOR),
+    ("a misspelled optional heading disables its row", EvidenceDisposition.BEHAVIOR),
+    ("whether an MDM citation supports its claim", EvidenceDisposition.DECLARED_READING),
 )
 NOT_REACHED = tuple(key for key, _ in DECLARED_LIMITS)
 
@@ -379,6 +473,16 @@ class Section:
 
 
 @dataclass(frozen=True)
+class CrossReference:
+    line: int
+    label: str
+    section: str | None
+    number: int
+    section_present: bool
+    target: str | None
+
+
+@dataclass(frozen=True)
 class Scan:
     """What one run found, and what it was able to look at.
 
@@ -396,6 +500,13 @@ class Scan:
     em_dashes: int
     numbered_sections_not_opening_at_one: int
     broken_numbered_transitions: int
+    named_cross_references: int
+    resolved_cross_references: int
+    unnamed_cross_references: int
+    cross_references: tuple[CrossReference, ...]
+    recognized_sections: tuple[str, ...]
+    missing_required_sections: tuple[str, ...]
+    unrecognized_headings: int
     no_section: bool
     skeleton_disagreement: list
     skeleton_unread: bool
@@ -547,10 +658,10 @@ def _bullet_findings(sections: list[Section], every: list) -> list[Finding]:
 
 
 def _intake_findings(sections: list[Section]) -> list[Finding]:
-    """Demographics, the ROS and the exam are defined fields, never a table.
+    """Developmental History, the ROS, and the exam are defined fields, never a table.
 
     A table is still right for a given result set, which is why this fires only
-    inside the three sections section 1a names and nowhere else in the document.
+    inside the intake sections section 1a names and nowhere else in the document.
     """
     findings = []
     for section in sections:
@@ -560,6 +671,113 @@ def _intake_findings(sections: list[Section]) -> list[Finding]:
             if block.kind == "table":
                 findings.append(Finding(INTAKE_TABLE, section.name, block.line, section.name))
     return findings
+
+
+def _intake_field_layout_findings(sections: list[Section]) -> list[Finding]:
+    """One system or developmental domain per paragraph in the review sections."""
+    findings = []
+    for section in sections:
+        if section.name not in FIELD_LAYOUT_SECTIONS:
+            continue
+        for block in section.blocks:
+            if block.kind == "paragraph" and len(FIELD_LABEL.findall(block.text)) >= 2:
+                findings.append(
+                    Finding(INTAKE_FIELD_LAYOUT, section.name, block.line, block.text)
+                )
+    return findings
+
+
+def top_level_numbered_entries(section: Section) -> list[list]:
+    """Each top-level numbered item together with its continuation blocks."""
+    entries = []
+    current = None
+    for block in section.blocks:
+        if block.kind == "numbered" and block.level == 0:
+            current = [block]
+            entries.append(current)
+        elif current is not None:
+            current.append(block)
+    return entries
+
+
+def _mdm_citation_findings(sections: list[Section]) -> list[Finding]:
+    """Every top-level MDM entry carries a citation in its complete block."""
+    findings = []
+    for section in sections:
+        if section.name != MDM:
+            continue
+        for entry in top_level_numbered_entries(section):
+            text = "\n".join(block_text(block) for block in entry)
+            if not reference_scan.read_citations(text):
+                first = entry[0]
+                findings.append(
+                    Finding(MDM_ENTRY_NO_CITATION, section.name, first.line, first.text)
+                )
+    return findings
+
+
+def read_cross_references(sections: list[Section], every: list) -> tuple[CrossReference, ...]:
+    """Resolve named item pointers against their section and retain unnamed pointers."""
+    entries = {
+        section.name: top_level_numbered_entries(section)
+        for section in sections
+        if section.name in {PLAN, MDM, PATIENT_EDUCATION, "Differential Diagnoses"}
+    }
+    found = []
+    for block in every:
+        text = block_text(block)
+        named_spans = []
+        for section_name, pattern in CROSS_REFERENCE_PATTERNS:
+            for match in pattern.finditer(text):
+                named_spans.append(match.span())
+                number = max(
+                    int(match.group("first")),
+                    int(match.group("last") or match.group("first")),
+                )
+                section_entries = entries.get(section_name, [])
+                target = (
+                    section_entries[number - 1][0].text
+                    if 1 <= number <= len(section_entries)
+                    else None
+                )
+                found.append(
+                    CrossReference(
+                        block.line,
+                        match.group(0),
+                        section_name,
+                        number,
+                        section_name in entries,
+                        target,
+                    )
+                )
+        for match in UNNAMED_CROSS_REFERENCE.finditer(text):
+            if any(start <= match.start() and match.end() <= end for start, end in named_spans):
+                continue
+            number = max(
+                int(match.group("first")),
+                int(match.group("last") or match.group("first")),
+            )
+            found.append(
+                CrossReference(block.line, match.group(0), None, number, False, None)
+            )
+    return tuple(sorted(found, key=lambda item: (item.line, item.label.lower())))
+
+
+def _cross_reference_findings(
+    cross_references: tuple[CrossReference, ...],
+) -> list[Finding]:
+    return [
+        Finding(
+            CROSS_REFERENCE_OUT_OF_RANGE,
+            reference.section or OUTSIDE_ANY_SECTION,
+            reference.line,
+            reference.label,
+        )
+        for reference in cross_references
+        if reference.section is not None
+        and reference.section_present
+        and reference.target is None
+    ]
 
 
 def _closer_findings(sections: list[Section]) -> list[Finding]:
@@ -734,12 +952,11 @@ def _source_quotation_findings(sections: list[Section], every: list) -> list[Fin
     for block in every:
         if block.kind != "paragraph":
             continue
-        citations = read_citations(block.text)
         for match in QUOTED_SPAN.finditer(block.text):
             quoted = match.group("straight") or match.group("curly") or ""
             if len(QUOTED_WORD.findall(quoted)) < 40:
                 continue
-            if not any(citation.start >= match.end() for citation in citations):
+            if not reference_scan.read_citations(block.text[match.end() :]):
                 continue
             found.append(
                 Finding(
@@ -753,7 +970,11 @@ def _source_quotation_findings(sections: list[Section], every: list) -> list[Fin
     return found
 
 
-def findings(sections: list[Section], every: list) -> list[Finding]:
+def findings(
+    sections: list[Section],
+    every: list,
+    cross_references: tuple[CrossReference, ...] = (),
+) -> list[Finding]:
     """Every row, sorted by ``KINDS``.
 
     Sorted rather than appended in call order, on ``reference_scan.py``'s
@@ -763,6 +984,9 @@ def findings(sections: list[Section], every: list) -> list[Finding]:
     found = (
         _bullet_findings(sections, every)
         + _intake_findings(sections)
+        + _intake_field_layout_findings(sections)
+        + _mdm_citation_findings(sections)
+        + _cross_reference_findings(cross_references)
         + _closer_findings(sections)
         + _scaffolding_findings(sections, every)
         + _bold_findings(sections)
@@ -805,8 +1029,10 @@ def numbering_advisories(sections: list[Section]) -> tuple[int, int]:
 def survey(markdown: str, skill_text: str | None) -> Scan:
     sections, every = read_sections(markdown)
     not_opening_at_one, broken_transitions = numbering_advisories(sections)
+    cross_references = read_cross_references(sections, every)
+    section_names = {section.name for section in sections}
     return Scan(
-        findings=findings(sections, every),
+        findings=findings(sections, every, cross_references),
         sections=len(sections),
         intake_sections=len([s for s in sections if s.name in INTAKE_SECTIONS]),
         tables=len([b for b in every if b.kind == "table"]),
@@ -814,6 +1040,21 @@ def survey(markdown: str, skill_text: str | None) -> Scan:
         + sum(block_text(b).count(EM_DASH) for b in every if b.kind == "table"),
         numbered_sections_not_opening_at_one=not_opening_at_one,
         broken_numbered_transitions=broken_transitions,
+        named_cross_references=len([r for r in cross_references if r.section is not None]),
+        resolved_cross_references=len([r for r in cross_references if r.target is not None]),
+        unnamed_cross_references=len([r for r in cross_references if r.section is None]),
+        cross_references=cross_references,
+        recognized_sections=tuple(section.name for section in sections),
+        missing_required_sections=tuple(
+            section for section in REQUIRED_SECTIONS if section not in section_names
+        ),
+        unrecognized_headings=len(
+            [
+                block
+                for block in every
+                if block.kind == "heading" and normalize(block.text) not in KNOWN_SECTIONS
+            ]
+        ),
         no_section=not sections,
         skeleton_disagreement=check_skeleton(skill_text) if skill_text is not None else [],
         skeleton_unread=skill_text is None,
@@ -824,6 +1065,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
     lines = ["== case study house style", "   {s}".format(s=source), ""]
     lines.append("sections read                        {n}".format(n=scan.sections))
     lines.append("  of them intake subsections         {n}".format(n=scan.intake_sections))
+    lines.append("headings not recognized              {n}".format(n=scan.unrecognized_headings))
     lines.append("tables                               {n}".format(n=scan.tables))
     lines.append(
         "em dashes  COUNTED, NEVER GRADED     {n}".format(n=scan.em_dashes)
@@ -838,6 +1080,33 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
             n=scan.broken_numbered_transitions
         )
     )
+    lines.append(
+        "cross-references read                {n}".format(
+            n=scan.named_cross_references
+        )
+    )
+    lines.append(
+        "cross-references resolved            {n}".format(n=scan.resolved_cross_references)
+    )
+    lines.append(
+        "unnamed item or entry references     {n}".format(n=scan.unnamed_cross_references)
+    )
+    if show:
+        for reference in scan.cross_references:
+            if reference.section is None:
+                lines.append(
+                    "    unnamed cross-reference line {l}: {label}".format(
+                        l=reference.line, label=reference.label
+                    )
+                )
+            else:
+                lines.append(
+                    "    cross-reference line {l}: {label} -> {target}".format(
+                        l=reference.line,
+                        label=reference.label,
+                        target=reference.target or "no item at that number",
+                    )
+                )
     lines.append("")
     by_kind = {kind: [] for kind in KINDS}
     for finding in scan.findings:
@@ -845,7 +1114,13 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
     width = max(len(kind) for kind in KINDS)
     for kind in KINDS:
         hits = by_kind[kind]
-        lines.append("{k}{p}  {n}".format(k=kind, p=" " * (width - len(kind)), n=len(hits)))
+        missing_for_row = [
+            section
+            for section in ROW_SECTION_REQUIREMENTS.get(kind, ())
+            if section not in scan.recognized_sections
+        ]
+        outcome = run_grader.NOT_GRADED if missing_for_row else str(len(hits))
+        lines.append("{k}{p}  {n}".format(k=kind, p=" " * (width - len(kind)), n=outcome))
         if show:
             for finding in hits:
                 lines.append(
@@ -859,6 +1134,13 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
     for failure in scan.skeleton_disagreement:
         lines.append("")
         lines.append("SKELETON DISAGREEMENT: {f}".format(f=failure))
+    if scan.missing_required_sections:
+        lines.append("")
+        lines.append(
+            "required sections not recognized: {s}".format(
+                s=", ".join(scan.missing_required_sections)
+            )
+        )
     if scan.no_section:
         lines.append("")
         lines.append(
@@ -915,7 +1197,10 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
         scan=scan,
         source=source.name,
         findings_failed=bool(scan.findings),
-        coverage_failed=scan.no_section or bool(scan.skeleton_disagreement) or scan.skeleton_unread,
+        coverage_failed=scan.no_section
+        or bool(scan.missing_required_sections)
+        or bool(scan.skeleton_disagreement)
+        or scan.skeleton_unread,
         diagnostics=diagnostics,
     )
 
