@@ -112,13 +112,29 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          $issueProbe = Join-Path $env:RUNNER_TEMP 'tracker-issues-population.json'
+          $commentProbe = Join-Path $env:RUNNER_TEMP 'tracker-comments-population.http'
+          $reviewProbe = Join-Path $env:RUNNER_TEMP 'tracker-reviews-population.http'
+          $population = Join-Path $env:RUNNER_TEMP 'tracker-population.json'
+          gh api graphql -f owner='${{ github.repository_owner }}' -f name='${{ github.event.repository.name }}' -f query='query($owner:String!,$name:String!){repository(owner:$owner,name:$name){issues{totalCount} pullRequests{totalCount}}}' |
+            Out-File -FilePath $issueProbe -Encoding utf8
+          gh api --include 'repos/${{ github.repository }}/issues/comments?per_page=1&page=1' |
+            Out-File -FilePath $commentProbe -Encoding utf8
+          gh api --include 'repos/${{ github.repository }}/pulls/comments?per_page=1&page=1' |
+            Out-File -FilePath $reviewProbe -Encoding utf8
+          python tools/tracker_population.py $issueProbe $commentProbe $reviewProbe --write $population
           $harvest = Join-Path $env:RUNNER_TEMP 'implementation-map-issues.json'
           gh api --paginate 'repos/${{ github.repository }}/issues?state=all&per_page=100' |
             Out-File -FilePath $harvest -Encoding utf8
-          $report = python tools/map_scan.py $harvest 2>&1
+          $report = python tools/map_scan.py $harvest --population $population 2>&1
           $status = $LASTEXITCODE
           $report
-          @('### Implementation map disagreement', '', '```', $report, '```') |
+          $heading = if ($status -eq 2) {
+            '### Implementation map: DID NOT SCAN'
+          } else {
+            '### Implementation map disagreement'
+          }
+          @($heading, '', '```', $report, '```') |
             Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
           exit $status
 

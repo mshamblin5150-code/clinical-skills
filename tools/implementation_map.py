@@ -152,8 +152,12 @@ DECLARED_LIMITS = (
         "An unclassified group is held by its stored list order even though no mechanical check establishes that order was authored.",
     ),
     DeclaredLimit(
+        "tracker-population-denominator",
+        "The population gate treats GraphQL issues.totalCount plus pullRequests.totalCount as the REST issues union; primary sources do not settle an issue converted to a discussion or an issue hidden as spam or abuse, either of which may make the counts diverge.",
+    ),
+    DeclaredLimit(
         "clean-check-derived-views",
-        "A clean check grades the state block against the live tracker and does not establish that the published derived views match a fresh render; audit performs that comparison.",
+        "A clean check grades the state block against live tracker rows whose pre-filter count passed the population gate and does not establish that the published derived views match a fresh render; audit performs that comparison.",
     ),
     DeclaredLimit(
         "producer-stamp-single-emitter",
@@ -164,6 +168,33 @@ DECLARED_LIMITS = (
 
 class MapError(Exception):
     """A reason the run could not happen. Converted to exit 2 at main()."""
+
+
+class ShortReadError(MapError):
+    """A tracker harvest that did not reach its independent population."""
+
+    def __init__(
+        self,
+        *,
+        population: int,
+        harvest_count: int,
+        record_numbers: tuple[int, ...],
+        probe_at: str,
+        harvest_at: str,
+    ) -> None:
+        self.population = population
+        self.harvest_count = harvest_count
+        self.record_numbers = record_numbers
+        self.probe_at = probe_at
+        self.harvest_at = harvest_at
+        self.preserved_record: Path | None = None
+        highest = max(record_numbers, default=0)
+        super().__init__(
+            "tracker issue harvest was short: "
+            f"population {population}, harvest {harvest_count}, "
+            f"shortfall {population - harvest_count}, "
+            f"highest record number {highest}"
+        )
 
 
 class StateHashMismatch(Exception):
@@ -445,21 +476,30 @@ def advance_reconciliation_floor(
 
 
 def preserve_refused_outcomes(
-    outcomes: tuple[str, ...], *, issue_number: int, reason: str
+    outcomes: tuple[str, ...],
+    *,
+    issue_number: int,
+    reason: str,
+    short_read: ShortReadError | None = None,
 ) -> Path | None:
     """Persist authored judgment that a refused tracker write would strand."""
     kept = [outcome for outcome in outcomes if outcome.strip()]
-    if not kept:
+    if not kept and short_read is None:
         return None
     directory = refused_outcome_directory()
     directory.mkdir(parents=True, exist_ok=True)
     path = directory / f"issue-{issue_number}-{uuid.uuid4().hex}.json"
+    payload = {"issue": issue_number, "outcomes": kept, "reason": reason}
+    if short_read is not None:
+        payload.update({
+            "population": short_read.population,
+            "harvest_count": short_read.harvest_count,
+            "probe_at": short_read.probe_at,
+            "harvest_at": short_read.harvest_at,
+            "record_numbers": list(short_read.record_numbers),
+        })
     path.write_text(
-        json.dumps(
-            {"issue": issue_number, "outcomes": kept, "reason": reason},
-            indent=2,
-            sort_keys=True,
-        ) + "\n",
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
     return path
@@ -620,6 +660,7 @@ class GitHub:
 
     def __init__(self, repo: str) -> None:
         self.repo = repo
+        self._issues_cache: list[dict] | None = None
 
     def _run(self, args: list[str], input_text: str | None = None) -> str:
         try:
@@ -638,10 +679,41 @@ class GitHub:
 
     def issues(self) -> list[dict]:
         """Every issue (not PRs), open and closed, with bodies."""
+        if self._issues_cache is not None:
+            return [dict(row) for row in self._issues_cache]
+        owner, name = self.repo.split("/", 1)
+        query = """
+query($owner:String!,$name:String!){
+  repository(owner:$owner,name:$name){
+    issues{totalCount}
+    pullRequests{totalCount}
+  }
+}
+""".strip()
+        probe = self._run([
+            "api", "graphql", "-f", f"query={query}",
+            "-F", f"owner={owner}", "-F", f"name={name}",
+        ])
+        probe_at = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        try:
+            repository = json.loads(probe)["data"]["repository"]
+            counts = (
+                repository["issues"]["totalCount"],
+                repository["pullRequests"]["totalCount"],
+            )
+        except (json.JSONDecodeError, KeyError, TypeError) as err:
+            raise MapError(f"invalid tracker issue population probe: {err}") from err
+        if any(
+            not isinstance(count, int) or isinstance(count, bool) or count < 0
+            for count in counts
+        ):
+            raise MapError("tracker issue population is not two nonnegative integers")
+        population = sum(counts)
         out = self._run([
             "api", "--paginate",
             f"repos/{self.repo}/issues?state=all&per_page=100",
         ])
+        harvest_at = datetime.datetime.now(datetime.timezone.utc).isoformat()
         rows: list[dict] = []
         # --paginate concatenates JSON arrays; parse them in sequence.
         decoder = json.JSONDecoder()
@@ -652,9 +724,29 @@ class GitHub:
             if index >= len(out):
                 break
             chunk, offset = decoder.raw_decode(out, index)
+            if not isinstance(chunk, list):
+                raise MapError("tracker issue harvest page is not a JSON list")
             rows.extend(chunk)
             index = offset
-        return [
+        record_numbers = tuple(sorted(
+            row["number"]
+            for row in rows
+            if isinstance(row, dict) and isinstance(row.get("number"), int)
+        ))
+        print(
+            "tracker issue harvest: "
+            f"population {population}; records read {len(rows)}; "
+            f"unread remainder {max(population - len(rows), 0)}"
+        )
+        if len(rows) < population:
+            raise ShortReadError(
+                population=population,
+                harvest_count=len(rows),
+                record_numbers=record_numbers,
+                probe_at=probe_at,
+                harvest_at=harvest_at,
+            )
+        self._issues_cache = [
             {
                 "number": row["number"],
                 "title": row.get("title", ""),
@@ -666,13 +758,33 @@ class GitHub:
             for row in rows
             if "pull_request" not in row
         ]
+        return [dict(row) for row in self._issues_cache]
 
     def blocked_by(self, number: int) -> list[int]:
         out = self._run([
-            "api", f"repos/{self.repo}/issues/{number}/dependencies/blocked_by",
-            "--jq", "[.[].number]",
+            "api", "--include",
+            f"repos/{self.repo}/issues/{number}/dependencies/blocked_by?per_page=100",
         ])
-        return sorted(json.loads(out or "[]"))
+        parts = re.split(r"\r?\n\r?\n", out)
+        if len(parts) < 2:
+            raise MapError("blocked-by response has no HTTP header/body split")
+        headers, body = parts[-2], parts[-1].strip()
+        if any(line.lower().startswith("link:") for line in headers.splitlines()):
+            raise MapError(
+                f"blocked-by for issue #{number} has a Link header; "
+                "the population exceeds the sized page"
+            )
+        try:
+            rows = json.loads(body or "[]")
+        except json.JSONDecodeError as err:
+            raise MapError(f"blocked-by response is not JSON: {err}") from err
+        if not isinstance(rows, list):
+            raise MapError("blocked-by response body is not a JSON list")
+        return sorted(
+            row["number"]
+            for row in rows
+            if isinstance(row, dict) and isinstance(row.get("number"), int)
+        )
 
     def default_branch_head(self) -> str:
         out = self._run([
@@ -2227,23 +2339,44 @@ def cmd_publish(tracker, args) -> int:
 
 
 def cmd_apply_delta(tracker, args) -> int:
-    issue = locate_map(tracker)
+    outcomes = authored_outcomes(args)
+    issue_number = MAP_ISSUE
     try:
+        issue = locate_map(tracker)
+        issue_number = issue["number"]
         with artifact_lock.hold(
-            map_artifact(tracker, issue["number"]),
+            map_artifact(tracker, issue_number),
             "implementation-map reconciliation",
             mode="write",
         ):
-            return _apply_delta_under_lock(tracker, args, issue["number"])
+            return _apply_delta_under_lock(tracker, args, issue_number)
     except artifact_lock.ArtifactBusy as err:
-        outcomes = authored_outcomes(args)
         record = preserve_refused_outcomes(
-            outcomes, issue_number=issue["number"], reason=str(err)
+            outcomes, issue_number=issue_number, reason=str(err)
         )
         print(f"LOCK REFUSED: {err}")
         if record is not None:
             print(f"outcome record: {record}")
         return 1
+    except MapError as err:
+        if isinstance(err, ShortReadError):
+            err.preserved_record = preserve_refused_outcomes(
+                outcomes,
+                issue_number=issue_number,
+                reason=str(err),
+                short_read=err,
+            )
+            if err.preserved_record is not None:
+                print(f"outcome record: {err.preserved_record}")
+            raise
+        record = preserve_refused_outcomes(
+            outcomes,
+            issue_number=issue_number,
+            reason=str(err),
+        )
+        if record is not None:
+            print(f"outcome record: {record}")
+        raise
 
 
 def authored_outcomes(args) -> tuple[str, ...]:
@@ -2610,6 +2743,17 @@ def main(argv: list[str]) -> int:
         tracker = GitHub(resolve_repo(args))
         return COMMANDS[args.command](tracker, args)
     except MapError as err:
+        if isinstance(err, ShortReadError):
+            record = err.preserved_record
+            if record is None:
+                record = preserve_refused_outcomes(
+                    authored_outcomes(args),
+                    issue_number=MAP_ISSUE,
+                    reason=str(err),
+                    short_read=err,
+                )
+                if record is not None:
+                    print(f"outcome record: {record}")
         print(f"did not run: {err}", file=sys.stderr)
         return 2
     except (OSError, json.JSONDecodeError) as err:

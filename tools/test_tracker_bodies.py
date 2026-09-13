@@ -29,6 +29,7 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 import tracker_bodies as tb
+import tracker_population
 from prose_bind import NAMING, bind
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -576,9 +577,37 @@ class TheRowsAreOneTuple(unittest.TestCase):
 
 class TheCommandLine(unittest.TestCase):
     def run_main(self, *argv):
+        arguments = list(argv)
+        paths = [Path(item) for item in arguments]
+        if arguments and all(path.is_file() for path in paths):
+            try:
+                combined = []
+                for path in paths:
+                    payload = json.loads(path.read_text(encoding="utf-8"))
+                    combined.extend(payload if isinstance(payload, list) else [payload])
+            except (OSError, UnicodeError, json.JSONDecodeError):
+                pass
+            else:
+                root = paths[0].parent
+                canonical = (
+                    self.write(root, "tracker-issues.json", combined),
+                    self.write(root, "tracker-comments.json", []),
+                    self.write(root, "tracker-reviews.json", []),
+                )
+                population = root / "tracker-population.json"
+                population.write_text(json.dumps({
+                    "version": 1,
+                    "populations": {
+                        canonical[0].name: len(combined),
+                        canonical[1].name: 0,
+                        canonical[2].name: 0,
+                    },
+                }), encoding="utf-8")
+                arguments = [str(path) for path in canonical]
+                arguments.extend(("--population", str(population)))
         out, err = io.StringIO(), io.StringIO()
         with redirect_stdout(out), redirect_stderr(err):
-            status = tb.main(list(argv))
+            status = tb.main(arguments)
         return status, out.getvalue(), err.getvalue()
 
     def write(self, directory: Path, name: str, data) -> Path:
@@ -588,6 +617,83 @@ class TheCommandLine(unittest.TestCase):
 
     def test_no_argument_did_not_scan(self):
         self.assertEqual(self.run_main()[0], tb.NOT_SCANNED)
+
+    def test_a_harvest_without_a_population_did_not_scan(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = self.write(Path(tmp), "tracker-issues.json", harvest(issue(6, "ok")))
+            out, err = io.StringIO(), io.StringIO()
+            with redirect_stdout(out), redirect_stderr(err):
+                status = tb.main([str(path)])
+
+        self.assertEqual(status, tb.NOT_SCANNED)
+        self.assertIn("DID NOT ESTABLISH the full harvest population", err.getvalue())
+
+    def test_a_short_harvest_did_not_scan(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            issues = self.write(root, "tracker-issues.json", harvest(issue(6, "ok")))
+            comments = self.write(root, "tracker-comments.json", [])
+            reviews = self.write(root, "tracker-reviews.json", [])
+            population = self.write(root, "tracker-population.json", {
+                "version": 1,
+                "populations": {
+                    issues.name: 2,
+                    comments.name: 0,
+                    reviews.name: 0,
+                },
+            })
+            out, err = io.StringIO(), io.StringIO()
+            with redirect_stdout(out), redirect_stderr(err):
+                status = tb.main([
+                    str(issues), str(comments), str(reviews),
+                    "--population", str(population)
+                ])
+
+        self.assertEqual(status, tb.NOT_SCANNED)
+        self.assertIn("1 of population 2", err.getvalue())
+
+    def test_a_one_file_manifest_does_not_claim_a_full_harvest(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            path = self.write(root, "tracker-issues.json", harvest(issue(6, "ok")))
+            population = self.write(root, "tracker-population.json", {
+                "version": 1,
+                "populations": {path.name: 1},
+            })
+            status, _, error = self.run_main(
+                str(path), "--population", str(population)
+            )
+
+        self.assertEqual(status, tb.NOT_SCANNED)
+        self.assertIn("must name exactly tracker-issues.json", error)
+
+    def test_the_tracker_population_manifest_gates_the_canonical_three_files(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            issues = self.write(root, "tracker-issues.json", harvest(issue(6, "ok")))
+            comments = self.write(root, "tracker-comments.json", [])
+            reviews = self.write(root, "tracker-reviews.json", [])
+            issue_probe = json.dumps({
+                "data": {"repository": {
+                    "issues": {"totalCount": 1},
+                    "pullRequests": {"totalCount": 0},
+                }}
+            })
+            empty_http = "HTTP/2 200 OK\r\n\r\n[]"
+            population = self.write(
+                root,
+                "tracker-population.json",
+                tracker_population.manifest(issue_probe, empty_http, empty_http),
+            )
+            status, output, _ = self.run_main(
+                str(issues), str(comments), str(reviews),
+                "--population", str(population),
+            )
+
+        self.assertEqual(status, tb.CLEAN)
+        self.assertIn("tracker-issues.json population 1; unread remainder 0", output)
+        self.assertIn("tracker-comments.json population 0; unread remainder 0", output)
+        self.assertIn("tracker-reviews.json population 0; unread remainder 0", output)
 
     def test_a_file_that_is_not_there_did_not_scan(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -790,10 +896,19 @@ class TheCommandLine(unittest.TestCase):
             ensure_ascii=False,
         ).encode("utf-8")
         with tempfile.TemporaryDirectory() as tmp:
-            path = Path(tmp) / "clean.json"
-            path.write_bytes(payload)
+            root = Path(tmp)
+            path = root / "tracker-issues.json"
+            path.write_bytes(b"[" + payload + b"]")
+            comments = self.write(root, "tracker-comments.json", [])
+            reviews = self.write(root, "tracker-reviews.json", [])
+            population = self.write(Path(tmp), "tracker-population.json", {
+                "version": 1, "populations": {
+                    path.name: 1, comments.name: 0, reviews.name: 0,
+                },
+            })
             through_file = subprocess.run(
-                [sys.executable, str(MODULE), str(path)],
+                [sys.executable, str(MODULE), str(path), str(comments), str(reviews),
+                 "--population", str(population)],
                 capture_output=True,
             )
             through_pipe = subprocess.run(
@@ -811,10 +926,19 @@ class TheCommandLine(unittest.TestCase):
             ensure_ascii=False,
         ).encode("utf-8")
         with tempfile.TemporaryDirectory() as tmp:
-            path = Path(tmp) / "double-encoded.json"
-            path.write_bytes(payload)
+            root = Path(tmp)
+            path = root / "tracker-issues.json"
+            path.write_bytes(b"[" + payload + b"]")
+            comments = self.write(root, "tracker-comments.json", [])
+            reviews = self.write(root, "tracker-reviews.json", [])
+            population = self.write(Path(tmp), "tracker-population.json", {
+                "version": 1, "populations": {
+                    path.name: 1, comments.name: 0, reviews.name: 0,
+                },
+            })
             through_file = subprocess.run(
-                [sys.executable, str(MODULE), str(path)],
+                [sys.executable, str(MODULE), str(path), str(comments), str(reviews),
+                 "--population", str(population)],
                 capture_output=True,
             )
             through_pipe = subprocess.run(
@@ -866,6 +990,17 @@ class TheDocSaysWhatThisChecks(unittest.TestCase):
 
     def test_the_doc_names_the_command(self):
         self.assertIn("tools/tracker_bodies.py", self.doc)
+
+    def test_the_doc_names_the_population_builder_and_required_manifest(self):
+        self.assertIn("gh api graphql", self.doc)
+        self.assertIn("tools/tracker_population.py", self.doc)
+        self.assertIn("--population", self.doc)
+        for name in (
+            "tracker-issues.json",
+            "tracker-comments.json",
+            "tracker-reviews.json",
+        ):
+            self.assertIn(name, self.doc)
 
     def test_the_doc_says_a_clean_scan_is_not_a_read_ticket(self):
         self.assertIn("A clean scan is not a body worth reading", self.doc)

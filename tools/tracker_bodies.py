@@ -35,13 +35,27 @@ Harvest first, then scan::
     : "${TICKET_NUMBER:?set TICKET_NUMBER to the current ticket number}"
     H=$(python tools/scratch_work.py ticket "$TICKET_NUMBER")
     mkdir -p "$H"
+    gh api graphql -f owner=OWNER -f name=REPO \
+        -f query='query($owner:String!,$name:String!){repository(owner:$owner,name:$name){issues{totalCount} pullRequests{totalCount}}}' \
+        > "$H/tracker-issues-population.json"
+    gh api --include "repos/OWNER/REPO/issues/comments?per_page=1&page=1" \
+        > "$H/tracker-comments-population.http"
+    gh api --include "repos/OWNER/REPO/pulls/comments?per_page=1&page=1" \
+        > "$H/tracker-reviews-population.http"
+    python tools/tracker_population.py \
+        "$H/tracker-issues-population.json" \
+        "$H/tracker-comments-population.http" \
+        "$H/tracker-reviews-population.http" \
+        --write "$H/tracker-population.json"
     gh api --paginate "repos/OWNER/REPO/issues?state=all&per_page=100" \\
         > "$H/tracker-issues.json"
     gh api --paginate "repos/OWNER/REPO/issues/comments?per_page=100" \\
         > "$H/tracker-comments.json"
     gh api --paginate "repos/OWNER/REPO/pulls/comments?per_page=100" \\
         > "$H/tracker-reviews.json"
-    python tools/tracker_bodies.py "$H"/tracker-*.json
+    python tools/tracker_bodies.py \
+        "$H/tracker-issues.json" "$H/tracker-comments.json" \
+        "$H/tracker-reviews.json" --population "$H/tracker-population.json"
 
 **Three surfaces, which is `tracker_scan.py`'s set and not a subset of it.** The
 review-comment endpoint is the one easiest to leave out, and it carries bodies
@@ -128,6 +142,7 @@ from tracker_records import (
     from_actions_event,
     from_command,
 )
+import tracker_scan
 
 from console_codec import require_python_floor, use_utf8
 from prose_bind import prose_outside_code as _shared_prose_outside_code
@@ -811,13 +826,23 @@ def format_report(scan: Scan, source: str) -> str:
 
 
 USAGE = (
-    "usage: tracker_bodies.py <a gh api harvest .json> [more ...] | - | "
+    "usage: tracker_bodies.py <a gh api harvest .json> [more ...] "
+    "--population <tracker-population.json> | - | "
     "--github-event <event.json> --event-name <name>"
 )
 
 
 def main(argv: list[str], stdin=None) -> int:
     """``argv`` is the argument list without the program name."""
+    argv = list(argv)
+    population_path = None
+    if "--population" in argv:
+        index = argv.index("--population")
+        if argv.count("--population") != 1 or index + 1 >= len(argv):
+            print(f"--population requires one manifest path\n{USAGE}", file=sys.stderr)
+            return NOT_SCANNED
+        population_path = Path(argv[index + 1])
+        del argv[index:index + 2]
     # **Every unrecognized argument is refused rather than filtered out**, and
     # that is not tidiness. The first version dropped anything starting with
     # ``--`` from the path list, so ``--show`` was accepted, ignored, and
@@ -827,6 +852,9 @@ def main(argv: list[str], stdin=None) -> int:
     # an error.
     event_mode = "--github-event" in argv or "--event-name" in argv
     if event_mode:
+        if population_path is not None:
+            print(f"--population applies only to a harvest\n{USAGE}", file=sys.stderr)
+            return NOT_SCANNED
         if (len(argv) != 4 or argv.count("--github-event") != 1
                 or argv.count("--event-name") != 1):
             print(f"--github-event and --event-name are required together\n{USAGE}",
@@ -858,6 +886,9 @@ def main(argv: list[str], stdin=None) -> int:
     if event_mode:
         pass
     elif STDIN in argv:
+        if population_path is not None:
+            print(f"--population applies only to a harvest\n{USAGE}", file=sys.stderr)
+            return NOT_SCANNED
         if len(argv) > 1:
             print(f"- reads one payload and takes no other argument\n{USAGE}",
                   file=sys.stderr)
@@ -883,6 +914,49 @@ def main(argv: list[str], stdin=None) -> int:
             records = load_harvest(paths)
         except HarvestError as error:
             print(str(error), file=sys.stderr)
+            return NOT_SCANNED
+        if population_path is None:
+            print(
+                "DID NOT ESTABLISH the full harvest population -- "
+                "pass --population <tracker-population.json>.",
+                file=sys.stderr,
+            )
+            return NOT_SCANNED
+        if {path.name for path in paths} != tracker_scan.FULL_HARVEST_FILES:
+            print(
+                "DID NOT ESTABLISH the full harvest population -- "
+                "the harvest must name exactly tracker-issues.json, "
+                "tracker-comments.json, and tracker-reviews.json.",
+                file=sys.stderr,
+            )
+            return NOT_SCANNED
+        observed = {
+            path.name: sum(record.harvest == path.name for record in records)
+            for path in paths
+        }
+        try:
+            populations, short = tracker_scan.population_coverage(
+                population_path, paths, observed
+            )
+        except tracker_scan.HarvestError as error:
+            print(
+                "DID NOT ESTABLISH the full harvest population -- " + str(error),
+                file=sys.stderr,
+            )
+            return NOT_SCANNED
+        for name in sorted(populations):
+            print(
+                f"{name} population {populations[name]}; unread remainder "
+                f"{max(populations[name] - observed[name], 0)}; "
+                f"records read {observed[name]}"
+            )
+        if short:
+            for name, count, population in short:
+                print(
+                    "DID NOT ESTABLISH a complete harvest -- "
+                    f"{name}: {count} of population {population} record(s).",
+                    file=sys.stderr,
+                )
             return NOT_SCANNED
     if not records:
         # The limb that matters. An empty payload would otherwise report zero
