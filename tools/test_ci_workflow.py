@@ -39,7 +39,7 @@ CLAUDE_MD = REPO_ROOT / "CLAUDE.md"
 SUITE_COMMAND = "python tools/suite.py"
 THRESHOLD_COMMAND = "python tools/threshold_sheet.py --all"
 THRESHOLD_STEP_NAME = "Threshold sheet gates, external evidence may not run"
-MAP_COMMAND = "python tools/map_scan.py $harvest"
+MAP_COMMAND = "python tools/map_scan.py $harvest --population $population"
 MAP_STEP_NAME = "Implementation map disagreement"
 
 RUNNER = "windows-latest"
@@ -223,6 +223,18 @@ class ImplementationMapGateRunsWhereReconciliationIsOwed(unittest.TestCase):
         self.assertIn("issues?state=all&per_page=100", step)
         self.assertIn("gh api --paginate", step)
 
+    def test_the_probe_precedes_the_harvest_and_builds_the_shared_manifest(self):
+        step = self.map_step()
+        probe = step.index("gh api graphql")
+        harvest = step.index("gh api --paginate")
+
+        self.assertLess(probe, harvest)
+        self.assertIn("tracker_population.py", step)
+        self.assertIn("tracker-issues-population.json", step)
+        self.assertIn("tracker-comments-population.http", step)
+        self.assertIn("tracker-reviews-population.http", step)
+        self.assertIn("--population $population", step)
+
     def test_findings_fail_without_an_advisory_conversion(self):
         step = self.map_step()
         self.assertIn(MAP_COMMAND, step)
@@ -231,6 +243,13 @@ class ImplementationMapGateRunsWhereReconciliationIsOwed(unittest.TestCase):
 
     def test_the_report_reaches_the_step_summary(self):
         self.assertIn("GITHUB_STEP_SUMMARY", self.map_step())
+
+    def test_did_not_scan_heading_is_derived_from_the_scanner_status(self):
+        step = self.map_step()
+
+        self.assertIn("$status -eq 2", step)
+        self.assertIn("### Implementation map: DID NOT SCAN", step)
+        self.assertIn("$heading", step)
 
     def test_the_job_can_read_issues(self):
         self.assertRegex(workflow_text(), r"(?m)^\s*issues:\s*read\s*$")

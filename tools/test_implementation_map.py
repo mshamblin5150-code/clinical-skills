@@ -22,7 +22,7 @@ import sys
 import tempfile
 import unittest
 from unittest import mock
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -1893,6 +1893,236 @@ class NothingEscapesAsExitOne(unittest.TestCase):
             imap.COMMANDS.update(real)
 
 
+class GitHubIssuePopulation(unittest.TestCase):
+    def probe(self, issues, pulls):
+        return json.dumps({
+            "data": {"repository": {
+                "issues": {"totalCount": issues},
+                "pullRequests": {"totalCount": pulls},
+            }}
+        })
+
+    def harvest(self, *rows):
+        return json.dumps(list(rows))
+
+    def test_one_probe_and_one_harvest_are_cached_for_the_process(self):
+        tracker = imap.GitHub("owner/repo")
+        payload = self.harvest(
+            {"number": 1, "labels": [], "assignees": []},
+            {"number": 2, "labels": [], "assignees": [], "pull_request": {}},
+        )
+        with mock.patch.object(
+            tracker, "_run", side_effect=[self.probe(1, 1), payload]
+        ) as run_:
+            output = io.StringIO()
+            with redirect_stdout(output):
+                first = tracker.issues()
+                second = tracker.issues()
+
+        self.assertEqual([row["number"] for row in first], [1])
+        self.assertEqual(second, first)
+        self.assertEqual(run_.call_count, 2)
+        self.assertIn("graphql", run_.call_args_list[0].args[0])
+        self.assertIn("--paginate", run_.call_args_list[1].args[0])
+        self.assertIn("population 2", output.getvalue())
+        self.assertIn("unread remainder 0", output.getvalue())
+        self.assertEqual(output.getvalue().count("unread remainder"), 1)
+
+    def test_a_short_read_names_both_counts_shortfall_and_highest_number(self):
+        tracker = imap.GitHub("owner/repo")
+        payload = self.harvest(
+            {"number": 2, "labels": [], "assignees": []},
+            {"number": 9, "labels": [], "assignees": [], "pull_request": {}},
+        )
+        with mock.patch.object(
+            tracker, "_run", side_effect=[self.probe(2, 2), payload]
+        ):
+            with self.assertRaisesRegex(
+                imap.MapError,
+                r"population 4.*harvest 2.*shortfall 2.*highest record number 9",
+            ):
+                tracker.issues()
+
+    def test_growth_after_the_probe_is_not_a_refusal(self):
+        tracker = imap.GitHub("owner/repo")
+        payload = self.harvest(
+            {"number": 1, "labels": [], "assignees": []},
+            {"number": 2, "labels": [], "assignees": []},
+        )
+        with mock.patch.object(
+            tracker, "_run", side_effect=[self.probe(1, 0), payload]
+        ):
+            self.assertEqual(len(tracker.issues()), 2)
+
+    def test_population_is_compared_before_pull_requests_are_filtered(self):
+        tracker = imap.GitHub("owner/repo")
+        payload = self.harvest(
+            {"number": 1, "labels": [], "assignees": []},
+            {"number": 2, "labels": [], "assignees": [], "pull_request": {}},
+        )
+        with mock.patch.object(
+            tracker, "_run", side_effect=[self.probe(1, 1), payload]
+        ):
+            self.assertEqual([row["number"] for row in tracker.issues()], [1])
+
+    def test_highest_number_discriminates_two_short_reads(self):
+        messages = []
+        for highest in (2, 10):
+            tracker = imap.GitHub("owner/repo")
+            payload = self.harvest(
+                {"number": 1, "labels": [], "assignees": []},
+                {"number": highest, "labels": [], "assignees": []},
+            )
+            with mock.patch.object(
+                tracker, "_run", side_effect=[self.probe(4, 0), payload]
+            ):
+                with self.assertRaises(imap.MapError) as raised:
+                    tracker.issues()
+            messages.append(str(raised.exception))
+
+        self.assertIn("highest record number 2", messages[0])
+        self.assertIn("highest record number 10", messages[1])
+
+
+class GitHubBlockedByPopulation(unittest.TestCase):
+    def response(self, body, *, link=""):
+        headers = "HTTP/2 200 OK\r\ncontent-type: application/json"
+        if link:
+            headers += f"\r\nlink: {link}"
+        return headers + "\r\n\r\n" + json.dumps(body)
+
+    def test_no_link_header_returns_the_sized_page(self):
+        tracker = imap.GitHub("owner/repo")
+        with mock.patch.object(
+            tracker,
+            "_run",
+            return_value=self.response([{"number": 9}, {"number": 3}]),
+        ) as run_:
+            self.assertEqual(tracker.blocked_by(7), [3, 9])
+
+        arguments = run_.call_args.args[0]
+        self.assertIn("--include", arguments)
+        self.assertIn("per_page=100", " ".join(arguments))
+        self.assertEqual(run_.call_count, 1)
+
+    def test_any_link_header_refuses_the_page(self):
+        tracker = imap.GitHub("owner/repo")
+        link = '<https://api.github.test/page=2>; rel="next"'
+        with mock.patch.object(
+            tracker,
+            "_run",
+            return_value=self.response([{"number": 9}], link=link),
+        ):
+            with self.assertRaisesRegex(imap.MapError, "Link header"):
+                tracker.blocked_by(7)
+
+
+class ShortReadCommandRefusals(unittest.TestCase):
+    def short_read(self):
+        return imap.ShortReadError(
+            population=5,
+            harvest_count=2,
+            record_numbers=(1, 4),
+            probe_at="2026-09-12T01:00:00+00:00",
+            harvest_at="2026-09-12T01:00:01+00:00",
+        )
+
+    def test_every_command_reaches_status_two(self):
+        commands = (
+            ["check"],
+            ["claim", "--ticket", "993"],
+            ["render"],
+            ["publish"],
+            ["apply-delta", "--ticket", "993", "--outcome", "Authored"],
+            ["init", "--state", "not-read-before-the-refusal.json"],
+            ["audit"],
+        )
+        for command in commands:
+            with self.subTest(command=command[0]), mock.patch.object(
+                imap.GitHub, "issues", side_effect=self.short_read()
+            ), redirect_stdout(io.StringIO()), mock.patch.object(
+                imap, "preserve_refused_outcomes", return_value=Path("record.json")
+            ):
+                stderr = io.StringIO()
+                with mock.patch.object(sys, "stderr", stderr):
+                    code = imap.main(["--repo", "owner/repo", *command])
+
+            self.assertEqual(code, 2)
+            self.assertIn("did not run", stderr.getvalue())
+
+    def test_short_read_record_carries_the_complete_diagnostic(self):
+        with tempfile.TemporaryDirectory() as temporary, mock.patch.object(
+            imap.repo_root, "scratch_root", return_value=Path(temporary)
+        ):
+            record = imap.preserve_refused_outcomes(
+                ("Authored judgment",),
+                issue_number=imap.MAP_ISSUE,
+                reason=str(self.short_read()),
+                short_read=self.short_read(),
+            )
+            payload = json.loads(record.read_text(encoding="utf-8"))
+
+        self.assertEqual(payload["population"], 5)
+        self.assertEqual(payload["harvest_count"], 2)
+        self.assertEqual(payload["probe_at"], "2026-09-12T01:00:00+00:00")
+        self.assertEqual(payload["harvest_at"], "2026-09-12T01:00:01+00:00")
+        self.assertEqual(payload["record_numbers"], [1, 4])
+
+    def test_check_preserves_a_short_read_without_an_authored_outcome(self):
+        with tempfile.TemporaryDirectory() as temporary, mock.patch.object(
+            imap.repo_root, "scratch_root", return_value=Path(temporary)
+        ), mock.patch.object(
+            imap.GitHub, "issues", side_effect=self.short_read()
+        ), redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            code = imap.main(["--repo", "owner/repo", "check"])
+            records = tuple(
+                (Path(temporary) / "runs" / "map-refusals").glob("*.json")
+            )
+            self.assertEqual(len(records), 1)
+            payload = json.loads(records[0].read_text(encoding="utf-8"))
+
+        self.assertEqual(code, 2)
+        self.assertEqual(payload["outcomes"], [])
+        self.assertEqual(payload["record_numbers"], [1, 4])
+
+    def test_apply_delta_preserves_when_locate_map_refuses(self):
+        tracker = FakeTracker([])
+        tracker.issues = mock.Mock(side_effect=self.short_read())
+        with tempfile.TemporaryDirectory() as temporary, mock.patch.object(
+            imap.repo_root, "scratch_root", return_value=Path(temporary)
+        ):
+            output = io.StringIO()
+            with redirect_stdout(output), self.assertRaises(imap.ShortReadError):
+                imap.cmd_apply_delta(
+                    tracker,
+                    args(ticket=993, outcome="Judgment before map location"),
+                )
+
+            records = tuple((Path(temporary) / "runs" / "map-refusals").glob("*.json"))
+            self.assertEqual(len(records), 1)
+            self.assertIn("outcome record:", output.getvalue())
+
+    def test_apply_delta_preserves_when_the_read_inside_the_lock_refuses(self):
+        value = state_with([packet("PA", [1], outcome="Existing")])
+        rows = [issue(1, labels=["ready"]), issue(3, labels=["ready"]), map_issue(value, 50)]
+        tracker = FakeTracker(rows)
+        complete = tracker.issues()
+        tracker.issues = mock.Mock(side_effect=[complete, self.short_read()])
+        with tempfile.TemporaryDirectory() as temporary, mock.patch.object(
+            imap.repo_root, "scratch_root", return_value=Path(temporary)
+        ):
+            output = io.StringIO()
+            with redirect_stdout(output), self.assertRaises(imap.ShortReadError):
+                imap.cmd_apply_delta(
+                    tracker,
+                    args(ticket=3, outcome="Judgment inside the lock"),
+                )
+
+            records = tuple((Path(temporary) / "runs" / "map-refusals").glob("*.json"))
+            self.assertEqual(len(records), 1)
+            self.assertIn("outcome record:", output.getvalue())
+
+
 class TheInTreeToolDeclaresItsBoundary(unittest.TestCase):
     def test_declared_limits_are_owned_once_and_pointed_to_from_claude(self):
         prose = HERE.parent.joinpath("CLAUDE.md").read_text(encoding="utf-8")
@@ -1914,6 +2144,17 @@ class TheInTreeToolDeclaresItsBoundary(unittest.TestCase):
             1,
         )
         self.assertIn("Every map overwrite takes", prose)
+        self.assertIn("process-lifetime population-gated tracker snapshot", prose)
+
+    def test_population_limits_name_the_gate_and_its_two_unsettled_divergences(self):
+        limits = {row.key: row.limit for row in imap.DECLARED_LIMITS}
+
+        denominator = limits["tracker-population-denominator"]
+        self.assertIn("converted to a discussion", denominator)
+        self.assertIn("hidden as spam or abuse", denominator)
+        clean = limits["clean-check-derived-views"]
+        self.assertIn("population gate", clean)
+        self.assertIn("derived views", clean)
 
     def test_the_ratified_command_split_stays_public(self):
         parser = imap.build_parser()
@@ -1945,7 +2186,7 @@ class TheInTreeToolDeclaresItsBoundary(unittest.TestCase):
         source = (HERE / "implementation_map.py").read_text(encoding="utf-8")
         cases = (
             ("cmd_publish", "cmd_publish", "map-lock", 'map_artifact(tracker, issue["number"])', "map_artifact(tracker, 0)"),
-            ("cmd_apply_delta", "cmd_apply_delta", "map-lock", 'map_artifact(tracker, issue["number"])', "map_artifact(tracker, 0)"),
+            ("cmd_apply_delta", "cmd_apply_delta", "map-lock", "map_artifact(tracker, issue_number)", "map_artifact(tracker, 0)"),
             ("cmd_init --adopt", "cmd_init", "map-lock", "map_artifact(tracker, lock_number)", "map_artifact(tracker, 0)"),
             ("cmd_publish", "cmd_publish", "state-hash", "expected_state_hash=expected,", ""),
             ("cmd_apply_delta", "_apply_delta_attempt", "state-hash", "expected_state_hash=expected,", ""),
