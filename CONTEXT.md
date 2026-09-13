@@ -1128,3 +1128,7 @@ _Avoid_: wrapper, header, prefix, harness text, boilerplate, metadata
 **Quotation gate**:
 A refusal that fires when a publication reproduces a span of the working material it was written about. It is content-agnostic and knows nothing about patient data, classmates, preceptors or sites — it knows only what the source was, so it reaches the classes a shape scanner is documented not to reach. Its subject is **copying**, never disclosure: a description of what went wrong publishes freely, and only a span lifted from the source is refused. A floor rather than a proof, because a paraphrase walks through it, and its span length is a measured value rather than a chosen one.
 _Avoid_: leak check, PHI gate, redaction, plagiarism check
+
+**Pre-grade**:
+A check of the exact publication command, run by hand before publishing, whose clean result means the pre-publication hook would pass that same command, apart from what the hook's declared limits name. It grades the command, never a body in isolation, because every refusal worth pre-checking is a property of how the text reaches the tracker as well as of the text itself — a body can be clean and still be refused for the path it is read from, the route it is published on, or the run it was written from. Distinct from the **Quotation gate**, which is one of the refusals a pre-grade reproduces.
+_Avoid_: dry run, preflight, manual mode, text check

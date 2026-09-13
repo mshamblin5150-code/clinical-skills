@@ -208,3 +208,13 @@ Recorded here so the builder does not rediscover them. Each was measured or read
   coverage rather than changed coverage.
 - **`--text` keeps resolving against its own working directory**, which is correct for it. The
   asymmetry is recorded in the module rather than repaired.
+
+## Superseded in part by ADR 0216, 2026-09-13
+
+[ADR 0216](0216-a-pre-grade-grades-the-exact-publication-command-and-the-aar-quotation-gate-runs-on-it.md),
+grilled on [#1026](https://github.com/mshamblin5150-code/clinical-skills/issues/1026), retires the
+`--text` manual mode for `--command-file`, which grades the exact command through the hook's own
+extraction. **The `--text` bullet above and the paragraph describing `--text` as a second process are
+superseded** and are left as written. The asymmetry they record ends with the mode: a pre-grade
+resolves a partial `--body-file` exactly as the hook does, by this record's ruling 1 and nothing else.
+The five rulings stand.
