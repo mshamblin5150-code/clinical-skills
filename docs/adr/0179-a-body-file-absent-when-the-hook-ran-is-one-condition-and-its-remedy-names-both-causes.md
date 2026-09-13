@@ -155,3 +155,13 @@ it is; ruling 2's remedy is what reaches an author who does both in one command.
   and not only the kind. The `P.bak` and `high` rows pin that neither mislabel survives, and a bare
   `gh … --body-file P` row stands for the retry after a refusal.
 - **`docs/agents/issue-tracker.md` names neither kind**, so no manual edit is owed.
+
+## Superseded in part by ADR 0216, 2026-09-13
+
+[ADR 0216](0216-a-pre-grade-grades-the-exact-publication-command-and-the-aar-quotation-gate-runs-on-it.md),
+grilled on [#1026](https://github.com/mshamblin5150-code/clinical-skills/issues/1026), retires the
+`--text` manual mode. **Ruling 2's retained `--text <path>` pointer is superseded** and is left as
+written, being the record of what was ruled at the time: the remedy names
+`python tools/tracker_publish_hook.py --command-file <path>` instead. The rest of ruling 2, and
+rulings 1, 3 and 4, stand. *What the `--text` pre-grade in the remedy establishes* above describes the
+gap ADR 0216 closes.
