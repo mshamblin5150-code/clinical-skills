@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import base64
 import io
+import hashlib
 import re
 import sys
 import tempfile
@@ -111,6 +112,7 @@ RECENCY: current
 RESOLVED: https://example.org/usable-access - read 2026-08-22
 PAGE-YEAR: 2024 - stated on the article masthead.
 REFUTATION: stands - the results table reports the same measure.
+TESTED-HEADING: 29ec7c8e79f10939f61e449398fa776cb9d16fb130e1937aa7dd3f147e5f6302
 SECOND-ROUTE: publisher HTML -> journal PDF rendered at 600 dpi
 
 ## CLAIM: The regulation supplies legal context.
@@ -122,6 +124,7 @@ RECENCY: guideline in force
 RESOLVED: https://example.org/regulation - read 2026-08-22
 PAGE-YEAR: 2024 - stated on the regulation page.
 REFUTATION: stands - the section number resolves to the cited regulation.
+TESTED-HEADING: a369a3af5ea765e334e6e8af709b465a73a89e1991547cd7f44685128a42ce5f
 SECOND-ROUTE: regulation HTML -> official PDF
 """
 
@@ -152,8 +155,22 @@ class Run:
         (root / "bar.md").write_text(BAR, encoding="utf-8")
         (root / "claims.md").write_text(CLAIMS, encoding="utf-8")
         self.draft.write_text(BODY, encoding="utf-8")
+        self.write_heading_read()
 
-    def grade(self, *extra: str) -> tuple[int, str, str]:
+    def write_heading_read(self) -> None:
+        digest = hashlib.sha256(self.draft.read_bytes()).hexdigest()
+        (self.root / "heading-read.md").write_text(
+            f"## HEADING-READ: {self.draft.name}\n"
+            f"DRAFT: {digest}\n"
+            "ROUTE: separate context\n"
+            "SENTENCES: 0 factual, 0 clinician's own\n"
+            "VERDICT: clean\n",
+            encoding="utf-8",
+        )
+
+    def grade(self, *extra: str, bind_heading_read: bool = True) -> tuple[int, str, str]:
+        if bind_heading_read:
+            self.write_heading_read()
         stdout, stderr = io.StringIO(), io.StringIO()
         with (
             mock.patch.dict(sys.modules, {"pymupdf": FakePyMuPDF()}),
@@ -220,6 +237,26 @@ class Run:
         (pass_directory / "post.html").write_bytes(html.read_bytes())
         for capture in range(1, captured_images + 1):
             (pass_directory / f"capture-{capture}.png").write_bytes(PNG)
+
+
+class TheHeadingReadPrecedesThePostingGoAhead(unittest.TestCase):
+    def test_a_missing_heading_read_fails_the_existing_pre_post_scan(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            (run.root / "heading-read.md").unlink()
+            status, stdout, _ = run.grade(bind_heading_read=False)
+
+        self.assertEqual(1, status)
+        self.assertIn("missing-heading-read: 1", stdout)
+
+    def test_a_heading_read_for_the_prior_draft_is_stale(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            run.draft.write_text(BODY + "\nA later edit.\n", encoding="utf-8")
+            status, stdout, _ = run.grade(bind_heading_read=False)
+
+        self.assertEqual(1, status)
+        self.assertIn("heading-read-draft-mismatch: 1", stdout)
 
 
 def empty_population_input(root: Path) -> EmptyPopulationInput:
@@ -1166,6 +1203,7 @@ REFUTATION: stands - the page addresses the cited proposition.
                 ),
                 encoding="utf-8",
             )
+            run.write_heading_read()
             with mock.patch.object(
                 reply_scan, "read_citations", wraps=artifact.read_citations
             ) as reader, mock.patch.object(
@@ -1324,6 +1362,7 @@ class ARecognizedButRefusedLabelStopsTheScan(unittest.TestCase):
                     REPLY_BODY.replace("**References**", label),
                     encoding="utf-8",
                 )
+                reply.write_heading_read()
                 with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
                     reply_status = reply_scan.main([reply_temp])
             with tempfile.TemporaryDirectory() as post_temp:
@@ -1414,6 +1453,13 @@ class TheSubmissionJoinsItsRunDirectory(unittest.TestCase):
         draft = root / "output" / "discussions" / f"{draft_key or run_key}-2026-08-22.md"
         draft.parent.mkdir(parents=True)
         draft.write_text(BODY, encoding="utf-8")
+        digest = hashlib.sha256(draft.read_bytes()).hexdigest()
+        (run / "heading-read.md").write_text(
+            f"## HEADING-READ: {draft.name}\nDRAFT: {digest}\n"
+            "ROUTE: separate context\nSENTENCES: 0 factual, 0 clinician's own\n"
+            "VERDICT: clean\n",
+            encoding="utf-8",
+        )
         return run, draft
 
     def test_a_matching_submission_and_run_pass_the_join(self):
@@ -1613,6 +1659,18 @@ class TheMechanicalBarRowsAreGraded(unittest.TestCase):
             run = Run(Path(temp))
             (run.root / "claims.md").write_text(
                 CLAIMS.replace("STATUS: sourced", "STATUS: unsourced - no source found.", 1),
+                encoding="utf-8",
+            )
+            status, stdout, _ = run.grade("--show")
+
+        self.assertEqual(1, status)
+        self.assertIn("12% appears only in a disbelieved claim record", stdout)
+
+    def test_a_number_only_in_a_stale_tested_heading_is_disbelieved(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            (run.root / "claims.md").write_text(
+                CLAIMS.replace("12% improvement.", "12% improvement!", 1),
                 encoding="utf-8",
             )
             status, stdout, _ = run.grade("--show")

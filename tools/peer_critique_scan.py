@@ -41,6 +41,8 @@ from discussion_artifact import (
 import run_grader
 from run_grader import NOT_GRADED, EvidenceDisposition
 import aar_scan
+import heading_read
+import research_ledger
 
 EXPECTED_COMPLETION_CHECKS = (aar_scan.EXPECTED_ROW,)
 
@@ -90,7 +92,9 @@ ROWS = {
     UNKNOWN_VERDICT: "every posted reading carries a recognized verdict",
     BARE_VERDICT: "every posted reading verdict carries substantive text",
 }
+ROWS.update({kind: "the heading read agrees with critique.md and current claim headings" for kind in heading_read.KINDS})
 KINDS = tuple(ROWS)
+HEADING_READ_ROWS = {kind: ROWS[kind] for kind in heading_read.KINDS}
 
 REFERENCE_LABEL = re.compile(r"(?mi)^\*\*References\*\*\s*$")
 AUTHOR_FIELD = re.compile(r"(?mi)^AUTHOR\s*:\s*(?P<value>[^\n]+)$")
@@ -131,7 +135,7 @@ DECLARED_LIMITS = (
     ),
     (
         "whether a believed record's heading and restatement support the number traced from it",
-        "The tracing walk matches numeric tokens against claim records and never judges whether the record's heading agrees with the source or its restatement supports the fact the critique asserts; the refutation leg owns heading agreement.",
+        "The tracing walk matches numeric tokens and never judges support. The refutation leg owns source-to-heading agreement, and the heading read owns draft-to-heading agreement.",
         EvidenceDisposition.BEHAVIOR,
     ),
     (
@@ -158,6 +162,7 @@ class Finding(run_grader.Finding):
 class RunSource:
     path: Path
     critique: str
+    critique_bytes: bytes
     body: str
     references: tuple[str, ...]
     refused_label: str | None
@@ -165,6 +170,7 @@ class RunSource:
     posts_total: int
     claims: str
     reread: str
+    heading_read_text: str
 
 
 @dataclass(frozen=True)
@@ -180,6 +186,8 @@ class Scan:
     numeric_claims: int | None
     ampersands: int | None
     reference_boundary_graded: bool
+    heading_reads: int
+    heading_read_unread: int
     findings: tuple[Finding, ...] = ()
 
 
@@ -300,8 +308,29 @@ def _reread_findings(source: RunSource) -> tuple[Finding, ...]:
 def survey(source: RunSource) -> Scan:
     """Grade one run and return its counts and findings."""
 
+    heading = heading_read.scan(
+        source.heading_read_text,
+        (
+            heading_read.Binding(
+                "critique.md",
+                source.critique_bytes,
+                tuple(research_ledger.read_records(source.claims)),
+            ),
+        ),
+    )
+    heading_findings = tuple(
+        Finding(kind, finding.artifact, finding.detail)
+        for kind in HEADING_READ_ROWS
+        for finding in heading.findings
+        if finding.kind == kind
+    )
     graded = source.refused_label is None
-    structural = _heading_findings(source) + _address_findings(source) + _reread_findings(source)
+    structural = (
+        _heading_findings(source)
+        + _address_findings(source)
+        + _reread_findings(source)
+        + heading_findings
+    )
     if not graded:
         return Scan(
             headings_found=len(REQUIRED_HEADINGS) - sum(
@@ -317,6 +346,8 @@ def survey(source: RunSource) -> Scan:
             numeric_claims=None,
             ampersands=None,
             reference_boundary_graded=False,
+            heading_reads=heading.records_read,
+            heading_read_unread=heading.unread,
             findings=structural,
         )
     words = _word_count(source.body)
@@ -344,6 +375,8 @@ def survey(source: RunSource) -> Scan:
         numeric_claims=len(_believed_tokens(source.claims)),
         ampersands=source.body.count("&"),
         reference_boundary_graded=True,
+        heading_reads=heading.records_read,
+        heading_read_unread=heading.unread,
         findings=tuple(findings),
     )
 
@@ -370,6 +403,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
             if graded
             else f"literal ampersands: {NOT_GRADED}"
         ),
+        f"heading-read records: {scan.heading_reads}; unread remainder: {scan.heading_read_unread}",
         f"findings: {len(scan.findings)}",
     ]
     reference_rows = {
@@ -402,6 +436,7 @@ def load(parsed: run_grader.Parsed) -> RunSource:
             f"no critique.md in {directory.name}", exit_2_limb=NO_CRITIQUE
         )
     try:
+        critique_bytes = critique_path.read_bytes()
         critique = critique_path.read_text(encoding="utf-8")
         posts = sorted((directory / "posts").glob("*.md"))
         roster = []
@@ -413,6 +448,12 @@ def load(parsed: run_grader.Parsed) -> RunSource:
         claims = claims_path.read_text(encoding="utf-8") if claims_path.is_file() else ""
         reread_path = directory / "reread.md"
         reread = reread_path.read_text(encoding="utf-8") if reread_path.is_file() else ""
+        heading_read_path = directory / "heading-read.md"
+        heading_read_text = (
+            heading_read_path.read_text(encoding="utf-8")
+            if heading_read_path.is_file()
+            else ""
+        )
     except (OSError, UnicodeError, ValueError) as failure:
         raise run_grader.SourceError(
             f"could not read the run: {failure}", exit_2_limb=NO_RUN_DIRECTORY
@@ -425,6 +466,7 @@ def load(parsed: run_grader.Parsed) -> RunSource:
     return RunSource(
         path=directory,
         critique=critique,
+        critique_bytes=critique_bytes,
         body=section.body,
         references=section.references,
         refused_label=section.refused_label,
@@ -432,6 +474,7 @@ def load(parsed: run_grader.Parsed) -> RunSource:
         posts_total=len(posts),
         claims=claims,
         reread=reread,
+        heading_read_text=heading_read_text,
     )
 
 
@@ -447,6 +490,7 @@ def grade(source: RunSource, parsed: run_grader.Parsed) -> run_grader.Grade[Scan
         BARE_VERDICT,
     }
     structural_failed = any(finding.kind in structural_kinds for finding in scanned.findings)
+    heading_failed = any(finding.kind in heading_read.KINDS for finding in scanned.findings)
     aar_failed, aar_report = aar_scan.completion_gate(source.path, parsed.value("--submission"))
     return run_grader.Grade(
         scan=scanned,
@@ -455,6 +499,7 @@ def grade(source: RunSource, parsed: run_grader.Parsed) -> run_grader.Grade[Scan
             bool(scanned.findings)
             and (scanned.reference_boundary_graded or structural_failed)
         )
+        or heading_failed
         or aar_failed,
         coverage_failed=not scanned.reference_boundary_graded,
         coverage_limbs=(REFUSED_LABEL,) if not scanned.reference_boundary_graded else (),

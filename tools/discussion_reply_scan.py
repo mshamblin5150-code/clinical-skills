@@ -53,6 +53,8 @@ from discussion_artifact import (
 import run_grader
 from run_grader import NOT_GRADED
 import aar_scan
+import heading_read
+import research_ledger
 
 EXPECTED_COMPLETION_CHECKS = (aar_scan.EXPECTED_ROW,)
 from run_grader import EvidenceDisposition
@@ -90,7 +92,9 @@ ROWS = {
     BORROWED_LOCATOR: "every posted reply reading carries its own locator",
     EDITOR_READBACK: "every retained editor readback matches the built reply HTML",
 }
+ROWS.update({kind: "the heading read agrees with each final reply and its scoped claim headings" for kind in heading_read.KINDS})
 KINDS = tuple(ROWS)
+HEADING_READ_ROWS = {kind: ROWS[kind] for kind in heading_read.KINDS}
 
 GATED_ROW_SETS = {
     "reference_boundary_graded": (
@@ -134,7 +138,7 @@ DECLARED_LIMITS = (
     *CITATION_RESOLUTION_NOT_REACHED,
     (
         "whether a believed record's heading and restatement support the number traced from it",
-        "The certifier reads numeric tokens and never judges whether the record's heading agrees with the source or its restatement supports the fact asserted in the reply; the refutation leg owns heading agreement.",
+        "The certifier reads numeric tokens and never judges support. The refutation leg owns source-to-heading agreement, and the heading read owns draft-to-heading agreement.",
         EvidenceDisposition.BEHAVIOR,
     ),
     UNJOINED_SOURCE_FIELDS_LIMIT,
@@ -227,6 +231,7 @@ class Reply:
     body: str
     references: tuple[str, ...]
     refused_label: str | None
+    payload: bytes = b""
 
 
 @dataclass(frozen=True)
@@ -247,6 +252,7 @@ class RunSource:
     readings: tuple[PostedReading, ...]
     initial_post_url: str | None
     editor_pairs: tuple[EditorPair, ...]
+    heading_read_text: str
 
 
 @dataclass(frozen=True)
@@ -263,15 +269,19 @@ class Scan:
     editor_units_read: int
     editor_units_total: int
     reference_boundary_graded: bool
+    heading_reads: int
+    heading_read_unread: int
     findings: tuple[Finding, ...] = ()
     citation_coverage: CitationCoverage = CitationCoverage()
 
 
 def _split_reply(path: Path) -> Reply:
+    payload = path.read_bytes()
     text = path.read_text(encoding="utf-8")
     section = read_reference_section(text, REFERENCE_LABEL)
     return Reply(
         path=path,
+        payload=payload,
         text=text,
         body=section.body,
         references=section.references,
@@ -605,6 +615,12 @@ def load(parsed: run_grader.Parsed) -> RunSource:
     try:
         replies = tuple(_split_reply(path) for path in response_paths)
         claims = claims_path.read_text(encoding="utf-8")
+        heading_read_path = root / "heading-read.md"
+        heading_read_text = (
+            heading_read_path.read_text(encoding="utf-8")
+            if heading_read_path.is_file()
+            else ""
+        )
         post_texts = tuple(path.read_text(encoding="utf-8") for path in post_paths)
         roster = tuple(
             match.group("name").strip()
@@ -671,6 +687,7 @@ def load(parsed: run_grader.Parsed) -> RunSource:
             else None
         ),
         editor_pairs=editor_pairs,
+        heading_read_text=heading_read_text,
     )
 
 
@@ -734,6 +751,29 @@ def _posted_reading_findings(source: RunSource) -> tuple[Finding, ...]:
 
 
 def survey(source: RunSource) -> Scan:
+    claim_records = tuple(research_ledger.read_records(source.claims))
+    bindings = tuple(
+        heading_read.Binding(
+            reply.path.name,
+            reply.payload,
+            tuple(
+                record
+                for record in claim_records
+                for target in (CLAIM_TARGET.match(record.claim),)
+                if target is not None
+                and _slug(target.group("target"))
+                == reply.path.stem.removeprefix("response-")
+            ),
+        )
+        for reply in source.replies
+    )
+    heading = heading_read.scan(source.heading_read_text, bindings)
+    heading_findings = tuple(
+        Finding(kind, finding.artifact, finding.detail)
+        for kind in HEADING_READ_ROWS
+        for finding in heading.findings
+        if finding.kind == kind
+    )
     reference_boundary_graded = not any(reply.refused_label for reply in source.replies)
     editor_findings, editor_units_read, editor_units_total = _editor_readback_result(
         source
@@ -758,10 +798,13 @@ def survey(source: RunSource) -> Scan:
             editor_units_read=editor_units_read,
             editor_units_total=editor_units_total,
             reference_boundary_graded=False,
+            heading_reads=heading.records_read,
+            heading_read_unread=heading.unread,
             findings=(
                 address_findings
                 + editor_findings
                 + _posted_reading_findings(source)
+                + heading_findings
             ),
         )
     reference_key_sets = tuple(_reference_keys(reply) for reply in source.replies)
@@ -814,7 +857,7 @@ def survey(source: RunSource) -> Scan:
         finding
         for reply in source.replies
         for finding in _invoked_findings(reply)
-    ) + editor_findings + _posted_reading_findings(source)
+    ) + editor_findings + _posted_reading_findings(source) + heading_findings
     return Scan(
         responses=len(source.replies),
         posts_read=len(source.roster),
@@ -840,6 +883,8 @@ def survey(source: RunSource) -> Scan:
         editor_units_read=editor_units_read,
         editor_units_total=editor_units_total,
         reference_boundary_graded=True,
+        heading_reads=heading.records_read,
+        heading_read_unread=heading.unread,
         findings=findings,
         citation_coverage=coverage,
     )
@@ -874,6 +919,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
             f"{scan.editor_units_total}; unread "
             f"{scan.editor_units_total - scan.editor_units_read}"
         ),
+        f"heading-read records: {scan.heading_reads}; unread remainder: {scan.heading_read_unread}",
         f"findings: {len(scan.findings)}",
     ]
     for kind in ROWS:
@@ -885,6 +931,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
             UNLOCATED_READING,
             BORROWED_LOCATOR,
             EDITOR_READBACK,
+            *heading_read.KINDS,
         } and not scan.reference_boundary_graded:
             lines.append(f"{kind}: {NOT_GRADED}")
         else:
@@ -920,6 +967,7 @@ def grade(source: RunSource, _parsed: run_grader.Parsed) -> run_grader.Grade[Sca
         source=str(source.path),
         findings_failed=(
             any(finding.kind == EDITOR_READBACK for finding in scanned.findings)
+            or any(finding.kind in heading_read.KINDS for finding in scanned.findings)
             or (bool(scanned.findings) and scanned.reference_boundary_graded)
             or aar_failed
         ),

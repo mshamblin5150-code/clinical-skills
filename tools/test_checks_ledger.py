@@ -85,6 +85,14 @@ def a_clean_record(name: str) -> str:
     not have to. A single filler string would have made the whole row invisible
     to every test built on ``whole_file``.
     """
+    if checks.normalize(name) == checks.normalize("the heading read"):
+        return (
+            "## HEADING-READ: draft.md\n"
+            f"DRAFT: {DRAFT_SHA}\n"
+            "ROUTE: separate context\n"
+            "SENTENCES: 0 factual, 0 clinician's own\n"
+            "VERDICT: clean\n"
+        )
     block = f"## CHECK: {name}\nVERDICT: clean\n"
     block += f"DRAFT: {DRAFT_SHA}\n"
     if checks.normalize(name) in GRADED_KEYS:
@@ -173,6 +181,13 @@ def run(argv: list[str], *, bind: bool = True) -> tuple[int, str, str]:
             output = checks_path.parent / "output"
             output.mkdir(exist_ok=True)
             (output / f"{submission}.md").write_bytes(DRAFT_TEXT.encode())
+            checks_path.write_text(
+                checks_path.read_text(encoding="utf-8").replace(
+                    "## HEADING-READ: draft.md",
+                    f"## HEADING-READ: {submission}.md",
+                ),
+                encoding="utf-8",
+            )
             output_patch = mock.patch.object(
                 checks.repo_root, "output_root", return_value=output
             )
@@ -892,6 +907,23 @@ class TheCommandExitsOnWhatItFound(unittest.TestCase):
         with directory:
             self.assertEqual(run([str(path)])[0], 1)
 
+    def test_a_missing_heading_read_record_exits_one_and_names_its_row(self):
+        text = whole_file().replace(a_clean_record("the heading read"), "")
+        directory, path = in_a_file(text)
+        with directory:
+            status, report, _ = run([str(path)])
+        self.assertEqual(1, status)
+        self.assertRegex(report, rf"(?m){checks.heading_read.MISSING_RECORD}\s+1$")
+
+    def test_a_stale_heading_read_record_exits_one_and_names_its_row(self):
+        stale = a_clean_record("the heading read").replace(DRAFT_SHA, "f" * 64)
+        text = whole_file().replace(a_clean_record("the heading read"), stale)
+        directory, path = in_a_file(text)
+        with directory:
+            status, report, _ = run([str(path)])
+        self.assertEqual(1, status)
+        self.assertRegex(report, rf"(?m){checks.heading_read.DRAFT_MISMATCH}\s+1$")
+
     def test_a_failing_record_exits_one(self):
         directory, path = in_a_file(whole_file().replace("VERDICT: clean\n", "\n", 1))
         with directory:
@@ -1328,6 +1360,16 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
         checks.RENDER_PASS_MISMATCH: "no retained pass, or a rendered-document record whose `PASS` does not name the highest retained pass",
         checks.DRAFT_FINGERPRINT_MISMATCH: "any `## CHECK:` record has no `DRAFT`, or its `DRAFT` differs from the output Markdown",
         checks.RENDER_FINGERPRINT_MISMATCH: "the highest retained pass has no fingerprint, or its fingerprint differs from the output Markdown",
+        checks.heading_read.MISSING_RECORD: "a missing-heading-read record",
+        checks.heading_read.DUPLICATE_RECORD: "a duplicate-heading-read record",
+        checks.heading_read.UNREAD_RECORD: "an unread-heading-read record",
+        checks.heading_read.UNKNOWN_ROUTE: "an unknown-heading-read-route record",
+        checks.heading_read.SENTENCE_COUNT_MISMATCH: "a heading-read-sentence-count mismatch",
+        checks.heading_read.UNKNOWN_HEADING: "a heading-read-unknown-heading pair",
+        checks.heading_read.DROPPED_HEADING: "a heading-read-dropped-heading pair",
+        checks.heading_read.DRAFT_MISMATCH: "a heading-read-draft-mismatch",
+        checks.heading_read.DEFECT_VERDICT: "a heading-read-defect verdict",
+        checks.heading_read.REPORTED_FINDING: "a heading-read-finding line",
     }
 
     def test_the_skill_writes_out_every_row_the_grader_applies(self):

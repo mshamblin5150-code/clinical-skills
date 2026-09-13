@@ -321,6 +321,7 @@ class EachSkillStatesTheLabelItsPipelineAccepts(unittest.TestCase):
                 ).replace("## References\n\n", label + "\n\n" + legal_entry),
                 encoding="utf-8",
             )
+            run.write_heading_read()
             document = run.root / "post.docx"
             html = run.root / "post.html"
             with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
@@ -446,8 +447,8 @@ class VerifiedSourcesComposeAcrossTheBoard(unittest.TestCase):
             reply,
             r"inherits `REFERENCE`,\s*`RESOLVED`, `PAGE-YEAR`, and `STATED-EXPIRY`",
         )
-        self.assertIn("new `RESTATEMENT`, `REFUTATION`, and `SECOND-ROUTE`", reply)
-        self.assertIn("`SECOND-ROUTE` belongs to the new refutation and is never inherited", reply)
+        self.assertIn("new `RESTATEMENT`, `REFUTATION`, `TESTED-HEADING`, and `SECOND-ROUTE`", reply)
+        self.assertIn("`TESTED-HEADING` and `SECOND-ROUTE` belong to the new refutation and are never inherited", reply)
         self.assertRegex(reply, r"(?is)respent-source.*reply.*reply")
 
 

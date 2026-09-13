@@ -9,6 +9,7 @@ material, never a real roster, and no run under ``scratch/`` is read.
 from __future__ import annotations
 
 import io
+import hashlib
 import subprocess
 import sys
 import tempfile
@@ -49,6 +50,12 @@ def empty_population_input(root: Path) -> EmptyPopulationInput:
     (root / "critique.md").write_text("", encoding="utf-8")
     (root / "claims.md").write_text("DATE: 2026-09-09\n", encoding="utf-8")
     (root / "reread.md").write_text(REREAD, encoding="utf-8")
+    digest = hashlib.sha256((root / "critique.md").read_bytes()).hexdigest()
+    (root / "heading-read.md").write_text(
+        f"## HEADING-READ: critique.md\nDRAFT: {digest}\n"
+        "ROUTE: separate context\nSENTENCES: 0 factual, 0 clinician's own\nVERDICT: clean\n",
+        encoding="utf-8",
+    )
     return EmptyPopulationInput(
         (str(root),), population_size=lambda result: result.words or 0
     )
@@ -78,6 +85,12 @@ def build_run(
         f"{opening}\n\n{sections}{extra}{references}", encoding="utf-8"
     )
     (directory / "claims.md").write_text(claims, encoding="utf-8")
+    digest = hashlib.sha256((directory / "critique.md").read_bytes()).hexdigest()
+    (directory / "heading-read.md").write_text(
+        f"## HEADING-READ: critique.md\nDRAFT: {digest}\n"
+        "ROUTE: separate context\nSENTENCES: 0 factual, 0 clinician's own\nVERDICT: clean\n",
+        encoding="utf-8",
+    )
     if reread is not None:
         (directory / "reread.md").write_text(reread, encoding="utf-8")
     return directory
@@ -98,6 +111,17 @@ class TheCleanRunPasses(unittest.TestCase):
 
     def test_every_required_heading_is_counted(self):
         self.assertEqual(len(HEADINGS), graded(build_run()).headings_found)
+
+    def test_a_missing_heading_read_fails(self):
+        directory = build_run()
+        (directory / "heading-read.md").unlink()
+        self.assertIn(scan.heading_read.MISSING_RECORD, kinds(directory))
+
+    def test_a_heading_read_for_prior_critique_bytes_is_stale(self):
+        directory = build_run()
+        critique = directory / "critique.md"
+        critique.write_text(critique.read_text(encoding="utf-8") + "\nLater edit.\n", encoding="utf-8")
+        self.assertIn(scan.heading_read.DRAFT_MISMATCH, kinds(directory))
 
 
 class EveryRowFiresOnItsOwnDefect(unittest.TestCase):

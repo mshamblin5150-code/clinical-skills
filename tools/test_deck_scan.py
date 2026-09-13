@@ -8,6 +8,7 @@ phi-scan: synthetic
 from __future__ import annotations
 
 import io
+import hashlib
 import tempfile
 import unittest
 import zipfile
@@ -89,6 +90,7 @@ class Run:
             "DATE: 2026-09-02\n\n## CLAIM: Build-out costs $47,000.\n"
             "STATUS: sourced\n"
             "REFUTATION: stands - the source states this cost.\n"
+            "TESTED-HEADING: 1cd871eac5cc0b4ea522c820edf8c7855dcc8367d13aba2b4fa43021041eaf66\n"
             "SECOND-ROUTE: publisher HTML -> market report PDF\n",
             encoding="utf-8",
         )
@@ -99,6 +101,15 @@ class Run:
                 archive.writestr(f"ppt/slides/slide{index}.xml", xml)
             for index, xml in enumerate(notes, 1):
                 archive.writestr(f"ppt/notesSlides/notesSlide{index}.xml", xml)
+        self.write_heading_read()
+
+    def write_heading_read(self) -> None:
+        digest = hashlib.sha256(self.deck.read_bytes()).hexdigest()
+        (self.root / "heading-read.md").write_text(
+            f"## HEADING-READ: {self.deck.name}\nDRAFT: {digest}\n"
+            "ROUTE: separate context\nSENTENCES: 0 factual, 0 clinician's own\nVERDICT: clean\n",
+            encoding="utf-8",
+        )
 
     def grade(self, *extra: str, bind: bool = True) -> tuple[int, str, str]:
         if bind:
@@ -234,6 +245,32 @@ class FiguresReadSlidesAndSpeakerNotes(unittest.TestCase):
             scan.SOURCED_FIELD_COMPLETENESS_LIMIT.limit,
         )
 
+    def test_a_missing_heading_read_fails_the_pre_post_deck_scan(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            run.write_deck((slide_xml("Plan", "Build-out $47,000"),))
+            (run.root / "heading-read.md").unlink()
+            status, stdout, _ = run.grade()
+
+        self.assertEqual(1, status)
+        self.assertIn("missing-heading-read: 1", stdout)
+
+    def test_a_heading_read_with_an_old_deck_digest_is_stale(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            run.write_deck((slide_xml("Plan", "Build-out $47,000"),))
+            record = run.root / "heading-read.md"
+            record.write_text(
+                record.read_text(encoding="utf-8").replace(
+                    hashlib.sha256(run.deck.read_bytes()).hexdigest(), "0" * 64
+                ),
+                encoding="utf-8",
+            )
+            status, stdout, _ = run.grade()
+
+        self.assertEqual(1, status)
+        self.assertIn("heading-read-draft-mismatch: 1", stdout)
+
     def test_an_unrecorded_cost_on_either_population_is_a_finding(self):
         with tempfile.TemporaryDirectory() as temp:
             run = Run(Path(temp))
@@ -263,6 +300,7 @@ class FiguresReadSlidesAndSpeakerNotes(unittest.TestCase):
                 "DATE: 2026-09-02\n\n## CLAIM: The program serves 325 households.\n"
                 "STATUS: sourced\n"
                 "REFUTATION: stands - the source states this figure.\n"
+                "TESTED-HEADING: 0066c503fd14aec6e9dc4ae73b20f06c9483620f08616e0b4a57b30da0288e2a\n"
                 "SECOND-ROUTE: publisher HTML -> market report PDF\n",
                 encoding="utf-8",
             )
@@ -305,6 +343,7 @@ class FiguresReadSlidesAndSpeakerNotes(unittest.TestCase):
                 "DATE: 2026-09-02\n\n## CLAIM: Build-out costs $47,000 and equipment costs $19,500.\n"
                 "STATUS: sourced\n"
                 "REFUTATION: stands - the source states both costs.\n"
+                "TESTED-HEADING: 487f1e9907aefdc789e537b8642c4fff64cf89486269ceb71a39189461f27c6a\n"
                 "SECOND-ROUTE: publisher HTML -> market report PDF\n",
                 encoding="utf-8",
             )
@@ -339,6 +378,7 @@ class FiguresReadSlidesAndSpeakerNotes(unittest.TestCase):
             (run.root / "claims.md").write_text(
                 "DATE: 2026-09-02\n\n## CLAIM: Build-out costs $47,000.\n"
                 "STATUS: sourced\nREFUTATION: stands - the source states this cost.\n"
+                "TESTED-HEADING: 1cd871eac5cc0b4ea522c820edf8c7855dcc8367d13aba2b4fa43021041eaf66\n"
                 "SECOND-ROUTE: publisher HTML -> market report PDF\n",
                 encoding="utf-8",
             )
@@ -354,6 +394,7 @@ class FiguresReadSlidesAndSpeakerNotes(unittest.TestCase):
                 "DATE: 2026-09-02\n\n## CLAIM: Build-out costs $47,000.\n"
                 "STATUS: sourced\n"
                 "REFUTATION: stands - the source states this cost.\n"
+                "TESTED-HEADING: 1cd871eac5cc0b4ea522c820edf8c7855dcc8367d13aba2b4fa43021041eaf66\n"
                 "SECOND-ROUTE: publisher HTML -> market report PDF\n",
                 encoding="utf-8",
             )
@@ -368,6 +409,22 @@ class FiguresReadSlidesAndSpeakerNotes(unittest.TestCase):
             (run.root / "claims.md").write_text(
                 "DATE: 2026-09-02\n\n## CLAIM: Build-out costs $47,000.\n"
                 "STATUS: unsourced - no source found.\n",
+                encoding="utf-8",
+            )
+            run.write_deck((slide_xml("Plan", "Build-out $47,000"),))
+            status, stdout, _ = run.grade("--show")
+
+        self.assertEqual(1, status)
+        self.assertIn("47,000 appears only in a disbelieved claim record", stdout)
+
+    def test_a_cost_only_in_a_stale_tested_heading_is_disbelieved(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            claims = run.root / "claims.md"
+            claims.write_text(
+                claims.read_text(encoding="utf-8").replace(
+                    "Build-out costs $47,000.", "Build-out costs $47,000!", 1
+                ),
                 encoding="utf-8",
             )
             run.write_deck((slide_xml("Plan", "Build-out $47,000"),))
@@ -391,6 +448,7 @@ class FiguresReadSlidesAndSpeakerNotes(unittest.TestCase):
             (run.root / "claims.md").write_text(
                 "DATE: 2026-09-02\n\n## CLAIM: An unrelated item costs $47,000.\n"
                 "STATUS: sourced\nREFUTATION: stands - the source states the unrelated cost.\n"
+                "TESTED-HEADING: 997d9b5858ec2e2537b0900555ca1961b9f59260d25544fd59dbedd832e47e87\n"
                 "SECOND-ROUTE: publisher HTML -> market report PDF\n",
                 encoding="utf-8",
             )

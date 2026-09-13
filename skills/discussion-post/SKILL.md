@@ -178,6 +178,7 @@ RECENCY: current | within five | nothing newer - <reason> | guideline in force -
 RESOLVED: <URL or DOI> - read <ISO date>
 PAGE-YEAR: <year and where the page states it>
 REFUTATION: stands | refuted | paywalled | unreadable - <reason>
+TESTED-HEADING: <SHA-256 printed for this heading at refuter dispatch>
 SECOND-ROUTE: <research route> -> <refutation route>
 INSTRUMENTS: <first instrument> -> <second instrument>
 STATED-EXPIRY: none stated | <ISO date> - <where the document states it> | <ISO date>, superseded cited deliberately - <reason>
@@ -211,12 +212,16 @@ When the account profile records that the **Authenticated route** is available, 
 context must try it before giving up on a preferred source, settling for a reachable substitute,
 or writing `STATUS: unsourced` because an access wall stopped the search.
 
+Immediately before each refutation dispatch, run `python tools/research_ledger.py
+scratch/runs/<course>-<module>-discussion/claims.md --heading-digests`, name that claim's printed
+digest in the brief, and write it as `TESTED-HEADING` with the returned verdict and route.
+
 A source already verified elsewhere in this board's ledger may discharge a second page-level
 read. The new claim still gets its own record, a new `RESTATEMENT`, and a new `REFUTATION`; only
 `REFERENCE`, `RESOLVED`, `PAGE-YEAR`, and `STATED-EXPIRY` may be inherited because those describe
-the page already opened. `PASSAGE` belongs to the claim and is never inherited. `SECOND-ROUTE`
-belongs to the new refutation and is never inherited. A claim is never inherited from another
-sentence.
+the page already opened. `PASSAGE` belongs to the claim and is never inherited. `TESTED-HEADING`
+and `SECOND-ROUTE` belong to the new refutation and are never inherited. A claim is never inherited
+from another sentence.
 
 After every research and refutation result is gathered, this **Grader handoff** under
 [standing rule 6](../../AGENTS.md) runs:
@@ -269,6 +274,18 @@ This is the source of record that the post grader and reference
 scanner both read. Both renderers consume `docx_write.blocks`, so own-line comments leave both
 renders without a second omission rule. `discussion-reply` builds its reply submission with the
 same HTML renderer.
+
+Before the go-ahead, this fresh **Second reader** under [standing rule 6](../../AGENTS.md) receives only the final output Markdown, `claims.md`, and
+the printed heading digests. Do not give it sources. It judges only whether each factual sentence
+claims more than its heading, writes the shared `## HEADING-READ:` record from
+[sourcing.md](../_shared/reference/sourcing.md) to `<run-directory>/heading-read.md`, and pairs every
+factual sentence. Repair every `unrecorded` or `drifted` finding under the shared rules and repeat
+the read after any repair. With no second context, write `ROUTE: orchestrator walk`. The
+`discussion_post_scan.py` invocation below refuses a missing or stale record.
+Its heading-read rows are `missing-heading-read`, `duplicate-heading-read`, `unread-heading-read`,
+`unknown-heading-read-route`, `heading-read-sentence-count`, `heading-read-unknown-heading`,
+`heading-read-dropped-heading`, `heading-read-draft-mismatch`, `heading-read-defect`, and
+`heading-read-finding`.
 
 Each source grader is a **Grader handoff** under [standing rule 6](../../AGENTS.md):
 

@@ -20,6 +20,8 @@ from xml.etree import ElementTree
 
 import run_grader
 import aar_scan
+import heading_read
+import research_ledger
 import file_digest
 import render_pass
 from discussion_artifact import CLAIM_BLOCK, claim_record_can_certify_values
@@ -53,8 +55,9 @@ ROWS = (
     FONT_POINTS,
     UNTRACED_FIGURE,
     RENDERED_RECORD,
-)
+) + heading_read.KINDS
 KINDS = ROWS
+HEADING_READ_ROWS = {kind: "the heading read agrees with the deck bytes and current claim headings" for kind in heading_read.KINDS}
 EXPECTED_COMPLETION_CHECKS = (aar_scan.EXPECTED_ROW,)
 
 REQUIRED_BAR_FIELDS = (
@@ -165,11 +168,13 @@ class RenderedAssessment:
 class Source:
     root: Path
     deck: Path
+    deck_bytes: bytes
     bar: Bar
     slides: tuple[Slide, ...]
     notes: tuple[str, ...]
     claims: str
     rendered_text: str | None
+    heading_read_text: str
 
 
 @dataclass(frozen=True)
@@ -182,6 +187,8 @@ class Scan:
     rendered_records: int
     retained_passes: int
     unrecorded_passes: int
+    heading_reads: int
+    heading_read_unread: int
     findings: tuple[Finding, ...]
 
 
@@ -310,6 +317,13 @@ def load(parsed: run_grader.Parsed) -> Source:
     try:
         bar = _read_bar(bar_path.read_text(encoding="utf-8"))
         claims = claims_path.read_text(encoding="utf-8")
+        deck_bytes = deck.read_bytes()
+        heading_read_path = root / "heading-read.md"
+        heading_read_text = (
+            heading_read_path.read_text(encoding="utf-8")
+            if heading_read_path.is_file()
+            else ""
+        )
         with zipfile.ZipFile(deck) as archive:
             slide_parts = _parts(archive, SLIDE_PART)
             if not slide_parts:
@@ -325,7 +339,7 @@ def load(parsed: run_grader.Parsed) -> Source:
         rendered_text = rendered_path.read_text(encoding="utf-8") if rendered_path.is_file() else None
     except (OSError, UnicodeError) as failure:
         raise run_grader.SourceError(f"could not read rendered.md: {failure}") from failure
-    return Source(root, deck, bar, slides, notes, claims, rendered_text)
+    return Source(root, deck, deck_bytes, bar, slides, notes, claims, rendered_text, heading_read_text)
 
 
 def _rendered_records(text: str) -> tuple[RenderedRecord, ...]:
@@ -469,7 +483,22 @@ def _claim_figures(text: str) -> tuple[set[str], set[str]]:
 
 
 def survey(source: Source) -> Scan:
-    findings: list[Finding] = []
+    heading = heading_read.scan(
+        source.heading_read_text,
+        (
+            heading_read.Binding(
+                source.deck.name,
+                source.deck_bytes,
+                tuple(research_ledger.read_records(source.claims)),
+            ),
+        ),
+    )
+    findings: list[Finding] = [
+        Finding(kind, None, finding.detail)
+        for kind in HEADING_READ_ROWS
+        for finding in heading.findings
+        if finding.kind == kind
+    ]
     if len(source.slides) > source.bar.slide_max:
         findings.append(Finding(SLIDE_COUNT, None, f"{len(source.slides)} slides exceeds {source.bar.slide_max}"))
     bullets_read = words_read = font_runs_read = 0
@@ -513,6 +542,8 @@ def survey(source: Source) -> Scan:
         0,
         0,
         0,
+        heading.records_read,
+        heading.unread,
         tuple(findings),
     )
 
@@ -529,6 +560,7 @@ def format_report(scan: Scan, _source: str, show: bool = False) -> str:
         f"  rendered records  {scan.rendered_records}",
         f"  retained passes   {scan.retained_passes}",
         f"  retained passes without a record {scan.unrecorded_passes}",
+        f"  heading-read records {scan.heading_reads}; unread remainder {scan.heading_read_unread}",
         "",
     ]
     for row in ROWS:
@@ -553,6 +585,8 @@ def grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
         rendered.records,
         rendered.passes,
         rendered.unrecorded_passes,
+        scanned.heading_reads,
+        scanned.heading_read_unread,
         scanned.findings + rendered.findings,
     )
     aar_failed, aar_report = aar_scan.completion_gate(

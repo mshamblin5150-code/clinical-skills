@@ -37,13 +37,13 @@ Correcting `PASSAGE` changes the claim record's evidence and requires a fresh `R
 
 An `unsourced` or `unreadable` record states its substantive search or failure on `STATUS` and
 omits every field required of a sourced record: `SOURCE`, `REFERENCE`, `RESTATEMENT`, `PASSAGE`, `RECENCY`,
-`RESOLVED`, `PAGE-YEAR`, `REFUTATION`, `SECOND-ROUTE`, and `STATED-EXPIRY`. An unreadable record
+`RESOLVED`, `PAGE-YEAR`, `REFUTATION`, `TESTED-HEADING`, `SECOND-ROUTE`, and `STATED-EXPIRY`. An unreadable record
 retains `INSTRUMENTS`, whose two substantive halves name the distinct failed routes. A clean
 sourceless record does not establish that a rejected source was named well enough to recheck.
 
-A sourced claim record may certify a value only when both `REFUTATION` and `SECOND-ROUTE` carry
-substance. If either is absent or empty, the record does not establish that the second agent's
-refutation pass ran and cannot certify a value.
+A sourced claim record may certify a value only when `REFUTATION`, `TESTED-HEADING`, and
+`SECOND-ROUTE` carry substance and `TESTED-HEADING` matches the current claim heading. If any is
+absent, empty, malformed, or stale, the record cannot certify a value.
 
 ## A claim heading is the claim the document will make
 
@@ -51,5 +51,39 @@ The heading is the claim the finished document will make, including any number t
 state. Before research it is a working statement. A heading the source does not support is corrected
 before drafting, or marked `refuted` by the refuter.
 
-A heading changed after its refutation is a new claim. It needs a fresh `REFUTATION` and
-`SECOND-ROUTE` before anything cites it or takes a number from it.
+A heading changed after its refutation is a new claim. `TESTED-HEADING` is the lowercase SHA-256 of
+the `## CLAIM:` heading text after runs of whitespace collapse to one space and the ends are
+trimmed; case and punctuation remain significant. Before every refutation dispatch, the parent runs
+`python tools/research_ledger.py <claims.md> --heading-digests`, copies the printed digest for that
+heading into the refuter's brief, and writes it beside the returned `REFUTATION` and `SECOND-ROUTE`.
+The command reads the file and never accepts heading text as an argument. A changed heading needs a
+fresh refutation and a newly printed `TESTED-HEADING` before anything cites it or takes a number
+from it.
+
+## A heading read binds the final draft to the ledger
+
+Before any go-ahead, a fresh context receives only the final draft, `claims.md`, and the headings
+with digests printed by the command above. It is not given sources. It pairs every factual sentence
+with the first eight hex characters of the current heading digest and judges only whether the
+sentence claims more than that heading. A paraphrase claiming no more is a match; an absent claim is
+`unrecorded`, and a broader population or subject, changed number, added entity or condition, or
+dropped limitation is `drifted`. The clinician's own reasoning and experience are counted but need
+no pair. A harness without a second context performs the same written walk and records `ROUTE:
+orchestrator walk`.
+
+```text
+## HEADING-READ: <draft file>
+DRAFT: <SHA-256 of the draft's raw bytes>
+ROUTE: separate context | orchestrator walk
+SENTENCES: <n> factual, <n> clinician's own
+PAIR: <location> -> <first 8 hex of the heading digest>
+VERDICT: clean | defect - <substance>
+FINDINGS: unrecorded | drifted - <location>, <what differs>
+```
+
+A clean record has one `PAIR` per factual sentence. Pairs plus findings equal the factual count;
+every prefix names a current, non-`DROPPED` heading; and `DRAFT` matches the final artifact. A
+finding blocks the go-ahead. Repair a drifted sentence toward the correct side: return it to its
+heading, or change and refute the heading again. Give an unrecorded sentence a full researched and
+refuted record or cut it. Every repair changes the draft, so a fresh heading read replaces the old
+one before the go-ahead.
