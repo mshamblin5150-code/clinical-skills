@@ -21,7 +21,7 @@ completed; exit 2 covers every refusal or unreadable source.
 from __future__ import annotations
 
 import argparse
-import hashlib
+import file_digest
 import json
 import os
 import re
@@ -176,14 +176,6 @@ def topic_shape_count(text: str) -> int:
     return topic_population_count(text)
 
 
-def _sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as source:
-        for chunk in iter(lambda: source.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
 def _validate_manifest(manifest_path: Path, manifest: object) -> dict[str, object]:
     """Refuse malformed private state before it can grant citation membership."""
     dump_id = manifest_path.parent.name
@@ -206,7 +198,7 @@ def _validate_manifest(manifest_path: Path, manifest: object) -> dict[str, objec
     if not re.fullmatch(r"[0-9a-f]{64}", str(manifest.get("source_sha256", ""))):
         raise ValueError(f"manifest source digest is invalid: {dump_id}")
     source_path = manifest_path.parent / SOURCE_NAME
-    if not source_path.is_file() or _sha256(source_path) != manifest["source_sha256"]:
+    if not source_path.is_file() or file_digest.sha256(source_path) != manifest["source_sha256"]:
         raise ValueError(f"source does not match manifest: {dump_id}")
     reference_file = manifest.get("reference_file")
     reference_digest = manifest.get("reference_sha256")
@@ -216,7 +208,7 @@ def _validate_manifest(manifest_path: Path, manifest: object) -> dict[str, objec
         if not re.fullmatch(r"[0-9a-f]{64}", str(reference_digest or "")):
             raise ValueError(f"manifest reference digest is invalid: {dump_id}")
         reference_path = manifest_path.parent / REFERENCE_NAME
-        if not reference_path.is_file() or _sha256(reference_path) != reference_digest:
+        if not reference_path.is_file() or file_digest.sha256(reference_path) != reference_digest:
             raise ValueError(f"reference list does not match manifest: {dump_id}")
     topics = manifest.get("topics")
     if not isinstance(topics, list) or not topics:
@@ -301,7 +293,7 @@ def source_topic(dump_id: str, title: str, store: Path | None = None) -> Topic |
     if manifest is None:
         return None
     source = root / "dumps" / dump_id / str(manifest.get("source_file", SOURCE_NAME))
-    if not source.is_file() or _sha256(source) != manifest.get("source_sha256"):
+    if not source.is_file() or file_digest.sha256(source) != manifest.get("source_sha256"):
         raise ValueError(f"source does not match manifest: {dump_id}")
     wanted = topic_key(title)
     for topic in parse_topics(source.read_text(encoding="utf-8", errors="replace")):
@@ -323,7 +315,7 @@ def rebuild_index(store: Path) -> Path:
         )
         for manifest_path, manifest in _manifest_rows(store):
             source_path = manifest_path.with_name(str(manifest.get("source_file", SOURCE_NAME)))
-            if not source_path.is_file() or _sha256(source_path) != manifest.get("source_sha256"):
+            if not source_path.is_file() or file_digest.sha256(source_path) != manifest.get("source_sha256"):
                 raise ValueError(f"source does not match manifest: {manifest_path.parent.name}")
             bodies = {topic.title: topic.body for topic in parse_topics(source_path.read_text(encoding="utf-8", errors="replace"))}
             for row in manifest["topics"]:
@@ -385,7 +377,7 @@ def ingest_dump(
             "received_on": received_on.isoformat(),
             "literature_review_current_through": next(iter(currencies)),
             "source_file": SOURCE_NAME,
-            "source_sha256": _sha256(copied),
+            "source_sha256": file_digest.sha256(copied),
             "topics": [
                 {
                     "title": topic.title,
@@ -400,7 +392,7 @@ def ingest_dump(
             copied_references = destination / REFERENCE_NAME
             shutil.copyfile(references, copied_references)
             manifest["reference_file"] = REFERENCE_NAME
-            manifest["reference_sha256"] = _sha256(copied_references)
+            manifest["reference_sha256"] = file_digest.sha256(copied_references)
         manifest_path = destination / DUMP_MANIFEST_NAME
         manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
         index = rebuild_index(root)
@@ -445,7 +437,7 @@ def sweep_unfiled(scan_root: Path, store: Path | None = None) -> SweepReport:
         resolved = path.resolve()
         if resolved.is_relative_to(evidence_store):
             continue
-        if _sha256(resolved) in filed_hashes:
+        if file_digest.sha256(resolved) in filed_hashes:
             continue
         try:
             count = topic_shape_count(path.read_text(encoding="utf-8", errors="replace"))

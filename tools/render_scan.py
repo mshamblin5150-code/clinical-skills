@@ -75,8 +75,8 @@ DECLARED_LIMITS = (
     (
         "whether the graded pass shows the submitted document",
         "The command reads only render/ and opens no document, so a complete final "
-        "pass of an earlier draft is clean; #1020 owns binding a pass to the "
-        "document's bytes.",
+        "pass of an earlier draft is clean; checks_ledger grades the pass against "
+        "the output Markdown's fingerprint.",
         run_grader.EvidenceDisposition.BEHAVIOR,
     ),
     (

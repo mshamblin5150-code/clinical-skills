@@ -16,6 +16,7 @@ from pathlib import Path
 from unittest import mock
 
 import deck_scan as scan
+import file_digest
 from grader_conformance import EmptyPopulationInput, for_module
 
 
@@ -99,17 +100,26 @@ class Run:
             for index, xml in enumerate(notes, 1):
                 archive.writestr(f"ppt/notesSlides/notesSlide{index}.xml", xml)
 
-    def grade(self, *extra: str) -> tuple[int, str, str]:
+    def grade(self, *extra: str, bind: bool = True) -> tuple[int, str, str]:
+        if bind:
+            if not (self.root / "render" / "pass-1").is_dir():
+                self.retain(1, 1)
+            if not (self.root / "rendered.md").is_file():
+                self.write_rendered()
         stdout, stderr = io.StringIO(), io.StringIO()
         with redirect_stdout(stdout), redirect_stderr(stderr):
             status = scan.main([str(self.root), "--pptx", str(self.deck), *extra])
         return status, stdout.getvalue(), stderr.getvalue()
 
-    def retain(self, number: int, images: int) -> None:
+    def retain(self, number: int, images: int, *, fingerprint: bool = True) -> None:
         retained = self.root / "render" / f"pass-{number}"
         retained.mkdir(parents=True)
         for index in range(1, images + 1):
             (retained / f"slide-{index}.png").write_bytes(b"synthetic")
+        if fingerprint:
+            (retained / "deck.sha256").write_text(
+                file_digest.sha256(self.deck) + "\n", encoding="ascii"
+            )
 
     def write_rendered(
         self,
@@ -137,13 +147,13 @@ class Run:
             encoding="utf-8",
         )
 
-    def terminal(self) -> tuple[int, str, str]:
+    def terminal(self, *, bind: bool = True) -> tuple[int, str, str]:
         with mock.patch.object(
             scan.aar_scan,
             "completion_gate",
             return_value=(False, "the after-action review: clean"),
         ):
-            return self.grade("--submission", self.deck.stem)
+            return self.grade("--submission", self.deck.stem, bind=bind)
 
 
 def empty_population_input(root: Path) -> EmptyPopulationInput:
@@ -155,6 +165,9 @@ def empty_population_input(root: Path) -> EmptyPopulationInput:
         ("<p:sld xmlns:p='http://schemas.openxmlformats.org/presentationml/2006/main'/>",)
     )
     twin.write_deck((slide_xml("Synthetic title"),))
+    for run in (empty, twin):
+        run.retain(1, 1)
+        run.write_rendered()
     return EmptyPopulationInput(
         (str(empty.root), "--pptx", str(empty.deck)),
         population_size=lambda result: result.font_runs_read,
@@ -394,7 +407,7 @@ class TheRenderedDeckRecordNamesTheTerminalPass(unittest.TestCase):
         self.assertIn("rendered record: clean", stdout)
         self.assertIn("the after-action review: clean", stdout)
 
-    def test_preflight_grades_format_but_not_the_terminal_join(self):
+    def test_preflight_grades_format_and_the_render_binding(self):
         with tempfile.TemporaryDirectory() as temp:
             run = self.a_run(Path(temp))
             run.write_rendered(source="browser")
@@ -404,7 +417,7 @@ class TheRenderedDeckRecordNamesTheTerminalPass(unittest.TestCase):
 
         self.assertEqual(bad_status, 1)
         self.assertEqual(clean_status, 0)
-        self.assertIn("rendered record: not graded - --submission was not supplied", stdout)
+        self.assertIn("rendered record: clean", stdout)
 
     def test_every_declared_record_field_is_well_formed_on_preflight(self):
         replacements = (
@@ -430,13 +443,34 @@ class TheRenderedDeckRecordNamesTheTerminalPass(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             run = self.a_run(Path(temp))
             run.write_rendered()
-            no_pass, _, _ = run.terminal()
+            no_pass, _, _ = run.terminal(bind=False)
             run.retain(1, 1)
             (run.root / "rendered.md").unlink()
-            no_record, _, _ = run.terminal()
+            no_record, _, _ = run.terminal(bind=False)
 
         self.assertEqual(no_pass, 1)
         self.assertEqual(no_record, 1)
+
+    def test_preflight_refuses_a_pass_without_a_fingerprint(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = self.a_run(Path(temp))
+            run.retain(1, 1, fingerprint=False)
+            run.write_rendered()
+            status, _, _ = run.grade(bind=False)
+
+        self.assertEqual(1, status)
+
+    def test_preflight_refuses_a_pass_fingerprinted_for_another_deck(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = self.a_run(Path(temp))
+            run.retain(1, 1)
+            (run.root / "render" / "pass-1" / "deck.sha256").write_text(
+                "f" * 64 + "\n", encoding="ascii"
+            )
+            run.write_rendered()
+            status, _, _ = run.grade(bind=False)
+
+        self.assertEqual(1, status)
 
     def test_submission_joins_the_highest_pass_deck_and_slide_counts(self):
         cases = (

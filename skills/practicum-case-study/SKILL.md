@@ -1060,7 +1060,10 @@ the draft and the rule and nothing else, where it is not.
 
 For these surfaces, the prewritten destination is `<checks-ledger>` with one `## CHECK:` heading per
 row of the table below and nothing under them yet. A heading whose verdict never arrived is visible,
-and a check that was never run is not.
+and a check that was never run is not. Immediately before dispatching each reader, the parent runs
+`python -c "from pathlib import Path; from tools.file_digest import sha256; print(sha256(Path(r'<the output Markdown>')))"`
+and names that fingerprint in the brief. The parent is the one writer and records that exact value as `DRAFT:` on the returned row, including
+rows whose verdict comes from a command.
 
 | Check | What it reads | How | A `clean` says what it walked |
 | --- | --- | --- | --- |
@@ -1103,6 +1106,10 @@ bound. **The bound is a safety stop, not a timing measurement**: it does not est
 automated route works or that the chosen duration is calibrated. A call that reaches the bound did
 not return a failure, does not trigger the XPS attempt, and goes directly to the clinician export.
 Rasterize a returned export with PyMuPDF at 120 dpi into the pass directory.
+Before either export route, the command requires the same-stem Markdown beside the `.docx`, rebuilds
+the Word archive parts from that Markdown, and refuses any differing part until the edit is recovered
+into the Markdown and the `.docx` is rewritten. Each retained pass carries the Markdown's SHA-256 in
+`case-study-draft.sha256`.
 
 If the bounded automated route exits 2, ask the clinician to use
 `File > Export > Create PDF/XPS` in Word, then hand that file to the command on a new invocation:
@@ -1289,6 +1296,7 @@ headings remain what makes a lost verdict visible.
 ```
 ## CHECK: differential ordering
 VERDICT: defect
+DRAFT: <SHA-256 named in the reader's dispatch brief>
 FINDINGS: The differential's 1. is appendicitis, and the intake gives a patient of
     childbearing age with pelvic pain and no documented hCG. The pregnancy-related
     emergency is at 4 and has to be at 1 until the hCG is back.
@@ -1299,6 +1307,7 @@ The rendered-document record also fixes the declared route and retained pass:
 ```
 ## CHECK: the rendered document
 VERDICT: clean
+DRAFT: <SHA-256 named in the reader's dispatch brief>
 FINDINGS: Walked every retained page against the Markdown; no clipping, overlap,
     broken numbering, bad break, misplaced heading, or reference-layout defect.
 SOURCE: word-pdf
@@ -1313,6 +1322,7 @@ under it is a check that did not run, and the draft is not submitted on it.
 ```
 ## CHECK: MDM completeness
 VERDICT: clean
+DRAFT: <SHA-256 named in the reader's dispatch brief>
 FINDINGS: Walked all five MDM entries. Each names a discriminator from this case — the
     36-hour onset, the absent rebound, the prior appendectomy — and each carries a
     citation.
@@ -1324,6 +1334,7 @@ FINDINGS: Walked all five MDM entries. Each names a discriminator from this case
 ```
 ## CHECK: the dose against the record that sourced it
 VERDICT: defect
+DRAFT: <SHA-256 named in the reader's dispatch brief>
 FINDINGS: Four drug rows state a dose. Three match the record naming that drug. The
     ceftriaxone row orders 250 mg IM once and its record's restatement sources 1 g IV
     daily — a different dose, not a different unit for the same one.
@@ -1340,10 +1351,12 @@ be several of them at once:
 | a `VERDICT` that is neither word | it decides which of the rules below apply, so a third word is a record graded on nothing |
 | a `defect` with no `FINDINGS` under it, or an empty one | anybody can write `defect`; nobody writes the entry's position and the rule it fails without having read it. The field and not just the words — a reason typed after the keyword says the same thing where nobody looking for it will look |
 | a `clean` with no `FINDINGS` under it, on a row the table above marks *yes* | the same test on the other verdict. Anybody can write `clean`; nobody writes *"walked all five MDM entries, each names a discriminator from this case"* without having walked them. [#255](https://github.com/mshamblin5150-code/clinical-skills/issues/255), and it is some rows rather than every row — the rest are counted and not graded, and the report names which |
-| a known field on a row that does not take it | `VERDICT`, `FINDINGS`, `SOURCE`, `PASS`, `PAGES`, or `UNSEEN` opened a new line where that row does not recognize the name; other prose labels such as `ROS:` remain wrapped findings text |
+| a known field on a row that does not take it | `VERDICT`, `FINDINGS`, `DRAFT`, `SOURCE`, `PASS`, `PAGES`, or `UNSEEN` opened a new line where that row does not recognize the name; `DRAFT` is accepted on every row; other prose labels such as `ROS:` remain wrapped findings text |
 | a known field written more than once in one record | the later line would otherwise replace the earlier value and hide one of the reader's writes |
 | a clean rendered-document record with a malformed `SOURCE` or `PASS` | `SOURCE` must be `word-pdf`, `word-xps`, or `clinician`, and `PASS` must be a positive integer |
-| a terminal rendered-document record that does not name the highest retained pass | at `--submission`, the run must have a retained pass and the record's `PASS` must name the highest one |
+| no retained pass, or a rendered-document record whose `PASS` does not name the highest retained pass | both the pre-go-ahead `--document` run and the `--submission` run require the highest retained pass |
+| the highest retained pass has no fingerprint, or its fingerprint differs from the output Markdown | the retained pixels were not produced from the draft being graded; re-render into a new pass |
+| any `## CHECK:` record has no `DRAFT`, or its `DRAFT` differs from the output Markdown | that row was not read against the current draft and must be rerun |
 
 **That last row was off the list entirely until
 [#255](https://github.com/mshamblin5150-code/clinical-skills/issues/255), and it is on for some of
@@ -1391,7 +1404,7 @@ is for and previously had nothing to work with.
 before submission:**
 
 ```bash
-python tools/checks_ledger.py <checks-ledger>
+python tools/checks_ledger.py <checks-ledger> --document <the output Markdown>
 ```
 
 Exit 0 is clean, 1 names how many checks failed, and **2 means it did not scan** — no file, or no
@@ -1399,6 +1412,9 @@ Exit 0 is clean, 1 names how many checks failed, and **2 means it did not scan**
 not paste it. **A clean scan is not a checked draft** — every verdict in that file is a reading, and
 this command only grades that the reading was recorded. A well-formed `clean` from a reader that
 skimmed is what a well-formed `clean` from a reader that read looks like.
+
+If the draft changes after any row was dispatched, recompute its fingerprint and rerun every row;
+no prior record is banked across a draft change.
 
 **Every rule the command applies is written above, so a harness with no Python walks the file by
 eye instead.** The command saves the reading; it is not where the rule lives — step 3's arrangement
@@ -1448,7 +1464,7 @@ Then walk this list, by eye — none of it is mechanical:
   [../_shared/reference/apa7.md](../_shared/reference/apa7.md) rather than from memory, and does
   `python tools/reference_scan.py <the draft> --as-of <the exam date>` exit 0? A known reference
   defect does not leave this step in the `PROPOSED` block — it gets fixed.
-- **Does `python tools/checks_ledger.py <checks-ledger>` exit 0**, and has every
+- **Does `python tools/checks_ledger.py <checks-ledger> --document <the output Markdown>` exit 0**, and has every
   `defect` been repaired in the document rather than reported? The command settles the record
   shape, and **the defect table above is the list** — this line used to name three of its rows and
   went stale the moment #255 added one, which is the shape that table exists to keep out of prose.
@@ -1488,7 +1504,8 @@ Then walk this list, by eye — none of it is mechanical:
 - An off-table heading is counted but no expected-check rule grades its content.
 - A skipped render_scan is not detected; the residue is a pass the producer did not write, one altered after retention, or a grading machine missing the PDF engine.
 - The rendered-record SOURCE is declared and never proven.
-- No retained pass or rendered record is bound to the document's bytes.
+- The clinician's PDF is not tied to the Word document's bytes.
+- A check record is bound to the draft and not to claims.md or evidence.txt.
 
 **A rendered `.docx` is not a checked document.** `tools/docx_write.py` guarantees the file opens,
 the page numbers land and the reference list hangs on its own page. It cannot read a differential,

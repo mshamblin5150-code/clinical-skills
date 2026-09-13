@@ -20,6 +20,7 @@ from xml.etree import ElementTree
 
 import run_grader
 import aar_scan
+import file_digest
 import render_pass
 from discussion_artifact import CLAIM_BLOCK, claim_record_can_certify_values
 from research_ledger import REFUTATION_EVIDENCE_COMPLEMENT
@@ -109,8 +110,8 @@ DECLARED_LIMITS = (
         "The rendered-record SOURCE is declared and never proven.",
     ),
     DeclaredLimit(
-        "render-document-bytes-unbound",
-        "No retained pass or rendered record is bound to the deck's bytes.",
+        "adversarial-bytes-unbound",
+        "adversarial.md is not bound to the deck's bytes.",
     ),
 )
 NOT_REACHED = tuple(row.limit for row in DECLARED_LIMITS)
@@ -405,16 +406,10 @@ def _rendered_grade(
     pass_numbers = {number for number, _path in passes}
     recorded_numbers = {number for number in parsed_passes if number is not None}
     unrecorded = len(pass_numbers - recorded_numbers)
-    if submission is None:
-        report = f"rendered record: {run_grader.NOT_GRADED} - --submission was not supplied"
-        return RenderedAssessment(
-            tuple(found), len(records), len(passes), unrecorded, report
-        )
-
     if not passes:
-        found.append(Finding(RENDERED_RECORD, None, "submission has no retained render pass"))
+        found.append(Finding(RENDERED_RECORD, None, "deck has no retained render pass"))
     if not records:
-        found.append(Finding(RENDERED_RECORD, None, "submission has no rendered record"))
+        found.append(Finding(RENDERED_RECORD, None, "deck has no rendered record"))
     highest = passes[-1][0] if passes else None
     for record, pass_number in zip(records, parsed_passes, strict=True):
         if record.deck != source.deck.name:
@@ -439,6 +434,17 @@ def _rendered_grade(
             found.append(Finding(RENDERED_RECORD, None, "highest-pass UNSEEN is not none"))
         if not re.fullmatch(r"(?is)clean[ \t]+-[ \t]+.+", record.value("VERDICT")):
             found.append(Finding(RENDERED_RECORD, None, "highest-pass VERDICT is not clean with a reason"))
+    if passes:
+        fingerprint = passes[-1][1] / "deck.sha256"
+        retained_digest = file_digest.recorded_sha256(fingerprint)
+        if retained_digest != file_digest.sha256(source.deck):
+            found.append(
+                Finding(
+                    RENDERED_RECORD,
+                    None,
+                    "highest retained pass has no matching deck fingerprint; re-render into a new pass",
+                )
+            )
     report = f"rendered record: {'finding' if found else 'clean'}"
     return RenderedAssessment(
         tuple(found), len(records), len(passes), unrecorded, report

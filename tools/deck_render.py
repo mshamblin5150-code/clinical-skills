@@ -12,6 +12,7 @@ import zipfile
 from pathlib import Path
 
 from console_codec import require_python_floor, use_utf8
+import file_digest
 import office_process
 import page_image
 import pdf_engine
@@ -21,6 +22,7 @@ import render_pass
 RASTER_DPI = page_image.RASTER_DPI
 EXPORT_TIMEOUT_SECONDS = 30
 SLIDE_PART = re.compile(r"^ppt/slides/slide[1-9]\d*\.xml$")
+FINGERPRINT_FILE = "deck.sha256"
 
 
 class RenderError(Exception):
@@ -101,6 +103,7 @@ def render(
         not clinician_export.is_file() or clinician_export.suffix.casefold() != ".pdf"
     ):
         raise RenderError("clinician export must be an existing PDF")
+    deck_digest = file_digest.sha256(deck)
     slide_count = _slide_count(deck)
     render_root = run / "render"
     def build(building: Path) -> tuple[str, int]:
@@ -124,6 +127,9 @@ def render(
             len(tuple(building.glob("*.png"))), pages
         ):
             raise RenderError("not every exported slide has a retained page image")
+        file_digest.write_recorded_sha256(
+            building / FINGERPRINT_FILE, deck_digest
+        )
         return source, pages
 
     destination, (source, pages) = render_pass.retain_staged_pass(render_root, build)
