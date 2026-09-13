@@ -252,7 +252,7 @@ A fresh reader's pairing of every factual sentence in a finished draft with the 
 _Avoid_: draft-to-ledger read, draft check, claim audit, faithfulness check
 
 **Dropped record**:
-A [[Claim record]] whose source the graded document was going to rest on, and no longer does, and which says why. Its research stays in the ledger; only its obligation to reach the reference list is released. A record whose claim was cut without saying so is not dropped, it is an uncited source.
+A [[Claim record]] whose source the graded document was going to rest on, and no longer does, and which says why. Its research stays in the ledger and its obligation to reach the reference list is released; it is never a [[Believed record]], because a claim the document no longer makes cannot vouch for a figure the document still states. A record whose claim was cut without saying so is not dropped, it is an uncited source.
 _Avoid_: unused record, orphan record, deleted claim, abandoned claim
 
 **Spend**:
@@ -264,7 +264,7 @@ A check whose subject is one figure in a graded document, refusing it unless a [
 _Avoid_: number check, trace check, figure validator, number gate
 
 **Believed record**:
-A [[Claim record]] a [[Number certifier]] will trace a figure to: one claiming a source, and carrying both a refutation verdict and the [[Second route]] that verdict was reached by. A record missing either half has had no recorded second agent, and a figure resting only on one is refused as untraced rather than as disbelieved.
+A [[Claim record]] a [[Number certifier]] will trace a figure to: one claiming a source, not a [[Dropped record]], and carrying both a refutation verdict and the [[Second route]] that verdict was reached by. A record missing either half has had no recorded second agent, and a figure resting only on one is refused as untraced rather than as disbelieved.
 _Avoid_: valid record, accepted record, good record, sourced record
 
 **Stated expiry**:
