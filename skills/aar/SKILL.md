@@ -60,6 +60,8 @@ reclassifies the earlier correction and never supplies its landing evidence.
 
 Write every AAR-sourced ticket body first under `<run-directory>/aar/publications/`, then publish it with `gh --body-file`. Require each body to open with `**Filed from:** the after-action review of a <skill> run (<course> <module>), <YYYY-MM-DD>.` The publish hook compares it with the run's own text. Describe conduct; do not reproduce the patient, classmate, preceptor, site, faculty, or board material. A refusal means rewrite the description without the copied span, never move the body file outside the AAR publication directory.
 
+File a `tracker-ticket` or `skill-file` ticket as soon as its body passes the publish hook; no per-ticket go-ahead is needed, because a ticket records and ADR 0109 ruling 3 applies it unattended. The skill-file diff on that ticket still waits for the clinician's ruling. Never report a review clean while one of its tickets is unfiled.
+
 ## 4. Write and grade the record
 
 For the first round, write `<run-directory>/aar/<submission-key>.md`. For a later round, write the
@@ -87,14 +89,16 @@ SUMMARY: <conduct, never working material>
 CLASSIFIER: tracker-ticket - <substantive reason>
 ORCHESTRATOR: agree - <substantive reason>
 DISPOSITION: tracker-ticket
-TARGET: <file, memory path, or tracker subject>
-LANDING: <changed path or GitHub issue URL>
+TARGET: <absolute path for memory-write or check; ticket subject for tracker-ticket or skill-file>
+LANDING: <GitHub issue URL for tracker-ticket or skill-file; one line on what changed for memory-write or check>
 
 ## SUSTAIN: <extract entry identifier>
 SUMMARY: <what was settled correctly and must not be undone>
 ```
 
 Remove `CORRECTIONS: none` when a correction record exists, and remove `SUSTAINS: none` when a sustain record exists. One correction record may name only one disposition. A summary describes the agent's conduct and never quotes the material it handled.
+
+Several corrections or sustains may rest on one extract entry: repeat the heading with the same identifier, one record per disposition, and never alter an identifier to make records look distinct. For a `memory-write` or a `check`, `TARGET` is the bare absolute path the grader resolves, with nothing after it; put any description in `LANDING` or in a reason.
 
 Run:
 
