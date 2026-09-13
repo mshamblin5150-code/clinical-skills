@@ -75,7 +75,7 @@ One thing a course marks on its own — a board, a case study, a quiz. What iden
 _Avoid_: assignment, deliverable, submission
 
 **Sitting**:
-One occasion of working on a graded artifact. An artifact is usually written over several, days apart, and each produces its own submission. A sitting is provenance and never identity.
+One occasion of working on a graded artifact. An artifact is usually written over several, days apart, and each produces at most one submission: an abandoned sitting produces none, and its corrections are still reviewed. A sitting is provenance and never identity.
 _Avoid_: session (in the agent sense — see **Session**), attempt, revision
 
 **Session**:
@@ -1130,7 +1130,7 @@ The pass a skill makes over its own **sitting** once it has produced that sittin
 _Avoid_: retrospective, postmortem, reflection, debrief, self-review
 
 **Review round**:
-One extract, classification, landing and record over a single **submission**. A submission can take more than one, and each keeps its own record, extract and baseline, so a later round can neither overwrite an earlier one nor re-rule the corrections it recorded; the review is finished only when every round is. Distinct from a **Sitting**, which is an occasion of working on the artifact and produces its own submission: rounds repeat inside one submission, sittings do not.
+One extract, classification, landing and record over a single **submission**. A submission can take more than one, and each keeps its own record, extract and baseline, so a later round can neither overwrite an earlier one nor re-rule the corrections it recorded; the review is finished only when every round is. Distinct from a **Sitting**, which is an occasion of working on the artifact and produces at most one submission: rounds repeat inside one submission, sittings do not.
 _Avoid_: pass, rerun, second review, attempt
 
 **Envelope**:
