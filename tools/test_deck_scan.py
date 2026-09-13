@@ -607,7 +607,7 @@ class TheRenderedDeckRecordNamesTheTerminalPass(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             run = self.a_run(Path(temp))
             run.write_reread()
-            run.write_deck((slide_xml("Plan", "Build-out $47,001"),))
+            run.write_deck((slide_xml("Plan", "Expansion $47,000"),))
             status, stdout, stderr = run.terminal()
 
         self.assertEqual(1, status)

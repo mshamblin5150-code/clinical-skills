@@ -347,24 +347,26 @@ def _reread_findings(source: RunSource) -> tuple[Finding, ...]:
     from discussion_artifact import read_posted_readings
 
     readings = read_posted_readings(source.reread)
-    if not readings:
+    reading = next(
+        (item for item in readings if item.artifact == "critique.md"), None
+    )
+    if reading is None:
         return (Finding(MISSING_POSTED_READING, "critique.md", "no posted reading recorded"),)
     findings = []
-    for reading in readings:
-        verdict = (reading.verdict or "").strip().casefold()
-        if verdict not in RECOGNIZED_VERDICTS:
-            findings.append(Finding(UNKNOWN_VERDICT, reading.artifact, verdict or "absent"))
-        elif not (reading.verdict_detail or "").strip():
-            findings.append(Finding(BARE_VERDICT, reading.artifact, verdict))
-        digest = file_digest.sha256(source.path / "critique.md")
-        if not reading.submission_sha256_is_valid or reading.submission_sha256 != digest:
-            findings.append(
-                Finding(
-                    SUBMISSION_FINGERPRINT,
-                    reading.artifact,
-                    "critique.md SUBMISSION-SHA256 is missing, malformed, or stale",
-                )
+    verdict = (reading.verdict or "").strip().casefold()
+    if verdict not in RECOGNIZED_VERDICTS:
+        findings.append(Finding(UNKNOWN_VERDICT, reading.artifact, verdict or "absent"))
+    elif not (reading.verdict_detail or "").strip():
+        findings.append(Finding(BARE_VERDICT, reading.artifact, verdict))
+    digest = file_digest.sha256(source.path / "critique.md")
+    if not reading.submission_sha256_is_valid or reading.submission_sha256 != digest:
+        findings.append(
+            Finding(
+                SUBMISSION_FINGERPRINT,
+                reading.artifact,
+                "critique.md SUBMISSION-SHA256 is missing, malformed, or stale",
             )
+        )
     return tuple(findings)
 
 

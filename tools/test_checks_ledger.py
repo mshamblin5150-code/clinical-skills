@@ -1068,7 +1068,9 @@ class TheCommandExitsOnWhatItFound(unittest.TestCase):
             run([str(path), "--submission", "case-study"])
             output = path.parent / "output"
             document = output / "case-study.md"
-            document.write_text(DRAFT_TEXT + "changed word\n", encoding="utf-8")
+            document.write_text(
+                DRAFT_TEXT.replace("Synthetic", "Revised"), encoding="utf-8"
+            )
             with mock.patch.object(checks.repo_root, "output_root", return_value=output):
                 status, stdout, stderr = run(
                     [str(path), "--submission", "case-study"], bind=False

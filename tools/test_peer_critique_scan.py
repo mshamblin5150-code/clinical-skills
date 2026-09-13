@@ -146,6 +146,10 @@ class TheCleanRunPasses(unittest.TestCase):
         directory = build_run(reread=REREAD.replace("SUBMISSION-SHA256: {submission_sha256}\n", ""))
         self.assertIn(scan.SUBMISSION_FINGERPRINT, kinds(directory))
 
+    def test_an_unrelated_reading_does_not_stand_in_for_the_critique(self):
+        directory = build_run(reread=REREAD.replace("critique.md", "unrelated.md"))
+        self.assertIn(scan.MISSING_POSTED_READING, kinds(directory))
+
     def test_a_one_word_critique_edit_makes_its_fingerprint_stale(self):
         directory = build_run()
         critique = directory / "critique.md"

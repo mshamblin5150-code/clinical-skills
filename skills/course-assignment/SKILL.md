@@ -180,7 +180,7 @@ The rows are:
   are excluded.
 - `rendered-record`: one finding for each malformed record or failed terminal join to the deck,
   highest retained pass, slide count, PNG count, unseen count, or clean visual verdict.
-- `submission-fingerprint`: one finding when the terminal reread record is missing its fingerprint
+- `submission-fingerprint`: one finding when the terminal posted-reading record is missing its fingerprint
   or its fingerprint does not match the submitted `.pptx`.
 - Heading-read enforcement uses `missing-heading-read`, `duplicate-heading-read`,
   `unread-heading-read`, `unknown-heading-read-route`, `heading-read-sentence-count`,
@@ -317,7 +317,7 @@ extracts the record; adding or changing the line afterwards makes that review st
 with the output deck stem as the submission key. Its completion report must say
 `the after-action review: clean`. Completion requires clean final
 ledger, deck, and render scans, a walk of `deck_scan.NOT_REACHED`, a completed visual comparison, the clinician's submission approval,
-the posted reread, and the after-action review. Keep the signed bar, snapshots, claims,
+the posted reading, and the after-action review. Keep the signed bar, snapshots, claims,
 adversarial result, Composer files when present, and retained render passes together under the run directory. Remove every
 temporary per-context path; if cleanup fails, report the exact remaining path.
 
