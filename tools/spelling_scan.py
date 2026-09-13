@@ -776,6 +776,7 @@ UNSUPPRESSED_LINES = (
     "population-qualifier",
     "vocabulary-qualifier",
     "not-graded",
+    "record-artifact",
 )
 
 
@@ -982,15 +983,14 @@ def main(argv: list[str] | None = None) -> int:
         help="scan the commit message file supplied by Git's commit-msg hook",
     )
     args = parser.parse_args(argv)
-    if args.quiet and args.record:
-        parser.error("--quiet cannot be combined with --record")
     if args.paths and (args.all or args.record or args.commit_message):
         parser.error("paths cannot be combined with --all, --record, or --commit-message")
 
     if args.record:
         views = record_views(tracked_markdown(), read_tracked)
-        for line in render_records(views):
-            print(line)
+        if _quiet_keeps("record-artifact"):
+            for line in render_records(views):
+                print(line)
         return 0
 
     # The mode travels with the report because the report cannot say what it

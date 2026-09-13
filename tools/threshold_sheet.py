@@ -3223,8 +3223,9 @@ def _with_sheet_denominator(text: str, count: int, total: int) -> str:
 
 def _emit_all(scans: list[Scan], *, quiet: bool) -> int:
     """Emit an all-sheet run with each qualifier stated once per run."""
-    qualifier_counts: dict[tuple[str, str], int] = {}
-    qualifier_order: list[tuple[str, str]] = []
+    qualifier_counts: dict[str, int] = {}
+    qualifier_streams: dict[str, str] = {}
+    qualifier_order: list[str] = []
     for scan in scans:
         lines = (
             *((line, "stdout") for line in _in_position_lines(scan)),
@@ -3232,27 +3233,31 @@ def _emit_all(scans: list[Scan], *, quiet: bool) -> int:
               if line.placement is LinePlacement.TRAILING),
             *((line, "stderr") for line in scan.diagnostics),
         )
-        seen_here: set[tuple[str, str]] = set()
+        seen_here: set[str] = set()
         for line, stream in lines:
             if line.kind is LineKind.FINDING:
                 print(line.text, file=sys.stderr)
             elif line.kind is LineKind.COVERAGE_QUALIFIER:
-                key = (line.text, stream)
-                if key not in qualifier_counts:
-                    qualifier_counts[key] = 0
-                    qualifier_order.append(key)
-                if key not in seen_here:
-                    qualifier_counts[key] += 1
-                    seen_here.add(key)
+                if line.text not in qualifier_counts:
+                    qualifier_counts[line.text] = 0
+                    qualifier_streams[line.text] = stream
+                    qualifier_order.append(line.text)
+                if line.text not in seen_here:
+                    qualifier_counts[line.text] += 1
+                    seen_here.add(line.text)
             elif not quiet:
                 print(line.text, file=sys.stderr if stream == "stderr" else sys.stdout)
     total = len(scans)
-    for qualifier, stream in qualifier_order:
+    for qualifier in qualifier_order:
         print(
             _with_sheet_denominator(
-                qualifier, qualifier_counts[(qualifier, stream)], total
+                qualifier, qualifier_counts[qualifier], total
             ),
-            file=sys.stderr if stream == "stderr" else sys.stdout,
+            file=(
+                sys.stderr
+                if qualifier_streams[qualifier] == "stderr"
+                else sys.stdout
+            ),
         )
     return max((scan.status for scan in scans), default=0)
 

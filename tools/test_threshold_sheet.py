@@ -2556,6 +2556,24 @@ class QuietSuppressesTheReportAndNeverAFinding(unittest.TestCase):
         self.assertEqual(quiet.count("WATERMARK DID NOT RUN"), 1)
         self.assertIn("WATERMARK DID NOT RUN for 2 of 2 sheets", quiet)
 
+    def test_all_qualifier_identity_does_not_include_its_stream(self):
+        qualifier = gate.Line(
+            "  same qualifier",
+            kind=gate.LineKind.COVERAGE_QUALIFIER,
+        )
+        scan = gate.Scan(
+            gate.Sheet(Path("one.md")),
+            (gate.GateResult("fixture", lines=(qualifier,)),),
+            diagnostics=(qualifier,),
+        )
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            status = gate._emit_all([scan], quiet=True)
+
+        self.assertEqual(status, 0)
+        self.assertEqual((out.getvalue() + err.getvalue()).count("same qualifier"), 1)
+        self.assertIn("1 of 1 sheets", out.getvalue() + err.getvalue())
+
     def test_all_empty_population_is_a_typed_coverage_qualifier(self):
         with tempfile.TemporaryDirectory() as directory:
             out, err = io.StringIO(), io.StringIO()

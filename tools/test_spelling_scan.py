@@ -199,12 +199,13 @@ class Ticket103Ruling(unittest.TestCase):
         self.assertIn(f"{RECORD_FORMS} forms, {RECORD_OCCURRENCES} occurrences",
                       output.getvalue())
 
-    def test_record_rejects_the_unrelated_quiet_output_contract(self):
-        with self.assertRaises(SystemExit) as stopped:
-            with contextlib.redirect_stderr(io.StringIO()):
-                scan.main(["--record", "--quiet"])
+    def test_record_is_a_named_selected_artifact_under_quiet(self):
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            status = scan.main(["--record", "--quiet"])
 
-        self.assertEqual(stopped.exception.code, 2)
+        self.assertEqual(status, 0)
+        self.assertIn("forms", output.getvalue())
 
 
 class Evidence(unittest.TestCase):

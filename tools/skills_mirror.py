@@ -108,7 +108,12 @@ LINE_ENDINGS = "line endings only"
 REPORTS = Path(".claude") / "skills-mirror-reports"
 ORPHANS = Path(".claude") / "skills-orphaned"
 NO_SKILLS = "no skills found under skills/"
-UNSUPPRESSED_LINES = ("empty-population", "broken-mirror", "repair-failure")
+UNSUPPRESSED_LINES = (
+    "empty-population",
+    "broken-mirror",
+    "repair-failure",
+    "session-start-artifact",
+)
 TOOL_PATH = re.compile(r"(?<![A-Za-z0-9_])tools/([A-Za-z0-9_]+\.py)")
 
 
@@ -764,9 +769,6 @@ def main(argv=None) -> int:
         help="checkout to inspect (default: the one this script lives in)",
     )
     args = parser.parse_args(argv)
-    if args.quiet and args.session_start:
-        parser.error("--quiet cannot be combined with --session-start")
-
     if args.session_start:
         payload = json.load(sys.stdin)
         if "agent_id" in payload:
@@ -795,7 +797,8 @@ def main(argv=None) -> int:
             context_lines.extend(f"FAILED  {failure}" for failure in failures)
             context = "\n".join(context_lines)
         context = f"{context}\n\n{base_context(root)}"
-        print(json.dumps(hook_response(context)))
+        if _quiet_keeps("session-start-artifact"):
+            print(json.dumps(hook_response(context)))
         # SessionStart is advisory. Returning success is what lets Claude Code
         # consume the structured failure context instead of turning a fired
         # hook back into silence.

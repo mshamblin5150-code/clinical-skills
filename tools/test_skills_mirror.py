@@ -720,12 +720,16 @@ class CliTests(TempCheckout):
             context,
         )
 
-    def test_session_start_rejects_the_unrelated_quiet_output_contract(self):
-        with self.assertRaises(SystemExit) as stopped:
-            with redirect_stderr(io.StringIO()):
-                sm.main(["--session-start", "--quiet"])
+    def test_session_start_is_a_named_selected_artifact_under_quiet(self):
+        buf = io.StringIO()
+        payload = io.StringIO('{"hook_event_name": "SessionStart"}')
+        with patch("sys.stdin", payload), redirect_stdout(buf):
+            status = sm.main(
+                ["--session-start", "--quiet", "--root", str(self.root)]
+            )
 
-        self.assertEqual(stopped.exception.code, 2)
+        self.assertEqual(status, 0)
+        self.assertIn("hookSpecificOutput", buf.getvalue())
 
     def test_quiet_help_names_the_empty_population_exception(self):
         buf = io.StringIO()
