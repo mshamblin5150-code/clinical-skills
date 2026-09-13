@@ -1557,12 +1557,17 @@ def completion_finding(run: Path, submissions: Iterable[str]) -> str | None:
     return None
 
 
+def _same_path(left: Path, right: Path) -> bool:
+    """Compare existing paths by identity before falling back to spelling."""
+    try:
+        return left.samefile(right)
+    except OSError:
+        return left.resolve() == right.resolve()
+
+
 def is_live_run(run: Path) -> bool:
     root = (repo_root.scratch_root() / "runs").resolve()
-    try:
-        return run.resolve().is_relative_to(root)
-    except OSError:
-        return False
+    return _same_path(run.parent, root)
 
 
 def completion_gate(run: Path, submission: str | None) -> tuple[bool, str]:
@@ -1698,7 +1703,9 @@ def discover_transcripts(run: Path, explicit: Path | None = None) -> TranscriptD
             continue
         if _is_codex_subagent(rows):
             continue
-        if path == forced or run in discover_run_directories(rows):
+        if path == forced or any(
+            _same_path(run, candidate) for candidate in discover_run_directories(rows)
+        ):
             selected.append(path)
     return TranscriptDiscovery(
         paths=tuple(selected),
