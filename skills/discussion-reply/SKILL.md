@@ -109,8 +109,8 @@ keeps the same number in another reply's record from tracing the wrong assertion
 worker takes one claim and returns a reputable source from one of
 four classes, `society guideline`, `peer-reviewed`, `government`, or `tertiary reference`, plus a
 full APA 7 reference, a restatement in the source's own terms, the URL or DOI actually opened and
-the read date, the page's stated year and where it appears, and the source's stated expiry or
-`none stated`.
+the read date, where in the source the supporting language sits, the page's stated year and where
+it appears, and the source's stated expiry or `none stated`.
 
 The refutation leg of this **Fan-out brief** applies [standing rule 6](../../AGENTS.md) and first
 reads the rules in
@@ -136,6 +136,7 @@ STATUS: sourced | unsourced | unreadable - <what was searched or what prevented 
 SOURCE: society guideline | peer-reviewed | government | tertiary reference
 REFERENCE: <full APA 7 entry>
 RESTATEMENT: <what the source says, including the reply's exact numeric token where applicable>
+PASSAGE: <where in the source the supporting language sits>
 RECENCY: current | within five | nothing newer - <reason> | guideline in force - <reason>
 RESOLVED: <URL or DOI> - read <ISO date>
 PAGE-YEAR: <year and where the page states it>

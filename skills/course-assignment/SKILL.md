@@ -90,6 +90,7 @@ STATUS: sourced | unsourced | unreadable - <what was searched or what prevented 
 SOURCE: <one class signed in bar.md>
 REFERENCE: <full reference entry>
 RESTATEMENT: <what the source says, including a number for a numeric claim>
+PASSAGE: <where in the source the supporting language sits>
 RECENCY: current | within five | nothing newer - <reason> | guideline in force - <reason>
 RESOLVED: <URL or DOI> - read <ISO date>
 PAGE-YEAR: <year and where the page states it>
