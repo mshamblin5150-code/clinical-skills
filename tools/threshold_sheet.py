@@ -3186,7 +3186,11 @@ def survey(
 def _emit_scan(scan: Scan, *, quiet: bool) -> int:
     """Emit one completed survey under the command's quiet contract."""
     if not quiet:
-        print(format_report(scan), end="")
+        for line in _in_position_lines(scan):
+            print(
+                line.text,
+                file=sys.stderr if line.kind is LineKind.FINDING else sys.stdout,
+            )
     else:
         for result in scan.results:
             for line in result.lines:
@@ -3194,14 +3198,24 @@ def _emit_scan(scan: Scan, *, quiet: bool) -> int:
                     not line.suppressible
                     and line.placement is LinePlacement.IN_POSITION
                 ):
-                    print(line.text)
+                    print(
+                        line.text,
+                        file=(
+                            sys.stderr
+                            if line.kind is LineKind.FINDING
+                            else sys.stdout
+                        ),
+                    )
     for result in scan.results:
         for line in result.lines:
             if (
                 line.placement is LinePlacement.TRAILING
                 and (not quiet or not line.suppressible)
             ):
-                print(line.text)
+                print(
+                    line.text,
+                    file=sys.stderr if line.kind is LineKind.FINDING else sys.stdout,
+                )
     for line in scan.diagnostics:
         if not line.suppressible or not quiet:
             print(line.text, file=sys.stderr)
@@ -3422,7 +3436,6 @@ def main(argv: list[str]) -> int:
             print(f"no sheet under {SHEET_ROOT}", file=sys.stderr)
             return 2
         scans: list[Scan] = []
-        affected_extractions: list[str] = []
         inputs = SurveyInputs(
             roots=Roots(args.pdf_root, args.recs_root, text_root, args.recs_alias),
             recs_arguments=[],
@@ -3435,18 +3448,7 @@ def main(argv: list[str]) -> int:
         for path in sheets:
             scan = survey(path, inputs)
             scans.append(scan)
-            if any(
-                result.gate == "EXTRACTION IDENTITY" and result.warnings
-                for result in scan.results
-            ):
-                affected_extractions.append(path.name)
         worst = _emit_all(scans, quiet=args.quiet)
-        if affected_extractions:
-            print(
-                f"  WARN  EXTRACTION IDENTITY {len(affected_extractions)} affected "
-                f"sheet(s): {', '.join(affected_extractions)}",
-                file=sys.stderr,
-            )
         return worst
 
     if not args.sheet:

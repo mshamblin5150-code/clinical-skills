@@ -775,6 +775,7 @@ UNSUPPRESSED_LINES = (
     "finding-report",
     "population-qualifier",
     "vocabulary-qualifier",
+    "not-graded",
 )
 
 
@@ -1019,6 +1020,7 @@ if __name__ == "__main__":
     try:
         status = main()
     except (MentionDeclarationError, git_paths.GitPathError) as exc:
-        print(f"spelling-scan: {exc}", file=sys.stderr)
+        if _quiet_keeps("not-graded"):
+            print(f"spelling-scan: {exc}", file=sys.stderr)
         status = 2
     sys.exit(status)

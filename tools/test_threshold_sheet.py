@@ -1860,7 +1860,7 @@ class ExtractionIdentityGate(unittest.TestCase):
 
         self.assertEqual(reader.call_count, 2)
 
-    def test_all_quiet_counts_and_names_the_affected_sheets(self):
+    def test_all_quiet_has_no_unclassified_extraction_summary(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             paths = (root / "one.md", root / "two.md")
@@ -1888,7 +1888,7 @@ class ExtractionIdentityGate(unittest.TestCase):
                 status = gate.main(["--all", "--quiet"])
 
         self.assertEqual(status, 0)
-        self.assertIn("EXTRACTION IDENTITY 1 affected sheet(s): one.md", stderr.getvalue())
+        self.assertNotIn("affected sheet(s)", stderr.getvalue())
 
 
 class ACompletedScanCanBeRenderedWithoutRunningAGate(unittest.TestCase):
@@ -1949,17 +1949,17 @@ class ACompletedScanCanBeRenderedWithoutRunningAGate(unittest.TestCase):
         self.assertIn("== test-sheet.md", report)
         self.assertIn("SCHEMA          0", report)
 
-    def test_loud_cli_emission_uses_the_pure_formatter(self):
+    def test_loud_cli_emission_uses_the_typed_scan_lines(self):
         scan = gate.Scan(
             sheet=sheet(row()),
             results=(gate.GateResult("SCHEMA", lines=report_output(("  SCHEMA          0",))),),
         )
         with mock.patch.object(
-            gate, "format_report", wraps=gate.format_report
-        ) as formatter, contextlib.redirect_stdout(io.StringIO()):
+            gate, "_in_position_lines", wraps=gate._in_position_lines
+        ) as lines, contextlib.redirect_stdout(io.StringIO()):
             gate._emit_scan(scan, quiet=False)
 
-        formatter.assert_called_once_with(scan)
+        lines.assert_called_once_with(scan)
 
     def test_diagnostic_kind_decides_stream_and_quiet_survival(self):
         scan = gate.Scan(
@@ -1980,6 +1980,31 @@ class ACompletedScanCanBeRenderedWithoutRunningAGate(unittest.TestCase):
         self.assertNotIn("ordinary provenance", out.getvalue())
         self.assertIn("coverage was not established", err.getvalue())
         self.assertIn("FAIL broken", err.getvalue())
+
+    def test_a_finding_line_uses_stderr_regardless_of_placement(self):
+        scan = gate.Scan(
+            sheet=sheet(row()),
+            results=(
+                gate.GateResult(
+                    "synthetic",
+                    lines=(
+                        gate.Line("FAIL in position", kind=gate.LineKind.FINDING),
+                        gate.Line(
+                            "FAIL trailing",
+                            kind=gate.LineKind.FINDING,
+                            placement=gate.LinePlacement.TRAILING,
+                        ),
+                    ),
+                ),
+            ),
+        )
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            gate._emit_scan(scan, quiet=True)
+
+        self.assertEqual(out.getvalue(), "")
+        self.assertIn("FAIL in position", err.getvalue())
+        self.assertIn("FAIL trailing", err.getvalue())
 
 
 class CoverageGate(unittest.TestCase):

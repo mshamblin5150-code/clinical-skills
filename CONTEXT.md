@@ -900,7 +900,7 @@ The cap on a **Hatch**'s declared total. It is always graded and refuses past it
 _Avoid_: limit, cap, maximum, threshold, budget, quota
 
 **Coverage qualifier**:
-An output line stating what a run did not establish, for a reason the reader did not choose. It is never suppressible, because a reader who learns to read a qualifier reads its absence as the stronger claim. Its unit is the **run** and never the artifact: under a sweep it is emitted once with its denominator, since one line naming 166 of 169 sheets states a fact that 166 identical copies do not, and a qualifier repeated per artifact is the thing that trains a reader to skip the output. Distinct from a **Finding**, which says something is wrong and drives the status, and from a **State line**, which says what was read. Non-coverage the reader selected by not passing a flag is a state line, not one of these.
+An output line stating what a run did not establish, for a reason the reader did not choose. It is never suppressible, because a reader who learns to read a qualifier reads its absence as the stronger claim. Its unit is the **run** and never the artifact: under a sweep it is emitted once with its denominator, since one line naming the affected share states a fact that identical per-artifact copies do not, and a qualifier repeated per artifact is the thing that trains a reader to skip the output. Distinct from a **Finding**, which says something is wrong and drives the status, and from a **State line**, which says what was read. Non-coverage the reader selected by not passing a flag is a state line, not one of these.
 _Avoid_: banner, warning, note, caveat, disclaimer, not-run line
 
 **State line**:
@@ -908,7 +908,7 @@ An output line reporting what a run read -- a count, a date, a resolved path, wh
 _Avoid_: report line, detail, verbose output, info, diagnostic
 
 **Suppressor**:
-A flag that makes a command emit less than its full output for the same work, as against one that reveals redacted detail, adds detail, or selects a different artifact. The repository has exactly one, `--quiet`, over a derived population of commands, and the rule that an output line carries a kind binds that population and is vacuous everywhere else. The population is derived and tripwired rather than listed, because it grew from five members to seven while six consecutive sweeps re-measured five and nothing failed.
+A flag that makes a command emit less than its full output for the same work, as against one that reveals redacted detail, adds detail, or selects a different artifact. The repository's suppressor is `--quiet`, over a derived population of commands, and the rule that an output line carries a kind binds that population and is vacuous everywhere else. The population is derived and tripwired rather than listed, because earlier sweeps omitted members without failing.
 _Avoid_: quiet flag, verbosity, output mode, silent
 
 ### Delegation

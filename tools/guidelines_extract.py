@@ -310,7 +310,7 @@ from console_codec import require_python_floor, use_utf8
 from guidelines_manifest import MANIFEST_NAME, Record, serialize_record
 from repo_root import InsideCheckout, ensure_outside_checkout
 
-UNSUPPRESSED_LINES = ("failure",)
+UNSUPPRESSED_LINES = ("failure", "not-graded")
 
 
 def _quiet_keeps(name: str) -> bool:
@@ -1955,7 +1955,8 @@ def main(argv: list[str]) -> int:
         with artifact_lock.hold(out_root, "extracting guideline text"):
             return _run(args, source_root, out_root)
     except artifact_lock.ArtifactBusy as busy:
-        print(str(busy), file=sys.stderr)
+        if _quiet_keeps("not-graded"):
+            print(str(busy), file=sys.stderr)
         return 2
 
 

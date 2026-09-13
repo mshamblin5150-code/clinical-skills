@@ -1,4 +1,4 @@
-"""The suppressor population and each command's declared survivor set."""
+"""The suppressor population and each command's named survivor uses."""
 
 from __future__ import annotations
 
@@ -72,7 +72,7 @@ class QuietContract(unittest.TestCase):
 
         self.assertEqual(population, EXPECTED)
 
-    def test_each_non_line_command_binds_its_survivors_both_ways(self):
+    def test_each_non_line_command_binds_named_survivor_uses_both_ways(self):
         for name in sorted(EXPECTED - {"threshold_sheet"}):
             with self.subTest(module=name):
                 tree = module_tree(TOOLS / f"{name}.py")

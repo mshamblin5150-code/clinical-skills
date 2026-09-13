@@ -17,7 +17,7 @@ from console_codec import require_python_floor, use_utf8
 from prose_bind import normalized
 
 
-UNSUPPRESSED_LINES = ("finding", "never-checked", "gone-stale")
+UNSUPPRESSED_LINES = ("finding", "never-checked", "gone-stale", "not-graded")
 
 
 def _quiet_keeps(name: str) -> bool:
@@ -312,10 +312,11 @@ def audit(entries: list[Entry], sections: dict[int, str]) -> tuple[list[str], se
                 continue
             if digest != section_digest(sections[section]):
                 stale.add(entry.item)
-                print(
-                    f"STALE: manual item '{entry.item}' bind for apa7.md section {section}",
-                    file=sys.stderr,
-                )
+                if _quiet_keeps("gone-stale"):
+                    print(
+                        f"STALE: manual item '{entry.item}' bind for apa7.md section {section}",
+                        file=sys.stderr,
+                    )
 
     for item in expected_items():
         matches = by_item.get(item, [])
@@ -363,7 +364,8 @@ def main(argv: list[str] | None = None) -> int:
         sheet_text = args.sheet.read_text(encoding="utf-8")
         coverage_text = args.coverage.read_text(encoding="utf-8")
     except (OSError, UnicodeError) as error:
-        print(error, file=sys.stderr)
+        if _quiet_keeps("not-graded"):
+            print(error, file=sys.stderr)
         return 2
     sections = sheet_sections(sheet_text)
     entries, parse_problems = parse_registry(coverage_text)

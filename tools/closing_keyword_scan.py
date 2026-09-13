@@ -32,7 +32,7 @@ from typing import Any, NamedTuple
 from console_codec import require_python_floor, use_utf8
 
 
-UNSUPPRESSED_LINES = ("finding",)
+UNSUPPRESSED_LINES = ("finding", "not-graded")
 
 
 def _quiet_keeps(name: str) -> bool:
@@ -235,7 +235,11 @@ def main(argv: list[str] | None = None) -> int:
             for path in args.paths:
                 findings.extend(scan_text(_read(path), path))
     except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as exc:
-        print(f"closing-keyword-scan: could not grade input: {exc}", file=sys.stderr)
+        if _quiet_keeps("not-graded"):
+            print(
+                f"closing-keyword-scan: could not grade input: {exc}",
+                file=sys.stderr,
+            )
         return 2
 
     _render(findings, args.quiet)
