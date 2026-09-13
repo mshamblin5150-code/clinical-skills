@@ -347,6 +347,10 @@ _Avoid_: index, inventory, log, catalog
 A run's copy of an **Evidence dump** that was handed over without topic titles, with one title written above each author masthead and the block-to-title mapping kept beside it. It is the file filed into the **Evidence store** and the one a grader is pointed at. The titles in it are a reading, not something the dump supplied, so the handover remains the unit of provenance and the mapping is what makes the reading auditable.
 _Avoid_: reconstructed dump, fixed dump, cleaned evidence
 
+**Salted letter**:
+A letter from another alphabet, drawn identically to a Latin letter, that a source puts in place of that Latin letter so its text is not searchable by the words it visibly contains. It is folded back only where it has been observed as salt and never as real notation, so a real Greek letter in a clinical term is kept as written.
+_Avoid_: homoglyph, lookalike, confusable
+
 **Instrument**:
 The tool a reader used to attempt an access — a fetch tool, a shell client, a signed-in browser, a local search. A refusal it returns is a fact about the instrument until a second one agrees, so a failed read names the instruments it tried rather than reporting what the source does not contain. Distinct from a **second route**, which compares two *passes*: a route is what one pass took, two passes may take the same route, and one pass may try several instruments before it gives up. An **authenticated route** is one particular instrument, supplied by the clinician's account, and reaches only what a subscription gates.
 _Avoid_: tool, method, route, channel, client
