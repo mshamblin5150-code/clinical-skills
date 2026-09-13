@@ -10,6 +10,11 @@ from pathlib import Path
 import tracker_population
 
 
+ISSUE_TRACKER = (
+    Path(__file__).resolve().parent.parent / "docs" / "agents" / "issue-tracker.md"
+)
+
+
 def response(body: object, link: str = "") -> str:
     headers = "HTTP/2.0 200 OK\nContent-Type: application/json"
     if link:
@@ -86,6 +91,14 @@ class TheCommandWritesTheScannerManifest(unittest.TestCase):
                     "tracker-reviews.json": 0,
                 },
             })
+
+
+class DocumentedPopulationCommands(unittest.TestCase):
+    def test_the_label_numerator_uses_compatible_gh_flags(self):
+        prose = ISSUE_TRACKER.read_text(encoding="utf-8")
+        refused_combination = "--jq " + "'add | length'"
+        self.assertNotIn(refused_combination, prose)
+        self.assertIn("sum(len(page) for page in json.load(sys.stdin))", prose)
 
 
 if __name__ == "__main__":
