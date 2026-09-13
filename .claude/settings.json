@@ -77,15 +77,6 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python \"$CLAUDE_PROJECT_DIR/tools/aar_scan.py\" --session-end",
-            "timeout": 10
-          }
-        ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
             "command": "python \"$CLAUDE_PROJECT_DIR/tools/command_tool_roster.py\" --session-end",
             "timeout": 10
           }

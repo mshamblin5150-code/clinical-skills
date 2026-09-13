@@ -4,7 +4,6 @@
     python tools/aar_scan.py <run-directory> --transcript <session.jsonl> \
         --submission <submission-key> --memory-index <MEMORY.md> --extract
     python tools/aar_scan.py <run-directory> --submission <submission-key> [--show]
-    python tools/aar_scan.py --session-end
 
 The first form writes a reduced, private review packet under ``<run>/aar/``.
 It keeps human turns, assistant text, subagent result bodies, and tool names and
@@ -93,6 +92,9 @@ DISPOSITIONS = frozenset({"skill-file", "tracker-ticket", "memory-write", "check
 CORRECTORS = frozenset({"clinician", "agent-or-tool", "orchestrator"})
 PRIVATE_TEXT_SUFFIXES = frozenset({".md", ".txt", ".json"})
 SUBAGENT_TOOLS = frozenset({"Agent", "Task", "Monitor", "TaskStop"})
+EXTRACTOR_WRITTEN_ENTRY_KINDS = frozenset(
+    {"tool-call", "subagent-launch", "inter-agent-metadata"}
+)
 
 ENTRY_KIND_DESCRIPTIONS: Mapping[str, str] = MappingProxyType(
     {
@@ -202,8 +204,8 @@ ROWS: Mapping[str, str] = MappingProxyType(
         "contradictory-correction-verdict": "correction records contradict a none verdict",
         "missing-sustain-verdict": "the sustain population has no verdict",
         "contradictory-sustain-verdict": "sustain records contradict a none verdict",
-        "bad-orphan-pointer": "an orphan pointer cannot be read",
         "unknown-correction-event": "a correction names no extracted candidate",
+        "correction-on-extractor-written-entry": "a correction names an entry whose text was written by the extractor",
         "missing-correction-field": "a correction lacks a required field",
         "unknown-corrector": "a correction names no declared corrector",
         "unknown-error-party": "a correction names no declared party in error",
@@ -241,15 +243,19 @@ DECLARED_LIMITS = (
     ),
     (
         "transcript flush",
-        "Claude Code writes transcripts asynchronously; a final entry not flushed before extraction or SessionEnd is outside the measured population.",
+        "A harness writes transcripts asynchronously; a final entry not flushed before extraction is outside the measured population.",
     ),
     (
         "run-key discovery",
-        "SessionEnd can point only to an existing run directory named in a retained tool call; a scoped sitting that never named one cannot be pointed at safely.",
+        "A sitting whose retained tool calls never name the run directory cannot be discovered safely.",
     ),
     (
         "subagent launch-result drift",
         "Launch accounting covers only this extract population and an unjoined launch means only that no matching result is present in this population.",
+    ),
+    (
+        "correction kind misplacement",
+        "A correction misplaced onto a tool-status or skill-prompt entry is shown in the kind table and is not refused.",
     ),
 )
 NOT_REACHED = tuple(reason for _subject, reason in DECLARED_LIMITS)
@@ -337,6 +343,23 @@ class ExtractDiagnostics:
 
 
 @dataclass(frozen=True)
+class TranscriptDiscovery:
+    paths: tuple[Path, ...]
+    found: int
+    skipped_by_time: int
+    skipped_by_byte_search: int
+    read: int
+
+
+@dataclass(frozen=True)
+class EntryKindCount:
+    record: str
+    corrector: str
+    kind: str
+    count: int
+
+
+@dataclass(frozen=True)
 class Scan:
     submission: str
     records: int
@@ -344,9 +367,14 @@ class Scan:
     corrections: int
     sustains: int
     unread: int
-    orphaned: int
     findings: tuple[Finding, ...]
     rounds: tuple[RoundScan, ...] = ()
+    kind_counts: tuple[EntryKindCount, ...] = ()
+    later_sittings: int = 0
+    transcripts_found: int = 0
+    transcripts_skipped_by_time: int = 0
+    transcripts_skipped_by_byte_search: int = 0
+    transcripts_read: int = 0
 
 
 @dataclass(frozen=True)
@@ -524,7 +552,9 @@ def reduce_transcript(path: Path) -> list[Candidate]:
     transcript_id = path.stem
     candidates: list[Candidate] = []
     for ordinal, row in enumerate(rows, 1):
-        uuid = _text(row.get("uuid")) or f"line-{ordinal}"
+        legacy_fallback = f"line-{ordinal}"
+        uuid = _text(row.get("uuid")) or f"{transcript_id}#row-{ordinal}"
+        row_start = len(candidates)
         if row.get("type") == "user":
             human = _human_text(row)
             if human:
@@ -649,6 +679,17 @@ def reduce_transcript(path: Path) -> list[Candidate]:
                         uuid, transcript_id, body, default_kind="harness-meta"
                     )
                 )
+        if uuid != legacy_fallback and not _text(row.get("uuid")):
+            candidates[row_start:] = [
+                replace(
+                    candidate,
+                    aliases=(
+                        *candidate.aliases,
+                        candidate.identifier.replace(uuid, legacy_fallback, 1),
+                    ),
+                )
+                for candidate in candidates[row_start:]
+            ]
     return candidates
 
 
@@ -726,23 +767,20 @@ def _posted_reading_fingerprint(run: Path, submission: str) -> str:
     return sha256(_posted_reading_block(run, submission).encode("utf-8")).hexdigest()
 
 
-def orphan_paths(run: Path) -> tuple[Path, ...]:
+def legacy_orphan_paths(run: Path) -> tuple[Path, ...]:
     root = run / "aar"
     return tuple(sorted(root.glob("orphaned-*.json"))) if root.is_dir() else ()
 
 
-def _read_pointer(path: Path) -> tuple[Path, str]:
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
-        raise ValueError(f"unreadable orphan pointer {path.name}") from exc
-    if not isinstance(payload, dict) or set(payload) != {"transcript_path", "run_key"}:
-        raise ValueError(f"orphan pointer {path.name} does not have exactly two fields")
-    transcript = payload.get("transcript_path")
-    run_key = payload.get("run_key")
-    if not isinstance(transcript, str) or not isinstance(run_key, str):
-        raise ValueError(f"orphan pointer {path.name} has a non-text field")
-    return Path(transcript), run_key
+def retire_orphan_pointers(run: Path) -> None:
+    """Move legacy pointer files aside in place; their evidence is never deleted."""
+    for path in legacy_orphan_paths(run):
+        destination = path.with_name(f"retired-{path.name}")
+        suffix = 2
+        while destination.exists():
+            destination = path.with_name(f"retired-{suffix}-{path.name}")
+            suffix += 1
+        path.replace(destination)
 
 
 def _hash(path: Path) -> str | None:
@@ -771,8 +809,17 @@ def snapshot(memory_index: Path) -> dict[str, str | None]:
     return {str(path.resolve()): _hash(path) for path in paths}
 
 
-def _review_cursors(run: Path) -> dict[str, list[tuple[str, str]]]:
-    cursors: dict[str, list[tuple[str, str]]] = {}
+def _transcript_watermarks(value: str) -> dict[str, str]:
+    watermarks: dict[str, str] = {}
+    for item in value.split("|"):
+        transcript, separator, identifier = item.strip().partition("=")
+        if separator and transcript and identifier:
+            watermarks[transcript] = identifier
+    return watermarks
+
+
+def _review_cursors(run: Path) -> dict[str, list[tuple[str, str | None]]]:
+    cursors: dict[str, list[tuple[str, str | None]]] = {}
     root = run / "aar"
     if not root.is_dir():
         return cursors
@@ -784,19 +831,34 @@ def _review_cursors(run: Path) -> dict[str, list[tuple[str, str]]]:
         except ValueError:
             continue
         transcripts = [value.strip() for value in review.fields.get("TRANSCRIPTS", "").split(",")]
-        if transcripts and review.fields.get("WATERMARK"):
-            cursors.setdefault(transcripts[-1], []).append(
-                (
-                    review.fields["WATERMARK"],
-                    review.fields.get("CLASSIFIER-ENTRY", ""),
+        extract = path.with_name(f"{path.stem}.extract.md")
+        watermarks: dict[str, str] = {}
+        if extract.is_file():
+            try:
+                extract_fields, _identifiers = _extract_metadata(extract)
+                watermarks = _transcript_watermarks(
+                    extract_fields.get("TRANSCRIPT-WATERMARKS", "")
                 )
+            except ValueError:
+                watermarks = {}
+        if watermarks:
+            for transcript, watermark in watermarks.items():
+                classifier = (
+                    review.fields.get("CLASSIFIER-ENTRY", "")
+                    if watermark == review.fields.get("WATERMARK")
+                    else None
+                )
+                cursors.setdefault(transcript, []).append((watermark, classifier))
+        elif transcripts and review.fields.get("WATERMARK"):
+            cursors.setdefault(transcripts[-1], []).append(
+                (review.fields["WATERMARK"], review.fields.get("CLASSIFIER-ENTRY", ""))
             )
     return cursors
 
 
 def _furthest_cursor(
-    rows: Iterable[Candidate], cursors: Iterable[tuple[str, str]]
-) -> tuple[str, str] | None:
+    rows: Iterable[Candidate], cursors: Iterable[tuple[str, str | None]]
+) -> tuple[str, str | None] | None:
     candidates_by_identifier = {
         identifier: index
         for index, candidate in enumerate(rows)
@@ -817,7 +879,7 @@ def _unmarked_prior_reviews(run: Path, transcripts: Iterable[Path]) -> int:
         1
         for transcript in transcripts
         for selected in [_furthest_cursor(reduce_transcript(transcript), cursors.get(transcript.stem, ()))]
-        if selected is not None and not _substance(selected[1])
+        if selected is not None and selected[1] == ""
     )
 
 
@@ -834,36 +896,47 @@ def _after_watermark(candidates: list[Candidate], watermark: str | None) -> list
     return candidates[indexes[-1] + 1 :]
 
 
-def collect_population(run: Path, transcript: Path) -> tuple[list[Candidate], tuple[Path, ...]]:
-    transcripts: list[Path] = []
-    pointers = orphan_paths(run)
-    for pointer in pointers:
-        orphan, run_key = _read_pointer(pointer)
-        if run_key != run.name:
-            raise ValueError(f"orphan pointer {pointer.name} names another run")
-        if orphan.resolve() != transcript.resolve():
-            transcripts.append(orphan)
-    transcripts.append(transcript)
+def _collect_population(
+    run: Path, transcript: Path | None
+) -> tuple[list[Candidate], tuple[Path, ...], TranscriptDiscovery]:
+    discovery = discover_transcripts(run, transcript)
     cursors = _review_cursors(run)
     population: list[Candidate] = []
+    transcripts: list[Path] = []
     seen: set[str] = set()
-    for source in transcripts:
+    for source in discovery.paths:
         if source.stem in seen:
             continue
         seen.add(source.stem)
         rows = reduce_transcript(source)
-        selected = _furthest_cursor(rows, cursors.get(source.stem, ()))
-        watermark, prior_review = selected or ("", "")
+        furthest_cursor = _furthest_cursor(rows, cursors.get(source.stem, ()))
+        watermark, prior_review = furthest_cursor or ("", None)
         current = _after_watermark(rows, watermark or None)
         if prior_review:
             current = [
                 replace(candidate, kind="prior-review")
                 if candidate.identifier == prior_review
+                or prior_review in candidate.aliases
                 else candidate
                 for candidate in current
             ]
+        if not current:
+            continue
+        transcripts.append(source)
         population.extend(current)
-    return population, tuple(transcripts)
+    selected_transcripts = tuple(transcripts)
+    return population, selected_transcripts, replace(
+        discovery,
+        paths=selected_transcripts,
+        read=len(selected_transcripts),
+    )
+
+
+def collect_population(
+    run: Path, transcript: Path | None
+) -> tuple[list[Candidate], tuple[Path, ...]]:
+    population, transcripts, _discovery = _collect_population(run, transcript)
+    return population, transcripts
 
 
 def _notification_keys(value: str) -> set[str]:
@@ -934,18 +1007,22 @@ def extract_diagnostics(
 
 def write_extract(
     run: Path,
-    transcript: Path,
+    transcript: Path | None,
     submission: str,
     memory_index: Path,
 ) -> tuple[Path, int]:
+    retire_orphan_pointers(run)
     posted_reading_fingerprint = _posted_reading_fingerprint(run, submission)
-    population, transcripts = collect_population(run, transcript)
+    population, transcripts, discovery = _collect_population(run, transcript)
     if not population:
         raise ValueError("candidate population is empty")
     round_number = _next_review_round(run, submission)
     destination = extract_path(run, submission, round_number)
     destination.parent.mkdir(parents=True, exist_ok=True)
     diagnostics = extract_diagnostics(transcripts, population)
+    transcript_watermarks: dict[str, str] = {}
+    for candidate in population:
+        transcript_watermarks[candidate.transcript_id] = candidate.identifier
     lines = [
         "# PRIVATE AAR EXTRACT",
         "FORMAT: 2",
@@ -954,6 +1031,15 @@ def write_extract(
         f"POSTED-READING-FINGERPRINT: {posted_reading_fingerprint}",
         "TRANSCRIPTS: " + ", ".join(path.stem for path in transcripts),
         "TRANSCRIPT-PATHS: " + " | ".join(str(path.resolve()) for path in transcripts),
+        "TRANSCRIPT-WATERMARKS: "
+        + " | ".join(
+            f"{transcript}={watermark}"
+            for transcript, watermark in transcript_watermarks.items()
+        ),
+        f"TRANSCRIPTS-FOUND: {discovery.found}",
+        f"TRANSCRIPTS-SKIPPED-BY-TIME: {discovery.skipped_by_time}",
+        f"TRANSCRIPTS-SKIPPED-BY-BYTE-SEARCH: {discovery.skipped_by_byte_search}",
+        f"TRANSCRIPTS-READ: {discovery.read}",
         f"POPULATION: {len(population)}",
         f"WATERMARK: {population[-1].identifier}",
         f"MEMORY-INDEX: {memory_index.resolve()}",
@@ -1056,7 +1142,9 @@ def read_review(path: Path) -> Review:
     )
 
 
-def _extract_metadata(path: Path) -> tuple[dict[str, str], set[str]]:
+def _extract_document(
+    path: Path,
+) -> tuple[dict[str, str], set[str], dict[str, str]]:
     try:
         lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
     except OSError as exc:
@@ -1076,12 +1164,13 @@ def _extract_metadata(path: Path) -> tuple[dict[str, str], set[str]]:
             for line in lines[header_end + 1 :]
             if line.startswith("## ENTRY:")
         }
-        return fields, identifiers
+        return fields, identifiers, {}
     if format_version != "2":
         raise UnknownExtractFormat(f"unknown extract format {format_version}")
     if not fields.get("EXTRACTED-AT"):
         raise ValueError("format 2 extract has no EXTRACTED-AT field")
     identifiers: set[str] = set()
+    entry_kinds: dict[str, str] = {}
     index = header_end + 1
     while index < len(lines):
         if not lines[index]:
@@ -1101,8 +1190,10 @@ def _extract_metadata(path: Path) -> tuple[dict[str, str], set[str]]:
         parsed_entry_fields = _parse_fields(entry_fields)
         if not _substance(parsed_entry_fields.get("TRANSCRIPT", "")):
             raise ValueError(f"extract entry {identifier} has no TRANSCRIPT field")
-        if parsed_entry_fields.get("KIND") not in ENTRY_KINDS:
+        entry_kind = parsed_entry_fields.get("KIND", "")
+        if entry_kind not in ENTRY_KINDS:
             raise ValueError(f"extract entry {identifier} has an unknown KIND field")
+        entry_kinds[identifier] = entry_kind
         if index >= len(lines):
             raise ValueError(f"extract entry {identifier} has no TEXT-LINES field")
         count_value = lines[index].partition(":")[2].strip()
@@ -1115,6 +1206,11 @@ def _extract_metadata(path: Path) -> tuple[dict[str, str], set[str]]:
         if lines[index + 1] != "TEXT:":
             raise ValueError(f"extract entry {identifier} has no TEXT field")
         index += text_lines + 2
+    return fields, identifiers, entry_kinds
+
+
+def _extract_metadata(path: Path) -> tuple[dict[str, str], set[str]]:
+    fields, identifiers, _entry_kinds = _extract_document(path)
     return fields, identifiers
 
 
@@ -1200,20 +1296,20 @@ def _survey_round(run: Path, submission: str, round_number: int) -> Scan:
     record_path = review_path(run, submission, round_number)
     records = int(record_path.is_file())
     if not records:
-        return Scan(submission, 0, 0, 0, 0, 0, len(orphan_paths(run)), (Finding("missing-review", submission),))
+        return Scan(submission, 0, 0, 0, 0, 0, (Finding("missing-review", submission),))
     try:
         review = read_review(record_path)
         baseline = _baseline(run, submission, round_number)
     except ValueError as exc:
-        return Scan(submission, 1, 0, 0, 0, 0, len(orphan_paths(run)), (Finding("unscannable-review", str(exc)),))
+        return Scan(submission, 1, 0, 0, 0, 0, (Finding("unscannable-review", str(exc)),))
     try:
-        extract_fields, identifiers = _extract_metadata(
+        extract_fields, identifiers, entry_kinds = _extract_document(
             extract_path(run, submission, round_number)
         )
     except UnknownExtractFormat:
         raise
     except ValueError as exc:
-        return Scan(submission, 1, 0, 0, 0, 0, len(orphan_paths(run)), (Finding("unscannable-extract", str(exc)),))
+        return Scan(submission, 1, 0, 0, 0, 0, (Finding("unscannable-extract", str(exc)),))
 
     for field in HEADER_FIELDS:
         value = review.fields.get(field, "")
@@ -1221,6 +1317,11 @@ def _survey_round(run: Path, submission: str, round_number: int) -> Scan:
         if not present:
             findings.append(Finding("missing-header-field", field))
     extracted_at = extract_fields.get("EXTRACTED-AT", "")
+    later_sittings = (
+        count_later_sittings(run, _utc_timestamp(extracted_at, "EXTRACTED-AT"))
+        if extracted_at
+        else 0
+    )
     post_cutoff = (
         extract_fields.get("FORMAT", "1") == "2"
         and _utc_timestamp(extracted_at, "EXTRACTED-AT")
@@ -1281,16 +1382,14 @@ def _survey_round(run: Path, submission: str, round_number: int) -> Scan:
         for value in extract_fields.get("TRANSCRIPT-PATHS", "").split("|")
         if value.strip()
     ]
-    for pointer in orphan_paths(run):
-        try:
-            transcript_paths.append(_read_pointer(pointer)[0])
-        except ValueError as exc:
-            findings.append(Finding("bad-orphan-pointer", str(exc)))
-
     tracked_files = {path.resolve() for path in _tracked_files()}
     for correction in review.corrections:
         if correction.event not in identifiers:
             findings.append(Finding("unknown-correction-event", correction.event))
+        elif entry_kinds.get(correction.event) in EXTRACTOR_WRITTEN_ENTRY_KINDS:
+            findings.append(
+                Finding("correction-on-extractor-written-entry", correction.event)
+            )
         for field in CORRECTION_FIELDS:
             if not _substance(correction.fields.get(field, "")):
                 findings.append(Finding("missing-correction-field", f"{correction.event}: {field}"))
@@ -1322,7 +1421,30 @@ def _survey_round(run: Path, submission: str, round_number: int) -> Scan:
             findings.append(Finding("unknown-sustain-event", sustain.event))
         if not _substance(sustain.fields.get("SUMMARY", "")):
             findings.append(Finding("bare-sustain", sustain.event))
-    orphaned = len(orphan_paths(run))
+    counts: dict[tuple[str, str, str], int] = {}
+    for correction in review.corrections:
+        key = (
+            "correction",
+            correction.fields.get("CORRECTOR", "unknown") or "unknown",
+            entry_kinds.get(correction.event, "unknown"),
+        )
+        counts[key] = counts.get(key, 0) + 1
+    for sustain in review.sustains:
+        key = ("sustain", "n/a", entry_kinds.get(sustain.event, "unknown"))
+        counts[key] = counts.get(key, 0) + 1
+    kind_counts = tuple(
+        EntryKindCount(record, corrector, kind, count)
+        for (record, corrector, kind), count in sorted(counts.items())
+    )
+    diagnostic_counts = {
+        name: _optional_count(extract_fields, field)
+        for name, field in {
+            "transcripts_found": "TRANSCRIPTS-FOUND",
+            "transcripts_skipped_by_time": "TRANSCRIPTS-SKIPPED-BY-TIME",
+            "transcripts_skipped_by_byte_search": "TRANSCRIPTS-SKIPPED-BY-BYTE-SEARCH",
+            "transcripts_read": "TRANSCRIPTS-READ",
+        }.items()
+    }
     return Scan(
         submission=submission,
         records=records,
@@ -1330,9 +1452,18 @@ def _survey_round(run: Path, submission: str, round_number: int) -> Scan:
         corrections=len(review.corrections),
         sustains=len(review.sustains),
         unread=unread,
-        orphaned=orphaned,
         findings=tuple(findings),
+        kind_counts=kind_counts,
+        later_sittings=later_sittings,
+        **diagnostic_counts,
     )
+
+
+def _optional_count(fields: Mapping[str, str], name: str) -> int:
+    try:
+        return int(fields.get(name, "0") or "0")
+    except ValueError:
+        return 0
 
 
 def survey(run: Path, submission: str) -> Scan:
@@ -1352,6 +1483,11 @@ def survey(run: Path, submission: str) -> Scan:
         for round_number, scan in zip(round_numbers, scans)
         if scan.records or extract_path(run, submission, round_number).is_file()
     )
+    combined_counts: dict[tuple[str, str, str], int] = {}
+    for scan in scans:
+        for row in scan.kind_counts:
+            key = (row.record, row.corrector, row.kind)
+            combined_counts[key] = combined_counts.get(key, 0) + row.count
     return Scan(
         submission=submission,
         records=sum(scan.records for scan in scans),
@@ -1359,9 +1495,21 @@ def survey(run: Path, submission: str) -> Scan:
         corrections=sum(scan.corrections for scan in scans),
         sustains=sum(scan.sustains for scan in scans),
         unread=sum(scan.unread for scan in scans),
-        orphaned=len(orphan_paths(run)),
         findings=tuple(finding for scan in scans for finding in scan.findings),
         rounds=rounds,
+        kind_counts=tuple(
+            EntryKindCount(record, corrector, kind, count)
+            for (record, corrector, kind), count in sorted(combined_counts.items())
+        ),
+        later_sittings=sum(scan.later_sittings for scan in scans),
+        transcripts_found=sum(scan.transcripts_found for scan in scans),
+        transcripts_skipped_by_time=sum(
+            scan.transcripts_skipped_by_time for scan in scans
+        ),
+        transcripts_skipped_by_byte_search=sum(
+            scan.transcripts_skipped_by_byte_search for scan in scans
+        ),
+        transcripts_read=sum(scan.transcripts_read for scan in scans),
     )
 
 
@@ -1374,7 +1522,11 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         f"  correction records              {scan.corrections}",
         f"  sustain records                 {scan.sustains}",
         f"  unread candidates               {scan.unread}",
-        f"  orphaned sittings               {scan.orphaned}",
+        f"  transcripts found               {scan.transcripts_found}",
+        f"  transcripts skipped by time     {scan.transcripts_skipped_by_time}",
+        f"  transcripts skipped by bytes    {scan.transcripts_skipped_by_byte_search}",
+        f"  transcripts read                {scan.transcripts_read}",
+        f"  sittings begun after extract    {scan.later_sittings}",
         f"  findings                        {len(scan.findings)}",
     ]
     lines.extend(
@@ -1382,6 +1534,12 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         f"unlanded {round.unlanded}"
         for round in scan.rounds
     )
+    if scan.kind_counts:
+        lines.extend(["", "  corrector by entry kind"])
+        lines.extend(
+            f"    {row.record} | {row.corrector} | {row.kind} | {row.count}"
+            for row in scan.kind_counts
+        )
     if show and scan.findings:
         lines.extend(["", "  findings (private - read, do not paste):"])
         lines.extend(f"    {row.kind}: {row.detail}" for row in scan.findings)
@@ -1394,7 +1552,7 @@ def completion_finding(run: Path, submissions: Iterable[str]) -> str | None:
     """The expected row shared by ``COMPLETION_GRADERS``."""
     for submission in submissions:
         scan = survey(run, submission)
-        if scan.findings or scan.unread or scan.orphaned:
+        if scan.findings or scan.unread:
             return f"{EXPECTED_ROW} is incomplete for {submission}"
     return None
 
@@ -1415,11 +1573,6 @@ def completion_gate(run: Path, submission: str | None) -> tuple[bool, str]:
     return (finding is not None, f"{EXPECTED_ROW}: {'finding - ' + finding if finding else 'clean'}")
 
 
-def consume_orphans(run: Path) -> None:
-    for path in orphan_paths(run):
-        path.unlink()
-
-
 def _strings(value: Any) -> Iterable[str]:
     if isinstance(value, str):
         yield value
@@ -1438,14 +1591,6 @@ def _strings(value: Any) -> Iterable[str]:
             yield from _strings(nested)
 
 
-def _attributed_scoped(rows: Iterable[dict[str, Any]]) -> bool:
-    return any(row.get("attributionSkill") in SCOPED_SKILLS for row in rows)
-
-
-def _is_codex_transcript(rows: Iterable[dict[str, Any]]) -> bool:
-    return any(bool(_codex_payload(row)) for row in rows)
-
-
 def discover_run_directories(rows: Iterable[dict[str, Any]]) -> tuple[Path, ...]:
     root = repo_root.scratch_root() / "runs"
     found: set[Path] = set()
@@ -1462,80 +1607,126 @@ def discover_run_directories(rows: Iterable[dict[str, Any]]) -> tuple[Path, ...]
             inputs.extend((payload.get("input"), payload.get("arguments")))
         for input_value in inputs:
             for value in _strings(input_value):
-                for match in RUN_REFERENCE.finditer(value):
+                normalized = value
+                while "\\\\" in normalized:
+                    normalized = normalized.replace("\\\\", "\\")
+                for match in RUN_REFERENCE.finditer(normalized):
                     candidate = (root / match.group("key")).resolve()
                     if candidate.is_dir() and candidate.is_relative_to(root.resolve()):
                         found.add(candidate)
     return tuple(sorted(found))
 
 
-def locate_transcript(run: Path) -> Path:
-    """The newest main transcript that names this existing run directory."""
-    roots = (Path.home() / ".claude" / "projects", Path.home() / ".codex" / "sessions")
-    candidates: list[Path] = []
-    paths = (path for root in roots if root.is_dir() for path in root.rglob("*.jsonl"))
-    for path in sorted(paths, key=lambda item: item.stat().st_mtime, reverse=True):
-        if path.parent.name == "subagents":
+def transcript_roots() -> tuple[Path, ...]:
+    home = Path.home()
+    return (
+        home / ".claude" / "projects",
+        home / ".codex" / "sessions",
+        home / ".codex" / "archived_sessions",
+    )
+
+
+def _run_created_at(run: Path) -> float | None:
+    stat = run.stat()
+    birthtime = getattr(stat, "st_birthtime", None)
+    if isinstance(birthtime, (int, float)):
+        return float(birthtime)
+    if sys.platform == "win32":
+        return float(stat.st_ctime)
+    return None
+
+
+def _raw_contains(path: Path, needle: bytes) -> bool:
+    overlap = max(len(needle) - 1, 0)
+    tail = b""
+    with path.open("rb") as source:
+        while chunk := source.read(1024 * 1024):
+            block = tail + chunk
+            if needle in block:
+                return True
+            tail = block[-overlap:] if overlap else b""
+    return False
+
+
+def _is_codex_subagent(rows: Iterable[dict[str, Any]]) -> bool:
+    for row in rows:
+        if row.get("type") != "session_meta":
+            continue
+        payload = row.get("payload")
+        source = payload.get("source") if isinstance(payload, dict) else None
+        if isinstance(source, str):
+            return "subagent" in source.casefold()
+        if isinstance(source, dict):
+            return "subagent" in source
+        return False
+    return False
+
+
+def discover_transcripts(run: Path, explicit: Path | None = None) -> TranscriptDiscovery:
+    """Find every main sitting that names ``run``, bounded before parsing."""
+    forced = explicit.resolve() if explicit is not None else None
+    paths: set[Path] = {forced} if forced is not None else set()
+    if is_live_run(run):
+        paths.update(
+            path.resolve()
+            for root in transcript_roots()
+            if root.is_dir()
+            for path in root.rglob("*.jsonl")
+        )
+    ordered = tuple(sorted(paths, key=lambda path: str(path).casefold()))
+    created_at = _run_created_at(run)
+    needle = run.name.encode("utf-8")
+    selected: list[Path] = []
+    skipped_by_time = 0
+    skipped_by_byte_search = 0
+    for path in ordered:
+        if "subagents" in {part.casefold() for part in path.parts}:
             continue
         try:
+            if (
+                path != forced
+                and created_at is not None
+                and path.stat().st_mtime < created_at - 24 * 60 * 60
+            ):
+                skipped_by_time += 1
+                continue
+            if path != forced and not _raw_contains(path, needle):
+                skipped_by_byte_search += 1
+                continue
             rows = read_transcript(path)
-        except ValueError:
+        except (OSError, ValueError):
             continue
-        if (_attributed_scoped(rows) or _is_codex_transcript(rows)) and run in discover_run_directories(rows):
-            candidates.append(path)
-            break
-    if not candidates:
-        raise ValueError("no current scoped transcript names this run directory")
-    return candidates[0]
+        if _is_codex_subagent(rows):
+            continue
+        if path == forced or run in discover_run_directories(rows):
+            selected.append(path)
+    return TranscriptDiscovery(
+        paths=tuple(selected),
+        found=len(ordered),
+        skipped_by_time=skipped_by_time,
+        skipped_by_byte_search=skipped_by_byte_search,
+        read=len(selected),
+    )
 
 
-def session_end(payload: Mapping[str, Any]) -> int:
-    if payload.get("hook_event_name") != "SessionEnd":
-        return 2
-    if payload.get("agent_id") is not None:
-        return 0
-    transcript_value = payload.get("transcript_path")
-    session_id = payload.get("session_id")
-    if not isinstance(transcript_value, str) or not isinstance(session_id, str):
-        return 2
-    transcript = Path(transcript_value)
-    rows = read_transcript(transcript)
-    if not _attributed_scoped(rows):
-        return 0
-    for run in discover_run_directories(rows):
-        drained = False
-        if (run / "aar").is_dir():
-            for path in (run / "aar").glob("*.md"):
-                if path.name.endswith(".extract.md"):
-                    continue
-                try:
-                    review = read_review(path)
-                    submission = review.fields.get("SUBMISSION", "")
-                    scan = survey(run, submission)
-                except ValueError:
-                    continue
-                drained = (
-                    review.fields.get("TRANSCRIPTS", "").split(",")[-1].strip()
-                    == transcript.stem
-                    and not scan.findings
-                    and scan.unread == 0
-                    and scan.orphaned == 0
-                )
-                if drained:
-                    break
-        if drained:
-            continue
-        destination = run / "aar" / f"orphaned-{_safe_submission(session_id)}.json"
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        destination.write_text(
-            json.dumps(
-                {"transcript_path": str(transcript.resolve()), "run_key": run.name},
-                sort_keys=True,
-            )
-            + "\n",
-            encoding="utf-8",
-        )
-    return 0
+def _transcript_started_at(rows: Iterable[dict[str, Any]]) -> datetime | None:
+    for row in rows:
+        timestamp = _text(row.get("timestamp"))
+        if timestamp:
+            try:
+                return _utc_timestamp(timestamp, "transcript timestamp")
+            except ValueError:
+                continue
+    return None
+
+
+def count_later_sittings(run: Path, extracted_at: datetime) -> int:
+    return sum(
+        1
+        for path in discover_transcripts(run).paths
+        for started_at in [_transcript_started_at(read_transcript(path))]
+        if started_at is not None and started_at > extracted_at
+    )
 
 
 USAGE = (
@@ -1562,6 +1753,13 @@ def load(parsed: run_grader.Parsed) -> Path:
 def grade(run: Path, parsed: run_grader.Parsed) -> run_grader.Grade[Scan] | run_grader.EarlyExit:
     submission = parsed.value("--submission")
     assert submission is not None  # validate owns this invocation requirement
+    try:
+        retire_orphan_pointers(run)
+    except OSError as exc:
+        return run_grader.EarlyExit(
+            2,
+            stderr=(f"after-action review NOT SCANNED: {exc}",),
+        )
     if parsed.enabled("--extract"):
         transcript_value = parsed.value("--transcript")
         memory_value = parsed.value("--memory-index")
@@ -1570,11 +1768,12 @@ def grade(run: Path, parsed: run_grader.Parsed) -> run_grader.Grade[Scan] | run_
             transcript = (
                 Path(transcript_value).expanduser().resolve()
                 if transcript_value
-                else locate_transcript(run)
+                else None
             )
             destination, count = write_extract(
                 run, transcript, submission, Path(memory_value).expanduser().resolve()
             )
+            extract_fields, _identifiers = _extract_metadata(destination)
         except (OSError, ValueError, subprocess.SubprocessError, git_paths.GitPathError) as exc:
             return run_grader.EarlyExit(
                 2,
@@ -1585,6 +1784,10 @@ def grade(run: Path, parsed: run_grader.Parsed) -> run_grader.Grade[Scan] | run_
             stdout=(
                 f"after-action review extract over {run.name}",
                 f"  candidate population            {count}",
+                f"  transcripts found               {extract_fields['TRANSCRIPTS-FOUND']}",
+                f"  transcripts skipped by time     {extract_fields['TRANSCRIPTS-SKIPPED-BY-TIME']}",
+                f"  transcripts skipped by bytes    {extract_fields['TRANSCRIPTS-SKIPPED-BY-BYTE-SEARCH']}",
+                f"  transcripts read                {extract_fields['TRANSCRIPTS-READ']}",
                 f"  private extract written         {destination.name}",
             ),
         )
@@ -1603,9 +1806,6 @@ def grade(run: Path, parsed: run_grader.Parsed) -> run_grader.Grade[Scan] | run_
     )
 
 
-# No exit_2_limbs: the exact SessionEnd branch below has two exit-2 routes
-# outside the runner. A partial vocabulary would claim the whole command
-# surface. The hook is not a reader in the grader family (ADR 0117).
 GRADER = run_grader.Grader(
     usage=USAGE,
     load=load,
@@ -1628,21 +1828,7 @@ GRADER = run_grader.Grader(
 
 def main(argv: list[str] | None = None) -> int:
     arguments = list(sys.argv[1:] if argv is None else argv)
-    if arguments == ["--session-end"]:
-        try:
-            payload = json.load(sys.stdin)
-            return session_end(payload)
-        except (UnicodeError, json.JSONDecodeError, ValueError):
-            return 2
-    status = run_grader.run(GRADER, arguments)
-    if status == 0:
-        # Re-parse only arguments the runner already accepted. Keeping this
-        # post-report preserves the recoverable failure direction ruled in
-        # ADR 0117: a crash cannot erase both the pointer and its report.
-        parsed = run_grader.parse(GRADER, arguments)
-        if not parsed.enabled("--extract"):
-            consume_orphans(Path(parsed.source).expanduser().resolve())
-    return status
+    return run_grader.run(GRADER, arguments)
 
 
 if __name__ == "__main__":

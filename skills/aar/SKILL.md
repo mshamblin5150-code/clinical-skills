@@ -24,7 +24,7 @@ Before running the command, require the run's `reread.md` to contain exactly one
 It refuses a missing or duplicate record, and the final grade fails if the block changes after the
 snapshot. Records for other submissions may be appended without changing this round's fingerprint.
 
-Pass `--transcript <path>` only when the harness exposed the exact current transcript path. Otherwise the command selects the newest scoped main transcript that names this run directory. It also consumes every orphan pointer as input, but does not clear one until the finished record grades clean.
+Pass `--transcript <path>` only when the harness exposed the exact current transcript path. The command also reads every other main Claude or Codex transcript that names this run directory and has entries past its own watermark, so an abandoned sitting's corrections enter this round. A drone's transcript is never read as a sitting; its results reach the extract through the main transcript that launched it.
 
 The extract keeps every human turn, assistant text block, subagent result, and tool name and status since the prior watermark. It drops ordinary tool-result bodies. Do not delete, reorder, or narrow its entries. The population is not the orchestrator's to edit. Read the generated `ENTRY-KINDS` legend in the extract; `aar_scan.ENTRY_KINDS` owns that vocabulary and this skill copies none of it. The first round uses `<submission-key>.extract.md`; each later invocation writes a new numbered extract and baseline and never overwrites an earlier round.
 
@@ -39,6 +39,8 @@ index, and returns:
 - who was in error, separately, using the same vocabulary;
 - one disposition: `skill-file`, `tracker-ticket`, `memory-write`, or `check`;
 - every **sustain**: something the sitting got right that a later sitting could otherwise undo.
+
+Name every correction and sustain by one entry, using the identifier exactly as it follows `## ENTRY:`, including any `#` suffix. A correction names the entry holding the contradiction; a sustain names the entry where the right thing was settled. An extract line number or a shortened prefix is never an identifier.
 
 A preference stated for the first time is not a correction. A correction whose corrector was wrong is supported; identify who was actually in error. The classifier reads the memory index so it can distinguish missing knowledge from knowledge that already existed and went unread.
 
@@ -100,6 +102,8 @@ Remove `CORRECTIONS: none` when a correction record exists, and remove `SUSTAINS
 
 Several corrections or sustains may rest on one extract entry: repeat the heading with the same identifier, one record per disposition, and never alter an identifier to make records look distinct. For a `memory-write` or a `check`, `TARGET` is the bare absolute path the grader resolves, with nothing after it; put any description in `LANDING` or in a reason.
 
+The grader refuses a correction resting on an entry whose text the extractor wrote rather than copied, and it counts every record's corrector against the kind of entry it names without grading that count.
+
 Run:
 
 ```bash
@@ -107,7 +111,7 @@ python tools/aar_scan.py <run-directory> --submission <submission-key>
 ```
 
 Exit 0 means every round's population is drained, every correction has a closed disposition against
-its own baseline, the fingerprints of its Posted readings remain current, and orphan pointers were cleared.
+its own baseline, and the fingerprints of its Posted readings remain current.
 Exit 1 is a finding in any round. Exit 2 means the population was not scanned. The report prints
 each round's correction and unlanded counts on every run. `--show` names private findings and must
 not be pasted.

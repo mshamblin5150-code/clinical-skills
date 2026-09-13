@@ -8,6 +8,7 @@ import ast
 from dataclasses import dataclass
 from enum import Enum
 import json
+import os
 from pathlib import Path
 import subprocess
 import tempfile
@@ -249,7 +250,11 @@ class CommandModes(unittest.TestCase):
             "  correction records              0\n"
             "  sustain records                 0\n"
             "  unread candidates               0\n"
-            "  orphaned sittings               0\n"
+            "  transcripts found               0\n"
+            "  transcripts skipped by time     0\n"
+            "  transcripts skipped by bytes    0\n"
+            "  transcripts read                0\n"
+            "  sittings begun after extract    0\n"
             "  findings                        1\n\n"
             "  declared limits:\n"
             "    semantic classification\n"
@@ -259,7 +264,8 @@ class CommandModes(unittest.TestCase):
             "    subagent silence\n"
             "    transcript flush\n"
             "    run-key discovery\n"
-            "    subagent launch-result drift\n",
+            "    subagent launch-result drift\n"
+            "    correction kind misplacement\n",
         )
 
     def test_the_extract_mode_writes_and_reports_its_private_packet(self) -> None:
@@ -298,11 +304,12 @@ class CommandModes(unittest.TestCase):
             stdout,
             "after-action review extract over run\n"
             "  candidate population            4\n"
+            "  transcripts found               1\n"
+            "  transcripts skipped by time     0\n"
+            "  transcripts skipped by bytes    0\n"
+            "  transcripts read                1\n"
             "  private extract written         post-1.extract.md\n",
         )
-
-    def test_the_session_end_mode_keeps_its_silent_exit_two(self) -> None:
-        self.assertEqual(invoke_main(["--session-end"], stdin="{}"), (2, "", ""))
 
     def test_a_refused_review_open_is_a_finding_without_a_traceback(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -560,6 +567,28 @@ class ReductionByEntryShape(unittest.TestCase):
             self.assertNotIn("patient-bearing output", joined)
             self.assertNotIn("private developer instruction", joined)
 
+    def test_codex_rows_without_payload_identifiers_are_named_by_transcript(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            transcript = Path(directory) / "rollout-main.jsonl"
+            transcript.write_text(
+                json.dumps(
+                    codex_row(
+                        {
+                            "type": "message",
+                            "role": "user",
+                            "content": [{"type": "input_text", "text": "Keep the full identifier."}],
+                        }
+                    )
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            candidate = aar_scan.reduce_transcript(transcript)[0]
+
+            self.assertEqual(candidate.identifier, "rollout-main#row-1")
+            self.assertEqual(candidate.aliases, ("line-1",))
+
     def test_codex_labels_harness_envelopes_compaction_and_delegation_metadata(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             transcript = Path(directory) / "rollout.jsonl"
@@ -635,8 +664,44 @@ class ReductionByEntryShape(unittest.TestCase):
 
             self.assertEqual(found, (run.resolve(),))
 
+    def test_nested_codex_tool_code_discovers_an_escaped_windows_run_path(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            scratch = Path(directory) / "scratch"
+            run = scratch / "runs" / "case-study"
+            run.mkdir(parents=True)
+            transcript = Path(directory) / "rollout.jsonl"
+            escaped = str(run).replace("\\", "\\\\")
+            transcript.write_text(
+                json.dumps(
+                    codex_row(
+                        {
+                            "type": "custom_tool_call",
+                            "id": "call-1",
+                            "name": "exec",
+                            "input": json.dumps(
+                                {"code": f"const run = '{escaped}'; use(run);"}
+                            ),
+                        }
+                    )
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            with mock.patch.object(aar_scan.repo_root, "scratch_root", return_value=scratch):
+                found = aar_scan.discover_run_directories(
+                    aar_scan.read_transcript(transcript)
+                )
+
+            self.assertEqual(found, (run.resolve(),))
+
 
 class EntryKindsAreBound(unittest.TestCase):
+    def test_the_extractor_written_kind_backstop_is_one_exact_set(self) -> None:
+        self.assertEqual(
+            aar_scan.EXTRACTOR_WRITTEN_ENTRY_KINDS,
+            {"tool-call", "subagent-launch", "inter-agent-metadata"},
+        )
+
     def test_every_candidate_kind_is_literal_or_passes_the_declared_kind_guard(self) -> None:
         tree = ast.parse(Path(aar_scan.__file__).read_text(encoding="utf-8"))
         checked = 0
@@ -686,6 +751,211 @@ class EntryKindsAreBound(unittest.TestCase):
                 "world_state",
             },
         )
+
+
+class ScanBasedSittingDiscovery(unittest.TestCase):
+    def test_two_identifierless_codex_rollouts_form_one_readable_extract(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            scratch = root / "scratch"
+            run = scratch / "runs" / "course-module-discussion"
+            run.mkdir(parents=True)
+            home = root / "home"
+            sessions = home / ".codex" / "sessions" / "2026" / "09" / "13"
+            sessions.mkdir(parents=True)
+            memory = root / "memory" / "MEMORY.md"
+            memory.parent.mkdir()
+            memory.write_text("# Index\n", encoding="utf-8")
+            submission = "post-2026-09-13"
+            (run / "reread.md").write_text(
+                f"## REREAD: {submission}\n"
+                "POST-URL: https://example.org/submissions/1\n"
+                "POSTED: 2026-09-13T12:00:00Z\n"
+                "READ: 2026-09-13\n"
+                "VERDICT: matches - the posted artifact was read back\n",
+                encoding="utf-8",
+            )
+
+            transcripts = tuple(sessions / f"rollout-{name}.jsonl" for name in ("first", "second"))
+            for transcript in transcripts:
+                rows = [
+                    {"type": "session_meta", "payload": {"source": "cli"}},
+                    codex_row(
+                        {
+                            "type": "message",
+                            "role": "user",
+                            "content": [{"type": "input_text", "text": "Review this sitting."}],
+                        }
+                    ),
+                    codex_row(
+                        {
+                            "type": "custom_tool_call",
+                            "name": "exec",
+                            "input": json.dumps({"cmd": f'python tools/aar_scan.py "{run}"'}),
+                        }
+                    ),
+                ]
+                transcript.write_text(
+                    "\n".join(json.dumps(item) for item in rows) + "\n",
+                    encoding="utf-8",
+                )
+
+            with (
+                mock.patch.object(Path, "home", return_value=home),
+                mock.patch.object(aar_scan.repo_root, "scratch_root", return_value=scratch),
+            ):
+                destination, count = aar_scan.write_extract(
+                    run, transcripts[0], submission, memory
+                )
+
+            fields, identifiers = aar_scan._extract_metadata(destination)
+            self.assertEqual(count, 4)
+            self.assertEqual(len(identifiers), 4)
+            self.assertEqual(fields["TRANSCRIPTS-READ"], "2")
+            self.assertTrue(any(identifier.startswith("rollout-first#row-") for identifier in identifiers))
+            self.assertTrue(any(identifier.startswith("rollout-second#row-") for identifier in identifiers))
+
+            aar_scan.review_path(run, submission).write_text(
+                f"TRANSCRIPTS: {fields['TRANSCRIPTS']}\n"
+                f"WATERMARK: {fields['WATERMARK']}\n"
+                "CLASSIFIER-ENTRY: reader-1\n",
+                encoding="utf-8",
+            )
+            with transcripts[0].open("a", encoding="utf-8") as destination_file:
+                destination_file.write(
+                    json.dumps(
+                        codex_row(
+                            {
+                                "type": "message",
+                                "id": "new-entry",
+                                "role": "user",
+                                "content": [{"type": "input_text", "text": "A later correction."}],
+                            }
+                        )
+                    )
+                    + "\n"
+                )
+            with (
+                mock.patch.object(Path, "home", return_value=home),
+                mock.patch.object(aar_scan.repo_root, "scratch_root", return_value=scratch),
+            ):
+                later, _paths = aar_scan.collect_population(run, transcripts[0])
+
+            self.assertEqual([candidate.identifier for candidate in later], ["new-entry"])
+
+    def test_discovery_bounds_the_scan_and_excludes_drone_transcripts(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            scratch = root / "scratch"
+            run = scratch / "runs" / "course-module-discussion"
+            run.mkdir(parents=True)
+            home = root / "home"
+            sessions = home / ".codex" / "sessions"
+            archived = home / ".codex" / "archived_sessions"
+            claude_subagents = home / ".claude" / "projects" / "session" / "subagents"
+            for folder in (sessions, archived, claude_subagents):
+                folder.mkdir(parents=True)
+
+            def codex_sitting(path: Path, source: object, command: str) -> None:
+                path.write_text(
+                    "\n".join(
+                        json.dumps(item)
+                        for item in (
+                            {"type": "session_meta", "payload": {"source": source}},
+                            codex_row(
+                                {
+                                    "type": "custom_tool_call",
+                                    "id": path.stem,
+                                    "name": "exec",
+                                    "input": json.dumps({"cmd": command}),
+                                }
+                            ),
+                        )
+                    )
+                    + "\n",
+                    encoding="utf-8",
+                )
+
+            main = sessions / "main.jsonl"
+            archived_main = archived / "archived.jsonl"
+            old = sessions / "old.jsonl"
+            unrelated = sessions / "unrelated.jsonl"
+            drone = sessions / "drone.jsonl"
+            claude_drone = claude_subagents / "agent-1.jsonl"
+            command = f'python tools/aar_scan.py "{run}"'
+            codex_sitting(main, "cli", command)
+            codex_sitting(archived_main, "cli", command)
+            codex_sitting(old, "cli", command)
+            codex_sitting(unrelated, "cli", "echo unrelated")
+            codex_sitting(drone, {"subagent": {"name": "reader"}}, command)
+            write_transcript(claude_drone, run)
+            old_time = run.stat().st_ctime - (25 * 60 * 60)
+            os.utime(old, (old_time, old_time))
+
+            with (
+                mock.patch.object(Path, "home", return_value=home),
+                mock.patch.object(aar_scan.repo_root, "scratch_root", return_value=scratch),
+                mock.patch.object(aar_scan, "_run_created_at", return_value=run.stat().st_ctime),
+            ):
+                discovery = aar_scan.discover_transcripts(run)
+
+            self.assertEqual(set(discovery.paths), {main.resolve(), archived_main.resolve()})
+            self.assertEqual(discovery.found, 6)
+            self.assertEqual(discovery.skipped_by_time, 1)
+            self.assertEqual(discovery.skipped_by_byte_search, 1)
+            self.assertEqual(discovery.read, 2)
+
+            with (
+                mock.patch.object(Path, "home", return_value=home),
+                mock.patch.object(aar_scan.repo_root, "scratch_root", return_value=scratch),
+            ):
+                forced_drone = aar_scan.discover_transcripts(run, claude_drone)
+
+            self.assertNotIn(claude_drone.resolve(), forced_drone.paths)
+
+    def test_grading_counts_sittings_that_began_after_the_extract(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            scratch = root / "scratch"
+            run = scratch / "runs" / "course-module-discussion"
+            run.mkdir(parents=True)
+            home = root / "home"
+            sessions = home / ".codex" / "sessions"
+            sessions.mkdir(parents=True)
+            command = f'python tools/aar_scan.py "{run}"'
+            for name, timestamp in (
+                ("before", "2026-09-13T11:59:00Z"),
+                ("after", "2026-09-13T12:01:00Z"),
+            ):
+                (sessions / f"{name}.jsonl").write_text(
+                    "\n".join(
+                        json.dumps(item)
+                        for item in (
+                            {"type": "session_meta", "timestamp": timestamp, "payload": {"source": "cli"}},
+                            codex_row(
+                                {
+                                    "type": "custom_tool_call",
+                                    "id": name,
+                                    "name": "exec",
+                                    "input": json.dumps({"cmd": command}),
+                                },
+                                timestamp=timestamp,
+                            ),
+                        )
+                    )
+                    + "\n",
+                    encoding="utf-8",
+                )
+
+            with (
+                mock.patch.object(Path, "home", return_value=home),
+                mock.patch.object(aar_scan.repo_root, "scratch_root", return_value=scratch),
+            ):
+                count = aar_scan.count_later_sittings(
+                    run, aar_scan._utc_timestamp("2026-09-13T12:00:00Z", "EXTRACTED-AT")
+                )
+
+            self.assertEqual(count, 1)
 
 
 class SubmissionRecord(unittest.TestCase):
@@ -942,6 +1212,41 @@ class SubmissionRecord(unittest.TestCase):
         population, _transcripts = aar_scan.collect_population(self.run, self.transcript)
 
         self.assertEqual([candidate.identifier for candidate in population], ["after"])
+
+    def test_a_legacy_classifier_entry_alias_is_relabelled_as_a_prior_review(self) -> None:
+        self.transcript.replace(self.transcript.with_name("rollout.jsonl"))
+        self.transcript = self.transcript.with_name("rollout.jsonl")
+        self.transcript.write_text(
+            "\n".join(
+                json.dumps(
+                    codex_row(
+                        {
+                            "type": "message",
+                            "role": "user",
+                            "content": [{"type": "input_text", "text": text}],
+                        }
+                    )
+                )
+                for text in ("Earlier watermark.", "Earlier classifier return.")
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        aar = self.run / "aar"
+        aar.mkdir()
+        (aar / "legacy.md").write_text(
+            "TRANSCRIPTS: rollout\n"
+            "WATERMARK: line-1\n"
+            "CLASSIFIER-ENTRY: line-2\n",
+            encoding="utf-8",
+        )
+
+        population, _transcripts = aar_scan.collect_population(
+            self.run, self.transcript
+        )
+
+        self.assertEqual(len(population), 1)
+        self.assertEqual(population[0].kind, "prior-review")
 
     def test_a_prior_watermark_without_classifier_identity_is_reported(self) -> None:
         aar = self.run / "aar"
@@ -1208,39 +1513,28 @@ class SubmissionRecord(unittest.TestCase):
 
         self.assertIn("missing-classifier-entry", [finding.kind for finding in scan.findings])
 
-    def test_a_clean_graded_command_drains_orphan_pointers_after_reporting(self) -> None:
-        self.write_clean()
+    def test_the_first_run_moves_legacy_orphan_pointers_aside_without_deleting_them(self) -> None:
         pointer = self.run / "aar" / "orphaned-earlier.json"
-        pointer.write_text(
+        pointer.parent.mkdir()
+        contents = (
             json.dumps(
                 {
                     "transcript_path": str(self.transcript),
                     "run_key": self.run.name,
                 }
             )
-            + "\n",
+            + "\n"
+        )
+        pointer.write_text(
+            contents,
             encoding="utf-8",
         )
 
-        stdout = io.StringIO()
-        stderr = io.StringIO()
-        original_unlink = Path.unlink
+        self.extract()
 
-        def unlink_after_report(path: Path, *args: object, **kwargs: object) -> None:
-            self.assertIn(
-                "after-action review over course-module-discussion", stdout.getvalue()
-            )
-            original_unlink(path, *args, **kwargs)
-
-        with (
-            mock.patch.object(Path, "unlink", unlink_after_report),
-            redirect_stdout(stdout),
-            redirect_stderr(stderr),
-        ):
-            status = aar_scan.main([str(self.run), "--submission", self.submission])
-
-        self.assertEqual((status, stderr.getvalue()), (0, ""))
+        retired = pointer.with_name("retired-orphaned-earlier.json")
         self.assertFalse(pointer.exists())
+        self.assertEqual(retired.read_text(encoding="utf-8"), contents)
 
     def test_a_correction_cannot_be_dispositioned_nowhere(self) -> None:
         fields, identifiers = self.extract()
@@ -1447,8 +1741,129 @@ class SubmissionRecord(unittest.TestCase):
         self.assertEqual(scan.corrections, 2)
         self.assertEqual(scan.findings, ())
 
+    def test_a_correction_cannot_rest_on_text_written_by_the_extractor(self) -> None:
+        self.transcript.write_text(
+            json.dumps(
+                row(
+                    "assistant",
+                    "a1",
+                    {
+                        "content": [
+                            {
+                                "type": "tool_use",
+                                "id": "tool-1",
+                                "name": "Bash",
+                                "input": {"command": "echo ready"},
+                            }
+                        ]
+                    },
+                )
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        fields, identifiers = self.extract()
+        event = next(iter(identifiers))
+        self.memory.write_text("# Index\n- correction landed\n", encoding="utf-8")
+        self.write_correction_record(
+            self.run,
+            self.submission,
+            fields,
+            self.memory,
+            (
+                CorrectionRecord(
+                    event=event,
+                    disposition=CorrectionDisposition.MEMORY_WRITE,
+                    target=self.memory,
+                    landing="the correction was added to memory",
+                ),
+            ),
+        )
+
+        scan = aar_scan.survey(self.run, self.submission)
+
+        self.assertIn(
+            "correction-on-extractor-written-entry",
+            [finding.kind for finding in scan.findings],
+        )
+
+    def test_the_report_counts_correction_correctors_and_sustains_by_entry_kind(self) -> None:
+        self.transcript.write_text(
+            "\n".join(
+                json.dumps(item)
+                for item in (
+                    row("user", "u1", {"content": "Use the corrected rule."}),
+                    row(
+                        "assistant",
+                        "a1",
+                        {
+                            "content": [
+                                {
+                                    "type": "tool_use",
+                                    "id": "tool-1",
+                                    "name": "Bash",
+                                    "input": {"command": "echo ready"},
+                                }
+                            ]
+                        },
+                    ),
+                )
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        fields, identifiers = self.extract()
+        clinician = next(identifier for identifier in identifiers if identifier == "u1")
+        tool_call = next(identifier for identifier in identifiers if identifier != "u1")
+        self.memory.write_text("# Index\n- correction landed\n", encoding="utf-8")
+        self.write_correction_record(
+            self.run,
+            self.submission,
+            fields,
+            self.memory,
+            (
+                CorrectionRecord(
+                    event=clinician,
+                    disposition=CorrectionDisposition.MEMORY_WRITE,
+                    target=self.memory,
+                    landing="the correction was added to memory",
+                ),
+            ),
+        )
+        review = aar_scan.review_path(self.run, self.submission)
+        review.write_text(
+            review.read_text(encoding="utf-8")
+            .replace("SUSTAINS: none\n", "")
+            + f"## SUSTAIN: {tool_call}\nSUMMARY: the tool invocation was retained correctly\n",
+            encoding="utf-8",
+        )
+
+        scan = aar_scan.survey(self.run, self.submission)
+        report = aar_scan.format_report(scan, self.run.name)
+
+        self.assertEqual(scan.findings, ())
+        self.assertEqual(
+            scan.kind_counts,
+            (
+                aar_scan.EntryKindCount("correction", "clinician", "clinician", 1),
+                aar_scan.EntryKindCount("sustain", "n/a", "tool-call", 1),
+            ),
+        )
+        self.assertIn("  corrector by entry kind", report)
+        self.assertIn("    correction | clinician | clinician | 1", report)
+        self.assertIn("    sustain | n/a | tool-call | 1", report)
+
 
 class EveryScopedCompletionGraderExpectsTheReview(unittest.TestCase):
+    def test_the_aar_skill_briefs_scan_discovery_and_full_identifiers(self) -> None:
+        skill = (
+            Path(__file__).resolve().parent.parent / "skills" / "aar" / "SKILL.md"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("reads every other main Claude or Codex transcript", skill)
+        self.assertIn("using the identifier exactly as it follows `## ENTRY:`", skill)
+        self.assertIn("whose text the extractor wrote rather than copied", skill)
+
     def test_every_scoped_skill_maps_to_a_grader_that_expects_the_fixed_row(self) -> None:
         self.assertEqual(set(aar_scan.COMPLETION_GRADERS), set(aar_scan.SCOPED_SKILLS))
         for skill, module_name in aar_scan.COMPLETION_GRADERS.items():
@@ -1475,7 +1890,7 @@ class EveryScopedCompletionGraderExpectsTheReview(unittest.TestCase):
                 self.assertIn("`/AAR`", text)
                 self.assertIn("the after-action review: clean", text)
 
-    def test_session_end_is_registered_as_the_orphan_pointer_only(self) -> None:
+    def test_session_end_has_no_after_action_review_hook(self) -> None:
         root = Path(__file__).resolve().parent.parent
         settings = json.loads((root / ".claude" / "settings.json").read_text(encoding="utf-8"))
         registered = settings["hooks"]["SessionEnd"]
@@ -1486,51 +1901,7 @@ class EveryScopedCompletionGraderExpectsTheReview(unittest.TestCase):
             if "aar_scan.py" in handler["command"]
         ]
 
-        self.assertEqual(len(aar_handlers), 1)
-        self.assertIn("--session-end", aar_handlers[0]["command"])
-
-
-class OrphanedSitting(unittest.TestCase):
-    def test_session_end_writes_exactly_the_two_field_pointer(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            run = root / "scratch" / "runs" / "course-module-discussion"
-            run.mkdir(parents=True)
-            transcript = root / "session-1.jsonl"
-            write_transcript(transcript, run)
-            original = aar_scan.repo_root.scratch_root
-            aar_scan.repo_root.scratch_root = lambda: root / "scratch"
-            try:
-                status = aar_scan.session_end(
-                    {
-                        "hook_event_name": "SessionEnd",
-                        "session_id": "session-1",
-                        "transcript_path": str(transcript),
-                        "reason": "other",
-                    }
-                )
-            finally:
-                aar_scan.repo_root.scratch_root = original
-
-            self.assertEqual(status, 0)
-            pointers = aar_scan.orphan_paths(run)
-            self.assertEqual(len(pointers), 1)
-            payload = json.loads(pointers[0].read_text(encoding="utf-8"))
-            self.assertEqual(set(payload), {"transcript_path", "run_key"})
-            self.assertEqual(payload["run_key"], run.name)
-
-    def test_subagent_session_gets_no_pointer(self) -> None:
-        self.assertEqual(
-            aar_scan.session_end(
-                {
-                    "hook_event_name": "SessionEnd",
-                    "agent_id": "agent-1",
-                    "session_id": "session-1",
-                    "transcript_path": "missing.jsonl",
-                }
-            ),
-            0,
-        )
+        self.assertEqual(aar_handlers, [])
 
 
 if __name__ == "__main__":
