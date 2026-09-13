@@ -165,7 +165,7 @@ the fix exists.
 
 | member | load-bearing population | posture (row) | today | build |
 | --- | --- | --- | --- | --- |
-| `aar_scan` | the submission's review record (`is_file`, `:699`) | finding (`missing-review`) | exit 1 | none |
+| `aar_scan` | the submission's review records, one per review round | finding (`missing-review`) | exit 1 | none |
 | `anchor_scan` | marked, listed and pediatric bands (`:195-197`) | not-scanned | exit 2, diagnostic | none |
 | `block_scan` | notes carrying a tier block (`:338`) | not-scanned | exit 2, diagnostic | none |
 | `case_study_scan` | recognized sections (`:469`) | not-scanned | exit 2, report line only | stderr diagnostic |

@@ -1223,7 +1223,7 @@ class APostedInitialEntryHasItsOwnReading(unittest.TestCase):
             encoding="utf-8",
         )
         (root / "reread.md").write_text(
-            "## REREAD: post.md\n"
+            f"## REREAD: {run.draft.stem}\n"
             f"POST-URL: {self.POST_URL}\n"
             "POSTED: 2026-08-28T19:30:00-04:00\n"
             "READ: 2026-08-28\n"
@@ -1246,7 +1246,7 @@ class APostedInitialEntryHasItsOwnReading(unittest.TestCase):
             reread = run.root / "reread.md"
             reread.write_text(
                 reread.read_text(encoding="utf-8").replace(
-                    "## REREAD: post.md", "## REREAD: response-maren.md"
+                    f"## REREAD: {run.draft.stem}", "## REREAD: response-maren.md"
                 ),
                 encoding="utf-8",
             )

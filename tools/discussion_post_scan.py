@@ -855,46 +855,51 @@ def load(parsed: run_grader.Parsed) -> RunSource:
 def _posted_reading_findings(source: RunSource) -> tuple[Finding, ...]:
     if source.post_url is None and source.post_posted is None:
         return ()
+    submission = source.draft.stem
     reading = next(
-        (item for item in source.readings if item.artifact == "post.md"), None
+        (item for item in source.readings if item.artifact == submission), None
     )
     if reading is None:
         return (
             Finding(
                 MISSING_POSTED_READING,
-                "post.md",
+                submission,
                 "no REREAD record for the posted initial entry",
             ),
         )
     findings: list[Finding] = []
     missing = list(reading.missing_record_fields)
     if not source.post_url:
-        missing.append("post.md POST-URL")
+        missing.append(f"{submission} POST-URL")
     if not source.post_posted:
-        missing.append("post.md POSTED")
+        missing.append(f"{submission} POSTED")
     if missing:
         findings.append(
             Finding(
                 MISSING_POSTED_READING,
-                "post.md",
+                submission,
                 "missing " + ", ".join(missing),
             )
         )
     if not reading.verdict_is_known:
         findings.append(
-            Finding(UNKNOWN_VERDICT, "post.md", "verdict is outside the vocabulary")
+            Finding(UNKNOWN_VERDICT, submission, "verdict is outside the vocabulary")
         )
     elif not reading.verdict_has_substance:
         findings.append(
-            Finding(BARE_VERDICT, "post.md", "verdict carries no reading substance")
+            Finding(BARE_VERDICT, submission, "verdict carries no reading substance")
         )
     if reading.entry_id is None:
         findings.append(
-            Finding(UNLOCATED_READING, "post.md", "POST-URL has no entry_id")
+            Finding(UNLOCATED_READING, submission, "POST-URL has no entry_id")
         )
     elif reading.post_url != source.post_url:
         findings.append(
-            Finding(BORROWED_LOCATOR, "post.md", "POST-URL does not match post.md")
+            Finding(
+                BORROWED_LOCATOR,
+                submission,
+                f"POST-URL does not match {submission}",
+            )
         )
     return tuple(findings)
 
