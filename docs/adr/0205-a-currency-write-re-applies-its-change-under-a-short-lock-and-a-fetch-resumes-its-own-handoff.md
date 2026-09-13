@@ -1,6 +1,13 @@
 # A currency write re-applies its change under a short lock and a fetch resumes its own handoff
 
-**Measured at:** f7be85810a9977343a257fc960d9d8a4e40908b4
+**Measured at:** 2021e2b985c9d924250729e556589ad2aeb96751
+
+*Re-declared from `f7be858` on 2026-09-13, for the addendum below. The base moved across ADR 0202,
+the #993 build, ADR 0206, ADR 0203 and the #986, #991 and #1209 builds; none of them changed
+`tools/guidelines_currency.py`,
+`tools/artifact_lock.py`, `tools/guidelines_build.py`, `tools/threshold_coverage.py`,
+`tools/test_guidelines_currency.py` or `tools/hooks/pre-commit`, so the figures still re-derive by
+construction.*
 
 *Re-declared from `b9456cc` on 2026-09-12. The base moved once between the measurement and
 publication, carrying ADR 0204 and a `CONTEXT.md` addition and nothing else. Every artifact the
@@ -179,3 +186,74 @@ ruling 6 settles which documents are stamped; this record governs how the bytes 
 **Whether the published `CLAUDE.md` account of the fetch is corrected now.** Its *Guideline edition
 currency* section describes behavior as built. It is corrected by the build that changes the behavior,
 so the prose never describes a mechanism the tree does not have.
+
+## Addendum, 2026-09-13 — what the exhaustive sweep changed, hours after ratification
+
+The sweep closing this grilling read all 64 open tickets and read this record adversarially. It found
+six facts overstated and two decisions the rulings left open. The facts are corrected in place, on
+[ADR 0016](0016-an-adr-number-is-claimed-when-it-is-handed-out-and-a-ratified-records-facts-may-be-corrected-in-place.md)'s
+terms, and change no ruling. The two decisions went to the clinician and are rulings 9 and 10.
+
+**Corrected facts.**
+
+- **"since #772 every `--read` writes"**, in ruling 1, overstated: `_run_reads` writes the registry
+  only under `if matched:`, so a read whose join matches no document writes nothing. Ruling 1's
+  reason holds for every read that matches.
+- **"`_run_reads` then downloads each requested society index"** is true of plain reads only. A
+  society read through `--capture` downloads nothing, so its loss window is a file read rather than a
+  network fetch.
+- **"The hook cannot see the files that half-state lands in"** was wider than the hook. A staged
+  `reference/thresholds/coverage.md` does run two refusing checks, `threshold_coverage.py` and
+  `subject_ledger.py`; neither detects the half-state, and the audit ledger triggers no refusing check.
+- **"a measured hold of minutes"**, describing ADR 0199 ruling 3, overstated that record: it gives an
+  observed upper bound, a hold from `00:44:07Z` to some time before `00:50Z`, not a measured duration.
+- **"the coverage mark sets a fixed value"**, in ruling 7, holds only when the resume reuses the
+  receipt. `_mark_topic_unread` and `_upsert_audit_digest` both write `observed`, which
+  `fetch_replacement` takes from `date.today()`, so a resume on a later day writes the same bytes only
+  if it takes `observed` from the sidecar's `FetchRecord`. That record's digest field is `sha256`.
+- **Ruling 2's test already exists and does not discriminate.** Deleting the two rollback writes leaves
+  `test_failed_rebuild_rolls_back_received_bytes_and_registry_mutations` green, and making them write
+  junk turns it red. A test that shows ruling 2 applied edits a tracked file inside the mocked build
+  and asserts the edit survives.
+
+**The half-state has a designed route, not only an interrupted one.** "An interruption after the build
+leaves a handoff nothing finishes" is incomplete. `run_catalog_check` sits between
+`_upsert_audit_digest` and `_mark_topic_unread`, and an ordinary failure there leaves the same state
+on purpose: `test_post_build_check_failure_keeps_source_and_digest_coherent` asserts the fetched PDF
+and the audit row survive while coverage is byte-identical, and `CLAUDE.md` describes that outcome as
+intended. Ruling 7's resume reaches it unchanged; ruling 8's refusal was ruled without this route in
+view, which is why ruling 9 exists.
+
+**Rulings 7 and 8 collide at the preflight.** `fetch_replacement` raises when `audit(...)` returns
+failures, and `main`'s `--read` path does the same before any read. A finding in `audit().failures`
+would therefore refuse the very rerun ruling 7 depends on, and every `--read`, which is why ruling 10
+exists.
+
+## Ruling 9. A half-finished handoff refuses whichever route left it
+
+Ruling 8's refusal applies whether an interruption or a failed catalog check left the state. The files
+cannot tell the two apart, and both would commit coverage that treats retired guidance as a live
+source. The remedy is the same for both: correct the cause and rerun, which ruling 7 resumes. The
+build rewords `test_post_build_check_failure_keeps_source_and_digest_coherent` so *coherent* names the
+digest agreeing with the fetched bytes, never a complete handoff.
+
+**Rejected:** refusing only an interruption, which would record a stop reason in the receipt and let a
+stale failure marker hide a real interruption; and an advisory finding, which lets the state be
+committed.
+
+## Ruling 10. The finding blocks the commit and the default audit, and neither preflight
+
+The half-finished handoff finding exits 1 from the default `guidelines_currency.py` audit and so from
+the hook. Both preflights set it aside, and nothing else:
+
+- **`--read`** sets it aside always. A read stamps the registry and writes neither the audit ledger nor
+  `coverage.md`, so it cannot deepen the state.
+- **`--fetch-replacement`** sets it aside only for the handoff it is resuming: the same retired
+  document and replacement, with the destination PDF's SHA-256 equal to its receipt's. A different
+  unfinished handoff still refuses a new fetch.
+
+Every other registry failure refuses both preflights as it does today.
+
+**Rejected:** refusing `--read` as well, which blocks observations over a state they cannot worsen; and
+letting a resume skip the preflight, which drops every other registry check along with the one it
+needs to pass.
