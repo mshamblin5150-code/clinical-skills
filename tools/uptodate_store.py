@@ -332,7 +332,7 @@ def entitled_topics(store: Path | None = None) -> set[str]:
 def is_filed_source(source: Path, store: Path | None = None) -> bool:
     """Whether ``source`` exactly matches a validated dump manifest."""
     root = (store or default_store()).expanduser().resolve()
-    digest = _sha256(source.expanduser().resolve())
+    digest = file_digest.sha256(source.expanduser().resolve())
     return any(
         manifest["source_sha256"] == digest
         for _manifest_path, manifest in _manifest_rows(root)
