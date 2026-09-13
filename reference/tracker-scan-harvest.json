@@ -10,10 +10,10 @@
     }
   },
   "population": {
-    "tracker-comments.json": 4392,
-    "tracker-issues.json": 1132,
+    "tracker-comments.json": 4757,
+    "tracker-issues.json": 1241,
     "tracker-reviews.json": 0
   },
-  "ran_on": "2026-09-11",
+  "ran_on": "2026-09-13",
   "version": 2
 }
