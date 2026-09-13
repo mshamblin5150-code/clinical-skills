@@ -111,7 +111,7 @@ FINGERPRINT_FILE = assignment_docx.FINGERPRINT_FILE
 class Bar:
     signed: date
     word_min: int
-    word_max: int
+    word_max: int | None
     reference_min: int
 
 
@@ -156,6 +156,13 @@ def _positive(envelope: assignment_bar.Envelope, name: str) -> int:
     return int(value)
 
 
+def _word_max(envelope: assignment_bar.Envelope) -> int | None:
+    value = envelope.fields["WORD-MAX"]
+    if value.casefold() == "none":
+        return None
+    return _positive(envelope, "WORD-MAX")
+
+
 def _read_bar(text: str, envelope: assignment_bar.Envelope | None = None) -> Bar:
     envelope = envelope or assignment_bar.parse(text)
     for name in REQUIRED_BAR_FIELDS:
@@ -171,9 +178,7 @@ def _read_bar(text: str, envelope: assignment_bar.Envelope | None = None) -> Bar
             "a DOCX course assignment requires SUBMISSION-TYPE file-upload"
         )
     word_min = _positive(envelope, "WORD-MIN")
-    word_max = _positive(envelope, "WORD-MAX")
-    if word_min > word_max:
-        raise run_grader.SourceError("bar.md WORD-MIN cannot exceed WORD-MAX")
+    word_max = _word_max(envelope)
     research_ledger.read_bar(
         "SOURCE-CLASSES: "
         + envelope.fields["SOURCE-CLASSES"]
@@ -402,11 +407,11 @@ def survey(source: Source) -> Scan:
     findings = list(source.package_findings)
     body = document.body
     body_words = len(WORD.findall(body))
-    if not source.bar.word_min <= body_words <= source.bar.word_max:
+    if body_words < source.bar.word_min:
         findings.append(
             Finding(
                 WORD_RANGE,
-                f"{body_words} body words is outside {source.bar.word_min}-{source.bar.word_max}",
+                f"{body_words} body words is below {source.bar.word_min}",
             )
         )
     if len(references) < source.bar.reference_min:

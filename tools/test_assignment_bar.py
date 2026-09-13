@@ -82,6 +82,26 @@ class ArtifactDiscrimination(unittest.TestCase):
 
         self.assertEqual(0, status)
 
+    def test_docx_bar_can_leave_the_word_maximum_unbounded(self):
+        with tempfile.TemporaryDirectory() as directory:
+            run = Path(directory)
+            unbounded = DOCX_BAR.replace("WORD-MAX: 1200", "WORD-MAX: none")
+            (run / "bar.md").write_text(unbounded, encoding="utf-8")
+
+            status = course_assignment_scan.main([str(run), "--bar-only"])
+
+        self.assertEqual(0, status)
+
+    def test_numeric_word_maximum_is_recorded_without_blocking_the_bar(self):
+        with tempfile.TemporaryDirectory() as directory:
+            run = Path(directory)
+            recorded = DOCX_BAR.replace("WORD-MAX: 1200", "WORD-MAX: 1")
+            (run / "bar.md").write_text(recorded, encoding="utf-8")
+
+            status = course_assignment_scan.main([str(run), "--bar-only"])
+
+        self.assertEqual(0, status)
+
     def test_bar_only_validation_rejects_an_incomplete_docx_branch(self):
         with tempfile.TemporaryDirectory() as directory:
             run = Path(directory)
