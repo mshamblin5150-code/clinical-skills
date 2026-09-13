@@ -17,6 +17,13 @@ from console_codec import require_python_floor, use_utf8
 from prose_bind import normalized
 
 
+UNSUPPRESSED_LINES = ("finding", "never-checked", "gone-stale")
+
+
+def _quiet_keeps(name: str) -> bool:
+    return name in UNSUPPRESSED_LINES
+
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_SHEET = REPO_ROOT / "skills" / "_shared" / "reference" / "apa7.md"
 DEFAULT_COVERAGE = (
@@ -361,9 +368,18 @@ def main(argv: list[str] | None = None) -> int:
     sections = sheet_sections(sheet_text)
     entries, parse_problems = parse_registry(coverage_text)
     failures, stale = audit(entries, sections)
-    for failure in parse_problems + failures:
-        print(f"REFUSING: {failure}", file=sys.stderr)
-    print(format_report(entries, stale), end="")
+    if _quiet_keeps("finding"):
+        for failure in parse_problems + failures:
+            print(f"REFUSING: {failure}", file=sys.stderr)
+    report = format_report(entries, stale)
+    if not args.quiet:
+        print(report, end="")
+    else:
+        lines = report.splitlines()
+        if _quiet_keeps("never-checked"):
+            print(next(line for line in lines if line.startswith("never-checked")))
+        if _quiet_keeps("gone-stale"):
+            print(next(line for line in lines if line.startswith("gone-stale")))
     if parse_problems or failures:
         return 1
     return 0

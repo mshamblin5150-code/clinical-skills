@@ -110,7 +110,7 @@ class Apa7CoverageCli(unittest.TestCase):
                 check=False,
             )
 
-    def test_counts_survive_quiet_and_distinguish_read_depth(self):
+    def test_only_coverage_qualifiers_survive_quiet(self):
         result = self.run_cli(
             sheet(),
             registry(
@@ -134,9 +134,6 @@ class Apa7CoverageCli(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(
             result.stdout,
-            "manual items   345\n"
-            "read-to-root   1\n"
-            "ruled-out      1\n"
             "never-checked  343\n"
             "gone-stale     0\n",
         )
@@ -167,7 +164,7 @@ class Apa7CoverageCli(unittest.TestCase):
         self.assertIn("has no <!-- schema: apa7-coverage/1 --> marker", result.stderr)
         self.assertIn("manual item '2.1' has unknown state 'guessed'", result.stderr)
         self.assertIn("missing manual item '2.2'", result.stderr)
-        self.assertIn("manual items   344", result.stdout)
+        self.assertNotIn("manual items", result.stdout)
         self.assertIn("never-checked  343", result.stdout)
 
     def test_rule_identity_drift_refuses_with_the_recompute_remedy(self):

@@ -27,6 +27,14 @@ from urllib.parse import urlparse
 from console_codec import require_python_floor, use_utf8
 import uptodate_store
 
+
+UNSUPPRESSED_LINES = ("finding",)
+
+
+def _quiet_keeps(name: str) -> bool:
+    return name in UNSUPPRESSED_LINES
+
+
 REQUIRED_FIELDS = (
     "AUTHORS",
     "TITLE",
@@ -239,8 +247,9 @@ def main(argv: list[str]) -> int:
         return 2
     findings = [(path, row) for path, scan in scans for row in scan.findings]
     if findings:
-        for path, finding in findings:
-            print(f"{path.name}: {finding.kind}: {finding.detail}", file=sys.stderr)
+        if _quiet_keeps("finding"):
+            for path, finding in findings:
+                print(f"{path.name}: {finding.kind}: {finding.detail}", file=sys.stderr)
         return 1
     if not args.quiet:
         for path, scan in scans:

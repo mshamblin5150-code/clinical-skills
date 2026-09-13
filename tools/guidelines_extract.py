@@ -310,6 +310,13 @@ from console_codec import require_python_floor, use_utf8
 from guidelines_manifest import MANIFEST_NAME, Record, serialize_record
 from repo_root import InsideCheckout, ensure_outside_checkout
 
+UNSUPPRESSED_LINES = ("failure",)
+
+
+def _quiet_keeps(name: str) -> bool:
+    return name in UNSUPPRESSED_LINES
+
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 # Figures whose producers #404 deletes. Each row names why it is historical rather
@@ -1843,6 +1850,12 @@ def _run(args: argparse.Namespace, source_root: Path, out_root: Path) -> int:
     manifest = write_manifest(out_root, records, source_root)
 
     failures = [record for record in records if record.error]
+    if args.quiet:
+        if failures and _quiet_keeps("failure"):
+            print(f"FAILED {len(failures)}:", file=sys.stderr)
+            for record in failures:
+                print(f"  {record.source}: {record.error}", file=sys.stderr)
+        return 1 if failures else 0
     # Every class, not only the captures. Since #185 this is the vocabulary
     # `reference/guidelines-catalog.md` publishes and `guidelines_search.py --class`
     # filters on, so the breakdown is the one command that re-derives the figures
@@ -1914,9 +1927,9 @@ def _run(args: argparse.Namespace, source_root: Path, out_root: Path) -> int:
 
     if failures:
         print()
-        print(f"FAILED {len(failures)}:")
+        print(f"FAILED {len(failures)}:", file=sys.stderr)
         for record in failures:
-            print(f"  {record.source}: {record.error}")
+            print(f"  {record.source}: {record.error}", file=sys.stderr)
         return 1
     return 0
 

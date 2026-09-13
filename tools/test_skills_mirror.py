@@ -15,7 +15,7 @@ import json
 import os
 import subprocess
 import unittest
-from contextlib import nullcontext, redirect_stdout
+from contextlib import nullcontext, redirect_stderr, redirect_stdout
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
@@ -679,7 +679,7 @@ class RepairTests(TempCheckout):
 class CliTests(TempCheckout):
     def run_main(self, *argv):
         buf = io.StringIO()
-        with redirect_stdout(buf):
+        with redirect_stdout(buf), redirect_stderr(buf):
             code = sm.main([*argv, "--root", str(self.root)])
         return code, buf.getvalue()
 

@@ -771,6 +771,16 @@ POPULATIONS = {
     "commit-message": "the supplied commit message -- no tracked file is scanned",
 }
 
+UNSUPPRESSED_LINES = (
+    "finding-report",
+    "population-qualifier",
+    "vocabulary-qualifier",
+)
+
+
+def _quiet_keeps(name: str) -> bool:
+    return name in UNSUPPRESSED_LINES
+
 
 # spelling-scan: mentions 1
 def scanned_population(mode: str) -> str:
@@ -890,7 +900,7 @@ def vocabulary_covered() -> str:
 
 def render(report: Report, quiet: bool, mode: str) -> list[str]:
     lines: list[str] = []
-    if report.findings:
+    if report.findings and _quiet_keeps("finding-report"):
         lines.append(
             "spelling-scan: listed British spelling found. Standing rule 4: "
             "American English, always."
@@ -936,8 +946,9 @@ def render(report: Report, quiet: bool, mode: str) -> list[str]:
     # combination here -- and it is the whole distinction, since `--quiet --all`
     # has no caller in this repo and the argument cannot rest on who runs it.
     # #258.
-    if report.findings or not quiet:
+    if (report.findings and _quiet_keeps("population-qualifier")) or not quiet:
         lines.append(scanned_population(mode))
+    if (report.findings and _quiet_keeps("vocabulary-qualifier")) or not quiet:
         lines.append(vocabulary_covered())
     return lines
 
@@ -996,8 +1007,9 @@ def main(argv: list[str] | None = None) -> int:
     else:
         mode, report = "staged", scan_staged()
 
+    stream = sys.stderr if report.findings else sys.stdout
     for line in render(report, args.quiet, mode):
-        print(line)
+        print(line, file=stream)
     return 1 if report.findings else 0
 
 
