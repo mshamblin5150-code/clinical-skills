@@ -63,7 +63,9 @@ function Table-Record($Table, [int]$Index) {
         }
     }
     $rowBottoms = @()
+    $rowPages = @()
     foreach ($row in $Table.Rows) {
+        $rowPages += [int]$row.Range.Information($WdActiveEndPageNumber)
         $cellBottoms = @()
         foreach ($cell in $row.Cells) {
             $cellBottoms += Border-LineStyle $cell.Borders $WdBorderBottom
@@ -85,6 +87,7 @@ function Table-Record($Table, [int]$Index) {
         }
         header_cell_bottoms = $headerBottoms
         row_cell_bottoms = $rowBottoms
+        row_pages = $rowPages
     }
 }
 
@@ -100,6 +103,7 @@ try {
         $document = $null
         try {
             $document = $word.Documents.Open($file.FullName, $false, $true, $false)
+            $document.Repaginate()
             $paragraphs = @()
             for ($i = 1; $i -le $document.Paragraphs.Count; $i++) {
                 $paragraphs += Paragraph-Record $document.Paragraphs.Item($i) $i

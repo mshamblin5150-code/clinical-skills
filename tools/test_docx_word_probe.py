@@ -61,6 +61,66 @@ class EveryCalibrationHasAWordFreeRendererShape(unittest.TestCase):
                 self.assertTrue(shape)
 
 
+class ThePrescriptionPadCalibrationFamily(unittest.TestCase):
+    STYLE = (
+        Path(__file__).resolve().parent.parent
+        / "skills"
+        / "_shared"
+        / "reference"
+        / "style.md"
+    )
+    RECORD = (
+        Path(__file__).resolve().parent.parent
+        / "skills"
+        / "_shared"
+        / "reference"
+        / "word-renderer-calibration.json"
+    )
+
+    def test_style_section_eight_names_each_family_key_once(self):
+        text = self.STYLE.read_text(encoding="utf-8")
+        section = text[text.index("## 8.") : text.index("## 9.")]
+
+        for spec in docx_word_probe.PAD_CALIBRATIONS:
+            self.assertIn(spec.row_phrase, section)
+            self.assertEqual(section.count("`" + spec.key + "`"), 1)
+
+    def test_the_word_free_tripwire_records_every_pad_paragraph(self):
+        shapes = docx_word_probe.pad_renderer_shapes()
+        shape = shapes["prescription-pad-pagination"]
+
+        self.assertEqual(len(shape["table_paragraphs"]), 12)
+        self.assertTrue(all(row["keep_next"] for row in shape["table_paragraphs"]))
+        self.assertTrue(all(row["keep_next_first"] for row in shape["table_paragraphs"]))
+        self.assertEqual(
+            shape["post_table_paragraphs"],
+            [
+                {"text": "", "keep_next": True},
+                {"text": "Pharmacologic prose.", "keep_next": False},
+            ],
+        )
+        self.assertTrue(shape["first_row_is_header"])
+        self.assertEqual(shape["cant_split_count"], 0)
+
+    def test_the_committed_word_record_distinguishes_binding_from_luck(self):
+        record = json.loads(self.RECORD.read_text(encoding="utf-8"))
+        specs = {spec.key: spec for spec in docx_word_probe.PAD_CALIBRATIONS}
+
+        self.assertEqual(set(record["pad_rows"]), set(specs))
+        for key, row in record["pad_rows"].items():
+            with self.subTest(key=key):
+                self.assertEqual(row["measured_on"], "2026-09-13")
+                self.assertEqual(row["word_version"], "16.0")
+                self.assertTrue(row["word_build"])
+                self.assertEqual(row["verdict"], specs[key].verdict)
+                self.assertTrue(row["control_split_positions"])
+                self.assertEqual(row["bound_split_positions"], [])
+                self.assertEqual(row["bound_prose_separation_positions"], [])
+                self.assertEqual(
+                    row["renderer_shape"], docx_word_probe.pad_renderer_shapes()[key]
+                )
+
+
 class TheCommittedWordMeasurement(unittest.TestCase):
     RECORD = (
         Path(__file__).resolve().parent.parent
@@ -170,6 +230,16 @@ class TheMaintainerCommand(unittest.TestCase):
             set(docx_word_probe.PASTE_PROBES),
             {spec.key for spec in docx_word_probe.PASTE_CALIBRATIONS},
         )
+        self.assertEqual(
+            set(docx_word_probe.pad_probe_parts()),
+            {
+                "prescription-pad-pagination-{mode}-{fillers:02d}".format(
+                    mode=mode, fillers=fillers
+                )
+                for mode in ("bound", "control")
+                for fillers in docx_word_probe.PAD_FILLERS
+            },
+        )
 
     def test_shape_mode_prints_the_word_free_side_without_opening_word(self):
         output = io.StringIO()
@@ -185,6 +255,10 @@ class TheMaintainerCommand(unittest.TestCase):
         self.assertEqual(
             set(report["paste_rows"]),
             {spec.key for spec in docx_word_probe.PASTE_CALIBRATIONS},
+        )
+        self.assertEqual(
+            set(report["pad_rows"]),
+            {spec.key for spec in docx_word_probe.PAD_CALIBRATIONS},
         )
 
 

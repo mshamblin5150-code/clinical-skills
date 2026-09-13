@@ -13,6 +13,7 @@ import sys
 import tempfile
 import zipfile
 from dataclasses import dataclass
+from datetime import date
 from pathlib import Path
 from xml.etree import ElementTree
 
@@ -80,6 +81,14 @@ PASTE_CALIBRATIONS = (
     ),
 )
 
+PAD_CALIBRATIONS = (
+    Calibration(
+        "prescription-pad-pagination",
+        "The pad stays on one page with the start of its prose",
+        "observed",
+    ),
+)
+
 
 W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 R_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
@@ -107,6 +116,18 @@ BLOCK_QUOTATION = (
     "> Second authored block quotation paragraph.\n"
 )
 WORD_SAVE_EDIT = "Calibration edit."
+PAD_FILLERS = tuple(range(8, 30))
+PAD_TABLE = (
+    "| | | |\n"
+    "| --- | --- | --- |\n"
+    "| Patient | DOB x-x-xxx | NPI # 1234567890 |\n"
+    "| Ceftriaxone 500 mg IM once |\n"
+    "| Disp: 1 vial |\n"
+    "| Sig: Inject 500 mg into the muscle one time for infection |\n"
+    "| M. S. FNP-C, CEN, TCRN |\n"
+    "| Refill: none | DEA number on file with pharmacy |\n"
+)
+PAD_PROSE = "Pharmacologic prose."
 
 PROBES = {
     "body-defaults": COMMON,
@@ -172,6 +193,32 @@ def _write_parts(parts: dict[str, bytes], destination: Path) -> None:
     with zipfile.ZipFile(destination, "w", zipfile.ZIP_DEFLATED) as archive:
         for name, content in parts.items():
             archive.writestr(name, content)
+
+
+def _pad_markdown(fillers: int) -> str:
+    prefix = "".join("Filler paragraph {n}.\n\n".format(n=n + 1) for n in range(fillers))
+    return prefix + PAD_TABLE + "\n" + PAD_PROSE + "\n"
+
+
+def _without_keep_next(parts: dict[str, bytes]) -> dict[str, bytes]:
+    control = dict(parts)
+    control["word/document.xml"] = control["word/document.xml"].replace(
+        b"<w:keepNext/>", b""
+    )
+    return control
+
+
+def pad_probe_parts() -> dict[str, dict[str, bytes]]:
+    """Bound and unbound pad probes at every calibrated page position."""
+
+    probes = {}
+    for fillers in PAD_FILLERS:
+        bound = _rendered_parts(_pad_markdown(fillers))
+        probes["prescription-pad-pagination-bound-{n:02d}".format(n=fillers)] = bound
+        probes["prescription-pad-pagination-control-{n:02d}".format(n=fillers)] = (
+            _without_keep_next(bound)
+        )
+    return probes
 
 
 def _root(parts: dict[str, bytes], name: str):
@@ -513,6 +560,106 @@ def paste_renderer_shapes() -> dict[str, dict]:
     return shapes
 
 
+def _keeps_next(paragraph) -> bool:
+    return paragraph.find("./" + W + "pPr/" + W + "keepNext") is not None
+
+
+def pad_renderer_shapes() -> dict[str, dict]:
+    """The pad XML whose pagination was measured once in Word."""
+
+    document = _root(_rendered_parts(_pad_markdown(0)), "word/document.xml")
+    table = document.find(".//" + W + "tbl")
+    table_paragraphs = []
+    for row_index, row in enumerate(table.findall("./" + W + "tr"), 1):
+        for cell_index, cell in enumerate(row.findall("./" + W + "tc"), 1):
+            for paragraph in cell.findall("./" + W + "p"):
+                properties = paragraph.find("./" + W + "pPr")
+                table_paragraphs.append(
+                    {
+                        "row": row_index,
+                        "cell": cell_index,
+                        "text": "".join(node.text or "" for node in paragraph.iter(W + "t")),
+                        "keep_next": _keeps_next(paragraph),
+                        "keep_next_first": (
+                            properties is not None
+                            and len(properties) > 0
+                            and properties[0].tag == W + "keepNext"
+                        ),
+                    }
+                )
+
+    body = document.find("./" + W + "body")
+    children = list(body)
+    table_index = children.index(table)
+    post_table = [node for node in children[table_index + 1 :] if node.tag == W + "p"][:2]
+    return {
+        "prescription-pad-pagination": {
+            "table_paragraphs": table_paragraphs,
+            "post_table_paragraphs": [
+                {
+                    "text": "".join(text.text or "" for text in paragraph.iter(W + "t")),
+                    "keep_next": _keeps_next(paragraph),
+                }
+                for paragraph in post_table
+            ],
+            "first_row_is_header": table.find(
+                "./" + W + "tr/" + W + "trPr/" + W + "tblHeader"
+            )
+            is not None,
+            "cant_split_count": len(table.findall(".//" + W + "cantSplit")),
+        }
+    }
+
+
+def pad_word_measurement(report: dict) -> dict[str, dict]:
+    """Summarize the page evidence from the PowerShell Word probe."""
+
+    positions = {"bound": [], "control": []}
+    prose_separations = {"bound": [], "control": []}
+    for document in report["documents"]:
+        if not document["key"].startswith("prescription-pad-pagination-"):
+            continue
+        _prefix, mode, filler_text = document["key"].rsplit("-", 2)
+        fillers = int(filler_text)
+        row_pages = document["tables"][0]["row_pages"]
+        prose_page = next(
+            paragraph["page"]
+            for paragraph in document["paragraphs"]
+            if paragraph["text"] == PAD_PROSE
+        )
+        if len(set(row_pages)) > 1:
+            positions[mode].append(fillers)
+        if prose_page != row_pages[-1]:
+            prose_separations[mode].append(fillers)
+
+    spec = PAD_CALIBRATIONS[0]
+    position_text = lambda values: ", ".join(str(value) for value in values) or "none"
+    return {
+        spec.key: {
+            "measured_on": date.today().isoformat(),
+            "word_version": report["word_version"],
+            "word_build": report["word_build"],
+            "verdict": spec.verdict,
+            "word_observation": (
+                "Control split positions: {control_splits}; control prose separation "
+                "positions: {control_prose}; bound split positions: {bound_splits}; "
+                "bound prose separation positions: {bound_prose}."
+            ).format(
+                control_splits=position_text(positions["control"]),
+                control_prose=position_text(prose_separations["control"]),
+                bound_splits=position_text(positions["bound"]),
+                bound_prose=position_text(prose_separations["bound"]),
+            ),
+            "filler_positions": list(PAD_FILLERS),
+            "control_split_positions": positions["control"],
+            "control_prose_separation_positions": prose_separations["control"],
+            "bound_split_positions": positions["bound"],
+            "bound_prose_separation_positions": prose_separations["bound"],
+            "renderer_shape": pad_renderer_shapes()[spec.key],
+        }
+    }
+
+
 def word_report() -> dict:
     """Render one probe per row, ask installed Word what it draws, and return JSON data."""
 
@@ -523,6 +670,8 @@ def word_report() -> dict:
             docx_write.write_docx(markdown, root / (key + ".docx"))
         for key, mode in PASTE_PROBES.items():
             _write_parts(_paste_probe_parts(mode), root / (key + ".docx"))
+        for key, parts in pad_probe_parts().items():
+            _write_parts(parts, root / (key + ".docx"))
         docx_write.write_docx(TITLE, root / "word-saved.docx")
         completed = subprocess.run(
             [
@@ -547,6 +696,12 @@ def word_report() -> dict:
             raise RuntimeError("Word COM probe exited {n}".format(n=completed.returncode))
         report = json.loads(completed.stdout)
         saved_copy = Path(report.pop("saved_copy"))
+        report["pad_rows"] = pad_word_measurement(report)
+        report["documents"] = [
+            document
+            for document in report["documents"]
+            if not document["key"].startswith("prescription-pad-pagination-")
+        ]
         with zipfile.ZipFile(saved_copy) as archive:
             saved_parts = sorted(archive.namelist())
         original_parts = sorted(docx_write.PART_NAMES)
@@ -560,6 +715,7 @@ def word_report() -> dict:
         }
     report["renderer_shapes"] = renderer_shapes()
     report["paste_renderer_shapes"] = paste_renderer_shapes()
+    report["pad_renderer_shapes"] = pad_renderer_shapes()
     return report
 
 
@@ -572,6 +728,7 @@ def main(argv=None) -> int:
                     "instrument": "renderer XML shape only; Word not opened",
                     "rows": renderer_shapes(),
                     "paste_rows": paste_renderer_shapes(),
+                    "pad_rows": pad_renderer_shapes(),
                 },
                 indent=2,
                 sort_keys=True,

@@ -161,7 +161,9 @@ ROW_PHRASES = {
     scan.SCAFFOLDING_PHRASE: "no scaffolding language",
     scan.DIAGNOSIS_ALL_BOLD: "the Most Likely Clinical Diagnosis not set wholly bold",
     scan.SIGNATURE_DATE_SPLIT: "the signature and its date on one line",
-    scan.RX_TABLE_SHAPE: "the prescription table at six rows and three columns wide",
+    scan.RX_TABLE_SHAPE: (
+        "the prescription table with an empty first row, six rows and three columns wide"
+    ),
     scan.NO_STOP_CRITERION: "a drug that continues carrying a stop criterion",
     scan.PROPOSED_HEADING: "no `PROPOSED (verify before use)` heading in the submission",
     scan.UNMARKED_BLOCK_QUOTATION: (
@@ -554,6 +556,18 @@ class TheTwoPrescriptionRows(unittest.TestCase):
 
     def test_the_documented_shape_passes(self):
         self.assertNotIn(scan.RX_TABLE_SHAPE, kinds(CLEAN))
+
+    def test_a_prescription_table_with_text_in_its_first_row_fires(self):
+        table = RX_TABLE.replace("| | | |", "| Patient | DOB | NPI |", 1)
+
+        found = [
+            finding
+            for finding in survey(CLEAN.replace(RX_TABLE, table)).findings
+            if finding.kind == scan.RX_TABLE_SHAPE
+        ]
+
+        self.assertEqual(len(found), 1)
+        self.assertIn("first row", found[0].what)
 
     def test_a_one_column_table_fires(self):
         table = "| |\n| --- |\n| `<patient>` |\n| Ceftriaxone 500 mg IM once |\n"
@@ -1232,9 +1246,12 @@ class TheDocumentedShapesPass(unittest.TestCase):
         text = STYLE.read_text("utf-8")
         block = text[text.index("## 8. Rx") :]
         block = block[: block.index("\n\n**The table is three columns")]
+        tables = docx_write.markdown_tables(block)
         rows = [b for b in docx_write.blocks(block) if b.kind == "table"]
+        self.assertEqual(len(tables), 1)
         self.assertEqual(len(rows), 1)
         self.assertEqual(tuple(len(row) for row in rows[0].rows[1:]), scan.RX_ROW_CELLS)
+        self.assertNotIn(scan.RX_TABLE_SHAPE, kinds(CLEAN.replace(RX_TABLE, tables[0])))
 
     def test_the_section_one_a_review_of_systems_example_carries_no_table(self):
         text = STYLE.read_text("utf-8")

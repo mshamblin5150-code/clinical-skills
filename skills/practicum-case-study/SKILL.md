@@ -1227,8 +1227,8 @@ carrying one**, **no paragraph holding two or more field labels in the Review of
 Examination, or Developmental History**, **every top-level numbered MDM entry carrying an in-text
 citation**, **every named cross-reference resolving within its section**, no scaffolding language
 from §1a's closed set, the Most Likely Clinical Diagnosis
-not set wholly bold, the signature and its date on one line, the prescription table at six rows and
-three columns wide, **a drug that continues carrying a stop criterion**, **no `PROPOSED
+not set wholly bold, the signature and its date on one line, the prescription table with an empty
+first row, six rows and three columns wide, **a drug that continues carrying a stop criterion**, **no `PROPOSED
 (verify before use)` heading in the submission** — that review block belongs in the run directory —
 and **a source quotation of 40 words or more carrying authored `> ` block markup**.
 
