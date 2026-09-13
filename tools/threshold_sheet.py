@@ -687,6 +687,7 @@ class CitationTier2Result(GateResult):
 @dataclass(frozen=True)
 class WatermarkResult(GateResult):
     tier2_skip_diagnostics: tuple[str, ...] = ()
+    manifest_problem_count: int = 0
 
 
 @dataclass(frozen=True)
@@ -1683,6 +1684,7 @@ def _watermark_not_run(
     *,
     diagnostics: tuple[str, ...],
     tier2_skip_diagnostics: tuple[str, ...] = (),
+    manifest_problem_count: int = 0,
     fatal: bool = False,
 ) -> WatermarkResult:
     """Build the shared absent-corpus result while retaining its distinct metadata."""
@@ -1695,6 +1697,7 @@ def _watermark_not_run(
         )),
         diagnostics=diagnostics,
         tier2_skip_diagnostics=tier2_skip_diagnostics,
+        manifest_problem_count=manifest_problem_count,
         fatal=fatal,
     )
 
@@ -1792,6 +1795,7 @@ def gate_watermark(
             reason,
             diagnostics=(manifest_diagnostic,),
             tier2_skip_diagnostics=(f"  WATERMARK       NOT RUN -- {reason}",),
+            manifest_problem_count=len(handoff.problems),
             fatal=fatal,
         )
 
@@ -1873,8 +1877,20 @@ def gate_watermark(
         findings,
         lines=lines,
         diagnostics=diagnostics,
+        manifest_problem_count=len(handoff.problems),
         not_graded=declaration_verdict.not_graded,
     )
+
+
+def _watermark_diagnostic_lines(result: WatermarkResult) -> tuple[Line, ...]:
+    """Class the manifest count separately from coverage-limiting diagnostics."""
+    first = result.diagnostics[:1]
+    manifest = (
+        _coverage_qualifier_lines(first)
+        if result.manifest_problem_count
+        else _state_lines(first)
+    )
+    return manifest + _coverage_qualifier_lines(result.diagnostics[1:])
 
 
 # The line gate 5 prints on every run it makes, clean or not. #83 states the caveat
@@ -3127,14 +3143,13 @@ def survey(
         for key, origin in sorted(bound_records.origins.items())
     ))
     diagnostics.extend(_coverage_qualifier_lines(extraction_identity.diagnostics))
-    diagnostics.extend(_coverage_qualifier_lines(watermark.diagnostics[:1]))
+    diagnostics.extend(_watermark_diagnostic_lines(watermark))
     diagnostics.extend(_finding_lines(f"  FAIL  {message}" for message in refusals))
     diagnostics.extend(_coverage_qualifier_lines(f"  WARN  {message}" for message in warnings))
     diagnostics.extend(_coverage_qualifier_lines(
         f"  NOT DIFFED  {message}"
         for message in second_read_result.undiffed + second_read_result.uncovered
     ))
-    diagnostics.extend(_coverage_qualifier_lines(watermark.diagnostics[1:]))
     diagnostics.extend(_coverage_qualifier_lines(second_read_result.diagnostics))
     diagnostics.extend(_coverage_qualifier_lines(coverage.diagnostics))
     if tier2.skipped:
@@ -3433,7 +3448,11 @@ def main(argv: list[str]) -> int:
                     sheet=Sheet(path=SHEET_ROOT, ok=False),
                     status=2,
                     diagnostics=_coverage_qualifier_lines(
-                        (f"no sheet under {SHEET_ROOT}",)
+                        (
+                            _with_sheet_denominator(
+                                f"no sheet under {SHEET_ROOT}", 0, 0
+                            ),
+                        )
                     ),
                     reportable=False,
                 ),

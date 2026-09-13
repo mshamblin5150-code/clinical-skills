@@ -2587,6 +2587,7 @@ class QuietSuppressesTheReportAndNeverAFinding(unittest.TestCase):
         self.assertEqual(status, 2)
         self.assertEqual(out.getvalue(), "")
         self.assertIn("no sheet under", err.getvalue())
+        self.assertIn("0 of 0 sheets", err.getvalue())
 
     def test_all_excludes_the_topic_coverage_registry_and_subject_ledger(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -5384,6 +5385,31 @@ class WatermarkGate(ReadingManifestConformance, unittest.TestCase):
         )
 
         self.assertIn("0 manifest problem(s)", "\n".join(result.diagnostics))
+        self.assertEqual(
+            gate._watermark_diagnostic_lines(result)[0].kind,
+            gate.LineKind.STATE,
+        )
+
+    def test_quiet_survey_suppresses_the_clean_manifest_problem_count(self):
+        text_corpus(self.root, "Society/doc", "an SBP goal of <130 mm Hg")
+        sheet_path = self.root / "sheet.md"
+        sheet_path.write_text(
+            header() + "\n## Thresholds\n\n" + row(), encoding="utf-8"
+        )
+        recs_path = self.root / "recs.json"
+        recs_path.write_text(json.dumps(record("p41/goal/1")), encoding="utf-8")
+        out, err = io.StringIO(), io.StringIO()
+
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            grade(
+                sheet_path,
+                [str(recs_path)],
+                Path("C:/nowhere-at-all"),
+                quiet=True,
+                text_root=self.root,
+            )
+
+        self.assertNotIn("0 manifest problem(s)", out.getvalue() + err.getvalue())
 
     def test_one_bad_sibling_does_not_discard_a_valid_documents_probes(self):
         text_corpus(
@@ -5406,6 +5432,10 @@ class WatermarkGate(ReadingManifestConformance, unittest.TestCase):
         self.assertNotIn("NOT RUN", "\n".join(report_lines(result)))
         self.assertEqual(len(failures), 1)
         self.assertIn("1 manifest problem(s)", "\n".join(result.diagnostics))
+        self.assertEqual(
+            gate._watermark_diagnostic_lines(result)[0].kind,
+            gate.LineKind.COVERAGE_QUALIFIER,
+        )
 
     def test_the_value_cell_is_probed_as_well_as_the_snippet(self):
         """#83 says *inside an extracted table row*, and both cells are transcribed
