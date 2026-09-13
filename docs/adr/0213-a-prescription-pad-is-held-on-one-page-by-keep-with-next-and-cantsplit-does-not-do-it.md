@@ -1,6 +1,6 @@
 # A prescription pad is held on one page by keep-with-next and cantSplit does not do it
 
-**Measured at:** 928e26cec9f6efad853d9f362cd423e69e3b2c56
+**Measured at:** 8aa2d479f5425a41a8c7ebca7063f2bc4ba6fc8b
 
 [#1023](https://github.com/mshamblin5150-code/clinical-skills/issues/1023) was filed by the
 after-action review of one `practicum-case-study` run (NUR 5144 Module 2). Page images from three
