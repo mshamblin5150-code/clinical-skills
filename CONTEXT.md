@@ -336,8 +336,12 @@ The committed distillation of one supplied topic: the source's own summary secti
 _Avoid_: summary, digest, extract, article, evidence sheet
 
 **Dump manifest**:
-The gitignored record of one **Evidence dump** -- which topics arrived, for which module, on what date. Provenance for the sheets a dump produced, and what the evidence-membership join reads for a run of the account that was handed it; it establishes when a topic arrived, never who may cite it.
+The gitignored record of one **Evidence dump** -- which topics arrived, for which module, on what date, and the fingerprint of the file actually filed. Provenance for the sheets a dump produced, and what the evidence-membership join reads for a run of the account that was handed it; it establishes when a topic arrived, never who may cite it. For a handover that carried no topic titles, the file filed is its **Titled copy**, not the handover.
 _Avoid_: index, inventory, log, catalog
+
+**Titled copy**:
+A run's copy of an **Evidence dump** that was handed over without topic titles, with one title written above each author masthead and the block-to-title mapping kept beside it. It is the file filed into the **Evidence store** and the one a grader is pointed at. The titles in it are a reading, not something the dump supplied, so the handover remains the unit of provenance and the mapping is what makes the reading auditable.
+_Avoid_: reconstructed dump, fixed dump, cleaned evidence
 
 **Instrument**:
 The tool a reader used to attempt an access — a fetch tool, a shell client, a signed-in browser, a local search. A refusal it returns is a fact about the instrument until a second one agrees, so a failed read names the instruments it tried rather than reporting what the source does not contain. Distinct from a **second route**, which compares two *passes*: a route is what one pass took, two passes may take the same route, and one pass may try several instruments before it gives up. An **authenticated route** is one particular instrument, supplied by the clinician's account, and reaches only what a subscription gates.
