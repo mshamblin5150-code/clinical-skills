@@ -407,7 +407,7 @@ def _countable_body(body: str) -> str:
     return MARKDOWN_HEADING.sub("", strip_discussion_markers(body))
 
 
-def _numeric_values(
+def numeric_values(
     body: str, citations: tuple[Citation, ...] | None = None
 ) -> tuple[str, ...]:
     cleaned = body
@@ -1087,7 +1087,7 @@ def survey(source: RunSource) -> Scan:
     records = _claim_records(source.claims)
     reference_key_set = ClaimReferenceIndex.from_records(records)
     body_citations, citations, coverage = _citation_keys(source.body, reference_key_set)
-    numbers = _numeric_values(source.body, body_citations)
+    numbers = numeric_values(source.body, body_citations)
     findings: list[Finding] = list(_posted_reading_findings(source))
     for block in _claim_blocks(source.claims):
         reference = CLAIM_REFERENCE.search(block)
