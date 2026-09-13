@@ -464,11 +464,11 @@ class EveryBehaviorLimitHasALiveHandler(unittest.TestCase):
         "drug-sig-agreement-unseen": ("DeclaredLimitBehaviorControls.test_a_conflicting_sig_does_not_change_the_parsed_order", "ADrugRowIsReadOffTheDispSigPair.test_a_table_carrying_disp_and_no_sig_is_not_a_prescription"),
         "table-record-number-equivalence-unseen": ("AClaimForADosedDrugCarriesTheNumber.test_the_row_never_compares_the_numbers", "AClaimForADosedDrugCarriesTheNumber.test_a_dosed_row_answered_by_a_claim_with_no_number"),
         "partial-prescription-table-nonfatal": ("TheDraftFlagIsGradedAndItsAbsenceIsDeclared.test_a_short_read_is_outside_the_exit_status_and_says_so", "TheDraftFlagIsGradedAndItsAbsenceIsDeclared.test_a_draft_with_no_prescription_table_exits_two"),
-        "evidence-cross-references-ungraded": ("ACarriedTopicIsRecognizedByItsMasthead.test_a_cross_reference_is_not_a_body", "ACarriedTopicIsRecognizedByItsMasthead.test_a_body_is_carried"),
-        "unmastheaded-evidence-body-unseen": ("DeclaredLimitBehaviorControls.test_an_unmastheaded_topic_body_is_not_carried", "ACarriedTopicIsRecognizedByItsMasthead.test_a_body_is_carried"),
-        "non-uptodate-evidence-unjoined": ("ACitedTopicTheDumpDoesNotCarryIsRefused.test_a_journal_citation_is_left_alone", "ACitedTopicTheDumpDoesNotCarryIsRefused.test_an_uncarried_topic_is_a_finding"),
+        "evidence-cross-references-ungraded": ("DeclaredLimitBehaviorControls.test_a_missing_topic_with_no_citation_is_unseen", "ACitedTopicTheFiledSetDoesNotCarryIsRefused.test_an_uncarried_topic_is_a_finding"),
+        "titled-copy-titles-trusted": ("DeclaredLimitBehaviorControls.test_a_declared_title_is_not_compared_with_the_source", "ACitedTopicTheFiledSetDoesNotCarryIsRefused.test_an_uncarried_topic_is_a_finding"),
+        "non-uptodate-evidence-unjoined": ("ACitedTopicTheFiledSetDoesNotCarryIsRefused.test_a_journal_citation_is_left_alone", "ACitedTopicTheFiledSetDoesNotCarryIsRefused.test_an_uncarried_topic_is_a_finding"),
         "unrecognizable-uptodate-entry-unseen": ("DeclaredLimitBehaviorControls.test_an_entry_with_neither_database_nor_locator_is_unseen", "AnUpToDateEntryThisCannotReadIsAFinding.test_an_uptodate_locator_with_no_database_element_is_a_finding"),
-        "uncited-missing-topic-unseen": ("DeclaredLimitBehaviorControls.test_a_missing_topic_with_no_citation_is_unseen", "ACitedTopicTheDumpDoesNotCarryIsRefused.test_an_uncarried_topic_is_a_finding"),
+        "uncited-missing-topic-unseen": ("DeclaredLimitBehaviorControls.test_a_missing_topic_with_no_citation_is_unseen", "ACitedTopicTheFiledSetDoesNotCarryIsRefused.test_an_uncarried_topic_is_a_finding"),
         "draft-rows-optional": ("TheDraftFlagIsGradedAndItsAbsenceIsDeclared.test_without_the_flag_the_three_rows_read_not_graded", "TheDraftFlagIsGradedAndItsAbsenceIsDeclared.test_with_the_flag_the_rows_carry_counts"),
         "evidence-rows-optional": ("TheEvidenceRowsAreWiredInLikeTheDraftRows.test_the_report_says_not_graded_without_the_flag", "TheEvidenceRowsAreWiredInLikeTheDraftRows.test_the_report_states_the_population_when_it_ran"),
         "evidence-without-draft-skips-references": ("DeclaredLimitBehaviorControls.test_evidence_without_draft_supplies_no_reference_entries", "DeclaredLimitBehaviorControls.test_evidence_with_draft_reads_reference_entries"),
@@ -525,12 +525,6 @@ class DeclaredLimitBehaviorControls(unittest.TestCase):
             [ledger.DOSE_NOT_CLAIMED],
         )
 
-    def test_an_unmastheaded_topic_body_is_not_carried(self):
-        self.assertEqual(
-            ledger.carried_topics("A topic title\nTreatment details without a masthead.\n"),
-            set(),
-        )
-
     def test_an_entry_with_neither_database_nor_locator_is_unseen(self):
         record = """\
 ## CLAIM: A claim resting on an unrecognizable entry.
@@ -545,6 +539,13 @@ REFERENCE: Author, A. (2026). Some topic. Retrieved August 20, 2026.
     def test_a_missing_topic_with_no_citation_is_unseen(self):
         self.assertEqual(ledger.evidence_findings([], (), {"A carried topic"}), ([], 0))
 
+    def test_a_declared_title_is_not_compared_with_the_source(self):
+        records = ledger.read_records(ledger_text(cited("A title supplied by the copy")))
+        self.assertEqual(
+            ledger.evidence_findings(records, (), {"A title supplied by the copy"}),
+            ([], 1),
+        )
+
     def test_evidence_without_draft_supplies_no_reference_entries(self):
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
@@ -553,10 +554,16 @@ REFERENCE: Author, A. (2026). Some topic. Retrieved August 20, 2026.
             claims.write_text(ledger_text(CLEAN), encoding="utf-8")
             evidence.write_text(topic("A carried topic"), encoding="utf-8")
             write_bar(root)
+            store = root / "uptodate"
+            uptodate_store.ingest_dump(
+                evidence, store, dump_id="current", module="Current", received_on=AS_OF
+            )
             parsed = run_grader.Parsed(
                 str(claims), values={"--evidence": str(evidence)}
             )
-            with mock.patch.object(ledger, "read_document") as read_document:
+            with mock.patch.object(
+                uptodate_store, "default_store", return_value=store
+            ), mock.patch.object(ledger, "read_document") as read_document:
                 source = ledger._load(parsed)
         read_document.assert_not_called()
         self.assertEqual(source.entries, ())
@@ -571,12 +578,18 @@ REFERENCE: Author, A. (2026). Some topic. Retrieved August 20, 2026.
             evidence.write_text(topic("A carried topic"), encoding="utf-8")
             draft.write_text("## References\nAn entry.\n", encoding="utf-8")
             write_bar(root)
+            store = root / "uptodate"
+            uptodate_store.ingest_dump(
+                evidence, store, dump_id="current", module="Current", received_on=AS_OF
+            )
             parsed = run_grader.Parsed(
                 str(claims),
                 values={"--evidence": str(evidence), "--draft": str(draft)},
             )
             parsed_document = mock.Mock(entries=(mock.Mock(text="An entry."),))
             with mock.patch.object(
+                uptodate_store, "default_store", return_value=store
+            ), mock.patch.object(
                 ledger, "read_document", return_value=parsed_document
             ) as read_document:
                 source = ledger._load(parsed)
@@ -3689,45 +3702,6 @@ STATED-EXPIRY: none stated
 """
 
 
-class ACarriedTopicIsRecognizedByItsMasthead(unittest.TestCase):
-    """The dump carries no headings, so #298 decision 2's *appears as a heading*
-    is not implementable against the artifact it was written about. What marks a
-    body present is the ``Authors:`` masthead, and the title is the line above it.
-
-    Measured before it was believed: nearly every body the real dump carries
-    joins a ``See "..."`` cross-reference exactly under this rule. **The counts
-    are #298's to state and are deliberately nowhere in this tree** -- they are
-    measured against a file under ``scratch/`` that nothing committed re-derives.
-    """
-
-    def test_a_body_is_carried(self):
-        self.assertEqual(
-            ledger.carried_topics(topic("Pelvic inflammatory disease: Treatment")),
-            {"Pelvic inflammatory disease: Treatment"},
-        )
-
-    def test_a_cross_reference_is_not_a_body(self):
-        """The whole point of the row. A dump refers to far more topics than it
-        carries -- by better than an order of magnitude in the real one -- and a
-        reference is not a body."""
-        text = 'See "Pelvic inflammatory disease: Treatment" for the regimen.\n'
-        self.assertEqual(ledger.carried_topics(text), set())
-
-    def test_blank_lines_above_the_masthead_are_skipped(self):
-        text = "Some topic title\n\n\nAuthors: A Author, MD\n"
-        self.assertEqual(ledger.carried_topics(text), {"Some topic title"})
-
-    def test_two_bodies_are_two_topics(self):
-        text = topic("First topic") + "\n" + topic("Second topic")
-        self.assertEqual(ledger.carried_topics(text), {"First topic", "Second topic"})
-
-    def test_a_masthead_with_nothing_above_it_names_no_topic(self):
-        """A dump opening on the masthead has no title line to read, and an empty
-        string in the carried set would match every entry whose title failed to
-        parse -- which is a silent pass on the row."""
-        self.assertEqual(ledger.carried_topics("Authors: A Author, MD\n"), set())
-
-
 class AnUpToDateEntryNamesItsTopic(unittest.TestCase):
     """The title element of §2's published form, and nothing looser.
 
@@ -3783,7 +3757,7 @@ class AnUpToDateEntryNamesItsTopic(unittest.TestCase):
         )
 
 
-class ACitedTopicTheDumpDoesNotCarryIsRefused(unittest.TestCase):
+class ACitedTopicTheFiledSetDoesNotCarryIsRefused(unittest.TestCase):
     """#298's ruled row, 2026-08-20.
 
     **The topics the dump merely refers to are not graded**, and that is the
@@ -3797,7 +3771,7 @@ class ACitedTopicTheDumpDoesNotCarryIsRefused(unittest.TestCase):
     """
 
     def setUp(self):
-        self.carried = ledger.carried_topics(topic("A topic the dump carries"))
+        self.carried = {"A topic the dump carries"}
 
     def test_a_carried_topic_passes(self):
         records = ledger.read_records(ledger_text(cited("A topic the dump carries")))
@@ -3886,7 +3860,7 @@ class AnUpToDateEntryThisCannotReadIsAFinding(unittest.TestCase):
     """
 
     def setUp(self):
-        self.carried = ledger.carried_topics(topic("A carried topic"))
+        self.carried = {"A carried topic"}
 
     def entry(self, locator="https://www.uptodate.com/contents/some-slug"):
         """§2's form with the database element dropped -- the recorded shape."""
@@ -4033,18 +4007,33 @@ class EveryGatedRowSetFollowsTheSentinelConvention(unittest.TestCase):
             ledger_path.write_text(body, encoding="utf-8")
             write_bar(root)
             argv = [str(ledger_path)]
+            evidence_store = None
             if enabled:
                 optional_path = root / f"{flag[2:]}.md"
                 if flag == "--draft":
                     optional_path.write_text(rx_table(CEFTRIAXONE), encoding="utf-8")
                 elif flag == "--evidence":
                     optional_path.write_text(topic("A carried topic"), encoding="utf-8")
+                    evidence_store = root / "uptodate"
+                    uptodate_store.ingest_dump(
+                        optional_path,
+                        evidence_store,
+                        dump_id="current",
+                        module="Current",
+                        received_on=AS_OF,
+                    )
                 else:
                     self.fail(f"no live positive-control input for {flag}")
                 argv += [flag, str(optional_path)]
             out = io.StringIO()
             with redirect_stdout(out):
-                status = ledger.main(argv)
+                if evidence_store is None:
+                    status = ledger.main(argv)
+                else:
+                    with mock.patch.object(
+                        uptodate_store, "default_store", return_value=evidence_store
+                    ):
+                        status = ledger.main(argv)
             return status, out.getvalue()
 
     def test_each_gating_flag_changes_its_rows_from_not_graded_to_counts(self):
@@ -4096,7 +4085,7 @@ class TheEvidenceRowsAreWiredInLikeTheDraftRows(unittest.TestCase):
         scan = ledger.survey(
             ledger.read_records(ledger_text(CLEAN)),
             AS_OF,
-            carried=ledger.carried_topics(topic("A topic")),
+            carried={"A topic"},
         )
         report = ledger.format_report(scan, source="a.md")
         self.assertIn("evidence topics carried          1", report)
@@ -4122,7 +4111,7 @@ class TheRowSaysHowManyCitationsItRead(unittest.TestCase):
 
     def test_a_ledger_citing_no_uptodate_topic_says_so(self):
         report = ledger.format_report(
-            self.scan(CLEAN, carried=ledger.carried_topics(topic("A topic"))),
+            self.scan(CLEAN, carried={"A topic"}),
             source="a.md",
         )
         self.assertIn("UpToDate citations read          0", report)
@@ -4130,7 +4119,7 @@ class TheRowSaysHowManyCitationsItRead(unittest.TestCase):
     def test_a_cited_topic_is_counted_whether_or_not_it_is_carried(self):
         """The denominator is what was read, not what failed -- otherwise it is
         the finding count wearing a second name."""
-        carried = ledger.carried_topics(topic("A carried topic"))
+        carried = {"A carried topic"}
         scan = self.scan(cited("A carried topic"), cited("A missing topic", "Two."), carried=carried)
         self.assertEqual(scan.uptodate_citations, 2)
         self.assertEqual(scan.evidence_at_fault, 1)
@@ -4144,7 +4133,7 @@ class TheRowSaysHowManyCitationsItRead(unittest.TestCase):
     def test_a_journal_citation_is_not_counted(self):
         """The count is the row's population and the row is scoped to UpToDate,
         so counting every reference would overstate what was checked."""
-        scan = self.scan(CLEAN, carried=ledger.carried_topics(topic("A topic")))
+        scan = self.scan(CLEAN, carried={"A topic"})
         self.assertEqual(scan.uptodate_citations, 0)
 
 
@@ -4184,24 +4173,49 @@ class TheCommandReadsTheEvidenceFile(unittest.TestCase):
             status, out, _ = self.run_main([led, "--evidence", ev])
         self.assertEqual(status, 0, out)
 
+    def test_a_byte_different_file_from_the_ingested_copy_is_not_graded(self):
+        led = self.write("led.md", ledger_text(cited("A carried topic")))
+        ev = self.write("evidence.txt", topic("A carried topic"))
+        store = self.root / "uptodate"
+        uptodate_store.ingest_dump(
+            Path(ev),
+            store,
+            dump_id="current",
+            module="Current module",
+            received_on=AS_OF,
+        )
+        Path(ev).write_text(topic("A carried topic") + "\n", encoding="utf-8")
+
+        with mock.patch.object(uptodate_store, "default_store", return_value=store):
+            status, out, err = self.run_main([led, "--evidence", ev])
+
+        self.assertEqual(status, 2, out)
+        self.assertIn("not graded - evidence.txt is not in the UpToDate store", out)
+        self.assertIn("point --evidence at the exact file that was ingested", err)
+
+    def test_no_evidence_keeps_the_omitted_flag_reason(self):
+        led = self.write("led.md", ledger_text(CLEAN))
+
+        status, out, _ = self.run_main([led])
+
+        self.assertEqual(status, 0, out)
+        self.assertEqual(out.count("not graded - no --evidence was given"), 2)
+
     def test_a_cited_topic_in_an_unfiled_current_dump_refuses(self):
         led = self.write("led.md", ledger_text(cited("A topic nobody filed")))
         ev = self.write("evidence.txt", topic("A topic nobody filed"))
-        status, _, err = self.run_main([led, "--evidence", ev])
-        self.assertEqual(status, 1)
-        self.assertIn("evidence", err.lower())
+        store = self.root / "uptodate"
+        with mock.patch.object(uptodate_store, "default_store", return_value=store):
+            status, out, err = self.run_main([led, "--evidence", ev])
+        self.assertEqual(status, 2, out)
+        self.assertIn(
+            "not graded - evidence.txt is not in the UpToDate store",
+            out,
+        )
+        self.assertNotIn("UpToDate citation(s) do not resolve", err)
+        self.assertIn("python tools/uptodate_store.py ingest", err)
 
-    def test_an_evidence_file_carrying_no_topic_body_is_exit_2(self):
-        """``differential_scan``'s reasoning and the limb that matters most: a
-        dump this parser cannot read would otherwise fire the row on every
-        citation in the ledger, which is a mass false finding rather than a pass."""
-        led = self.write("led.md", ledger_text(cited("A carried topic")))
-        ev = self.write("evidence.txt", 'See "A carried topic" for the regimen.\n')
-        status, _, err = self.run_main([led, "--evidence", ev])
-        self.assertEqual(status, 2)
-        self.assertIn("no topic body", err)
-
-    def test_an_unreadable_dump_does_not_suppress_the_other_rows(self):
+    def test_an_unfiled_dump_does_not_suppress_the_other_rows(self):
         """The spec axis's finding, and the one this limb was shipped wrong on.
 
         Returning 2 at the ``if not carried:`` branch happened **before**
@@ -4221,31 +4235,14 @@ REFERENCE: Author, A. Something with no year.
 RESTATEMENT: A record broken in ways that have nothing to do with the evidence.
 """
         led = self.write("led.md", ledger_text(broken))
-        ev = self.write("evidence.txt", 'See "A topic" for the regimen.\n')
-        status, out, err = self.run_main([led, "--evidence", ev])
+        ev = self.write("evidence.txt", topic("A topic"))
+        store = self.root / "uptodate"
+        with mock.patch.object(uptodate_store, "default_store", return_value=store):
+            status, out, err = self.run_main([led, "--evidence", ev])
         self.assertEqual(status, 1, "a finding outranks the not-scanned limb")
         self.assertIn("records at fault", out, "the report still prints")
-        self.assertIn("no topic body", err, "and the limb still says so")
+        self.assertIn("not in the UpToDate store", err, "and the limb still says so")
         self.assertIn("not graded", out, "with the evidence row ungraded")
-
-    def test_an_unreadable_dump_alone_is_exit_2(self):
-        """The other half: with nothing else wrong, the deferred status is still
-        2, because what did not happen is the scan."""
-        led = self.write("led.md", ledger_text(CLEAN))
-        ev = self.write("evidence.txt", 'See "A topic" for the regimen.\n')
-        status, _, err = self.run_main([led, "--evidence", ev])
-        self.assertEqual(status, 2)
-        self.assertIn("no topic body", err)
-
-    def test_an_unreadable_dump_does_not_grade_the_row(self):
-        """The reason the row is left ungraded rather than run over an empty set:
-        with nothing to join against, every UpToDate citation would fire."""
-        led = self.write("led.md", ledger_text(cited("A topic nobody handed over")))
-        ev = self.write("evidence.txt", 'See "A topic" for the regimen.\n')
-        status, out, _ = self.run_main([led, "--evidence", ev])
-        self.assertEqual(status, 2, "not 1 - the row did not run, so it found nothing")
-        row = [ln for ln in out.splitlines() if ledger.CITED_TOPIC_NOT_IN_EVIDENCE in ln]
-        self.assertIn("not graded", row[0])
 
     def test_a_missing_evidence_file_is_exit_2(self):
         led = self.write("led.md", ledger_text(CLEAN))
@@ -4270,7 +4267,12 @@ RESTATEMENT: A record broken in ways that have nothing to do with the evidence.
         heading."""
         led = self.write("led.md", ledger_text(cited("A missing topic"), stamp=""))
         ev = self.write("evidence.txt", topic("Some other topic"))
-        status, _, _ = self.run_main([led, "--evidence", ev])
+        store = self.root / "uptodate"
+        uptodate_store.ingest_dump(
+            Path(ev), store, dump_id="current", module="Current module", received_on=AS_OF
+        )
+        with mock.patch.object(uptodate_store, "default_store", return_value=store):
+            status, _, _ = self.run_main([led, "--evidence", ev])
         self.assertEqual(status, 1)
 
     def test_the_report_carries_no_topic_title_without_show(self):
@@ -4279,9 +4281,14 @@ RESTATEMENT: A record broken in ways that have nothing to do with the evidence.
         the default report may not name what a record said."""
         led = self.write("led.md", ledger_text(cited("A topic nobody handed over")))
         ev = self.write("evidence.txt", topic("Some other topic"))
-        _, out, _ = self.run_main([led, "--evidence", ev])
+        store = self.root / "uptodate"
+        uptodate_store.ingest_dump(
+            Path(ev), store, dump_id="current", module="Current module", received_on=AS_OF
+        )
+        with mock.patch.object(uptodate_store, "default_store", return_value=store):
+            _, out, _ = self.run_main([led, "--evidence", ev])
+            _, shown, _ = self.run_main([led, "--evidence", ev, "--show"])
         self.assertNotIn("A topic nobody handed over", out)
-        _, shown, _ = self.run_main([led, "--evidence", ev, "--show"])
         self.assertIn("A topic nobody handed over", shown)
 
 

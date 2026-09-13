@@ -28,6 +28,19 @@ This body explains {title} and gives enough literal text for a searchable result
 """
 
 
+def untitled_block(detail: str) -> str:
+    return f"""Author:
+Author, A., MD
+Section Editor:
+Editor, E., MD
+Literature review current through: Jul 2026.
+This topic last updated: Jan 09, 2026.
+INTRODUCTION
+{detail}
+Terms of use
+"""
+
+
 class AnIngestedDumpBecomesAccumulatedEvidence(unittest.TestCase):
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory()
@@ -101,15 +114,34 @@ class AnIngestedDumpBecomesAccumulatedEvidence(unittest.TestCase):
             )
         self.assertEqual(store.entitled_topics(self.store), {"Original topic"})
 
-    def test_duplicate_topic_titles_refuse_the_dump(self):
+    def test_byte_identical_topic_blocks_are_merged(self):
         source = self.write_dump(
-            "evidence.txt", topic("Repeated topic") + "\n" + topic("Repeated topic")
+            "evidence.txt", topic("Repeated topic") + topic("Repeated topic")
         )
-        with self.assertRaisesRegex(ValueError, "duplicate topic"):
+
+        report = store.ingest_dump(
+            source,
+            self.store,
+            dump_id="duplicates",
+            module="Module 1",
+            received_on=date(2026, 1, 2),
+        )
+
+        self.assertEqual((report.topics, report.candidates, report.merged), (2, 2, 1))
+
+    def test_one_title_over_different_bodies_is_refused(self):
+        first = topic("Repeated topic")
+        second = topic("Repeated topic").replace(
+            "gives enough literal text for a searchable result",
+            "has materially different clinical content",
+        )
+        source = self.write_dump("evidence.txt", first + second)
+
+        with self.assertRaisesRegex(ValueError, "untitled 2 of 2"):
             store.ingest_dump(
                 source,
                 self.store,
-                dump_id="duplicates",
+                dump_id="ambiguous",
                 module="Module 1",
                 received_on=date(2026, 1, 2),
             )
@@ -172,6 +204,24 @@ class AnIngestedDumpBecomesAccumulatedEvidence(unittest.TestCase):
                 source,
                 self.store,
                 dump_id="partial",
+                module="Module 1",
+                received_on=date(2026, 1, 2),
+            )
+
+    def test_an_untitled_layout_is_refused_before_population_completeness(self):
+        source = self.write_dump(
+            "untitled.txt",
+            untitled_block("First body")
+            + untitled_block("Second body")
+            + untitled_block("Second body")
+            + untitled_block("Third body"),
+        )
+
+        with self.assertRaisesRegex(ValueError, "untitled 4 of 4"):
+            store.ingest_dump(
+                source,
+                self.store,
+                dump_id="untitled",
                 module="Module 1",
                 received_on=date(2026, 1, 2),
             )

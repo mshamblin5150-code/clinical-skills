@@ -87,8 +87,8 @@ DECLARED_LIMITS = (
     DeclaredLimit("table-record-number-equivalence-unseen", "Equivalent or conflicting dose expressions between draft and record are not compared.", EvidenceDisposition.BEHAVIOR),
     DeclaredLimit("partial-prescription-table-nonfatal", "Partially anchored prescription tables are reported but do not fail the grade.", EvidenceDisposition.BEHAVIOR),
     DeclaredLimit("rx-reader-completion-unverified", "The grader cannot prove that the separate prescription reader completed its brief.", EvidenceDisposition.DECLARED_READING),
-    DeclaredLimit("evidence-cross-references-ungraded", "Topics merely cross-referenced by an evidence dump are outside the carried set.", EvidenceDisposition.BEHAVIOR),
-    DeclaredLimit("unmastheaded-evidence-body-unseen", "An evidence body without an Authors masthead is invisible to the topic join.", EvidenceDisposition.BEHAVIOR),
+    DeclaredLimit("evidence-cross-references-ungraded", "Topics merely cross-referenced by an evidence dump are outside the filed set.", EvidenceDisposition.BEHAVIOR),
+    DeclaredLimit("titled-copy-titles-trusted", "Membership trusts a titled copy's declared titles and does not establish that the supplied dump carried them.", EvidenceDisposition.BEHAVIOR),
     DeclaredLimit("non-uptodate-evidence-unjoined", "Evidence coverage is not joined for journal, society, or government citations.", EvidenceDisposition.BEHAVIOR),
     DeclaredLimit("unrecognizable-uptodate-entry-unseen", "An UpToDate citation lacking both database element and locator is invisible.", EvidenceDisposition.BEHAVIOR),
     DeclaredLimit("uncited-missing-topic-unseen", "A claim derived from missing evidence is invisible when no citation names it.", EvidenceDisposition.BEHAVIOR),
@@ -614,15 +614,13 @@ class Scan:
     prescriptions_at_fault: int
     # ``None`` is #258's sentinel for the omitted #298 group.
     evidence_topics: int | None
+    # The omitted flag and an unfiled supplied file are different ungraded states.
+    evidence_ungraded_reason: str | None
     # The #298 joined-citation population beside the carried-topic population.
     uptodate_citations: int | None
     evidence_at_fault: int
     findings: tuple[Finding, ...]
 
-
-# #298 decision 3's artifact marker, chosen after the heading heuristic was
-# rejected against the rendered dump's prose-and-section-label shape.
-TOPIC_MASTHEAD = re.compile(r"(?i)^[ \t]*authors?[ \t]*:")
 
 # The title element of [apa7.md](skills/_shared/reference/apa7.md)
 # section 2's published form, taken between the year element and the database
@@ -651,24 +649,6 @@ UPTODATE_LOCATOR = re.compile(r"(?i)\b(?:https?://|www\.)[\w.-]*\buptodate\.com/
 # record. ``UNREADABLE_DRUG_ROW``'s ``a prescription table`` precedent: the
 # ``claim`` slot is a record heading everywhere else, and a draft entry has none.
 DRAFT_LIST = "the draft's reference list"
-
-
-def carried_topics(text: str) -> set[str]:
-    """Parse #298's carried-topic population."""
-    lines = text.splitlines()
-    carried: set[str] = set()
-    for index, line in enumerate(lines):
-        if not TOPIC_MASTHEAD.match(line):
-            continue
-        above = index - 1
-        while above >= 0 and not lines[above].strip():
-            above -= 1
-        # A masthead with nothing above it names no topic, and the empty string
-        # must not go in: it would match every entry whose title failed to parse,
-        # which is a silent pass on the one row here that can refuse.
-        if above >= 0:
-            carried.add(lines[above].strip())
-    return carried
 
 
 def accumulated_evidence_topics(store: Path | None = None) -> set[str]:
@@ -1294,6 +1274,7 @@ def survey(
     uptodate_currency: dict[str, str] | None = None,
     uptodate_recency_window_years: int = 2,
     uptodate_has_account: bool = True,
+    evidence_ungraded_reason: str | None = None,
 ) -> Scan:
     """Count across one ledger.
 
@@ -1415,6 +1396,7 @@ def survey(
         half_anchored=half_anchored,
         prescriptions_at_fault=len(on_the_draft),
         evidence_topics=None if carried is None else len(carried),
+        evidence_ungraded_reason=evidence_ungraded_reason,
         uptodate_citations=uptodate_read,
         evidence_at_fault=len(on_the_evidence),
         findings=tuple(found),
@@ -1483,14 +1465,16 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
     # the stronger claim, so the run that graded no citation says so on the same
     # page as its clean exit.
     if scan.evidence_topics is None:
+        reason = scan.evidence_ungraded_reason or "no --evidence was given"
         lines.append(
-            f"  {'evidence topics carried':<32} {NOT_GRADED} - no --evidence was given"
+            f"  {'evidence topics carried':<32} {NOT_GRADED} - {reason}"
         )
     else:
         lines.append(f"  {'evidence topics carried':<32} {scan.evidence_topics}")
     if scan.uptodate_citations is None:
+        reason = scan.evidence_ungraded_reason or "no --evidence was given"
         lines.append(
-            f"  {'UpToDate citations read':<32} {NOT_GRADED} - no --evidence was given"
+            f"  {'UpToDate citations read':<32} {NOT_GRADED} - {reason}"
         )
     else:
         # What the row read, beside what it read against. Both, because either
@@ -1547,7 +1531,7 @@ class Source:
     half_anchored: int
     carried: set[str] | None
     entries: tuple[str, ...]
-    evidence_unreadable: bool
+    evidence_not_filed: bool
     stated_expiry_unscanned: bool
     draft_name: str | None
     evidence_name: str | None
@@ -1608,7 +1592,7 @@ def _load(parsed: run_grader.Parsed) -> Source:
     evidence = parsed.value("--evidence")
     carried: set[str] | None = None
     entries: tuple[str, ...] = ()
-    evidence_unreadable = False
+    evidence_not_filed = False
     evidence_name: str | None = None
     uptodate_currency: dict[str, str] | None = None
     uptodate_window = bar.uptodate_recency_window_years or 2
@@ -1618,10 +1602,20 @@ def _load(parsed: run_grader.Parsed) -> Source:
         evidence_name = evidence_path.name
         if not evidence_path.is_file():
             raise run_grader.SourceError(f"no evidence file named {evidence_path.name}")
-        evidence_text = evidence_path.read_text(encoding="utf-8", errors="replace")
-        current_topics = carried_topics(evidence_text)
-        evidence_unreadable = not current_topics
-        if current_topics:
+        try:
+            source_digest = uptodate_store._sha256(evidence_path)
+            filed_digests = {
+                str(manifest["source_sha256"])
+                for _manifest_path, manifest in uptodate_store._manifest_rows(
+                    uptodate_store.default_store().resolve()
+                )
+            }
+        except ValueError as error:
+            raise run_grader.SourceError(
+                f"the UpToDate store is unreadable: {error}"
+            ) from error
+        evidence_not_filed = source_digest not in filed_digests
+        if not evidence_not_filed:
             carried = accumulated_evidence_topics()
         if carried is not None and draft is not None:
             entries = tuple(entry.text for entry in read_document(draft_text).entries)
@@ -1650,7 +1644,7 @@ def _load(parsed: run_grader.Parsed) -> Source:
         half_anchored,
         carried,
         entries,
-        evidence_unreadable,
+        evidence_not_filed,
         stated_expiry_unscanned,
         draft_name,
         evidence_name,
@@ -1675,14 +1669,20 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
         uptodate_currency=source.uptodate_currency,
         uptodate_recency_window_years=source.uptodate_recency_window_years,
         uptodate_has_account=source.uptodate_has_account,
+        evidence_ungraded_reason=(
+            f"{source.evidence_name} is not in the UpToDate store"
+            if source.evidence_not_filed
+            else None
+        ),
     )
     diagnostics: list[str] = []
     if not source.records:
         diagnostics.append(f"no claim records found in {source.path.name}")
-    if source.evidence_unreadable:
+    if source.evidence_not_filed:
         diagnostics.append(
-            f"no topic body found in {source.evidence_name} - a body is read by its"
-            " Authors: masthead, so #298's row was applied to nothing. Every other row still ran."
+            f"{source.evidence_name} is not in the UpToDate store. Run"
+            " python tools/uptodate_store.py ingest with that file, or point --evidence"
+            " at the exact file that was ingested. Every other row still ran."
         )
     if source.as_of is None:
         diagnostics.append(
@@ -1732,7 +1732,7 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
     coverage_failed = bool(
         not source.records
         or source.as_of is None
-        or source.evidence_unreadable
+        or source.evidence_not_filed
         or source.stated_expiry_unscanned
         or (source.prescriptions is not None and not source.prescriptions)
     )
