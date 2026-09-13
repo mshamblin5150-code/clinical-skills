@@ -2,15 +2,19 @@
 
 from __future__ import annotations
 
+import contextlib
+import io
 import json
 import sys
 import tempfile
 import unittest
 from datetime import date
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import docx_read
 import uptodate_store as store
 
 
@@ -71,6 +75,73 @@ class AnIngestedDumpBecomesAccumulatedEvidence(unittest.TestCase):
         self.assertEqual(
             store.search(self.store, "searchable result")[0].title,
             "Acute cervicitis",
+        )
+
+    def test_rebuild_applies_a_later_fold_to_stored_bytes_and_to_the_query(self):
+        salted = "Acute сervicitis"
+        source = self.write_dump("evidence.txt", topic(salted))
+        without_cyrillic_c = {
+            key: value for key, value in docx_read.HOMOGLYPHS.items() if key != "с"
+        }
+        with mock.patch.object(docx_read, "HOMOGLYPHS", without_cyrillic_c):
+            report = store.ingest_dump(
+                source,
+                self.store,
+                dump_id="before-map-change",
+                module="Module 1",
+                received_on=date(2026, 1, 2),
+            )
+        stored = report.manifest.parent / store.SOURCE_NAME
+        before_bytes = stored.read_bytes()
+        before_manifest = json.loads(report.manifest.read_text(encoding="utf-8"))
+
+        store.rebuild_index(self.store)
+
+        self.assertEqual(
+            store.search(self.store, "сervicitis")[0].dump_id,
+            "before-map-change",
+        )
+        self.assertEqual(
+            store.search(self.store, "cervicitis")[0].dump_id,
+            "before-map-change",
+        )
+        self.assertEqual(stored.read_bytes(), before_bytes)
+        self.assertEqual(
+            json.loads(report.manifest.read_text(encoding="utf-8"))["source_sha256"],
+            before_manifest["source_sha256"],
+        )
+
+    def test_every_rebuild_reports_remaining_non_latin_letters_per_dump(self):
+        first = self.write_dump("first.txt", topic("TNFα treatment"))
+        second = self.write_dump("second.txt", topic("Plain topic"))
+        store.ingest_dump(
+            first,
+            self.store,
+            dump_id="greek-notation",
+            module="Module 1",
+            received_on=date(2026, 1, 2),
+        )
+        store.ingest_dump(
+            second,
+            self.store,
+            dump_id="plain",
+            module="Module 2",
+            received_on=date(2026, 2, 2),
+        )
+        stderr = io.StringIO()
+
+        with contextlib.redirect_stderr(stderr):
+            store.rebuild_index(self.store)
+
+        report = stderr.getvalue()
+        self.assertIn(
+            "dump greek-notation: non-Latin letter remaining after normalization: "
+            "U+03B1 GREEK SMALL LETTER ALPHA: 2",
+            report,
+        )
+        self.assertIn(
+            "dump plain: non-Latin letters remaining after normalization: 0",
+            report,
         )
 
     def test_topics_from_an_earlier_manifest_remain_entitled(self):

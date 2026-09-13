@@ -33,6 +33,7 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Iterable
 
+import docx_read
 from console_codec import require_python_floor, use_utf8
 from repo_root import scratch_root
 
@@ -393,14 +394,27 @@ def rebuild_index(store: Path) -> Path:
             source_path = manifest_path.with_name(str(manifest.get("source_file", SOURCE_NAME)))
             if not source_path.is_file() or file_digest.sha256(source_path) != manifest.get("source_sha256"):
                 raise ValueError(f"source does not match manifest: {manifest_path.parent.name}")
-            bodies = {topic.title: topic.body for topic in parse_topics(source_path.read_text(encoding="utf-8", errors="replace"))}
+            normalized_source = docx_read.normalize(
+                source_path.read_text(encoding="utf-8", errors="replace")
+            )
+            for report_line in docx_read.non_latin_letter_report(normalized_source):
+                print(
+                    f"dump {manifest_path.parent.name}: {report_line}",
+                    file=sys.stderr,
+                )
+            bodies = {
+                topic_key(topic.title): topic.body
+                for topic in parse_topics(normalized_source)
+            }
             for row in manifest["topics"]:
                 title = str(row["title"])
-                if title not in bodies:
+                normalized_title = docx_read.normalize(title)
+                key = topic_key(normalized_title)
+                if key not in bodies:
                     raise ValueError(f"manifest topic missing from source: {title}")
                 connection.execute(
                     "INSERT INTO topic_fts(dump_id, title, body) VALUES (?, ?, ?)",
-                    (manifest["dump_id"], title, bodies[title]),
+                    (manifest["dump_id"], normalized_title, bodies[key]),
                 )
         connection.commit()
     finally:
@@ -490,7 +504,7 @@ def search(store: Path | None, query: str, *, limit: int = 20) -> list[SearchHit
     try:
         rows = connection.execute(
             "SELECT dump_id, title FROM topic_fts WHERE topic_fts MATCH ? ORDER BY rank LIMIT ?",
-            (query, limit),
+            (docx_read.normalize(query), limit),
         ).fetchall()
     finally:
         connection.close()

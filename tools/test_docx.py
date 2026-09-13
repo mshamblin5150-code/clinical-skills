@@ -824,6 +824,41 @@ class TheHomoglyphFold(unittest.TestCase):
         text = "Neisseria gonorrhoeae, 16 weeks, 100.7 F"
         self.assertEqual(docx_read.normalize(text), text)
 
+    def test_observed_salt_folds_and_genuine_greek_notation_survives(self):
+        salted = "սЅІԼՕԝϳЈ"
+        notation = "αεινρςσυ"
+
+        self.assertEqual(docx_read.normalize(salted), "uSILOwjJ")
+        self.assertEqual(docx_read.normalize(notation), notation)
+
+    def test_the_cli_keeps_text_on_stdout_and_reports_remaining_non_latin_letters(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "evidence.docx"
+            docx_write.write_docx("TNFα and α-tocopherol with β.\n", path)
+            stdout, stderr = io.StringIO(), io.StringIO()
+            with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+                status = docx_read.main([str(path), "--normalize"])
+
+        self.assertEqual(status, 0)
+        self.assertIn("TNFα and α-tocopherol with β.", stdout.getvalue())
+        self.assertNotIn("non-Latin", stdout.getvalue())
+        self.assertIn("U+03B1 GREEK SMALL LETTER ALPHA: 2", stderr.getvalue())
+        self.assertIn("U+03B2 GREEK SMALL LETTER BETA: 1", stderr.getvalue())
+
+    def test_the_cli_prints_a_zero_line_when_no_non_latin_letter_remains(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "evidence.docx"
+            docx_write.write_docx("Plain ASCII.\n", path)
+            stderr = io.StringIO()
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(stderr):
+                status = docx_read.main([str(path), "--normalize"])
+
+        self.assertEqual(status, 0)
+        self.assertEqual(
+            stderr.getvalue(),
+            "non-Latin letters remaining after normalization: 0\n",
+        )
+
     def test_the_map_only_holds_single_characters(self):
         for key, value in docx_read.HOMOGLYPHS.items():
             self.assertEqual(len(key), 1)

@@ -282,7 +282,8 @@ python tools/docx_read.py "<the references document>" --normalize > <run-directo
 **`--normalize` is not optional on an UpToDate paste.** The rendered pages are salted with
 homoglyphs — a Cyrillic `с` inside `cervicitis`, a Greek `ο` inside `infection` — so a search for a
 word the page visibly contains returns nothing and looks like a settled negative. `tools/docx_read.py`
-folds them back.
+folds a character only when it was observed as salt and never as real notation. A character seen
+both ways is kept as written.
 
 **Every source is cited in the body, not only listed at the end.** APA 7 in-text citation, author
 and year, on the sentence the source supports — and a reference-list entry that is nowhere cited in
