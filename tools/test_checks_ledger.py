@@ -843,6 +843,17 @@ class TheCommandExitsOnWhatItFound(unittest.TestCase):
         with directory:
             self.assertEqual(run([str(path)])[0], 0)
 
+    def test_a_file_missing_the_change_leftovers_heading_exits_one(self):
+        name = "the leftovers of every change after the first draft"
+        text = "\n".join(
+            a_clean_record(check)
+            for check in checks.EXPECTED_CHECKS
+            if check != name
+        )
+        directory, path = in_a_file(text)
+        with directory:
+            self.assertEqual(run([str(path)])[0], 1)
+
     def test_a_failing_record_exits_one(self):
         directory, path = in_a_file(whole_file().replace("VERDICT: clean\n", "\n", 1))
         with directory:
@@ -956,6 +967,10 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
         lines = re.search(r"^\| Check \|.*?(?=\n\n)", body, re.S | re.M).group(0).splitlines()
         return [[cell.strip() for cell in line.split("|")[1:-1]] for line in lines[2:]]
 
+    def normalized_step_nine(self) -> str:
+        """``practicum-case-study`` step 9 without Markdown sentence wrapping."""
+        return " ".join(self.skill.split("### 9. Check", 1)[1].split())
+
     def table_checks(self) -> list[str]:
         """The first column of the check table in
         ``skills/practicum-case-study/SKILL.md`` step 9, which is the expected set."""
@@ -975,6 +990,50 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
         run directory is not a checkout and the tool cannot read ``SKILL.md`` at
         run time. This is the assertion that keeps the two the same."""
         self.assertEqual(list(checks.EXPECTED_CHECKS), self.table_checks())
+
+    def test_every_reader_receives_the_settled_house_rules_only_as_context(self):
+        step_nine = self.normalized_step_nine()
+
+        self.assertIn("the part of this file above `## Steps`", step_nine)
+        self.assertIn("settled and never reportable as a defect", step_nine)
+        self.assertIn("grades only the rule its row names", step_nine)
+
+    def test_the_credentials_section_explains_the_prescribing_role(self):
+        credentials = " ".join(
+            self.skill.split(
+                "## Credentials — two strings in one document, and that is correct", 1
+            )[1].split("## Voice", 1)[0].split()
+        )
+
+        self.assertIn("An RN cannot prescribe", credentials)
+        self.assertIn("the case study puts the clinician in the prescribing role", credentials)
+        self.assertIn("The signature is him as himself", credentials)
+
+    def test_the_proposed_record_carries_departures_and_the_go_ahead_ruling(self):
+        tiers = self.skill.split("## Tiers", 1)[1].split("## Credentials", 1)[0]
+
+        self.assertIn("## Departures", tiers)
+        self.assertIn("INSTRUCTED: <what the clinician instructed>", tiers)
+        self.assertIn("DRAFT: <what the draft says>", tiers)
+        self.assertIn("WHY: <why the draft departs>", tiers)
+        self.assertIn("GO-AHEAD: <ISO date>", tiers)
+        self.assertIn("his ruling on every departure listed", tiers)
+        self.assertIn("No separate stop or mid-draft question", tiers)
+
+    def test_every_post_draft_change_propagates_before_a_non_author_rereads_it(self):
+        step_nine = self.normalized_step_nine()
+
+        self.assertIn("Every change after the first draft", step_nine)
+        self.assertIn("every section that restates what it changed", step_nine)
+        self.assertIn("a reader's repair or the clinician's revision", step_nine)
+
+    def test_a_care_setting_change_is_confirmed_before_propagation(self):
+        step_nine = self.normalized_step_nine()
+
+        self.assertIn("changes a care setting or disposition", step_nine)
+        self.assertIn("restate it in one exact sentence", step_nine)
+        self.assertIn("wait for his yes", step_nine)
+        self.assertIn("before carrying it into any section", step_nine)
 
     def test_the_draft_source_class_reader_is_a_named_unsubstantiated_check(self):
         name = "the draft label on threshold-sheet citations"
@@ -1121,7 +1180,28 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
         self.assertIn("whether a stop criterion's endpoint is the right endpoint", brief)
         self.assertIn("whether a drug ordered PRN needs an endpoint of its own", brief)
         self.assertIn("a wrapper section that does not apply to this patient", brief)
+        self.assertIn("every alternative the draft rejects with a stated reason", brief)
+        self.assertIn("setting, drug, test or procedure", brief)
+        self.assertIn("whether the chosen option meets that same reason", brief)
+        self.assertIn("never whether the rejection was right", brief)
+        self.assertIn(
+            "every departure from a clinician instruction the departures section does not list",
+            brief,
+        )
         self.assertIn("Never whether a dose is correct", brief)
+
+    def test_the_change_leftovers_reader_owns_one_round_of_propagation(self):
+        name = "the leftovers of every change after the first draft"
+        brief = self.table_how()[name]
+
+        self.assertIn(name, checks.EXPECTED_CHECKS)
+        self.assertIn(name, checks.SUBSTANTIATED_CLEAN)
+        self.assertIn("a reader that did not make the change", brief)
+        self.assertIn("told what changed", brief)
+        self.assertIn("reads the whole draft for leftovers of the old version", brief)
+        self.assertIn("names the changes it walked", brief)
+        self.assertIn("no change followed the first draft", brief)
+        self.assertIn("One read covers one round of changes", brief)
 
     def test_the_rendered_reader_is_vision_capable_and_compares_both_artifacts(self):
         """A text-only reread of the Markdown is the blind spot, not its remedy."""
