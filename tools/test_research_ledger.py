@@ -1714,13 +1714,14 @@ class EveryRuledFanOutReadsTheSharedSourcingRules(unittest.TestCase):
         r"omit\w* (?:(?:the other|every) source fields?|the other fields)"
     )
 
-    def test_the_shared_file_contains_the_four_rules_and_no_fifth_rule(self):
+    def test_the_shared_file_contains_the_five_rules_and_no_sixth_rule(self):
         text = SOURCING.read_text(encoding="utf-8")
         flat = " ".join(text.split())
         self.assertEqual(
             re.findall(r"(?m)^## (.+)$", text),
             [
                 "A pointer is not a source",
+                "A resolving locator is not verification",
                 "A failed read is not a negative",
                 "A sourceless record makes no claim about a source",
                 "A claim heading is the claim the document will make",
@@ -1729,6 +1730,10 @@ class EveryRuledFanOutReadsTheSharedSourcingRules(unittest.TestCase):
         self.assertIn("Derived material may carry a sentence", flat)
         self.assertIn("retained and gradeable against it", flat)
         self.assertIn("resolvable and was independently re-opened", flat)
+        self.assertIn("confirming that it is the work's own address", flat)
+        self.assertIn("a near-miss address and a login form can both return one", flat)
+        self.assertIn("RESOLVED field therefore names the address", flat.replace("`", ""))
+        self.assertIn("never a bare status", flat)
         self.assertIn("reports the corpus it read and what it did not open", flat)
         self.assertIn("retry with a second independent instrument", flat)
         self.assertIn(

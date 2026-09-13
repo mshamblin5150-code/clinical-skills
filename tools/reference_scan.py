@@ -712,6 +712,12 @@ NOT_REACHED = (
         "from a page designed to change.",
     ),
     (
+        "advance online publication without a label",
+        "The command cannot tell that an unlabeled DOI-bearing entry is a journal article "
+        "rather than a Cochrane review, book, chapter or report, each of which can "
+        "correctly carry the same shape.",
+    ),
+    (
         "UpToDate last update year",
         "Section 2's date element is the topic's own last update year rather than the "
         "year it was read, and the same topic appears in one clinician's corpus under "
