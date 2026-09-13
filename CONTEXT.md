@@ -312,7 +312,7 @@ The finished document handed to the course, and the only artifact here a course 
 _Avoid_: final, output, deliverable
 
 **Posted reading**:
-The record of a graded contribution as it stands where it was posted after submission — a course board or a clinical portal — carrying that surface's own locator for it, its timestamp, and a verdict on whether what was posted is what the artifact says. Read off the posted surface and never off the artifact, so a run that did not go back has none rather than acquiring one. It is also the hand-off an **After-action review** must follow, and its heading names the submission it belongs to. Distinct from a **Submission**, which is the document a course marks: a reply has no submission, so the posted reading is the only account of what will be marked.
+The record of a graded contribution as it stands where it was posted after submission — a course Board, a clinical portal, or a Peer-review comment — carrying that surface's own locator, its timestamp, and a verdict on whether what the surface stores is what the artifact says. Read off the posted surface and never off the artifact, so a run that did not go back has none rather than acquiring one. It is also the hand-off an **After-action review** must follow, and its heading names the submission it belongs to. Distinct from a **Submission**, which is the document a course marks: a Reply has no submission. For a Peer critique, ADR 0204 makes the reviewed submission's page the locator because its dated observation exposed no deep link for the comment itself.
 _Avoid_: reread, confirmation, post-check, board diff
 
 **Evidence dump**:

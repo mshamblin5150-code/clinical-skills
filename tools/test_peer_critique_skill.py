@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import unittest
 from pathlib import Path
 
@@ -17,6 +18,12 @@ AGENTS = ROOT / "AGENTS.md"
 README = ROOT / "README.md"
 REPLY = ROOT / "skills" / "discussion-reply" / "SKILL.md"
 CASE_STUDY = ROOT / "skills" / "practicum-case-study" / "SKILL.md"
+CANVAS_EDITOR = ROOT / "skills" / "_shared" / "reference" / "canvas-editor.md"
+CANVAS_CALIBRATION = (
+    ROOT / "skills" / "_shared" / "reference" / "canvas-editor-calibration.json"
+)
+CLAUDE = ROOT / "CLAUDE.md"
+CONTEXT = ROOT / "CONTEXT.md"
 
 
 def read(path: Path) -> str:
@@ -105,6 +112,77 @@ class ThePostingGateIsStated(ProseBind, unittest.TestCase):
 
     def test_the_ampersand_defect_is_named_with_its_ticket(self):
         self.assertIn("issues/991", read(SKILL))
+
+
+class ThePeerCritiqueUsesTheRuledSurface(ProseBind, unittest.TestCase):
+    def test_the_reply_and_critique_are_separate_artifacts_on_separate_surfaces(self):
+        skill = read(SKILL)
+        self.assertProseIn("The Reply goes on the board", skill)
+        self.assertProseIn("The Peer critique goes in the peer-review comment", skill)
+        self.assertProseIn("the critique is not also posted to the board", skill)
+        self.assertProseIn("The Reply to the same classmate is a separate artifact, not a substitute", skill)
+
+    def test_the_run_retains_plain_text_and_stored_comment_readback(self):
+        skill = read(SKILL)
+        self.assertIn("critique.txt", skill)
+        self.assertIn("critique-stored-comment-readback.txt", skill)
+        self.assertNotIn("critique.html", skill)
+        self.assertNotIn("critique-<surface>-readback.html", skill)
+
+    def test_the_comment_receives_literal_plain_text_not_composer_html(self):
+        skill = read(SKILL)
+        self.assertProseIn("plain text built from critique.md", skill)
+        self.assertProseIn("every character literal", skill)
+        self.assertProseIn("plain text names the transport", skill)
+        self.assertProseIn("retain the bold heading markers", skill)
+        self.assertProseIn("The peer-review comment is not a Composer", skill)
+
+    def test_the_posted_reading_uses_stored_text_and_accepts_the_legacy_display(self):
+        skill = read(SKILL)
+        self.assertProseIn("compares Canvas's stored comment text", skill)
+        self.assertProseIn("at minimum the ampersand count", skill)
+        self.assertProseIn("expected display behavior", skill)
+        self.assertProseIn("it is not filed", skill)
+        self.assertProseIn("POST-URL names the reviewed submission's page", skill)
+        self.assertIn("LEGACY-DISPLAY:", skill)
+
+    def test_a_course_without_a_peer_review_still_asks_the_clinician(self):
+        self.assertProseIn("Where a course assigns no peer review", read(SKILL))
+
+
+class TheAmpersandBoundaryMatchesTheRuling(ProseBind, unittest.TestCase):
+    def test_the_scanner_names_the_stored_text_as_gradable(self):
+        subjects = {subject: reason for subject, reason in peer_critique_scan.NOT_REACHED}
+        reason = subjects["the legacy peer-review page's display of a stored ampersand"]
+        self.assertIn("stored comment text", reason)
+        self.assertIn("accepted", reason)
+
+    def test_the_maintainer_guide_narrows_the_display_defect_to_one_page(self):
+        guide = read(CLAUDE)
+        self.assertProseIn("stored comment text is compared with the source", guide)
+        self.assertProseIn("The 2026-09-12 Bluefield observation found", guide)
+
+    def test_posted_reading_includes_the_peer_review_comment_surface(self):
+        glossary = read(CONTEXT)
+        self.assertProseIn("a Peer-review comment", glossary)
+        self.assertProseIn("the reviewed submission's page the locator", glossary)
+
+    def test_the_canvas_sheet_names_the_peer_review_comment_as_a_non_composer(self):
+        sheet = read(CANVAS_EDITOR)
+        self.assertProseIn("classifies the peer-review comment as a non-Composer surface", sheet)
+        self.assertProseIn("2026-09-12 Bluefield observation", sheet)
+
+    def test_the_calibration_retains_the_four_instrument_observation(self):
+        records = json.loads(read(CANVAS_CALIBRATION))
+        record = next(
+            row for row in records if row.get("surface") == "peer-review comment"
+        )
+        self.assertEqual("2026-09-12", record["measured_on"])
+        instruments = record["ampersand_observation"]
+        self.assertEqual(3, instruments["stored_comment_text"]["real_ampersands"])
+        self.assertEqual(3, instruments["formatted_html"]["single_escaped_ampersands"])
+        self.assertEqual(3, instruments["legacy_page_server_html"]["double_escaped_ampersands"])
+        self.assertEqual(3, instruments["legacy_page_rendered_text"]["visible_entities"])
 
 
 class TheSiblingsRouteToThisSkill(ProseBind, unittest.TestCase):

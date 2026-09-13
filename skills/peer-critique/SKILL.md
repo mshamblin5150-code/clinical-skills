@@ -13,6 +13,7 @@ This is not the conversational reply in [discussion-reply](../discussion-reply/S
 no headings and answers a classmate in a paragraph or two. It is not the case study itself, which
 [practicum-case-study](../practicum-case-study/SKILL.md) writes and which stops before the board.
 Those two skills each name this deliverable as outside their scope; this is the skill that owns it.
+The Reply to the same classmate is a separate artifact, not a substitute for the Peer critique.
 
 The clinician reads every draft and makes the final call. Draft, show, and post only after an
 explicit go-ahead. Authorization to read the board or draft the critique is not posting
@@ -51,8 +52,8 @@ scratch/runs/<course>-<module>-peer-critique/
     posts/
     claims.md
     critique.md
-    critique.html
-    critique-<surface>-readback.html
+    critique.txt
+    critique-stored-comment-readback.txt
     reread.md
     voice-status.md
 ```
@@ -74,7 +75,8 @@ classmate's name is private working material that is never pasted into a ticket.
 
 For this skill, the canonical artifacts governed by [standing rule 6](../../AGENTS.md) are
 `board-<date>.md`, `spec-<date>.md`, `claims.md`, `reread.md`, `critique.md`, and
-`voice-status.md`; each worker's temporary path is separate and run-unique.
+`critique.txt`, `critique-stored-comment-readback.txt`, and `voice-status.md`; each worker's
+temporary path is separate and run-unique.
 
 ## 1. Read the spec, the classmate, and the clinician's own post
 
@@ -249,61 +251,62 @@ inventory of what the command cannot decide. **A clean scan is not a checked cri
 missed diagnosis is really missed, whether an absent item was ever in the case, and whether the
 tone is one the clinician will sign are all readings, and the clinician answers them.
 
-## 6. Show, then post to both surfaces
+## 6. Show, then post to the peer-review comment
 
-Before showing the gate, identify every destination that is a Canvas Composer and read
-[canvas-editor.md](../_shared/reference/canvas-editor.md). Select that destination's first supported
-**Load route**. Show the clean critique to the clinician with the word count, the grader exits, a
-short list of what the critique credits the classmate for, and each selected route with its cost.
-Ask whether the substance is right and whether the register is his. Only an explicit go-ahead
-authorizes posting.
+Show the clean critique to the clinician with the word count, the grader exits, and a short list of
+what the critique credits the classmate for. Ask whether the substance is right and whether the
+register is his. Only an explicit go-ahead authorizes posting.
 
-**There are two surfaces and they are not the same artifact.** The spec calls the critique a
-discussion board reply, so **the board is the graded surface**. Where the LMS has also assigned a
-peer review, its comment box is bookkeeping that must carry at least one comment before the review
-registers as finished.
+**There are two artifacts on two surfaces.** The Reply goes on the board and is written and posted
+by [discussion-reply](../discussion-reply/SKILL.md). The Peer critique goes in the peer-review
+comment on the classmate's submission. Both carry references, and the critique is not also posted
+to the board. Where a course assigns no peer review, this ruling names no surface; ask the clinician
+where the Peer critique belongs before loading it anywhere.
 
-**Both surfaces can damage what is loaded into them, and neither is cleared.** The submission comment
-box renders a literal `&` as a visible `&amp;`, which lands in the APA reference list, where the
-ampersand is mandatory; that is
-[#991](https://github.com/mshamblin5150-code/clinical-skills/issues/991) and its remedy is unsettled.
-Already-posted discussion entries measured on 2026-09-12 did not share that double escape on their
-historical routes. The originating Composer and a raw-editor load specifically remain unmeasured,
-and the detached rendering was not the live Canvas page; the dated observation and limits are in
-[canvas-editor-calibration.json](../_shared/reference/canvas-editor-calibration.json).
-Until #991 is ruled, ask the clinician which surface carries the reference list rather than choosing
-one.
+Create `critique.txt` as plain text built from `critique.md`, as an exact copy with every character
+literal. Here plain text names the transport, not a request to render or strip the authored Markdown
+markers: retain the bold heading markers and reference URLs exactly as the source carries them. In
+particular, keep a real `&` wherever APA 7 requires one. Load that plain text into the peer-review
+comment and compare the textarea value with `critique.txt` before posting. The peer-review comment
+is not a Composer, so the Composer load routes in
+[canvas-editor.md](../_shared/reference/canvas-editor.md) do not apply. The HTML
+`tools/post_html.py` builds is for a Composer and is never loaded into this comment.
 
-Build the approved critique once:
-
-```bash
-python tools/post_html.py scratch/runs/<run-key>/critique.md scratch/runs/<run-key>/critique.html
-```
-
-When the board destination or assigned peer-review destination is a Canvas Composer, load the built
-HTML by the route declared at the existing approval above. Retain its serialized HTML as
-`critique-<surface>-readback.html` and compare it with the built HTML on the sheet's terms before
-posting. On every surface used, read the rendered DOM after posting and report every damaged
-character.
+This route implements [ADR 0204](../../docs/adr/0204-a-peer-critique-posts-to-the-peer-review-comment-and-its-ampersand-is-typed-literally.md)
+and closes [#991](https://github.com/mshamblin5150-code/clinical-skills/issues/991). The 2026-09-12
+Bluefield observation found the comment stored the literal character correctly while the legacy
+peer-review submission page displayed the stored `&` as a visible `&amp;`.
 
 **Nothing on the LMS is edited after it is posted.** A defect found in a posted artifact is recorded
 and filed, not repaired in place.
 
-## 7. Reread, record, and review
+## 7. Read the stored comment, record, and review
 
-Reread the posted version and append this record to the run's one `reread.md`:
+After posting, read Canvas's stored comment text and retain it exactly as
+`critique-stored-comment-readback.txt`. Compare it with `critique.txt` character for character;
+compare at minimum the ampersand count. A disagreement is a defect: record it and file it without
+changing the posted comment. ADR 0204 classifies the legacy peer-review page's visible `&amp;`, when
+present, as expected display behavior; it is not filed when the stored comment still matches.
+This posted reading compares Canvas's stored comment text with the plain-text build.
+Read the legacy page too and record what it displays; its dated `&amp;` behavior is expected and is
+not filed again.
+
+Append this record to the run's one `reread.md`:
 
 ```text
 ## REREAD: critique.md
-POST-URL: <the posted critique's own deep link>
-POSTED: <the board's posted timestamp>
+POST-URL: <the reviewed submission's page>
+POSTED: <the comment's posted timestamp>
 READ: <ISO date of this reading>
-VERDICT: matches - <what the reading found>
+VERDICT: matches - <character comparison and source/stored ampersand counts>
+LEGACY-DISPLAY: expected - <visible &amp; count> | differs - <what the page showed> | unreadable - <reason>
 ```
 
-Replace `matches` with `diverges` when the board and artifact differ; both verdicts require
-substantive text after the keyword. Record a divergence without changing the already graded
-artifact. Rerun `peer_critique_scan.py` after writing the record; its exit must now be 0.
+`POST-URL` names the reviewed submission's page because ADR 0204's dated observation exposed no
+deep link for the comment itself.
+Replace `matches` with `diverges` when the stored comment and plain-text build differ; both verdicts
+require substantive text after the keyword. Rerun `peer_critique_scan.py` after writing the record;
+its exit must now be 0.
 
 That posted critique is one submission. Invoke `/AAR` with `critique.md` as the submission key, then
 rerun `python tools/peer_critique_scan.py <run-directory> --submission critique.md`. The report must
@@ -315,6 +318,7 @@ Do not report completion until the terminal submission-keyed grader exits 0 and 
 `the after-action review: clean`. Report the posted addressee, the word count against the spec's
 range, the pre-post and post-reading grader exits, the posted-reading verdict, and every place the
 critique credited the classmate. Keep `board-<date>.md`, `spec-<date>.md`, `posts/`, `claims.md`,
-`critique.md`, and `reread.md`, plus `voice-status.md` when present, together under the run key as
-the private provenance record. Remove every temporary per-agent path after the independent checks;
-if cleanup fails, report the exact remaining path.
+`critique.md`, `critique.txt`, `critique-stored-comment-readback.txt`, and `reread.md`, plus
+`voice-status.md` when present, together under the run key as the private provenance record. Remove
+every temporary per-agent path after the independent checks; if cleanup fails, report the exact
+remaining path.
