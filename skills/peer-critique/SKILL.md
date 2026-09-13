@@ -131,6 +131,9 @@ This **Fan-out brief** applies [standing rule 6](../../AGENTS.md). Create `claim
 header and one prewritten `## CLAIM:` heading per claim. Each research worker takes one claim, and
 each sourced record gets its refutation leg. Every research and refutation brief first reads
 [sourcing.md](../_shared/reference/sourcing.md) and applies it to every returned claim or negative.
+Immediately before each refutation dispatch, run `python tools/research_ledger.py
+scratch/runs/<run-key>/claims.md --heading-digests`, name that claim's printed digest in the brief,
+and write it as `TESTED-HEADING` with the returned verdict and route.
 
 Each record uses the full research-ledger shape:
 
@@ -145,6 +148,7 @@ RECENCY: current | within five | nothing newer - <reason> | guideline in force -
 RESOLVED: <URL or DOI> - read <ISO date>
 PAGE-YEAR: <year and where the page states it>
 REFUTATION: stands | refuted | paywalled | unreadable - <reason>
+TESTED-HEADING: <SHA-256 printed for this heading at refuter dispatch>
 SECOND-ROUTE: <research route> -> <refutation route>
 INSTRUMENTS: <first instrument> -> <second instrument>
 STATED-EXPIRY: none stated | <ISO date> - <where the document states it> | <ISO date>, superseded cited deliberately - <reason>
@@ -237,6 +241,11 @@ here so a reader who cannot run the command walks the same checks:
 | `unknown-verdict` | every posted reading carries a recognized verdict |
 | `bare-verdict` | every posted reading verdict carries substantive text |
 
+The final-draft reading adds `missing-heading-read`, `duplicate-heading-read`,
+`unread-heading-read`, `unknown-heading-read-route`,
+`heading-read-sentence-count`, `heading-read-unknown-heading`, `heading-read-dropped-heading`,
+`heading-read-draft-mismatch`, `heading-read-defect`, and `heading-read-finding`.
+
 The word count excludes the reference list. The 750-word expectation is **reported and never
 graded**, on the no-stated-maximum rule in step 4, and the count of literal ampersands is reported
 for the reason in step 6.
@@ -251,6 +260,13 @@ Its exit must be 0. Walk `peer_critique_scan.NOT_REACHED` after a clean scan; it
 inventory of what the command cannot decide. **A clean scan is not a checked critique.** Whether the
 missed diagnosis is really missed, whether an absent item was ever in the case, and whether the
 tone is one the clinician will sign are all readings, and the clinician answers them.
+
+Before the go-ahead, this fresh **Second reader** under [standing rule 6](../../AGENTS.md) receives only `critique.md`, `claims.md`, and the printed
+heading digests. Do not give it sources. It writes the shared `## HEADING-READ: critique.md` record
+from [sourcing.md](../_shared/reference/sourcing.md) to `<run-directory>/heading-read.md`. Repair
+every `unrecorded` or `drifted` finding and repeat the read after any repair; with no second context,
+write `ROUTE: orchestrator walk`. Rerun `peer_critique_scan.py`, which refuses a missing or stale
+record before the go-ahead.
 
 ## 6. Show, then post to the peer-review comment
 

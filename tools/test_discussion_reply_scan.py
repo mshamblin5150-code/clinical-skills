@@ -8,6 +8,7 @@ phi-scan: synthetic
 from __future__ import annotations
 
 import io
+import hashlib
 import re
 import tempfile
 import unittest
@@ -15,6 +16,7 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 import discussion_reply_scan as scan
+import research_ledger
 from grader_conformance import EmptyPopulationInput, for_module, gate_conformance
 from prose_bind import NAMING, bind, prose_outside_code, section
 
@@ -56,6 +58,7 @@ RECENCY: current
 RESOLVED: https://example.org/usable-access - read 2026-08-22
 PAGE-YEAR: 2024 - stated on the article masthead.
 REFUTATION: stands - the article reports the measure in its results table.
+TESTED-HEADING: fd25d4de2b43abde1d6be9dcabb7936cb702b13f05f0762a1664bf332ea194ae
 SECOND-ROUTE: publisher HTML -> journal PDF rendered at 600 dpi
 """
 
@@ -84,6 +87,75 @@ class Run:
         (root / "claims.md").write_text(CLAIMS, encoding="utf-8")
         (root / "response-maren.md").write_text(BODY, encoding="utf-8")
         (root / "reread.md").write_text(REREAD, encoding="utf-8")
+        self.write_heading_read()
+
+    def write_heading_read(self) -> None:
+        records = []
+        for reply in sorted(self.root.glob("response-*.md")):
+            digest = hashlib.sha256(reply.read_bytes()).hexdigest()
+            records.append(
+                f"## HEADING-READ: {reply.name}\n"
+                f"DRAFT: {digest}\n"
+                "ROUTE: separate context\n"
+                "SENTENCES: 0 factual, 0 clinician's own\n"
+                "VERDICT: clean\n"
+            )
+        (self.root / "heading-read.md").write_text("\n".join(records), encoding="utf-8")
+
+
+class TheHeadingReadPrecedesEachReplyGoAhead(unittest.TestCase):
+    def test_a_missing_heading_read_fails_the_existing_pre_post_scan(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            (run.root / "heading-read.md").unlink()
+            stdout = io.StringIO()
+            with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
+                status = scan.main([temp])
+
+        self.assertEqual(1, status)
+        self.assertIn("missing-heading-read: 1", stdout.getvalue())
+
+    def test_a_read_for_the_prior_reply_bytes_is_stale(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            response = run.root / "response-maren.md"
+            response.write_text(BODY + "\nA later edit.\n", encoding="utf-8")
+            stdout = io.StringIO()
+            with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
+                status = scan.main([temp])
+
+        self.assertEqual(1, status)
+        self.assertIn("heading-read-draft-mismatch: 1", stdout.getvalue())
+
+    def test_a_pair_cannot_borrow_another_replys_claim_heading(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            (run.root / "posts" / "noah-reed.md").write_text(
+                "AUTHOR: Noah Reed\nREPLIES: 0\nPOST-URL: https://example.org/?entry_id=22\n",
+                encoding="utf-8",
+            )
+            noah = run.root / "response-noah.md"
+            noah.write_text(BODY.replace("Maren,", "Noah,"), encoding="utf-8")
+            maren = run.root / "response-maren.md"
+            maren_digest = hashlib.sha256(maren.read_bytes()).hexdigest()
+            noah_digest = hashlib.sha256(noah.read_bytes()).hexdigest()
+            maren_prefix = research_ledger.heading_digest(
+                research_ledger.read_records(CLAIMS)[0].claim
+            )[:8]
+            (run.root / "heading-read.md").write_text(
+                f"## HEADING-READ: response-maren.md\nDRAFT: {maren_digest}\n"
+                "ROUTE: separate context\nSENTENCES: 0 factual, 0 clinician's own\nVERDICT: clean\n\n"
+                f"## HEADING-READ: response-noah.md\nDRAFT: {noah_digest}\n"
+                "ROUTE: separate context\nSENTENCES: 1 factual, 0 clinician's own\n"
+                f"PAIR: paragraph 1 -> {maren_prefix}\nVERDICT: clean\n",
+                encoding="utf-8",
+            )
+            stdout = io.StringIO()
+            with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
+                status = scan.main([temp])
+
+        self.assertEqual(1, status)
+        self.assertIn("heading-read-unknown-heading: 1", stdout.getvalue())
 
 
 def empty_population_input(root: Path) -> EmptyPopulationInput:
@@ -360,6 +432,7 @@ class ACompleteRunPasses(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
+            run.write_heading_read()
             with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
                 status = scan.main([temp])
 
@@ -413,6 +486,7 @@ class ACompleteRunPasses(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
+            run.write_heading_read()
             stdout = io.StringIO()
             with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
                 status = scan.main([temp])
@@ -571,6 +645,7 @@ class EveryPostedReplyHasALocatedReading(unittest.TestCase):
                 CLAIMS.replace("Quill, R. (2024).", "Quill, R. (n.d.)."),
                 encoding="utf-8",
             )
+            run.write_heading_read()
             stdout = io.StringIO()
             with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
                 status = scan.main([temp])
@@ -588,6 +663,7 @@ class ARecognizedButRefusedLabelStopsTheScan(unittest.TestCase):
                 BODY.replace("**References**", "References"),
                 encoding="utf-8",
             )
+            run.write_heading_read()
             stdout, stderr = io.StringIO(), io.StringIO()
             with redirect_stdout(stdout), redirect_stderr(stderr):
                 status = scan.main([temp])
@@ -613,6 +689,7 @@ class ARecognizedButRefusedLabelStopsTheScan(unittest.TestCase):
                 BODY.replace("Maren,", "Karen,").replace("**References**", "References"),
                 encoding="utf-8",
             )
+            run.write_heading_read()
             stdout = io.StringIO()
             with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
                 status = scan.main([temp])
@@ -730,6 +807,7 @@ class EachReplyCarriesEvidence(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
+            run.write_heading_read()
             stdout = io.StringIO()
             with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
                 status = scan.main([temp])
@@ -767,6 +845,7 @@ class EachReplyCarriesEvidence(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
+            run.write_heading_read()
             with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
                 status = scan.main([temp])
 
@@ -803,6 +882,7 @@ class EachReplyCarriesEvidence(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
+            run.write_heading_read()
             stdout = io.StringIO()
             with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
                 status = scan.main([temp])
@@ -895,6 +975,7 @@ class NumbersTraceToTheRunLedger(unittest.TestCase):
                 "STATUS: sourced\n"
                 "REFERENCE: Quill, R. (2024). Measuring usable access in community care. Journal of Care, 4(2), 10-18.\n"
                 "REFUTATION: stands - the article reports the measure in its results table.\n"
+                "TESTED-HEADING: fd25d4de2b43abde1d6be9dcabb7936cb702b13f05f0762a1664bf332ea194ae\n"
                 "SECOND-ROUTE: publisher HTML -> journal PDF rendered at 600 dpi\n",
                 encoding="utf-8",
             )
@@ -910,6 +991,20 @@ class NumbersTraceToTheRunLedger(unittest.TestCase):
             run = Run(Path(temp))
             (run.root / "claims.md").write_text(
                 CLAIMS.replace("STATUS: sourced", "STATUS: unsourced - no source found.", 1),
+                encoding="utf-8",
+            )
+            stdout = io.StringIO()
+            with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
+                status = scan.main([temp, "--show"])
+
+        self.assertEqual(1, status)
+        self.assertIn("12% appears only in a disbelieved claim record", stdout.getvalue())
+
+    def test_a_number_only_in_a_stale_tested_heading_is_disbelieved(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            (run.root / "claims.md").write_text(
+                CLAIMS.replace("12% improvement.", "12% improvement!", 1),
                 encoding="utf-8",
             )
             stdout = io.StringIO()
@@ -1022,6 +1117,7 @@ class AdvisoryAndCoverageBehavior(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
+            run.write_heading_read()
             stdout = io.StringIO()
             with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
                 status = scan.main([temp])
@@ -1144,6 +1240,7 @@ class AdvisoryAndCoverageBehavior(unittest.TestCase):
                     ),
                     encoding="utf-8",
                 )
+                run.write_heading_read()
                 stdout = io.StringIO()
                 with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
                     status = scan.main([temp])
@@ -1166,6 +1263,7 @@ class AdvisoryAndCoverageBehavior(unittest.TestCase):
                     ),
                     encoding="utf-8",
                 )
+                run.write_heading_read()
                 stdout = io.StringIO()
                 with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
                     status = scan.main([temp])
@@ -1181,6 +1279,7 @@ class AdvisoryAndCoverageBehavior(unittest.TestCase):
                 BODY.replace("Maren,", "<!-- AMPLIFICATION: craft metaphor -->\nMaren,"),
                 encoding="utf-8",
             )
+            run.write_heading_read()
             stdout = io.StringIO()
             with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
                 status = scan.main([temp])

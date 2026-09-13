@@ -20,6 +20,7 @@ and exit 2 means a required input or mechanically readable population was absent
 
 from __future__ import annotations
 
+import hashlib
 import re
 import sys
 from collections.abc import Iterable
@@ -32,6 +33,7 @@ import run_grader
 from run_grader import NOT_GRADED
 import coursework_run
 import uptodate_store
+from console_codec import require_python_floor, use_utf8
 from repo_root import scratch_root
 from run_grader import EvidenceDisposition
 from docx_write import markdown_tables, split_row
@@ -71,6 +73,7 @@ DECLARED_LIMITS = (
     DeclaredLimit("unsourced-draft-exclusion-unchecked", "A clean ledger does not establish that unsourced claims stayed outside the draft.", EvidenceDisposition.DECLARED_READING),
     DeclaredLimit("network-resolution-absent", "No grading path fetches a locator or resolves a citation over the network.", EvidenceDisposition.DECLARED_READING),
     DeclaredLimit("refutation-independence-unverified", "SECOND-ROUTE cannot prove that the refuter was a different agent, that it actually took the route it declared, or that it opened anything.", EvidenceDisposition.DECLARED_READING),
+    DeclaredLimit("tested-heading-does-not-prove-refutation", "TESTED-HEADING proves only that the recorded fingerprint matches the current heading; it cannot prove that the refuter actually tested that heading.", EvidenceDisposition.DECLARED_READING),
     DeclaredLimit("research-authenticated-route-unverified", "Nothing can see whether the browser was opened, and nothing can see whether the profile's answer was consulted.", EvidenceDisposition.DECLARED_READING),
     DeclaredLimit("stated-expiry-transcription-unverified", "The grader cannot prove that a STATED-EXPIRY value was transcribed from the cited document rather than inferred.", EvidenceDisposition.DECLARED_READING),
     DeclaredLimit("publication-cadence-reader-owned", "STATED-EXPIRY does not carry cadence-derived dates. Re-open the day a tree-wide count returns a SECOND citation on a published reissue cadence, or a SECOND distinct publisher in that bucket; measured 1 and 1 on 2026-08-27, at f9a501c, over 22 citations in 4 claim ledgers. This reader-owned trigger cannot fire mechanically.", EvidenceDisposition.DECLARED_READING),
@@ -108,7 +111,7 @@ NOT_REACHED = tuple(row.limit for row in DECLARED_LIMITS)
 CLAIM = re.compile(r"(?mi)^[ \t]*#+[ \t]*CLAIM[ \t]*:[ \t]*(.*?)[ \t]*$")
 FIELD = re.compile(
     r"(?mi)^[ \t]*(STATUS|SOURCE|REFERENCE|RESTATEMENT|PASSAGE|RECENCY"
-    r"|RESOLVED|PAGE-YEAR|REFUTATION|SECOND-ROUTE|INSTRUMENTS|STATED-EXPIRY|DROPPED)"
+    r"|RESOLVED|PAGE-YEAR|REFUTATION|TESTED-HEADING|SECOND-ROUTE|INSTRUMENTS|STATED-EXPIRY|DROPPED)"
     r"[ \t]*:[ \t]*(.*?)[ \t]*$"
 )
 BAR_FIELD = re.compile(
@@ -216,6 +219,7 @@ NOT_ALNUM = re.compile(r"[^0-9a-z]+")
 # #253. What may follow a vocabulary keyword, so a prefix is not read as a word.
 # The hyphen is excluded deliberately -- see ``keyword_of``.
 BOUNDARY = re.compile(r"[^0-9A-Za-z-]|$")
+SHA256 = re.compile(r"[0-9a-fA-F]{64}", re.ASCII)
 
 MISSING_FIELD = "missing-field"
 UNKNOWN_STATUS = "unknown-status"
@@ -238,6 +242,8 @@ UNKNOWN_REFUTATION = "unknown-refutation"
 BARE_REFUTATION = "bare-refutation"
 REFUTED_CITATION = "refuted-citation"
 REFUTATION_ECHOES_RESTATEMENT = "refutation-echoes-restatement"
+MALFORMED_TESTED_HEADING = "malformed-tested-heading"
+TESTED_HEADING_MISMATCH = "tested-heading-mismatch"
 UNSPLIT_SECOND_ROUTE = "unsplit-second-route"
 BARE_SECOND_ROUTE = "bare-second-route"
 SECOND_ROUTE_UNCHANGED = "second-route-unchanged"
@@ -299,6 +305,8 @@ ROWS = {
     BARE_REFUTATION: "#231",
     REFUTED_CITATION: "#231",
     REFUTATION_ECHOES_RESTATEMENT: "#231",
+    MALFORMED_TESTED_HEADING: "#1032",
+    TESTED_HEADING_MISMATCH: "#1032",
     UNSPLIT_SECOND_ROUTE: "#500",
     BARE_SECOND_ROUTE: "#500",
     SECOND_ROUTE_UNCHANGED: "#500",
@@ -325,12 +333,14 @@ REQUIRED_WHEN_SOURCED = (
     "RESOLVED",
     "PAGE-YEAR",
     "REFUTATION",
+    "TESTED-HEADING",
     "SECOND-ROUTE",
     "STATED-EXPIRY",
 )
 
 REFUTATION_EVIDENCE_FIELDS = (
     "REFUTATION",
+    "TESTED-HEADING",
     "SECOND-ROUTE",
 )
 REFUTATION_EVIDENCE_COMPLEMENT = tuple(
@@ -388,6 +398,12 @@ EXEMPT_DECLARATIONS = (CONTINUED_HOME,)
 def normalize(text: str) -> str:
     """Lowercase alphanumerics for the #214 equality check."""
     return " ".join(NOT_ALNUM.sub(" ", text.lower()).split())
+
+
+def heading_digest(heading: str) -> str:
+    """SHA-256 of a claim heading after collapsing whitespace only."""
+    canonical = " ".join(heading.split())
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
 # Built from ``normalize`` rather than typed, so the lookup and the comparison it
@@ -1086,6 +1102,25 @@ def _second_route_findings(record: Record) -> list[Finding]:
     return found
 
 
+def _tested_heading_findings(record: Record) -> list[Finding]:
+    """ADR 0219's exact binding between a refutation and its current heading."""
+    tested = record.value("TESTED-HEADING")
+    if not SUBSTANCE.search(tested):
+        return []  # The shared required-field row owns absence.
+    if not SHA256.fullmatch(tested):
+        return [Finding(MALFORMED_TESTED_HEADING, record.claim, tested)]
+    expected = heading_digest(record.claim)
+    if tested.casefold() != expected:
+        return [
+            Finding(
+                TESTED_HEADING_MISMATCH,
+                record.claim,
+                f"recorded {tested}, current {expected}",
+            )
+        ]
+    return []
+
+
 def _instrument_findings(record: Record) -> list[Finding]:
     """ADR 0149's three rows over the failed-read instrument pair."""
     claim = record.claim
@@ -1178,6 +1213,7 @@ def record_findings(
         found += _contract_findings(record, source_classes)
         found += _recency_findings(record, as_of, recency_window_years)
         found += _citation_findings(record, as_of)
+        found += _tested_heading_findings(record)
         found += _second_route_findings(record)
         found += _stated_expiry_findings(record, as_of)
 
@@ -1867,7 +1903,8 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
 # One string, so the usage line and the flags cannot drift apart.
 USAGE = (
     "usage: research_ledger.py <a ledger file> [--draft <a draft .md>]"
-    " [--evidence <the evidence dump>] [--show]"
+    " [--evidence <the evidence dump>] [--show] |"
+    " research_ledger.py <a ledger file> --heading-digests"
 )
 
 
@@ -2126,6 +2163,23 @@ GRADER = run_grader.Grader(
 
 def main(argv: list[str]) -> int:
     """``argv`` is the argument list without the program name."""
+    if "--heading-digests" in argv:
+        use_utf8()
+        require_python_floor()
+        if len(argv) != 2 or argv[1] != "--heading-digests":
+            print(USAGE, file=sys.stderr)
+            return 2
+        path = Path(argv[0])
+        if not path.is_file():
+            print(f"no ledger file named {path.name}", file=sys.stderr)
+            return 2
+        records = read_records(path.read_text(encoding="utf-8", errors="replace"))
+        if not records:
+            print(f"no claim records found in {path.name}", file=sys.stderr)
+            return 2
+        for record in records:
+            print(f"{heading_digest(record.claim)}  {record.claim}")
+        return 0
     return run_grader.run(GRADER, argv)
 if __name__ == "__main__":
     raise SystemExit(main(sys.argv[1:]))

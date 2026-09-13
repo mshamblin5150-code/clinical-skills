@@ -174,6 +174,8 @@ import file_digest
 import repo_root
 from run_grader import NOT_GRADED
 import aar_scan
+import heading_read
+import research_ledger
 
 EXPECTED_COMPLETION_CHECKS = (aar_scan.EXPECTED_ROW,)
 from run_grader import EvidenceDisposition
@@ -244,8 +246,11 @@ NOT_REACHED = tuple(row.limit for row in DECLARED_LIMITS)
 # under a document heading without the parser caring -- ``research_ledger.py``'s
 # ``CLAIM`` and its reason.
 CHECK = re.compile(r"(?mi)^[ \t]*#+[ \t]*CHECK[ \t]*:[ \t]*(.*?)[ \t]*$")
+HEADING_READ_HEADER = re.compile(
+    r"(?mi)^[ \t]*##[ \t]+HEADING-READ[ \t]*:[ \t]*(.*?)[ \t]*$"
+)
 FIELD = re.compile(
-    r"(?mi)^[ \t]*(VERDICT|FINDINGS|DRAFT|SOURCE|PASS|PAGES|UNSEEN)[ \t]*:[ \t]*(.*?)[ \t]*$"
+    r"(?mi)^[ \t]*(VERDICT|FINDINGS|DRAFT|SOURCE|PASS|PAGES|UNSEEN|ROUTE|SENTENCES|PAIR)[ \t]*:[ \t]*(.*?)[ \t]*$"
 )
 POSITIVE_INTEGER = re.compile(r"[1-9][0-9]*", re.ASCII)
 RENDER_SOURCES = frozenset({"word-pdf", "word-xps", "clinician"})
@@ -294,6 +299,7 @@ EXPECTED_CHECKS = (
     # the changed content. Added on
     # [#1017](https://github.com/mshamblin5150-code/clinical-skills/issues/1017).
     "the leftovers of every change after the first draft",
+    "the heading read",
     # The reader gets reconstructed text rather than the raw archive, because
     # Word draws list markers from ``numbering.xml`` and the paragraph text does
     # not contain them. Added on
@@ -387,8 +393,10 @@ ROWS = {
     RENDER_PASS_MISMATCH: "#866",
     DRAFT_FINGERPRINT_MISMATCH: "#1020",
     RENDER_FINGERPRINT_MISMATCH: "#1020",
+    **{kind: "#1032" for kind in heading_read.KINDS},
 }
 KINDS = tuple(ROWS)
+HEADING_READ_ROWS = {kind: ROWS[kind] for kind in heading_read.KINDS}
 
 # Wide enough for the longest kind, so the count column stays a column and lines
 # up with the counts above it. ``research_ledger.py`` learned this the hard way:
@@ -564,9 +572,11 @@ def read_records(text: str) -> list[Record]:
 
     for line in text.splitlines():
         heading = CHECK.match(line)
-        if heading:
+        heading_read_header = HEADING_READ_HEADER.match(line)
+        if heading or heading_read_header:
             close()
-            check, fields, counts, current = heading.group(1), {}, {}, None
+            check = "the heading read" if heading_read_header else heading.group(1)
+            fields, counts, current = {}, {}, None
             continue
         if check is None:
             continue
@@ -598,13 +608,16 @@ def record_findings(record: Record) -> list[Finding]:
     found: list[Finding] = []
     check = record.check
     rendered = normalize(check) == normalize("the rendered document")
+    heading_record = normalize(check) == normalize("the heading read")
     allowed = {"VERDICT", "FINDINGS", "DRAFT"}
     if rendered:
         allowed.update({"SOURCE", "PASS"})
+    if heading_record:
+        allowed.update({"ROUTE", "SENTENCES", "PAIR"})
     for name, count in record.counts.items():
         if name not in allowed:
             found.append(Finding(UNEXPECTED_FIELD, check, name))
-        if count > 1:
+        if count > 1 and not (heading_record and name in {"PAIR", "FINDINGS"}):
             found.append(Finding(DUPLICATE_FIELD, check, f"{name}: {count} lines"))
 
     verdict, reason = keyword_of(record.value("VERDICT"), VERDICTS)
@@ -761,9 +774,12 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
 @dataclass(frozen=True)
 class BoundChecksSource:
     path: Path
+    text: str
     records: tuple[Record, ...]
     document: Path
+    document_bytes: bytes
     document_digest: str
+    claims: tuple[research_ledger.Record, ...]
 
 
 def _submission_document(submission: str) -> Path:
@@ -794,12 +810,27 @@ def _load(parsed: run_grader.Parsed) -> BoundChecksSource:
     if not document.is_file():
         raise run_grader.SourceError(f"no output Markdown named {document.name}")
     try:
+        document_bytes = document.read_bytes()
         digest = file_digest.sha256(document)
     except OSError as failure:
         raise run_grader.SourceError(
             f"could not fingerprint output Markdown {document.name}: {failure}"
         ) from failure
-    return BoundChecksSource(path, tuple(read_records(text)), document, digest)
+    claims_path = path.with_name("claims.md")
+    claims_text = (
+        claims_path.read_text(encoding="utf-8", errors="replace")
+        if claims_path.is_file()
+        else ""
+    )
+    return BoundChecksSource(
+        path,
+        text,
+        tuple(read_records(text)),
+        document,
+        document_bytes,
+        digest,
+        tuple(research_ledger.read_records(claims_text)),
+    )
 
 
 def _add_findings(scan: Scan, extra: list[Finding]) -> Scan:
@@ -820,6 +851,26 @@ def _add_findings(scan: Scan, extra: list[Finding]) -> Scan:
 def _grade(
     source: BoundChecksSource, _parsed: run_grader.Parsed
 ) -> run_grader.Grade[Scan]:
+    heading = (
+        heading_read.scan(
+            source.text,
+            (
+                heading_read.Binding(
+                    source.document.name,
+                    source.document_bytes,
+                    source.claims,
+                ),
+            ),
+        )
+        if "the heading read" in EXPECTED_CHECKS
+        else heading_read.Scan(0, 0, ())
+    )
+    heading_extra = [
+        Finding(kind, "the heading read", finding.detail)
+        for kind in HEADING_READ_ROWS
+        for finding in heading.findings
+        if finding.kind == kind
+    ]
     scan = survey(list(source.records))
     if not source.records:
         # No record was parsed, so no row was applied. Keep the report's shape
@@ -835,7 +886,7 @@ def _grade(
     rendered_report = f"the rendered pass: {NOT_GRADED} - no check records were read"
     if source.records:
         passes = render_pass.read_passes(source.path.parent / "render")
-        extra: list[Finding] = []
+        extra: list[Finding] = list(heading_extra)
         rendered = next(
             (
                 record
@@ -901,7 +952,7 @@ def _grade(
         findings_failed=bool(scan.failing_checks) or aar_failed,
         coverage_failed=not source.records,
         diagnostics=tuple(diagnostics),
-        reports=(rendered_report, aar_report),
+        reports=(heading_read.format_coverage(heading), rendered_report, aar_report),
     )
 
 

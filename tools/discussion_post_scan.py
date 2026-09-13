@@ -66,6 +66,8 @@ import page_image
 import pdf_engine
 from run_grader import NOT_GRADED
 import aar_scan
+import heading_read
+import research_ledger
 
 EXPECTED_COMPLETION_CHECKS = (aar_scan.EXPECTED_ROW,)
 import coursework_run
@@ -108,8 +110,10 @@ ROWS = {
     BARE_VERDICT: "the posted reading says what it found",
     UNLOCATED_READING: "the posted reading carries its board entry id",
     BORROWED_LOCATOR: "the posted reading locator belongs to the initial post",
+    **{kind: "the heading read agrees with the final draft and current claim headings" for kind in heading_read.KINDS},
 }
 KINDS = tuple(ROWS)
+HEADING_READ_ROWS = {kind: ROWS[kind] for kind in heading_read.KINDS}
 
 GATED_ROW_SETS = {
     "html_graded": (
@@ -159,7 +163,7 @@ DECLARED_LIMITS = (
     *CITATION_RESOLUTION_NOT_REACHED,
     (
         "whether a believed record's heading and restatement support the number traced from it",
-        "The certifier reads numeric tokens and never judges whether the record's heading agrees with the source or its restatement supports the fact asserted in the post; the refutation leg owns heading agreement.",
+        "The certifier reads numeric tokens and never judges support. The refutation leg owns source-to-heading agreement, and the heading read owns draft-to-heading agreement.",
         EvidenceDisposition.BEHAVIOR,
     ),
     UNJOINED_SOURCE_FIELDS_LIMIT,
@@ -286,6 +290,8 @@ class RunSource:
     body: str
     references: tuple[str, ...]
     claims: str
+    draft_bytes: bytes
+    heading_read_text: str
     bar: Bar
     html: Path | None
     submission_heading_failures: int
@@ -366,6 +372,8 @@ class Scan:
     rendered_pages_graded: bool
     docx_graded: bool
     reference_boundary_graded: bool
+    heading_reads: int
+    heading_read_unread: int
     findings: tuple[Finding, ...] = ()
     citation_coverage: CitationCoverage = CitationCoverage()
 
@@ -801,7 +809,14 @@ def load(parsed: run_grader.Parsed) -> RunSource:
     try:
         bar = _read_bar(bar_path.read_text(encoding="utf-8"))
         claims = claims_path.read_text(encoding="utf-8")
+        draft_bytes = draft.read_bytes()
         draft_text = draft.read_text(encoding="utf-8")
+        heading_read_path = root / "heading-read.md"
+        heading_read_text = (
+            heading_read_path.read_text(encoding="utf-8")
+            if heading_read_path.is_file()
+            else ""
+        )
         section = read_reference_section(draft_text, REFERENCE_HEADING)
         post_fields = (
             {
@@ -833,6 +848,8 @@ def load(parsed: run_grader.Parsed) -> RunSource:
         section.body,
         section.references,
         claims,
+        draft_bytes,
+        heading_read_text,
         bar,
         html,
         submission_heading_failures,
@@ -1057,8 +1074,24 @@ def _rendered_page_findings(source: RunSource) -> RenderedPageSurvey:
 
 def survey(source: RunSource) -> Scan:
     rendered_pages = _rendered_page_findings(source)
+    heading = heading_read.scan(
+        source.heading_read_text,
+        (
+            heading_read.Binding(
+                source.draft.name,
+                source.draft_bytes,
+                tuple(research_ledger.read_records(source.claims)),
+            ),
+        ),
+    )
+    heading_findings = tuple(
+        Finding(kind, finding.artifact, finding.detail)
+        for kind in HEADING_READ_ROWS
+        for finding in heading.findings
+        if finding.kind == kind
+    )
     if source.refused_label is not None:
-        findings = _submission_findings(source) + rendered_pages.findings
+        findings = _submission_findings(source) + rendered_pages.findings + heading_findings
         return Scan(
             words=None,
             word_floor=source.bar.word_floor,
@@ -1081,6 +1114,8 @@ def survey(source: RunSource) -> Scan:
             rendered_pages_graded=rendered_pages.engine_available,
             docx_graded=source.docx is not None,
             reference_boundary_graded=False,
+            heading_reads=heading.records_read,
+            heading_read_unread=heading.unread,
             findings=findings + _posted_reading_findings(source),
         )
     words = len(WORD.findall(_countable_body(source.body)))
@@ -1088,7 +1123,7 @@ def survey(source: RunSource) -> Scan:
     reference_key_set = ClaimReferenceIndex.from_records(records)
     body_citations, citations, coverage = _citation_keys(source.body, reference_key_set)
     numbers = traceable_numeric_values(source.body, body_citations)
-    findings: list[Finding] = list(_posted_reading_findings(source))
+    findings: list[Finding] = list(_posted_reading_findings(source) + heading_findings)
     for block in _claim_blocks(source.claims):
         reference = CLAIM_REFERENCE.search(block)
         if reference is not None and legal_reference_lacks_name(
@@ -1199,6 +1234,8 @@ def survey(source: RunSource) -> Scan:
         rendered_pages_graded=rendered_pages.engine_available,
         docx_graded=source.docx is not None,
         reference_boundary_graded=True,
+        heading_reads=heading.records_read,
+        heading_read_unread=heading.unread,
         findings=tuple(findings),
         citation_coverage=coverage,
     )
@@ -1263,6 +1300,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
             if scan.reference_boundary_graded
             else f"pre-#496 markers: {NOT_GRADED}"
         ),
+        f"heading-read records: {scan.heading_reads}; unread remainder: {scan.heading_read_unread}",
         (
             f"{RENDERED_TEXT}: {scan.rendered_text_mismatches} (reported, {NOT_GRADED})"
             if scan.docx_graded
@@ -1283,6 +1321,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
             BARE_VERDICT,
             UNLOCATED_READING,
             BORROWED_LOCATOR,
+            *heading_read.KINDS,
         } and not scan.reference_boundary_graded:
             lines.append(f"{kind}: {NOT_GRADED}")
         elif kind == RENDERED_PAGES and not scan.rendered_pages_graded:
@@ -1315,6 +1354,9 @@ def grade(source: RunSource, _parsed: run_grader.Parsed) -> run_grader.Grade[Sca
         finding.kind in {BOLD_HEADINGS, RENDERED_COMMENTS, SUBMISSION_TEXT, RENDERED_PAGES}
         for finding in scanned.findings
     )
+    heading_failed = any(
+        finding.kind in heading_read.KINDS for finding in scanned.findings
+    )
     aar_failed, aar_report = aar_scan.completion_gate(
         source.path, _parsed.value("--submission")
     )
@@ -1324,7 +1366,7 @@ def grade(source: RunSource, _parsed: run_grader.Parsed) -> run_grader.Grade[Sca
         findings_failed=(
             bool(scanned.findings)
             and (scanned.reference_boundary_graded or submission_failed)
-        ) or aar_failed,
+        ) or heading_failed or aar_failed,
         coverage_failed=(
             not scanned.reference_boundary_graded
             or not scanned.rendered_pages_graded

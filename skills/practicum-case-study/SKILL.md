@@ -584,6 +584,7 @@ RESOLVED: https://doi.org/10.1097/AOG.0b013e3181c2bde8 - read 2026-08-19
 PAGE-YEAR: 2009 - stated on the article's masthead and in the journal citation.
 REFUTATION: stands - the volume, issue and pages match the publisher's landing page, and the
     third-trimester row on page 1327 covers 15,000 as the heading states.
+TESTED-HEADING: d0bccc42945d68a207d021b00bb028e7aeee53a89fd80ad27ab75abb1637a7d8
 SECOND-ROUTE: publisher landing page -> journal PDF and table on page 1327
 STATED-EXPIRY: none stated
 DROPPED: the draft no longer makes this claim after the treatment plan changed
@@ -607,6 +608,8 @@ reason. Transcribe only what the document states; do not infer an expiry from a 
 provenance, and the annual reissue schedule is not a stated expiry. `REFUTATION` is `stands`,
 `refuted`, `paywalled`, or `unreadable` with the reason after a hyphen. A field's value may wrap onto the next line.
 
+The grader refuses a `TESTED-HEADING` that is not exactly 64 hexadecimal characters.
+It refuses a `TESTED-HEADING` that does not match the current claim heading.
 The grader also refuses a `SECOND-ROUTE` with no ASCII `->` separator.
 It refuses a `SECOND-ROUTE` with an empty half.
 It refuses a `SECOND-ROUTE` whose normalized halves are equal.
@@ -632,6 +635,9 @@ claim is checked at the locator for the year, the
 volume, the numbering and the pages, and reads whether the source says what the heading and
 restatement say it says. It also returns `SECOND-ROUTE: <research route> -> <refutation route>`. The ASCII `->`
 separator and both substantive halves are required, and the two normalized halves must differ.
+Immediately before dispatch, the parent runs `python tools/research_ledger.py <claims-ledger>
+--heading-digests`, names that claim's printed digest in the brief, and writes it as
+`TESTED-HEADING` with the returned verdict and route.
 Before writing `paywalled`, try the clinician's authenticated Chrome route through
 `mcp__claude-in-chrome__*`; the in-app Browser pane is not that signed-in route. Refuter
 independence remains orchestrator-owned; see `research_ledger.DECLARED_LIMITS` for the mechanical
@@ -1085,8 +1091,10 @@ verification*, and [ADR 0001](../../docs/adr/0001-fixture-asserts-on-named-findi
 up. Two places qualify: a string test, where the rule is mechanical, and a separated reader given
 the draft and the rule and nothing else, where it is not.
 
-For these surfaces, the prewritten destination is `<checks-ledger>` with one `## CHECK:` heading per
-row of the table below and nothing under them yet. A heading whose verdict never arrived is visible,
+For these surfaces, the prewritten destination is `<checks-ledger>` with one heading per
+row of the table below and nothing under them yet. Every row uses `## CHECK:` except `the heading
+read`, which uses the shared `## HEADING-READ: <draft file>` record from
+[sourcing.md](../_shared/reference/sourcing.md). A heading whose verdict never arrived is visible,
 and a check that was never run is not. Immediately before dispatching each reader, the parent runs
 `python -c "from pathlib import Path; from tools.file_digest import sha256; print(sha256(Path(r'<the output Markdown>')))"`
 and names that fingerprint in the brief. The parent is the one writer and records that exact value as `DRAFT:` on the returned row, including
@@ -1104,6 +1112,7 @@ rows whose verdict comes from a command.
 | the threshold sheets against this patient | the whole draft, the faculty material's patient, and `reference/thresholds/` via `coverage.md`, including its `subject` column | a reader: group the registry's rows by subject; where this patient's problems touch any cell in a subject, open every sheet in that subject; and where the draft rests on rows from more than one sheet, decide whether each sheet's own population wording holds for **this** patient — `?` means nobody has ruled whether that cell has siblings, never that it has none; population and quantity keys are sheet-local, `CONFLICT` is within-sheet, and no command compares two sheets, so this pair is seen by nobody else | yes |
 | the clinical decisions no command reaches | the faculty material and the whole Markdown draft | a reader: for every continuing drug, **whether a stop criterion's endpoint is the right endpoint**; for every PRN drug, **whether a drug ordered PRN needs an endpoint of its own**; against the patient in the faculty material, whether the draft carries **a wrapper section that does not apply to this patient**; for **every alternative the draft rejects with a stated reason** — setting, drug, test or procedure — **whether the chosen option meets that same reason**, never whether the rejection was right; and **every departure from a clinician instruction the departures section does not list**. Never whether a dose is correct: that remains [#289](https://github.com/mshamblin5150-code/clinical-skills/issues/289)'s closing prohibition | yes |
 | the leftovers of every change after the first draft | the whole Markdown draft and the description of the round of changes | a reader that did not make the change is told what changed and reads the whole draft for leftovers of the old version. Its `clean` names the changes it walked, or states that no change followed the first draft. One read covers one round of changes | yes |
+| the heading read | the final Markdown draft, `<claims-ledger>`, and the heading digests printed by `research_ledger.py --heading-digests` | This fresh **Second reader** under [standing rule 6](../../AGENTS.md) receives no sources and pairs every factual sentence with the current heading it rests on. It writes the shared record below; an `unrecorded` or `drifted` sentence is repaired under [sourcing.md](../_shared/reference/sourcing.md), and every repair is read again before the go-ahead. With no second context, use `ROUTE: orchestrator walk` | no |
 | the numbering in context | `<numbering-readback>` produced by `python tools/docx_read.py "<the case study document>" --numbering`, and the Markdown draft | a reader: read the reconstructed numerals in context, never the raw `.docx`; does each section start where it should, does each MDM entry discuss **by name** the diagnosis at the same position in the differential, and does every restart or deliberate continuation suit the section | yes |
 | the rendered document | the Markdown draft, the rendered `.docx`, and the final retained render, page by page | coverage: `tools/render_scan.py` below; then a vision-capable reader opens every retained page image, compares it page by page with the Markdown, records `SOURCE` as `word-pdf`, `word-xps`, or `clinician` and `PASS` as the positive retained pass number, and reports clipped, overlapping or missing content; broken tables or list numbering; bad page breaks; misplaced headings, page numbers or signatures; and reference-list layout that the Markdown cannot show | yes |
 | the faculty's own to-do list | the faculty material, the draft's headings, and `bar.md` on a routed board run | a reader: does every faculty item have a section that answers it, and on a routed run does every signed bar element — including word floor, reference minimum, ISBN, and every prose element — hold in the finished draft | no |
@@ -1329,6 +1338,18 @@ FINDINGS: The differential's 1. is appendicitis, and the intake gives a patient 
     emergency is at 4 and has to be at 1 until the hCG is back.
 ```
 
+The heading-read row keeps its shared shape in this same checks file:
+
+```text
+## HEADING-READ: <output Markdown filename>
+DRAFT: <SHA-256 of the output Markdown's raw bytes>
+ROUTE: separate context | orchestrator walk
+SENTENCES: <n> factual, <n> clinician's own
+PAIR: <location> -> <first 8 hex of the heading digest>
+VERDICT: clean | defect - <substance>
+FINDINGS: unrecorded | drifted - <location>, <what differs>
+```
+
 The rendered-document record also fixes the declared route and retained pass:
 
 ```
@@ -1384,6 +1405,16 @@ be several of them at once:
 | no retained pass, or a rendered-document record whose `PASS` does not name the highest retained pass | both the pre-go-ahead `--document` run and the `--submission` run require the highest retained pass |
 | the highest retained pass has no fingerprint, or its fingerprint differs from the output Markdown | the retained pixels were not produced from the draft being graded; re-render into a new pass |
 | any `## CHECK:` record has no `DRAFT`, or its `DRAFT` differs from the output Markdown | that row was not read against the current draft and must be rerun |
+| a missing-heading-read record | the required `## HEADING-READ:` record is absent, so no final draft-to-heading reading can block the go-ahead |
+| a duplicate-heading-read record | more than one record names the expected draft, so no single final reading is authoritative |
+| an unread-heading-read record | a heading-read-shaped candidate was not read as the expected record, so the reported coverage is partial |
+| an unknown-heading-read-route record | `ROUTE` is neither `separate context` nor `orchestrator walk` |
+| a heading-read-sentence-count mismatch | `PAIR` lines plus `FINDINGS` lines do not equal the factual count in `SENTENCES` |
+| a heading-read-unknown-heading pair | its eight-hex prefix names no current claim heading, including a heading edited after the read |
+| a heading-read-dropped-heading pair | the draft claims a record that says it was `DROPPED` |
+| a heading-read-draft-mismatch | `DRAFT` is absent or differs from the output Markdown bytes |
+| a heading-read-defect verdict | the reader reported a defect, which blocks the go-ahead |
+| a heading-read-finding line | any `FINDINGS` line reports an `unrecorded` or `drifted` sentence and blocks the go-ahead |
 
 **That last row was off the list entirely until
 [#255](https://github.com/mshamblin5150-code/clinical-skills/issues/255), and it is on for some of

@@ -95,9 +95,9 @@ List every new factual claim the replies may add. A paraphrase of the classmate'
 of agreement, and the clinician's own argument need no record. A number, threshold, factual
 comparison, or empirical assertion does. A source already verified in this board's `claims.md`
 may discharge another page-level read, but the new claim does not inherit the earlier claim's
-verification. Give it a new `RESTATEMENT`, `REFUTATION`, and `SECOND-ROUTE`; it inherits `REFERENCE`,
+verification. Give it a new `RESTATEMENT`, `REFUTATION`, `TESTED-HEADING`, and `SECOND-ROUTE`; it inherits `REFERENCE`,
 `RESOLVED`, `PAGE-YEAR`, and `STATED-EXPIRY`, which are facts about the page already opened.
-`SECOND-ROUTE` belongs to the new refutation and is never inherited. `respent-source` remains
+`TESTED-HEADING` and `SECOND-ROUTE` belong to the new refutation and are never inherited. `respent-source` remains
 reply against reply and never compares a reply file with `post.md`, so a course-required initial-post
 source does not become unavailable to every reply.
 
@@ -124,6 +124,9 @@ normalization. Before `paywalled`, it attempts the clinician's authenticated Chr
 orchestrator-owned; see `research_ledger.DECLARED_LIMITS`. A source is `paywalled` only when its
 body remains inaccessible through that **Authenticated route**; an anonymous or in-app login wall
 does not establish the disposition.
+Immediately before each refutation dispatch, run `python tools/research_ledger.py
+scratch/runs/<run-key>/claims.md --heading-digests`, name that claim's printed digest in the brief,
+and write it as `TESTED-HEADING` with the returned verdict and route.
 If the profile records the **Authenticated route** as available, a research agent must attempt it
 before giving up on the sought source, choosing an open substitute, or returning
 `STATUS: unsourced` because of the wall.
@@ -141,6 +144,7 @@ RECENCY: current | within five | nothing newer - <reason> | guideline in force -
 RESOLVED: <URL or DOI> - read <ISO date>
 PAGE-YEAR: <year and where the page states it>
 REFUTATION: stands | refuted | paywalled | unreadable - <reason>
+TESTED-HEADING: <SHA-256 printed for this heading at refuter dispatch>
 SECOND-ROUTE: <research route> -> <refutation route>
 INSTRUMENTS: <first instrument> -> <second instrument>
 STATED-EXPIRY: none stated | <ISO date> - <where the document states it> | <ISO date>, superseded cited deliberately - <reason>
@@ -255,6 +259,18 @@ the two files' paragraph text, anchor destinations, and anchor count.
 Walk `discussion_reply_scan.NOT_REACHED` after a clean scan; it is the single inventory of what the
 command cannot decide. A clean scan grades only the mechanically visible set and is not a checked
 voice or a checked board. The clinician answers the substance questions from the table below.
+
+Before each reply's go-ahead, this fresh **Second reader** under [standing rule 6](../../AGENTS.md) receives only that final
+`response-<name>.md`, `claims.md`, and the printed heading digests. Do not give it sources. Pairs may
+resolve only to `[REPLY: <name>]` records. Write one shared `## HEADING-READ:` record per response
+file in `<run-directory>/heading-read.md`, repair every `unrecorded` or `drifted` finding under
+[sourcing.md](../_shared/reference/sourcing.md), and repeat the read after any repair. With no second
+context, write `ROUTE: orchestrator walk`. Rerun `discussion_reply_scan.py`; it refuses a missing or
+stale record before the go-ahead.
+Its heading-read rows are `missing-heading-read`, `duplicate-heading-read`, `unread-heading-read`,
+`unknown-heading-read-route`, `heading-read-sentence-count`, `heading-read-unknown-heading`,
+`heading-read-dropped-heading`, `heading-read-draft-mismatch`, `heading-read-defect`, and
+`heading-read-finding`.
 
 Show the clean reply and an invoked-source table to the clinician. For every retained invoked
 source, the table shows the invoked source, its domain, and the property it spends. Ask separately whether the substance is

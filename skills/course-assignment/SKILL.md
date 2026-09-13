@@ -95,6 +95,7 @@ RECENCY: current | within five | nothing newer - <reason> | guideline in force -
 RESOLVED: <URL or DOI> - read <ISO date>
 PAGE-YEAR: <year and where the page states it>
 REFUTATION: stands | refuted | paywalled | unreadable - <substantive reason>
+TESTED-HEADING: <SHA-256 printed for this heading at refuter dispatch>
 SECOND-ROUTE: <research route> -> <different refutation route>
 INSTRUMENTS: <first instrument> -> <second instrument>
 STATED-EXPIRY: none stated | <ISO date> - <where stated> | <ISO date>, superseded cited deliberately - <reason>
@@ -108,6 +109,9 @@ brief first reads and applies
 Each refutation leg attacks the reference, locator, year, bibliographic details, heading, and restatement. It returns
 `stands`, `refuted`, `paywalled`, or `unreadable` with a reason and a genuinely different second route. The
 route requirement is a local narrowing.
+Immediately before each refutation dispatch, run `python tools/research_ledger.py
+scratch/runs/<course>-<module>-course-assignment/claims.md --heading-digests`, name that claim's
+printed digest in the brief, and write it as `TESTED-HEADING` with the returned verdict and route.
 
 If the clinician's profile says an available research agent has an authenticated route, that agent
 must try it before giving up on retrieval. An authenticated-route failure is evidence, not a
@@ -176,6 +180,10 @@ The rows are:
   are excluded.
 - `rendered-record`: one finding for each malformed record or failed terminal join to the deck,
   highest retained pass, slide count, PNG count, unseen count, or clean visual verdict.
+- Heading-read enforcement uses `missing-heading-read`, `duplicate-heading-read`,
+  `unread-heading-read`, `unknown-heading-read-route`, `heading-read-sentence-count`,
+  `heading-read-unknown-heading`, `heading-read-dropped-heading`,
+  `heading-read-draft-mismatch`, `heading-read-defect`, and `heading-read-finding`.
 
 The default report prints counts only. `--show` exposes artifact text and remains private. Exit 0
 is clean, 1 means a finding, and 2 means the command did not completely scan the run, bar, or deck.
@@ -254,6 +262,15 @@ Every package scan grades this record's shape when the file exists. At the termi
 record must name the output deck and highest retained pass, all deck slides must have retained PNGs,
 and `UNSEEN` must be `none` with a reasoned clean verdict. Earlier retained passes need no record;
 the report counts them without grading their absence.
+
+Before the go-ahead, this fresh **Second reader** under [standing rule 6](../../AGENTS.md) receives only the final `.pptx` (including its slide
+bullets and speaker-note sentences), `claims.md`, and the printed heading digests. Do not give it
+sources. It writes the shared `## HEADING-READ: <deck>.pptx` record from
+[sourcing.md](../_shared/reference/sourcing.md) to `<run-directory>/heading-read.md`; locations name
+slide bullets and speaker-note sentences. Repair every `unrecorded` or `drifted` finding and repeat
+the read after any repair. With no second context, write `ROUTE: orchestrator walk`. Rerun
+`deck_scan.py --pptx <deck>`; it refuses a missing record, a stale deck digest, or a pair to an old
+heading before the go-ahead.
 
 ## 6. Approve, submit, and reread
 

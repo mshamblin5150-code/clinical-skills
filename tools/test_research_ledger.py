@@ -69,6 +69,7 @@ RESOLVED: https://doi.org/10.1097/AOG.0b013e3181c2bde8 - read 2026-08-19
 PAGE-YEAR: 2009 - stated on the article's masthead and in the journal citation.
 REFUTATION: stands - the volume, issue and pages match the publisher's landing
     page, and the third-trimester row on page 1327 covers 15,000 as the heading states.
+TESTED-HEADING: d0bccc42945d68a207d021b00bb028e7aeee53a89fd80ad27ab75abb1637a7d8
 SECOND-ROUTE: publisher HTML -> journal PDF rendered at 600 dpi
 STATED-EXPIRY: none stated
 """
@@ -137,6 +138,12 @@ def replace_field(record: str, name: str, value: str | None) -> str:
     return "\n".join(out) + "\n"
 
 
+def bind_tested_heading(record: str) -> str:
+    """Refresh a fixture's heading fingerprint after changing its claim."""
+    claim = ledger.read_records(ledger_text(record))[0].claim
+    return replace_field(record, "TESTED-HEADING", ledger.heading_digest(claim))
+
+
 def with_reference(record: str, reference: str) -> str:
     """Set the reference and move ``PAGE-YEAR`` with it.
 
@@ -175,6 +182,115 @@ def vocabularies_keyword_of_serves() -> dict[str, tuple[str, ...]]:
         if isinstance(second, ast.Name):
             served[second.id] = getattr(ledger, second.id)
     return served
+
+
+class TheTestedHeadingFingerprintsTheClaimText(unittest.TestCase):
+    def test_every_worked_claim_record_carries_its_true_digest(self):
+        paths = (
+            REPO_ROOT / "skills" / name / "SKILL.md"
+            for name in (
+                "practicum-case-study",
+                "discussion-post",
+                "discussion-reply",
+                "peer-critique",
+                "course-assignment",
+            )
+        )
+        worked = 0
+        for path in paths:
+            for record in ledger.read_records(path.read_text(encoding="utf-8")):
+                tested = record.value("TESTED-HEADING")
+                if tested and "<" not in tested:
+                    worked += 1
+                    self.assertEqual(ledger.heading_digest(record.claim), tested, path)
+        self.assertGreater(worked, 0)
+
+    def test_whitespace_alone_does_not_change_the_known_digest(self):
+        expected = "d0bccc42945d68a207d021b00bb028e7aeee53a89fd80ad27ab75abb1637a7d8"
+
+        self.assertEqual(
+            expected,
+            ledger.heading_digest(
+                "  A white count of 15,000 is within the third-trimester "
+                "reference range for normal pregnancy.  "
+            ),
+        )
+        self.assertEqual(
+            expected,
+            ledger.heading_digest(
+                "A white count of 15,000 is within the third-trimester\n"
+                "reference range for normal pregnancy."
+            ),
+        )
+
+    def test_one_punctuation_mark_changes_the_digest(self):
+        self.assertNotEqual(
+            ledger.heading_digest(CLEAN.splitlines()[0].removeprefix("## CLAIM: ")),
+            ledger.heading_digest(CLEAN.splitlines()[0].removeprefix("## CLAIM: ") + "!"),
+        )
+
+    def test_the_printing_mode_reads_a_dollar_bearing_heading_from_the_file(self):
+        claims_text = "DATE: 2026-08-19\n\n## CLAIM: A $50 claim.\n"
+        with tempfile.TemporaryDirectory() as temp:
+            claims = Path(temp) / "claims.md"
+            claims.write_text(claims_text, encoding="utf-8")
+            stdout, stderr = io.StringIO(), io.StringIO()
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                status = ledger.main([str(claims), "--heading-digests"])
+
+        self.assertEqual(0, status)
+        self.assertEqual("", stderr.getvalue())
+        self.assertEqual(
+            "1e696f309ffb25c194910dc3f77a29ef060d7f592e5cf6ac0452c770dd384704"
+            "  A $50 claim.\n",
+            stdout.getvalue(),
+        )
+        sourced = a_drug_claim("A $50 claim.")
+        self.assertEqual([], kinds(ledger_text(sourced)))
+        self.assertEqual(
+            stdout.getvalue().split()[0],
+            ledger.read_records(ledger_text(sourced))[0].value("TESTED-HEADING"),
+        )
+
+    def test_the_printing_mode_initializes_the_command_path_before_file_io(self):
+        with tempfile.TemporaryDirectory() as temp:
+            claims = Path(temp) / "claims.md"
+            claims.write_text("## CLAIM: A heading.\n", encoding="utf-8")
+            calls = mock.Mock()
+            calls.attach_mock(mock.Mock(), "utf8")
+            calls.attach_mock(mock.Mock(), "floor")
+            with (
+                mock.patch.object(ledger, "use_utf8", calls.utf8),
+                mock.patch.object(ledger, "require_python_floor", calls.floor),
+                redirect_stdout(io.StringIO()),
+            ):
+                status = ledger.main([str(claims), "--heading-digests"])
+
+        self.assertEqual(0, status)
+        self.assertEqual([mock.call.utf8(), mock.call.floor()], calls.mock_calls)
+
+    def test_a_missing_fingerprint_is_the_shared_required_field_finding(self):
+        record = replace_field(CLEAN, "TESTED-HEADING", None)
+        self.assertEqual([ledger.MISSING_FIELD], kinds(ledger_text(record)))
+
+    def test_a_malformed_fingerprint_is_a_finding(self):
+        record = replace_field(CLEAN, "TESTED-HEADING", "not-a-sha256")
+        self.assertEqual([ledger.MALFORMED_TESTED_HEADING], kinds(ledger_text(record)))
+
+    def test_a_currently_well_formed_but_stale_fingerprint_is_a_finding(self):
+        record = CLEAN.replace("normal pregnancy.", "normal pregnancy!", 1)
+        self.assertEqual([ledger.TESTED_HEADING_MISMATCH], kinds(ledger_text(record)))
+
+    def test_every_refutation_verdict_requires_the_current_fingerprint(self):
+        for verdict in ledger.REFUTATION_VALUES:
+            with self.subTest(verdict=verdict):
+                record = replace_field(
+                    CLEAN,
+                    "REFUTATION",
+                    f"{verdict} - a substantive independent reading.",
+                )
+                record = replace_field(record, "TESTED-HEADING", None)
+                self.assertIn(ledger.MISSING_FIELD, kinds(ledger_text(record)))
 
 
 class TheParserReadsARecordAndItsWrappedFields(unittest.TestCase):
@@ -775,6 +891,7 @@ INSTRUMENTS: web fetch -> curl
             "RESOLVED": "https://example.test/unread - read 2026-09-08",
             "PAGE-YEAR": "2026 - on the unread page",
             "REFUTATION": "stands - asserted without a read",
+            "TESTED-HEADING": "d0bccc42945d68a207d021b00bb028e7aeee53a89fd80ad27ab75abb1637a7d8",
             "SECOND-ROUTE": "first route -> second route",
             "STATED-EXPIRY": "none stated",
         }
@@ -1490,7 +1607,7 @@ class TheRefutationDeclaresASecondRoute(unittest.TestCase):
 
     def test_refutation_evidence_and_its_complement_partition_required_fields(self):
         self.assertEqual(
-            ("REFUTATION", "SECOND-ROUTE"),
+            ("REFUTATION", "TESTED-HEADING", "SECOND-ROUTE"),
             ledger.REFUTATION_EVIDENCE_FIELDS,
         )
         self.assertEqual(
@@ -1753,7 +1870,11 @@ class EveryRuledFanOutReadsTheSharedSourcingRules(unittest.TestCase):
         text = SOURCING.read_text(encoding="utf-8")
         flat = " ".join(text.split())
         self.assertEqual(
-            re.findall(r"(?m)^## (.+)$", text),
+            [
+                heading
+                for heading in re.findall(r"(?m)^## (.+)$", text)
+                if not heading.startswith("HEADING-READ:")
+            ],
             [
                 "A pointer is not a source",
                 "A resolving locator is not verification",
@@ -1761,6 +1882,7 @@ class EveryRuledFanOutReadsTheSharedSourcingRules(unittest.TestCase):
                 "An absence-based refutation reads and quotes the passage",
                 "A sourceless record makes no claim about a source",
                 "A claim heading is the claim the document will make",
+                "A heading read binds the final draft to the ledger",
             ],
         )
         self.assertIn("Derived material may carry a sentence", flat)
@@ -1773,7 +1895,7 @@ class EveryRuledFanOutReadsTheSharedSourcingRules(unittest.TestCase):
         self.assertIn("reports the corpus it read and what it did not open", flat)
         self.assertIn("retry with a second independent instrument", flat)
         self.assertIn(
-            "A sourced claim record may certify a value only when both REFUTATION and SECOND-ROUTE carry substance",
+            "A sourced claim record may certify a value only when REFUTATION, TESTED-HEADING, and SECOND-ROUTE carry substance",
             flat.replace("`", ""),
         )
 
@@ -1785,7 +1907,7 @@ class EveryRuledFanOutReadsTheSharedSourcingRules(unittest.TestCase):
         self.assertIn("corrected", shared)
         self.assertIn("refuted", shared)
         self.assertIn("heading changed after its refutation is a new claim", shared)
-        self.assertIn("fresh REFUTATION and SECOND-ROUTE", shared)
+        self.assertIn("fresh refutation and a newly printed TESTED-HEADING", shared)
 
         enumerations = {
             "practicum-case-study": "source says what the heading and restatement say it says",
@@ -1865,6 +1987,7 @@ class ASourcelessRecordCarriesNoneOfTheSourceFields(unittest.TestCase):
         "RESOLVED": "https://doi.org/10.1/x - read 2026-08-19",
         "PAGE-YEAR": "2020 - on the masthead.",
         "REFUTATION": "stands - checked the landing page.",
+        "TESTED-HEADING": "d0bccc42945d68a207d021b00bb028e7aeee53a89fd80ad27ab75abb1637a7d8",
         "SECOND-ROUTE": "publisher HTML -> journal PDF rendered at 600 dpi",
         "STATED-EXPIRY": "none stated",
     }
@@ -2156,6 +2279,8 @@ class TheSkillSaysWhatThisChecks(ProseBind, unittest.TestCase):
         ledger.BARE_REFUTATION: "a `REFUTATION` with no reason after it",
         ledger.REFUTED_CITATION: "a `REFUTATION` reading `refuted`",
         ledger.REFUTATION_ECHOES_RESTATEMENT: "a `REFUTATION` that is the restatement pasted back",
+        ledger.MALFORMED_TESTED_HEADING: "a `TESTED-HEADING` that is not exactly 64 hexadecimal characters",
+        ledger.TESTED_HEADING_MISMATCH: "a `TESTED-HEADING` that does not match the current claim heading",
         ledger.UNSPLIT_SECOND_ROUTE: "a `SECOND-ROUTE` with no ASCII `->` separator",
         ledger.BARE_SECOND_ROUTE: "a `SECOND-ROUTE` with an empty half",
         ledger.SECOND_ROUTE_UNCHANGED: "a `SECOND-ROUTE` whose normalized halves are equal",
@@ -2631,7 +2756,7 @@ def a_drug_claim(claim: str) -> str:
     """A clean record whose claim heading is ``claim``."""
     lines = CLEAN.splitlines()
     lines[0] = f"## CLAIM: {claim}"
-    return "\n".join(lines) + "\n"
+    return bind_tested_heading("\n".join(lines) + "\n")
 
 
 CEFTRIAXONE = "ceftriaxone 1 g IV q24h x 14 days"
@@ -3749,6 +3874,7 @@ RECENCY: current - the topic was last updated in 2026.
 RESOLVED: https://www.uptodate.com/contents/some-slug - read 2026-08-19
 PAGE-YEAR: 2026 - stated in the topic's own last-updated line.
 REFUTATION: stands - the title and authors match the topic page.
+TESTED-HEADING: {ledger.heading_digest(claim)}
 SECOND-ROUTE: topic HTML -> publisher references and author list
 STATED-EXPIRY: none stated
 """

@@ -22,13 +22,19 @@ APA_SHEET = Path(__file__).resolve().parents[1] / "skills" / "_shared" / "refere
 class ClaimValueCertificationRequiresRefutationEvidence(unittest.TestCase):
     def test_both_refutation_evidence_fields_need_substance(self):
         complete = (
+            "A result was confirmed.\n"
             "STATUS: sourced\n"
             "REFUTATION: stands - the result was confirmed.\n"
+            "TESTED-HEADING: 116a0979d429b49e41c8c3702b97d17570f7445895c37ca5c1c968796ae150e0\n"
             "SECOND-ROUTE: publisher HTML -> journal PDF\n"
         )
         cases = (
             complete.replace("REFUTATION: stands - the result was confirmed.\n", ""),
             complete.replace("REFUTATION: stands - the result was confirmed.", "REFUTATION: --"),
+            complete.replace(
+                "TESTED-HEADING: 116a0979d429b49e41c8c3702b97d17570f7445895c37ca5c1c968796ae150e0\n",
+                "",
+            ),
             complete.replace("SECOND-ROUTE: publisher HTML -> journal PDF\n", ""),
             complete.replace("SECOND-ROUTE: publisher HTML -> journal PDF", "SECOND-ROUTE: ->"),
         )
@@ -37,6 +43,16 @@ class ClaimValueCertificationRequiresRefutationEvidence(unittest.TestCase):
         for block in cases:
             with self.subTest(block=block):
                 self.assertFalse(artifact.claim_record_can_certify_values(block))
+
+    def test_a_digest_for_the_heading_before_an_edit_is_disbelieved(self):
+        block = (
+            "A result was confirmed!\n"
+            "STATUS: sourced\n"
+            "REFUTATION: stands - the result was confirmed.\n"
+            "TESTED-HEADING: 116a0979d429b49e41c8c3702b97d17570f7445895c37ca5c1c968796ae150e0\n"
+            "SECOND-ROUTE: publisher HTML -> journal PDF\n"
+        )
+        self.assertFalse(artifact.claim_record_can_certify_values(block))
 
 
 def republished_work_rows() -> tuple[tuple[str, str], ...]:

@@ -247,6 +247,7 @@ def claim_record_can_certify_values(block: str) -> bool:
         SUBSTANCE,
         UNREADABLE,
         UNSOURCED,
+        heading_digest,
         keyword_of,
     )
 
@@ -270,10 +271,18 @@ def claim_record_can_certify_values(block: str) -> bool:
         match is not None and SUBSTANCE.search(match.group("value"))
         for match in evidence_matches
     )
+    heading = block.splitlines()[0].strip() if block.splitlines() else ""
+    tested = re.search(r"(?mi)^TESTED-HEADING\s*:\s*(?P<value>[^\n]*)$", block)
+    tested_heading_matches = bool(
+        heading
+        and tested
+        and tested.group("value").casefold() == heading_digest(heading)
+    )
     return (
         status not in {UNSOURCED, UNREADABLE}
         and refutation != REFUTATION_REFUTED
         and has_refutation_evidence
+        and tested_heading_matches
     )
 
 
