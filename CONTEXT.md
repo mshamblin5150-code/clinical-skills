@@ -492,6 +492,10 @@ _Avoid_: quote, direct quote, quoted material
 A committed measurement of a third party this repo cannot re-derive, carrying the date, the instrument and the scope it was taken at in its own fields. Evidence that something behaved a certain way once, never a claim that it still does.
 _Avoid_: fixture, baseline, snapshot
 
+**Prescription pad**:
+The fixed table a case study writes for each drug, recognized by its empty first row. It is one prescription and reads as one, so it never splits across pages and never lands apart from the prose paragraph under it. A table whose first row carries text is not a pad, whatever it holds.
+_Avoid_: Rx block, Rx table, prescription block
+
 
 ### Guidelines
 
