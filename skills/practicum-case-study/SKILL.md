@@ -169,6 +169,9 @@ referred to by number cannot be pointed at in a critique. The four sections are 
 — differential 3 has MDM entry 3, and a plan item exists because some numbered entry called for it.
 Bullets destroy that, and the corpus's own worst list mixes both markers in one list.
 
+A cross-reference names its section: `Plan item N`, `MDM entry N`, `Patient Education item N`, or
+`differential N`.
+
 **And there are no bullets anywhere else either. Ruled 2026-08-19** — *"remember I abhor bullet
 points"* — after a run set the HPI's OLDCARTS breakdown as a bulleted list. The 2026-08-18 ruling
 above named four sections because those four are where a bullet costs the *correspondence*; the
@@ -1182,9 +1185,12 @@ renders it and repeats after every repair:**
 python tools/case_study_scan.py output/case-studies/<course>-<module>-case-study-<date>.md
 ```
 
-Exit 0 is clean, 1 names how many rows failed, and **2 means it did not scan** — no file, no section
-it recognizes in the document, a skeleton that disagrees with the one this file publishes above, or
-a `SKILL.md` it could not read at all. **The last is a claim about the *check* rather than about the
+Exit 0 is clean, 1 names how many rows failed, and **2 means it did not scan** — no file; no section
+it recognizes in the document; a missing Review of Systems, Physical Examination, Differential
+Diagnoses, MDM, Plan, or Patient Education section; a skeleton that disagrees with the one this file
+publishes above; or a `SKILL.md` it could not read at all. A finding still wins with exit 1. A row
+whose section is missing prints `not graded`, never `0`, and every run prints how many headings were
+not recognized. **The last is a claim about the *check* rather than about the
 rows**, which all still ran; what the status refuses is a clean set of them standing for a scan
 against a skeleton nobody confirmed.
 Re-run with `--show` to see which, and **that output is PHI**: read it, do not paste it.
@@ -1196,9 +1202,13 @@ text.
 there are is `case_study_scan.KINDS`'s to say rather than this paragraph's. **This list is the one
 copy** — a test keyed on that tuple asserts each row has a sentence here, and `CLAUDE.md` points at
 it rather than repeating it. The rows are: no bullet anywhere in
-the document, no table under Demographics, the Review of Systems or the Physical Examination, the
-Review of Systems closing with the all-other-systems disclaimer **and the Physical Examination not
-carrying one**, no scaffolding language from §1a's closed set, the Most Likely Clinical Diagnosis
+the document, no table under Demographics, the Review of Systems, the Physical Examination, or
+Developmental History, the Review of Systems closing with the all-other-systems disclaimer **and
+the Physical Examination not
+carrying one**, **no paragraph holding two or more field labels in the Review of Systems, Physical
+Examination, or Developmental History**, **every top-level numbered MDM entry carrying an in-text
+citation**, **every named cross-reference resolving within its section**, no scaffolding language
+from §1a's closed set, the Most Likely Clinical Diagnosis
 not set wholly bold, the signature and its date on one line, the prescription table at six rows and
 three columns wide, **a drug that continues carrying a stop criterion**, **no `PROPOSED
 (verify before use)` heading in the submission** — that review block belongs in the run directory —
@@ -1230,8 +1240,11 @@ and it never will be**, **a wrapper section that does not apply to this patient*
 criterion's endpoint is the right endpoint**, **whether a drug ordered PRN needs an endpoint
 of its own**, **a second drug welded into one drug row, discharged by the first drug's endpoint**, **whether a dose is correct**, **whether a dose was sourced at all**,
 **a scaffolding phrase nobody has written yet**, **anything the Markdown cannot show, which the
-rendered document can**, **a narrative citation preceding the source quotation**, and **whether a
-block quotation's parenthetical or narrative citation placement is correct**.
+rendered document can**, **a narrative citation preceding the source quotation**, **whether a
+block quotation's parenthetical or narrative citation placement is correct**, **care-setting
+agreement across sections**, **a cross-reference inside range that lands on the wrong item**, **an
+unnamed cross-reference is never resolved**, **a misspelled optional heading disables its row**, and
+**whether an MDM citation supports its claim**.
 
 **The two findings in his list that mattered most clinically are in that list rather than in the
 rows** — the ceftriaxone order's missing endpoint being the *right* endpoint, and the growth and

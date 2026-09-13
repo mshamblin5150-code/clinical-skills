@@ -118,10 +118,10 @@ EMPTY_POPULATION_POSTURES: Mapping[str, EmptyPopulationDeclaration] = MappingPro
             "only the tier-block matcher establishes that a note belongs",
         ),
         "case_study_scan": EmptyPopulationDeclaration(
-            "recognized sections",
+            "the required case-study section set",
             EmptyPopulationPosture.NOT_SCANNED,
             None,
-            "only the section matcher establishes a recognized case-study section",
+            "the required-section gate establishes whether the complete set was recognized",
         ),
         "checks_ledger": EmptyPopulationDeclaration(
             "check records",
