@@ -473,8 +473,8 @@ class FileBackedTrackerTextIsRead(unittest.TestCase):
             result = hook.extract(f'gh issue comment 670 --body-file "{body}"')
 
         self.assertEqual(
-            [(row.field, row.text, row.source) for row in result.publications],
-            [("body", "File-backed body", str(body))],
+            [(row.field, row.text, row.origin, row.path) for row in result.publications],
+            [("body", "File-backed body", "body-file", body.resolve())],
         )
         self.assertEqual(result.unreadable, ())
 
@@ -492,8 +492,8 @@ class FileBackedTrackerTextIsRead(unittest.TestCase):
                     )
 
         self.assertEqual(
-            [(row.field, row.text, Path(row.source)) for row in result.publications],
-            [("body", "Command-rooted body", body)],
+            [(row.field, row.text, row.origin, row.path) for row in result.publications],
+            [("body", "Command-rooted body", "body-file", body.resolve())],
         )
         self.assertEqual(result.unreadable, ())
 
@@ -511,7 +511,7 @@ class FileBackedTrackerTextIsRead(unittest.TestCase):
                 )
 
         self.assertEqual(result.publications[0].text, "Last folder body")
-        self.assertEqual(Path(result.publications[0].source), body)
+        self.assertEqual(result.publications[0].path, body.resolve())
 
     def test_a_later_unreadable_cd_invalidates_an_earlier_absolute_one(self) -> None:
         with tempfile.TemporaryDirectory() as command_directory:
@@ -788,8 +788,8 @@ class FileBackedTrackerTextIsRead(unittest.TestCase):
                     )
 
         self.assertEqual(
-            [(row.field, row.text, Path(row.source)) for row in result.publications],
-            [("body", "Rooted input body", document)],
+            [(row.field, row.text, row.origin, row.path) for row in result.publications],
+            [("body", "Rooted input body", "body-file", document.resolve())],
         )
 
     def test_api_json_can_arrive_in_an_inline_heredoc(self) -> None:
@@ -802,7 +802,7 @@ class FileBackedTrackerTextIsRead(unittest.TestCase):
         result = hook.extract(command)
 
         self.assertEqual(
-            [(row.field, row.text, row.source) for row in result.publications],
+            [(row.field, row.text, row.origin) for row in result.publications],
             [("body", "Heredoc API body", "inline heredoc")],
         )
 
@@ -813,8 +813,9 @@ class UnreadableTrackerTextIsClassified(unittest.TestCase):
             "no file was at this path when the hook ran, which is before any "
             "part of this command runs, and a refused command runs none of its "
             "stages; if this command writes the file, write it in a separate "
-            "command first, otherwise create it, then run `python "
-            "tools/tracker_publish_hook.py --text <path>` before retrying"
+            "command first, otherwise create it, then save the exact publication "
+            "command and run `python tools/tracker_publish_hook.py --command-file "
+            "<path>` before retrying"
         )
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -985,7 +986,7 @@ class UnreadableTrackerTextIsClassified(unittest.TestCase):
         result = hook.extract(command)
 
         self.assertEqual(
-            [(row.field, row.text, row.source) for row in result.publications],
+            [(row.field, row.text, row.origin) for row in result.publications],
             [
                 ("title", "Ticket", "inline"),
                 ("body", "First line\nSecond line", "inline heredoc"),
@@ -1956,11 +1957,16 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
             "absolute path to --body-file", specific["additionalContext"]
         )
 
-    def test_manual_text_mode_refuses_an_empty_file(self) -> None:
+    def test_command_file_mode_refuses_an_empty_body(self) -> None:
         index = phi_scan.build_index(set(), set())
         with tempfile.TemporaryDirectory() as temporary:
             body = Path(temporary) / "body.md"
+            command_file = Path(temporary) / "publish.sh"
             body.write_text("", encoding="utf-8")
+            command_file.write_text(
+                f'gh issue comment 670 --body-file "{body.as_posix()}"',
+                encoding="utf-8",
+            )
             with (
                 mock.patch.object(hook, "current_index", return_value=(index, ())),
                 mock.patch.object(
@@ -1968,7 +1974,7 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
                 ),
                 contextlib.redirect_stdout(io.StringIO()),
             ):
-                status = hook.main(["--text", str(body)])
+                status = hook.main(["--command-file", str(command_file)])
 
         self.assertEqual(status, 1)
 
@@ -2360,11 +2366,17 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
         self.assertEqual(specific["permissionDecision"], "deny")
         self.assertIn("filed-from:create", specific["additionalContext"])
 
-    def test_manual_text_mode_reports_the_filed_from_rule_not_graded(self) -> None:
+    def test_command_file_mode_grades_the_filed_from_route(self) -> None:
         index = phi_scan.build_index(set(), set())
         with tempfile.TemporaryDirectory() as temporary:
             body = Path(temporary) / "body.md"
+            command_file = Path(temporary) / "publish.sh"
             body.write_text("Ordinary body.", encoding="utf-8")
+            command_file.write_text(
+                "gh issue create --title 'Ticket' "
+                f'--body-file "{body.as_posix()}"',
+                encoding="utf-8",
+            )
             stdout = io.StringIO()
             with (
                 mock.patch.object(hook, "current_index", return_value=(index, ())),
@@ -2373,11 +2385,11 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
                 ),
                 contextlib.redirect_stdout(stdout),
             ):
-                status = hook.main(["--text", str(body)])
+                status = hook.main(["--command-file", str(command_file)])
 
-        self.assertEqual(status, 0)
-        self.assertIn("filed-from: NOT GRADED; no route", stdout.getvalue())
-        self.assertNotIn("filed-from: 0 findings", stdout.getvalue())
+        self.assertEqual(status, 1)
+        self.assertIn("filed-from:create", stdout.getvalue())
+        self.assertNotIn("filed-from: NOT GRADED", stdout.getvalue())
 
     def test_a_missing_discriminator_is_reported_without_denying(self) -> None:
         index = phi_scan.build_index(set(), set())
@@ -2528,7 +2540,7 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
         unreadable_report = unreadable["hookSpecificOutput"]["additionalContext"]
         crashed_report = crashed["hookSpecificOutput"]["additionalContext"]
         self.assertIn("external-variable", unreadable_report)
-        self.assertIn("--text <path>", unreadable_report)
+        self.assertIn("--command-file <path>", unreadable_report)
         self.assertNotIn("HOOK FAILURE", unreadable_report)
         self.assertIn("HOOK FAILURE", crashed_report)
         self.assertIn("analysis failed", crashed_report)
@@ -2577,18 +2589,23 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
         self.assertEqual(status, 0)
         self.assertEqual(json.loads(stdout.getvalue()), {})
 
-    def test_the_manual_text_command_fulfills_the_unreadable_remedy(self) -> None:
+    def test_the_command_file_mode_fulfills_the_unreadable_remedy(self) -> None:
         index = phi_scan.build_index(set(), set())
         with tempfile.TemporaryDirectory() as temporary:
             body = Path(temporary) / "body.md"
+            command_file = Path(temporary) / "publish.sh"
             body.write_text("[record](docs/adr/0083.md)", encoding="utf-8")
+            command_file.write_text(
+                f'gh issue comment 670 --body-file "{body.as_posix()}"',
+                encoding="utf-8",
+            )
             stdout = io.StringIO()
             with (
                 mock.patch.object(hook, "current_index", return_value=(index, ())),
                 mock.patch.object(hook, "refresh_default_branch", return_value=True),
                 contextlib.redirect_stdout(stdout),
             ):
-                status = hook.main(["--text", str(body)])
+                status = hook.main(["--command-file", str(command_file)])
 
         self.assertEqual(status, 1)
         self.assertIn("branch:repo-relative-link", stdout.getvalue())
@@ -2778,8 +2795,8 @@ class ProjectSettingsRegisterTheHook(unittest.TestCase):
             result = hook.extract(command)
 
         self.assertEqual(
-            [(row.field, row.text, row.source) for row in result.publications],
-            [("body", "Assigned body", str(body))],
+            [(row.field, row.text, row.origin, row.path) for row in result.publications],
+            [("body", "Assigned body", "body-file", body.resolve())],
         )
         self.assertEqual(result.unreadable, ())
 
@@ -2812,7 +2829,6 @@ class DeclaredLimitsHaveOneOwner(unittest.TestCase):
                 "an AAR paraphrase passes the quotation gate",
                 "the command-folder reader reaches literal absolute cd targets only",
                 "a stock discriminator clause can satisfy the verdict form check",
-                "manual text mode has no issue publication route",
                 "the retired-citation row reaches one literal pairing",
             },
         )
@@ -2951,7 +2967,7 @@ class AnAarPublicationCannotQuoteItsRun(unittest.TestCase):
         body.parent.mkdir(parents=True, exist_ok=True)
         text = material[:copied]
         body.write_text(text, encoding="utf-8")
-        return hook.Publication("body", text, str(body))
+        return hook.Publication("body", text, "body-file", body.resolve())
 
     def tearDown(self) -> None:
         if hasattr(self, "temporary"):
@@ -2977,6 +2993,202 @@ class AnAarPublicationCannotQuoteItsRun(unittest.TestCase):
 
     def test_the_paraphrase_ceiling_is_declared(self) -> None:
         self.assertTrue(any("paraphrase" in subject for subject, _reason in hook.NOT_REACHED))
+
+
+class ACommandFilePregradeMatchesTheHook(unittest.TestCase):
+    @staticmethod
+    def payload(command: str) -> dict:
+        return {
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Bash",
+            "tool_input": {"command": command},
+        }
+
+    def test_publication_requires_a_resolved_path_exactly_for_body_files(self) -> None:
+        resolved = Path.cwd().resolve() / "body.md"
+
+        invalid = (
+            ({"origin": "body-file"}, "path"),
+            ({"origin": "inline", "path": resolved}, "path"),
+            ({"origin": "unknown"}, "origin"),
+            ({"origin": "body-file", "path": Path("body.md")}, "path"),
+            ({"origin": "body-file", "path": str(resolved)}, "path"),
+        )
+        for keywords, field in invalid:
+            with self.subTest(keywords=keywords):
+                with self.assertRaisesRegex(ValueError, field):
+                    hook.Publication("body", "text", **keywords)
+
+    def test_an_aar_copy_is_denied_with_the_same_population_line(self) -> None:
+        index = phi_scan.build_index(set(), set())
+        with tempfile.TemporaryDirectory() as temporary:
+            run = Path(temporary) / "run"
+            source = run / "working.md"
+            body = run / "aar" / "publications" / "ticket.md"
+            command_file = run / "publish.sh"
+            body.parent.mkdir(parents=True)
+            material = "A deliberately distinctive private working sentence " * 4
+            source.write_text(material, encoding="utf-8")
+            body.write_text(material[: hook.AAR_QUOTE_SPAN_CHARS], encoding="utf-8")
+            command = f'gh issue comment 670 --body-file "{body.as_posix()}"'
+            command_file.write_text(command, encoding="utf-8")
+            stdout = io.StringIO()
+            with (
+                mock.patch.object(hook, "current_index", return_value=(index, ())),
+                mock.patch.object(hook, "refresh_default_branch", return_value=True),
+                mock.patch.object(hook, "fetch_readback", return_value=fetched_records(670)),
+                mock.patch.object(hook, "write_marker"),
+                contextlib.redirect_stdout(stdout),
+            ):
+                status = hook.main(["--command-file", str(command_file)])
+                response = hook.handle(self.payload(command))
+
+        expected = "AAR quotation gate: 1 copied private-run span(s) across 1 AAR publication(s)"
+        self.assertEqual(status, 1)
+        self.assertIn(expected, stdout.getvalue())
+        specific = response["hookSpecificOutput"]
+        self.assertEqual(specific["permissionDecision"], "deny")
+        self.assertIn(expected, specific["additionalContext"])
+
+    def test_an_ordinary_body_reports_the_same_not_applicable_population(self) -> None:
+        index = phi_scan.build_index(set(), set())
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            body = root / "ticket.md"
+            command_file = root / "publish.sh"
+            body.write_text("An ordinary tracker body.", encoding="utf-8")
+            command = f'gh issue comment 670 --body-file "{body.as_posix()}"'
+            command_file.write_text(command, encoding="utf-8")
+            stdout = io.StringIO()
+            with (
+                mock.patch.object(hook, "current_index", return_value=(index, ())),
+                mock.patch.object(hook, "refresh_default_branch", return_value=True),
+                mock.patch.object(hook, "fetch_readback", return_value=fetched_records(670)),
+                mock.patch.object(hook, "write_marker"),
+                contextlib.redirect_stdout(stdout),
+            ):
+                status = hook.main(["--command-file", str(command_file)])
+                response = hook.handle(self.payload(command))
+
+        expected = (
+            "AAR quotation gate: not applicable -- no publication under "
+            "aar/publications/"
+        )
+        self.assertEqual(status, 0)
+        self.assertIn(expected, stdout.getvalue())
+        self.assertIn(expected, response["hookSpecificOutput"]["additionalContext"])
+
+    def test_a_typo_or_empty_command_file_is_not_scanned(self) -> None:
+        for command in ("gh issue creat --body 'text'", ""):
+            with self.subTest(command=command):
+                with tempfile.TemporaryDirectory() as temporary:
+                    command_file = Path(temporary) / "publish.sh"
+                    command_file.write_text(command, encoding="utf-8")
+                    stdout = io.StringIO()
+                    with contextlib.redirect_stdout(stdout):
+                        status = hook.main(["--command-file", str(command_file)])
+
+                self.assertEqual(status, 2)
+                self.assertEqual(
+                    stdout.getvalue().strip(),
+                    "tracker pre-publish: NOT SCANNED -- no publication route "
+                    "recognized in the command file",
+                )
+
+    def test_a_recognized_route_without_publication_fields_is_distinct(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            command_file = Path(temporary) / "publish.sh"
+            command_file.write_text("gh issue comment 670", encoding="utf-8")
+            stdout = io.StringIO()
+            with contextlib.redirect_stdout(stdout):
+                status = hook.main(["--command-file", str(command_file)])
+
+        self.assertEqual(status, 2)
+        self.assertIn("no publication fields recognized", stdout.getvalue())
+        self.assertNotIn("no publication route recognized", stdout.getvalue())
+        self.assertEqual(hook.handle(self.payload("gh issue comment 670")), {})
+
+    def test_an_unrooted_body_file_is_not_scanned_on_both_routes(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            command_file = Path(temporary) / "publish.sh"
+            command = "gh issue comment 670 --body-file relative.md"
+            command_file.write_text(command, encoding="utf-8")
+            stdout = io.StringIO()
+            with contextlib.redirect_stdout(stdout):
+                status = hook.main(["--command-file", str(command_file)])
+            response = hook.handle(self.payload(command))
+
+        self.assertEqual(status, 2)
+        self.assertIn("(unrooted-path)", stdout.getvalue())
+        self.assertIn(
+            "(unrooted-path)",
+            response["hookSpecificOutput"]["additionalContext"],
+        )
+
+    def test_issue_create_without_filed_from_is_denied_on_both_routes(self) -> None:
+        index = phi_scan.build_index(set(), set())
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            body = root / "ticket.md"
+            command_file = root / "publish.sh"
+            body.write_text("No filing record.", encoding="utf-8")
+            command = (
+                "gh issue create --title 'Ticket' "
+                f'--body-file "{body.as_posix()}"'
+            )
+            command_file.write_text(command, encoding="utf-8")
+            stdout = io.StringIO()
+            with (
+                mock.patch.object(hook, "current_index", return_value=(index, ())),
+                mock.patch.object(hook, "refresh_default_branch", return_value=True),
+                mock.patch.object(hook, "write_marker"),
+                contextlib.redirect_stdout(stdout),
+            ):
+                status = hook.main(["--command-file", str(command_file)])
+                response = hook.handle(self.payload(command))
+
+        self.assertEqual(status, 1)
+        self.assertIn("filed-from:create", stdout.getvalue())
+        self.assertEqual(
+            response["hookSpecificOutput"]["permissionDecision"], "deny"
+        )
+        self.assertIn(
+            "filed-from:create",
+            response["hookSpecificOutput"]["additionalContext"],
+        )
+
+    def test_a_pregrade_does_not_touch_the_hook_marker(self) -> None:
+        index = phi_scan.build_index(set(), set())
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            marker = root / "marker.json"
+            command_file = root / "publish.sh"
+            marker.write_bytes(b"unchanged marker\n")
+            before = marker.stat().st_mtime_ns
+            command_file.write_text(
+                "gh issue comment 670 --body 'Ordinary body.'", encoding="utf-8"
+            )
+            with (
+                mock.patch.object(hook, "PUBLISH_MARKER", marker),
+                mock.patch.object(hook, "current_index", return_value=(index, ())),
+                mock.patch.object(hook, "refresh_default_branch", return_value=True),
+                mock.patch.object(hook, "fetch_readback", return_value=fetched_records(670)),
+                contextlib.redirect_stdout(io.StringIO()),
+            ):
+                status = hook.main(["--command-file", str(command_file)])
+
+            self.assertEqual(status, 0)
+            self.assertEqual(marker.read_bytes(), b"unchanged marker\n")
+            self.assertEqual(marker.stat().st_mtime_ns, before)
+
+    def test_text_is_retired_and_no_unreadable_remedy_points_to_it(self) -> None:
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr):
+            status = hook.main(["--text", "body.md"])
+
+        self.assertEqual(status, 2)
+        self.assertIn("unsupported arguments", stderr.getvalue())
+        self.assertNotIn("--text", "\n".join(hook.UNREADABLE_REMEDIES.values()))
 
 
 class TheRetiredCorrectionCitationIsReported(unittest.TestCase):

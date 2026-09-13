@@ -167,8 +167,8 @@ A dated correction line is appended to ADR 0141.
 
 - `analyze` grades a body publication through `tracker_bodies.grade`; each finding is a
   `body:<kind>` deny finding carrying its row's remedy. A title keeps its two predicates.
-- `python tools/tracker_publish_hook.py --text` reaches the same grader, because it grades through
-  `analyze`.
+- `python tools/tracker_publish_hook.py --command-file <path>` reaches the same grader because it
+  extracts the exact publication command and grades each readable publication through `analyze`.
 - A test derived from `tracker_bodies.KINDS` drives every row through both `handle` and
   `authorize_issue_body` and asserts both refuse, so a new row that reaches one route and not the
   other fails it.
@@ -191,3 +191,8 @@ body rewritten between the scan and the publication, which is `tracker_publish_h
 
 **The historical records.** The eight `lost-at-dash` and nine `double-encoded` records above are
 unchanged; no route grades a historical record, and ADR 0141 ruling 5's no-register conclusion stands.
+
+Correction, 2026-09-13: the consequences formerly said the manual `--text` mode reached `analyze`.
+[ADR 0216](0216-a-pre-grade-grades-the-exact-publication-command-and-the-aar-quotation-gate-runs-on-it.md)
+retired that body-only mode in favor of `--command-file`, which extracts and grades the exact
+publication command; this record's rulings are unchanged.

@@ -88,8 +88,9 @@ Holding this line needs none.
   snapshot)` takes no current body, and `publish_body` replaces #596's body with its output. A line added
   to #596 would be erased by the next publish. The map's body calls itself *"a coordination artifact, not
   an implementation ticket"* and carries an exact producer stamp that `tools/map_scan.py` grades.
-- **The hook's manual mode grades no route.** `python tools/tracker_publish_hook.py --text` analyzes a
-  body with no issue and no route, so a refusal tied to the create route would not run there.
+- **The hook's manual mode grades the command's route.** `python tools/tracker_publish_hook.py
+  --command-file <path>` extracts the exact publication command, reads its current tracker record,
+  and applies the same create-or-edit Filed-from rule as the hook route.
 
 ## Ruled 2026-09-10
 
@@ -241,10 +242,16 @@ spec.
   recognize the old sentence in order to check that a respec moved it word for word.
 - **The web UI and sessions on older bases.** Neither runs the new hook. The workflow reports their
   tickets after publication, and the sweep lists what it missed.
-- **The hook's manual `--text` mode.** It grades no route, so it reports the Filed-from rule as not
-  graded rather than clean. Whether it gains a route is
-  [#1026](https://github.com/mshamblin5150-code/clinical-skills/issues/1026)'s question.
+- **The manual pre-grade is no longer a separate limit.** [ADR 0216](0216-a-pre-grade-grades-the-exact-publication-command-and-the-aar-quotation-gate-runs-on-it.md) answered
+  [#1026](https://github.com/mshamblin5150-code/clinical-skills/issues/1026): the
+  `--command-file` route derives the route and record from the exact publication command and applies
+  this rule with the hook's own analysis.
 - **Tickets filed before the cutoff that never had a line.** Nothing reports them until a respec reaches
   them.
 - **Closed tickets, #875 and the nine carriers included.** Ruling 5 leaves them as they are, so a closed
   ticket's body is not evidence of its descent in either direction.
+
+Correction, 2026-09-13: two passages formerly said the manual `--text` mode graded no route and
+reported the Filed-from rule not graded. [ADR 0216](0216-a-pre-grade-grades-the-exact-publication-command-and-the-aar-quotation-gate-runs-on-it.md)
+replaced that mode with an exact-command pre-grade that derives the route and reads the current
+record; this record's rulings are unchanged.

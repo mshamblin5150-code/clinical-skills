@@ -40,6 +40,7 @@ ceiling.
 from __future__ import annotations
 
 from collections import Counter
+from dataclasses import dataclass, replace
 from datetime import date as CalendarDate
 import json
 from pathlib import Path
@@ -159,10 +160,6 @@ NOT_REACHED = (
         "cannot establish that its counterfactual is true.",
     ),
     (
-        "manual text mode has no issue publication route",
-        "The --text command grades body shape without a create or edit route, so it reports the Filed-from rule not graded rather than clean.",
-    ),
-    (
         "the retired-citation row reaches one literal pairing",
         "It reports the correct-in-place rule stated beside #436 and nothing "
         "else. A paraphrase of the rule, the same rule attributed to another "
@@ -173,13 +170,26 @@ NOT_REACHED = (
 )
 
 
-class Publication(NamedTuple):
+@dataclass(frozen=True)
+class Publication:
     field: str
     text: str
-    source: str = "inline"
+    origin: str = "inline"
+    path: Path | None = None
     resolved_against: str | None = None
     reconstructed_path: str | None = None
     record: TrackerRecord | None = None
+
+    def __post_init__(self) -> None:
+        if self.origin not in ("inline", "inline heredoc", "body-file"):
+            raise ValueError("origin is not a recognized publication origin")
+        if self.origin == "body-file":
+            if not isinstance(self.path, Path) or not self.path.is_absolute():
+                raise ValueError("path must be a resolved Path for body-file origin")
+            if self.path != self.path.resolve():
+                raise ValueError("path must be a resolved Path for body-file origin")
+        elif self.path is not None:
+            raise ValueError("path must be None unless origin is body-file")
 
 
 def with_tracker_record(
@@ -215,7 +225,7 @@ def with_tracker_record(
         route=route,
         field=publication.field,
     )
-    return publication._replace(record=record)
+    return replace(publication, record=record)
 
 
 class Unreadable(NamedTuple):
@@ -243,6 +253,12 @@ class Finding(NamedTuple):
 
 class Analysis(NamedTuple):
     findings: tuple[Finding, ...]
+    report: str
+
+
+class CommandGrade(NamedTuple):
+    scanned: bool
+    denied: bool
     report: str
 
 
@@ -458,9 +474,8 @@ def _resolve_file_source(source: str, command: str) -> tuple[str, Path | None] |
     return str(folder / source), folder
 
 
-def _aar_run_directory(source: str) -> Path | None:
+def _aar_run_directory(path: Path | None) -> Path | None:
     """The run root for an AAR-owned body file, otherwise ``None``."""
-    path = shell_reader.candidate_file(source)
     if path is None or path.parent.name != AAR_PUBLICATION_PARTS[1]:
         return None
     aar = path.parent.parent
@@ -480,7 +495,7 @@ def _quotes_run_material(publication: Publication) -> bool:
     reduced conversation. The gate's subject is the working material the review
     was about, not the review record describing conduct.
     """
-    run = _aar_run_directory(publication.source)
+    run = _aar_run_directory(publication.path)
     body = _normalized_span_text(publication.text)
     if run is None or len(body) < AAR_QUOTE_SPAN_CHARS:
         return False
@@ -510,16 +525,26 @@ def _quotes_run_material(publication: Publication) -> bool:
 
 
 def aar_quotation_analysis(publications: tuple[Publication, ...]) -> Analysis:
+    aar_publications = tuple(
+        publication
+        for publication in publications
+        if _aar_run_directory(publication.path) is not None
+    )
     findings = tuple(
         Finding("aar-quotation", 1, publication.field, "deny")
-        for publication in publications
+        for publication in aar_publications
         if _quotes_run_material(publication)
     )
-    report = (
-        "AAR quotation gate: copied private-run spans " + str(len(findings))
-        if findings
-        else "AAR quotation gate: 0 copied private-run spans"
-    )
+    if aar_publications:
+        report = (
+            f"AAR quotation gate: {len(findings)} copied private-run span(s) "
+            f"across {len(aar_publications)} AAR publication(s)"
+        )
+    else:
+        report = (
+            "AAR quotation gate: not applicable -- no publication under "
+            "aar/publications/"
+        )
     return Analysis(findings, report)
 
 
@@ -737,8 +762,8 @@ def _read_file_field(
     if resolved is None:
         return Unreadable(field, "unrooted-path", source, None, source)
     source, folder = resolved
-    text = shell_reader.read_candidate(source)
-    if text is None:
+    path = shell_reader.candidate_file(source)
+    if path is None:
         return Unreadable(
             field,
             "missing-file",
@@ -748,8 +773,9 @@ def _read_file_field(
         )
     return Publication(
         field,
-        text,
-        source,
+        path.read_text(encoding="utf-8"),
+        "body-file",
+        path,
         None if folder is None else str(folder),
         source,
     )
@@ -861,7 +887,8 @@ def extract(command: str) -> Extraction:
                             route, number, tuple(publications), (unreadable,)
                         )
                     request_text = heredoc.group("body")
-                    source = "inline heredoc"
+                    origin = "inline heredoc"
+                    path = None
                     resolved_against = None
                     reconstructed_path = None
                 else:
@@ -873,7 +900,8 @@ def extract(command: str) -> Extraction:
                             route, number, tuple(publications), (read,), grade_route
                         )
                     request_text = read.text
-                    source = read.source
+                    origin = read.origin
+                    path = read.path
                     resolved_against = read.resolved_against
                     reconstructed_path = read.reconstructed_path
                 request = json.loads(request_text)
@@ -883,7 +911,7 @@ def extract(command: str) -> Extraction:
                 unreadable = Unreadable(
                     "body",
                     "invalid-input",
-                    source,
+                    origin,
                     resolved_against,
                     reconstructed_path,
                 )
@@ -891,7 +919,16 @@ def extract(command: str) -> Extraction:
             for field in ("title", "body"):
                 value = request.get(field)
                 if isinstance(value, str):
-                    publications.append(Publication(field, value, source))
+                    publications.append(
+                        Publication(
+                            field,
+                            value,
+                            origin,
+                            path,
+                            resolved_against,
+                            reconstructed_path,
+                        )
+                    )
             index += 2
             continue
         if token in INLINE_FLAGS and index + 1 < len(arguments):
@@ -1321,24 +1358,28 @@ UNREADABLE_REMEDIES = {
         "no file was at this path when the hook ran, which is before any part "
         "of this command runs, and a refused command runs none of its stages; "
         "if this command writes the file, write it in a separate command "
-        "first, otherwise create it, then run `python "
-        "tools/tracker_publish_hook.py --text <path>` before retrying"
+        "first, otherwise create it, then save the exact publication command "
+        "and run `python tools/tracker_publish_hook.py --command-file <path>` "
+        "before retrying"
     ),
     "unrooted-path": (
         'put `cd "<folder>" && ` in front of the command, or write the whole '
         "path in quotes"
     ),
     "external-variable": (
-        "resolve the variable and run `python tools/tracker_publish_hook.py "
-        "--text <path>` before retrying"
+        "resolve the variable in the publication command, save that command, "
+        "and run `python tools/tracker_publish_hook.py --command-file <path>` "
+        "before retrying"
     ),
     "pipe": (
-        "save the piped text to a file and run `python tools/tracker_publish_hook.py "
-        "--text <path>` before retrying"
+        "save the piped text to a body file, update and save the publication "
+        "command, and run `python tools/tracker_publish_hook.py --command-file "
+        "<path>` before retrying"
     ),
     "command-substitution": (
-        "run the substitution separately and then run `python "
-        "tools/tracker_publish_hook.py --text <path>` before retrying"
+        "run the substitution separately, save the resolved publication command, "
+        "and run `python tools/tracker_publish_hook.py --command-file <path>` "
+        "before retrying"
     ),
     "expansion-exposed-inline": (
         "single-quote every segment of the body value, escaping an apostrophe "
@@ -1347,16 +1388,16 @@ UNREADABLE_REMEDIES = {
         "be graded"
     ),
     "invalid-input": (
-        "repair the JSON input and run `python tools/tracker_publish_hook.py "
-        "--text <path>` before retrying"
+        "repair the JSON input, save the exact publication command, and run "
+        "`python tools/tracker_publish_hook.py --command-file <path>` before retrying"
     ),
     "invalid-command": (
-        "repair the command quoting, save the tracker text to a file, and run "
-        "`python tools/tracker_publish_hook.py --text <path>` before retrying"
+        "repair and save the exact publication command, and run `python "
+        "tools/tracker_publish_hook.py --command-file <path>` before retrying"
     ),
     "missing-value": (
-        "supply the flag value, or save the tracker text to a file and run "
-        "`python tools/tracker_publish_hook.py --text <path>` before retrying"
+        "supply the flag value, save the exact publication command, and run "
+        "`python tools/tracker_publish_hook.py --command-file <path>` before retrying"
     ),
 }
 
@@ -1371,8 +1412,117 @@ def unreadable_remedy(row: Unreadable) -> str:
     return UNREADABLE_REMEDIES[row.kind]
 
 
-def _source_label(source: str) -> str:
-    return source if source in ("inline", "inline heredoc") else "body-file"
+def _unreadable_report(extracted: Extraction) -> str:
+    lines = []
+    for row in extracted.unreadable:
+        reconstructed = row.reconstructed_path or row.source
+        if row.resolved_against is not None:
+            resolved_against = row.resolved_against
+        elif shell_reader.is_absolute_path(reconstructed):
+            resolved_against = "none (path was absolute)"
+        else:
+            resolved_against = "none readable"
+        lines.extend(
+            (
+                f"tracker pre-publish: NOT SCANNED -- unreadable {row.field} "
+                f"({row.kind}); {unreadable_remedy(row)}",
+                "tracker pre-publish: resolved against: "
+                + resolved_against
+                + f"; reconstructed path: {reconstructed}",
+            )
+        )
+    return "\n".join(lines)
+
+
+def grade_command(command: str) -> CommandGrade | None:
+    """Grade one Bash publication command without writing the hook marker."""
+    extracted = extract(command)
+    if extracted.route is None:
+        return None
+    if extracted.unreadable:
+        return CommandGrade(False, True, _unreadable_report(extracted))
+
+    quotation = aar_quotation_analysis(extracted.publications)
+    if not extracted.publications:
+        if (extracted.grade_route or extracted.route) == ("issue", "create"):
+            analysis = _missing_issue_create_analysis()
+            return CommandGrade(True, True, analysis.report)
+        return CommandGrade(
+            False,
+            False,
+            "tracker pre-publish: NOT SCANNED -- no publication fields "
+            "recognized in the command",
+        )
+
+    index, missing = current_index()
+    remote_fresh = refresh_default_branch()
+    # ``tracker_scan`` splits title and body so a finding identifies the field
+    # to edit. A readback identifies records, not fields, so that reason does
+    # not transfer and both fields deliberately form one set.
+    publication_text = "\n".join(row.text for row in extracted.publications)
+    citations = tracker_readback.citation_numbers(
+        publication_text,
+        publication_number=extracted.number,
+    )
+    issue = None
+    readback_lines: tuple[str, ...]
+    if citations:
+        try:
+            records = fetch_readback(citations)
+            readback_lines = tracker_readback.fingerprint_lines(records)
+            if extracted.number is not None:
+                issue = _issue_context(records.get(extracted.number))
+        except (
+            OSError,
+            UnicodeError,
+            subprocess.SubprocessError,
+            json.JSONDecodeError,
+            ValueError,
+        ):
+            readback_lines = (
+                "tracker readback: FETCH FAILED; context-blind -- current "
+                "record state and labels were not read",
+            )
+    else:
+        readback_lines = (tracker_readback.empty_citation_line(),)
+
+    route = extracted.grade_route or extracted.route
+    bound_publications = [
+        with_tracker_record(publication, route=route, context=issue)
+        for publication in extracted.publications
+    ]
+    analyses = [
+        analyze(
+            publication,
+            index=index,
+            issue=issue,
+            remote_fresh=remote_fresh,
+            route=route,
+        )
+        for publication in bound_publications
+    ]
+    if route == ("issue", "create") and not any(
+        row.field == "body" for row in bound_publications
+    ):
+        analyses.append(_missing_issue_create_analysis())
+    analyses.append(quotation)
+
+    lines = [
+        f"tracker pre-publish: {publication.field} read from {publication.origin}"
+        for publication in extracted.publications
+    ]
+    if missing:
+        lines.append(
+            "PHI corpus layer incomplete: " + ", ".join(missing) + " not available"
+        )
+    lines.extend(readback_lines)
+    lines.extend(analysis.report for analysis in analyses)
+    denied = any(
+        finding.posture == "deny"
+        for analysis in analyses
+        for finding in analysis.findings
+    )
+    return CommandGrade(True, denied, "\n".join(lines))
 
 
 def handle(payload: dict) -> dict:
@@ -1402,113 +1552,17 @@ def handle(payload: dict) -> dict:
                 "to a file and publish it through Bash so the text can be graded",
                 UNSCANNED_REFUSAL,
             )
-        extracted = extract(command)
-        if extracted.route is None:
+        grade = grade_command(command)
+        if grade is None:
             return {}
-        if extracted.unreadable:
-            lines = []
-            for row in extracted.unreadable:
-                reconstructed = row.reconstructed_path or row.source
-                if row.resolved_against is not None:
-                    resolved_against = row.resolved_against
-                elif shell_reader.is_absolute_path(reconstructed):
-                    resolved_against = "none (path was absolute)"
-                else:
-                    resolved_against = "none readable"
-                lines.extend(
-                    (
-                        f"tracker pre-publish: NOT SCANNED -- unreadable {row.field} "
-                        f"({row.kind}); {unreadable_remedy(row)}",
-                        "tracker pre-publish: resolved against: "
-                        + resolved_against
-                        + f"; reconstructed path: {reconstructed}",
-                    )
-                )
-            return _hook_response("deny", "\n".join(lines), UNSCANNED_REFUSAL)
-        if (
-            not extracted.publications
-            and (extracted.grade_route or extracted.route) == ("issue", "create")
-        ):
-            return _hook_response("deny", _missing_issue_create_analysis().report)
-        if not extracted.publications:
+        if not grade.scanned and not grade.denied:
             return {}
-
-        index, missing = current_index()
-        remote_fresh = refresh_default_branch()
-        # ``tracker_scan`` splits title and body so a finding identifies the
-        # field to edit. A readback identifies records, not fields, so that
-        # reason does not transfer and both fields deliberately form one set.
-        publication_text = "\n".join(row.text for row in extracted.publications)
-        citations = tracker_readback.citation_numbers(
-            publication_text,
-            publication_number=extracted.number,
-        )
-        issue = None
-        readback_lines: tuple[str, ...]
-        if citations:
-            try:
-                records = fetch_readback(citations)
-                readback_lines = tracker_readback.fingerprint_lines(records)
-                if extracted.number is not None:
-                    issue = _issue_context(records.get(extracted.number))
-            except (
-                OSError,
-                UnicodeError,
-                subprocess.SubprocessError,
-                json.JSONDecodeError,
-                ValueError,
-            ):
-                readback_lines = (
-                    "tracker readback: FETCH FAILED; context-blind -- current "
-                    "record state and labels were not read",
-                )
-        else:
-            readback_lines = (tracker_readback.empty_citation_line(),)
-
-        bound_publications = [
-            with_tracker_record(
-                publication,
-                route=extracted.grade_route or extracted.route,
-                context=issue,
-            )
-            for publication in extracted.publications
-        ]
-        analyses = [
-            analyze(
-                publication,
-                index=index,
-                issue=issue,
-                remote_fresh=remote_fresh,
-                route=extracted.grade_route or extracted.route,
-            )
-            for publication in bound_publications
-        ]
-        if (
-            (extracted.grade_route or extracted.route) == ("issue", "create")
-            and not any(row.field == "body" for row in bound_publications)
-        ):
-            analyses.append(_missing_issue_create_analysis())
-        analyses.append(aar_quotation_analysis(extracted.publications))
         write_marker()
-        lines = [
-            f"tracker pre-publish: {publication.field} read from "
-            f"{_source_label(publication.source)}"
-            for publication in extracted.publications
-        ]
-        if missing:
-            lines.append(
-                "PHI corpus layer incomplete: "
-                + ", ".join(missing)
-                + " not available"
-            )
-        lines.extend(readback_lines)
-        lines.extend(analysis.report for analysis in analyses)
-        denied = any(
-            finding.posture == "deny"
-            for analysis in analyses
-            for finding in analysis.findings
+        return _hook_response(
+            "deny" if grade.denied else None,
+            grade.report,
+            UNSCANNED_REFUSAL if not grade.scanned else BRANCH_SCOPE_REFUSAL,
         )
-        return _hook_response("deny" if denied else None, "\n".join(lines))
     except Exception as exc:
         return _hook_response(
             "deny",
@@ -1519,28 +1573,35 @@ def handle(payload: dict) -> dict:
 
 def main(argv: list[str] | None = None) -> int:
     arguments = sys.argv[1:] if argv is None else argv
-    if len(arguments) == 2 and arguments[0] == "--text":
+    if len(arguments) == 2 and arguments[0] == "--command-file":
         try:
-            text = Path(arguments[1]).read_text(encoding="utf-8")
-            index, missing = current_index()
-            analysis = analyze(
-                Publication("body", text, "body-file"),
-                index=index,
-                issue=None,
-                remote_fresh=refresh_default_branch(),
-                filed_from_route=None,
-            )
-        except (OSError, UnicodeError, subprocess.SubprocessError, ValueError) as exc:
+            command = Path(arguments[1]).read_text(encoding="utf-8")
+        except (OSError, UnicodeError) as exc:
             print(
-                "tracker pre-publish: Unreadable body: " + type(exc).__name__,
+                "tracker pre-publish: NOT SCANNED -- unreadable command file "
+                f"({type(exc).__name__})",
                 file=sys.stderr,
             )
             return 2
-        print("tracker pre-publish: body read from body-file")
-        if missing:
-            print("PHI corpus layer incomplete: " + ", ".join(missing) + " not available")
-        print(analysis.report)
-        return 1 if any(row.posture == "deny" for row in analysis.findings) else 0
+        try:
+            grade = grade_command(command)
+        except Exception as exc:
+            print(
+                "tracker pre-publish: NOT SCANNED -- "
+                f"analysis failed ({type(exc).__name__})",
+                file=sys.stderr,
+            )
+            return 2
+        if grade is None:
+            print(
+                "tracker pre-publish: NOT SCANNED -- no publication route "
+                "recognized in the command file"
+            )
+            return 2
+        print(grade.report)
+        if not grade.scanned:
+            return 2
+        return 1 if grade.denied else 0
     if arguments:
         print("tracker pre-publish: unsupported arguments", file=sys.stderr)
         return 2
