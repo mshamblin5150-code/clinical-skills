@@ -472,6 +472,8 @@ class EveryBehaviorLimitHasALiveHandler(unittest.TestCase):
         "draft-rows-optional": ("TheDraftFlagIsGradedAndItsAbsenceIsDeclared.test_without_the_flag_the_three_rows_read_not_graded", "TheDraftFlagIsGradedAndItsAbsenceIsDeclared.test_with_the_flag_the_rows_carry_counts"),
         "evidence-rows-optional": ("TheEvidenceRowsAreWiredInLikeTheDraftRows.test_the_report_says_not_graded_without_the_flag", "TheEvidenceRowsAreWiredInLikeTheDraftRows.test_the_report_states_the_population_when_it_ran"),
         "evidence-without-draft-skips-references": ("DeclaredLimitBehaviorControls.test_evidence_without_draft_supplies_no_reference_entries", "DeclaredLimitBehaviorControls.test_evidence_with_draft_reads_reference_entries"),
+        "uptodate-initials-uncompared": ("StoredUpToDateMastheadsGradeThePublishedEntry.test_different_initials_pass", "StoredUpToDateMastheadsGradeThePublishedEntry.test_an_invented_surname_is_a_finding"),
+        "uptodate-trailing-surname-accepted": ("StoredUpToDateMastheadsGradeThePublishedEntry.test_a_trailing_part_of_a_real_surname_passes", "StoredUpToDateMastheadsGradeThePublishedEntry.test_an_invented_surname_is_a_finding"),
         "reply-reference-label-unchecked": ("DeclaredLimitBehaviorControls.test_the_reply_path_accepts_a_misspelled_reference_label", "DeclaredLimitBehaviorControls.test_reference_scan_rejects_the_same_label"),
     }
 
@@ -2089,6 +2091,16 @@ class TheSkillSaysWhatThisChecks(ProseBind, unittest.TestCase):
             "an UpToDate topic whose literature-review month has left the signed"
             " two-year window"
         ),
+        ledger.UPTODATE_MASTHEAD_DISAGREES: (
+            "an UpToDate entry whose author surnames, author order, author count, or year disagrees"
+        ),
+        ledger.SOURCED_RECORD_NOT_LISTED: (
+            "a sourced record without `DROPPED` whose reference is absent from the draft reference list"
+        ),
+        ledger.BARE_DROPPED: "`DROPPED` with no reason after it",
+        ledger.DROPPED_ON_SOURCELESS_RECORD: (
+            "`DROPPED` on a record whose `STATUS` is not `sourced`"
+        ),
         ledger.UNREADABLE_UPTODATE_ENTRY: (
             "an entry whose locator names an UpToDate topic and that states no"
             " database element"
@@ -2858,6 +2870,13 @@ class TheDraftFlagIsGradedAndItsAbsenceIsDeclared(unittest.TestCase):
             write_bar(root)
             argv = [str(path), *flags]
             if draft is not None:
+                if "## References" not in draft:
+                    references = [
+                        record.value("REFERENCE")
+                        for record in ledger.read_records(ledger_body)
+                        if record.status == ledger.SOURCED and "DROPPED" not in record.fields
+                    ]
+                    draft += "\n## References\n\n" + "\n".join(references) + "\n"
                 draft_path = Path(temp) / "draft.md"
                 draft_path.write_text(draft, encoding="utf-8")
                 argv += ["--draft", str(draft_path)]
@@ -4016,7 +4035,11 @@ class EveryGatedRowSetFollowsTheSentinelConvention(unittest.TestCase):
             if enabled:
                 optional_path = root / f"{flag[2:]}.md"
                 if flag == "--draft":
-                    optional_path.write_text(rx_table(CEFTRIAXONE), encoding="utf-8")
+                    reference = ledger.read_records(body)[0].value("REFERENCE")
+                    optional_path.write_text(
+                        rx_table(CEFTRIAXONE) + "\n## References\n\n" + reference + "\n",
+                        encoding="utf-8",
+                    )
                 elif flag == "--evidence":
                     optional_path.write_text(topic("A carried topic"), encoding="utf-8")
                     evidence_store = root / "uptodate"
@@ -4288,6 +4311,517 @@ RESTATEMENT: A record broken in ways that have nothing to do with the evidence.
             _, shown, _ = self.run_main([led, "--evidence", ev, "--show"])
         self.assertNotIn("A topic nobody handed over", out)
         self.assertIn("A topic nobody handed over", shown)
+
+
+class StoredUpToDateMastheadsGradeThePublishedEntry(unittest.TestCase):
+    """#1021's author-and-year row, through the command a run invokes."""
+
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        self.store = self.root / "uptodate"
+        self.evidence = self.root / "evidence.txt"
+        self.evidence.write_text(topic("A carried topic"), encoding="utf-8")
+        uptodate_store.ingest_dump(
+            self.evidence,
+            self.store,
+            dump_id="current",
+            module="Current module",
+            received_on=AS_OF,
+        )
+        write_bar(self.root)
+
+    def run_entry(self, entry: str, evidence_text: str | None = None) -> tuple[int, str]:
+        store, evidence = self.store, self.evidence
+        if evidence_text is not None:
+            store = self.root / "custom-store"
+            evidence = self.root / "custom-evidence.txt"
+            evidence.write_text(evidence_text, encoding="utf-8")
+            uptodate_store.ingest_dump(
+                evidence,
+                store,
+                dump_id="custom",
+                module="Custom module",
+                received_on=AS_OF,
+            )
+        record = with_reference(CLEAN, entry)
+        path = self.root / "claims.md"
+        path.write_text(ledger_text(record), encoding="utf-8")
+        out = io.StringIO()
+        with mock.patch.object(uptodate_store, "default_store", return_value=store):
+            with redirect_stdout(out), redirect_stderr(io.StringIO()):
+                status = ledger.main([str(path), "--evidence", str(evidence)])
+        return status, out.getvalue()
+
+    def test_an_invented_surname_is_a_finding(self):
+        entry = uptodate_entry("A carried topic").replace("Author, A.", "Invented, A.", 1)
+
+        status, report = self.run_entry(entry)
+
+        self.assertEqual(status, 1)
+        row = next(line for line in report.splitlines() if ledger.UPTODATE_MASTHEAD_DISAGREES in line)
+        self.assertRegex(row, rf"{ledger.UPTODATE_MASTHEAD_DISAGREES}\s+1$")
+        self.assertIn("evidence findings at fault       1", report)
+        self.assertNotIn("cited topics not handed over", report)
+
+    def test_a_character_suffix_is_not_a_trailing_surname(self):
+        evidence = topic("A carried topic").replace(
+            "Authors: A Author, MD, B Author, MD",
+            "Authors: A Franklin, MD, B Author, MD",
+        )
+        entry = uptodate_entry("A carried topic").replace(
+            "Author, A., & Author, B.",
+            "Lin, A., & Author, B.",
+        )
+
+        status, _ = self.run_entry(entry, evidence)
+
+        self.assertEqual(status, 1)
+
+    def test_a_missing_author_is_a_finding(self):
+        entry = uptodate_entry("A carried topic").replace(", & Author, B.", "")
+
+        status, _ = self.run_entry(entry)
+
+        self.assertEqual(status, 1)
+
+    def test_swapped_author_order_is_a_finding(self):
+        evidence = topic("A carried topic").replace(
+            "Authors: A Author, MD, B Author, MD",
+            "Authors: A Alpha, MD, B Beta, MD",
+        )
+        entry = uptodate_entry("A carried topic").replace(
+            "Author, A., & Author, B.",
+            "Beta, B., & Alpha, A.",
+        )
+
+        status, _ = self.run_entry(entry, evidence)
+
+        self.assertEqual(status, 1)
+
+    def test_a_wrong_year_is_a_finding(self):
+        status, report = self.run_entry(uptodate_entry("A carried topic", year="2025"))
+
+        self.assertEqual(status, 1)
+        row = next(line for line in report.splitlines() if ledger.UPTODATE_MASTHEAD_DISAGREES in line)
+        self.assertRegex(row, rf"{ledger.UPTODATE_MASTHEAD_DISAGREES}\s+1$")
+
+    def test_a_two_word_surname_matches_the_masthead(self):
+        evidence = topic("A carried topic").replace(
+            "Authors: A Author, MD, B Author, MD",
+            "Authors: A Van der Heijden, MD, B Author, MD",
+        )
+        entry = uptodate_entry("A carried topic").replace(
+            "Author, A., & Author, B.",
+            "Van der Heijden, A., & Author, B.",
+        )
+
+        status, report = self.run_entry(entry, evidence)
+
+        self.assertEqual(status, 0, report)
+
+    def test_different_initials_pass(self):
+        entry = uptodate_entry("A carried topic").replace(
+            "Author, A., & Author, B.",
+            "Author, X., & Author, Y.",
+        )
+
+        status, report = self.run_entry(entry)
+
+        self.assertEqual(status, 0, report)
+
+    def test_a_trailing_part_of_a_real_surname_passes(self):
+        evidence = topic("A carried topic").replace(
+            "Authors: A Author, MD, B Author, MD",
+            "Authors: A Van der Heijden, MD, B Author, MD",
+        )
+        entry = uptodate_entry("A carried topic").replace(
+            "Author, A., & Author, B.",
+            "Heijden, A., & Author, B.",
+        )
+
+        status, report = self.run_entry(entry, evidence)
+
+        self.assertEqual(status, 0, report)
+
+    def test_an_unread_author_form_fails_and_is_counted_in_the_remainder(self):
+        evidence = topic("A carried topic").replace(
+            "Authors: A Author, MD, B Author, MD",
+            "Authors: editorial team",
+        )
+        entry = uptodate_entry("A carried topic").replace(
+            "Author, A., & Author, B.",
+            "Editorial team",
+        )
+
+        status, report = self.run_entry(entry, evidence)
+
+        self.assertEqual(status, 1)
+        self.assertRegex(report, r"UpToDate author mastheads read\s+0 of 1; unread 1")
+
+    def test_a_partly_unread_apa_list_fails_and_is_counted_in_the_remainder(self):
+        entry = uptodate_entry("A carried topic").replace(
+            "Author, A., & Author, B.",
+            "Author, A., & Author, B., & Invented",
+        )
+
+        status, report = self.run_entry(entry)
+
+        self.assertEqual(status, 1)
+        self.assertRegex(report, r"UpToDate author mastheads read\s+0 of 1; unread 1")
+
+    def test_a_partly_unread_masthead_fails_and_is_counted_in_the_remainder(self):
+        evidence = topic("A carried topic").replace(
+            "Authors: A Author, MD, B Author, MD",
+            "Authors: A Author, MD, B Author, MD, editorial team",
+        )
+
+        status, report = self.run_entry(uptodate_entry("A carried topic"), evidence)
+
+        self.assertEqual(status, 1)
+        self.assertRegex(report, r"UpToDate author mastheads read\s+0 of 1; unread 1")
+
+    def test_masthead_authors_on_separate_lines_are_all_compared(self):
+        evidence = topic("A carried topic").replace(
+            "Authors: A Author, MD, B Author, MD",
+            "Authors:\nA Alpha, MD\nB Beta, MD",
+        )
+        entry = uptodate_entry("A carried topic").replace(
+            "Author, A., & Author, B.",
+            "Alpha, A., & Beta, B.",
+        )
+
+        status, report = self.run_entry(entry, evidence)
+
+        self.assertEqual(status, 0, report)
+
+    def test_two_names_joined_by_and_are_not_read_as_one_name(self):
+        evidence = topic("A carried topic").replace(
+            "Authors: A Author, MD, B Author, MD",
+            "Authors: John Smith and Jane Doe, MD",
+        )
+        entry = uptodate_entry("A carried topic").replace(
+            "Author, A., & Author, B.",
+            "Doe, J.",
+        )
+
+        status, report = self.run_entry(entry, evidence)
+
+        self.assertEqual(status, 1)
+        self.assertRegex(report, r"UpToDate author mastheads read\s+0 of 1; unread 1")
+
+    def test_surname_punctuation_is_not_erased(self):
+        evidence = topic("A carried topic").replace(
+            "Authors: A Author, MD, B Author, MD",
+            "Authors: Alice O'Neil, MD, B Author, MD",
+        )
+        entry = uptodate_entry("A carried topic").replace(
+            "Author, A., & Author, B.",
+            "O-Neil, A., & Author, B.",
+        )
+
+        status, _ = self.run_entry(entry, evidence)
+
+        self.assertEqual(status, 1)
+
+    def test_a_normalized_title_collision_uses_the_newest_stored_masthead(self):
+        entry = uptodate_entry("A topic", year="2027").replace(
+            "Author, A., & Author, B.",
+            "Smith, A., & Author, B.",
+        )
+        records = ledger.read_records(ledger_text(with_reference(CLEAN, entry)))
+        details = (
+            uptodate_store.StoredTopic(
+                "A-topic", "A Jones, MD, B Author, MD", "2026-01-01", "2026-01-01"
+            ),
+            uptodate_store.StoredTopic(
+                "A topic", "A Smith, MD, B Author, MD", "2027-01-01", "2027-01-01"
+            ),
+        )
+
+        scan = ledger.uptodate_masthead_findings(records, (), details)
+
+        self.assertEqual(scan.findings, ())
+
+    def test_the_three_declared_limits_name_the_unchecked_boundaries(self):
+        limits = {row.key for row in ledger.DECLARED_LIMITS}
+        self.assertTrue(
+            {
+                "uptodate-initials-uncompared",
+                "uptodate-trailing-surname-accepted",
+                "non-uptodate-author-year-unchecked",
+            }.issubset(limits)
+        )
+
+
+class SourcedRecordsReachTheDraftReferenceListOrAreDropped(unittest.TestCase):
+    """#1021's ledger-to-list row, through ``--draft`` without evidence."""
+
+    def run_main(self, *records: str, references: tuple[str, ...] = ()) -> tuple[int, str]:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            claims = root / "claims.md"
+            draft = root / "draft.md"
+            claims.write_text(ledger_text(*records), encoding="utf-8")
+            write_bar(root)
+            reference_list = "\n".join(references)
+            draft.write_text(
+                rx_table(CEFTRIAXONE) + "\n## References\n\n" + reference_list + "\n",
+                encoding="utf-8",
+            )
+            out = io.StringIO()
+            with redirect_stdout(out), redirect_stderr(io.StringIO()):
+                status = ledger.main([str(claims), "--draft", str(draft)])
+            return status, out.getvalue()
+
+    def test_an_uncited_sourced_record_is_a_finding_without_evidence(self):
+        status, report = self.run_main(a_drug_claim(CEFTRIAXONE_CLAIM))
+
+        self.assertEqual(status, 1)
+        row = next(line for line in report.splitlines() if ledger.SOURCED_RECORD_NOT_LISTED in line)
+        self.assertRegex(row, rf"{ledger.SOURCED_RECORD_NOT_LISTED}\s+1$")
+
+    def test_dropped_with_no_reason_is_a_finding(self):
+        record = a_drug_claim(CEFTRIAXONE_CLAIM) + "DROPPED:\n"
+
+        status, report = self.run_main(record)
+
+        self.assertEqual(status, 1)
+        self.assertRegex(
+            next(line for line in report.splitlines() if ledger.BARE_DROPPED in line),
+            rf"{ledger.BARE_DROPPED}\s+1$",
+        )
+
+    def test_dropped_on_an_unsourced_record_is_a_finding(self):
+        kept = a_drug_claim(CEFTRIAXONE_CLAIM) + "DROPPED: treatment changed.\n"
+        unsourced = """\
+## CLAIM: A claim no source supports.
+STATUS: unsourced - searched PubMed and the guideline corpus.
+DROPPED: the claim was cut.
+"""
+
+        status, report = self.run_main(kept, unsourced)
+
+        self.assertEqual(status, 1)
+        self.assertRegex(
+            next(
+                line
+                for line in report.splitlines()
+                if ledger.DROPPED_ON_SOURCELESS_RECORD in line
+            ),
+            rf"{ledger.DROPPED_ON_SOURCELESS_RECORD}\s+1$",
+        )
+
+    def test_a_dropped_sourced_record_passes_without_a_list_entry(self):
+        record = a_drug_claim(CEFTRIAXONE_CLAIM) + "DROPPED: treatment changed.\n"
+
+        status, report = self.run_main(record)
+
+        self.assertEqual(status, 0, report)
+
+    def test_a_dropped_source_may_still_be_listed_for_another_claim(self):
+        record = a_drug_claim(CEFTRIAXONE_CLAIM) + "DROPPED: this claim was cut.\n"
+        reference = ledger.read_records(record)[0].value("REFERENCE")
+
+        status, report = self.run_main(record, references=(reference,))
+
+        self.assertEqual(status, 0, report)
+
+    def test_same_author_and_year_works_are_told_apart_by_title(self):
+        first_reference = "Author, A. (2026). First treatment topic. Clinical Journal."
+        second_reference = "Author, A. (2026). Second treatment topic. Clinical Journal."
+        first = with_reference(a_drug_claim(CEFTRIAXONE_CLAIM), first_reference)
+        second = with_reference(CLEAN, second_reference)
+
+        status, report = self.run_main(first, second, references=(first_reference,))
+
+        self.assertEqual(status, 1)
+        self.assertRegex(
+            next(line for line in report.splitlines() if ledger.SOURCED_RECORD_NOT_LISTED in line),
+            rf"{ledger.SOURCED_RECORD_NOT_LISTED}\s+1$",
+        )
+
+    def test_periods_in_an_abbreviation_do_not_collapse_two_titles(self):
+        first_reference = "Author, A. (2026). U.S. guideline alpha. Clinical Journal."
+        second_reference = "Author, A. (2026). U.S. guideline beta. Clinical Journal."
+        first = with_reference(a_drug_claim(CEFTRIAXONE_CLAIM), first_reference)
+        second = with_reference(CLEAN, second_reference)
+
+        status, report = self.run_main(first, second, references=(first_reference,))
+
+        self.assertEqual(status, 1)
+        self.assertRegex(
+            next(line for line in report.splitlines() if ledger.SOURCED_RECORD_NOT_LISTED in line),
+            rf"{ledger.SOURCED_RECORD_NOT_LISTED}\s+1$",
+        )
+
+    def test_a_word_abbreviation_does_not_collapse_two_titles(self):
+        first_reference = "Author, A. (2026). Dr. Smith treatment alpha. Clinical Journal."
+        second_reference = "Author, A. (2026). Dr. Smith treatment beta. Clinical Journal."
+        first = with_reference(a_drug_claim(CEFTRIAXONE_CLAIM), first_reference)
+        second = with_reference(CLEAN, second_reference)
+
+        status, report = self.run_main(first, second, references=(first_reference,))
+
+        self.assertEqual(status, 1)
+        self.assertRegex(
+            next(line for line in report.splitlines() if ledger.SOURCED_RECORD_NOT_LISTED in line),
+            rf"{ledger.SOURCED_RECORD_NOT_LISTED}\s+1$",
+        )
+
+    def test_container_metadata_does_not_change_the_title_match(self):
+        recorded = "Author, A. (2026). U.S. guideline alpha. Clinical Journal, 1(1), 1-2."
+        listed = "Author, A. (2026). U.S. guideline alpha. Clinical Journal, 1(1), 1-3."
+        record = with_reference(a_drug_claim(CEFTRIAXONE_CLAIM), recorded)
+
+        status, report = self.run_main(record, references=(listed,))
+
+        self.assertEqual(status, 0, report)
+
+    def test_decimal_points_do_not_collapse_two_titles(self):
+        first_reference = "Author, A. (2026). Treatment at 3.5 mg. Clinical Journal."
+        second_reference = "Author, A. (2026). Treatment at 3.6 mg. Clinical Journal."
+        first = with_reference(a_drug_claim(CEFTRIAXONE_CLAIM), first_reference)
+        second = with_reference(CLEAN, second_reference)
+
+        status, report = self.run_main(first, second, references=(first_reference,))
+
+        self.assertEqual(status, 1)
+        self.assertRegex(
+            next(line for line in report.splitlines() if ledger.SOURCED_RECORD_NOT_LISTED in line),
+            rf"{ledger.SOURCED_RECORD_NOT_LISTED}\s+1$",
+        )
+
+    def test_a_title_ending_in_an_abbreviation_ignores_container_metadata(self):
+        recorded = "Author, A. (2026). Care in the U.S. Journal A."
+        listed = "Author, A. (2026). Care in the U.S. Journal B."
+        record = with_reference(a_drug_claim(CEFTRIAXONE_CLAIM), recorded)
+
+        status, report = self.run_main(record, references=(listed,))
+
+        self.assertEqual(status, 0, report)
+
+    def test_an_internal_initialism_before_a_lowercase_container_word_is_not_the_title_end(self):
+        first_reference = "Author, A. (2026). U.S. journal guidance alpha. Clinical Journal."
+        second_reference = "Author, A. (2026). U.S. journal guidance beta. Clinical Journal."
+        first = with_reference(a_drug_claim(CEFTRIAXONE_CLAIM), first_reference)
+        second = with_reference(CLEAN, second_reference)
+
+        status, report = self.run_main(first, second, references=(first_reference,))
+
+        self.assertEqual(status, 1)
+        self.assertRegex(
+            next(line for line in report.splitlines() if ledger.SOURCED_RECORD_NOT_LISTED in line),
+            rf"{ledger.SOURCED_RECORD_NOT_LISTED}\s+1$",
+        )
+
+    def test_an_internal_corporate_abbreviation_does_not_end_the_title(self):
+        first_reference = "Author, A. (2026). Pfizer Inc. COVID-19 treatment alpha. Journal."
+        second_reference = "Author, A. (2026). Pfizer Inc. COVID-19 treatment beta. Journal."
+        first = with_reference(a_drug_claim(CEFTRIAXONE_CLAIM), first_reference)
+        second = with_reference(CLEAN, second_reference)
+
+        status, report = self.run_main(first, second, references=(first_reference,))
+
+        self.assertEqual(status, 1)
+        self.assertRegex(
+            next(line for line in report.splitlines() if ledger.SOURCED_RECORD_NOT_LISTED in line),
+            rf"{ledger.SOURCED_RECORD_NOT_LISTED}\s+1$",
+        )
+
+    def test_a_journal_acronym_after_an_abbreviation_ending_title_is_metadata(self):
+        recorded = "Author, A. (2026). Care in the U.S. JAMA, 1(1), 1-2."
+        listed = "Author, A. (2026). Care in the U.S. JAMA, 1(1), 1-3."
+        record = with_reference(a_drug_claim(CEFTRIAXONE_CLAIM), recorded)
+
+        status, report = self.run_main(record, references=(listed,))
+
+        self.assertEqual(status, 0, report)
+
+    def test_volume_metadata_marks_an_unfamiliar_container_after_an_abbreviation(self):
+        recorded = "Author, A. (2026). Care in the U.S. ClinicalKey, 1."
+        listed = "Author, A. (2026). Care in the U.S. DynaMed, 2."
+        record = with_reference(a_drug_claim(CEFTRIAXONE_CLAIM), recorded)
+
+        status, report = self.run_main(record, references=(listed,))
+
+        self.assertEqual(status, 0, report)
+
+    def test_a_one_word_unfamiliar_container_after_an_abbreviation_is_metadata(self):
+        recorded = "Author, A. (2026). Care in the U.S. Clinicalgada."
+        listed = "Author, A. (2026). Care in the U.S. Dynafoo."
+        record = with_reference(a_drug_claim(CEFTRIAXONE_CLAIM), recorded)
+
+        status, report = self.run_main(record, references=(listed,))
+
+        self.assertEqual(status, 0, report)
+
+    def test_a_one_word_title_continuation_after_an_initialism_is_not_discarded(self):
+        recorded = "Author, A. (2026). U.S. Healthcare. Journal."
+        listed = "Author, A. (2026). U.S. Medicine. Journal."
+        record = with_reference(a_drug_claim(CEFTRIAXONE_CLAIM), recorded)
+
+        status, report = self.run_main(record, references=(listed,))
+
+        self.assertEqual(status, 1, report)
+
+    def test_an_unfamiliar_container_after_a_word_abbreviation_is_metadata(self):
+        recorded = "Author, A. (2026). Guidance from Acme Inc. Clinicalgada."
+        listed = "Author, A. (2026). Guidance from Acme Inc. Dynafoo."
+        record = with_reference(a_drug_claim(CEFTRIAXONE_CLAIM), recorded)
+
+        status, report = self.run_main(record, references=(listed,))
+
+        self.assertEqual(status, 0, report)
+
+    def test_a_multi_word_unfamiliar_container_after_an_abbreviation_is_metadata(self):
+        recorded = "Author, A. (2026). Care in the U.S. Clinicalgada Archive."
+        listed = "Author, A. (2026). Care in the U.S. Dynafoo Library."
+        record = with_reference(a_drug_claim(CEFTRIAXONE_CLAIM), recorded)
+
+        status, report = self.run_main(record, references=(listed,))
+
+        self.assertEqual(status, 0, report)
+
+    def test_retrieval_dates_after_an_abbreviation_ending_title_are_ignored(self):
+        recorded = "Author, A. (2026). Care in the U.S. Retrieved August 20, 2026."
+        listed = "Author, A. (2026). Care in the U.S. Retrieved September 1, 2026."
+        record = with_reference(a_drug_claim(CEFTRIAXONE_CLAIM), recorded)
+
+        status, report = self.run_main(record, references=(listed,))
+
+        self.assertEqual(status, 0, report)
+
+    def test_salted_no_date_years_match_their_bare_form(self):
+        recorded = "Author, A. (n.d.-a). Same title. Clinical Journal."
+        listed = "Author, A. (n.d.). Same title. Clinical Journal."
+        record = with_reference(a_drug_claim(CEFTRIAXONE_CLAIM), recorded)
+
+        status, report = self.run_main(record, references=(listed,))
+
+        self.assertEqual(status, 0, report)
+
+    def test_a_leading_article_is_part_of_the_normalized_title(self):
+        recorded = "Author, A. (2026). The treatment topic. Clinical Journal."
+        listed = "Author, A. (2026). Treatment topic. Clinical Journal."
+        record = with_reference(a_drug_claim(CEFTRIAXONE_CLAIM), recorded)
+
+        status, _ = self.run_main(record, references=(listed,))
+
+        self.assertEqual(status, 1)
+
+    def test_italics_retrieval_date_and_doi_do_not_change_the_match(self):
+        recorded = "Author, A. (2026). *A treatment topic.* Clinical Journal."
+        listed = (
+            "Author, A. (2026a). A treatment topic. Clinical Journal. Retrieved August 20, "
+            "2026, from https://doi.org/10.1000/example"
+        )
+        record = with_reference(a_drug_claim(CEFTRIAXONE_CLAIM), recorded)
+
+        status, report = self.run_main(record, references=(listed,))
+
+        self.assertEqual(status, 0, report)
 
 
 class TheDraftsReferenceListComesFromTheRendererSideParser(unittest.TestCase):

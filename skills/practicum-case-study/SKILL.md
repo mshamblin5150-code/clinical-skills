@@ -585,9 +585,12 @@ REFUTATION: stands - the volume, issue and pages match the publisher's landing p
     third-trimester row on page 1327 covers 15,000 as the heading states.
 SECOND-ROUTE: publisher landing page -> journal PDF and table on page 1327
 STATED-EXPIRY: none stated
+DROPPED: the draft no longer makes this claim after the treatment plan changed
 ```
 
-`STATUS` is `sourced`, `unsourced`, or `unreadable`. Apply the shared sourcing rules above to
+`STATUS` is `sourced`, `unsourced`, or `unreadable`. `DROPPED` is optional and gives the substantive
+reason a previously sourced claim no longer appears in the draft; its research remains in the
+ledger, but its source no longer has to reach the reference list. Apply the shared sourcing rules above to
 `unsourced` and `unreadable` records. `INSTRUMENTS` is also required when
 `REFUTATION` is `unreadable` and is forbidden elsewhere. `SOURCE` is one of `society guideline`, `peer-reviewed`, `government` or
 `tertiary reference`. `RECENCY` is one of `current`, `within five`, `nothing newer` or
@@ -677,6 +680,8 @@ can be several of them at once:
 | a `STATUS` outside the three | it decides which of the rules below apply, so a fourth word is a record graded on nothing |
 | an `unsourced` with nothing said about what was searched, or an `unreadable` with nothing said about the failed read | either keyword without its reason is an assertion without the work it claims |
 | a sourceless status record carrying any source field | the two contradict, and nothing can tell which was meant |
+| `DROPPED` with no reason after it | the field releases a sourced record from the reference-list obligation only when it says why |
+| `DROPPED` on a record whose `STATUS` is not `sourced` | only a source the draft was going to rely on can become a dropped record |
 | a `SOURCE` outside the four | a returned source outside the classes is a finding, not an answer |
 | a `RECENCY` outside the four | it gates the window below, so a fifth word is a record the window never read |
 | a `RESTATEMENT` that is the claim pasted back | the whole point is the source's own terms |
@@ -712,11 +717,17 @@ rows read the draft as well as the ledger the way #298's row below reads the evi
 python tools/research_ledger.py <claims-ledger> --draft <the draft>
 ```
 
-| The prescription | Why |
+| The draft join | Why |
 | --- | --- |
 | a drug in an Rx table that no claim record names | the dose is the highest-stakes claim in the document and the one every other gate exits 0 on |
 | an order stating a dose whose claim record states no number | a record naming the drug is not yet a record that sourced the dose, and this is the form of that a string test reaches |
 | a prescription table with no readable drug row | a table this cannot read is a finding and never a table quietly dropped from the set |
+| a sourced record without `DROPPED` whose reference is absent from the draft reference list | research the draft relies on must be cited and listed; matching requires the normalized author phrase and year, ignoring a letter suffix, and the normalized title |
+
+An ordinary APA edit does not break that join: italics, a retrieval date, a DOI, and an `a` or `b`
+year suffix do not change its author-year-and-title identity. Two works by the same authors in the
+same year remain distinct because their titles must also agree. A correctly reasoned `DROPPED`
+record passes even if another claim still keeps the same source in the list.
 
 **Without `--draft` those rows do not run, and the report prints `not graded` against them
 rather than `0`.** A zero beside a row that never ran is the silent pass this whole arrangement
@@ -770,6 +781,7 @@ python tools/research_ledger.py <claims-ledger> --evidence <the evidence dump>
 | --- | --- |
 | an UpToDate topic cited here that no accumulated manifest carries | the deliberately supplied store is the required source set; an unfiled current dump or a topic opened through another route does not put it in that set |
 | an UpToDate topic whose literature-review month has left the signed two-year window | re-read it while the profile says the clinician has an account; `UPTODATE-ACCOUNT: no` waives this row without pretending the old date became current |
+| an UpToDate entry whose author surnames, author order, author count, or year disagrees with the stored topic masthead and last-updated date | the accumulated manifest already holds the authoritative masthead fields; initials are not compared, and the entry's surname decides a multi-word trailing match |
 | an entry whose locator names an UpToDate topic and that states no database element | the row above reads a topic only from the database element, so without this one an entry missing it escapes the check and the coverage count together |
 
 **The grounding is companion-evidence membership, not whether some route can open the page.** The
@@ -959,10 +971,11 @@ it could find, or a heading with nothing under it. Re-run with `--show` to see w
 It cannot carry a sentence of the draft: every finding it prints is a reference entry, a heading, a
 date, or a cited author's surname and year. A test pins that rather than the docstring asserting it.
 
-It reaches every row in the table above except one: whether an UpToDate year is the topic's revision
-year rather than the year it was read needs the companion evidence document, which the command never
-sees. And it says nothing at all about whether a source exists or says what the sentence citing it
-says. **A clean scan is not a checked reference list.**
+`reference_scan.py` reaches every row in the table above except one: it cannot tell whether an
+UpToDate year is the topic's last-update year because it never sees the companion evidence.
+`research_ledger.py --evidence` now grades that year, and the entry's author count, order, and
+surnames, against the stored topic manifest. Neither command establishes whether a source exists or
+says what the sentence citing it says. **A clean scan is not a checked reference list.**
 
 **A list it grades clean looks like this** — one entry per line, sorted, every entry cited above and
 every citation listed:
@@ -1082,7 +1095,7 @@ rows whose verdict comes from a command.
 | --- | --- | --- | --- |
 | the house style | the whole draft, section by section | `tools/case_study_scan.py` below — mechanical, so it is a command and not an agent | no |
 | the reference list | the list, and every citation in the body | `tools/reference_scan.py`, step 7 — mechanical, so it is a command and not an agent | no |
-| the reference list, the part no command reaches | the entries against the companion evidence | a reader: is each UpToDate year the topic's **last update** year; does any entry carry a **retrieval date that does not belong** — a guideline, a statement or a textbook takes none, the rule is [apa7.md](../_shared/reference/apa7.md) §4 and how far the command reaches is §7; does each source exist and say what the sentence citing it says; and, under [sourcing.md](../_shared/reference/sourcing.md), does opening each locator confirm that it identifies the work the entry describes, including whole book versus chapter and advance article versus final issue | no |
+| the reference list, the part no command reaches | the entries against the companion evidence | `research_ledger.py` grades a stored UpToDate topic's author surnames, author order, author count, and last-update year; a reader checks authors and years for every other source, whether any entry carries a **retrieval date that does not belong** — a guideline, a statement or a textbook takes none and `reference_scan.py` catches that only on a DOI — the rule is [apa7.md](../_shared/reference/apa7.md) §4 and how far the commands reach is §7 — whether each source exists and says what the sentence citing it says, and, under [sourcing.md](../_shared/reference/sourcing.md), whether opening each locator confirms that it identifies the work the entry describes, including whole book versus chapter and advance article versus final issue | no |
 | differential ordering | the numbered differential and the intake block | a reader: is `1.` defensible as what would kill first, and does a patient of childbearing age with abdominal or pelvic pain have the pregnancy-related emergencies ranked first — *Ordering is the graded axis* above | yes |
 | MDM completeness | every MDM entry | a reader: does each entry name a discriminator from **this** case rather than summarizing the disease, and does each carry a citation | yes |
 | the Rx blocks | the Plan and every prescription table | a reader: every drug in the Plan has a table — **including any drug row that welds a second drug into it**, which is a drug in the Plan without its own table and is a shape no command here reaches — every `Sig` ends in an indication, and every table has the prose block under it carrying class, contraindications, monitoring, adverse effects and guideline support | no |

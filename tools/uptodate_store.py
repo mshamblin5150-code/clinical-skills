@@ -77,6 +77,26 @@ class _TopicBlock:
 
 
 @dataclass(frozen=True)
+class StoredTopic:
+    """The citation-verification fields retained in a validated manifest."""
+
+    title: str
+    authors: str
+    last_updated: str
+    received_on: str = ""
+    literature_review_current_through: str = ""
+
+
+@dataclass(frozen=True)
+class StoreSnapshot:
+    """One validated read of every field the evidence graders join."""
+
+    source_digests: frozenset[str]
+    topics: tuple[StoredTopic, ...]
+    currencies: tuple[tuple[str, str], ...]
+
+
+@dataclass(frozen=True)
 class IngestReport:
     manifest: Path
     index: Path
@@ -112,8 +132,13 @@ def _parse_month(value: re.Match[str]) -> str:
 
 
 def topic_key(title: str) -> str:
-    """The one equality rule for topic titles across store consumers."""
+    """Case-and-spacing identity for exact stored-topic lookup."""
     return " ".join(title.casefold().split())
+
+
+def citation_title_key(title: str) -> str:
+    """Punctuation-insensitive title identity used by citation joins."""
+    return " ".join(re.sub(r"[^0-9a-z]+", " ", title.casefold()).split())
 
 
 def topic_population_count(text: str) -> int:
@@ -315,46 +340,67 @@ def _manifest_rows(store: Path) -> Iterable[tuple[Path, dict[str, object]]]:
         yield manifest_path, _validate_manifest(manifest_path, manifest)
 
 
+def store_snapshot(store: Path | None = None) -> StoreSnapshot:
+    """Read filed digests, newest topic mastheads, and currencies together."""
+    root = (store or default_store()).resolve()
+    digests: set[str] = set()
+    newest: dict[str, tuple[str, StoredTopic, str]] = {}
+    for path, manifest in _manifest_rows(root):
+        digests.add(str(manifest["source_sha256"]))
+        received = str(manifest["received_on"])
+        currency = str(manifest["literature_review_current_through"])
+        for row in manifest.get("topics", []):
+            if not isinstance(row, dict):
+                raise ValueError("manifest topic must hold an object")
+            title, authors, last_updated = (
+                row.get("title"),
+                row.get("authors"),
+                row.get("last_updated"),
+            )
+            if not all(isinstance(value, str) for value in (title, authors, last_updated)):
+                raise ValueError("manifest topic needs title, authors and last updated")
+            topic = StoredTopic(title, authors, last_updated, received, currency)
+            key = citation_title_key(title)
+            prior = newest.get(key)
+            if prior is not None and received == prior[0] and (
+                topic != prior[1] or currency != prior[2]
+            ):
+                raise ValueError(
+                    f"topic has conflicting versions received on {received}: {title}"
+                )
+            if prior is None or received > prior[0]:
+                newest[key] = (received, topic, currency)
+    return StoreSnapshot(
+        frozenset(digests),
+        tuple(row[1] for _key, row in sorted(newest.items())),
+        tuple((key, row[2]) for key, row in sorted(newest.items())),
+    )
+
+
+def entitled_topic_details(store: Path | None = None) -> tuple[StoredTopic, ...]:
+    """Citation-verification fields from the newest accumulated topic versions."""
+    return store_snapshot(store).topics
+
+
 def entitled_topics(store: Path | None = None) -> set[str]:
     """Every topic deliberately ingested into any per-dump manifest."""
-    root = (store or default_store()).resolve()
-    titles: set[str] = set()
-    for _path, manifest in _manifest_rows(root):
-        rows = manifest.get("topics")
-        if not isinstance(rows, list):
-            raise ValueError("manifest topics must be a list")
-        for row in rows:
-            if not isinstance(row, dict) or not isinstance(row.get("title"), str):
-                raise ValueError("manifest topic needs a title")
-            titles.add(row["title"])
-    return titles
+    return {topic.title for topic in entitled_topic_details(store)}
 
 
-def is_filed_source(source: Path, store: Path | None = None) -> bool:
+def is_filed_source(
+    source: Path,
+    store: Path | None = None,
+    *,
+    snapshot: StoreSnapshot | None = None,
+) -> bool:
     """Whether ``source`` exactly matches a validated dump manifest."""
-    root = (store or default_store()).expanduser().resolve()
     digest = file_digest.sha256(source.expanduser().resolve())
-    return any(
-        manifest["source_sha256"] == digest
-        for _manifest_path, manifest in _manifest_rows(root)
-    )
+    return digest in (snapshot or store_snapshot(store)).source_digests
 
 
 def topic_currencies(store: Path | None = None) -> dict[str, str]:
     """Newest literature-review month per accumulated topic title."""
-    root = (store or default_store()).resolve()
-    rows: dict[str, tuple[str, str]] = {}
-    for _path, manifest in _manifest_rows(root):
-        received = str(manifest.get("received_on", ""))
-        currency = str(manifest.get("literature_review_current_through", ""))
-        for topic in manifest.get("topics", []):
-            if not isinstance(topic, dict) or not isinstance(topic.get("title"), str):
-                raise ValueError("manifest topic needs a title")
-            title = topic["title"]
-            key = topic_key(title)
-            if key not in rows or received > rows[key][0]:
-                rows[key] = (received, currency)
-    return {key: value[1] for key, value in rows.items()}
+    return dict(store_snapshot(store).currencies)
 
 
 def manifest_for_dump(dump_id: str, store: Path | None = None) -> dict[str, object] | None:
