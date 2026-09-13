@@ -23,7 +23,7 @@ import aar_scan
 import file_digest
 import render_pass
 from discussion_artifact import CLAIM_BLOCK, claim_record_can_certify_values
-from discussion_post_scan import numeric_values
+from discussion_post_scan import traceable_numeric_values
 from research_ledger import REFUTATION_EVIDENCE_COMPLEMENT
 
 
@@ -454,7 +454,7 @@ def _rendered_grade(
 
 
 def _figures(text: str) -> set[str]:
-    return set(numeric_values(text))
+    return set(traceable_numeric_values(text))
 
 
 def _claim_figures(text: str) -> tuple[set[str], set[str]]:
