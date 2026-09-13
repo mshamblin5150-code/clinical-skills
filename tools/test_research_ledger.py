@@ -4158,17 +4158,20 @@ class TheCommandReadsTheEvidenceFile(unittest.TestCase):
         write_bar(self.root)
         return str(path)
 
-    def test_a_cited_topic_in_the_dump_and_its_manifest_exits_clean(self):
-        led = self.write("led.md", ledger_text(cited("A carried topic")))
-        ev = self.write("evidence.txt", topic("A carried topic"))
-        store = self.root / "uptodate"
+    def file_evidence(self, evidence: str, store: Path) -> None:
         uptodate_store.ingest_dump(
-            Path(ev),
+            Path(evidence),
             store,
             dump_id="current",
             module="Current module",
             received_on=AS_OF,
         )
+
+    def test_a_cited_topic_in_the_dump_and_its_manifest_exits_clean(self):
+        led = self.write("led.md", ledger_text(cited("A carried topic")))
+        ev = self.write("evidence.txt", topic("A carried topic"))
+        store = self.root / "uptodate"
+        self.file_evidence(ev, store)
         with mock.patch.object(uptodate_store, "default_store", return_value=store):
             status, out, _ = self.run_main([led, "--evidence", ev])
         self.assertEqual(status, 0, out)
@@ -4177,13 +4180,7 @@ class TheCommandReadsTheEvidenceFile(unittest.TestCase):
         led = self.write("led.md", ledger_text(cited("A carried topic")))
         ev = self.write("evidence.txt", topic("A carried topic"))
         store = self.root / "uptodate"
-        uptodate_store.ingest_dump(
-            Path(ev),
-            store,
-            dump_id="current",
-            module="Current module",
-            received_on=AS_OF,
-        )
+        self.file_evidence(ev, store)
         Path(ev).write_text(topic("A carried topic") + "\n", encoding="utf-8")
 
         with mock.patch.object(uptodate_store, "default_store", return_value=store):
@@ -4268,9 +4265,7 @@ RESTATEMENT: A record broken in ways that have nothing to do with the evidence.
         led = self.write("led.md", ledger_text(cited("A missing topic"), stamp=""))
         ev = self.write("evidence.txt", topic("Some other topic"))
         store = self.root / "uptodate"
-        uptodate_store.ingest_dump(
-            Path(ev), store, dump_id="current", module="Current module", received_on=AS_OF
-        )
+        self.file_evidence(ev, store)
         with mock.patch.object(uptodate_store, "default_store", return_value=store):
             status, _, _ = self.run_main([led, "--evidence", ev])
         self.assertEqual(status, 1)
@@ -4282,9 +4277,7 @@ RESTATEMENT: A record broken in ways that have nothing to do with the evidence.
         led = self.write("led.md", ledger_text(cited("A topic nobody handed over")))
         ev = self.write("evidence.txt", topic("Some other topic"))
         store = self.root / "uptodate"
-        uptodate_store.ingest_dump(
-            Path(ev), store, dump_id="current", module="Current module", received_on=AS_OF
-        )
+        self.file_evidence(ev, store)
         with mock.patch.object(uptodate_store, "default_store", return_value=store):
             _, out, _ = self.run_main([led, "--evidence", ev])
             _, shown, _ = self.run_main([led, "--evidence", ev, "--show"])

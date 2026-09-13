@@ -79,7 +79,7 @@ class _TopicBlock:
 class IngestReport:
     manifest: Path
     index: Path
-    topics: int
+    blocks_read: int
     candidates: int
     unread: int
     merged: int
@@ -329,6 +329,16 @@ def entitled_topics(store: Path | None = None) -> set[str]:
     return titles
 
 
+def is_filed_source(source: Path, store: Path | None = None) -> bool:
+    """Whether ``source`` exactly matches a validated dump manifest."""
+    root = (store or default_store()).expanduser().resolve()
+    digest = _sha256(source.expanduser().resolve())
+    return any(
+        manifest["source_sha256"] == digest
+        for _manifest_path, manifest in _manifest_rows(root)
+    )
+
+
 def topic_currencies(store: Path | None = None) -> dict[str, str]:
     """Newest literature-review month per accumulated topic title."""
     root = (store or default_store()).resolve()
@@ -548,7 +558,7 @@ def main(argv: list[str]) -> int:
                 references=args.references,
             )
             print(
-                f"ingested topics read {report.topics} of {report.candidates}; "
+                f"ingested topic blocks read {report.blocks_read} of {report.candidates}; "
                 f"merged {report.merged}; unread {report.unread}; "
                 f"manifest {report.manifest.name}; index {report.index.name}"
             )

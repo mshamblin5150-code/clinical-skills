@@ -1603,18 +1603,11 @@ def _load(parsed: run_grader.Parsed) -> Source:
         if not evidence_path.is_file():
             raise run_grader.SourceError(f"no evidence file named {evidence_path.name}")
         try:
-            source_digest = uptodate_store._sha256(evidence_path)
-            filed_digests = {
-                str(manifest["source_sha256"])
-                for _manifest_path, manifest in uptodate_store._manifest_rows(
-                    uptodate_store.default_store().resolve()
-                )
-            }
+            evidence_not_filed = not uptodate_store.is_filed_source(evidence_path)
         except ValueError as error:
             raise run_grader.SourceError(
                 f"the UpToDate store is unreadable: {error}"
             ) from error
-        evidence_not_filed = source_digest not in filed_digests
         if not evidence_not_filed:
             carried = accumulated_evidence_topics()
         if carried is not None and draft is not None:

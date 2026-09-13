@@ -67,7 +67,7 @@ class AnIngestedDumpBecomesAccumulatedEvidence(unittest.TestCase):
         manifest = json.loads(report.manifest.read_text(encoding="utf-8"))
         self.assertEqual(manifest["module"], "NUR5144 Module 1")
         self.assertEqual([row["title"] for row in manifest["topics"]], ["Acute cervicitis"])
-        self.assertEqual((report.topics, report.candidates, report.unread), (1, 1, 0))
+        self.assertEqual((report.blocks_read, report.candidates, report.unread), (1, 1, 0))
         self.assertEqual(
             store.search(self.store, "searchable result")[0].title,
             "Acute cervicitis",
@@ -127,7 +127,7 @@ class AnIngestedDumpBecomesAccumulatedEvidence(unittest.TestCase):
             received_on=date(2026, 1, 2),
         )
 
-        self.assertEqual((report.topics, report.candidates, report.merged), (2, 2, 1))
+        self.assertEqual((report.blocks_read, report.candidates, report.merged), (2, 2, 1))
 
     def test_one_title_over_different_bodies_is_refused(self):
         first = topic("Repeated topic")
