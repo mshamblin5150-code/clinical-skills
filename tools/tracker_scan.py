@@ -475,6 +475,23 @@ def load_population(path: Path, harvest: Sequence[Path]) -> dict[str, int]:
     return dict(populations)
 
 
+def population_coverage(
+    path: Path,
+    harvest: Sequence[Path],
+    observed: dict[str, int],
+) -> tuple[dict[str, int], list[tuple[str, int, int]]]:
+    """Return the bounded populations and every short harvest member."""
+    populations = load_population(path, harvest)
+    if not set(observed) <= set(populations):
+        raise HarvestError("observed counts must name only population files")
+    short = [
+        (name, observed[name], populations[name])
+        for name in sorted(observed)
+        if observed[name] < populations[name]
+    ]
+    return populations, short
+
+
 def load_json(path: Path) -> object:
     try:
         raw = path.read_text(encoding="utf-8")

@@ -56,10 +56,20 @@ A body of `@-`, or an empty body, means it was eaten. Fix it with `gh issue edit
 : "${TICKET_NUMBER:?set TICKET_NUMBER to the current ticket number}"
 H=$(python tools/scratch_work.py ticket "$TICKET_NUMBER")
 mkdir -p "$H"
+gh api graphql -f owner=OWNER -f name=REPO \
+  -f query='query($owner:String!,$name:String!){repository(owner:$owner,name:$name){issues{totalCount} pullRequests{totalCount}}}' \
+  > "$H/tracker-issues-population.json"
+gh api --include "repos/OWNER/REPO/issues/comments?per_page=1&page=1" > "$H/tracker-comments-population.http"
+gh api --include "repos/OWNER/REPO/pulls/comments?per_page=1&page=1" > "$H/tracker-reviews-population.http"
+python tools/tracker_population.py \
+  "$H/tracker-issues-population.json" "$H/tracker-comments-population.http" \
+  "$H/tracker-reviews-population.http" --write "$H/tracker-population.json"
 gh api --paginate "repos/OWNER/REPO/issues?state=all&per_page=100" > "$H/tracker-issues.json"
 gh api --paginate "repos/OWNER/REPO/issues/comments?per_page=100" > "$H/tracker-comments.json"
 gh api --paginate "repos/OWNER/REPO/pulls/comments?per_page=100" > "$H/tracker-reviews.json"
-python tools/tracker_bodies.py "$H"/tracker-*.json
+python tools/tracker_bodies.py \
+  "$H/tracker-issues.json" "$H/tracker-comments.json" "$H/tracker-reviews.json" \
+  --population "$H/tracker-population.json"
 ```
 
 **All three surfaces, which is `tools/tracker_scan.py`'s set.** The review-comment endpoint is the one easiest to leave out; a harvest that omits it reports that as a clean scan of it rather than as not having read it.
@@ -328,6 +338,13 @@ as complete only when it returns fewer than 1,000 labels; if it reaches the limi
 than calling the comparison clean. This is a whole-vocabulary check: auditing one ticket's labels
 at a time cannot reveal that a label has no entry in the vocabulary.
 
+The measured denominator route is `Link rel="last"` at `per_page=1` on the
+labels endpoint; on 2026-09-12, `gh api --include
+"repos/OWNER/REPO/labels?per_page=1&page=1"` established an 18-label
+denominator, and the independent `gh api --paginate --slurp
+"repos/OWNER/REPO/labels?per_page=100" --jq 'add | length'` harvest counted 18
+label records against it.
+
 Once per sweep, list every open ticket created at or after
 `tracker_filed_from.FILED_FROM_CUTOFF` whose body lacks the Filed-from line:
 
@@ -407,10 +424,20 @@ gh issue list --state open --limit 100 --json number,title,labels \
 
 That list is the **work list**, not a menu — every number on it gets read and gets a verdict. Reading the titles first is fine for deciding what order to go in, and it is not a filter. **Search the artifact for anything you are about to file** — that section is above and it is not weakened by this one; a sweep files *more* tickets, so it is exactly when duplicates get written.
 
-**That command hides pull requests, and it is the right command anyway — as long as you know which.** `gh issue list` excludes them by design, so the work list above is issues only. That is correct for a sweep of open *tickets*, and it is wrong the moment you use the same command to reason about *every record on the tracker*: #130's own reproduce command did exactly that, and sweep after sweep re-derived a population two members short without one of them being able to notice. When the question is about all records, use the REST endpoint, which returns both and marks pull requests with a `pull_request` key:
+**That command hides pull requests, and it is the right command anyway — as long as you know which.** `gh issue list` excludes them by design, so the work list above is issues only. That is correct for a sweep of open *tickets*, and it is wrong the moment you use the same command to reason about *every record on the tracker*: #130's own reproduce command did exactly that, and sweep after sweep re-derived a population two members short without one of them being able to notice. When the question is about all records, use the independently bounded full-harvest sequence above: run its GraphQL issues-plus-pull-requests probe first, build `tracker-population.json`, then fetch the REST endpoint that returns both and marks pull requests with a `pull_request` key. Never reason from the bare REST harvest below without that probe and count comparison:
 
 ```bash
-gh api --paginate "repos/OWNER/REPO/issues?state=all&per_page=100"
+: "${TICKET_NUMBER:?set TICKET_NUMBER to the current ticket number}"
+H=$(python tools/scratch_work.py ticket "$TICKET_NUMBER")
+mkdir -p "$H"
+gh api graphql -f owner=OWNER -f name=REPO -f query='query($owner:String!,$name:String!){repository(owner:$owner,name:$name){issues{totalCount} pullRequests{totalCount}}}' > "$H/tracker-issues-population.json"
+gh api --include "repos/OWNER/REPO/issues/comments?per_page=1&page=1" > "$H/tracker-comments-population.http"
+gh api --include "repos/OWNER/REPO/pulls/comments?per_page=1&page=1" > "$H/tracker-reviews-population.http"
+python tools/tracker_population.py "$H/tracker-issues-population.json" "$H/tracker-comments-population.http" "$H/tracker-reviews-population.http" --write "$H/tracker-population.json"
+gh api --paginate "repos/OWNER/REPO/issues?state=all&per_page=100" > "$H/tracker-issues.json"
+gh api --paginate "repos/OWNER/REPO/issues/comments?per_page=100" > "$H/tracker-comments.json"
+gh api --paginate "repos/OWNER/REPO/pulls/comments?per_page=100" > "$H/tracker-reviews.json"
+python tools/tracker_scan.py --harvest "$H/tracker-issues.json" "$H/tracker-comments.json" "$H/tracker-reviews.json" --population "$H/tracker-population.json"
 ```
 
 **When a ticket names a fixture row or a skill passage, grep the repo for its number before believing it is unrecoverable:**

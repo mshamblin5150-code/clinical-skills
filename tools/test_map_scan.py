@@ -12,6 +12,7 @@ from pathlib import Path
 
 import artifact_lock_test_support  # noqa: F401
 import map_scan
+import tracker_population
 from prose_bind import NAMING, bind
 
 
@@ -102,12 +103,30 @@ class ScannerCase(unittest.TestCase):
         path.write_text(json.dumps(rows), encoding="utf-8")
         return path
 
+    def write_population(self, harvest, count):
+        path = self.root / "tracker-population.json"
+        issue_probe = json.dumps({
+            "data": {"repository": {
+                "issues": {"totalCount": count},
+                "pullRequests": {"totalCount": 0},
+            }}
+        })
+        empty_http = "HTTP/2 200 OK\r\n\r\n[]"
+        path.write_text(json.dumps(tracker_population.manifest(
+            issue_probe, empty_http, empty_http
+        )), encoding="utf-8")
+        return path
+
     def run_scan(self, rows, *arguments):
         path = self.write_harvest(rows)
+        population = self.write_population(path, len(rows))
         stdout = io.StringIO()
         stderr = io.StringIO()
         with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
-            code = map_scan.main([str(path), *arguments], repo_root=self.root)
+            code = map_scan.main(
+                [str(path), "--population", str(population), *arguments],
+                repo_root=self.root,
+            )
         return code, stdout.getvalue(), stderr.getvalue()
 
     def map_issue(self, value, *, pointer=True, number=596, **kw):
@@ -435,6 +454,36 @@ class PointerAndStatus(ScannerCase):
 
 
 class InvalidHarvests(ScannerCase):
+    def test_a_complete_harvest_reports_its_population_and_zero_remainder(self):
+        code, stdout, _ = self.run_scan([self.map_issue(state(self.anchor))])
+
+        self.assertEqual(code, map_scan.CLEAN)
+        self.assertIn("population 1", stdout)
+        self.assertIn("unread remainder 0", stdout)
+
+    def test_a_harvest_without_a_population_did_not_scan(self):
+        path = self.write_harvest([self.map_issue(state(self.anchor))])
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr):
+            code = map_scan.main([str(path)], repo_root=self.root)
+
+        self.assertEqual(code, map_scan.NOT_SCANNED)
+        self.assertIn("DID NOT ESTABLISH the full harvest population", stderr.getvalue())
+
+    def test_a_short_harvest_did_not_scan(self):
+        rows = [self.map_issue(state(self.anchor))]
+        path = self.write_harvest(rows)
+        population = self.write_population(path, len(rows) + 1)
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr):
+            code = map_scan.main(
+                [str(path), "--population", str(population)],
+                repo_root=self.root,
+            )
+
+        self.assertEqual(code, map_scan.NOT_SCANNED)
+        self.assertIn("1 of population 2", stderr.getvalue())
+
     def test_no_argument_is_not_scanned(self):
         stdout = io.StringIO()
         stderr = io.StringIO()
