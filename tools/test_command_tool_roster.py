@@ -220,7 +220,7 @@ class ProjectRegistration(unittest.TestCase):
                     set(roster.tracker_publish_hook.COMMAND_TOOLS),
                 )
 
-    def test_roster_detection_is_a_second_session_end_module(self) -> None:
+    def test_roster_detection_is_the_only_session_end_module(self) -> None:
         root = Path(__file__).resolve().parents[1]
         settings = json.loads(
             (root / ".claude" / "settings.json").read_text(encoding="utf-8")
@@ -231,11 +231,8 @@ class ProjectRegistration(unittest.TestCase):
             for handler in registration["hooks"]
         ]
 
-        self.assertEqual(len(commands), 2)
-        self.assertTrue(any("aar_scan.py" in command for command in commands))
-        self.assertTrue(
-            any("command_tool_roster.py" in command for command in commands)
-        )
+        self.assertEqual(len(commands), 1)
+        self.assertIn("command_tool_roster.py", commands[0])
 
 
 if __name__ == "__main__":
