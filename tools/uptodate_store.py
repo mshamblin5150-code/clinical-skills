@@ -67,12 +67,22 @@ class Topic:
 
 
 @dataclass(frozen=True)
+class _TopicBlock:
+    title_index: int | None
+    masthead_index: int
+    end_index: int
+    title: str
+    authored_body: str
+
+
+@dataclass(frozen=True)
 class IngestReport:
     manifest: Path
     index: Path
-    topics: int
+    blocks_read: int
     candidates: int
     unread: int
+    merged: int
 
 
 @dataclass(frozen=True)
@@ -111,24 +121,85 @@ def topic_population_count(text: str) -> int:
     return max(authored, len(REVIEW_LINE.findall(text)), len(UPDATED_LINE.findall(text)))
 
 
-def parse_topics(text: str) -> list[Topic]:
-    """Read authored topic bodies; cross-references never become topics."""
-    lines = text.splitlines()
-    starts: list[tuple[int, int, str, str]] = []
-    for masthead_index, line in enumerate(lines):
-        masthead = TOPIC_MASTHEAD.match(line)
-        if not masthead:
-            continue
+def _topic_blocks(text: str) -> list[_TopicBlock]:
+    """Locate candidate titles and byte-preserving authored blocks."""
+    lines = text.splitlines(keepends=True)
+    mastheads = [index for index, line in enumerate(lines) if TOPIC_MASTHEAD.match(line)]
+    candidates: list[int | None] = []
+    for masthead_index in mastheads:
         title_index = masthead_index - 1
         while title_index >= 0 and not lines[title_index].strip():
             title_index -= 1
-        if title_index < 0:
+        candidates.append(title_index if title_index >= 0 else None)
+
+    blocks: list[_TopicBlock] = []
+    for position, masthead_index in enumerate(mastheads):
+        next_masthead = mastheads[position + 1] if position + 1 < len(mastheads) else len(lines)
+        next_title = candidates[position + 1] if position + 1 < len(candidates) else None
+        end_index = (
+            next_title
+            if next_title is not None and next_title > masthead_index
+            else next_masthead
+        )
+        title_index = candidates[position]
+        blocks.append(
+            _TopicBlock(
+                title_index=title_index,
+                masthead_index=masthead_index,
+                end_index=end_index,
+                title=lines[title_index].strip() if title_index is not None else "",
+                authored_body="".join(lines[masthead_index:end_index]),
+            )
+        )
+    return blocks
+
+
+def _unique_blocks(blocks: list[_TopicBlock]) -> tuple[list[_TopicBlock], int]:
+    retained: list[_TopicBlock] = []
+    seen: set[str] = set()
+    for block in blocks:
+        if block.authored_body in seen:
             continue
+        seen.add(block.authored_body)
+        retained.append(block)
+    return retained, len(blocks) - len(retained)
+
+
+def _untitled_count(blocks: list[_TopicBlock]) -> int:
+    retained, _merged = _unique_blocks(blocks)
+    by_candidate: dict[str, list[_TopicBlock]] = {}
+    for block in retained:
+        if block.title:
+            by_candidate.setdefault(topic_key(block.title), []).append(block)
+    ambiguous = {key for key, group in by_candidate.items() if len(group) >= 2}
+    return sum(
+        not block.title or topic_key(block.title) in ambiguous
+        for block in blocks
+    )
+
+
+def parse_topics(text: str) -> list[Topic]:
+    """Read authored topic bodies; cross-references never become topics."""
+    population = topic_population_count(text)
+    blocks = _topic_blocks(text)
+    retained, merged = _unique_blocks(blocks)
+    untitled = _untitled_count(blocks)
+    if untitled:
+        raise ValueError(
+            f"untitled topic blocks: untitled {untitled} of {population}; write a titled copy, "
+            "keep the block-to-title mapping in the run directory, and ingest the copy"
+        )
+    lines = text.splitlines(keepends=True)
+    topics: list[Topic] = []
+    for block in retained:
+        masthead = TOPIC_MASTHEAD.match(lines[block.masthead_index])
+        if masthead is None:
+            raise ValueError("topic masthead disappeared during parsing")
         author = masthead.group(1).strip()
         if not author:
-            author_index = masthead_index + 1
+            author_index = block.masthead_index + 1
             authors: list[str] = []
-            while author_index < len(lines):
+            while author_index < block.end_index:
                 value = lines[author_index].strip()
                 if SECTION_EDITOR.match(value):
                     break
@@ -136,36 +207,31 @@ def parse_topics(text: str) -> list[Topic]:
                     authors.append(value)
                 author_index += 1
             author = " ".join(authors)
-        starts.append((title_index, masthead_index, lines[title_index].strip(), author))
-
-    topics: list[Topic] = []
-    for position, (title_index, _masthead_index, title, authors) in enumerate(starts):
-        end = starts[position + 1][0] if position + 1 < len(starts) else len(lines)
-        body = "\n".join(lines[title_index:end]).strip() + "\n"
+        title = block.title
+        body = "".join(lines[block.title_index:block.end_index]).strip() + "\n"
         review = REVIEW_LINE.search(body)
         updated = UPDATED_LINE.search(body)
-        if not authors or review is None or updated is None:
+        if not author or review is None or updated is None:
             raise ValueError(f"topic metadata is incomplete: {title}")
         last_updated = datetime.strptime(updated.group("value"), "%b %d, %Y").date()
         topics.append(
             Topic(
                 title=title,
-                authors=authors,
+                authors=author,
                 literature_review_current_through=_parse_month(review),
                 last_updated=last_updated.isoformat(),
                 has_summary=bool(SUMMARY.search(body)),
                 body=body,
             )
         )
-    population = topic_population_count(text)
     marker_counts = (
-        len(starts),
+        len(blocks),
         len(REVIEW_LINE.findall(text)),
         len(UPDATED_LINE.findall(text)),
     )
-    if len(topics) != population or any(count != population for count in marker_counts):
+    if len(topics) + merged != population or any(count != population for count in marker_counts):
         raise ValueError(
-            f"topic population incomplete: read {len(topics)} of {population}; "
+            f"topic population incomplete: read {len(topics) + merged} of {population}; "
             f"author/review/update markers are {marker_counts}"
         )
     return topics
@@ -263,6 +329,16 @@ def entitled_topics(store: Path | None = None) -> set[str]:
     return titles
 
 
+def is_filed_source(source: Path, store: Path | None = None) -> bool:
+    """Whether ``source`` exactly matches a validated dump manifest."""
+    root = (store or default_store()).expanduser().resolve()
+    digest = file_digest.sha256(source.expanduser().resolve())
+    return any(
+        manifest["source_sha256"] == digest
+        for _manifest_path, manifest in _manifest_rows(root)
+    )
+
+
 def topic_currencies(store: Path | None = None) -> dict[str, str]:
     """Newest literature-review month per accumulated topic title."""
     root = (store or default_store()).resolve()
@@ -357,6 +433,7 @@ def ingest_dump(
         raise ValueError(f"dump id already exists: {dump_id}")
     text = source.read_text(encoding="utf-8", errors="replace")
     topics = parse_topics(text)
+    merged = len(_topic_blocks(text)) - len(topics)
     if not topics:
         raise ValueError(f"no authored topic body found in {source.name}")
     keys = [topic_key(topic.title) for topic in topics]
@@ -400,7 +477,8 @@ def ingest_dump(
         shutil.rmtree(destination)
         raise
     population = topic_population_count(text)
-    return IngestReport(manifest_path, index, len(topics), population, population - len(topics))
+    read = len(topics) + merged
+    return IngestReport(manifest_path, index, read, population, population - read, merged)
 
 
 def search(store: Path | None, query: str, *, limit: int = 20) -> list[SearchHit]:
@@ -480,8 +558,9 @@ def main(argv: list[str]) -> int:
                 references=args.references,
             )
             print(
-                f"ingested topics read {report.topics} of {report.candidates}; "
-                f"unread {report.unread}; manifest {report.manifest.name}; index {report.index.name}"
+                f"ingested topic blocks read {report.blocks_read} of {report.candidates}; "
+                f"merged {report.merged}; unread {report.unread}; "
+                f"manifest {report.manifest.name}; index {report.index.name}"
             )
         elif args.command == "search":
             for query in args.queries:

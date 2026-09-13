@@ -785,15 +785,26 @@ one this was measured on -- and the great majority will never be cited. Firing o
 study, which is the rate at which a warning stops being read.
 
 **There is no escape hatch, and that is the ruling rather than an oversight.** If an UpToDate topic
-is worth citing it goes in the dump, and the remedy for a finding is one paste. **The second row is
+is worth citing it appears in the titled file the run deliberately ingests. **The second row is
 what keeps that true**: the first reads a topic only from the `UpToDate.` element APA gives it, so an
 entry that drops that element was invisible to the check *and* to the count of what the check read --
 four characters, and a citation walks around a row with no hatch. So an entry this cannot read is a
 finding, never a citation dropped from the set in silence. **Without
 `--evidence` the row does not run and the report prints `not graded` against it rather than `0`**,
-on the same reasoning as the prescription rows above. **An evidence file carrying no topic body at
-all is exit 2**, because a dump this cannot read would otherwise fire the row on every UpToDate
-citation in the ledger -- a mass false finding rather than a scan.
+on the same reasoning as the prescription rows above.
+
+**`--evidence` names the exact file the store filed.** The grader compares its SHA-256 with the dump
+manifests' `source_sha256` values. A titled dump that was never ingested, or a byte-different file
+from the ingested copy, leaves membership and currency `not graded` and is exit 2 after the other
+rows run. Run `python tools/uptodate_store.py ingest` with that file, or point `--evidence` at the
+exact ingested file.
+
+**An untitled dump takes the Titled copy route.** Write a titled copy in the run directory, keep the
+block-to-title mapping there, ingest the copy, and name that exact copy in `--evidence`.
+`uptodate_store.py ingest` merges byte-identical authored blocks and reports the merge, but refuses
+an untitled layout or one candidate title over different bodies. Titles come from the run's reading,
+never from cross-reference text. The membership row trusts those declared titles; its reader-owned
+boundary lives in `research_ledger.DECLARED_LIMITS`.
 
 [#298](https://github.com/mshamblin5150-code/clinical-skills/issues/298) records the declined wider
 join and its rationale; the implemented boundary is named only in
