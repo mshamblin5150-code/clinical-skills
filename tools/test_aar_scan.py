@@ -5,8 +5,11 @@ from __future__ import annotations
 import io
 import importlib
 import ast
+from dataclasses import dataclass
+from enum import Enum
 import json
 from pathlib import Path
+import subprocess
 import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
@@ -25,6 +28,27 @@ import specificity_scan
 
 
 GraderConformance = grader_conformance.for_module(aar_scan)
+
+
+class CheckTargetGitState(Enum):
+    UNTRACKED = "untracked"
+    UNCHANGED = "unchanged"
+    UNSTAGED = "unstaged"
+    STAGED = "staged"
+    COMMITTED = "committed"
+
+
+class CorrectionDisposition(Enum):
+    MEMORY_WRITE = "memory-write"
+    CHECK = "check"
+
+
+@dataclass(frozen=True)
+class CorrectionRecord:
+    event: str
+    disposition: CorrectionDisposition
+    target: Path
+    landing: str
 
 
 def empty_population_input(root: Path) -> grader_conformance.EmptyPopulationInput:
@@ -1251,6 +1275,177 @@ class SubmissionRecord(unittest.TestCase):
         kinds = {row.kind for row in aar_scan.survey(self.run, self.submission).findings}
 
         self.assertIn("unknown-disposition", kinds)
+
+    def write_correction_record(
+        self,
+        run: Path,
+        submission: str,
+        fields: dict[str, str],
+        memory: Path,
+        corrections: tuple[CorrectionRecord, ...],
+    ) -> None:
+        lines = [
+            "# AFTER-ACTION REVIEW",
+            f"SUBMISSION: {submission}",
+            f"TRANSCRIPTS: {fields['TRANSCRIPTS']}",
+            f"POPULATION: {fields['POPULATION']}",
+            "UNREAD: 0",
+            f"WATERMARK: {fields['WATERMARK']}",
+            f"MEMORY-INDEX: {memory}",
+            "CLASSIFIER: fresh adversarial reader",
+            "CLASSIFIER-ENTRY: reader-1",
+            "DISAGREEMENTS: none recorded",
+            "SUSTAINS: none",
+        ]
+        for correction in corrections:
+            disposition = correction.disposition.value
+            lines.extend(
+                [
+                    f"## CORRECTION: {correction.event}",
+                    "CORRECTOR: clinician",
+                    "IN-ERROR: orchestrator",
+                    "SUMMARY: the correction needs a durable landing",
+                    f"CLASSIFIER: {disposition} - the disposition matches the correction",
+                    f"ORCHESTRATOR: agree - the {disposition} target now carries the correction",
+                    f"DISPOSITION: {disposition}",
+                    f"TARGET: {correction.target}",
+                    f"LANDING: {correction.landing}",
+                ]
+            )
+        aar_scan.review_path(run, submission).write_text(
+            "\n".join([*lines, ""]), encoding="utf-8"
+        )
+
+    def check_landing_findings(
+        self, target_git_state: CheckTargetGitState
+    ) -> set[str]:
+        with tempfile.TemporaryDirectory() as directory:
+            checkout = Path(directory)
+            subprocess.run(["git", "init", "-q"], cwd=checkout, check=True)
+            subprocess.run(
+                ["git", "config", "user.email", "tests@example.invalid"],
+                cwd=checkout,
+                check=True,
+            )
+            subprocess.run(
+                ["git", "config", "user.name", "AAR Tests"], cwd=checkout, check=True
+            )
+            target = checkout / "tools" / "check.py"
+            target.parent.mkdir()
+            target.write_text("original\n", encoding="utf-8")
+            if target_git_state is not CheckTargetGitState.UNTRACKED:
+                subprocess.run(["git", "add", "."], cwd=checkout, check=True)
+                subprocess.run(
+                    ["git", "commit", "-qm", "seed check"], cwd=checkout, check=True
+                )
+
+            run = checkout / "scratch" / "runs" / "course-module-discussion"
+            run.mkdir(parents=True)
+            transcript = checkout / "session-1.jsonl"
+            write_transcript(transcript)
+            memory = checkout / "memory" / "MEMORY.md"
+            memory.parent.mkdir()
+            memory.write_text("# Index\n", encoding="utf-8")
+            submission = "post-2026-09-02"
+            (run / "reread.md").write_text(
+                f"## REREAD: {submission}\n"
+                "POST-URL: https://example.org/submissions/1\n"
+                "POSTED: 2026-09-13T12:00:00Z\n"
+                "READ: 2026-09-13\n"
+                "VERDICT: matches - the posted artifact was read back\n",
+                encoding="utf-8",
+            )
+            with mock.patch.object(
+                aar_scan, "__file__", str(checkout / "tools" / "aar_scan.py")
+            ):
+                aar_scan.write_extract(run, transcript, submission, memory)
+                fields, identifiers = aar_scan._extract_metadata(
+                    aar_scan.extract_path(run, submission)
+                )
+                event = sorted(identifiers)[0]
+                if target_git_state in {
+                    CheckTargetGitState.UNSTAGED,
+                    CheckTargetGitState.STAGED,
+                    CheckTargetGitState.COMMITTED,
+                }:
+                    target.write_text("changed\n", encoding="utf-8")
+                if target_git_state in {
+                    CheckTargetGitState.STAGED,
+                    CheckTargetGitState.COMMITTED,
+                }:
+                    subprocess.run(["git", "add", "."], cwd=checkout, check=True)
+                if target_git_state is CheckTargetGitState.COMMITTED:
+                    subprocess.run(
+                        ["git", "commit", "-qm", "tighten check"],
+                        cwd=checkout,
+                        check=True,
+                    )
+                self.write_correction_record(
+                    run,
+                    submission,
+                    fields,
+                    memory,
+                    (
+                        CorrectionRecord(
+                            event=event,
+                            disposition=CorrectionDisposition.CHECK,
+                            target=target,
+                            landing="the check now refuses the regressed behavior",
+                        ),
+                    ),
+                )
+                return {
+                    finding.kind for finding in aar_scan.survey(run, submission).findings
+                }
+
+    def test_a_check_lands_only_when_a_tracked_target_changed_since_baseline(self) -> None:
+        expected = {
+            CheckTargetGitState.UNTRACKED: True,
+            CheckTargetGitState.UNCHANGED: True,
+            CheckTargetGitState.UNSTAGED: False,
+            CheckTargetGitState.STAGED: False,
+            CheckTargetGitState.COMMITTED: False,
+        }
+        for target_git_state, refused in expected.items():
+            with self.subTest(target_git_state=target_git_state.value):
+                self.assertEqual(
+                    "unlanded-check"
+                    in self.check_landing_findings(target_git_state),
+                    refused,
+                )
+
+    def test_two_corrections_can_repeat_one_extract_identifier(self) -> None:
+        second_memory = self.memory.parent / "PREFERENCES.md"
+        second_memory.write_text("# Preferences\n", encoding="utf-8")
+        fields, identifiers = self.extract()
+        event = sorted(identifiers)[0]
+        self.memory.write_text("# Index\n- corrected fact\n", encoding="utf-8")
+        second_memory.write_text("# Preferences\n- sustained preference\n", encoding="utf-8")
+        self.write_correction_record(
+            self.run,
+            self.submission,
+            fields,
+            self.memory,
+            (
+                CorrectionRecord(
+                    event=event,
+                    disposition=CorrectionDisposition.MEMORY_WRITE,
+                    target=self.memory,
+                    landing="added the corrected fact to the memory index",
+                ),
+                CorrectionRecord(
+                    event=event,
+                    disposition=CorrectionDisposition.MEMORY_WRITE,
+                    target=second_memory,
+                    landing="added the preference to its durable memory file",
+                ),
+            ),
+        )
+
+        scan = aar_scan.survey(self.run, self.submission)
+
+        self.assertEqual(scan.corrections, 2)
+        self.assertEqual(scan.findings, ())
 
 
 class EveryScopedCompletionGraderExpectsTheReview(unittest.TestCase):

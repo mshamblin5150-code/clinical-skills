@@ -1151,16 +1151,6 @@ def _target_changed(target: str, baseline: Mapping[str, str | None]) -> bool:
     return _hash(path) is not None and _hash(path) != baseline.get(str(path))
 
 
-def _tracked_diff_names() -> set[Path]:
-    root = Path(__file__).resolve().parent.parent
-    return {
-        (root / path).resolve()
-        for path in git_paths.read_path_records(
-            root, "diff", "-z", "--name-only", "--", "."
-        )
-    }
-
-
 def _successful_gh_call(transcripts: Iterable[Path]) -> bool:
     for transcript in transcripts:
         rows = read_transcript(transcript)
@@ -1297,7 +1287,7 @@ def _survey_round(run: Path, submission: str, round_number: int) -> Scan:
         except ValueError as exc:
             findings.append(Finding("bad-orphan-pointer", str(exc)))
 
-    diff_names = _tracked_diff_names()
+    tracked_files = {path.resolve() for path in _tracked_files()}
     for correction in review.corrections:
         if correction.event not in identifiers:
             findings.append(Finding("unknown-correction-event", correction.event))
@@ -1324,7 +1314,7 @@ def _survey_round(run: Path, submission: str, round_number: int) -> Scan:
                 findings.append(Finding("unlanded-memory", correction.event))
         elif disposition == "check":
             resolved = Path(target).expanduser().resolve()
-            if resolved not in diff_names or not _target_changed(target, baseline):
+            if resolved not in tracked_files or not _target_changed(target, baseline):
                 findings.append(Finding("unlanded-check", correction.event))
 
     for sustain in review.sustains:
