@@ -98,10 +98,10 @@ for python in python python3 py; do
         fi
 
         # **The seventh refusing check.** #912. Currency itself only reports. This gate
-        # refuses damage to the catalog-bound registry when either half is staged;
+        # refuses damage to the catalog-bound registry and supersession handoff;
         # no hook invocation performs a society-index read.
         if git diff --cached --name-only --no-renames --diff-filter=ACDM \
-            | grep -Eq '^reference/(guidelines-catalog|guidelines-currency)\.md$'; then
+            | grep -Eq '^reference/(guidelines-(catalog|currency|catalog-audit)\.md|thresholds/coverage\.md)$'; then
             "$python" "$repo_root/tools/guidelines_currency.py" >&2 || status=1
         fi
 

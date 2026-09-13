@@ -22,18 +22,23 @@ import argparse
 import hashlib
 import html
 import json
+import os
 import re
 import subprocess
 import sys
+import time
 import urllib.error
 import urllib.request
+import uuid
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import date
 from html.parser import HTMLParser
 from pathlib import Path, PurePosixPath
+from typing import Callable
 from urllib.parse import urljoin, urlparse
 
+import artifact_lock
 import guidelines_catalog
 from console_codec import require_python_floor, use_utf8
 from repo_root import ensure_outside_checkout
@@ -111,6 +116,24 @@ DECLARED_LIMITS = (
         "A recorded SHA-256 proves which bytes were received, not that they are the right "
         "replacement or that a clinical re-read has occurred.",
     ),
+    (
+        "different lock roots",
+        "Write exclusion inherits artifact_lock.NOT_GUARDED for processes configured "
+        "with different lock roots.",
+    ),
+    (
+        "unguarded editors and git operations",
+        "An editor or git operation can write between the helper's fresh read and replace "
+        "because it does not take the artifact lock.",
+    ),
+    (
+        "separate checkouts",
+        "Separate checkouts write separate tracked copies; git reconciles them at merge.",
+    ),
+    (
+        "writer-walk indirection",
+        "The AST writer walk cannot see a write assembled through indirection.",
+    ),
 )
 
 
@@ -181,6 +204,59 @@ class FetchRecord:
 
 class ReadError(RuntimeError):
     """The society index could not be read as a complete, countable surface."""
+
+
+def _replace_file(
+    destination: Path,
+    content: str | bytes | None = None,
+    *,
+    render: Callable[[str], str] | None = None,
+    lock: bool = True,
+    action: str,
+    refuse_existing: bool = False,
+) -> None:
+    """Render under optional short ownership and atomically replace one file."""
+
+    if (content is None) == (render is None):
+        raise ValueError("supply exactly one of content or render")
+
+    def write() -> None:
+        if refuse_existing and destination.exists():
+            raise FileExistsError(
+                f"refusing to overwrite existing corpus document {destination}"
+            )
+        rendered: str | bytes
+        if render is not None:
+            rendered = render(_read_text(destination, "write destination"))
+        else:
+            assert content is not None
+            rendered = content
+        payload = rendered.encode("utf-8") if isinstance(rendered, str) else rendered
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        sibling = destination.with_name(
+            f".{destination.name}.{os.getpid()}.{uuid.uuid4().hex}.tmp"
+        )
+        try:
+            with sibling.open("wb") as stream:
+                stream.write(payload)
+            os.replace(sibling, destination)
+        finally:
+            sibling.unlink(missing_ok=True)
+
+    if not lock:
+        write()
+        return
+
+    deadline = time.monotonic() + 1.0
+    while True:
+        try:
+            with artifact_lock.hold(destination, action):
+                write()
+            return
+        except artifact_lock.ArtifactBusy:
+            if time.monotonic() >= deadline:
+                raise
+            time.sleep(0.1)
 
 
 def _cells(line: str) -> list[str] | None:
@@ -299,11 +375,23 @@ def _parsed_date(value: str, where: str, failures: list[str]) -> date | None:
         return None
 
 
+def _unfinished_handoff_message(
+    retired_filename: str, replacement_society: str, replacement_filename: str
+) -> str:
+    return (
+        "half-finished supersession handoff: "
+        f"{retired_filename} to {replacement_society}/{replacement_filename} is bound "
+        "in the catalog audit ledger but not in coverage"
+    )
+
+
 def audit(
     catalog_rows: list[guidelines_catalog.Row],
     registry: Registry,
     *,
     today: date | None = None,
+    audit_text: str | None = None,
+    coverage_text: str | None = None,
 ) -> AuditResult:
     """Grade registry shape and both catalog joins; currency itself only reports."""
 
@@ -442,6 +530,47 @@ def audit(
                 f"annual publication cycle due {next_cycle.isoformat()}"
             )
 
+    if audit_text is not None and coverage_text is not None:
+        audit_bindings = {
+            (cells[0], cells[1])
+            for line in audit_text.splitlines()
+            if (cells := _cells(line)) is not None
+            and len(cells) == 5
+            and not _is_rule(cells)
+        }
+        coverage_rows = [
+            cells
+            for line in coverage_text.splitlines()
+            if (cells := _cells(line)) is not None
+            and len(cells) == 5
+            and not _is_rule(cells)
+        ]
+        for entry in registry.documents:
+            if entry.verdict != "superseded" or not entry.superseded_by:
+                continue
+            replacement = document_rows.get(entry.superseded_by)
+            retired = catalog_by_filename.get(entry.filename)
+            if replacement is None or retired is None:
+                continue
+            binding = (replacement.society, replacement.filename)
+            if binding not in audit_bindings:
+                continue
+            expected = (
+                f"superseded {entry.filename} by "
+                f"{replacement.society}/{replacement.filename};"
+            )
+            topic = retired.topic.casefold()
+            handed_off = any(
+                cells[0].casefold() == topic and expected in cells[4]
+                for cells in coverage_rows
+            )
+            if handed_off:
+                continue
+            failures.append(
+                _unfinished_handoff_message(
+                    entry.filename, replacement.society, replacement.filename
+                )
+            )
     return AuditResult(
         tuple(failures),
         tuple(findings),
@@ -733,23 +862,30 @@ def _mark_topic_unread(
     digest: str,
     observed: str,
 ) -> None:
-    lines = coverage_path.read_text(encoding="utf-8").splitlines()
-    found = False
-    for index, line in enumerate(lines):
-        cells = _cells(line)
-        if cells is None or len(cells) != 5 or cells[0].casefold() != topic.casefold():
-            continue
-        found = True
-        cells[2] = "unread"
-        cells[4] = (
-            f"superseded {old_filename} by {replacement}; fetched {observed}; "
-            f"sha256 {digest}"
-        )
-        lines[index] = "| " + " | ".join(cells) + " |"
-        break
-    if not found:
-        raise ValueError(f"coverage registry has no topic {topic!r}")
-    coverage_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    def render(text: str) -> str:
+        lines = text.splitlines()
+        found = False
+        for index, line in enumerate(lines):
+            cells = _cells(line)
+            if cells is None or len(cells) != 5 or cells[0].casefold() != topic.casefold():
+                continue
+            found = True
+            cells[2] = "unread"
+            cells[4] = (
+                f"superseded {old_filename} by {replacement}; fetched {observed}; "
+                f"sha256 {digest}"
+            )
+            lines[index] = "| " + " | ".join(cells) + " |"
+            break
+        if not found:
+            raise ValueError(f"coverage registry has no topic {topic!r}")
+        return "\n".join(lines) + "\n"
+
+    _replace_file(
+        coverage_path,
+        render=render,
+        action="record guideline supersession coverage handoff",
+    )
 
 
 def _upsert_audit_digest(
@@ -762,40 +898,74 @@ def _upsert_audit_digest(
 ) -> None:
     """Bind the received bytes into the audit ledger's Documents table."""
 
-    lines = audit_path.read_text(encoding="utf-8").splitlines()
-    heading = next(
-        (index for index, line in enumerate(lines) if line.strip() == "## Documents"),
-        None,
+    def render(text: str) -> str:
+        lines = text.splitlines()
+        heading = next(
+            (index for index, line in enumerate(lines) if line.strip() == "## Documents"),
+            None,
+        )
+        if heading is None:
+            raise ValueError("audit ledger has no '## Documents' table")
+        table_header = next(
+            (
+                index
+                for index in range(heading + 1, len(lines))
+                if _cells(lines[index])
+                == ["society", "filename", "sha256", "bytes", "audited"]
+            ),
+            None,
+        )
+        if table_header is None:
+            raise ValueError("audit ledger has no readable Documents header")
+        row = f"| {society} | {filename} | {digest} | {byte_count} | {observed} |"
+        insertion = len(lines)
+        replaced = False
+        for index in range(table_header + 2, len(lines)):
+            if lines[index].startswith("## "):
+                insertion = index
+                break
+            cells = _cells(lines[index])
+            if cells and len(cells) == 5 and cells[0] == society and cells[1] == filename:
+                lines[index] = row
+                replaced = True
+                break
+        if not replaced:
+            while insertion > table_header + 2 and not lines[insertion - 1].strip():
+                insertion -= 1
+            lines.insert(insertion, row)
+        return "\n".join(lines) + "\n"
+
+    _replace_file(
+        audit_path,
+        render=render,
+        action="record guideline corpus audit digest",
     )
-    if heading is None:
-        raise ValueError("audit ledger has no '## Documents' table")
-    table_header = next(
-        (
-            index
-            for index in range(heading + 1, len(lines))
-            if _cells(lines[index]) == ["society", "filename", "sha256", "bytes", "audited"]
-        ),
-        None,
-    )
-    if table_header is None:
-        raise ValueError("audit ledger has no readable Documents header")
-    rendered = f"| {society} | {filename} | {digest} | {byte_count} | {observed} |"
-    insertion = len(lines)
-    replaced = False
-    for index in range(table_header + 2, len(lines)):
-        if lines[index].startswith("## "):
-            insertion = index
-            break
-        cells = _cells(lines[index])
-        if cells and len(cells) == 5 and cells[0] == society and cells[1] == filename:
-            lines[index] = rendered
-            replaced = True
-            break
-    if not replaced:
-        while insertion > table_header + 2 and not lines[insertion - 1].strip():
-            insertion -= 1
-        lines.insert(insertion, rendered)
-    audit_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def _resume_fetch_record(
+    destination: Path, sidecar: Path, expected_filename: str
+) -> FetchRecord:
+    """Read and authenticate the receipt for an existing fetched PDF."""
+
+    if not sidecar.exists():
+        raise FileExistsError(
+            f"existing corpus document {destination} has no fetch receipt {sidecar}"
+        )
+    try:
+        payload = json.loads(_read_text(sidecar, "fetch receipt"))
+        record = FetchRecord(**payload)
+    except (TypeError, json.JSONDecodeError) as error:
+        raise FileExistsError(f"fetch receipt {sidecar} is unreadable: {error}") from error
+    if record.filename != expected_filename:
+        raise FileExistsError(
+            f"fetch receipt {sidecar} names {record.filename!r}, not {expected_filename!r}"
+        )
+    actual_digest = hashlib.sha256(destination.read_bytes()).hexdigest()
+    if actual_digest != record.sha256:
+        raise FileExistsError(
+            f"existing corpus document {destination} digest disagrees with its fetch receipt"
+        )
+    return record
 
 
 def fetch_replacement(
@@ -826,8 +996,12 @@ def fetch_replacement(
         ),
     )
     destination = corpus_root.joinpath(*relative.parts)
-    if destination.exists():
-        raise FileExistsError(f"refusing to overwrite existing corpus document {destination}")
+    sidecar = destination.with_suffix(destination.suffix + ".fetch.json")
+    resume = (
+        _resume_fetch_record(destination, sidecar, filename)
+        if destination.exists()
+        else None
+    )
     catalog_text = _read_text(catalog_path, "catalog")
     catalog_rows, _, catalog_problems = guidelines_catalog.parse_catalog(catalog_text)
     if catalog_problems:
@@ -843,9 +1017,26 @@ def fetch_replacement(
             "curate its row before fetching"
         )
     registry = parse_registry(_read_text(registry_path, "currency registry"))
-    preflight = audit(catalog_rows, registry)
-    if preflight.failures:
-        raise ValueError("currency handoff is not ready: " + "; ".join(preflight.failures))
+    audit_text = _read_text(audit_path, "audit ledger")
+    coverage_text = _read_text(coverage_path, "coverage registry")
+    preflight = audit(
+        catalog_rows,
+        registry,
+        audit_text=audit_text,
+        coverage_text=coverage_text,
+    )
+    preflight_failures = list(preflight.failures)
+    if resume is not None:
+        own_handoff = _unfinished_handoff_message(
+            old_filename, relative.parts[0], relative.name
+        )
+        preflight_failures = [
+            failure for failure in preflight_failures if failure != own_handoff
+        ]
+    if preflight_failures:
+        raise ValueError(
+            "currency handoff is not ready: " + "; ".join(preflight_failures)
+        )
     by_filename = {row.filename: row for row in registry.documents}
     old_entry = by_filename.get(old_filename)
     replacement_entry = by_filename.get(relative.name)
@@ -859,52 +1050,62 @@ def fetch_replacement(
         raise ValueError(
             "currency registry must bind the retired document to the cataloged replacement"
         )
-    audit_text = _read_text(audit_path, "audit ledger")
     audit_lines = audit_text.splitlines()
     if "## Documents" not in audit_lines or not any(
         _cells(line) == ["society", "filename", "sha256", "bytes", "audited"]
         for line in audit_lines
     ):
         raise ValueError("audit ledger has no readable '## Documents' table")
-    coverage_text = _read_text(coverage_path, "coverage registry")
     if not any(
         cells is not None and len(cells) == 5 and cells[0].casefold() == topic.casefold()
         for cells in (_cells(line) for line in coverage_text.splitlines())
     ):
         raise ValueError(f"coverage registry has no topic {topic!r}")
-    payload = download_bytes(url)
-    validate_pdf_bytes(payload)
-    digest = hashlib.sha256(payload).hexdigest()
-    observed = date.today().isoformat()
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    sidecar = destination.with_suffix(destination.suffix + ".fetch.json")
-    destination.write_bytes(payload)
-    record = FetchRecord(url, filename, digest, len(payload), observed)
-    build_completed = False
+    if resume is None:
+        payload = download_bytes(url)
+        validate_pdf_bytes(payload)
+        digest = hashlib.sha256(payload).hexdigest()
+        observed = date.today().isoformat()
+        record = FetchRecord(url, filename, digest, len(payload), observed)
+    else:
+        payload = b""
+        record = resume
+        digest = record.sha256
+        observed = record.fetched
+    created = False
+    build_completed = resume is not None
     try:
-        sidecar.write_text(
-            json.dumps(record.__dict__, indent=2, sort_keys=True) + "\n",
-            encoding="utf-8",
-        )
-        # Build while the checkout is still clean. The build system refuses to
-        # publish a new trusted artifact from a dirty producer checkout.
-        run_guidelines_build(corpus_root)
-        build_completed = True
+        if resume is None:
+            _replace_file(
+                destination,
+                payload,
+                action="receive guideline corpus replacement",
+                refuse_existing=True,
+            )
+            created = True
+            _replace_file(
+                sidecar,
+                json.dumps(record.__dict__, indent=2, sort_keys=True) + "\n",
+                lock=False,
+                action="record guideline fetch receipt",
+            )
+            # Build while the checkout is still clean. The build system refuses to
+            # publish a new trusted artifact from a dirty producer checkout.
+            run_guidelines_build(corpus_root)
+            build_completed = True
         _upsert_audit_digest(
             audit_path,
             relative.parts[0],
             relative.name,
             digest,
-            len(payload),
+            record.bytes,
             observed,
         )
         run_catalog_check(corpus_root, catalog_path, audit_path)
         _mark_topic_unread(coverage_path, topic, old_filename, filename, digest, observed)
         run_coverage_check(catalog_path, coverage_path)
-    except Exception:
-        if not build_completed:
-            audit_path.write_text(audit_text, encoding="utf-8")
-            coverage_path.write_text(coverage_text, encoding="utf-8")
+    except BaseException:
+        if created and not build_completed:
             sidecar.unlink(missing_ok=True)
             destination.unlink(missing_ok=True)
         raise
@@ -1059,13 +1260,14 @@ def _captures(arguments: list[str]) -> dict[str, Path]:
     return captures
 
 
-def _run_reads(args: argparse.Namespace, registry: Registry, registry_text: str) -> int:
+def _run_reads(args: argparse.Namespace, registry: Registry) -> int:
     if registry.problems:
         raise ReadError("registry did not parse: " + "; ".join(registry.problems))
     by_society = {entry.society.upper(): entry for entry in registry.societies}
     captures = _captures(args.capture)
     incomplete = False
     matched: set[str] = set()
+    matched_requests: list[str] = []
     for requested in args.read:
         key = requested.replace("-", " ").upper()
         entry = by_society.get(key)
@@ -1087,6 +1289,8 @@ def _run_reads(args: argparse.Namespace, registry: Registry, registry_text: str)
             result = read_society_index(entry.society, content)
         comparison = compare_index(registry.documents, result)
         matched.update(comparison.matched)
+        if comparison.matched and requested not in matched_requests:
+            matched_requests.append(requested)
         print(
             f"{entry.society}: read {result.denominator - result.unread} of "
             f"{result.denominator}; unread {result.unread}; corpus absent "
@@ -1101,10 +1305,15 @@ def _run_reads(args: argparse.Namespace, registry: Registry, registry_text: str)
             print(f"  corpus absent: {filename}")
         incomplete = incomplete or result.unread > 0
     if matched:
-        args.registry.write_text(
-            record_index_matches(registry_text, matched, date.today()),
-            encoding="utf-8",
-        )
+        try:
+            _replace_file(
+                args.registry,
+                render=lambda fresh: record_index_matches(fresh, matched, date.today()),
+                action="record guideline publisher-index observations",
+            )
+        except artifact_lock.ArtifactBusy as error:
+            lost = ", ".join(matched_requests)
+            raise ReadError(f"{error}; lost society reads: {lost}") from error
     return 2 if incomplete else 0
 
 
@@ -1122,12 +1331,14 @@ def main(argv: list[str] | None = None) -> int:
         if catalog_problems:
             raise ReadError("catalog did not parse: " + "; ".join(catalog_problems))
         if args.draft:
-            args.draft.write_text(
+            _replace_file(
+                args.draft,
                 render_draft(
                     catalog_rows,
                     _source_metadata(REPO_ROOT / "reference" / "thresholds"),
                 ),
-                encoding="utf-8",
+                lock=False,
+                action="write guideline currency draft",
             )
             print(f"wrote {len(catalog_rows)} document rows to {args.draft}")
             return 0
@@ -1139,7 +1350,7 @@ def main(argv: list[str] | None = None) -> int:
                 raise ReadError(
                     "currency registry did not grade: " + "; ".join(preflight.failures)
                 )
-            return _run_reads(args, parsed, registry_text)
+            return _run_reads(args, parsed)
         if args.fetch_replacement:
             missing = [
                 name
@@ -1171,7 +1382,12 @@ def main(argv: list[str] | None = None) -> int:
                 f"sha256 {fetched.sha256}; stopped before every threshold sheet"
             )
             return 0
-        result = audit(catalog_rows, parsed)
+        result = audit(
+            catalog_rows,
+            parsed,
+            audit_text=_read_text(args.audit, "audit ledger"),
+            coverage_text=_read_text(args.coverage, "coverage registry"),
+        )
     except (ReadError, OSError, ValueError, subprocess.CalledProcessError) as error:
         print(f"NOT GRADED: {error}", file=sys.stderr)
         return 2

@@ -2062,9 +2062,11 @@ It reports filenames, column names and counts, never document text, so its outpu
 
 `reference/guidelines-currency.md` records one publisher-index route per catalog
 society and one edition-currency verdict per catalog filename. The ordinary command
-is offline and grades both join directions; `superseded`, `absent`, and an annual
-observation outside its measured publication cycle are reported but never refuse a
-commit. Registry damage refuses only when the registry or catalog is staged.
+is offline and grades both join directions. `superseded`, `absent`, and an annual
+observation outside its measured publication cycle are report-only; a half-finished
+Supersession handoff whose replacement is bound in the catalog audit ledger but not
+in coverage is damage and refuses. The pre-commit gate runs when the catalog,
+currency registry, catalog audit ledger, or coverage registry is staged.
 
 ```bash
 python tools/guidelines_currency.py
@@ -2078,19 +2080,30 @@ capture. A successful HTTP response with no countable guideline entries is a fai
 read, never a successful empty index, and a detectable next page or total contributes
 to the unread remainder. `--draft` leaves society observations blank and unread, so a
 scaffold cannot claim that anybody looked; it deliberately does not grade clean until
-those unread-state dates are supplied. The exact claims this cannot establish live in
-`guidelines_currency.DECLARED_LIMITS` and are not copied here.
+those unread-state dates are supplied. A read writes only after its publisher work has
+finished: it takes the currency registry's short artifact lock, re-reads the registry,
+re-applies the matched observations to those fresh bytes, and atomically replaces the
+file. A busy lock retries for roughly one second and then names its owner, artifact,
+and the societies whose observations were not written. The exact claims this cannot
+establish live in `guidelines_currency.DECLARED_LIMITS` and are not copied here.
 
 `--fetch-replacement` is explicit and networked. It writes the received PDF below
-the named corpus root, records the SHA-256 beside those bytes and in the catalog audit
-ledger, runs the governed build and catalog checks, and moves the affected coverage
-row to `unread` with the supersession record. It never edits a threshold sheet, so a
-new source cannot be attached to rows distilled from the retired document without a
-new clinical read. The curated catalog row and the registry's old-to-new bind must
-exist before the fetch. A failure before the build publishes removes the new PDF and
-receipt. After derived aliases publish, a later validation failure preserves the source,
-receipt, and digest instead of leaving an alias pointed at a deleted corpus document;
-the coverage row changes only after the catalog check passes.
+the named corpus root through a same-directory sibling and atomic replace, then records
+the SHA-256 beside those bytes and in the catalog audit ledger. Its destination lock
+wraps only the write and re-checks that no competing fetch landed after preflight. The
+tracked audit and coverage mutations each re-read under their own short lock and land
+atomically. The command runs the governed build and catalog checks, then moves the
+affected coverage row to `unread` with the supersession record. It never edits a
+threshold sheet, so a new source cannot be attached to rows distilled from the retired
+document without a new clinical read. The curated catalog row and the registry's
+old-to-new bind must exist before the fetch. A failure or interrupt before the build
+publishes removes the new PDF and receipt without rewriting either tracked file.
+After derived aliases publish, a later validation failure preserves the source,
+receipt, and digest and leaves a refusing half-finished handoff. A rerun whose PDF
+matches that receipt skips the download and build, resumes the same handoff, and reuses
+the receipt's observation date; a missing or disagreeing receipt refuses. Both command
+preflights set aside only the half-finished state they are allowed to pass: every read
+may proceed, while a fetch may resume only its matching retired-to-replacement pair.
 
 The pre-commit advisory opens no socket and prints only the oldest recorded
 observation plus the never-checked count and remedy. Covered by
