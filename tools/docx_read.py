@@ -14,9 +14,9 @@ its rendered pages with homoglyphs -- a Cyrillic ``с`` inside ``cervicitis``, a
 appears to contain. ``grep`` for ``cervicitis`` over a raw paste of the cervicitis topic
 misses most of its occurrences, and reports **a clean zero rather than an error**, which
 is this repo's recurring shape: a search that could not have worked, answering like a
-settled negative. The map folds the lookalikes back to ASCII. It is deliberately narrow
--- letters only, and only the ones observed in the corpus -- because folding every
-confusable would corrupt genuine non-Latin text.
+settled negative. The map folds the lookalikes back to ASCII. A character is folded only
+when it was observed as salt and never as real notation, because search completeness does
+not justify corrupting genuine non-Latin text.
 
 **Exit status distinguishes not having read from having found nothing** -- 0 for text,
 **2 for every way of not having read**: no argument, no file, a file that is not a zip,
@@ -59,7 +59,9 @@ from __future__ import annotations
 
 import re
 import sys
+import unicodedata
 import zipfile
+from collections import Counter
 from pathlib import Path
 from xml.etree import ElementTree
 
@@ -67,27 +69,44 @@ from console_codec import require_python_floor, use_utf8
 
 NS = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
 
-# Observed in the clinician's UpToDate paste. Cyrillic and Greek letters standing in
-# for the Latin ones they are drawn identically to. Narrow on purpose -- see the
-# module docstring.
+# Observed in the clinician's UpToDate paste as salt and never as real notation.
+# Narrow on purpose -- see the module docstring.
 HOMOGLYPHS = {
     "А": "A", "В": "B", "Е": "E", "К": "K", "М": "M",
     "Н": "H", "О": "O", "Р": "P", "С": "C", "Т": "T",
     "Х": "X", "а": "a", "в": "v", "е": "e", "к": "k",
     "м": "m", "о": "o", "р": "p", "с": "c", "у": "y",
     "х": "x", "і": "i", "ѕ": "s", "ј": "j", "һ": "h",
-    "ԁ": "d", "ԛ": "q", "ո": "n", "օ": "o", "Α": "A",
+    "ԁ": "d", "ԛ": "q", "ԝ": "w", "Լ": "L", "Օ": "O",
+    "ս": "u", "ո": "n", "օ": "o", "Ѕ": "S", "І": "I", "Ј": "J",
+    "Α": "A",
     "Β": "B", "Ε": "E", "Ζ": "Z", "Η": "H", "Ι": "I",
     "Κ": "K", "Μ": "M", "Ν": "N", "Ο": "O", "Ρ": "P",
-    "Τ": "T", "Υ": "Y", "Χ": "X", "α": "a", "ε": "e",
-    "ι": "i", "ν": "v", "ο": "o", "ρ": "p", "ς": "s",
-    "σ": "o", "υ": "u", "ϲ": "c", "‐": "-", "‑": "-",
+    "Τ": "T", "Υ": "Y", "Χ": "X", "ο": "o", "ϲ": "c", "ϳ": "j",
+    "‐": "-", "‑": "-",
 }
 
 
 def normalize(text: str) -> str:
     """Fold the observed homoglyphs back to ASCII. Leaves everything else alone."""
     return "".join(HOMOGLYPHS.get(character, character) for character in text)
+
+
+def non_latin_letter_report(text: str) -> list[str]:
+    """Describe every non-Latin letter left in normalized ``text``."""
+    counts = Counter(
+        character
+        for character in text
+        if unicodedata.category(character).startswith("L")
+        and not unicodedata.name(character, "").startswith("LATIN")
+    )
+    if not counts:
+        return ["non-Latin letters remaining after normalization: 0"]
+    return [
+        "non-Latin letter remaining after normalization: "
+        f"U+{ord(character):04X} {unicodedata.name(character)}: {count}"
+        for character, count in sorted(counts.items(), key=lambda item: ord(item[0]))
+    ]
 
 
 def _text_of(element) -> str:
@@ -311,6 +330,8 @@ def main(argv: list) -> int:
         return 2
     if "--normalize" in flags:
         lines = [normalize(line) for line in lines]
+        for report_line in non_latin_letter_report("\n".join(lines)):
+            print(report_line, file=sys.stderr)
     if "--outline" in flags:
         lines = [line for line in lines if HEADING.match(line.strip())]
     if numbering_part is not None:
