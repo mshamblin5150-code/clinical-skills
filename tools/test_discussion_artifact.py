@@ -7,6 +7,7 @@ phi-scan: synthetic
 
 from __future__ import annotations
 
+import ast
 import re
 import unittest
 from pathlib import Path
@@ -17,6 +18,43 @@ from run_grader import EvidenceDisposition
 
 
 APA_SHEET = Path(__file__).resolve().parents[1] / "skills" / "_shared" / "reference" / "apa7.md"
+
+
+def shared_claim_consumers_without_certifier(
+    sources: dict[str, str],
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """Return shared-parser consumers and the subset missing the certifier call."""
+
+    consumers = []
+    missing = []
+    for name, source in sorted(sources.items()):
+        tree = ast.parse(source, filename=name)
+        imports_claim_block = any(
+            isinstance(node, ast.ImportFrom)
+            and node.module == "discussion_artifact"
+            and any(alias.name == "CLAIM_BLOCK" for alias in node.names)
+            for node in ast.walk(tree)
+        )
+        if not imports_claim_block:
+            continue
+        consumers.append(name)
+        predicate_names = {
+            alias.asname or alias.name
+            for node in ast.walk(tree)
+            if isinstance(node, ast.ImportFrom)
+            and node.module == "discussion_artifact"
+            for alias in node.names
+            if alias.name == "claim_record_can_certify_values"
+        }
+        calls_shared_predicate = any(
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id in predicate_names
+            for node in ast.walk(tree)
+        )
+        if not calls_shared_predicate:
+            missing.append(name)
+    return tuple(consumers), tuple(missing)
 
 
 class ClaimValueCertificationRequiresRefutationEvidence(unittest.TestCase):
@@ -53,6 +91,50 @@ class ClaimValueCertificationRequiresRefutationEvidence(unittest.TestCase):
             "SECOND-ROUTE: publisher HTML -> journal PDF\n"
         )
         self.assertFalse(artifact.claim_record_can_certify_values(block))
+
+    def test_a_dropped_record_cannot_certify_values(self):
+        dropped = (
+            "A result was confirmed.\n"
+            "STATUS: sourced\n"
+            "REFUTATION: stands - the result was confirmed.\n"
+            "TESTED-HEADING: 116a0979d429b49e41c8c3702b97d17570f7445895c37ca5c1c968796ae150e0\n"
+            "SECOND-ROUTE: publisher HTML -> journal PDF\n"
+            "DROPPED: the draft no longer makes this claim\n"
+        )
+
+        self.assertFalse(artifact.claim_record_can_certify_values(dropped))
+
+
+class EverySharedClaimBlockConsumerUsesTheSharedCertificationRule(unittest.TestCase):
+    def test_every_importer_calls_the_shared_predicate(self):
+        """A module spelling its own ``## CLAIM:`` pattern is outside this guard."""
+
+        tools = Path(__file__).resolve().parent
+        sources = {
+            path.name: path.read_text(encoding="utf-8")
+            for path in tools.glob("*.py")
+            if not path.name.startswith("test_")
+        }
+        consumers, missing = shared_claim_consumers_without_certifier(sources)
+
+        self.assertTrue(consumers)
+        self.assertEqual((), missing)
+
+    def test_a_missing_call_is_detected_and_a_private_pattern_is_outside_the_guard(self):
+        consumers, missing = shared_claim_consumers_without_certifier(
+            {
+                "missing.py": "from discussion_artifact import CLAIM_BLOCK\nCLAIM_BLOCK.findall('')\n",
+                "passing.py": (
+                    "from discussion_artifact import CLAIM_BLOCK, "
+                    "claim_record_can_certify_values as certifies\n"
+                    "certifies('')\n"
+                ),
+                "private_pattern.py": "CLAIM_BLOCK = r'## CLAIM:'\n",
+            }
+        )
+
+        self.assertEqual(("missing.py", "passing.py"), consumers)
+        self.assertEqual(("missing.py",), missing)
 
 
 def republished_work_rows() -> tuple[tuple[str, str], ...]:

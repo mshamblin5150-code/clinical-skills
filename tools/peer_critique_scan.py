@@ -33,6 +33,7 @@ from discussion_artifact import (
     ReferenceKeySet,
     RESTATEMENT,
     WORD,
+    claim_record_can_certify_values,
     citation_occurrence_keys,
     read_citations,
     read_reference_section,
@@ -40,6 +41,7 @@ from discussion_artifact import (
 )
 import run_grader
 from run_grader import NOT_GRADED, EvidenceDisposition
+from research_ledger import REFUTATION_EVIDENCE_COMPLEMENT
 import aar_scan
 import heading_read
 import research_ledger
@@ -111,6 +113,13 @@ REFUSED_LABEL = "critique reference label refused"
 INVALID_INVOCATION = "invalid invocation"
 EXIT_2_LIMBS = (INVALID_INVOCATION, NO_RUN_DIRECTORY, NO_CRITIQUE, NO_ROSTER, REFUSED_LABEL)
 
+UNJOINED_SOURCE_FIELDS = ", ".join(REFUTATION_EVIDENCE_COMPLEMENT)
+UNJOINED_SOURCE_FIELDS_LIMIT = (
+    f"whether a sourced record missing one or more of {UNJOINED_SOURCE_FIELDS} is still believed",
+    f"Field completeness for {UNJOINED_SOURCE_FIELDS} belongs to research_ledger; this certifier still reads numbers from a record carrying substantive refutation-evidence fields.",
+    EvidenceDisposition.BEHAVIOR,
+)
+
 DECLARED_LIMITS = (
     *CITATION_RESOLUTION_NOT_REACHED,
     (
@@ -138,6 +147,7 @@ DECLARED_LIMITS = (
         "The tracing walk matches numeric tokens and never judges support. The refutation leg owns source-to-heading agreement, and the heading read owns draft-to-heading agreement.",
         EvidenceDisposition.BEHAVIOR,
     ),
+    UNJOINED_SOURCE_FIELDS_LIMIT,
     (
         "whether the critique's word count should have been cut to the stated ceiling",
         "The ceiling is reported rather than graded because no stated maximum is honored, so a long critique is a choice the clinician makes and never a finding here.",
@@ -184,6 +194,7 @@ class Scan:
     references: int | None
     citations: int | None
     numeric_claims: int | None
+    claim_records: int | None
     ampersands: int | None
     reference_boundary_graded: bool
     heading_reads: int
@@ -247,28 +258,48 @@ def _word_count(body: str) -> int:
     return len(WORD.findall(strip_discussion_markers(body)))
 
 
-def _believed_tokens(claims: str) -> set[str]:
-    tokens: set[str] = set()
+def _claim_tokens(claims: str) -> tuple[set[str], set[str]]:
+    believed: set[str] = set()
+    mentioned: set[str] = set()
     for block in CLAIM_BLOCK.finditer(claims):
         text = block.group("block")
         heading = text.splitlines()[0] if text.splitlines() else ""
         restatement = " ".join(found.group("value") for found in RESTATEMENT.finditer(text))
-        tokens.update(NUMBER.findall(heading))
-        tokens.update(NUMBER.findall(restatement))
-    return tokens
+        values = {
+            value.casefold()
+            for value in (*NUMBER.findall(heading), *NUMBER.findall(restatement))
+        }
+        mentioned.update(values)
+        if claim_record_can_certify_values(text):
+            believed.update(values)
+    return believed, mentioned
+
+
+def _body_numeric_tokens(source: RunSource) -> tuple[str, ...]:
+    citations = read_citations(source.body, _reference_key_set(source))
+    spans = {(citation.start, citation.end) for citation in citations}
+    return tuple(
+        found.group(0).casefold()
+        for found in NUMBER.finditer(source.body)
+        if not any(start <= found.start() < end for start, end in spans)
+    )
 
 
 def _numeric_findings(source: RunSource) -> tuple[Finding, ...]:
-    believed = _believed_tokens(source.claims)
-    citations = read_citations(source.body, _reference_key_set(source))
-    spans = {(citation.start, citation.end) for citation in citations}
-    findings = []
-    for found in NUMBER.finditer(source.body):
-        if any(start <= found.start() < end for start, end in spans):
-            continue
-        if found.group(0) not in believed:
-            findings.append(Finding(UNTRACED_NUMBER, "critique.md", found.group(0)))
-    return tuple(findings)
+    believed, mentioned = _claim_tokens(source.claims)
+    return tuple(
+        Finding(
+            UNTRACED_NUMBER,
+            "critique.md",
+            (
+                f"{value} appears only in a disbelieved claim record"
+                if value in mentioned
+                else f"{value} is absent from claims.md"
+            ),
+        )
+        for value in dict.fromkeys(_body_numeric_tokens(source))
+        if value not in believed
+    )
 
 
 def _reference_key_set(source: RunSource) -> ReferenceKeySet:
@@ -344,6 +375,7 @@ def survey(source: RunSource) -> Scan:
             references=None,
             citations=None,
             numeric_claims=None,
+            claim_records=None,
             ampersands=None,
             reference_boundary_graded=False,
             heading_reads=heading.records_read,
@@ -352,6 +384,7 @@ def survey(source: RunSource) -> Scan:
         )
     words = _word_count(source.body)
     citations = read_citations(source.body, _reference_key_set(source))
+    numeric_claims = tuple(dict.fromkeys(_body_numeric_tokens(source)))
     findings = list(structural)
     if words < WORD_FLOOR_COUNT:
         findings.append(Finding(WORD_FLOOR, "critique.md", f"{words} words"))
@@ -372,7 +405,8 @@ def survey(source: RunSource) -> Scan:
         word_ceiling=WORD_CEILING_COUNT,
         references=len(source.references),
         citations=len(citations),
-        numeric_claims=len(_believed_tokens(source.claims)),
+        numeric_claims=len(numeric_claims),
+        claim_records=len(tuple(CLAIM_BLOCK.finditer(source.claims))),
         ampersands=source.body.count("&"),
         reference_boundary_graded=True,
         heading_reads=heading.records_read,
@@ -397,7 +431,8 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         ),
         f"references: {scan.references if graded else NOT_GRADED}",
         f"citations: {scan.citations if graded else NOT_GRADED}",
-        f"claim records: {scan.numeric_claims if graded else NOT_GRADED}",
+        f"numeric claims: {scan.numeric_claims if graded else NOT_GRADED}",
+        f"claim records: {scan.claim_records if graded else NOT_GRADED}",
         (
             f"literal ampersands: {scan.ampersands} (reported, {NOT_GRADED})"
             if graded

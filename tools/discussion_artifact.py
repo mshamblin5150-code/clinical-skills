@@ -214,6 +214,7 @@ CLAIM_REFERENCE = re.compile(
 )
 CLAIM_STATUS = re.compile(r"(?mi)^STATUS\s*:\s*(?P<value>[^\n]*)$")
 CLAIM_REFUTATION = re.compile(r"(?mi)^REFUTATION\s*:\s*(?P<value>[^\n]*)$")
+CLAIM_DROPPED = re.compile(r"(?mi)^DROPPED\s*:")
 REFERENCE_LABEL_RECOGNIZER = re.compile(
     r"(?mi)^(?P<label>[ \t]*(?:#{1,6}[ \t]+)?"
     r"(?:\*\*References?\*\*|__References?__|\*References?\*|_References?_|References?)"
@@ -283,6 +284,7 @@ def claim_record_can_certify_values(block: str) -> bool:
         and refutation != REFUTATION_REFUTED
         and has_refutation_evidence
         and tested_heading_matches
+        and CLAIM_DROPPED.search(block) is None
     )
 
 

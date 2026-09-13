@@ -45,6 +45,9 @@ A sourced claim record may certify a value only when `REFUTATION`, `TESTED-HEADI
 `SECOND-ROUTE` carry substance and `TESTED-HEADING` matches the current claim heading. If any is
 absent, empty, malformed, or stale, the record cannot certify a value.
 
+A claim record carrying `DROPPED` certifies no value. The field says the document no longer makes
+the claim, so the record cannot support a figure the document still states.
+
 ## A claim heading is the claim the document will make
 
 The heading is the claim the finished document will make, including any number the document will
