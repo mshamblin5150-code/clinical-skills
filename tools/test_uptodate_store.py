@@ -164,6 +164,58 @@ class AnIngestedDumpBecomesAccumulatedEvidence(unittest.TestCase):
 
         self.assertEqual(store.entitled_topics(self.store), {"Earlier topic", "Current topic"})
 
+    def test_entitled_topic_details_come_from_the_same_validated_manifest_rows(self):
+        source = self.write_dump("evidence.txt", topic("A stored topic"))
+        store.ingest_dump(
+            source,
+            self.store,
+            dump_id="one",
+            module="Module 1",
+            received_on=date(2026, 1, 2),
+        )
+
+        self.assertEqual(
+            store.entitled_topic_details(self.store),
+            (
+                store.StoredTopic(
+                    title="A stored topic",
+                    authors="Author, A., MD",
+                    last_updated="2026-01-09",
+                    received_on="2026-01-02",
+                    literature_review_current_through="2026-07",
+                ),
+            ),
+        )
+
+    def test_a_newer_topic_version_supplies_both_masthead_and_currency(self):
+        older = self.write_dump("older.txt", topic("Repeated topic"))
+        newer = self.write_dump(
+            "newer.txt",
+            topic("Repeated topic")
+            .replace("Author, A., MD", "New Author, MD")
+            .replace("Jul 2026", "Mar 2026")
+            .replace("Jan 9, 2026", "Mar 9, 2026"),
+        )
+        store.ingest_dump(
+            older,
+            self.store,
+            dump_id="older",
+            module="Module 1",
+            received_on=date(2026, 1, 2),
+        )
+        store.ingest_dump(
+            newer,
+            self.store,
+            dump_id="newer",
+            module="Module 2",
+            received_on=date(2026, 3, 2),
+        )
+
+        snapshot = store.store_snapshot(self.store)
+
+        self.assertEqual(snapshot.topics[0].authors, "New Author, MD")
+        self.assertEqual(dict(snapshot.currencies)["repeated topic"], "2026-03")
+
     def test_an_existing_dump_id_is_never_overwritten(self):
         source = self.write_dump("evidence.txt", topic("Original topic"))
         store.ingest_dump(

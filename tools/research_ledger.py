@@ -42,7 +42,7 @@ from docx_write import markdown_tables, split_row
 # second reading in here could put an entry where the grader does not, which
 # is #108's duplication and the failure ``reference_scan`` records against
 # itself. A test asserts the two are one object *and* drives both.
-from reference_scan import read_document
+from reference_scan import YEAR_TOKEN, read_document, year_key
 
 
 class DeclaredLimit(NamedTuple):
@@ -95,6 +95,9 @@ DECLARED_LIMITS = (
     DeclaredLimit("draft-rows-optional", "Prescription coverage is not graded when the caller omits the draft argument.", EvidenceDisposition.BEHAVIOR),
     DeclaredLimit("evidence-rows-optional", "Evidence-topic coverage is not graded when the caller omits the evidence argument.", EvidenceDisposition.BEHAVIOR),
     DeclaredLimit("evidence-without-draft-skips-references", "Evidence grading without a draft cannot inspect citations in the draft reference list.", EvidenceDisposition.BEHAVIOR),
+    DeclaredLimit("uptodate-initials-uncompared", "The stored UpToDate masthead check does not compare author initials.", EvidenceDisposition.BEHAVIOR),
+    DeclaredLimit("uptodate-trailing-surname-accepted", "An UpToDate entry that shortens a real surname to its trailing words passes.", EvidenceDisposition.BEHAVIOR),
+    DeclaredLimit("non-uptodate-author-year-unchecked", "Authors and years of sources other than a stored UpToDate topic are not checked by this command; the refutation agent verifies them.", EvidenceDisposition.DECLARED_READING),
     DeclaredLimit("reply-reference-label-unchecked", "The discussion-reply path omits draft grading and cannot reject a misspelled references label.", EvidenceDisposition.BEHAVIOR),
 )
 NOT_REACHED = tuple(row.limit for row in DECLARED_LIMITS)
@@ -104,7 +107,7 @@ NOT_REACHED = tuple(row.limit for row in DECLARED_LIMITS)
 CLAIM = re.compile(r"(?mi)^[ \t]*#+[ \t]*CLAIM[ \t]*:[ \t]*(.*?)[ \t]*$")
 FIELD = re.compile(
     r"(?mi)^[ \t]*(STATUS|SOURCE|REFERENCE|RESTATEMENT|RECENCY"
-    r"|RESOLVED|PAGE-YEAR|REFUTATION|SECOND-ROUTE|INSTRUMENTS|STATED-EXPIRY)"
+    r"|RESOLVED|PAGE-YEAR|REFUTATION|SECOND-ROUTE|INSTRUMENTS|STATED-EXPIRY|DROPPED)"
     r"[ \t]*:[ \t]*(.*?)[ \t]*$"
 )
 BAR_FIELD = re.compile(
@@ -249,6 +252,10 @@ STATED_EXPIRY_REACHED = "stated-expiry-reached"
 # group.
 CITED_TOPIC_NOT_IN_EVIDENCE = "cited-topic-not-in-evidence"
 UPTODATE_REREAD_DUE = "uptodate-reread-due"
+UPTODATE_MASTHEAD_DISAGREES = "uptodate-masthead-disagrees"
+SOURCED_RECORD_NOT_LISTED = "sourced-record-not-listed"
+BARE_DROPPED = "bare-dropped"
+DROPPED_ON_SOURCELESS_RECORD = "dropped-on-sourceless-record"
 
 # The sibling row reports an UpToDate locator whose title element is unreadable,
 # on ``UNREADABLE_DRUG_ROW``'s fail-visible precedent.
@@ -262,6 +269,10 @@ UNREADABLE_DRUG_ROW = "unreadable-drug-row"
 ROWS = {
     CITED_TOPIC_NOT_IN_EVIDENCE: "#298",
     UPTODATE_REREAD_DUE: "#901",
+    UPTODATE_MASTHEAD_DISAGREES: "#1021",
+    SOURCED_RECORD_NOT_LISTED: "#1021",
+    BARE_DROPPED: "#1021",
+    DROPPED_ON_SOURCELESS_RECORD: "#1021",
     UNREADABLE_UPTODATE_ENTRY: "#298",
     UNRESEARCHED_PRESCRIPTION: "#289",
     DOSE_NOT_CLAIMED: "#289",
@@ -339,6 +350,7 @@ DRAFT_ROWS = (UNRESEARCHED_PRESCRIPTION, DOSE_NOT_CLAIMED, UNREADABLE_DRUG_ROW)
 EVIDENCE_ROWS = (
     CITED_TOPIC_NOT_IN_EVIDENCE,
     UPTODATE_REREAD_DUE,
+    UPTODATE_MASTHEAD_DISAGREES,
     UNREADABLE_UPTODATE_ENTRY,
 )
 
@@ -584,6 +596,22 @@ class Finding(run_grader.Finding):
 
 
 @dataclass(frozen=True)
+class MastheadScan:
+    """Coverage and findings from the bounded stored-topic author read.
+
+    The author extractors recognize APA ``Surname, initials`` elements and
+    stored ``Name, degree`` elements. A joined citation in any other form is an
+    unread member, is printed in the remainder, and fails rather than passing
+    as an empty-to-empty comparison.
+    """
+
+    findings: tuple[Finding, ...]
+    population: int
+    read: int
+    unread: int
+
+
+@dataclass(frozen=True)
 class Scan:
     """Counts over one ledger, plus the findings ``--show`` prints."""
 
@@ -612,12 +640,14 @@ class Scan:
     # The #204 partial-read census from ``half_anchored_tables``.
     half_anchored: int
     prescriptions_at_fault: int
+    draft_references_at_fault: int
     # ``None`` is #258's sentinel for the omitted #298 group.
     evidence_topics: int | None
     # The omitted flag and an unfiled supplied file are different ungraded states.
     evidence_ungraded_reason: str | None
     # The #298 joined-citation population beside the carried-topic population.
     uptodate_citations: int | None
+    uptodate_mastheads: MastheadScan | None
     evidence_at_fault: int
     findings: tuple[Finding, ...]
 
@@ -672,10 +702,139 @@ def cited_uptodate_entries(
     citations = [(record.claim, record.value("REFERENCE")) for record in records]
     citations.extend((DRAFT_LIST, entry) for entry in entries)
     return [
-        (claim, entry, title, normalize(title))
+        (claim, entry, title, uptodate_store.citation_title_key(title))
         for claim, entry in citations
         for title in (uptodate_topic(entry),)
     ]
+
+
+APA_AUTHOR = re.compile(
+    r"(?P<surname>[A-Za-z][^,&]*?),\s*"
+    r"(?P<initials>(?:[A-Z](?:[-'][A-Z])?\.\s*)+)"
+)
+MASTHEAD_AUTHOR = re.compile(
+    r"(?:(?P<surname>[A-Za-z][^,]*),\s*(?:[A-Z]\.\s*)+,\s*"
+    r"(?P<last_degree>[A-Z][A-Za-z.]*)(?=,|$)"
+    r"(?:,\s*[A-Z][A-Za-z.]*(?=,|$))*"
+    r"|(?P<name>[A-Za-z][^,]*),\s*"
+    r"(?P<degree>[A-Z][A-Za-z.]*)(?=,|$)"
+    r"(?:,\s*[A-Z][A-Za-z.]*(?=,|$))*)"
+)
+MASTHEAD_LINE_BOUNDARY = re.compile(
+    r"(?<=[A-Za-z.])\s+(?=[A-Z](?:\.?\s+)[A-Z][^,]*,\s*[A-Z])"
+)
+
+
+def _unmatched_author_text(text: str, matches: list[re.Match[str]]) -> str:
+    """Anything outside parsed author members other than list separators."""
+    pieces: list[str] = []
+    end = 0
+    for match in matches:
+        pieces.append(text[end : match.start()])
+        end = match.end()
+    pieces.append(text[end:])
+    residue = re.sub(r"(?i)\band\b", "", "".join(pieces))
+    return re.sub(r"[\s,&]+", "", residue)
+
+
+def _apa_surnames(entry: str) -> tuple[tuple[str, ...], bool]:
+    year = YEAR.search(entry)
+    author_element = entry[: year.start()] if year else entry
+    matches = list(APA_AUTHOR.finditer(author_element))
+    names = tuple(_normalize_name(match.group("surname")) for match in matches)
+    return names, bool(names) and not _unmatched_author_text(author_element, matches)
+
+
+def _masthead_names(authors: str) -> tuple[tuple[str, ...], bool]:
+    authors = MASTHEAD_LINE_BOUNDARY.sub(", ", authors)
+    matches = list(MASTHEAD_AUTHOR.finditer(authors))
+    names = tuple(
+        _normalize_name(match.group("surname") or match.group("name"))
+        for match in matches
+    )
+    joined_name = any(
+        re.search(r"(?i)\band\b", match.group("surname") or match.group("name"))
+        for match in matches
+    )
+    return (
+        names,
+        bool(names) and not joined_name and not _unmatched_author_text(authors, matches),
+    )
+
+
+def _normalize_name(name: str) -> str:
+    """Fold case and spacing while preserving surname punctuation."""
+    return " ".join(name.casefold().split())
+
+
+def _latest_stored_topics(
+    details: tuple[uptodate_store.StoredTopic, ...],
+) -> tuple[uptodate_store.StoredTopic, ...]:
+    """Newest topic per citation-title normalization, with an explicit tie break."""
+    stored: dict[str, uptodate_store.StoredTopic] = {}
+    for topic in details:
+        key = uptodate_store.citation_title_key(topic.title)
+        prior = stored.get(key)
+        if prior is None or (topic.received_on, topic.title) > (
+            prior.received_on,
+            prior.title,
+        ):
+            stored[key] = topic
+    return tuple(stored[key] for key in sorted(stored))
+
+
+def uptodate_masthead_findings(
+    records: list[Record],
+    entries: tuple[str, ...],
+    details: tuple[uptodate_store.StoredTopic, ...],
+) -> MastheadScan:
+    """Compare cited UpToDate authors with the accumulated validated mastheads."""
+    stored = {
+        uptodate_store.citation_title_key(topic.title): topic
+        for topic in _latest_stored_topics(details)
+    }
+    found: list[Finding] = []
+    population = 0
+    read = 0
+    unread = 0
+    for claim, entry, _title, key in cited_uptodate_entries(records, entries):
+        topic = stored.get(key)
+        if topic is None:
+            continue
+        population += 1
+        surnames, apa_complete = _apa_surnames(entry)
+        names, masthead_complete = _masthead_names(topic.authors)
+        complete = apa_complete and masthead_complete
+        if not complete:
+            unread += 1
+        else:
+            read += 1
+        if not complete or len(surnames) != len(names) or any(
+            name != surname and not name.endswith(f" {surname}")
+            for surname, name in zip(surnames, names)
+        ):
+            found.append(
+                Finding(
+                    UPTODATE_MASTHEAD_DISAGREES,
+                    claim,
+                    "the APA authors do not match the stored topic masthead",
+                )
+            )
+        year = YEAR.search(entry)
+        if year is None or year.group(1) != topic.last_updated[:4]:
+            found.append(
+                Finding(
+                    UPTODATE_MASTHEAD_DISAGREES,
+                    claim,
+                    "the APA year does not match the stored topic's last-updated year",
+                )
+            )
+    return MastheadScan(
+        tuple(sorted(found, key=lambda finding: _KIND_ORDER[finding.kind])),
+        population,
+        read,
+        unread,
+    )
 
 
 def read_records(text: str) -> list[Record]:
@@ -729,6 +888,24 @@ def _sourceless_findings(record: Record) -> list[Finding]:
     for name in SOURCE_FIELDS:
         if SUBSTANCE.search(record.value(name)):
             found.append(Finding(SOURCELESS_WITH_SOURCE_FIELD, claim, f"{name}: {record.value(name)}"))
+    return found
+
+
+def _dropped_findings(record: Record) -> list[Finding]:
+    """Validate the optional reason on #1021's dropped record."""
+    if "DROPPED" not in record.fields:
+        return []
+    found = []
+    if not SUBSTANCE.search(record.value("DROPPED")):
+        found.append(Finding(BARE_DROPPED, record.claim, "DROPPED"))
+    if record.status != SOURCED:
+        found.append(
+            Finding(
+                DROPPED_ON_SOURCELESS_RECORD,
+                record.claim,
+                f"STATUS: {record.value('STATUS')}",
+            )
+        )
     return found
 
 
@@ -987,6 +1164,7 @@ def record_findings(
         found.append(Finding(MISSING_FIELD, claim, "CLAIM"))
 
     status = record.status
+    found += _dropped_findings(record)
     if not status:
         # Unlike an unrecognized ``SPECIFICITY`` keyword, this one is a failure:
         # the branch decides which tests below run, so a record wearing an
@@ -1178,6 +1356,148 @@ def prescription_findings(
     return sorted(found, key=lambda f: _KIND_ORDER[f.kind])
 
 
+REFERENCE_IDENTITY_YEAR = re.compile(
+    r"\(\s*(?P<year>" + YEAR_TOKEN + r")\s*(?:,[^)]*)?\)", re.I
+)
+CONTAINER_WORD = re.compile(
+    r"\b(?:bmj|jama|journal|nejm|press|proceedings|review|uptodate)\b", re.I
+)
+REFERENCE_RETRIEVAL = re.compile(r"\bretrieved\b.*$", re.I | re.S)
+REFERENCE_LOCATOR = re.compile(r"(?:https?://|\bdoi\s*:\s*)\S+", re.I)
+TITLE_ABBREVIATIONS = frozenset(
+    {
+        "dr",
+        "e.g",
+        "etc",
+        "fig",
+        "i.e",
+        "inc",
+        "jr",
+        "mr",
+        "mrs",
+        "ms",
+        "prof",
+        "sr",
+        "st",
+        "vs",
+    }
+)
+
+
+def _reference_title(reference: str, start: int) -> str:
+    """Read the APA title, preserving periods in initialisms and abbreviations."""
+    remainder = reference[start:].lstrip(". \t")
+    remainder = REFERENCE_RETRIEVAL.sub("", remainder)
+    remainder = REFERENCE_LOCATOR.sub("", remainder).rstrip(". \t")
+    for period in re.finditer(r"\.", remainder):
+        if (
+            period.start() > 0
+            and period.end() < len(remainder)
+            and remainder[period.start() - 1].isdigit()
+            and remainder[period.end()].isdigit()
+        ):
+            continue
+        before = re.search(r"([A-Za-z]+)$", remainder[: period.start()])
+        token = before.group(1) if before is not None else ""
+        prior = remainder[: period.start()]
+        dotted = re.search(r"(?:[A-Za-z]\.)+[A-Za-z]$", prior)
+        next_element = remainder[period.end() :].split(".", 1)[0]
+        continuation = next_element.lstrip()
+        abbreviation = (
+            len(token) == 1 or token.casefold() in TITLE_ABBREVIATIONS or dotted
+            or bool(continuation and continuation[0].islower())
+        )
+        container_starts = bool(
+            continuation
+            and continuation[0].isupper()
+            and (
+                CONTAINER_WORD.search(next_element)
+                or re.search(r",\s*(?:\d|\()", next_element)
+            )
+        )
+        if abbreviation and not container_starts and continuation:
+            continue
+        return prior
+    return remainder
+
+
+def reference_identity(reference: str) -> tuple[str, str, str] | None:
+    """Normalized APA author phrase, bare year, and title."""
+    matched = REFERENCE_IDENTITY_YEAR.search(reference)
+    if matched is None:
+        return None
+    token = year_key(matched.group("year"))
+    if token.startswith("nd"):
+        bare_year = "nd"
+    elif token.startswith("inpress"):
+        bare_year = "inpress"
+    else:
+        bare_year = re.sub(r"[a-z]$", "", token)
+    title = _reference_title(reference, matched.end())
+    if not SUBSTANCE.search(title):
+        return None
+    return normalize(reference[: matched.start()]), bare_year, normalize(title)
+
+
+def reference_identities(reference: str) -> frozenset[tuple[str, str, str]]:
+    """Return the title identity and a bounded alias for an opaque final container.
+
+    Plain-text APA loses the italics that distinguish a title ending in an
+    initialism from its container.  When the ordinary parser finds no container
+    at all, admit the final one-word sentence element as an opaque container.
+    A recognized trailing container keeps the ordinary title authoritative, so
+    distinct titles such as ``U.S. Healthcare`` and ``U.S. Medicine`` do not
+    collapse onto the initialism.
+    """
+    identity = reference_identity(reference)
+    if identity is None:
+        return frozenset()
+    identities = {identity}
+    matched = REFERENCE_IDENTITY_YEAR.search(reference)
+    assert matched is not None
+    remainder = reference[matched.end() :].lstrip(". \t")
+    remainder = REFERENCE_RETRIEVAL.sub("", remainder)
+    remainder = REFERENCE_LOCATOR.sub("", remainder).rstrip(". \t")
+    title = _reference_title(reference, matched.end())
+    if normalize(title) == normalize(remainder):
+        opaque = re.fullmatch(
+            r"(?P<title>.+\b(?P<end>[A-Za-z.]+)\.)\s+[^.\r\n]+",
+            remainder,
+        )
+        if opaque is not None:
+            end = opaque.group("end")
+            dotted = re.fullmatch(r"(?:[A-Za-z]\.)+[A-Za-z]", end)
+            token = end.rsplit(".", 1)[-1].casefold()
+            alias = normalize(opaque.group("title"))
+            recognized_end = bool(
+                dotted or len(token) == 1 or token in TITLE_ABBREVIATIONS
+            )
+            if recognized_end and SUBSTANCE.search(alias):
+                identities.add((identity[0], identity[1], alias))
+    return frozenset(identities)
+
+
+def draft_reference_findings(
+    records: list[Record], entries: tuple[str, ...]
+) -> list[Finding]:
+    """Require each non-dropped sourced record's source in the draft list."""
+    listed = {identity for entry in entries for identity in reference_identities(entry)}
+    found = []
+    for record in records:
+        if record.status != SOURCED or "DROPPED" in record.fields:
+            continue
+        identities = reference_identities(record.value("REFERENCE"))
+        if not identities or identities.isdisjoint(listed):
+            found.append(
+                Finding(
+                    SOURCED_RECORD_NOT_LISTED,
+                    record.claim,
+                    "the sourced record's reference is absent from the draft reference list",
+                )
+            )
+    return sorted(found, key=lambda finding: _KIND_ORDER[finding.kind])
+
+
 def evidence_findings(
     records: list[Record],
     entries: tuple[str, ...],
@@ -1189,7 +1509,7 @@ def evidence_findings(
     UpToDate topic joins against the accumulated manifest set. Findings
     de-duplicate by topic because two citations name one missing artifact.
     """
-    keys = {normalize(title) for title in carried}
+    keys = {uptodate_store.citation_title_key(title) for title in carried}
     found: list[Finding] = []
     seen: set[str] = set()
     read = 0
@@ -1232,7 +1552,10 @@ def uptodate_reread_findings(
     """Require a fresh read once the publisher's review month leaves the bar window."""
     if as_of is None or not has_account:
         return []
-    currency = {normalize(title): stamp for title, stamp in currency_by_topic.items()}
+    currency = {
+        uptodate_store.citation_title_key(title): stamp
+        for title, stamp in currency_by_topic.items()
+    }
     found: list[Finding] = []
     seen: set[str] = set()
     for claim, _entry, title, key in cited_uptodate_entries(records, entries):
@@ -1272,6 +1595,7 @@ def survey(
     source_classes: tuple[str, ...] | None = None,
     recency_window_years: int | None = None,
     uptodate_currency: dict[str, str] | None = None,
+    uptodate_details: tuple[uptodate_store.StoredTopic, ...] | None = None,
     uptodate_recency_window_years: int = 2,
     uptodate_has_account: bool = True,
     evidence_ungraded_reason: str | None = None,
@@ -1340,8 +1664,17 @@ def survey(
             has_account=uptodate_has_account,
         )
         on_the_evidence.sort(key=lambda finding: _KIND_ORDER[finding.kind])
+    mastheads = None
+    if carried is not None and uptodate_details is not None:
+        mastheads = uptodate_masthead_findings(records, entries, uptodate_details)
+        on_the_evidence += list(mastheads.findings)
+        on_the_evidence.sort(key=lambda finding: _KIND_ORDER[finding.kind])
+    on_the_draft_references = (
+        draft_reference_findings(records, entries) if prescriptions is not None else []
+    )
     found = (
         on_the_evidence
+        + on_the_draft_references
         + on_the_draft
         + [f for _, per_record in graded for f in per_record]
     )
@@ -1395,9 +1728,11 @@ def survey(
         continued_home=sum(1 for rx in prescriptions or [] if rx.exempt),
         half_anchored=half_anchored,
         prescriptions_at_fault=len(on_the_draft),
+        draft_references_at_fault=len(on_the_draft_references),
         evidence_topics=None if carried is None else len(carried),
         evidence_ungraded_reason=evidence_ungraded_reason,
         uptodate_citations=uptodate_read,
+        uptodate_mastheads=mastheads,
         evidence_at_fault=len(on_the_evidence),
         findings=tuple(found),
     )
@@ -1481,6 +1816,16 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         # alone reads as the stronger claim: a count of topics carried says
         # nothing about whether a single citation was joined to them.
         lines.append(f"  {'UpToDate citations read':<32} {scan.uptodate_citations}")
+    if not isinstance(scan.uptodate_mastheads, MastheadScan):
+        lines.append(
+            f"  {'UpToDate author mastheads read':<32} {NOT_GRADED} - no stored citation was joined"
+        )
+    else:
+        lines.append(
+            f"  {'UpToDate author mastheads read':<32} {scan.uptodate_mastheads.read}"
+            f" of {scan.uptodate_mastheads.population}; unread {scan.uptodate_mastheads.unread}"
+            " (APA Surname, initials / masthead Name, degree)"
+        )
     lines.append("")
     for kind, count in scan.counts:
         # Wide enough for the longest kind, so the count column stays a column.
@@ -1490,7 +1835,9 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         # A #289 row that did not run prints as such rather than as a zero,
         # for the reason ``Scan.prescriptions`` is not an ``int``.
         shown = count
-        if scan.prescriptions is None and kind in DRAFT_ROWS:
+        if scan.prescriptions is None and (
+            kind in DRAFT_ROWS or kind == SOURCED_RECORD_NOT_LISTED
+        ):
             shown = NOT_GRADED
         if (
             scan.evidence_topics is None or scan.uptodate_citations is None
@@ -1505,7 +1852,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         )
     if scan.evidence_topics is not None:
         lines.append(
-            f"  cited topics not handed over     {scan.evidence_at_fault}"
+            f"  evidence findings at fault       {scan.evidence_at_fault}"
         )
     if show:
         lines += ["", "  findings (PHI - read, do not paste):"]
@@ -1538,6 +1885,7 @@ class Source:
     source_classes: tuple[str, ...]
     recency_window_years: int
     uptodate_currency: dict[str, str] | None
+    uptodate_details: tuple[uptodate_store.StoredTopic, ...] | None
     uptodate_recency_window_years: int
     uptodate_has_account: bool
 
@@ -1572,6 +1920,7 @@ def _load(parsed: run_grader.Parsed) -> Source:
     half_anchored = 0
     draft_text = ""
     draft_name: str | None = None
+    entries: tuple[str, ...] = ()
     if draft is not None:
         draft_path = Path(draft)
         draft_name = draft_path.name
@@ -1588,13 +1937,14 @@ def _load(parsed: run_grader.Parsed) -> Source:
         draft_text = draft_path.read_text(encoding="utf-8", errors="replace")
         prescriptions = tuple(read_prescriptions(draft_text))
         half_anchored = half_anchored_tables(draft_text)
+        entries = tuple(entry.text for entry in read_document(draft_text).entries)
 
     evidence = parsed.value("--evidence")
     carried: set[str] | None = None
-    entries: tuple[str, ...] = ()
     evidence_not_filed = False
     evidence_name: str | None = None
     uptodate_currency: dict[str, str] | None = None
+    uptodate_details: tuple[uptodate_store.StoredTopic, ...] | None = None
     uptodate_window = bar.uptodate_recency_window_years or 2
     uptodate_has_account = True
     if evidence is not None:
@@ -1603,23 +1953,28 @@ def _load(parsed: run_grader.Parsed) -> Source:
         if not evidence_path.is_file():
             raise run_grader.SourceError(f"no evidence file named {evidence_path.name}")
         try:
-            evidence_not_filed = not uptodate_store.is_filed_source(evidence_path)
+            snapshot = uptodate_store.store_snapshot()
+            evidence_not_filed = not uptodate_store.is_filed_source(
+                evidence_path, snapshot=snapshot
+            )
         except ValueError as error:
             raise run_grader.SourceError(
                 f"the UpToDate store is unreadable: {error}"
             ) from error
         if not evidence_not_filed:
-            carried = accumulated_evidence_topics()
-        if carried is not None and draft is not None:
-            entries = tuple(entry.text for entry in read_document(draft_text).entries)
-        cited_entries = [record.value("REFERENCE") for record in records] + list(entries)
+            uptodate_details = _latest_stored_topics(snapshot.topics)
+            carried = {topic.title for topic in uptodate_details}
+        cited_entries = [record.value("REFERENCE") for record in records] + list(entries or ())
         if any(uptodate_topic(entry) for entry in cited_entries):
             if bar.uptodate_recency_window_years is None:
                 raise run_grader.SourceError(
                     "bar.md needs an UPTODATE-RECENCY-WINDOW-YEARS field when UpToDate evidence is graded"
                 )
             try:
-                uptodate_currency = uptodate_store.topic_currencies()
+                uptodate_currency = {
+                    topic.title: topic.literature_review_current_through
+                    for topic in (uptodate_details or ())
+                }
             except ValueError as error:
                 raise run_grader.SourceError(
                     f"the UpToDate store is unreadable: {error}"
@@ -1644,6 +1999,7 @@ def _load(parsed: run_grader.Parsed) -> Source:
         bar.source_classes,
         bar.recency_window_years,
         uptodate_currency,
+        uptodate_details,
         uptodate_window,
         uptodate_has_account,
     )
@@ -1660,6 +2016,7 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
         source_classes=source.source_classes,
         recency_window_years=source.recency_window_years,
         uptodate_currency=source.uptodate_currency,
+        uptodate_details=source.uptodate_details,
         uptodate_recency_window_years=source.uptodate_recency_window_years,
         uptodate_has_account=source.uptodate_has_account,
         evidence_ungraded_reason=(
@@ -1703,10 +2060,16 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
             f"{scan.prescriptions_at_fault} prescription(s) in {source.draft_name} reach"
             " no claim record. Re-run with --show to see which, and do not paste that output."
         )
+    if scan.draft_references_at_fault:
+        diagnostics.append(
+            f"{scan.draft_references_at_fault} sourced record(s) reach no entry in"
+            f" {source.draft_name}. Re-run with --show to see which, and do not paste that output."
+        )
     if scan.evidence_at_fault:
         counts = dict(scan.counts)
         missing = counts[CITED_TOPIC_NOT_IN_EVIDENCE] + counts[UNREADABLE_UPTODATE_ENTRY]
         reread = counts[UPTODATE_REREAD_DUE]
+        masthead = counts[UPTODATE_MASTHEAD_DISAGREES]
         if missing:
             diagnostics.append(
                 f"{missing} UpToDate citation(s) do not resolve to the current dump or"
@@ -1719,8 +2082,16 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
                 " Re-open them through the authenticated route and refresh their sheets."
                 " Re-run with --show to see which, and do not paste that output."
             )
+        if masthead:
+            diagnostics.append(
+                f"{masthead} UpToDate author or year comparison(s) disagree with the"
+                " stored topic masthead. Re-run with --show to see which, and do not paste that output."
+            )
     findings_failed = bool(
-        scan.failing_records or scan.prescriptions_at_fault or scan.evidence_at_fault
+        scan.failing_records
+        or scan.prescriptions_at_fault
+        or scan.draft_references_at_fault
+        or scan.evidence_at_fault
     )
     coverage_failed = bool(
         not source.records
