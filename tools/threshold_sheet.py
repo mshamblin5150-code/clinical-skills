@@ -1842,22 +1842,22 @@ def gate_watermark(
         passed=not findings and not unprobed,
     )
     findings.extend(declaration_verdict.failures)
-    report = [f"  WATERMARK       {len(findings)} refusing"]
+    lines = _state_lines((f"  WATERMARK       {len(findings)} refusing",))
     if declaration_verdict.not_graded:
-        report = [
+        lines = _coverage_qualifier_lines((
             "  WATERMARK       NOT GRADED -- the untrusted pass is not declared in "
             "the sheet's ## Scope",
-        ]
+        ))
     if rendered:
-        report.append(
+        lines += _state_lines((
             f"                  {rendered} row(s) declared {RENDERED_MARKER}, "
-            "so the interleave test skipped them"
-        )
+            "so the interleave test skipped them",
+        ))
     if unprobed:
-        report.append(
+        lines += _coverage_qualifier_lines((
             f"                  NOT PROBED for {len(unprobed)} of {len(sheet.sources)} "
-            f"source(s): {', '.join(unprobed)} -- so the count above is a floor"
-        )
+            f"source(s): {', '.join(unprobed)} -- so the count above is a floor",
+        ))
     diagnostics = (manifest_diagnostic,) + tuple(
         f"  WATERMARK       NOT PROBED for source '{key}' -- no manifest entry, no "
         "extracted text, or no string stripped from it that could serve as a probe"
@@ -1871,17 +1871,7 @@ def gate_watermark(
     return WatermarkResult(
         "WATERMARK",
         findings,
-        lines=tuple(
-            Line(
-                line,
-                kind=(
-                    LineKind.COVERAGE_QUALIFIER
-                    if "NOT GRADED" in line or "NOT PROBED" in line
-                    else LineKind.STATE
-                ),
-            )
-            for line in report
-        ),
+        lines=lines,
         diagnostics=diagnostics,
         not_graded=declaration_verdict.not_graded,
     )
@@ -3433,8 +3423,17 @@ def main(argv: list[str]) -> int:
             if path.name.lower() not in {"readme.md", "coverage.md", "subjects.md"}
         ]
         if not sheets:
-            print(f"no sheet under {SHEET_ROOT}", file=sys.stderr)
-            return 2
+            return _emit_scan(
+                Scan(
+                    sheet=Sheet(path=SHEET_ROOT, ok=False),
+                    status=2,
+                    diagnostics=_coverage_qualifier_lines(
+                        (f"no sheet under {SHEET_ROOT}",)
+                    ),
+                    reportable=False,
+                ),
+                quiet=args.quiet,
+            )
         scans: list[Scan] = []
         inputs = SurveyInputs(
             roots=Roots(args.pdf_root, args.recs_root, text_root, args.recs_alias),

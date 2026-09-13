@@ -982,6 +982,8 @@ def main(argv: list[str] | None = None) -> int:
         help="scan the commit message file supplied by Git's commit-msg hook",
     )
     args = parser.parse_args(argv)
+    if args.quiet and args.record:
+        parser.error("--quiet cannot be combined with --record")
     if args.paths and (args.all or args.record or args.commit_message):
         parser.error("paths cannot be combined with --all, --record, or --commit-message")
 

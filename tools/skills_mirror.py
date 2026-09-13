@@ -764,6 +764,8 @@ def main(argv=None) -> int:
         help="checkout to inspect (default: the one this script lives in)",
     )
     args = parser.parse_args(argv)
+    if args.quiet and args.session_start:
+        parser.error("--quiet cannot be combined with --session-start")
 
     if args.session_start:
         payload = json.load(sys.stdin)

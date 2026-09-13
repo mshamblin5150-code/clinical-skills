@@ -199,6 +199,13 @@ class Ticket103Ruling(unittest.TestCase):
         self.assertIn(f"{RECORD_FORMS} forms, {RECORD_OCCURRENCES} occurrences",
                       output.getvalue())
 
+    def test_record_rejects_the_unrelated_quiet_output_contract(self):
+        with self.assertRaises(SystemExit) as stopped:
+            with contextlib.redirect_stderr(io.StringIO()):
+                scan.main(["--record", "--quiet"])
+
+        self.assertEqual(stopped.exception.code, 2)
+
 
 class Evidence(unittest.TestCase):
     """Preserved run output is evidence. It is counted and never refused."""

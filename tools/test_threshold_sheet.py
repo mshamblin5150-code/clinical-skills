@@ -2556,6 +2556,20 @@ class QuietSuppressesTheReportAndNeverAFinding(unittest.TestCase):
         self.assertEqual(quiet.count("WATERMARK DID NOT RUN"), 1)
         self.assertIn("WATERMARK DID NOT RUN for 2 of 2 sheets", quiet)
 
+    def test_all_empty_population_is_a_typed_coverage_qualifier(self):
+        with tempfile.TemporaryDirectory() as directory:
+            out, err = io.StringIO(), io.StringIO()
+            with (
+                mock.patch.object(gate, "SHEET_ROOT", Path(directory)),
+                contextlib.redirect_stdout(out),
+                contextlib.redirect_stderr(err),
+            ):
+                status = gate.main(["--all", "--quiet"])
+
+        self.assertEqual(status, 2)
+        self.assertEqual(out.getvalue(), "")
+        self.assertIn("no sheet under", err.getvalue())
+
     def test_all_excludes_the_topic_coverage_registry_and_subject_ledger(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

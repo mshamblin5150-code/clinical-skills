@@ -720,6 +720,13 @@ class CliTests(TempCheckout):
             context,
         )
 
+    def test_session_start_rejects_the_unrelated_quiet_output_contract(self):
+        with self.assertRaises(SystemExit) as stopped:
+            with redirect_stderr(io.StringIO()):
+                sm.main(["--session-start", "--quiet"])
+
+        self.assertEqual(stopped.exception.code, 2)
+
     def test_quiet_help_names_the_empty_population_exception(self):
         buf = io.StringIO()
         with self.assertRaises(SystemExit) as stopped:
