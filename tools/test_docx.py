@@ -2156,6 +2156,27 @@ class TheDefectsTheClinicianFoundInTheRenderedCaseStudy(unittest.TestCase):
         self.assertNotIn("w:gridSpan", xml)
         self.assertNotIn('<w:jc w:val="right"/>', xml)
 
+    def test_a_prescription_pad_keeps_every_cell_paragraph_and_its_spacer_with_next(self):
+        rows = [
+            ["", "", ""],
+            ["patient", "dob", "npi"],
+            ["drug"],
+            ["Refill: none", "DEA"],
+        ]
+
+        xml = docx_write.table(rows)
+
+        self.assertEqual(xml.count("<w:keepNext/>"), 10)
+        self.assertNotIn("<w:cantSplit/>", xml)
+        for properties in re.findall(r"<w:pPr>.*?</w:pPr>", xml, re.DOTALL):
+            self.assertTrue(properties.startswith("<w:pPr><w:keepNext/>"), properties)
+
+    def test_a_non_pad_table_carries_no_keep_with_next(self):
+        xml = docx_write.table([["Field", "Value"], ["Age", "26 years"]])
+
+        self.assertNotIn("<w:keepNext/>", xml)
+        self.assertTrue(xml.endswith("</w:tbl><w:p/>"))
+
     def test_bold_carrying_an_italic_span_emits_no_literal_asterisk(self):
         """The fifth defect, and the one the clinician spotted as *"a * slipped
         past"*: an italicised organism name inside a bold statement used to have its

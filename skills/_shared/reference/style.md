@@ -237,6 +237,9 @@ Rules the corpus follows without exception:
 
 One table per drug, including home medications continued unchanged.
 
+The pad stays on one page with the start of its prose; Word 16 calibration
+`prescription-pad-pagination` records that behavior and the renderer XML that produced it.
+
 | | | |
 | --- | --- | --- |
 | `<patient placeholder>` | `DOB x-x-xxx` | `NPI # <number>` |

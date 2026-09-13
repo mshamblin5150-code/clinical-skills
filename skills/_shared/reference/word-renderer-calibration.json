@@ -1,5 +1,148 @@
 {
   "command": "python tools/docx_word_probe.py --word",
+  "pad_rows": {
+    "prescription-pad-pagination": {
+      "measured_on": "2026-09-13",
+      "word_version": "16.0",
+      "word_build": "16.0.20326",
+      "verdict": "observed",
+      "word_observation": "Control split positions: 20, 21, 22; control prose separation positions: 19; bound split positions: none; bound prose separation positions: none.",
+      "filler_positions": [
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29
+      ],
+      "control_split_positions": [
+        20,
+        21,
+        22
+      ],
+      "control_prose_separation_positions": [
+        19
+      ],
+      "bound_split_positions": [],
+      "bound_prose_separation_positions": [],
+      "renderer_shape": {
+        "table_paragraphs": [
+          {
+            "row": 1,
+            "cell": 1,
+            "text": "",
+            "keep_next": true,
+            "keep_next_first": true
+          },
+          {
+            "row": 1,
+            "cell": 2,
+            "text": "",
+            "keep_next": true,
+            "keep_next_first": true
+          },
+          {
+            "row": 1,
+            "cell": 3,
+            "text": "",
+            "keep_next": true,
+            "keep_next_first": true
+          },
+          {
+            "row": 2,
+            "cell": 1,
+            "text": "Patient",
+            "keep_next": true,
+            "keep_next_first": true
+          },
+          {
+            "row": 2,
+            "cell": 2,
+            "text": "DOB x-x-xxx",
+            "keep_next": true,
+            "keep_next_first": true
+          },
+          {
+            "row": 2,
+            "cell": 3,
+            "text": "NPI # 1234567890",
+            "keep_next": true,
+            "keep_next_first": true
+          },
+          {
+            "row": 3,
+            "cell": 1,
+            "text": "Ceftriaxone 500 mg IM once",
+            "keep_next": true,
+            "keep_next_first": true
+          },
+          {
+            "row": 4,
+            "cell": 1,
+            "text": "Disp: 1 vial",
+            "keep_next": true,
+            "keep_next_first": true
+          },
+          {
+            "row": 5,
+            "cell": 1,
+            "text": "Sig: Inject 500 mg into the muscle one time for infection",
+            "keep_next": true,
+            "keep_next_first": true
+          },
+          {
+            "row": 6,
+            "cell": 1,
+            "text": "M. S. FNP-C, CEN, TCRN",
+            "keep_next": true,
+            "keep_next_first": true
+          },
+          {
+            "row": 7,
+            "cell": 1,
+            "text": "Refill: none",
+            "keep_next": true,
+            "keep_next_first": true
+          },
+          {
+            "row": 7,
+            "cell": 2,
+            "text": "DEA number on file with pharmacy",
+            "keep_next": true,
+            "keep_next_first": true
+          }
+        ],
+        "post_table_paragraphs": [
+          {
+            "text": "",
+            "keep_next": true
+          },
+          {
+            "text": "Pharmacologic prose.",
+            "keep_next": false
+          }
+        ],
+        "first_row_is_header": true,
+        "cant_split_count": 0
+      }
+    }
+  },
   "word_save_guard": {
     "measured_on": "2026-09-01",
     "word_version": "16.0",

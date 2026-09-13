@@ -336,7 +336,7 @@ ROWS = {
     SCAFFOLDING_PHRASE: "style.md 1a - no scaffolding language, and NKDA over the expansion",
     DIAGNOSIS_ALL_BOLD: "style.md 1a - Most Likely is not bold",
     SIGNATURE_DATE_SPLIT: "style.md 1a - the signature is one line",
-    RX_TABLE_SHAPE: "style.md 8 - six rows, three columns wide",
+    RX_TABLE_SHAPE: "style.md 8 - empty first row, six rows, three columns wide",
     NO_STOP_CRITERION: "style.md 8 - a drug that continues carries its stop criterion",
     PROPOSED_HEADING: (
         "skills/practicum-case-study/SKILL.md step 8 - proposed material lives in the run directory"
@@ -886,6 +886,16 @@ def _rx_findings(sections: list[Section]) -> list[Finding]:
             continue
         for block in section.blocks:
             if block.kind != "table":
+                continue
+            if any(cell.strip() for cell in block.rows[0]):
+                findings.append(
+                    Finding(
+                        RX_TABLE_SHAPE,
+                        section.name,
+                        block.line,
+                        "first row carries text; every cell must be empty",
+                    )
+                )
                 continue
             rows = block.rows[1:]
             shape = tuple(len(row) for row in rows)

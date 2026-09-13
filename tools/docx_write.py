@@ -630,6 +630,8 @@ def para(
 def table(rows: list) -> str:
     if not rows:
         return ""
+    prescription_pad = all(not cell.strip() for cell in rows[0])
+    keep_next = "<w:keepNext/>" if prescription_pad else ""
     width = max(len(r) for r in rows)
     cell_width = 9360 // width
     grid = "".join('<w:gridCol w:w="{w}"/>'.format(w=cell_width) for _ in range(width))
@@ -649,11 +651,12 @@ def table(rows: list) -> str:
             # ``CT_TcPrBase`` is a sequence: ``tcW``, ``gridSpan``, then ``tcBorders``.
             cells.append(
                 '<w:tc><w:tcPr><w:tcW w:w="{w}" w:type="dxa"/>{g}{b}</w:tcPr>'
-                '<w:p><w:pPr><w:spacing w:line="240" w:lineRule="auto"/>{j}</w:pPr>'
+                '<w:p><w:pPr>{k}<w:spacing w:line="240" w:lineRule="auto"/>{j}</w:pPr>'
                 "{r}</w:p></w:tc>".format(
                     w=cell_width * span,
                     g='<w:gridSpan w:val="{n}"/>'.format(n=span) if span > 1 else "",
                     b=HEADER_RULE if index == 0 else "",
+                    k=keep_next,
                     j='<w:jc w:val="right"/>'
                     if len(row) > 1 and column == len(row) - 1 and span > 1
                     else "",
@@ -665,8 +668,14 @@ def table(rows: list) -> str:
     return (
         '<w:tbl><w:tblPr><w:tblStyle w:val="{s}"/>'
         '<w:tblW w:w="0" w:type="auto"/>{b}</w:tblPr>'
-        "<w:tblGrid>{g}</w:tblGrid>{rows}</w:tbl><w:p/>"
-    ).format(s=TABLE_STYLE_ID, b=BORDERS, g=grid, rows="".join(body))
+        "<w:tblGrid>{g}</w:tblGrid>{rows}</w:tbl>{spacer}"
+    ).format(
+        s=TABLE_STYLE_ID,
+        b=BORDERS,
+        g=grid,
+        rows="".join(body),
+        spacer=("<w:p><w:pPr><w:keepNext/></w:pPr></w:p>" if prescription_pad else "<w:p/>"),
+    )
 
 
 # The two spellings of a pipe that is content rather than a cell boundary. ``&#124;`` is
