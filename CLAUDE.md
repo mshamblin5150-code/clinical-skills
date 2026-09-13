@@ -1415,8 +1415,12 @@ rather than chosen. How narrow the row is belongs to
 `tracker_publish_hook.NOT_REACHED`; this section copies none of it.
 
 The hook protocol returns exit 0 with an allow-or-deny decision in its JSON
-response. Its manual `--text` mode returns 0 when no refusing finding exists, 1
-when one does, and 2 when the input cannot be read. PHI findings remain
+response. Its manual `--command-file <path>` mode reads an exact Bash
+publication command and runs the same extraction, tracker readback, policy
+analysis, missing-body check, and AAR quotation gate as the hook. It prints
+report lines without the command text and returns 0 when no refusing finding
+exists, 1 when one does, and 2 when the command file or publication is not
+scanned. The manual mode never writes the hook marker. PHI findings remain
 advisory; the branch-scope posture follows
 [ADR 0083](docs/adr/0083-the-pre-publish-hook-grades-the-record-rather-than-the-body-and-the-branch-scope-rule-refuses-per-trigger.md).
 A clean response establishes only the verdicts reported for that run. The
