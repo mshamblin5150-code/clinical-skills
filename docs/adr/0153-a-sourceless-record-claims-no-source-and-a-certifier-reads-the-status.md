@@ -249,7 +249,9 @@ sourceless record since #231, so the tree permits *content with no provenance* a
 *provenance with no content*. This record removes the first half and deliberately does not reopen the
 second: giving a settled negative a locator is the shape #231 built the row to refuse.
 
-**Whether a believed record's restatement supports the number traced from it.** Ruling 3 decides
+**Whether a believed record's heading and restatement support the number traced from it.**
+Corrected 2026-09-13 from naming only the restatement: ADR 0208 ruling 5 requires the support limit
+to name both surfaces and records that the refutation leg owns heading agreement. Ruling 3 decides
 which records a certifier reads and asserts nothing about whether their content is true.
 
 **Whether the 48 `sourced` records carrying no `REFUTATION` are reaching drafts.** Ruling 3 leaves

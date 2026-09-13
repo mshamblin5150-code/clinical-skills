@@ -130,8 +130,8 @@ DECLARED_LIMITS = (
         EvidenceDisposition.DECLARED_READING,
     ),
     (
-        "whether a believed record's restatement supports the number traced from it",
-        "The tracing walk matches numeric tokens against claim records and never judges whether the record's restatement supports the fact the critique asserts.",
+        "whether a believed record's heading and restatement support the number traced from it",
+        "The tracing walk matches numeric tokens against claim records and never judges whether the record's heading agrees with the source or its restatement supports the fact the critique asserts; the refutation leg owns heading agreement.",
         EvidenceDisposition.BEHAVIOR,
     ),
     (

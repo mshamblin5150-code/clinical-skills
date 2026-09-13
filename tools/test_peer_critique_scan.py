@@ -378,7 +378,7 @@ class EveryBehaviorLimitHasALiveHandler(unittest.TestCase):
             "TheHeadingRowProvesPresenceAndNotAnswer.test_irrelevant_prose_under_a_required_heading_passes",
             "TheHeadingRowProvesPresenceAndNotAnswer.test_an_empty_required_heading_still_fails",
         ),
-        "whether a believed record's restatement supports the number traced from it": (
+        "whether a believed record's heading and restatement support the number traced from it": (
             "TheNumericWalkMatchesTokensAndNotMeaning.test_a_number_traced_to_an_unrelated_restatement_passes",
             "TheNumericWalkMatchesTokensAndNotMeaning.test_a_number_absent_from_every_record_still_fails",
         ),

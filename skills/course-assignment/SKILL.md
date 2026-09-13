@@ -104,7 +104,7 @@ also required for `REFUTATION: unreadable` and forbidden elsewhere. Research pro
 This **Fan-out brief** applies [standing rule 6](../../AGENTS.md). Every research and refutation
 brief first reads and applies
 [sourcing.md](../_shared/reference/sourcing.md).
-Each refutation leg attacks the reference, locator, year, bibliographic details, and restatement. It returns
+Each refutation leg attacks the reference, locator, year, bibliographic details, heading, and restatement. It returns
 `stands`, `refuted`, `paywalled`, or `unreadable` with a reason and a genuinely different second route. The
 route requirement is a local narrowing.
 

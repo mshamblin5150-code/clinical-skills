@@ -115,7 +115,7 @@ the read date, the page's stated year and where it appears, and the source's sta
 The refutation leg of this **Fan-out brief** applies [standing rule 6](../../AGENTS.md) and first
 reads the rules in
 [sourcing.md](../_shared/reference/sourcing.md) and applies them to every returned claim or negative.
-It tries to prove the reference, locator, year, bibliographic details, or restatement wrong and returns
+It tries to prove the reference, locator, year, bibliographic details, heading, or restatement wrong and returns
 `stands`, `refuted`, `paywalled`, or `unreadable` with a substantive reason. A refuted record is repaired or made
 honestly unsourced before drafting; it is never cited. The refuter also returns
 `SECOND-ROUTE: <research route> -> <refutation route>` with substantive halves that differ after

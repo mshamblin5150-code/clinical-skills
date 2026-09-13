@@ -133,8 +133,8 @@ INVOKED_PROPERTY_LIMIT = (
 DECLARED_LIMITS = (
     *CITATION_RESOLUTION_NOT_REACHED,
     (
-        "whether a believed record's restatement supports the number traced from it",
-        "The certifier reads numeric tokens and never judges whether the record's restatement supports the fact asserted in the reply.",
+        "whether a believed record's heading and restatement support the number traced from it",
+        "The certifier reads numeric tokens and never judges whether the record's heading agrees with the source or its restatement supports the fact asserted in the reply; the refutation leg owns heading agreement.",
         EvidenceDisposition.BEHAVIOR,
     ),
     UNJOINED_SOURCE_FIELDS_LIMIT,

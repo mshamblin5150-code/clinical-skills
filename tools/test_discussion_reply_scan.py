@@ -1271,7 +1271,7 @@ class EveryBehaviorLimitHasALiveHandler(unittest.TestCase):
             "ACompleteRunPasses.test_a_republished_original_element_is_not_compared",
             "ACompleteRunPasses.test_a_republished_second_year_must_match_the_claim_record",
         ),
-        "whether a believed record's restatement supports the number traced from it": (
+        "whether a believed record's heading and restatement support the number traced from it": (
             "NumbersTraceToTheRunLedger.test_numeric_identity_does_not_establish_restatement_support",
             "NumbersTraceToTheRunLedger.test_only_believed_claim_records_trace_body_numbers",
         ),

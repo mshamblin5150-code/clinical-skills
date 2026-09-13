@@ -25,3 +25,12 @@ sourceless record does not establish that a rejected source was named well enoug
 A sourced claim record may certify a value only when both `REFUTATION` and `SECOND-ROUTE` carry
 substance. If either is absent or empty, the record does not establish that the second agent's
 refutation pass ran and cannot certify a value.
+
+## A claim heading is the claim the document will make
+
+The heading is the claim the finished document will make, including any number the document will
+state. Before research it is a working statement. A heading the source does not support is corrected
+before drafting, or marked `refuted` by the refuter.
+
+A heading changed after its refutation is a new claim. It needs a fresh `REFUTATION` and
+`SECOND-ROUTE` before anything cites it or takes a number from it.
