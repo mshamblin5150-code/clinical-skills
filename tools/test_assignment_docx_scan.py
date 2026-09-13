@@ -11,6 +11,7 @@ from xml.etree import ElementTree
 import assignment_docx
 import assignment_docx_scan as scan
 import file_digest
+import run_grader
 from grader_conformance import EmptyPopulationInput, for_module
 
 
@@ -93,6 +94,52 @@ class PackageTest(unittest.TestCase):
                 document = ElementTree.fromstring(archive.read("word/document.xml"))
                 findings = scan._package(archive, scan._paragraphs(document))
         self.assertTrue(any("Reference style" in item.detail for item in findings))
+
+
+class WordRangeTest(unittest.TestCase):
+    def test_word_maximum_is_recorded_but_not_enforced(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            inputs = empty_population_input(Path(directory))
+            run = Path(inputs.argv[0])
+            artifact = Path(inputs.argv[2])
+            bar = (run / "bar.md").read_text(encoding="utf-8")
+            (run / "bar.md").write_text(
+                bar.replace("WORD-MAX: 200", "WORD-MAX: 1"),
+                encoding="utf-8",
+            )
+            parsed = run_grader.Parsed(
+                source=str(run), values={"--docx": str(artifact)}
+            )
+
+            bounded = scan.survey(scan.load(parsed))
+            (run / "bar.md").write_text(
+                bar.replace("WORD-MAX: 200", "WORD-MAX: none"),
+                encoding="utf-8",
+            )
+            unbounded = scan.survey(scan.load(parsed))
+
+        self.assertFalse(any(item.kind == scan.WORD_RANGE for item in bounded.findings))
+        self.assertFalse(any(item.kind == scan.WORD_RANGE for item in unbounded.findings))
+
+    def test_word_minimum_remains_enforced(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            inputs = empty_population_input(Path(directory))
+            run = Path(inputs.argv[0])
+            artifact = Path(inputs.argv[2])
+            bar = (run / "bar.md").read_text(encoding="utf-8")
+            (run / "bar.md").write_text(
+                bar.replace("WORD-MIN: 1", "WORD-MIN: 1000").replace(
+                    "WORD-MAX: 200", "WORD-MAX: none"
+                ),
+                encoding="utf-8",
+            )
+            parsed = run_grader.Parsed(
+                source=str(run), values={"--docx": str(artifact)}
+            )
+
+            result = scan.survey(scan.load(parsed))
+
+        self.assertTrue(any(item.kind == scan.WORD_RANGE for item in result.findings))
 
 
 def empty_population_input(root: Path) -> EmptyPopulationInput:

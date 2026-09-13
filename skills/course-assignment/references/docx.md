@@ -15,16 +15,18 @@ SIGNED: <ISO date after clinician approval>
 ARTIFACT: docx
 SUBMISSION-TYPE: file-upload
 WORD-MIN: <positive integer>
-WORD-MAX: <positive integer>
+WORD-MAX: none | <positive integer>
 REFERENCE-MIN: <positive integer>
 SOURCE-CLASSES: <one or more values separated by |>
 RECENCY-WINDOW-YEARS: <positive integer>
 ```
 
-Transcribe the assignment and syllabus language below the fields. `WORD-MIN` and `WORD-MAX` govern
-the prose body after the title page and before References; references and captions are outside that
-range. A course rule that supplies only one bound is unresolved rather than silently converted into
-the other. Show the bar to the clinician and wait for explicit confirmation before writing `SIGNED:`.
+Write one `WORD-MAX` value: the course's positive integer when the live assignment or syllabus
+states a ceiling, otherwise `none`. `WORD-MIN` governs the prose body after the title page and
+before References; references and captions are outside that count. A numeric course maximum is
+transcribed into the bar but never enforced by removing evidence-bearing prose or its qualifiers.
+When the course supplies no minimum, resolve `WORD-MIN` to a positive integer with the clinician.
+Show the bar to the clinician and wait for explicit confirmation before writing `SIGNED:`.
 Run `python tools/course_assignment_scan.py <run-directory> --bar-only`; exit 2 means the signed
 envelope or DOCX branch bar was ambiguous, incomplete, or unreadable and production stops.
 
@@ -72,7 +74,8 @@ The grader reads these rows:
 
 - `package-structure`: every required package part, native style, title metadata, running page
   field, repeating table header, caption class, and figure alt text is present.
-- `word-range`: the prose body is inside the signed inclusive range.
+- `word-range`: the prose body reaches the signed minimum. A numeric `WORD-MAX` is recorded but
+  never graded.
 - `reference-minimum`: the References section reaches the signed entry floor.
 - `reference-defect`: the unchanged shared reference reader found an APA reference defect.
 - `claim-ledger`: at least one claim record exists for a paper that makes sourced claims.
