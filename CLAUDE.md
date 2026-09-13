@@ -1073,14 +1073,20 @@ ordering.
 
 Covered by `tools/test_peer_critique_scan.py` and `tools/test_peer_critique_skill.py`.
 
-### Course assignment deck grading
+### Course assignment artifact grading
 
-`course-assignment` produces one PowerPoint deck under a signed assignment bar.
+`course-assignment` produces one PowerPoint deck or rich Word document under a discriminated signed
+bar. `course_assignment_scan.py` reads the common envelope once and dispatches to the deep deck or
+DOCX grader; direct deck commands remain accepted for existing runs.
 
 ```bash
+python tools/course_assignment_scan.py <a run directory> --artifact <the deck or DOCX>
 python tools/deck_scan.py <a run directory> --pptx <the PowerPoint deck>
 python tools/deck_render.py <a run directory> --pptx <the PowerPoint deck>
-python tools/deck_scan.py <a run directory> --pptx <the PowerPoint deck> --submission <deck stem>
+python tools/assignment_docx.py <the assignment JSON> <the Word document> [--force]
+python tools/assignment_docx_scan.py <a run directory> --docx <the Word document>
+python tools/assignment_docx_render.py <a run directory> --docx <the Word document>
+python tools/course_assignment_scan.py <a run directory> --artifact <the deck or DOCX> --submission <artifact stem>
 ```
 
 The package scan owns its mechanical rows in `deck_scan.ROWS` and its reader-owned coverage
@@ -1098,7 +1104,17 @@ every page is readable. If PowerPoint export is unavailable, `--clinician-export
 clinician's export through the same raster and retention checks. The complete route, escalation,
 and visual comparison obligations live in `skills/course-assignment/SKILL.md`.
 
-Covered by `tools/test_deck_scan.py`, `tools/test_deck_render.py`, and
+The DOCX producer owns configurable title-page metadata, native styles, a command matrix, and an
+accessible system-relationship figure. Its grader owns `assignment_docx_scan.ROWS`; its renderer
+asks a newly owned Word process for PDF and then XPS, retains the page-faithful export and page
+pixels, and binds the highest pass to the canonical raw `.docx` through its SHA-256. The complete
+DOCX production, visual-reading, two-gate Canvas, and by-eye limits live in
+`skills/course-assignment/references/docx.md`; that branch binds the reader-owned boundary in
+`assignment_docx_scan.DECLARED_LIMITS` rather than copying it here.
+
+Covered by `tools/test_deck_scan.py`, `tools/test_deck_render.py`,
+`tools/test_assignment_bar.py`, `tools/test_assignment_docx.py`,
+`tools/test_assignment_docx_render.py`, `tools/test_assignment_submission.py`, and
 `tools/test_course_assignment_skill.py`.
 
 ### Discussion reply grading

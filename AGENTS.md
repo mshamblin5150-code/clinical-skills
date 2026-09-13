@@ -15,7 +15,7 @@ Agent-agnostic skills for a nurse practitioner student's written work — clinic
 | practicum-case-study | [skills/practicum-case-study/SKILL.md](skills/practicum-case-study/SKILL.md) | A graded course case study needs writing up from faculty material, and submitting as a `.docx` |
 | discussion-post | [skills/discussion-post/SKILL.md](skills/discussion-post/SKILL.md) | One live LMS board needs a researched, evidence-backed initial post, except when its prompt asks for a worked clinical case |
 | discussion-reply | [skills/discussion-reply/SKILL.md](skills/discussion-reply/SKILL.md) | One live LMS discussion topic needs ranking, evidence-backed classmate replies, and explicit approval before each post |
-| course-assignment | [skills/course-assignment/SKILL.md](skills/course-assignment/SKILL.md) | A live course assignment declares its own artifact form; currently the supported artifact is a graded PowerPoint deck |
+| course-assignment | [skills/course-assignment/SKILL.md](skills/course-assignment/SKILL.md) | A live course assignment declares a graded PowerPoint deck or rich Word document |
 | aar | [skills/aar/SKILL.md](skills/aar/SKILL.md) | A scoped clinical skill has reached a submission and its mandatory after-action review must classify and land observed corrections |
 | peer-critique | [skills/peer-critique/SKILL.md](skills/peer-critique/SKILL.md) | A classmate's case study needs the graded eight-heading peer clinical critique written against it |
 
@@ -69,12 +69,15 @@ or the sheet mechanically verified. `research_ledger.py` widens its evidence-mem
 the current dump to that accumulated manifest population and applies the signed publisher-review
 window, waived only by the account answer in the profile.
 
-**`course-assignment` depends on committed graders.** `tools/deck_scan.py` grades its signed
-container and figure-record rows, `tools/deck_render.py` retains PowerPoint's page-faithful export and
-slide pixels, `tools/render_scan.py` grades final-pass coverage, and `tools/research_ledger.py`
-grades the per-run source-class and recency policy. After the install has been tried, a consumer without those commands can walk the
-deck rows and the documented research-record contract in
-[course-assignment](skills/course-assignment/SKILL.md), but cannot call either run mechanically
+**`course-assignment` depends on committed artifact adapters and graders.**
+`tools/course_assignment_scan.py` dispatches the signed artifact to `tools/deck_scan.py` or
+`tools/assignment_docx_scan.py`. `tools/deck_render.py` retains PowerPoint's page-faithful export
+and slide pixels; `tools/assignment_docx.py` produces the rich Word package and
+`tools/assignment_docx_render.py` retains Word's page-faithful export and page pixels.
+`tools/render_scan.py` grades final-pass coverage, and `tools/research_ledger.py` grades the per-run
+source-class and recency policy. After the install has been tried, a consumer without those
+commands can walk the selected branch's rows and the documented research-record contract in
+[course-assignment](skills/course-assignment/SKILL.md), but cannot call the run mechanically
 verified.
 
 **Run `/setup-clinical-skills` before the others.** Everything about *which* clinician — courses, hour targets, preceptors, sites, payer distribution, and which patient is which — is per-account and lives in `scratch/`, gitignored. `reference/medatrax-fields.md` holds how Medatrax behaves; the profile holds who you are. Where they disagree, the profile wins.

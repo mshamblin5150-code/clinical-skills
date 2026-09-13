@@ -13,13 +13,14 @@ from __future__ import annotations
 import re
 import sys
 import zipfile
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date
 from pathlib import Path
 from xml.etree import ElementTree
 
 import run_grader
 import aar_scan
+import assignment_bar
 import heading_read
 import research_ledger
 import file_digest
@@ -223,7 +224,10 @@ def _integer(fields: dict[str, str], name: str) -> int:
     return int(value)
 
 
-def _read_bar(text: str) -> Bar:
+def _read_bar(
+    text: str, envelope: assignment_bar.Envelope | None = None
+) -> Bar:
+    envelope = envelope or assignment_bar.parse(text)
     matches = tuple(FIELD.finditer(text))
     fields = {match.group("name"): match.group("value").strip() for match in matches}
     for name in REQUIRED_BAR_FIELDS:
@@ -236,7 +240,7 @@ def _read_bar(text: str) -> Bar:
         date.fromisoformat(fields["SIGNED"])
     except ValueError as failure:
         raise run_grader.SourceError("bar.md SIGNED must be an ISO date") from failure
-    artifact = fields["ARTIFACT"].casefold()
+    artifact = envelope.artifact
     if artifact not in ACCEPTED_ARTIFACTS:
         raise run_grader.SourceError(
             "bar.md ARTIFACT must be deck; deck is the only accepted value"
@@ -251,6 +255,17 @@ def _read_bar(text: str) -> Bar:
         _integer(fields, "FONT-POINTS"),
         direction,
     )
+
+
+def validate_bar(envelope: assignment_bar.Envelope) -> None:
+    """Validate the deck branch fields without requiring a produced artifact."""
+
+    text = "\n".join(
+        f"{name}: {value}"
+        for name, value in envelope.fields.items()
+        for _ in range(envelope.counts.get(name, 0))
+    )
+    _read_bar(text, envelope)
 
 
 def _text(node: ElementTree.Element) -> str:
@@ -325,7 +340,10 @@ def _parts(archive: zipfile.ZipFile, pattern: re.Pattern[str]) -> tuple[tuple[in
     return tuple(sorted(found))
 
 
-def load(parsed: run_grader.Parsed) -> Source:
+def load(
+    parsed: run_grader.Parsed,
+    envelope: assignment_bar.Envelope | None = None,
+) -> Source:
     root = Path(parsed.source)
     deck_value = parsed.value("--pptx")
     if not root.is_dir():
@@ -340,7 +358,7 @@ def load(parsed: run_grader.Parsed) -> Source:
     if not deck.is_file():
         raise run_grader.SourceError(f"no PowerPoint file at {deck}")
     try:
-        bar = _read_bar(bar_path.read_text(encoding="utf-8"))
+        bar = _read_bar(bar_path.read_text(encoding="utf-8"), envelope)
         claims = claims_path.read_text(encoding="utf-8")
         deck_bytes = deck.read_bytes()
         heading_read_path = root / "heading-read.md"
@@ -693,8 +711,15 @@ GRADER = run_grader.Grader(
 )
 
 
-def main(argv: list[str]) -> int:
-    return run_grader.run(GRADER, argv)
+def main(
+    argv: list[str], envelope: assignment_bar.Envelope | None = None
+) -> int:
+    grader = (
+        GRADER
+        if envelope is None
+        else replace(GRADER, load=lambda parsed: load(parsed, envelope))
+    )
+    return run_grader.run(grader, argv)
 
 
 if __name__ == "__main__":

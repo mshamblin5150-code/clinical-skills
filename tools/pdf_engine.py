@@ -66,6 +66,7 @@ ROLES = {
     "day_file_text": (PRIMARY_SOURCE, "writes complete day-file text into the PHI corpus"),
     "case_study_render": (PRIMARY_SOURCE, "produces retained case-study page evidence"),
     "deck_render": (PRIMARY_SOURCE, "produces retained slide evidence"),
+    "assignment_docx_render": (PRIMARY_SOURCE, "produces retained DOCX page evidence"),
     "discussion_post_render": (PRIMARY_SOURCE, "produces retained initial-post page evidence"),
     "guidelines_extract": (PRIMARY_SOURCE, "reads the guideline corpus"),
     "split_census": (PRIMARY_SOURCE, "reads the corpus split census"),

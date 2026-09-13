@@ -59,6 +59,7 @@ WALK_CEILING = DECLARED_LIMITS[0][1]
 TEXT_READ_WALK_CEILING = DECLARED_LIMITS[1][1]
 
 MEMBERS: set[str] = {
+    "assignment_docx_scan",
     "anchor_scan",
     "aar_scan",
     "block_scan",
@@ -99,6 +100,12 @@ class EmptyPopulationDeclaration:
 
 EMPTY_POPULATION_POSTURES: Mapping[str, EmptyPopulationDeclaration] = MappingProxyType(
     {
+        "assignment_docx_scan": EmptyPopulationDeclaration(
+            "claim records",
+            EmptyPopulationPosture.FINDING,
+            "claim-ledger",
+            "a sourced academic document owes a claim record independently of its package shape",
+        ),
         "aar_scan": EmptyPopulationDeclaration(
             "the submission's review record",
             EmptyPopulationPosture.FINDING,
@@ -275,6 +282,7 @@ UNDECODABLE_BYTE_POSTURES: Mapping[str, Mapping[str, str]] = MappingProxyType(
         ),
         "refuse": MappingProxyType(
             {
+                "assignment_docx_scan": "the signed bar, claim ledger, and canonical DOCX are required primary sources for the Word-artifact grade",
                 "deck_scan": "the signed bar and claim ledger are required primary sources for the deck grade",
                 "discussion_post_scan": "the signed run artifacts are required primary sources for the post grade",
                 "discussion_reply_scan": "the roster and signed run artifacts are required primary sources for the reply grade",

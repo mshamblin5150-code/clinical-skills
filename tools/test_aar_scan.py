@@ -1864,6 +1864,12 @@ class EveryScopedCompletionGraderExpectsTheReview(unittest.TestCase):
         self.assertIn("using the identifier exactly as it follows `## ENTRY:`", skill)
         self.assertIn("whose text the extractor wrote rather than copied", skill)
 
+    def test_course_assignment_completion_routes_through_its_artifact_dispatcher(self) -> None:
+        self.assertEqual(
+            "course_assignment_scan",
+            aar_scan.COMPLETION_GRADERS["course-assignment"],
+        )
+
     def test_every_scoped_skill_maps_to_a_grader_that_expects_the_fixed_row(self) -> None:
         self.assertEqual(set(aar_scan.COMPLETION_GRADERS), set(aar_scan.SCOPED_SKILLS))
         for skill, module_name in aar_scan.COMPLETION_GRADERS.items():

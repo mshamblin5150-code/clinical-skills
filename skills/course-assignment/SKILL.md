@@ -1,15 +1,17 @@
 ---
 name: course-assignment
-description: Read one live course assignment, sign its artifact-specific bar, research and produce the requested artifact, independently grade and render it, and submit only after clinician approval. The only supported artifact is a PowerPoint deck.
+description: Read one live course assignment, sign its deck or DOCX bar, research and produce the requested artifact, independently grade and render it, and submit only after clinician approval.
 ---
 
 # Course assignment
 
 Use this skill for a graded course assignment whose prompt declares the artifact it wants and
-which is not already owned by `discussion-post` or `practicum-case-study`. On day one the only
-accepted artifact is a PowerPoint deck: write `ARTIFACT: deck`. The deck is the only accepted value;
-do not invent `paper`, a dispatcher branch, or a second grader. The authoring agent produces the
-`.pptx` and any images. This repository reads and grades the file; it does not write PowerPoint.
+which is not already owned by `discussion-post` or `practicum-case-study`. The accepted signed
+artifact values are `ARTIFACT: deck` and `ARTIFACT: docx`; an ambiguous, duplicate, or different
+value stops before production. For `docx`, read and follow the complete
+[DOCX branch](references/docx.md). The deck branch remains below. The common dispatcher is
+`tools/course_assignment_scan.py`; it reads the signed artifact once and hands the run to the
+matching deep grader.
 
 The clinician signs the bar before research or production, reads the finished deck, and gives the
 explicit go-ahead before upload. Permission to read, research, produce, grade, or render is not
@@ -34,8 +36,9 @@ scratch/runs/<course>-<module>-course-assignment/
     render/pass-N/
 ```
 
-Each sitting writes a new assignment snapshot. Never overwrite an earlier one. The finished deck
-goes only to `output/course-assignments/<course>-<module>-course-assignment-<date>.pptx`. Images used
+Each sitting writes a new assignment snapshot. Never overwrite an earlier one. The finished artifact
+goes only to `output/course-assignments/<course>-<module>-course-assignment-<date>.pptx` or the same
+stem ending in `.docx`, according to the signed branch. Images used
 to author it stay in the run directory unless they are already durable public assets. Parallel
 research, refutation, adversarial, and checking contexts each receive a new run-unique private
 path. They return findings to the orchestrator, which alone writes the canonical run files, and
@@ -321,8 +324,8 @@ the posted reading, and the after-action review. Keep the signed bar, snapshots,
 adversarial result, Composer files when present, and retained render passes together under the run directory. Remove every
 temporary per-context path; if cleanup fails, report the exact remaining path.
 
-After `/AAR` is clean, run the completion grader with that same deck stem:
+After `/AAR` is clean, run the artifact-aware completion grader with that same deck stem:
 
 ```bash
-python tools/deck_scan.py <run-directory> --pptx <deck> --submission <deck-stem>
+python tools/course_assignment_scan.py <run-directory> --artifact <deck> --submission <deck-stem>
 ```

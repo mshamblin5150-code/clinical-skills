@@ -62,7 +62,7 @@ COMPLETION_GRADERS: Mapping[str, str] = MappingProxyType(
     {
         "batch-shift": "filled_vitals_census",
         "clinical-note": "differential_scan",
-        "course-assignment": "deck_scan",
+        "course-assignment": "course_assignment_scan",
         "discussion-post": "discussion_post_scan",
         "discussion-reply": "discussion_reply_scan",
         "icd10-cpt": "specificity_scan",

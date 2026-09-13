@@ -6,11 +6,13 @@ import unittest
 from pathlib import Path
 
 import deck_scan
+import assignment_docx_scan
 from prose_bind import NAMING, bind
 
 
 ROOT = Path(__file__).resolve().parents[1]
 SKILL = ROOT / "skills" / "course-assignment" / "SKILL.md"
+DOCX_BRANCH = ROOT / "skills" / "course-assignment" / "references" / "docx.md"
 AGENTS = ROOT / "AGENTS.md"
 README = ROOT / "README.md"
 CASE_STUDY = ROOT / "skills" / "practicum-case-study" / "SKILL.md"
@@ -21,12 +23,14 @@ class TheCourseAssignmentWorkflow(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.skill = SKILL.read_text(encoding="utf-8")
+        cls.docx_branch = DOCX_BRANCH.read_text(encoding="utf-8")
 
-    def test_the_skill_is_indexed_and_accepts_only_a_deck(self):
+    def test_the_skill_is_indexed_and_dispatches_only_signed_deck_or_docx_artifacts(self):
         self.assertIn("| course-assignment |", AGENTS.read_text(encoding="utf-8"))
         self.assertIn("course-assignment", README.read_text(encoding="utf-8"))
         self.assertIn("ARTIFACT: deck", self.skill)
-        self.assertIn("deck is the only accepted value", self.skill)
+        self.assertIn("ARTIFACT: docx", self.skill)
+        self.assertIn("references/docx.md", self.skill)
         self.assertNotIn("ARTIFACT: paper", self.skill)
 
     def test_the_signed_bar_names_every_required_field(self):
@@ -85,6 +89,40 @@ class TheCourseAssignmentWorkflow(unittest.TestCase):
                 self.assertIn(f"`{limit.key}`", self.skill)
         limits = tuple(limit.limit for limit in deck_scan.DECLARED_LIMITS)
         self.assertEqual((), bind(limits, self.skill, mode=NAMING))
+
+    def test_the_docx_branch_writes_out_its_bar_grader_render_and_two_gates(self):
+        for field in assignment_docx_scan.REQUIRED_BAR_FIELDS:
+            with self.subTest(field=field):
+                self.assertIn(field + ":", self.docx_branch)
+        for row in assignment_docx_scan.ROWS:
+            with self.subTest(row=row):
+                self.assertIn(f"`{row}`", self.docx_branch)
+        for limit in assignment_docx_scan.DECLARED_LIMITS:
+            with self.subTest(limit=limit.key):
+                self.assertIn(f"`{limit.key}`", self.docx_branch)
+        self.assertEqual(
+            (),
+            bind(
+                tuple(limit.limit for limit in assignment_docx_scan.DECLARED_LIMITS),
+                self.docx_branch,
+                mode=NAMING,
+            ),
+        )
+        for command in (
+            "assignment_docx.py",
+            "assignment_docx_scan.py",
+            "assignment_docx_render.py",
+            "render_scan.py",
+            "course_assignment_scan.py",
+        ):
+            self.assertIn(command, self.docx_branch)
+        self.assertIn("Gate 1", self.docx_branch)
+        self.assertIn("Gate 2", self.docx_branch)
+        self.assertIn("assignment_submission.stage", self.docx_branch)
+        self.assertIn("assignment_submission.submit_is_authorized", self.docx_branch)
+        self.assertIn("Submit Assignment", self.docx_branch)
+        self.assertIn("assignment-docx.sha256", self.docx_branch)
+        self.assertIn("the after-action review: clean", self.docx_branch)
 
 
 class ExistingLedgerConsumersSignTheirPolicy(unittest.TestCase):
