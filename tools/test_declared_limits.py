@@ -40,6 +40,7 @@ NO_LIMITS = {
     "corpus_census": "a corpus counter whose reported population is named by its command output",
     "coursework_run": "shared run-directory naming and validation helpers, not an independent grader",
     "deck_render": "the renderer produces retained evidence and does not grade its coverage",
+    "file_digest": "a raw-byte fingerprint adapter with no independent coverage claim",
     "discussion_post_render": "the renderer formats already graded discussion-post content",
     "docx_read": "a document-reading adapter with no independent completeness claim",
     "docx_word_probe": "a Word automation probe that reports only the operation it performs",

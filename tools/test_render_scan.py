@@ -231,16 +231,6 @@ class DeclaredBehaviorBoundariesRemainOpen(unittest.TestCase):
 
         self.assertEqual(0, status)
 
-    def test_a_complete_pass_beside_a_different_document_is_counted(self):
-        with tempfile.TemporaryDirectory() as temp:
-            run = Run(Path(temp))
-            (run.root / "case-study.docx").write_bytes(b"different document bytes")
-            run.add_pass(1, pages=1, pixels=1)
-            status, _, _ = run.grade()
-
-        self.assertEqual(0, status)
-
-
 class AMeasuredFinalPageCountMismatchIsAFinding(unittest.TestCase):
     def test_fewer_pixels_than_exported_pages_exits_one(self):
         with tempfile.TemporaryDirectory() as temp:

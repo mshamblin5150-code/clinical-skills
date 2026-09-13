@@ -30,6 +30,7 @@ the arguments for the boundaries stay at the code points that create them.
 
     ## CHECK: differential ordering
     VERDICT: defect
+    DRAFT: <SHA-256 of the output Markdown dispatched to this reader>
     FINDINGS: The differential's 1. is appendicitis, and the intake gives a
         patient of childbearing age with pelvic pain and no documented hCG. The
         pregnancy-related emergency is at 4 and has to be at 1 until the hCG is
@@ -169,6 +170,8 @@ from typing import NamedTuple
 
 import run_grader
 import render_pass
+import file_digest
+import repo_root
 from run_grader import NOT_GRADED
 import aar_scan
 
@@ -225,8 +228,13 @@ DECLARED_LIMITS = (
         EvidenceDisposition.DECLARED_READING,
     ),
     DeclaredLimit(
-        "render-document-bytes-unbound",
-        "No retained pass or rendered record is bound to the document's bytes.",
+        "clinician-pdf-bytes-unbound",
+        "The clinician's PDF is not tied to the Word document's bytes.",
+        EvidenceDisposition.DECLARED_READING,
+    ),
+    DeclaredLimit(
+        "record-inputs-beyond-draft-unbound",
+        "A check record is bound to the draft and not to claims.md or evidence.txt.",
         EvidenceDisposition.DECLARED_READING,
     ),
 )
@@ -237,7 +245,7 @@ NOT_REACHED = tuple(row.limit for row in DECLARED_LIMITS)
 # ``CLAIM`` and its reason.
 CHECK = re.compile(r"(?mi)^[ \t]*#+[ \t]*CHECK[ \t]*:[ \t]*(.*?)[ \t]*$")
 FIELD = re.compile(
-    r"(?mi)^[ \t]*(VERDICT|FINDINGS|SOURCE|PASS|PAGES|UNSEEN)[ \t]*:[ \t]*(.*?)[ \t]*$"
+    r"(?mi)^[ \t]*(VERDICT|FINDINGS|DRAFT|SOURCE|PASS|PAGES|UNSEEN)[ \t]*:[ \t]*(.*?)[ \t]*$"
 )
 POSITIVE_INTEGER = re.compile(r"[1-9][0-9]*", re.ASCII)
 RENDER_SOURCES = frozenset({"word-pdf", "word-xps", "clinician"})
@@ -356,6 +364,8 @@ UNEXPECTED_FIELD = "unexpected-field"
 DUPLICATE_FIELD = "duplicate-field"
 INVALID_RENDERED_RECORD = "invalid-rendered-record"
 RENDER_PASS_MISMATCH = "render-pass-mismatch"
+DRAFT_FINGERPRINT_MISMATCH = "draft-fingerprint-mismatch"
+RENDER_FINGERPRINT_MISMATCH = "render-fingerprint-mismatch"
 
 # Which ruling each row belongs to, so a reader knows which ticket to go and read.
 # **Spelled out rather than built from ``KINDS``**, and that is the whole of what
@@ -375,6 +385,8 @@ ROWS = {
     DUPLICATE_FIELD: "#866",
     INVALID_RENDERED_RECORD: "#866",
     RENDER_PASS_MISMATCH: "#866",
+    DRAFT_FINGERPRINT_MISMATCH: "#1020",
+    RENDER_FINGERPRINT_MISMATCH: "#1020",
 }
 KINDS = tuple(ROWS)
 
@@ -586,7 +598,7 @@ def record_findings(record: Record) -> list[Finding]:
     found: list[Finding] = []
     check = record.check
     rendered = normalize(check) == normalize("the rendered document")
-    allowed = {"VERDICT", "FINDINGS"}
+    allowed = {"VERDICT", "FINDINGS", "DRAFT"}
     if rendered:
         allowed.update({"SOURCE", "PASS"})
     for name, count in record.counts.items():
@@ -747,20 +759,67 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
 
 
 @dataclass(frozen=True)
-class Source:
+class BoundChecksSource:
     path: Path
     records: tuple[Record, ...]
+    document: Path
+    document_digest: str
 
 
-def _load(parsed: run_grader.Parsed) -> Source:
+def _submission_document(submission: str) -> Path:
+    root = repo_root.output_root()
+    matches = tuple(root.rglob(f"{submission}.md")) if root.is_dir() else ()
+    if len(matches) != 1:
+        detail = "no" if not matches else "more than one"
+        raise run_grader.SourceError(
+            f"{detail} output Markdown has the submission stem {submission}"
+        )
+    return matches[0]
+
+
+def _load(parsed: run_grader.Parsed) -> BoundChecksSource:
     path = Path(parsed.source)
     if not path.is_file():
         raise run_grader.SourceError(f"no checks file named {path.name}")
     text = path.read_text(encoding="utf-8", errors="replace")
-    return Source(path, tuple(read_records(text)))
+    submission = parsed.value("--submission")
+    document_value = parsed.value("--document")
+    if submission is None and document_value is None:
+        raise run_grader.SourceError("--document is required without --submission")
+    document = (
+        _submission_document(submission)
+        if submission is not None
+        else Path(document_value or "")
+    )
+    if not document.is_file():
+        raise run_grader.SourceError(f"no output Markdown named {document.name}")
+    try:
+        digest = file_digest.sha256(document)
+    except OSError as failure:
+        raise run_grader.SourceError(
+            f"could not fingerprint output Markdown {document.name}: {failure}"
+        ) from failure
+    return BoundChecksSource(path, tuple(read_records(text)), document, digest)
 
 
-def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
+def _add_findings(scan: Scan, extra: list[Finding]) -> Scan:
+    if not extra:
+        return scan
+    findings = scan.findings + tuple(extra)
+    return replace(
+        scan,
+        counts=tuple(
+            (kind, sum(1 for finding in findings if finding.kind == kind))
+            for kind in KINDS
+        ),
+        failing_checks=len({normalize(finding.check) for finding in findings}),
+        findings=findings,
+    )
+
+
+def _grade(
+    source: BoundChecksSource, _parsed: run_grader.Parsed
+) -> run_grader.Grade[Scan]:
     scan = survey(list(source.records))
     if not source.records:
         # No record was parsed, so no row was applied. Keep the report's shape
@@ -773,8 +832,8 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
             findings=(),
         )
     submission = _parsed.value("--submission")
-    rendered_report = f"the rendered pass: {NOT_GRADED} - --submission was not supplied"
-    if submission is not None and source.records:
+    rendered_report = f"the rendered pass: {NOT_GRADED} - no check records were read"
+    if source.records:
         passes = render_pass.read_passes(source.path.parent / "render")
         extra: list[Finding] = []
         rendered = next(
@@ -801,20 +860,27 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
                     "PASS does not name the highest retained pass",
                 )
             )
-        if extra:
-            findings = scan.findings + tuple(extra)
-            scan = replace(
-                scan,
-                counts=tuple(
-                    (
-                        kind,
-                        sum(1 for finding in findings if finding.kind == kind),
+        if passes:
+            fingerprint = passes[-1][1] / "case-study-draft.sha256"
+            retained_digest = file_digest.recorded_sha256(fingerprint)
+            if retained_digest != source.document_digest:
+                extra.append(
+                    Finding(
+                        RENDER_FINGERPRINT_MISMATCH,
+                        "the rendered document",
+                        "highest retained pass has no matching draft fingerprint; re-render into a new pass",
                     )
-                    for kind in KINDS
-                ),
-                failing_checks=len({normalize(finding.check) for finding in findings}),
-                findings=findings,
-            )
+                )
+        for record in source.records:
+            if record.value("DRAFT") != source.document_digest:
+                extra.append(
+                    Finding(
+                        DRAFT_FINGERPRINT_MISMATCH,
+                        record.check,
+                        "DRAFT is missing or differs from the output Markdown; re-run this check",
+                    )
+                )
+        scan = _add_findings(scan, extra)
         rendered_report = f"the rendered pass: {'finding' if extra else 'clean'}"
     diagnostics: list[str] = []
     if not source.records:
@@ -840,9 +906,10 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
 
 
 GRADER = run_grader.Grader(
-    usage="usage: checks_ledger.py <a checks file> [--show] [--submission <key>]",
+    usage="usage: checks_ledger.py <a checks file> [--show] [--document <output Markdown>] [--submission <key>]",
     options=(
         run_grader.Option("--show"),
+        run_grader.Option("--document", takes_value=True, missing_value="--document needs an output Markdown", repeatable=False),
         run_grader.Option("--submission", takes_value=True, missing_value="--submission needs a key", repeatable=False),
     ),
     load=_load,

@@ -8,7 +8,6 @@ The complete coverage boundary is ``DECLARED_LIMITS``.
 from __future__ import annotations
 
 import argparse
-import hashlib
 import os
 import sys
 import tempfile
@@ -19,6 +18,7 @@ from console_codec import require_python_floor, use_utf8
 import page_image
 import page_text
 import repo_root
+import file_digest
 
 
 DAY_FILE_DPI = 140
@@ -44,14 +44,6 @@ def parser() -> argparse.ArgumentParser:
     command.add_argument("--date", required=True, type=date.fromisoformat)
     command.add_argument("--force", action="store_true")
     return command
-
-
-def _digest(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as stream:
-        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
 
 
 def _atomic_write(path: Path, payload: bytes) -> None:
@@ -88,7 +80,7 @@ def main(argv: list[str] | None = None) -> int:
     target = scratch / "day-file-text" / f"{source.stem}.txt"
 
     try:
-        source_hash = _digest(source)
+        source_hash = file_digest.sha256(source)
     except OSError:
         print(f"Could not read source document: {source}", file=sys.stderr)
         return 2

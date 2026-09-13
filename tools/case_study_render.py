@@ -17,9 +17,12 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import zipfile
 from pathlib import Path
 
 from console_codec import require_python_floor, use_utf8
+import docx_write
+import file_digest
 import office_process
 import page_image
 import pdf_engine
@@ -30,6 +33,7 @@ RASTER_DPI = page_image.RASTER_DPI
 # This bound is uncalibrated. It is a safety stop, not a timing measurement,
 # and reaching it is terminal for automation at this site.
 EXPORT_TIMEOUT_SECONDS = 20
+FINGERPRINT_FILE = "case-study-draft.sha256"
 
 
 class RenderError(Exception):
@@ -38,6 +42,36 @@ class RenderError(Exception):
 
 class ExportBoundReached(RenderError):
     pass
+
+
+def _matching_markdown(docx: Path) -> tuple[Path, str]:
+    markdown = docx.with_suffix(".md")
+    if not markdown.is_file():
+        raise RenderError(f"no Markdown source beside {docx.name}")
+    try:
+        markdown_bytes = markdown.read_bytes()
+        expected = docx_write.parts(markdown_bytes.decode("utf-8"))
+        with zipfile.ZipFile(docx) as archive:
+            actual_names = set(archive.namelist())
+            for name in sorted(set(expected) | actual_names):
+                payload = expected.get(name)
+                expected_bytes = (
+                    payload.encode("utf-8") if isinstance(payload, str) else payload
+                )
+                if (
+                    name not in expected
+                    or name not in actual_names
+                    or archive.read(name) != expected_bytes
+                ):
+                    raise RenderError(
+                        f"{docx.name} differs from its Markdown at {name}; "
+                        "recover the edit into the Markdown and re-write the Word file"
+                    )
+    except (OSError, UnicodeError, zipfile.BadZipFile, KeyError) as failure:
+        raise RenderError(
+            f"could not compare {docx.name} with its Markdown: {failure}"
+        ) from failure
+    return markdown, file_digest.sha256_bytes(markdown_bytes)
 
 
 def _word_attempt(docx: Path, output_directory: Path, mode: str) -> tuple[str, Path]:
@@ -122,6 +156,7 @@ def render(
         raise RenderError(f"no run directory at {run}")
     if not docx.is_file():
         raise RenderError(f"no rendered document at {docx}")
+    _, markdown_digest = _matching_markdown(docx)
     if clinician_export is not None and (
         clinician_export.suffix.lower() not in {".pdf", ".xps"}
         or not clinician_export.is_file()
@@ -149,6 +184,9 @@ def render(
             raise RenderError(
                 f"rasterizer retained {len(retained)} page image(s) for {pages} pages"
             )
+        file_digest.write_recorded_sha256(
+            staging / FINGERPRINT_FILE, markdown_digest
+        )
         return source, pages
 
     destination, (source, pages) = render_pass.retain_staged_pass(render_root, build)

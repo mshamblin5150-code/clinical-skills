@@ -19,6 +19,7 @@ from types import SimpleNamespace
 from unittest import mock
 
 import deck_render as render
+import file_digest
 
 
 class FakePage:
@@ -87,11 +88,15 @@ class TheDeckRenderCommand(unittest.TestCase):
             stderr="",
         )
 
-    def run_command(self, *extra: str, pymupdf=None):
+    def run_command(self, *extra: str, pymupdf=None, exporter=None):
         stdout, stderr = io.StringIO(), io.StringIO()
         with (
             mock.patch.dict(sys.modules, {"pymupdf": pymupdf or FakePyMuPDF()}),
-            mock.patch.object(render.subprocess, "run", side_effect=self.powerpoint_export),
+            mock.patch.object(
+                render.subprocess,
+                "run",
+                side_effect=exporter or self.powerpoint_export,
+            ),
             contextlib.redirect_stdout(stdout),
             contextlib.redirect_stderr(stderr),
         ):
@@ -109,9 +114,31 @@ class TheDeckRenderCommand(unittest.TestCase):
         self.assertIn("render/pass-1", first_out.replace("\\", "/"))
         self.assertIn("render/pass-2", second_out.replace("\\", "/"))
         self.assertEqual(
-            ["deck.pdf", "slide-1.png", "slide-2.png"],
+            ["deck.pdf", "deck.sha256", "slide-1.png", "slide-2.png"],
             sorted(path.name for path in (self.root / "render" / "pass-1").iterdir()),
         )
+
+    def test_each_pass_carries_the_fingerprint_of_the_rendered_deck(self):
+        status, _, _ = self.run_command()
+
+        fingerprint = self.root / "render" / "pass-1" / "deck.sha256"
+        self.assertEqual(0, status)
+        self.assertRegex(fingerprint.read_text(encoding="ascii"), r"^[0-9a-f]{64}\n$")
+
+    def test_a_deck_change_during_export_does_not_relabel_the_old_render(self):
+        original_digest = file_digest.sha256(self.deck)
+
+        def export_then_change(command, **kwargs):
+            result = self.powerpoint_export(command, **kwargs)
+            with zipfile.ZipFile(self.deck, "w") as archive:
+                archive.writestr("ppt/slides/slide1.xml", "replacement")
+            return result
+
+        status, _, _ = self.run_command(exporter=export_then_change)
+
+        recorded = self.root / "render" / "pass-1" / "deck.sha256"
+        self.assertEqual(0, status)
+        self.assertEqual(original_digest, recorded.read_text(encoding="ascii").strip())
 
     def test_a_gap_and_non_pass_names_allocate_above_the_highest_pass(self):
         render_root = self.root / "render"

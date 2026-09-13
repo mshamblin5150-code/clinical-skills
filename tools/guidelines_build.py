@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import artifact_lock
 import artifact_provenance
+import file_digest
 import hashlib
 import importlib.metadata
 import json
@@ -77,15 +78,6 @@ def default_catalog_root() -> Path:
     return main_repo_root().parent / "guidelines-builds"
 
 
-def _raw_file_identity(path: Path) -> str:
-    """Hash corpus and built-artifact bytes without text normalization."""
-    digest = hashlib.sha256()
-    with path.open("rb") as stream:
-        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
 def _files(root: Path, pattern: str = "*") -> tuple[dict[str, str | int], ...]:
     rows = []
     for path in sorted(root.rglob(pattern), key=lambda item: item.relative_to(root).as_posix()):
@@ -94,7 +86,7 @@ def _files(root: Path, pattern: str = "*") -> tuple[dict[str, str | int], ...]:
         rows.append(
             {
                 "path": path.relative_to(root).as_posix(),
-                "sha256": _raw_file_identity(path),
+                "sha256": file_digest.sha256(path),
                 "bytes": path.stat().st_size,
             }
         )

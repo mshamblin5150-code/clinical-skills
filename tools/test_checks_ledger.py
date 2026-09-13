@@ -24,7 +24,9 @@ table.
 
 from __future__ import annotations
 
+import contextlib
 import io
+import hashlib
 import re
 import tempfile
 import unittest
@@ -53,6 +55,7 @@ ADR_0076 = REPO_ROOT / "docs" / "adr" / (
 CLEAN_RECORD = """\
 ## CHECK: differential ordering
 VERDICT: clean
+DRAFT: 2d8fc36fef22745a8ac0b62b515977ce4da263e1d0643736a97af94519177000
 FINDINGS: Walked all six entries against the intake. 1. is the pregnancy-related
     emergency and the hCG is documented.
 """
@@ -60,6 +63,7 @@ FINDINGS: Walked all six entries against the intake. 1. is the pregnancy-related
 DEFECT_RECORD = """\
 ## CHECK: MDM completeness
 VERDICT: defect
+DRAFT: 2d8fc36fef22745a8ac0b62b515977ce4da263e1d0643736a97af94519177000
 FINDINGS: The second MDM entry summarizes diverticulitis and names no
     discriminator from this case, and it carries no citation.
 """
@@ -69,6 +73,8 @@ FINDINGS: The second MDM entry summarizes diverticulitis and names no
 # counted in no sentence here, on #143's terms. Normalized once so the helpers below and the module
 # cannot come to disagree about which rows carry the requirement.
 GRADED_KEYS = {checks.normalize(name) for name in checks.SUBSTANTIATED_CLEAN}
+DRAFT_TEXT = "# Synthetic draft\n"
+DRAFT_SHA = hashlib.sha256(DRAFT_TEXT.encode()).hexdigest()
 
 
 def a_clean_record(name: str) -> str:
@@ -80,6 +86,7 @@ def a_clean_record(name: str) -> str:
     to every test built on ``whole_file``.
     """
     block = f"## CHECK: {name}\nVERDICT: clean\n"
+    block += f"DRAFT: {DRAFT_SHA}\n"
     if checks.normalize(name) in GRADED_KEYS:
         block += "FINDINGS: Walked every entry against the rule and every one is in order.\n"
     if name == "the rendered document":
@@ -103,16 +110,26 @@ def whole_file(*records: str, complete: bool = True) -> str:
 def empty_population_input(root: Path) -> EmptyPopulationInput:
     empty, twin = root / "empty.md", root / "twin.md"
     empty.write_text("# Checks\n", encoding="utf-8")
-    twin.write_text("# Checks\n\n" + CLEAN_RECORD, encoding="utf-8")
+    twin.write_text(
+        "# Checks\n\n" + a_clean_record("the rendered document"),
+        encoding="utf-8",
+    )
+    document = root / "draft.md"
+    document.write_bytes(DRAFT_TEXT.encode())
+    retained = root / "render" / "pass-1"
+    retained.mkdir(parents=True)
+    (retained / "case-study-draft.sha256").write_text(
+        DRAFT_SHA + "\n", encoding="ascii"
+    )
     return EmptyPopulationInput(
-        (str(empty),),
+        (str(empty), "--document", str(document)),
         population_size=lambda result: result.records,
-        twin_argv=(str(twin),),
+        twin_argv=(str(twin), "--document", str(document)),
         context_factory=lambda: mock.patch.multiple(
             checks,
-            EXPECTED_CHECKS=("differential ordering",),
+            EXPECTED_CHECKS=("the rendered document",),
             _EXPECTED_KEYS={
-                checks.normalize("differential ordering"): "differential ordering"
+                checks.normalize("the rendered document"): "the rendered document"
             },
         ),
     )
@@ -141,10 +158,31 @@ def kinds(text: str) -> list[str]:
     return [f.kind for f in checks.survey(checks.read_records(text)).findings]
 
 
-def run(argv: list[str]) -> tuple[int, str, str]:
+def run(argv: list[str], *, bind: bool = True) -> tuple[int, str, str]:
+    arguments = list(argv)
+    output_patch = contextlib.nullcontext()
+    if bind and arguments and Path(arguments[0]).is_file():
+        checks_path = Path(arguments[0])
+        retained = checks_path.parent / "render" / "pass-1"
+        retained.mkdir(parents=True, exist_ok=True)
+        (retained / "case-study-draft.sha256").write_text(
+            DRAFT_SHA + "\n", encoding="ascii"
+        )
+        if "--submission" in arguments:
+            submission = arguments[arguments.index("--submission") + 1]
+            output = checks_path.parent / "output"
+            output.mkdir(exist_ok=True)
+            (output / f"{submission}.md").write_bytes(DRAFT_TEXT.encode())
+            output_patch = mock.patch.object(
+                checks.repo_root, "output_root", return_value=output
+            )
+        elif "--document" not in arguments:
+            document = checks_path.parent / "draft.md"
+            document.write_bytes(DRAFT_TEXT.encode())
+            arguments += ["--document", str(document)]
     out, err = io.StringIO(), io.StringIO()
-    with redirect_stdout(out), redirect_stderr(err):
-        status = checks.main(argv)
+    with output_patch, redirect_stdout(out), redirect_stderr(err):
+        status = checks.main(arguments)
     return status, out.getvalue(), err.getvalue()
 
 
@@ -931,6 +969,9 @@ class TheCommandExitsOnWhatItFound(unittest.TestCase):
             render = path.parent / "render"
             (render / "pass-1").mkdir(parents=True)
             (render / "pass-2").mkdir()
+            (render / "pass-2" / "case-study-draft.sha256").write_text(
+                DRAFT_SHA + "\n", encoding="ascii"
+            )
             with mock.patch.object(checks.aar_scan, "completion_gate", return_value=(False, "the after-action review: clean")):
                 stale = run([str(path), "--submission", "case-study"])[0]
             text = path.read_text(encoding="utf-8").replace("PASS: 1", "PASS: 2")
@@ -948,8 +989,59 @@ class TheCommandExitsOnWhatItFound(unittest.TestCase):
             "completion_gate",
             return_value=(False, "the after-action review: clean"),
         ):
-            status, _, _ = run([str(path), "--submission", "case-study"])
+            output = path.parent / "output"
+            output.mkdir()
+            (output / "case-study.md").write_bytes(DRAFT_TEXT.encode())
+            with mock.patch.object(checks.repo_root, "output_root", return_value=output):
+                status, _, _ = run(
+                    [str(path), "--submission", "case-study"], bind=False
+                )
         self.assertEqual(status, 1)
+
+    def test_preflight_requires_document(self):
+        directory, path = in_a_file(whole_file())
+        with directory:
+            status, _, error = run([str(path)], bind=False)
+
+        self.assertEqual(2, status)
+        self.assertIn("--document", error)
+
+    def test_a_pass_without_a_fingerprint_is_a_finding(self):
+        directory, path = in_a_file(whole_file())
+        with directory:
+            document = path.parent / "draft.md"
+            document.write_bytes(DRAFT_TEXT.encode())
+            (path.parent / "render" / "pass-1").mkdir(parents=True)
+            status, _, _ = run(
+                [str(path), "--document", str(document)], bind=False
+            )
+
+        self.assertEqual(1, status)
+
+    def test_a_pass_beside_a_changed_document_is_a_finding(self):
+        directory, path = in_a_file(whole_file())
+        with directory:
+            document = path.parent / "draft.md"
+            document.write_text(DRAFT_TEXT + "changed\n", encoding="utf-8")
+            retained = path.parent / "render" / "pass-1"
+            retained.mkdir(parents=True)
+            (retained / "case-study-draft.sha256").write_text(
+                DRAFT_SHA + "\n", encoding="ascii"
+            )
+            status, _, _ = run(
+                [str(path), "--document", str(document)], bind=False
+            )
+
+        self.assertEqual(1, status)
+
+    def test_a_missing_or_stale_record_draft_is_a_finding(self):
+        for replacement in ("", "DRAFT: " + ("f" * 64) + "\n"):
+            with self.subTest(replacement=replacement or "missing"):
+                text = whole_file().replace(f"DRAFT: {DRAFT_SHA}\n", replacement, 1)
+                directory, path = in_a_file(text)
+                with directory:
+                    status, _, _ = run([str(path)])
+                self.assertEqual(1, status)
 
 
 class TheSkillSaysWhatThisChecks(unittest.TestCase):
@@ -1233,7 +1325,9 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
         checks.UNEXPECTED_FIELD: "a known field on a row that does not take it",
         checks.DUPLICATE_FIELD: "a known field written more than once in one record",
         checks.INVALID_RENDERED_RECORD: "a clean rendered-document record with a malformed `SOURCE` or `PASS`",
-        checks.RENDER_PASS_MISMATCH: "a terminal rendered-document record that does not name the highest retained pass",
+        checks.RENDER_PASS_MISMATCH: "no retained pass, or a rendered-document record whose `PASS` does not name the highest retained pass",
+        checks.DRAFT_FINGERPRINT_MISMATCH: "any `## CHECK:` record has no `DRAFT`, or its `DRAFT` differs from the output Markdown",
+        checks.RENDER_FINGERPRINT_MISMATCH: "the highest retained pass has no fingerprint, or its fingerprint differs from the output Markdown",
     }
 
     def test_the_skill_writes_out_every_row_the_grader_applies(self):

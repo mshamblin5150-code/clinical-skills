@@ -175,7 +175,7 @@ The command's reader-owned boundaries are in `deck_scan.DECLARED_LIMITS`:
 `claim-support-unverified`, `sourced-field-completeness-unjoined`,
 `adversarial-completeness-unverified`, `image-provenance-unverified`,
 `render-scan-run-unverified`, `render-source-unproven`, and
-`render-document-bytes-unbound`. Walk them against the finished artifact; this skill points to
+`adversarial-bytes-unbound`. Walk them against the finished artifact; this skill points to
 their keys and carries no second copy of any limit sentence.
 
 ## 5. Render and inspect every slide
@@ -200,7 +200,8 @@ python tools/render_scan.py scratch/runs/<course>-<module>-course-assignment
 
 `deck_render.py` asks a freshly spawned PowerPoint for one page-faithful PDF, then rasterizes it to
 one 120-dpi PNG per slide in a new `render/pass-N/` above the highest retained number. A failed
-route retains no pass.
+route retains no pass. Before retaining the pass it computes the raw-byte SHA-256 of the `.pptx`
+and writes it to `deck.sha256` inside that pass.
 If PowerPoint cannot export, ask the clinician for a clinician-supplied PDF and rerun with
 `--clinician-export <PDF>`; PowerPoint is the fast path and never the only path.
 
@@ -209,6 +210,11 @@ zero, the retained export's page count, and readable PNGs. Earlier passes remain
 only the last pass must contain exactly one readable image for every exported page. Fewer or more
 final images than exported pages is exit 1. No measurable retained export is exit 2. The gap count is
 reported on every run and never graded.
+
+After the render, rerun `deck_scan.py --pptx <deck>` before asking for the go-ahead. Both this run
+and the terminal `--submission` run refuse a missing retained pass, a rendered record whose `PASS`
+does not name the highest pass, a missing `deck.sha256`, or a fingerprint that differs from the
+named `.pptx`. The remaining adversarial-artifact boundary is named above by its declared-limit key.
 
 The engine-reaching grader must exit 0 unless this run's engine check reported the engine missing
 and the install did not happen. Only in that case may its exit 2 be accepted; report that the run is
