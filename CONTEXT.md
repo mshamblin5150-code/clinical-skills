@@ -535,6 +535,10 @@ _Avoid_: catalog, listing, guideline list, registry
 What an edition-currency read establishes about one corpus document, one of four: `current`, the society's list holds it; `superseded`, the list holds a newer guideline covering it and the verdict names that document; `absent`, the list no longer holds it and no replacement has been identified; `unjoinable`, the document carries no value in the key its society is joined on. `superseded` and `absent` are deliberately not one word — collapsing them upward claims a replacement nobody identified, and collapsing them downward loses that the society has dropped the document. **Never checked is the absence of an observation date rather than a fifth verdict**, so a row cannot report a state it never measured.
 _Avoid_: status, standing, freshness, disposition; also avoid source class, which answers what form a document takes
 
+**Supersession handoff**:
+The move of a clinical topic's coverage from a retired corpus document to the replacement fetched for it. It has two halves recorded in two places — the replacement's received bytes bound in the catalog audit ledger, and the topic's coverage marked unread against the new document — and it is complete only when both exist. A handoff with one half is a defect rather than a state to read past, because coverage then goes on treating retired guidance as a live source. Distinct from a **Currency verdict** of `superseded`, which records that a society replaced a document and says nothing about whether this repository has fetched or read the replacement.
+_Avoid_: replacement, fetch, migration, swap
+
 **Threshold sheet**:
 The distilled decision points of one clinical topic, drawn from every guideline in the corpus that addresses it. Curated Markdown that a tool audits, never a generated artifact.
 _Avoid_: summary, digest, extract, cheat sheet
