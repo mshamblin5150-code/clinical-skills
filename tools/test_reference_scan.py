@@ -2066,6 +2066,7 @@ class EveryDeclaredLimitIsReDerivedAtTheScannerSeam(unittest.TestCase):
             "republished original publication date": self.republished_original_publication_date,
             "author-shaped slash span": self.author_shaped_slash_span,
             "unwarranted retrieval date": self.unwarranted_retrieval_date,
+            "advance online publication without a label": self.advance_online_publication_without_a_label,
             "UpToDate last update year": self.uptodate_last_update_year,
             "the source exists and says so": self.source_exists_and_says_so,
             "legal form and authority validity": self.legal_form_and_authority_validity,
@@ -2114,6 +2115,19 @@ class EveryDeclaredLimitIsReDerivedAtTheScannerSeam(unittest.TestCase):
             scan.RETRIEVAL_DATE_ON_ARCHIVED,
             kinds(draft(stable_with_a_doi, UPTODATE)),
         )
+
+    def advance_online_publication_without_a_label(self):
+        unlabeled = (
+            "Smith, A. (2026). Early view article. *Experimental Psychology*. "
+            "https://doi.org/10.1000/advance"
+        )
+        body = "# Case\n\nThe result was reported online first (Smith, 2026).\n"
+        self.assertEqual(kinds(draft(unlabeled, body=body)), [])
+
+        # The same DOI-bearing shape is correct for a Cochrane review, so the
+        # scanner has no structural signal that can distinguish the missing label.
+        cochrane_body = "# Case\n\nThe review found an effect (Laver et al., 2025).\n"
+        self.assertEqual(kinds(draft(COCHRANE, body=cochrane_body)), [])
 
     def legal_form_and_authority_validity(self):
         case = "Brown v. Board of Education, 347 U.S. 483 (1954)."

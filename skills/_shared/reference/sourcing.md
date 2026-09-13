@@ -7,6 +7,13 @@ retained and gradeable against it, or when the primary material is resolvable an
 re-opened. This includes material recalled from a memory store, summary, index, or prior run.
 Anything else is a pointer: it may direct a search and may not carry a sentence.
 
+## A resolving locator is not verification
+
+Verifying a locator means opening it and confirming that it is the work's own address. A successful
+response status is not verification: a near-miss address and a login form can both return one. A
+sourced claim record's `RESOLVED` field therefore names the address confirmed as the work's own,
+never a bare status.
+
 ## A failed read is not a negative
 
 A search that ran and found nothing reports the corpus it read and what it did not open. A search

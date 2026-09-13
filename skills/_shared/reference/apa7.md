@@ -335,6 +335,7 @@ reaches` and `tools/checks_ledger.py` expects it, so a run that returns no verdi
 | The **republished original publication date** | §31's original date element is parsed and not compared with the entry. APA's own Gilgamesh example reverses the range between its entry and citation, so joining the halves would fail the source that defines the rule |
 | An **author-shaped slash span** | Grammar alone recognizes a span such as `(Cohort A, 2013/2014)`, which can raise `unlisted-citation` even when the span is not a citation. The measured corpus supplied no such false positive |
 | An **unwarranted retrieval date** on a guideline, a statement or a textbook | §4 says those take none. The command refuses one only when a committed source classifier settles that the cited form is fixed. DOI presence alone is not the archive test, and an unresolved URL cannot distinguish a stable PDF from a page designed to change |
+| An **advance online publication without a label** | The command cannot tell that an unlabeled DOI-bearing entry is a journal article rather than a Cochrane review, book, chapter or report, each of which can correctly carry the same shape |
 | **The UpToDate last update year** | §2's date element is the topic's own last update year, not the year it was read, and the same topic appears in one corpus under three years. Which is which is in the companion evidence document, which the command never sees |
 | **Whether the source exists and says so** | Whether an entry is a real source saying what the sentence citing it says. That is [#231](https://github.com/mshamblin5150-code/clinical-skills/issues/231), answered **before the draft exists**: `tools/research_ledger.py` grades a year an agent read off the page and a refutation a second agent returned |
 | **legal form and authority validity** | The command recognizes a narrow statute/regulation subset plus date-free constitutional locators and full-date treaty forms. It does not validate cases, legislative materials, proposed rules, executive orders, patents, parallel reporters, official-version choice, state-specific form, or current legal status |
@@ -435,6 +436,14 @@ heat. *Journal of Community Nursing, 18*(2), 41–49. https://doi.org/10.1000/jc
 volume*(issue when available), page range. DOI when present; otherwise retain a URL for a
 nondatabase article and omit the ordinary academic-database name and URL
 
+**Advance online publication:** *Publication Manual* Example 7 and §§8.5 and 9.14. The periodical
+element is the italic journal title alone, followed by `Advance online publication.` in roman type,
+then the DOI. Use the advance-online year. Standardize a publisher's `online first` or `epub ahead
+of print` label to `Advance online publication.` Before submission, check whether volume, issue and
+pages have since been assigned; if they have, use the final form and year. This differs from `in
+press` (§3): an in-press work has been accepted but has not yet been published anywhere and carries
+no DOI.
+
 **Declared limit:** The synthesized example is not string-checkable against APA's page; the local
 sheet records the observed slot order, not a copied APA example or proof that any source exists.
 
@@ -489,6 +498,12 @@ nursing* (3rd ed.). North Valley Press.
 **Abstracted entry form:** Author, A. A. (Year). *Title of book* (Edition). Publisher. DOI when
 present, or a nondatabase ebook URL; omit an ordinary academic-database name and URL. An edited
 book places `(Ed.)` or `(Eds.)` after the editor name
+
+**A chapter in an authored book:** *Publication Manual* §§8.13, 9.34 and 10.3. Cite the whole book
+in the reference list and name the chapter only in the in-text citation; §14's chapter form is for a
+chapter in an edited book. The entry's DOI or URL is the book's own, so when a repository types the
+intended address as part of the book, use the book's own record. A locator that resolves proves an
+address exists, not that it identifies the work the entry describes.
 
 **Declared limit:** The synthesized example is not string-checkable against APA's page; the form
 does not establish authorship, edition, publisher, or locator for a real book.

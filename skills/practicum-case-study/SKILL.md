@@ -593,8 +593,9 @@ STATED-EXPIRY: none stated
 `tertiary reference`. `RECENCY` is one of `current`, `within five`, `nothing newer` or
 `guideline in force`, and the last two carry the reason after a hyphen — *the run must have looked,
 and must say so.* `DATE` is the day the paper is written, and the recency rule is measured against
-it rather than against the clock. `RESOLVED` is the URL or DOI the agent actually opened and the
-day it opened it — the word `read` or `retrieved`, then an ISO date. `PAGE-YEAR` is the year the
+it rather than against the clock. `RESOLVED` names the URL or DOI the agent actually opened and
+confirmed under the shared locator-verification rule, plus the day it opened it — the word `read`
+or `retrieved`, then an ISO date. `PAGE-YEAR` is the year the
 page itself states and where on the page it says so. `STATED-EXPIRY` is `none stated`, an ISO date
 and where the document states it, or an ISO date followed by `superseded cited deliberately` and a
 reason. Transcribe only what the document states; do not infer an expiry from a publication cadence.
@@ -1081,7 +1082,7 @@ rows whose verdict comes from a command.
 | --- | --- | --- | --- |
 | the house style | the whole draft, section by section | `tools/case_study_scan.py` below — mechanical, so it is a command and not an agent | no |
 | the reference list | the list, and every citation in the body | `tools/reference_scan.py`, step 7 — mechanical, so it is a command and not an agent | no |
-| the reference list, the part no command reaches | the entries against the companion evidence | a reader: is each UpToDate year the topic's **last update** year, does any entry carry a **retrieval date that does not belong** — a guideline, a statement or a textbook takes none and the command catches that only on a DOI — the rule is [apa7.md](../_shared/reference/apa7.md) §4 and how far the command reaches is §7 — and does each source exist and say what the sentence citing it says | no |
+| the reference list, the part no command reaches | the entries against the companion evidence | a reader: is each UpToDate year the topic's **last update** year; does any entry carry a **retrieval date that does not belong** — a guideline, a statement or a textbook takes none, the rule is [apa7.md](../_shared/reference/apa7.md) §4 and how far the command reaches is §7; does each source exist and say what the sentence citing it says; and, under [sourcing.md](../_shared/reference/sourcing.md), does opening each locator confirm that it identifies the work the entry describes, including whole book versus chapter and advance article versus final issue | no |
 | differential ordering | the numbered differential and the intake block | a reader: is `1.` defensible as what would kill first, and does a patient of childbearing age with abdominal or pelvic pain have the pregnancy-related emergencies ranked first — *Ordering is the graded axis* above | yes |
 | MDM completeness | every MDM entry | a reader: does each entry name a discriminator from **this** case rather than summarizing the disease, and does each carry a citation | yes |
 | the Rx blocks | the Plan and every prescription table | a reader: every drug in the Plan has a table — **including any drug row that welds a second drug into it**, which is a drug in the Plan without its own table and is a shape no command here reaches — every `Sig` ends in an indication, and every table has the prose block under it carrying class, contraindications, monitoring, adverse effects and guideline support | no |
