@@ -215,6 +215,13 @@ establish — not two copies of one.
 over two minutes against the live tracker in this session. Making `check` cost that is how it stops
 being run.
 
+**Correction, 2026-09-14, on [#1058](https://github.com/mshamblin5150-code/clinical-skills/issues/1058)'s
+grilling:** the refusal's ground did not measure the fold. `check` builds the same live tracker read
+`audit` does; measured at `ac2fa385`, `check` took 1m35.5s and `audit` 1m34.8s, so the two minutes
+were the read and the comparison adds nothing material.
+[ADR 0224](0224-the-map-s-views-refresh-hourly-and-a-stale-view-is-reported-rather-than-failed.md)
+ruling 1 supersedes the refusal: `check` reports the comparison without failing on it.
+
 ## Ruling 6. ADR 0108 ruling 6's limit is relocated, and each grader declares its own
 
 ADR 0108 ruling 6 placed the GitHub-renderability limit in `map_scan.DECLARED_LIMITS`. It was built
