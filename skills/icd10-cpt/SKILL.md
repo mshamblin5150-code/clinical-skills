@@ -43,6 +43,39 @@ It answers four things: does the code exist, what is its official descriptor, is
 
 **What the lookup cannot do.** There is no alphabetic index in the database, so it verifies a candidate rather than finding one from a diagnosis phrase. `--find` is a substring match over descriptors, which is weaker: a miss is not evidence that no code exists. And nothing in it encodes the official coding guidelines. It answers *does this code exist and what governs it*, never *is this the right code*.
 
+This repo also ships the licensed 2026 procedure-code database at
+`reference/procedure-codes-2026.sqlite`:
+
+```bash
+python tools/procedure_codes_lookup.py J1100 --on 2026-09-14
+python tools/procedure_codes_lookup.py --modifier AB --on 2026-09-14
+python tools/procedure_codes_lookup.py 12001 --on 2026-09-14
+```
+
+`tools/procedure_codes_lookup.py` recognizes five-digit numeric and `F`, `T`, or
+`U`-suffixed codes as CPT; other alphanumeric procedure codes are HCPCS. The
+service date is part of the lookup because the
+HCPCS quarterly file carries additions and terminations that may not be active
+on the encounter date. The database names **CPT Professional 2026**, ISBN
+9781640163232, and **HCPCS 2026 Level II Professional Edition**, ISBN
+9781640163317, as its licensed book authorities. Its complete HCPCS Level II
+machine rows come from the CMS Alpha-Numeric public-use file; licensed CPT rows
+come through `tools/procedure_codes_build.py`'s normalized CSV import.
+
+**Completeness is machine-readable and a miss is conditional on it.** The lookup
+prints `SET NOT FULLY LOADED` when the selected system is partial. In that state,
+a miss is not evidence that a code does not exist: open the corresponding live
+VitalSource book through [vitalsource-chrome](../vitalsource-chrome/SKILL.md),
+search for the candidate, and read the rendered destination page. A search
+result or snippet is only a locator. When the set is complete, a miss means the
+number is absent from that named 2026 source.
+
+The procedure database verifies a number, official descriptor, modifier identity,
+and service-date status. It does **not** encode CPT or HCPCS instructions,
+parentheticals, cross-references, bundling rules, or the elements that earn the
+code. Read those from the rendered book page before calling a specificity reason
+complete. `--find` remains descriptor substring search, not an index lookup.
+
 ### Pediatric BMI-for-age
 
 This repo also ships CDC's 2022 Extended BMI-for-Age table at `reference/cdc-bmi-for-age-2022.csv`. Ages 2–19 take `Z68.5-`, whose bands are percentiles rather than adult BMI intervals, so run the committed calculator for every pediatric BMI:
@@ -116,7 +149,12 @@ sentence run to end of line with no tail after them.
 
 **`SOURCE` appears only where the anchor was filled**, so an ordinary code keeps its five parts and a filled-anchored one carries six. It is a line on the code itself and not only a step-4 heading, for the reason step 4 gives about `NOT CODED`: **a block heading does not survive being copied one line at a time**, and the proposed-code list is exactly the block a clinician scans for things to enter.
 
-CPT entries take the same shape, plus the note text documenting anything the code's requirements hinge on — repair length, wound complexity, time.
+CPT and HCPCS entries take the same shape, plus the note text documenting
+anything the code's requirements hinge on — repair length, wound complexity,
+time, units, route, or supply detail. Run `tools/procedure_codes_lookup.py` on the
+encounter's service date. If its completeness warning fires, verify the candidate
+on the rendered page of the corresponding live VitalSource book before writing
+the descriptor or confidence line.
 
 Rules:
 
@@ -232,7 +270,11 @@ Without the scanner, do the same walk by eye: list each distinct for-entry ICD-1
 
 **`about` is never machine-graded.** It is free prose beside free prose, so judging whether the two agree is itself a reading. A source-field disagreement is a hard failure; a clean source comparison plus a human agreement is a **smoke test and never proof**. Two readers can misread the same code family the same way. This is separation as an instrument, not a claim that a second reason cannot also be wrong.
 
-The brief excludes CPT and HCPCS entries because this repo ships no corresponding code set to bind their family walks against. Their specificity reasons keep the ordinary human verification posture; a clean ICD-10 second read says nothing about them.
+The brief excludes CPT and HCPCS entries. The procedure database verifies their
+identity and date status, but it does not encode the book's parentheticals,
+cross-references, families, or coding instructions, so it cannot mechanically
+grade a family walk. Their specificity reasons keep the ordinary human
+verification posture; a clean ICD-10 second read says nothing about them.
 
 #### A filled value is coded, and it is marked
 
@@ -424,13 +466,31 @@ Offer the supporting elements (problems addressed, data reviewed, risk) and let 
 
 So the codes on the differential are required, and none of them is for entry. They are not a claim in miniature; they are the written form of the reasoning, and the reasoning is the element.
 
-**The MDM phrasing here is recalled, and nothing in this repo verifies it** — the same posture as the outpatient rule in step 3, and now for its corrected reason rather than the one both paragraphs used to give. Guideline sheets ship and neither covers this: the medical decision making table is an **AMA CPT** document, and no AMA document is among the nine societies the corpus holds. Offer the elements, name that they are recalled, and let the clinician map them to a level.
+**The procedure database does not verify MDM phrasing or map elements to a
+level.** The medical decision making table is an AMA CPT document rather than a
+code row. When E/M is asked for, read the applicable rendered section of **CPT
+Professional 2026** through `vitalsource-chrome`, offer the supporting elements,
+and let the clinician assign the level. If the live book cannot be read, label
+the phrasing recalled rather than presenting it as verified.
+
+**The MDM phrasing here is recalled, and nothing in this repo verifies it** when
+the live book has not been read. The table is an **AMA CPT** document, and no AMA document is among the nine societies in the committed guideline corpus. The
+authenticated VitalSource book is the verification route outside that corpus;
+the procedure-code database alone does not change this boundary.
 
 **No lookup is added to this skill by [#85](https://github.com/mshamblin5150-code/clinical-skills/issues/85), and that is a ruling rather than an omission.** [clinical-note](../clinical-note/SKILL.md) is obliged to consult a sheet where one covers what a Plan item asserts; this worksheet is not, on any encounter. **A code is anchored to what the note documents, never to whether the number should have met a target** — a coder who declined `I10` because a pressure sat under a threshold sheet's cutoff, or who withheld a screening `Z` code because the patient fell outside a USPSTF population, would be re-deciding the clinical question from the worksheet with the note as its only input. That is the anchor rule running backwards, and step 3's *filled value is coded, and it is marked* already settled the general form of it: mark what a code rests on, never withhold on a ground the note does not carry.
 
 ## Completion
 
 Every proposed code has a code number, a descriptor, an anchor, a specificity flag, and a confidence flag — five parts, no exceptions. **A code whose anchor was filled carries a sixth, `SOURCE`.** A code missing any of the five, or a filled-anchored code missing its sixth, is not ready to hand over.
+
+Every proposed CPT or HCPCS code was queried against
+`reference/procedure-codes-2026.sqlite` on the encounter's service date. A code
+from a complete system carries the exact descriptor and date-status returned by
+the lookup. A code from a partial system is complete only after its rendered
+VitalSource destination page was read; its confidence line names the book and
+edition. A search snippet, an incomplete-set miss, or recall alone still reads
+`verify this number`.
 
 **Every specificity flag carries substance beyond its keyword — a bare `complete` and a bare `needs:` both fail.** Present-but-bare is the one way a part can be there and still fail, which is why it is said here as well as in step 3. A descriptor saying `unspecified` or `not specified` may read `complete` only when the reason explains why nothing the bedside can supply would move the code; `python tools/specificity_scan.py <run directory>` enforces the reason and reports that shape as advisory for a reader.
 

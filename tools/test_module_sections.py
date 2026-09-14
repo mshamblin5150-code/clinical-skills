@@ -94,6 +94,8 @@ DECLARED_SECTIONS = {
     "pdf_engine": "Console codec",
     "phi_scan": "PHI pre-commit hook",
     "post_html": "Discussion post grading",
+    "procedure_codes_build": "Procedure-code database",
+    "procedure_codes_lookup": "Procedure-code database",
     "python_floor": "Continuous integration",
     "reference_scan": "Reference scan",
     "reference_class_census": "Reference-class census",

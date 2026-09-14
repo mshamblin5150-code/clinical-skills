@@ -46,7 +46,7 @@ The deliverable is the completed note. Beside it, the run also produces a privat
 
 ## What ships with them
 
-The reference tier begins with [`reference/guidelines-catalog.md`](reference/guidelines-catalog.md), covering material from USPSTF, IDSA, AHA/ACC, KDIGO, ACIP, ADA, CDC, GINA, and GOLD. The repository also includes the derived [`reference/guidelines-uspstf.md`](reference/guidelines-uspstf.md), topic decision sheets under [`reference/thresholds/`](reference/thresholds/), supplied-source distillations under [`reference/uptodate/`](reference/uptodate/), the 2026 ICD-10-CM code set in `reference/icd10cm-2026.sqlite`, and CDC BMI-for-age data in `reference/cdc-bmi-for-age-2022.csv`.
+The reference tier begins with [`reference/guidelines-catalog.md`](reference/guidelines-catalog.md), covering material from USPSTF, IDSA, AHA/ACC, KDIGO, ACIP, ADA, CDC, GINA, and GOLD. The repository also includes the derived [`reference/guidelines-uspstf.md`](reference/guidelines-uspstf.md), topic decision sheets under [`reference/thresholds/`](reference/thresholds/), supplied-source distillations under [`reference/uptodate/`](reference/uptodate/), the 2026 ICD-10-CM code set in `reference/icd10cm-2026.sqlite`, the licensed date-aware CPT/HCPCS store in `reference/procedure-codes-2026.sqlite`, and CDC BMI-for-age data in `reference/cdc-bmi-for-age-2022.csv`.
 
 [`reference/thresholds/coverage.md`](reference/thresholds/coverage.md) is the live answer for threshold-sheet coverage. The source corpus PDFs remain outside this repository, and using the skills does not require them. These reference artifacts are committed, so a new edition reaches your clone with `git pull`.
 
