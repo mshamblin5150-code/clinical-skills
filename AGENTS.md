@@ -16,6 +16,7 @@ Agent-agnostic skills for a nurse practitioner student's written work — clinic
 | discussion-post | [skills/discussion-post/SKILL.md](skills/discussion-post/SKILL.md) | One live LMS board needs a researched, evidence-backed initial post, except when its prompt asks for a worked clinical case |
 | discussion-reply | [skills/discussion-reply/SKILL.md](skills/discussion-reply/SKILL.md) | One live LMS discussion topic needs ranking, evidence-backed classmate replies, and explicit approval before each post |
 | course-assignment | [skills/course-assignment/SKILL.md](skills/course-assignment/SKILL.md) | A live course assignment declares a graded PowerPoint deck or rich Word document |
+| vitalsource-chrome | [skills/vitalsource-chrome/SKILL.md](skills/vitalsource-chrome/SKILL.md) | An authenticated VitalSource or Bookshelf chapter must be read completely through Codex Chrome |
 | aar | [skills/aar/SKILL.md](skills/aar/SKILL.md) | A scoped clinical skill has reached a submission and its mandatory after-action review must classify and land observed corrections |
 | peer-critique | [skills/peer-critique/SKILL.md](skills/peer-critique/SKILL.md) | A classmate's case study needs the graded eight-heading peer clinical critique written against it |
 
@@ -79,6 +80,15 @@ source-class and recency policy. After the install has been tried, a consumer wi
 commands can walk the selected branch's rows and the documented research-record contract in
 [course-assignment](skills/course-assignment/SKILL.md), but cannot call the run mechanically
 verified.
+
+**`vitalsource-chrome` depends on its committed Codex Chrome patcher.**
+`skills/vitalsource-chrome/scripts/patch_codex_chrome.py` installs the reviewed attach-detach
+lifecycle into both the bundled Chrome cache and active desktop browser runtime. It preserves the
+first pre-patch bytes and refuses a bundle whose reviewed seams have drifted. A Codex consumer who
+cannot run it can still read the complete screenshot-verification contract in
+[vitalsource-chrome](skills/vitalsource-chrome/SKILL.md), but cannot call the Codex Jigsaw
+compatibility mechanically installed. Other browser agents use their own native lifecycle and do
+not run the Codex patcher.
 
 **Run `/setup-clinical-skills` before the others.** Everything about *which* clinician — courses, hour targets, preceptors, sites, payer distribution, and which patient is which — is per-account and lives in `scratch/`, gitignored. `reference/medatrax-fields.md` holds how Medatrax behaves; the profile holds who you are. Where they disagree, the profile wins.
 
