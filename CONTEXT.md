@@ -774,8 +774,16 @@ A figure stating the size of a population that is sitting in code and was never 
 _Avoid_: stale count, off-by-one, magic number
 
 **Gated row set**:
-A report row group that runs only when its gate is satisfied — a flag passed, a population present. Its absent run prints `not graded`, never `0`, because an executed zero and an omitted group must not read alike. The gate's shape is each module's own; what is uniform is the rule, not the sentinel.
+A report row group that runs only when its gate is satisfied — a flag passed, a population present. Its absent run prints `not graded` under a **voiding gate** and a qualified count under a **partial gate**, never a bare `0`, because an executed zero and an omitted group must not read alike. The gate's shape is each module's own; what is uniform is the rule, not the sentinel.
 _Avoid_: optional rows, conditional section, flag rows
+
+**Voiding gate**:
+A gate whose off state means its declared kinds were never computed. It suppresses those kinds, so no finding of theirs can count, and their rows print `not graded`. Every finding the run did compute outside those kinds still counts. A refused reference label is one.
+_Avoid_: blocking gate, hard gate, coverage gate
+
+**Partial gate**:
+A gate whose off state means a read stopped partway. A finding the read already produced still counts, and the row prints its count together with the reason the read stopped, never a bare `not graded`. The render engine going unavailable partway through a pass is one.
+_Avoid_: soft gate, degraded gate, best-effort gate
 
 ### Checks
 
