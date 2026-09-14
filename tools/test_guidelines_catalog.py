@@ -28,6 +28,7 @@ import contextlib
 import dataclasses
 import io
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -613,6 +614,75 @@ class ParsingTheIndependentAudit(unittest.TestCase):
         self.assertEqual(documents[0].bytes, "10")
         self.assertEqual([item.column for item in readings], list(gc.AUDITED_COLUMNS))
         self.assertEqual(rulings, [])
+
+    def test_an_empty_readings_table_does_not_consume_the_rulings_table(self):
+        ledger = (gc.REPO_ROOT / "reference" / "guidelines-catalog-audit.md").read_text(
+            encoding="utf-8"
+        )
+        emptied = re.sub(
+            r"(?s)(## Independent readings\n\n\|.*?\n\|.*?\n).*?(?=\n## Clinician rulings)",
+            r"\1",
+            ledger,
+        )
+
+        documents, readings, rulings, problems = gc.parse_audit(ledger)
+        empty_documents, empty_readings, empty_rulings, empty_problems = gc.parse_audit(
+            emptied
+        )
+
+        def source_rows(heading: str, following: str | None) -> int:
+            section = ledger.split(heading, 1)[1]
+            if following is not None:
+                section = section.split(following, 1)[0]
+            return sum(line.lstrip().startswith("|") for line in section.splitlines()) - 2
+
+        self.assertEqual(problems, [])
+        self.assertEqual(
+            (len(documents), len(readings), len(rulings)),
+            (
+                source_rows("## Documents", "## Independent readings"),
+                source_rows("## Independent readings", "## Clinician rulings"),
+                source_rows("## Clinician rulings", None),
+            ),
+        )
+        self.assertEqual(empty_documents, documents)
+        self.assertEqual(empty_readings, [])
+        self.assertEqual(empty_rulings, rulings)
+        self.assertEqual(empty_problems, [])
+
+
+class EmptyCatalog(unittest.TestCase):
+    def header_only_catalog(self) -> str:
+        return "# Catalog\n\n" + gc.render_table([]) + "\n\n## Unsettled cells\n"
+
+    def test_a_catalog_table_holding_no_row_is_a_parse_problem(self):
+        rows, _, problems = gc.parse_catalog(self.header_only_catalog())
+
+        self.assertEqual(rows, [])
+        self.assertIn("catalog table holds no row", problems)
+
+    def test_the_catalog_command_grades_a_header_only_catalog_as_a_failure(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            catalog = root / "catalog.md"
+            audit = root / "audit.md"
+            catalog.write_text(self.header_only_catalog(), encoding="utf-8")
+            audit.write_text(AUDIT, encoding="utf-8")
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+            with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+                status = gc.main(
+                    [
+                        "--catalog", str(catalog),
+                        "--audit", str(audit),
+                        "--src", str(root / "no-text-corpus"),
+                        "--pdf-src", str(root / "no-pdf-corpus"),
+                    ]
+                )
+
+        self.assertEqual(status, 1)
+        self.assertIn("FAIL catalog table holds no row", stdout.getvalue())
+        self.assertEqual(stderr.getvalue(), "")
 
 
 class DraftingTheIndependentAudit(unittest.TestCase):

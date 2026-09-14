@@ -2101,7 +2101,7 @@ python tools/guidelines_catalog.py --draft C:/codeing/guidelines-text  # scaffol
 
 An unsettled cell is the rule working rather than the catalog being unfinished. Every one is named at the bottom of the file with why.
 
-It reports filenames, column names and counts, never document text, so its output is safe to paste. Covered by `tools/test_guidelines_catalog.py`, which runs against fixtures in `tools/testdata/` and **never against the shipped catalog**. Its public-seam fixture builds a one-document #80 artifact and proves the draft reader needs no PDF.
+It reports filenames, column names and counts, never document text, so its output is safe to paste. A catalog table holding no document row is a parser problem, and named tables in the independent-audit ledger end at the first non-table line even when they hold no data row. Covered by `tools/test_guidelines_catalog.py`, which uses parser fixtures plus the committed audit ledger for that table-boundary regression and **never reads the shipped catalog**; the consumer contracts are pinned in `tools/test_threshold_coverage.py`, `tools/test_threshold_draft.py`, `tools/test_uspstf_table.py`, and `tools/test_guidelines_currency.py`. Its public-seam fixture builds a one-document #80 artifact and proves the draft reader needs no PDF.
 
 **[#108](https://github.com/mshamblin5150-code/clinical-skills/issues/108) removed the duplicate extractor without losing the pre-strip columns.** `class` comes directly from the producer-owned manifest value. `year` checks the metadata-derived title first, then the manifest's exact pre-strip `year_page_counts` vote. That producer-owned vote preserves page frequency even though #80 correctly removes running heads from every `.txt` page; access stamps remain excluded. The shared reader also refuses a missing manifest, a missing contract key, extraction failures, stale extra text, missing text, and page-count disagreement rather than letting either consumer build from an incomplete corpus.
 
@@ -2318,6 +2318,9 @@ the widest of author-masthead, publisher-review, and last-update marker counts a
 three populations disagree. A topic carrying none of those markers remains outside that floor,
 which the command says beside its report.
 
+The empty-index/search-miss distinction and sweep's missing-root, empty-root, text-read, and
+digest-read boundaries are driven as public commands in `tools/test_uptodate_store.py`.
+
 Published restatements live under `reference/uptodate/`, whose README owns the file format and
 verbatim cap. `tools/uptodate_sheet.py --all` grades required metadata against the private source,
 the APA year against the topic's last-update line, the currency stamp, retrieval chronology, the
@@ -2462,6 +2465,10 @@ dated sentence. That is a limit that recomputes itself, which is the arrangement
 
 **Exit status** — 0 for a completed measurement, 2 for every way of not having measured. There is no
 1: nothing here is a finding about a document, only a count.
+
+The target is the `not stated` sentinel exported by `uspstf_table`. The shared-sentinel contract is
+pinned in `tools/test_uspstf_derived_cells.py`, and `tools/test_uspstf_interval_reach.py` drives the
+zero population and its qualifier through `main`.
 
 Covered by `tools/test_uspstf_interval_reach.py`.
 
@@ -2741,6 +2748,11 @@ python tools/harvest_review.py
 **That output is PHI. Never paste it anywhere** — it is the deliberate opposite of `corpus_census.py`. Use `--count` when a number will do.
 
 It writes nothing. Each string is either vocabulary, which you add lowercase to `NOT_NAMES` in `tools/phi_scan.py`, or a real name, which you add to `scratch/harvest-reviewed.json` — gitignored, because it is a list of patient names. **Anything you do neither to keeps being scanned for and keeps refusing**, so an abandoned review leaves the firewall at full strength.
+
+A completed review states the disjoint population it actually read — unruled and harvested strings,
+harvested strings in a name position, ruled strings, and index entries — rather than claiming that
+every harvested string was decided. The readable-empty-index and `--count` contracts are pinned in
+`tools/test_harvest_review.py`.
 
 Why it is not automated is recorded in the module docstring, including the two discriminators that were tried and rejected. The short version: recurrence would classify your most-seen patient as vocabulary.
 

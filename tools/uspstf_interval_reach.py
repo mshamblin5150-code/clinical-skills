@@ -11,6 +11,10 @@ false positives are part of ADR 0028's ruling. They live here so a corpus refres
 change to ``uspstf_table.INTERVAL_PHRASE`` can re-run the question without quietly
 turning either discriminator into a live derivation rule.
 
+The measured population is selected with ``uspstf_table.NOT_STATED``. When a fully
+read table has no such row, the command succeeds and replaces the inapplicable
+file-population ratios with one explicit qualifier.
+
 Usage::
 
     python tools/uspstf_interval_reach.py C:/codeing/guidelines-text
@@ -28,12 +32,17 @@ import artifact_provenance
 import guidelines_recs
 from console_codec import require_python_floor, use_utf8
 from guidelines_manifest import read_or_raise
-from uspstf_table import INTERVAL_ABSENCES, INTERVAL_PHRASE, normalize, split_sentences
+from uspstf_table import (
+    INTERVAL_ABSENCES,
+    INTERVAL_PHRASE,
+    NOT_STATED,
+    normalize,
+    split_sentences,
+)
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_TABLE = REPO_ROOT / "reference" / "guidelines-uspstf.md"
-NOT_STATED = "not stated"
 
 # Declined discriminator 1: the standalone section heading through the next section.
 # These stops are the section forms met by this region across the USPSTF corpus. The
@@ -205,21 +214,36 @@ def read_documents(
 
 def render(measurement: Measurement) -> str:
     file_population = measurement.files_with_not_stated
-    return "\n".join(
-        (
-            f"recommendation rows: {measurement.rows}",
-            f"not stated rows: {measurement.not_stated_rows}",
-            f"files carrying at least one: {file_population}",
-            f"files where every row is one: {measurement.files_all_not_stated}",
+    lines = [
+        f"recommendation rows: {measurement.rows}",
+        f"not stated rows: {measurement.not_stated_rows}",
+        f"files carrying at least one: {file_population}",
+        f"files where every row is one: {measurement.files_all_not_stated}",
+    ]
+    if file_population:
+        lines.extend(
+            (
             f"naive whole-document phrase: {measurement.naive_files} of {file_population}",
             f"declined Screening Interval region: {measurement.region_files} of {file_population}",
             f"declined attributed sentence: {measurement.attributed_files} of {file_population}",
             f"declined attributed sentence, unhedged: {measurement.unhedged_files} of {file_population}",
-            f"naive interval-evidence absence candidates: {measurement.naive_absence_files}",
-            "candidates already in the committed reading: "
-            f"{measurement.committed_absence_files} of {measurement.naive_absence_files}",
+            )
+        )
+    else:
+        lines.append(
+            'no row reads "not stated": ADR 0028\'s reach has nothing to measure'
+        )
+    lines.extend(
+        (
+        f"naive interval-evidence absence candidates: {measurement.naive_absence_files}",
         )
     )
+    if file_population:
+        lines.append(
+            "candidates already in the committed reading: "
+            f"{measurement.committed_absence_files} of {measurement.naive_absence_files}"
+        )
+    return "\n".join(lines)
 
 
 def main(argv: list[str] | None = None) -> int:

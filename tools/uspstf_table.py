@@ -17,6 +17,8 @@ it, and the committed Markdown is the whole deliverable.
 boilerplate stripping; this builder reads its per-page text and takes metadata titles
 from its manifest. When page 1 has no usable title, ``derive_topic`` reads that manifest
 field, so it is part of the handoff contract rather than optional decoration.
+The catalog is another required input: a table holding no document row is not a
+zero-document catalog and makes the builder exit 2 before it writes output.
 
 **Why the grade marker is the anchor.** A USPSTF document states each recommendation two
 to four times -- in the structured abstract, in a summary figure, in the body -- and the

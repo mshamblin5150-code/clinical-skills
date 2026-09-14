@@ -8,6 +8,9 @@ A bound source deliberately drafts blank snippets. The sheet's structure gate th
 refuses every row until a reader fills those cells from the rendered source pages;
 that non-zero result on a fresh bound scaffold is the required workflow, not a
 broken draft.
+
+A catalog table holding no document row is an unreadable input. The command
+reports that parser problem through its existing rejected-source path and exits 2.
 """
 
 from __future__ import annotations
@@ -220,7 +223,7 @@ def resolve_sources(
         catalog_path.read_text(encoding="utf-8")
     )
     if problems:
-        return [], [], problems, 0, 0
+        return [], [], problems, 0, 0, False
 
     registry_entries = registry_entries or []
     wanted = _registry_topic(topic, registry_entries)

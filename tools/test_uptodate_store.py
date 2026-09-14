@@ -411,7 +411,110 @@ class TheSweepReportsAndIngestsNothing(unittest.TestCase):
                 received_on=date(2026, 1, 2),
             )
 
-            self.assertEqual(store.sweep_unfiled(root, evidence_store), store.SweepReport(0, 0))
+            self.assertEqual(
+                store.sweep_unfiled(root, evidence_store),
+                store.SweepReport(0, 0, examined=1),
+            )
+
+
+class TheCommandStatesItsSearchAndSweepPopulations(unittest.TestCase):
+    def run_main(self, argv: list[str]) -> tuple[int, str, str]:
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+            status = store.main(argv)
+        return status, stdout.getvalue(), stderr.getvalue()
+
+    def test_search_refuses_an_index_holding_no_topic_and_names_ingest(self):
+        with tempfile.TemporaryDirectory() as td:
+            evidence_store = Path(td) / "uptodate"
+            store.rebuild_index(evidence_store)
+            status, stdout, stderr = self.run_main(
+                ["--store", str(evidence_store), "search", "zebrafish"]
+            )
+
+        self.assertEqual(status, 2)
+        self.assertEqual(stdout, "")
+        self.assertIn("index holds no topic", stderr)
+        self.assertIn("ingest", stderr)
+
+    def test_a_search_miss_states_indexed_topic_and_dump_counts(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            evidence_store = root / "uptodate"
+            source = root / "evidence.txt"
+            source.write_text(topic("Stored topic"), encoding="utf-8")
+            store.ingest_dump(
+                source,
+                evidence_store,
+                dump_id="one",
+                module="Module 1",
+                received_on=date(2026, 1, 2),
+            )
+            status, stdout, stderr = self.run_main(
+                ["--store", str(evidence_store), "search", "zebrafish"]
+            )
+
+        self.assertEqual(status, 0)
+        self.assertIn("QUERY zebrafish: 0 hit(s) over 1 topic(s) in 1 dump(s)", stdout)
+        self.assertEqual(stderr, "")
+
+    def test_a_missing_sweep_root_is_not_scanned_and_is_named(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            missing = root / "missing"
+            status, stdout, stderr = self.run_main(
+                ["--store", str(root / "uptodate"), "sweep", str(missing)]
+            )
+
+        self.assertEqual(status, 2)
+        self.assertIn("sweep roots read: none; files examined: 0; files unread: 0", stdout)
+        self.assertIn(f"sweep root does not exist: {missing.resolve()}", stderr)
+
+    def test_an_empty_sweep_root_is_a_completed_zero(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            status, stdout, stderr = self.run_main(
+                ["--store", str(root / "uptodate"), "sweep", str(root)]
+            )
+
+        self.assertEqual(status, 0)
+        self.assertIn(f"sweep roots read: {root.resolve()}; files examined: 0; files unread: 0", stdout)
+        self.assertEqual(stderr, "")
+
+    def test_a_failed_digest_is_counted_as_unread_and_keeps_the_report(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "candidate.txt").write_text(topic("Unread topic"), encoding="utf-8")
+            with mock.patch.object(store.file_digest, "sha256", side_effect=OSError("denied")):
+                status, stdout, stderr = self.run_main(
+                    ["--store", str(root / "uptodate"), "sweep", str(root)]
+                )
+
+        self.assertEqual(status, 2)
+        self.assertIn("files examined: 1; files unread: 1", stdout)
+        self.assertIn("1 file(s) could not be read", stderr)
+
+    def test_a_failed_text_read_is_counted_as_unread_and_keeps_the_report(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            candidate = root / "candidate.txt"
+            candidate.write_text(topic("Unread topic"), encoding="utf-8")
+            real_read_text = Path.read_text
+
+            def fail_candidate(path: Path, *args, **kwargs):
+                if path == candidate:
+                    raise OSError("denied")
+                return real_read_text(path, *args, **kwargs)
+
+            with mock.patch.object(Path, "read_text", fail_candidate):
+                status, stdout, stderr = self.run_main(
+                    ["--store", str(root / "uptodate"), "sweep", str(root)]
+                )
+
+        self.assertEqual(status, 2)
+        self.assertIn("files examined: 1; files unread: 1", stdout)
+        self.assertIn("1 file(s) could not be read", stderr)
 
 
 if __name__ == "__main__":

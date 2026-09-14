@@ -16,6 +16,12 @@ markers: author mastheads, publisher-review lines, and last-update lines.  An
 input carrying none of those markers remains outside that floor; the command
 states that ceiling rather than calling it complete coverage.  Exit 0 means
 completed; exit 2 covers every refusal or unreadable source.
+
+Search refuses an index holding no topic and otherwise prints the indexed topic
+and dump populations beside every query, including a miss. Sweep distinguishes
+a missing root from an empty directory and always reports roots read, files
+examined, and files unread. A failed digest or text read counts as unread, keeps
+the report visible, and makes the sweep exit 2.
 """
 
 from __future__ import annotations
@@ -28,6 +34,7 @@ import re
 import shutil
 import sqlite3
 import sys
+from contextlib import closing
 from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
@@ -116,6 +123,9 @@ class SearchHit:
 class SweepReport:
     files: int
     topic_bodies: int
+    examined: int = 0
+    unread: int = 0
+    root_read: bool = True
 
 
 def default_store() -> Path:
@@ -542,19 +552,30 @@ def ingest_dump(
 
 
 def search(store: Path | None, query: str, *, limit: int = 20) -> list[SearchHit]:
-    root = (store or default_store()).expanduser().resolve()
-    database = root / INDEX_NAME
-    if not database.is_file():
-        raise ValueError(f"no UpToDate index at {database}")
-    connection = sqlite3.connect(database)
-    try:
+    with closing(_index_connection(store)) as connection:
         rows = connection.execute(
             "SELECT dump_id, title FROM topic_fts WHERE topic_fts MATCH ? ORDER BY rank LIMIT ?",
             (docx_read.normalize(query), limit),
         ).fetchall()
-    finally:
-        connection.close()
     return [SearchHit(str(row[0]), str(row[1])) for row in rows]
+
+
+def _index_connection(store: Path | None) -> sqlite3.Connection:
+    """Open the validated derived index used by every query path."""
+    root = (store or default_store()).expanduser().resolve()
+    database = root / INDEX_NAME
+    if not database.is_file():
+        raise ValueError(f"no UpToDate index at {database}")
+    return sqlite3.connect(database)
+
+
+def index_population(store: Path | None) -> tuple[int, int]:
+    """Indexed topic rows and distinct dump identifiers, without an FTS match."""
+    with closing(_index_connection(store)) as connection:
+        topics, dumps = connection.execute(
+            "SELECT COUNT(*), COUNT(DISTINCT dump_id) FROM topic_fts"
+        ).fetchone()
+    return int(topics), int(dumps)
 
 
 def sweep_unfiled(scan_root: Path, store: Path | None = None) -> SweepReport:
@@ -563,28 +584,32 @@ def sweep_unfiled(scan_root: Path, store: Path | None = None) -> SweepReport:
     evidence_store = (store or default_store()).expanduser().resolve()
     files = 0
     bodies = 0
+    examined = 0
+    unread = 0
     filed_hashes = {
         str(manifest["source_sha256"])
         for _path, manifest in _manifest_rows(evidence_store)
     }
     if not root.is_dir():
-        return SweepReport(0, 0)
+        return SweepReport(0, 0, root_read=False)
     for path in root.rglob("*"):
         if not path.is_file() or path.suffix.casefold() not in {".txt", ".md"}:
             continue
         resolved = path.resolve()
         if resolved.is_relative_to(evidence_store):
             continue
-        if file_digest.sha256(resolved) in filed_hashes:
-            continue
+        examined += 1
         try:
+            if file_digest.sha256(resolved) in filed_hashes:
+                continue
             count = topic_shape_count(path.read_text(encoding="utf-8", errors="replace"))
-        except OSError:
+        except (OSError, UnicodeError):
+            unread += 1
             continue
         if count:
             files += 1
             bodies += count
-    return SweepReport(files, bodies)
+    return SweepReport(files, bodies, examined, unread)
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -623,14 +648,35 @@ def main(argv: list[str]) -> int:
                 f"manifest {report.manifest.name}; index {report.index.name}"
             )
         elif args.command == "search":
+            topic_count, dump_count = index_population(args.store)
+            if topic_count == 0:
+                print(
+                    "uptodate-store: index holds no topic; "
+                    "ingest a deliberately supplied dump first",
+                    file=sys.stderr,
+                )
+                return 2
             for query in args.queries:
                 hits = search(args.store, query, limit=args.limit)
-                print(f"QUERY {query}: {len(hits)} hit(s)")
+                print(
+                    f"QUERY {query}: {len(hits)} hit(s) over {topic_count} topic(s) "
+                    f"in {dump_count} dump(s)"
+                )
                 for hit in hits:
                     print(f"  {hit.dump_id}: {hit.title}")
         else:
             roots = args.roots or [scratch_root()]
             reports = [sweep_unfiled(root, args.store) for root in roots]
+            read_roots = [
+                str(root.expanduser().resolve())
+                for root, report in zip(roots, reports)
+                if report.root_read
+            ]
+            print(
+                f"sweep roots read: {', '.join(read_roots) or 'none'}; "
+                f"files examined: {sum(row.examined for row in reports)}; "
+                f"files unread: {sum(row.unread for row in reports)}"
+            )
             print(
                 f"unfiled topic-shaped material: {sum(row.files for row in reports)} file(s), "
                 f"{sum(row.topic_bodies for row in reports)} topic body/bodies"
@@ -640,6 +686,21 @@ def main(argv: list[str]) -> int:
                 "candidate bound is the widest author/review/update marker count per file; "
                 "a body carrying none of those markers is outside this report"
             )
+            for root, report in zip(roots, reports):
+                if not report.root_read:
+                    print(
+                        f"uptodate-store: sweep root does not exist: "
+                        f"{root.expanduser().resolve()}",
+                        file=sys.stderr,
+                    )
+            unread = sum(row.unread for row in reports)
+            if unread:
+                print(
+                    f"uptodate-store: {unread} file(s) could not be read",
+                    file=sys.stderr,
+                )
+            if any(not report.root_read for report in reports) or unread:
+                return 2
         return 0
     except (OSError, UnicodeError, ValueError, sqlite3.Error) as error:
         print(f"uptodate-store: {error}", file=sys.stderr)
