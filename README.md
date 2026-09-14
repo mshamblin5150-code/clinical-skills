@@ -20,6 +20,7 @@ Agent-agnostic skills for a nurse practitioner student's written work — clinic
 | `discussion-post` | Researches and drafts an evidence-backed initial post for one live course discussion board. |
 | `discussion-reply` | Ranks live discussion topics and drafts evidence-backed replies, with approval required before each reply is posted. |
 | `course-assignment` | Reads a live assignment, signs its artifact-specific bar, and produces, grades, renders, and submits a PowerPoint deck or rich Word document after clinician approval. |
+| `vitalsource-chrome` | Navigates and completely reads authenticated VitalSource Bookshelf chapters through Codex Chrome, with screenshot-grounded page verification. |
 | `peer-critique` | Writes the graded eight-heading peer clinical critique of a classmate's case study, sourced and verified, and posts it only after clinician approval. |
 
 ### Setup
