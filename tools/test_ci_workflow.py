@@ -71,6 +71,7 @@ class TheImplementationMapRefreshWorkflow(unittest.TestCase):
         self.assertNotRegex(text, r"(?m)^\s{2}(?:push|issues):\s*$")
         self.assertRegex(text, r"(?m)^\s{2}contents:\s*read\s*$")
         self.assertRegex(text, r"(?m)^\s{2}issues:\s*write\s*$")
+        self.assertRegex(text, r"(?m)^\s{2}pull-requests:\s*read\s*$")
         self.assertIn("cancel-in-progress: false", text)
         self.assertIn("GH_TOKEN: ${{ github.token }}", text)
         self.assertIn("python tools/implementation_map.py publish --scheduled", text)
