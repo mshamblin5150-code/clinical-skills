@@ -114,6 +114,15 @@ Cited record state block, or the body's first line when there is none. It opens 
 is missing takes no judgment of wording. *Amended before merge: the first draft named only the Branch
 state block, and the sweep's measurement above showed the other qualifier must also stay first.*
 
+*Corrected 2026-09-14.* **The position this ruling names, *"the first line after any record-level scope
+block"*, is made exact by
+[ADR 0228](0228-the-filed-from-line-sits-one-blank-line-below-the-whole-scope-block.md) rulings 1 to 3,
+and the sentence is left as written**, being the dated record of what was decided on 2026-09-10. The
+build read it as the very next physical line, which GitHub renders inside the scope block's quote. ADR
+0228 puts the label after the whole quote and exactly one blank line, and reads the retired adjacent
+position only to protect an existing line during an edit. The fixed label, the single exact position
+and the absence of any search are unchanged.
+
 ### 4. The label is Filed from and the term is Filed-from line
 
 `CONTEXT.md` defines **Filed-from line**. *Provenance line* was refused because `CONTEXT.md` already
