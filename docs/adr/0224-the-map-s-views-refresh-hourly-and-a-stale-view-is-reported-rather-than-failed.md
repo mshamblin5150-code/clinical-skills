@@ -141,13 +141,30 @@ it also removes the sentence explaining why a closed blocker leaves the graph st
 - **The limits row changes.** `implementation_map.DECLARED_LIMITS["clean-check-derived-views"]`
   states that a clean `check` does not establish view agreement; after ruling 1 it states instead
   that `check` reports agreement without grading it.
+- **The job needs its own exit policy, because `publish`'s status does not separate rulings 4 and 5.**
+  `publish_body` returns 1 for `STATE CHANGED`, `BODY REFUSED` and `READ-BACK FAILED` alike, and a
+  `MapError`, including `ShortReadError`, exits 2 from `main` with its message on stderr. Worse,
+  `cmd_publish` returns `revalidate_after_publish`, whose `report` returns 1 on any live finding, so
+  a publish that wrote correctly exits 1 whenever the tracker holds an `unmapped-ready` or any other
+  owned finding. Under rulings 5 and 6 those findings are not the job's failure: ADR 0168 ruling 1
+  gives each an owner and `map_scan` already fails on them. The build therefore makes the outcomes
+  distinguishable to the workflow (a green skip for `STATE CHANGED`, a green write whose revalidation
+  findings are printed, red for everything else) and captures stderr with stdout.
 - **Declared limits the build writes into the owning objects**: a dependency change is reflected only
   at the next scheduled run, and GitHub may delay a scheduled run under load; an edit made with
-  `GITHUB_TOKEN` starts no workflow run, so `tracker.yml`'s edited-#596 producer-stamp step does not
-  grade the job's own writes; and ruling 4's collision window remains.
-- **Not reached here.** Whether the in-process `authorize_issue_body` grades everything the command
-  route grades for this writer is #1148's. Whether a `GITHUB_TOKEN` publication is graded by any host
-  is #1146's.
+  `GITHUB_TOKEN` starts no workflow run, so no `tracker.yml` run grades the job's writes after the
+  fact, which means the edited-#596 producer-stamp step, the PHI shape layer and branch scope; and
+  ruling 4's collision window remains. Before publication the job's body passes
+  `tracker_publish_hook.authorize_issue_body`, which grades body shape, coordinates, measurements and
+  the producer stamp, and not PHI or branch scope. The body is drawn from a state block that direct
+  writers already publish through that same seam, so the job adds no new authored text.
+- **The build verifies the token's reach.** `GitHub.blocked_by` reads each ticket's dependencies
+  endpoint; that `GITHUB_TOKEN` with the granted permissions reads it was not measured here.
+- **Not reached here.** The direct writer's missing PHI, branch-scope and Filed-from grades are
+  [#1148](https://github.com/mshamblin5150-code/clinical-skills/issues/1148)'s, and whether a
+  `GITHUB_TOKEN` publication is graded by any host is
+  [#1146](https://github.com/mshamblin5150-code/clinical-skills/issues/1146)'s. Neither blocks the
+  build; the job widens both tickets' populations by one writer.
 
 ## What must not come out of this
 
