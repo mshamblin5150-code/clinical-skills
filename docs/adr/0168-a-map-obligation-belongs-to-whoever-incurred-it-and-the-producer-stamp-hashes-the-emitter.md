@@ -207,6 +207,12 @@ ticket closes, is claimed, or changes label, and whenever a merge changes the em
 no owner in ruling 1's sense, and its most promising remedy, a CI publish after every push, cannot run
 safely before #993. Filed as [#1058](https://github.com/mshamblin5150-code/clinical-skills/issues/1058).
 
+**Correction, 2026-09-14, on #1058's grilling:** #993's short-read refusal is now in
+`GitHub.issues`, so this ruling's safety precondition is met. A CI publish after every push was
+still not adopted: one publish costs about 440 requests against the built-in token's 1,000 per hour.
+[ADR 0224](0224-the-map-s-views-refresh-hourly-and-a-stale-view-is-reported-rather-than-failed.md)
+rules an hourly scheduled refresh, and a stale view reported by `check` without a finding.
+
 ## Consequences recorded as derived rather than ruled
 
 - **An `unclassified-collision` finding needs nothing new.** It surfaces in the placing session's own

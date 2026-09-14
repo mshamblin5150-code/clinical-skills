@@ -1091,6 +1091,10 @@ _Avoid_: anchor lag, unreconciled commit
 A disagreement between the implementation map and the tracker. It has directions and they are named separately, because each was found by a different instrument and one was invisible to the check built for the other: a **ready ticket** in no packet, and a packeted ticket that has stopped being ready. A gate that grades one direction certifies nothing about the others, and the `blocked` label carries a third disagreement that is held by the sweep in prose rather than by any gate.
 _Avoid_: staleness, mismatch, error, out of date
 
+**Map view**:
+A section of the implementation map drawn from its stored state and the tracker as it stands: the frontier, the packet table, the dependency graph. It is never read back as memory and belongs to no session, because the tracker moving is enough to make it wrong: a closed ticket stales it without the closer owing anything. So a stale one is reported rather than failed, and refreshing one is a **publish**, never a **reconciliation**. Distinct from a **Map disagreement**, which is the stored state against the tracker; a map view can be stale while the state agrees with the tracker completely.
+_Avoid_: snapshot, cache, map copy, frontier file
+
 **Map overwriter**:
 A writer that replaces an existing implementation map body, which is the unit the concurrency obligations attach to: its own lock identity, the state-hash comparison, and re-validation after publication. Deliberately not *map writer* — creating the coordination issue is outside the role by **definition** rather than by exemption, because there is no prior state to compare against and nothing to clobber. The distinction is why the obligation set can be one enforced set rather than a posture declared per command, which is the arrangement that goes stale at a merge. Exclusion between two of them holds only where they compute the same **lock root**, so one on another machine is outside exclusion by construction and a person editing the body in a browser is outside it altogether.
 _Avoid_: map writer, publisher, map author, reconciler
