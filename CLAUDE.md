@@ -1546,9 +1546,13 @@ commit as information and stamps the git-normalized content identity of the
 repository-relative producer. The body then crosses the
 direct-writer entry point in `tracker_publish_hook.py` before `gh` receives it.
 `check` states that it also walked the ADR review records and local first-parent
-history without reading derived views; `audit` runs those same findings, then
-states the derived-section denominator and how many differed. There is no
-`stale-snapshot` finding.
+history, compares the published derived sections with a fresh render, and
+reports their agreement without grading it. `audit` runs those same findings
+and grades each stale derived section. `publish` writes only when the state,
+derived views, or producer stamp changed. The hourly scheduled workflow uses
+`publish --scheduled`, whose exit policy treats a concurrent state change and
+owned post-write findings as green while leaving publication failures red.
+There is no `stale-snapshot` finding.
 
 The `PostToolUse` hook in `tools/implementation_map_post_hook.py` adds context
 after a ready-ticket flip or a command that lands branch ADRs on the default

@@ -145,6 +145,21 @@ class ReadinessDisagreement(ScannerCase):
         self.assertEqual(code, map_scan.CLEAN)
         self.assertIn("clean: no findings", stdout)
 
+    def test_a_stale_derived_view_is_not_graded(self):
+        value = state(
+            self.anchor,
+            packets=[{"id": "P10", "tickets": [10], "title": "", "outcome": ""}],
+        )
+        mapped = self.map_issue(value)
+        mapped["body"] += "\n\n## Current frontier\n\nDeliberately stale view.\n"
+
+        code, stdout, _ = self.run_scan(
+            [mapped, issue(10, labels=["ready-for-agent"])]
+        )
+
+        self.assertEqual(code, map_scan.CLEAN, stdout)
+        self.assertNotIn("stale-derived-view", stdout)
+
     def test_an_unmapped_ready_ticket_is_a_finding(self):
         value = state(self.anchor)
         code, stdout, _ = self.run_scan(

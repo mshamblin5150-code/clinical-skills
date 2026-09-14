@@ -62,6 +62,7 @@ class FakeTracker:
         self.blocked = {k: sorted(v) for k, v in (blocked or {}).items()}
         self.head = head
         self.created = []
+        self.update_calls = 0
 
     def issues(self):
         return [dict(row) for row in self.rows.values()]
@@ -76,6 +77,7 @@ class FakeTracker:
         return dict(self.rows[number])
 
     def update_issue_body(self, number, body):
+        self.update_calls += 1
         self.rows[number]["body"] = body
 
     def create_issue(self, title, body, labels):
@@ -995,6 +997,47 @@ class PublishReadsItselfBack(unittest.TestCase):
         self.assertEqual(imap.extract_state(tracker.rows[50]["body"]),
                          self.state)
 
+    def test_a_current_publish_writes_nothing(self):
+        tracker = FakeTracker(self.rows, blocked={2: [1]})
+        first_code, first_output = run(imap.cmd_publish, tracker, args())
+        self.assertEqual(first_code, 0, first_output)
+        tracker.update_calls = 0
+
+        code, output = run(imap.cmd_publish, tracker, args())
+
+        self.assertEqual(code, 0, output)
+        self.assertEqual(tracker.update_calls, 0)
+        self.assertIn("views are current", output)
+
+    def test_a_changed_view_writes_once(self):
+        tracker = FakeTracker(self.rows, blocked={2: [1]})
+        first_code, first_output = run(imap.cmd_publish, tracker, args())
+        self.assertEqual(first_code, 0, first_output)
+        tracker.update_calls = 0
+        tracker.rows[1]["state"] = "closed"
+
+        code, output = run(imap.cmd_publish, tracker, args())
+
+        self.assertEqual(code, 0, output)
+        self.assertEqual(tracker.update_calls, 1)
+
+    def test_a_stale_producer_stamp_writes_once(self):
+        tracker = FakeTracker(self.rows, blocked={2: [1]})
+        first_code, first_output = run(imap.cmd_publish, tracker, args())
+        self.assertEqual(first_code, 0, first_output)
+        tracker.update_calls = 0
+        tracker.rows[50]["body"] = re.sub(
+            r"(tools/implementation_map\.py sha256:)[0-9a-f]+",
+            rf"\g<1>{'a' * 64}",
+            tracker.rows[50]["body"],
+            count=1,
+        )
+
+        code, output = run(imap.cmd_publish, tracker, args())
+
+        self.assertEqual(code, 0, output)
+        self.assertEqual(tracker.update_calls, 1)
+
     def test_publish_acquires_the_shared_artifact_lock(self):
         tracker = FakeTracker(self.rows, blocked={2: [1]})
         with mock.patch.object(
@@ -1036,6 +1079,93 @@ class PublishReadsItselfBack(unittest.TestCase):
         self.assertEqual(rc, 1, out)
         self.assertIn("FINDING unmapped-ready", out)
         self.assertIn("#3", out)
+
+    def test_scheduled_publish_is_green_after_an_owned_revalidation_finding(self):
+        tracker = FakeTracker(
+            self.rows + [issue(3, labels=["ready"])],
+            blocked={2: [1]},
+        )
+
+        code, output = run(imap.cmd_publish, tracker, args(scheduled=True))
+
+        self.assertEqual(code, 0, output)
+        self.assertIn("FINDING unmapped-ready", output)
+
+    def test_scheduled_publish_is_green_when_another_writer_changed_state(self):
+        concurrent = state_with(
+            [packet("PA", [1]), packet("PB", [2]), packet("PX", [9])],
+            edges=[hard(1, 2)],
+        )
+
+        class ConcurrentWrite(FakeTracker):
+            def __init__(self, rows, blocked=None):
+                super().__init__(rows, blocked)
+                self.reads = 0
+
+            def get_issue(self, number):
+                self.reads += 1
+                row = super().get_issue(number)
+                if self.reads >= 2:
+                    row["body"] = imap.state_block(concurrent)
+                return row
+
+        tracker = ConcurrentWrite(self.rows, blocked={2: [1]})
+
+        code, output = run(imap.cmd_publish, tracker, args(scheduled=True))
+
+        self.assertEqual(code, 0, output)
+        self.assertEqual(tracker.update_calls, 0)
+        self.assertIn("STATE CHANGED", output)
+
+    def test_scheduled_publish_keeps_a_refused_body_red(self):
+        tracker = FakeTracker(self.rows, blocked={2: [1]})
+        with mock.patch.object(
+            imap.tracker_publish_hook,
+            "authorize_issue_body",
+            side_effect=ValueError("refused by gate"),
+        ):
+            code, output = run(imap.cmd_publish, tracker, args(scheduled=True))
+
+        self.assertEqual(code, 1, output)
+        self.assertEqual(tracker.update_calls, 0)
+        self.assertIn("BODY REFUSED", output)
+
+    def test_scheduled_publish_keeps_a_failed_read_back_red(self):
+        class Tampering(FakeTracker):
+            def get_issue(self, number):
+                row = super().get_issue(number)
+                if self.update_calls:
+                    row["body"] = row["body"].replace('"PA"', '"PX"')
+                return row
+
+        tracker = Tampering(self.rows, blocked={2: [1]})
+
+        code, output = run(imap.cmd_publish, tracker, args(scheduled=True))
+
+        self.assertEqual(code, 1, output)
+        self.assertIn("READ-BACK FAILED", output)
+
+    def test_scheduled_publish_keeps_a_failed_revision_harvest_red(self):
+        tracker = FakeTracker(self.rows, blocked={2: [1]})
+        tracker.user_content_edits = mock.Mock(return_value="history")
+        with mock.patch.object(
+            imap,
+            "harvest_revision_chain",
+            side_effect=imap.MapError("revision endpoint failed"),
+        ):
+            code, output = run(imap.cmd_publish, tracker, args(scheduled=True))
+
+        self.assertEqual(code, 1, output)
+        self.assertIn("REVISION HARVEST FAILED", output)
+
+    def test_scheduled_publish_keeps_lock_contention_red(self):
+        tracker = FakeTracker(self.rows, blocked={2: [1]})
+        with mock.patch.object(
+            imap.artifact_lock,
+            "hold",
+            side_effect=imap.artifact_lock.ArtifactBusy("another writer holds the lock"),
+        ), self.assertRaisesRegex(imap.MapError, "another writer"):
+            imap.cmd_publish(tracker, args(scheduled=True))
 
     def test_successful_publish_harvests_the_revision_chain(self):
         tracker = FakeTracker(self.rows, blocked={2: [1]})
@@ -1443,7 +1573,7 @@ class PublishReadsItselfBack(unittest.TestCase):
                 ns,
                 expected_state_hash=imap.state_hash(imap.state_block(self.state)),
                 refused_outcomes=("Authored judgment that must survive",),
-            ),
+            ).exit_status,
             tracker,
             args(),
         )
@@ -2033,6 +2163,7 @@ class ShortReadCommandRefusals(unittest.TestCase):
             ["claim", "--ticket", "993"],
             ["render"],
             ["publish"],
+            ["publish", "--scheduled"],
             ["apply-delta", "--ticket", "993", "--outcome", "Authored"],
             ["init", "--state", "not-read-before-the-refusal.json"],
             ["audit"],
@@ -2049,6 +2180,18 @@ class ShortReadCommandRefusals(unittest.TestCase):
 
             self.assertEqual(code, 2)
             self.assertIn("did not run", stderr.getvalue())
+
+    def test_scheduled_publish_keeps_an_exhausted_allowance_red(self):
+        stderr = io.StringIO()
+        with mock.patch.object(
+            imap.GitHub,
+            "issues",
+            side_effect=imap.MapError("API allowance exhausted"),
+        ), redirect_stdout(io.StringIO()), mock.patch.object(sys, "stderr", stderr):
+            code = imap.main(["--repo", "owner/repo", "publish", "--scheduled"])
+
+        self.assertEqual(code, 2)
+        self.assertIn("allowance exhausted", stderr.getvalue())
 
     def test_short_read_record_carries_the_complete_diagnostic(self):
         with tempfile.TemporaryDirectory() as temporary, mock.patch.object(
@@ -2615,8 +2758,14 @@ class TheRenderedViews(unittest.TestCase):
         ], blocked={2: [1]}), self.state)
         body = imap.render(self.state, live, {"commit": "c", "date": "d"})
         maintenance = body.partition("## Maintenance rule")[2]
+        flat_maintenance = " ".join(maintenance.split())
         self.assertIn("tools/map_scan.py", maintenance)
         self.assertIn("map_scan.DECLARED_LIMITS", maintenance)
+        self.assertIn("scheduled job refreshes those views hourly", flat_maintenance)
+        self.assertIn("a closeout owes no `publish`", flat_maintenance)
+        self.assertIn("Item 3's reconciliation obligation is unchanged", flat_maintenance)
+        self.assertIn("Derived views refresh hourly", imap.HOW_TO_UPDATE)
+        self.assertIn("refresh them now with: `... publish`", imap.HOW_TO_UPDATE)
 
     def test_the_emitter_accounts_for_every_line_and_every_packet(self):
         coverage = imap.verify_mermaid(self.state, imap.mermaid(self.state, self.live))
@@ -2751,8 +2900,8 @@ class AuditComparesPublishedToFresh(unittest.TestCase):
         self.assertEqual(check_code, 0)
         self.assertEqual(audit_code, 0)
         self.assertIn("state block and live tracker", check_output)
-        self.assertIn("derived views were not read", check_output)
-        self.assertIn("run audit", check_output)
+        self.assertIn("derived views compared", check_output)
+        self.assertIn("reported without grading", check_output)
         section_count = len(imap.derived_sections(tracker.rows[50]["body"]))
         self.assertIn(
             f"{section_count} published derived sections; 0 differed",
@@ -2780,6 +2929,29 @@ class AuditComparesPublishedToFresh(unittest.TestCase):
         rc, out = run(imap.cmd_audit, tracker, args())
         self.assertEqual(rc, 1)
         self.assertIn("stale-derived-view", out)
+
+    def test_check_reports_a_stale_view_without_grading_it(self):
+        tracker = self._published_tracker()
+        tracker.rows[1]["state"] = "closed"
+
+        code, output = run(imap.cmd_check, tracker, args())
+
+        self.assertEqual(code, 0, output)
+        self.assertRegex(output, r"derived views: [1-9]\d* of \d+ differ")
+        self.assertIn("Current frontier", output)
+        self.assertIn("wait for the hourly refresh, or run publish", output)
+        self.assertNotIn("FINDING stale-derived-view", output)
+
+    def test_check_reports_view_agreement_beside_owned_findings(self):
+        tracker = self._published_tracker()
+        tracker.rows[1]["state"] = "closed"
+        tracker.rows[3] = issue(3, labels=["ready"])
+
+        code, output = run(imap.cmd_check, tracker, args())
+
+        self.assertEqual(code, 1, output)
+        self.assertIn("derived views:", output)
+        self.assertIn("FINDING unmapped-ready", output)
 
     def test_a_moved_head_is_informational_not_a_stale_snapshot_finding(self):
         tracker = self._published_tracker()
