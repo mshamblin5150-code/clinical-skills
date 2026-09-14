@@ -147,6 +147,7 @@ def gate_conformance(module: Any) -> type[unittest.TestCase]:
                 if str(field.type) == "bool"
             }
             self.assertEqual(boolean_fields, set(module.GATED_ROW_SETS))
+            self.assertLessEqual(set(module.PARTIAL_GATES), set(module.GATED_ROW_SETS))
 
         def test_gated_fields_are_nullable_and_no_nullable_field_is_orphaned(self):
             fields = {field.name: field for field in dataclasses.fields(module.Scan)}
@@ -185,7 +186,11 @@ def gate_conformance(module: Any) -> type[unittest.TestCase]:
                         }
                         self.assertEqual(1, len(matches), kind)
                         index = next(iter(matches))
-                        self.assertIn(run_grader.NOT_GRADED, off[index])
+                        if gate in module.PARTIAL_GATES:
+                            self.assertNotIn(run_grader.NOT_GRADED, off[index])
+                            self.assertTrue(off[index].startswith(f"{kind}: 0"))
+                        else:
+                            self.assertIn(run_grader.NOT_GRADED, off[index])
                         self.assertEqual(f"{kind}: 0", on[index])
                         declared_indexes.add(index)
 

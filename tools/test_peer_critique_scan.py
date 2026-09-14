@@ -14,7 +14,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 import peer_critique_scan as scan
@@ -22,11 +22,12 @@ import research_ledger
 import file_digest
 
 SKILL = Path(__file__).resolve().parents[1] / "skills" / "peer-critique" / "SKILL.md"
-from grader_conformance import EmptyPopulationInput, for_module
+from grader_conformance import EmptyPopulationInput, for_module, gate_conformance
 from prose_bind import NAMING, bind
 
 
 GraderConformance = for_module(scan)
+GateConformance = gate_conformance(scan)
 
 HEADINGS = scan.REQUIRED_HEADINGS
 FILLER = " ".join(["word"] * 70)
@@ -412,6 +413,20 @@ class OnlyBelievedClaimRecordsCertifyBodyNumbers(unittest.TestCase):
         self.assertIsNone(result.claim_records)
         self.assertIn(f"numeric claims: {scan.NOT_GRADED}", report)
         self.assertIn(f"claim records: {scan.NOT_GRADED}", report)
+
+    def test_a_refused_label_keeps_a_missing_heading_finding(self):
+        directory = build_run(
+            headings=HEADINGS[:-1],
+            references=REFERENCES.replace("**References**", "References"),
+        )
+        stdout, stderr = io.StringIO(), io.StringIO()
+        with redirect_stdout(stdout), redirect_stderr(stderr):
+            status = scan.main([str(directory)])
+
+        self.assertEqual(1, status)
+        self.assertIn("References", stderr.getvalue())
+        self.assertIn("missing-heading: 1", stdout.getvalue())
+        self.assertIn("reference-minimum: not graded", stdout.getvalue())
 
 
 class TheCommandRefusesAnUnscannableRun(unittest.TestCase):

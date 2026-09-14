@@ -327,7 +327,7 @@ class CanvasSubmissionRows(unittest.TestCase):
 
         self.assertEqual(status, 2)
         self.assertEqual(stderr, "")
-        self.assertIn("rendered-pages: not graded", stdout)
+        self.assertIn("rendered-pages: 0", stdout)
         self.assertIn(scan.pdf_engine.RENDER_UNAVAILABLE, stdout)
         self.assertIn("not mechanically verified", stdout)
         self.assertIn("findings: 0", stdout)
@@ -361,7 +361,28 @@ class CanvasSubmissionRows(unittest.TestCase):
 
         self.assertEqual(status, 1)
         self.assertIn("bold-headings: 1", stdout)
-        self.assertIn("rendered-pages: not graded", stdout)
+        self.assertIn("rendered-pages: 0", stdout)
+
+    def test_a_non_clean_render_verdict_survives_an_unavailable_engine(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            html, _ = self.rendered(run)
+            run.record_canvas_render(
+                html,
+                verdict="defect - the final block was not readable",
+            )
+            with mock.patch.object(
+                scan.page_image.pdf_engine,
+                "acquire",
+                side_effect=scan.pdf_engine.EngineUnavailable(),
+            ):
+                status, stdout, stderr = run.grade("--html", str(html))
+
+        self.assertEqual(1, status)
+        self.assertEqual("", stderr)
+        self.assertIn(
+            f"rendered-pages: 1 - {scan.pdf_engine.RENDER_UNAVAILABLE}", stdout
+        )
 
     def test_block_quotation_text_and_block_count_are_graded_on_the_html_seam(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -1296,6 +1317,49 @@ class APostedInitialEntryHasItsOwnReading(unittest.TestCase):
         self.assertEqual("", stderr)
         self.assertIn("submission-fingerprint: 1", stdout)
 
+    def test_a_refused_label_keeps_a_missing_posted_reading_finding(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = self.posted_run(Path(temp))
+            run.draft.write_text(
+                run.draft.read_text(encoding="utf-8").replace(
+                    "## References", "**References**"
+                ),
+                encoding="utf-8",
+            )
+            (run.root / "reread.md").unlink()
+            status, stdout, stderr = run.grade()
+
+        self.assertEqual(1, status)
+        self.assertIn("**References**", stderr)
+        self.assertIn("missing-posted-reading: 1", stdout)
+        self.assertIn("word-floor: not graded", stdout)
+
+    def test_a_refused_label_keeps_a_submission_fingerprint_finding(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = self.posted_run(Path(temp))
+            run.draft.write_text(
+                run.draft.read_text(encoding="utf-8").replace(
+                    "## References", "**References**"
+                ),
+                encoding="utf-8",
+            )
+            reread = run.root / "reread.md"
+            reread.write_text(
+                re.sub(
+                    r"^SUBMISSION-SHA256:.*\n",
+                    "",
+                    reread.read_text(encoding="utf-8"),
+                    flags=re.MULTILINE,
+                ),
+                encoding="utf-8",
+            )
+            status, stdout, stderr = run.grade()
+
+        self.assertEqual(1, status)
+        self.assertIn("**References**", stderr)
+        self.assertIn("submission-fingerprint: 1", stdout)
+        self.assertIn("reference-minimum: not graded", stdout)
+
     def test_a_one_word_source_edit_makes_the_reading_fingerprint_stale(self):
         with tempfile.TemporaryDirectory() as temp:
             run = self.posted_run(Path(temp))
@@ -1458,6 +1522,7 @@ class ARecognizedButRefusedLabelStopsTheScan(unittest.TestCase):
                     encoding="utf-8",
                 )
                 reply.write_heading_read()
+                reply.refresh_fingerprint()
                 with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
                     reply_status = reply_scan.main([reply_temp])
             with tempfile.TemporaryDirectory() as post_temp:

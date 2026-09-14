@@ -726,6 +726,7 @@ class ARecognizedButRefusedLabelStopsTheScan(unittest.TestCase):
                 encoding="utf-8",
             )
             run.write_heading_read()
+            run.refresh_fingerprint()
             stdout, stderr = io.StringIO(), io.StringIO()
             with redirect_stdout(stdout), redirect_stderr(stderr):
                 status = scan.main([temp])
@@ -743,7 +744,7 @@ class ARecognizedButRefusedLabelStopsTheScan(unittest.TestCase):
             with self.subTest(row=row):
                 self.assertIn(f"{row}: not graded", stdout.getvalue())
 
-    def test_a_refused_label_keeps_exit_two_when_the_addressed_name_also_fails(self):
+    def test_a_refused_label_keeps_the_addressed_name_finding(self):
         with tempfile.TemporaryDirectory() as temp:
             run = Run(Path(temp))
             response = run.root / "response-maren.md"
@@ -756,7 +757,7 @@ class ARecognizedButRefusedLabelStopsTheScan(unittest.TestCase):
             with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
                 status = scan.main([temp])
 
-        self.assertEqual(2, status)
+        self.assertEqual(1, status)
         self.assertIn("addressed-name: 1", stdout.getvalue())
 
 

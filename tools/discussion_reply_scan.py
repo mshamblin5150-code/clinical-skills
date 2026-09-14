@@ -120,6 +120,7 @@ GATED_ROW_SETS = {
         ),
     ),
 }
+PARTIAL_GATES = ()
 ABSENT_BY_DESIGN_FIELDS = ()
 
 UNJOINED_SOURCE_FIELDS = ", ".join(REFUTATION_EVIDENCE_COMPLEMENT)
@@ -998,12 +999,14 @@ def grade(source: RunSource, _parsed: run_grader.Parsed) -> run_grader.Grade[Sca
     return run_grader.Grade(
         scan=scanned,
         source=str(source.path),
-        findings_failed=(
-            any(finding.kind == EDITOR_READBACK for finding in scanned.findings)
-            or any(finding.kind in heading_read.KINDS for finding in scanned.findings)
-            or (bool(scanned.findings) and scanned.reference_boundary_graded)
-            or aar_failed
-        ),
+        findings_failed=any(
+            all(
+                getattr(scanned, gate) or gate in PARTIAL_GATES or finding.kind not in kinds
+                for gate, (kinds, _field_names) in GATED_ROW_SETS.items()
+            )
+            for finding in scanned.findings
+        )
+        or aar_failed,
         coverage_failed=not scanned.reference_boundary_graded,
         diagnostics=refused,
         reports=(aar_report,),
