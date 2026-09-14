@@ -1881,6 +1881,27 @@ python tools/icd10_build.py "C:/codeing/david_2/icd-10-cm"
 
 Its parsers are covered by `tools/test_icd10.py`, which runs against the excerpts in `tools/testdata/` and **never against the shipped database** — a test that read the real one would pass for two reasons, one of them being that the builder and the test are wrong together.
 
+### Procedure-code database
+
+`reference/procedure-codes-2026.sqlite` is the committed, date-aware CPT and
+HCPCS verification source used by `icd10-cpt`. `tools/procedure_codes_build.py`
+joins the normalized licensed CPT import to CMS's quarterly Alpha-Numeric HCPCS
+file, records both VitalSource editions as book authorities, and writes a
+completeness flag for each system. `tools/procedure_codes_lookup.py` verifies a
+candidate number, descriptor, modifier identity, and date status:
+
+```bash
+python tools/procedure_codes_lookup.py 12001 J1100 --on 2026-09-14
+python tools/procedure_codes_lookup.py --modifier AB --on 2026-09-14
+```
+
+The lookup is not a coding-rules engine. It does not encode instructions,
+parentheticals, cross-references, bundling rules, or what documentation earns a
+code. A partial-system miss is reported as unread rather than absence; the
+reader then opens the rendered destination in the corresponding authenticated
+VitalSource book. The normalized licensed CSV is a rebuild input, not a second
+committed copy of the code set.
+
 ### CDC BMI-for-age table
 
 `reference/cdc-bmi-for-age-2022.csv` is committed for the same consumer-critical-path reason as the ICD database. It is CDC's public 2022 Extended BMI-for-Age data file, downloaded byte-for-byte from `https://www.cdc.gov/growthcharts/data/extended-bmi/bmi-age-2022.csv`: **438 data rows, 219 per sex**, plus its header. The source page is `https://www.cdc.gov/growthcharts/extended-bmi-data-files.htm`; SHA-256 at import on 2026-08-20 was `7F416A213157A5209BB6CBFD1B19292510248F3F31FE43C9FF63F6D8E39F7890`.

@@ -67,6 +67,8 @@ NO_LIMITS = {
     "page_text": "a page-text extraction adapter with no independent coverage claim",
     "phi_scan": "a staged-content safety gate whose scanned surfaces are explicit in its implementation",
     "post_html": "an HTML construction helper rather than a content-completeness grader",
+    "procedure_codes_build": "a database builder whose supplied source files and schema checks define its work",
+    "procedure_codes_lookup": "an exact local database lookup rather than a coding-rules or documentation grader",
     "prose_bind": "the shared binding instrument; its exact name vocabulary is separately classified",
     "reference_class_census": "a source-class census whose counted inputs are stated by its report",
     "render_pass": "shared retained-pass data structures rather than an independent grader",
