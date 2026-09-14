@@ -46,6 +46,7 @@ from __future__ import annotations
 
 import argparse
 import datetime
+import enum
 import hashlib
 import json
 import os
@@ -82,6 +83,27 @@ COLLISION_KINDS = ("sequence", "unordered", "unclassified")
 class DeclaredLimit(NamedTuple):
     key: str
     limit: str
+
+
+class PublishOutcome(enum.Enum):
+    BODY_REFUSED = "BODY REFUSED"
+    STATE_CHANGED = "STATE CHANGED"
+    NO_CHANGE = "NO CHANGE"
+    READ_BACK_FAILED = "READ-BACK FAILED"
+    REVISION_HARVEST_FAILED = "REVISION HARVEST FAILED"
+    PUBLISHED = "PUBLISHED"
+    CREATED = "CREATED"
+
+
+class PublishResult(NamedTuple):
+    exit_status: int
+    outcome: PublishOutcome
+    wrote: bool = False
+
+
+class ViewAgreement(NamedTuple):
+    section_names: tuple[str, ...]
+    differing: tuple[str, ...]
 
 
 class Revision(NamedTuple):
@@ -157,11 +179,27 @@ DECLARED_LIMITS = (
     ),
     DeclaredLimit(
         "clean-check-derived-views",
-        "A clean check grades the state block against live tracker rows whose pre-filter count passed the population gate and does not establish that the published derived views match a fresh render; audit performs that comparison.",
+        "After the live tracker population gate passes, check reports whether the published derived views match a fresh render without grading that agreement; audit grades each differing section.",
     ),
     DeclaredLimit(
         "producer-stamp-single-emitter",
         "The producer stamp covers tools/implementation_map.py alone; a change in another module that affects rendered bytes is not detected.",
+    ),
+    DeclaredLimit(
+        "scheduled-dependency-lag",
+        "A dependency change is reflected only at the next scheduled run, and GitHub may delay a scheduled run under load.",
+    ),
+    DeclaredLimit(
+        "github-token-no-follow-up-workflow",
+        "An issue-body edit made with GITHUB_TOKEN starts no workflow run, so tracker.yml does not grade the scheduled job's write after publication.",
+    ),
+    DeclaredLimit(
+        "direct-writer-publication-gates",
+        "Before publication authorize_issue_body grades body shape, coordinates, measurements, and the producer stamp, but not PHI or branch scope.",
+    ),
+    DeclaredLimit(
+        "state-hash-write-window",
+        "The sub-second window between the state-hash comparison and update_issue_body remains open to another writer.",
     ),
 )
 
@@ -1371,11 +1409,12 @@ MAINTENANCE_RULE = """\
    major implementation wave; whenever an incremental update cannot place the
    new work confidently; and whenever the native dependency graph and this
    issue disagree.
-8. Every /implement closeout updates the map after merge when closing its
-   ticket changes the frontier. Closing a native blocker updates GitHub's
-   dependency state, but the Mermaid graph and written frontier here still
-   require an edit (`publish`). The offline gate's complete boundary is
-   `map_scan.DECLARED_LIMITS`; no row of it is copied here.
+8. Closing a ticket or native blocker stales the frontier, dependency graph,
+   and packet table. A scheduled job refreshes those views hourly, so a
+   closeout owes no `publish`; run `publish` when the views are needed current
+   now. Item 3's reconciliation obligation is unchanged. The offline gate's
+   complete boundary is `map_scan.DECLARED_LIMITS`; no row of it is copied
+   here.
 9. Readiness stays separate from packet status: `claim` refuses an unready
    packet, `check` reports every mapped open ticket that is not ready, and
    frontiers omit an unready packet and its successors."""
@@ -1390,7 +1429,7 @@ or the derived sections.
 - Place new/changed work (reviewed delta JSON): `... apply-delta --delta <f>`
 - Place one newly-ready ticket without JSON surgery:
   `... apply-delta --ticket <n> --outcome <authored judgment>`
-- Refresh the derived views after merges: `... publish`
+- Derived views refresh hourly; refresh them now with: `... publish`
 - Full rebuild-and-compare: `... audit`
 
 A new ADR or ticket cannot be placed by the script alone: write the delta,
@@ -2067,17 +2106,61 @@ def check_findings(
     return findings
 
 
+def compare_rendered_sections(published: str, fresh: str) -> ViewAgreement:
+    fresh_sections = derived_sections(fresh)
+    published_sections = derived_sections(published)
+    section_names = tuple(sorted(set(fresh_sections) | set(published_sections)))
+    differing = tuple(
+        name
+        for name in section_names
+        if fresh_sections.get(name) != published_sections.get(name)
+    )
+    return ViewAgreement(section_names, differing)
+
+
+def compare_derived_views(published: str, state: dict, live: Live) -> ViewAgreement:
+    """Compare the published views with the same fresh render used by audit."""
+    snapshot_match = re.search(r"default-branch commit: `([0-9a-f]+)`", published)
+    recorded_commit = snapshot_match.group(1) if snapshot_match else "?"
+    fresh = render(
+        state,
+        live,
+        {
+            "commit": recorded_commit,
+            "producer_identity": producer_identity(),
+            "date": "VIEW-COMPARISON",
+        },
+    )
+    return compare_rendered_sections(published, fresh)
+
+
+def report_view_agreement(agreement: ViewAgreement) -> None:
+    count = len(agreement.differing)
+    total = len(agreement.section_names)
+    if not agreement.differing:
+        print(f"derived views: {count} of {total} differ; views agree")
+        return
+    print(
+        f"derived views: {count} of {total} differ: "
+        + ", ".join(agreement.differing)
+    )
+    print("    remedy: wait for the hourly refresh, or run publish")
+
+
 def cmd_check(tracker, args) -> int:
     issue = locate_map(tracker)
     state = extract_state(issue["body"])
     live = Live(tracker, state)
     findings = check_findings(state, live, head=tracker.default_branch_head())
+    agreement = compare_derived_views(issue["body"], state, live)
     print(f"map: issue #{issue['number']} ({issue['title']!r})")
     print(f"pending outcome records: {len(pending_outcome_records())}")
+    report_view_agreement(agreement)
     return report(
         findings,
         "state block and live tracker, plus ADR review records and local "
-        "first-parent git history; derived views were not read; run audit to compare them",
+        "first-parent git history, plus published derived views compared with "
+        "a fresh render and reported without grading",
     )
 
 
@@ -2214,7 +2297,7 @@ def publish_body(
     expected_state_hash: str | None = None,
     refused_outcomes: tuple[str, ...] = (),
     raise_on_state_change: bool = False,
-) -> int:
+) -> PublishResult:
     live = Live(tracker, state)
     body = render(
         state,
@@ -2253,9 +2336,9 @@ def publish_body(
         print(f"BODY REFUSED: {err}")
         if record is not None:
             print(f"outcome record: {record}")
-        return 1
+        return PublishResult(1, PublishOutcome.BODY_REFUSED)
+    current = tracker.get_issue(number)
     if expected_state_hash is not None:
-        current = tracker.get_issue(number)
         if state_hash(current["body"]) != expected_state_hash:
             reason = "tracker state block changed after this reconciliation read it"
             if raise_on_state_change:
@@ -2266,7 +2349,16 @@ def publish_body(
             print(f"STATE CHANGED: refusing to overwrite issue #{number}")
             if record is not None:
                 print(f"outcome record: {record}")
-            return 1
+            return PublishResult(1, PublishOutcome.STATE_CHANGED)
+    current_state = extract_state(current["body"])
+    agreement = compare_rendered_sections(current["body"], body)
+    if (
+        current_state == state
+        and not agreement.differing
+        and producer_stamp_problem(current["body"]) is None
+    ):
+        print(f"views are current: issue #{number}; no write")
+        return PublishResult(0, PublishOutcome.NO_CHANGE)
     tracker.update_issue_body(number, body)
     written = tracker.get_issue(number)
     # A failed read-back is 1, not 2: the write already happened, and 2
@@ -2275,13 +2367,13 @@ def publish_body(
         round_tripped = extract_state(written["body"])
     except MapError as err:
         print(f"READ-BACK FAILED (the write DID happen; inspect issue #{number}): {err}")
-        return 1
+        return PublishResult(1, PublishOutcome.READ_BACK_FAILED, True)
     if round_tripped != state:
         print(
             "READ-BACK FAILED: state on the tracker differs from what was "
             f"sent (the write DID happen; inspect issue #{number})"
         )
-        return 1
+        return PublishResult(1, PublishOutcome.READ_BACK_FAILED, True)
     history_reader = getattr(tracker, "user_content_edits", None)
     if callable(history_reader):
         try:
@@ -2291,9 +2383,9 @@ def publish_body(
                 "REVISION HARVEST FAILED (the write DID happen; "
                 f"inspect issue #{number}): {err}"
             )
-            return 1
+            return PublishResult(1, PublishOutcome.REVISION_HARVEST_FAILED, True)
     print(f"published: issue #{number}, state intact on read-back")
-    return 0
+    return PublishResult(0, PublishOutcome.PUBLISHED, True)
 
 
 def revalidate_after_publish(tracker, state: dict, *, activity: str) -> int:
@@ -2320,20 +2412,29 @@ def cmd_publish(tracker, args) -> int:
             current = tracker.get_issue(issue["number"])
             expected = state_hash(current["body"])
             state = extract_state(current["body"])
-            rc = publish_body(
+            result = publish_body(
                 tracker,
                 issue["number"],
                 state,
                 args,
                 expected_state_hash=expected,
             )
-            if rc == 0:
-                return revalidate_after_publish(
+            if (
+                result.outcome is PublishOutcome.STATE_CHANGED
+                and getattr(args, "scheduled", False)
+            ):
+                print("scheduled publish skipped after another writer changed the state")
+                return 0
+            if result.exit_status == 0 and result.wrote:
+                revalidation = revalidate_after_publish(
                     tracker,
                     state,
                     activity="map published",
                 )
-            return rc
+                if getattr(args, "scheduled", False):
+                    return 0
+                return revalidation
+            return result.exit_status
     except artifact_lock.ArtifactBusy as err:
         raise MapError(str(err)) from err
 
@@ -2501,7 +2602,7 @@ def _apply_delta_attempt(tracker, args, issue_number: int) -> int:
         row.get("no_work", "") for row in delta.get("review_adrs", [])
         if isinstance(row, dict) and isinstance(row.get("no_work"), str)
     )
-    rc = publish_body(
+    result = publish_body(
         tracker,
         issue_number,
         new_state,
@@ -2511,7 +2612,7 @@ def _apply_delta_attempt(tracker, args, issue_number: int) -> int:
         raise_on_state_change=True,
     )
     report_placement_coverage(state, new_state, live)
-    if rc == 0:
+    if result.exit_status == 0:
         # Surface what the applied delta now expects of the tracker -- above
         # all a declared HARD edge whose native mirror the agent still owes.
         return revalidate_after_publish(
@@ -2519,7 +2620,7 @@ def _apply_delta_attempt(tracker, args, issue_number: int) -> int:
             new_state,
             activity="delta applied",
         )
-    return rc
+    return result.exit_status
 
 
 def cmd_init(tracker, args) -> int:
@@ -2555,7 +2656,7 @@ def _init_under_lock(tracker, args) -> int:
     if args.adopt:
         number = args.adopt
         current = tracker.get_issue(number)
-        rc = publish_body(
+        result = publish_body(
             tracker,
             number,
             state,
@@ -2582,15 +2683,15 @@ def _init_under_lock(tracker, args) -> int:
         except MapError as err:
             print(f"READ-BACK FAILED: {err}")
             return 2
-        rc = 0
+        result = PublishResult(0, PublishOutcome.CREATED, True)
         print(f"created: issue #{number}, state intact on read-back")
-    if rc == 0:
+    if result.exit_status == 0:
         return revalidate_after_publish(
             tracker,
             state,
             activity="map created",
         )
-    return rc
+    return result.exit_status
 
 
 def cmd_audit(tracker, args) -> int:
@@ -2604,34 +2705,18 @@ def cmd_audit(tracker, args) -> int:
     stamp_problem = producer_stamp_problem(published)
     if stamp_problem is not None:
         findings.append(Finding("producer-stamp", stamp_problem))
-    snapshot_match = re.search(r"default-branch commit: `([0-9a-f]+)`", published)
-    recorded_commit = snapshot_match.group(1) if snapshot_match else "?"
-    fresh = render(
-        state,
-        live,
-        {
-            "commit": recorded_commit,
-            "producer_identity": producer_identity(),
-            "date": "AUDIT",
-        },
-    )
-    fresh_sections = derived_sections(fresh)
-    published_sections = derived_sections(published)
-    section_names = sorted(set(fresh_sections) | set(published_sections))
-    differed = 0
-    for name in section_names:
-        if fresh_sections.get(name) != published_sections.get(name):
-            differed += 1
-            findings.append(Finding(
-                "stale-derived-view",
-                f"section {name!r} on the tracker differs from a fresh render; "
-                "run publish",
-            ))
+    agreement = compare_derived_views(published, state, live)
+    for name in agreement.differing:
+        findings.append(Finding(
+            "stale-derived-view",
+            f"section {name!r} on the tracker differs from a fresh render; "
+            "run publish",
+        ))
     print(f"map: issue #{issue['number']}")
     return report(
         findings,
-        f"state block, live tracker, and {len(section_names)} published "
-        f"derived sections; {differed} differed",
+        f"state block, live tracker, and {len(agreement.section_names)} published "
+        f"derived sections; {len(agreement.differing)} differed",
     )
 
 
@@ -2685,9 +2770,20 @@ def build_parser() -> argparse.ArgumentParser:
     p_render.add_argument("--commit")
     p_render.add_argument("--date")
 
-    p_pub = sub.add_parser("publish", help="re-render and update the issue (mutates)")
+    p_pub = sub.add_parser(
+        "publish",
+        help="write only when views or producer stamp changed (mutates)",
+    )
     p_pub.add_argument("--commit")
     p_pub.add_argument("--date")
+    p_pub.add_argument(
+        "--scheduled",
+        action="store_true",
+        help=(
+            "scheduled-job exit policy: a concurrent state change and owned "
+            "post-write findings are green; all publication failures stay red"
+        ),
+    )
 
     p_delta = sub.add_parser("apply-delta", help="validate and apply a reviewed delta (mutates)")
     p_delta.add_argument("--delta", help="reviewed delta JSON file")
