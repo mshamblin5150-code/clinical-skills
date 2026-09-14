@@ -887,6 +887,10 @@ _Avoid_: no results, nothing found, vacuous clean, trivially clean
 The one population a **declared member** names, possibly the union of several its matchers read, as the population whose emptiness would leave every row grading the artifact's content with nothing to grade. A row over which files or parts exist, over every line of the artifact, or over a separate completion record, is not such a row, since it stays graded when the content was never read; a population a matcher reads from inside a file stays in scope wherever in the command it is read. Any other population the same grader reads may be empty on its own, as a deck carrying no dollar figure is, and that emptiness is reported rather than gated.
 _Avoid_: subject population, primary population, graded population
 
+**Slide-face text**:
+Text a presentation draws on a slide in front of its audience, whichever part of the file stores it: a title or bullet, a table cell, a SmartArt box, a chart's title, series name, category label or labeled value. What decides membership is that the audience sees it, never where the file keeps it, so a grader that reads only some of those places has read a floor of the slide face rather than a different population. Speaker notes, alternative text and the text of a layout no slide uses are not slide-face text, because nobody in the room reads them. Distinct from a **Load-bearing population**, which names what a grader must have read to claim a verdict; this names what is on the slide to be read.
+_Avoid_: slide XML text, visible text, on-slide text, body text
+
 **Measured population**:
 The population an instrument actually read, as distinct from the one the record names.
 _Avoid_: primary population, scope, sample, corpus
