@@ -154,6 +154,7 @@ GATED_ROW_SETS = {
         ),
     ),
 }
+PARTIAL_GATES = ("rendered_pages_graded",)
 ABSENT_BY_DESIGN_FIELDS = ("word_ceiling",)
 
 UNJOINED_SOURCE_FIELDS = ", ".join(REFUTATION_EVIDENCE_COMPLEMENT)
@@ -1403,7 +1404,8 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
             lines.append(f"{kind}: {NOT_GRADED}")
         elif kind == RENDERED_PAGES and not scan.rendered_pages_graded:
             lines.append(
-                f"{kind}: {NOT_GRADED} - {pdf_engine.RENDER_UNAVAILABLE}; "
+                f"{kind}: {sum(finding.kind == kind for finding in scan.findings)} - "
+                f"{pdf_engine.RENDER_UNAVAILABLE}; "
                 "not mechanically verified"
             )
         elif kind in {BOLD_HEADINGS, RENDERED_COMMENTS, SUBMISSION_TEXT, RENDERED_PAGES} and not scan.html_graded:
@@ -1427,23 +1429,20 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
 
 def grade(source: RunSource, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
     scanned = survey(source)
-    submission_failed = any(
-        finding.kind in {BOLD_HEADINGS, RENDERED_COMMENTS, SUBMISSION_TEXT, RENDERED_PAGES, SUBMISSION_FINGERPRINT}
-        for finding in scanned.findings
-    )
-    heading_failed = any(
-        finding.kind in heading_read.KINDS for finding in scanned.findings
-    )
     aar_failed, aar_report = aar_scan.completion_gate(
         source.path, _parsed.value("--submission")
     )
     return run_grader.Grade(
         scan=scanned,
         source=str(source.path),
-        findings_failed=(
-            bool(scanned.findings)
-            and (scanned.reference_boundary_graded or submission_failed)
-        ) or heading_failed or aar_failed,
+        findings_failed=any(
+            all(
+                getattr(scanned, gate) or gate in PARTIAL_GATES or finding.kind not in kinds
+                for gate, (kinds, _field_names) in GATED_ROW_SETS.items()
+            )
+            for finding in scanned.findings
+        )
+        or aar_failed,
         coverage_failed=(
             not scanned.reference_boundary_graded
             or not scanned.rendered_pages_graded
