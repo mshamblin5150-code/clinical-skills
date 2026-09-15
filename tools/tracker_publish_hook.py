@@ -1015,6 +1015,40 @@ def _has_unquoted_brace_expansion(source: str) -> bool:
     return False
 
 
+def _has_unquoted_pathname_expansion(source: str) -> bool:
+    quote: str | None = None
+    bracket_start: int | None = None
+    index = 0
+    while index < len(source):
+        character = source[index]
+        if character == "\\" and quote != "'" and index + 1 < len(source):
+            index += 2
+            continue
+        if character in ("'", '"'):
+            if quote is None:
+                quote = character
+            elif quote == character:
+                quote = None
+            index += 1
+            continue
+        if quote is None:
+            if character in ("*", "?"):
+                return True
+            if character == "[":
+                bracket_start = index
+            elif character == "]" and bracket_start is not None:
+                candidate = source[bracket_start : index + 1]
+                if (
+                    len(candidate) > 2
+                    and "$" not in candidate
+                    and "`" not in candidate
+                ):
+                    return True
+                bracket_start = None
+        index += 1
+    return False
+
+
 def _analyze_source_word(
     source: str,
     assignments: dict[str, str],
@@ -1022,6 +1056,10 @@ def _analyze_source_word(
 ) -> tuple[str | None, str | None, set[str], bool, bool]:
     if _has_unquoted_brace_expansion(source):
         return None, "brace-expansion", set(), True, False
+    if _has_unquoted_pathname_expansion(source):
+        return None, "pathname-expansion", set(), True, False
+    if source.startswith("~"):
+        return None, "tilde-expansion", set(), True, False
     parts: list[str] = []
     unquoted_names: set[str] = set()
     failure_kind: str | None = None

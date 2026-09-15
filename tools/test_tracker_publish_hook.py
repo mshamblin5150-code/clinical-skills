@@ -727,6 +727,43 @@ class InlineTrackerTextIsRead(unittest.TestCase):
                 self.assertEqual(result.grade_route, ("issue", "comment"))
                 self.assertEqual(result.publications[0].text, "{Safe,Injected}")
 
+    def test_unquoted_api_pathname_expansion_is_refused(self) -> None:
+        commands = (
+            "gh api -X POST repos/o/r/issues/7/comments -f body=*",
+            "gh api -X POST repos/o/r/issues/7/comments -f body=?",
+            "gh api -X POST repos/o/r/issues/7/comments -f 'body=x'[ab]",
+        )
+
+        for command in commands:
+            with self.subTest(command=command):
+                result = hook.extract(command)
+                self.assertIsNone(result.grade_route)
+                self.assertEqual(
+                    result.unclassified_api_calls[0].kind,
+                    "unclassified-api-arguments",
+                )
+
+        safe_commands = (
+            "gh api -X POST repos/o/r/issues/7/comments -f 'body=*'",
+            "gh api -X POST repos/o/r/issues/7/comments -f body=\\?",
+            "gh api -X POST repos/o/r/issues/7/comments -f 'body=[ab]'",
+        )
+        for command in safe_commands:
+            with self.subTest(command=command):
+                result = hook.extract(command)
+                self.assertEqual(result.grade_route, ("issue", "comment"))
+
+    def test_unquoted_leading_tilde_api_argument_is_refused(self) -> None:
+        result = hook.extract(
+            "gh api graphql --input ~/body.json"
+        )
+
+        self.assertIsNone(result.grade_route)
+        self.assertEqual(
+            result.unclassified_api_calls[0].kind,
+            "unclassified-api-arguments",
+        )
+
     def test_nondefault_ifs_cannot_inject_api_publication_options(self) -> None:
         commands = (
             "IFS=,; ARGS='7,-f,body=Injected'; ",
