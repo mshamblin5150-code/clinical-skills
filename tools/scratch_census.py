@@ -93,6 +93,10 @@ UNLOCKED_UNMOUNTED_WORKTREE_LIMIT = (
     "registration, and pruning it unregisters a live checkout whose scratch "
     "material then leaves the walk permanently"
 )
+PEER_DIRECTORY_LINK_LIMIT = (
+    "a peer scratch root holding only a directory symbolic link counts as no "
+    "file because the census does not traverse it"
+)
 
 DECLARED_LIMITS = (
     OWNING_SWAP_LIMIT,
@@ -105,6 +109,7 @@ DECLARED_LIMITS = (
     HARNESS_REMOVAL_LIMIT,
     RUNNING_SESSION_LIMIT,
     UNLOCKED_UNMOUNTED_WORKTREE_LIMIT,
+    PEER_DIRECTORY_LINK_LIMIT,
 )
 
 DELIMITED_SCRATCH_NAMES = (
@@ -125,6 +130,12 @@ class CensusNotRun(Exception):
 class RootCount:
     root: Path
     unaccounted: int
+    files: int
+
+
+@dataclass(frozen=True)
+class PeerRootCount:
+    root: Path
     files: int
 
 
@@ -165,10 +176,10 @@ class PreRemovalRead:
 @dataclass(frozen=True)
 class PeerPopulation:
     roots: tuple[Path, ...]
-    counts: tuple[RootCount, ...]
+    counts: tuple[PeerRootCount, ...]
     absent: tuple[Path, ...]
-    empty: tuple[RootCount, ...]
-    material: tuple[RootCount, ...]
+    empty: tuple[PeerRootCount, ...]
+    material: tuple[PeerRootCount, ...]
     unreadable: tuple[Path, ...]
     stale: tuple[Path, ...]
     locked: tuple[WorktreeRegistration, ...]
@@ -177,16 +188,16 @@ class PeerPopulation:
 def peer_population(
     registrations: tuple[WorktreeRegistration, ...],
     gating_roots: set[Path],
-    counts: list[RootCount],
+    peer_counts: list[PeerRootCount],
     absent: list[Path],
     unavailable: dict[Path, str],
-    *,
-    unaccounted_available: bool,
 ) -> PeerPopulation:
     roots = tuple(item.root for item in registrations)
     registrations_by_root = {item.root: item for item in registrations}
     peer_roots = tuple(root for root in roots if root not in gating_roots)
-    peer_counts = tuple(item for item in counts if item.root not in gating_roots)
+    counted_peers = tuple(
+        item for item in peer_counts if item.root not in gating_roots
+    )
     peer_absent = tuple(root for root in absent if root not in gating_roots)
     peer_unreadable = tuple(
         root
@@ -203,18 +214,14 @@ def peer_population(
         for root, state in unavailable.items()
         if root not in gating_roots and state == "locked registration"
     )
-    peer_material = tuple(
-        item
-        for item in peer_counts
-        if item.files > 0 or (unaccounted_available and item.unaccounted > 0)
-    )
+    peer_material = tuple(item for item in counted_peers if item.files > 0)
     material_roots = {item.root for item in peer_material}
     peer_empty = tuple(
-        item for item in peer_counts if item.root not in material_roots
+        item for item in counted_peers if item.root not in material_roots
     )
     return PeerPopulation(
         roots=peer_roots,
-        counts=peer_counts,
+        counts=counted_peers,
         absent=peer_absent,
         empty=peer_empty,
         material=peer_material,
@@ -228,7 +235,6 @@ def print_peer_population(
     peers: PeerPopulation,
     *,
     show_all: bool,
-    unaccounted_available: bool,
 ) -> None:
     print(
         f"REPORT ONLY: {len(peers.roots)} peer roots; "
@@ -253,10 +259,7 @@ def print_peer_population(
         item = counts_by_root.get(root)
         if item is not None:
             noun = "file" if item.files == 1 else "files"
-            if unaccounted_available:
-                state = f"{item.files} {noun}, {item.unaccounted} unaccounted"
-            else:
-                state = f"{item.files} {noun}; unaccounted not scanned"
+            state = f"{item.files} {noun}"
         elif root in unreadable_roots:
             state = "unreadable"
         elif root in peers.stale:
@@ -413,6 +416,19 @@ def optional_tree_file_count(path: Path) -> int:
     return count_files(path)
 
 
+def count_peer_root(root: Path) -> PeerRootCount | None:
+    if not root.is_dir():
+        raise FileNotFoundError(root)
+    scratch = root / "scratch"
+    try:
+        scratch_mode = scratch.stat().st_mode
+    except FileNotFoundError:
+        return None
+    if not stat.S_ISDIR(scratch_mode):
+        raise NotADirectoryError(scratch)
+    return PeerRootCount(root=root, files=count_files(scratch))
+
+
 def pre_removal_read(root: Path, *, locked: bool) -> PreRemovalRead:
     status = run_git(
         root,
@@ -499,6 +515,8 @@ def main(argv: list[str]) -> int:
     registrations_by_root = {
         registration.root: registration for registration in registrations
     }
+    owning = roots[0]
+    gating_roots = {owning, checkout}
 
     accounted_error: CensusNotRun | None = None
     try:
@@ -507,16 +525,24 @@ def main(argv: list[str]) -> int:
         accounted = frozenset()
         accounted_error = error
 
-    counts: list[RootCount] = []
+    gating_counts: list[RootCount] = []
+    peer_counts: list[PeerRootCount] = []
     absent: list[Path] = []
     unavailable: dict[Path, str] = {}
     for root in roots:
         try:
-            counted = count_root(root, accounted)
-            if counted is not None:
-                counts.append(counted)
+            if root in gating_roots:
+                counted = count_root(root, accounted)
+                if counted is not None:
+                    gating_counts.append(counted)
+                else:
+                    absent.append(root)
             else:
-                absent.append(root)
+                peer_count = count_peer_root(root)
+                if peer_count is not None:
+                    peer_counts.append(peer_count)
+                else:
+                    absent.append(root)
         except FileNotFoundError:
             try:
                 root.stat()
@@ -556,10 +582,10 @@ def main(argv: list[str]) -> int:
         )
     print(coverage)
     print(
-        f"scratch roots: {len(counts)} checkouts own a scratch root; "
-        f"{sum(item.files for item in counts)} files beneath"
+        f"scratch roots: {len(gating_counts) + len(peer_counts)} checkouts own a "
+        f"scratch root; "
+        f"{sum(item.files for item in gating_counts + peer_counts)} files beneath"
     )
-    owning = roots[0]
     if argv == ["--worktrees"]:
         measured_worktrees = tuple(
             item
@@ -570,19 +596,16 @@ def main(argv: list[str]) -> int:
         )
         print_pre_removal_report(measured_worktrees)
     if accounted_error is not None:
-        gating_roots = {owning, checkout}
         peers = peer_population(
             registrations,
             gating_roots,
-            counts,
+            peer_counts,
             absent,
             unavailable,
-            unaccounted_available=False,
         )
         print_peer_population(
             peers,
             show_all=argv == ["--worktrees"],
-            unaccounted_available=False,
         )
         for root in roots:
             if root not in gating_roots:
@@ -598,13 +621,18 @@ def main(argv: list[str]) -> int:
         if argv == ["--worktrees"] and stale_roots:
             print_prune_remedy()
         return 2
-    owning_count = next((item for item in counts if item.root == owning), None)
+    owning_count = next(
+        (item for item in gating_counts if item.root == owning), None
+    )
     owning_finding = (
         owning_count is not None and owning_count.unaccounted > OWNING_BASELINE
     )
-    other_counts = [item for item in counts if item.root != owning]
+    non_owning_gating_counts = [
+        item for item in gating_counts if item.root != owning
+    ]
     committing_count = next(
-        (item for item in other_counts if item.root == checkout), None
+        (item for item in non_owning_gating_counts if item.root == checkout),
+        None,
     )
     committing_finding = (
         committing_count is not None and committing_count.unaccounted > 0
@@ -618,16 +646,14 @@ def main(argv: list[str]) -> int:
 
     peers = peer_population(
         registrations,
-        {owning, checkout},
-        counts,
+        gating_roots,
+        peer_counts,
         absent,
         unavailable,
-        unaccounted_available=True,
     )
     print_peer_population(
         peers,
         show_all=argv == ["--worktrees"],
-        unaccounted_available=True,
     )
     if owning_count is not None:
         print(

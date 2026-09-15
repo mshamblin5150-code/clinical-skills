@@ -65,8 +65,10 @@ resolves through the checkout that owns the tree — **which is resolution and n
 worktree that has a `scratch/` of its own is a root that resolution points away from.
 
 `tools/scratch_census.py` enumerates every registered checkout with
-`git worktree list --porcelain`, walks the top of each scratch root it finds, derives the
-accounted-for set in **one** `git grep` pass over tracked files, and reports the remainder.
+`git worktree list --porcelain`, walks the top of the two gating scratch roots, derives their
+accounted-for set in **one** `git grep` pass over tracked files, and reports the remainder. Peer
+roots receive no accounted-name vocabulary: they are classified and reported from their file
+counts alone.
 
 - **0** is clean and **1** means the owning checkout rose above its recorded baseline or the
   committing checkout rose above zero. Every exit-2 path lives in
@@ -74,7 +76,7 @@ accounted-for set in **one** `git grep` pass over tracked files, and reports the
   coverage both hold, 1 wins**, on `differential_scan.py`'s ordering.
 - **Two gating roots.** The **owning checkout** keeps a grandfathered integer baseline, because its
   residue predates the rule and clearing it needs the clinician's word. The committing checkout
-  has a zero ratchet from day one. Every peer worktree is counted and never graded.
+  has a zero ratchet from day one. Every peer worktree is file-counted and never graded.
 - **The baseline is the module's to state and appears in no prose, including here.** Not a list,
   not hashes, and not a digit in this document or in either ADR. `EXEMPT_CEILING` is the precedent:
   a figure restated in prose goes stale one short of the ceiling, which is the one window where
