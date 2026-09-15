@@ -36,7 +36,7 @@ file, and a British spelling written into prose is a finding in the file that
 documents the rule as readily as anywhere else.
 
 **Preserved output has a third disposition, and paths rather than artifacts
-declare it.** The generated case files in the five byte-for-byte run records
+declare it.** The generated case files in the byte-for-byte run records
 under ``fixtures/`` are **counted and reported, never refused**. Editing a
 listed form there would falsify historical evidence; silently skipping the
 files would hide what a growing table later discovers. ``--record`` therefore
