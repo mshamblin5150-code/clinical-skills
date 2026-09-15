@@ -85,6 +85,41 @@ class GithubIssueEventsAreReported(unittest.TestCase):
 
         self.assertEqual(scan.findings, ())
 
+    def test_an_edit_event_moves_a_retired_line_word_for_word(self) -> None:
+        line = "**Filed from:** the architecture review, 2026-09-11."
+        scope = (
+            "> **Branch state:** this text rests on `main` at `"
+            + "a" * 40
+            + "` as of `2026-09-11`.\n"
+        )
+        previous = scope + line + "\n\nOld."
+        outcomes = (
+            (scope + "\n" + line + "\n\nNew.", ()),
+            (scope + "\n\nNew.", ("filed-from:edited",)),
+            (
+                scope + "\n" + line.replace("review", "build") + "\n\nNew.",
+                ("filed-from:edited",),
+            ),
+            (scope + line + "\n\nNew.", ("filed-from:edited",)),
+        )
+
+        for current, expected_rules in outcomes:
+            event = {
+                "action": "edited",
+                "issue": {
+                    "number": 17,
+                    "body": current,
+                    "created_at": "2026-09-11T00:00:00Z",
+                    "html_url": "https://example.invalid/issues/17",
+                },
+                "changes": {"body": {"from": previous}},
+            }
+            with self.subTest(expected_rules=expected_rules, current=current):
+                scan = filed_from.grade_event(event, "issues")
+                self.assertEqual(
+                    tuple(row.rule for row in scan.findings), expected_rules
+                )
+
     def test_an_edited_issue_that_alters_the_previous_line_is_reported(self) -> None:
         previous = "**Filed from:** the architecture review, 2026-09-11.\n\nOld."
         event = {
@@ -148,7 +183,7 @@ class GithubIssueEventsAreReported(unittest.TestCase):
 
 
 class TheFixedPositionFollowsRecordScope(unittest.TestCase):
-    def test_each_record_scope_places_the_line_immediately_beneath_it(self) -> None:
+    def test_each_record_scope_requires_exactly_one_blank_line(self) -> None:
         scopes = (
             (
                 "> **Branch state:** `codex/ticket-17` at `"
@@ -168,11 +203,69 @@ class TheFixedPositionFollowsRecordScope(unittest.TestCase):
         line = "**Filed from:** the architecture review, 2026-09-11."
 
         for scope in scopes:
-            with self.subTest(scope=scope.partition(":**")[0]):
-                self.assertEqual(filed_from.fixed_position_line(scope + line), line)
-                self.assertIsNone(
-                    filed_from.fixed_position_line(scope + "\n" + line)
+            for ending in ("\n", "\r\n"):
+                normalized_scope = scope.replace("\n", ending)
+                shapes = (
+                    (line, None),
+                    (ending + line, line),
+                    (ending + ending + line, None),
+                    (" \t" + ending + line, line),
+                    (">" + ending + line, None),
+                    (">" + ending + ending + line, line),
                 )
+                for suffix, expected in shapes:
+                    with self.subTest(
+                        scope=scope.partition(":**")[0], suffix=repr(suffix)
+                    ):
+                        self.assertEqual(
+                            filed_from.fixed_position_line(normalized_scope + suffix),
+                            expected,
+                        )
+
+    def test_the_scope_block_extends_through_every_following_quote_line(self) -> None:
+        line = "**Filed from:** the architecture review, 2026-09-11."
+        scope = (
+            "> **Branch state:** this text rests on `main` at `"
+            + "a" * 40
+            + "` as of `2026-09-11`.\n"
+            ">\n"
+            "> *Corrected 2026-09-12: branch state clarified.*\n"
+        )
+
+        self.assertEqual(filed_from.fixed_position_line(scope + "\n" + line), line)
+        self.assertIsNone(filed_from.fixed_position_line(scope + line))
+        self.assertIsNone(filed_from.retired_position_line(scope + line))
+
+    def test_a_body_without_record_scope_keeps_the_line_first(self) -> None:
+        line = "**Filed from:** the clinician's request, 2026-09-11."
+
+        self.assertEqual(filed_from.fixed_position_line(line + "\n\nBody."), line)
+        self.assertIsNone(filed_from.fixed_position_line("\n" + line))
+
+    def test_an_edit_moves_a_retired_line_word_for_word(self) -> None:
+        line = "**Filed from:** the architecture review, 2026-09-11."
+        scope = (
+            "> **Branch state:** this text rests on `main` at `"
+            + "a" * 40
+            + "` as of `2026-09-11`.\n"
+        )
+        current = scope + line + "\n\nOld."
+        outcomes = (
+            (scope + "\n" + line + "\n\nNew.", None),
+            (scope + "\n\nNew.", "filed-from:edit"),
+            (
+                scope + "\n" + line.replace("review", "build") + "\n\nNew.",
+                "filed-from:edit",
+            ),
+            (scope + line + "\n\nNew.", "filed-from:edit"),
+        )
+
+        for proposed, expected_rule in outcomes:
+            with self.subTest(expected_rule=expected_rule, proposed=proposed):
+                grade = filed_from.grade_publication(
+                    proposed, ("issue", "edit"), current_body=current
+                )
+                self.assertEqual(grade.rule, expected_rule)
 
     def test_correction_placement_is_explicitly_outside_the_fixed_line_grade(self) -> None:
         line = "**Filed from:** the architecture review, 2026-09-11."
@@ -207,6 +300,51 @@ class TheCommandGradesOneGithubEvent(unittest.TestCase):
 
 
 class TheOpenTicketSweepListsMissingLines(unittest.TestCase):
+    def test_a_retired_position_has_its_own_nonfinding_harvest_row(self) -> None:
+        scope = (
+            "> **Branch state:** this text rests on `main` at `"
+            + "a" * 40
+            + "` as of `2026-09-11`.\n"
+        )
+        rows = [
+            {
+                "number": 17,
+                "body": scope + "**Filed from:** the review, 2026-09-11.\n\nBody.",
+                "createdAt": filed_from.FILED_FROM_CUTOFF.isoformat().replace(
+                    "+00:00", "Z"
+                ),
+                "state": "OPEN",
+                "url": "https://example.invalid/issues/17",
+            }
+        ]
+
+        scan = filed_from.grade_open_issues(rows, cap=1000)
+
+        self.assertEqual(scan.findings, ())
+        self.assertIn("line at the retired position 1", scan.report)
+
+    def test_a_pre_cutoff_retired_position_is_outside_the_harvest_row(self) -> None:
+        before = filed_from.FILED_FROM_CUTOFF - timedelta(seconds=1)
+        scope = (
+            "> **Branch state:** this text rests on `main` at `"
+            + "a" * 40
+            + "` as of `2026-09-10`.\n"
+        )
+        rows = [
+            {
+                "number": 17,
+                "body": scope + "**Filed from:** the review, 2026-09-10.\n\nBody.",
+                "createdAt": before.isoformat().replace("+00:00", "Z"),
+                "state": "OPEN",
+                "url": "https://example.invalid/issues/17",
+            }
+        ]
+
+        scan = filed_from.grade_open_issues(rows, cap=1000)
+
+        self.assertIn("eligible records 0", scan.report)
+        self.assertIn("line at the retired position 0", scan.report)
+
     def test_a_read_that_reaches_its_cap_is_not_complete(self) -> None:
         created_at = filed_from.FILED_FROM_CUTOFF.isoformat().replace("+00:00", "Z")
         rows = [
@@ -280,6 +418,10 @@ class TheWrittenRuleNamesItsOwnedSources(unittest.TestCase):
         self.assertIn("tracker_filed_from.FILED_FROM_CUTOFF", text)
         self.assertIn("tracker_filed_from.py --harvest", text)
         self.assertIn("returns exactly the cap", text)
+        self.assertIn(
+            "> **Branch state:** ...\n>\n> ...\n\n**Filed from:** ...",
+            text,
+        )
 
     def test_the_aar_requires_the_exact_filed_from_form(self) -> None:
         text = AAR_SKILL.read_text(encoding="utf-8")

@@ -25,6 +25,23 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
 class ThePublicTextGrade(unittest.TestCase):
+    def test_a_declaration_directly_after_a_quote_line_is_refused(self):
+        for quote in ("> quoted scope", ">"):
+            with self.subTest(quote=quote):
+                findings = measurements.grade(
+                    f"{quote}\n**Measured at:** {CURRENT}", "comment", CURRENT
+                )
+                self.assertEqual(
+                    [measurements.INSIDE_QUOTE], [row.rule for row in findings]
+                )
+
+        self.assertEqual(
+            (),
+            measurements.grade(
+                f"> quoted scope\n\n**Measured at:** {CURRENT}", "comment", CURRENT
+            ),
+        )
+
     def test_an_own_line_full_sha_is_compared_with_the_publication_base(self):
         current = f"A load-bearing figure.\n\n**Measured at:** {CURRENT}\n"
         stale = f"A load-bearing figure.\n\n**Measured at:** {STALE}\n"
@@ -68,6 +85,14 @@ class ThePublicTextGrade(unittest.TestCase):
 
 
 class TrackerPublicationsUseTheSharedGrade(unittest.TestCase):
+    def test_direct_writer_refuses_a_declaration_directly_under_a_quote(self):
+        body = f"> quoted claim\n**Measured at:** {CURRENT}"
+        with (
+            mock.patch.object(measurements, "current_head", return_value=CURRENT),
+            self.assertRaisesRegex(ValueError, measurements.INSIDE_QUOTE),
+        ):
+            publish_hook.authorize_issue_body(body, "comment")
+
     def test_command_analysis_denies_a_stale_declared_base(self):
         body = f"A load-bearing figure.\n\n**Measured at:** {STALE}"
         with mock.patch.object(measurements, "current_head", return_value=CURRENT):

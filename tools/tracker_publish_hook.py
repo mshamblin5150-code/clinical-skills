@@ -1161,6 +1161,8 @@ def analyze(
             line += f"; remedy: {COORDINATE_REMEDY}"
         if row.rule == RETIRED_CITATION:
             line += f"; remedy: {RETIRED_CITATION_REMEDY}"
+        if row.rule == tracker_measurements.INSIDE_QUOTE:
+            line += "; remedy: add one blank line above the Measured at declaration"
         lines.append(line)
     if not findings:
         lines.append(f"scanned {publication.field}: 0 findings")

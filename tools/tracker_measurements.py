@@ -18,10 +18,12 @@ import sys
 from console_codec import require_python_floor, use_utf8
 from git_paths import GitPathError, read_path_records
 import tracker_bodies
+import tracker_branch_scope
 
 
 STALE_BASE = "measurement:stale-base"
 INVALID_DECLARATION = "measurement:invalid-declaration"
+INSIDE_QUOTE = "measurement:inside-quote"
 CURRENT_BASE_UNREADABLE = "measurement:current-base-unreadable"
 CLEAN = 0
 FOUND = 1
@@ -94,26 +96,37 @@ def current_head(root: Path = REPO_ROOT) -> str:
 def grade(text: str, locator: str, expected_sha: str) -> tuple[Finding, ...]:
     """Compare one record's own-line declaration with ``expected_sha``."""
 
-    declaration_lines = tuple(
-        line for line in text.splitlines() if line.startswith(LABEL)
+    lines = text.splitlines()
+    declarations = tuple(
+        (index, line)
+        for index, line in enumerate(lines)
+        if line.startswith(LABEL)
     )
-    if not declaration_lines:
+    if not declarations:
         return ()
+    declaration_lines = tuple(line for _, line in declarations)
+    findings = [
+        Finding(INSIDE_QUOTE, locator, "", expected_sha.lower())
+        for index, _ in declarations
+        if tracker_branch_scope.directly_follows_quote_line(lines, index)
+    ]
     matches = tuple(FULL_SHA.fullmatch(line) for line in declaration_lines)
     if len(matches) != 1 or matches[0] is None:
-        return (
+        findings.append(
             Finding(
                 INVALID_DECLARATION,
                 locator,
                 declaration_lines[0],
                 expected_sha.lower(),
-            ),
+            )
         )
+        return tuple(findings)
     declared = matches[0].group(1).lower()
     expected = expected_sha.lower()
     if declared == expected:
-        return ()
-    return (Finding(STALE_BASE, locator, declared, expected),)
+        return tuple(findings)
+    findings.append(Finding(STALE_BASE, locator, declared, expected))
+    return tuple(findings)
 
 
 def grade_current(text: str, locator: str) -> tuple[Finding, ...]:

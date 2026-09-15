@@ -2129,6 +2129,7 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
             (
                 "> **Cited record state:** `docs/adr/9999-unmerged.md` is not "
                 "on `main` as of `2026-09-11`.\n"
+                "\n"
                 "**Filed from:** the architecture review, 2026-09-11.\n\nBody."
             ),
         )
@@ -2162,6 +2163,30 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
                         "filed-from: 0 fixed-line findings",
                         specific["additionalContext"],
                     )
+
+    def test_a_measurement_under_a_quote_is_denied_with_remedy(self) -> None:
+        body = "> quoted claim\n**Measured at:** " + "a" * 40
+        index = phi_scan.build_index(set(), set())
+        with (
+            mock.patch.object(hook, "current_index", return_value=(index, ())),
+            mock.patch.object(hook, "refresh_default_branch", return_value=True),
+            mock.patch.object(hook, "fetch_readback", return_value={}),
+            mock.patch.object(
+                hook.tracker_measurements, "current_head", return_value="a" * 40
+            ),
+            mock.patch.object(hook, "write_marker"),
+        ):
+            response = hook.handle(
+                self.payload("gh issue comment 670 --body '" + body + "'")
+            )
+
+        specific = response["hookSpecificOutput"]
+        self.assertEqual(specific["permissionDecision"], "deny")
+        self.assertIn("measurement:inside-quote", specific["additionalContext"])
+        self.assertIn(
+            "remedy: add one blank line above the Measured at declaration",
+            specific["additionalContext"],
+        )
 
     def test_an_issue_edit_that_drops_the_existing_line_is_denied(self) -> None:
         index = phi_scan.build_index(set(), set())

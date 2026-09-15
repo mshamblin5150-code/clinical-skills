@@ -293,9 +293,19 @@ EOF
 Every ticket also carries the **Filed-from line** defined in
 [`CONTEXT.md`](../../CONTEXT.md#filed-from-line), whatever produced it. Its fixed
 label is `**Filed from:**`, and its fixed position is the first line after a
-record-level `Branch state` or `Cited record state` blockquote, or the body's
-first line when there is no such block. A body carrying the implementation
-map's exact producer stamp is exempt.
+record-level `Branch state` or `Cited record state` blockquote and exactly one
+blank line, or the body's first line when there is no such block. The scope
+block includes every following line beginning with `>`. For example:
+
+```text
+> **Branch state:** ...
+>
+> ...
+
+**Filed from:** ...
+```
+
+A body carrying the implementation map's exact producer stamp is exempt.
 
 The line is append-only. A respec keeps it word for word at that position. A
 correction of the line goes on its own dated line directly beneath the
