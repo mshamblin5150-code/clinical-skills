@@ -951,6 +951,58 @@ def _api_endpoint(arguments: list[str]) -> str:
     return ""
 
 
+def _expand_source_word(
+    source: str,
+    assignments: dict[str, str],
+    substitutions: frozenset[str],
+) -> tuple[str | None, str | None]:
+    parts: list[str] = []
+    quote: str | None = None
+    index = 0
+    variable = re.compile(
+        r"\$(?:\{(?P<braced>[A-Za-z_][A-Za-z0-9_]*)\}|"
+        r"(?P<plain>[A-Za-z_][A-Za-z0-9_]*))"
+    )
+    while index < len(source):
+        character = source[index]
+        if character in ("'", '"'):
+            if quote is None:
+                quote = character
+                index += 1
+                continue
+            if quote == character:
+                quote = None
+                index += 1
+                continue
+        if character == "\\" and quote != "'" and index + 1 < len(source):
+            following = source[index + 1]
+            if quote != '"' or following in '$`"\\\r\n':
+                if following not in "\r\n":
+                    parts.append(following)
+                index += 2
+                continue
+        if quote != "'" and source.startswith("$(", index):
+            return None, "command-substitution"
+        if quote != "'" and character == "`":
+            return None, "command-substitution"
+        if quote != "'" and character == "$":
+            match = variable.match(source, index)
+            if match is None:
+                return None, "external-variable"
+            name = match.group("braced") or match.group("plain")
+            if name in assignments:
+                parts.append(assignments[name])
+            elif name in substitutions:
+                return None, "command-substitution"
+            else:
+                return None, "external-variable"
+            index = match.end()
+            continue
+        parts.append(character)
+        index += 1
+    return "".join(parts), None
+
+
 def _api_graphql_field(
     arguments: list[str],
     command: str,
@@ -976,20 +1028,13 @@ def _api_graphql_field(
                             : len(arguments[index]) - len(option_value or "")
                         ]
                         source_argument = sources[index][len(option_prefix) :]
-                source_key, source_separator, source_value = (
-                    source_argument.partition("=")
-                )
-                literal_shell_value = (
-                    source_separator
-                    and source_key.strip("'") == target
-                    and (
-                        source_argument.startswith("'")
-                        and source_argument.endswith("'")
-                        or source_value.startswith("'")
-                        and source_value.endswith("'")
-                        or "\\$" in source_value
+                source_kind: str | None = None
+                if source_argument:
+                    expanded_source, source_kind = _expand_source_word(
+                        source_argument, assignments, substitutions
                     )
-                )
+                    if expanded_source is not None:
+                        _source_key, _separator, value = expanded_source.partition("=")
                 if value.startswith("@") and name == "field":
                     read = _read_file_field(
                         "body",
@@ -999,7 +1044,9 @@ def _api_graphql_field(
                         substitutions,
                     )
                     found = read if isinstance(read, Unreadable) else read.text
-                elif literal_shell_value:
+                elif source_kind is not None:
+                    found = Unreadable("body", source_kind, value)
+                elif source_argument:
                     found = value
                 else:
                     expanded, kind = shell_reader.expand(
@@ -1285,19 +1332,6 @@ def _unquoted_variable_names(source: str) -> tuple[set[str], bool]:
     return names, dynamic
 
 
-def _api_identifier_source(argument: str, name: str) -> bool:
-    patterns = [pattern for pattern, _route in API_ROUTE_PATTERNS]
-    patterns.extend(API_NON_PUBLICATION_RECORD_ENDPOINTS)
-    for pattern in patterns:
-        match = pattern.fullmatch(argument)
-        if match is not None and match.group("identifier") in (
-            f"${name}",
-            "${" + name + "}",
-        ):
-            return True
-    return False
-
-
 def _api_dynamic_arguments(
     arguments: list[str],
     sources: tuple[str, ...],
@@ -1311,14 +1345,8 @@ def _api_dynamic_arguments(
             return UnclassifiedApiCall("unclassified-api-arguments", argument)
         for name in names:
             if name not in assignments:
-                if name in substitutions or not _api_identifier_source(argument, name):
-                    return UnclassifiedApiCall(
-                        "unclassified-api-arguments", argument
-                    )
-                continue
+                return UnclassifiedApiCall("unclassified-api-arguments", argument)
             value = assignments[name]
-            if not value and _api_identifier_source(argument, name):
-                continue
             split_capable = re.search(r"[\s*?\[]", value) is not None
             injected_option = any(
                 word.startswith("-")
@@ -1334,7 +1362,9 @@ def _api_dynamic_arguments(
             ):
                 return UnclassifiedApiCall("unclassified-api-arguments", argument)
             if (
-                source in (f"${name}", "${" + name + "}")
+                re.sub(r"(?:''|\"\")", "", source).startswith(
+                    (f"${name}", "${" + name + "}")
+                )
                 and value.startswith("-")
             ):
                 return UnclassifiedApiCall("unclassified-api-arguments", argument)

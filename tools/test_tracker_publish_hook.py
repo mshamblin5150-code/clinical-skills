@@ -348,7 +348,7 @@ class InlineTrackerTextIsRead(unittest.TestCase):
         self.assertEqual(result.unreadable, ())
         self.assertEqual(
             result.unclassified_api_calls[0].kind,
-            "unclassified-api-identifier",
+            "unclassified-api-arguments",
         )
 
     def test_api_command_prefix_assignment_is_not_reconstructed(self) -> None:
@@ -361,7 +361,7 @@ class InlineTrackerTextIsRead(unittest.TestCase):
         self.assertEqual(result.unreadable, ())
         self.assertEqual(
             result.unclassified_api_calls[0].kind,
-            "unclassified-api-identifier",
+            "unclassified-api-arguments",
         )
 
     def test_prior_command_local_api_assignment_is_not_reconstructed(self) -> None:
@@ -374,7 +374,7 @@ class InlineTrackerTextIsRead(unittest.TestCase):
         self.assertIsNone(result.grade_route)
         self.assertEqual(
             result.unclassified_api_calls[0].kind,
-            "unclassified-api-identifier",
+            "unclassified-api-arguments",
         )
 
     def test_unset_api_identifier_assignment_is_not_reconstructed(self) -> None:
@@ -387,7 +387,7 @@ class InlineTrackerTextIsRead(unittest.TestCase):
         self.assertIsNone(result.grade_route)
         self.assertEqual(
             result.unclassified_api_calls[0].kind,
-            "unclassified-api-identifier",
+            "unclassified-api-arguments",
         )
 
     def test_conditional_api_identifier_assignment_is_not_reconstructed(self) -> None:
@@ -400,7 +400,7 @@ class InlineTrackerTextIsRead(unittest.TestCase):
         self.assertIsNone(result.grade_route)
         self.assertEqual(
             result.unclassified_api_calls[0].kind,
-            "unclassified-api-identifier",
+            "unclassified-api-arguments",
         )
 
     def test_intervening_command_makes_api_assignment_unreconstructable(self) -> None:
@@ -413,7 +413,7 @@ class InlineTrackerTextIsRead(unittest.TestCase):
         self.assertIsNone(result.grade_route)
         self.assertEqual(
             result.unclassified_api_calls[0].kind,
-            "unclassified-api-identifier",
+            "unclassified-api-arguments",
         )
 
     def test_command_qualified_noops_make_api_state_unreconstructable(self) -> None:
@@ -432,7 +432,7 @@ class InlineTrackerTextIsRead(unittest.TestCase):
                 self.assertIsNone(result.grade_route)
                 self.assertEqual(
                     result.unclassified_api_calls[0].kind,
-                    "unclassified-api-identifier",
+                    "unclassified-api-arguments",
                 )
 
     def test_shadowable_noop_makes_api_assignment_unreconstructable(self) -> None:
@@ -445,7 +445,7 @@ class InlineTrackerTextIsRead(unittest.TestCase):
         self.assertIsNone(result.grade_route)
         self.assertEqual(
             result.unclassified_api_calls[0].kind,
-            "unclassified-api-identifier",
+            "unclassified-api-arguments",
         )
 
     def test_unresolved_api_identifier_assignment_is_not_reconstructed(self) -> None:
@@ -459,7 +459,7 @@ class InlineTrackerTextIsRead(unittest.TestCase):
                 self.assertIsNone(result.grade_route)
                 self.assertEqual(
                     result.unclassified_api_calls[0].kind,
-                    "unclassified-api-identifier",
+                    "unclassified-api-arguments",
                 )
 
     def test_known_api_identifier_assignment_chain_is_reconstructed(self) -> None:
@@ -497,7 +497,7 @@ class InlineTrackerTextIsRead(unittest.TestCase):
         self.assertIsNone(result.grade_route)
         self.assertEqual(
             result.unclassified_api_calls[0].kind,
-            "unclassified-api-identifier",
+            "unclassified-api-arguments",
         )
 
     def test_unquoted_api_assignment_cannot_inject_publication_options(self) -> None:
@@ -513,6 +513,24 @@ class InlineTrackerTextIsRead(unittest.TestCase):
             result.unclassified_api_calls[0].kind,
             "unclassified-api-arguments",
         )
+
+    def test_empty_quote_prefix_cannot_hide_an_injected_api_option(self) -> None:
+        commands = (
+            "ARGS=-f; gh api -X POST repos/example/project/issues/7/comments "
+            "''$ARGS body=Injected",
+            "ARGS=--method=POST; gh api -X GET "
+            "repos/example/project/issues/7 -f body=x ''$ARGS",
+        )
+
+        for command in commands:
+            with self.subTest(command=command):
+                result = hook.extract(command)
+                self.assertIsNone(result.grade_route)
+                self.assertEqual(result.publications, ())
+                self.assertEqual(
+                    result.unclassified_api_calls[0].kind,
+                    "unclassified-api-arguments",
+                )
 
     def test_nondefault_ifs_cannot_inject_api_publication_options(self) -> None:
         commands = (
@@ -574,7 +592,7 @@ class InlineTrackerTextIsRead(unittest.TestCase):
                 self.assertIsNone(result.grade_route)
                 self.assertEqual(
                     result.unclassified_api_calls[0].kind,
-                    "unclassified-api-identifier",
+                    "unclassified-api-arguments",
                 )
 
     def test_escape_bearing_api_identifier_assignment_is_refused(self) -> None:
@@ -593,7 +611,7 @@ class InlineTrackerTextIsRead(unittest.TestCase):
                 self.assertIsNone(result.grade_route)
                 self.assertEqual(
                     result.unclassified_api_calls[0].kind,
-                    "unclassified-api-identifier",
+                    "unclassified-api-arguments",
                 )
 
     def test_export_assignment_commands_make_api_state_unreconstructable(self) -> None:
@@ -613,7 +631,7 @@ class InlineTrackerTextIsRead(unittest.TestCase):
                 self.assertIsNone(result.grade_route)
                 self.assertEqual(
                     result.unclassified_api_calls[0].kind,
-                    "unclassified-api-identifier",
+                    "unclassified-api-arguments",
                 )
 
     def test_shadowable_assignment_builtins_invalidate_api_state(self) -> None:
@@ -632,7 +650,7 @@ class InlineTrackerTextIsRead(unittest.TestCase):
                 self.assertIsNone(result.grade_route)
                 self.assertEqual(
                     result.unclassified_api_calls[0].kind,
-                    "unclassified-api-identifier",
+                    "unclassified-api-arguments",
                 )
 
     def test_api_collection_endpoints_use_create_semantics(self) -> None:
@@ -890,6 +908,22 @@ class InlineTrackerTextIsRead(unittest.TestCase):
                 self.assertEqual(
                     result.unclassified_api_calls[0].kind,
                     "unclassified-api-endpoint",
+                )
+
+    def test_segmented_graphql_fields_expand_only_active_variables(self) -> None:
+        commands = (
+            "OP=mutation; gh api graphql -f query=''$OP' M{x}'",
+            'OP=mutation; gh api graphql -f "query=${OP} M{x}"',
+        )
+
+        for command in commands:
+            with self.subTest(command=command):
+                result = hook.extract(command)
+                self.assertIsNone(result.grade_route)
+                self.assertEqual(result.unreadable, ())
+                self.assertEqual(
+                    result.unclassified_api_calls[0].kind,
+                    "unclassified-api-mutation",
                 )
 
     def test_known_embedded_graphql_assignment_is_reconstructed(self) -> None:
@@ -2502,7 +2536,7 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
 
     def test_unassigned_api_record_identifier_is_unclassified(self) -> None:
         command = (
-            "gh api repos/example/project/issues/comments/$CID "
+            'gh api "repos/example/project/issues/comments/$CID" '
             "-f body='Comment edit'"
         )
 
@@ -2520,7 +2554,7 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
 
     def test_unassigned_text_free_subresource_identifier_is_unclassified(self) -> None:
         command = (
-            "gh api repos/example/project/issues/$IID/labels "
+            'gh api "repos/example/project/issues/$IID/labels" '
             "-f labels[]=bug"
         )
 
