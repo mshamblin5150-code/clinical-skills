@@ -12,6 +12,10 @@ run and the scanner are wrong together.
 ``TheSkillSaysWhatThisChecks`` is the one test that reads a committed file, and
 it is there for ``test_spelling_scan``'s reason: a scanner that drifts from the
 file a reader opens is worse than no scanner, because it reads as agreement.
+
+This module reads a Code-set database on [ADR 0249]'s terms.
+
+[ADR 0249]: ../docs/adr/0249-a-code-set-database-is-a-test-s-reference-and-its-readers-pin-the-file-digest.md
 """
 
 from __future__ import annotations
@@ -23,6 +27,18 @@ import re
 import tempfile
 import unittest
 from pathlib import Path
+
+from code_set_database_test_support import (
+    ICD10_DATABASE_SHA256,
+    assert_code_set_database_digest,
+)
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+assert_code_set_database_digest(
+    REPO_ROOT / "reference" / "icd10cm-2026.sqlite",
+    ICD10_DATABASE_SHA256,
+    "ICD-10-CM Code-set database",
+)
 
 import specificity_scan as scan
 import run_grader
@@ -38,7 +54,6 @@ GraderConformance = for_module(scan)
 UnreadRemainderConformance = unread_remainder_conformance(scan)
 from icd10_lookup import describe, normalize, notes_for, open_database
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
 POSITIVE_RUN = REPO_ROOT / "fixtures" / "worksheet-grammar-positive-control"
 SKILL = REPO_ROOT / "skills" / "icd10-cpt" / "SKILL.md"
 NOTES = REPO_ROOT / "fixtures" / "filled-anchor" / "notes"
