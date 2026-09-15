@@ -122,6 +122,7 @@ DECLARED_SECTIONS = {
     "tracker_merge_receipt": "Tracker merge receipt",
     "tracker_population": "Tracker population",
     "tracker_publish_hook": "Tracker publish hook",
+    "tracker_publish_stub": "Tracker publish hook",
     "tracker_scan": "Tracker scan",
     "uspstf_interval_reach": "USPSTF interval reach",
     "uspstf_table": "USPSTF recommendation table",

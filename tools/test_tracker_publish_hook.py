@@ -1655,7 +1655,11 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
             }
         )
 
-        self.assertEqual(modeled, {})
+        modeled_specific = modeled["hookSpecificOutput"]
+        self.assertEqual(modeled_specific["permissionDecision"], "deny")
+        self.assertIn("NOT SCANNED", modeled_specific["additionalContext"])
+        self.assertIn("one top-level `gh`", modeled_specific["additionalContext"])
+        self.assertIn("run that script from a file", modeled_specific["additionalContext"])
         specific = unmodeled["hookSpecificOutput"]
         self.assertEqual(specific["permissionDecision"], "deny")
         self.assertEqual(
@@ -1663,6 +1667,92 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
         )
         self.assertIn("unmodeled shell", specific["additionalContext"])
         self.assertIn("PowerShell", specific["additionalContext"])
+
+    def test_each_unreproduced_shape_refuses_on_each_modeled_command_tool(self) -> None:
+        commands = {
+            "chained": (
+                "gh issue comment 5 --body 'first' && "
+                "gh issue comment 6 --body 'second'"
+            ),
+            "compound": "{ gh issue comment 5 --body 'text'; }",
+            "nested": "sh -c \"gh issue comment 5 --body 'text'\"",
+            "argv-list": (
+                "python -c \"subprocess.run(['gh', 'issue', 'comment', '5', "
+                "'--body-file', 'body.md'])\""
+            ),
+        }
+
+        for tool_name in ("Bash", "Monitor"):
+            for shape, command in commands.items():
+                with self.subTest(tool=tool_name, shape=shape):
+                    payload = self.payload(command)
+                    payload["tool_name"] = tool_name
+                    specific = hook.handle(payload)["hookSpecificOutput"]
+
+                self.assertEqual(specific["permissionDecision"], "deny")
+                self.assertEqual(
+                    specific["permissionDecisionReason"], hook.UNSCANNED_REFUSAL
+                )
+                self.assertIn("NOT SCANNED", specific["additionalContext"])
+
+    def test_an_argv_list_publication_refuses_on_powershell(self) -> None:
+        command = (
+            "python -c \"subprocess.run(['gh', 'issue', 'comment', '5', "
+            "'--body-file', 'body.md'])\""
+        )
+        payload = self.payload(command)
+        payload["tool_name"] = "PowerShell"
+
+        specific = hook.handle(payload)["hookSpecificOutput"]
+
+        self.assertEqual(specific["permissionDecision"], "deny")
+        self.assertIn("unmodeled shell", specific["additionalContext"])
+
+    def test_the_nested_cd_fallback_uses_the_unreproduced_remedy(self) -> None:
+        command = (
+            "sh -c \"cd /tmp && gh issue comment 5 --body-file 'body.md'\""
+        )
+
+        specific = hook.handle(self.payload(command))["hookSpecificOutput"]
+
+        self.assertIn("unreproduced publication", specific["additionalContext"])
+        self.assertNotIn("repair and save", specific["additionalContext"])
+
+    def test_a_flag_free_precise_call_does_not_hide_a_later_same_route_publish(self) -> None:
+        command = "gh issue edit 5 --add-label bug && gh issue edit 6 --body 'text'"
+
+        specific = hook.handle(self.payload(command))["hookSpecificOutput"]
+
+        self.assertEqual(specific["permissionDecision"], "deny")
+        self.assertIn("unreproduced publication", specific["additionalContext"])
+
+    def test_a_read_only_precise_api_call_does_not_hide_a_later_api_publish(self) -> None:
+        command = (
+            "gh api graphql -f query='{viewer{login}}' && "
+            "gh api repos/o/r/issues/6 -f body=x"
+        )
+
+        specific = hook.handle(self.payload(command))["hookSpecificOutput"]
+
+        self.assertEqual(specific["permissionDecision"], "deny")
+        self.assertIn("unreproduced publication", specific["additionalContext"])
+
+    def test_loose_controls_that_do_not_publish_are_untouched(self) -> None:
+        commands = (
+            "gh api graphql -f query='{viewer{login}}'",
+            "gh issue edit 5 --add-label bug",
+            "subprocess.run(['gh', 'issue', 'view', '5', '--json', 'body'])",
+            "python -c \"print('no command')\"",
+        )
+
+        for tool_name in ("Bash", "Monitor", "PowerShell"):
+            for command in commands:
+                with self.subTest(tool=tool_name, command=command), mock.patch.object(
+                    hook, "grade_command", return_value=None
+                ):
+                    payload = self.payload(command)
+                    payload["tool_name"] = tool_name
+                    self.assertEqual(hook.handle(payload), {})
 
     def test_an_unmodeled_shell_leaves_read_only_gh_alone(self) -> None:
         payload = {
@@ -2796,16 +2886,14 @@ class ProjectSettingsRegisterTheHook(unittest.TestCase):
         registrations = settings["hooks"]["PreToolUse"]
         by_tool = {row["matcher"]: row["hooks"] for row in registrations}
         self.assertEqual(set(by_tool), set(hook.COMMAND_TOOLS))
-        self.assertEqual(
-            by_tool["Bash"][0].get("if"),
-            "Bash(gh *)",
-        )
+        self.assertNotIn("if", by_tool["Bash"][0])
+        self.assertIn("tracker_publish_stub.py", by_tool["Bash"][0]["command"])
         for tool in ("PowerShell", "Monitor"):
             with self.subTest(tool=tool):
                 self.assertNotIn("if", by_tool[tool][0])
+                self.assertIn("tracker_publish_hook.py", by_tool[tool][0]["command"])
         for handlers in by_tool.values():
             self.assertEqual(len(handlers), 1)
-            self.assertIn("tracker_publish_hook.py", handlers[0]["command"])
             self.assertEqual(handlers[0]["timeout"], 30)
 
     def test_a_plain_same_command_variable_is_resolved(self) -> None:
@@ -2855,6 +2943,10 @@ class DeclaredLimitsHaveOneOwner(unittest.TestCase):
                 "the command-folder reader reaches literal absolute cd targets only",
                 "a stock discriminator clause can satisfy the verdict form check",
                 "the retired-citation row reaches one literal pairing",
+                "a shell command assembled at run time is invisible",
+                "a program-formatted command is invisible",
+                "an argv list assembled in pieces is invisible",
+                "an alias or function standing in for gh is invisible",
             },
         )
 
