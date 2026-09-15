@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from console_codec import require_python_floor, use_utf8
+from git_paths import GitPathError, read_path_records
 
 
 # This is the only current statement of the grandfathered owning-checkout count.
@@ -87,6 +88,11 @@ RUNNING_SESSION_LIMIT = (
     "a worktree the pre-removal report does not hold back may still belong "
     "to a running session"
 )
+UNLOCKED_UNMOUNTED_WORKTREE_LIMIT = (
+    "an unlocked worktree on an unmounted volume reports as a stale "
+    "registration, and pruning it unregisters a live checkout whose scratch "
+    "material then leaves the walk permanently"
+)
 
 DECLARED_LIMITS = (
     OWNING_SWAP_LIMIT,
@@ -98,6 +104,7 @@ DECLARED_LIMITS = (
     DELETED_COMMITTING_ROOT_LIMIT,
     HARNESS_REMOVAL_LIMIT,
     RUNNING_SESSION_LIMIT,
+    UNLOCKED_UNMOUNTED_WORKTREE_LIMIT,
 )
 
 DELIMITED_SCRATCH_NAMES = (
@@ -124,8 +131,11 @@ class RootCount:
 @dataclass(frozen=True)
 class WorktreeRegistration:
     root: Path
-    locked: bool
-    lock_reason_present: bool
+    locked_reason_present: bool | None = None
+
+    @property
+    def locked(self) -> bool:
+        return self.locked_reason_present is not None
 
 
 @dataclass(frozen=True)
@@ -230,13 +240,14 @@ def print_peer_population(
     counts_by_root = {item.root: item for item in peers.counts}
     material_roots = {item.root for item in peers.material}
     unreadable_roots = set(peers.unreadable)
-    locked_by_root = {item.root: item for item in peers.locked}
+    locked_by_root = {
+        registration.root: registration for registration in peers.locked
+    }
+    locked_roots = set(locked_by_root)
     selected_roots = peers.roots if show_all else tuple(
         root
         for root in peers.roots
-        if root in material_roots
-        or root in unreadable_roots
-        or root in locked_by_root
+        if root in material_roots or root in unreadable_roots or root in locked_roots
     )
     for root in selected_roots:
         item = counts_by_root.get(root)
@@ -250,13 +261,13 @@ def print_peer_population(
             state = "unreadable"
         elif root in peers.stale:
             state = "stale registration"
-        elif root in locked_by_root:
+        elif root in locked_roots:
             reason = (
-                "reason present"
-                if locked_by_root[root].lock_reason_present
-                else "no reason"
+                "reason recorded"
+                if locked_by_root[root].locked_reason_present
+                else "no reason recorded"
             )
-            state = f"locked registration ({reason})"
+            state = f"locked registration; {reason}"
         else:
             state = "absent"
         print(f"REPORT ONLY: {root / 'scratch'}: {state}; never graded")
@@ -275,34 +286,31 @@ def run_git(cwd: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
         raise CensusNotRun(str(error)) from None
 
 
-def worktree_registry(checkout: Path) -> tuple[WorktreeRegistration, ...]:
-    finished = run_git(checkout, "worktree", "list", "--porcelain")
-    if finished.returncode != 0:
-        raise CensusNotRun(finished.stderr.strip() or "git worktree list failed")
+def worktree_registrations(checkout: Path) -> tuple[WorktreeRegistration, ...]:
+    try:
+        records = read_path_records(
+            checkout, "worktree", "list", "--porcelain", "-z"
+        )
+    except GitPathError as error:
+        raise CensusNotRun(str(error)) from None
     registrations: list[WorktreeRegistration] = []
-    for block in finished.stdout.strip().split("\n\n"):
-        lines = block.splitlines()
-        root_line = next(
-            (line for line in lines if line.startswith("worktree ")), None
-        )
-        if root_line is None:
-            continue
-        lock_line = next(
-            (
-                line
-                for line in lines
-                if line == "locked" or line.startswith("locked ")
-            ),
-            None,
-        )
+    current_root: Path | None = None
+    locked_reason_present: bool | None = None
+    for record in records:
+        if record.startswith("worktree "):
+            if current_root is not None:
+                registrations.append(
+                    WorktreeRegistration(current_root, locked_reason_present)
+                )
+            current_root = Path(record.removeprefix("worktree ")).resolve()
+            locked_reason_present = None
+        elif current_root is not None and (
+            record == "locked" or record.startswith("locked ")
+        ):
+            locked_reason_present = record.startswith("locked ")
+    if current_root is not None:
         registrations.append(
-            WorktreeRegistration(
-                root=Path(root_line.removeprefix("worktree ")).resolve(),
-                locked=lock_line is not None,
-                lock_reason_present=bool(
-                    lock_line and lock_line.removeprefix("locked").strip()
-                ),
-            )
+            WorktreeRegistration(current_root, locked_reason_present)
         )
     if not registrations:
         raise CensusNotRun("git worktree list returned no worktrees")
@@ -310,7 +318,21 @@ def worktree_registry(checkout: Path) -> tuple[WorktreeRegistration, ...]:
 
 
 def worktree_roots(checkout: Path) -> tuple[Path, ...]:
-    return tuple(item.root for item in worktree_registry(checkout))
+    return tuple(
+        registration.root for registration in worktree_registrations(checkout)
+    )
+
+
+def print_prune_remedy() -> None:
+    print("REMEDY: run git worktree prune")
+    print(
+        "        prune only after confirming each stale directory was deleted "
+        "rather than on an unmounted volume; pruning cannot be undone"
+    )
+    print(
+        "        use git worktree lock <path> for a worktree on removable or "
+        "network storage"
+    )
 
 
 def enclosing_worktree(invocation: Path, roots: tuple[Path, ...]) -> Path:
@@ -467,13 +489,16 @@ def main(argv: list[str]) -> int:
 
     invocation = Path.cwd().resolve()
     try:
-        registrations = worktree_registry(invocation)
-        roots = tuple(item.root for item in registrations)
+        registrations = worktree_registrations(invocation)
+        roots = tuple(registration.root for registration in registrations)
         checkout = enclosing_worktree(invocation, roots)
     except CensusNotRun as error:
         print("coverage: 0 worktrees enumerated; 0 unreadable")
         print(f"NOT SCANNED: {error}", file=sys.stderr)
         return 2
+    registrations_by_root = {
+        registration.root: registration for registration in registrations
+    }
 
     accounted_error: CensusNotRun | None = None
     try:
@@ -485,7 +510,6 @@ def main(argv: list[str]) -> int:
     counts: list[RootCount] = []
     absent: list[Path] = []
     unavailable: dict[Path, str] = {}
-    registrations_by_root = {item.root: item for item in registrations}
     for root in roots:
         try:
             counted = count_root(root, accounted)
@@ -572,7 +596,7 @@ def main(argv: list[str]) -> int:
         print(f"NOT SCANNED: {accounted_error}", file=sys.stderr)
         print("NOT SCANNED: the accounted set could not be derived")
         if argv == ["--worktrees"] and stale_roots:
-            print("REMEDY: run git worktree prune")
+            print_prune_remedy()
         return 2
     owning_count = next((item for item in counts if item.root == owning), None)
     owning_finding = (
@@ -660,7 +684,7 @@ def main(argv: list[str]) -> int:
             print("        do not delete a scratch root to clear this")
         print("NOT SCANNED: one or more required roots could not be read")
     if argv == ["--worktrees"] and stale_roots:
-        print("REMEDY: run git worktree prune")
+        print_prune_remedy()
 
     if finding:
         return 1

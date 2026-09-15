@@ -84,7 +84,9 @@ accounted-for set in **one** `git grep` pass over tracked files, and reports the
   names it. Everything else is a bare number, because an entry the walk cannot account for is
   precisely the one that might carry a patient's name.
 - **Every unavailable registered checkout root is named.** `git worktree list --porcelain`
-  supplies its path, and a stale registration is reported distinctly from an unreadable root.
+  supplies its path and lock attribute. A locked registration is reported distinctly from a stale
+  registration and an unreadable root; the report states whether a lock reason exists but never
+  prints that free text.
   The gating behavior is owned by `scratch_census.EXIT_2_LIMBS` rather than copied here; a peer is
   report-only and never changes status. This is coverage of the Git registry, not disclosure of a
   scratch-entry path; the count-only rule above still governs every entry under the root.
