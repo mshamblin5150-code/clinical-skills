@@ -328,3 +328,9 @@ veto over `gh`.
 declaration from tracker text, and a declaration in a record is not itself a finding. The bullet also
 overstates the stake, since the hook's PHI findings advise and never refuse. This record's rulings are
 unchanged.
+
+**Correction, 2026-09-15:** the bullet on whether the hook's coverage and the workflow's are what any
+document says is ruled by
+[ADR 0242](0242-the-hook-and-the-workflow-are-bound-by-a-declared-correspondence.md) on
+[#1149](https://github.com/mshamblin5150-code/clinical-skills/issues/1149): a declared correspondence
+object, driven through both hosts, binds them. This record's rulings are unchanged.
