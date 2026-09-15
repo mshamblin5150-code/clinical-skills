@@ -314,7 +314,7 @@ class DirectTrackerWritersCrossTheBodyGate(unittest.TestCase):
                 issue={"number": 596, "labels": []},
             )
 
-    def test_canonical_docs_name_the_shared_analyzer_contract(self) -> None:
+    def test_canonical_docs_point_at_the_correspondence_objects(self) -> None:
         root = Path(__file__).resolve().parent.parent
         surfaces = (
             (root / "CLAUDE.md").read_text(encoding="utf-8"),
@@ -324,9 +324,12 @@ class DirectTrackerWritersCrossTheBodyGate(unittest.TestCase):
         )
         for surface in surfaces:
             with self.subTest(surface=surface[:40]):
-                self.assertIn("publication hosts", surface)
-                self.assertIn("`analyze`", surface)
-                self.assertIn("`authorize_issue_body`", surface)
+                self.assertIn(
+                    "tracker_publication_correspondence.WRITER_REACH", surface
+                )
+                self.assertIn(
+                    "tracker_publication_correspondence.POSTURE_ROWS", surface
+                )
 
 
 class InlineTrackerTextIsRead(unittest.TestCase):

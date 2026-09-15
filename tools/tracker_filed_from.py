@@ -50,6 +50,12 @@ NOT_REACHED = (
 )
 
 FILED_FROM = re.compile(r"\*\*Filed from:\*\*[ \t]+\S[^\r\n]*")
+CREATE_RULE = "filed-from:create"
+EDIT_RULE = "filed-from:edit"
+OPENED_RULE = "filed-from:opened"
+EDITED_RULE = "filed-from:edited"
+PUBLICATION_RULES = (CREATE_RULE, EDIT_RULE)
+EVENT_RULES = (OPENED_RULE, EDITED_RULE)
 SCOPE_PATTERNS = (
     tracker_branch_scope.BRANCH_SCOPE,
     tracker_branch_scope.MAIN_SCOPE,
@@ -166,7 +172,7 @@ def grade_publication(
         return Grade(None, "not-graded", "filed-from: NOT GRADED; implementation map producer stamp")
     if route == ("issue", "create") and fixed_position_line(body) is None:
         return Grade(
-            "filed-from:create",
+            CREATE_RULE,
             "deny",
             "deny: filed-from:create: issue body must place its Filed-from line "
             "after the whole record scope block and exactly one blank line",
@@ -183,7 +189,7 @@ def grade_publication(
         )
         if current_line is not None and fixed_position_line(body) != current_line:
             return Grade(
-                "filed-from:edit",
+                EDIT_RULE,
                 "deny",
                 "deny: filed-from:edit: existing Filed-from line was removed, altered, or moved",
             )
@@ -272,7 +278,7 @@ def grade_event(document: object, event_name: str) -> Scan:
             )
         eligible = int(opened.eligible)
         if opened.missing:
-            findings = (Finding("filed-from:opened", url),)
+            findings = (Finding(OPENED_RULE, url),)
     elif action == "edited":
         changes = document.get("changes")
         body_change = changes.get("body") if isinstance(changes, dict) else None
@@ -290,7 +296,7 @@ def grade_event(document: object, event_name: str) -> Scan:
         )
         eligible = int(previous_line is not None)
         if previous_line is not None and fixed_position_line(body) != previous_line:
-            findings = (Finding("filed-from:edited", url),)
+            findings = (Finding(EDITED_RULE, url),)
     return _format_scan(findings, "issues event", eligible=eligible)
 
 

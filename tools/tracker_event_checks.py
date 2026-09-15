@@ -26,13 +26,14 @@ from console_codec import require_python_floor, use_utf8
 
 
 TOOLS = Path(__file__).resolve().parent
-EVENT_NAMES = (
-    "issues",
-    "issue_comment",
-    "pull_request_target",
-    "pull_request_review",
-    "pull_request_review_comment",
-)
+EVENT_ACTIONS = {
+    "issues": frozenset(("opened", "edited", "labeled")),
+    "issue_comment": frozenset(("created", "edited")),
+    "pull_request_target": frozenset(("opened", "edited", "closed")),
+    "pull_request_review": frozenset(("submitted", "edited")),
+    "pull_request_review_comment": frozenset(("created", "edited")),
+}
+EVENT_NAMES = tuple(EVENT_ACTIONS)
 
 NOT_REACHED = (
     (
@@ -61,18 +62,21 @@ class Check:
     extra_args: tuple[str, ...] = ()
 
 
-PHI = Check(
-    "tracker_scan",
-    "Tracker PHI shape layer",
-    refusing=False,
-    extra_args=("--allow-no-corpus",),
+ALL_CHECKS = (
+    Check(
+        "tracker_scan",
+        "Tracker PHI shape layer",
+        refusing=False,
+        extra_args=("--allow-no-corpus",),
+    ),
+    Check("tracker_branch_scope", "Tracker branch scope"),
+    Check("tracker_bodies", "Tracker body integrity"),
+    Check("tracker_coordinates", "Tracker coordinate accompaniment"),
+    Check("tracker_measurements", "Publication measurement base"),
+    Check("tracker_filed_from", "Tracker Filed-from line"),
+    Check("map_scan", "Implementation map producer stamp"),
 )
-BRANCH = Check("tracker_branch_scope", "Tracker branch scope")
-BODY = Check("tracker_bodies", "Tracker body integrity")
-COORDINATES = Check("tracker_coordinates", "Tracker coordinate accompaniment")
-MEASUREMENTS = Check("tracker_measurements", "Publication measurement base")
-FILED_FROM = Check("tracker_filed_from", "Tracker Filed-from line")
-MAP = Check("map_scan", "Implementation map producer stamp")
+PHI, BRANCH, BODY, COORDINATES, MEASUREMENTS, FILED_FROM, MAP = ALL_CHECKS
 
 
 def _body_changed(document: dict[str, Any]) -> bool:
@@ -87,7 +91,7 @@ def _title_changed(document: dict[str, Any]) -> bool:
 
 def _has_changed_record(document: dict[str, Any], event_name: str) -> bool:
     action = document.get("action")
-    if event_name not in EVENT_NAMES or action == "closed":
+    if action not in EVENT_ACTIONS.get(event_name, ()) or action == "closed":
         return False
     if event_name == "pull_request_review":
         review = document.get("review")

@@ -186,6 +186,11 @@ A dated correction line is appended to ADR 0141.
 `tracker_publish_hook.NOT_REACHED`; the workflow reaches both publishers after publication and
 reports.
 
+Correction, 2026-09-15: writer reach is now described by
+`tracker_publication_correspondence.WRITER_REACH`, and host posture by
+`tracker_publication_correspondence.POSTURE_ROWS`. The sentence above remains the historical premise
+for this ruling and is not the current correspondence; ADR 0242 supplies that object.
+
 **A body that landed with a defect no row grades**, which is `tracker_bodies.NOT_REACHED`'s, and a
 body rewritten between the scan and the publication, which is `tracker_publish_hook.NOT_REACHED`'s.
 
