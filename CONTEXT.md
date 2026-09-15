@@ -1047,6 +1047,10 @@ _Avoid_: binding, false positive, accidental close, match
 The immutable comment recording that one merge bound one ticket, anchored to the pull request, the full merge commit and the date. It preserves that bounded relation and makes no other claim on the ticket current.
 _Avoid_: notification, confirmation, comment, log
 
+**Unwatched write**:
+A tracker write made with a workflow's built-in token. GitHub starts no workflow run from it, so the only grade it ever receives is one it runs before writing. Named for what follows the write rather than who sent it, so every scheduled or merge-time job writing this way is a member without a list naming it. Distinct from a **Publish route**, which is a command form a harness types.
+_Avoid_: third publisher, bot comment, token publication
+
 **Empty plan**:
 A merge that was graded and yielded no binding. It is a finding rather than a result, because a merge whose binding failed to parse and one that never wrote a binding are otherwise the same output. Distinct from a **declared no-binding**, which is the same absence stated on purpose.
 _Avoid_: no receipts, zero, clean, nothing found
