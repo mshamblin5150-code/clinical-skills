@@ -230,6 +230,13 @@ that the hook runs the scanner bare. Every session that publishes also commits, 
 the one person who can accept a trust dialog. **It names no threshold**, on ruling 6's argument
 verbatim: what makes the marker stale is how much was published since, not how many days passed.
 
+*Corrected 2026-09-15.* The marker never reached the hook's non-registration, and the text above is
+left as written. Its path resolves through `repo_root.scratch_root()`, so every worktree shares one
+file that any other session's publication refreshes, and `handle` wrote it only after a command was
+graded or refused. [#1151](https://github.com/mshamblin5150-code/clinical-skills/issues/1151) found
+it, and [ADR 0246](0246-the-publish-marker-records-a-hook-run-per-checkout.md) rules the per-checkout
+record that can.
+
 ## Consequences
 
 **One build, on one ticket, and none of it is built here.** #670 is respecified against these five
@@ -256,6 +263,11 @@ edited record, permanently, per
 **And the trust gate itself.** 60 of 60 is a floor from one machine's `~/.claude.json`, not a property
 of the mechanism: the 61st worktree is one unaccepted dialog away from a hook that is silently absent,
 and the marker's age is a notice at commit time rather than a guarantee at publish time.
+
+*Corrected 2026-09-15.* The marker's age could not reach that worktree at all: one shared file served
+every checkout, so a worktree with a silently absent hook read as fresh whenever another session had
+published. [ADR 0246](0246-the-publish-marker-records-a-hook-run-per-checkout.md) records the
+measurement and rules the per-checkout record.
 
 **Correction, 2026-09-08:** [#795](https://github.com/mshamblin5150-code/clinical-skills/issues/795)
 corrected finding 1 in place to name the runtime schema and hook-authoring prose block inside the
