@@ -232,9 +232,15 @@ Three hosts, none redundant, and the division follows findings 6 and 7:
   ever landing and the hook already extracts the text.
 
 **The honest declaration ships with it: the hook covers one of two publishers, and the workflow covers
-both one minute after the fact.** Nothing here is prevention for Codex, and nothing in this repository
+both one minute after the fact, and no unwatched write.** Nothing here is prevention for Codex, and nothing in this repository
 can be — that needs a check inside a harness this repository does not control. A build that leaves
 that unsaid rebuilds this ticket's own subject.
+
+Correction, 2026-09-15: the declaration formerly ended at *"both one minute after the fact"*.
+[#1146](https://github.com/mshamblin5150-code/clinical-skills/issues/1146) measured that a write made
+with the workflow's built-in token starts no workflow run, so the merge receipts were reached by no
+host. [ADR 0241](0241-a-merge-receipt-is-graded-before-it-posts-and-a-workflow-token-write-is-an-unwatched-write.md)
+names that class and grades the receipts before they post; this ruling is otherwise unchanged.
 
 **5. The hook refuses on this row, and it clears ADR 0083 ruling 4's bar more cleanly than
 branch-scope does.**

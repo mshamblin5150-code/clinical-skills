@@ -107,9 +107,9 @@ sentence, span labels, compound labels, with `_not_read_scope_items` as its help
 last, `misdrawn span boundaries`, carries the page-coverage limit.
 
 **#410 decision 3's two grounds both stand.** In `tools/run_grader.py` the word `quiet` occurs only
-inside the `REFUSED["threshold_sheet"]` string; `run()` prints `format_report` unconditionally; and
-`parse()` keeps `positionals[0]` as the one source, refusing extras with `"one source at a time"` only
-for a grader that sets `allow_extra_positionals=False`.
+inside the `REFUSED["threshold_sheet"]` string; `run()` prints `format_report` unconditionally; and,
+after [ADR 0229](0229-a-grader-refuses-a-second-source-and-the-option-to-accept-one-is-deleted.md),
+`parse()` refuses every extra positional with `"one source at a time"` before keeping the one source.
 
 **Three of #836's own figures are wrong and one of its measurements is void.** The **title's 24** is
 23, and was 23 at the ticket's own measurement commit — six sweeps have said so. The body's *"`survey`

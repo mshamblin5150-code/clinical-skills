@@ -10,6 +10,7 @@ corpus happens to suit it.
 
 import contextlib
 import io
+import json
 from pathlib import Path
 import tempfile
 import unittest
@@ -108,7 +109,14 @@ class Sightings(unittest.TestCase):
 
 class Rendering(unittest.TestCase):
     def render(self, entries, unruled):
-        return hr.render(hr.sightings(entries, unruled), unruled)
+        population = hr.ReviewPopulation(
+            unruled=len(unruled),
+            harvested=len(unruled),
+            name_positions=0,
+            ruled=0,
+            entries=len(entries),
+        )
+        return hr.render(hr.sightings(entries, unruled), unruled, population)
 
     def test_it_says_the_output_is_phi(self):
         self.assertIn("Do not paste", self.render([JORDAN], {"reaction latex"}))
@@ -121,7 +129,7 @@ class Rendering(unittest.TestCase):
 
     def test_a_clean_review_says_so_and_offers_nothing_to_paste(self):
         out = self.render([JORDAN], set())
-        self.assertIn("nothing unruled", out)
+        self.assertIn("0 unruled", out)
         self.assertNotIn("NOT_NAMES", out)
 
     def test_it_states_that_doing_nothing_keeps_the_refusal(self):
@@ -145,11 +153,15 @@ class Rendering(unittest.TestCase):
 
 
 class Main(unittest.TestCase):
-    def run_main(self, index_text=None):
+    def run_main(self, index_text=None, reviewed_text=None, argv=None):
         with tempfile.TemporaryDirectory() as holder:
             scratch = Path(holder)
             if index_text is not None:
                 (scratch / "name-index.json").write_text(index_text, encoding="utf-8")
+            if reviewed_text is not None:
+                (scratch / "harvest-reviewed.json").write_text(
+                    reviewed_text, encoding="utf-8"
+                )
             stdout = io.StringIO()
             stderr = io.StringIO()
             with (
@@ -158,7 +170,7 @@ class Main(unittest.TestCase):
                 contextlib.redirect_stdout(stdout),
                 contextlib.redirect_stderr(stderr),
             ):
-                status = hr.main([])
+                status = hr.main(argv or [])
             return status, stdout.getvalue(), stderr.getvalue()
 
     def test_an_absent_name_index_keeps_the_inactive_corpus_message(self):
@@ -185,8 +197,35 @@ class Main(unittest.TestCase):
         self.assertEqual(status, 0)
         self.assertEqual(
             stdout,
-            "harvest review: nothing unruled. Every harvested string has been decided.\n\n",
+            "harvest review: 0 unruled of 0 harvested "
+            "(0 in a name position, 0 ruled) from 0 entries\n\n",
         )
+        self.assertEqual(stderr, "")
+
+    def test_a_clean_nonempty_review_states_each_population(self):
+        one = entry(
+            "Jordan Vance",
+            ["Jordan Vance", "Ellery Voss", "reaction latex", "bp 118/70"],
+        )
+        status, stdout, stderr = self.run_main(
+            json.dumps([one]), json.dumps(["Ellery Voss"])
+        )
+
+        self.assertEqual(status, 0)
+        self.assertIn(
+            "harvest review: 1 unruled of 3 harvested "
+            "(1 in a name position, 1 ruled) from 1 entries",
+            stdout,
+        )
+        self.assertEqual(stderr, "")
+
+    def test_count_still_prints_only_the_unruled_count(self):
+        status, stdout, stderr = self.run_main(
+            json.dumps([JORDAN]), argv=["--count"]
+        )
+
+        self.assertEqual(status, 0)
+        self.assertEqual(stdout, "2\n")
         self.assertEqual(stderr, "")
 
 

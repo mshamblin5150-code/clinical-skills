@@ -269,6 +269,20 @@ class TheTestedHeadingFingerprintsTheClaimText(unittest.TestCase):
         self.assertEqual(0, status)
         self.assertEqual([mock.call.utf8(), mock.call.floor()], calls.mock_calls)
 
+    def test_the_printing_mode_refuses_a_second_positional_source(self):
+        with tempfile.TemporaryDirectory() as temp:
+            claims = Path(temp) / "claims.md"
+            claims.write_text("## CLAIM: A heading.\n", encoding="utf-8")
+            stdout, stderr = io.StringIO(), io.StringIO()
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                status = ledger.main(
+                    [str(claims), str(Path(temp) / "second.md"), "--heading-digests"]
+                )
+
+        self.assertEqual(2, status)
+        self.assertEqual("", stdout.getvalue())
+        self.assertEqual(f"{ledger.USAGE}\n", stderr.getvalue())
+
     def test_a_missing_fingerprint_is_the_shared_required_field_finding(self):
         record = replace_field(CLEAN, "TESTED-HEADING", None)
         self.assertEqual([ledger.MISSING_FIELD], kinds(ledger_text(record)))
@@ -2232,7 +2246,8 @@ class TheSkillSaysWhatThisChecks(ProseBind, unittest.TestCase):
 
     # One phrase per row. Keyed on the module's own tuple, so a row added without
     # a sentence in the skill fails here rather than quietly becoming a rule only
-    # the scanner knows -- which is what ``AGENTS.md`` classes this tool by.
+    # the scanner knows. ``AGENTS.md`` classes this as a Required command because
+    # the skill requires its clean exit before drafting.
     ROW_PHRASES = {
         ledger.CITED_TOPIC_NOT_IN_EVIDENCE: (
             "an UpToDate topic cited here that no accumulated manifest carries"
@@ -2295,9 +2310,8 @@ class TheSkillSaysWhatThisChecks(ProseBind, unittest.TestCase):
     }
 
     def test_the_skill_writes_out_every_row_the_grader_applies(self):
-        """``AGENTS.md`` classes this tool as one a skill *names* rather than one
-        it depends on, and that class is defined by the instruction being complete
-        without the command. A row only the scanner knows breaks it."""
+        """The skill states every row while still requiring this command's clean
+        exit. A row only the scanner knows breaks that documented fallback."""
         for kind in ledger.KINDS:
             with self.subTest(row=kind):
                 self.assertIn(kind, self.ROW_PHRASES, "row is not written into the skill")

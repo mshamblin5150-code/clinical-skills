@@ -19,6 +19,8 @@ Two constraints that are not about permission:
 
 **A matcher never gets to turn a partial read into a clean whole.** Any figure that a ruling, verdict or routing decision rests on names its measured population and the matcher used. A figure reported only for context does not trigger this clause. When the matcher extracts or counts members of a fixture set — or of any other bounded population — it derives the population independently of the extraction, reports the denominator and unread remainder on every run, and refuses to present an incomplete read as clean. A deliberately partial report may keep its ordinary status only when its contract names the bound beside the result; silence never means full coverage.
 
+**ADR 0230 gives measured partial reads one public seam.** Every opting-in command prints the exact line `unread remainder N` through `run_grader.format_unread_remainder`, exits 2 when `N` is nonzero, and still exits 1 when a finding is established on the same run. Its candidate population is wider than its strict reader, grades nothing, is zero on committed correct inputs, and fires a planted control; where no such candidate count is admissible, the limit stays declared instead.
+
 **A load-bearing figure is re-derived at publication against the thing measured, not against the draft's copy of it**, whenever that thing can have moved since the reading or can contain the record being written. An opted-in `**Measured at:** <full commit SHA>` declaration is graded at the tracker and staged-ADR publication seams; the complete ceilings of that grade belong to `tracker_measurements.DECLARED_LIMITS` and are not copied here.
 
 **Coverage is a floor, not proof that the extractor recognizes every form.** A rule that cannot recognize a member cannot count it as unread, and a numerator and denominator built from the same matcher can agree while both omit it. So the tool states that ceiling beside the implementation, tests against real committed members rather than only hand-written examples, and is fed at least one zero-match or partial-match mutant before its coverage claim is believed. The population, the extraction, and the liveness case are three independent pieces of evidence.
@@ -92,6 +94,9 @@ grandfathered integer baseline, and every other checkout has a zero ratchet from
 grades only the owning root and the committing root; every peer root reports and is never graded.
 A failing gating root is **drained** under the owning checkout's Ticket directory — a move, never a
 delete.
+
+Before removing a worktree, run `python tools/scratch_census.py --worktrees` first and remove none
+it holds back.
 
 **The ratchet's baseline is an integer and can never be a list.** Recording *which* entries are
 unaccounted for means committing `scratch/` filenames into a public repo, and a filename there may
@@ -205,13 +210,13 @@ section copies no row.
 
 ### Grader conformance
 
-`tools/grader_conformance.py` holds reusable public-seam checks for the command graders. `for_module` is universal by convention for members of that family: it binds their runner delegation, row vocabulary, redaction, exit precedence, and the empty-population behavior declared by `run_grader.EMPTY_POPULATION_POSTURES`. Each member's test module supplies the synthetic empty input and, for a `not-scanned` posture, its one-member twin; the mapping owns the declarations and this section copies no row. `gate_conformance` is opt-in and a test module must name its membership explicitly, because a boolean on `Scan` is not necessarily a report gate.
+`tools/grader_conformance.py` holds reusable public-seam checks for the command graders. `for_module` is universal by convention for members of that family: it binds their runner delegation, row vocabulary, redaction, exit precedence, and the empty-population behavior declared by `run_grader.EMPTY_POPULATION_POSTURES`. Each member's test module supplies the synthetic empty input and, for a `not-scanned` posture, its one-member twin; the mapping owns the declarations and this section copies no row. `gate_conformance` is opt-in and a test module must name its membership explicitly, because a boolean on `Scan` is not necessarily a report gate. `unread_remainder_conformance` is likewise opt-in: each member supplies a real unread input and its readable twin, and the generated case pins the nonzero/exit-2, finding/exit-1, and zero/exit-0 triplet plus the shared report line.
 
-Generated cases are bound as `GraderConformance` and `GateConformance`; `tools/test_suite_ids.py` proves their discovered IDs re-run, while `grader_conformance.DECLARED_LIMITS` owns the remaining boundary.
+Generated cases are bound as `GraderConformance`, `GateConformance`, and `UnreadRemainderConformance`; `tools/test_suite_ids.py` proves their discovered IDs re-run, while `grader_conformance.DECLARED_LIMITS` owns the remaining boundary.
 
 The distinction comes from the whole-family shape read recorded in [ADR 0080](docs/adr/0080-a-gated-row-set-is-declared-per-gate-and-guarded-by-an-opt-in-walk-in-the-shared-conformance-kit.md). The discussion scanners use booleans to suppress report rows, while `case_study_scan` uses banner flags that append prose and suppress nothing; other riders may have no boolean field at all. Applying the gate walk automatically would therefore grade a correct banner shape as defective. Opting in lets the discussion pair share one report-width rule without asserting that every grader must adopt their boolean-gate arrangement or the nullable-sentinel arrangement refused by [ADR 0071](docs/adr/0071-a-gated-row-set-is-derived-from-its-sentinel-and-guarded-by-a-walk-in-its-own-module.md).
 
-The shared gate walk proves that each declared gate changes only its declared fields and finding kinds, and that omitted groups say `not graded`. It does not prove command-line reachability or general exit status; the empty-population case separately drives that one declared behavior through each member's real load and grade. Each opting-in module owns the rest through real-fixture positive controls and a `HANDLERS` pair in its test module.
+The shared gate walk proves that each declared gate changes only its declared fields and finding kinds. A fully omitted group says `not graded`; a partial gate instead keeps the qualified count it read. It does not prove command-line reachability or general exit status; the empty-population case separately drives that one declared behavior through each member's real load and grade. Each opting-in module owns the rest through real-fixture positive controls and a `HANDLERS` pair in its test module.
 
 ### Corpus census
 
@@ -256,6 +261,8 @@ Its output contains counts and paths, never extracted or transcribed text.
 
 The complete boundary of a clean result is declared in `filled_vitals_census.DECLARED_LIMITS`.
 
+Its ADR 0230 candidate walk counts height and weight labels followed by numbers per class per note inside the asserted block. Strict-reader misses enter the shared unread remainder; this is why `fixtures/slot-form-run` exits 2 on `peds-bp-case-05`'s decimal-inch height while the fixture remains untouched.
+
 The corpus census reads the clinician's shorthand. This one reads **a run's finished notes**, and it exists because [#67](https://github.com/mshamblin5150-code/clinical-skills/issues/67) is a defect no single note contains: nine notes each filling a plausible vital set, and one patient described nine times.
 
 ```bash
@@ -286,6 +293,8 @@ Covered by `tools/test_filled_vitals_census.py`, which runs against the twelve c
 ### Specificity scan
 
 The complete boundary of a clean result is declared in `specificity_scan.DECLARED_LIMITS`.
+
+Before the `icd10-cpt` step-4 boundary, relaxed-prefix code-entry and `SPECIFICITY`-field candidates are counted independently of the strict worksheet grammar. Their unmatched forms enter the shared unread remainder; listing-shaped strict entries after `icd10-cpt` step 4 remain the declared coverage floor beyond that candidate population.
 
 The filled-vitals census reads a `clinical-note` run. This one reads an **`icd10-cpt` run**, and it is `fixtures/filled-anchor` **C5** made runnable — [#56](https://github.com/mshamblin5150-code/clinical-skills/issues/56).
 
@@ -351,6 +360,8 @@ Covered by `tools/test_differential_scan.py`, which builds synthetic notes in th
 
 The complete boundary of a clean result is declared in `anchor_scan.DECLARED_LIMITS`.
 
+Before `icd10-cpt` step 4, relaxed-prefix code-entry candidates are counted independently of strict entry openings. An unmatched candidate enters the shared unread remainder; the per-run gradeable-coverage limit remains declared under ADR 0230 because marks, listings, and pediatric bands have no admissible common candidate population.
+
 The differential scan reads a `clinical-note` run. This one reads an **`icd10-cpt`** run again, and it is `fixtures/filled-anchor`'s **ANCHOR** class reduced to the part a machine can settle — [#124](https://github.com/mshamblin5150-code/clinical-skills/issues/124).
 
 ```bash
@@ -369,6 +380,8 @@ Covered by `tools/test_anchor_scan.py`, which builds synthetic worksheets in tha
 ### Block scan
 
 The complete boundary of a clean result is declared in `block_scan.DECLARED_LIMITS`.
+
+Every note is a candidate for one readable tier block. Notes without one enter the shared unread remainder, including when readable neighbors still let F1 through F3 run.
 
 The differential scan reads a `clinical-note` run's differential. This one reads the same run's **tier block**, and it is `fixtures/day-a`'s **F1, F2 and F3** made runnable — [#120](https://github.com/mshamblin5150-code/clinical-skills/issues/120), whose own comment asks for it by name: *put any grader in `tools/`*, because the four graders that scored `filled-anchor` run 1 were written into the run directory and went with it when the worktree was removed.
 
@@ -393,6 +406,8 @@ Covered by `tools/test_block_scan.py`, which builds synthetic blocks in that fil
 The block scan reads a `clinical-note` run's tier block. This one reads an **`icd10-cpt` run's
 refusal record**, and it is the mechanical half of the rule that a refused code has to say what it
 would have taken.
+
+Refusal-block headings and `NOT CODED` marks are separate candidate populations. Headings after the first and marks after the first readable heading enter one shared unread remainder without becoming refusal findings.
 
 ```bash
 python tools/refusal_scan.py <a run directory>
@@ -456,7 +471,10 @@ python tools/docx_word_probe.py --word
 
 **The third command is maintainer-only.** It requires installed Word, runs the one-time
 calibration in [ADR 0008](docs/adr/0008-word-is-a-one-time-calibration-instrument.md), and is
-never on the consumer or CI path.
+never on the consumer or CI path. The calibration record stores the instrument identity as
+`tools/docx_word_probe.py --word`, without the interpreter prefix; the runnable maintainer command
+is the fenced command above. This distinction keeps the record from presenting maintainer tooling
+as a literal skill command while preserving the command a maintainer actually runs.
 
 **PyMuPDF was the obvious guess and it is the wrong tool**, asked and answered once so it is not re-litigated: PyMuPDF reads and writes PDFs, and no PDF library authors a Word document. The tools here that carry that dependency open a PDF; document authorship is not another such use. **That matters because a consumer runs Python on this path** — [AGENTS.md](AGENTS.md)'s point about `icd10_lookup.py`, arriving at a second skill.
 
@@ -537,9 +555,9 @@ with a number.
 #215's amended recency rule: `RECENCY` one of four dispositions, a reference stating a year, an old
 one saying why it stands, and the excuse carrying a reason. #231's citation rows, below. The report
 prints the ticket beside each row, and **`skills/practicum-case-study/SKILL.md` step 3 writes every one of them out in a table** —
-a test keyed on the module's own tuple fails if the next one arrives without one, because `AGENTS.md`
-classes this as a tool a skill *names* rather than one it depends on, and that class is defined by
-the instruction being complete without the command.
+a test keyed on the module's own tuple fails if the next one arrives without one. `AGENTS.md`
+classes this as a **Required command** because the skill requires its clean exit before drafting; the written
+rows preserve the by-eye fallback when the command cannot run after installation has been tried.
 
 ADR 0149 and #818 add the `unreadable` status and refutation branches and require their failed-read
 instrument pair. The shared pointer and failed-read rules live in
@@ -712,6 +730,8 @@ that class would still be green.
 ### Reference scan
 
 The research ledger reads a `practicum-case-study` run's working file before the draft exists. This one reads the **finished draft**, and it is [#218](https://github.com/mshamblin5150-code/clinical-skills/issues/218)'s mechanical half.
+
+Citation candidates that neither the evidence reader nor the grammar reader can consume enter the shared unread remainder. The controls include an ASCII-hyphen translated-work date and a replacement character; neither is partially graded as an ordinary citation.
 
 ```bash
 python tools/reference_scan.py <a draft .md> --as-of <YYYY-MM-DD>
@@ -974,6 +994,8 @@ Covered by `tools/test_voice_corpus.py`, which builds synthetic exports in that 
 The section above reads the corpus a voice model is built **from**. This one reads the **model**,
 and it grades shape alone.
 
+Every line beginning `**` at column zero inside the pairs body is a pair candidate. A candidate outside the strict pair reader enters the shared unread remainder.
+
 ```bash
 python tools/voice_model_scan.py [<voice-model.md>] [--show]
 ```
@@ -1002,6 +1024,8 @@ Covered by `tools/test_voice_model_scan.py`.
 
 `discussion-post` produces one graded initial post. This grades it against the bar that post was
 signed to.
+
+A reread record beside a post that lacks both `POST-URL` and `POSTED` is a shared unread remainder. With no reread record, the posted-reading rows remain `not graded` rather than becoming a candidate population.
 
 ```bash
 python tools/post_html.py <the Markdown> <the HTML submission>
@@ -1040,6 +1064,8 @@ Covered by `tools/test_post_html.py`, `tools/test_discussion_post_render.py`,
 
 `peer-critique` produces one graded eight-heading peer clinical critique of a classmate's case
 study. This grades it.
+
+Every roster post is a candidate for one `AUTHOR` read. A post without that field enters the shared unread remainder.
 
 ```bash
 python tools/peer_critique_scan.py <a run directory> [--show] [--submission critique.md]
@@ -1094,6 +1120,8 @@ boundary in `deck_scan.DECLARED_LIMITS`; this section points to those objects wi
 their contents. The scan reads slide faces for container limits and slide faces plus speaker notes
 for claim tracing. Counts print by default, while `--show` exposes artifact text and remains private.
 Exit 0 is clean, 1 means a finding, and 2 means the input population was not completely scanned.
+Referenced SmartArt and chart members that cannot be read enter that same shared unread remainder,
+along with unread heading-read records.
 At completion, the package scan also joins the run's `rendered.md` record to the highest retained
 pass and invokes the grader paired in `aar_scan.COMPLETION_GRADERS`; the full record contract stays
 in `skills/course-assignment/SKILL.md` rather than being copied here.
@@ -1123,6 +1151,8 @@ The post grader reads one initial post. This reads a run's **replies**, and the 
 matters is the roster: a reply is addressed to a named classmate and the grader checks that the name
 is one the run actually read.
 
+Reference candidates dropped by `_valid_references` enter the shared unread remainder rather than silently shrinking the graded reference population. Roster posts without a readable `AUTHOR` field enter the same remainder while readable neighbors remain gradeable.
+
 ```bash
 python tools/discussion_reply_scan.py <a run directory>
 ```
@@ -1150,11 +1180,15 @@ Covered by `tools/test_discussion_reply_scan.py`.
 
 `tools/tracker_population.py` derives the three-file manifest that bounds a
 full tracker harvest. It reads the kept GraphQL issue/pull-request totals and
-the two kept `per_page=1` HTTP comment probes; it opens no socket. A comments
+the two kept `per_page=1` HTTP comment probes; it opens no socket. The GraphQL
+text passes through `github_graphql.read_response` with no declared absences,
+so any complaint makes the population not derived. A comments
 probe with `rel="last"` contributes that last page, while a probe without the
 header must carry zero or one JSON row and contributes its array length. Any
 other probe shape exits 2 without writing the manifest. Run these probes before
 the paginated harvest so tracker growth cannot produce a false complete result.
+The shared payload reader's boundary belongs to
+`github_graphql.DECLARED_LIMITS`; this section copies none of its rows.
 
 ### Tracker scan
 
@@ -1386,28 +1420,49 @@ Covered by `tools/test_tracker_readback.py`, which drives invented publication
 text and fetched-record dictionaries through the parser and formatter without
 opening a socket.
 
+### Browser tab hook
+
+The browser-tab `PreToolUse` hook is registered without an `if` condition in
+`.claude/settings.json` for both shared browser tool families and implemented
+by `tools/browser_tab_hook.py`. It refuses a direct page action, or any inner
+page action in `browser_batch`, when that action names no tab, and gives the
+owner-preserving remedy. Page actions are derived from the reviewed tool-schema
+slice by the presence of its singular tab-id property, excluding tools marked
+with the management role in that same family schema. The complete
+boundary belongs to `browser_tab_hook.DECLARED_LIMITS`; this section points at
+that object and copies none of its rows.
+
 ### Tracker publish hook
 
 The pre-publication `PreToolUse` hook is registered in
 `.claude/settings.json` and implemented by
-`tools/tracker_publish_hook.py`. It extracts publishable title and body fields
+`tools/tracker_publish_stub.py` and `tools/tracker_publish_hook.py`. The stub
+decodes each Bash payload and returns an empty response only when its command
+text contains no `gh` substring; an undecodable payload fails closed into the
+full hook. The full hook extracts publishable title and body fields
 from one `gh` command, reads current cited-record metadata in one request, and
 sends each field through `phi_scan`, `tracker_branch_scope`, and
 `tracker_filed_from` without returning matched values. For an issue body edit,
 the last grader compares the proposal with the current body text from readback;
 when that read fails it reports the rule `NOT GRADED` and does not refuse on it.
-`PUBLISH_ROUTES` owns command classification; the settings condition is only a
-cost guard.
+`PUBLISH_ROUTES` owns command classification; the stub is only a cost guard.
+`fetch_readback` passes the batched GraphQL stdout through
+`github_graphql.read_response` and declares `NOT_FOUND` only at each requested
+`issueOrPullRequest` alias; every other complaint becomes that context-blind
+read failure.
 
 `tracker_publish_hook.COMMAND_TOOLS` is the shared roster of command-bearing
 tools and the shell each carries. `Bash` and `Monitor` carry the modeled bash
-grammar and use the precise classifier; `PowerShell` is unmodeled, so a loose
-classifier recognizes only a likely `PUBLISH_ROUTES` publication and refuses it
-unread. The loose and precise anchors deliberately disagree: a false refusal
-costs a retype through `Bash`, while a missed publication cannot be withdrawn.
-Read-only `gh` commands remain outside both publication paths. The `Bash`
-registration keeps its cost guard; the `PowerShell` and `Monitor` registrations
-have no `if` condition.
+grammar and use the precise reader; `PowerShell` is unmodeled. One anchor-free
+loose classifier finds a literal `gh` route with a publication flag, including
+a literal argv list. On the modeled path, a loose publication the precise
+single-call reader did not reach is refused as an **unreproduced publication**;
+on an unmodeled path every loose publication is refused unread. A false refusal
+costs a retype through one top-level Bash `gh`, while a missed publication
+cannot be withdrawn. The precise reader's route and method judgment wins for
+the call it reaches, so read-only `gh api` calls and flag-free edits remain
+untouched. No registration carries an `if` condition; Bash
+alone invokes the stub, while PowerShell and Monitor invoke the full hook.
 
 `tools/command_tool_roster.py --session-end` is a separate `SessionEnd` hook.
 It reads every command-bearing tool name in the supplied transcript, including
@@ -1451,9 +1506,10 @@ stale verdict: publication volume rather than elapsed time decides what an old
 marker means, and an absent or invalid marker remains distinct from a clean
 scan.
 
-Covered by `tools/test_tracker_publish_hook.py`, which drives synthetic command
-strings and hook payloads through the extractor, grader, and JSON protocol with
-temporary body files. It performs no publication.
+Covered by `tools/test_tracker_publish_hook.py` and
+`tools/test_tracker_publish_stub.py`, which drive synthetic command strings and
+hook payloads through the cost guard, extractor, grader, and JSON protocol with
+temporary body files. They perform no publication.
 
 ### Tracker Filed-from line
 
@@ -1527,6 +1583,10 @@ delta reviews; the record derives the packets changed by that delta or requires
 one authored `--no-work` sentence. `reconciled_through` is the floor beneath
 those records and advances across the contiguous reviewed first-parent prefix,
 independently of the ready-ticket remainder, which every run still names.
+The issues population probe and `user_content_edits` GraphQL response both pass
+through `github_graphql.read_response` with no declared absences. A nonzero
+`gh` status is therefore accepted only far enough to let a JSON payload decide;
+non-JSON stdout keeps the command's existing stderr refusal.
 
 Every map overwrite takes the map's own nonblocking artifact-lock identity,
 compares the state-block hash through a fresh single-record read immediately
@@ -1546,9 +1606,13 @@ commit as information and stamps the git-normalized content identity of the
 repository-relative producer. The body then crosses the
 direct-writer entry point in `tracker_publish_hook.py` before `gh` receives it.
 `check` states that it also walked the ADR review records and local first-parent
-history without reading derived views; `audit` runs those same findings, then
-states the derived-section denominator and how many differed. There is no
-`stale-snapshot` finding.
+history, compares the published derived sections with a fresh render, and
+reports their agreement without grading it. `audit` runs those same findings
+and grades each stale derived section. `publish` writes only when the state,
+derived views, or producer stamp changed. The hourly scheduled workflow uses
+`publish --scheduled`, whose exit policy treats a concurrent state change and
+owned post-write findings as green while leaving publication failures red.
+There is no `stale-snapshot` finding.
 
 The `PostToolUse` hook in `tools/implementation_map_post_hook.py` adds context
 after a ready-ticket flip or a command that lands branch ADRs on the default
@@ -2097,7 +2161,7 @@ python tools/guidelines_catalog.py --draft C:/codeing/guidelines-text  # scaffol
 
 An unsettled cell is the rule working rather than the catalog being unfinished. Every one is named at the bottom of the file with why.
 
-It reports filenames, column names and counts, never document text, so its output is safe to paste. Covered by `tools/test_guidelines_catalog.py`, which runs against fixtures in `tools/testdata/` and **never against the shipped catalog**. Its public-seam fixture builds a one-document #80 artifact and proves the draft reader needs no PDF.
+It reports filenames, column names and counts, never document text, so its output is safe to paste. A catalog table holding no document row is a parser problem, and named tables in the independent-audit ledger end at the first non-table line even when they hold no data row. Covered by `tools/test_guidelines_catalog.py`, which uses parser fixtures plus the committed audit ledger for that table-boundary regression and **never reads the shipped catalog**; the consumer contracts are pinned in `tools/test_threshold_coverage.py`, `tools/test_threshold_draft.py`, `tools/test_uspstf_table.py`, and `tools/test_guidelines_currency.py`. Its public-seam fixture builds a one-document #80 artifact and proves the draft reader needs no PDF.
 
 **[#108](https://github.com/mshamblin5150-code/clinical-skills/issues/108) removed the duplicate extractor without losing the pre-strip columns.** `class` comes directly from the producer-owned manifest value. `year` checks the metadata-derived title first, then the manifest's exact pre-strip `year_page_counts` vote. That producer-owned vote preserves page frequency even though #80 correctly removes running heads from every `.txt` page; access stamps remain excluded. The shared reader also refuses a missing manifest, a missing contract key, extraction failures, stale extra text, missing text, and page-count disagreement rather than letting either consumer build from an incomplete corpus.
 
@@ -2314,6 +2378,9 @@ the widest of author-masthead, publisher-review, and last-update marker counts a
 three populations disagree. A topic carrying none of those markers remains outside that floor,
 which the command says beside its report.
 
+The empty-index/search-miss distinction and sweep's missing-root, empty-root, text-read, and
+digest-read boundaries are driven as public commands in `tools/test_uptodate_store.py`.
+
 Published restatements live under `reference/uptodate/`, whose README owns the file format and
 verbatim cap. `tools/uptodate_sheet.py --all` grades required metadata against the private source,
 the APA year against the topic's last-update line, the currency stamp, retrieval chronology, the
@@ -2459,6 +2526,10 @@ dated sentence. That is a limit that recomputes itself, which is the arrangement
 **Exit status** — 0 for a completed measurement, 2 for every way of not having measured. There is no
 1: nothing here is a finding about a document, only a count.
 
+The target is the `not stated` sentinel exported by `uspstf_table`. The shared-sentinel contract is
+pinned in `tools/test_uspstf_derived_cells.py`, and `tools/test_uspstf_interval_reach.py` drives the
+zero population and its qualifier through `main`.
+
 Covered by `tools/test_uspstf_interval_reach.py`.
 
 ### Build artifacts stay out of the tree, and now there are two nets
@@ -2508,9 +2579,11 @@ unconditionally on every commit.
 python tools/scratch_census.py
 ```
 
-**It counts unaccounted top-level entries across every registered checkout that owns a scratch root.**
-The owning checkout is compared with its grandfathered integer baseline, the committing checkout
-with its zero ratchet, and every peer checkout reports and is never graded.
+**It counts unaccounted top-level entries in the two gating roots and counts files under every peer
+scratch root.** The owning checkout is compared with its grandfathered integer baseline, the
+committing checkout with its zero ratchet, and every peer checkout reports its filesystem-only
+state and is never graded. The accounted-name vocabulary is applied to neither peer admission nor
+peer output.
 `scratch_census.OWNING_BASELINE` is the baseline and `STANDING_ARTIFACTS` is the derived floor of
 documented entries; neither is restated here.
 
@@ -2737,6 +2810,11 @@ python tools/harvest_review.py
 **That output is PHI. Never paste it anywhere** — it is the deliberate opposite of `corpus_census.py`. Use `--count` when a number will do.
 
 It writes nothing. Each string is either vocabulary, which you add lowercase to `NOT_NAMES` in `tools/phi_scan.py`, or a real name, which you add to `scratch/harvest-reviewed.json` — gitignored, because it is a list of patient names. **Anything you do neither to keeps being scanned for and keeps refusing**, so an abandoned review leaves the firewall at full strength.
+
+A completed review states the disjoint population it actually read — unruled and harvested strings,
+harvested strings in a name position, ruled strings, and index entries — rather than claiming that
+every harvested string was decided. The readable-empty-index and `--count` contracts are pinned in
+`tools/test_harvest_review.py`.
 
 Why it is not automated is recorded in the module docstring, including the two discriminators that were tried and rejected. The short version: recurrence would classify your most-seen patient as vocabulary.
 

@@ -147,6 +147,12 @@ BRANCH_RULES = (
 )
 
 
+def directly_follows_quote_line(lines: list[str], index: int) -> bool:
+    """Return whether ``lines[index]`` directly follows a ``>`` line."""
+
+    return index > 0 and lines[index - 1].startswith(">")
+
+
 class Verdict(NamedTuple):
     rule: str | None
     ancestry_verified: bool | None

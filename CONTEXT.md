@@ -148,12 +148,20 @@ A **scratch root** that can refuse the commit being made — the **owning checko
 _Avoid_: graded root, active root, local root
 
 **Drain**:
-Moving a gating root's top-level rise under the **owning checkout**'s **Ticket directory**. The authorized remedy is a move rather than a deletion — it reads nothing, classifies nothing, publishes nothing and deletes nothing. A worktree drains into the durable owning root; an owning-root rise drains beneath its own accounted `sessions/` entry. Neither path changes the baseline.
+Moving material out of a root that can vanish and into the **owning checkout**, on one of two occasions: a **gating root**'s top-level rise, or a **peer root**'s material before its worktree is removed. The authorized remedy is a move rather than a deletion — it reads nothing, classifies nothing, publishes nothing and deletes nothing. Scratch material goes under the owning checkout's **Ticket directory**; a worktree's `output/` material goes to the same relative path under the owning checkout's `output/`. A move that would overwrite an existing file is refused, because an overwrite is a deletion. An owning-root rise drains beneath its own accounted `sessions/` entry. No drain changes the baseline.
 _Avoid_: clean up, clear, purge, sweep (in the tracker sense — see the tracker terms)
 
 **Stale registration**:
-A worktree that `git worktree list` still reports and whose directory is gone. Distinct from an **unreadable source**, where the directory is there and cannot be read: a stale registration holds nothing, because there is nothing left to hold it. It is always a **peer root** — the **owning checkout** resolves through its `.git` pointer and the **committing checkout** is the one a **Session** is standing in, so neither can be in this state.
+A worktree that `git worktree list` still reports, whose directory is not present when the census runs, and which is not locked. The census cannot tell a deleted directory from one on an unmounted volume, so "not present" is all it asserts, and nothing it reads establishes that the checkout is empty. Distinct from an **unreadable source**, where the directory is there and cannot be read, and from a **locked registration**, where git has been told the storage comes and goes. It is always a **peer root** — the **owning checkout** resolves through its `.git` pointer and the **committing checkout** is the one a **Session** is standing in, so neither can be in this state.
 _Avoid_: dead worktree, orphaned worktree, stale root, missing root
+
+**Locked registration**:
+A worktree that `git worktree list` reports as locked and whose directory is not present when the census runs. The lock is git's own declaration that the checkout lives on storage that comes and goes, so it may still hold material; it is named on every run, never graded, and no command clears it. Always a **peer root**.
+_Avoid_: unmounted worktree, offline root, missing volume
+
+**Held back**:
+Said of a **peer root**'s worktree that must not be removed, because it shows something that may exist nowhere else or could not be read: a file under its `scratch/` or `output/`, an untracked file, a change to a tracked file, a commit not on `main`, a lock, or a failed read. The term is one-sided on purpose. A worktree that is not held back has not been shown safe to remove, because a **Session** still running there and one long abandoned read identically. Material under `scratch/` or `output/` may be **drained**; anything else leaves the worktree alone.
+_Avoid_: removable, safe to delete, clean, prunable (git's word for a **stale registration**)
 
 **Run key**:
 The identity of one unit of work, and it names the directory holding that unit's whole provenance record. For a graded artifact it is course, module and artifact — every part read off the live LMS or off which skill is running, and no part typed — and it prefixes the filename of every submission made from it. For a shift it is `shift-` and the visit date, which step 1 of the shift has already settled. That date is part of what the shift *is*, not the date of a sitting: a shift split on Monday and finished on Tuesday is two sittings and one key.
@@ -778,8 +786,24 @@ A figure stating the size of a population that is sitting in code and was never 
 _Avoid_: stale count, off-by-one, magic number
 
 **Gated row set**:
-A report row group that runs only when its gate is satisfied — a flag passed, a population present. Its absent run prints `not graded`, never `0`, because an executed zero and an omitted group must not read alike. The gate's shape is each module's own; what is uniform is the rule, not the sentinel.
+A report row group that runs only when its gate is satisfied — a flag passed, a population present. Its absent run prints `not graded` under a **voiding gate** and a qualified count under a **partial gate**, never a bare `0`, because an executed zero and an omitted group must not read alike. The gate's shape is each module's own; what is uniform is the rule, not the sentinel.
 _Avoid_: optional rows, conditional section, flag rows
+
+**Voiding gate**:
+A gate whose off state means its declared kinds were never computed. It suppresses those kinds, so no finding of theirs can count, and their rows print `not graded`. Every finding the run did compute outside those kinds still counts. A refused reference label is one.
+_Avoid_: blocking gate, hard gate, coverage gate
+
+**Partial gate**:
+A gate whose off state means a read stopped partway. A finding the read already produced still counts, and the row prints its count together with the reason the read stopped, never a bare `not graded`. The render engine going unavailable partway through a pass is one.
+_Avoid_: soft gate, degraded gate, best-effort gate
+
+**Unread remainder**:
+The members of a population a grader counted by a looser route than its read and did not read: a form written beside forms it recognizes, which its rows never grade. Printed on every run, and a nonzero one means the run was not scanned unless a finding already fails it. Distinct from a **declared limit**, which names the forms even the looser count cannot see; and from a replaced byte, which leaves its member read.
+_Avoid_: skipped count, miss count, unparsed lines, coverage gap
+
+**Declared absence**:
+A member of a read that the reader stated, before reading, may come back as not existing, named by the exact place it would sit and the one kind of complaint that means *does not exist*. A read whose every complaint is a declared absence is complete; any other complaint makes the read not scanned, however much else it returned. Distinct from a **Declared no-binding**, which is an authored statement about a message rather than a read's expectation about a member; and from **Stated evidence absence**, which is a claim about a source.
+_Avoid_: tolerated error, allowed error, expected failure, partial success
 
 ### Checks
 
@@ -830,6 +854,10 @@ _Avoid_: verification, second opinion, double-check, independence
 **Authenticated route**:
 The clinician's own logged-in browser session, used as an access path by a fan-out agent. It is one particular path, not a property of a pass: it reaches subscription-gated sources this account pays for, and it is distinct from an anonymous fetch, which reaches a login wall and can return 200 from the form, and from the in-app browser pane, which is a separate unauthenticated surface. Distinct from a **second route**, which is a comparison between two passes' paths — an authenticated route is a thing one pass may take, and taking it establishes nothing about independence.
 _Avoid_: browser access, logged-in fetch, subscription access, real session
+
+**Owned tab**:
+A browser tab one context opened for itself, or that the clinician handed that context in chat, and the only tab that context may act on or must close. It applies to every browser surface agents share, signed-in or not: every context in a session reaches the same tabs, so a tab another context opened is not owned merely because it is reachable, and a tab in the clinician's own window was never an agent's to reach. Distinct from an **authenticated route**, which is the session a tab reaches: every owned tab in the group reaches the same session, and ownership is what separates them.
+_Avoid_: the clinician's tab, the current tab, the active tab, the live tab
 
 **Relative link**:
 A path in a tracked Markdown file naming another tracked file or directory, distinct from a **citation**, which is tracker text. It resolves against the linking file's directory and is checked by exact-case membership in the Git index after any anchor fragment is dropped.
@@ -891,6 +919,10 @@ _Avoid_: no results, nothing found, vacuous clean, trivially clean
 The one population a **declared member** names, possibly the union of several its matchers read, as the population whose emptiness would leave every row grading the artifact's content with nothing to grade. A row over which files or parts exist, over every line of the artifact, or over a separate completion record, is not such a row, since it stays graded when the content was never read; a population a matcher reads from inside a file stays in scope wherever in the command it is read. Any other population the same grader reads may be empty on its own, as a deck carrying no dollar figure is, and that emptiness is reported rather than gated.
 _Avoid_: subject population, primary population, graded population
 
+**Slide-face text**:
+Text a presentation draws on a slide in front of its audience, whichever part of the file stores it: a title or bullet, a table cell, a SmartArt box, a chart's title, series name, category label or labeled value. What decides membership is that the audience sees it, never where the file keeps it, so a grader that reads only some of those places has read a floor of the slide face rather than a different population. Speaker notes, alternative text and the text of a layout no slide uses are not slide-face text, because nobody in the room reads them. Distinct from a **Load-bearing population**, which names what a grader must have read to claim a verdict; this names what is on the slide to be read.
+_Avoid_: slide XML text, visible text, on-slide text, body text
+
 **Measured population**:
 The population an instrument actually read, as distinct from the one the record names.
 _Avoid_: primary population, scope, sample, corpus
@@ -942,6 +974,18 @@ _Avoid_: unpaired flag, dangling field, dropped line, unmatched
 **Mechanically verified**:
 A run every one of whose named checks ran as its command and came back clean. A run whose check was walked by eye instead — because the command, or the **engine** it needs, could not run on that machine and could not be installed there — may still be complete, but it is never mechanically verified, and it says so rather than leaving a reader to assume the stronger claim. The walk and the command read the same written rules; what differs is only whether a machine applied them.
 _Avoid_: verified, checked, validated, confirmed
+
+**Required command**:
+A command a skill cannot skip without changing what its run can claim: the skill requires its clean exit, it produces the deliverable, or it produces something a required check reads. A consumer who cannot run one may still walk the same rules by eye, but the run is then not **mechanically verified**, or has no deliverable at all. The tier is decided by that cost and never by whether the skill's instructions happen to be complete without the command. Distinct from a **Named command**, whose absence changes no claim, and from a **Firewall cost**, which is paid by the repository's PHI check rather than by the run.
+_Avoid_: dependency, required tool, depends-on tool, mandatory script
+
+**Named command**:
+A command a skill cites without depending on it, because skipping it changes nothing the run claims: it saves reading a written rule by eye, or it records where a stated figure came from. The same module can be a named command for one skill and a **Required command** for another, since the tier belongs to the pairing of skill and command rather than to the module.
+_Avoid_: optional tool, convenience script, helper, citation
+
+**Firewall cost**:
+The PHI check's coverage lost when a skill's command is skipped, declared beside the command rather than as a tier. It is the repository's loss rather than the run's: the notes are still written and the run's claims are unchanged, but a patient named only in the skipped material can reach a commit unscanned. Distinct from a **Required command**'s cost, which is borne by the run's own claim.
+_Avoid_: PHI risk, coverage gap, firewall hole, shortfall
 
 **Hatch**:
 A declared, counted opt-out from a check, covering a named span and capped by a **Ceiling**. It declares a number rather than opening a hole, so a new finding wandering into an exempted span fails exactly as it would anywhere else, and a count of zero exempts nothing. The marker sits on its own line, because one mentioned mid-sentence is not a marker and a document that could exempt itself by describing the rule would exempt the paragraph most likely to describe it. Distinct from a **Pragma**, which is file-scoped, uncounted and self-applied, and from a **Declared limit**, which states what a clean run does not establish rather than excusing a finding a run made.
@@ -1007,6 +1051,10 @@ _Avoid_: binding, false positive, accidental close, match
 The immutable comment recording that one merge bound one ticket, anchored to the pull request, the full merge commit and the date. It preserves that bounded relation and makes no other claim on the ticket current.
 _Avoid_: notification, confirmation, comment, log
 
+**Unwatched write**:
+A tracker write made with a workflow's built-in token. GitHub starts no workflow run from it, so the only grade it ever receives is one it runs before writing. Named for what follows the write rather than who sent it, so every scheduled or merge-time job writing this way is a member without a list naming it. Distinct from a **Publish route**, which is a command form a harness types.
+_Avoid_: third publisher, bot comment, token publication
+
 **Empty plan**:
 A merge that was graded and yielded no binding. It is a finding rather than a result, because a merge whose binding failed to parse and one that never wrote a binding are otherwise the same output. Distinct from a **declared no-binding**, which is the same absence stated on purpose.
 _Avoid_: no receipts, zero, clean, nothing found
@@ -1020,12 +1068,28 @@ An authored message stating, with a reason, that it changes no ticket's state. I
 _Avoid_: exemption, opt-out, skip, waiver
 
 **Publish route**:
-One command form that puts text on the tracker. Named per invocation rather than per subcommand, because the same verb both publishes and does not: `gh issue edit` carries a body in one call and only a label in the next. A body-bearing flag ordinarily makes a route recognized. An issue create is the sole body-less exception because its missing body is itself refused at the fixed-position filing gate; for `gh api`, GitHub's resolved request method decides whether a collection endpoint is a create. A route outside the recognized set is not a clean scan but an absent one.
+One command form that puts text on the tracker. Named per invocation rather than per subcommand, because the same verb both publishes and does not: `gh issue edit` carries a body in one call and only a label in the next. A body-bearing flag ordinarily makes a route recognized. An issue create is the sole body-less exception because its missing body is itself refused at the fixed-position filing gate; for `gh api`, GitHub's resolved request method decides whether a collection endpoint is a create. For `gh api` the method and the endpoint decide together: a read is no route, an endpoint named as publishing nothing is no route, an endpoint the route table names is that route, and any other call is an **unclassified API call**. A route outside the recognized set is not a clean scan but an absent one.
 _Avoid_: publish command, gh call, write, surface
 
 **Modeled shell**:
 The shell whose delivered bytes a command reader can reproduce from the command as typed. It is a property of a grammar and never of the tool carrying the command, which is why two harness tools can carry the same **publish route** and take opposite answers: a route written in one is graded, and the same words written in any other shell are refused unread, because a reader that cannot reproduce the bytes is deciding what was published rather than reading it. Distinct from a **publish route**, which is the command form and is the same words in either shell. Distinct from an **unreadable body**, which is one text a recognized route could not obtain; this is the condition under which no text of that route can be obtained at all.
 _Avoid_: supported shell, known shell, parser, grammar
+
+**Unreproduced publication**:
+A **publish route** visible in a command's text at a position where the command reader, although working in a **modeled shell**, does not reproduce what will run — such as inside a heredoc body or a string handed to another interpreter, inside a program's argument list, inside a compound block, or after an earlier publication in the same command. It is refused unread rather than graded, and a gate that only observes says it derived nothing from the command rather than staying silent, because a reader that saw a route and did not read it would otherwise report exactly what a reader that saw no route reports. What makes one is what the reader can see and not what the shell will do: a script that only mentions a publication is one too, and refusing it is the accepted price, because a missed publication cannot be withdrawn and a false refusal costs a retype. Distinct from a **modeled shell**, the grammar in which reproduction is possible at all; this is one position inside that grammar where it was not done. Distinct from an **unreadable body**, where the route was reproduced and only its text could not be obtained.
+_Avoid_: nested publication, stray publication, unrecognized publication, hidden publication, chained publication, shadowed publication
+
+**Unclassified API call**:
+A `gh api` call that is not a read, which the command reader reproduced in full and still cannot place on a **publish route**: its endpoint is neither one the route table names nor one named as publishing nothing, it is a GraphQL mutation, or the record identifier in its endpoint is a shell value the command does not let the reader reconstruct. It is refused unread, because an endpoint nobody has classified may put text on the tracker and a missed publication cannot be withdrawn. What makes one is the absence of a classification and never a guess that the call publishes: the refusal does not assert the call is an issue edit or any other route. Distinct from an **unreproduced publication**, where the reader did not reproduce the command at that position; here it did, and the command's meaning is what is unplaced. Distinct from an **unreadable body**, where the route is known and only its text could not be obtained.
+_Avoid_: unknown endpoint, unrecognized endpoint, fallback route, default route, catch-all
+
+**Publisher**:
+A harness from which text reaches the tracker: a Claude Code session, a Codex session, or a person in the GitHub web UI. Which **publication hosts** grade a write is decided by its publisher and the path the text takes out of it, never by its words, so two publishers typing the same **publish route** can be graded by different hosts. Distinct from a **publish route**, which is the command form and is identical across publishers. Distinct from an **unwatched write**, which no harness sends and which is therefore not counted as a publisher. Distinct from a **publication host**, which is where grading runs; a host is never a publisher, and a sentence counting hosts as publishers miscounts both.
+_Avoid_: author, client, caller, source, bot
+
+**Publication host**:
+A place a grader runs against a publication: before it lands, at a seam the publishing command crosses, or after it lands, at the event it produces. What a host does with one rule on one surface is its posture, and two hosts running the same grader may take different postures on it, so neither host's coverage is a subset of the other's by construction. Distinct from a **publisher**, which is what a host may or may not reach. Distinct from an **unreproduced publication**, which is a position inside a command; this is where grading happens at all.
+_Avoid_: gate, checker, backstop, net, layer
 
 **Unreadable body**:
 Text a recognized **publish route** is about to publish that the checker cannot obtain — written by an earlier stage of the same command, named by a path it cannot resolve, or arriving on a pipe. It is a third outcome beside a finding and a clean scan, because a checker that reports nothing found about text it never held is the shape every scanner here is built to refuse. The publication is **refused** on it rather than allowed, so the outcome is a state the route does not survive. Distinct from a route carrying no body at all: an issue create is refused as a missing-body finding, while every other such route is silent. Distinct too from a **lost body**, which was read and is itself the defect. The **body** is what cannot be read and the **publication** is what goes unscanned, which is why a report may say a publication was not scanned while still naming this as the body's state.
@@ -1055,6 +1119,10 @@ _Avoid_: readback, snapshot, diff, staleness check
 A committed human judgment that one published occurrence matching a PHI shape rule is not an identifier, keyed to the record it sits in and the digest of its containing line, and stating its reason without repeating the literal. It clears exactly one occurrence at that key: the digest expires the verdict when the line's own content changes, which sends the occurrence back to be looked at rather than concealing it. Not a **ruling**, which is a ratified ADR decision identified by its record and its ordinal — the same word is used for both in the tree today, and that collision is declared and unclassified.
 _Avoid_: ruling, triage, suppression, exception, allowlist entry
 
+**Synthetic declaration**:
+A file's own statement, alone on a line near its top, that its PHI-shaped literals are invented. It switches off the shape rules for that file and never the corpus layer, and only a file somebody reviewed may make one: a tracker record or a commit message was typed by whoever published it, so the same line inside one is inert and the text is graded as though it were absent. Distinct from a **finding verdict**, which clears one occurrence from outside the text rather than a whole file from within it.
+_Avoid_: pragma, opt-out, exemption, synthetic flag
+
 **Packet**:
 The map's unit of work: the tickets built together on one branch, carrying one outcome. A packet is not a ticket — a ruling may combine two tickets into one packet or leave a ticket in none — so the count of packets and the count of open tickets answer different questions.
 _Avoid_: task, item, issue, ticket, story
@@ -1083,6 +1151,10 @@ _Avoid_: anchor lag, unreconciled commit
 A disagreement between the implementation map and the tracker. It has directions and they are named separately, because each was found by a different instrument and one was invisible to the check built for the other: a **ready ticket** in no packet, and a packeted ticket that has stopped being ready. A gate that grades one direction certifies nothing about the others, and the `blocked` label carries a third disagreement that is held by the sweep in prose rather than by any gate.
 _Avoid_: staleness, mismatch, error, out of date
 
+**Map view**:
+A section of the implementation map drawn from its stored state and the tracker as it stands: the frontier, the packet table, the dependency graph. It is never read back as memory and belongs to no session, because the tracker moving is enough to make it wrong: a closed ticket stales it without the closer owing anything. So a stale one is reported rather than failed, and refreshing one is a **publish**, never a **reconciliation**. Distinct from a **Map disagreement**, which is the stored state against the tracker; a map view can be stale while the state agrees with the tracker completely.
+_Avoid_: snapshot, cache, map copy, frontier file
+
 **Map overwriter**:
 A writer that replaces an existing implementation map body, which is the unit the concurrency obligations attach to: its own lock identity, the state-hash comparison, and re-validation after publication. Deliberately not *map writer* — creating the coordination issue is outside the role by **definition** rather than by exemption, because there is no prior state to compare against and nothing to clobber. The distinction is why the obligation set can be one enforced set rather than a posture declared per command, which is the arrangement that goes stale at a merge. Exclusion between two of them holds only where they compute the same **lock root**, so one on another machine is outside exclusion by construction and a person editing the body in a browser is outside it altogether.
 _Avoid_: map writer, publisher, map author, reconciler
@@ -1098,6 +1170,10 @@ _Avoid_: active, in progress, WIP, assigned, unmerged
 **Architecture lineage**:
 The tickets an architecture review placed, together with every ticket generated by working one of them — the questions and measurements of a member's own grilling, what a build of it turns up, or a split or follow-up filed out of either — marked by the `codebase-architecture` label so a review's work can be followed end to end. Membership is by descent and never by subject: a ticket that looks like architecture work but descends from nothing a review placed is outside it, and a ticket about anything at all that working a member generated is inside. The whole-tracker sweep closing a member's grilling is not work on that member, so what it finds joins only when the finding is about a member. It stays open to new members for as long as its members keep generating work, which is what distinguishes it from a retired episode tag that nothing new may carry.
 _Avoid_: architecture thread, architecture ticket, deepening ticket, refactor work
+
+**Scope block**:
+The quoted qualifier that opens a tracker record and states what base its claims rest on: a Branch state, in either its not-on-`main` or its rests-on-`main` form, or a Cited record state. A record opens with at most one, because the qualifiers do not compose. The block is the whole quote, including any dated correction of it written inside that quote. Anything the record says about itself, such as what filed it or what a figure was measured against, is a separate statement below the block and never part of it.
+_Avoid_: record-level qualifier, Branch state block, header, preamble
 
 **Filed-from line**:
 The statement in a ticket's body of what produced the ticket — a member's grilling or build, a closing sweep, an architecture review, a run or its after-action review, or the clinician's own request. It is the evidence descent is judged from and never the judgment itself: a line naming a run says the ticket descends from no ticket, which is an answer rather than an absence. Every ticket carries one from filing, so a body without it is missing a record rather than stating that nothing produced it. A respec keeps it word for word, because the filing session is the only one that saw where the ticket came from, and a rewrite that paraphrases it replaces that session's reading with the respecer's.

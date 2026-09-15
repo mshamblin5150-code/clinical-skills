@@ -1007,7 +1007,7 @@ def _grade(
         scan=scan,
         source=source.path.name,
         findings_failed=bool(scan.failing_checks) or aar_failed,
-        coverage_failed=not source.records,
+        coverage_failed=not source.records or bool(heading.unread),
         diagnostics=tuple(diagnostics),
         reports=(heading_read.format_coverage(heading), rendered_report, aar_report),
     )

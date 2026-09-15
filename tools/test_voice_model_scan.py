@@ -8,10 +8,16 @@ from pathlib import Path
 from unittest import mock
 
 import voice_model_scan as scan
-from grader_conformance import EmptyPopulationInput, for_module
+from grader_conformance import (
+    EmptyPopulationInput,
+    UnreadRemainderInput,
+    for_module,
+    unread_remainder_conformance,
+)
 
 
 GraderConformance = for_module(scan)
+UnreadRemainderConformance = unread_remainder_conformance(scan)
 
 
 TOOLS = Path(__file__).parent
@@ -39,6 +45,30 @@ def empty_population_input(root: Path) -> EmptyPopulationInput:
             {"3": "reflective and argumentative prose"},
             clear=True,
         ),
+    )
+
+
+def _with_third_pair(text: str, heading: str) -> str:
+    marker = "### Coverage"
+    first = text.index(marker)
+    second = text.index(marker, first + 1)
+    pair = (
+        f"{heading} A third synthetic pair.\n"
+        "- *Generic*: Generic wording.\n"
+        '- *His*: "A concrete bounded instruction."\n\n'
+    )
+    return text[:second] + pair + text[second:]
+
+
+def unread_remainder_input(root: Path) -> UnreadRemainderInput:
+    source = SYNTHETIC.read_text(encoding="utf-8")
+    unread, twin = root / "unread.md", root / "twin.md"
+    unread.write_text(_with_third_pair(source, "**B3:**"), encoding="utf-8")
+    twin.write_text(_with_third_pair(source, "**B3.**"), encoding="utf-8")
+    return UnreadRemainderInput(
+        (str(unread),),
+        (str(twin),),
+        unread_remainder=lambda result: result.unread_pairs,
     )
 
 
@@ -151,6 +181,12 @@ class ShapeFindingsRefuse(unittest.TestCase):
 
         self.assertEqual(1, status)
         self.assertIn("findings: 1", stdout)
+
+    def test_a_pair_heading_near_miss_is_an_unread_remainder(self):
+        changed = _with_third_pair(self.source, "**B3:**")
+        status, stdout, _ = self.grade(changed)
+        self.assertEqual(2, status)
+        self.assertIn("unread remainder 1", stdout.splitlines())
 
     def test_the_his_half_must_be_a_visible_quote(self):
         changed = self.source.replace(

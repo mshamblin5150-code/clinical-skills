@@ -44,6 +44,8 @@ mechanism and does not stand in for that registry.
 **No source is silently promoted.** A document with no ruled recommendation table
 comes back ``BOUND`` even if the marker count looks clean, because the thing that
 makes a count exact is the table structure and not the tidiness of the answer.
+The committed curated-table reader separately refuses a Recommendations table
+holding no row and names that empty population rather than calling the table absent.
 
 **Since #173 an exact count arrives two ways, so the mode alone no longer says where
 a number came from and ``counted_from`` does.** It is printed beside the mode and
@@ -1082,7 +1084,9 @@ def parse_curated_table(markdown: str) -> dict[str, list[CuratedRow]]:
     recommendations = _markdown_rows(markdown, "Recommendations", 9)
     statements = _markdown_rows(markdown, "Statements", 4)
     if not recommendations:
-        raise DidNotScan(f"no '## Recommendations' table in {CURATED_TABLE.name}")
+        raise DidNotScan(
+            f"recommendations table holds no row in {CURATED_TABLE.name}"
+        )
     if len(recommendations) != len(statements):
         raise DidNotScan(
             f"{CURATED_TABLE.name} has {len(recommendations)} recommendation rows and "

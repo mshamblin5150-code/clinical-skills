@@ -34,6 +34,11 @@ checks audit completeness and agreement. When the corpus is absent, structural
 and agreement checks still run and digest verification is reported as skipped;
 the command never calls that partial result a digest pass.
 
+A catalog table holding no document row is a structural problem. The catalog
+grader reports it as a failure, while commands that consume the catalog treat it
+as an unreadable input. Named audit tables end at their first non-table line even
+when they hold no data row, so one empty table cannot consume its neighbor.
+
 **Why ``year`` is a column at all.** The corpus holds a KDIGO 2009 document and a
 KDIGO 2013 document sitting beside a 2026 AHA one. There is no common release
 event across nine societies, so per-document version is the only staleness signal
@@ -296,9 +301,7 @@ def _parse_named_table(
     rows: list[list[str]] = []
     for lineno, line in enumerate(lines[header_at + 1 :], start=header_at + 2):
         if not line.lstrip().startswith("|"):
-            if rows:
-                break
-            continue
+            break
         cells = split_table_row(line)
         if is_separator_row(cells):
             continue
@@ -398,6 +401,9 @@ def parse_catalog(text: str) -> tuple[list[Row], dict[str, set[str]], list[str]]
             )
             continue
         rows.append(row_from_cells(cells))
+
+    if not rows:
+        problems.append("catalog table holds no row")
 
     unsettled_index = parse_unsettled(lines[unsettled_at:], problems)
     return rows, unsettled_index, problems

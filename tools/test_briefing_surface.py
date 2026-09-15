@@ -27,6 +27,20 @@ class BriefingSurfaceCoverage(unittest.TestCase):
 
         self.assertIn("missing adversarial refutation floor", briefing_surface.standing_rule_findings(mutant))
 
+    def test_the_owned_tab_floor_cannot_disappear_from_the_shared_home(self):
+        agents = (REPO_ROOT / "AGENTS.md").read_text(encoding="utf-8")
+        start = agents.index("**Browser tabs are private output locations")
+        end = agents.index("\n\n", start)
+        mutant = agents[:start] + agents[end + 2 :]
+
+        self.assertIn("missing owned-tab floor", briefing_surface.standing_rule_findings(mutant))
+
+    def test_the_named_owned_tab_obligation_cannot_disappear(self):
+        agents = (REPO_ROOT / "AGENTS.md").read_text(encoding="utf-8")
+        mutant = agents.replace("Every page action names the owned tab's id. ", "")
+
+        self.assertIn("missing owned-tab floor", briefing_surface.standing_rule_findings(mutant))
+
     def test_a_spawn_shaped_line_outside_a_declared_surface_is_a_finding(self):
         text = "## Research\n\nFan out one research context per claim.\n"
 

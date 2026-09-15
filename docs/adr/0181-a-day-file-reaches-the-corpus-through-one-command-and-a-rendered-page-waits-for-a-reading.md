@@ -290,3 +290,20 @@ a misread shows.
 
 **A consumer with no Python at all.** ADR 0175 leaves that harness's by-eye routes unchanged, and
 ruling 10 adds only the disclosure that the corpus did not receive the shift.
+
+## Correction, 2026-09-14, from #1064's grilling
+
+The 2026-09-11 correction routes *whether a shortfall status is a finding* to
+[#1064](https://github.com/mshamblin5150-code/clinical-skills/issues/1064). That grilling did not rule
+it. [ADR 0226](0226-a-non-member-s-empty-read-is-ruled-against-its-own-contract.md) ruling 10 declines
+the question with no ticket and names the condition that reopens it: the first measured case of a
+caller reading one meaning of exit 1 as another. Ruling 9 of this record is unaffected.
+
+## Correction, 2026-09-14, from #1130's grilling
+
+Ruling 15's final sentence, *"`batch-shift` is not moved into the depends-on-a-tool group, because
+the notes are still written without it,"* is superseded by
+[ADR 0232](0232-every-skill-command-is-named-in-agents-md-and-its-tier-is-what-skipping-it-costs.md)
+ruling 3. #814 had already made `batch-shift`'s completion exit required on 2026-09-02, so the
+skill's run is not complete without `tools/filled_vitals_census.py` whether or not the notes are
+written. The ruling's clause naming `day_file_text.py` and its firewall cost stands word for word.

@@ -169,6 +169,16 @@ class ThresholdCoverageCli(unittest.TestCase):
                 check=False,
             )
 
+    def test_a_header_only_catalog_is_not_scanned_on_any_output_path(self):
+        header_only = "\n".join(CATALOG.splitlines()[:2]) + "\n"
+
+        for extra in ((), ("--draft",), ("--source-class", "guideline")):
+            with self.subTest(extra=extra):
+                result = self.run_cli(header_only, None, *extra)
+                self.assertEqual(result.returncode, 2)
+                self.assertIn("catalog table holds no row", result.stderr)
+                self.assertEqual(result.stdout, "")
+
     def test_draft_derives_one_row_per_distinct_catalog_topic(self):
         result = self.run_cli(CATALOG, None, "--draft")
 

@@ -199,6 +199,39 @@ class ThresholdDraftCli(unittest.TestCase):
             check=False,
         )
 
+    def test_a_header_only_catalog_is_not_scanned(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            catalog = root / "catalog.md"
+            coverage = root / "coverage.md"
+            text_root = root / "text"
+            catalog.write_text("\n".join(catalog_row().splitlines()[:2]) + "\n", encoding="utf-8")
+            coverage.write_text(coverage_row(), encoding="utf-8")
+            text_root.mkdir()
+            write_trusted_extraction_manifest(text_root)
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(COMMAND),
+                    "hypertension",
+                    "--catalog", str(catalog),
+                    "--coverage", str(coverage),
+                    "--recs-root", str(root / "recs"),
+                    "--recs-alias", str(root / "recs-alias"),
+                    "--sheet-root", str(root / "sheets"),
+                    "--text-root", str(text_root),
+                ],
+                cwd=ROOT,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                capture_output=True,
+                check=False,
+            )
+
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("catalog table holds no row", result.stderr)
+
     def test_an_alternate_name_is_only_a_hint_and_never_the_selected_record(self):
         with tempfile.TemporaryDirectory() as directory:
             result = self.run_cli(

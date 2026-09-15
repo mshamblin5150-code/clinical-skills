@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import contextlib
+import io
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import artifact_lock_test_support  # noqa: F401
 
@@ -80,6 +83,29 @@ The USPSTF suggests annual screening in a different population.
 
         self.assertEqual(measurement.naive_absence_files, 2)
         self.assertEqual(measurement.committed_absence_files, 1)
+
+
+class TheCommandReportsAnEstablishedZero(unittest.TestCase):
+    def test_zero_not_stated_rows_replace_every_ratio_with_one_qualifier(self) -> None:
+        rows = (reach.TableRow("one.pdf", "annual", "Annual screening."),)
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+
+        with (
+            mock.patch.object(reach, "read_table", return_value=rows),
+            mock.patch.object(reach, "read_documents", return_value={}),
+            contextlib.redirect_stdout(stdout),
+            contextlib.redirect_stderr(stderr),
+        ):
+            status = reach.main(["synthetic-corpus"])
+
+        self.assertEqual(status, 0)
+        self.assertIn(
+            'no row reads "not stated": ADR 0028\'s reach has nothing to measure',
+            stdout.getvalue(),
+        )
+        self.assertNotIn(" of 0", stdout.getvalue())
+        self.assertEqual(stderr.getvalue(), "")
 
 
 if __name__ == "__main__":

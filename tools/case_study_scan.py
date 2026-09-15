@@ -418,7 +418,10 @@ DECLARED_LIMITS = (
         EvidenceDisposition.BEHAVIOR,
     ),
     ("an unnamed cross-reference is never resolved", EvidenceDisposition.BEHAVIOR),
-    ("a misspelled optional heading disables its row", EvidenceDisposition.BEHAVIOR),
+    (
+        "a misspelled optional heading disables its row under ADR 0230",
+        EvidenceDisposition.BEHAVIOR,
+    ),
     ("whether an MDM citation supports its claim", EvidenceDisposition.DECLARED_READING),
 )
 NOT_REACHED = tuple(key for key, _ in DECLARED_LIMITS)
@@ -1222,7 +1225,6 @@ GRADER = run_grader.Grader(
     grade=_grade,
     format_report=format_report,
     parse_error=lambda message: "case_study_scan.py: {e}".format(e=message),
-    allow_extra_positionals=False,
 )
 
 

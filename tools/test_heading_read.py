@@ -70,10 +70,14 @@ class AHeadingReadBindsTheDraftToCurrentClaimHeadings(unittest.TestCase):
         result = scan(record() + "\n" + record())
         self.assertIn(heading_read.DUPLICATE_RECORD, [f.kind for f in result.findings])
 
-    def test_a_heading_shaped_candidate_the_parser_cannot_read_is_counted_and_refused(self):
+    def test_a_heading_shaped_candidate_the_parser_cannot_read_is_only_the_remainder(self):
         result = scan(record() + "\n## HEADING-READ draft-without-a-colon.md\n")
         self.assertEqual(1, result.unread)
-        self.assertIn(heading_read.UNREAD_RECORD, [f.kind for f in result.findings])
+        self.assertEqual((), result.findings)
+        self.assertEqual(
+            "heading-read records: 1\nunread remainder 1",
+            heading_read.format_coverage(result),
+        )
 
     def test_only_the_two_ruled_routes_are_recognized(self):
         self.assertEqual(

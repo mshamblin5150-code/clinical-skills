@@ -1,0 +1,13 @@
+{
+  "errors": [
+    {
+      "path": ["query", "repository", "issue", "fieldThatDoesNotExist"],
+      "extensions": {
+        "code": "undefinedField",
+        "typeName": "Issue",
+        "fieldName": "fieldThatDoesNotExist"
+      },
+      "message": "Field 'fieldThatDoesNotExist' doesn't exist on type 'Issue'"
+    }
+  ]
+}

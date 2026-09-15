@@ -29,7 +29,13 @@ import docx_write
 import file_digest
 import post_html
 import page_image
-from grader_conformance import EmptyPopulationInput, for_module, gate_conformance
+from grader_conformance import (
+    EmptyPopulationInput,
+    UnreadRemainderInput,
+    for_module,
+    gate_conformance,
+    unread_remainder_conformance,
+)
 from prose_bind import NAMING, bind
 from test_discussion_reply_scan import (
     BODY as REPLY_BODY,
@@ -40,6 +46,7 @@ from test_discussion_reply_scan import (
 
 GraderConformance = for_module(scan)
 GateConformance = gate_conformance(scan)
+UnreadRemainderConformance = unread_remainder_conformance(scan)
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PNG = base64.b64decode(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
@@ -276,6 +283,42 @@ def empty_population_input(root: Path) -> EmptyPopulationInput:
     )
 
 
+def unread_remainder_input(root: Path) -> UnreadRemainderInput:
+    unread, twin = root / "unread", root / "twin"
+    unread.mkdir()
+    twin.mkdir()
+    unread_run, twin_run = Run(unread), Run(twin)
+    reread = (
+        f"## REREAD: {unread_run.draft.stem}\n"
+        "POST-URL: https://example.org/t?entry_id=41\n"
+        "POSTED: 2026-08-28T19:30:00-04:00\n"
+        "READ: 2026-08-28\n"
+        f"SUBMISSION-SHA256: {file_digest.sha256(unread_run.draft)}\n"
+        "VERDICT: matches - The artifact and posted entry agree.\n"
+    )
+    (unread / "post.md").write_text(BODY, encoding="utf-8")
+    (unread / "reread.md").write_text(reread, encoding="utf-8")
+    (twin / "post.md").write_text(
+        "POST-URL: https://example.org/t?entry_id=41\n"
+        "POSTED: 2026-08-28T19:30:00-04:00\n\n"
+        + BODY,
+        encoding="utf-8",
+    )
+    (twin / "reread.md").write_text(
+        reread.replace(unread_run.draft.stem, twin_run.draft.stem),
+        encoding="utf-8",
+    )
+    return UnreadRemainderInput(
+        (str(unread), "--draft", str(unread_run.draft)),
+        (str(twin), "--draft", str(twin_run.draft)),
+        unread_remainder=lambda result: result.posted_reading_unread
+        + result.heading_read_unread,
+        context_factory=lambda: mock.patch.dict(
+            sys.modules, {"pymupdf": FakePyMuPDF()}
+        ),
+    )
+
+
 class AnEmptyBodyIsStillAFindingUnderAZeroBar(unittest.TestCase):
     def test_headings_only_exits_one_and_names_the_row(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -327,7 +370,7 @@ class CanvasSubmissionRows(unittest.TestCase):
 
         self.assertEqual(status, 2)
         self.assertEqual(stderr, "")
-        self.assertIn("rendered-pages: not graded", stdout)
+        self.assertIn("rendered-pages: 0", stdout)
         self.assertIn(scan.pdf_engine.RENDER_UNAVAILABLE, stdout)
         self.assertIn("not mechanically verified", stdout)
         self.assertIn("findings: 0", stdout)
@@ -361,7 +404,28 @@ class CanvasSubmissionRows(unittest.TestCase):
 
         self.assertEqual(status, 1)
         self.assertIn("bold-headings: 1", stdout)
-        self.assertIn("rendered-pages: not graded", stdout)
+        self.assertIn("rendered-pages: 0", stdout)
+
+    def test_a_non_clean_render_verdict_survives_an_unavailable_engine(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            html, _ = self.rendered(run)
+            run.record_canvas_render(
+                html,
+                verdict="defect - the final block was not readable",
+            )
+            with mock.patch.object(
+                scan.page_image.pdf_engine,
+                "acquire",
+                side_effect=scan.pdf_engine.EngineUnavailable(),
+            ):
+                status, stdout, stderr = run.grade("--html", str(html))
+
+        self.assertEqual(1, status)
+        self.assertEqual("", stderr)
+        self.assertIn(
+            f"rendered-pages: 1 - {scan.pdf_engine.RENDER_UNAVAILABLE}", stdout
+        )
 
     def test_block_quotation_text_and_block_count_are_graded_on_the_html_seam(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -1282,6 +1346,28 @@ class APostedInitialEntryHasItsOwnReading(unittest.TestCase):
         self.assertEqual("", stderr)
         self.assertIn("missing-posted-reading: 0", stdout)
 
+    def test_a_finding_in_an_unread_posting_candidate_outranks_coverage(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = self.posted_run(Path(temp))
+            (run.root / "post.md").write_text(BODY, encoding="utf-8")
+            (run.root / "reread.md").write_text(
+                f"## REREAD: {run.draft.stem}\n"
+                f"POST-URL: {self.POST_URL}\n"
+                "POSTED: 2026-08-28T19:30:00-04:00\n"
+                "READ: 2026-08-28\n"
+                f"SUBMISSION-SHA256: {'0' * 64}\n"
+                "VERDICT: matches - The headings, paragraphs, and references are present.\n",
+                encoding="utf-8",
+            )
+            status, stdout, _stderr = run.grade()
+
+        self.assertEqual(1, status)
+        self.assertIn("unread remainder 1", stdout.splitlines())
+        self.assertIn(f"{scan.SUBMISSION_FINGERPRINT}: 1", stdout)
+        self.assertNotIn("not graded", next(
+            line for line in stdout.splitlines() if line.startswith(f"{scan.SUBMISSION_FINGERPRINT}:")
+        ))
+
     def test_a_missing_initial_post_fingerprint_is_a_finding(self):
         with tempfile.TemporaryDirectory() as temp:
             run = self.posted_run(Path(temp))
@@ -1295,6 +1381,49 @@ class APostedInitialEntryHasItsOwnReading(unittest.TestCase):
         self.assertEqual(1, status)
         self.assertEqual("", stderr)
         self.assertIn("submission-fingerprint: 1", stdout)
+
+    def test_a_refused_label_keeps_a_missing_posted_reading_finding(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = self.posted_run(Path(temp))
+            run.draft.write_text(
+                run.draft.read_text(encoding="utf-8").replace(
+                    "## References", "**References**"
+                ),
+                encoding="utf-8",
+            )
+            (run.root / "reread.md").unlink()
+            status, stdout, stderr = run.grade()
+
+        self.assertEqual(1, status)
+        self.assertIn("**References**", stderr)
+        self.assertIn("missing-posted-reading: 1", stdout)
+        self.assertIn("word-floor: not graded", stdout)
+
+    def test_a_refused_label_keeps_a_submission_fingerprint_finding(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = self.posted_run(Path(temp))
+            run.draft.write_text(
+                run.draft.read_text(encoding="utf-8").replace(
+                    "## References", "**References**"
+                ),
+                encoding="utf-8",
+            )
+            reread = run.root / "reread.md"
+            reread.write_text(
+                re.sub(
+                    r"^SUBMISSION-SHA256:.*\n",
+                    "",
+                    reread.read_text(encoding="utf-8"),
+                    flags=re.MULTILINE,
+                ),
+                encoding="utf-8",
+            )
+            status, stdout, stderr = run.grade()
+
+        self.assertEqual(1, status)
+        self.assertIn("**References**", stderr)
+        self.assertIn("submission-fingerprint: 1", stdout)
+        self.assertIn("reference-minimum: not graded", stdout)
 
     def test_a_one_word_source_edit_makes_the_reading_fingerprint_stale(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -1458,6 +1587,7 @@ class ARecognizedButRefusedLabelStopsTheScan(unittest.TestCase):
                     encoding="utf-8",
                 )
                 reply.write_heading_read()
+                reply.refresh_fingerprint()
                 with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
                     reply_status = reply_scan.main([reply_temp])
             with tempfile.TemporaryDirectory() as post_temp:

@@ -1,9 +1,11 @@
 """Add non-blocking context after acts that incur implementation-map work.
 
-Command tokenization is owned by ``tracker_publish_hook.gh_command_tokens``;
-this hook classifies only the ruled label and merge routes. It reads no tracker
-record, never refuses the completed command, and emits no response for any
-other command. The complete boundary is ``DECLARED_LIMITS``.
+Precise command tokenization is owned by
+``tracker_publish_hook.gh_command_tokens``; its anchor-free companion is
+``tracker_publish_hook.loose_command_calls``. This hook classifies only the
+ruled label, merge, and default-branch push routes. It reads no tracker record,
+never refuses the completed command, and emits no response for any other
+command. The complete boundary is ``DECLARED_LIMITS``.
 """
 
 from __future__ import annotations
@@ -30,6 +32,14 @@ DECLARED_LIMITS = (
     "A session may read the additional context and still decline to act on it.",
     "A PR selected by number or URL cannot be tied to the session branch without "
     "a tracker read, so only an omitted selector or the current branch name is classified.",
+    "A command assembled at run time, such as `G=gh; $G ...`, carries no literal "
+    "route for this static classifier.",
+    "A command built by string formatting in a program carries no literal route "
+    "for this static classifier.",
+    "An argv list assembled in pieces is outside the literal-list form this "
+    "static classifier reaches.",
+    "An alias or function standing in for gh carries no gh word for this static "
+    "classifier.",
 )
 
 
@@ -238,6 +248,101 @@ def _lands_default_branch(command: str) -> bool:
     return False
 
 
+def _loose_push_lands_default(arguments: str) -> bool:
+    tokens = re.findall(r"[+A-Za-z0-9_./:-]+", arguments)
+    if "--delete" in arguments or re.search(r"(?:\A|\s)-d(?:\s|\Z)", arguments):
+        return False
+    default = _default_branch_name()
+    current = _git_line(("branch", "--show-current"))
+    if any(
+        _push_target(token) == default
+        and _push_source(token) in ("HEAD", current)
+        for token in tokens
+    ):
+        return True
+    positional = [token for token in tokens if not token.startswith("-")]
+    return current == default and positional in (
+        [],
+        ["origin"],
+        ["HEAD"],
+        ["origin", "HEAD"],
+    )
+
+
+def _is_loose_ready(call: tracker_publish_hook.LooseCommand) -> bool:
+    if call.route not in (("issue", "edit"), ("issue", "create")):
+        return False
+    long_flag = "--add-label" if call.route == ("issue", "edit") else "--label"
+    short_create = call.route == ("issue", "create") and re.search(
+        r"(?:\A|[\s,'\"])-l(?:[\s,'\"]|ready-for-agent)",
+        call.arguments,
+    )
+    return READY_LABEL in call.arguments and (
+        long_flag in call.arguments or short_create is not None
+    )
+
+
+def _loose_map_actions(
+    command: str,
+) -> tuple[tracker_publish_hook.LooseCommand, ...]:
+    actions: list[tracker_publish_hook.LooseCommand] = []
+    ready_routes = (("issue", "edit"), ("issue", "create"))
+    for call in tracker_publish_hook.loose_command_calls(command, "gh", ready_routes):
+        if _is_loose_ready(call):
+            actions.append(call)
+    actions.extend(
+        tracker_publish_hook.loose_command_calls(command, "gh", (("pr", "merge"),))
+    )
+    actions.extend(
+        call
+        for call in tracker_publish_hook.loose_command_calls(
+            command, "git", (("push",),)
+        )
+        if _loose_push_lands_default(call.arguments)
+    )
+    return tuple(actions)
+
+
+def _precise_map_actions(
+    command: str,
+) -> tuple[tracker_publish_hook.LooseCommand, ...]:
+    actions: list[tracker_publish_hook.LooseCommand] = []
+    parsed = tracker_publish_hook.gh_command_tokens(command, ROUTES)
+    if parsed is not None:
+        tokens, index = parsed
+        tail = tokens[index + 1 :]
+        route = tuple(tail[:2])
+        call = tracker_publish_hook.LooseCommand(
+            "gh", route, " ".join(tail[2:]), False
+        )
+        if route == ("pr", "merge") or _is_loose_ready(call):
+            actions.append(call)
+    git_calls = tracker_publish_hook.command_tokens(command, "git")
+    if git_calls:
+        tokens, index = git_calls[0]
+        tail = tokens[index + 1 :]
+        if tail[:1] == ["push"]:
+            call = tracker_publish_hook.LooseCommand(
+                "git", ("push",), " ".join(tail[1:]), False
+            )
+            if _loose_push_lands_default(call.arguments):
+                actions.append(call)
+    return tuple(actions)
+
+
+def _unreproduced_map_action(command: str) -> bool:
+    loose = list(_loose_map_actions(command))
+    for precise in _precise_map_actions(command):
+        for index, candidate in enumerate(loose):
+            if (candidate.executable, candidate.route) == (
+                precise.executable,
+                precise.route,
+            ):
+                del loose[index]
+                break
+    return bool(loose)
+
+
 def _response_text(response: object) -> str:
     return response if isinstance(response, str) else json.dumps(response, ensure_ascii=False)
 
@@ -266,14 +371,22 @@ def handle(payload: dict) -> dict:
         command = payload["tool_input"]["command"]
         if not isinstance(tool_name, str) or not isinstance(command, str):
             return {}
-        if (
+        modeled = (
             tracker_publish_hook.COMMAND_TOOLS.get(tool_name)
-            != tracker_publish_hook.MODELED_SHELL
-        ):
+            == tracker_publish_hook.MODELED_SHELL
+        )
+        if not modeled:
+            if not _loose_map_actions(command):
+                return {}
             return _specific(
                 "Implementation-map work was not derived from the completed "
                 f"{tool_name} command because it carries an unmodeled shell; "
                 "inspect the completed command by hand."
+            )
+        if _unreproduced_map_action(command):
+            return _specific(
+                "Implementation-map work was not derived from the completed "
+                f"{tool_name} command; inspect the completed command by hand."
             )
         ticket = _ready_flip(command, payload.get("tool_response", ""))
         if ticket is not None:

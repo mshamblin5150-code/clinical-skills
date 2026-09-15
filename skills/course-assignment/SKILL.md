@@ -192,15 +192,8 @@ The rows are:
 
 The default report prints counts only. `--show` exposes artifact text and remains private. Exit 0
 is clean, 1 means a finding, and 2 means the command did not completely scan the run, bar, or deck.
-The command's reader-owned boundaries are in `deck_scan.DECLARED_LIMITS`:
-`claim-support-unverified`, `record-slide-agreement-unverified`,
-`sourced-field-completeness-unjoined`,
-`adversarial-completeness-unverified`, `image-provenance-unverified`,
-`render-scan-run-unverified`, `render-source-unproven`, and
-`adversarial-bytes-unbound`, `platform-repair-after-reading-unobserved`,
-`submission-without-posting-evidence-unknown`, `platform-bytes-unproven`, and
-`reader-attention-unobservable`. Walk them against the finished artifact; this skill points to
-their keys and carries no second copy of any limit sentence.
+The command's reader-owned boundaries are in `deck_scan.DECLARED_LIMITS`. Walk that object against
+the finished artifact; this skill points to it and carries no second copy of its inventory.
 
 ## 5. Render and inspect every slide
 

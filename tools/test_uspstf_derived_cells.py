@@ -35,7 +35,6 @@ import uspstf_table
 REFERENCE = (
     Path(__file__).resolve().parent.parent / "reference" / "guidelines-uspstf.md"
 )
-NOT_STATED = "not stated"
 ALTERNATIVE_JOIN = " or "
 INTERVAL_PHRASE = re.compile(
     r"\bevery \d+(?: to \d+)? (?:years?|months?|weeks?)\b"
@@ -95,7 +94,7 @@ class TheCommittedIntervalsAccountForTheirStatements(unittest.TestCase):
     def test_every_interval_phrase_a_statement_names_appears_in_its_cell(self) -> None:
         for row in self.rows:
             periods = statement_periods(row.statement)
-            expected = ALTERNATIVE_JOIN.join(periods) if periods else NOT_STATED
+            expected = ALTERNATIVE_JOIN.join(periods) if periods else uspstf_table.NOT_STATED
             self.assertEqual(
                 row.interval,
                 expected,
@@ -116,7 +115,7 @@ class TheCommittedIntervalsAccountForTheirStatements(unittest.TestCase):
         )
 
     def test_the_ruled_interval_reach_population_has_not_moved(self) -> None:
-        not_stated = [row for row in self.rows if row.interval == NOT_STATED]
+        not_stated = [row for row in self.rows if row.interval == uspstf_table.NOT_STATED]
         rows_by_file: dict[str, list[guidelines_recs.CuratedRow]] = {}
         for row in self.rows:
             rows_by_file.setdefault(row.filename, []).append(row)
@@ -125,7 +124,7 @@ class TheCommittedIntervalsAccountForTheirStatements(unittest.TestCase):
             len(not_stated),
             len({row.filename for row in not_stated}),
             sum(
-                all(row.interval == NOT_STATED for row in rows)
+                all(row.interval == uspstf_table.NOT_STATED for row in rows)
                 for rows in rows_by_file.values()
             ),
         )
@@ -200,7 +199,7 @@ class TheCommittedPopulationsArePresent(unittest.TestCase):
         rows = [row for document_rows in grouped.values() for row in document_rows]
 
         self.assertEqual(
-            sum(row.population == NOT_STATED for row in rows),
+            sum(row.population == uspstf_table.NOT_STATED for row in rows),
             0,
             "The committed USPSTF artifact has a missing Population cell. Re-run "
             "tools/uspstf_table.py and review ADR 0044 before accepting a changed "
@@ -246,11 +245,11 @@ class TheRuledPopulationLiteral(unittest.TestCase):
             )
         self.assertEqual(
             uspstf_table.derive_population(real_population),
-            NOT_STATED,
+            uspstf_table.NOT_STATED,
         )
         self.assertEqual(
             uspstf_table.derive_population(methodological_adjective),
-            NOT_STATED,
+            uspstf_table.NOT_STATED,
         )
 
 

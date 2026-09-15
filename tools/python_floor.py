@@ -60,6 +60,9 @@ FEATURE_BY_NAME = {feature.name: feature for feature in FEATURES}
 REPO_ROOT = Path(__file__).resolve().parent.parent
 BASELINE = (3, 7)
 SKILL_COMMAND = re.compile(r"(?<![A-Za-z0-9_/])python[ \t]+tools/([A-Za-z_][A-Za-z0-9_]*)\.py\b")
+UNDECLARED_REMEDY = (
+    "name the command in AGENTS.md, or stop handing consumers a command they must not run"
+)
 DECLARED_LIMITS = (
     "Features outside the declared vocabulary are not detected.",
     "Dynamic calls and imports are not executed by the static walk.",
@@ -335,6 +338,21 @@ def invoked_roots(files: tuple[tuple[str, str], ...]) -> set[str]:
     }
 
 
+def undeclared_skill_commands(roots: set[str], agents_text: str) -> tuple[str, ...]:
+    """Return invoked skill commands named nowhere in ``AGENTS.md``."""
+
+    return tuple(
+        sorted(
+            module
+            for module in roots
+            if not re.search(
+                rf"(?<![A-Za-z0-9_]){re.escape(module)}(?:\.py)?(?![A-Za-z0-9_])",
+                agents_text,
+            )
+        )
+    )
+
+
 def _local_imports(source: str, known: set[str]) -> set[str]:
     tree = ast.parse(source)
     imported: set[str] = set()
@@ -464,16 +482,7 @@ def scan_repository(root: Path) -> Report:
         agents_text = (root / "AGENTS.md").read_text(encoding="utf-8")
     except (OSError, UnicodeError) as failure:
         unread.append(f"AGENTS.md: {failure}")
-    undeclared = tuple(
-        sorted(
-            module
-            for module in roots
-            if not re.search(
-                rf"(?<![A-Za-z0-9_]){re.escape(module)}(?:\.py)?(?![A-Za-z0-9_])",
-                agents_text,
-            )
-        )
-    )
+    undeclared = undeclared_skill_commands(roots, agents_text)
     return Report(
         consumer_floor=_floor(consumer_witnesses),
         tooling_floor=_floor(all_witnesses),

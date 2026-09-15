@@ -1,0 +1,69 @@
+{
+  "sources": {
+    "mcp__claude-in-chrome__": "Claude in Chrome 1.0.0 tools/list, captured 2026-09-14 with claude --claude-in-chrome-mcp",
+    "mcp__Claude_Browser__": "Claude Desktop deferred tool schemas, captured 2026-09-14"
+  },
+  "families": {
+    "mcp__claude-in-chrome__": {
+      "$roles": {
+        "batch": "browser_batch",
+        "management": ["list_connected_browsers", "select_browser", "switch_browser", "tabs_close_mcp", "tabs_context_mcp", "tabs_create_mcp"],
+        "create": "tabs_create_mcp",
+        "context": "tabs_context_mcp",
+        "navigate": "navigate",
+        "reportCreationCoverage": true
+      },
+      "browser_batch": ["actions"],
+      "computer": ["action", "coordinate", "text", "duration", "scroll_direction", "scroll_amount", "start_coordinate", "region", "scale", "repeat", "ref", "modifiers", "tabId", "save_to_disk"],
+      "file_upload": ["paths", "ref", "tabId"],
+      "find": ["query", "tabId"],
+      "form_input": ["ref", "value", "tabId"],
+      "get_page_text": ["tabId"],
+      "gif_creator": ["action", "tabId", "download", "filename", "options"],
+      "javascript_tool": ["action", "text", "tabId"],
+      "list_connected_browsers": [],
+      "navigate": ["url", "tabId"],
+      "read_console_messages": ["tabId", "onlyErrors", "clear", "pattern", "limit"],
+      "read_network_requests": ["tabId", "urlPattern", "clear", "limit"],
+      "read_page": ["filter", "tabId", "depth", "ref_id", "max_chars"],
+      "resize_window": ["width", "height", "tabId"],
+      "select_browser": ["deviceId"],
+      "shortcuts_execute": ["tabId", "shortcutId", "command"],
+      "shortcuts_list": ["tabId"],
+      "switch_browser": [],
+      "tabs_close_mcp": ["tabId"],
+      "tabs_context_mcp": ["createIfEmpty"],
+      "tabs_create_mcp": [],
+      "upload_image": ["imageId", "ref", "coordinate", "tabId", "filename"]
+    },
+    "mcp__Claude_Browser__": {
+      "$roles": {
+        "batch": "browser_batch",
+        "management": ["preview_list", "preview_logs", "preview_start", "preview_stop", "tabs_close", "tabs_context", "tabs_create", "tabs_select"],
+        "create": "tabs_create",
+        "context": "tabs_context",
+        "navigate": "navigate",
+        "reportCreationCoverage": false
+      },
+      "browser_batch": ["actions"],
+      "computer": ["action", "coordinate", "text", "duration", "tabId"],
+      "find": ["query", "tabId"],
+      "form_input": ["ref", "value", "tabId"],
+      "get_page_text": ["tabId"],
+      "javascript_tool": ["action", "text", "tabId"],
+      "navigate": ["url", "tabId"],
+      "preview_list": [],
+      "preview_logs": ["previewId"],
+      "preview_start": ["url"],
+      "preview_stop": ["previewId"],
+      "read_console_messages": ["tabId", "pattern"],
+      "read_network_requests": ["tabId", "urlPattern"],
+      "read_page": ["filter", "tabId", "depth", "ref_id", "max_chars"],
+      "resize_window": ["width", "height", "tabId"],
+      "tabs_close": ["tabId"],
+      "tabs_context": ["createIfEmpty"],
+      "tabs_create": [],
+      "tabs_select": ["tabId"]
+    }
+  }
+}

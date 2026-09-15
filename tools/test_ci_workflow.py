@@ -32,6 +32,7 @@ import python_floor
 REPO_ROOT = Path(__file__).resolve().parent.parent
 WORKFLOW = REPO_ROOT / ".github" / "workflows" / "checks.yml"
 TRACKER_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "tracker.yml"
+MAP_REFRESH_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "implementation-map-refresh.yml"
 CLAUDE_MD = REPO_ROOT / "CLAUDE.md"
 
 #: The one command CLAUDE.md tells a maintainer to run. If CI runs a different
@@ -53,6 +54,44 @@ def workflow_text():
 
 def tracker_workflow_text():
     return TRACKER_WORKFLOW.read_text(encoding="utf-8")
+
+
+def map_refresh_workflow_text():
+    return MAP_REFRESH_WORKFLOW.read_text(encoding="utf-8")
+
+
+class TheImplementationMapRefreshWorkflow(unittest.TestCase):
+    def test_the_hourly_publisher_has_the_ruled_triggers_permissions_and_command(self):
+        text = map_refresh_workflow_text()
+
+        self.assertRegex(text, r"(?m)^\s{2}schedule:\s*$")
+        self.assertRegex(text, r"cron:\s*['\"]?[1-5]?\d \* \* \* \*['\"]?")
+        self.assertNotRegex(text, r"cron:\s*['\"]?0 \* \* \* \*['\"]?")
+        self.assertRegex(text, r"(?m)^\s{2}workflow_dispatch:\s*$")
+        self.assertNotRegex(text, r"(?m)^\s{2}(?:push|issues):\s*$")
+        self.assertRegex(text, r"(?m)^\s{2}contents:\s*read\s*$")
+        self.assertRegex(text, r"(?m)^\s{2}issues:\s*write\s*$")
+        self.assertRegex(text, r"(?m)^\s{2}pull-requests:\s*read\s*$")
+        self.assertIn("cancel-in-progress: false", text)
+        self.assertIn("GH_TOKEN: ${{ github.token }}", text)
+        self.assertIn("python tools/implementation_map.py publish --scheduled", text)
+        self.assertIn("dependencies/blocked_by?per_page=1", text)
+        self.assertRegex(
+            text,
+            r"dependencies/blocked_by\?per_page=1[^\n]*\n\s*if \(\$LASTEXITCODE -ne 0\)",
+        )
+        self.assertIn("gh api rate_limit", text)
+        self.assertIn("2>&1", text)
+        self.assertNotIn("apply-delta", text)
+        self.assertNotIn("reconciled_through", text)
+
+    def test_the_workflow_is_valid_yaml_when_the_optional_parser_is_available(self):
+        try:
+            import yaml
+        except ImportError:
+            self.skipTest("PyYAML is optional; the text-level workflow tests still ran")
+
+        self.assertIsInstance(yaml.safe_load(map_refresh_workflow_text()), dict)
 
 
 TRACKER_EVENTS = {

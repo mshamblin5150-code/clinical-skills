@@ -1,0 +1,16 @@
+{
+  "data": {
+    "repository": {
+      "record_17": {"number": 17, "__typename": "Issue"},
+      "record_18": {"number": 18, "__typename": "PullRequest"},
+      "record_999999": null
+    }
+  },
+  "errors": [
+    {
+      "type": "NOT_FOUND",
+      "path": ["repository", "record_999999"],
+      "message": "Could not resolve to an Issue or PullRequest with the number of 999999."
+    }
+  ]
+}

@@ -14,6 +14,7 @@ from types import SimpleNamespace
 from unittest import mock
 
 import run_grader
+import grader_conformance
 from grader_conformance import constructed_kinds
 from prose_bind import NAMING, bind
 
@@ -51,6 +52,16 @@ class FindingCarriesOnlyTheSharedKind(unittest.TestCase):
             finding.kind = "changed"  # type: ignore[misc]
 
 
+class UnreadRemaindersShareOneReportLine(unittest.TestCase):
+    def test_the_shared_line_names_the_unread_remainder(self):
+        self.assertEqual("unread remainder 3", run_grader.format_unread_remainder(3))
+
+
+class UnreadRemainderConformanceIsOptIn(unittest.TestCase):
+    def test_the_kit_exposes_an_explicit_case_generator(self):
+        self.assertTrue(callable(grader_conformance.unread_remainder_conformance))
+
+
 class TheRunnerOwnsTheCommandTail(unittest.TestCase):
     def run_command(self, command, argv):
         stdout = io.StringIO()
@@ -80,6 +91,17 @@ class TheRunnerOwnsTheCommandTail(unittest.TestCase):
         self.assertEqual("", stdout)
         self.assertIn("unrecognized option --shwo", stderr)
         self.assertFalse(called)
+
+    def test_parse_refuses_a_second_positional_source(self):
+        command = run_grader.Grader(
+            usage="usage: example.py <source>",
+            load=lambda parsed: parsed.source,
+            grade=lambda _source, _parsed: None,
+            format_report=lambda _scan, _source, show=False: "never",
+        )
+
+        with self.assertRaisesRegex(run_grader.ParseError, "one source at a time"):
+            run_grader.parse(command, ["first", "second"])
 
     def test_a_source_failure_exits_before_a_report_is_printed(self):
         def load(_parsed):

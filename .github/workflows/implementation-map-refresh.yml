@@ -1,0 +1,43 @@
+name: implementation map refresh
+
+on:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+
+concurrency:
+  group: implementation-map-refresh
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: windows-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.14'
+
+      - name: Refresh derived views when needed
+        shell: pwsh
+        run: |
+          $before = gh api rate_limit --jq '.resources.core.used'
+          gh api 'repos/${{ github.repository }}/issues/596/dependencies/blocked_by?per_page=1' | Out-Null
+          if ($LASTEXITCODE -ne 0) {
+            throw 'GITHUB_TOKEN cannot read the issue dependency endpoint'
+          }
+          $report = python tools/implementation_map.py publish --scheduled 2>&1
+          $status = $LASTEXITCODE
+          $after = gh api rate_limit --jq '.resources.core.used'
+          $report
+          "core requests used by this run: $([int]$after - [int]$before)"
+          exit $status

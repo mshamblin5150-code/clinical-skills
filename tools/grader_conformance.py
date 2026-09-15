@@ -1,7 +1,8 @@
 """Reusable public-seam conformance tests for ``run_grader`` members.
 
-Test modules bind generated classes as ``GraderConformance`` or
-``GateConformance`` so every discovered test id resolves through that binding.
+Test modules bind generated classes as ``GraderConformance``,
+``GateConformance``, or ``UnreadRemainderConformance`` so every discovered test
+id resolves through that binding.
 The kit's measured boundary is ``grader_conformance.DECLARED_LIMITS``.
 """
 
@@ -37,12 +38,31 @@ class EmptyPopulationInput:
         contextlib.nullcontext
     )
 
+
+@dataclass(frozen=True)
+class UnreadRemainderInput:
+    """Synthetic command arguments for one partial read and its fully read twin."""
+
+    argv: tuple[str, ...]
+    twin_argv: tuple[str, ...]
+    unread_remainder: Callable[[Any], int]
+    context_factory: Callable[[], contextlib.AbstractContextManager[Any]] = (
+        contextlib.nullcontext
+    )
+
 DECLARED_LIMITS = (
     (
         "whether every generated class a test module creates is bound where "
         "discovery can find it",
         "A second binding of one generated kind replaces the first class, so "
         "discovery and the adoption walk cannot count the replaced tests.",
+        run_grader.EvidenceDisposition.BEHAVIOR,
+    ),
+    (
+        "second positional refusal through each member's main",
+        "The case covers only the path its declared empty-population argv takes through "
+        "main; a branch a member handles before the runner on arguments the case does "
+        "not pass is invisible.",
         run_grader.EvidenceDisposition.BEHAVIOR,
     ),
 )
@@ -147,6 +167,7 @@ def gate_conformance(module: Any) -> type[unittest.TestCase]:
                 if str(field.type) == "bool"
             }
             self.assertEqual(boolean_fields, set(module.GATED_ROW_SETS))
+            self.assertLessEqual(set(module.PARTIAL_GATES), set(module.GATED_ROW_SETS))
 
         def test_gated_fields_are_nullable_and_no_nullable_field_is_orphaned(self):
             fields = {field.name: field for field in dataclasses.fields(module.Scan)}
@@ -185,7 +206,11 @@ def gate_conformance(module: Any) -> type[unittest.TestCase]:
                         }
                         self.assertEqual(1, len(matches), kind)
                         index = next(iter(matches))
-                        self.assertIn(run_grader.NOT_GRADED, off[index])
+                        if gate in module.PARTIAL_GATES:
+                            self.assertNotIn(run_grader.NOT_GRADED, off[index])
+                            self.assertTrue(off[index].startswith(f"{kind}: 0"))
+                        else:
+                            self.assertIn(run_grader.NOT_GRADED, off[index])
                         self.assertEqual(f"{kind}: 0", on[index])
                         declared_indexes.add(index)
 
@@ -222,6 +247,87 @@ def gate_conformance(module: Any) -> type[unittest.TestCase]:
         "GateConformance",
     )
     return GateConformance
+
+
+def unread_remainder_conformance(module: Any) -> type[unittest.TestCase]:
+    """Return the opt-in conformance case for a measured partial read."""
+
+    caller_globals = sys._getframe(1).f_globals
+
+    class UnreadRemainderConformance(unittest.TestCase):
+        def run_command(self, argv: tuple[str, ...]) -> tuple[int, str, str]:
+            stdout, stderr = io.StringIO(), io.StringIO()
+            with (
+                contextlib.redirect_stdout(stdout),
+                contextlib.redirect_stderr(stderr),
+            ):
+                status = run_grader.run(module.GRADER, list(argv))
+            return status, stdout.getvalue(), stderr.getvalue()
+
+        def test_the_partial_read_reports_the_shared_remainder_and_exits_two(self):
+            provider = caller_globals.get("unread_remainder_input")
+            self.assertIsNotNone(
+                provider,
+                "the member test module supplies no unread-remainder input",
+            )
+            with tempfile.TemporaryDirectory() as directory:
+                case = provider(Path(directory))
+                self.assertIsInstance(case, UnreadRemainderInput)
+                with case.context_factory():
+                    parsed = run_grader.parse(module.GRADER, list(case.argv))
+                    loaded = module.GRADER.load(parsed)
+                    graded = module.GRADER.grade(loaded, parsed)
+                    self.assertIsInstance(graded, run_grader.Grade)
+                    remainder = case.unread_remainder(graded.scan)
+                    self.assertGreater(remainder, 0)
+                    status, stdout, _stderr = self.run_command(case.argv)
+
+                    twin_parsed = run_grader.parse(module.GRADER, list(case.twin_argv))
+                    twin_loaded = module.GRADER.load(twin_parsed)
+                    twin = module.GRADER.grade(twin_loaded, twin_parsed)
+                    self.assertIsInstance(twin, run_grader.Grade)
+                    self.assertEqual(0, case.unread_remainder(twin.scan))
+                    twin_status, twin_stdout, _twin_stderr = self.run_command(
+                        case.twin_argv
+                    )
+
+            self.assertEqual(2, status)
+            self.assertIn(run_grader.format_unread_remainder(remainder), stdout.splitlines())
+            self.assertEqual(0, twin_status)
+            self.assertIn(run_grader.format_unread_remainder(0), twin_stdout.splitlines())
+
+        def test_a_finding_outranks_the_same_partial_read(self):
+            provider = caller_globals.get("unread_remainder_input")
+            self.assertIsNotNone(provider)
+            with tempfile.TemporaryDirectory() as directory:
+                case = provider(Path(directory))
+                with case.context_factory():
+                    parsed = run_grader.parse(module.GRADER, list(case.argv))
+                    loaded = module.GRADER.load(parsed)
+                    graded = module.GRADER.grade(loaded, parsed)
+                    self.assertIsInstance(graded, run_grader.Grade)
+                    self.assertGreater(case.unread_remainder(graded.scan), 0)
+                    command = dataclasses.replace(
+                        module.GRADER,
+                        grade=lambda _source, _parsed: dataclasses.replace(
+                            graded,
+                            findings_failed=True,
+                        ),
+                    )
+                    stdout, stderr = io.StringIO(), io.StringIO()
+                    with (
+                        contextlib.redirect_stdout(stdout),
+                        contextlib.redirect_stderr(stderr),
+                    ):
+                        status = run_grader.run(command, list(case.argv))
+            self.assertEqual(1, status)
+
+    _set_discoverable_identity(
+        UnreadRemainderConformance,
+        caller_globals["__name__"],
+        "UnreadRemainderConformance",
+    )
+    return UnreadRemainderConformance
 
 
 def constructed_kinds(module: Any, function: str | None = None) -> set[str]:
@@ -410,6 +516,26 @@ def for_module(module: Any) -> type[unittest.TestCase]:
             source = inspect.getsource(module.main)
             self.assertIn("run_grader.run", source)
             self.assertIs(module.GRADER.format_report, module.format_report)
+
+        def test_the_module_main_refuses_a_second_positional_source(self):
+            provider = caller_globals.get("empty_population_input")
+            self.assertIsNotNone(
+                provider,
+                "the member test module supplies no command argv",
+            )
+            with tempfile.TemporaryDirectory() as directory:
+                case = provider(Path(directory))
+                argv = [*case.argv, str(Path(directory) / "second-source")]
+                stdout, stderr = io.StringIO(), io.StringIO()
+                with (
+                    case.context_factory(),
+                    contextlib.redirect_stdout(stdout),
+                    contextlib.redirect_stderr(stderr),
+                ):
+                    status = module.main(argv)
+
+            self.assertEqual(2, status)
+            self.assertIn("one source at a time", stderr.getvalue())
 
         def test_an_unrecognized_flag_refuses_before_loading(self):
             with self.assertRaises(run_grader.ParseError):

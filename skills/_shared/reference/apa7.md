@@ -217,8 +217,10 @@ renderer can reach — and what it does not is written down rather than assumed 
 
 **Word is the evidence for every verdict in both tables.** The dated observation and the
 semantic XML shape it covered are in
-[`word-renderer-calibration.json`](word-renderer-calibration.json). Re-derive them with
-`python tools/docx_word_probe.py --word`, the maintainer-only command that opens the probes
+[`word-renderer-calibration.json`](word-renderer-calibration.json). The maintainer instrument is
+`tools/docx_word_probe.py`; its command is documented in [CLAUDE.md](../../../CLAUDE.md) under
+*Word documents, both directions* and in
+[ADR 0008](../../../docs/adr/0008-word-is-a-one-time-calibration-instrument.md). It opens the probes
 through Word COM and prints what Word reports. Word is not on the consumer or CI path. The
 permanent test opens no Office process: it compares the current shapes with all calibration keys
 and says the affected row must be retaken when one leaves the measured set. This is

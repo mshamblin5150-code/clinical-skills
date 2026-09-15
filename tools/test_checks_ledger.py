@@ -936,6 +936,15 @@ class TheCommandExitsOnWhatItFound(unittest.TestCase):
         self.assertEqual(1, status)
         self.assertRegex(report, rf"(?m){checks.heading_read.DRAFT_MISMATCH}\s+1$")
 
+    def test_a_finding_outranks_an_unread_heading_read_record(self):
+        text = whole_file() + "\n## HEADING-READ draft-without-a-colon.md\n"
+        directory, path = in_a_file(text)
+        with directory:
+            status, report, _ = run([str(path)])
+        self.assertEqual(1, status)
+        self.assertIn("unread remainder 1", report.splitlines())
+        self.assertNotIn("unread-heading-read", report)
+
     def test_a_failing_record_exits_one(self):
         directory, path = in_a_file(whole_file().replace("VERDICT: clean\n", "\n", 1))
         with directory:
@@ -1412,7 +1421,8 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
 
     # One phrase per row, keyed on the module's own tuple, so a row added without
     # a sentence in the skill fails here rather than becoming a rule only the
-    # scanner knows -- which is what ``AGENTS.md`` classes this tool by.
+    # scanner knows. ``AGENTS.md`` classes this as a Required command because the
+    # skill requires its clean exit before submission.
     ROW_PHRASES = {
         checks.MISSING_CHECK: "a heading the table names that is not in the file",
         checks.DUPLICATE_CHECK: "two records under one check",
@@ -1428,7 +1438,6 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
         checks.RENDER_FINGERPRINT_MISMATCH: "the highest retained pass has no fingerprint, or its fingerprint differs from the output Markdown",
         checks.heading_read.MISSING_RECORD: "a missing-heading-read record",
         checks.heading_read.DUPLICATE_RECORD: "a duplicate-heading-read record",
-        checks.heading_read.UNREAD_RECORD: "an unread-heading-read record",
         checks.heading_read.UNKNOWN_ROUTE: "an unknown-heading-read-route record",
         checks.heading_read.SENTENCE_COUNT_MISMATCH: "a heading-read-sentence-count mismatch",
         checks.heading_read.UNKNOWN_HEADING: "a heading-read-unknown-heading pair",

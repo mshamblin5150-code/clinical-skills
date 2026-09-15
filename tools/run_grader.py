@@ -26,6 +26,12 @@ NOT_GRADED = "not graded"
 UNREADABLE_RUN_ARTIFACT = "a run artifact could not be opened"
 
 
+def format_unread_remainder(count: int) -> str:
+    """Return the one report line shared by measured partial reads."""
+
+    return f"unread remainder {count}"
+
+
 class EvidenceDisposition(Enum):
     """How a grader-family declared limit is supported."""
 
@@ -524,7 +530,6 @@ class Grader(Generic[TSource, TScan]):
     parse_error: Callable[[str], str] = lambda message: message
     validate: Callable[[Parsed], str | None] | None = None
     source_error_to_stdout: bool = False
-    allow_extra_positionals: bool = True
     exit_2_limbs: tuple[str, ...] = ()
     invalid_invocation_limb: str | None = None
 
@@ -589,7 +594,7 @@ def parse(command: Grader[Any, Any], argv: list[str]) -> Parsed:
 
     if not positionals:
         raise ParseError(command.usage)
-    if len(positionals) != 1 and not command.allow_extra_positionals:
+    if len(positionals) != 1:
         raise ParseError(command.parse_error("one source at a time"))
     parsed = Parsed(
         source=positionals[0],

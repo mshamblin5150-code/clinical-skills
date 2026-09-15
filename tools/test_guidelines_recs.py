@@ -370,6 +370,18 @@ class ParsingTheCuratedTable(unittest.TestCase):
         self.assertEqual(sorted(rows), ["skin.pdf", "thyroid.pdf"])
         self.assertEqual(len(rows["skin.pdf"]), 2)
 
+    def test_a_header_only_recommendations_table_names_the_empty_population(self):
+        header_only = """## Recommendations
+
+| topic | population | grade | statement | interval | source class | year | file | page |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+"""
+
+        with self.assertRaisesRegex(
+            recs.DidNotScan, "recommendations table holds no row"
+        ):
+            recs.parse_curated_table(header_only)
+
     def test_pairs_each_row_with_its_statement(self):
         rows = recs.parse_curated_table(CURATED)
         self.assertEqual(rows["thyroid.pdf"][0].grade, "I")

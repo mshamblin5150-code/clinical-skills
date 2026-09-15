@@ -3,9 +3,10 @@
 
     python tools/deck_scan.py <run directory> --pptx <PowerPoint file> [--show] [--submission <key>]
 
-Container rows read only ``ppt/slides/``. The figure-claim row reads both slide
-faces and ``ppt/notesSlides/``. Counts print by default because a course
-artifact can contain private material; ``--show`` exposes finding details.
+Container rows read slide XML plus referenced SmartArt data and chart parts.
+The figure-claim row reads those slide faces and ``ppt/notesSlides/``. Counts
+print by default because a course artifact can contain private material;
+``--show`` exposes finding details.
 """
 
 from __future__ import annotations
@@ -15,7 +16,9 @@ import sys
 import zipfile
 from dataclasses import dataclass, replace
 from datetime import date
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from pathlib import Path
+from posixpath import dirname, join, normpath
 from xml.etree import ElementTree
 
 import run_grader
@@ -37,6 +40,11 @@ from research_ledger import REFUTATION_EVIDENCE_COMPLEMENT
 
 A = "{http://schemas.openxmlformats.org/drawingml/2006/main}"
 P = "{http://schemas.openxmlformats.org/presentationml/2006/main}"
+R = "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}"
+DGM = "{http://schemas.openxmlformats.org/drawingml/2006/diagram}"
+DSP = "{http://schemas.microsoft.com/office/drawing/2008/diagram}"
+C = "{http://schemas.openxmlformats.org/drawingml/2006/chart}"
+PACKAGE_REL = "{http://schemas.openxmlformats.org/package/2006/relationships}"
 FIELD = re.compile(r"(?mi)^(?P<name>[A-Z][A-Z-]+)\s*:\s*(?P<value>[^\n]+?)\s*$")
 SLIDE_PART = re.compile(r"^ppt/slides/slide(?P<number>[1-9]\d*)\.xml$")
 NOTES_PART = re.compile(r"^ppt/notesSlides/notesSlide(?P<number>[1-9]\d*)\.xml$")
@@ -90,6 +98,12 @@ class DeclaredLimit:
     limit: str
 
 
+@dataclass(frozen=True)
+class Relationship:
+    kind: str
+    target: str
+
+
 UNJOINED_SOURCE_FIELDS = ", ".join(REFUTATION_EVIDENCE_COMPLEMENT)
 SOURCED_FIELD_COMPLETENESS_LIMIT = DeclaredLimit(
     "sourced-field-completeness-unjoined",
@@ -113,6 +127,22 @@ DECLARED_LIMITS = (
     DeclaredLimit(
         "image-provenance-unverified",
         "Nothing in a PowerPoint file proves whether an image is a photograph or generated, so no mechanical row can reject a generated image presented as the actual site.",
+    ),
+    DeclaredLimit(
+        "slide-layout-text-unread",
+        "Text drawn from the slide layout is not read, including text outside placeholders on a layout the slide uses.",
+    ),
+    DeclaredLimit(
+        "alternative-text-unread",
+        "Picture and 3D-model alternative text is not read as slide-face text.",
+    ),
+    DeclaredLimit(
+        "value-axis-ticks-unread",
+        "Computed value-axis tick labels are not stored as chart text and are not read.",
+    ),
+    DeclaredLimit(
+        "chart-font-sizes-unread",
+        "Chart font sizes are not graded because chart XML sizes did not agree with PowerPoint's rendered sizes in the measured population.",
     ),
     DeclaredLimit(
         "render-scan-run-unverified",
@@ -167,6 +197,9 @@ class Slide:
     text: str
     bullets: tuple[str, ...]
     font_sizes: tuple[tuple[str, float | None], ...]
+    diagram_text_read: int = 0
+    chart_text_read: int = 0
+    unread_members: int = 0
 
 
 @dataclass(frozen=True)
@@ -215,6 +248,9 @@ class Scan:
     heading_reads: int
     heading_read_unread: int
     findings: tuple[Finding, ...]
+    diagram_text_read: int = 0
+    chart_text_read: int = 0
+    unread_members: int = 0
 
 
 def _integer(fields: dict[str, str], name: str) -> int:
@@ -289,6 +325,21 @@ def _paragraph_font_sizes(paragraph: ElementTree.Element) -> tuple[tuple[str, fl
     return tuple(runs)
 
 
+def _paragraph_font_points(
+    paragraph: ElementTree.Element,
+) -> tuple[float | None, ...]:
+    default = paragraph.find("./" + A + "pPr/" + A + "defRPr")
+    ending = paragraph.find("./" + A + "endParaRPr")
+    fallback = default if default is not None else ending
+    fallback_size = fallback.get("sz") if fallback is not None else None
+    points = []
+    for run in paragraph.findall("./" + A + "r"):
+        properties = run.find("./" + A + "rPr")
+        raw = properties.get("sz") if properties is not None else fallback_size
+        points.append(int(raw) / 100 if raw and raw.isdigit() else None)
+    return tuple(points)
+
+
 def _read_slide(number: int, payload: bytes) -> Slide:
     try:
         root = ElementTree.fromstring(payload)
@@ -340,6 +391,266 @@ def _parts(archive: zipfile.ZipFile, pattern: re.Pattern[str]) -> tuple[tuple[in
     return tuple(sorted(found))
 
 
+def _relationship_part(part: str) -> str:
+    return join(dirname(part), "_rels", Path(part).name + ".rels")
+
+
+def _relationships(archive: zipfile.ZipFile, part: str) -> dict[str, Relationship]:
+    relationship_part = _relationship_part(part)
+    if relationship_part not in archive.namelist():
+        return {}
+    root = ElementTree.fromstring(archive.read(relationship_part))
+    return {
+        relationship.get("Id", ""): Relationship(
+            relationship.get("Type", ""),
+            normpath(join(dirname(part), relationship.get("Target", ""))),
+        )
+        for relationship in root.findall(PACKAGE_REL + "Relationship")
+        if relationship.get("Id") and relationship.get("Target")
+    }
+
+
+def _smartart_font_sizes(
+    data_root: ElementTree.Element,
+    drawing_root: ElementTree.Element,
+) -> dict[str, tuple[tuple[float | None, ...], ...]]:
+    presentation_ids: dict[str, str] = {}
+    for point in data_root.iter(DGM + "pt"):
+        properties = point.find("./" + DGM + "prSet")
+        associated = properties.get("presAssocID") if properties is not None else None
+        if point.get("type") == "pres" and point.get("modelId") and associated:
+            presentation_ids[associated] = point.get("modelId", "")
+    by_shape = {
+        shape.get("modelId", ""): tuple(
+            _paragraph_font_points(paragraph)
+            for paragraph in shape.findall("./" + DSP + "txBody/" + A + "p")
+        )
+        for shape in drawing_root.iter(DSP + "sp")
+        if shape.get("modelId")
+    }
+    return {
+        point_id: by_shape.get(presentation_ids.get(point_id, point_id), ())
+        for point_id in {
+            point.get("modelId", "")
+            for point in data_root.iter(DGM + "pt")
+            if point.get("modelId")
+        }
+    }
+
+
+def _read_smartart(
+    archive: zipfile.ZipFile,
+    relationships: dict[str, Relationship],
+    data_id: str,
+) -> tuple[tuple[str, ...], tuple[tuple[str, float | None], ...], int]:
+    data_relationship = relationships.get(data_id)
+    if data_relationship is None:
+        return (), (), 1
+    try:
+        data_root = ElementTree.fromstring(archive.read(data_relationship.target))
+    except (KeyError, ElementTree.ParseError):
+        return (), (), 1
+    extension = next(data_root.iter(DSP + "dataModelExt"), None)
+    drawing_id = extension.get("relId", "") if extension is not None else ""
+    drawing_relationship = relationships.get(drawing_id)
+    if drawing_relationship is None:
+        drawing_relationships = tuple(
+            relationship
+            for relationship in relationships.values()
+            if relationship.kind.endswith("/diagramDrawing")
+        )
+        drawing_relationship = (
+            drawing_relationships[0] if len(drawing_relationships) == 1 else None
+        )
+    if drawing_relationship is None:
+        return (), (), 1
+    try:
+        drawing_root = ElementTree.fromstring(archive.read(drawing_relationship.target))
+    except (KeyError, ElementTree.ParseError):
+        return (), (), 1
+    sizes_by_point = _smartart_font_sizes(data_root, drawing_root)
+    paragraphs: list[str] = []
+    font_sizes: list[tuple[str, float | None]] = []
+    unread = 0
+    for point in data_root.iter(DGM + "pt"):
+        point_id = point.get("modelId", "")
+        point_paragraphs = point.findall("./" + DGM + "t/" + A + "p")
+        drawing_paragraphs = sizes_by_point.get(point_id, ())
+        for index, paragraph in enumerate(point_paragraphs):
+            text = _text(paragraph)
+            if not text:
+                continue
+            paragraphs.append(text)
+            if index < len(drawing_paragraphs) and drawing_paragraphs[index]:
+                font_sizes.extend(
+                    (text, points) for points in drawing_paragraphs[index]
+                )
+            else:
+                unread = 1
+    return tuple(paragraphs), tuple(font_sizes), unread
+
+
+def _chart_cached_values(node: ElementTree.Element | None) -> tuple[str, ...]:
+    if node is None:
+        return ()
+    return tuple(
+        value.text.strip()
+        for value in node.iter(C + "v")
+        if value.text and value.text.strip()
+    )
+
+
+def _chart_points(node: ElementTree.Element | None) -> dict[int, str]:
+    if node is None:
+        return {}
+    points: dict[int, str] = {}
+    for point in node.iter(C + "pt"):
+        index = point.get("idx")
+        value = point.find("./" + C + "v")
+        if index and index.isdigit() and value is not None and value.text:
+            points[int(index)] = value.text.strip()
+    return points
+
+
+def _chart_flag(node: ElementTree.Element | None, name: str) -> bool | None:
+    if node is None:
+        return None
+    flag = node.find("./" + C + name)
+    if flag is None:
+        return None
+    return flag.get("val", "1") not in {"0", "false", "False"}
+
+
+def _displayed_chart_value(value: str, format_code: str) -> str | None:
+    try:
+        number = Decimal(value)
+    except InvalidOperation:
+        return None
+    if format_code == "0%":
+        percent = (number * 100).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+        return f"{percent:f}%"
+    if format_code != "General":
+        return None
+    return format(float(number), ".15g")
+
+
+def _read_chart(payload: bytes) -> tuple[tuple[str, ...], int]:
+    root = ElementTree.fromstring(payload)
+    text: list[str] = []
+    title = root.find("./" + C + "chart/" + C + "title")
+    if title is not None:
+        title_text = _text(title)
+        if title_text:
+            text.append(title_text)
+        else:
+            text.extend(_chart_cached_values(title))
+    unread = 0
+    for series in root.iter(C + "ser"):
+        series_text = _chart_cached_values(series.find("./" + C + "tx"))
+        text.extend(series_text)
+        text.extend(_chart_cached_values(series.find("./" + C + "cat")))
+        value_source = series.find("./" + C + "val")
+        values = _chart_points(value_source)
+        cached_format = (
+            next(
+                (
+                    item.text.strip()
+                    for item in value_source.iter(C + "formatCode")
+                    if item.text and item.text.strip()
+                ),
+                "",
+            )
+            if value_source is not None
+            else ""
+        )
+        labels = series.find("./" + C + "dLbls")
+        if labels is None:
+            continue
+        defaults = labels
+        labels_by_index = {
+            int(index.get("val", "")): label
+            for label in labels.findall("./" + C + "dLbl")
+            if (index := label.find("./" + C + "idx")) is not None
+            and index.get("val", "").isdigit()
+        }
+        for index, value in values.items():
+            label = labels_by_index.get(index)
+            show_percent = _chart_flag(label, "showPercent")
+            if show_percent is None:
+                show_percent = _chart_flag(defaults, "showPercent")
+            if show_percent:
+                unread += 1
+                continue
+            show_value = _chart_flag(label, "showVal")
+            if show_value is None:
+                show_value = _chart_flag(defaults, "showVal")
+            if not show_value:
+                continue
+            number_format = (
+                label.find("./" + C + "numFmt") if label is not None else None
+            )
+            if number_format is None:
+                number_format = defaults.find("./" + C + "numFmt")
+            source_linked = (
+                number_format is not None
+                and number_format.get("sourceLinked", "0") not in {"0", "false", "False"}
+            )
+            format_code = (
+                cached_format
+                if source_linked and cached_format
+                else number_format.get("formatCode", "")
+                if number_format is not None
+                else "General"
+            )
+            displayed = _displayed_chart_value(value, format_code)
+            if displayed is None:
+                unread += 1
+            else:
+                text.append(displayed)
+    return tuple(text), unread
+
+
+def _read_slide_objects(
+    archive: zipfile.ZipFile,
+    part: str,
+    slide: Slide,
+) -> Slide:
+    root = ElementTree.fromstring(archive.read(part))
+    relationships = _relationships(archive, part)
+    diagram_text: list[str] = []
+    diagram_fonts: list[tuple[str, float | None]] = []
+    chart_text: list[str] = []
+    unread = 0
+    for relation in root.iter(DGM + "relIds"):
+        text, fonts, missed = _read_smartart(
+            archive, relationships, relation.get(R + "dm", "")
+        )
+        diagram_text.extend(text)
+        diagram_fonts.extend(fonts)
+        unread += missed
+    for chart in root.iter(C + "chart"):
+        relationship = relationships.get(chart.get(R + "id", ""))
+        if relationship is None:
+            unread += 1
+            continue
+        try:
+            text, missed = _read_chart(archive.read(relationship.target))
+        except (KeyError, ElementTree.ParseError):
+            unread += 1
+            continue
+        chart_text.extend(text)
+        unread += missed
+    return Slide(
+        slide.number,
+        "\n".join(filter(None, (slide.text, *diagram_text, *chart_text))),
+        slide.bullets + tuple(diagram_text),
+        slide.font_sizes + tuple(diagram_fonts),
+        len(diagram_text),
+        len(chart_text),
+        unread,
+    )
+
+
 def load(
     parsed: run_grader.Parsed,
     envelope: assignment_bar.Envelope | None = None,
@@ -371,12 +682,23 @@ def load(
             slide_parts = _parts(archive, SLIDE_PART)
             if not slide_parts:
                 raise run_grader.SourceError("PowerPoint contains no readable slide parts")
-            slides = tuple(_read_slide(number, archive.read(name)) for number, name in slide_parts)
+            slides = tuple(
+                _read_slide_objects(
+                    archive, name, _read_slide(number, archive.read(name))
+                )
+                for number, name in slide_parts
+            )
             notes = tuple(
                 _read_notes(archive.read(name), number)
                 for number, name in _parts(archive, NOTES_PART)
             )
-    except (OSError, UnicodeError, zipfile.BadZipFile, KeyError) as failure:
+    except (
+        OSError,
+        UnicodeError,
+        zipfile.BadZipFile,
+        KeyError,
+        ElementTree.ParseError,
+    ) as failure:
         raise run_grader.SourceError(f"could not read the deck run: {failure}") from failure
     try:
         rendered_text = rendered_path.read_text(encoding="utf-8") if rendered_path.is_file() else None
@@ -632,6 +954,9 @@ def survey(source: Source) -> Scan:
         heading.records_read,
         heading.unread,
         tuple(findings),
+        sum(slide.diagram_text_read for slide in source.slides),
+        sum(slide.chart_text_read for slide in source.slides),
+        sum(slide.unread_members for slide in source.slides),
     )
 
 
@@ -644,10 +969,13 @@ def format_report(scan: Scan, _source: str, show: bool = False) -> str:
         f"  words read        {scan.words_read}",
         f"  font runs read    {scan.font_runs_read}",
         f"  figures           {scan.figures_read}",
+        f"  diagram text read {scan.diagram_text_read}",
+        f"  chart text read   {scan.chart_text_read}",
         f"  rendered records  {scan.rendered_records}",
         f"  retained passes   {scan.retained_passes}",
         f"  retained passes without a record {scan.unrecorded_passes}",
-        f"  heading-read records {scan.heading_reads}; unread remainder {scan.heading_read_unread}",
+        f"  heading-read records {scan.heading_reads}",
+        run_grader.format_unread_remainder(scan.heading_read_unread + scan.unread_members),
         "",
     ]
     for row in ROWS:
@@ -663,35 +991,37 @@ def format_report(scan: Scan, _source: str, show: bool = False) -> str:
 def grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
     scanned = survey(source)
     rendered = _rendered_grade(source, _parsed.value("--submission"))
-    scanned = Scan(
-        scanned.slides_read,
-        scanned.bullets_read,
-        scanned.words_read,
-        scanned.font_runs_read,
-        scanned.figures_read,
-        rendered.records,
-        rendered.passes,
-        rendered.unrecorded_passes,
-        scanned.heading_reads,
-        scanned.heading_read_unread,
-        scanned.findings
+    scanned = replace(
+        scanned,
+        rendered_records=rendered.records,
+        retained_passes=rendered.passes,
+        unrecorded_passes=rendered.unrecorded_passes,
+        findings=scanned.findings
         + rendered.findings
         + _submission_fingerprint_findings(source, _parsed.value("--submission")),
     )
     aar_failed, aar_report = aar_scan.completion_gate(
         source.root, _parsed.value("--submission")
     )
-    no_slide_face_text = scanned.font_runs_read == 0
+    no_slide_face_text = not any(slide.text.strip() for slide in source.slides)
     diagnostics = []
     if no_slide_face_text:
         diagnostics.append("no text run was read from any slide face")
+    if scanned.unread_members:
+        diagnostics.append(
+            f"{scanned.unread_members} referenced diagram or chart member could not be read"
+        )
     if scanned.findings:
         diagnostics.append("deck findings require review")
     return run_grader.Grade(
         scan=scanned,
         source=str(source.root),
         findings_failed=bool(scanned.findings) or aar_failed,
-        coverage_failed=no_slide_face_text,
+        coverage_failed=(
+            no_slide_face_text
+            or scanned.unread_members > 0
+            or scanned.heading_read_unread > 0
+        ),
         diagnostics=tuple(diagnostics),
         reports=(rendered.report, aar_report),
     )
@@ -707,7 +1037,6 @@ GRADER = run_grader.Grader(
         run_grader.Option("--show", repeatable=False),
         run_grader.Option("--submission", takes_value=True, missing_value="--submission needs a key", repeatable=False),
     ),
-    allow_extra_positionals=False,
 )
 
 

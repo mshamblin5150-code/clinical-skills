@@ -66,6 +66,20 @@ SHARED_FLOORS = (
         "missing one-writer floor",
         re.compile(r"passes return them.*?sole writer", re.IGNORECASE),
     ),
+    (
+        "missing owned-tab floor",
+        re.compile(
+            r"Browser tabs are private output locations.*?Owned tab.*?"
+            r"main agent never hands a tab to a subagent.*?"
+            r"every brief that may reach a browser.*?"
+            r"Every page action names the owned tab's id.*?"
+            r"cannot name a tab by id.*?run one at a time.*?"
+            r"switching tabs mid-pass is unprotected.*?"
+            r"subagent closes its tabs before returning.*?"
+            r"silence means none remain",
+            re.IGNORECASE,
+        ),
+    ),
 )
 
 DECLARED_LIMITS = (

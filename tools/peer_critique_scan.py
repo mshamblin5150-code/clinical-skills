@@ -101,6 +101,23 @@ ROWS.update({kind: "the heading read agrees with critique.md and current claim h
 KINDS = tuple(ROWS)
 HEADING_READ_ROWS = {kind: ROWS[kind] for kind in heading_read.KINDS}
 
+GATED_ROW_SETS = {
+    "reference_boundary_graded": (
+        (WORD_FLOOR, REFERENCE_MINIMUM, UNRESOLVED_CITATION, UNTRACED_NUMBER),
+        (
+            "words",
+            "word_ceiling",
+            "references",
+            "citations",
+            "numeric_claims",
+            "claim_records",
+            "ampersands",
+        ),
+    ),
+}
+PARTIAL_GATES = ()
+ABSENT_BY_DESIGN_FIELDS = ()
+
 REFERENCE_LABEL = re.compile(r"(?mi)^\*\*References\*\*\s*$")
 AUTHOR_FIELD = re.compile(r"(?mi)^AUTHOR\s*:\s*(?P<value>[^\n]+)$")
 #: A heading is a Markdown heading line or a bold-only line. The critique is
@@ -113,8 +130,16 @@ NO_RUN_DIRECTORY = "no run directory"
 NO_CRITIQUE = "no critique in the run"
 NO_ROSTER = "no roster post carries an AUTHOR line"
 REFUSED_LABEL = "critique reference label refused"
+UNREAD_REMAINDER = "unread remainder"
 INVALID_INVOCATION = "invalid invocation"
-EXIT_2_LIMBS = (INVALID_INVOCATION, NO_RUN_DIRECTORY, NO_CRITIQUE, NO_ROSTER, REFUSED_LABEL)
+EXIT_2_LIMBS = (
+    INVALID_INVOCATION,
+    NO_RUN_DIRECTORY,
+    NO_CRITIQUE,
+    NO_ROSTER,
+    REFUSED_LABEL,
+    UNREAD_REMAINDER,
+)
 
 UNJOINED_SOURCE_FIELDS = ", ".join(REFUTATION_EVIDENCE_COMPLEMENT)
 UNJOINED_SOURCE_FIELDS_LIMIT = (
@@ -213,7 +238,7 @@ class Scan:
     posts_read: int
     posts_total: int
     words: int | None
-    word_ceiling: int
+    word_ceiling: int | None
     references: int | None
     citations: int | None
     numeric_claims: int | None
@@ -405,7 +430,7 @@ def survey(source: RunSource) -> Scan:
             posts_read=len(source.roster),
             posts_total=source.posts_total,
             words=None,
-            word_ceiling=WORD_CEILING_COUNT,
+            word_ceiling=None,
             references=None,
             citations=None,
             numeric_claims=None,
@@ -472,7 +497,10 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
             if graded
             else f"literal ampersands: {NOT_GRADED}"
         ),
-        f"heading-read records: {scan.heading_reads}; unread remainder: {scan.heading_read_unread}",
+        f"heading-read records: {scan.heading_reads}",
+        run_grader.format_unread_remainder(
+            scan.heading_read_unread + scan.posts_total - scan.posts_read
+        ),
         f"findings: {len(scan.findings)}",
     ]
     reference_rows = {
@@ -549,30 +577,32 @@ def load(parsed: run_grader.Parsed) -> RunSource:
 
 def grade(source: RunSource, parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
     scanned = survey(source)
-    structural_kinds = {
-        MISSING_HEADING,
-        EMPTY_HEADING,
-        HEADING_ORDER,
-        ADDRESSED_NAME,
-        MISSING_POSTED_READING,
-        UNKNOWN_VERDICT,
-        BARE_VERDICT,
-        SUBMISSION_FINGERPRINT,
-    }
-    structural_failed = any(finding.kind in structural_kinds for finding in scanned.findings)
-    heading_failed = any(finding.kind in heading_read.KINDS for finding in scanned.findings)
     aar_failed, aar_report = aar_scan.completion_gate(source.path, parsed.value("--submission"))
     return run_grader.Grade(
         scan=scanned,
         source=str(source.path),
-        findings_failed=(
-            bool(scanned.findings)
-            and (scanned.reference_boundary_graded or structural_failed)
+        findings_failed=any(
+            all(
+                getattr(scanned, gate) or gate in PARTIAL_GATES or finding.kind not in kinds
+                for gate, (kinds, _field_names) in GATED_ROW_SETS.items()
+            )
+            for finding in scanned.findings
         )
-        or heading_failed
         or aar_failed,
-        coverage_failed=not scanned.reference_boundary_graded,
-        coverage_limbs=(REFUSED_LABEL,) if not scanned.reference_boundary_graded else (),
+        coverage_failed=(
+            not scanned.reference_boundary_graded
+            or scanned.heading_read_unread > 0
+            or scanned.posts_read < scanned.posts_total
+        ),
+        coverage_limbs=(
+            *((REFUSED_LABEL,) if not scanned.reference_boundary_graded else ()),
+            *(
+                (UNREAD_REMAINDER,)
+                if scanned.heading_read_unread > 0
+                or scanned.posts_read < scanned.posts_total
+                else ()
+            ),
+        ),
         diagnostics=(
             (f"refused reference label in critique.md: {source.refused_label}",)
             if source.refused_label is not None
@@ -596,7 +626,6 @@ GRADER = run_grader.Grader(
             repeatable=False,
         ),
     ),
-    allow_extra_positionals=False,
     exit_2_limbs=EXIT_2_LIMBS,
     invalid_invocation_limb=INVALID_INVOCATION,
 )

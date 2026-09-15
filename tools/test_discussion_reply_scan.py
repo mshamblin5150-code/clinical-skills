@@ -18,12 +18,19 @@ from pathlib import Path
 import discussion_reply_scan as scan
 import research_ledger
 import file_digest
-from grader_conformance import EmptyPopulationInput, for_module, gate_conformance
+from grader_conformance import (
+    EmptyPopulationInput,
+    UnreadRemainderInput,
+    for_module,
+    gate_conformance,
+    unread_remainder_conformance,
+)
 from prose_bind import NAMING, bind, prose_outside_code, section
 
 
 GraderConformance = for_module(scan)
 GateConformance = gate_conformance(scan)
+UnreadRemainderConformance = unread_remainder_conformance(scan)
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DISCUSSION_REPLY_SKILL = REPO_ROOT / "skills" / "discussion-reply" / "SKILL.md"
 
@@ -181,6 +188,27 @@ def empty_population_input(root: Path) -> EmptyPopulationInput:
     (root / "response-maren.md").write_text("**References**\n", encoding="utf-8")
     return EmptyPopulationInput(
         (str(root),), population_size=lambda result: result.words or 0
+    )
+
+
+def unread_remainder_input(root: Path) -> UnreadRemainderInput:
+    unread, twin = root / "unread", root / "twin"
+    unread.mkdir()
+    twin.mkdir()
+    unread_run = Run(unread)
+    Run(twin)
+    response = unread_run.root / "response-maren.md"
+    response.write_text(
+        BODY + "\nQuill, R. Measuring usable access in community care.\n",
+        encoding="utf-8",
+    )
+    unread_run.refresh_fingerprint()
+    unread_run.write_heading_read()
+    return UnreadRemainderInput(
+        (str(unread),),
+        (str(twin),),
+        unread_remainder=lambda result: result.reference_unread
+        + result.heading_read_unread,
     )
 
 
@@ -726,6 +754,7 @@ class ARecognizedButRefusedLabelStopsTheScan(unittest.TestCase):
                 encoding="utf-8",
             )
             run.write_heading_read()
+            run.refresh_fingerprint()
             stdout, stderr = io.StringIO(), io.StringIO()
             with redirect_stdout(stdout), redirect_stderr(stderr):
                 status = scan.main([temp])
@@ -743,7 +772,7 @@ class ARecognizedButRefusedLabelStopsTheScan(unittest.TestCase):
             with self.subTest(row=row):
                 self.assertIn(f"{row}: not graded", stdout.getvalue())
 
-    def test_a_refused_label_keeps_exit_two_when_the_addressed_name_also_fails(self):
+    def test_a_refused_label_keeps_the_addressed_name_finding(self):
         with tempfile.TemporaryDirectory() as temp:
             run = Run(Path(temp))
             response = run.root / "response-maren.md"
@@ -756,8 +785,29 @@ class ARecognizedButRefusedLabelStopsTheScan(unittest.TestCase):
             with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
                 status = scan.main([temp])
 
-        self.assertEqual(2, status)
+        self.assertEqual(1, status)
         self.assertIn("addressed-name: 1", stdout.getvalue())
+
+    def test_a_refused_label_does_not_invent_a_name_from_an_unread_roster(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            (run.root / "posts" / "maren-quill.md").write_text(
+                "This post has no roster field.\n", encoding="utf-8"
+            )
+            response = run.root / "response-maren.md"
+            response.write_text(
+                BODY.replace("**References**", "References"), encoding="utf-8"
+            )
+            run.write_heading_read()
+            run.refresh_fingerprint()
+            stdout, stderr = io.StringIO(), io.StringIO()
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                status = scan.main([temp])
+
+        self.assertEqual(2, status)
+        self.assertIn("roster posts read: 0 of 1", stdout.getvalue())
+        self.assertIn("unread remainder 1", stdout.getvalue().splitlines())
+        self.assertIn("addressed-name: 0", stdout.getvalue())
 
 
 class AddressedNameIsCheckedAgainstTheRoster(unittest.TestCase):
@@ -1381,9 +1431,44 @@ class AdvisoryAndCoverageBehavior(unittest.TestCase):
                 status = scan.main([temp])
 
         self.assertEqual(2, status)
-        self.assertEqual("", stdout.getvalue())
-        self.assertIn("roster read 1 of 2", stderr.getvalue())
-        self.assertIn("unread remainder 1", stderr.getvalue())
+        self.assertIn("roster posts read: 1 of 2", stdout.getvalue())
+        self.assertIn("unread remainder 1", stdout.getvalue().splitlines())
+        self.assertEqual("", stderr.getvalue())
+
+    def test_a_reply_finding_outranks_an_unread_roster_post(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            (run.root / "posts" / "unread.md").write_text(
+                "This post has no roster field.\n", encoding="utf-8"
+            )
+            response = run.root / "response-maren.md"
+            response.write_text("**References**\n", encoding="utf-8")
+            run.write_heading_read()
+            run.refresh_fingerprint()
+            stdout, stderr = io.StringIO(), io.StringIO()
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                status = scan.main([temp])
+
+        self.assertEqual(1, status)
+        self.assertIn("unread remainder 1", stdout.getvalue().splitlines())
+
+    def test_an_unread_roster_does_not_invent_an_address_finding(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            (run.root / "posts" / "maren-quill.md").write_text(
+                "This post has no roster field.\n", encoding="utf-8"
+            )
+            run.write_heading_read()
+            run.refresh_fingerprint()
+            stdout, stderr = io.StringIO(), io.StringIO()
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                status = scan.main([temp])
+
+        self.assertEqual(2, status)
+        self.assertIn("roster posts read: 0 of 1", stdout.getvalue())
+        self.assertIn("unread remainder 1", stdout.getvalue().splitlines())
+        self.assertIn(f"{scan.ADDRESSED_NAME}: 0", stdout.getvalue())
+        self.assertEqual("", stderr.getvalue())
 
 
 class EveryDeclaredLimitHasOneCheckedInventory(unittest.TestCase):
