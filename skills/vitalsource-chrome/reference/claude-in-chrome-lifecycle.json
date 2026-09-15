@@ -1,0 +1,30 @@
+{
+  "subject": "Claude in Chrome",
+  "extension_id": "fcoeoabgfenejglbffodgkkbkcdhcgfn",
+  "extension_version": "1.0.93",
+  "read_on": "2026-09-15",
+  "instrument": "Installed extension source-code read",
+  "facts": [
+    {
+      "seam": "stable-top-level-attachment",
+      "status": "backed-by-code",
+      "finding": "One top-level debugger attachment is established for a tool run."
+    },
+    {
+      "seam": "ordinary-navigation",
+      "status": "backed-by-code",
+      "finding": "Page movement uses ordinary browser navigation rather than a raw Page.navigate command."
+    },
+    {
+      "seam": "oopif-auto-attachment-disabled",
+      "status": "inferred-from-absence",
+      "finding": "No frame auto-attachment call was found in the inspected extension source."
+    },
+    {
+      "seam": "xhtml-document-response",
+      "status": "inferred-from-absence",
+      "finding": "No response reclassification that would turn XHTML into a download was found in the inspected extension source."
+    }
+  ],
+  "declared_limit": "Claude's live debugger lifecycle during a VitalSource read was not observed."
+}

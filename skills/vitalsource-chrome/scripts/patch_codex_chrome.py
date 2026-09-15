@@ -25,11 +25,22 @@ ORIGINAL_ATTACH_HANDLER = (
     'this.addTabAttachHandler(async(i,s)=>{await this.call(i,"Page.enable",void 0,s),'
     'await this.enableOopifAutoAttach(i,s)})'
 )
-PATCHED_ATTACH_HANDLER = (
+LEGACY_STABLE_ATTACH_HANDLER = (
     'this.addTabAttachHandler(async(i,s)=>{await this.call(i,"Page.enable",void 0,s);'
     'let a=await this.readDocumentState(i);'
     'a?.href?.startsWith("https://bookshelf.vitalsource.com/")||'
     'await this.enableOopifAutoAttach(i,s)})'
+)
+LEGACY_BLANK_DEFER_ATTACH_HANDLER = (
+    'this.addTabAttachHandler(async(i,s)=>{await this.call(i,"Page.enable",void 0,s);'
+    'let a=await this.readDocumentState(i);'
+    'a?.href==="about:blank"||'
+    'a?.href?.startsWith("https://bookshelf.vitalsource.com/")||'
+    'await this.enableOopifAutoAttach(i,s)})'
+)
+PATCHED_ATTACH_HANDLER = (
+    'this.addTabAttachHandler(async(i,s)=>{'
+    'await this.call(i,"Page.enable",void 0,s)})'
 )
 ORIGINAL_NAVIGATION_START = (
     'async function vs(e,t,r){let n=Number(e.tab_id),o=e.url,'
@@ -80,6 +91,38 @@ PATCHED_COMMAND_DISPATCH = (
     'return await oe(A,U)}):await c.withCommandTelemetry(P,A,async()=>await '
     'U.executeUnhandledCommand({type:P,...A}))'
 )
+ORIGINAL_DOCUMENT_MIME_GATE = 'function RX(e){return e==="text/html"||zw(e)}'
+PATCHED_DOCUMENT_MIME_GATE = (
+    'function RX(e){return e==="text/html"||'
+    'e==="application/xhtml+xml"||zw(e)}'
+)
+ORIGINAL_ENABLE_OOPIF_START = (
+    'async enableOopifAutoAttach(r,n={}){let o=Number(r);'
+)
+DISABLE_OOPIF_METHOD = (
+    'async disableOopifAutoAttach(r,n){let o=Number(r);'
+    'if(!Number.isFinite(o))throw new Error('
+    '"disableOopifAutoAttach requires numeric tab_id");'
+    'await this.ensureAttachedTab(o,{timeoutMs:n});'
+    'await this.api.executeCdp({target:{tabId:o},method:"Target.setAutoAttach",'
+    'commandParams:{autoAttach:!1,flatten:!0,waitForDebuggerOnStart:!1},timeoutMs:n});'
+    'await this.detachAttachedFrameTargets(o),this.oopifAutoAttachTabIds.delete(o)}'
+)
+VITALSOURCE_NAVIGATION_PREFLIGHT = (
+    'o.startsWith("https://bookshelf.vitalsource.com/")?'
+    'await t.cdp.disableOopifAutoAttach(n,i):'
+    'await t.cdp.enableOopifAutoAttach(n,{timeoutMs:i});'
+)
+LEGACY_VITALSOURCE_NAVIGATION_PREFLIGHT = (
+    'o.startsWith("https://bookshelf.vitalsource.com/")&&'
+    'await t.cdp.disableOopifAutoAttach(n,i);'
+)
+PATCH_LIFECYCLE_SEAMS = {
+    "stable-top-level-attachment": "PATCHED_ATTACH_HANDLER",
+    "ordinary-navigation": "ORIGINAL_NAVIGATION_START and ORIGINAL_COMMAND_DISPATCH",
+    "oopif-auto-attachment-disabled": "PATCHED_ATTACH_HANDLER",
+    "xhtml-document-response": "PATCHED_DOCUMENT_MIME_GATE",
+}
 ALREADY_PATCHED = "already-patched"
 
 
@@ -118,25 +161,72 @@ def patch_source(source: str) -> str:
         and PATCHED_PARAM_GATE not in source
     )
     original_attach = source.count(ORIGINAL_ATTACH_HANDLER) == 1
+    legacy_stable_attach = source.count(LEGACY_STABLE_ATTACH_HANDLER) == 1
+    legacy_blank_defer_attach = (
+        source.count(LEGACY_BLANK_DEFER_ATTACH_HANDLER) == 1
+    )
     patched_attach = source.count(PATCHED_ATTACH_HANDLER) == 1
-    original_navigation = source.count(ORIGINAL_NAVIGATION_START) == 1
+    original_enable = (
+        source.count(ORIGINAL_ENABLE_OOPIF_START) == 1
+        and DISABLE_OOPIF_METHOD not in source
+    )
+    patched_enable = (
+        source.count(ORIGINAL_ENABLE_OOPIF_START) == 1
+        and source.count(DISABLE_OOPIF_METHOD) == 1
+    )
+    original_navigation = (
+        source.count(ORIGINAL_NAVIGATION_START) == 1
+        and VITALSOURCE_NAVIGATION_PREFLIGHT not in source
+        and LEGACY_VITALSOURCE_NAVIGATION_PREFLIGHT not in source
+    )
+    stable_navigation = (
+        source.count(ORIGINAL_NAVIGATION_START) == 1
+        and source.count(VITALSOURCE_NAVIGATION_PREFLIGHT) == 1
+    )
+    legacy_stable_navigation = (
+        source.count(ORIGINAL_NAVIGATION_START) == 1
+        and source.count(LEGACY_VITALSOURCE_NAVIGATION_PREFLIGHT) == 1
+    )
     patched_navigation = source.count(PATCHED_NAVIGATION_START) == 1
     legacy_navigation = source.count(LEGACY_PATCHED_NAVIGATION_START) == 1
     original_dispatch = source.count(ORIGINAL_COMMAND_DISPATCH) == 1
     patched_dispatch = source.count(PATCHED_COMMAND_DISPATCH) == 1
     legacy_dispatch = source.count(LEGACY_PATCHED_COMMAND_DISPATCH) == 1
+    original_document_mime = (
+        source.count(ORIGINAL_DOCUMENT_MIME_GATE) == 1
+        and PATCHED_DOCUMENT_MIME_GATE not in source
+    )
+    patched_document_mime = (
+        source.count(PATCHED_DOCUMENT_MIME_GATE) == 1
+        and ORIGINAL_DOCUMENT_MIME_GATE not in source
+    )
 
     if sum((pristine_security_gate, current_raw_cdp_patch, legacy_raw_cdp_patch)) != 1:
         raise PatchError(
             "Codex Chrome's raw-CDP security gate does not match a reviewed state; "
             "refusing a partial or speculative patch."
         )
-    if original_attach == patched_attach:
+    if sum(
+        (original_attach, legacy_stable_attach, legacy_blank_defer_attach, patched_attach)
+    ) != 1:
         raise PatchError(
             "Codex Chrome's tab-attachment handler does not match the reviewed bundle; "
             "refusing a partial or speculative patch."
         )
-    if sum((original_navigation, patched_navigation, legacy_navigation)) != 1:
+    if original_enable == patched_enable:
+        raise PatchError(
+            "Codex Chrome's OOPIF attachment methods do not match the reviewed bundle; "
+            "refusing a partial or speculative patch."
+        )
+    if sum(
+        (
+            original_navigation,
+            stable_navigation,
+            legacy_stable_navigation,
+            patched_navigation,
+            legacy_navigation,
+        )
+    ) != 1:
         raise PatchError(
             "Codex Chrome's navigation handler does not match the reviewed bundle; "
             "refusing a partial or speculative patch."
@@ -144,6 +234,11 @@ def patch_source(source: str) -> str:
     if sum((original_dispatch, patched_dispatch, legacy_dispatch)) != 1:
         raise PatchError(
             "Codex Chrome's command dispatcher does not match the reviewed bundle; "
+            "refusing a partial or speculative patch."
+        )
+    if original_document_mime == patched_document_mime:
+        raise PatchError(
+            "Codex Chrome's document MIME classifier does not match the reviewed bundle; "
             "refusing a partial or speculative patch."
         )
 
@@ -158,21 +253,37 @@ def patch_source(source: str) -> str:
         )
     if original_attach:
         patched = patched.replace(ORIGINAL_ATTACH_HANDLER, PATCHED_ATTACH_HANDLER, 1)
-    if original_navigation:
+    elif legacy_stable_attach:
         patched = patched.replace(
-            ORIGINAL_NAVIGATION_START, PATCHED_NAVIGATION_START, 1
+            LEGACY_STABLE_ATTACH_HANDLER, PATCHED_ATTACH_HANDLER, 1
         )
+    elif legacy_blank_defer_attach:
+        patched = patched.replace(
+            LEGACY_BLANK_DEFER_ATTACH_HANDLER, PATCHED_ATTACH_HANDLER, 1
+        )
+    if patched_enable:
+        patched = patched.replace(DISABLE_OOPIF_METHOD, "", 1)
+    if stable_navigation:
+        patched = patched.replace(VITALSOURCE_NAVIGATION_PREFLIGHT, "", 1)
+    elif legacy_stable_navigation:
+        patched = patched.replace(LEGACY_VITALSOURCE_NAVIGATION_PREFLIGHT, "", 1)
+    elif patched_navigation:
+        patched = patched.replace(PATCHED_NAVIGATION_START, ORIGINAL_NAVIGATION_START, 1)
     elif legacy_navigation:
         patched = patched.replace(
-            LEGACY_PATCHED_NAVIGATION_START, PATCHED_NAVIGATION_START, 1
+            LEGACY_PATCHED_NAVIGATION_START, ORIGINAL_NAVIGATION_START, 1
         )
-    if original_dispatch:
+    if patched_dispatch:
         patched = patched.replace(
-            ORIGINAL_COMMAND_DISPATCH, PATCHED_COMMAND_DISPATCH, 1
+            PATCHED_COMMAND_DISPATCH, ORIGINAL_COMMAND_DISPATCH, 1
         )
     elif legacy_dispatch:
         patched = patched.replace(
-            LEGACY_PATCHED_COMMAND_DISPATCH, PATCHED_COMMAND_DISPATCH, 1
+            LEGACY_PATCHED_COMMAND_DISPATCH, ORIGINAL_COMMAND_DISPATCH, 1
+        )
+    if original_document_mime:
+        patched = patched.replace(
+            ORIGINAL_DOCUMENT_MIME_GATE, PATCHED_DOCUMENT_MIME_GATE, 1
         )
 
     return patched
