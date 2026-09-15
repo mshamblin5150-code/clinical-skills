@@ -29,12 +29,16 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
-from typing import Any, NamedTuple
+from typing import Any, Callable, NamedTuple, Sequence
 
 from console_codec import require_python_floor, use_utf8
+import tracker_event_checks
 
 
 NOT_REACHED = (
@@ -169,6 +173,11 @@ class Receipt(NamedTuple):
 class Binding(NamedTuple):
     ticket: int
     claim: str
+
+
+class ReceiptIdentity(NamedTuple):
+    pull_request: int
+    binding: Binding
 
 
 class ArtifactText(NamedTuple):
@@ -375,8 +384,8 @@ def render_receipt(number: int, url: str, sha: str, day: str, binding: Binding) 
     )
 
 
-def parse_merge_receipt(body: str) -> Binding | None:
-    """Return the binding from an exact canonical receipt, or ``None``."""
+def parse_merge_receipt_identity(body: str) -> ReceiptIdentity | None:
+    """Return the PR and binding from an exact canonical receipt, or ``None``."""
     match = RECEIPT.fullmatch(body)
     if match is None:
         return None
@@ -394,7 +403,15 @@ def parse_merge_receipt(body: str) -> Binding | None:
         match.group("day"),
         binding,
     )
-    return binding if body == canonical else None
+    if body != canonical:
+        return None
+    return ReceiptIdentity(int(match.group("number")), binding)
+
+
+def parse_merge_receipt(body: str) -> Binding | None:
+    """Return the binding from an exact canonical receipt, or ``None``."""
+    identity = parse_merge_receipt_identity(body)
+    return identity.binding if identity is not None else None
 
 
 def plan_receipts(document: Any) -> list[Receipt]:
@@ -435,6 +452,157 @@ def plan_receipts(document: Any) -> list[Receipt]:
     return rows
 
 
+def receipt_event(row: Receipt, ticket: Any) -> dict[str, Any]:
+    """Build the ``issue_comment: created`` event used to grade one receipt."""
+    if not isinstance(ticket, dict):
+        raise ValueError("ticket readback must be an object")
+    number = ticket.get("number")
+    url = ticket.get("url")
+    labels = ticket.get("labels")
+    if number != row.ticket:
+        raise ValueError(f"ticket readback does not name #{row.ticket}")
+    if not isinstance(url, str) or not url:
+        raise ValueError(f"ticket #{row.ticket} readback has no URL")
+    if not isinstance(labels, list) or any(not isinstance(label, dict) for label in labels):
+        raise ValueError(f"ticket #{row.ticket} readback has invalid labels")
+    return {
+        "action": "created",
+        "issue": {"number": number, "html_url": url, "labels": labels},
+        "comment": {"body": row.body, "html_url": f"{url}#merge-receipt"},
+    }
+
+
+def _receipt_is_landed(row: Receipt, ticket: dict[str, Any]) -> bool:
+    wanted = parse_merge_receipt_identity(row.body)
+    comments = ticket.get("comments", [])
+    if not isinstance(comments, list):
+        raise ValueError(f"ticket #{row.ticket} readback has invalid comments")
+    for comment in comments:
+        if not isinstance(comment, dict):
+            raise ValueError(f"ticket #{row.ticket} readback has invalid comments")
+        body = comment.get("body")
+        if isinstance(body, str) and parse_merge_receipt_identity(body) == wanted:
+            return True
+    return False
+
+
+def publish_receipts(
+    rows: Sequence[Receipt],
+    *,
+    read_ticket: Callable[[Receipt], dict[str, Any]],
+    grade_event: Callable[[dict[str, Any], str], int],
+    post_comment: Callable[[Receipt], int],
+    remove_label: Callable[[Receipt], int],
+) -> int:
+    """Grade the complete plan, then post idempotently and discharge labels."""
+    prepared: list[tuple[Receipt, dict[str, Any], bool]] = []
+    refusal = 0
+    for row in rows:
+        ticket = read_ticket(row)
+        landed = _receipt_is_landed(row, ticket)
+        status = grade_event(receipt_event(row, ticket), "issue_comment")
+        prepared.append((row, ticket, landed))
+        if status != 0 and refusal == 0:
+            refusal = status
+    if refusal != 0:
+        print(
+            "tracker-merge-receipt: finding: receipt grade refused; "
+            "nothing was posted and every in flight label was retained",
+            file=sys.stderr,
+        )
+        return refusal
+
+    for row, _ticket, landed in prepared:
+        if not landed:
+            status = post_comment(row)
+            if status != 0:
+                return status
+        status = remove_label(row)
+        if status != 0:
+            return status
+    return 0
+
+
+def _read_plan(path: str) -> list[Receipt]:
+    text = sys.stdin.read() if path == "-" else Path(path).read_text(encoding="utf-8-sig")
+    rows = []
+    for number, line in enumerate(text.splitlines(), start=1):
+        if not line.strip():
+            continue
+        document = json.loads(line)
+        if not isinstance(document, dict):
+            raise ValueError(f"receipt plan line {number} must be an object")
+        ticket = document.get("ticket")
+        body = document.get("body")
+        if not isinstance(ticket, int) or ticket < 1 or not isinstance(body, str):
+            raise ValueError(f"receipt plan line {number} has invalid fields")
+        identity = parse_merge_receipt_identity(body)
+        if identity is None or identity.binding.ticket != ticket:
+            raise ValueError(f"receipt plan line {number} is not a canonical receipt")
+        rows.append(Receipt(ticket, body))
+    return rows
+
+
+def _gh_ticket(row: Receipt) -> dict[str, Any]:
+    completed = subprocess.run(
+        ["gh", "issue", "view", str(row.ticket), "--json", "number,url,labels,comments"],
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        capture_output=True,
+        check=False,
+    )
+    if completed.returncode != 0:
+        raise ValueError(completed.stderr.strip() or f"could not read ticket #{row.ticket}")
+    return json.loads(completed.stdout)
+
+
+def _grade_receipt_event(document: dict[str, Any], event_name: str) -> int:
+    temporary: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            "w", encoding="utf-8", suffix=".json", delete=False
+        ) as handle:
+            json.dump(document, handle, ensure_ascii=False)
+            temporary = Path(handle.name)
+        summary = os.environ.get("GITHUB_STEP_SUMMARY")
+        return tracker_event_checks.grade_event_path(
+            temporary,
+            event_name,
+            summary_path=Path(summary) if summary else None,
+        )
+    finally:
+        if temporary is not None and temporary.exists():
+            temporary.unlink()
+
+
+def _gh_comment(row: Receipt) -> int:
+    return subprocess.run(
+        ["gh", "issue", "comment", str(row.ticket), "--body", row.body],
+        check=False,
+    ).returncode
+
+
+def _gh_remove_label(row: Receipt) -> int:
+    return subprocess.run(
+        ["gh", "issue", "edit", str(row.ticket), "--remove-label", "in flight"],
+        check=False,
+    ).returncode
+
+
+def publish_plan(path: str) -> int:
+    rows = _read_plan(path)
+    if not rows:
+        raise ValueError("receipt plan is empty")
+    return publish_receipts(
+        rows,
+        read_ticket=_gh_ticket,
+        grade_event=_grade_receipt_event,
+        post_comment=_gh_comment,
+        remove_label=_gh_remove_label,
+    )
+
+
 def _read(path: str) -> Any:
     text = sys.stdin.read() if path == "-" else Path(path).read_text(encoding="utf-8")
     return json.loads(text)
@@ -449,10 +617,20 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="grade bindings before merge without requiring merge metadata",
     )
+    parser.add_argument(
+        "--publish-plan",
+        action="store_true",
+        help="grade and idempotently publish a completed JSON-lines receipt plan",
+    )
     parser.add_argument("path", help="gh pr view JSON, or - for stdin")
     args = parser.parse_args(argv)
 
+    if args.check_plan and args.publish_plan:
+        parser.error("--check-plan and --publish-plan are mutually exclusive")
+
     try:
+        if args.publish_plan:
+            return publish_plan(args.path)
         document = _read(args.path)
         assessment = assess_plan(document)
         rows = [] if args.check_plan else plan_receipts(document)

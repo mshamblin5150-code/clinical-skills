@@ -109,8 +109,9 @@ failure.
 asymmetric posture.** ``tracker_publish_hook.py`` passes every readable body
 through ``grade`` and refuses each returned row from the Claude Code publisher;
 titles keep two predicates outside this body-only interface.
-``.github/workflows/tracker.yml`` calls this command's ``--github-event`` mode
-for a changed body from either known publisher and reports after publication.
+``.github/workflows/tracker.yml`` reaches ordinary changed records through the
+shared event dispatcher. It reaches no unwatched write after publication;
+merge receipts run the same body row before they post.
 The hook's remaining publisher limit is owned by
 ``tracker_publish_hook.NOT_REACHED`` rather than restated here.
 

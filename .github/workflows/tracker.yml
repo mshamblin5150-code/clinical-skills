@@ -27,14 +27,6 @@ permissions:
 jobs:
   changed-record:
     name: tracker PHI shape layer only
-    # A review submission may be only an approval state, with no public text.
-    # There is then no record for this text scanner to read and no scan to fail.
-    if: >-
-      github.event.action != 'closed' &&
-      (github.event_name != 'pull_request_review' ||
-       (github.event.review.body != null && github.event.review.body != '')) &&
-      (github.event.action != 'edited' ||
-       github.event.changes.title != null || github.event.changes.body != null)
     runs-on: windows-latest
 
     steps:
@@ -48,108 +40,11 @@ jobs:
         with:
           python-version: '3.14'
 
-      - name: Changed tracker record; corpus layer cannot run in CI
-        run: |
-          $report = python tools/tracker_scan.py --github-event $env:GITHUB_EVENT_PATH --event-name $env:GITHUB_EVENT_NAME --allow-no-corpus
-          $status = $LASTEXITCODE
-          $report
-          @('### Tracker PHI scan coverage', '', '```', $report, '```') |
-            Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
-          exit $status
-
-      - name: Dated main-branch scope for tracker citations
-        if: >-
-          always() &&
-          (github.event_name == 'issues' ||
-           github.event_name == 'issue_comment' ||
-           github.event_name == 'pull_request_target' ||
-           github.event_name == 'pull_request_review' ||
-           github.event_name == 'pull_request_review_comment')
-        run: |
-          $report = python tools/tracker_branch_scope.py --github-event $env:GITHUB_EVENT_PATH --event-name $env:GITHUB_EVENT_NAME
-          $status = $LASTEXITCODE
-          $report
-          @('### Tracker branch scope', '', '```', $report, '```') |
-            Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
-          exit $status
-
-      - name: Changed tracker body integrity
-        if: >-
-          always() &&
-          (github.event.action == 'opened' ||
-           github.event.action == 'created' ||
-           github.event.action == 'submitted' ||
-           (github.event.action == 'edited' &&
-            github.event.changes.body != null))
-        run: |
-          $report = python tools/tracker_bodies.py --github-event $env:GITHUB_EVENT_PATH --event-name $env:GITHUB_EVENT_NAME
-          $status = $LASTEXITCODE
-          $report
-          @('### Tracker body integrity', '', '```', $report, '```') |
-            Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
-          exit $status
-
-      - name: Changed tracker coordinate accompaniment
-        if: >-
-          always() &&
-          (github.event.action == 'opened' ||
-           github.event.action == 'created' ||
-           github.event.action == 'submitted' ||
-           (github.event.action == 'edited' &&
-            github.event.changes.body != null))
-        run: |
-          $report = python tools/tracker_coordinates.py --github-event $env:GITHUB_EVENT_PATH --event-name $env:GITHUB_EVENT_NAME
-          $status = $LASTEXITCODE
-          $report
-          @('### Tracker coordinate accompaniment', '', '```', $report, '```') |
-            Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
-          exit $status
-
-      - name: Changed tracker publication measurement base
-        if: >-
-          always() &&
-          (github.event.action == 'opened' ||
-           github.event.action == 'created' ||
-           github.event.action == 'submitted' ||
-           (github.event.action == 'edited' &&
-            github.event.changes.body != null))
-        run: |
-          $report = python tools/tracker_measurements.py --github-event $env:GITHUB_EVENT_PATH --event-name $env:GITHUB_EVENT_NAME
-          $status = $LASTEXITCODE
-          $report
-          @('### Publication measurement base', '', '```', $report, '```') |
-            Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
-          exit $status
-
-      - name: Filed-from line preservation
-        if: >-
-          always() &&
-          github.event_name == 'issues' &&
-          (github.event.action == 'opened' ||
-           (github.event.action == 'edited' &&
-            github.event.changes.body != null))
-        run: |
-          $report = python tools/tracker_filed_from.py --github-event $env:GITHUB_EVENT_PATH --event-name $env:GITHUB_EVENT_NAME
-          $status = $LASTEXITCODE
-          $report
-          @('### Tracker Filed-from line', '', '```', $report, '```') |
-            Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
-          exit $status
-
-      - name: Implementation map producer stamp
-        if: >-
-          always() &&
-          github.event_name == 'issues' &&
-          github.event.action == 'edited' &&
-          github.event.issue.number == 596 &&
-          github.event.changes.body != null
-        run: |
-          $report = python tools/map_scan.py --github-event $env:GITHUB_EVENT_PATH --event-name $env:GITHUB_EVENT_NAME
-          $status = $LASTEXITCODE
-          $report
-          @('### Implementation map producer stamp', '', '```', $report, '```') |
-            Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
-          exit $status
+      - name: Grade the changed tracker record
+        run: >-
+          python tools/tracker_event_checks.py
+          --github-event $env:GITHUB_EVENT_PATH
+          --event-name $env:GITHUB_EVENT_NAME
 
   merge-receipts:
     name: immutable ticket merge receipts
@@ -185,13 +80,7 @@ jobs:
             python tools/tracker_merge_receipt.py - |
             Out-File -FilePath $plan -Encoding utf8
           $status = $LASTEXITCODE
-          Get-Content -LiteralPath $plan | ForEach-Object {
-            $receipt = $_ | ConvertFrom-Json
-            # Publish first: tracker_branch_scope's receipt fullmatch is the
-            # deliberate escape while the ticket still carries `in flight`.
-            gh issue comment $receipt.ticket --body $receipt.body
-            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-            gh issue edit $receipt.ticket --remove-label "in flight"
-            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          }
           if ($status -ne 0) { exit $status }
+          # Grade every receipt before any post. A refusal leaves every bound
+          # ticket unchanged; a clean re-run skips an exact landed receipt.
+          python tools/tracker_merge_receipt.py --publish-plan $plan

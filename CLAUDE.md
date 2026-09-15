@@ -1344,6 +1344,14 @@ a declined reference-shaped line, and 2 means the input cannot establish a
 completed merge into `main`; `--check-plan` applies the same plan verdict before
 merge.
 
+After a merge, `--publish-plan` reads every bound ticket's live labels and
+comments, builds the same `issue_comment: created` event the public tracker
+would expose, and runs the shared tracker-event check set over every receipt
+before any tracker mutation. A refusing receipt leaves every planned comment
+unposted and every `in flight` label present. A canonical receipt naming the
+same pull request and claim is already landed regardless of author; it is not
+posted again, and its label is still removed.
+
 `parse_merge_receipt` is the branch-scope workflow's production reader. Its
 full-body match is deliberate: the bot can publish the immutable receipt while
 the ticket still carries `in flight`, then the same merge loop discharges that
@@ -1356,6 +1364,20 @@ object and copies none of its rows.
 Covered by `tools/test_tracker_merge_receipt.py`, which builds synthetic pull
 request and commit JSON and round-trips the canonical receipt grammar. It
 publishes no tracker comment.
+
+### Tracker event checks
+
+`tools/tracker_event_checks.py` is the single dispatcher for one GitHub tracker
+event. It selects the check set formerly expressed by per-step workflow
+conditions, runs each selected command, and writes one step-summary section per
+check. The PHI shape layer remains advisory because a runner has no PHI corpus;
+every other selected check refuses on a nonzero exit. Both the ordinary
+`changed-record` job and the merge-receipt pre-publication path use this seam.
+The complete boundary belongs to `tracker_event_checks.NOT_REACHED`; this
+section points to that object and copies none of its rows.
+
+Covered by `tools/test_tracker_event_checks.py`, which drives comment, issue,
+and implementation-map event shapes through the public selection function.
 
 ### Tracker freshness
 
@@ -1672,7 +1694,7 @@ python tools/tracker_bodies.py \
 
 **It is also the read-back, and that is one accepted shape rather than a second mode.** It takes a single JSON object as well as a list, so `gh issue view <n> --json number,body,url` piped in grades one record — which catches what `--jq '.body | length'` does not, since a lost body has a length of 2 and reads as a number rather than as a failure. Its separate `--github-event <path> --event-name <name>` mode adapts the changed body from the same five tracker events as the workflow beside it.
 
-**The same shared analyzer runs at both publication hosts, with each finding's declared posture.** `tracker_publish_hook.py` passes every readable title and body from the Claude Code publisher through `analyze`; its command route refuses denying rows and reports advisory rows, while `authorize_issue_body` sends the implementation map writer's exact fields through the same entry point and retains its map-specific producer-stamp check. The map writer returns the analyzer report without running the command route's citation readback: it renders from a population-gated live read and that readback refuses nothing. An unavailable PHI corpus layer is reported while the shape layer still runs. Titles remain outside the body grader and keep only the C0-control and flanked-carriage-return predicates. `.github/workflows/tracker.yml` invokes the complete body grader through the GitHub-event mode for a changed body from either known publisher and reports after publication. The hook's publisher boundary belongs to `tracker_publish_hook.NOT_REACHED`; it is not prevention for a publisher that never runs the hook.
+**The same shared analyzer runs at both publication hosts, with each finding's declared posture.** `tracker_publish_hook.py` passes every readable title and body from the Claude Code publisher through `analyze`; its command route refuses denying rows and reports advisory rows, while `authorize_issue_body` sends the implementation map writer's exact fields through the same entry point and retains its map-specific producer-stamp check. The map writer returns the analyzer report without running the command route's citation readback: it renders from a population-gated live read and that readback refuses nothing. An unavailable PHI corpus layer is reported while the shape layer still runs. Titles remain outside the body grader and keep only the C0-control and flanked-carriage-return predicates. `.github/workflows/tracker.yml` sends ordinary changed bodies through the shared event dispatcher. The workflow reaches no unwatched write afterward, so merge receipts are graded through that dispatcher before publication. The hook's publisher boundary belongs to `tracker_publish_hook.NOT_REACHED`; it is not prevention for a publisher that never runs the hook.
 
 Covered by `tools/test_tracker_bodies.py`, which builds synthetic harvests and GitHub events in that file and a temp directory. **The real tracker is deliberately not a fixture**, on `test_tracker_scan.py`'s position: it is fetched over the network and changes every time anybody comments, so a test keyed on it would be measuring the day it ran. **No count of issues, pull requests or lost bodies is asserted anywhere in it**, on the same grounds as the paragraph above. One class reads `docs/agents/issue-tracker.md` and asserts the rules it checks are still written there, on `test_spelling_scan.py`'s reasoning.
 

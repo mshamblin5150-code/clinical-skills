@@ -117,6 +117,7 @@ DECLARED_SECTIONS = {
     "tracker_bodies": "Tracker bodies",
     "tracker_branch_scope": "Tracker branch scope",
     "tracker_coordinates": "Tracker coordinate accompaniment",
+    "tracker_event_checks": "Tracker event checks",
     "tracker_measurements": "Tracker measurements",
     "tracker_filed_from": "Tracker Filed-from line",
     "tracker_freshness": "Tracker freshness",
