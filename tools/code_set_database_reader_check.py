@@ -17,6 +17,7 @@ TOOLS = Path(__file__).resolve().parent
 LOOKUPS = frozenset({"icd10_lookup", "procedure_codes_lookup"})
 PIN_CALL = "assert_code_set_database_digest"
 PIN_MODULE = "code_set_database_test_support"
+PIN_DIGESTS = frozenset({"ICD10_DATABASE_SHA256", "PROCEDURE_CODES_DATABASE_SHA256"})
 REFUSAL_MARKER = "CODE_SET_DATABASE_OPEN_REFUSED"
 
 DECLARED_LIMITS = {
@@ -95,35 +96,73 @@ def _reaches_lookup(
     )
 
 
+class _ModuleBindings(ast.NodeVisitor):
+    """Find names a top-level statement can bind without entering a new scope."""
+
+    def __init__(self) -> None:
+        self.names: set[str] = set()
+
+    def visit_Name(self, node: ast.Name) -> None:
+        if isinstance(node.ctx, (ast.Store, ast.Del)):
+            self.names.add(node.id)
+
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+        self.names.add(node.name)
+
+    visit_AsyncFunctionDef = visit_FunctionDef
+
+    def visit_ClassDef(self, node: ast.ClassDef) -> None:
+        self.names.add(node.name)
+
+    def visit_Lambda(self, node: ast.Lambda) -> None:
+        return
+
+
 def _has_pin(tree: ast.Module) -> bool:
-    direct_names = {
-        alias.asname or alias.name
-        for statement in tree.body
-        if isinstance(statement, ast.ImportFrom)
-        and statement.module == PIN_MODULE
-        for alias in statement.names
-        if alias.name == PIN_CALL
-    }
-    module_names = {
-        alias.asname or alias.name
-        for statement in tree.body
-        if isinstance(statement, ast.Import)
-        for alias in statement.names
-        if alias.name == PIN_MODULE
-    }
-    return any(
-        isinstance(statement, ast.Expr)
-        and isinstance(statement.value, ast.Call)
-        and (
-            isinstance(statement.value.func, ast.Name)
-            and statement.value.func.id in direct_names
-            or isinstance(statement.value.func, ast.Attribute)
-            and statement.value.func.attr == PIN_CALL
-            and isinstance(statement.value.func.value, ast.Name)
-            and statement.value.func.value.id in module_names
-        )
-        for statement in tree.body
-    )
+    bindings: dict[str, str] = {}
+    for statement in tree.body:
+        if isinstance(statement, ast.ImportFrom):
+            for alias in statement.names:
+                name = alias.asname or alias.name
+                bindings[name] = (
+                    "pin-function"
+                    if statement.module == PIN_MODULE and alias.name == PIN_CALL
+                    else "pin-digest"
+                    if statement.module == PIN_MODULE and alias.name in PIN_DIGESTS
+                    else "other"
+                )
+            continue
+        if isinstance(statement, ast.Import):
+            for alias in statement.names:
+                name = alias.asname or alias.name.split(".", 1)[0]
+                bindings[name] = "pin-module" if alias.name == PIN_MODULE else "other"
+            continue
+        if isinstance(statement, ast.Expr) and isinstance(statement.value, ast.Call):
+            function = statement.value.func
+            authentic_function = (
+                isinstance(function, ast.Name)
+                and bindings.get(function.id) == "pin-function"
+                or isinstance(function, ast.Attribute)
+                and function.attr == PIN_CALL
+                and isinstance(function.value, ast.Name)
+                and bindings.get(function.value.id) == "pin-module"
+            )
+            arguments = statement.value.args
+            authentic_digest = len(arguments) >= 2 and (
+                isinstance(arguments[1], ast.Name)
+                and bindings.get(arguments[1].id) == "pin-digest"
+                or isinstance(arguments[1], ast.Attribute)
+                and arguments[1].attr in PIN_DIGESTS
+                and isinstance(arguments[1].value, ast.Name)
+                and bindings.get(arguments[1].value.id) == "pin-module"
+            )
+            if authentic_function and authentic_digest:
+                return True
+        assigned = _ModuleBindings()
+        assigned.visit(statement)
+        for name in assigned.names:
+            bindings[name] = "other"
+    return False
 
 
 def _readers_under_refusal(tools: Path, reaching: frozenset[str]) -> frozenset[str]:

@@ -63,6 +63,7 @@ class TheReaderPopulationAndThePinsMustAgree(unittest.TestCase):
                 encoding="utf-8",
             )
             (tools / "code_set_database_test_support.py").write_text(
+                "ICD10_DATABASE_SHA256 = 'digest'\n"
                 "def assert_code_set_database_digest(*args): pass\n",
                 encoding="utf-8",
             )
@@ -81,8 +82,10 @@ class TheReaderPopulationAndThePinsMustAgree(unittest.TestCase):
             )
             (tools / "test_stale.py").write_text(
                 "import unittest\nimport icd10_lookup\n"
-                "from code_set_database_test_support import assert_code_set_database_digest\n"
-                "assert_code_set_database_digest('path', 'digest', 'name')\n"
+                "from code_set_database_test_support import (\n"
+                "    ICD10_DATABASE_SHA256, assert_code_set_database_digest,\n"
+                ")\n"
+                "assert_code_set_database_digest('path', ICD10_DATABASE_SHA256, 'name')\n"
                 "class Nonreader(unittest.TestCase):\n"
                 "    def test_something_else(self): self.assertTrue(True)\n",
                 encoding="utf-8",
@@ -95,12 +98,48 @@ class TheReaderPopulationAndThePinsMustAgree(unittest.TestCase):
                 "    def test_read(self): icd10_lookup.open_database()\n",
                 encoding="utf-8",
             )
+            (tools / "test_shadowed_direct.py").write_text(
+                "import unittest\nimport icd10_lookup\n"
+                "from code_set_database_test_support import assert_code_set_database_digest\n"
+                "def assert_code_set_database_digest(*args): pass\n"
+                "assert_code_set_database_digest('path', 'digest', 'name')\n"
+                "class Reader(unittest.TestCase):\n"
+                "    def test_read(self): icd10_lookup.open_database()\n",
+                encoding="utf-8",
+            )
+            (tools / "test_shadowed_module.py").write_text(
+                "import unittest\nimport icd10_lookup\n"
+                "import code_set_database_test_support as pins\n"
+                "class Counterfeit:\n"
+                "    @staticmethod\n"
+                "    def assert_code_set_database_digest(*args): pass\n"
+                "pins = Counterfeit()\n"
+                "pins.assert_code_set_database_digest('path', 'digest', 'name')\n"
+                "class Reader(unittest.TestCase):\n"
+                "    def test_read(self): icd10_lookup.open_database()\n",
+                encoding="utf-8",
+            )
+            (tools / "test_dynamic_digest.py").write_text(
+                "import unittest\nimport icd10_lookup\n"
+                "from code_set_database_test_support import assert_code_set_database_digest\n"
+                "assert_code_set_database_digest('path', 'digest', 'name')\n"
+                "class Reader(unittest.TestCase):\n"
+                "    def test_read(self): icd10_lookup.open_database()\n",
+                encoding="utf-8",
+            )
 
             result = check.audit(tools)
 
             self.assertEqual(
                 frozenset(
-                    {"test_counterfeit", "test_missing_default", "test_missing_named"}
+                    {
+                        "test_counterfeit",
+                        "test_dynamic_digest",
+                        "test_missing_default",
+                        "test_missing_named",
+                        "test_shadowed_direct",
+                        "test_shadowed_module",
+                    }
                 ),
                 result.unpinned_readers,
             )
