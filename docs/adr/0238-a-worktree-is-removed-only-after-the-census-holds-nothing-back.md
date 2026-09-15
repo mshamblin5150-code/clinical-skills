@@ -148,6 +148,15 @@ ADR 0236 ruling 1 declined a per-root vocabulary partly because a peer *"has no 
 ruling 1 stands**, on its other ground: a drain moves cited and uncited material alike, so an
 accounted-versus-unaccounted split still tells a pruner nothing actionable.
 
+[ADR 0237](0237-a-missing-worktree-git-reports-as-locked-is-a-locked-registration-and-the-prune-remedy-is-qualified.md),
+ruled the same day on #1133, makes the census read git's `locked` attribute and holds that a locked
+root whose directory is present is counted exactly as any other root. **Nothing here changes that
+count.** Ruling 6 above uses the same attribute for a different purpose: on the pre-removal line, a
+lock holds a worktree back. A **locked registration**, whose directory is absent, keeps ADR 0237
+ruling 2's own line and gets no pre-removal line, since there is no directory to remove. The two
+builds read one porcelain attribute in one module, so whichever lands second reuses the other's
+reading.
+
 ## Taken as conventions, not ruled
 
 The wording of the per-peer line, the read summary, the two `DECLARED_LIMITS` rows, the subsection and
@@ -158,9 +167,8 @@ needs no fetch.
 
 ## What this does not reach
 
-**A stale registration that is really an unmounted volume.**
-[#1133](https://github.com/mshamblin5150-code/clinical-skills/issues/1133) owns it. The subsection does
-not direct anyone to prune.
+**A stale registration that is really an unmounted volume.** ADR 0237 rules it, including the
+qualifier on the prune remedy. The subsection does not direct anyone to prune.
 
 **A separate clone's worktrees**, already declared in `scratch_census.DECLARED_LIMITS`.
 

@@ -152,8 +152,12 @@ Moving material out of a root that can vanish and into the **owning checkout**, 
 _Avoid_: clean up, clear, purge, sweep (in the tracker sense — see the tracker terms)
 
 **Stale registration**:
-A worktree that `git worktree list` still reports and whose directory is gone. Distinct from an **unreadable source**, where the directory is there and cannot be read: a stale registration holds nothing, because there is nothing left to hold it. It is always a **peer root** — the **owning checkout** resolves through its `.git` pointer and the **committing checkout** is the one a **Session** is standing in, so neither can be in this state.
+A worktree that `git worktree list` still reports, whose directory is not present when the census runs, and which is not locked. The census cannot tell a deleted directory from one on an unmounted volume, so "not present" is all it asserts, and nothing it reads establishes that the checkout is empty. Distinct from an **unreadable source**, where the directory is there and cannot be read, and from a **locked registration**, where git has been told the storage comes and goes. It is always a **peer root** — the **owning checkout** resolves through its `.git` pointer and the **committing checkout** is the one a **Session** is standing in, so neither can be in this state.
 _Avoid_: dead worktree, orphaned worktree, stale root, missing root
+
+**Locked registration**:
+A worktree that `git worktree list` reports as locked and whose directory is not present when the census runs. The lock is git's own declaration that the checkout lives on storage that comes and goes, so it may still hold material; it is named on every run, never graded, and no command clears it. Always a **peer root**.
+_Avoid_: unmounted worktree, offline root, missing volume
 
 **Held back**:
 Said of a **peer root**'s worktree that must not be removed, because it shows something that may exist nowhere else or could not be read: a file under its `scratch/` or `output/`, an untracked file, a change to a tracked file, a commit not on `main`, a lock, or a failed read. The term is one-sided on purpose. A worktree that is not held back has not been shown safe to remove, because a **Session** still running there and one long abandoned read identically. Material under `scratch/` or `output/` may be **drained**; anything else leaves the worktree alone.
