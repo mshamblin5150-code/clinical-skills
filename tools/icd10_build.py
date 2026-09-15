@@ -4,8 +4,8 @@
 
 ``<release-directory>`` holds the CMS release zips as downloaded, unextracted. The
 two this reads are the code-descriptions zip (fixed-width order file) and the code
-tables zip (tabular XML and alphabetic-index XML). The addendum, neoplasm table,
-drug table, and external-cause index are deliberately not read.
+tables zip (tabular XML, alphabetic and external-cause indexes, Neoplasm Table,
+and Table of Drugs and Chemicals). The addendum is deliberately not read.
 
 The output is committed. That is unusual for a generated file and it was decided
 deliberately: ``icd10-cpt`` is on the consumer's critical path, and a database
@@ -14,7 +14,6 @@ insufficient on its own.
 
 **What is not in here, and what that costs.**
 
-- **Neoplasm and drug tables.** No use case in this corpus.
 - **Anything above the tabular's own text.** Coding *guidelines* — the FY2026
   official guidelines PDF — are not machine-readable here and are not shipped.
   This database answers "does this code exist, what does it mean, is it billable,
@@ -45,6 +44,9 @@ DEFAULT_OUT = REPO_ROOT / "reference" / "icd10cm-2026.sqlite"
 ORDER_MEMBER = "Code Descriptions/icd10cm_order_2026.txt"
 TABULAR_MEMBER = "Table and Index/icd10cm_tabular_2026.xml"
 INDEX_MEMBER = "Table and Index/icd10cm_index_2026.xml"
+EXTERNAL_CAUSE_INDEX_MEMBER = "Table and Index/icd10cm_eindex_2026.xml"
+NEOPLASM_MEMBER = "Table and Index/icd10cm_neoplasm_2026.xml"
+DRUG_MEMBER = "Table and Index/icd10cm_drug_2026.xml"
 
 # The order file is fixed-width, and the columns are positional rather than
 # delimited: five-digit order number, then the code, then the billable flag, then
@@ -141,9 +143,20 @@ def parse_tabular(xml_text: str) -> list[Note]:
 
 
 def parse_index(xml_text: str) -> list[IndexEntry]:
-    """Read main terms and nested terms without importing the other CMS tables."""
+    """Read one CMS index or table into the shared lookup catalog.
+
+    The alphabetic and external-cause indexes put a destination directly on a
+    term. The Neoplasm Table and Table of Drugs and Chemicals put destinations
+    in headed cells; each nonempty cell becomes a catalog entry whose final path
+    step is its column heading.
+    """
     root = ET.fromstring(xml_text)
     entries: list[IndexEntry] = []
+    headings = {
+        head.get("col"): _flatten(head)
+        for head in root.findall("./indexHeading/head")
+        if head.get("col") and _flatten(head)
+    }
 
     def index_text(element: ET.Element) -> str:
         pieces = [element.text or ""]
@@ -170,15 +183,37 @@ def parse_index(xml_text: str) -> list[IndexEntry]:
             return value or None
 
         code = direct_text("code")
-        entries.append(
-            IndexEntry(
-                term=term,
-                path=" > ".join(parts),
-                code=code.replace(".", "").upper() if code else None,
-                see=direct_text("see"),
-                see_also=direct_text("seeAlso"),
+        see = direct_text("see")
+        see_also = direct_text("seeAlso")
+        if headings:
+            if see or see_also:
+                entries.append(
+                    IndexEntry(term, " > ".join(parts), None, see, see_also)
+                )
+            for cell in element.findall("cell"):
+                heading = headings.get(cell.get("col"))
+                value = _flatten(cell)
+                if not heading or not value or not value.strip("-"):
+                    continue
+                entries.append(
+                    IndexEntry(
+                        term=heading,
+                        path=" > ".join((*parts, heading)),
+                        code=value.replace(".", "").upper(),
+                        see=None,
+                        see_also=None,
+                    )
+                )
+        else:
+            entries.append(
+                IndexEntry(
+                    term=term,
+                    path=" > ".join(parts),
+                    code=code.replace(".", "").upper() if code else None,
+                    see=see,
+                    see_also=see_also,
+                )
             )
-        )
         for child in element.findall("term"):
             walk(child, parts)
 
@@ -246,6 +281,7 @@ def write_database(
     notes: list[Note],
     release: str,
     index: list[IndexEntry] | None = None,
+    index_sources: dict[str, int] | None = None,
 ) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     connection = sqlite3.connect(path)
@@ -264,15 +300,17 @@ def write_database(
             "INSERT INTO index_entry VALUES (?, ?, ?, ?, ?)",
             [(row.term, row.path, row.code, row.see, row.see_also) for row in index_rows],
         )
-        connection.executemany(
-            "INSERT INTO meta VALUES (?, ?)",
-            [
+        meta = [
                 ("release", release),
                 ("codes", str(len(codes))),
                 ("notes", str(len(notes))),
                 ("index_entries", str(len(index_rows))),
-            ],
+        ]
+        meta.extend(
+            (f"index_{name}", str(count))
+            for name, count in (index_sources or {}).items()
         )
+        connection.executemany("INSERT INTO meta VALUES (?, ?)", meta)
         connection.commit()
         connection.execute("VACUUM")
     finally:
@@ -306,19 +344,27 @@ def main(argv: list[str]) -> int:
     tables = find_zip(args.release, "code-tables")
 
     tabular = read_member(tables, TABULAR_MEMBER)
-    index_xml = read_member(tables, INDEX_MEMBER)
     codes = parse_order_file(read_member(descriptions, ORDER_MEMBER))
     notes = parse_tabular(tabular)
-    index = parse_index(index_xml)
+    indexes = (
+        parse_index(read_member(tables, INDEX_MEMBER)),
+        parse_index(read_member(tables, EXTERNAL_CAUSE_INDEX_MEMBER)),
+        parse_index(read_member(tables, NEOPLASM_MEMBER)),
+        parse_index(read_member(tables, DRUG_MEMBER)),
+    )
+    index = [entry for source in indexes for entry in source]
+    index_sources = dict(
+        zip(("alphabetic", "external_cause", "neoplasm", "drug"), map(len, indexes))
+    )
     release = release_string(parse_version(tabular), descriptions)
 
-    write_database(DEFAULT_OUT, codes, notes, release, index)
+    write_database(DEFAULT_OUT, codes, notes, release, index, index_sources)
     size = DEFAULT_OUT.stat().st_size
 
     print(f"release  {release}")
     print(f"codes    {len(codes):,} ({sum(1 for c in codes if c.billable):,} billable)")
     print(f"notes    {len(notes):,}")
-    print(f"index    {len(index):,}")
+    print(f"index    {len(index):,} ({', '.join(f'{len(source):,}' for source in indexes)})")
     print(f"written  {DEFAULT_OUT.relative_to(REPO_ROOT)}  {size:,} bytes")
     return 0
 

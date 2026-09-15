@@ -21,10 +21,12 @@ found, and each note reports the code it was written against so the clinician
 can check it in the tabular where it really lives.
 
 **Two searches with different claims.** ``--find`` is a substring match over
-descriptors. ``--index`` is an exact final-term match over the official
-alphabetic index and prints each complete path plus its direct code or referral.
-A miss from either mode is not evidence that no code exists: the intended phrase
-may sit under another index term or behind a referral that still needs following.
+descriptors. ``--index`` is an exact final-term match over one catalog made from
+the official alphabetic and external-cause indexes, Neoplasm Table, and Table of
+Drugs and Chemicals. It prints each complete path plus its direct code or
+referral; a table cell's final term is its column heading. A miss from either mode
+is not evidence that no code exists: the intended phrase may sit under another
+index term or behind a referral that still needs following.
 
 **What it prints is not all ASCII, which issue #150 assumed it was.** Measured
 against the shipped FY2026 database, 2026-08-16: the 98,186 descriptors carry
@@ -120,7 +122,7 @@ def find(connection: sqlite3.Connection, phrase: str, billable_only: bool) -> li
 
 
 def index_paths(connection: sqlite3.Connection, term: str) -> list[IndexEntry]:
-    """Return every alphabetic-index path whose final term exactly matches."""
+    """Return every four-source catalog path whose final term exactly matches."""
     rows = connection.execute(
         "SELECT term, path, code, see, see_also FROM index_entry "
         "WHERE term = ? COLLATE NOCASE ORDER BY path, code, see, see_also",
@@ -156,7 +158,7 @@ def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("code", nargs="*", help="one or more codes, dotted or not")
     parser.add_argument("--find", help="substring match over official descriptors")
-    parser.add_argument("--index", help="exact alphabetic-index term to trace")
+    parser.add_argument("--index", help="exact four-source index term to trace")
     parser.add_argument("--billable", action="store_true", help="with --find, billable codes only")
     parser.add_argument("--database", type=Path, default=DEFAULT_DATABASE)
     args = parser.parse_args(argv)

@@ -26,6 +26,11 @@ and that sentence is the whole of what this scans.
 The complete boundary of a clean result is declared in
 ``anchor_scan.DECLARED_LIMITS``.
 
+No committed real note carries a T36-T65 poisoning code, so drug-column
+descriptor agreement is exercised by synthetic controls only. That missing real
+poisoning note remains a declared reading limit rather than being hidden by the
+synthetic coverage.
+
 **That last behavior is the point rather than an edge case.** Run 1 refused every
 filled anchor it was offered and wrote them under the pre-#46 heading,
 ``NOT CODED, ANCHOR WAS FILLED``. This parser does not read that as the block --
@@ -58,9 +63,10 @@ import argparse
 import json
 import re
 import sys
-from collections import defaultdict
+from collections import Counter, defaultdict
 from contextlib import closing
 from dataclasses import dataclass
+from enum import Enum
 from functools import cache
 from pathlib import Path
 
@@ -165,6 +171,11 @@ DECLARED_LIMITS = (
         "E/M descriptor agreement",
         "E/M lines are counted and excluded because their descriptors cannot settle place of service, patient status, and decision-making level.",
         run_grader.EvidenceDisposition.BEHAVIOR,
+    ),
+    (
+        "real poisoning descriptor agreement",
+        "No committed real note carries a T36-T65 poisoning code; drug-column behavior has synthetic controls only.",
+        run_grader.EvidenceDisposition.DECLARED_READING,
     ),
 )
 
@@ -518,6 +529,12 @@ def _is_subsequence(needles: list[str], haystack: list[str]) -> bool:
     return position == len(needles)
 
 
+class RouteStatus(Enum):
+    VALID = "valid"
+    INVALID = "invalid"
+    UNREAD = "unread"
+
+
 @cache
 def _index_route_catalog() -> dict[str, tuple[str, str | None, str | None, str | None]]:
     import icd10_lookup
@@ -539,31 +556,276 @@ def _index_route_catalog() -> dict[str, tuple[str, str | None, str | None, str |
     return rendered
 
 
-def _valid_route(subject: AgreementSubject, route: str, agreeing_words: str) -> bool:
-    if route == "descriptor words":
-        return True
-    if subject.system != "ICD-10":
+@cache
+def _stem_descriptors(stem: str) -> tuple[tuple[str, str], ...]:
+    """Return the tabular choices beneath an index stem."""
+    import icd10_lookup
+
+    with closing(icd10_lookup.open_database()) as connection:
+        rows = connection.execute(
+            "SELECT code, long FROM code WHERE code LIKE ? ORDER BY code",
+            (f"{stem}%",),
+        ).fetchall()
+    return tuple((code, descriptor) for code, descriptor in rows)
+
+
+_REFERENCE_FILLER = {
+    "a", "an", "and", "by", "for", "in", "index", "of", "or", "the", "to", "with",
+}
+_DESCRIPTOR_FILLER = {
+    "a", "an", "and", "body", "encounter", "for", "of", "the", "to", "with", "without",
+}
+
+DRUG_COLUMNS = (
+    "Poisoning Accidental (unintentional)",
+    "Poisoning Intentional self-harm",
+    "Poisoning Assault",
+    "Poisoning Undetermined",
+    "Adverse effect",
+    "Underdosing",
+)
+NEOPLASM_COLUMNS = (
+    "Malignant Primary",
+    "Malignant Secondary",
+    "Ca in situ",
+    "Benign",
+    "Uncertain Behavior",
+    "Unspecified Behavior",
+)
+
+
+def _drug_column_agrees(column: str, agreeing_words: str) -> bool:
+    words = agreeing_words.lower()
+    underdosing = bool(
+        re.search(r"\b(?:taking|took|take|using|used) less\b|\bstopp?ed\b.*\bon (?:his|her|their) own\b", words)
+    )
+    adverse = bool(
+        re.search(r"\b(?:properly administered|as prescribed|correctly prescribed)\b", words)
+        and re.search(r"\b(?:adverse effect|reaction|side effect)\b", words)
+    )
+    self_harm = bool(re.search(r"\b(?:self[- ]harm|suicid(?:e|al))\b", words))
+    intentional = "intentional" in words
+    assault = bool(re.search(r"\b(?:assault(?:ed)?|assailant)\b", words))
+    hedged_intent = bool(
+        re.search(r"\b(?:possible|possibly|suspected|perhaps|may have been)\b", words)
+        and (self_harm or intentional or assault)
+    )
+    undetermined = bool(
+        re.search(r"\b(?:intent cannot be determined|undetermined intent)\b", words)
+        or hedged_intent
+    )
+    poisoning = bool(
+        re.search(
+            r"\b(?:overdose|poisoning|ingestion|got into|wrong (?:drug|substance|route)|"
+            r"nonprescribed|with alcohol)\b",
+            words,
+        )
+    )
+
+    expected = None
+    if underdosing:
+        expected = "Underdosing"
+    elif adverse:
+        expected = "Adverse effect"
+    elif poisoning and undetermined:
+        expected = "Poisoning Undetermined"
+    elif poisoning and (self_harm or (intentional and not assault)):
+        expected = "Poisoning Intentional self-harm"
+    elif poisoning and assault:
+        expected = "Poisoning Assault"
+    elif poisoning:
+        expected = "Poisoning Accidental (unintentional)"
+    return column == expected
+
+
+def _neoplasm_column_agrees(column: str, agreeing_words: str) -> bool:
+    words = agreeing_words.lower()
+    sign_only = bool(re.search(r"\b(?:mass|lump|nodule)\b", words))
+    neoplasm_word = bool(re.search(r"\b(?:tumor|growth|neoplasm)\b", words))
+    benign_morphology = bool(re.search(r"\b(?:fibroid|leiomyoma|lipoma)\b", words))
+    hedged_malignancy = bool(
+        re.search(r"\b(?:concerning for|possible|possibly|suspected)\b.*\b(?:malignan|cancer|carcinoma)", words)
+    )
+    if sign_only and not neoplasm_word and not benign_morphology and "benign" not in words:
         return False
+    if column == "Uncertain Behavior":
+        return bool(
+            re.search(r"\b(?:pathology|histology)\b", words)
+            and re.search(r"\b(?:indeterminate|cannot determine|could not determine)\b", words)
+        )
+    if column == "Unspecified Behavior":
+        return neoplasm_word and not re.search(
+            r"\b(?:benign|malignan|metastatic|secondary|in situ)\b", words
+        )
+    if column == "Benign":
+        return "benign" in words or benign_morphology
+    if column == "Malignant Secondary":
+        return not hedged_malignancy and bool(re.search(r"\b(?:metastatic|secondary)\b", words))
+    if column == "Ca in situ":
+        return "in situ" in words
+    if column == "Malignant Primary":
+        return not hedged_malignancy and bool(re.search(r"\b(?:malignan|cancer|carcinoma)\w*\b", words))
+    return False
+
+
+def _contains_tokens(needles: list[str], haystack: list[str]) -> bool:
+    wanted = Counter(needles)
+    available = Counter(haystack)
+    return all(available[token] >= count for token, count in wanted.items())
+
+
+def _reference_matches(referral: str, following_path: str, subject_code: str) -> bool:
+    lower = referral.lower()
+    following = _route_tokens(following_path)
+    normalized = subject_code.replace(".", "").upper()
+    if "table of drugs and chemicals" in lower:
+        return normalized.startswith(tuple(f"T{number}" for number in range(36, 66)))
+    if "table of neoplasm" in lower or lower.strip() == "neoplasm":
+        return following[:1] == ["neoplasm"]
+    if "external cause" in lower and "index" in lower:
+        return normalized[:1] in {"V", "W", "X", "Y"}
+
+    # A placeholder delegates its omitted detail to the next path. The words
+    # before it still have to identify the destination family.
+    lower = re.sub(r"\bby (?:site|type|substance|animal)(?:\b.*)?$", "", lower)
+    # Character and range instructions constrain the subject code rather than
+    # spelling a destination path.
+    instruction = False
+    code_range = re.search(r"\b(?:categories?|codes?)\s+([a-z]\d{2})\s*[-–]\s*([a-z]\d{2})", lower)
+    if code_range:
+        instruction = True
+        first, last = (value.upper() for value in code_range.groups())
+        if not first <= normalized[:3] <= last:
+            return False
+    character = re.search(
+        r"\bwith\s+(\d+)(?:st|nd|rd|th)\s+character\s+([a-z0-9])", lower
+    )
+    if character:
+        instruction = True
+        position = int(character.group(1)) - 1
+        if position >= len(normalized) or normalized[position] != character.group(2).upper():
+            return False
+    lower = re.sub(r"\b(?:categories?|codes?)\s+[a-z0-9.-]+(?:\s*[-–]\s*[a-z0-9.-]+)?", "", lower)
+    lower = re.sub(r"\bwith\s+\d+(?:st|nd|rd|th)\s+character\s+[a-z0-9]", "", lower)
+    needed = [token for token in _route_tokens(lower) if token not in _REFERENCE_FILLER]
+    available = [token for token in following if token not in _REFERENCE_FILLER]
+    return (instruction or bool(needed)) and _contains_tokens(needed, available)
+
+
+def _route_starts_in_words(
+    alternatives: list[str], path: str, agreeing_words: str, subject_code: str
+) -> bool:
+    word_tokens = _route_tokens(agreeing_words)
+    if any(_is_subsequence(_route_tokens(term), word_tokens) for term in alternatives):
+        return True
+    # The external-cause index classifies a cut made by an unnamed edged object
+    # under Contact > sharp object NEC. The note need not repeat the abstract
+    # word "contact" when it states the cut and the edged mechanism directly.
+    normalized = subject_code.replace(".", "").upper()
+    return bool(
+        normalized[:1] in {"V", "W", "X", "Y"}
+        and "sharp object" in path.lower()
+        and re.search(r"\b(?:cut|edge|edged|laceration|sharp)\b", agreeing_words, re.IGNORECASE)
+    )
+
+
+def _stem_details_agree(
+    subject: AgreementSubject,
+    stem: str,
+    agreeing_words: str,
+    encounter_evidence: str,
+) -> bool:
+    normalized = subject.code.replace(".", "").upper()
+    if normalized == stem:
+        return True
+    rows = _stem_descriptors(stem)
+    selected = next((descriptor for code, descriptor in rows if code == normalized), None)
+    if selected is None:
+        return False
+    token_sets = [
+        {token for token in _route_tokens(descriptor) if token not in _DESCRIPTOR_FILLER}
+        for _code, descriptor in rows
+    ]
+    common = set.intersection(*token_sets) if token_sets else set()
+    selected_tokens = {
+        token for token in _route_tokens(selected) if token not in _DESCRIPTOR_FILLER
+    }
+    distinguishing = selected_tokens - common
+    evidence = set(_route_tokens(f"{agreeing_words} {encounter_evidence}"))
+    return distinguishing <= evidence
+
+
+def _route_status(
+    subject: AgreementSubject,
+    route: str,
+    agreeing_words: str,
+    encounter_evidence: str = "",
+) -> RouteStatus:
+    if route == "descriptor words":
+        return RouteStatus.VALID
+    if subject.system != "ICD-10":
+        return RouteStatus.INVALID
 
     normalized = subject.code.replace(".", "").upper()
     rendered = _index_route_catalog()
-
     steps = route.split(" | ")
     if not steps or any(step not in rendered for step in steps):
-        return False
+        return RouteStatus.INVALID
     resolved = [rendered[step] for step in steps]
     first_main_term = resolved[0][0].split(">", 1)[0]
     alternatives = [part.strip() for part in first_main_term.split(",")]
-    word_tokens = _route_tokens(agreeing_words)
-    if not any(_is_subsequence(_route_tokens(term), word_tokens) for term in alternatives):
-        return False
+    if not _route_starts_in_words(alternatives, resolved[0][0], agreeing_words, normalized):
+        return RouteStatus.INVALID
+
+    unmatched_reference = False
     for previous, following in zip(resolved, resolved[1:]):
         referral = previous[2] or previous[3]
-        if not referral or not _is_subsequence(
-            _route_tokens(referral), _route_tokens(following[0])
-        ):
-            return False
-    return resolved[-1][1] == normalized
+        if not referral:
+            return RouteStatus.INVALID
+        if not _reference_matches(referral, following[0], normalized):
+            unmatched_reference = True
+
+    final_code = resolved[-1][1]
+    if not final_code:
+        return RouteStatus.INVALID
+    stem = final_code.rstrip("-")
+    if not normalized.startswith(stem):
+        return RouteStatus.INVALID
+    if unmatched_reference:
+        return RouteStatus.UNREAD
+    final_step = resolved[-1][0].rsplit(" > ", 1)[-1]
+    if final_step in DRUG_COLUMNS and not _drug_column_agrees(final_step, agreeing_words):
+        return RouteStatus.INVALID
+    if final_step in NEOPLASM_COLUMNS and not _neoplasm_column_agrees(final_step, agreeing_words):
+        return RouteStatus.INVALID
+    if not _stem_details_agree(subject, stem, agreeing_words, encounter_evidence):
+        return RouteStatus.INVALID
+    return RouteStatus.VALID
+
+
+def _unmatched_cross_references(subject: AgreementSubject, route: str) -> tuple[str, ...]:
+    rendered = _index_route_catalog()
+    steps = route.split(" | ")
+    if not steps or any(step not in rendered for step in steps):
+        return ()
+    resolved = [rendered[step] for step in steps]
+    return tuple(
+        referral
+        for previous, following in zip(resolved, resolved[1:])
+        if (referral := previous[2] or previous[3])
+        and not _reference_matches(referral, following[0], subject.code)
+    )
+
+
+def _valid_route(
+    subject: AgreementSubject,
+    route: str,
+    agreeing_words: str,
+    encounter_evidence: str = "",
+) -> bool:
+    return _route_status(
+        subject, route, agreeing_words, encounter_evidence
+    ) is RouteStatus.VALID
 
 
 def _requires_encounter_evidence(subject: AgreementSubject) -> bool:
@@ -681,7 +943,20 @@ def _brief_payload(pairs: list[AgreementPair], unread: int) -> dict:
             "referral chain with ' | ', beginning at a term in agreeing_words and ending at the "
             "subject code. "
             "Agreement requires note words that state the descriptor or reach it through an "
-            "official alphabetic-index path; topical relation is insufficient. A differential "
+            "official four-source index path; topical relation is insufficient. An index code "
+            "may be the subject code's stem, but every tabular-added character still needs note "
+            "evidence for laterality, site detail, placeholders, and encounter character. Ignore "
+            "word order within a cross-reference; fill by-site, by-type, and by-substance "
+            "placeholders from the next path; and satisfy character or code-range instructions "
+            "with the subject code. Keep a real route with a still-unmatched cross-reference so "
+            "the scanner can place it in the named unread remainder. For Neoplasm Table routes, "
+            "a mass, lump, or nodule takes its sign code; tumor, growth, or neoplasm without "
+            "behavior takes unspecified behavior; uncertain behavior needs indeterminate "
+            "pathology; malignant, secondary, in-situ, and benign columns need stated behavior "
+            "or a morphology routed there; and a named benign morphology does not wait for "
+            "tissue. For drug-table routes, distinguish poisoning, proper-use adverse effect, "
+            "and underdosing; unstated poisoning intent defaults to accidental, while hedged "
+            "self-harm or assault agrees only with undetermined. A differential "
             "code is read against the diagnosis considered by its entry. A present descriptor "
             "resting on history needs note evidence that the finding remains unresolved and is "
             "addressed today. An encounter or procedure descriptor needs evidence that its purpose "
@@ -783,7 +1058,12 @@ def _binding_findings(pair: AgreementPair) -> list[str]:
     return findings
 
 
-def _agreement_report(pairs: list[AgreementPair], findings: list[str], unread: int) -> str:
+def _agreement_report(
+    pairs: list[AgreementPair],
+    findings: list[str],
+    unread: int,
+    unread_routes: list[str] | None = None,
+) -> str:
     waits = sum(" entry waits on " in finding for finding in findings)
     missing = sum("has no agreeing words" in finding for finding in findings)
     verbatim = sum("agreeing words are not verbatim" in finding for finding in findings)
@@ -792,8 +1072,7 @@ def _agreement_report(pairs: list[AgreementPair], findings: list[str], unread: i
     binds = sum(
         "bind differs" in finding or "proposed-instead" in finding for finding in findings
     )
-    return "\n".join(
-        (
+    lines = [
             "descriptor agreement read",
             "",
             f"  paired notes and worksheets          {len(pairs)}",
@@ -807,8 +1086,9 @@ def _agreement_report(pairs: list[AgreementPair], findings: list[str], unread: i
             f"    descriptors waiting on results    {waits}",
             f"    note/worksheet bind findings      {binds}",
             run_grader.format_unread_remainder(unread),
-        )
-    )
+    ]
+    lines.extend(f"    unread cross-reference            {route}" for route in unread_routes or ())
+    return "\n".join(lines)
 
 
 def _run_agreement(argv: list[str]) -> int:
@@ -850,6 +1130,7 @@ def _run_agreement(argv: list[str]) -> int:
         return 2
 
     findings: list[str] = []
+    unread_routes: list[str] = []
     for pair in pairs:
         record_pair = record_pairs.get(pair.stem)
         if record_pair is None:
@@ -897,9 +1178,18 @@ def _run_agreement(argv: list[str]) -> int:
                     findings.append(f"{pair.stem}: {subject.code} has no agreeing words")
             elif words not in pair.note or words not in subject.support:
                 findings.append(f"{pair.stem}: {subject.code} agreeing words are not verbatim")
-            if route == "none" or not _valid_route(subject, route, words):
+            route_status = _route_status(
+                subject, route, words, record["encounter_evidence"]
+            )
+            if route == "none" or route_status is RouteStatus.INVALID:
                 if subject.role != "procedure":
                     findings.append(f"{pair.stem}: {subject.code} has no descriptor or index route")
+            elif route_status is RouteStatus.UNREAD:
+                unread += 1
+                unread_routes.extend(
+                    f"{pair.stem}: {subject.code}: {referral}"
+                    for referral in _unmatched_cross_references(subject, route)
+                )
             if (
                 _requires_encounter_evidence(subject)
                 and record["encounter_evidence"] == "none"
@@ -910,7 +1200,7 @@ def _run_agreement(argv: list[str]) -> int:
                 findings.append(f"{pair.stem}: {subject.code} entry waits on {waits}")
         findings.extend(_binding_findings(pair))
 
-    print(_agreement_report(pairs, findings, unread))
+    print(_agreement_report(pairs, findings, unread, unread_routes))
     if findings:
         return 1
     return 2 if unread else 0

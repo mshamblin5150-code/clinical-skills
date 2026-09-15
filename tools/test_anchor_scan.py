@@ -20,6 +20,7 @@ import tempfile
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
+from unittest.mock import patch
 
 import anchor_scan as scan
 import run_grader
@@ -52,9 +53,9 @@ class TheDeclaredLimitsObjectOwnsBothProseSurfaces(unittest.TestCase):
                 self.assertEqual(1, surface.count(self.POINTER))
                 self.assertEqual((), bind(scan.DECLARED_LIMITS, surface, mode=NAMING))
 
-    def test_the_partition_is_one_declared_reading_and_nine_behaviors(self):
+    def test_the_partition_is_two_declared_readings_and_nine_behaviors(self):
         dispositions = [row[2] for row in scan.DECLARED_LIMITS]
-        self.assertEqual(1, dispositions.count(run_grader.EvidenceDisposition.DECLARED_READING))
+        self.assertEqual(2, dispositions.count(run_grader.EvidenceDisposition.DECLARED_READING))
         self.assertEqual(9, dispositions.count(run_grader.EvidenceDisposition.BEHAVIOR))
         self.assertTrue(all(subject and reason for subject, reason, _ in scan.DECLARED_LIMITS))
 
@@ -658,6 +659,17 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
     def test_a_not_coded_record_may_carry_confidence(self):
         self.assertIn("A `NOT CODED` record may carry", self.text)
 
+    def test_the_skill_carries_the_external_cause_neoplasm_and_drug_rulings(self):
+        for phrase in (
+            "Section I.C.20",
+            "The note chooses the Neoplasm Table column",
+            "Section I.C.19.e",
+            "hedged self-harm or assault intent",
+            "anchor_scan.DECLARED_LIMITS",
+        ):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, self.text)
+
 
 class ThePositiveControlStaysGradeable(unittest.TestCase):
     def setUp(self):
@@ -836,6 +848,20 @@ class AgreementModes(unittest.TestCase):
         self.assertIn("Heartburn", [row["descriptor"] for row in brief["pairs"][0]["codes"]])
         self.assertEqual(1, brief["excluded_em"])
 
+    def test_the_brief_carries_the_stem_table_and_cross_reference_rules(self):
+        instructions = self.brief()["instructions"]
+
+        for phrase in (
+            "subject code's stem",
+            "word order within a cross-reference",
+            "still-unmatched cross-reference",
+            "Neoplasm Table routes",
+            "drug-table routes",
+            "hedged self-harm or assault",
+        ):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, instructions)
+
     def test_unpaired_note_or_worksheet_is_unread(self):
         (self.notes / "case-02.md").write_text(AGREEMENT_NOTE, encoding="utf-8")
         output = io.StringIO()
@@ -905,6 +931,181 @@ class AgreementModes(unittest.TestCase):
                 "current daily smoker",
             )
         )
+
+    def test_an_index_stem_needs_the_tabular_encounter_character(self):
+        subject = scan.AgreementSubject(
+            "ICD-10", "S61.011A", "Laceration without foreign body of right thumb "
+            "without damage to nail, initial encounter", "entry", "right thumb laceration",
+        )
+        route = "Laceration > thumb > right -> code S61.011"
+        catalog = {
+            route: ("Laceration > thumb > right", "S61011", None, None),
+        }
+        siblings = (
+            ("S61011A", subject.descriptor),
+            ("S61011D", subject.descriptor.replace("initial", "subsequent")),
+            ("S61011S", subject.descriptor.replace("initial encounter", "sequela")),
+        )
+
+        with patch.object(scan, "_index_route_catalog", return_value=catalog), patch.object(
+            scan, "_stem_descriptors", return_value=siblings
+        ):
+            self.assertTrue(
+                scan._valid_route(subject, route, "right thumb laceration", "initial encounter")
+            )
+            self.assertFalse(
+                scan._valid_route(subject, route, "right thumb laceration", "subsequent encounter")
+            )
+
+    def test_a_laterality_mutation_does_not_agree_through_the_other_stem(self):
+        subject = scan.AgreementSubject(
+            "ICD-10", "S61.012A", "Laceration without foreign body of left thumb "
+            "without damage to nail, initial encounter", "entry", "right thumb laceration",
+        )
+        right_route = "Laceration > thumb > right -> code S61.011"
+        catalog = {
+            right_route: ("Laceration > thumb > right", "S61011", None, None),
+        }
+
+        with patch.object(scan, "_index_route_catalog", return_value=catalog):
+            self.assertFalse(
+                scan._valid_route(
+                    subject, right_route, "right thumb laceration", "initial encounter"
+                )
+            )
+
+    def test_cross_reference_word_order_does_not_change_the_route(self):
+        subject = scan.AgreementSubject("ICD-10", "A12.3", "Example", "entry", "example")
+        first = "Example -> see Target, reordered"
+        last = "Reordered > Target -> code A12.3"
+        catalog = {
+            first: ("Example", None, "Target, reordered", None),
+            last: ("Reordered > Target", "A123", None, None),
+        }
+
+        with patch.object(scan, "_index_route_catalog", return_value=catalog):
+            self.assertEqual(
+                scan.RouteStatus.VALID,
+                scan._route_status(subject, f"{first} | {last}", "example"),
+            )
+
+    def test_cross_reference_placeholders_are_filled_from_the_next_step(self):
+        self.assertTrue(
+            scan._reference_matches(
+                "Contact, with, by type of instrument",
+                "Contact (accidental) > with > knife",
+                "W260",
+            )
+        )
+
+    def test_cross_reference_code_instructions_are_satisfied_by_the_subject(self):
+        reference = "categories T36-T50, with 6th character 5"
+
+        self.assertTrue(scan._reference_matches(reference, "Drug destination", "T391X5A"))
+        self.assertFalse(scan._reference_matches(reference, "Drug destination", "T391X4A"))
+        self.assertFalse(scan._reference_matches(reference, "Drug destination", "T601X5A"))
+
+    def test_an_unmatched_real_cross_reference_is_unread_not_invalid(self):
+        subject = scan.AgreementSubject("ICD-10", "A12.3", "Example", "entry", "example")
+        first = "Example -> see Opaque CMS wording"
+        last = "Actual destination -> code A12.3"
+        catalog = {
+            first: ("Example", None, "Opaque CMS wording", None),
+            last: ("Actual destination", "A123", None, None),
+        }
+
+        with patch.object(scan, "_index_route_catalog", return_value=catalog):
+            self.assertEqual(
+                scan.RouteStatus.UNREAD,
+                scan._route_status(subject, f"{first} | {last}", "example"),
+            )
+
+    def test_an_unmatched_real_cross_reference_names_the_unread_residue(self):
+        record = self.clean_record()
+        row = next(item for item in record["pairs"][0]["codes"] if item["code"] == "R12")
+        first = "Heartburn -> see Opaque CMS wording"
+        last = "Actual destination -> code R12"
+        row["route"] = f"{first} | {last}"
+        catalog = {
+            first: ("Heartburn", None, "Opaque CMS wording", None),
+            last: ("Actual destination", "R12", None, None),
+        }
+
+        with patch.object(scan, "_index_route_catalog", return_value=catalog):
+            status, report = self.grade(record)
+
+        self.assertEqual(2, status)
+        self.assertIn("Opaque CMS wording", report)
+        self.assertNotIn("codes with no route               1", report)
+
+    def test_an_unmatched_cross_reference_to_another_code_is_invalid(self):
+        subject = scan.AgreementSubject("ICD-10", "A12.3", "Example", "entry", "example")
+        first = "Example -> see Opaque CMS wording"
+        last = "Actual destination -> code B12.3"
+        catalog = {
+            first: ("Example", None, "Opaque CMS wording", None),
+            last: ("Actual destination", "B123", None, None),
+        }
+
+        with patch.object(scan, "_index_route_catalog", return_value=catalog):
+            self.assertEqual(
+                scan.RouteStatus.INVALID,
+                scan._route_status(subject, f"{first} | {last}", "example"),
+            )
+
+    def test_drug_columns_follow_the_guideline_definitions(self):
+        cases = (
+            ("2-year-old got into the ibuprofen", "Poisoning Accidental (unintentional)"),
+            ("properly administered ibuprofen caused an adverse effect", "Adverse effect"),
+            ("stopped taking ibuprofen on her own", "Underdosing"),
+            ("ibuprofen overdose in a suicide attempt", "Poisoning Intentional self-harm"),
+            ("ibuprofen poisoning after an assault", "Poisoning Assault"),
+            ("intentional ibuprofen poisoning by an assailant", "Poisoning Assault"),
+            ("ibuprofen ingestion; intent cannot be determined", "Poisoning Undetermined"),
+        )
+
+        for words, expected in cases:
+            with self.subTest(words=words):
+                self.assertTrue(scan._drug_column_agrees(expected, words))
+                self.assertFalse(
+                    any(
+                        scan._drug_column_agrees(other, words)
+                        for other in scan.DRUG_COLUMNS
+                        if other != expected
+                    )
+                )
+
+    def test_hedged_self_harm_agrees_only_with_undetermined(self):
+        words = "acetaminophen ingestion, possibly intentional self-harm; patient denies"
+
+        self.assertTrue(scan._drug_column_agrees("Poisoning Undetermined", words))
+        self.assertFalse(scan._drug_column_agrees("Poisoning Intentional self-harm", words))
+        self.assertFalse(scan._drug_column_agrees("Poisoning Accidental (unintentional)", words))
+
+    def test_neoplasm_columns_do_not_turn_a_mass_into_a_neoplasm(self):
+        words = "left breast mass concerning for malignancy; biopsy scheduled"
+
+        self.assertFalse(scan._neoplasm_column_agrees("Malignant Primary", words))
+        self.assertFalse(scan._neoplasm_column_agrees("Unspecified Behavior", words))
+
+    def test_an_unqualified_tumor_takes_unspecified_behavior(self):
+        words = "lung tumor with behavior not stated"
+
+        self.assertTrue(scan._neoplasm_column_agrees("Unspecified Behavior", words))
+        self.assertFalse(scan._neoplasm_column_agrees("Uncertain Behavior", words))
+
+    def test_uncertain_behavior_requires_an_indeterminate_pathology_result(self):
+        self.assertTrue(
+            scan._neoplasm_column_agrees(
+                "Uncertain Behavior", "pathology was indeterminate for malignant versus benign"
+            )
+        )
+        self.assertFalse(
+            scan._neoplasm_column_agrees("Uncertain Behavior", "biopsy is pending")
+        )
+
+    def test_a_benign_morphology_does_not_wait_for_tissue(self):
+        self.assertTrue(scan._neoplasm_column_agrees("Benign", "likely lipoma on examination"))
 
     def test_a_differential_descriptor_cannot_supply_its_own_agreeing_words(self):
         worksheet = AGREEMENT_WORKSHEET.replace(
@@ -1108,6 +1309,7 @@ class CommittedAgreementControls(unittest.TestCase):
         self.assertRegex(report, r"note/worksheet bind findings\s+4")
         self.assertRegex(report, r"unread remainder 1")
 
+
     def mutated_note_path(self, old: str, new: str) -> Path:
         raw = tempfile.TemporaryDirectory()
         self.addCleanup(raw.cleanup)
@@ -1142,6 +1344,83 @@ class CommittedAgreementControls(unittest.TestCase):
     def test_a_one_line_procedure_mutation_fires_the_committed_bind(self):
         root = self.mutated_note_path("CPT: None", "CPT: 10060")
         self.assertEqual(1, self.grade("", root)[0])
+
+
+class CommittedIndexAndTableControls(unittest.TestCase):
+    ROOT = Path(__file__).resolve().parent.parent / "fixtures"
+
+    def subject(self, code: str) -> scan.AgreementSubject:
+        descriptor = scan._official_descriptor("ICD-10", code)
+        self.assertIsNotNone(descriptor)
+        return scan.AgreementSubject("ICD-10", code, descriptor or "", "entry", "")
+
+    def test_the_committed_thumb_note_supports_both_index_stems(self):
+        note = (self.ROOT / "filled-anchor" / "notes" / "case-06.md").read_text(
+            encoding="utf-8"
+        )
+        injury_words = "a 2.25 cm linear laceration of the right thumb"
+        mechanism_words = "a clean linear cut from a sheet-metal edge"
+        self.assertIn(injury_words, note)
+        self.assertIn(mechanism_words, note)
+
+        self.assertTrue(
+            scan._valid_route(
+                self.subject("S61.011A"),
+                "Laceration > thumb > right -> code S61.011",
+                injury_words,
+                "initial encounter",
+            )
+        )
+        self.assertTrue(
+            scan._valid_route(
+                self.subject("W26.8XXA"),
+                "Contact (accidental) > with > sharp object (s) > specified NEC -> code W26.8",
+                mechanism_words,
+                "initial encounter",
+            )
+        )
+
+    def test_laterality_and_sequela_mutations_fail_the_committed_thumb_note(self):
+        route = "Laceration > thumb > right -> code S61.011"
+        words = "a 2.25 cm linear laceration of the right thumb"
+
+        self.assertFalse(
+            scan._valid_route(self.subject("S61.012A"), route, words, "initial encounter")
+        )
+        self.assertFalse(
+            scan._valid_route(self.subject("S61.011S"), route, words, "initial encounter")
+        )
+
+    def test_the_committed_fibroid_note_supports_d259(self):
+        note = (self.ROOT / "blind-run" / "obesity-bmi-case-01.md").read_text(
+            encoding="utf-8"
+        )
+        words = "uterine fibroid mass"
+        self.assertIn(words, note)
+
+        self.assertTrue(
+            scan._valid_route(
+                self.subject("D25.9"),
+                "Fibroid (tumor) > uterus -> code D25.9",
+                words,
+            )
+        )
+
+    def test_uncertain_or_malignant_mutations_fail_without_the_ruled_evidence(self):
+        self.assertFalse(
+            scan._valid_route(
+                self.subject("D39.0"),
+                "Neoplasm, neoplastic > corpus > uteri > Uncertain Behavior -> code D39.0",
+                "uterine neoplasm; biopsy is pending",
+            )
+        )
+        self.assertFalse(
+            scan._valid_route(
+                self.subject("C55"),
+                "Neoplasm, neoplastic > uterus, uteri, uterine > Malignant Primary -> code C55",
+                "uterine mass concerning for malignancy; no pathology result",
+            )
+        )
 
 
 if __name__ == "__main__":
