@@ -998,6 +998,29 @@ class AgreementModes(unittest.TestCase):
                 "cut with a knife",
             )
         )
+
+    def test_placeholder_requires_each_supplied_path_detail(self):
+        reference = "Neoplasm, malignant, by site"
+        destination = (
+            "Neoplasm, neoplastic > alveolar > mucosa > lower > Malignant Primary"
+        )
+
+        self.assertTrue(
+            scan._reference_matches(
+                reference,
+                destination,
+                "C031",
+                "malignant neoplasm of lower alveolar mucosa",
+            )
+        )
+        self.assertFalse(
+            scan._reference_matches(
+                reference,
+                destination,
+                "C031",
+                "malignant neoplasm of alveolar ridge",
+            )
+        )
         self.assertFalse(
             scan._reference_matches(
                 "Contact, with, by type of instrument",
@@ -1042,6 +1065,22 @@ class AgreementModes(unittest.TestCase):
         )
         self.assertFalse(
             scan._reference_matches(reference, "Contact > with > knife", "T391X5A")
+        )
+
+    def test_bare_table_references_accept_a_validated_destination(self):
+        self.assertTrue(
+            scan._reference_matches(
+                "Table of Drugs and Chemicals",
+                "Ibuprofen > Poisoning Accidental (unintentional)",
+                "T39311A",
+            )
+        )
+        self.assertTrue(
+            scan._reference_matches(
+                "Table of Neoplasms",
+                "Neoplasm, neoplastic > lung > Malignant Primary",
+                "C3490",
+            )
         )
 
     def test_external_cause_reference_checks_its_named_destination(self):

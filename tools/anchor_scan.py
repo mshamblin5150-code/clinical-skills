@@ -575,7 +575,7 @@ _REFERENCE_FILLER = {
 _PLACEHOLDER_FILLER = _REFERENCE_FILLER | {
     "accidental", "adverse", "assault", "behavior", "benign", "ca", "cause",
     "chemicals", "contact", "drug", "drugs", "effect", "external", "injury",
-    "intentional", "malignant", "neoplasm", "poisoning", "primary", "secondary",
+    "intentional", "malignant", "neoplasm", "neoplastic", "poisoning", "primary", "secondary",
     "self", "specified", "table", "underdosing", "undetermined", "unintentional",
     "unspecified",
 }
@@ -693,19 +693,23 @@ def _reference_matches(
     following = _route_tokens(following_path)
     normalized = subject_code.replace(".", "").upper()
     final_step = following_path.rsplit(" > ", 1)[-1]
+    validated_family_pointer = False
     if "table of drugs and chemicals" in lower:
         if not normalized.startswith(tuple(f"T{number}" for number in range(36, 66))):
             return False
         if final_step not in DRUG_COLUMNS:
             return False
+        validated_family_pointer = True
         lower = lower.replace("table of drugs and chemicals", "")
     if "table of neoplasm" in lower or lower.strip() == "neoplasm":
         if final_step not in NEOPLASM_COLUMNS:
             return False
+        validated_family_pointer = True
         lower = re.sub(r"\b(?:table of )?neoplasms?\b", "", lower)
     if "external cause" in lower and "index" in lower:
         if normalized[:1] not in {"V", "W", "X", "Y"}:
             return False
+        validated_family_pointer = True
         lower = re.sub(r"\bindex to external causes? of injury\b", "", lower)
 
     # A placeholder delegates its omitted detail to the next path. The words
@@ -733,12 +737,26 @@ def _reference_matches(
     lower = re.sub(r"\bwith\s+\d+(?:st|nd|rd|th)\s+character\s+[a-z0-9]", "", lower)
     needed = [token for token in _route_tokens(lower) if token not in _REFERENCE_FILLER]
     available = [token for token in following if token not in _REFERENCE_FILLER]
-    if not ((instruction or bool(needed)) and _contains_tokens(needed, available)):
+    if not (
+        (validated_family_pointer or instruction or bool(needed))
+        and _contains_tokens(needed, available)
+    ):
         return False
     if placeholder:
-        supplied = [token for token in following if token not in _PLACEHOLDER_FILLER]
         evidence = set(_route_tokens(note_evidence))
-        return bool(supplied) and any(token in evidence for token in supplied)
+        supplied_segments = [
+            [
+                token
+                for token in _route_tokens(segment)
+                if token not in _PLACEHOLDER_FILLER
+            ]
+            for segment in following_path.split(" > ")
+        ]
+        supplied_segments = [segment for segment in supplied_segments if segment]
+        return bool(supplied_segments) and all(
+            any(alternative in evidence for alternative in segment)
+            for segment in supplied_segments
+        )
     return True
 
 
