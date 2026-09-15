@@ -934,7 +934,7 @@ def _api_graphql_field(
     arguments: list[str], command: str, target: str
 ) -> str | Unreadable | None:
     found: str | Unreadable | None = None
-    assignments, substitutions = _api_assignments(command)
+    assignments, substitutions = _publish_assignments(command)
     index = 0
     while index < len(arguments):
         option = _api_value_option(arguments, index)
@@ -1062,28 +1062,39 @@ def _graphql_operation(
 
 
 def _api_identifier(identifier: str, command: str) -> str | None:
-    assignments, substitutions = _api_assignments(command)
+    assignments, substitutions = _publish_assignments(command)
     expanded, kind = shell_reader.expand(identifier, assignments, substitutions)
     if kind is not None or expanded is None or re.search(r"[/\?]", expanded):
         return None
     return expanded
 
 
-def _api_assignments(
+def _publish_assignments(
     command: str,
 ) -> tuple[dict[str, str], frozenset[str]]:
-    """Read persistent assignments completed before the modeled API call."""
+    """Read persistent assignments completed before the modeled publication."""
     assignments: dict[str, str] = {}
     substitutions: set[str] = set()
     pieces = shell_reader.shell_pieces(command)
+    conditional = False
     for position, piece in enumerate(pieces):
         if piece in shell_reader.SEPARATORS:
+            if piece in ("&&", "||", "|", "&"):
+                assignments.clear()
+                substitutions.clear()
+                conditional = True
+            elif piece in (";", "\n"):
+                conditional = False
             continue
         for tokens, index in shell_reader.executable_calls(piece, "gh"):
-            if tokens[index + 1 : index + 2] == ["api"]:
+            tail = tokens[index + 1 :]
+            if not tail:
+                continue
+            route = ("api",) if tail[0] == "api" else tuple(tail[:2])
+            if route in PUBLISH_ROUTES:
                 return assignments, frozenset(substitutions)
         words = shell_reader.source_words(piece)
-        if not words:
+        if not words or conditional:
             continue
         if words[0] == "unset":
             for name in words[1:]:
@@ -1096,6 +1107,8 @@ def _api_assignments(
             re.match(r"[A-Za-z_][A-Za-z0-9_]*=", word) is None
             for word in assignment_words
         ):
+            assignments.clear()
+            substitutions.clear()
             continue
         next_piece = pieces[position + 1] if position + 1 < len(pieces) else None
         if next_piece in ("|", "&"):
@@ -1261,7 +1274,7 @@ def _read_file_field(
 
 
 def _read_api_input(source: str, command: str) -> ApiInput | Unreadable:
-    assignments, substitutions = _api_assignments(command)
+    assignments, substitutions = _publish_assignments(command)
     if source == "-":
         heredoc = HEREDOC.search(command)
         if heredoc is None:
@@ -1369,7 +1382,7 @@ def extract(command: str) -> Extraction:
     if route == ("api",) and grade_route is None:
         return Extraction(route, number, (), (), None)
     publications: list[Publication] = []
-    assignments, substitutions = _api_assignments(command)
+    assignments, substitutions = _publish_assignments(command)
     index = 0
     while index < len(arguments):
         token = arguments[index]
