@@ -968,21 +968,16 @@ def _api_endpoint_source(
     return ""
 
 
-def _api_option_source_argument(
-    arguments: list[str],
+def _api_option_source_word(
     sources: tuple[str, ...] | None,
     index: int,
-    option_value: str,
     width: int,
 ) -> str:
     if sources is None:
         return ""
     if width == 2:
         return sources[index + 1]
-    option_prefix = arguments[index][
-        : len(arguments[index]) - len(option_value)
-    ]
-    return sources[index][len(option_prefix) :]
+    return sources[index]
 
 
 class _SourceCharacter(NamedTuple):
@@ -1065,6 +1060,14 @@ def _source_fanout_kind(
             )
         ):
             return "tilde-expansion"
+        if (
+            value in ("<", ">")
+            and position + 1 < len(characters)
+            and characters[position + 1].value == "("
+            and characters[position + 1].quote is None
+            and not characters[position + 1].escaped
+        ):
+            return "process-substitution"
         if value == "{" and (
             position == 0 or characters[position - 1].value != "$"
         ):
@@ -1317,18 +1320,16 @@ def _api_graphql_field(
             value = "" if option_value is None else option_value
             key, separator, value = value.partition("=")
             if name in ("raw-field", "field") and separator and key == target:
-                source_argument = ""
+                source_word = ""
                 if option_value is not None:
-                    source_argument = _api_option_source_argument(
-                        arguments, sources, index, option_value, width
+                    source_word = _api_option_source_word(
+                        sources, index, width
                     )
                 source_kind: str | None = None
-                if source_argument:
-                    expanded_source, source_kind = _expand_source_word(
-                        source_argument, assignments, substitutions
+                if source_word:
+                    _expanded, source_kind = _expand_source_word(
+                        source_word, assignments, substitutions, width == 2
                     )
-                    if expanded_source is not None:
-                        _source_key, _separator, value = expanded_source.partition("=")
                 if value.startswith("@") and name == "field":
                     read = _read_file_field(
                         "body",
@@ -1336,12 +1337,12 @@ def _api_graphql_field(
                         command,
                         assignments,
                         substitutions,
-                        not bool(source_argument),
+                        False,
                     )
                     found = read if isinstance(read, Unreadable) else read.text
                 elif source_kind is not None:
                     found = Unreadable("body", source_kind, value)
-                elif source_argument:
+                elif source_word:
                     found = value
                 else:
                     expanded, kind = shell_reader.expand(
@@ -1980,8 +1981,8 @@ def _api_input(
             found = True
             source = value
             if value is not None:
-                source_argument = _api_option_source_argument(
-                    arguments, sources, index, value, width
+                source_argument = _api_option_source_word(
+                    sources, index, width
                 )
         index += width
     if not found:
@@ -1995,7 +1996,6 @@ def _api_input(
         )
         if kind is not None or expanded is None:
             return Unreadable("body", kind or "external-variable", source)
-        source = expanded
     return _read_api_input(source, command, not bool(source_argument))
 
 
@@ -2124,11 +2124,9 @@ def extract(command: str) -> Extraction:
                 )
             key, separator, value = option_value.partition("=")
             if separator and key in ("body", "title"):
-                source_argument = _api_option_source_argument(
-                    arguments,
+                source_argument = _api_option_source_word(
                     argument_sources,
                     index,
-                    option_value,
                     width,
                 )
                 _expanded, source_kind, _names, _dynamic, _injected = (
@@ -2168,11 +2166,9 @@ def extract(command: str) -> Extraction:
             source = api_option[1]
             if source is None:
                 raise ValueError("missing API input was not refused")
-            source_argument = _api_option_source_argument(
-                arguments,
+            source_argument = _api_option_source_word(
                 argument_sources,
                 index,
-                source,
                 api_option[2],
             )
             _expanded, source_kind, _names, _dynamic, _injected = (

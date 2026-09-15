@@ -767,6 +767,57 @@ class InlineTrackerTextIsRead(unittest.TestCase):
                 result = hook.extract(command)
                 self.assertEqual(result.grade_route, ("issue", "comment"))
 
+    def test_unquoted_api_process_substitution_is_refused(self) -> None:
+        commands = (
+            "gh api -X POST repos/o/r/issues/7/comments -f body=<(true)",
+            "gh api -X POST repos/o/r/issues/7/comments -fbody=>(true)",
+            "gh api -X POST repos/o/r/issues/7/comments "
+            "-f body=<(printf Injected)",
+        )
+
+        for command in commands:
+            with self.subTest(command=command):
+                result = hook.extract(command)
+                self.assertIsNone(result.grade_route)
+                self.assertEqual(
+                    result.unclassified_api_calls[0].kind,
+                    "unclassified-api-arguments",
+                )
+
+        safe_commands = (
+            "gh api -X POST repos/o/r/issues/7/comments -f 'body=<(true)'",
+            "gh api -X POST repos/o/r/issues/7/comments -f body=\\<(true)",
+        )
+        for command in safe_commands:
+            with self.subTest(command=command):
+                result = hook.extract(command)
+                self.assertEqual(result.grade_route, ("issue", "comment"))
+                self.assertEqual(result.publications[0].text, "<(true)")
+
+    def test_dynamic_attached_api_flag_preserves_value_quotes(self) -> None:
+        commands = (
+            "OPT=-f; gh api repos/o/r/issues/comments/7 "
+            '"$OPT"\'body=$VALUE\'',
+            "OPT=--raw-field=; gh api repos/o/r/issues/comments/7 "
+            '"$OPT"\'body=$VALUE\'',
+            "OPT=-f; gh api repos/o/r/issues/comments/7 "
+            '"$OPT"body=\\$VALUE',
+        )
+
+        for command in commands:
+            with self.subTest(command=command):
+                result = hook.extract(command)
+                self.assertEqual(result.grade_route, ("issue", "comment"))
+                self.assertEqual(result.unreadable, ())
+                self.assertEqual(result.publications[0].text, "$VALUE")
+
+        graphql = hook.extract(
+            "OPT=-f; gh api graphql "
+            '"$OPT"\'query=query($owner:String!){viewer{login}}\''
+        )
+        self.assertEqual(graphql.unreadable, ())
+        self.assertEqual(graphql.unclassified_api_calls, ())
+
     def test_unquoted_leading_tilde_api_argument_is_refused(self) -> None:
         commands = (
             "gh api graphql --input ~/body.json",
