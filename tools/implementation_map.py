@@ -196,7 +196,7 @@ DECLARED_LIMITS = (
     ),
     DeclaredLimit(
         "direct-writer-publication-gates",
-        "Before publication authorize_issue_body grades body shape, coordinates, measurements, and the producer stamp, but not PHI or branch scope.",
+        "Before publication authorize_issue_body grades the body and any title through analyze plus the producer stamp; it does not run tracker citation readback because the map is rendered from a population-gated live read and readback refuses nothing.",
     ),
     DeclaredLimit(
         "state-hash-write-window",
@@ -2335,9 +2335,13 @@ def publish_body(
         f"{covered_packets} of {graph_coverage.packet_population}; unread "
         f"remainder {len(graph_coverage.packet_remainder)}"
     )
+    grade_context = tracker.get_issue(number)
     try:
-        tracker_publish_hook.authorize_issue_body(
-            body, f"issue #{number}", issue_number=number
+        grade_report = tracker_publish_hook.authorize_issue_body(
+            body,
+            f"issue #{number}",
+            issue_number=number,
+            issue=grade_context,
         )
     except ValueError as err:
         record = preserve_refused_outcomes(
@@ -2347,6 +2351,7 @@ def publish_body(
         if record is not None:
             print(f"outcome record: {record}")
         return PublishResult(1, PublishOutcome.BODY_REFUSED)
+    print(grade_report)
     current = tracker.get_issue(number)
     if expected_state_hash is not None:
         if state_hash(current["body"]) != expected_state_hash:
@@ -2677,11 +2682,14 @@ def _init_under_lock(tracker, args) -> int:
         live = Live(tracker, state)
         body = render(state, live, snapshot_for(tracker, args))
         try:
-            tracker_publish_hook.authorize_issue_body(
-                body, "new implementation map issue"
+            grade_report = tracker_publish_hook.authorize_issue_body(
+                body,
+                "new implementation map issue",
+                title=args.title,
             )
         except ValueError as err:
             raise MapError(str(err)) from err
+        print(grade_report)
         number = tracker.create_issue(
             args.title, body, [l for l in (args.label or []) if l]
         )

@@ -209,9 +209,124 @@ class DirectTrackerWritersCrossTheBodyGate(unittest.TestCase):
             )
 
     def test_an_ordinary_non_map_body_is_accepted(self) -> None:
-        hook.authorize_issue_body(
-            "A complete tracker body.", "issue #596", issue_number=595
+        index = phi_scan.build_index(set(), set())
+        with (
+            mock.patch.object(hook, "current_index", return_value=(index, ())),
+            mock.patch.object(hook, "refresh_default_branch", return_value=True),
+        ):
+            hook.authorize_issue_body(
+                "A complete tracker body.", "issue #596", issue_number=595
+            )
+
+    def test_the_direct_writer_delegates_grading_only_to_analyze(self) -> None:
+        index = phi_scan.build_index(set(), set())
+        analysis = hook.Analysis((), "scanned body: 0 findings")
+        with (
+            mock.patch.object(hook, "current_index", return_value=(index, ())),
+            mock.patch.object(hook, "refresh_default_branch", return_value=True),
+            mock.patch.object(hook, "analyze", return_value=analysis) as analyze,
+            mock.patch.object(
+                hook.tracker_bodies, "grade", side_effect=AssertionError("direct call")
+            ),
+            mock.patch.object(
+                hook.tracker_coordinates, "grade", side_effect=AssertionError("direct call")
+            ),
+            mock.patch.object(
+                hook.tracker_measurements,
+                "grade_current",
+                side_effect=AssertionError("direct call"),
+            ),
+        ):
+            report = hook.authorize_issue_body(
+                "A complete tracker body.", "issue #595", issue_number=595
+            )
+
+        self.assertEqual(report, analysis.report)
+        analyze.assert_called_once()
+        publication = analyze.call_args.args[0]
+        self.assertEqual((publication.field, publication.text), (
+            "body", "A complete tracker body."
+        ))
+
+    def test_advice_is_returned_and_denial_refuses(self) -> None:
+        index = phi_scan.build_index(set(), set())
+        advised = hook.Analysis(
+            (hook.Finding("phi:ssn", 1, "body", "advise"),),
+            "advise: phi:ssn: 1 finding(s) in body",
         )
+        denied = hook.Analysis(
+            (hook.Finding("branch:repo-relative-link", 1, "body", "deny"),),
+            "deny: branch:repo-relative-link: 1 finding(s) in body",
+        )
+        with (
+            mock.patch.object(hook, "current_index", return_value=(index, ())),
+            mock.patch.object(hook, "refresh_default_branch", return_value=True),
+            mock.patch.object(hook, "analyze", side_effect=(advised, denied)),
+        ):
+            report = hook.authorize_issue_body("safe", "issue #595")
+            with self.assertRaisesRegex(ValueError, "branch:repo-relative-link"):
+                hook.authorize_issue_body("unsafe", "issue #595")
+
+        self.assertIn("advise: phi:ssn", report)
+
+    def test_an_absent_corpus_is_reported_without_refusing(self) -> None:
+        index = phi_scan.build_index(set(), set())
+        with (
+            mock.patch.object(
+                hook, "current_index", return_value=(index, ("patient names",))
+            ),
+            mock.patch.object(hook, "refresh_default_branch", return_value=True),
+            mock.patch.object(
+                hook,
+                "analyze",
+                return_value=hook.Analysis((), "scanned body: 0 findings"),
+            ),
+        ):
+            report = hook.authorize_issue_body("safe", "issue #595")
+
+        self.assertIn("PHI corpus layer incomplete", report)
+        self.assertIn("patient names not available", report)
+
+    def test_new_issue_title_and_body_are_both_graded_by_analyze(self) -> None:
+        index = phi_scan.build_index(set(), set())
+        with (
+            mock.patch.object(hook, "current_index", return_value=(index, ())),
+            mock.patch.object(hook, "refresh_default_branch", return_value=True),
+            mock.patch.object(
+                hook,
+                "analyze",
+                return_value=hook.Analysis((), "scanned field: 0 findings"),
+            ) as analyze,
+        ):
+            hook.authorize_issue_body("body", "new issue", title="Map title")
+
+        self.assertEqual(
+            [call.args[0].field for call in analyze.call_args_list],
+            ["body", "title"],
+        )
+
+    def test_issue_number_must_agree_with_the_record_context(self) -> None:
+        with self.assertRaisesRegex(ValueError, "issue number and context disagree"):
+            hook.authorize_issue_body(
+                "body",
+                "issue #595",
+                issue_number=595,
+                issue={"number": 596, "labels": []},
+            )
+
+    def test_canonical_docs_name_the_shared_analyzer_contract(self) -> None:
+        root = Path(__file__).resolve().parent.parent
+        surfaces = (
+            (root / "CLAUDE.md").read_text(encoding="utf-8"),
+            (root / "docs" / "agents" / "issue-tracker.md").read_text(
+                encoding="utf-8"
+            ),
+        )
+        for surface in surfaces:
+            with self.subTest(surface=surface[:40]):
+                self.assertIn("publication hosts", surface)
+                self.assertIn("`analyze`", surface)
+                self.assertIn("`authorize_issue_body`", surface)
 
 
 class InlineTrackerTextIsRead(unittest.TestCase):
