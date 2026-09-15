@@ -374,6 +374,10 @@ class InlineTrackerTextIsRead(unittest.TestCase):
             "gh api --method DELETE repos/example/project/git/refs/heads/topic",
             "gh api repos/example/project/issues/670/dependencies/blocked_by "
             "-f issue_id=671",
+            "gh api --method DELETE "
+            "repos/example/project/issues/670/dependencies/blocked_by/671",
+            "gh api --method DELETE repos/example/project/issues/670/sub_issue",
+            "gh api --method DELETE repos/example/project/issues/670/labels/bug",
         )
 
         for command in commands:
@@ -387,6 +391,8 @@ class InlineTrackerTextIsRead(unittest.TestCase):
         commands = (
             "gh api graphql -f query='query { viewer { login } }'",
             "gh api graphql -f query='{ viewer { login } }'",
+            "gh api graphql --raw-field=query='query { viewer { login } }'",
+            "gh api graphql -fquery='query { viewer { login } }'",
         )
 
         for command in commands:
@@ -432,6 +438,34 @@ class InlineTrackerTextIsRead(unittest.TestCase):
         self.assertIsNone(result.grade_route)
         self.assertEqual(result.publications, ())
         self.assertEqual(result.unreadable[0].kind, "external-variable")
+
+    def test_api_output_options_before_endpoint_do_not_change_its_route(self) -> None:
+        commands = (
+            "gh api --header Accept:application/json --method DELETE "
+            "repos/example/project/git/refs/heads/topic",
+            "gh api --jq . --method DELETE "
+            "repos/example/project/git/refs/heads/topic",
+            "gh api --template '{{.name}}' --method DELETE "
+            "repos/example/project/git/refs/heads/topic",
+        )
+
+        for command in commands:
+            with self.subTest(command=command):
+                result = hook.extract(command)
+                self.assertIsNone(result.grade_route)
+                self.assertEqual(result.unreadable, ())
+
+    def test_header_before_issue_endpoint_stays_on_the_issue_edit_route(self) -> None:
+        result = hook.extract(
+            "gh api --header Accept:application/json --method PATCH "
+            "repos/example/project/issues/670 -f body='Issue edit'"
+        )
+
+        self.assertEqual(result.grade_route, ("issue", "edit"))
+        self.assertEqual(
+            [(row.field, row.text) for row in result.publications],
+            [("body", "Issue edit")],
+        )
 
 
 class InlineTrackerTextMustBeShellReproducible(unittest.TestCase):
@@ -1832,6 +1866,18 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
         command = (
             "QUERY='mutation { addComment(input: {}) { clientMutationId } }'; "
             "gh api graphql -f query=$QUERY"
+        )
+
+        specific = hook.handle(self.payload(command))["hookSpecificOutput"]
+
+        self.assertEqual(specific["permissionDecision"], "deny")
+        self.assertIn("GraphQL mutation", specific["additionalContext"])
+
+    def test_selected_mutation_in_a_mixed_graphql_document_is_unclassified(self) -> None:
+        command = (
+            "gh api graphql -f operationName=Write "
+            "-f query='query Read { viewer { login } } "
+            "mutation Write { addComment(input: {}) { clientMutationId } }'"
         )
 
         specific = hook.handle(self.payload(command))["hookSpecificOutput"]

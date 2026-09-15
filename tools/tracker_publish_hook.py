@@ -325,15 +325,18 @@ INLINE_FLAGS = {
 }
 FILE_FLAGS = {"--body-file": "body", "-F": "body"}
 API_VALUE_FLAGS = {"-f", "--raw-field", "-F", "--field"}
-API_ENDPOINT_VALUE_FLAGS = API_VALUE_FLAGS | {
-    "--cache",
-    "--hostname",
-    "--input",
-    "--method",
-    "--preview",
-    "-H",
-    "-X",
-}
+API_VALUE_OPTIONS = (
+    ("raw-field", ("--raw-field", "-f")),
+    ("field", ("--field", "-F")),
+    ("cache", ("--cache",)),
+    ("header", ("--header", "-H")),
+    ("hostname", ("--hostname",)),
+    ("input", ("--input",)),
+    ("jq", ("--jq", "-q")),
+    ("method", ("--method", "-X")),
+    ("preview", ("--preview", "-p")),
+    ("template", ("--template", "-t")),
+)
 API_NON_PUBLICATION_ENDPOINTS = (
     re.compile(r"/?markdown(?:\?.*)?\Z"),
     re.compile(r"/?repos/[^/?]+/[^/?]+/git/refs/.+"),
@@ -341,12 +344,21 @@ API_NON_PUBLICATION_ENDPOINTS = (
 API_NON_PUBLICATION_RECORD_ENDPOINTS = (
     re.compile(
         r"/?repos/[^/?]+/[^/?]+/issues/(?P<identifier>[^/?]+)/"
-        r"(?:dependencies/(?:blocked_by|blocking)|sub_issues|parent|labels|"
+        r"(?:dependencies/(?:blocked_by|blocking)(?:/[^/?]+)?|"
+        r"sub_issues(?:/priority)?|sub_issue|parent|labels(?:/[^/?]+)?|"
         r"assignees|reactions|lock)(?:\?.*)?\Z"
     ),
     re.compile(
         r"/?repos/[^/?]+/[^/?]+/pulls/(?P<identifier>[^/?]+)/"
-        r"(?:labels|assignees|reactions|lock|requested_reviewers)(?:\?.*)?\Z"
+        r"requested_reviewers(?:\?.*)?\Z"
+    ),
+    re.compile(
+        r"/?repos/[^/?]+/[^/?]+/issues/comments/"
+        r"(?P<identifier>[^/?]+)/reactions(?:\?.*)?\Z"
+    ),
+    re.compile(
+        r"/?repos/[^/?]+/[^/?]+/pulls/comments/"
+        r"(?P<identifier>[^/?]+)/reactions(?:\?.*)?\Z"
     ),
 )
 API_ROUTE_PATTERNS = (
@@ -853,30 +865,38 @@ def _unreproduced_publish_route(command: str) -> tuple[str, ...] | None:
     return calls[0].route if calls else None
 
 
+def _api_value_option(
+    arguments: list[str], index: int
+) -> tuple[str, str | None, int] | None:
+    token = arguments[index]
+    for name, flags in API_VALUE_OPTIONS:
+        for flag in flags:
+            if token == flag:
+                value = arguments[index + 1] if index + 1 < len(arguments) else None
+                return name, value, 2 if value is not None else 1
+            if flag.startswith("--") and token.startswith(flag + "="):
+                return name, token[len(flag) + 1 :], 1
+            if flag.startswith("-") and not flag.startswith("--"):
+                if token.startswith(flag) and len(token) > len(flag):
+                    return name, token[len(flag) :], 1
+    return None
+
+
 def _api_method(arguments: list[str]) -> str:
     explicit_method: str | None = None
     has_parameters = False
     index = 0
     while index < len(arguments):
-        token = arguments[index]
-        if token in ("--method", "-X") and index + 1 < len(arguments):
-            explicit_method = arguments[index + 1].upper()
-            index += 2
+        option = _api_value_option(arguments, index)
+        if option is None:
+            index += 1
             continue
-        if token.startswith("--method="):
-            explicit_method = token.partition("=")[2].upper()
-        elif token.startswith("-X") and len(token) > 2:
-            explicit_method = token[2:].upper()
-        elif (
-            token in API_VALUE_FLAGS
-            or token == "--input"
-            or token.startswith("--raw-field=")
-            or token.startswith("--field=")
-            or token.startswith("--input=")
-            or (token.startswith(("-f", "-F")) and len(token) > 2)
-        ):
+        name, value, width = option
+        if name == "method" and value is not None:
+            explicit_method = value.upper()
+        elif name in ("raw-field", "field", "input"):
             has_parameters = True
-        index += 1
+        index += width
     if explicit_method is not None:
         return explicit_method
     return "POST" if has_parameters else "GET"
@@ -886,8 +906,9 @@ def _api_endpoint(arguments: list[str]) -> str:
     index = 0
     while index < len(arguments):
         token = arguments[index]
-        if token in API_ENDPOINT_VALUE_FLAGS:
-            index += 2
+        option = _api_value_option(arguments, index)
+        if option is not None:
+            index += option[2]
             continue
         if token.startswith("-"):
             index += 1
@@ -901,11 +922,13 @@ def _api_graphql_document(
 ) -> str | Unreadable | None:
     index = 0
     while index < len(arguments):
-        token = arguments[index]
-        if token in API_VALUE_FLAGS and index + 1 < len(arguments):
-            key, separator, value = arguments[index + 1].partition("=")
-            if separator and key == "query":
-                if value.startswith("@") and token in ("-F", "--field"):
+        option = _api_value_option(arguments, index)
+        if option is not None:
+            name, option_value, width = option
+            value = "" if option_value is None else option_value
+            key, separator, value = value.partition("=")
+            if name in ("raw-field", "field") and separator and key == "query":
+                if value.startswith("@") and name == "field":
                     read = _read_file_field(
                         "body",
                         value[1:],
@@ -924,17 +947,82 @@ def _api_graphql_document(
                     if kind is not None
                     else expanded
                 )
-            index += 2
+            index += width
             continue
         index += 1
     return None
 
 
 def _graphql_operation(document: str) -> str | None:
-    match = re.match(r"(?:\s|#[^\r\n]*(?:\r?\n|\Z)|,)*(query|mutation|\{)", document)
-    if match is None:
-        return None
-    return "query" if match.group(1) == "{" else match.group(1)
+    operations: set[str] = set()
+    braces = 0
+    parentheses = 0
+    brackets = 0
+    definition: str | None = None
+    index = 0
+    while index < len(document):
+        if document.startswith('"""', index):
+            end = document.find('"""', index + 3)
+            index = len(document) if end < 0 else end + 3
+            continue
+        character = document[index]
+        if character == '"':
+            index += 1
+            while index < len(document):
+                if document[index] == "\\":
+                    index += 2
+                elif document[index] == '"':
+                    index += 1
+                    break
+                else:
+                    index += 1
+            continue
+        if character == "#":
+            end = re.search(r"[\r\n]", document[index:])
+            index = len(document) if end is None else index + end.start() + 1
+            continue
+        if character == "{":
+            if braces == parentheses == brackets == 0:
+                if definition is None:
+                    operations.add("query")
+                braces = 1
+            else:
+                braces += 1
+            index += 1
+            continue
+        if character == "}":
+            braces = max(0, braces - 1)
+            if braces == parentheses == brackets == 0:
+                definition = None
+            index += 1
+            continue
+        if character == "(":
+            parentheses += 1
+        elif character == ")":
+            parentheses = max(0, parentheses - 1)
+        elif character == "[":
+            brackets += 1
+        elif character == "]":
+            brackets = max(0, brackets - 1)
+        elif braces == parentheses == brackets == 0:
+            name = re.match(r"[_A-Za-z][_0-9A-Za-z]*", document[index:])
+            if name is not None:
+                token = name.group(0)
+                if definition is None and token in (
+                    "query",
+                    "mutation",
+                    "subscription",
+                    "fragment",
+                ):
+                    definition = token
+                    if token != "fragment":
+                        operations.add(token)
+                index += len(token)
+                continue
+        index += 1
+    if "mutation" in operations:
+        return "mutation"
+    return "query" if operations == {"query"} else None
 
 
 def _api_identifier(identifier: str, command: str) -> str | None:
