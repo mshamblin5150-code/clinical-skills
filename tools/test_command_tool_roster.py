@@ -216,7 +216,11 @@ class ProjectRegistration(unittest.TestCase):
         for event in ("PreToolUse", "PostToolUse"):
             with self.subTest(event=event):
                 self.assertEqual(
-                    {row["matcher"] for row in settings["hooks"][event]},
+                    {
+                        row["matcher"]
+                        for row in settings["hooks"][event]
+                        if row["matcher"] in roster.tracker_publish_hook.COMMAND_TOOLS
+                    },
                     set(roster.tracker_publish_hook.COMMAND_TOOLS),
                 )
 

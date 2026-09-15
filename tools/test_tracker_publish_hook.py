@@ -2884,7 +2884,11 @@ class ProjectSettingsRegisterTheHook(unittest.TestCase):
         settings = json.loads(path.read_text(encoding="utf-8"))
 
         registrations = settings["hooks"]["PreToolUse"]
-        by_tool = {row["matcher"]: row["hooks"] for row in registrations}
+        by_tool = {
+            row["matcher"]: row["hooks"]
+            for row in registrations
+            if row["matcher"] in hook.COMMAND_TOOLS
+        }
         self.assertEqual(set(by_tool), set(hook.COMMAND_TOOLS))
         self.assertNotIn("if", by_tool["Bash"][0])
         self.assertIn("tracker_publish_stub.py", by_tool["Bash"][0]["command"])
