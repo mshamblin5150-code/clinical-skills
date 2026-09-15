@@ -952,7 +952,10 @@ def _api_endpoint(arguments: list[str]) -> str:
 
 
 def _api_graphql_field(
-    arguments: list[str], command: str, target: str
+    arguments: list[str],
+    command: str,
+    target: str,
+    sources: tuple[str, ...] | None = None,
 ) -> str | Unreadable | None:
     found: str | Unreadable | None = None
     assignments, substitutions, _uncertain = _publish_assignments(command)
@@ -964,6 +967,29 @@ def _api_graphql_field(
             value = "" if option_value is None else option_value
             key, separator, value = value.partition("=")
             if name in ("raw-field", "field") and separator and key == target:
+                source_argument = ""
+                if sources is not None:
+                    if width == 2:
+                        source_argument = sources[index + 1]
+                    else:
+                        option_prefix = arguments[index][
+                            : len(arguments[index]) - len(option_value or "")
+                        ]
+                        source_argument = sources[index][len(option_prefix) :]
+                source_key, source_separator, source_value = (
+                    source_argument.partition("=")
+                )
+                literal_shell_value = (
+                    source_separator
+                    and source_key.strip("'") == target
+                    and (
+                        source_argument.startswith("'")
+                        and source_argument.endswith("'")
+                        or source_value.startswith("'")
+                        and source_value.endswith("'")
+                        or "\\$" in source_value
+                    )
+                )
                 if value.startswith("@") and name == "field":
                     read = _read_file_field(
                         "body",
@@ -973,6 +999,8 @@ def _api_graphql_field(
                         substitutions,
                     )
                     found = read if isinstance(read, Unreadable) else read.text
+                elif literal_shell_value:
+                    found = value
                 else:
                     expanded, kind = shell_reader.expand(
                         value,
@@ -1271,7 +1299,10 @@ def _api_identifier_source(argument: str, name: str) -> bool:
 
 
 def _api_dynamic_arguments(
-    arguments: list[str], sources: tuple[str, ...], command: str
+    arguments: list[str],
+    sources: tuple[str, ...],
+    command: str,
+    read_bypass: bool = False,
 ) -> UnclassifiedApiCall | None:
     assignments, substitutions, uncertain_shell_state = _publish_assignments(command)
     for argument, source in zip(arguments, sources, strict=True):
@@ -1288,12 +1319,23 @@ def _api_dynamic_arguments(
             value = assignments[name]
             if not value and _api_identifier_source(argument, name):
                 continue
+            split_capable = re.search(r"[\s*?\[]", value) is not None
+            injected_option = any(
+                word.startswith("-")
+                for word in re.split(r"\s+", value)[1:]
+                if word
+            )
+            if uncertain_shell_state or "IFS" in assignments or not value:
+                return UnclassifiedApiCall("unclassified-api-arguments", argument)
+            if split_capable and (
+                not read_bypass
+                or injected_option
+                or re.search(r"[*?\[]", value) is not None
+            ):
+                return UnclassifiedApiCall("unclassified-api-arguments", argument)
             if (
-                uncertain_shell_state
-                or "IFS" in assignments
-                or not value
-                or re.search(r"[\s*?\[]", value) is not None
-                or (source in (f"${name}", "${" + name + "}") and value.startswith("-"))
+                source in (f"${name}", "${" + name + "}")
+                and value.startswith("-")
             ):
                 return UnclassifiedApiCall("unclassified-api-arguments", argument)
     return None
@@ -1315,7 +1357,9 @@ def _api_route_match(
 
 
 def _api_grade_route(
-    arguments: list[str], command: str = ""
+    arguments: list[str],
+    command: str = "",
+    sources: tuple[str, ...] | None = None,
 ) -> tuple[str, ...] | Unreadable | UnclassifiedApiCall | None:
     if _api_method(arguments) == "GET":
         return None
@@ -1341,8 +1385,12 @@ def _api_grade_route(
                 request_operation if isinstance(request_operation, str) else None
             )
         else:
-            document = _api_graphql_field(arguments, command, "query")
-            operation_name = _api_graphql_field(arguments, command, "operationName")
+            document = _api_graphql_field(
+                arguments, command, "query", sources
+            )
+            operation_name = _api_graphql_field(
+                arguments, command, "operationName", sources
+            )
         if isinstance(document, Unreadable):
             return document
         if isinstance(operation_name, Unreadable):
@@ -1553,17 +1601,21 @@ def extract(command: str) -> Extraction:
                 *API_NON_PUBLICATION_RECORD_ENDPOINTS,
             )
         )
-        if _api_explicit_method(arguments) != "GET" and not listed_nonpublication:
-            dynamic_arguments = _api_dynamic_arguments(
-                arguments, argument_sources, command
+        dynamic_arguments = _api_dynamic_arguments(
+            arguments,
+            argument_sources,
+            command,
+            _api_explicit_method(arguments) == "GET" or listed_nonpublication,
+        )
+        if dynamic_arguments is not None:
+            return Extraction(
+                route, None, (), (), None, (dynamic_arguments,)
             )
-            if dynamic_arguments is not None:
-                return Extraction(
-                    route, None, (), (), None, (dynamic_arguments,)
-                )
     number = _record_number(route, arguments, command)
     api_grade = (
-        _api_grade_route(arguments, command) if route == ("api",) else route
+        _api_grade_route(arguments, command, argument_sources)
+        if route == ("api",)
+        else route
     )
     if isinstance(api_grade, UnclassifiedApiCall):
         return Extraction(route, number, (), (), None, (api_grade,))

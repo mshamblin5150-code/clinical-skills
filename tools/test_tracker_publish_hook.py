@@ -749,6 +749,35 @@ class InlineTrackerTextIsRead(unittest.TestCase):
         self.assertEqual(result.unreadable, ())
         self.assertEqual(result.unclassified_api_calls, ())
 
+    def test_dynamic_arguments_cannot_override_an_explicit_get(self) -> None:
+        commands = (
+            "ARGS='7 -X POST -f body=Injected'; gh api -X GET "
+            "repos/example/project/issues/comments/$ARGS",
+            "ARGS='--method=POST'; gh api -X GET "
+            "repos/example/project/issues/7 -f body=x $ARGS",
+        )
+
+        for command in commands:
+            with self.subTest(command=command):
+                result = hook.extract(command)
+                self.assertIsNone(result.grade_route)
+                self.assertEqual(
+                    result.unclassified_api_calls[0].kind,
+                    "unclassified-api-arguments",
+                )
+
+    def test_dynamic_owner_cannot_reshape_a_nonpublication_endpoint(self) -> None:
+        result = hook.extract(
+            "OWNER='example/project/issues/7/comments -f body=Injected'; "
+            "gh api repos/$OWNER/x/issues/8/labels"
+        )
+
+        self.assertIsNone(result.grade_route)
+        self.assertEqual(
+            result.unclassified_api_calls[0].kind,
+            "unclassified-api-arguments",
+        )
+
     def test_graphql_query_operation_is_read_from_json_input(self) -> None:
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
@@ -846,6 +875,22 @@ class InlineTrackerTextIsRead(unittest.TestCase):
         self.assertIsNone(result.grade_route)
         self.assertEqual(result.unreadable, ())
         self.assertEqual(result.unclassified_api_calls, ())
+
+    def test_single_quoted_graphql_field_does_not_expand_shell_variable(self) -> None:
+        commands = (
+            "QUERY='mutation { x }'; gh api graphql -f 'query=$QUERY'",
+            'QUERY="mutation { x }"; gh api graphql -f "query=\\$QUERY"',
+        )
+
+        for command in commands:
+            with self.subTest(command=command):
+                result = hook.extract(command)
+                self.assertIsNone(result.grade_route)
+                self.assertEqual(result.unreadable, ())
+                self.assertEqual(
+                    result.unclassified_api_calls[0].kind,
+                    "unclassified-api-endpoint",
+                )
 
     def test_known_embedded_graphql_assignment_is_reconstructed(self) -> None:
         result = hook.extract(
