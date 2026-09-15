@@ -41,7 +41,7 @@ It answers four things: does the code exist, what is its official descriptor, is
 - **`CONFIDENCE` means something narrower.** `verify this number` is for a code you did not look up. A code you did look up is verified against a named release and says so.
 - **Billability is checked, and it is the quiet one.** `Z68.2` is a real code with a real descriptor that cannot be submitted — it is a header, and only its children are billable. A proposal carrying a header code reads as correct right up to the rejection.
 
-**What each lookup does.** A direct code verifies identity, descriptor, billability, and inherited notes. `--find` is a substring match over descriptors. `--index` traces an exact final term through the official alphabetic index and prints its complete path plus direct code or referral. A miss from either search mode is not evidence that no code exists. Nothing in the database encodes the official coding guidelines, and no lookup decides whether the encounter earns a code.
+**What each lookup does.** A direct code verifies identity, descriptor, billability, and inherited notes. `--find` is a substring match over descriptors. `--index` reads one catalog made from the official alphabetic index, external-cause index, Neoplasm Table, and Table of Drugs and Chemicals. It traces an exact final term and prints its complete path plus direct code or referral; a table cell's path ends in its column heading. A miss from either search mode is not evidence that no code exists. Nothing in the database encodes the official coding guidelines, and no lookup decides whether the encounter earns a code.
 
 This repo also ships the licensed 2026 procedure-code database at
 `reference/procedure-codes-2026.sqlite`:
@@ -166,6 +166,48 @@ Rules:
 - **A hedged diagnosis is coded, and the documented symptoms are coded with it** — with one limit, on the code rather than the hedge. Below.
 - **Every differential entry carries a code, and none of those codes is for entry.** Below.
 
+#### External causes follow the documented encounter
+
+Apply the April 1, 2026 Official Guidelines Section I.C.20. When an injury's mechanism is documented,
+propose its external-cause mechanism code after the injury code on every encounter treating that
+injury. The mechanism code's seventh character matches the injury code's seventh character. An index
+route may stop at the code stem, but every character the tabular adds still needs note evidence,
+including laterality, site detail, placeholders, and the initial/subsequent/sequela character.
+
+Place (`Y92`), activity (`Y93`), and external-cause status (`Y99`) codes are proposed only for the
+initial encounter and only when the note states the fact. Never fill the absence with `Y92.9`,
+`Y93.9`, or `Y99.9`; a `Y99` code also needs another external-cause code beside it. A mechanism the
+note does not state produces no code and no refusal.
+
+#### The note chooses the Neoplasm Table column
+
+The note's words choose the column; the mere presence of a mass does not. *Mass*, *lump*, or *nodule*
+takes its sign code. A suspected malignancy remains in the differential, its malignant code is
+refused as waiting on tissue, and the sign code is proposed. *Tumor*, *growth*, or *neoplasm* with no
+stated behavior takes the unspecified-behavior `D49` family. Uncertain behavior (`D37` through `D44`
+and `D48`) requires a documented pathology result that could not determine malignant versus benign;
+a pending biopsy does not establish it.
+
+Malignant primary, malignant secondary, in situ, and benign columns require the stated behavior or a
+morphology term the index sends to that column. A benign code does not wait for tissue when the note
+states *benign* or names a benign morphology: *likely lipoma* and a fibroid read on imaging can support
+their benign codes. A behavior-only benign code with no morphology still needs the word *benign*.
+
+#### The note chooses the drug-table column
+
+Apply Official Guidelines Section I.C.19.e. Overdose, the wrong substance, the wrong route, a
+nonprescribed drug taken with a prescribed one, or a drug taken with alcohol is poisoning. A drug
+correctly prescribed and properly administered takes the adverse-effect column; taking less than
+prescribed or stopping on one's own takes underdosing. Self-harm and assault require the note's
+words. When intent is not stated, poisoning defaults to accidental. Undetermined intent requires the
+note to say it cannot be determined.
+
+A hedged self-harm or assault intent is the exception to that default: it agrees only with the
+undetermined column. Thus *acetaminophen ingestion, possibly intentional, patient denies* takes the
+undetermined-intent stem, not accidental or intentional self-harm. No committed real note currently
+carries a `T36`–`T65` poisoning code; `anchor_scan.DECLARED_LIMITS` names that gap, and synthetic
+controls do not erase it.
+
 #### `complete` is a claim, and it carries its reason
 
 **A flag reading `complete` says the encounter documented every axis the code has.** That is a finding about the code, and it takes a reason the way `needs:` already takes an axis.
@@ -279,7 +321,7 @@ verification posture; a clean ICD-10 second read says nothing about them.
 #### Descriptor agreement is a separate blind read
 
 A quotation agrees when its words state the official descriptor or reach the code through the
-alphabetic index. Topical relation is not agreement. Run the separate agreement reader after the
+shared four-source index catalog. Topical relation is not agreement. Run the separate agreement reader after the
 worksheet and note have been saved with matching filename stems in separate directories:
 
 ```bash
@@ -296,8 +338,19 @@ receives only that brief. For every code the reader records `agreeing_words`, `r
 it distinguishes repeated occurrences of the same system, code, and role. The route is the exact
 literal `descriptor words` or a complete alphabetic-index route returned by
 `python tools/icd10_lookup.py --index <term>`. A referral chain joins its exact printed steps with
-` | `, begins with a term present in `agreeing_words`, and ends at the subject code. The record is
+` | `, begins with a term present in `agreeing_words`, and ends at the subject code or its stem. An
+index stem carries no unstated detail: every character the tabular adds needs note evidence for
+laterality, site, placeholders, and encounter character. Within a cross-reference, word order does
+not matter; fill *by site*, *by type*, and *by substance* from the next step, and satisfy character
+or code-range instructions with the subject code. If a still-unmatched reference leads through a
+real next path to the subject code, record the route: the scanner names that reference in the unread
+remainder rather than calling the code wrong. The record is
 saved as JSON with one `pairs` entry per filename stem and one `codes` entry per brief subject.
+
+For a Neoplasm Table route, apply the sign-versus-neoplasm, uncertain-pathology, stated-behavior, and
+benign-morphology rules above. For a drug-table route, apply the poisoning, adverse-effect,
+underdosing, accidental-default, and hedged-intent rules above. These are descriptor-agreement rules,
+not permission to infer facts absent from the note.
 
 Read each claim by the descriptor it makes. A differential code agrees with the diagnosis its
 entry considers. An entry descriptor that waits on an absent or pending result fails even when the
@@ -405,7 +458,7 @@ COVID-19 — documented household contact, congruent symptoms, no test obtained
 
 **Imaging is different because its result may establish the disease itself.** A film does not merely name pneumonia's organism; an infiltrate can establish pneumonia. A pending film may therefore leave a disease-specific descriptor unsupported where the note documents only a suspicion. It still is not a negative finding: when the note already establishes the diagnosis clinically, the pending film does not erase it; when documented findings argue against it, name those findings rather than the absent result. A resulted negative film is a finding and may reject the disease. The same test governs both branches: what would this result establish, and does the descriptor assert it? Issue [#149](https://github.com/mshamblin5150-code/clinical-skills/issues/149).
 
-**Submission coding for a claim is generally taught the other way, and this differs from it deliberately.** Outpatient claim coding is taught to code the signs and symptoms rather than a `probable`, `suspected` or `rule out` diagnosis. **That is recalled, and nothing in this repo verifies it** — the official guidelines are prose in a PDF, they are not shipped here, and `reference/icd10cm-2026.sqlite` holds the tabular alone. Say it as recall if it comes up; do not cite a section number this repo cannot check. The difference stands either way, because this worksheet feeds an academic clinical-hours record rather than a claim, and the differential codes below are documentation of reasoning rather than candidates for submission.
+**Submission coding for a claim is generally taught the other way, and this differs from it deliberately.** The April 1, 2026 Official Guidelines Section IV.H directs outpatient coding to the highest degree of certainty, such as signs, symptoms, abnormal test results, or other reason for the encounter, rather than a `probable`, `suspected`, or `rule out` diagnosis. ADR 0248 records the source reading; the PDF is not encoded in `reference/icd10cm-2026.sqlite`. The difference stands because this worksheet feeds an academic clinical-hours record rather than a claim, and the differential codes below document reasoning rather than identify candidates for submission.
 
 **Guideline sheets now ship and this is not one of the things they cover, which is a stronger statement than the one it replaces.** Two do — `reference/guidelines-uspstf.md` and `reference/thresholds/` — and neither reaches coding. The ICD-10-CM Official Guidelines for Coding and Reporting are a CMS and NCHS document, and **no CMS or NCHS coding document is among the nine societies in the corpus** those sheets are distilled from. So the absence is now checkable rather than taken: open `reference/guidelines-catalog.md` and there is nothing to find. The ruling is unchanged and the reason got better. [#85](https://github.com/mshamblin5150-code/clinical-skills/issues/85).
 

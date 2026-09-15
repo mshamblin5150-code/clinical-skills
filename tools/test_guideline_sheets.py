@@ -622,15 +622,13 @@ class TheCoderGainsNoObligation(ProseBind, unittest.TestCase):
         self.assertIn("**AMA CPT** document", self.text)
         self.assertIn("no AMA document is among the nine societies", self.text)
 
-    def test_the_greppable_anchors_the_ticket_relies_on_survive(self):
-        # #85 recorded four line-number stalings and settled on these two strings
-        # as the durable citation. An edit that reworded them would break every
-        # reference in the ticket's comment history.
+    def test_the_greppable_guideline_anchors_match_their_current_evidence(self):
         self.assertIn(
             "**The MDM phrasing here is recalled, and nothing in this repo verifies it**",
             self.text,
         )
-        self.assertIn("**That is recalled, and nothing in this repo verifies it**", self.text)
+        self.assertIn("Official Guidelines Section IV.H", self.text)
+        self.assertIn("ADR 0248 records the source reading", self.text)
 
     def test_no_lookup_was_added_and_the_reason_is_the_anchor_rule(self):
         self.assertIn("No lookup is added to this skill", self.text)

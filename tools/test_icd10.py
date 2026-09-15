@@ -33,6 +33,53 @@ ORDER = (TESTDATA / "icd10cm_order_excerpt.txt").read_text(encoding="utf-8")
 TABULAR = (TESTDATA / "icd10cm_tabular_excerpt.xml").read_text(encoding="utf-8")
 INDEX = (TESTDATA / "icd10cm_index_excerpt.xml").read_text(encoding="utf-8")
 
+NEOPLASM_TABLE = """\
+<ICD10CM.index>
+  <indexHeading>
+    <head col="1">Neoplasm</head>
+    <head col="2">Malignant Primary</head>
+    <head col="3">Malignant Secondary</head>
+    <head col="4">Ca in situ</head>
+    <head col="5">Benign</head>
+    <head col="6">Uncertain Behavior</head>
+    <head col="7">Unspecified Behavior</head>
+  </indexHeading>
+  <letter><mainTerm><title>Neoplasm, neoplastic</title>
+    <term><title>lung</title>
+      <cell col="2">C34.9-</cell><cell col="3">C78.0-</cell>
+      <cell col="4">D02.2-</cell><cell col="5">D14.3-</cell>
+      <cell col="6">D38.1</cell><cell col="7">D49.1</cell>
+    </term>
+    <term><title>missing cell</title><cell col="2">-</cell></term>
+  </mainTerm></letter>
+</ICD10CM.index>
+"""
+
+DRUG_TABLE = """\
+<ICD10CM.index>
+  <indexHeading>
+    <head col="1">Substance</head>
+    <head col="2">Poisoning Accidental (unintentional)</head>
+    <head col="3">Poisoning Intentional self-harm</head>
+    <head col="4">Poisoning Assault</head>
+    <head col="5">Poisoning Undetermined</head>
+    <head col="6">Adverse effect</head>
+    <head col="7">Underdosing</head>
+  </indexHeading>
+  <letter><mainTerm><title>Ibuprofen</title>
+    <cell col="2">T39.311</cell><cell col="3">T39.312</cell>
+    <cell col="4">T39.313</cell><cell col="5">T39.314</cell>
+    <cell col="6">T39.315</cell><cell col="7">T39.316</cell>
+  </mainTerm></letter>
+</ICD10CM.index>
+"""
+
+EXTERNAL_CAUSE_INDEX = """\
+<ICD10CM.index><letter><mainTerm><title>Contact</title>
+  <term><title>knife</title><code>W26.0</code></term>
+</mainTerm></letter></ICD10CM.index>
+"""
+
 # The excerpt holds these seventeen and nothing else. Stated here so a change to
 # the file has to be made in both places on purpose.
 EXCERPT_CODES = 17
@@ -152,6 +199,41 @@ class AlphabeticIndex(unittest.TestCase):
 
         self.assertEqual(pressure.see_also, "Hypertension")
 
+    def test_reads_an_external_cause_index_as_the_same_catalog_shape(self):
+        self.assertEqual(
+            build.parse_index(EXTERNAL_CAUSE_INDEX),
+            [
+                build.IndexEntry("Contact", "Contact", None, None, None),
+                build.IndexEntry("knife", "Contact > knife", "W260", None, None),
+            ],
+        )
+
+    def test_a_neoplasm_cell_ends_its_row_path_with_the_column_heading(self):
+        rows = build.parse_index(NEOPLASM_TABLE)
+
+        malignant_lung = next(row for row in rows if row.code == "C349-")
+        self.assertEqual(malignant_lung.term, "Malignant Primary")
+        self.assertEqual(
+            malignant_lung.path,
+            "Neoplasm, neoplastic > lung > Malignant Primary",
+        )
+
+    def test_a_drug_cell_ends_its_row_path_with_the_column_heading(self):
+        accidental = next(
+            row for row in build.parse_index(DRUG_TABLE) if row.code == "T39311"
+        )
+
+        self.assertEqual(accidental.term, "Poisoning Accidental (unintentional)")
+        self.assertEqual(
+            accidental.path,
+            "Ibuprofen > Poisoning Accidental (unintentional)",
+        )
+
+    def test_a_table_marker_with_no_code_is_not_an_index_entry(self):
+        rows = build.parse_index(NEOPLASM_TABLE)
+
+        self.assertFalse([row for row in rows if "missing cell" in row.path])
+
 
 class ReleaseProvenance(unittest.TestCase):
     """A committed code set that cannot name its own revision cannot be audited."""
@@ -234,6 +316,40 @@ class BuildsADatabase(unittest.TestCase):
         again = sqlite3.connect(self.path)
         self.assertEqual(again.execute("SELECT count(*) FROM code").fetchone()[0], EXCERPT_CODES)
         again.close()
+
+    def test_records_each_index_source_instead_of_only_the_aggregate(self):
+        build.write_database(
+            self.path,
+            build.parse_order_file(ORDER),
+            build.parse_tabular(TABULAR),
+            "source-count test",
+            build.parse_index(INDEX),
+            index_sources={
+                "alphabetic": 10,
+                "external_cause": 20,
+                "neoplasm": 30,
+                "drug": 40,
+            },
+        )
+        values = dict(self.db.execute("SELECT key, value FROM meta"))
+
+        self.assertEqual(
+            {
+                "index_alphabetic": "10",
+                "index_external_cause": "20",
+                "index_neoplasm": "30",
+                "index_drug": "40",
+            },
+            {
+                key: values[key]
+                for key in (
+                    "index_alphabetic",
+                    "index_external_cause",
+                    "index_neoplasm",
+                    "index_drug",
+                )
+            },
+        )
 
 
 class Lookup(ExcerptDatabase):
