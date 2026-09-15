@@ -126,6 +126,13 @@ NOT_REACHED = (
         "never saw.",
     ),
     (
+        "which file an author meant is not established",
+        "The hook reads the file the shell will open. On the modeled path, "
+        "the shell and this reader alike remove an unquoted backslash, so a "
+        "path spelled with one publishes whatever file that spelling opens, "
+        "which need not be the file the author intended.",
+    ),
+    (
         "assignment expansion is reconstructed and reaches only the same command",
         "A variable assigned in an earlier command or exported by the environment "
         "is not resolvable here. A substitution behind a same-command variable is "

@@ -4496,6 +4496,7 @@ class DeclaredLimitsHaveOneOwner(unittest.TestCase):
         #999 ruling 5 adds the non-canonical-origin boundary. ADR 0191 ruling 8
         adds the retired-citation row's one-pairing ceiling. ADR 0234 adds the
         two non-publication-list floors and the runtime GraphQL-document limit.
+        ADR 0244 adds the limit on establishing which file an author meant.
         """
         self.assertEqual(
             set(dict(hook.NOT_REACHED)),
@@ -4521,6 +4522,7 @@ class DeclaredLimitsHaveOneOwner(unittest.TestCase):
                 "a newly added API endpoint is refused until classified",
                 "a wrong non-publication entry silently passes",
                 "a GraphQL document assembled at run time is unreadable",
+                "which file an author meant is not established",
             },
         )
 
