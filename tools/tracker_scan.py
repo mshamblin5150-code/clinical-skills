@@ -162,6 +162,9 @@ from pathlib import Path
 from typing import Iterable, NamedTuple, Sequence, TypeVar
 
 import phi_scan
+
+
+EVENT_RULES = tuple(phi_scan.SHAPE_RULES)
 import git_paths
 from console_codec import require_python_floor, use_utf8
 from phi_scan import CorpusIndex, Finding

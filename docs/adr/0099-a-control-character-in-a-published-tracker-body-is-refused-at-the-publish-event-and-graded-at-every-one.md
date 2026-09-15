@@ -242,6 +242,12 @@ with the workflow's built-in token starts no workflow run, so the merge receipts
 host. [ADR 0241](0241-a-merge-receipt-is-graded-before-it-posts-and-a-workflow-token-write-is-an-unwatched-write.md)
 names that class and grades the receipts before they post; this ruling is otherwise unchanged.
 
+Correction, 2026-09-15: the live writer reach and host posture are now the checked
+`tracker_publication_correspondence.WRITER_REACH` and
+`tracker_publication_correspondence.POSTURE_ROWS`; the declaration above is a historical ruling and
+no longer states the current correspondence. [ADR 0242](0242-the-hook-and-the-workflow-are-bound-by-a-declared-correspondence.md)
+rules the replacement; this record's rationale is unchanged.
+
 **5. The hook refuses on this row, and it clears ADR 0083 ruling 4's bar more cleanly than
 branch-scope does.**
 

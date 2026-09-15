@@ -33,6 +33,13 @@ EVENT_NAMES = (
     "pull_request_review",
     "pull_request_review_comment",
 )
+EVENT_ACTIONS = {
+    "issues": frozenset(("opened", "edited", "labeled")),
+    "issue_comment": frozenset(("created", "edited")),
+    "pull_request_target": frozenset(("opened", "edited", "closed")),
+    "pull_request_review": frozenset(("submitted", "edited")),
+    "pull_request_review_comment": frozenset(("created", "edited")),
+}
 
 NOT_REACHED = (
     (
@@ -73,6 +80,7 @@ COORDINATES = Check("tracker_coordinates", "Tracker coordinate accompaniment")
 MEASUREMENTS = Check("tracker_measurements", "Publication measurement base")
 FILED_FROM = Check("tracker_filed_from", "Tracker Filed-from line")
 MAP = Check("map_scan", "Implementation map producer stamp")
+ALL_CHECKS = (PHI, BRANCH, BODY, COORDINATES, MEASUREMENTS, FILED_FROM, MAP)
 
 
 def _body_changed(document: dict[str, Any]) -> bool:
@@ -87,7 +95,7 @@ def _title_changed(document: dict[str, Any]) -> bool:
 
 def _has_changed_record(document: dict[str, Any], event_name: str) -> bool:
     action = document.get("action")
-    if event_name not in EVENT_NAMES or action == "closed":
+    if action not in EVENT_ACTIONS.get(event_name, ()) or action == "closed":
         return False
     if event_name == "pull_request_review":
         review = document.get("review")

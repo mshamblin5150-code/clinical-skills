@@ -105,14 +105,10 @@ moment it is filed -- which catches what ``--jq '.body | length'`` does not,
 since a lost body has a length of 2 and reads as a number rather than as a
 failure.
 
-**The complete body grader runs at both publication hosts, with deliberately
-asymmetric posture.** ``tracker_publish_hook.py`` passes every readable body
-through ``grade`` and refuses each returned row from the Claude Code publisher;
-titles keep two predicates outside this body-only interface.
-``.github/workflows/tracker.yml`` reaches ordinary changed records through the
-shared event dispatcher. It reaches no unwatched write after publication;
-merge receipts run the same body row before they post.
-The hook's remaining publisher limit is owned by
+**The body grader's writer reach and posture at every publication host are
+described by ``tracker_publication_correspondence.WRITER_REACH`` and
+``tracker_publication_correspondence.POSTURE_ROWS``.** This docstring copies no
+correspondence row. The hook's remaining publisher limit is owned by
 ``tracker_publish_hook.NOT_REACHED`` rather than restated here.
 
 **A clean scan is not a body worth reading**, ``docs/agents/issue-tracker.md``

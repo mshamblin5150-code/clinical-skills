@@ -177,6 +177,9 @@ callers use it:
 **The arrangement is `tracker_bodies.py`'s and is adopted for its reason** — the same predicate at
 both publication hosts with different posture. Writing two is [#220](https://github.com/mshamblin5150-code/clinical-skills/issues/220):
 two copies of one rule, either editable without failing anything.
+Its current writer reach and posture are described by
+`tracker_publication_correspondence.WRITER_REACH` and
+`tracker_publication_correspondence.POSTURE_ROWS`; this rationale copies no current row.
 
 **`map_scan` is advisory because its red lands on the wrong session.** `checks.yml` runs it with
 `exit $status` on every push to `main`, so a refusing row would fail the next push — for a session

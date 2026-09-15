@@ -25,6 +25,12 @@ STALE_BASE = "measurement:stale-base"
 INVALID_DECLARATION = "measurement:invalid-declaration"
 INSIDE_QUOTE = "measurement:inside-quote"
 CURRENT_BASE_UNREADABLE = "measurement:current-base-unreadable"
+RULES = (
+    STALE_BASE,
+    INVALID_DECLARATION,
+    INSIDE_QUOTE,
+    CURRENT_BASE_UNREADABLE,
+)
 CLEAN = 0
 FOUND = 1
 NOT_SCANNED = 2

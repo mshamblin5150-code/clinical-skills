@@ -95,6 +95,8 @@ PUBLISH_MARKER = phi_scan.TRACKER_PUBLISH_MARKER
 # ``<run>/aar/publications/`` and therefore changes no ordinary publication.
 AAR_QUOTE_SPAN_CHARS = 80
 AAR_PUBLICATION_PARTS = ("aar", "publications")
+AAR_QUOTATION_RULE = "aar-quotation"
+AAR_RULES = (AAR_QUOTATION_RULE,)
 
 NOT_REACHED = (
     (
@@ -688,7 +690,7 @@ def aar_quotation_analysis(publications: tuple[Publication, ...]) -> Analysis:
         if _aar_run_directory(publication.path) is not None
     )
     findings = tuple(
-        Finding("aar-quotation", 1, publication.field, "deny")
+        Finding(AAR_QUOTATION_RULE, 1, publication.field, "deny")
         for publication in aar_publications
         if _quotes_run_material(publication)
     )
@@ -2731,6 +2733,7 @@ UNREADABLE_REMEDIES = {
         "`python tools/tracker_publish_hook.py --command-file <path>` before retrying"
     ),
 }
+UNREADABLE_RULES = tuple(UNREADABLE_REMEDIES)
 UNCLASSIFIED_API_REMEDIES = {
     "unclassified-api-mutation": (
         "a GraphQL mutation is an unclassified API call; publish through `gh issue` "
@@ -2750,6 +2753,7 @@ UNCLASSIFIED_API_REMEDIES = {
         "type the endpoint and options explicitly before retrying"
     ),
 }
+UNCLASSIFIED_API_RULES = tuple(UNCLASSIFIED_API_REMEDIES)
 
 
 def unreadable_remedy(row: Unreadable) -> str:

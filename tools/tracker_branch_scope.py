@@ -436,6 +436,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"tracker-branch-scope: could not grade input: {exc}", file=sys.stderr)
         return 2
     print(result.report)
+    if result.verdict.rule is not None:
+        print(f"rule: {result.verdict.rule}")
     return result.status
 
 

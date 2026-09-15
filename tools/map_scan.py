@@ -37,6 +37,8 @@ STATE_BEGIN = "<!-- implementation-map:v1:state:begin -->"
 STATE_END = "<!-- implementation-map:v1:state:end -->"
 LIMITS_POINTER = "map_scan.DECLARED_LIMITS"
 MAP_ISSUE = implementation_map.MAP_ISSUE
+PRODUCER_STAMP_RULE = "producer-stamp"
+EVENT_RULES = (PRODUCER_STAMP_RULE,)
 
 
 class DeclaredLimit(NamedTuple):
@@ -219,7 +221,7 @@ def scan(rows: Sequence[dict], repo_root: Path) -> ScanResult:
     if stamp_problem is not None:
         findings.append(
             Finding(
-                "producer-stamp",
+                PRODUCER_STAMP_RULE,
                 map_number,
                 ("-",),
                 "-",
@@ -312,7 +314,7 @@ def scan_github_event(path: Path, event_name: str) -> ScanResult:
         return ScanResult((), ())
     problem = implementation_map.producer_stamp_problem(body)
     findings = () if problem is None else (
-        Finding("producer-stamp", number, ("-",), "-", detail=problem),
+        Finding(PRODUCER_STAMP_RULE, number, ("-",), "-", detail=problem),
     )
     return ScanResult(findings, ())
 
@@ -404,7 +406,7 @@ def main(argv: Sequence[str], *, repo_root: Path | None = None) -> int:
         blocking = result.findings if args.github_event else tuple(
             finding
             for finding in result.findings
-            if finding.kind != "producer-stamp"
+            if finding.kind != PRODUCER_STAMP_RULE
         )
         if blocking:
             return FOUND

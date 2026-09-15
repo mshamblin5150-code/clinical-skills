@@ -171,6 +171,10 @@ calls it and **denies**; `.github/workflows/tracker.yml` runs it on the changed 
 **reports after publication**. That is `tracker_bodies.py`'s arrangement exactly, and the workflow
 half is not redundant: `tracker_publish_hook.NOT_REACHED` says the hook *"covers one of two
 publishers"* — the GitHub web UI bypasses it entirely.
+The current reach and posture are described by
+`tracker_publication_correspondence.WRITER_REACH` and
+`tracker_publication_correspondence.POSTURE_ROWS`; this paragraph retains the ruling's rationale and
+copies no current row.
 
 **It needs no tree read, no network and no file contents.** It is the only tracker grader whose whole
 input is the record's own text, so it adds nothing to the hook's cost and cannot fail for an
