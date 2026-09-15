@@ -1026,6 +1026,22 @@ def _source_fanout_kind(
 ) -> str | None:
     brace_candidates: list[bool] = []
     bracket_start: int | None = None
+    assignment_name_valid = False
+    if assignment_tilde:
+        for position, character in enumerate(characters):
+            if (
+                character.value == "="
+                and character.quote is None
+                and not character.escaped
+            ):
+                name = characters[:position]
+                assignment_name_valid = bool(name) and all(
+                    item.quote is None and not item.escaped for item in name
+                ) and re.fullmatch(
+                    r"[A-Za-z_][A-Za-z0-9_]*",
+                    "".join(item.value for item in name),
+                ) is not None
+                break
     for position, character in enumerate(characters):
         if character.quote is not None or character.escaped:
             continue
@@ -1033,7 +1049,7 @@ def _source_fanout_kind(
         if value == "~" and (
             position == 0
             or (
-                assignment_tilde
+                assignment_name_valid
                 and characters[position - 1].quote is None
                 and not characters[position - 1].escaped
                 and characters[position - 1].value in ("=", ":")
@@ -1177,10 +1193,10 @@ def _api_expanded_arguments(
 ) -> list[str] | UnclassifiedApiCall:
     """Reconstruct each API argv word once before classifying its contents."""
     assignments, substitutions, _uncertain = _publish_assignments(command)
-    endpoint = _api_endpoint(arguments)
     specialized_failures: set[int] = set()
     option_value_indices: set[int] = set()
     separate_value_indices: set[int] = set()
+    option_records: list[tuple[str, str | None, int]] = []
     endpoint_index: int | None = None
     index = 0
     while index < len(arguments):
@@ -1195,13 +1211,23 @@ def _api_expanded_arguments(
         option_value_indices.add(value_index)
         if width == 2 and value is not None:
             separate_value_indices.add(value_index)
-        key = "" if value is None else value.partition("=")[0]
-        if endpoint == "graphql" and (
-            name == "input"
-            or (name in ("raw-field", "field") and key in ("query", "operationName"))
-        ):
-            specialized_failures.add(value_index)
+        option_records.append((name, value, value_index))
         index += width
+    endpoint = _api_endpoint(arguments)
+    if endpoint_index is not None:
+        expanded_endpoint, endpoint_kind = _expand_source_word(
+            sources[endpoint_index], assignments, substitutions
+        )
+        if endpoint_kind is None and expanded_endpoint is not None:
+            endpoint = expanded_endpoint
+    if endpoint == "graphql":
+        for name, value, value_index in option_records:
+            key = "" if value is None else value.partition("=")[0]
+            if name == "input" or (
+                name in ("raw-field", "field")
+                and key in ("query", "operationName")
+            ):
+                specialized_failures.add(value_index)
     expanded_arguments: list[str] = []
     for index, (argument, source) in enumerate(
         zip(arguments, sources, strict=True)
@@ -1950,7 +1976,14 @@ def extract(command: str) -> Extraction:
     arguments = source_tail[route_width:]
     argument_sources = sources[source_start + 1 + route_width :]
     if route == ("api",):
-        endpoint = _api_endpoint(arguments)
+        expanded_arguments = _api_expanded_arguments(
+            arguments, argument_sources, command
+        )
+        if isinstance(expanded_arguments, UnclassifiedApiCall):
+            return Extraction(
+                route, None, (), (), None, (expanded_arguments,)
+            )
+        endpoint = _api_endpoint(expanded_arguments)
         listed_nonpublication = any(
             pattern.fullmatch(endpoint)
             for pattern in (
@@ -1962,18 +1995,12 @@ def extract(command: str) -> Extraction:
             arguments,
             argument_sources,
             command,
-            _api_explicit_method(arguments) == "GET" or listed_nonpublication,
+            _api_explicit_method(expanded_arguments) == "GET"
+            or listed_nonpublication,
         )
         if dynamic_arguments is not None:
             return Extraction(
                 route, None, (), (), None, (dynamic_arguments,)
-            )
-        expanded_arguments = _api_expanded_arguments(
-            arguments, argument_sources, command
-        )
-        if isinstance(expanded_arguments, UnclassifiedApiCall):
-            return Extraction(
-                route, None, (), (), None, (expanded_arguments,)
             )
         arguments = expanded_arguments
     number = _record_number(

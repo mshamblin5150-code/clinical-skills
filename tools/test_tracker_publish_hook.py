@@ -773,6 +773,9 @@ class InlineTrackerTextIsRead(unittest.TestCase):
         safe_commands = (
             "gh api -X POST repos/o/r/issues/7/comments -f 'body=~'",
             "gh api -X POST repos/o/r/issues/7/comments -fbody=~",
+            "gh api -X POST repos/o/r/issues/7/comments -f 'body'=~",
+            "gh api -X POST repos/o/r/issues/7/comments -f b'ody'=~",
+            "gh api -X POST repos/o/r/issues/7/comments -f body\\=~",
         )
         for command in safe_commands:
             with self.subTest(command=command):
@@ -1181,6 +1184,36 @@ class InlineTrackerTextIsRead(unittest.TestCase):
 
         self.assertIsNone(result.grade_route)
         self.assertEqual(result.unreadable[0].kind, "external-variable")
+
+    def test_reconstructed_graphql_endpoint_preserves_unreadable_remedy(self) -> None:
+        commands = (
+            'END=graphql; gh api "$END" -f "query=$QUERY"',
+            'BASE=graph; END=${BASE}ql; gh api "$END" '
+            '-f "operationName=$OPERATION" -f "query=$QUERY"',
+            'END=graphql; gh api "$END" --input "$REQUEST"',
+        )
+
+        for command in commands:
+            with self.subTest(command=command):
+                result = hook.extract(command)
+                self.assertIsNone(result.grade_route)
+                self.assertEqual(result.unclassified_api_calls, ())
+                self.assertEqual(result.unreadable[0].kind, "external-variable")
+
+    def test_reconstructed_nonpublication_endpoint_keeps_read_bypass(self) -> None:
+        commands = (
+            "END=markdown; TEXT='hello world'; "
+            'gh api "$END" -f text=$TEXT',
+            "BASE=mark; END=${BASE}down; TEXT='hello world'; "
+            'gh api "$END" -f text=$TEXT',
+        )
+
+        for command in commands:
+            with self.subTest(command=command):
+                result = hook.extract(command)
+                self.assertIsNone(result.grade_route)
+                self.assertEqual(result.unclassified_api_calls, ())
+                self.assertEqual(result.unreadable, ())
 
     def test_unquoted_graphql_assignment_cannot_inject_fields(self) -> None:
         commands = (
