@@ -24,6 +24,22 @@ import tracker_publish_hook as hook
 import tracker_bodies
 import tracker_coordinates
 import phi_scan
+import tracker_publish_marker
+
+
+_REAL_RECORD_RUN = hook.record_run
+_RECORD_RUN_PATCHER = None
+
+
+def setUpModule() -> None:
+    global _RECORD_RUN_PATCHER
+    _RECORD_RUN_PATCHER = mock.patch.object(hook, "record_run")
+    _RECORD_RUN_PATCHER.start()
+
+
+def tearDownModule() -> None:
+    assert _RECORD_RUN_PATCHER is not None
+    _RECORD_RUN_PATCHER.stop()
 
 
 @contextlib.contextmanager
@@ -2992,30 +3008,79 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
         }
 
     def test_a_commandless_monitor_payload_is_silent(self) -> None:
-        self.assertEqual(
-            hook.handle(
+        with mock.patch.object(
+            hook, "record_run"
+        ) as write_marker:
+            response = hook.handle(
                 {
                     "hook_event_name": "PreToolUse",
                     "tool_name": "Monitor",
                     "tool_input": {"session_id": "monitor-1"},
                 }
-            ),
-            {},
-        )
+            )
+
+        self.assertEqual(response, {})
+        write_marker.assert_called_once_with()
+
+    def test_a_read_only_command_records_the_hook_run(self) -> None:
+        with mock.patch.object(
+            hook, "record_run"
+        ) as write_marker:
+            response = hook.handle(self.payload("gh issue view 670"))
+
+        self.assertEqual(response, {})
+        write_marker.assert_called_once_with()
+
+    def test_each_required_handle_path_writes_the_checkout_record(self) -> None:
+        cases = {
+            "read-only": self.payload("gh issue view 670"),
+            "unmodeled-shell": {
+                "hook_event_name": "PreToolUse",
+                "tool_name": "PowerShell",
+                "tool_input": {
+                    "command": "gh issue comment 670 --body 'Ordinary body'"
+                },
+            },
+            "analysis-failure": {
+                "hook_event_name": "PreToolUse",
+                "tool_name": "Bash",
+                "tool_input": {"command": 42},
+            },
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for name, payload in cases.items():
+                target = root / name / "record.json"
+                with (
+                    self.subTest(name=name),
+                    mock.patch.object(
+                        tracker_publish_marker, "marker_path", return_value=target
+                    ),
+                    mock.patch.object(hook, "record_run", _REAL_RECORD_RUN),
+                ):
+                    hook.handle(payload)
+
+                record = json.loads(target.read_text(encoding="utf-8"))
+                self.assertEqual(
+                    record["version"], tracker_publish_marker.SCHEMA_VERSION
+                )
 
     def test_an_unmodeled_shell_refuses_a_loose_publish_route(self) -> None:
         command = (
             "if (Test-Path 'body.md') { "
             "gh issue comment 1124 --body-file 'body.md' }"
         )
-        modeled = hook.handle(self.payload(command))
-        unmodeled = hook.handle(
-            {
-                "hook_event_name": "PreToolUse",
-                "tool_name": "PowerShell",
-                "tool_input": {"command": command},
-            }
-        )
+        with mock.patch.object(
+            hook, "record_run"
+        ) as write_marker:
+            modeled = hook.handle(self.payload(command))
+            unmodeled = hook.handle(
+                {
+                    "hook_event_name": "PreToolUse",
+                    "tool_name": "PowerShell",
+                    "tool_input": {"command": command},
+                }
+            )
 
         modeled_specific = modeled["hookSpecificOutput"]
         self.assertEqual(modeled_specific["permissionDecision"], "deny")
@@ -3029,6 +3094,7 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
         )
         self.assertIn("unmodeled shell", specific["additionalContext"])
         self.assertIn("PowerShell", specific["additionalContext"])
+        self.assertEqual(write_marker.call_count, 2)
 
     def test_each_unreproduced_shape_refuses_on_each_modeled_command_tool(self) -> None:
         commands = {
@@ -3411,7 +3477,7 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
                 "fetch_readback",
                 return_value=fetched_records(595),
             ),
-            mock.patch.object(hook, "write_marker"),
+            mock.patch.object(hook, "record_run"),
         ):
             response = hook.handle(
                 self.payload(
@@ -3451,7 +3517,7 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
                         "fetch_readback",
                         return_value=fetched_records(595),
                     ),
-                    mock.patch.object(hook, "write_marker"),
+                    mock.patch.object(hook, "record_run"),
                 ):
                     response = hook.handle(self.payload(command))
 
@@ -3523,7 +3589,7 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
                             "fetch_readback",
                             return_value=fetched_records(595),
                         ),
-                        mock.patch.object(hook, "write_marker"),
+                        mock.patch.object(hook, "record_run"),
                     ):
                         response = hook.handle(self.payload(commands[route]))
 
@@ -3545,7 +3611,7 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
                 "fetch_readback",
                 return_value=fetched_records(595, body=current),
             ),
-            mock.patch.object(hook, "write_marker"),
+            mock.patch.object(hook, "record_run"),
         ):
             response = hook.handle(
                 self.payload("gh issue edit 595 --body ''")
@@ -3563,7 +3629,7 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
             mock.patch.object(
                 hook, "fetch_readback", return_value=fetched_records(595)
             ),
-            mock.patch.object(hook, "write_marker"),
+            mock.patch.object(hook, "record_run"),
         ):
             response = hook.handle(
                 self.payload("gh pr review 595 --approve --body ''")
@@ -3688,7 +3754,7 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
                 "fetch_readback",
                 return_value=fetched_records(670),
             ),
-            mock.patch.object(hook, "write_marker") as write_marker,
+            mock.patch.object(hook, "record_run") as write_marker,
         ):
             response = hook.handle(
                 self.payload("gh issue comment 670 --body 'Ordinary body'")
@@ -3707,7 +3773,7 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
             mock.patch.object(hook, "current_index", return_value=(index, ())),
             mock.patch.object(hook, "refresh_default_branch", return_value=True),
             mock.patch.object(hook, "fetch_readback") as fetch,
-            mock.patch.object(hook, "write_marker"),
+            mock.patch.object(hook, "record_run"),
         ):
             response = hook.handle(
                 self.payload(
@@ -3727,7 +3793,7 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
             mock.patch.object(hook, "current_index", return_value=(index, ())),
             mock.patch.object(hook, "refresh_default_branch", return_value=True),
             mock.patch.object(hook, "fetch_readback"),
-            mock.patch.object(hook, "write_marker"),
+            mock.patch.object(hook, "record_run"),
         ):
             response = hook.handle(
                 self.payload("gh issue create --title 'Ticket without a body'")
@@ -3769,7 +3835,7 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
                             hook, "refresh_default_branch", return_value=True
                         ),
                         mock.patch.object(hook, "fetch_readback") as fetch,
-                        mock.patch.object(hook, "write_marker"),
+                        mock.patch.object(hook, "record_run"),
                     ):
                         response = hook.handle(
                             self.payload(
@@ -3796,7 +3862,7 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
             mock.patch.object(
                 hook.tracker_measurements, "current_head", return_value="a" * 40
             ),
-            mock.patch.object(hook, "write_marker"),
+            mock.patch.object(hook, "record_run"),
         ):
             response = hook.handle(
                 self.payload("gh issue comment 670 --body '" + body + "'")
@@ -3824,7 +3890,7 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
                 "fetch_readback",
                 return_value=fetched_records(670, body=current),
             ),
-            mock.patch.object(hook, "write_marker"),
+            mock.patch.object(hook, "record_run"),
         ):
             response = hook.handle(
                 self.payload(
@@ -3854,7 +3920,7 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
                     "fetch_readback",
                     return_value=fetched_records(670, body=current),
                 ),
-                mock.patch.object(hook, "write_marker"),
+                mock.patch.object(hook, "record_run"),
             ):
                 response = hook.handle(
                     self.payload(
@@ -3890,7 +3956,7 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
                     "fetch_readback",
                     return_value=fetched_records(670, body=current),
                 ),
-                mock.patch.object(hook, "write_marker"),
+                mock.patch.object(hook, "record_run"),
             ):
                 response = hook.handle(
                     self.payload(
@@ -3913,7 +3979,7 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
                 "fetch_readback",
                 return_value=fetched_records(670, body="Original body."),
             ),
-            mock.patch.object(hook, "write_marker"),
+            mock.patch.object(hook, "record_run"),
         ):
             response = hook.handle(
                 self.payload("gh issue edit 670 --body 'Replacement body.'")
@@ -3929,7 +3995,7 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
             mock.patch.object(hook, "current_index", return_value=(index, ())),
             mock.patch.object(hook, "refresh_default_branch", return_value=True),
             mock.patch.object(hook, "fetch_readback", side_effect=OSError("offline")),
-            mock.patch.object(hook, "write_marker"),
+            mock.patch.object(hook, "record_run"),
         ):
             response = hook.handle(
                 self.payload("gh issue edit 670 --body 'Replacement body.'")
@@ -3948,7 +4014,7 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
             mock.patch.object(hook, "current_index", return_value=(index, ())),
             mock.patch.object(hook, "refresh_default_branch", return_value=True),
             mock.patch.object(hook, "fetch_readback"),
-            mock.patch.object(hook, "write_marker"),
+            mock.patch.object(hook, "record_run"),
         ):
             response = hook.handle(
                 self.payload("gh pr create --title 'PR' --body 'Ordinary PR body.'")
@@ -3978,7 +4044,7 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
                     hook, "refresh_default_branch", return_value=True
                 ),
                 mock.patch.object(hook, "fetch_readback"),
-                mock.patch.object(hook, "write_marker"),
+                mock.patch.object(hook, "record_run"),
                 mock.patch(
                     "implementation_map.producer_identity", return_value=producer
                 ),
@@ -4000,7 +4066,7 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
             mock.patch.object(hook, "current_index", return_value=(index, ())),
             mock.patch.object(hook, "refresh_default_branch", return_value=True),
             mock.patch.object(hook, "fetch_readback"),
-            mock.patch.object(hook, "write_marker"),
+            mock.patch.object(hook, "record_run"),
         ):
             response = hook.handle(
                 self.payload(
@@ -4048,7 +4114,7 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
                 "fetch_readback",
                 return_value=fetched_records(670),
             ),
-            mock.patch.object(hook, "write_marker"),
+            mock.patch.object(hook, "record_run"),
         ):
             response = hook.handle(
                 self.payload("gh issue comment 670 --body '**Verdict:** HOLDS'")
@@ -4071,7 +4137,7 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
                 "fetch_readback",
                 return_value=fetched_records(706),
             ),
-            mock.patch.object(hook, "write_marker"),
+            mock.patch.object(hook, "record_run"),
         ):
             response = hook.handle(
                 self.payload(
@@ -4096,7 +4162,7 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
                 "fetch_readback",
                 return_value=fetched_records(670),
             ),
-            mock.patch.object(hook, "write_marker"),
+            mock.patch.object(hook, "record_run"),
         ):
             response = hook.handle(
                 self.payload(
@@ -4115,7 +4181,7 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
         with (
             mock.patch.object(hook, "current_index", return_value=(index, ())),
             mock.patch.object(hook, "refresh_default_branch", return_value=True),
-            mock.patch.object(hook, "write_marker"),
+            mock.patch.object(hook, "record_run"),
         ):
             with mock.patch.object(
                 hook,
@@ -4158,7 +4224,7 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
                 "fetch_readback",
                 return_value=fetched_records(723),
             ),
-            mock.patch.object(hook, "write_marker"),
+            mock.patch.object(hook, "record_run"),
         ):
             response = hook.handle(
                 self.payload(
@@ -4202,6 +4268,9 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
             mock.patch.object(hook, "refresh_default_branch", return_value=True),
             mock.patch.object(hook, "fetch_readback", return_value=fetched_records(670)),
             mock.patch.object(hook, "analyze", side_effect=RuntimeError("boom")),
+            mock.patch.object(
+                hook, "record_run"
+            ) as write_marker,
         ):
             response = hook.handle(
                 self.payload("gh issue comment 670 --body 'Ordinary body'")
@@ -4211,17 +4280,31 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
         self.assertEqual(specific["permissionDecision"], "deny")
         self.assertIn("analysis failed (RuntimeError)", specific["additionalContext"])
         self.assertNotIn("Unreadable body", specific["additionalContext"])
+        write_marker.assert_called_once_with()
+
+    def test_a_failed_marker_write_does_not_change_the_hook_response(self) -> None:
+        payload = self.payload("gh issue view 670")
+        with (
+            mock.patch.object(hook, "record_run", _REAL_RECORD_RUN),
+            mock.patch.object(
+                tracker_publish_marker,
+                "write_marker",
+                side_effect=OSError("read only"),
+            ),
+        ):
+            response = hook.handle(payload)
+
+        self.assertEqual(response, {})
 
     def test_the_hook_marker_is_dated_and_contains_no_tracker_text(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
-            marker = Path(temporary) / "marker.json"
-            with mock.patch.object(hook, "PUBLISH_MARKER", marker):
-                hook.write_marker()
+            runs = Path(temporary) / "runs"
+            marker = tracker_publish_marker.write_marker(runs_root=runs)
 
             document = json.loads(marker.read_text(encoding="utf-8"))
 
         self.assertEqual(set(document), {"version", "ran_on"})
-        self.assertEqual(document["version"], 1)
+        self.assertEqual(document["version"], 2)
         self.assertRegex(document["ran_on"], r"^[0-9]{4}-[0-9]{2}-[0-9]{2}$")
 
     def test_the_command_reads_and_writes_the_hook_json_protocol(self) -> None:
@@ -4235,6 +4318,25 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
 
         self.assertEqual(status, 0)
         self.assertEqual(json.loads(stdout.getvalue()), {})
+
+    def test_the_full_entry_point_records_before_payload_parsing(self) -> None:
+        stdin = io.StringIO("{not-json")
+        stdout = io.StringIO()
+        with (
+            mock.patch.object(sys, "stdin", stdin),
+            mock.patch.object(
+                hook, "record_run"
+            ) as write_marker,
+            contextlib.redirect_stdout(stdout),
+        ):
+            status = hook.main([])
+
+        self.assertEqual(status, 0)
+        write_marker.assert_called_once_with()
+        self.assertIn(
+            "HOOK FAILURE",
+            json.loads(stdout.getvalue())["hookSpecificOutput"]["additionalContext"],
+        )
 
     def test_the_command_file_mode_fulfills_the_unreadable_remedy(self) -> None:
         index = phi_scan.build_index(set(), set())
@@ -4283,7 +4385,7 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
             mock.patch.object(hook, "current_index", return_value=(index, ())),
             mock.patch.object(hook, "refresh_default_branch", return_value=True),
             mock.patch.object(hook, "fetch_readback", return_value=fetched) as fetch,
-            mock.patch.object(hook, "write_marker"),
+            mock.patch.object(hook, "record_run"),
         ):
             response = hook.handle(
                 self.payload(
@@ -4305,7 +4407,7 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
             mock.patch.object(hook, "current_index", return_value=(index, ())),
             mock.patch.object(hook, "refresh_default_branch", return_value=True),
             mock.patch.object(hook, "fetch_readback") as fetch,
-            mock.patch.object(hook, "write_marker"),
+            mock.patch.object(hook, "record_run"),
         ):
             response = hook.handle(
                 self.payload(
@@ -4325,7 +4427,7 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
             mock.patch.object(hook, "current_index", return_value=(index, ())),
             mock.patch.object(hook, "refresh_default_branch", return_value=True),
             mock.patch.object(hook, "fetch_readback", side_effect=OSError("offline")),
-            mock.patch.object(hook, "write_marker"),
+            mock.patch.object(hook, "record_run"),
         ):
             response = hook.handle(
                 self.payload("gh issue comment 670 --body 'Cites #17'")
@@ -4343,7 +4445,7 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
             mock.patch.object(hook, "current_index", return_value=(index, ())),
             mock.patch.object(hook, "refresh_default_branch", return_value=True),
             mock.patch.object(hook, "fetch_readback", return_value=malformed),
-            mock.patch.object(hook, "write_marker"),
+            mock.patch.object(hook, "record_run"),
         ):
             response = hook.handle(
                 self.payload("gh issue comment 670 --body 'Cites #17'")
@@ -4362,7 +4464,7 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
             mock.patch.object(hook, "current_index", return_value=(index, ())),
             mock.patch.object(hook, "refresh_default_branch", return_value=True),
             mock.patch.object(hook, "fetch_readback", return_value=malformed),
-            mock.patch.object(hook, "write_marker"),
+            mock.patch.object(hook, "record_run"),
         ):
             response = hook.handle(
                 self.payload("gh issue comment 670 --body 'Cites #17'")
@@ -4497,6 +4599,7 @@ class DeclaredLimitsHaveOneOwner(unittest.TestCase):
         adds the retired-citation row's one-pairing ceiling. ADR 0234 adds the
         two non-publication-list floors and the runtime GraphQL-document limit.
         ADR 0244 adds the limit on establishing which file an author meant.
+        ADR 0246 adds the per-checkout marker's five notice boundaries.
         """
         self.assertEqual(
             set(dict(hook.NOT_REACHED)),
@@ -4505,6 +4608,11 @@ class DeclaredLimitsHaveOneOwner(unittest.TestCase):
                 "disabled or overridden hooks bypass the check",
                 "retained pre-edit revisions remain readable",
                 "workspace trust can silently suppress registration",
+                "a commit outside a session does not run the marker",
+                "the record belongs to the checkout whose hook module ran",
+                "disabled or overridden hooks leave the record aging",
+                "the marker is not a publish-time guarantee",
+                "moving or renaming a checkout changes its identity",
                 "a file rewritten after the scan is graded on its earlier text",
                 "assignment expansion is reconstructed and reaches only the same command",
                 "no route rule covers the cause side of escape collapse",
@@ -4730,7 +4838,7 @@ class ACommandFilePregradeMatchesTheHook(unittest.TestCase):
                 mock.patch.object(hook, "current_index", return_value=(index, ())),
                 mock.patch.object(hook, "refresh_default_branch", return_value=True),
                 mock.patch.object(hook, "fetch_readback", return_value=fetched_records(670)),
-                mock.patch.object(hook, "write_marker"),
+                mock.patch.object(hook, "record_run"),
                 contextlib.redirect_stdout(stdout),
             ):
                 status = hook.main(["--command-file", str(command_file)])
@@ -4757,7 +4865,7 @@ class ACommandFilePregradeMatchesTheHook(unittest.TestCase):
                 mock.patch.object(hook, "current_index", return_value=(index, ())),
                 mock.patch.object(hook, "refresh_default_branch", return_value=True),
                 mock.patch.object(hook, "fetch_readback", return_value=fetched_records(670)),
-                mock.patch.object(hook, "write_marker"),
+                mock.patch.object(hook, "record_run"),
                 contextlib.redirect_stdout(stdout),
             ):
                 status = hook.main(["--command-file", str(command_file)])
@@ -4834,7 +4942,7 @@ class ACommandFilePregradeMatchesTheHook(unittest.TestCase):
             with (
                 mock.patch.object(hook, "current_index", return_value=(index, ())),
                 mock.patch.object(hook, "refresh_default_branch", return_value=True),
-                mock.patch.object(hook, "write_marker"),
+                mock.patch.object(hook, "record_run"),
                 contextlib.redirect_stdout(stdout),
             ):
                 status = hook.main(["--command-file", str(command_file)])
@@ -4854,15 +4962,14 @@ class ACommandFilePregradeMatchesTheHook(unittest.TestCase):
         index = phi_scan.build_index(set(), set())
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            marker = root / "marker.json"
             command_file = root / "publish.sh"
-            marker.write_bytes(b"unchanged marker\n")
-            before = marker.stat().st_mtime_ns
             command_file.write_text(
                 "gh issue comment 670 --body 'Ordinary body.'", encoding="utf-8"
             )
             with (
-                mock.patch.object(hook, "PUBLISH_MARKER", marker),
+                mock.patch.object(
+                    hook, "record_run"
+                ) as write_marker,
                 mock.patch.object(hook, "current_index", return_value=(index, ())),
                 mock.patch.object(hook, "refresh_default_branch", return_value=True),
                 mock.patch.object(hook, "fetch_readback", return_value=fetched_records(670)),
@@ -4871,8 +4978,7 @@ class ACommandFilePregradeMatchesTheHook(unittest.TestCase):
                 status = hook.main(["--command-file", str(command_file)])
 
             self.assertEqual(status, 0)
-            self.assertEqual(marker.read_bytes(), b"unchanged marker\n")
-            self.assertEqual(marker.stat().st_mtime_ns, before)
+            write_marker.assert_not_called()
 
     def test_text_is_retired_and_no_unreadable_remedy_points_to_it(self) -> None:
         stderr = io.StringIO()

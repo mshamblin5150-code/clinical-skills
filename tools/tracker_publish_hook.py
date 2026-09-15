@@ -47,7 +47,6 @@ from __future__ import annotations
 
 from collections import Counter
 from dataclasses import dataclass, replace
-from datetime import date as CalendarDate
 import json
 from pathlib import Path
 import re
@@ -64,6 +63,7 @@ import tracker_branch_scope
 import tracker_filed_from
 import tracker_readback
 import shell_reader
+from tracker_publish_marker import record_run
 from console_codec import require_python_floor, use_utf8
 from tracker_records import TrackerRecord, from_command, from_graphql
 from tracker_bodies import ordinary_paragraph_prose
@@ -86,8 +86,6 @@ COMMAND_TOOLS = {
     "Monitor": MODELED_SHELL,
     "PowerShell": None,
 }
-PUBLISH_MARKER = phi_scan.TRACKER_PUBLISH_MARKER
-
 # Measured before being written, per ADR 0109 ruling 13. Across 371 real issue
 # bodies and the text in 11 real run directories on 2026-09-02, an 80-character
 # normalized span appeared in seven bodies; shorter floors rapidly admitted
@@ -118,6 +116,32 @@ NOT_REACHED = (
         "workspace trust can silently suppress registration",
         "An unaccepted workspace trust prompt can silently prevent the project "
         "hook from registering in a new worktree.",
+    ),
+    (
+        "a commit outside a session does not run the marker",
+        "No registered session hook runs for a commit made outside a session, "
+        "so that checkout's record remains absent or retains an older date.",
+    ),
+    (
+        "the record belongs to the checkout whose hook module ran",
+        "Changing directories into a sibling checkout does not move the hook "
+        "module, so the record identifies the session's project checkout rather "
+        "than the directory where its command happened to run.",
+    ),
+    (
+        "disabled or overridden hooks leave the record aging",
+        "A session with hooks disabled or project settings overridden cannot "
+        "refresh its checkout's record because the marker entry point never runs.",
+    ),
+    (
+        "the marker is not a publish-time guarantee",
+        "The record is a commit-time notice that the hook ran in the checkout; "
+        "it cannot establish that later publications still cross the hook.",
+    ),
+    (
+        "moving or renaming a checkout changes its identity",
+        "A checkout path supplies the record identity, so moving or renaming "
+        "that checkout makes the notice read never until the hook runs there.",
     ),
     (
         "a file rewritten after the scan is graded on its earlier text",
@@ -2647,18 +2671,6 @@ def _issue_context(record: dict | None) -> TrackerRecord | None:
     return from_graphql(record)
 
 
-def write_marker() -> None:
-    PUBLISH_MARKER.parent.mkdir(parents=True, exist_ok=True)
-    PUBLISH_MARKER.write_text(
-        json.dumps(
-            {"version": 1, "ran_on": CalendarDate.today().isoformat()},
-            sort_keys=True,
-        )
-        + "\n",
-        encoding="utf-8",
-    )
-
-
 BRANCH_SCOPE_REFUSAL = (
     "tracker branch-scope text must be corrected before publication"
 )
@@ -2904,8 +2916,8 @@ def grade_command(command: str) -> CommandGrade | None:
     return CommandGrade(True, denied, "\n".join(lines))
 
 
-def handle(payload: dict) -> dict:
-    """Return one Claude Code hook response without echoing tracker text."""
+def _handle(payload: dict) -> dict:
+    """Analyze one payload after the entry point has recorded its run."""
     try:
         if not isinstance(payload, dict):
             raise ValueError("payload is not an object")
@@ -2936,7 +2948,6 @@ def handle(payload: dict) -> dict:
             return {}
         if not grade.scanned and not grade.denied:
             return {}
-        write_marker()
         return _hook_response(
             "deny" if grade.denied else None,
             grade.report,
@@ -2948,6 +2959,12 @@ def handle(payload: dict) -> dict:
             "tracker pre-publish HOOK FAILURE: "
             f"analysis failed ({type(exc).__name__})",
         )
+
+
+def handle(payload: dict) -> dict:
+    """Record and return one hook response without echoing tracker text."""
+    record_run()
+    return _handle(payload)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -2981,6 +2998,7 @@ def main(argv: list[str] | None = None) -> int:
         if not grade.scanned:
             return 2
         return 1 if grade.denied else 0
+    record_run()
     if arguments:
         print("tracker pre-publish: unsupported arguments", file=sys.stderr)
         return 2
@@ -2993,7 +3011,7 @@ def main(argv: list[str] | None = None) -> int:
             f"Unreadable body ({type(exc).__name__})",
         )
     else:
-        response = handle(payload)
+        response = _handle(payload)
     print(json.dumps(response, sort_keys=True))
     return 0
 

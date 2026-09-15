@@ -8,6 +8,7 @@ import subprocess
 import sys
 
 from console_codec import require_python_floor, use_utf8
+from tracker_publish_marker import record_run
 
 
 HOOK = Path(__file__).with_name("tracker_publish_hook.py")
@@ -24,6 +25,7 @@ def _decoded_command(payload: bytes) -> str | None:
 
 def dispatch(payload: bytes) -> bytes:
     """Return an empty response only when decoded command text cannot name gh."""
+    record_run()
     command = _decoded_command(payload)
     if command is not None and "gh" not in command:
         return b"{}"
