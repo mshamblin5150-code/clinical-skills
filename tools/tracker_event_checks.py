@@ -117,6 +117,8 @@ def select_checks(document: Any, event_name: str) -> tuple[Check, ...]:
     )
     if body_event:
         selected.extend((BODY, COORDINATES, MEASUREMENTS))
+    elif action == "edited" and _title_changed(document):
+        selected.extend((BODY, COORDINATES))
     if event_name == "issues" and (
         action == "opened" or (action == "edited" and changed_body)
     ):

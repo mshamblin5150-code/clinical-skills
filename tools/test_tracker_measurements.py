@@ -235,6 +235,35 @@ class TheCommandSurfaces(unittest.TestCase):
         self.assertIn(event["comment"]["html_url"], report)
         self.assertNotIn(marker, report)
 
+    def test_an_opened_record_does_not_grade_a_measurement_label_in_its_title(self):
+        event = {
+            "action": "opened",
+            "issue": {
+                "number": 1152,
+                "title": "**Measured at:** not-a-commit",
+                "body": "Ordinary body.",
+                "labels": [],
+                "html_url": "https://example.invalid/issues/1152",
+            },
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "event.json"
+            path.write_text(json.dumps(event), encoding="utf-8")
+            stdout = io.StringIO()
+            with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
+                status = measurements.main(
+                    [
+                        "--github-event",
+                        str(path),
+                        "--event-name",
+                        "issues",
+                    ]
+                )
+
+        self.assertEqual(measurements.CLEAN, status)
+        self.assertIn("records read 1", stdout.getvalue())
+        self.assertNotIn(measurements.INVALID_DECLARATION, stdout.getvalue())
+
     def test_the_staged_mode_reports_an_empty_index_cleanly(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

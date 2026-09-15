@@ -23,10 +23,11 @@ Windows spelling. What is left unreadable is refused above.
 Every readable publication is graded through ``analyze``. On the command route,
 each denying row refuses and carries its rule's remedy. The direct writer uses
 the same analysis and preserves advisory rows as report lines; its map-specific
-producer-stamp check remains on top. A title stays outside the body grader and
-keeps only the C0-control and flanked-carriage-return predicates. What a clean
-run does not establish is owned by ``NOT_REACHED`` below rather than copied into
-this docstring or ``CLAUDE.md``.
+producer-stamp check remains on top. A title receives PHI shape, the two
+title-scoped integrity predicates, coordinate accompaniment, and branch path
+triggers; measurement, Filed-from, and every other body-integrity row remain
+body-only. What a clean run does not establish is owned by ``NOT_REACHED``
+below rather than copied into this docstring or ``CLAUDE.md``.
 
 **One row advises on a retired citation**: a paragraph stating the
 correct-in-place rule beside ``#436``, which rules nothing about corrections.
@@ -2358,12 +2359,13 @@ def analyze(
             publication.text, f"{publication.field} being published"
         )
     )
-    findings.extend(
-        Finding(row.rule, 1, publication.field, "deny")
-        for row in tracker_measurements.grade_current(
-            publication.text, f"{publication.field} being published"
+    if publication.field == "body":
+        findings.extend(
+            Finding(row.rule, 1, publication.field, "deny")
+            for row in tracker_measurements.grade_current(
+                publication.text, f"{publication.field} being published"
+            )
         )
-    )
     comment_prose = (
         ordinary_paragraph_prose(publication.text)
         if publication.field == "body" and route in COMMENT_ROUTES

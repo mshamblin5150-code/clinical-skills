@@ -25,7 +25,11 @@ from urllib.parse import unquote
 from console_codec import require_python_floor, use_utf8
 import git_paths
 import git_ancestry
-from tracker_records import TrackerRecord, from_actions_event
+from tracker_records import (
+    EVENT_RECORD_KEYS,
+    TrackerRecord,
+    records_from_actions_event,
+)
 from tracker_bodies import prose_outside_code
 from tracker_merge_receipt import parse_merge_receipt
 
@@ -262,10 +266,28 @@ def _has_near_miss(path: str, tracked: frozenset[str]) -> bool:
 
 
 def grade(document: Any, event_name: str, *, remote_fresh: bool = True) -> Result:
-    record = from_actions_event(document, event_name, require_container=True)
-    if record is None:
+    if event_name not in EVENT_RECORD_KEYS:
+        raise ValueError(f"unsupported GitHub event {event_name!r}")
+    try:
+        records = records_from_actions_event(
+            document, event_name, require_container=True
+        )
+    except ValueError as error:
+        raise ValueError(str(error)) from error
+    if not records:
         return Result(0, "tracker-branch-scope: event is outside issue text")
-    return grade_record(record, remote_fresh=remote_fresh)
+    results = tuple(
+        grade_record(record, remote_fresh=remote_fresh)
+        for record in records
+    )
+    if not results:
+        return Result(0, "tracker-branch-scope: event is outside issue text")
+    decisive = next((result for result in results if result.status != 0), results[0])
+    return Result(
+        decisive.status,
+        "\n".join(result.report for result in results),
+        decisive.verdict,
+    )
 
 
 def grade_record(record: TrackerRecord, *, remote_fresh: bool = True) -> Result:

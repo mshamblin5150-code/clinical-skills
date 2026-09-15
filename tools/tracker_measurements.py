@@ -3,7 +3,9 @@
 
 The public ``grade`` seam reads one supplied record and compares an opted-in
 declaration with the caller's publication base. A clean result establishes
-only the bounded properties in ``tracker_measurements.DECLARED_LIMITS``.
+only the bounded properties in ``tracker_measurements.DECLARED_LIMITS``. A
+title is not a declaration surface, so both publication hosts keep this grade
+body-only.
 """
 
 from __future__ import annotations
@@ -354,6 +356,11 @@ def main(argv: list[str], *, root: Path = REPO_ROOT) -> int:
                 records = tracker_bodies.load_github_event(event_path, event_name)
             except tracker_bodies.HarvestError as error:
                 raise SourceError(f"GitHub event shape unreadable: {error}") from error
+            records = tuple(
+                record
+                for record in records
+                if record.surface != tracker_bodies.TITLE
+            )
             if not records:
                 raise SourceError(f"GitHub event shape unreadable: {event_path.name}")
             scan = survey(records, current_head(root))

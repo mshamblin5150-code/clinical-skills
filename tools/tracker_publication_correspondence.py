@@ -105,6 +105,7 @@ class PostureRow:
     direct_writer: PostureCell
     changed_record: PostureCell
     receipt_prepublication: PostureCell
+    reason: str | None = None
 
     def cell(self, host: Host) -> PostureCell:
         return {
@@ -203,8 +204,11 @@ def _row(
     direct: PostureCell = ABSENT,
     changed: PostureCell = ABSENT,
     receipt: PostureCell = ABSENT,
+    reason: str | None = None,
 ) -> PostureRow:
-    return PostureRow(predicate, surface, trigger, hook, direct, changed, receipt)
+    return PostureRow(
+        predicate, surface, trigger, hook, direct, changed, receipt, reason
+    )
 
 
 WRITER_REACH = tuple(
@@ -304,7 +308,6 @@ PHI_SCOPES = (
 ISSUE_BRANCH_SCOPES = (
     (Surface.BODY, Trigger.CREATE),
     (Surface.BODY, Trigger.BODY_EDIT),
-    (Surface.BODY, Trigger.TITLE_EDIT),
     (Surface.BODY, Trigger.LABEL_ADDED),
     (Surface.COMMENT, Trigger.COMMENT),
 )
@@ -321,8 +324,9 @@ HOOK_BRANCH_KEYS = frozenset(
 EVENT_BRANCH_KEYS = frozenset(
     (
         (Surface.BODY, Trigger.CREATE),
+        (Surface.TITLE, Trigger.CREATE),
         (Surface.BODY, Trigger.BODY_EDIT),
-        (Surface.BODY, Trigger.TITLE_EDIT),
+        (Surface.TITLE, Trigger.TITLE_EDIT),
         (Surface.BODY, Trigger.LABEL_ADDED),
         (Surface.COMMENT, Trigger.COMMENT),
         (Surface.REVIEW, Trigger.REVIEW),
@@ -333,7 +337,6 @@ ALL_BRANCH_SCOPES = (
     (Surface.TITLE, Trigger.CREATE),
     (Surface.BODY, Trigger.BODY_EDIT),
     (Surface.TITLE, Trigger.TITLE_EDIT),
-    (Surface.BODY, Trigger.TITLE_EDIT),
     (Surface.BODY, Trigger.LABEL_ADDED),
     (Surface.COMMENT, Trigger.COMMENT),
     (Surface.REVIEW, Trigger.REVIEW),
@@ -446,7 +449,15 @@ def _branch_row(rule: str, surface: Surface, trigger: Trigger) -> PostureRow:
 
 
 POSTURE_ROWS = (
-    _row("no-publication-on-label-removal", Surface.LABELS, Trigger.LABEL_REMOVED),
+    _row(
+        "no-publication-on-label-removal",
+        Surface.LABELS,
+        Trigger.LABEL_REMOVED,
+        reason=(
+            "A removal only takes triggers away, and the named removal is an "
+            "unwatched write no trigger reaches."
+        ),
+    ),
     _row("no-publication-on-bodyless-review", Surface.REVIEW, Trigger.REVIEW),
     _row("no-publication-on-close", Surface.BODY, Trigger.CLOSE),
     _row(
@@ -537,7 +548,6 @@ POSTURE_ROWS = (
             f"body:{kind}",
             kind,
             hook_posture=Posture.DENY,
-            event_reaches=False,
         )
         for kind in ("c0-control-character", "carriage-return-flanked")
         for surface, trigger in (
@@ -553,7 +563,6 @@ POSTURE_ROWS = (
             "coordinate:unanchored",
             "coordinate:unanchored",
             hook_posture=Posture.DENY,
-            event_reaches=surface is not Surface.TITLE,
         )
         for surface, trigger in PUBLICATION_SCOPES
     ),
@@ -565,10 +574,9 @@ POSTURE_ROWS = (
             rule,
             rule,
             hook_posture=Posture.DENY,
-            event_reaches=surface is not Surface.TITLE,
         )
         for rule in DECLARED_MEASUREMENT_RULES
-        for surface, trigger in PUBLICATION_SCOPES
+        for surface, trigger in BODY_SCOPES
     ),
     *(
         _branch_row(rule, surface, trigger)

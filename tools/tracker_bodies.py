@@ -136,8 +136,8 @@ from typing import NamedTuple, Sequence
 from tracker_records import (
     EVENT_RECORD_KEYS,
     TrackerRecord,
-    from_actions_event,
     from_command,
+    records_from_actions_event,
 )
 import tracker_scan
 
@@ -155,6 +155,7 @@ NOT_SCANNED = 2
 ISSUE = "issue"
 PULL = "pull request"
 COMMENT = "comment"
+TITLE = "title"
 
 LOST_AT_DASH = "lost-at-dash"
 EMPTY_BODY = "empty-body"
@@ -670,10 +671,9 @@ def load_harvest(paths: Sequence[Path]) -> list[Record]:
 def records_from_github_event(
     data: object, event_name: str, source: str
 ) -> list[Record]:
-    """The body created or edited by one GitHub tracker event."""
+    """The fields created or edited by one GitHub tracker event."""
     if not isinstance(data, dict):
         raise HarvestError(f"{source}: not a JSON object")
-    typed = from_actions_event(data, event_name)
     key = EVENT_RECORD_KEYS.get(event_name)
     if key is None:
         raise HarvestError(f"{source}: unsupported GitHub event {event_name!r}")
@@ -681,23 +681,26 @@ def records_from_github_event(
     if not isinstance(item, dict):
         raise HarvestError(f"{source}: event has no {key!r} record")
 
-    if data.get("action") == "edited":
-        changes = data.get("changes")
-        if not isinstance(changes, dict):
-            raise HarvestError(f"{source}: edited event has no changes object")
-        if "body" not in changes:
-            return []
-        item = {
-            field: item[field]
-            for field in ("html_url", "url", "number", "id", "body")
-            if field in item
-        }
-    else:
-        item = dict(item)
+    try:
+        typed_records = records_from_actions_event(data, event_name)
+    except ValueError as error:
+        raise HarvestError(f"{source}: {error}") from error
 
-    if event_name == "pull_request_target":
-        item["pull_request"] = {}
-    return [row._replace(tracker=typed) for row in records_from_github(item, source)]
+    label = _label(item, source)
+    body_surface = PULL if event_name == "pull_request_target" else _surface(item)
+    records = []
+    for typed in typed_records:
+        title = typed.surface == TITLE
+        text = item.get("title" if title else "body")
+        record_label = f"{label} title" if title else label
+        records.append(Record(
+            harvest=source,
+            label=record_label,
+            surface=TITLE if title else body_surface,
+            body=text if isinstance(text, str) else None,
+            tracker=typed._replace(url=record_label if title else typed.url),
+        ))
+    return records
 
 
 def load_github_event(path: Path, event_name: str) -> list[Record]:
@@ -729,18 +732,23 @@ def grade(records: Sequence[Record]) -> list[Finding]:
     for record in records:
         text = (record.body or "").strip()
         prose = prose_outside_code(text)
+        title = record.surface == TITLE
         matches = {
-            LOST_AT_DASH: text == AT_DASH,
-            EMPTY_BODY: not text,
-            LITERAL_AT_PATH: LONE_AT_TOKEN.match(text) is not None,
-            DOUBLE_ENCODED: (
+            LOST_AT_DASH: not title and text == AT_DASH,
+            EMPTY_BODY: not title and not text,
+            LITERAL_AT_PATH: not title and LONE_AT_TOKEN.match(text) is not None,
+            DOUBLE_ENCODED: not title and (
                 _has_cp1252_mojibake(prose)
                 or LITERAL_UNICODE_ESCAPE.search(prose) is not None
             ),
             C0_CONTROL_CHARACTER: has_c0_control_character(record.body or ""),
             CARRIAGE_RETURN_FLANKED: has_carriage_return_flanked(record.body or ""),
-            LITERAL_NEWLINE_ESCAPE: has_literal_newline_escape(record.body or ""),
-            DOUBLED_PATH_SEPARATOR: has_doubled_path_separator(record.body or ""),
+            LITERAL_NEWLINE_ESCAPE: (
+                not title and has_literal_newline_escape(record.body or "")
+            ),
+            DOUBLED_PATH_SEPARATOR: (
+                not title and has_doubled_path_separator(record.body or "")
+            ),
         }
         if matches[LOST_AT_DASH]:
             found.append(Finding(LOST_AT_DASH, record.label, record.surface))
@@ -776,7 +784,7 @@ def survey(records: Sequence[Record]) -> Scan:
         records=len(records),
         by_surface=tuple(
             (surface, sum(1 for r in records if r.surface == surface))
-            for surface in (ISSUE, PULL, COMMENT)
+            for surface in (ISSUE, PULL, COMMENT, TITLE)
         ),
         counts=tuple(
             (kind, sum(1 for f in found if f.kind == kind)) for kind in KINDS

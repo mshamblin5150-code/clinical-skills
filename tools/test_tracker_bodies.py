@@ -846,6 +846,30 @@ class TheCommandLine(unittest.TestCase):
 
         self.assertEqual(status, tb.CLEAN)
 
+    def test_a_title_keeps_only_the_two_ruled_integrity_rows(self):
+        excluded = (
+            "",
+            "@-",
+            "@body.md",
+            "before \u00e2\u20ac\u201d after",
+            r"before\nafter",
+            r"open C:\\folder",
+        )
+
+        for title in excluded:
+            with self.subTest(title=title):
+                records = tb.records_from_github_event(
+                    {
+                        "action": "edited",
+                        "changes": {"title": {"from": "old title"}},
+                        "issue": {"number": 723, "title": title, "body": "unchanged"},
+                    },
+                    "issues",
+                    "event.json",
+                )
+
+                self.assertEqual([], kinds_of(records))
+
     def test_each_workflow_event_selects_its_body_record(self):
         cases = (
             ("issues", "issue", {"number": 723}),
