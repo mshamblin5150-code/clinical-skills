@@ -121,6 +121,12 @@ row, is [#1148](https://github.com/mshamblin5150-code/clinical-skills/issues/114
 decision 3, that the workflow grades direct-writer publications after the fact, is false for this
 writer.
 
+Correction, 2026-09-15: this ruling formerly left #1148's decision 2 as open. That ticket was ruled
+the same day in
+[ADR 0240](0240-the-map-s-direct-writer-grades-through-analyze-and-runs-no-readback.md), which merged
+while this record was in review: the seam calls `analyze`, PHI stays advisory by construction, and its
+decision 3 is answered per writer. This ruling is unchanged; the refresh's grade is ADR 0240's build.
+
 ### 8. A write made with the workflow's built-in token is an unwatched write
 
 The term enters `CONTEXT.md`'s Tracker section. **Calling the receipt job a third publisher was
