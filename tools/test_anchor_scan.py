@@ -1048,6 +1048,14 @@ class AgreementModes(unittest.TestCase):
                 "accident during food preparation",
             )
         )
+        self.assertFalse(
+            scan._reference_matches(
+                "Contact, with, by type of instrument",
+                "Contact (accidental) > with > sharp object (s) > specified NEC",
+                "W268",
+                "the patient's hand was injured",
+            )
+        )
 
     def test_cross_reference_code_instructions_are_satisfied_by_the_subject(self):
         reference = "categories T36-T50, with 6th character 5"

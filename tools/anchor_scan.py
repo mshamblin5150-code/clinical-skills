@@ -684,7 +684,11 @@ def _contains_tokens(needles: list[str], haystack: list[str]) -> bool:
 
 
 def _segment_alternatives(segment: str) -> list[list[str]]:
-    parenthetical = re.findall(r"\(([^()]*)\)", segment)
+    parenthetical = [
+        value
+        for value in re.findall(r"\(([^()]*)\)", segment)
+        if value.strip().lower() not in {"s", "es", "ies"}
+    ]
     base = re.sub(r"\([^()]*\)", "", segment)
     phrases = re.split(r"\s*,\s*|\s+or\s+", base) + parenthetical
     return [
