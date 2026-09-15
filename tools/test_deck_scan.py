@@ -20,7 +20,12 @@ from unittest import mock
 import deck_scan as scan
 import file_digest
 import research_ledger
-from grader_conformance import EmptyPopulationInput, for_module
+from grader_conformance import (
+    EmptyPopulationInput,
+    UnreadRemainderInput,
+    for_module,
+    unread_remainder_conformance,
+)
 
 
 GraderConformance = for_module(scan)
@@ -314,6 +319,39 @@ def empty_population_input(root: Path) -> EmptyPopulationInput:
         population_size=lambda result: result.font_runs_read,
         twin_argv=(str(twin.root), "--pptx", str(twin.deck)),
     )
+
+
+def unread_remainder_input(root: Path) -> UnreadRemainderInput:
+    unread_root, twin_root = root / "unread", root / "twin"
+    unread_root.mkdir()
+    twin_root.mkdir()
+
+    def configured(path: Path, fixture: Path) -> Run:
+        run = Run(path)
+        run.deck.write_bytes(fixture.read_bytes())
+        run.write_heading_read()
+        run.retain(1, 2)
+        run.write_rendered(slides="2 of 2 read")
+        (run.root / "bar.md").write_text(
+            BAR.replace("WORDS-PER-BULLET: 6", "WORDS-PER-BULLET: 20"),
+            encoding="utf-8",
+        )
+        (run.root / "claims.md").write_text(
+            trusted_claim("$99,000", "325", "42%"), encoding="utf-8"
+        )
+        return run
+
+    unread = configured(unread_root, MISSING_DIAGRAM_FIXTURE)
+    twin = configured(twin_root, POWERPOINT_FIXTURE)
+    return UnreadRemainderInput(
+        (str(unread.root), "--pptx", str(unread.deck)),
+        (str(twin.root), "--pptx", str(twin.deck)),
+        unread_remainder=lambda result: result.unread_members
+        + result.heading_read_unread,
+    )
+
+
+UnreadRemainderConformance = unread_remainder_conformance(scan)
 
 
 class TheDeckContainerReadsOnlyTheSlideFace(unittest.TestCase):
@@ -730,7 +768,7 @@ class ThePowerPointAuthoredObjectControl(unittest.TestCase):
             status, stdout, stderr = run.grade()
 
         self.assertEqual(2, status, stdout + stderr)
-        self.assertIn("unread members    1", stdout)
+        self.assertIn("unread remainder 1", stdout)
 
     def test_a_copy_with_an_unmeasured_chart_format_exits_two(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -739,7 +777,7 @@ class ThePowerPointAuthoredObjectControl(unittest.TestCase):
             status, stdout, stderr = run.grade()
 
         self.assertEqual(2, status, stdout + stderr)
-        self.assertIn("unread members    1", stdout)
+        self.assertIn("unread remainder 1", stdout)
 
 
 class UnreadObjectMembersAreNotScanned(unittest.TestCase):
@@ -850,7 +888,7 @@ class UnreadObjectMembersAreNotScanned(unittest.TestCase):
                 status, stdout, stderr = run.grade()
 
                 self.assertEqual(2, status)
-                self.assertIn("unread members    1", stdout)
+                self.assertIn("unread remainder 1", stdout)
                 self.assertNotIn("deck findings require review", stderr)
 
     def test_an_unparseable_slide_relationship_part_exits_two(self):
@@ -891,7 +929,7 @@ class UnreadObjectMembersAreNotScanned(unittest.TestCase):
             status, stdout, _ = run.grade()
 
         self.assertEqual(2, status)
-        self.assertIn("unread members    1", stdout)
+        self.assertIn("unread remainder 1", stdout)
 
     def test_a_source_linked_label_uses_the_value_cache_format(self):
         source_linked = (
@@ -926,7 +964,7 @@ class UnreadObjectMembersAreNotScanned(unittest.TestCase):
             status, stdout, _ = run.grade()
 
         self.assertEqual(2, status)
-        self.assertIn("unread members    1", stdout)
+        self.assertIn("unread remainder 1", stdout)
 
     def test_a_pie_percentage_label_exits_two(self):
         pie_chart = (
@@ -962,7 +1000,7 @@ class UnreadObjectMembersAreNotScanned(unittest.TestCase):
             status, stdout, _ = run.grade()
 
         self.assertEqual(2, status)
-        self.assertIn("unread members    1", stdout)
+        self.assertIn("unread remainder 1", stdout)
 
     def test_a_finding_outranks_an_unread_member(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -982,7 +1020,7 @@ class UnreadObjectMembersAreNotScanned(unittest.TestCase):
             status, stdout, _ = run.grade()
 
         self.assertEqual(1, status)
-        self.assertIn("unread members    1", stdout)
+        self.assertIn("unread remainder 1", stdout)
         self.assertIn(f"{scan.WORDS_PER_BULLET}: 1", stdout)
 
 

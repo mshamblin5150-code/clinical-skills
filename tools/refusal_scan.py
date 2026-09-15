@@ -118,6 +118,8 @@ class Worksheet:
     differential: frozenset[str]
     malformed_marks: int = 0
     has_block: bool = False
+    unread_headings: int = 0
+    unread_marks: int = 0
 
 
 @dataclass(frozen=True)
@@ -127,6 +129,8 @@ class Scan:
     refusals: int
     malformed_marks: int
     per_worksheet: tuple[int, ...]
+    unread_headings: int = 0
+    unread_marks: int = 0
     findings: tuple[Finding, ...] = ()
 
     @property
@@ -138,6 +142,10 @@ class Scan:
     def population(self) -> int:
         """Every well-formed or malformed NOT CODED line in the declared population."""
         return self.refusals + self.malformed_marks
+
+    @property
+    def unread_remainder(self) -> int:
+        return self.unread_headings + self.unread_marks
 
 
 def _block_lines(lines: list[str]) -> tuple[list[str], bool]:
@@ -181,6 +189,7 @@ def read_worksheet(text: str) -> Worksheet:
     lines = text.splitlines()
     block, has_block = _block_lines(lines)
     proposed, differential = _entry_sets(lines)
+    headings = [index for index, line in enumerate(lines) if REFUSAL_HEADING.search(line)]
 
     marks: list[tuple[int, re.Match[str]]] = []
     malformed = 0
@@ -210,6 +219,17 @@ def read_worksheet(text: str) -> Worksheet:
         differential=frozenset(differential),
         malformed_marks=malformed,
         has_block=has_block,
+        unread_headings=max(0, len(headings) - int(has_block)),
+        unread_marks=max(
+            0,
+            sum(
+                1
+                for line in lines[(headings[0] + 1) if headings else len(lines) :]
+                if MARK_MENTION.match(line)
+            )
+            - len(marks)
+            - malformed,
+        ),
     )
 
 
@@ -236,6 +256,8 @@ def survey(sheets: list[Worksheet]) -> Scan:
         refusals=sum(len(sheet.refusals) for sheet in sheets),
         malformed_marks=sum(sheet.malformed_marks for sheet in sheets),
         per_worksheet=tuple(len(sheet.refusals) for sheet in sheets),
+        unread_headings=sum(sheet.unread_headings for sheet in sheets),
+        unread_marks=sum(sheet.unread_marks for sheet in sheets),
         findings=findings,
     )
 
@@ -249,6 +271,9 @@ def format_report(result: Scan, source: str, show: bool = False) -> str:
         f"malformed NOT CODED lines        {result.malformed_marks}",
         "records per worksheet             "
         + ",".join(str(count) for count in result.per_worksheet),
+        f"unread refusal headings           {result.unread_headings}",
+        f"unread refusal marks              {result.unread_marks}",
+        run_grader.format_unread_remainder(result.unread_remainder),
         f"findings                         {len(result.findings)}",
     ]
     if show:
@@ -283,7 +308,7 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
         scan=result,
         source=source.directory.name,
         findings_failed=bool(result.findings),
-        coverage_failed=result.subjects == 0,
+        coverage_failed=result.subjects == 0 or result.unread_remainder > 0,
         diagnostics=diagnostics,
     )
 

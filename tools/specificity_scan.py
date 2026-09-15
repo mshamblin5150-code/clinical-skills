@@ -50,7 +50,14 @@ from pathlib import Path
 import run_grader
 from run_grader import NOT_GRADED
 import aar_scan
-from worksheet_grammar import ENTRY, NOT_FOR_ENTRY, entry_is_for_entry, paired_entry
+from worksheet_grammar import (
+    ENTRY,
+    ENTRY_CANDIDATE,
+    NOT_FOR_ENTRY,
+    entry_is_for_entry,
+    field_candidates,
+    paired_entry,
+)
 
 EXPECTED_COMPLETION_CHECKS = (aar_scan.EXPECTED_ROW,)
 from icd10_lookup import CATEGORY_LENGTH, describe, normalize, notes_for, open_database
@@ -101,11 +108,6 @@ DECLARED_LIMITS = (
         run_grader.EvidenceDisposition.BEHAVIOR,
     ),
     (
-        "recognized code-entry and flag forms",
-        "Unrecognized code lines paired with unrecognized flags disappear beside readable entries; #1066 owns the partial-read repair.",
-        run_grader.EvidenceDisposition.BEHAVIOR,
-    ),
-    (
         "contiguous indented flag pairing",
         "A flag belongs to the nearest entry above only across non-blank indented lines; orphans are reported, not gated.",
         run_grader.EvidenceDisposition.BEHAVIOR,
@@ -122,7 +124,7 @@ DECLARED_LIMITS = (
     ),
     (
         "`icd10-cpt` step-4 listing lines matching ENTRY",
-        "The flag walk stops before `icd10-cpt` step 4, but entry coverage does not; a listing line that matches ENTRY therefore inflates the unread remainder.",
+        "ADR 0230 bounds relaxed candidates before step 4; strict listing-shaped entries beyond it remain a declared coverage floor.",
         run_grader.EvidenceDisposition.BEHAVIOR,
     ),
 )
@@ -205,6 +207,7 @@ class Scan:
     for_entry_codes: int = 0
     for_entry_codes_without_flag: int = 0
     orphaned_details: int = 0
+    unread_remainder: int = 0
 
 
 @dataclass
@@ -260,10 +263,10 @@ def read_flags_with_orphans(text: str) -> tuple[list[Flag], int]:
     Pairing is positional and bounded: the nearest entry above owns the flag only
     while every intervening line is non-blank and indented.
     """
+    step_four = next((match.start() for match in STEP_FOUR_START.finditer(text)), len(text))
     entry_matches = list(ENTRY.finditer(text))
     entries = read_entries(text)
     by_start = {entry.start: entry for entry in entries}
-    step_four = next((match.start() for match in STEP_FOUR_START.finditer(text)), len(text))
     flags: list[Flag] = []
     for match in SPECIFICITY.finditer(text):
         if match.start() >= step_four:
@@ -586,6 +589,17 @@ def entry_flag_coverage(text: str) -> tuple[int, int]:
     return len(for_entry), sum(1 for entry in for_entry if entry.start not in paired)
 
 
+def candidate_unread_remainder(text: str) -> int:
+    """Relaxed-prefix entry and specificity candidates outside strict reads."""
+    step_four = next((match.start() for match in STEP_FOUR_START.finditer(text)), len(text))
+    candidate_text = text[:step_four]
+    entries = len(list(ENTRY.finditer(candidate_text)))
+    flags = len(list(SPECIFICITY.finditer(candidate_text)))
+    return max(0, len(list(ENTRY_CANDIDATE.finditer(candidate_text))) - entries) + max(
+        0, len(field_candidates(candidate_text, "SPECIFICITY")) - flags
+    )
+
+
 def format_report(scan: Scan, source: str, show: bool = False) -> str:
     """The report, as one string. Carries no code and no descriptor unless ``show``."""
     # Plain ASCII throughout, on ``icd10_lookup.py``'s reasoning: this prints to a
@@ -608,6 +622,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         f"  C5 - welded keyword              {scan.welded_keywords}",
         f"  advisory - complete on unspecified {scan.unspecified_complete}",
         f"  C5 - flags at fault              {scan.failing_flags}",
+        run_grader.format_unread_remainder(scan.unread_remainder),
     ]
     if show:
         for heading, details in (
@@ -664,6 +679,7 @@ class Source:
     for_entry_codes: int
     for_entry_codes_without_flag: int
     orphaned_details: int
+    unread_remainder: int
 
 
 def _load(parsed: run_grader.Parsed) -> Source:
@@ -682,6 +698,7 @@ def _load(parsed: run_grader.Parsed) -> Source:
         sum(item[0] for item in coverage),
         sum(item[1] for item in coverage),
         sum(orphans for _flags, orphans in flag_records),
+        sum(candidate_unread_remainder(text) for text in worksheets),
     )
 
 
@@ -712,6 +729,7 @@ def _grade(
         for_entry_codes=source.for_entry_codes,
         for_entry_codes_without_flag=source.for_entry_codes_without_flag,
         orphaned_details=source.orphaned_details,
+        unread_remainder=source.unread_remainder,
     )
     diagnostics: list[str] = []
     reports: list[str] = []
@@ -724,7 +742,7 @@ def _grade(
         for flag in flags
         if flag.for_entry and flag.code
     )
-    if for_entry_flags == 0 or scan.for_entry_codes_without_flag:
+    if for_entry_flags == 0 or scan.for_entry_codes_without_flag or scan.unread_remainder:
         diagnostics.append(
             f"{scan.for_entry_codes} for-entry code(s) were read and "
             f"{scan.for_entry_codes_without_flag} have no paired SPECIFICITY flag; "

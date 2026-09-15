@@ -1448,6 +1448,11 @@ def citation_coverage(
             if any(s <= start and end <= e for s, e in evidence_spans):
                 cursor += len(part) + 1
                 continue
+            if _unread_citation_candidate(stripped):
+                candidates += 1
+                unread += 1
+                cursor += len(part) + 1
+                continue
             evidence = _evidenced_parenthetical(stripped, entries, body, start)
             parsed = CITATION_PART.match(stripped)
             if evidence is not None:
@@ -1498,6 +1503,19 @@ def citation_coverage(
     )
 
 
+def _unread_citation_candidate(part: str) -> bool:
+    """Return whether a citation-shaped part is outside both readers.
+
+    An ASCII hyphen between a translated work's original and publication years
+    is not APA's slash form.  A replacement character likewise proves that the
+    source bytes did not survive decoding.  Neither candidate may be partially
+    interpreted as an ordinary one-year citation.
+    """
+    translated_hyphen = re.search(r",\s*\d{4}\s*-\s*\d{4}\b", part)
+    replacement = "\ufffd" in part and re.search(r"\d{4}", part)
+    return translated_hyphen is not None or bool(replacement)
+
+
 def read_citations(
     body: str,
     entries: tuple[Entry, ...] = (),
@@ -1546,6 +1564,9 @@ def read_citations(
                 start < legal_end and legal_start < end
                 for legal_start, legal_end in legal_spans
             ):
+                cursor += len(part) + 1
+                continue
+            if _unread_citation_candidate(stripped):
                 cursor += len(part) + 1
                 continue
             evidenced = _evidenced_parenthetical(stripped, entries, body, start)
@@ -1941,6 +1962,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
             f"unread {scan.citation_coverage.unread}; "
             f"key disagreement {len(scan.citation_coverage.disagreements)}"
         ),
+        run_grader.format_unread_remainder(scan.citation_coverage.unread),
         "",
         "  source-class coverage (advisory)",
     ]
@@ -2019,7 +2041,11 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
         scan=scan,
         source=source.path.name,
         findings_failed=bool(scan.findings),
-        coverage_failed=source.as_of is None or not source.document.entries,
+        coverage_failed=(
+            source.as_of is None
+            or not source.document.entries
+            or bool(scan.citation_coverage.unread)
+        ),
         diagnostics=tuple(diagnostics),
     )
 

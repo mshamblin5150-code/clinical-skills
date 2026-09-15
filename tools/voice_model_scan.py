@@ -42,6 +42,7 @@ NOT_REACHED = {
     "invoked-source-fit": "whether the named domain and property are accurate or load-bearing",
     "register-candidate": "a malformed register heading that does not begin with a level-two Register label",
     "observation-candidate": "a malformed observation row that does not begin with a number and a period or parenthesis",
+    "pair-candidate": "a malformed pair heading that does not begin with two asterisks at column zero",
 }
 
 INVALID_INVOCATION = "invalid invocation"
@@ -117,6 +118,7 @@ PAIR = re.compile(
     r"^\*\*(?P<name>[^*\n]+)\.\*\*[^\n]*\n(?P<body>.*?)(?=^\*\*[^*\n]+\.\*\*|\Z)",
     re.MULTILINE | re.DOTALL,
 )
+PAIR_CANDIDATE = re.compile(r"^\*\*", re.MULTILINE)
 GENERIC = re.compile(r"^\s*- \*Generic(?:\s*\([^)]*\))?\*:\s*\S", re.MULTILINE | re.IGNORECASE)
 HIS = re.compile(r'^\s*- \*His(?:\s*\([^)]*\))?\*:\s*["“]\S', re.MULTILINE | re.IGNORECASE)
 QUOTE = re.compile(r"^\s*>\s*\S", re.MULTILINE)
@@ -166,6 +168,7 @@ class Scan:
     observations: int
     unread_observations: int
     pairs: int
+    unread_pairs: int
     invoked_observations: int
     required_items_read: bool
     findings: tuple[Finding, ...]
@@ -235,6 +238,7 @@ def survey(text: str, spec_text: str) -> Scan:
     observation_rows = 0
     unread_observations = 0
     pair_count = 0
+    unread_pairs = 0
     invoked_count = 0
     invoked_name = _normalize(invoked_item or "")
     for number, body in registers:
@@ -281,8 +285,10 @@ def survey(text: str, spec_text: str) -> Scan:
         if pairs_match is None:
             findings.append(Finding("missing-pairs", f"register {number} has no Discriminating pairs section"))
             continue
-        pairs = list(PAIR.finditer(pairs_match.group("body")))
+        pairs_body = pairs_match.group("body")
+        pairs = list(PAIR.finditer(pairs_body))
         pair_count += len(pairs)
+        unread_pairs += max(0, len(PAIR_CANDIDATE.findall(pairs_body)) - len(pairs))
         if len(pairs) < 2:
             findings.append(Finding("pair-floor", f"register {number} carries fewer than two discriminating pairs"))
         for pair in pairs:
@@ -302,6 +308,7 @@ def survey(text: str, spec_text: str) -> Scan:
         observations=observation_count,
         unread_observations=unread_observations,
         pairs=pair_count,
+        unread_pairs=unread_pairs,
         invoked_observations=invoked_count,
         required_items_read=required_items_read,
         findings=tuple(findings),
@@ -319,6 +326,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         f"observations: {scan.observations}",
         f"unread observation rows: {scan.unread_observations}",
         f"discriminating pairs: {scan.pairs}",
+        run_grader.format_unread_remainder(scan.unread_pairs),
         f"invoked-source observations: {scan.invoked_observations}",
         f"findings: {len(scan.findings)}",
     ]
@@ -359,6 +367,7 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
         scan.registers != len(REGISTER_NAMES)
         or scan.unread_registers > 0
         or scan.unread_observations > 0
+        or scan.unread_pairs > 0
     )
     required_items_unreadable = not scan.required_items_read
     limbs = tuple(

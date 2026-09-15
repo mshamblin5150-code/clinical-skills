@@ -21,7 +21,12 @@ from pathlib import Path
 
 import anchor_scan as scan
 import run_grader
-from grader_conformance import EmptyPopulationInput, for_module
+from grader_conformance import (
+    EmptyPopulationInput,
+    UnreadRemainderInput,
+    for_module,
+    unread_remainder_conformance,
+)
 from prose_bind import NAMING, bind, section
 
 GraderConformance = for_module(scan)
@@ -45,17 +50,16 @@ class TheDeclaredLimitsObjectOwnsBothProseSurfaces(unittest.TestCase):
                 self.assertEqual(1, surface.count(self.POINTER))
                 self.assertEqual((), bind(scan.DECLARED_LIMITS, surface, mode=NAMING))
 
-    def test_the_partition_is_one_declared_reading_and_nine_behaviors(self):
+    def test_the_partition_is_one_declared_reading_and_eight_behaviors(self):
         dispositions = [row[2] for row in scan.DECLARED_LIMITS]
         self.assertEqual(1, dispositions.count(run_grader.EvidenceDisposition.DECLARED_READING))
-        self.assertEqual(9, dispositions.count(run_grader.EvidenceDisposition.BEHAVIOR))
+        self.assertEqual(8, dispositions.count(run_grader.EvidenceDisposition.BEHAVIOR))
         self.assertTrue(all(subject and reason for subject, reason, _ in scan.DECLARED_LIMITS))
 
 
 class EveryBehaviorLimitHasALiveControl(unittest.TestCase):
     CONTROLS = {
         "NOT FOR ENTRY entries": "TheParserFindsMarkedCodes.test_a_differential_entry_is_not_a_proposed_code",
-        "recognized code-entry openings": "DeclaredLimitBoundaryControls.test_an_unrecognized_code_and_source_form_contributes_nothing",
         "recognized filled-anchor listing lines": "DeclaredLimitBoundaryControls.test_a_table_listing_is_unread_beside_the_code_dash_form",
         "recognized SOURCE marks": "DeclaredLimitBoundaryControls.test_only_a_value_beginning_with_filled_marks_the_code",
         "filled-anchor block closing headings": "DeclaredLimitBoundaryControls.test_a_subheading_ends_the_filled_anchor_block",
@@ -81,6 +85,7 @@ class DeclaredLimitBoundaryControls(unittest.TestCase):
             "  **SOURCE:** filled\n"
         )
         self.assertEqual((0, frozenset()), (unread.proposed, unread.marked))
+        self.assertEqual(1, unread.unread_remainder)
 
     def test_a_table_listing_is_unread_beside_the_code_dash_form(self):
         table = scan.read_worksheet(worksheet(block="| Z68.36 | BMI 36.4 |"))
@@ -195,6 +200,31 @@ def empty_population_input(root: Path) -> EmptyPopulationInput:
         population_size=lambda result: result.subjects,
         twin_argv=(str(twin),),
     )
+
+
+def unread_remainder_input(root: Path) -> UnreadRemainderInput:
+    unread, twin = root / "unread", root / "twin"
+    unread.mkdir()
+    twin.mkdir()
+    unread_text = worksheet(
+        entry("I10", "Hypertension", source="filled")
+        + "\n- ICD-10 R12 Heartburn\n  - **SOURCE:** filled\n",
+        block="I10 - filled pressure",
+    )
+    twin_text = worksheet(
+        entry("I10", "Hypertension", source="filled"),
+        block="I10 - filled pressure",
+    )
+    (unread / "codes.md").write_text(unread_text, encoding="utf-8")
+    (twin / "codes.md").write_text(twin_text, encoding="utf-8")
+    return UnreadRemainderInput(
+        (str(unread),),
+        (str(twin),),
+        unread_remainder=lambda result: result.unread_remainder,
+    )
+
+
+UnreadRemainderConformance = unread_remainder_conformance(scan)
 
 
 class TheParserFindsMarkedCodes(unittest.TestCase):
@@ -629,6 +659,7 @@ class ThePositiveControlStaysGradeable(unittest.TestCase):
 
         self.assertEqual(1, result.with_block)
         self.assertEqual((3, 3, 0), (result.marked, result.listed, result.orphaned_details))
+        self.assertEqual(0, result.unread_remainder)
         self.assertEqual((), result.findings)
 
     def test_every_quoted_anchor_is_one_physical_source_line(self):

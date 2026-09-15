@@ -14,6 +14,7 @@ from types import SimpleNamespace
 from unittest import mock
 
 import run_grader
+import grader_conformance
 from grader_conformance import constructed_kinds
 from prose_bind import NAMING, bind
 
@@ -49,6 +50,16 @@ class FindingCarriesOnlyTheSharedKind(unittest.TestCase):
         self.assertEqual("marker", finding.detail)
         with self.assertRaises((AttributeError, TypeError)):
             finding.kind = "changed"  # type: ignore[misc]
+
+
+class UnreadRemaindersShareOneReportLine(unittest.TestCase):
+    def test_the_shared_line_names_the_unread_remainder(self):
+        self.assertEqual("unread remainder 3", run_grader.format_unread_remainder(3))
+
+
+class UnreadRemainderConformanceIsOptIn(unittest.TestCase):
+    def test_the_kit_exposes_an_explicit_case_generator(self):
+        self.assertTrue(callable(grader_conformance.unread_remainder_conformance))
 
 
 class TheRunnerOwnsTheCommandTail(unittest.TestCase):

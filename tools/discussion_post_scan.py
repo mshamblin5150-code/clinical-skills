@@ -118,8 +118,17 @@ ROWS = {
 }
 KINDS = tuple(ROWS)
 HEADING_READ_ROWS = {kind: ROWS[kind] for kind in heading_read.KINDS}
+POSTED_READING_ROWS = (
+    MISSING_POSTED_READING,
+    UNKNOWN_VERDICT,
+    BARE_VERDICT,
+    UNLOCATED_READING,
+    BORROWED_LOCATOR,
+    SUBMISSION_FINGERPRINT,
+)
 
 GATED_ROW_SETS = {
+    "posted_reading_graded": (POSTED_READING_ROWS, ()),
     "html_graded": (
         (BOLD_HEADINGS, RENDERED_COMMENTS, SUBMISSION_TEXT, RENDERED_PAGES),
         (),
@@ -400,8 +409,10 @@ class Scan:
     rendered_pages_graded: bool
     docx_graded: bool
     reference_boundary_graded: bool
+    posted_reading_graded: bool
     heading_reads: int
     heading_read_unread: int
+    posted_reading_unread: int
     findings: tuple[Finding, ...] = ()
     citation_coverage: CitationCoverage = CitationCoverage()
 
@@ -922,12 +933,13 @@ def load(parsed: run_grader.Parsed) -> RunSource:
 
 
 def _posted_reading_findings(source: RunSource) -> tuple[Finding, ...]:
-    if source.post_url is None and source.post_posted is None:
-        return ()
     submission = source.draft.stem
     reading = next(
         (item for item in source.readings if item.artifact == submission), None
     )
+    posting_absent = source.post_url is None and source.post_posted is None
+    if posting_absent and reading is None:
+        return ()
     if reading is None:
         return (
             Finding(
@@ -938,9 +950,9 @@ def _posted_reading_findings(source: RunSource) -> tuple[Finding, ...]:
         )
     findings: list[Finding] = []
     missing = list(reading.missing_record_fields)
-    if not source.post_url:
+    if not posting_absent and not source.post_url:
         missing.append(f"{submission} POST-URL")
-    if not source.post_posted:
+    if not posting_absent and not source.post_posted:
         missing.append(f"{submission} POSTED")
     if missing:
         findings.append(
@@ -962,7 +974,7 @@ def _posted_reading_findings(source: RunSource) -> tuple[Finding, ...]:
         findings.append(
             Finding(UNLOCATED_READING, submission, "POST-URL has no entry_id")
         )
-    elif reading.post_url != source.post_url:
+    elif not posting_absent and reading.post_url != source.post_url:
         findings.append(
             Finding(
                 BORROWED_LOCATOR,
@@ -1151,6 +1163,12 @@ def _rendered_page_findings(source: RunSource) -> RenderedPageSurvey:
 
 def survey(source: RunSource) -> Scan:
     rendered_pages = _rendered_page_findings(source)
+    has_posted_reading = any(
+        item.artifact == source.draft.stem for item in source.readings
+    )
+    posting_fields_absent = source.post_url is None and source.post_posted is None
+    posted_reading_graded = has_posted_reading or not posting_fields_absent
+    posted_reading_unread = int(has_posted_reading and posting_fields_absent)
     heading = heading_read.scan(
         source.heading_read_text,
         (
@@ -1191,8 +1209,10 @@ def survey(source: RunSource) -> Scan:
             rendered_pages_graded=rendered_pages.engine_available,
             docx_graded=source.docx is not None,
             reference_boundary_graded=False,
+            posted_reading_graded=posted_reading_graded,
             heading_reads=heading.records_read,
             heading_read_unread=heading.unread,
+            posted_reading_unread=posted_reading_unread,
             findings=findings + _posted_reading_findings(source),
         )
     words = len(WORD.findall(_countable_body(source.body)))
@@ -1311,8 +1331,10 @@ def survey(source: RunSource) -> Scan:
         rendered_pages_graded=rendered_pages.engine_available,
         docx_graded=source.docx is not None,
         reference_boundary_graded=True,
+        posted_reading_graded=posted_reading_graded,
         heading_reads=heading.records_read,
         heading_read_unread=heading.unread,
+        posted_reading_unread=posted_reading_unread,
         findings=tuple(findings),
         citation_coverage=coverage,
     )
@@ -1377,7 +1399,10 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
             if scan.reference_boundary_graded
             else f"pre-#496 markers: {NOT_GRADED}"
         ),
-        f"heading-read records: {scan.heading_reads}; unread remainder: {scan.heading_read_unread}",
+        f"heading-read records: {scan.heading_reads}",
+        run_grader.format_unread_remainder(
+            scan.heading_read_unread + scan.posted_reading_unread
+        ),
         (
             f"{RENDERED_TEXT}: {scan.rendered_text_mismatches} (reported, {NOT_GRADED})"
             if scan.docx_graded
@@ -1388,7 +1413,9 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         f"findings: {len(scan.findings)}",
     ]
     for kind in ROWS:
-        if kind not in {
+        if kind in POSTED_READING_ROWS and not scan.posted_reading_graded:
+            lines.append(f"{kind}: {NOT_GRADED}")
+        elif kind not in {
             BOLD_HEADINGS,
             RENDERED_COMMENTS,
             SUBMISSION_TEXT,
@@ -1446,6 +1473,8 @@ def grade(source: RunSource, _parsed: run_grader.Parsed) -> run_grader.Grade[Sca
         coverage_failed=(
             not scanned.reference_boundary_graded
             or not scanned.rendered_pages_graded
+            or scanned.heading_read_unread > 0
+            or scanned.posted_reading_unread > 0
         ),
         diagnostics=(
             (f"refused reference label in {source.draft.name}: {source.refused_label}",)

@@ -49,16 +49,15 @@ class TheDeclaredLimitsObjectOwnsBothProseSurfaces(unittest.TestCase):
                 self.assertEqual(1, surface.count(self.POINTER))
                 self.assertEqual((), bind(fvc.DECLARED_LIMITS, surface, mode=NAMING))
 
-    def test_the_partition_is_one_declared_reading_and_eight_behaviors(self):
+    def test_the_partition_is_one_declared_reading_and_seven_behaviors(self):
         dispositions = [row[2] for row in fvc.DECLARED_LIMITS]
         self.assertEqual(1, dispositions.count(run_grader.EvidenceDisposition.DECLARED_READING))
-        self.assertEqual(8, dispositions.count(run_grader.EvidenceDisposition.BEHAVIOR))
+        self.assertEqual(7, dispositions.count(run_grader.EvidenceDisposition.BEHAVIOR))
         self.assertTrue(all(subject and reason for subject, reason, _ in fvc.DECLARED_LIMITS))
 
 
 class EveryBehaviorLimitHasALiveControl(unittest.TestCase):
     CONTROLS = {
-        "recognized height and weight units": "DeclaredLimitBoundaryControls.test_metric_body_values_are_unread_beside_recognized_units",
         "recognized FILLED-asserted key lines": "DeclaredLimitBoundaryControls.test_an_unrecognized_key_is_invisible_beside_a_readable_note",
         "sentence punctuation inside a declaration": "DeclaredLimitBoundaryControls.test_sentence_punctuation_interrupts_a_declaration",
         "column-zero tier words": "TheTwoBoundariesAreLooseInOppositeDirections.test_a_prose_line_starting_filled_closes_rather_than_opens",
@@ -139,6 +138,34 @@ def empty_population_input(root: Path) -> grader_conformance.EmptyPopulationInpu
         population_size=lambda result: result.heights + result.pressures,
         twin_argv=(str(twin),),
     )
+
+
+def unread_remainder_input(root: Path) -> grader_conformance.UnreadRemainderInput:
+    unread, twin = root / "unread", root / "twin"
+    unread.mkdir()
+    twin.mkdir()
+    written(
+        unread,
+        one=(
+            "FILLED·asserted   HEIGHT 178 cm filled. Plausible for a 41-year-old man.\n"
+            "                  WEIGHT 82 kg filled.\n"
+        ),
+    )
+    written(
+        twin,
+        one=(
+            "FILLED·asserted   HEIGHT 70 in filled. Plausible for a 41-year-old man.\n"
+            "                  WEIGHT 181 lb filled.\n"
+        ),
+    )
+    return grader_conformance.UnreadRemainderInput(
+        (str(unread),),
+        (str(twin),),
+        unread_remainder=lambda result: result.unread_remainder,
+    )
+
+
+UnreadRemainderConformance = grader_conformance.unread_remainder_conformance(fvc)
 
 
 def invoke_main(arguments: list[str]) -> tuple[int, str, str]:
@@ -1035,9 +1062,22 @@ class TheCommittedRunSplitsOnTheHeightRule(unittest.TestCase):
         census = fvc.survey(all_notes())
         self.assertEqual(census.heights - census.heights_missing_person, 4)
 
+
+class TheSlotFormRunCarriesTheMeasuredPartialRead(unittest.TestCase):
+    RUN = REPO_ROOT / "fixtures" / "slot-form-run"
+
+    def test_its_decimal_inches_height_is_the_one_unread_remainder(self):
+        census = fvc.survey(
+            [path.read_text(encoding="utf-8") for path in sorted(self.RUN.glob("*.md"))]
+        )
+        self.assertEqual(1, census.unread_remainder)
+
+    def test_the_run_exits_not_scanned(self):
+        self.assertEqual(2, fvc.main([str(self.RUN)]))
+
     def test_its_pressures_clear_the_tilt_bar(self):
         """So the exit status above is the heights and nothing else."""
-        census = fvc.survey(all_notes())
+        census = fvc.survey(run_grader.read_run_directory(self.RUN))
         self.assertFalse(fvc.tilt_beyond_chance(census.abnormal_pressures, census.pressures))
 
 

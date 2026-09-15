@@ -185,11 +185,6 @@ DECLARED_LIMITS = (
         run_grader.EvidenceDisposition.BEHAVIOR,
     ),
     (
-        "notes whose tier block is unreadable or absent",
-        "Such a note is graded on nothing beside readable notes; #1066 owns the partial-read repair.",
-        run_grader.EvidenceDisposition.BEHAVIOR,
-    ),
-    (
         "unrecognized FILLED-asserted keys",
         "Their notes do not grade F3's absence limb, while the independent GAPS limb still runs.",
         run_grader.EvidenceDisposition.BEHAVIOR,
@@ -253,6 +248,11 @@ class Scan:
     # the note text is available only under ``--show``. Issue #297.
     label_candidates: tuple[str, ...] = field(default=())
     notes_f3_absence_not_graded: int = 0
+
+    @property
+    def unread_remainder(self) -> int:
+        """Notes for which the tier-block reader found no readable block."""
+        return self.notes_read - self.notes_with_block
 
 
 def _canonical(label: str) -> str:
@@ -396,6 +396,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         "",
         f"  notes read                       {scan.notes_read}",
         f"  notes carrying a tier block      {scan.notes_with_block}",
+        run_grader.format_unread_remainder(scan.unread_remainder),
         f"  notes carrying a GAPS section    {scan.notes_with_gaps}",
         f"  GAPS entries                     {scan.gaps_entries}",
         f"  GAPS wrapped lines               {scan.gaps_wrapped_lines}",
@@ -467,7 +468,7 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
         scan=scan,
         source=source.directory.name,
         findings_failed=bool(scan.findings),
-        coverage_failed=not scan.notes_with_block,
+        coverage_failed=not scan.notes_with_block or bool(scan.unread_remainder),
         diagnostics=tuple(diagnostics),
     )
 

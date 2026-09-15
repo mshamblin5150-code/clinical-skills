@@ -16,9 +16,29 @@ ENTRY = re.compile(
     rf"(?P<code>{CODE})[ \t]+(?P<descriptor>.+?)[ \t]*$"
 )
 
+# Candidate forms deliberately admit common Markdown decoration around the same
+# entry and field tokens.  Graders subtract their strict reads from these wider
+# populations; they do not treat this grammar as a second accepted syntax.
+ENTRY_CANDIDATE = re.compile(
+    rf"(?mi)^[ \t]*(?:[-+*][ \t]+)?(?:\*\*)?"
+    rf"(?P<system>ICD-?10(?:-CM)?|CPT|HCPCS)(?:\*\*)?[ \t]+"
+    rf"(?P<code>{CODE})\b[^\r\n]*$"
+)
+
 FIELD = re.compile(
     r"(?mi)^[ \t]*(?P<field>ANCHOR|SOURCE|SPECIFICITY|CONFIDENCE|NOTE)[ \t]*:"
 )
+
+
+def field_candidates(text: str, field: str) -> list[re.Match[str]]:
+    """Relaxed-prefix physical lines beginning with one named detail field."""
+    return list(
+        re.finditer(
+            rf"(?mi)^[ \t]*(?:[-+*][ \t]+)?(?:\*\*)?"
+            rf"{re.escape(field)}(?:\*\*)?[ \t]*:",
+            text,
+        )
+    )
 
 NOT_FOR_ENTRY = re.compile(r"(?mi)[ \t]NOT FOR ENTRY[ \t]*$")
 

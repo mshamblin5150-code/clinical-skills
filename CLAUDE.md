@@ -19,6 +19,8 @@ Two constraints that are not about permission:
 
 **A matcher never gets to turn a partial read into a clean whole.** Any figure that a ruling, verdict or routing decision rests on names its measured population and the matcher used. A figure reported only for context does not trigger this clause. When the matcher extracts or counts members of a fixture set — or of any other bounded population — it derives the population independently of the extraction, reports the denominator and unread remainder on every run, and refuses to present an incomplete read as clean. A deliberately partial report may keep its ordinary status only when its contract names the bound beside the result; silence never means full coverage.
 
+**ADR 0230 gives measured partial reads one public seam.** Every opting-in command prints the exact line `unread remainder N` through `run_grader.format_unread_remainder`, exits 2 when `N` is nonzero, and still exits 1 when a finding is established on the same run. Its candidate population is wider than its strict reader, grades nothing, is zero on committed correct inputs, and fires a planted control; where no such candidate count is admissible, the limit stays declared instead.
+
 **A load-bearing figure is re-derived at publication against the thing measured, not against the draft's copy of it**, whenever that thing can have moved since the reading or can contain the record being written. An opted-in `**Measured at:** <full commit SHA>` declaration is graded at the tracker and staged-ADR publication seams; the complete ceilings of that grade belong to `tracker_measurements.DECLARED_LIMITS` and are not copied here.
 
 **Coverage is a floor, not proof that the extractor recognizes every form.** A rule that cannot recognize a member cannot count it as unread, and a numerator and denominator built from the same matcher can agree while both omit it. So the tool states that ceiling beside the implementation, tests against real committed members rather than only hand-written examples, and is fed at least one zero-match or partial-match mutant before its coverage claim is believed. The population, the extraction, and the liveness case are three independent pieces of evidence.
@@ -205,9 +207,9 @@ section copies no row.
 
 ### Grader conformance
 
-`tools/grader_conformance.py` holds reusable public-seam checks for the command graders. `for_module` is universal by convention for members of that family: it binds their runner delegation, row vocabulary, redaction, exit precedence, and the empty-population behavior declared by `run_grader.EMPTY_POPULATION_POSTURES`. Each member's test module supplies the synthetic empty input and, for a `not-scanned` posture, its one-member twin; the mapping owns the declarations and this section copies no row. `gate_conformance` is opt-in and a test module must name its membership explicitly, because a boolean on `Scan` is not necessarily a report gate.
+`tools/grader_conformance.py` holds reusable public-seam checks for the command graders. `for_module` is universal by convention for members of that family: it binds their runner delegation, row vocabulary, redaction, exit precedence, and the empty-population behavior declared by `run_grader.EMPTY_POPULATION_POSTURES`. Each member's test module supplies the synthetic empty input and, for a `not-scanned` posture, its one-member twin; the mapping owns the declarations and this section copies no row. `gate_conformance` is opt-in and a test module must name its membership explicitly, because a boolean on `Scan` is not necessarily a report gate. `unread_remainder_conformance` is likewise opt-in: each member supplies a real unread input and its readable twin, and the generated case pins the nonzero/exit-2, finding/exit-1, and zero/exit-0 triplet plus the shared report line.
 
-Generated cases are bound as `GraderConformance` and `GateConformance`; `tools/test_suite_ids.py` proves their discovered IDs re-run, while `grader_conformance.DECLARED_LIMITS` owns the remaining boundary.
+Generated cases are bound as `GraderConformance`, `GateConformance`, and `UnreadRemainderConformance`; `tools/test_suite_ids.py` proves their discovered IDs re-run, while `grader_conformance.DECLARED_LIMITS` owns the remaining boundary.
 
 The distinction comes from the whole-family shape read recorded in [ADR 0080](docs/adr/0080-a-gated-row-set-is-declared-per-gate-and-guarded-by-an-opt-in-walk-in-the-shared-conformance-kit.md). The discussion scanners use booleans to suppress report rows, while `case_study_scan` uses banner flags that append prose and suppress nothing; other riders may have no boolean field at all. Applying the gate walk automatically would therefore grade a correct banner shape as defective. Opting in lets the discussion pair share one report-width rule without asserting that every grader must adopt their boolean-gate arrangement or the nullable-sentinel arrangement refused by [ADR 0071](docs/adr/0071-a-gated-row-set-is-derived-from-its-sentinel-and-guarded-by-a-walk-in-its-own-module.md).
 
@@ -256,6 +258,8 @@ Its output contains counts and paths, never extracted or transcribed text.
 
 The complete boundary of a clean result is declared in `filled_vitals_census.DECLARED_LIMITS`.
 
+Its ADR 0230 candidate walk counts height and weight labels followed by numbers per class per note inside the asserted block. Strict-reader misses enter the shared unread remainder; this is why `fixtures/slot-form-run` exits 2 on `peds-bp-case-05`'s decimal-inch height while the fixture remains untouched.
+
 The corpus census reads the clinician's shorthand. This one reads **a run's finished notes**, and it exists because [#67](https://github.com/mshamblin5150-code/clinical-skills/issues/67) is a defect no single note contains: nine notes each filling a plausible vital set, and one patient described nine times.
 
 ```bash
@@ -286,6 +290,8 @@ Covered by `tools/test_filled_vitals_census.py`, which runs against the twelve c
 ### Specificity scan
 
 The complete boundary of a clean result is declared in `specificity_scan.DECLARED_LIMITS`.
+
+Before the `icd10-cpt` step-4 boundary, relaxed-prefix code-entry and `SPECIFICITY`-field candidates are counted independently of the strict worksheet grammar. Their unmatched forms enter the shared unread remainder; listing-shaped strict entries after `icd10-cpt` step 4 remain the declared coverage floor beyond that candidate population.
 
 The filled-vitals census reads a `clinical-note` run. This one reads an **`icd10-cpt` run**, and it is `fixtures/filled-anchor` **C5** made runnable — [#56](https://github.com/mshamblin5150-code/clinical-skills/issues/56).
 
@@ -351,6 +357,8 @@ Covered by `tools/test_differential_scan.py`, which builds synthetic notes in th
 
 The complete boundary of a clean result is declared in `anchor_scan.DECLARED_LIMITS`.
 
+Before `icd10-cpt` step 4, relaxed-prefix code-entry candidates are counted independently of strict entry openings. An unmatched candidate enters the shared unread remainder; the per-run gradeable-coverage limit remains declared under ADR 0230 because marks, listings, and pediatric bands have no admissible common candidate population.
+
 The differential scan reads a `clinical-note` run. This one reads an **`icd10-cpt`** run again, and it is `fixtures/filled-anchor`'s **ANCHOR** class reduced to the part a machine can settle — [#124](https://github.com/mshamblin5150-code/clinical-skills/issues/124).
 
 ```bash
@@ -369,6 +377,8 @@ Covered by `tools/test_anchor_scan.py`, which builds synthetic worksheets in tha
 ### Block scan
 
 The complete boundary of a clean result is declared in `block_scan.DECLARED_LIMITS`.
+
+Every note is a candidate for one readable tier block. Notes without one enter the shared unread remainder, including when readable neighbors still let F1 through F3 run.
 
 The differential scan reads a `clinical-note` run's differential. This one reads the same run's **tier block**, and it is `fixtures/day-a`'s **F1, F2 and F3** made runnable — [#120](https://github.com/mshamblin5150-code/clinical-skills/issues/120), whose own comment asks for it by name: *put any grader in `tools/`*, because the four graders that scored `filled-anchor` run 1 were written into the run directory and went with it when the worktree was removed.
 
@@ -393,6 +403,8 @@ Covered by `tools/test_block_scan.py`, which builds synthetic blocks in that fil
 The block scan reads a `clinical-note` run's tier block. This one reads an **`icd10-cpt` run's
 refusal record**, and it is the mechanical half of the rule that a refused code has to say what it
 would have taken.
+
+Refusal-block headings and `NOT CODED` marks are separate candidate populations. Headings after the first and marks after the first readable heading enter one shared unread remainder without becoming refusal findings.
 
 ```bash
 python tools/refusal_scan.py <a run directory>
@@ -713,6 +725,8 @@ that class would still be green.
 
 The research ledger reads a `practicum-case-study` run's working file before the draft exists. This one reads the **finished draft**, and it is [#218](https://github.com/mshamblin5150-code/clinical-skills/issues/218)'s mechanical half.
 
+Citation candidates that neither the evidence reader nor the grammar reader can consume enter the shared unread remainder. The controls include an ASCII-hyphen translated-work date and a replacement character; neither is partially graded as an ordinary citation.
+
 ```bash
 python tools/reference_scan.py <a draft .md> --as-of <YYYY-MM-DD>
 ```
@@ -974,6 +988,8 @@ Covered by `tools/test_voice_corpus.py`, which builds synthetic exports in that 
 The section above reads the corpus a voice model is built **from**. This one reads the **model**,
 and it grades shape alone.
 
+Every line beginning `**` at column zero inside the pairs body is a pair candidate. A candidate outside the strict pair reader enters the shared unread remainder.
+
 ```bash
 python tools/voice_model_scan.py [<voice-model.md>] [--show]
 ```
@@ -1002,6 +1018,8 @@ Covered by `tools/test_voice_model_scan.py`.
 
 `discussion-post` produces one graded initial post. This grades it against the bar that post was
 signed to.
+
+A reread record beside a post that lacks both `POST-URL` and `POSTED` is a shared unread remainder. With no reread record, the posted-reading rows remain `not graded` rather than becoming a candidate population.
 
 ```bash
 python tools/post_html.py <the Markdown> <the HTML submission>
@@ -1040,6 +1058,8 @@ Covered by `tools/test_post_html.py`, `tools/test_discussion_post_render.py`,
 
 `peer-critique` produces one graded eight-heading peer clinical critique of a classmate's case
 study. This grades it.
+
+Every roster post is a candidate for one `AUTHOR` read. A post without that field enters the shared unread remainder.
 
 ```bash
 python tools/peer_critique_scan.py <a run directory> [--show] [--submission critique.md]
@@ -1094,6 +1114,8 @@ boundary in `deck_scan.DECLARED_LIMITS`; this section points to those objects wi
 their contents. The scan reads slide faces for container limits and slide faces plus speaker notes
 for claim tracing. Counts print by default, while `--show` exposes artifact text and remains private.
 Exit 0 is clean, 1 means a finding, and 2 means the input population was not completely scanned.
+Referenced SmartArt and chart members that cannot be read enter that same shared unread remainder,
+along with unread heading-read records.
 At completion, the package scan also joins the run's `rendered.md` record to the highest retained
 pass and invokes the grader paired in `aar_scan.COMPLETION_GRADERS`; the full record contract stays
 in `skills/course-assignment/SKILL.md` rather than being copied here.
@@ -1122,6 +1144,8 @@ Covered by `tools/test_deck_scan.py`, `tools/test_deck_render.py`,
 The post grader reads one initial post. This reads a run's **replies**, and the difference that
 matters is the roster: a reply is addressed to a named classmate and the grader checks that the name
 is one the run actually read.
+
+Reference candidates dropped by `_valid_references` enter the shared unread remainder rather than silently shrinking the graded reference population. Roster posts without a readable `AUTHOR` field enter the same remainder while readable neighbors remain gradeable.
 
 ```bash
 python tools/discussion_reply_scan.py <a run directory>

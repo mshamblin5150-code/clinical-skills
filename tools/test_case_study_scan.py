@@ -1093,7 +1093,7 @@ class EveryDeclaredLimitHasAnEvidenceDisposition(unittest.TestCase):
     )
     WRONG_CROSS_REFERENCE = "a cross-reference inside range that lands on the wrong item"
     UNNAMED_CROSS_REFERENCE = "an unnamed cross-reference is never resolved"
-    OPTIONAL_HEADING = "a misspelled optional heading disables its row"
+    OPTIONAL_HEADING = "a misspelled optional heading disables its row under ADR 0230"
 
     def test_every_limit_has_exactly_one_known_disposition(self):
         self.assertEqual(

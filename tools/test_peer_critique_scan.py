@@ -22,12 +22,19 @@ import research_ledger
 import file_digest
 
 SKILL = Path(__file__).resolve().parents[1] / "skills" / "peer-critique" / "SKILL.md"
-from grader_conformance import EmptyPopulationInput, for_module, gate_conformance
+from grader_conformance import (
+    EmptyPopulationInput,
+    UnreadRemainderInput,
+    for_module,
+    gate_conformance,
+    unread_remainder_conformance,
+)
 from prose_bind import NAMING, bind
 
 
 GraderConformance = for_module(scan)
 GateConformance = gate_conformance(scan)
+UnreadRemainderConformance = unread_remainder_conformance(scan)
 
 HEADINGS = scan.REQUIRED_HEADINGS
 FILLER = " ".join(["word"] * 70)
@@ -101,10 +108,11 @@ def build_run(
     reread=REREAD,
     extra="",
     claims="DATE: 2026-09-09\n\n## CLAIM: a claim\nRESTATEMENT: says the thing\n",
+    root: Path | None = None,
 ) -> Path:
     """Write one synthetic run directory and return its path."""
 
-    directory = Path(tempfile.mkdtemp()) / "run"
+    directory = root or Path(tempfile.mkdtemp()) / "run"
     (directory / "posts").mkdir(parents=True)
     (directory / "posts" / "k.md").write_text("AUTHOR: Maren Quill\n", encoding="utf-8")
     sections = "\n\n".join(
@@ -128,6 +136,21 @@ def build_run(
             encoding="utf-8",
         )
     return directory
+
+
+def unread_remainder_input(root: Path) -> UnreadRemainderInput:
+    unread = build_run(root=root / "unread")
+    twin = build_run(root=root / "twin")
+    (unread / "posts" / "unread.md").write_text(
+        "A synthetic post with no author field.\n", encoding="utf-8"
+    )
+    return UnreadRemainderInput(
+        (str(unread),),
+        (str(twin),),
+        unread_remainder=lambda result: (
+            result.posts_total - result.posts_read + result.heading_read_unread
+        ),
+    )
 
 
 def graded(directory: Path) -> scan.Scan:

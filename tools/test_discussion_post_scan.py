@@ -29,7 +29,13 @@ import docx_write
 import file_digest
 import post_html
 import page_image
-from grader_conformance import EmptyPopulationInput, for_module, gate_conformance
+from grader_conformance import (
+    EmptyPopulationInput,
+    UnreadRemainderInput,
+    for_module,
+    gate_conformance,
+    unread_remainder_conformance,
+)
 from prose_bind import NAMING, bind
 from test_discussion_reply_scan import (
     BODY as REPLY_BODY,
@@ -40,6 +46,7 @@ from test_discussion_reply_scan import (
 
 GraderConformance = for_module(scan)
 GateConformance = gate_conformance(scan)
+UnreadRemainderConformance = unread_remainder_conformance(scan)
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PNG = base64.b64decode(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
@@ -273,6 +280,42 @@ def empty_population_input(root: Path) -> EmptyPopulationInput:
     return EmptyPopulationInput(
         (str(root), "--draft", str(run.draft)),
         population_size=lambda result: result.words or 0,
+    )
+
+
+def unread_remainder_input(root: Path) -> UnreadRemainderInput:
+    unread, twin = root / "unread", root / "twin"
+    unread.mkdir()
+    twin.mkdir()
+    unread_run, twin_run = Run(unread), Run(twin)
+    reread = (
+        f"## REREAD: {unread_run.draft.stem}\n"
+        "POST-URL: https://example.org/t?entry_id=41\n"
+        "POSTED: 2026-08-28T19:30:00-04:00\n"
+        "READ: 2026-08-28\n"
+        f"SUBMISSION-SHA256: {file_digest.sha256(unread_run.draft)}\n"
+        "VERDICT: matches - The artifact and posted entry agree.\n"
+    )
+    (unread / "post.md").write_text(BODY, encoding="utf-8")
+    (unread / "reread.md").write_text(reread, encoding="utf-8")
+    (twin / "post.md").write_text(
+        "POST-URL: https://example.org/t?entry_id=41\n"
+        "POSTED: 2026-08-28T19:30:00-04:00\n\n"
+        + BODY,
+        encoding="utf-8",
+    )
+    (twin / "reread.md").write_text(
+        reread.replace(unread_run.draft.stem, twin_run.draft.stem),
+        encoding="utf-8",
+    )
+    return UnreadRemainderInput(
+        (str(unread), "--draft", str(unread_run.draft)),
+        (str(twin), "--draft", str(twin_run.draft)),
+        unread_remainder=lambda result: result.posted_reading_unread
+        + result.heading_read_unread,
+        context_factory=lambda: mock.patch.dict(
+            sys.modules, {"pymupdf": FakePyMuPDF()}
+        ),
     )
 
 
@@ -1302,6 +1345,28 @@ class APostedInitialEntryHasItsOwnReading(unittest.TestCase):
         self.assertEqual(0, status)
         self.assertEqual("", stderr)
         self.assertIn("missing-posted-reading: 0", stdout)
+
+    def test_a_finding_in_an_unread_posting_candidate_outranks_coverage(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = self.posted_run(Path(temp))
+            (run.root / "post.md").write_text(BODY, encoding="utf-8")
+            (run.root / "reread.md").write_text(
+                f"## REREAD: {run.draft.stem}\n"
+                f"POST-URL: {self.POST_URL}\n"
+                "POSTED: 2026-08-28T19:30:00-04:00\n"
+                "READ: 2026-08-28\n"
+                f"SUBMISSION-SHA256: {'0' * 64}\n"
+                "VERDICT: matches - The headings, paragraphs, and references are present.\n",
+                encoding="utf-8",
+            )
+            status, stdout, _stderr = run.grade()
+
+        self.assertEqual(1, status)
+        self.assertIn("unread remainder 1", stdout.splitlines())
+        self.assertIn(f"{scan.SUBMISSION_FINGERPRINT}: 1", stdout)
+        self.assertNotIn("not graded", next(
+            line for line in stdout.splitlines() if line.startswith(f"{scan.SUBMISSION_FINGERPRINT}:")
+        ))
 
     def test_a_missing_initial_post_fingerprint_is_a_finding(self):
         with tempfile.TemporaryDirectory() as temp:
