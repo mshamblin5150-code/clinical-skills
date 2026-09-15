@@ -1,0 +1,230 @@
+{
+  "record_heading": "Positive descriptor-agreement reader record",
+  "pairs": [
+    {
+      "stem": "case-01",
+      "codes": [
+        {
+          "system": "ICD-10",
+          "code": "F17.210",
+          "role": "entry",
+          "agreeing_words": "Nicotine dependence, cigarettes, uncomplicated",
+          "route": "descriptor",
+          "encounter_evidence": "Tobacco use, 1 pack per day for 24 years; current daily smoker, 24 pack-years.",
+          "open_status_evidence": "none",
+          "threshold": "none",
+          "waits_on_result": "none"
+        },
+        {
+          "system": "ICD-10",
+          "code": "F12.90",
+          "role": "entry",
+          "agreeing_words": "Cannabis use, unspecified, uncomplicated",
+          "route": "descriptor",
+          "encounter_evidence": "Cannabis use; admits marijuana use, frequency and route not documented.",
+          "open_status_evidence": "none",
+          "threshold": "none",
+          "waits_on_result": "none"
+        },
+        {
+          "system": "ICD-10",
+          "code": "R12",
+          "role": "entry",
+          "agreeing_words": "Heartburn",
+          "route": "descriptor",
+          "encounter_evidence": "Occasional heartburn; heartburn + (occasional, stated).",
+          "open_status_evidence": "none",
+          "threshold": "none",
+          "waits_on_result": "none"
+        },
+        {
+          "system": "ICD-10",
+          "code": "Z87.898",
+          "role": "entry",
+          "agreeing_words": "Personal history of other specified conditions",
+          "route": "descriptor",
+          "encounter_evidence": "History of elevated troponin, etiology not documented; the Plan orders ECG and retrieval of prior cardiology or emergency department records regarding the elevated troponin.",
+          "open_status_evidence": "Prior troponin value, date, setting, and etiology remain unresolved in GAPS and are addressed today through ECG and record retrieval.",
+          "threshold": "none",
+          "waits_on_result": "none"
+        },
+        {
+          "system": "ICD-10",
+          "code": "L02.612",
+          "role": "entry",
+          "agreeing_words": "Cutaneous abscess of left foot",
+          "route": "descriptor",
+          "encounter_evidence": "Focal swelling of the plantar left great toe, exquisite tenderness, a blanched apparent collection beneath the surface, and incision and drainage planned for this encounter.",
+          "open_status_evidence": "none",
+          "threshold": "none",
+          "waits_on_result": "none"
+        },
+        {
+          "system": "ICD-10",
+          "code": "M79.675",
+          "role": "entry",
+          "agreeing_words": "Pain in left toe(s)",
+          "route": "descriptor",
+          "encounter_evidence": "Left great toe pain for one month, 8/10 today, with weight-bearing limited.",
+          "open_status_evidence": "none",
+          "threshold": "none",
+          "waits_on_result": "none"
+        },
+        {
+          "system": "ICD-10",
+          "code": "R06.89",
+          "role": "entry",
+          "agreeing_words": "Other abnormalities of breathing",
+          "route": "descriptor",
+          "encounter_evidence": "Breath sounds diminished in all four fields; spirometry with bronchodilator response and smoking counseling address the finding today.",
+          "open_status_evidence": "none",
+          "threshold": "none",
+          "waits_on_result": "none"
+        },
+        {
+          "system": "ICD-10",
+          "code": "E66.3",
+          "role": "entry",
+          "agreeing_words": "Overweight",
+          "route": "descriptor",
+          "encounter_evidence": "BMI 26.5 is derived from filled height and weight; nutrition counseling and diabetes screening address it today.",
+          "open_status_evidence": "none",
+          "threshold": "The note states the overweight band is 25.0-29.9; BMI is 26.5.",
+          "waits_on_result": "none"
+        },
+        {
+          "system": "ICD-10",
+          "code": "Z68.26",
+          "role": "entry",
+          "agreeing_words": "Body mass index [BMI] 26.0-26.9, adult",
+          "route": "descriptor",
+          "encounter_evidence": "Age 36 and BMI 26.5, derived from filled measurements.",
+          "open_status_evidence": "The note warns that the BMI-linked code rests on filled height and weight and must not be treated as measured.",
+          "threshold": "The note states that 26.5 falls in the 26.0-26.9 adult band.",
+          "waits_on_result": "none"
+        },
+        {
+          "system": "ICD-10",
+          "code": "L02.612",
+          "role": "differential",
+          "agreeing_words": "Cutaneous abscess of the left foot",
+          "route": "descriptor",
+          "encounter_evidence": "One-month course with acute escalation, focal plantar great-toe swelling, exquisite tenderness, a blanched apparent collection, 8/10 pain with inability to bear weight, and incision and drainage planned for this encounter.",
+          "open_status_evidence": "Favored.",
+          "threshold": "none",
+          "waits_on_result": "none"
+        },
+        {
+          "system": "ICD-10",
+          "code": "M79.675",
+          "role": "differential",
+          "agreeing_words": "Pain in left toe(s)",
+          "route": "descriptor",
+          "encounter_evidence": "Severe focal toe pain is established; the HPI and ROS document left great-toe pain at 8/10 with limited weight-bearing.",
+          "open_status_evidence": "The toe-pain descriptor is established; the co-favored and less-likely language applies to the uncoded residual-foreign-body, osteomyelitis, and diabetic-foot-infection concerns discussed within the entry.",
+          "threshold": "none",
+          "waits_on_result": "none"
+        },
+        {
+          "system": "ICD-10",
+          "code": "B07.0",
+          "role": "differential",
+          "agreeing_words": "Plantar wart",
+          "route": "descriptor",
+          "encounter_evidence": "The blanched, thickened plantar appearance is consistent.",
+          "open_status_evidence": "Less likely.",
+          "threshold": "Argued against by soft-tissue swelling, exquisite point tenderness, acute escalation to 8/10, and loss of weight-bearing.",
+          "waits_on_result": "none"
+        },
+        {
+          "system": "ICD-10",
+          "code": "L03.032",
+          "role": "differential",
+          "agreeing_words": "Cellulitis of left toe",
+          "route": "descriptor",
+          "encounter_evidence": "Localized plantar great-toe swelling and tenderness.",
+          "open_status_evidence": "Less likely.",
+          "threshold": "Argued against by the localized, well-circumscribed, blanched appearance without spreading erythema, warmth, or proximal streaking and by the afebrile temperature of 98.4 F.",
+          "waits_on_result": "none"
+        },
+        {
+          "system": "ICD-10",
+          "code": "M10.9",
+          "role": "differential",
+          "agreeing_words": "Gout, unspecified",
+          "route": "descriptor",
+          "encounter_evidence": "Acute gouty arthritis of the first metatarsophalangeal joint was considered because the site is classic and 8/10 pain fits.",
+          "open_status_evidence": "Less likely.",
+          "threshold": "Argued against by the plantar rather than joint-line location, the one-month indolent course rather than an abrupt monoarticular flare, and the discrete subcutaneous collection.",
+          "waits_on_result": "none"
+        },
+        {
+          "system": "ICD-10",
+          "code": "R06.89",
+          "role": "differential",
+          "agreeing_words": "Other abnormalities of breathing",
+          "route": "descriptor",
+          "encounter_evidence": "Diminished breath sounds in all four fields without wheeze, crackles, rhonchi, increased work of breathing, or reported respiratory symptoms.",
+          "open_status_evidence": "Addressed with spirometry with bronchodilator response and smoking counseling.",
+          "threshold": "none",
+          "waits_on_result": "none"
+        },
+        {
+          "system": "ICD-10",
+          "code": "E66.3",
+          "role": "differential",
+          "agreeing_words": "Overweight",
+          "route": "descriptor",
+          "encounter_evidence": "BMI 26.5 falls in the overweight band and is addressed with nutrition counseling and diabetes screening.",
+          "open_status_evidence": "Addressed with nutrition counseling and diabetes screening.",
+          "threshold": "The note states the overweight band is 25.0-29.9; BMI is 26.5.",
+          "waits_on_result": "none"
+        },
+        {
+          "system": "ICD-10",
+          "code": "Z68.26",
+          "role": "differential",
+          "agreeing_words": "Body mass index [BMI] 26.0-26.9, adult",
+          "route": "descriptor",
+          "encounter_evidence": "Age 36 and BMI 26.5 establish the adult 26.0-26.9 band; nutrition counseling and diabetes screening address it.",
+          "open_status_evidence": "Addressed with nutrition counseling and diabetes screening.",
+          "threshold": "Age 36 is adult and BMI 26.5 falls in 26.0-26.9.",
+          "waits_on_result": "none"
+        },
+        {
+          "system": "ICD-10",
+          "code": "M79.5",
+          "role": "refused",
+          "agreeing_words": "Residual foreign body in soft tissue",
+          "route": "descriptor",
+          "encounter_evidence": "A residual foreign body is supported by work onset, an unknown mechanism, an indolent course, and the appearance of something below the surface, but drainage has not confirmed it.",
+          "open_status_evidence": "NOT CODED: M79.5 Residual foreign body in soft tissue, completed drainage or exploration has not documented a retained foreign body.",
+          "threshold": "none",
+          "waits_on_result": "Completed drainage or foreign-body exploration."
+        },
+        {
+          "system": "ICD-10",
+          "code": "M86.9",
+          "role": "refused",
+          "agreeing_words": "Osteomyelitis, unspecified",
+          "route": "descriptor",
+          "encounter_evidence": "Osteomyelitis of the distal phalanx is considered after one month of unresolved focal infection, but the radiograph has no result.",
+          "open_status_evidence": "NOT CODED: M86.9 Osteomyelitis, unspecified, no resulted bone study establishes osteomyelitis.",
+          "threshold": "none",
+          "waits_on_result": "The ordered left-foot radiograph or another resulted bone study."
+        },
+        {
+          "system": "ICD-10",
+          "code": "E11.628",
+          "role": "refused",
+          "agreeing_words": "Type 2 diabetes mellitus with other skin complications",
+          "route": "descriptor",
+          "encounter_evidence": "Diabetic foot infection is considered because an indolent foot lesion raises undiagnosed diabetes, but diabetes is not established.",
+          "open_status_evidence": "NOT CODED: E11.628 Type 2 diabetes mellitus with other skin complications, no diabetes evaluation establishes type 2 diabetes or its relationship to the skin condition.",
+          "threshold": "none",
+          "waits_on_result": "Hemoglobin A1c or another diabetes evaluation establishing type 2 diabetes and its relationship to the skin condition."
+        }
+      ]
+    }
+  ]
+}

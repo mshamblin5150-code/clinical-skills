@@ -2,6 +2,7 @@
 
     python tools/icd10_lookup.py Z68.36
     python tools/icd10_lookup.py --find "body mass index" --billable
+    python tools/icd10_lookup.py --index "Smoker"
 
 This is what turns ``icd10-cpt``'s ``CONFIDENCE: verify this number`` into a
 verified descriptor. It answers four things and no more: does the code exist,
@@ -19,12 +20,11 @@ diagnosis actually gets. ``notes_for`` walks the ancestors so the instruction is
 found, and each note reports the code it was written against so the clinician
 can check it in the tabular where it really lives.
 
-**What this cannot do.** There is no alphabetic index in the database, so this
-verifies a candidate code rather than finding one from a diagnosis phrase.
-``--find`` is a substring match over descriptors, which is a weaker thing: it
-finds "obesity" in a descriptor, where the index would map the *term* obesity to
-its codes through lead terms and sub-terms. Do not read a ``--find`` miss as
-evidence that no code exists.
+**Two searches with different claims.** ``--find`` is a substring match over
+descriptors. ``--index`` is an exact final-term match over the official
+alphabetic index and prints each complete path plus its direct code or referral.
+A miss from either mode is not evidence that no code exists: the intended phrase
+may sit under another index term or behind a referral that still needs following.
 
 **What it prints is not all ASCII, which issue #150 assumed it was.** Measured
 against the shipped FY2026 database, 2026-08-16: the 98,186 descriptors carry
@@ -50,7 +50,7 @@ import sys
 from pathlib import Path
 
 from console_codec import require_python_floor, use_utf8
-from icd10_build import Code, Note
+from icd10_build import Code, IndexEntry, Note
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_DATABASE = REPO_ROOT / "reference" / "icd10cm-2026.sqlite"
@@ -119,6 +119,16 @@ def find(connection: sqlite3.Connection, phrase: str, billable_only: bool) -> li
     return [_code(row) for row in rows]
 
 
+def index_paths(connection: sqlite3.Connection, term: str) -> list[IndexEntry]:
+    """Return every alphabetic-index path whose final term exactly matches."""
+    rows = connection.execute(
+        "SELECT term, path, code, see, see_also FROM index_entry "
+        "WHERE term = ? COLLATE NOCASE ORDER BY path, code, see, see_also",
+        (term.strip(),),
+    ).fetchall()
+    return [IndexEntry(*row) for row in rows]
+
+
 def dotted(code: str) -> str:
     """Codes are stored flat and read dotted. ``Z6836`` -> ``Z68.36``."""
     return code if len(code) <= CATEGORY_LENGTH else f"{code[:3]}.{code[3:]}"
@@ -146,16 +156,20 @@ def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("code", nargs="*", help="one or more codes, dotted or not")
     parser.add_argument("--find", help="substring match over official descriptors")
+    parser.add_argument("--index", help="exact alphabetic-index term to trace")
     parser.add_argument("--billable", action="store_true", help="with --find, billable codes only")
+    parser.add_argument("--database", type=Path, default=DEFAULT_DATABASE)
     args = parser.parse_args(argv)
 
-    if not args.code and not args.find:
-        parser.error("give a code to verify, or --find a phrase")
+    if not args.code and not args.find and not args.index:
+        parser.error("give a code to verify, --find a phrase, or --index a term")
+    if args.find and args.index:
+        parser.error("--find and --index are separate lookup modes")
     if args.billable and not args.find:
         parser.error("--billable narrows --find; it does nothing on its own")
 
     try:
-        connection = open_database()
+        connection = open_database(args.database)
     except FileNotFoundError as missing:
         raise SystemExit(str(missing)) from missing
     try:
@@ -166,6 +180,19 @@ def main(argv: list[str]) -> int:
                 mark = " " if entry.billable else "*"
                 print(f"{mark}{dotted(entry.code):<9} {entry.long}")
             print(f"-- {len(matches)} match(es); * = not billable")
+        if args.index:
+            matches = index_paths(connection, args.index)
+            for entry in matches:
+                destination = (
+                    f"code {dotted(entry.code)}" if entry.code else
+                    f"see {entry.see}" if entry.see else
+                    f"see also {entry.see_also}" if entry.see_also else
+                    "no direct destination"
+                )
+                print(f"{entry.path} -> {destination}")
+            print(f"-- {len(matches)} path(s)")
+            if not matches:
+                status = 1
         for code in args.code:
             status |= _report(connection, code)
         return status

@@ -13,7 +13,9 @@ the file a reader opens is worse than none, because it reads as agreement.
 from __future__ import annotations
 
 import io
+import json
 import re
+import shutil
 import tempfile
 import unittest
 from contextlib import redirect_stdout
@@ -50,10 +52,10 @@ class TheDeclaredLimitsObjectOwnsBothProseSurfaces(unittest.TestCase):
                 self.assertEqual(1, surface.count(self.POINTER))
                 self.assertEqual((), bind(scan.DECLARED_LIMITS, surface, mode=NAMING))
 
-    def test_the_partition_is_one_declared_reading_and_eight_behaviors(self):
+    def test_the_partition_is_one_declared_reading_and_nine_behaviors(self):
         dispositions = [row[2] for row in scan.DECLARED_LIMITS]
         self.assertEqual(1, dispositions.count(run_grader.EvidenceDisposition.DECLARED_READING))
-        self.assertEqual(8, dispositions.count(run_grader.EvidenceDisposition.BEHAVIOR))
+        self.assertEqual(9, dispositions.count(run_grader.EvidenceDisposition.BEHAVIOR))
         self.assertTrue(all(subject and reason for subject, reason, _ in scan.DECLARED_LIMITS))
 
 
@@ -67,6 +69,7 @@ class EveryBehaviorLimitHasALiveControl(unittest.TestCase):
         "contiguous indented detail pairing": "DeclaredLimitBoundaryControls.test_a_blank_line_orphans_a_recognized_source",
         "pediatric-band computation": "DeclaredLimitBoundaryControls.test_the_required_sentence_is_not_a_recomputation",
         "per-run gradeable coverage": "DeclaredLimitBoundaryControls.test_an_unread_worksheet_adds_nothing_beside_a_readable_one",
+        "E/M descriptor agreement": "TheReportCarriesNoCode.test_every_report_prints_the_excluded_em_count",
     }
 
     def test_each_behavior_subject_names_a_passing_control(self):
@@ -494,6 +497,12 @@ class TheReportCarriesNoCode(unittest.TestCase):
         report = scan.format_report(self.survey, source="run", show=True)
         self.assertIn("Z68.36", report)
 
+    def test_every_report_prints_the_excluded_em_count(self):
+        sheet = scan.read_worksheet("E/M: 99214 Office visit\n" + worksheet())
+
+        self.assertIn("E/M lines excluded", scan.format_report(scan.survey([sheet]), "run"))
+        self.assertEqual(1, scan.survey([sheet]).excluded_em)
+
 
 class TheExitStatusSaysWhetherAnythingWasScanned(unittest.TestCase):
     def run_over(self, files: dict[str, str], *args: str) -> int:
@@ -691,6 +700,335 @@ class ThePositiveControlStaysGradeable(unittest.TestCase):
         self.assertIsNotNone(block)
         assert block is not None
         self.assertIn(f'ANCHOR: "{expected}"', block.group())
+
+
+AGREEMENT_NOTE = """# Synthetic note
+
+## A:
+
+Occasional heartburn.
+
+**Differential:**
+1. Plantar wart - B07.0: focal plantar lesion. Less likely.
+
+**Preexisting diagnoses (ICD10):**
+Heartburn **R12**
+
+**Final diagnosis:**
+Pain in left toe(s) - **M79.675**
+
+NOT CODED: M86.9 Osteomyelitis, unspecified, no imaging established bone infection.
+
+## Proposed coding worksheet
+
+E/M: 99214 Office visit
+CPT: 10060 Incision and drainage of abscess
+HCPCS: None
+"""
+
+AGREEMENT_WORKSHEET = """--- PROPOSED CODES ---
+
+ICD-10  R12  Heartburn
+  ANCHOR: "Occasional heartburn"
+  SPECIFICITY: complete - symptom code
+  CONFIDENCE: verified against ICD-10-CM FY2026
+
+ICD-10  M79.675  Pain in left toe(s)
+  ANCHOR: "Pain in left toe(s)"
+  SPECIFICITY: complete - left toe documented
+  CONFIDENCE: verified against ICD-10-CM FY2026
+
+CPT  10060  Incision and drainage of abscess; simple or single
+  ANCHOR: "Incision and drainage of abscess"
+  SPECIFICITY: complete - performed today
+  CONFIDENCE: verified against CPT Professional 2026
+
+--- DIFFERENTIAL, DOCUMENTS MDM, NOT FOR ENTRY ---
+
+Plantar wart was considered for the focal plantar lesion.
+ICD-10  B07.0  Plantar wart  NOT FOR ENTRY
+  CONFIDENCE: verified against ICD-10-CM FY2026
+
+--- NOT CODED, NOTHING ESTABLISHED IT ---
+
+Osteomyelitis was considered but no imaging established bone infection.
+  NOT CODED: M86.9  Osteomyelitis, unspecified
+  needs: imaging establishing bone infection
+  proposed instead: M79.675  Pain in left toe(s)
+"""
+
+
+class AgreementModes(unittest.TestCase):
+    def setUp(self):
+        self.raw = tempfile.TemporaryDirectory()
+        root = Path(self.raw.name)
+        self.worksheets = root / "worksheets"
+        self.notes = root / "notes"
+        self.worksheets.mkdir()
+        self.notes.mkdir()
+        (self.worksheets / "case-01.md").write_text(AGREEMENT_WORKSHEET, encoding="utf-8")
+        (self.notes / "case-01.md").write_text(AGREEMENT_NOTE, encoding="utf-8")
+
+    def tearDown(self):
+        self.raw.cleanup()
+
+    def brief(self) -> dict:
+        output = io.StringIO()
+        with redirect_stdout(output):
+            status = scan.main(
+                [str(self.worksheets), "--notes", str(self.notes), "--agreement-brief"]
+            )
+        self.assertEqual(status, 0)
+        return json.loads(output.getvalue())
+
+    def clean_record(self) -> dict:
+        brief = self.brief()
+        records = []
+        words = {
+            ("entry", "R12"): "heartburn",
+            ("entry", "M79.675"): "Pain in left toe(s)",
+            ("procedure", "10060"): "Incision and drainage of abscess",
+            ("differential", "B07.0"): "Plantar wart",
+            ("refused", "M86.9"): "Osteomyelitis",
+        }
+        for subject in brief["pairs"][0]["codes"]:
+            records.append(
+                {
+                    "system": subject["system"],
+                    "code": subject["code"],
+                    "role": subject["role"],
+                    "agreeing_words": words[(subject["role"], subject["code"])],
+                    "route": "descriptor words",
+                    "encounter_evidence": "none",
+                    "open_status_evidence": "none",
+                    "threshold": "none",
+                    "waits_on_result": "none",
+                }
+            )
+        return {"pairs": [{"stem": "case-01", "codes": records}]}
+
+    def grade(self, record: dict) -> tuple[int, str]:
+        record_path = Path(self.raw.name) / "agreement-read.json"
+        record_path.write_text(json.dumps(record), encoding="utf-8")
+        output = io.StringIO()
+        with redirect_stdout(output):
+            status = scan.main(
+                [
+                    str(self.worksheets),
+                    "--notes",
+                    str(self.notes),
+                    "--agreement-read",
+                    str(record_path),
+                ]
+            )
+        return status, output.getvalue()
+
+    def test_the_brief_contains_the_note_and_official_descriptors_but_no_anchors(self):
+        brief = self.brief()
+
+        self.assertIn("Synthetic note", brief["pairs"][0]["note"])
+        self.assertNotIn("anchor", json.dumps(brief).lower())
+        self.assertIn("Heartburn", [row["descriptor"] for row in brief["pairs"][0]["codes"]])
+        self.assertEqual(1, brief["excluded_em"])
+
+    def test_unpaired_note_or_worksheet_is_unread(self):
+        (self.notes / "case-02.md").write_text(AGREEMENT_NOTE, encoding="utf-8")
+        output = io.StringIO()
+        with redirect_stdout(output):
+            status = scan.main(
+                [str(self.worksheets), "--notes", str(self.notes), "--agreement-brief"]
+            )
+
+        self.assertEqual(2, status)
+        self.assertIn("unread remainder", output.getvalue())
+
+    def test_a_code_missing_from_the_official_database_is_unread(self):
+        worksheet = AGREEMENT_WORKSHEET.replace("ICD-10  R12  Heartburn", "ICD-10  Z99.99  Heartburn")
+        (self.worksheets / "case-01.md").write_text(worksheet, encoding="utf-8")
+        output = io.StringIO()
+        with redirect_stdout(output):
+            status = scan.main(
+                [str(self.worksheets), "--notes", str(self.notes), "--agreement-brief"]
+            )
+
+        self.assertEqual(2, status)
+        self.assertGreater(json.loads(output.getvalue())["unread remainder"], 0)
+
+    def test_a_complete_verbatim_read_and_bidirectional_bind_are_clean(self):
+        status, report = self.grade(self.clean_record())
+
+        self.assertEqual(0, status)
+        self.assertIn("agreement findings                 0", report)
+        self.assertIn("E/M lines excluded                  1", report)
+
+    def test_words_absent_from_the_worksheet_support_fail(self):
+        record = self.clean_record()
+        record["pairs"][0]["codes"][0]["agreeing_words"] = "unrelated words"
+
+        self.assertEqual(1, self.grade(record)[0])
+
+    def test_a_differential_descriptor_waiting_on_a_result_fails(self):
+        record = self.clean_record()
+        row = next(
+            item for item in record["pairs"][0]["codes"] if item["role"] == "differential"
+        )
+        row["waits_on_result"] = "pathology result"
+
+        status, report = self.grade(record)
+        self.assertEqual(1, status)
+        self.assertRegex(report, r"descriptors waiting on results\s+1")
+
+    def test_a_procedure_descriptor_the_reader_cannot_settle_is_unread(self):
+        record = self.clean_record()
+        row = next(
+            item for item in record["pairs"][0]["codes"] if item["role"] == "procedure"
+        )
+        row["agreeing_words"] = "none"
+        row["route"] = "none"
+
+        status, report = self.grade(record)
+        self.assertEqual(2, status)
+        self.assertRegex(report, r"unread remainder 1")
+
+    def test_a_final_code_absent_from_the_worksheet_fails_the_bind(self):
+        (self.notes / "case-01.md").write_text(
+            AGREEMENT_NOTE.replace("Pain in left toe(s) - **M79.675**", "Pain in left toe(s) - **M25.572**"),
+            encoding="utf-8",
+        )
+
+        self.assertEqual(1, self.grade(self.clean_record())[0])
+
+
+    def test_a_refusal_dropped_from_the_note_fails_the_bind(self):
+        (self.notes / "case-01.md").write_text(
+            AGREEMENT_NOTE.replace(
+                "NOT CODED: M86.9 Osteomyelitis, unspecified, no imaging established bone infection.\n",
+                "",
+            ),
+            encoding="utf-8",
+        )
+
+        self.assertEqual(1, self.grade(self.clean_record())[0])
+
+    def test_an_inline_welded_refusal_participates_in_the_bind(self):
+        note = AGREEMENT_NOTE.replace(
+            "NOT CODED: M86.9 Osteomyelitis, unspecified, no imaging established bone infection.",
+            "Imaging is absent; NOT CODED: M86.9 Osteomyelitis, unspecified.",
+        )
+        (self.notes / "case-01.md").write_text(note, encoding="utf-8")
+
+        self.assertEqual(0, self.grade(self.clean_record())[0])
+
+    def test_procedure_lookup_prose_without_an_anchor_is_not_a_proposal(self):
+        worksheet = AGREEMENT_WORKSHEET.replace(
+            "CPT  10060  Incision and drainage of abscess; simple or single\n"
+            '  ANCHOR: "Incision and drainage of abscess"\n'
+            "  SPECIFICITY: complete - performed today\n"
+            "  CONFIDENCE: verified against CPT Professional 2026\n",
+            "CPT 10060 was looked up but is not proposed.\n",
+        )
+        note = AGREEMENT_NOTE.replace("CPT: 10060 Incision and drainage of abscess", "CPT: None")
+        (self.worksheets / "case-01.md").write_text(worksheet, encoding="utf-8")
+        (self.notes / "case-01.md").write_text(note, encoding="utf-8")
+        record = self.clean_record()
+
+        self.assertNotIn("10060", [row["code"] for row in record["pairs"][0]["codes"]])
+        self.assertEqual(0, self.grade(record)[0])
+
+    def test_a_rendered_procedure_nobody_proposed_fails_the_bind(self):
+        (self.notes / "case-01.md").write_text(
+            AGREEMENT_NOTE.replace("CPT: 10060", "CPT: 12001"), encoding="utf-8"
+        )
+
+        self.assertEqual(1, self.grade(self.clean_record())[0])
+
+    def test_a_refusal_substitute_absent_from_the_proposed_entries_fails(self):
+        (self.worksheets / "case-01.md").write_text(
+            AGREEMENT_WORKSHEET.replace(
+                "proposed instead: M79.675", "proposed instead: M25.572"
+            ),
+            encoding="utf-8",
+        )
+
+        self.assertEqual(1, self.grade(self.clean_record())[0])
+
+
+class CommittedAgreementControls(unittest.TestCase):
+    ROOT = Path(__file__).resolve().parent.parent / "fixtures"
+
+    def grade(self, control: str, root: Path | None = None) -> tuple[int, str]:
+        base = root or self.ROOT / control
+        output = io.StringIO()
+        with redirect_stdout(output):
+            status = scan.main(
+                [
+                    str(base / "worksheets"),
+                    "--notes",
+                    str(base / "notes"),
+                    "--agreement-read",
+                    str(base / "agreement-read.json"),
+                ]
+            )
+        return status, output.getvalue()
+
+    def test_the_blind_positive_and_note_path_records_are_clean(self):
+        for control in (
+            "descriptor-agreement-positive-control",
+            "descriptor-agreement-note-path-control",
+        ):
+            with self.subTest(control=control):
+                status, report = self.grade(control)
+                self.assertEqual(0, status)
+                self.assertIn("agreement findings                 0", report)
+                self.assertIn("unread remainder 0", report)
+
+    def test_the_blind_negative_reader_rederived_the_predicted_rows(self):
+        base = self.ROOT / "descriptor-agreement-negative-control"
+        record = json.loads((base / "agreement-read.json").read_text(encoding="utf-8"))
+        rows = {
+            (row["code"], row["role"]): row
+            for row in record["pairs"][0]["codes"]
+        }
+
+        self.assertEqual("none", rows[("M79.5", "entry")]["agreeing_words"])
+        self.assertNotEqual("none", rows[("M79.5", "differential")]["waits_on_result"])
+        self.assertEqual("none", rows[("Z13.1", "differential")]["agreeing_words"])
+        self.assertEqual(1, self.grade("descriptor-agreement-negative-control")[0])
+
+    def mutated_note_path(self, old: str, new: str) -> Path:
+        raw = tempfile.TemporaryDirectory()
+        self.addCleanup(raw.cleanup)
+        destination = Path(raw.name) / "control"
+        shutil.copytree(self.ROOT / "descriptor-agreement-note-path-control", destination)
+        note_path = destination / "notes" / "case-01.md"
+        note = note_path.read_text(encoding="utf-8")
+        self.assertIn(old, note)
+        note_path.write_text(note.replace(old, new, 1), encoding="utf-8")
+        return destination
+
+    def test_a_one_line_final_diagnosis_mutation_fires_the_committed_bind(self):
+        root = self.mutated_note_path(
+            "Final diagnosis: Cutaneous abscess of left foot - L02.612; "
+            "Pain in left toe(s) - M79.675",
+            "Final diagnosis: Cutaneous abscess of left foot - L02.612; "
+            "Pain in left toe(s) - M25.572",
+        )
+        self.assertEqual(1, self.grade("", root)[0])
+
+    def test_a_one_line_differential_mutation_fires_the_committed_bind(self):
+        old = "Pain in left toe(s) - M79.675: severe focal pain"
+        root = self.mutated_note_path(
+            old, "Pain in left toe(s) - M25.572: severe focal pain"
+        )
+        self.assertEqual(1, self.grade("", root)[0])
+
+    def test_a_one_line_refusal_mutation_fires_the_committed_bind(self):
+        root = self.mutated_note_path("NOT CODED: S90.452A", "NOT CODED: S90.452D")
+        self.assertEqual(1, self.grade("", root)[0])
+
+    def test_a_one_line_procedure_mutation_fires_the_committed_bind(self):
+        root = self.mutated_note_path("CPT: None", "CPT: 10060")
+        self.assertEqual(1, self.grade("", root)[0])
 
 
 if __name__ == "__main__":

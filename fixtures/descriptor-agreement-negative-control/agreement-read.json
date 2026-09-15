@@ -1,0 +1,230 @@
+{
+  "record_heading": "Second negative descriptor-agreement reader record",
+  "pairs": [
+    {
+      "stem": "case-01",
+      "codes": [
+        {
+          "system": "ICD-10",
+      "code": "F17.210",
+      "role": "entry",
+      "agreeing_words": "Nicotine dependence, cigarettes, uncomplicated",
+      "route": "direct descriptor words",
+      "encounter_evidence": "none",
+      "open_status_evidence": "current daily smoker, 1 pack per day for 24 years, 24 pack-years; smoking cessation counseling, quitline referral, and nicotine replacement offered",
+      "threshold": "none",
+      "waits_on_result": "none"
+    },
+        {
+      "system": "ICD-10",
+      "code": "F12.90",
+      "role": "entry",
+      "agreeing_words": "Cannabis use, unspecified, uncomplicated",
+      "route": "direct descriptor words",
+      "encounter_evidence": "none",
+      "open_status_evidence": "admits marijuana use, frequency and route not documented; Cannabis use counseling",
+      "threshold": "none",
+      "waits_on_result": "none"
+    },
+        {
+      "system": "ICD-10",
+      "code": "R12",
+      "role": "entry",
+      "agreeing_words": "Heartburn",
+      "route": "direct descriptor words",
+      "encounter_evidence": "none",
+      "open_status_evidence": "heartburn + (occasional, stated); Famotidine 20 mg PO twice daily for 14 days as needed for heartburn",
+      "threshold": "none",
+      "waits_on_result": "none"
+    },
+        {
+      "system": "ICD-10",
+      "code": "R79.89",
+      "role": "entry",
+      "agreeing_words": "Other specified abnormal findings of blood chemistry (history of elevated troponin)",
+      "route": "direct descriptor words; official alphabetic index also gives Elevated, elevation > troponin -> R79.89",
+      "encounter_evidence": "none",
+      "open_status_evidence": "history of elevated troponin, etiology not documented; ECG and retrieval of the prior cardiology or emergency department records regarding the elevated troponin",
+      "threshold": "none",
+      "waits_on_result": "none"
+    },
+        {
+      "system": "ICD-10",
+      "code": "L02.612",
+      "role": "entry",
+      "agreeing_words": "Cutaneous abscess of left foot, plantar great toe",
+      "route": "direct descriptor words",
+      "encounter_evidence": "none",
+      "open_status_evidence": "none",
+      "threshold": "none",
+      "waits_on_result": "none"
+    },
+        {
+      "system": "ICD-10",
+      "code": "M79.5",
+      "role": "entry",
+      "agreeing_words": "none",
+      "route": "none",
+      "encounter_evidence": "none",
+      "open_status_evidence": "none",
+      "threshold": "none",
+      "waits_on_result": "drainage exploration confirming that a residual foreign body is present; the note calls it suspected and to be confirmed at drainage"
+    },
+        {
+      "system": "ICD-10",
+      "code": "M79.675",
+      "role": "entry",
+      "agreeing_words": "Pain in left toe(s)",
+      "route": "direct descriptor words",
+      "encounter_evidence": "none",
+      "open_status_evidence": "none",
+      "threshold": "none",
+      "waits_on_result": "none"
+    },
+        {
+      "system": "ICD-10",
+      "code": "R06.89",
+      "role": "entry",
+      "agreeing_words": "Other abnormalities of breathing (diminished breath sounds in all four fields)",
+      "route": "direct descriptor words",
+      "encounter_evidence": "none",
+      "open_status_evidence": "none",
+      "threshold": "none",
+      "waits_on_result": "none"
+    },
+        {
+      "system": "ICD-10",
+      "code": "R03.0",
+      "role": "entry",
+      "agreeing_words": "BP 138/86 lands in stage 1 hypertension; addressed by recheck once the pain resolves - not by an antihypertensive",
+      "route": "official alphabetic index: Abnormal, abnormality, abnormalities > blood pressure > elevated -> R03.0",
+      "encounter_evidence": "none",
+      "open_status_evidence": "none",
+      "threshold": "BP 138/86 lands in stage 1 hypertension",
+      "waits_on_result": "a measured blood-pressure reading; the note identifies BP 138/86 as filled and orders a repeat after acute pain resolves"
+    },
+        {
+      "system": "ICD-10",
+      "code": "E66.3",
+      "role": "entry",
+      "agreeing_words": "Overweight",
+      "route": "direct descriptor words; official alphabetic index also gives Overweight -> E66.3",
+      "encounter_evidence": "none",
+      "open_status_evidence": "none",
+      "threshold": "BMI 26.5; 26.5 falls in the overweight band (25.0-29.9)",
+      "waits_on_result": "measured height and weight confirming the overweight classification; both inputs are filled"
+    },
+        {
+      "system": "ICD-10",
+      "code": "Z68.26",
+      "role": "entry",
+      "agreeing_words": "Body mass index 26.0-26.9, adult; BMI 26.5; age 36",
+      "route": "direct descriptor words",
+      "encounter_evidence": "none",
+      "open_status_evidence": "none",
+      "threshold": "26.5 falls in Z68.26 (26.0-26.9)",
+      "waits_on_result": "measured height and weight confirming BMI 26.5; the note says both inputs are filled and warns not to treat Z68.26 as measured"
+    },
+        {
+      "system": "CPT",
+      "code": "10060",
+      "role": "procedure",
+      "agreeing_words": "none",
+      "route": "none",
+      "encounter_evidence": "none",
+      "open_status_evidence": "none",
+      "threshold": "none",
+      "waits_on_result": "none"
+    },
+        {
+      "system": "ICD-10",
+      "code": "L02.612",
+      "role": "differential",
+      "agreeing_words": "Cutaneous abscess of the left foot, plantar great toe",
+      "route": "direct descriptor words in the diagnosis considered by the differential entry",
+      "encounter_evidence": "none",
+      "open_status_evidence": "none",
+      "threshold": "none",
+      "waits_on_result": "none"
+    },
+        {
+      "system": "ICD-10",
+      "code": "M79.5",
+      "role": "differential",
+      "agreeing_words": "Residual foreign body of the plantar soft tissue with surrounding inflammatory reaction",
+      "route": "direct descriptor words in the diagnosis considered by the differential entry",
+      "encounter_evidence": "none",
+      "open_status_evidence": "none",
+      "threshold": "none",
+      "waits_on_result": "drainage exploration identifying a retained foreign body"
+    },
+        {
+      "system": "ICD-10",
+      "code": "B07.0",
+      "role": "differential",
+      "agreeing_words": "Plantar verruca (plantar wart)",
+      "route": "direct descriptor words in the diagnosis considered by the differential entry",
+      "encounter_evidence": "none",
+      "open_status_evidence": "none",
+      "threshold": "none",
+      "waits_on_result": "none"
+    },
+        {
+      "system": "ICD-10",
+      "code": "L03.032",
+      "role": "differential",
+      "agreeing_words": "Cellulitis of the left toe",
+      "route": "direct descriptor words in the diagnosis considered by the differential entry",
+      "encounter_evidence": "none",
+      "open_status_evidence": "none",
+      "threshold": "none",
+      "waits_on_result": "none"
+    },
+        {
+      "system": "ICD-10",
+      "code": "M10.9",
+      "role": "differential",
+      "agreeing_words": "Acute gouty arthritis of the first metatarsophalangeal joint (podagra)",
+      "route": "official alphabetic index routes gouty conditions to Gout; the diagnosis considered is gouty arthritis and the brief supplies no named cause",
+      "encounter_evidence": "none",
+      "open_status_evidence": "none",
+      "threshold": "none",
+      "waits_on_result": "none"
+    },
+        {
+      "system": "ICD-10",
+      "code": "M79.675",
+      "role": "differential",
+      "agreeing_words": "left great toe pain and swelling + (1 month, 8/10 today, weight-bearing limited)",
+      "route": "direct descriptor words for pain in the left great toe",
+      "encounter_evidence": "none",
+      "open_status_evidence": "none",
+      "threshold": "none",
+      "waits_on_result": "none"
+    },
+        {
+      "system": "ICD-10",
+      "code": "Z13.1",
+      "role": "differential",
+      "agreeing_words": "none",
+      "route": "none",
+      "encounter_evidence": "none",
+      "open_status_evidence": "none",
+      "threshold": "the 35-70 band with overweight is met today on BMI 26.5",
+      "waits_on_result": "none"
+    },
+        {
+      "system": "ICD-10",
+      "code": "M86.9",
+      "role": "refused",
+      "agreeing_words": "Osteomyelitis of the distal phalanx",
+      "route": "direct descriptor words in the diagnosis considered by the differential entry",
+      "encounter_evidence": "none",
+      "open_status_evidence": "none",
+      "threshold": "none",
+      "waits_on_result": "a left-foot radiograph showing early cortical change, or a bone biopsy; the note states that no radiograph result is available"
+        }
+      ]
+    }
+  ]
+}

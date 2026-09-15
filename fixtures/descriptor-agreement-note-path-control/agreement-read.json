@@ -1,0 +1,166 @@
+{
+  "record_heading": "Note-path descriptor-agreement reader record",
+  "pairs": [
+    {
+      "stem": "case-01",
+      "codes": [
+        {
+          "system": "ICD-10",
+          "code": "L02.612",
+          "descriptor": "Cutaneous abscess of left foot",
+          "role": "entry",
+          "agreeing_words": "abscess of left foot",
+          "route": "descriptor words",
+          "encounter_evidence": "Today's left plantar great-toe lesion is sore, swollen, tender, blanched, and appears to contain material beneath the surface; incision and drainage was ordered today.",
+          "open_status_evidence": "none",
+          "threshold": "none",
+          "waits_on_result": "none"
+        },
+        {
+          "system": "ICD-10",
+          "code": "M79.675",
+          "descriptor": "Pain in left toe(s)",
+          "role": "entry",
+          "agreeing_words": "left great-toe pain",
+          "route": "descriptor words",
+          "encounter_evidence": "Today's complaint and final diagnosis describe left great-toe pain, rated 8/10, with impaired weight-bearing.",
+          "open_status_evidence": "none",
+          "threshold": "none",
+          "waits_on_result": "none"
+        },
+        {
+          "system": "ICD-10",
+          "code": "R06.89",
+          "descriptor": "Other abnormalities of breathing",
+          "role": "entry",
+          "agreeing_words": "breath sounds are diminished",
+          "route": "descriptor words",
+          "encounter_evidence": "Today's respiratory examination states that breath sounds are diminished in all four lung fields, and the finding is assessed and routed to diagnostic spirometry.",
+          "open_status_evidence": "none",
+          "threshold": "none",
+          "waits_on_result": "none"
+        },
+        {
+          "system": "ICD-10",
+          "code": "F17.210",
+          "descriptor": "Nicotine dependence, cigarettes, uncomplicated",
+          "role": "entry",
+          "agreeing_words": "current cigarette use",
+          "route": "descriptor words",
+          "encounter_evidence": "Current cigarette use is 1 pack per day for 24 years without a documented tobacco-related complication, and it is addressed today with cessation counseling and a nicotine-patch proposal.",
+          "open_status_evidence": "none",
+          "threshold": "none",
+          "waits_on_result": "none"
+        },
+        {
+          "system": "ICD-10",
+          "code": "R12",
+          "descriptor": "Heartburn",
+          "role": "entry",
+          "agreeing_words": "heartburn",
+          "route": "descriptor words",
+          "encounter_evidence": "Intermittent heartburn is reported and addressed today with trigger counseling and a famotidine proposal.",
+          "open_status_evidence": "none",
+          "threshold": "none",
+          "waits_on_result": "none"
+        },
+        {
+          "system": "ICD-10",
+          "code": "L02.612",
+          "descriptor": "Cutaneous abscess of left foot",
+          "role": "differential",
+          "agreeing_words": "abscess of left foot",
+          "route": "descriptor words",
+          "encounter_evidence": "The differential describes the current left plantar great-toe lesion as sore, swollen, tender, blanched, and appearing to contain material beneath the surface; incision and drainage was ordered.",
+          "open_status_evidence": "none",
+          "threshold": "none",
+          "waits_on_result": "none"
+        },
+        {
+          "system": "ICD-10",
+          "code": "M79.675",
+          "descriptor": "Pain in left toe(s)",
+          "role": "differential",
+          "agreeing_words": "left great-toe pain",
+          "route": "descriptor words",
+          "encounter_evidence": "Today's complaint and differential describe severe focal left great-toe pain, rated 8/10, with impaired weight-bearing.",
+          "open_status_evidence": "none",
+          "threshold": "none",
+          "waits_on_result": "none"
+        },
+        {
+          "system": "ICD-10",
+          "code": "R06.89",
+          "descriptor": "Other abnormalities of breathing",
+          "role": "differential",
+          "agreeing_words": "breath sounds are diminished",
+          "route": "descriptor words",
+          "encounter_evidence": "The differential is tied to today's finding that breath sounds are diminished in all four fields and orders diagnostic spirometry for evaluation.",
+          "open_status_evidence": "none",
+          "threshold": "none",
+          "waits_on_result": "none"
+        },
+        {
+          "system": "ICD-10",
+          "code": "F17.210",
+          "descriptor": "Nicotine dependence, cigarettes, uncomplicated",
+          "role": "differential",
+          "agreeing_words": "current cigarette use",
+          "route": "descriptor words",
+          "encounter_evidence": "The differential states current cigarette use of 1 pack per day for 24 years without a documented tobacco-related complication, and today's Plan addresses cessation.",
+          "open_status_evidence": "none",
+          "threshold": "none",
+          "waits_on_result": "none"
+        },
+        {
+          "system": "ICD-10",
+          "code": "R12",
+          "descriptor": "Heartburn",
+          "role": "differential",
+          "agreeing_words": "heartburn",
+          "route": "descriptor words",
+          "encounter_evidence": "The differential states intermittent heartburn without an established gastroesophageal disease diagnosis, and today's Plan addresses the symptom.",
+          "open_status_evidence": "none",
+          "threshold": "none",
+          "waits_on_result": "none"
+        },
+        {
+          "system": "ICD-10",
+          "code": "S90.452A",
+          "descriptor": "Superficial foreign body, left great toe, initial encounter",
+          "role": "refused",
+          "agreeing_words": "Superficial foreign body, left great toe, initial encounter",
+          "route": "descriptor words",
+          "encounter_evidence": "A retained superficial foreign body is considered for today's severe focal left great-toe pain and impaired weight-bearing, but the note refuses the code because no foreign body was confirmed.",
+          "open_status_evidence": "none",
+          "threshold": "none",
+          "waits_on_result": "confirmation of a foreign body"
+        },
+        {
+          "system": "ICD-10",
+          "code": "M10.9",
+          "descriptor": "Gout, unspecified",
+          "role": "refused",
+          "agreeing_words": "Gout, unspecified",
+          "route": "descriptor words",
+          "encounter_evidence": "Gout is considered for today's severe focal left great-toe pain, but the note refuses the code because gout was not established.",
+          "open_status_evidence": "none",
+          "threshold": "none",
+          "waits_on_result": "crystal analysis or an established joint diagnosis of gout"
+        },
+        {
+          "system": "ICD-10",
+          "code": "J44.9",
+          "descriptor": "Chronic obstructive pulmonary disease, unspecified",
+          "role": "refused",
+          "agreeing_words": "Chronic obstructive pulmonary disease, unspecified",
+          "route": "descriptor words",
+          "encounter_evidence": "COPD is considered because today's examination finds diminished breath sounds in all four fields in a current smoker with 24 pack-years, but the note refuses the code.",
+          "open_status_evidence": "none",
+          "threshold": "none",
+          "waits_on_result": "diagnostic spirometry establishing persistent airflow obstruction"
+        }
+      ]
+    }
+  ]
+}

@@ -16,6 +16,9 @@ committed. The committed worksheet is the first separately checked pass that
 cleared the current skill without being edited after generation.
 
 The paired source note is committed separately and may itself be incomplete or
-wrong; retaining this worksheet does not endorse that upstream note. The value
-of this record is that the current grammar has compliant, non-synthetic material
-to read alongside the preserved divergent run.
+wrong; retaining this worksheet does not endorse that upstream note. This is a
+positive control for worksheet grammar only. Under issue #1139's later
+descriptor-agreement rule it is deliberately retained as a **divergent run**:
+its quotations do not establish every descriptor it proposes. The independent
+agreement control retains an exact copy with its paired note and blind reader
+record under `fixtures/descriptor-agreement-negative-control/`.
