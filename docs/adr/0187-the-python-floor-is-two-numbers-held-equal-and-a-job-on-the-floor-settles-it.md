@@ -371,3 +371,13 @@ legislate the tier. The judgment is a person's and is filed as
 **macOS and the `os.symlink` branch**, which stay #773's under ruling 13.
 
 **A consumer with no Python at all.** Unchanged by everything here.
+
+## Correction, 2026-09-14, from #1130's grilling
+
+Ruling 3's *"Forcing the declaration to cover every invocation would legislate that distinction
+away"* rested on a declaration choosing the depends-on tier.
+[ADR 0232](0232-every-skill-command-is-named-in-agents-md-and-its-tier-is-what-skipping-it-costs.md)
+lets any tier satisfy a declaration and adds a suite test that every skill command is named in
+`AGENTS.md`, so that premise no longer holds. Ruling 3's population and ruling 11's printed,
+ungraded count are unchanged, and the section above naming #1130 as the open judgment is answered
+there.

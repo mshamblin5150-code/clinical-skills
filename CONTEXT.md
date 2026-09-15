@@ -959,6 +959,18 @@ _Avoid_: unpaired flag, dangling field, dropped line, unmatched
 A run every one of whose named checks ran as its command and came back clean. A run whose check was walked by eye instead — because the command, or the **engine** it needs, could not run on that machine and could not be installed there — may still be complete, but it is never mechanically verified, and it says so rather than leaving a reader to assume the stronger claim. The walk and the command read the same written rules; what differs is only whether a machine applied them.
 _Avoid_: verified, checked, validated, confirmed
 
+**Required command**:
+A command a skill cannot skip without changing what its run can claim: the skill requires its clean exit, it produces the deliverable, or it produces something a required check reads. A consumer who cannot run one may still walk the same rules by eye, but the run is then not **mechanically verified**, or has no deliverable at all. The tier is decided by that cost and never by whether the skill's instructions happen to be complete without the command. Distinct from a **Named command**, whose absence changes no claim, and from a **Firewall cost**, which is paid by the repository's PHI check rather than by the run.
+_Avoid_: dependency, required tool, depends-on tool, mandatory script
+
+**Named command**:
+A command a skill cites without depending on it, because skipping it changes nothing the run claims: it saves reading a written rule by eye, or it records where a stated figure came from. The same module can be a named command for one skill and a **Required command** for another, since the tier belongs to the pairing of skill and command rather than to the module.
+_Avoid_: optional tool, convenience script, helper, citation
+
+**Firewall cost**:
+The PHI check's coverage lost when a skill's command is skipped, declared beside the command rather than as a tier. It is the repository's loss rather than the run's: the notes are still written and the run's claims are unchanged, but a patient named only in the skipped material can reach a commit unscanned. Distinct from a **Required command**'s cost, which is borne by the run's own claim.
+_Avoid_: PHI risk, coverage gap, firewall hole, shortfall
+
 **Hatch**:
 A declared, counted opt-out from a check, covering a named span and capped by a **Ceiling**. It declares a number rather than opening a hole, so a new finding wandering into an exempted span fails exactly as it would anywhere else, and a count of zero exempts nothing. The marker sits on its own line, because one mentioned mid-sentence is not a marker and a document that could exempt itself by describing the rule would exempt the paragraph most likely to describe it. Distinct from a **Pragma**, which is file-scoped, uncounted and self-applied, and from a **Declared limit**, which states what a clean run does not establish rather than excusing a finding a run made.
 _Avoid_: opt-out, waiver, suppression, allowlist, exception list
