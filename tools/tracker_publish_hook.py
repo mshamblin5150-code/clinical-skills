@@ -1073,10 +1073,42 @@ def _api_identifier(identifier: str, command: str) -> str | None:
     if (
         kind is not None
         or expanded is None
+        or expanded == ""
         or re.search(r"[/\?$`]", expanded)
     ):
         return None
     return expanded
+
+
+def _expand_publish_assignment(
+    value: str,
+    assignments: dict[str, str],
+    substitutions: frozenset[str],
+) -> tuple[str | None, str | None]:
+    """Expand shell-active named variables once without rescanning replacements."""
+    parts: list[str] = []
+    index = 0
+    variable = re.compile(
+        r"\$(?:\{(?P<braced>[A-Za-z_][A-Za-z0-9_]*)\}|"
+        r"(?P<plain>[A-Za-z_][A-Za-z0-9_]*))"
+    )
+    while index < len(value):
+        if value[index] != "$":
+            parts.append(value[index])
+            index += 1
+            continue
+        match = variable.match(value, index)
+        if match is None:
+            return None, "external-variable"
+        name = match.group("braced") or match.group("plain")
+        if name in assignments:
+            parts.append(assignments[name])
+        elif name in substitutions:
+            return None, "command-substitution"
+        else:
+            return None, "external-variable"
+        index = match.end()
+    return "".join(parts), None
 
 
 def _publish_assignments(
@@ -1106,26 +1138,17 @@ def _publish_assignments(
         words = shell_reader.source_words(piece)
         if not words or conditional:
             continue
-        if words[0] == "unset":
-            for name in words[1:]:
-                if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
-                    assignments.pop(name, None)
-                    substitutions.discard(name)
-            continue
-        assignment_words = words[1:] if words[0] == "export" else words
+        assignment_words = words
         if not assignment_words or any(
             re.match(r"[A-Za-z_][A-Za-z0-9_]*=", word) is None
             for word in assignment_words
         ):
-            if words not in (("command", ":"), ("command", "true")):
-                assignments.clear()
-                substitutions.clear()
+            assignments.clear()
+            substitutions.clear()
             continue
         next_piece = pieces[position + 1] if position + 1 < len(pieces) else None
         if next_piece in ("|", "&"):
             continue
-        export_assignments = assignments.copy()
-        export_substitutions = frozenset(substitutions)
         for word in assignment_words:
             match = PUBLISH_ASSIGNMENT_WORD.fullmatch(word)
             name = word.partition("=")[0]
@@ -1158,21 +1181,12 @@ def _publish_assignments(
                 assignments.pop(name, None)
                 substitutions.discard(name)
                 continue
-            expansion_assignments = (
-                export_assignments if words[0] == "export" else assignments
-            )
-            expansion_substitutions = (
-                export_substitutions
-                if words[0] == "export"
-                else frozenset(substitutions)
-            )
-            expanded, kind = shell_reader.expand(
-                value, expansion_assignments, expansion_substitutions
+            expanded, kind = _expand_publish_assignment(
+                value, assignments, frozenset(substitutions)
             )
             if (
                 kind is not None
                 or expanded is None
-                or "$" in expanded
                 or "`" in expanded
             ):
                 assignments.pop(name, None)

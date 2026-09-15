@@ -379,7 +379,7 @@ class InlineTrackerTextIsRead(unittest.TestCase):
 
     def test_unset_api_identifier_assignment_is_not_reconstructed(self) -> None:
         result = hook.extract(
-            "CID=123; unset CID; "
+            "CID=123; command unset CID; "
             "gh api repos/example/project/issues/comments/$CID "
             "-f body='Comment edit'"
         )
@@ -416,7 +416,7 @@ class InlineTrackerTextIsRead(unittest.TestCase):
             "unclassified-api-identifier",
         )
 
-    def test_nonmutating_commands_preserve_api_assignment(self) -> None:
+    def test_command_qualified_noops_make_api_state_unreconstructable(self) -> None:
         commands = (
             "CID=7; command :; ",
             "CID=7; command true; ",
@@ -429,8 +429,11 @@ class InlineTrackerTextIsRead(unittest.TestCase):
                     + "gh api repos/example/project/issues/comments/$CID "
                     "-f body='Comment edit'"
                 )
-                self.assertEqual(result.grade_route, ("issue", "comment"))
-                self.assertEqual(result.number, 7)
+                self.assertIsNone(result.grade_route)
+                self.assertEqual(
+                    result.unclassified_api_calls[0].kind,
+                    "unclassified-api-identifier",
+                )
 
     def test_shadowable_noop_makes_api_assignment_unreconstructable(self) -> None:
         result = hook.extract(
@@ -468,6 +471,34 @@ class InlineTrackerTextIsRead(unittest.TestCase):
 
         self.assertEqual(result.grade_route, ("issue", "comment"))
         self.assertEqual(result.number, 7)
+
+    def test_known_embedded_api_identifier_assignments_are_reconstructed(self) -> None:
+        commands = (
+            "OTHER=7; CID=${OTHER}8; ",
+            "A=1; B=2; CID=$A$B; ",
+        )
+
+        for prefix, number in zip(commands, (78, 12), strict=True):
+            with self.subTest(prefix=prefix):
+                result = hook.extract(
+                    prefix
+                    + "gh api repos/example/project/issues/comments/$CID "
+                    "-f body='Comment edit'"
+                )
+                self.assertEqual(result.grade_route, ("issue", "comment"))
+                self.assertEqual(result.number, number)
+
+    def test_empty_api_identifier_assignment_is_refused(self) -> None:
+        result = hook.extract(
+            "CID=; gh api repos/example/project/issues/comments/$CID "
+            "-f body='Comment edit'"
+        )
+
+        self.assertIsNone(result.grade_route)
+        self.assertEqual(
+            result.unclassified_api_calls[0].kind,
+            "unclassified-api-identifier",
+        )
 
     def test_double_quoted_api_identifier_assignment_chain_is_reconstructed(self) -> None:
         result = hook.extract(
@@ -531,32 +562,44 @@ class InlineTrackerTextIsRead(unittest.TestCase):
                     "unclassified-api-identifier",
                 )
 
-    def test_export_assignments_expand_from_one_snapshot(self) -> None:
-        unresolved = hook.extract(
-            "export OTHER=7 CID=$OTHER; "
-            "gh api repos/example/project/issues/comments/$CID "
-            "-f body='Comment edit'"
-        )
-        inherited = hook.extract(
-            "OTHER=9; export OTHER=7 CID=$OTHER; "
-            "gh api repos/example/project/issues/comments/$CID "
-            "-f body='Comment edit'"
-        )
-        separate = hook.extract(
-            "export OTHER=7; export CID=$OTHER; "
-            "gh api repos/example/project/issues/comments/$CID "
-            "-f body='Comment edit'"
+    def test_export_assignment_commands_make_api_state_unreconstructable(self) -> None:
+        commands = (
+            "command export OTHER=7 CID=$OTHER; ",
+            "OTHER=9; command export OTHER=7 CID=$OTHER; ",
+            "command export OTHER=7; command export CID=$OTHER; ",
         )
 
-        self.assertIsNone(unresolved.grade_route)
-        self.assertEqual(
-            unresolved.unclassified_api_calls[0].kind,
-            "unclassified-api-identifier",
+        for prefix in commands:
+            with self.subTest(prefix=prefix):
+                result = hook.extract(
+                    prefix
+                    + "gh api repos/example/project/issues/comments/$CID "
+                    "-f body='Comment edit'"
+                )
+                self.assertIsNone(result.grade_route)
+                self.assertEqual(
+                    result.unclassified_api_calls[0].kind,
+                    "unclassified-api-identifier",
+                )
+
+    def test_shadowable_assignment_builtins_invalidate_api_state(self) -> None:
+        commands = (
+            "CID=7; export OTHER=1; ",
+            "CID=7; unset OTHER; ",
         )
-        self.assertEqual(inherited.grade_route, ("issue", "comment"))
-        self.assertEqual(inherited.number, 9)
-        self.assertEqual(separate.grade_route, ("issue", "comment"))
-        self.assertEqual(separate.number, 7)
+
+        for prefix in commands:
+            with self.subTest(prefix=prefix):
+                result = hook.extract(
+                    prefix
+                    + "gh api repos/example/project/issues/comments/$CID "
+                    "-f body='Comment edit'"
+                )
+                self.assertIsNone(result.grade_route)
+                self.assertEqual(
+                    result.unclassified_api_calls[0].kind,
+                    "unclassified-api-identifier",
+                )
 
     def test_api_collection_endpoints_use_create_semantics(self) -> None:
         issue = hook.extract(
@@ -716,6 +759,16 @@ class InlineTrackerTextIsRead(unittest.TestCase):
     def test_single_quoted_graphql_variable_is_document_text(self) -> None:
         result = hook.extract(
             "QUERY='query($owner:String!){repository(owner:$owner){name}}'; "
+            "gh api graphql -f query=$QUERY"
+        )
+
+        self.assertIsNone(result.grade_route)
+        self.assertEqual(result.unreadable, ())
+        self.assertEqual(result.unclassified_api_calls, ())
+
+    def test_known_embedded_graphql_assignment_is_reconstructed(self) -> None:
+        result = hook.extract(
+            "HEAD='query {'; TAIL='viewer { login }}'; QUERY=$HEAD$TAIL; "
             "gh api graphql -f query=$QUERY"
         )
 
