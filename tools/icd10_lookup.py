@@ -39,9 +39,11 @@ and a console on cp437 or a plain ASCII stream would have taken the same
 traceback ``guidelines_search.py`` did. ``use_utf8`` in ``__main__`` settles it
 for every console.
 
-Those figures are a measurement and not a test: nothing in ``tools/`` tests
-against the shipped database, because a test that read it would pass for two
-reasons and one of them is the builder and the test being wrong together.
+On [ADR 0249]'s terms, a test may take a Code-set database as its reference for
+any claim except that its builder read the release correctly; ``test_icd10.py``
+and ``test_procedure_codes.py`` own that claim over committed excerpts.
+
+[ADR 0249]: ../docs/adr/0249-a-code-set-database-is-a-test-s-reference-and-its-readers-pin-the-file-digest.md
 """
 
 from __future__ import annotations

@@ -41,6 +41,7 @@ NO_LIMITS = {
     "case_study_render": "the renderer produces retained evidence and does not grade its coverage",
     "cdc_percentile": "a deterministic table lookup whose source and fallback disclosures are explicit outputs",
     "console_codec": "a narrow console-encoding adapter with no asserted population walk",
+    "code_set_database_test_support": "test support for Code-set database digest pins, not a public checker",
     "corpus_census": "a corpus counter whose reported population is named by its command output",
     "coursework_run": "shared run-directory naming and validation helpers, not an independent grader",
     "course_assignment_scan": "a shallow artifact dispatcher with no independent coverage claim",

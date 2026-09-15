@@ -2001,6 +2001,16 @@ A walk of the index states what it covers. This is an **allergy-specific gate on
 
 **[#318](https://github.com/mshamblin5150-code/clinical-skills/issues/318) ruled the file question artifact-locally.** The gate keeps an explicit list of documents that publish the allergy figures it owns; it does not become a repository-wide prose census. Every listed document must produce a graded figure, so an inert path fails instead of surviving as a hand-kept promise. Other useful current figures take equality-backed checks at their owning artifacts, while redundant figures are deleted. [#202](https://github.com/mshamblin5150-code/clinical-skills/issues/202)'s glob fits a homogeneous fixture-set registry; applying it here would mix current claims, historical fixture records, Markdown and Python docstrings under an unrelated allergy enumerator.
 
+### Code-set database reader pins
+
+`python tools/code_set_database_reader_check.py` walks local Python imports to derive every test
+module that reaches either Code-set database lookup, runs that population with committed-database
+opens refused, and compares the observed readers with the modules carrying a top-level digest pin.
+It exits 0 when the sets agree and 1 when a reader is unpinned or a pin is stale. The report prints
+the reaching population and the import-walk floor. The complete boundary is
+`code_set_database_reader_check.DECLARED_LIMITS`; this section points to that object without
+copying its row.
+
 ### ICD-10-CM code set
 
 `reference/icd10cm-2026.sqlite` is **committed**, unlike everything else generated here, and that was decided rather than drifted into: `icd10-cpt` sits on the consumer's critical path, so a database that had to be built before the skill worked would make the skill's Markdown insufficient on its own. 13.6 MB on disk, **2.68 MB as a git object** — measured 2026-08-11, one time.

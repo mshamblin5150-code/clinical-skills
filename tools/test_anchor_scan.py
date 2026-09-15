@@ -8,6 +8,10 @@ as a pass -- the pre-[#46] heading, and a code named in prose inside the block.
 ``TheSkillSaysWhatThisChecks`` is the one test that reads a committed file, and
 it is there for ``test_spelling_scan``'s reason: a scanner that has drifted from
 the file a reader opens is worse than none, because it reads as agreement.
+
+This module reads Code-set databases on [ADR 0249]'s terms.
+
+[ADR 0249]: ../docs/adr/0249-a-code-set-database-is-a-test-s-reference-and-its-readers-pin-the-file-digest.md
 """
 
 from __future__ import annotations
@@ -22,6 +26,24 @@ from contextlib import redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
+from code_set_database_test_support import (
+    ICD10_DATABASE_SHA256,
+    PROCEDURE_CODES_DATABASE_SHA256,
+    assert_code_set_database_digest,
+)
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+assert_code_set_database_digest(
+    REPO_ROOT / "reference" / "icd10cm-2026.sqlite",
+    ICD10_DATABASE_SHA256,
+    "ICD-10-CM Code-set database",
+)
+assert_code_set_database_digest(
+    REPO_ROOT / "reference" / "procedure-codes-2026.sqlite",
+    PROCEDURE_CODES_DATABASE_SHA256,
+    "procedure-code Code-set database",
+)
+
 import anchor_scan as scan
 import run_grader
 from grader_conformance import (
@@ -34,7 +56,6 @@ from prose_bind import NAMING, bind, section
 
 GraderConformance = for_module(scan)
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
 SKILL = REPO_ROOT / "skills" / "icd10-cpt" / "SKILL.md"
 POSITIVE_RUN = REPO_ROOT / "fixtures" / "worksheet-grammar-positive-control"
 POSITIVE_SOURCE = REPO_ROOT / "fixtures" / "filled-anchor" / "notes" / "case-01.md"
