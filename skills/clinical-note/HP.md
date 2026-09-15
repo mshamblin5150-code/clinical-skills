@@ -96,9 +96,11 @@ established more than one>
 
 Medical Decision Making:
 1. <same diagnosis - code as differential item 1: patient-specific discriminator,
-   favored or less-likely position, and resulting decision>
-2. <same diagnosis - code as differential item 2, in the same order>
-3. <same diagnosis - code as differential item 3, in the same order>
+   favored or less-likely position, and why that evidence leads to the decision>
+2. <same diagnosis - code as differential item 2: patient-specific discriminator,
+   favored or less-likely position, and why that evidence leads to the decision>
+3. <same diagnosis - code as differential item 3: patient-specific discriminator,
+   favored or less-likely position, and why that evidence leads to the decision>
 
 Screenings appropriate for age:
 <list>
