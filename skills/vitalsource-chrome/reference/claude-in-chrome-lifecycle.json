@@ -17,14 +17,29 @@
     },
     {
       "seam": "oopif-auto-attachment-disabled",
-      "status": "inferred-from-absence",
-      "finding": "No frame auto-attachment call was found in the inspected extension source."
+      "status": "observed-live",
+      "finding": "No Target.setAutoAttach command occurred during the observed VitalSource chapter read."
     },
     {
       "seam": "xhtml-document-response",
-      "status": "inferred-from-absence",
-      "finding": "No response reclassification that would turn XHTML into a download was found in the inspected extension source."
+      "status": "observed-live",
+      "finding": "The XHTML chapter rendered completely, and no Fetch.enable command occurred during the observed read."
     }
   ],
-  "declared_limit": "Claude's live debugger lifecycle during a VitalSource read was not observed."
+  "live_calibration": {
+    "observed_on": "2026-09-15",
+    "instrument": "Chrome DevTools function monitors",
+    "extension_version": "1.0.93",
+    "book": "Code of Ethics for Nurses",
+    "chapter": "Provision 2",
+    "printed_pages": "5-7",
+    "next_chapter_page": 8,
+    "attachment_observation": "The top-level debugger detached while idle and reattached for later tool execution; no frame attachment was observed.",
+    "commands_not_observed": [
+      "Target.setAutoAttach",
+      "Fetch.enable",
+      "Page.navigate"
+    ],
+    "outcome": "The authenticated XHTML chapter rendered, was visibly traversed through its last section, and advanced to the next chapter before the owned tab closed."
+  }
 }
