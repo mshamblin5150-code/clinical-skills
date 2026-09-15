@@ -351,6 +351,19 @@ class InlineTrackerTextIsRead(unittest.TestCase):
             "unclassified-api-identifier",
         )
 
+    def test_api_command_prefix_assignment_is_not_reconstructed(self) -> None:
+        result = hook.extract(
+            "CID=123 gh api repos/example/project/issues/comments/$CID "
+            "-f body='Comment edit'"
+        )
+
+        self.assertIsNone(result.grade_route)
+        self.assertEqual(result.unreadable, ())
+        self.assertEqual(
+            result.unclassified_api_calls[0].kind,
+            "unclassified-api-identifier",
+        )
+
     def test_api_collection_endpoints_use_create_semantics(self) -> None:
         issue = hook.extract(
             "gh api repos/example/project/issues "

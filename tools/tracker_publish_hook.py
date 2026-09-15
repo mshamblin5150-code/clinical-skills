@@ -1083,10 +1083,10 @@ def _api_assignment_scope(command: str) -> str:
             else:
                 prefix.append(piece)
             continue
-        prefix.append(piece)
         for tokens, index in shell_reader.executable_calls(piece, "gh"):
             if tokens[index + 1 : index + 2] == ["api"]:
                 return "".join(prefix)
+        prefix.append(piece)
     return command
 
 
