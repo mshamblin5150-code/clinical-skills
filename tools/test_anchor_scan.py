@@ -995,6 +995,15 @@ class AgreementModes(unittest.TestCase):
                 "Contact, with, by type of instrument",
                 "Contact (accidental) > with > knife",
                 "W260",
+                "cut with a knife",
+            )
+        )
+        self.assertFalse(
+            scan._reference_matches(
+                "Contact, with, by type of instrument",
+                "Contact (accidental) > with > knife",
+                "W260",
+                "accident during food preparation",
             )
         )
 
@@ -1004,6 +1013,46 @@ class AgreementModes(unittest.TestCase):
         self.assertTrue(scan._reference_matches(reference, "Drug destination", "T391X5A"))
         self.assertFalse(scan._reference_matches(reference, "Drug destination", "T391X4A"))
         self.assertFalse(scan._reference_matches(reference, "Drug destination", "T601X5A"))
+
+    def test_drug_table_reference_still_checks_range_character_and_destination(self):
+        reference = (
+            "Table of Drugs and Chemicals, categories T36-T50, with 6th character 5"
+        )
+
+        self.assertTrue(
+            scan._reference_matches(
+                reference,
+                "Ibuprofen > Poisoning Undetermined",
+                "T391X5A",
+            )
+        )
+        self.assertFalse(
+            scan._reference_matches(
+                reference,
+                "Ibuprofen > Poisoning Undetermined",
+                "T601X5A",
+            )
+        )
+        self.assertFalse(
+            scan._reference_matches(
+                reference,
+                "Ibuprofen > Poisoning Undetermined",
+                "T391X4A",
+            )
+        )
+        self.assertFalse(
+            scan._reference_matches(reference, "Contact > with > knife", "T391X5A")
+        )
+
+    def test_external_cause_reference_checks_its_named_destination(self):
+        reference = "Index to External Causes of Injury, Perpetrator"
+
+        self.assertTrue(
+            scan._reference_matches(reference, "Perpetrator > parent", "Y070")
+        )
+        self.assertFalse(
+            scan._reference_matches(reference, "Contact > with > knife", "W260")
+        )
 
     def test_an_unmatched_real_cross_reference_is_unread_not_invalid(self):
         subject = scan.AgreementSubject("ICD-10", "A12.3", "Example", "entry", "example")
@@ -1081,6 +1130,59 @@ class AgreementModes(unittest.TestCase):
         self.assertTrue(scan._drug_column_agrees("Poisoning Undetermined", words))
         self.assertFalse(scan._drug_column_agrees("Poisoning Intentional self-harm", words))
         self.assertFalse(scan._drug_column_agrees("Poisoning Accidental (unintentional)", words))
+
+    def test_neoplasm_behavior_columns_are_mutually_exclusive(self):
+        cases = (
+            ("malignant lung cancer", "Malignant Primary"),
+            ("metastatic lung cancer", "Malignant Secondary"),
+            ("lung carcinoma in situ", "Ca in situ"),
+            ("benign lung neoplasm", "Benign"),
+            ("lung neoplasm with indeterminate pathology", "Uncertain Behavior"),
+            ("lung neoplasm", "Unspecified Behavior"),
+        )
+
+        for words, expected in cases:
+            with self.subTest(words=words):
+                self.assertTrue(scan._neoplasm_column_agrees(expected, words))
+                self.assertFalse(
+                    any(
+                        scan._neoplasm_column_agrees(other, words)
+                        for other in scan.NEOPLASM_COLUMNS
+                        if other != expected
+                    )
+                )
+
+    def test_a_stem_mismatch_is_a_finding_even_when_a_reference_is_unread(self):
+        subject = scan.AgreementSubject(
+            "ICD-10",
+            "S61.011S",
+            "Laceration without foreign body of right thumb without damage to nail, sequela",
+            "entry",
+            "right thumb laceration",
+        )
+        first = "Laceration -> see Opaque CMS wording"
+        last = "Laceration > thumb > right -> code S61.011"
+        catalog = {
+            first: ("Laceration", None, "Opaque CMS wording", None),
+            last: ("Laceration > thumb > right", "S61011", None, None),
+        }
+        siblings = (
+            ("S61011A", subject.descriptor.replace("sequela", "initial encounter")),
+            ("S61011S", subject.descriptor),
+        )
+
+        with patch.object(scan, "_index_route_catalog", return_value=catalog), patch.object(
+            scan, "_stem_descriptors", return_value=siblings
+        ):
+            self.assertEqual(
+                scan.RouteStatus.INVALID,
+                scan._route_status(
+                    subject,
+                    f"{first} | {last}",
+                    "right thumb laceration",
+                    "initial encounter",
+                ),
+            )
 
     def test_neoplasm_columns_do_not_turn_a_mass_into_a_neoplasm(self):
         words = "left breast mass concerning for malignancy; biopsy scheduled"
@@ -1273,12 +1375,103 @@ class CommittedAgreementControls(unittest.TestCase):
         for control in (
             "descriptor-agreement-positive-control",
             "descriptor-agreement-note-path-control",
+            "descriptor-agreement-index-table-control",
         ):
             with self.subTest(control=control):
                 status, report = self.grade(control)
                 self.assertEqual(0, status)
                 self.assertIn("agreement findings                 0", report)
                 self.assertIn("unread remainder 0", report)
+
+    def mutated_index_table_control(
+        self,
+        stem: str,
+        old_code: str,
+        new_code: str,
+        new_descriptor: str,
+        new_route: str,
+    ) -> Path:
+        raw = tempfile.TemporaryDirectory()
+        self.addCleanup(raw.cleanup)
+        destination = Path(raw.name) / "control"
+        shutil.copytree(
+            self.ROOT / "descriptor-agreement-index-table-control", destination
+        )
+        worksheet_path = destination / "worksheets" / f"{stem}.md"
+        worksheet = worksheet_path.read_text(encoding="utf-8")
+        old_descriptor = scan._official_descriptor("ICD-10", old_code)
+        self.assertIsNotNone(old_descriptor)
+        old_line = f"ICD-10  {old_code}  {old_descriptor}"
+        self.assertIn(old_line, worksheet)
+        worksheet_path.write_text(
+            worksheet.replace(
+                old_line,
+                f"ICD-10  {new_code}  {new_descriptor}",
+                1,
+            ),
+            encoding="utf-8",
+        )
+        record_path = destination / "agreement-read.json"
+        record = json.loads(record_path.read_text(encoding="utf-8"))
+        row = next(
+            item
+            for pair in record["pairs"]
+            if pair["stem"] == stem
+            for item in pair["codes"]
+            if item["code"] == old_code
+        )
+        row["code"] = new_code
+        row["descriptor"] = new_descriptor
+        row["subject_id"] = row["subject_id"].replace(old_code, new_code)
+        row["route"] = new_route
+        record_path.write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
+        return destination
+
+    def test_real_injury_control_rejects_laterality_and_sequela_mutations(self):
+        cases = (
+            (
+                "S61.012A",
+                "Laceration without foreign body of left thumb without damage to nail, initial encounter",
+            ),
+            (
+                "S61.011S",
+                "Laceration without foreign body of right thumb without damage to nail, sequela",
+            ),
+        )
+        for code, descriptor in cases:
+            with self.subTest(code=code):
+                root = self.mutated_index_table_control(
+                    "injury",
+                    "S61.011A",
+                    code,
+                    descriptor,
+                    "Laceration > thumb > right -> code S61.011",
+                )
+                status, report = self.grade("", root)
+                self.assertEqual(1, status)
+                self.assertRegex(report, r"codes with no route\s+1")
+
+    def test_real_neoplasm_control_rejects_unsupported_behavior_mutations(self):
+        cases = (
+            (
+                "D39.0",
+                "Neoplasm of uncertain behavior of uterus",
+                "Neoplasm, neoplastic > uterus, uteri, uterine > Uncertain Behavior -> code D39.0",
+            ),
+            (
+                "C55",
+                "Malignant neoplasm of uterus, part unspecified",
+                "Neoplasm, neoplastic > uterus, uteri, uterine > Malignant Primary -> code C55",
+            ),
+        )
+        for code, descriptor, route in cases:
+            with self.subTest(code=code):
+                root = self.mutated_index_table_control(
+                    "neoplasm", "D25.9", code, descriptor, route
+                )
+                status, report = self.grade("", root)
+                self.assertEqual(1, status)
+                self.assertRegex(report, r"codes with no route\s+1")
 
     def test_the_blind_negative_reader_rederived_the_predicted_rows(self):
         base = self.ROOT / "descriptor-agreement-negative-control"

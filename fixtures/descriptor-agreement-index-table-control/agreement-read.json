@@ -1,0 +1,54 @@
+{
+  "record_heading": "Issue 1310 retained index-table control blind-reader record",
+  "pairs": [
+    {
+      "stem": "injury",
+      "codes": [
+        {
+          "subject_id": "ICD-10:S61.011A:entry:1",
+          "system": "ICD-10",
+          "code": "S61.011A",
+          "descriptor": "Laceration without foreign body of right thumb without damage to nail, initial encounter",
+          "role": "entry",
+          "agreeing_words": "Laceration without foreign body of right thumb without damage to nail, initial encounter",
+          "route": "Laceration > thumb > right -> code S61.011",
+          "encounter_evidence": "The injury happened today, and the right-thumb wound was explored and repaired during this visit, supporting active treatment and the initial-encounter character.",
+          "open_status_evidence": "none",
+          "threshold": "none",
+          "waits_on_result": "none"
+        },
+        {
+          "subject_id": "ICD-10:W26.8XXA:entry:1",
+          "system": "ICD-10",
+          "code": "W26.8XXA",
+          "descriptor": "Contact with other sharp object(s), not elsewhere classified, initial encounter",
+          "role": "entry",
+          "agreeing_words": "Contact with other sharp object(s), not elsewhere classified, initial encounter",
+          "route": "Contact (accidental) > with > sharp object (s) > specified NEC -> code W26.8",
+          "encounter_evidence": "The note states that the clean linear cut came from a sheet-metal edge, happened today, and was explored and repaired during this visit; this supports the initial-encounter character, while XX supplies the required placeholders.",
+          "open_status_evidence": "none",
+          "threshold": "none",
+          "waits_on_result": "none"
+        }
+      ]
+    },
+    {
+      "stem": "neoplasm",
+      "codes": [
+        {
+          "subject_id": "ICD-10:D25.9:entry:1",
+          "system": "ICD-10",
+          "code": "D25.9",
+          "descriptor": "Leiomyoma of uterus, unspecified",
+          "role": "entry",
+          "agreeing_words": "uterine fibroid mass",
+          "route": "Fibroid (tumor) > uterus -> code D25.9",
+          "encounter_evidence": "The note identifies the uterine fibroid as a condition the patient currently carries and lists leiomyoma of uterus among the preexisting diagnoses.",
+          "open_status_evidence": "The condition remains current in the note rather than appearing only as resolved history.",
+          "threshold": "none",
+          "waits_on_result": "none"
+        }
+      ]
+    }
+  ]
+}

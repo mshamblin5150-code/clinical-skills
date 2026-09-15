@@ -383,7 +383,12 @@ excluded. Unpaired artifacts and incomplete reader coverage enter the shared unr
 
 **Exit status distinguishes not having scanned from having found nothing** — 0 clean, 1 for an ANCHOR violation, **2 for every way of not having scanned**, including **no marked code, listed code or pediatric band in any worksheet read**.
 
-Covered by `tools/test_anchor_scan.py`, which builds synthetic worksheets in that file and a temp directory. **Unlike its two siblings it now has a committed run to point at as well** — `fixtures/filled-anchor/run-2/`, the first `icd10-cpt` run this repo has kept — but the tests stay synthetic on `test_icd10.py`'s reasoning: a test reading the run it graded would pass for two reasons, one of them being that the run and the grader are wrong together.
+Covered by `tools/test_anchor_scan.py`. Its parser and isolated behavior controls build synthetic
+worksheets in that file and a temp directory. ADR 0248 ruling 10 is the deliberate exception: its
+injury and neoplasm controls read committed real notes through the public agreement brief/read
+seam, use records written by a separate reader, and plant mutations only after preserving the clean
+bidirectional control. That distinction keeps synthetic grammar checks independent without calling
+the real-note requirement synthetic.
 ### Block scan
 
 The complete boundary of a clean result is declared in `block_scan.DECLARED_LIMITS`.

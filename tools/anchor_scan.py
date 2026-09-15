@@ -572,6 +572,13 @@ def _stem_descriptors(stem: str) -> tuple[tuple[str, str], ...]:
 _REFERENCE_FILLER = {
     "a", "an", "and", "by", "for", "in", "index", "of", "or", "the", "to", "with",
 }
+_PLACEHOLDER_FILLER = _REFERENCE_FILLER | {
+    "accidental", "adverse", "assault", "behavior", "benign", "ca", "cause",
+    "chemicals", "contact", "drug", "drugs", "effect", "external", "injury",
+    "intentional", "malignant", "neoplasm", "poisoning", "primary", "secondary",
+    "self", "specified", "table", "underdosing", "undetermined", "unintentional",
+    "unspecified",
+}
 _DESCRIPTOR_FILLER = {
     "a", "an", "and", "body", "encounter", "for", "of", "the", "to", "with", "without",
 }
@@ -648,24 +655,26 @@ def _neoplasm_column_agrees(column: str, agreeing_words: str) -> bool:
     )
     if sign_only and not neoplasm_word and not benign_morphology and "benign" not in words:
         return False
-    if column == "Uncertain Behavior":
-        return bool(
-            re.search(r"\b(?:pathology|histology)\b", words)
-            and re.search(r"\b(?:indeterminate|cannot determine|could not determine)\b", words)
-        )
-    if column == "Unspecified Behavior":
-        return neoplasm_word and not re.search(
-            r"\b(?:benign|malignan|metastatic|secondary|in situ)\b", words
-        )
-    if column == "Benign":
-        return "benign" in words or benign_morphology
-    if column == "Malignant Secondary":
-        return not hedged_malignancy and bool(re.search(r"\b(?:metastatic|secondary)\b", words))
-    if column == "Ca in situ":
-        return "in situ" in words
-    if column == "Malignant Primary":
-        return not hedged_malignancy and bool(re.search(r"\b(?:malignan|cancer|carcinoma)\w*\b", words))
-    return False
+    indeterminate_pathology = bool(
+        re.search(r"\b(?:pathology|histology)\b", words)
+        and re.search(r"\b(?:indeterminate|cannot determine|could not determine)\b", words)
+    )
+    expected = None
+    if indeterminate_pathology:
+        expected = "Uncertain Behavior"
+    elif "in situ" in words:
+        expected = "Ca in situ"
+    elif not hedged_malignancy and re.search(r"\b(?:metastatic|secondary)\b", words):
+        expected = "Malignant Secondary"
+    elif not hedged_malignancy and re.search(
+        r"\b(?:malignan\w*|cancer|carcinoma)\b", words
+    ):
+        expected = "Malignant Primary"
+    elif "benign" in words or benign_morphology:
+        expected = "Benign"
+    elif neoplasm_word:
+        expected = "Unspecified Behavior"
+    return column == expected
 
 
 def _contains_tokens(needles: list[str], haystack: list[str]) -> bool:
@@ -674,19 +683,34 @@ def _contains_tokens(needles: list[str], haystack: list[str]) -> bool:
     return all(available[token] >= count for token, count in wanted.items())
 
 
-def _reference_matches(referral: str, following_path: str, subject_code: str) -> bool:
+def _reference_matches(
+    referral: str,
+    following_path: str,
+    subject_code: str,
+    note_evidence: str = "",
+) -> bool:
     lower = referral.lower()
     following = _route_tokens(following_path)
     normalized = subject_code.replace(".", "").upper()
+    final_step = following_path.rsplit(" > ", 1)[-1]
     if "table of drugs and chemicals" in lower:
-        return normalized.startswith(tuple(f"T{number}" for number in range(36, 66)))
+        if not normalized.startswith(tuple(f"T{number}" for number in range(36, 66))):
+            return False
+        if final_step not in DRUG_COLUMNS:
+            return False
+        lower = lower.replace("table of drugs and chemicals", "")
     if "table of neoplasm" in lower or lower.strip() == "neoplasm":
-        return following[:1] == ["neoplasm"]
+        if final_step not in NEOPLASM_COLUMNS:
+            return False
+        lower = re.sub(r"\b(?:table of )?neoplasms?\b", "", lower)
     if "external cause" in lower and "index" in lower:
-        return normalized[:1] in {"V", "W", "X", "Y"}
+        if normalized[:1] not in {"V", "W", "X", "Y"}:
+            return False
+        lower = re.sub(r"\bindex to external causes? of injury\b", "", lower)
 
     # A placeholder delegates its omitted detail to the next path. The words
     # before it still have to identify the destination family.
+    placeholder = bool(re.search(r"\bby (?:site|type|substance|animal)\b", lower))
     lower = re.sub(r"\bby (?:site|type|substance|animal)(?:\b.*)?$", "", lower)
     # Character and range instructions constrain the subject code rather than
     # spelling a destination path.
@@ -709,7 +733,13 @@ def _reference_matches(referral: str, following_path: str, subject_code: str) ->
     lower = re.sub(r"\bwith\s+\d+(?:st|nd|rd|th)\s+character\s+[a-z0-9]", "", lower)
     needed = [token for token in _route_tokens(lower) if token not in _REFERENCE_FILLER]
     available = [token for token in following if token not in _REFERENCE_FILLER]
-    return (instruction or bool(needed)) and _contains_tokens(needed, available)
+    if not ((instruction or bool(needed)) and _contains_tokens(needed, available)):
+        return False
+    if placeholder:
+        supplied = [token for token in following if token not in _PLACEHOLDER_FILLER]
+        evidence = set(_route_tokens(note_evidence))
+        return bool(supplied) and any(token in evidence for token in supplied)
+    return True
 
 
 def _route_starts_in_words(
@@ -782,7 +812,12 @@ def _route_status(
         referral = previous[2] or previous[3]
         if not referral:
             return RouteStatus.INVALID
-        if not _reference_matches(referral, following[0], normalized):
+        if not _reference_matches(
+            referral,
+            following[0],
+            normalized,
+            f"{agreeing_words} {encounter_evidence}",
+        ):
             unmatched_reference = True
 
     final_code = resolved[-1][1]
@@ -791,8 +826,6 @@ def _route_status(
     stem = final_code.rstrip("-")
     if not normalized.startswith(stem):
         return RouteStatus.INVALID
-    if unmatched_reference:
-        return RouteStatus.UNREAD
     final_step = resolved[-1][0].rsplit(" > ", 1)[-1]
     if final_step in DRUG_COLUMNS and not _drug_column_agrees(final_step, agreeing_words):
         return RouteStatus.INVALID
@@ -800,10 +833,17 @@ def _route_status(
         return RouteStatus.INVALID
     if not _stem_details_agree(subject, stem, agreeing_words, encounter_evidence):
         return RouteStatus.INVALID
+    if unmatched_reference:
+        return RouteStatus.UNREAD
     return RouteStatus.VALID
 
 
-def _unmatched_cross_references(subject: AgreementSubject, route: str) -> tuple[str, ...]:
+def _unmatched_cross_references(
+    subject: AgreementSubject,
+    route: str,
+    agreeing_words: str,
+    encounter_evidence: str,
+) -> tuple[str, ...]:
     rendered = _index_route_catalog()
     steps = route.split(" | ")
     if not steps or any(step not in rendered for step in steps):
@@ -813,7 +853,12 @@ def _unmatched_cross_references(subject: AgreementSubject, route: str) -> tuple[
         referral
         for previous, following in zip(resolved, resolved[1:])
         if (referral := previous[2] or previous[3])
-        and not _reference_matches(referral, following[0], subject.code)
+        and not _reference_matches(
+            referral,
+            following[0],
+            subject.code,
+            f"{agreeing_words} {encounter_evidence}",
+        )
     )
 
 
@@ -1188,7 +1233,12 @@ def _run_agreement(argv: list[str]) -> int:
                 unread += 1
                 unread_routes.extend(
                     f"{pair.stem}: {subject.code}: {referral}"
-                    for referral in _unmatched_cross_references(subject, route)
+                    for referral in _unmatched_cross_references(
+                        subject,
+                        route,
+                        words,
+                        record["encounter_evidence"],
+                    )
                 )
             if (
                 _requires_encounter_evidence(subject)
