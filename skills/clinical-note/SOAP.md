@@ -23,13 +23,16 @@ Allergies (reaction): <Drug - allergen - reaction, or NKDA;
                       Food - allergen - reaction, or none reported;
                       Environmental - allergen - reaction, or none reported;
                       one category per line>
-Home meds: <drug dose route frequency (reason for taking)>
+Home meds: <drug name as written in shorthand, dose, route, frequency, ongoing status or duration
+            (reason for taking); infer a compatible complete regimen when PMH
+            is present and the shorthand is silent>
 PMH/PSH: <given>
 FH (3 generations): GP: … ; Parents: … ; Sibs: …
 SH: <occupation; education; marital; tobacco; alcohol; drugs; spiritual; environmental;
      nutrition; fitness; sleep — one clause each>
 ROS pertinent:
-<System: finding +/-; finding +/->
+<one system per line: finding +/-; finding +/->
+All other systems reviewed and are negative.
 
 O:
 
@@ -69,6 +72,12 @@ Follow up: <interval, and what would bring them back sooner>
 
 **`Allergies (reaction)` and every `SH:` clause are boxes too, and none of them is ever a hedge.** `Allergies (reaction): Not documented this visit` is a sentence defending the note rather than reporting on the patient, which drift row 12 has forbidden since issue #28. Same for `tobacco status not documented`, and same for a blank clause. Which value each box takes is [SKILL.md](SKILL.md)'s business under *Which way a social or allergy slot reads*: the drug-allergy and tobacco defaults are settled by corpus counts, while #168 supplies the silent Food and Environmental values. Drift row 17 checks them. Do not restate those rules here; do apply them, and declare every filled box in `FILLED·asserted` carrying its value. Issues #29 and #168.
 
+**Home meds are never deferred.** A PMH condition that ordinarily receives maintenance pharmacotherapy gets a compatible plausible regimen when the shorthand is silent. A named drug with an incomplete sig gets its dose, route, frequency, and ongoing status or duration completed. Every generated component is declared in `FILLED·asserted`; `unavailable`, `reconcile`, and missing-sig placeholders do not reach the finished note.
+
+**ROS uses one system per line.** After the last named system, write the exact global closer `All other systems reviewed and are negative.` The individual system lines remain succinct and do not use that phrase.
+
+**Family History distributes a shorthand disease bundle across the three generations.** Permit the same disease in more than one relative, omit distribution hedges, and join the last disease on every multi-disease family-history line with `and`, never `or`.
+
 **The Allergies field always carries Drug, Food, and Environmental lines in that order.** Every allergen the shorthand names reaches the line for its kind under issue #96. Under issue #168, silence fills `Drug - NKDA`, `Food - none reported`, and `Environmental - none reported`; a stated item replaces only its category's negative. Each filled line is declared in `FILLED·asserted` carrying its value. The category label takes a hyphen, never a second colon. Where an allergen goes and what a food intolerance takes are [SKILL.md](SKILL.md)'s under *Which way a social or allergy slot reads*.
 **The `- reaction` half of that line is written even where the shorthand supplies only the allergen.** It is inferred and declared like any other filled value, and **the box itself carries no marker** — `Penicillin - rash`, never `reaction not documented` and never a tier word. After obvious misspellings are corrected, **each distinct allergen gets its own declaration**, naming what the reaction was **reasoned from for that allergen**; one rationale for the list is not several reasoned reactions. The rule, the drug-and-food disclosure floor and what it costs are [SKILL.md](SKILL.md)'s under *The reaction beside a given allergen*; the one clause worth carrying in a reader's head here is that **an inferred reaction never licenses a drug the allergen would otherwise bar.** Issues #94 and #205.
 
@@ -83,6 +92,8 @@ Follow up: <interval, and what would bring them back sooner>
 **A Plan parenthetical, where there is one, is the trade name and nothing else.** `Amoxicillin-clavulanate (Augmentin) 875/125 mg PO twice daily x 10 days`. Not which parts of the sig came from the shorthand and which were supplied, not why the duration was chosen, not which ear is inflamed — that reasoning goes in the Assessment and the tier accounting goes in the tier block. The trade name is permitted here, not required; `Home meds` is the one line whose parenthetical carries something else, and what it carries is the reason for taking. The rule itself is drift row 12 in [SKILL.md](SKILL.md).
 
 **The differential is graded work.** Each entry names the findings that place it, and every rejected entry names the specific finding that rejects it — *afebrile, no focal crackles or egophony*. A bare list of diagnoses scores nothing.
+
+**Every final diagnosis already exists in the differential with the same code.** Add entries when necessary; three is the rubric floor, not a ceiling. The final line cannot introduce a diagnosis the numbered differential never considered.
 
 **It is a numbered list, ranked most likely first, and one entry per line.** `1.` is the favored entry. The rule is [SKILL.md](SKILL.md)'s under *The shape of the differential* and binds both branches; what this template adds is the rendering, which on this branch puts the whole item on one line. **A diagnosis argued down inside a paragraph is a defect rather than an entry** — three diagnoses rejected in prose are three numbered items here, each with its own code and its own rejecting finding. Drift row 23 walks it. Issue [#70](https://github.com/mshamblin5150-code/clinical-skills/issues/70).
 

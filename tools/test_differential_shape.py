@@ -208,7 +208,7 @@ class TheDriftMatrixCarriesBothRows(unittest.TestCase):
         numbers = [
             int(m) for m in re.findall(r"^\| (\d+) \| \*\*[^*]+\*\* \|", self.text, re.M)
         ]
-        self.assertEqual(numbers, list(range(1, 28)))
+        self.assertEqual(numbers, list(range(1, 33)))
 
 
 class BothTemplatesRenderTheRule(unittest.TestCase):
