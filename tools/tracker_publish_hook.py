@@ -1064,7 +1064,11 @@ def _graphql_operation(
 def _api_identifier(identifier: str, command: str) -> str | None:
     assignments, substitutions = _publish_assignments(command)
     expanded, kind = shell_reader.expand(identifier, assignments, substitutions)
-    if kind is not None or expanded is None or re.search(r"[/\?]", expanded):
+    if (
+        kind is not None
+        or expanded is None
+        or re.search(r"[/\?$`]", expanded)
+    ):
         return None
     return expanded
 
@@ -1118,6 +1122,11 @@ def _publish_assignments(
             plain = shell_reader.plain_assignments(word)
             dynamic = shell_reader.substitution_assignments(word)
             for name, value in plain.items():
+                source_value = word.partition("=")[2]
+                if source_value.startswith("'") and source_value.endswith("'"):
+                    assignments[name] = value
+                    substitutions.discard(name)
+                    continue
                 expanded, kind = shell_reader.expand(
                     value, assignments, frozenset(substitutions)
                 )

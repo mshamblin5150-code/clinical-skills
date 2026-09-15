@@ -469,6 +469,29 @@ class InlineTrackerTextIsRead(unittest.TestCase):
         self.assertEqual(result.grade_route, ("issue", "comment"))
         self.assertEqual(result.number, 7)
 
+    def test_double_quoted_api_identifier_assignment_chain_is_reconstructed(self) -> None:
+        result = hook.extract(
+            "OTHER=7; CID=\"$OTHER\"; "
+            "gh api repos/example/project/issues/comments/$CID "
+            "-f body='Comment edit'"
+        )
+
+        self.assertEqual(result.grade_route, ("issue", "comment"))
+        self.assertEqual(result.number, 7)
+
+    def test_single_quoted_api_identifier_indirection_is_refused(self) -> None:
+        result = hook.extract(
+            "OTHER=7; CID='$OTHER'; "
+            "gh api repos/example/project/issues/comments/$CID "
+            "-f body='Comment edit'"
+        )
+
+        self.assertIsNone(result.grade_route)
+        self.assertEqual(
+            result.unclassified_api_calls[0].kind,
+            "unclassified-api-identifier",
+        )
+
     def test_api_collection_endpoints_use_create_semantics(self) -> None:
         issue = hook.extract(
             "gh api repos/example/project/issues "
@@ -623,6 +646,29 @@ class InlineTrackerTextIsRead(unittest.TestCase):
 
         self.assertIsNone(result.grade_route)
         self.assertEqual(result.unreadable[0].kind, "external-variable")
+
+    def test_single_quoted_graphql_variable_is_document_text(self) -> None:
+        result = hook.extract(
+            "QUERY='query($owner:String!){repository(owner:$owner){name}}'; "
+            "gh api graphql -f query=$QUERY"
+        )
+
+        self.assertIsNone(result.grade_route)
+        self.assertEqual(result.unreadable, ())
+        self.assertEqual(result.unclassified_api_calls, ())
+
+    def test_single_quoted_graphql_mutation_variable_gets_mutation_remedy(self) -> None:
+        result = hook.extract(
+            "QUERY='mutation($body:String!){addComment(input:{body:$body})"
+            "{clientMutationId}}'; gh api graphql -f query=$QUERY"
+        )
+
+        self.assertIsNone(result.grade_route)
+        self.assertEqual(result.unreadable, ())
+        self.assertEqual(
+            result.unclassified_api_calls[0].kind,
+            "unclassified-api-mutation",
+        )
 
     def test_unresolved_graphql_input_path_assignment_is_refused(self) -> None:
         result = hook.extract(
