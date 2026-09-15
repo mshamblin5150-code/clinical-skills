@@ -985,11 +985,43 @@ def _api_option_source_argument(
     return sources[index][len(option_prefix) :]
 
 
+def _has_unquoted_brace_expansion(source: str) -> bool:
+    quote: str | None = None
+    candidates: list[bool] = []
+    index = 0
+    while index < len(source):
+        character = source[index]
+        if character == "\\" and quote != "'" and index + 1 < len(source):
+            index += 2
+            continue
+        if character in ("'", '"'):
+            if quote is None:
+                quote = character
+            elif quote == character:
+                quote = None
+            index += 1
+            continue
+        if quote is None:
+            if character == "{" and (index == 0 or source[index - 1] != "$"):
+                candidates.append(False)
+            elif candidates and (
+                character == "," or source.startswith("..", index)
+            ):
+                candidates[-1] = True
+            elif character == "}" and candidates:
+                if candidates.pop():
+                    return True
+        index += 1
+    return False
+
+
 def _analyze_source_word(
     source: str,
     assignments: dict[str, str],
     substitutions: frozenset[str],
 ) -> tuple[str | None, str | None, set[str], bool, bool]:
+    if _has_unquoted_brace_expansion(source):
+        return None, "brace-expansion", set(), True, False
     parts: list[str] = []
     unquoted_names: set[str] = set()
     failure_kind: str | None = None
@@ -1089,10 +1121,13 @@ def _api_expanded_arguments(
     endpoint = _api_endpoint(arguments)
     specialized_failures: set[int] = set()
     option_value_indices: set[int] = set()
+    endpoint_index: int | None = None
     index = 0
     while index < len(arguments):
         option = _api_value_option(arguments, index)
         if option is None:
+            if endpoint_index is None and not arguments[index].startswith("-"):
+                endpoint_index = index
             index += 1
             continue
         name, value, width = option
@@ -1111,7 +1146,7 @@ def _api_expanded_arguments(
     ):
         expanded, kind = _expand_source_word(source, assignments, substitutions)
         if kind is not None or expanded is None:
-            if index not in option_value_indices or index in specialized_failures:
+            if index == endpoint_index or index in specialized_failures:
                 expanded_arguments.append(argument)
                 continue
             remedy = (

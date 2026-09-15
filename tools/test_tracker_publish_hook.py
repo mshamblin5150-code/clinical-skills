@@ -683,6 +683,50 @@ class InlineTrackerTextIsRead(unittest.TestCase):
             "unclassified-api-arguments",
         )
 
+    def test_unknown_whole_api_option_is_refused(self) -> None:
+        commands = (
+            'gh api -X GET repos/o/r/issues/7 -f body=Injected "$OPT" POST',
+            'gh api -X GET repos/o/r/issues/7 -f body=Injected "$OPT=POST"',
+        )
+
+        for command in commands:
+            with self.subTest(command=command):
+                result = hook.extract(command)
+                self.assertIsNone(result.grade_route)
+                self.assertEqual(
+                    result.unclassified_api_calls[0].kind,
+                    "unclassified-api-arguments",
+                )
+
+    def test_unquoted_api_brace_expansion_is_refused(self) -> None:
+        commands = (
+            "gh api -X POST repos/o/r/issues/7/comments "
+            "-fbody={Safe,Injected}",
+            "gh api -X POST repos/o/r/issues/7/comments "
+            "--raw-field=body={Safe,Injected}",
+        )
+
+        for command in commands:
+            with self.subTest(command=command):
+                result = hook.extract(command)
+                self.assertIsNone(result.grade_route)
+                self.assertEqual(
+                    result.unclassified_api_calls[0].kind,
+                    "unclassified-api-arguments",
+                )
+
+        safe_commands = (
+            "gh api -X POST repos/o/r/issues/7/comments "
+            "-f'body={Safe,Injected}'",
+            "gh api -X POST repos/o/r/issues/7/comments "
+            "-fbody=\\{Safe,Injected\\}",
+        )
+        for command in safe_commands:
+            with self.subTest(command=command):
+                result = hook.extract(command)
+                self.assertEqual(result.grade_route, ("issue", "comment"))
+                self.assertEqual(result.publications[0].text, "{Safe,Injected}")
+
     def test_nondefault_ifs_cannot_inject_api_publication_options(self) -> None:
         commands = (
             "IFS=,; ARGS='7,-f,body=Injected'; ",
