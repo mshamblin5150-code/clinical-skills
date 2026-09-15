@@ -985,12 +985,13 @@ def _api_option_source_argument(
     return sources[index][len(option_prefix) :]
 
 
-def _expand_source_word(
+def _analyze_source_word(
     source: str,
     assignments: dict[str, str],
     substitutions: frozenset[str],
-) -> tuple[str | None, str | None]:
+) -> tuple[str | None, str | None, set[str], bool]:
     parts: list[str] = []
+    unquoted_names: set[str] = set()
     quote: str | None = None
     index = 0
     variable = re.compile(
@@ -1016,25 +1017,38 @@ def _expand_source_word(
                 index += 2
                 continue
         if quote != "'" and source.startswith("$(", index):
-            return None, "command-substitution"
+            return None, "command-substitution", unquoted_names, True
         if quote != "'" and character == "`":
-            return None, "command-substitution"
+            return None, "command-substitution", unquoted_names, True
         if quote != "'" and character == "$":
             match = variable.match(source, index)
             if match is None:
-                return None, "external-variable"
+                return None, "external-variable", unquoted_names, True
             name = match.group("braced") or match.group("plain")
+            if quote is None:
+                unquoted_names.add(name)
             if name in assignments:
                 parts.append(assignments[name])
             elif name in substitutions:
-                return None, "command-substitution"
+                return None, "command-substitution", unquoted_names, False
             else:
-                return None, "external-variable"
+                return None, "external-variable", unquoted_names, False
             index = match.end()
             continue
         parts.append(character)
         index += 1
-    return "".join(parts), None
+    return "".join(parts), None, unquoted_names, False
+
+
+def _expand_source_word(
+    source: str,
+    assignments: dict[str, str],
+    substitutions: frozenset[str],
+) -> tuple[str | None, str | None]:
+    expanded, kind, _names, _dynamic = _analyze_source_word(
+        source, assignments, substitutions
+    )
+    return expanded, kind
 
 
 def _api_graphql_field(
@@ -1336,37 +1350,9 @@ def _publish_assignments(
 
 
 def _unquoted_variable_names(source: str) -> tuple[set[str], bool]:
-    names: set[str] = set()
-    dynamic = False
-    quote: str | None = None
-    index = 0
-    variable = re.compile(
-        r"\$(?:\{(?P<braced>[A-Za-z_][A-Za-z0-9_]*)\}|"
-        r"(?P<plain>[A-Za-z_][A-Za-z0-9_]*))"
+    _expanded, _kind, names, dynamic = _analyze_source_word(
+        source, {}, frozenset()
     )
-    while index < len(source):
-        character = source[index]
-        if character == "\\" and quote != "'" and index + 1 < len(source):
-            index += 2
-            continue
-        if character in ("'", '"'):
-            if quote is None:
-                quote = character
-            elif quote == character:
-                quote = None
-            index += 1
-            continue
-        if quote is None and character == "`":
-            dynamic = True
-        if quote is None and character == "$":
-            match = variable.match(source, index)
-            if match is None:
-                dynamic = True
-            else:
-                names.add(match.group("braced") or match.group("plain"))
-                index = match.end()
-                continue
-        index += 1
     return names, dynamic
 
 
@@ -1383,6 +1369,16 @@ def _api_identifier_source(argument: str, name: str) -> bool:
     return False
 
 
+def _api_dynamic_identifier_source(argument: str) -> bool:
+    patterns = [pattern for pattern, _route in API_ROUTE_PATTERNS]
+    patterns.extend(API_NON_PUBLICATION_RECORD_ENDPOINTS)
+    return any(
+        match is not None and re.search(r"[$`]", match.group("identifier"))
+        for pattern in patterns
+        if (match := pattern.fullmatch(argument)) is not None
+    )
+
+
 def _api_dynamic_arguments(
     arguments: list[str],
     sources: tuple[str, ...],
@@ -1393,14 +1389,19 @@ def _api_dynamic_arguments(
     for argument, source in zip(arguments, sources, strict=True):
         names, dynamic = _unquoted_variable_names(source)
         if dynamic:
-            return UnclassifiedApiCall("unclassified-api-arguments", argument)
+            kind = (
+                "unclassified-api-identifier"
+                if _api_dynamic_identifier_source(argument)
+                else "unclassified-api-arguments"
+            )
+            return UnclassifiedApiCall(kind, argument)
         expanded_source, source_kind = _expand_source_word(
             source, assignments, substitutions
         )
         if names and source_kind is not None:
             kind = (
                 "unclassified-api-identifier"
-                if all(_api_identifier_source(argument, name) for name in names)
+                if _api_dynamic_identifier_source(argument)
                 else "unclassified-api-arguments"
             )
             return UnclassifiedApiCall(kind, argument)
@@ -1806,8 +1807,37 @@ def extract(command: str) -> Extraction:
             key, separator, value = option_value.partition("=")
             if separator and key in ("body", "title"):
                 if value.startswith("@") and option_name == "field":
+                    source_argument = _api_option_source_argument(
+                        arguments,
+                        argument_sources,
+                        index,
+                        option_value,
+                        width,
+                    )
+                    expanded_argument, source_kind = _expand_source_word(
+                        source_argument, assignments, substitutions
+                    )
+                    if source_kind is not None or expanded_argument is None:
+                        unreadable = Unreadable(
+                            key, source_kind or "external-variable", value[1:]
+                        )
+                        return Extraction(
+                            route,
+                            number,
+                            tuple(publications),
+                            (unreadable,),
+                            grade_route,
+                        )
+                    _source_key, _separator, expanded_value = (
+                        expanded_argument.partition("=")
+                    )
                     read = _read_file_field(
-                        key, value[1:], command, assignments, substitutions
+                        key,
+                        expanded_value[1:],
+                        command,
+                        assignments,
+                        substitutions,
+                        False,
                     )
                     if isinstance(read, Unreadable):
                         return Extraction(route, number, tuple(publications), (read,))

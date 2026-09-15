@@ -1119,6 +1119,50 @@ class InlineTrackerTextIsRead(unittest.TestCase):
                 self.assertEqual(result.grade_route, expected)
                 self.assertTrue(result.publications)
 
+    def test_api_field_files_expand_only_shell_active_path_variables(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / "$FILE").write_text("Literal body", encoding="utf-8")
+            (root / "safe.md").write_text("Active body", encoding="utf-8")
+            prefix = f'cd "{root.as_posix()}"; FILE=safe.md; '
+            commands = (
+                (
+                    prefix
+                    + "gh api repos/o/r/issues/comments/7 -F 'body=@$FILE'",
+                    "Literal body",
+                ),
+                (
+                    prefix
+                    + 'gh api repos/o/r/issues/comments/7 -F "body=@$FILE"',
+                    "Active body",
+                ),
+                (
+                    prefix
+                    + 'gh api repos/o/r/issues/comments/7 -F "body=@\\$FILE"',
+                    "Literal body",
+                ),
+            )
+
+            for command, expected in commands:
+                with self.subTest(command=command):
+                    result = hook.extract(command)
+                    self.assertEqual(result.grade_route, ("issue", "comment"))
+                    self.assertEqual(result.publications[0].text, expected)
+
+    def test_composite_api_identifiers_keep_identifier_remedy(self) -> None:
+        commands = (
+            "gh api repos/o/r/issues/comments/${IDS[$n]} -f body=x",
+            "A=1; gh api repos/o/r/issues/comments/$A$B -f body=x",
+        )
+
+        for command in commands:
+            with self.subTest(command=command):
+                result = hook.extract(command)
+                self.assertEqual(
+                    result.unclassified_api_calls[0].kind,
+                    "unclassified-api-identifier",
+                )
+
 
 class InlineTrackerTextMustBeShellReproducible(unittest.TestCase):
     @staticmethod
