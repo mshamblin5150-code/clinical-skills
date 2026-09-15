@@ -1107,8 +1107,9 @@ def _publish_assignments(
             re.match(r"[A-Za-z_][A-Za-z0-9_]*=", word) is None
             for word in assignment_words
         ):
-            assignments.clear()
-            substitutions.clear()
+            if words not in ((":",), ("command", ":"), ("command", "true")):
+                assignments.clear()
+                substitutions.clear()
             continue
         next_piece = pieces[position + 1] if position + 1 < len(pieces) else None
         if next_piece in ("|", "&"):

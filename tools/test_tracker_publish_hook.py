@@ -405,7 +405,7 @@ class InlineTrackerTextIsRead(unittest.TestCase):
 
     def test_intervening_command_makes_api_assignment_unreconstructable(self) -> None:
         result = hook.extract(
-            "CID=7; echo setup; "
+            "CID=7; opaque_step; "
             "gh api repos/example/project/issues/comments/$CID "
             "-f body='Comment edit'"
         )
@@ -415,6 +415,22 @@ class InlineTrackerTextIsRead(unittest.TestCase):
             result.unclassified_api_calls[0].kind,
             "unclassified-api-identifier",
         )
+
+    def test_nonmutating_commands_preserve_api_assignment(self) -> None:
+        commands = (
+            "CID=7; :; ",
+            "CID=7; command true; ",
+        )
+
+        for prefix in commands:
+            with self.subTest(prefix=prefix):
+                result = hook.extract(
+                    prefix
+                    + "gh api repos/example/project/issues/comments/$CID "
+                    "-f body='Comment edit'"
+                )
+                self.assertEqual(result.grade_route, ("issue", "comment"))
+                self.assertEqual(result.number, 7)
 
     def test_api_collection_endpoints_use_create_semantics(self) -> None:
         issue = hook.extract(
