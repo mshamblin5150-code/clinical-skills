@@ -305,7 +305,15 @@ veto over `gh`.
   session end and nothing prevents it.
 - **The modeled path's own command-position hole**, per ruling 2 — 262 measured blocks, #1107's.
 - **A second publication in one command**, 718 measured blocks, #1107's.
-- **A latent wrong read of a bare backslash path** whose mangled spelling names a real file. Filed.
+- **Which file an author meant by a backslash path.** On the modeled path the reader removes an
+  unquoted backslash exactly as bash does and grades the file bash will open; an unmodeled shell is
+  refused unread under ruling 1. Declared, never graded.
+
+  **Corrected in place 2026-09-15.** This bullet read *"A latent wrong read of a bare backslash path
+  whose mangled spelling names a real file. Filed."* That was true of the PowerShell population this
+  record measured and false once ruling 1 lands. Driven and ruled by
+  [ADR 0244](0244-an-unquoted-backslash-path-is-not-refused.md) on
+  [#1150](https://github.com/mshamblin5150-code/clinical-skills/issues/1150).
 - **`Bash(gh *)`'s reach into a brace group**, unmeasured; if it does not reach, some part of #1107's
   262 is the guard rather than the tokenizer. Recorded there as an open measurement.
 - **The hook's PHI shape layer under a synthetic pragma.** The hook calls `phi_scan.scan_text`, which
