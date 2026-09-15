@@ -1893,6 +1893,7 @@ class EveryRuledFanOutReadsTheSharedSourcingRules(unittest.TestCase):
                 "A pointer is not a source",
                 "A resolving locator is not verification",
                 "A failed read is not a negative",
+                "Authenticated VitalSource chapters use one reading standard",
                 "An absence-based refutation reads and quotes the passage",
                 "A sourceless record makes no claim about a source",
                 "A claim heading is the claim the document will make",
@@ -1908,6 +1909,10 @@ class EveryRuledFanOutReadsTheSharedSourcingRules(unittest.TestCase):
         self.assertIn("never a bare status", flat)
         self.assertIn("reports the corpus it read and what it did not open", flat)
         self.assertIn("retry with a second independent instrument", flat)
+        self.assertIn("every browser agent reads and follows", flat)
+        self.assertIn("vitalsource-chrome", flat)
+        self.assertIn("Only Codex runs its compatibility patcher", flat)
+        self.assertIn("prior successful session are insufficient evidence", flat)
         self.assertIn(
             "A sourced claim record may certify a value only when REFUTATION, TESTED-HEADING, and SECOND-ROUTE carry substance",
             flat.replace("`", ""),

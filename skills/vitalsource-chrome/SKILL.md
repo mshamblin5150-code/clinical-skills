@@ -1,22 +1,59 @@
 ---
 name: vitalsource-chrome
-description: Navigate and completely read authenticated VitalSource Bookshelf chapters through Codex Chrome. Use when a task mentions VitalSource, Bookshelf, a live eText, or a textbook chapter available only in the authenticated reader.
+description: Navigate and completely read authenticated VitalSource Bookshelf chapters. Use when a task mentions VitalSource, Bookshelf, a live eText, or a textbook chapter available only in the authenticated reader.
 ---
 
 # VitalSource Chrome
 
-Read VitalSource the way Claude in Chrome does: navigate before the debugger remains attached, let the Jigsaw reader settle, and treat screenshots as the reading surface. The installer makes Codex release and reacquire its debugger at those boundaries automatically.
+`vitalsource-chrome` steps 2 through 5 bind every browser agent reading an authenticated VitalSource
+chapter. Step 1 is Codex-specific preparation. Codex keeps one ordinary top-level debugger attachment, leaves OOPIF
+auto-attachment disabled, uses ordinary navigation and command dispatch, lets Jigsaw XHTML remain
+a document response, and treats screenshots as the reading surface. The dated
+[reference lifecycle](reference/claude-in-chrome-lifecycle.json) records which Claude in Chrome
+facts this patch copies; that record guides repairs and never decides whether a page was read.
 
 ## 1. Prepare Codex Chrome
 
-Run `python skills/vitalsource-chrome/scripts/patch_codex_chrome.py` from the repository root after installation and after a Codex Chrome update. It patches both installed locations when present:
+Run `python skills/vitalsource-chrome/scripts/patch_codex_chrome.py` from the repository root after
+installation and after a Codex Chrome update. It patches both installed locations when present:
 
 - the bundled Chrome plugin cache under `.codex/plugins/cache/`;
 - the active desktop browser runtime under `OpenAI/Codex/runtimes/cua_node/`.
 
-The patch is fail-closed. It changes only reviewed browser-service seams, preserves the first pre-patch bundle beside each target as `.vitalsource-original`, and rejects an unknown or partial bundle. It does not enable full CDP or authorize raw `Target.*` commands.
+The patch is fail-closed. It changes only reviewed browser-service seams, preserves the first
+pre-patch bundle beside each target as `.vitalsource-original`, and rejects an unknown or partial
+bundle. It does not enable full CDP or authorize raw `Target.*` commands. If the installed Claude in
+Chrome extension version differs from the reference lifecycle, report the difference and continue;
+the version is not a read gate.
 
-Restart Codex after the script reports `patched`. A running browser service cannot load changed code in place.
+Run the repository patcher, then run the personal plugin's patcher at
+`~/.codex/plugins/cache/personal/vitalsource-chrome/scripts/patch_codex_chrome.py` against the same
+live bundle, and record both statuses. Treat the result as an ordered comparison:
+
+1. When the repository patcher reports `patched` or `already-patched`, refresh the personal plugin's
+   `SKILL.md` and patcher from the repository. Keep only its declared transforms: the command path is
+   plugin-relative and it has no repository `sourcing.md` link. Run the refreshed personal patcher
+   again so any mutation from its former copy converges to the repository lifecycle.
+2. When the repository patcher refuses and only the personal plugin's patcher reports
+   `already-patched`, do not overwrite it: it holds a repair the repository lacks. Follow the repair
+   route below so that fix lands first.
+3. When both patchers refuse, follow the repair route below.
+
+Restart Codex after either patcher reports `patched`. A running browser service cannot load changed
+code in place. A personal installation and a prior successful session are insufficient evidence
+that the current bundle works.
+
+A refused repository patcher starts this route in order:
+
+1. Attempt the read under `vitalsource-chrome` step 2's verification and record that the patcher refused. A changed
+   bundle may contain an upstream fix, and the visible page is the only read gate.
+2. If the page fails step 2, repair the patcher on a branch during this run. File a ticket whether
+   the repair succeeds or fails, land a successful repair through a pull request, and obtain the
+   clinician's go-ahead before applying it to the clinician's installed Codex. Verify the repair
+   under step 2.
+3. If repair fails or the clinician declines it, hand the chapter to a Claude session that follows
+   steps 2 through 5.
+4. If no Claude session is available, report an `unreadable source` and name every instrument tried.
 
 ## 2. Open and verify the reader
 
@@ -24,7 +61,10 @@ Restart Codex after the script reports `patched`. A running browser service cann
 2. Allow four seconds for the reader to initialize before the first screenshot.
 3. Require visible book content, a printed page number, and the expected title. A shell plus five-dot spinner is not a readable page.
 4. Read the pane from screenshots. Do not use extracted page text, accessibility trees, DOM snapshots, or frame locators as evidence; VitalSource may expose the shell while omitting or breaking the Jigsaw pane.
-5. Use ordinary screenshot-grounded click, type, and scroll actions. The patch releases the debugger before each discrete VitalSource action and reacquires it only for that action, matching Claude's working lifecycle.
+5. Use ordinary screenshot-grounded click, type, and scroll actions. In Codex, the patch keeps the
+   top-level debugger attachment stable, never enables OOPIF auto-attachment at the tab boundary,
+   and classifies `application/xhtml+xml` as a document instead of a download so Jigsaw can load the
+   chapter frame.
 
 Coordinates expire after every scroll, resize, panel change, or navigation. Take a new screenshot before choosing the next target.
 

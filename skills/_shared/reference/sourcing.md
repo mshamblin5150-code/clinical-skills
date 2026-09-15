@@ -21,6 +21,14 @@ that did not run is not a negative. When an instrument refuses the read, retry w
 independent instrument. If that also fails, report the source as unreadable rather than reporting
 that the sought material is absent.
 
+## Authenticated VitalSource chapters use one reading standard
+
+When a source is an authenticated VitalSource Bookshelf chapter, every browser agent reads and
+follows [`vitalsource-chrome`](../../vitalsource-chrome/SKILL.md) before opening the book.
+`vitalsource-chrome` steps 2 through 5 are the shared visible-page and complete-traversal standard.
+Only Codex runs its compatibility patcher in `vitalsource-chrome` step 1. A personal installation and a prior successful session are
+insufficient evidence that the current consumer path works.
+
 ## An absence-based refutation reads and quotes the passage
 
 A refutation that reports a record's supporting language absent reads the record's `PASSAGE` and
