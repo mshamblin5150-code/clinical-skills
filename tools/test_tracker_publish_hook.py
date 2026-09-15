@@ -631,6 +631,58 @@ class InlineTrackerTextIsRead(unittest.TestCase):
                     "unclassified-api-arguments",
                 )
 
+    def test_expansion_split_cannot_hide_a_quoted_variable_option(self) -> None:
+        commands = (
+            "SEP=' '; OPT='--method=POST'; gh api -X GET "
+            'repos/o/r/issues/7 -f data=x$SEP"$OPT" -f body=Injected',
+            "SEP=' '; OPT='-X'; gh api -X GET "
+            'repos/o/r/issues/7 -f data=x$SEP"$OPT" POST -f body=Injected',
+        )
+
+        for command in commands:
+            with self.subTest(command=command):
+                result = hook.extract(command)
+                self.assertIsNone(result.grade_route)
+                self.assertEqual(
+                    result.unclassified_api_calls[0].kind,
+                    "unclassified-api-arguments",
+                )
+
+        literal = hook.extract(
+            "SEP=' '; OPT='--method=POST'; gh api -X GET "
+            "repos/o/r/issues/7 -f data=x$SEP'$OPT'"
+        )
+        self.assertEqual(literal.unclassified_api_calls, ())
+
+    def test_api_field_assignments_are_expanded_before_classification(self) -> None:
+        commands = (
+            "FIELD='body=Injected'; gh api "
+            'repos/example/project/issues/comments/7 -f "$FIELD"',
+            "FIELD='body=Injected'; gh api "
+            "repos/example/project/issues/comments/7 -f $FIELD",
+            "KEY=body; gh api repos/example/project/issues/comments/7 "
+            '-f "$KEY=Injected"',
+        )
+
+        for command in commands:
+            with self.subTest(command=command):
+                result = hook.extract(command)
+                self.assertEqual(result.grade_route, ("issue", "comment"))
+                self.assertEqual(result.number, 7)
+                self.assertEqual(result.publications[0].field, "body")
+                self.assertEqual(result.publications[0].text, "Injected")
+
+    def test_unknown_api_field_assignment_is_refused(self) -> None:
+        result = hook.extract(
+            'gh api repos/example/project/issues/comments/7 -f "$FIELD"'
+        )
+
+        self.assertIsNone(result.grade_route)
+        self.assertEqual(
+            result.unclassified_api_calls[0].kind,
+            "unclassified-api-arguments",
+        )
+
     def test_nondefault_ifs_cannot_inject_api_publication_options(self) -> None:
         commands = (
             "IFS=,; ARGS='7,-f,body=Injected'; ",

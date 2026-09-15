@@ -1045,6 +1045,8 @@ def _analyze_source_word(
                                 injected_option = True
                             field_has_text = True
                 elif assigned:
+                    if not field_has_text and assigned.startswith("-"):
+                        injected_option = True
                     field_has_text = True
             elif name in substitutions:
                 failure_kind = failure_kind or "command-substitution"
@@ -1075,6 +1077,51 @@ def _expand_source_word(
         source, assignments, substitutions
     )
     return expanded, kind
+
+
+def _api_expanded_arguments(
+    arguments: list[str],
+    sources: tuple[str, ...],
+    command: str,
+) -> list[str] | UnclassifiedApiCall:
+    """Reconstruct each API argv word once before classifying its contents."""
+    assignments, substitutions, _uncertain = _publish_assignments(command)
+    endpoint = _api_endpoint(arguments)
+    specialized_failures: set[int] = set()
+    option_value_indices: set[int] = set()
+    index = 0
+    while index < len(arguments):
+        option = _api_value_option(arguments, index)
+        if option is None:
+            index += 1
+            continue
+        name, value, width = option
+        value_index = index + 1 if width == 2 and value is not None else index
+        option_value_indices.add(value_index)
+        key = "" if value is None else value.partition("=")[0]
+        if endpoint == "graphql" and (
+            name == "input"
+            or (name in ("raw-field", "field") and key in ("query", "operationName"))
+        ):
+            specialized_failures.add(value_index)
+        index += width
+    expanded_arguments: list[str] = []
+    for index, (argument, source) in enumerate(
+        zip(arguments, sources, strict=True)
+    ):
+        expanded, kind = _expand_source_word(source, assignments, substitutions)
+        if kind is not None or expanded is None:
+            if index not in option_value_indices or index in specialized_failures:
+                expanded_arguments.append(argument)
+                continue
+            remedy = (
+                "unclassified-api-identifier"
+                if _api_dynamic_identifier_source(argument)
+                else "unclassified-api-arguments"
+            )
+            return UnclassifiedApiCall(remedy, argument)
+        expanded_arguments.append(expanded)
+    return expanded_arguments
 
 
 def _api_graphql_field(
@@ -1797,7 +1844,20 @@ def extract(command: str) -> Extraction:
             return Extraction(
                 route, None, (), (), None, (dynamic_arguments,)
             )
-    number = _record_number(route, arguments, command, argument_sources)
+        expanded_arguments = _api_expanded_arguments(
+            arguments, argument_sources, command
+        )
+        if isinstance(expanded_arguments, UnclassifiedApiCall):
+            return Extraction(
+                route, None, (), (), None, (expanded_arguments,)
+            )
+        arguments = expanded_arguments
+    number = _record_number(
+        route,
+        arguments,
+        command,
+        argument_sources,
+    )
     api_grade = (
         _api_grade_route(arguments, command, argument_sources)
         if route == ("api",)
@@ -1858,33 +1918,9 @@ def extract(command: str) -> Extraction:
             key, separator, value = option_value.partition("=")
             if separator and key in ("body", "title"):
                 if value.startswith("@") and option_name == "field":
-                    source_argument = _api_option_source_argument(
-                        arguments,
-                        argument_sources,
-                        index,
-                        option_value,
-                        width,
-                    )
-                    expanded_argument, source_kind = _expand_source_word(
-                        source_argument, assignments, substitutions
-                    )
-                    if source_kind is not None or expanded_argument is None:
-                        unreadable = Unreadable(
-                            key, source_kind or "external-variable", value[1:]
-                        )
-                        return Extraction(
-                            route,
-                            number,
-                            tuple(publications),
-                            (unreadable,),
-                            grade_route,
-                        )
-                    _source_key, _separator, expanded_value = (
-                        expanded_argument.partition("=")
-                    )
                     read = _read_file_field(
                         key,
-                        expanded_value[1:],
+                        value[1:],
                         command,
                         assignments,
                         substitutions,
@@ -1894,54 +1930,14 @@ def extract(command: str) -> Extraction:
                         return Extraction(route, number, tuple(publications), (read,))
                     publications.append(read)
                 else:
-                    if width == 2:
-                        source_argument = argument_sources[index + 1]
-                    else:
-                        option_prefix = token[: len(token) - len(option_value)]
-                        source_argument = source_token[len(option_prefix) :]
-                    literal_prefix = key + "="
-                    source_has_literal_prefix = source_argument.startswith(
-                        literal_prefix
-                    )
-                    source_value = _source_without_literal_prefix(
-                        source_argument, literal_prefix
-                    )
-                    read = _read_inline_value(
-                        key,
-                        source_value,
-                        "" if source_has_literal_prefix else literal_prefix,
-                    )
-                    if isinstance(read, Unreadable):
-                        return Extraction(route, number, tuple(publications), (read,), grade_route)
-                    publications.append(read)
+                    publications.append(Publication(key, value))
             index += width
             continue
         if api_option is not None and api_option[0] == "input":
             source = api_option[1]
             if source is None:
                 raise ValueError("missing API input was not refused")
-            source_argument = _api_option_source_argument(
-                arguments, argument_sources, index, source, api_option[2]
-            )
-            if source_argument:
-                expanded_source, source_kind = _expand_source_word(
-                    source_argument, assignments, substitutions
-                )
-                if source_kind is not None or expanded_source is None:
-                    unreadable = Unreadable(
-                        "body", source_kind or "external-variable", source
-                    )
-                    return Extraction(
-                        route,
-                        number,
-                        tuple(publications),
-                        (unreadable,),
-                        grade_route,
-                    )
-                source = expanded_source
-            api_input = _read_api_input(
-                source, command, not bool(source_argument)
-            )
+            api_input = _read_api_input(source, command, False)
             if isinstance(api_input, Unreadable):
                 return Extraction(
                     route,
