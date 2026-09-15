@@ -244,11 +244,20 @@ class BothTemplatesRenderTheRule(unittest.TestCase):
         text = HP.read_text(encoding="utf-8")
         self.assertIn("1. <diagnosis - code>", text)
 
-    def test_the_hp_notes_say_the_item_is_two_lines_on_that_branch(self):
-        # The one place the branches genuinely differ. A rule stated as "one line
-        # per entry" would forbid the shape the school's rubric asks for.
+    def test_the_hp_notes_keep_reasoning_out_of_the_differential(self):
         text = HP.read_text(encoding="utf-8")
-        self.assertIn("the numbered item is two lines", text)
+        self.assertIn(
+            "the numbered differential item is one clean diagnosis-and-code line",
+            text,
+        )
+        self.assertNotIn("the numbered item is two lines", text)
+
+    def test_the_hp_hpi_placeholder_does_not_invite_current_exam_content(self):
+        text = HP.read_text(encoding="utf-8")
+        hpi = text.split("History of Present Illness", 1)[1].split(
+            "Past Medical History including Medications", 1
+        )[0]
+        self.assertNotIn("current appearance", hpi)
 
     def test_the_hp_notes_do_not_claim_a_rubric_departure(self):
         # Numbering is the rubric's own "3 differential diagnoses" read plainly.

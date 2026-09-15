@@ -29,7 +29,7 @@ Timing:
 Severity: <N/10, and the complaint it belongs to>
 
 <then a short narrative paragraph: age, sex, who brought them, the course,
-prior treatment and testing, current appearance>
+prior treatment and testing>
 
 Past Medical History including Medications (with reason for taking)
 PMH:
@@ -150,28 +150,32 @@ CPT and HCPCS: <each supported documented service or supply, with official descr
 
 **ICD-9 vs ICD-10** — the rubric headings say ICD-9. That text is stale; supply ICD-10-CM codes under the heading as written. Codes follow [icd10-cpt](../icd10-cpt/SKILL.md): anchored to documented findings, and flagged for verification. Give it the tier assignment along with the text — it marks a code resting on a filled value `SOURCE: filled`, and the note body alone cannot say which values those are.
 
-**Differential rationale** is the graded core. Each excluded diagnosis needs the specific finding that excludes it — `no facial swelling, no focal sinus tenderness` — drawn from the exam, whether that exam line is given or filled.
+**Differential rationale** is the graded core, and it belongs in Medical Decision Making rather than beneath the Differential heading. Each excluded diagnosis needs the specific finding that excludes it — `no facial swelling, no focal sinus tenderness` — drawn from the exam, whether that exam line is given or filled.
 
 **Every final diagnosis already exists in the differential with the same code.** Add entries when the conclusion contains more than the rubric's three-item floor; never introduce a diagnosis only under `Final diagnosis`. Attach the decisive patient-specific discriminator to each selected diagnosis, using a short numbered list when several are final.
 
 **Medical Decision Making is required on every H&P.** Keep the differential itself as a clean numbered, likelihood-ranked list. Then number MDM one-for-one in the same order: a diagnosis-and-code header with `favored`, `less likely`, or `must exclude`, followed by the case-specific evidence and why it leads to the decision carried into the Plan. This copies the clinician's case-study Assessment shape without scholarly citations.
 
-**The list is numbered and ranked most likely first, and `1.` is the most-likely entry.** The rule is [SKILL.md](SKILL.md)'s under *The shape of the differential* and binds both branches; what this template decides is the rendering, and on this branch **the numbered item is two lines** — the code line the rubric's shape requires, and the rationale line beneath it. The second line is a continuation of the item that opened above it and never opens one of its own. **A diagnosis argued down inside a paragraph is a defect rather than an entry**, so three diagnoses rejected in prose are three numbered items here. The rubric asks for *"3 differential diagnoses with rationale"* and numbering them is its own instruction read plainly, not a departure from it. Drift row 23 walks it. Issue [#70](https://github.com/mshamblin5150-code/clinical-skills/issues/70).
+**The list is numbered and ranked most likely first, and `1.` is the most-likely entry.** The rule is [SKILL.md](SKILL.md)'s under *The shape of the differential* and binds both branches; on this branch **the numbered differential item is one clean diagnosis-and-code line**. Its matching numbered MDM item carries the likelihood verdict, case-specific evidence, exclusion reasoning, and resulting decision. **A diagnosis argued down inside a paragraph is a defect rather than an entry**, so three diagnoses rejected in prose are three numbered differential items with three matching MDM items. The rubric asks for *"3 differential diagnoses with rationale"* and numbering them is its own instruction read plainly, not a departure from it. Drift row 23 walks it. Issue [#70](https://github.com/mshamblin5150-code/clinical-skills/issues/70).
 
 **And the count does not stop at this heading.** A diagnosis-shaped line written anywhere else in the Assessment — under a `problems addressed today` block or any heading a run invents — is an entry and carries a code, because a rule escapable by moving a line one heading down is not a rule. A **measurement of the patient's own body** is a diagnosis here and carries its code; a **line of reasoning** is not, and belongs in the rationale of the entry it concerns. Drift row 13 counts it.
 
-**The code on each differential entry stays in the note.** The rubric asks for it and this template has always carried it; what it is *for* is documenting medical decision-making, so it does not travel on to Medatrax's `ICD-10-CM` category the way the preexisting and actual diagnoses do. [SOAP.md](SOAP.md) now carries the same requirement, on one line rather than two — **the codes match across the branches, the layout does not have to.** Issue #19.
+**The code on each differential entry stays in the note.** The rubric asks for it and this template has always carried it; what it is *for* is documenting medical decision-making, so it does not travel on to Medatrax's `ICD-10-CM` category the way the preexisting and actual diagnoses do. [SOAP.md](SOAP.md) carries the same requirement. **The codes and the clean differential layout match across the branches; H&P adds the separate numbered MDM section.** Issue #19.
 
 **No diagnosis the encounter did not establish gets a code that overstates it**, and that reaches the `Final diagnosis` line as readily as the differential — a hedge is most often on the conclusion. [icd10-cpt](../icd10-cpt/SKILL.md) declines a descriptor naming a confirmed organism or disease where nothing established either: a suspected COVID-19 with no swab takes `Z20.822 Contact with and (suspected) exposure to COVID-19`, not `U07.1`. Drift row 13 in [SKILL.md](SKILL.md) checks it.
 
-**Once a code is declined, the entry is named for the one that survives.** The rule is [SKILL.md](SKILL.md)'s under *Naming a differential entry*; what this template decides is where the refusal goes, and on this branch it is **line two**. The rubric's shape puts the code on its own line, so line one stays `<diagnosis - code>` and carries nothing else, and the rationale line absorbs the refusal along with everything else it already carries — written as the welded `NOT CODED: <code> <descriptor>, <reason>` pair [SKILL.md](SKILL.md) requires:
+**Once a code is declined, the entry is named for the one that survives.** The rule is [SKILL.md](SKILL.md)'s under *Naming a differential entry*. The Differential line stays `<diagnosis - code>` and carries nothing else. The matching MDM item carries the refusal with its reasoning, written as the welded `NOT CODED: <code> <descriptor>, <reason>` pair [SKILL.md](SKILL.md) requires:
 
 ```
+Differential diagnoses:
 2. Pain in left elbow - M25.522
-   Less likely because the 5/10 pain followed a fall and the elbow radiographs ordered today have no result. NOT CODED: S52.125A Nondisplaced fracture of head of left radius, initial encounter for closed fracture, nothing established it.
+
+Medical Decision Making:
+2. Pain in left elbow - M25.522 — less likely.
+   The 5/10 pain followed a fall and the elbow radiographs ordered today have no result. NOT CODED: S52.125A Nondisplaced fracture of head of left radius, initial encounter for closed fracture, nothing established it.
 ```
 
-**The `Final diagnosis` line keeps the hedge instead**, the way [SOAP.md](SOAP.md)'s does — **and so does the most-likely entry**, which on this branch means the hedge lands on line one and the refusal on line two exactly as it does for an entry argued against:
+**The `Final diagnosis` line keeps the hedge instead**, the way [SOAP.md](SOAP.md)'s does. The clean Differential line keeps the supported code, and the matching MDM item holds any declined code and its reason:
 
 ```
 Differential diagnoses:
@@ -183,7 +187,6 @@ Final diagnosis:
 Medical Decision Making:
 1. Community-acquired pneumonia, pneumococcal organism suspected - J18.9 — favored.
    Five days of fever and focal crackles fit, so treatment and the ordered chest film proceed; the film has no result. NOT CODED: J13 Pneumonia due to Streptococcus pneumoniae, nothing tested for the organism.
-Nothing tested for the organism, so NOT CODED: J13 Pneumonia due to Streptococcus pneumoniae; an organism-specific result would earn it.
 ```
 
 **This branch's conclusion is `Final diagnosis`, and that is a deliberate departure from the rubric.** The rubric's Assessment instruction — quoted verbatim in the template above — names *"Actual diagnosis/diagnoses with ICD-9 codes"*, and this file's opening rule says obey those instructions literally. **The clinician overruled it on 2026-08-16**, having been shown that the heading is the school's rather than this repo's: both branches now write `Final diagnosis`, so one encounter's conclusion reads the same whichever template it is written in, and drift row 22 has one heading to name instead of two.
@@ -192,7 +195,7 @@ Nothing tested for the organism, so NOT CODED: J13 Pneumonia due to Streptococcu
 
 **The `ICD-9` heading above is a different case and is not precedent for this one.** There the rubric text is *stale* and the fix is to supply the right codes under the heading as written; here the heading itself changed. One keeps the rubric's words and corrects its content, the other does the reverse.
 
-**That is the two-line layout absorbing a rule written for a one-line one, and it is the same rule.** What has to match across the branches is the codes and the naming, not the layout — the same encounter names the same entries whichever branch it is written in, and only the line breaks move. `python tools/differential_scan.py <a run directory>` reads this branch's shape as well as the other's, and checks the one limb of row 22 that is mechanical. **It still reads the retired `Actual diagnosis/diagnoses` heading too**, because every H&P written before today opens its conclusion that way and a scanner that stopped reading them would report exit 2 on a real run. Issues #68 and [#153](https://github.com/mshamblin5150-code/clinical-skills/issues/153).
+**Both branches now keep the Differential itself clean.** The H&P's separate MDM section is where the reasoning continues, one item for every Differential entry and in the same order. `python tools/differential_scan.py <a run directory>` reads this branch's current shape as well as the historical one and checks the mechanical limb of row 22. **It still reads the retired `Actual diagnosis/diagnoses` heading too**, because every H&P written before today opens its conclusion that way and a scanner that stopped reading them would report exit 2 on a real run. Issues #68 and [#153](https://github.com/mshamblin5150-code/clinical-skills/issues/153).
 
 **Screenings** is a filled list keyed to the patient's age. The rubric wants it present even when nothing was done.
 
