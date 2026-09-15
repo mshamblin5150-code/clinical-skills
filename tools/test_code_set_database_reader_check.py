@@ -127,6 +127,29 @@ class TheReaderPopulationAndThePinsMustAgree(unittest.TestCase):
                 "    def test_read(self): icd10_lookup.open_database()\n",
                 encoding="utf-8",
             )
+            (tools / "test_shadowed_helper_attribute.py").write_text(
+                "import unittest\nimport icd10_lookup\n"
+                "import code_set_database_test_support as pins\n"
+                "def fake(*args): pass\n"
+                "pins.assert_code_set_database_digest = fake\n"
+                "pins.assert_code_set_database_digest(\n"
+                "    'path', pins.ICD10_DATABASE_SHA256, 'name',\n"
+                ")\n"
+                "class Reader(unittest.TestCase):\n"
+                "    def test_read(self): icd10_lookup.open_database()\n",
+                encoding="utf-8",
+            )
+            (tools / "test_shadowed_digest_attribute.py").write_text(
+                "import unittest\nimport icd10_lookup\n"
+                "import code_set_database_test_support as pins\n"
+                "pins.ICD10_DATABASE_SHA256 = 'digest'\n"
+                "pins.assert_code_set_database_digest(\n"
+                "    'path', pins.ICD10_DATABASE_SHA256, 'name',\n"
+                ")\n"
+                "class Reader(unittest.TestCase):\n"
+                "    def test_read(self): icd10_lookup.open_database()\n",
+                encoding="utf-8",
+            )
 
             result = check.audit(tools)
 
@@ -138,6 +161,8 @@ class TheReaderPopulationAndThePinsMustAgree(unittest.TestCase):
                         "test_missing_default",
                         "test_missing_named",
                         "test_shadowed_direct",
+                        "test_shadowed_digest_attribute",
+                        "test_shadowed_helper_attribute",
                         "test_shadowed_module",
                     }
                 ),

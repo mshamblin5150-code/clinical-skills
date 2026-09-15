@@ -135,26 +135,18 @@ def _has_pin(tree: ast.Module) -> bool:
         if isinstance(statement, ast.Import):
             for alias in statement.names:
                 name = alias.asname or alias.name.split(".", 1)[0]
-                bindings[name] = "pin-module" if alias.name == PIN_MODULE else "other"
+                bindings[name] = "other"
             continue
         if isinstance(statement, ast.Expr) and isinstance(statement.value, ast.Call):
             function = statement.value.func
             authentic_function = (
                 isinstance(function, ast.Name)
                 and bindings.get(function.id) == "pin-function"
-                or isinstance(function, ast.Attribute)
-                and function.attr == PIN_CALL
-                and isinstance(function.value, ast.Name)
-                and bindings.get(function.value.id) == "pin-module"
             )
             arguments = statement.value.args
             authentic_digest = len(arguments) >= 2 and (
                 isinstance(arguments[1], ast.Name)
                 and bindings.get(arguments[1].id) == "pin-digest"
-                or isinstance(arguments[1], ast.Attribute)
-                and arguments[1].attr in PIN_DIGESTS
-                and isinstance(arguments[1].value, ast.Name)
-                and bindings.get(arguments[1].value.id) == "pin-module"
             )
             if authentic_function and authentic_digest:
                 return True
