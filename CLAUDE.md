@@ -1526,9 +1526,13 @@ The hook writes a separate counts-free marker at
 `scratch/runs/tracker-publish-hook.json`, and the bare
 `python tools/phi_scan.py` commit path states its exact age. The accounted
 `runs` root avoids creating a new top-level scratch entry. No age becomes a
-stale verdict: publication volume rather than elapsed time decides what an old
-marker means, and an absent or invalid marker remains distinct from a clean
-scan.
+stale verdict, and an absent or invalid marker remains distinct from a clean
+scan. **That age cannot show a checkout whose hook never registered.** The path
+resolves through `repo_root.scratch_root()`, so every worktree shares one
+file, and `handle` writes it only after a command was graded or refused.
+[ADR 0246](docs/adr/0246-the-publish-marker-records-a-hook-run-per-checkout.md)
+rules a per-checkout record written first at every registered entry point; until
+its build lands, the notice is an account-wide reading of graded commands.
 
 Covered by `tools/test_tracker_publish_hook.py` and
 `tools/test_tracker_publish_stub.py`, which drive synthetic command strings and
