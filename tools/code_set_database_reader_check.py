@@ -16,6 +16,7 @@ from console_codec import require_python_floor, use_utf8
 TOOLS = Path(__file__).resolve().parent
 LOOKUPS = frozenset({"icd10_lookup", "procedure_codes_lookup"})
 PIN_CALL = "assert_code_set_database_digest"
+PIN_MODULE = "code_set_database_test_support"
 REFUSAL_MARKER = "CODE_SET_DATABASE_OPEN_REFUSED"
 
 DECLARED_LIMITS = {
@@ -95,14 +96,31 @@ def _reaches_lookup(
 
 
 def _has_pin(tree: ast.Module) -> bool:
+    direct_names = {
+        alias.asname or alias.name
+        for statement in tree.body
+        if isinstance(statement, ast.ImportFrom)
+        and statement.module == PIN_MODULE
+        for alias in statement.names
+        if alias.name == PIN_CALL
+    }
+    module_names = {
+        alias.asname or alias.name
+        for statement in tree.body
+        if isinstance(statement, ast.Import)
+        for alias in statement.names
+        if alias.name == PIN_MODULE
+    }
     return any(
         isinstance(statement, ast.Expr)
         and isinstance(statement.value, ast.Call)
         and (
             isinstance(statement.value.func, ast.Name)
-            and statement.value.func.id == PIN_CALL
+            and statement.value.func.id in direct_names
             or isinstance(statement.value.func, ast.Attribute)
             and statement.value.func.attr == PIN_CALL
+            and isinstance(statement.value.func.value, ast.Name)
+            and statement.value.func.value.id in module_names
         )
         for statement in tree.body
     )
