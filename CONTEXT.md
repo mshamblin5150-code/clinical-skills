@@ -148,7 +148,7 @@ A **scratch root** that can refuse the commit being made — the **owning checko
 _Avoid_: graded root, active root, local root
 
 **Drain**:
-Moving a gating root's top-level rise under the **owning checkout**'s **Ticket directory**. The authorized remedy is a move rather than a deletion — it reads nothing, classifies nothing, publishes nothing and deletes nothing. A worktree drains into the durable owning root; an owning-root rise drains beneath its own accounted `sessions/` entry. Neither path changes the baseline.
+Moving material out of a root that can vanish and into the **owning checkout**, on one of two occasions: a **gating root**'s top-level rise, or a **peer root**'s material before its worktree is removed. The authorized remedy is a move rather than a deletion — it reads nothing, classifies nothing, publishes nothing and deletes nothing. Scratch material goes under the owning checkout's **Ticket directory**; a worktree's `output/` material goes to the same relative path under the owning checkout's `output/`. A move that would overwrite an existing file is refused, because an overwrite is a deletion. An owning-root rise drains beneath its own accounted `sessions/` entry. No drain changes the baseline.
 _Avoid_: clean up, clear, purge, sweep (in the tracker sense — see the tracker terms)
 
 **Stale registration**:
@@ -158,6 +158,10 @@ _Avoid_: dead worktree, orphaned worktree, stale root, missing root
 **Locked registration**:
 A worktree that `git worktree list` reports as locked and whose directory is not present when the census runs. The lock is git's own declaration that the checkout lives on storage that comes and goes, so it may still hold material; it is named on every run, never graded, and no command clears it. Always a **peer root**.
 _Avoid_: unmounted worktree, offline root, missing volume
+
+**Held back**:
+Said of a **peer root**'s worktree that must not be removed, because it shows something that may exist nowhere else or could not be read: a file under its `scratch/` or `output/`, an untracked file, a change to a tracked file, a commit not on `main`, a lock, or a failed read. The term is one-sided on purpose. A worktree that is not held back has not been shown safe to remove, because a **Session** still running there and one long abandoned read identically. Material under `scratch/` or `output/` may be **drained**; anything else leaves the worktree alone.
+_Avoid_: removable, safe to delete, clean, prunable (git's word for a **stale registration**)
 
 **Run key**:
 The identity of one unit of work, and it names the directory holding that unit's whole provenance record. For a graded artifact it is course, module and artifact — every part read off the live LMS or off which skill is running, and no part typed — and it prefixes the filename of every submission made from it. For a shift it is `shift-` and the visit date, which step 1 of the shift has already settled. That date is part of what the shift *is*, not the date of a sitting: a shift split on Monday and finished on Tuesday is two sittings and one key.
