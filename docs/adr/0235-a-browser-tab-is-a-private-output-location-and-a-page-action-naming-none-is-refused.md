@@ -58,7 +58,10 @@ sees it.
 **A PreToolUse hook fires inside subagents.** Subagent transcripts carry PreToolUse hook rows, and
 subagent `gh` calls switch from unhooked to hooked on 2026-08-31, the date the tracker publish hook
 landed, in the same step as main transcripts do. *A broken join would read zero hooked on both
-sides of that date.*
+sides of that date.* A handful of subagent `gh` calls after that date carry no hook row and were not
+classified; the hook's `if` guard skipping nested or heredoc shapes, and sessions started on an
+older base, both fit. The ruling below rests on hooks firing in subagents at all, which those
+exceptions do not contradict, and its hook takes no `if` guard.
 
 **Which tab a call acted on is not settled by the transcripts.** Many page actions, main and
 subagent, name a tab id the same context did not create through `tabs_create_mcp`, and none of the
