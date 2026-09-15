@@ -39,6 +39,11 @@ So this prints, and a human decides. It writes nothing: an allowlist that can be
 written without a human keystroke is one that can put a patient name on the safe
 list without a human keystroke.
 
+Every completed review states the exact population it read: unruled and harvested
+strings, the harvested strings already in a name position, ruled strings, and
+index entries. A clean review therefore reports measured zeroes instead of
+claiming that every possible harvested string was decided.
+
 Deciding
 ========
 
@@ -81,6 +86,37 @@ class Sighting(NamedTuple):
     window: tuple[str, ...]
 
 
+class ReviewPopulation(NamedTuple):
+    """The disjoint populations behind one completed review."""
+
+    unruled: int
+    harvested: int
+    name_positions: int
+    ruled: int
+    entries: int
+
+
+def review_population(
+    entries: Sequence[dict], reviewed: set[str]
+) -> tuple[set[str], ReviewPopulation]:
+    """Return the unruled strings and the populations that account for them."""
+    harvested = phi_scan.kept_names(phi_scan.harvested_names(entries))
+    position_keys = {
+        name.casefold() for name in phi_scan.name_position_names(entries)
+    }
+    name_positions = sum(
+        name.casefold() in position_keys for name in harvested
+    )
+    unruled = phi_scan.unreviewed_names(entries, reviewed)
+    return unruled, ReviewPopulation(
+        unruled=len(unruled),
+        harvested=len(harvested),
+        name_positions=name_positions,
+        ruled=len(harvested) - name_positions - len(unruled),
+        entries=len(entries),
+    )
+
+
 def sightings(entries: Sequence[dict], unruled: set[str]) -> list[Sighting]:
     """Where each unruled string was harvested from, in reading order.
 
@@ -104,13 +140,22 @@ def sightings(entries: Sequence[dict], unruled: set[str]) -> list[Sighting]:
     return sorted(found, key=lambda s: (s.text.casefold(), s.source, s.position))
 
 
-def render(found: Sequence[Sighting], unruled: set[str]) -> str:
+def render(
+    found: Sequence[Sighting],
+    unruled: set[str],
+    population: ReviewPopulation,
+) -> str:
+    summary = (
+        f"harvest review: {population.unruled} unruled of "
+        f"{population.harvested} harvested ({population.name_positions} in a name "
+        f"position, {population.ruled} ruled) from {population.entries} entries"
+    )
     if not unruled:
-        return "harvest review: nothing unruled. Every harvested string has been decided.\n"
+        return summary + "\n"
 
     seen: list[str] = []
     lines = [
-        f"harvest review: {len(unruled)} strings have never been ruled on.",
+        summary,
         "",
         "*** This is PHI. Do not paste it anywhere. ***",
         "",
@@ -168,12 +213,12 @@ def main(argv: list[str]) -> int:
         )
         return 2
 
-    unruled = phi_scan.unreviewed_names(entries, phi_scan.reviewed_names())
+    unruled, population = review_population(entries, phi_scan.reviewed_names())
     if "--count" in argv:
         print(len(unruled))
         return 0
 
-    print(render(sightings(entries, unruled), unruled))
+    print(render(sightings(entries, unruled), unruled, population))
     return 0
 
 

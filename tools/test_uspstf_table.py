@@ -92,6 +92,33 @@ class ReadingTheExtractedCorpus(ReadingManifestConformance, unittest.TestCase):
 
         self.assertIs(ut.read_or_raise, guidelines_manifest.read_or_raise)
 
+    def test_a_header_only_catalog_is_not_scanned(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            catalog = root / "catalog.md"
+            coverage = root / "coverage.md"
+            out = root / "uspstf.md"
+            catalog.write_text(
+                "| society | filename | title | topic | population | year | page_count | class | citation |\n"
+                "| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n",
+                encoding="utf-8",
+            )
+            coverage.write_text(
+                "| topic | subject | state | artifact | record |\n"
+                "| --- | --- | --- | --- | --- |\n",
+                encoding="utf-8",
+            )
+            stderr = io.StringIO()
+            with contextlib.redirect_stderr(stderr):
+                status = ut.main(
+                    [str(root / "source"), "--out", str(out), "--catalog", str(catalog),
+                     "--coverage-registry", str(coverage)]
+                )
+
+        self.assertEqual(status, 2)
+        self.assertIn("catalog table holds no row", stderr.getvalue())
+        self.assertFalse(out.exists())
+
     def test_build_reads_uspstf_text_and_title_from_the_manifest(self):
         with tempfile.TemporaryDirectory() as tmp:
             text_dir = Path(tmp)

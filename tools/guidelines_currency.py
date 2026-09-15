@@ -13,7 +13,7 @@ hook.  A currency finding is report-only.  Damage to the registry is a refusal.
 Exit 0 means the registry was graded and is structurally clean, even when one or
 more documents are superseded or an annual observation is old.  Exit 1 means the
 offline grader found registry damage.  Exit 2 means the requested grading or read
-did not run.
+did not run, including when the catalog table holds no document row.
 """
 
 from __future__ import annotations

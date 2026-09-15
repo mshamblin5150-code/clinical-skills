@@ -1,4 +1,8 @@
-"""Draft or audit the one-row-per-topic threshold-sheet coverage registry."""
+"""Draft or audit the one-row-per-topic threshold-sheet coverage registry.
+
+A catalog table holding no document row is an unreadable primary source on the
+ordinary, ``--draft``, and ``--source-class`` paths; each exits 2 before output.
+"""
 
 from __future__ import annotations
 

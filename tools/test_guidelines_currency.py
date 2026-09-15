@@ -195,6 +195,27 @@ class ReaderCoverage(unittest.TestCase):
 
 
 class CommandContract(unittest.TestCase):
+
+    def test_a_header_only_catalog_is_not_graded(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            catalog = root / "catalog.md"
+            output = root / "currency.md"
+            catalog.write_text("\n".join(CATALOG.splitlines()[:2]) + "\n", encoding="utf-8")
+            completed = subprocess.run(
+                [sys.executable, str(COMMAND), "--catalog", str(catalog), "--draft", str(output)],
+                cwd=ROOT,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                capture_output=True,
+                check=False,
+            )
+
+        self.assertEqual(completed.returncode, 2)
+        self.assertIn("NOT GRADED: catalog did not parse: catalog table holds no row", completed.stderr)
+        self.assertFalse(output.exists())
+
     def test_hook_reports_unconditionally_and_grades_staged_registry(self):
         hook = (ROOT / "tools" / "hooks" / "pre-commit").read_text(encoding="utf-8")
         self.assertIn('guidelines_currency.py" --hook-summary >&2 || true', hook)
