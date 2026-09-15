@@ -95,6 +95,9 @@ grades only the owning root and the committing root; every peer root reports and
 A failing gating root is **drained** under the owning checkout's Ticket directory — a move, never a
 delete.
 
+Before removing a worktree, run `python tools/scratch_census.py --worktrees` first and remove none
+it holds back.
+
 **The ratchet's baseline is an integer and can never be a list.** Recording *which* entries are
 unaccounted for means committing `scratch/` filenames into a public repo, and a filename there may
 itself carry PHI — so the swap hole in a bare count is declared rather than closed, and hashing was

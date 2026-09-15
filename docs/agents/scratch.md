@@ -95,9 +95,8 @@ accounted-for set in **one** `git grep` pass over tracked files, and reports the
   [#258](https://github.com/mshamblin5150-code/clinical-skills/issues/258)'s ruling: a reader who
   learns to read a qualifier reads its absence as the stronger claim. It is not graded because the
   only available threshold fires on worktrees holding nothing but `sessions/`, which is the rule
-  being obeyed. `--worktrees` adds the merged-clean-and-ahead breakdown, and it is behind a flag on
-  a measurement — that determination costs six to twelve times the whole check, and ADR 0033's own
-  respec warns that subprocess count per commit is how a check gets disabled.
+  being obeyed. `--worktrees` adds the pre-removal report described below. It stays behind a flag
+  because its filesystem walks and per-worktree Git commands do not belong on every commit.
 
 **It runs on the hook and never in CI.** `.github/workflows/checks.yml` cannot run it — the scratch root is
 gitignored PHI and must never reach a runner — so this check is permanently dead there.
@@ -110,6 +109,33 @@ that vanishes on `git worktree remove` and into the durable owning root without 
 top level. The relocation reads nothing, classifies nothing, publishes nothing and deletes nothing.
 **Never raise or re-record `OWNING_BASELINE` to meet the disk** — nesting the rise under the
 accounted `sessions/` entry clears it without loosening the ratchet.
+
+## Before removing a worktree
+
+Before deliberately removing any worktree, run:
+
+```bash
+python tools/scratch_census.py --worktrees
+```
+
+Each `PRE-REMOVAL` line gives counts for `scratch/ files`, `output/ files`, untracked files, tracked
+changes, and commits not on `origin/main`, then states whether Git reports the worktree as locked.
+No contained path or lock reason is printed. A nonzero count, a lock, or `not read` marks that line
+`HELD BACK`; remove none the report holds back. The read summary states how many worktrees were read
+and how many were not read. This report removes nothing, and its exit status remains the separate
+scratch-ratchet verdict rather than a removability signal.
+
+If only `scratch/` or `output/` material holds a worktree back, **Drain** it: move scratch material
+under the owning checkout's Ticket directory and output material to the same relative path under
+the owning checkout's `output/`. Refuse a move that would overwrite anything. If untracked work,
+tracked changes, commits not on `origin/main`, a lock, or a failed read holds it back, leave the
+worktree alone; do not commit, push, stash, or move another Session's work. Run the report again
+after an authorized Drain or after the owning Session resolves its own work.
+
+A worktree the report does not hold back may still belong to a running session. Confirm liveness
+separately before removal. A harness may remove its own worktree without running this report;
+`scratch_work.py` keeps Session material in the owning checkout, and the ordinary census names any
+peer scratch material it can read on every commit.
 
 ### Why the baseline is a count, and the reply to the obvious improvement
 

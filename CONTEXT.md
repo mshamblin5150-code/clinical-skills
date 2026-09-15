@@ -1047,6 +1047,10 @@ _Avoid_: binding, false positive, accidental close, match
 The immutable comment recording that one merge bound one ticket, anchored to the pull request, the full merge commit and the date. It preserves that bounded relation and makes no other claim on the ticket current.
 _Avoid_: notification, confirmation, comment, log
 
+**Unwatched write**:
+A tracker write made with a workflow's built-in token. GitHub starts no workflow run from it, so the only grade it ever receives is one it runs before writing. Named for what follows the write rather than who sent it, so every scheduled or merge-time job writing this way is a member without a list naming it. Distinct from a **Publish route**, which is a command form a harness types.
+_Avoid_: third publisher, bot comment, token publication
+
 **Empty plan**:
 A merge that was graded and yielded no binding. It is a finding rather than a result, because a merge whose binding failed to parse and one that never wrote a binding are otherwise the same output. Distinct from a **declared no-binding**, which is the same absence stated on purpose.
 _Avoid_: no receipts, zero, clean, nothing found
@@ -1110,6 +1114,10 @@ _Avoid_: readback, snapshot, diff, staleness check
 **Finding verdict**:
 A committed human judgment that one published occurrence matching a PHI shape rule is not an identifier, keyed to the record it sits in and the digest of its containing line, and stating its reason without repeating the literal. It clears exactly one occurrence at that key: the digest expires the verdict when the line's own content changes, which sends the occurrence back to be looked at rather than concealing it. Not a **ruling**, which is a ratified ADR decision identified by its record and its ordinal — the same word is used for both in the tree today, and that collision is declared and unclassified.
 _Avoid_: ruling, triage, suppression, exception, allowlist entry
+
+**Synthetic declaration**:
+A file's own statement, alone on a line near its top, that its PHI-shaped literals are invented. It switches off the shape rules for that file and never the corpus layer, and only a file somebody reviewed may make one: a tracker record or a commit message was typed by whoever published it, so the same line inside one is inert and the text is graded as though it were absent. Distinct from a **finding verdict**, which clears one occurrence from outside the text rather than a whole file from within it.
+_Avoid_: pragma, opt-out, exemption, synthetic flag
 
 **Packet**:
 The map's unit of work: the tickets built together on one branch, carrying one outcome. A packet is not a ticket — a ruling may combine two tickets into one packet or leave a ticket in none — so the count of packets and the count of open tickets answer different questions.

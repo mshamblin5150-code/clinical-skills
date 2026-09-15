@@ -237,10 +237,16 @@ establishes the checker cannot answer.
 **7. The receipt `fullmatch` is the shape of a narrow correct escape rather than a defect.**
 
 `parse_merge_receipt` has exactly one production caller — the branch-scope escape itself;
-`tracker_merge_receipt` publishes with `render_receipt` and never parses. And `changed-record` fires
-on `issue_comment: created` with no exclusion for the bot, so when `merge-receipts` posts to an
-`in flight` ticket **the workflow grades its own publication**, and this escape is what stops it
-refusing itself.
+`tracker_merge_receipt` publishes with `render_receipt` and never parses. When a receipt for an
+`in flight` ticket is graded, **the receipt job grades it before posting it**, and this escape is what
+stops that grade refusing it.
+
+Correction, 2026-09-15: this paragraph formerly said that `changed-record` fires on
+`issue_comment: created` with no exclusion for the bot, so the workflow grades its own publication.
+It does not: a receipt is an unwatched write, which starts no workflow run.
+[ADR 0241](0241-a-merge-receipt-is-graded-before-it-posts-and-a-workflow-token-write-is-an-unwatched-write.md)
+ruling 4 moves the grade into the receipt job with the ticket's live labels, which is where this
+escape is first exercised; the escape and its `fullmatch` are unchanged.
 
 For that one role `fullmatch` is not a limitation but the guarantee that a receipt cannot be prefixed
 onto arbitrary prose. Widening it to a leading block was rejected: it would put a **fourth**
