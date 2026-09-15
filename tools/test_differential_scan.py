@@ -597,6 +597,21 @@ class TheDeclaredFloorChecksNumberedDifferentialItems(unittest.TestCase):
 
         self.assertEqual(status, 0)
         self.assertIn("labeled Differential blocks read      1 in 1 of 1 notes", report)
+
+    def test_the_clean_hp_differential_heading_is_read(self):
+        self.write(
+            "case-01.md",
+            "A:\n\nDifferential diagnoses:\n"
+            "1. Viral upper respiratory infection - J06.9\n"
+            "\nFinal diagnosis:\n"
+            "1. Viral upper respiratory infection - J06.9: favored.\n"
+        )
+
+        status, report, error = self.run_command()
+
+        self.assertEqual(status, 0, error)
+        self.assertIn("labeled Differential blocks read      1 in 1 of 1 notes", report)
+        self.assertIn("numbered items in labeled blocks     1", report)
         self.assertIn("numbered items carrying a code       1 of 1", report)
 
     def test_a_bold_soap_heading_is_read(self):
@@ -933,6 +948,26 @@ class TheRow24MechanicalFloorUsesTheCommandSeam(unittest.TestCase):
         self.assertEqual(status, 0)
         self.assertIn("row 24 - guideline tail violations  0", report)
         self.assertIn("guideline tails checked against shipped sheets  2", report)
+
+    def test_qualitative_guideline_tail_preserves_status_identifier_population_and_page(self):
+        status, report, error = self.run_command(
+            "FILLED·proposed   1. IV crystalloid volume expansion "
+            "[guideline/kdigo-2026-aki-akd: draft, Practice Point 3.8.1, "
+            "adults with heme pigment nephropathy due to rhabdomyolysis, p. 188]"
+        )
+
+        self.assertEqual(status, 0, error)
+        self.assertIn("row 24 - guideline tail violations  0", report)
+        self.assertIn("row 24 - draft-backed citations  1", report)
+
+    def test_qualitative_guideline_tail_without_a_page_is_a_finding(self):
+        status, report, _ = self.run_command(
+            "FILLED·proposed   1. IV crystalloid volume expansion "
+            "[guideline/kdigo-2026-aki-akd: draft, Practice Point 3.8.1, adults]"
+        )
+
+        self.assertEqual(status, 1)
+        self.assertIn("row 24 - guideline tail violations  1", report)
 
     def test_a_known_population_subject_without_a_tail_is_a_finding(self):
         status, report, error = self.run_command(

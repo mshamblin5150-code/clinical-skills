@@ -83,24 +83,22 @@ even if you did not do any.
 Pre-existing diagnoses with ICD-10 codes:
 <condition - code>
 
-Differential diagnoses with rationale:
+Differential diagnoses:
 1. <diagnosis - code>
-   <Most likely because …>
 2. <diagnosis - code>
-   <Less likely because …>
 3. <diagnosis - code>
-   <Less likely because …>
 
-Final diagnosis: <condition - code; condition - code where the encounter
-established more than one>
+Final diagnosis:
+1. <selected condition - code: decisive patient-specific discriminator>
+2. <second selected condition - code: decisive discriminator, when present>
 
 Medical Decision Making:
-1. <same diagnosis - code as differential item 1: patient-specific discriminator,
-   favored or less-likely position, and why that evidence leads to the decision>
-2. <same diagnosis - code as differential item 2: patient-specific discriminator,
-   favored or less-likely position, and why that evidence leads to the decision>
-3. <same diagnosis - code as differential item 3: patient-specific discriminator,
-   favored or less-likely position, and why that evidence leads to the decision>
+1. <same diagnosis - code as differential item 1> — <favored, less likely, or must exclude>.
+   <patient-specific evidence and why it leads to the resulting decision>
+2. <same diagnosis - code as differential item 2> — <favored, less likely, or must exclude>.
+   <patient-specific evidence and why it leads to the resulting decision>
+3. <same diagnosis - code as differential item 3> — <favored, less likely, or must exclude>.
+   <patient-specific evidence and why it leads to the resulting decision>
 
 Screenings appropriate for age:
 <list>
@@ -119,6 +117,10 @@ Discussion
 <short paragraph: why this presentation fits the chosen diagnosis, and the
 significance of any genetic or chronic condition that is not driving the acute
 illness but matters for counseling and future care>
+
+Proposed coding worksheet — verify before entry
+E/M supporting elements: <problems addressed; data reviewed or analyzed; management risk; clinician assigns the final level>
+CPT and HCPCS: <each supported documented service or supply, with official descriptor, verbatim anchor, specificity, provenance when filled, and service-date confidence>
 ```
 
 ## Section notes
@@ -126,6 +128,10 @@ illness but matters for counseling and future care>
 **No OLDCARTS element is ever blank.** Eight headings, eight values — `not documented` beside any of them is a defect, not a disclosure. Where the shorthand supplies none, infer one that follows from the presenting complaint; that is the same act as the exam of a system the shorthand never mentions, which [SKILL.md](SKILL.md) lists as grounded and expected. Each filled element is declared in `FILLED·asserted` carrying its value.
 
 **Severity is a numeric pain scale.** `6/10 facial pressure`, never a word and never blank. It is the one OLDCARTS element that is not ordinary filled content — it takes the filled-vital treatment, and the reasoning, the 0/10 boundary and the two forms in which the score is a *given* are all in [SKILL.md](SKILL.md) under *Filled vitals, body measurements and the pain score*. Do not restate them here; do apply them.
+
+**The HPI is patient history.** Its narrative advances the symptom chronology, context, prior evaluation, attempted treatment, and response. Current examination findings, current results, medication administered today, orders, referral, transfer, and disposition begin in their owning later sections and are not replayed here. Apply [SKILL.md](SKILL.md)'s *HPI is history, not a replay of the visit* ownership pass before finishing.
+
+**The proposed coding worksheet is separated from both the clinical note and the Medatrax fields.** Run [icd10-cpt](../icd10-cpt/SKILL.md) against the note plus tier block. List the E/M supporting elements and supported CPT and HCPCS entries, not unsupported possibilities. The procedure database verifies identity, descriptor, and service-date status; it does not choose the E/M level, which remains the clinician's decision under the applicable CPT instructions.
 
 **ROS and Physical Exam** — individual lines use fragments: `Respiratory: No wheeze; no increased work of breathing`, never `Respiratory reviewed and negative`. Write one ROS system per line, then end the ROS with the single global closer `All other systems reviewed and are negative.`
 
@@ -146,9 +152,9 @@ illness but matters for counseling and future care>
 
 **Differential rationale** is the graded core. Each excluded diagnosis needs the specific finding that excludes it — `no facial swelling, no focal sinus tenderness` — drawn from the exam, whether that exam line is given or filled.
 
-**Every final diagnosis already exists in the differential with the same code.** Add entries when the conclusion contains more than the rubric's three-item floor; never introduce a diagnosis only on the `Final diagnosis` line.
+**Every final diagnosis already exists in the differential with the same code.** Add entries when the conclusion contains more than the rubric's three-item floor; never introduce a diagnosis only under `Final diagnosis`. Attach the decisive patient-specific discriminator to each selected diagnosis, using a short numbered list when several are final.
 
-**Medical Decision Making is required on every H&P.** Number it one-for-one with the differential and keep the same order. Each item repeats the differential's diagnosis-and-code pair, applies a case-specific discriminator, states why it is favored or less likely, and explains why that evidence leads to the decision carried into the Plan. This is the clinician's case-study MDM shape adapted to a clinical note without scholarly citations.
+**Medical Decision Making is required on every H&P.** Keep the differential itself as a clean numbered, likelihood-ranked list. Then number MDM one-for-one in the same order: a diagnosis-and-code header with `favored`, `less likely`, or `must exclude`, followed by the case-specific evidence and why it leads to the decision carried into the Plan. This copies the clinician's case-study Assessment shape without scholarly citations.
 
 **The list is numbered and ranked most likely first, and `1.` is the most-likely entry.** The rule is [SKILL.md](SKILL.md)'s under *The shape of the differential* and binds both branches; what this template decides is the rendering, and on this branch **the numbered item is two lines** — the code line the rubric's shape requires, and the rationale line beneath it. The second line is a continuation of the item that opened above it and never opens one of its own. **A diagnosis argued down inside a paragraph is a defect rather than an entry**, so three diagnoses rejected in prose are three numbered items here. The rubric asks for *"3 differential diagnoses with rationale"* and numbering them is its own instruction read plainly, not a departure from it. Drift row 23 walks it. Issue [#70](https://github.com/mshamblin5150-code/clinical-skills/issues/70).
 
@@ -168,11 +174,15 @@ illness but matters for counseling and future care>
 **The `Final diagnosis` line keeps the hedge instead**, the way [SOAP.md](SOAP.md)'s does — **and so does the most-likely entry**, which on this branch means the hedge lands on line one and the refusal on line two exactly as it does for an entry argued against:
 
 ```
-Differential diagnoses with rationale:
+Differential diagnoses:
 1. Community-acquired pneumonia, pneumococcal organism suspected - J18.9
-   Most likely because five days of fever and focal crackles fit; the film ordered today has no result. NOT CODED: J13 Pneumonia due to Streptococcus pneumoniae, nothing tested for the organism.
 
-Final diagnosis: Community-acquired pneumonia, pneumococcal organism suspected - J18.9
+Final diagnosis:
+1. Community-acquired pneumonia, pneumococcal organism suspected - J18.9: five days of fever and focal crackles make this most likely.
+
+Medical Decision Making:
+1. Community-acquired pneumonia, pneumococcal organism suspected - J18.9 — favored.
+   Five days of fever and focal crackles fit, so treatment and the ordered chest film proceed; the film has no result. NOT CODED: J13 Pneumonia due to Streptococcus pneumoniae, nothing tested for the organism.
 Nothing tested for the organism, so NOT CODED: J13 Pneumonia due to Streptococcus pneumoniae; an organism-specific result would earn it.
 ```
 
@@ -189,3 +199,5 @@ Nothing tested for the organism, so NOT CODED: J13 Pneumonia due to Streptococcu
 **Pharmacologic** carries doses. Concentration and volume are givens; the milligram equivalent is **derived** and its arithmetic goes in the tier block — in the block, never beside the drug. **A parenthetical on a Pharmacologic line, where there is one, holds the trade name and nothing else**: the tier of each part of the sig belongs in the tier block, and `Medications (with reason for taking)` is the heading where a reason lives. The rule itself is drift row 12 in [SKILL.md](SKILL.md).
 
 **Historical medications are complete too.** The Medications list never defers with `unavailable` or `reconcile`. Infer a compatible regimen for PMH conditions that ordinarily receive maintenance pharmacotherapy, and complete any named drug's dose, route, frequency, and ongoing status or duration. Declare every generated component in `FILLED·asserted`.
+
+**Completeness is PMH coverage, not a minimum count.** In the private `FILLED·asserted` accounting, map every PMH condition to its medication, a shared medication, or no routine maintenance pharmacotherapy on the available facts. Keep the mapping out of the finished note and do not pad a short list merely to make it look substantial.

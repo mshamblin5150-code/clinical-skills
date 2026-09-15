@@ -288,7 +288,7 @@ HYPHEN_PIN = re.compile(r"[ \t]-[ \t]+$")
 # labeled block, never the wide Assessment count that still needs a reader.
 DIFFERENTIAL_HEADING = re.compile(
     r"^[ \t]*(?:#{1,6}[ \t]+)?(?:\*\*|__)?"
-    r"Differential(?: diagnoses with rationale)?[ \t]*:?(?:\*\*|__)?[ \t]*$",
+    r"Differential(?: diagnoses(?: with rationale)?)?[ \t]*:?(?:\*\*|__)?[ \t]*$",
     re.IGNORECASE,
 )
 ITEM_NUMBER_PREFIX = re.compile(r"^[ \t]*\d+\.[ \t]+")
@@ -304,11 +304,11 @@ TIER_LABEL = re.compile(
     r"^(?:DERIVED|FILLED·asserted|FILLED·proposed|FLAG|GAPS|UNKNOWN)\b"
 )
 GUIDELINE_TAIL = re.compile(
-    r"\[((?:uspstf|thresholds/[^:\]]+):[^\]]+|recalled, no shipped sheet[^\]]*)\]",
+    r"\[((?:uspstf|thresholds/[^:\]]+|guideline/[^:\]]+):[^\]]+|recalled, no shipped sheet[^\]]*)\]",
     re.IGNORECASE,
 )
 GUIDELINE_TAIL_START = re.compile(
-    r"\[(?:uspstf|thresholds/[^:\]]+):|\[recalled, no shipped sheet",
+    r"\[(?:uspstf|thresholds/[^:\]]+|guideline/[^:\]]+):|\[recalled, no shipped sheet",
     re.IGNORECASE,
 )
 GUIDELINE_TRIGGER = re.compile(
@@ -325,6 +325,11 @@ USPSTF_CITATION = re.compile(
 )
 THRESHOLD_CITATION = re.compile(
     r"^([a-z0-9-]+)[ \t]+Class[ \t]+([A-Za-z0-9]+),[ \t]*([^,]+),[ \t]*(.+)$",
+    re.IGNORECASE,
+)
+QUALITATIVE_GUIDELINE_CITATION = re.compile(
+    r"^(draft|final|guideline|recommendation),[ \t]*([^,]+),[ \t]*(.+),"
+    r"[ \t]*p\.[ \t]*\d+(?:[-–]\d+)?$",
     re.IGNORECASE,
 )
 THRESHOLD_SIGNAL = re.compile(
@@ -1013,6 +1018,24 @@ def _guideline_floor(
                             item.text,
                         )
                     )
+                continue
+
+            if lowered.startswith("guideline/"):
+                verdict = tail.split(":", 1)[1].strip()
+                citation = QUALITATIVE_GUIDELINE_CITATION.fullmatch(verdict)
+                if citation is None:
+                    findings.append(
+                        GuidelineFinding(
+                            item.line,
+                            "malformed qualitative guideline verdict",
+                            item.text,
+                        )
+                    )
+                    continue
+                candidate = GuidelineCandidate(item.line, item.text)
+                candidates.append(candidate)
+                if citation.group(1).casefold() == "draft":
+                    draft_backed.append(candidate)
                 continue
 
             topic, verdict = tail.split(":", 1)

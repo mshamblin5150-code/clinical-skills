@@ -60,6 +60,10 @@ Pharm:
 <Generic name dose route frequency duration — one per line>
 Education: <technique, precautions, what was reviewed>
 Follow up: <interval, and what would bring them back sooner>
+
+Proposed coding worksheet — verify before entry
+E/M supporting elements: <problems addressed; data reviewed or analyzed; management risk; clinician assigns the final level>
+CPT and HCPCS: <each supported documented service or supply, with official descriptor, verbatim anchor, specificity, provenance when filled, and service-date confidence>
 ```
 
 ## Section notes
@@ -73,6 +77,10 @@ Follow up: <interval, and what would bring them back sooner>
 **`Allergies (reaction)` and every `SH:` clause are boxes too, and none of them is ever a hedge.** `Allergies (reaction): Not documented this visit` is a sentence defending the note rather than reporting on the patient, which drift row 12 has forbidden since issue #28. Same for `tobacco status not documented`, and same for a blank clause. Which value each box takes is [SKILL.md](SKILL.md)'s business under *Which way a social or allergy slot reads*: the drug-allergy and tobacco defaults are settled by corpus counts, while #168 supplies the silent Food and Environmental values. Drift row 17 checks them. Do not restate those rules here; do apply them, and declare every filled box in `FILLED·asserted` carrying its value. Issues #29 and #168.
 
 **Home meds are never deferred.** A PMH condition that ordinarily receives maintenance pharmacotherapy gets a compatible plausible regimen when the shorthand is silent. A named drug with an incomplete sig gets its dose, route, frequency, and ongoing status or duration completed. Every generated component is declared in `FILLED·asserted`; `unavailable`, `reconcile`, and missing-sig placeholders do not reach the finished note.
+
+**Medication completeness follows PMH coverage, not a minimum count.** In the private `FILLED·asserted` accounting, map every PMH condition to its medication, a shared medication, or no routine maintenance pharmacotherapy on the available facts. Keep that accounting out of the finished note and do not pad the list for appearance.
+
+**The proposed coding worksheet is separated from both the clinical note and the Medatrax fields.** Run [icd10-cpt](../icd10-cpt/SKILL.md) against the note plus tier block. List the E/M supporting elements and supported CPT and HCPCS entries, not unsupported possibilities. The procedure database verifies identity, descriptor, and service-date status; it does not choose the E/M level, which remains the clinician's decision under the applicable CPT instructions.
 
 **ROS uses one system per line.** After the last named system, write the exact global closer `All other systems reviewed and are negative.` The individual system lines remain succinct and do not use that phrase.
 

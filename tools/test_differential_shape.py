@@ -115,12 +115,10 @@ class TheSkillCarriesTheShapeRule(unittest.TestCase):
     def test_the_ruling_is_dated_and_attributed(self):
         self.assertIn("The clinician ruled all four of these on 2026-08-16", self.text)
 
-    def test_the_form_is_required_rather_than_permitted(self):
-        self.assertIn(
-            "The `Name - CODE: rationale` form stopped being permitted"
-            " and started being required",
-            self.text,
-        )
+    def test_the_form_is_branch_specific(self):
+        self.assertIn("The code pin is required on both branches", self.text)
+        self.assertIn("SOAP writes `Name - CODE: rationale`", self.text)
+        self.assertIn("H&P writes the clean `Name - CODE` pair", self.text)
 
     def test_the_section_declares_the_floor_and_the_reader_residue(self):
         self.assertIn("supplies [#164]", self.text)
@@ -164,20 +162,21 @@ class TheDriftMatrixCarriesBothRows(unittest.TestCase):
         row = _row(self.text, 23)
         self.assertIn("wrapped line belongs to the item that opened it", row)
 
-    def test_row_23_mandates_the_hyphen_pin(self):
+    def test_row_23_mandates_the_hyphen_pin_and_branch_shapes(self):
         # The half a numeral does not carry, and #70's fourth bullet. Without it
         # `1. COVID-19 (U07.1): ...` clears both rows while pinning nothing --
         # which is the form question the ticket asked, left half-answered.
         row = _row(self.text, 23)
-        self.assertIn("the form is required rather than permitted", row)
-        self.assertIn("`Name - CODE: rationale`", row)
-        self.assertIn("a code in parentheses or pinned with a colon fails this row", row)
+        self.assertIn("pins its code with a hyphen on both branches", row)
+        self.assertIn("SOAP continues with `: rationale`", row)
+        self.assertIn("H&P keeps the Differential as `Name - CODE`", row)
+        self.assertIn("A code in parentheses or pinned with a colon fails this row", row)
 
     def test_row_23_exempts_the_conclusion_line(self):
         # Row 22 reads a conclusion by position, so a colon there is already
         # governed. Two rows disagreeing about one line is worse than either.
         row = _row(self.text, 23)
-        self.assertIn("The conclusion line is exempt and row 22 says why", row)
+        self.assertIn("The conclusion is exempt from the form and row 22 says why", row)
 
     def test_a_row_23_failure_leaves_row_13_ungraded(self):
         # The ordering when both are walked. Without it a run can report a clean
@@ -194,7 +193,7 @@ class TheDriftMatrixCarriesBothRows(unittest.TestCase):
         self.assertIn("**Row 23 is appended for the reason rows 14 through 22 were.", self.text)
 
     def test_no_row_was_renumbered(self):
-        # The cheap guard on the convention: 32 rows, numbered 1 to 32 in order.
+        # The cheap guard on the convention: 34 rows, numbered 1 to 34 in order.
         # Scoped to rows whose second cell is a bolded test name, which is the
         # drift matrix's own shape -- an unrelated numbered table added to this
         # file later must not fail this test for a reason that is not about it.
@@ -205,11 +204,12 @@ class TheDriftMatrixCarriesBothRows(unittest.TestCase):
         # which silently redirects every citation of rows 14 and up across four
         # fixture sets and ADR 0001. Read 23 until #85 added row 24; #132 appended
         # row 25; #159 appended row 26; #205 appended row 27; this change
-        # appended rows 28 through 32.
+        # appended rows 28 through 32; HPI ownership appended row 33; the coding
+        # worksheet appended row 34.
         numbers = [
             int(m) for m in re.findall(r"^\| (\d+) \| \*\*[^*]+\*\* \|", self.text, re.M)
         ]
-        self.assertEqual(numbers, list(range(1, 33)))
+        self.assertEqual(numbers, list(range(1, 35)))
 
 
 class BothTemplatesRenderTheRule(unittest.TestCase):
@@ -264,6 +264,37 @@ class BothTemplatesRenderTheRule(unittest.TestCase):
     def test_both_templates_cite_the_ticket(self):
         for path in (SOAP, HP):
             self.assertIn("issues/70", path.read_text(encoding="utf-8"))
+
+    def test_both_templates_emit_a_separated_proposed_coding_worksheet(self):
+        for path in (SOAP, HP):
+            text = path.read_text(encoding="utf-8")
+            self.assertIn("Proposed coding worksheet — verify before entry", text)
+            self.assertIn("E/M supporting elements", text)
+            self.assertIn("CPT and HCPCS", text)
+
+
+class TheSkillCarriesTheCodingWorksheetRule(unittest.TestCase):
+    def setUp(self):
+        self.text = SKILL.read_text(encoding="utf-8")
+
+    def test_the_worksheet_is_separated_from_the_note_and_medatrax(self):
+        self.assertIn("### A separated coding worksheet follows every note", self.text)
+        self.assertIn("outside the clinical note body and outside the Medatrax field block", self.text)
+
+    def test_the_worksheet_routes_through_the_coding_skill(self):
+        self.assertIn("Run [icd10-cpt](../icd10-cpt/SKILL.md)", self.text)
+        self.assertIn("service date", self.text)
+
+    def test_the_em_level_is_not_presented_as_verified_by_the_database(self):
+        self.assertIn("The procedure database does not select an E/M level", self.text)
+        self.assertIn("clinician assigns the final E/M level", self.text)
+
+    def test_row_34_names_the_complete_coding_surface(self):
+        row = _row(self.text, 34)
+        self.assertIn("E/M supporting elements", row)
+        self.assertIn("supported CPT and HCPCS", row)
+        self.assertIn("official descriptor", row)
+        self.assertIn("procedure-code database", row)
 
 
 class TheFixtureRowSaysWhatItCounts(unittest.TestCase):
