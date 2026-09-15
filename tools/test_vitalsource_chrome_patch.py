@@ -52,6 +52,34 @@ class PatchSourceTests(unittest.TestCase):
             {fact["seam"] for fact in record["facts"]},
         )
 
+    def test_reference_lifecycle_records_the_completed_live_calibration(self) -> None:
+        record_path = (
+            Path(__file__).resolve().parents[1]
+            / "skills/vitalsource-chrome/reference/claude-in-chrome-lifecycle.json"
+        )
+
+        record = json.loads(record_path.read_text(encoding="utf-8"))
+        facts = {fact["seam"]: fact for fact in record["facts"]}
+        calibration = record["live_calibration"]
+
+        self.assertNotIn("declared_limit", record)
+        self.assertEqual("2026-09-15", calibration["observed_on"])
+        self.assertEqual("Chrome DevTools function monitors", calibration["instrument"])
+        self.assertIn("reattached", calibration["attachment_observation"])
+        self.assertIn("detached while idle", calibration["attachment_observation"])
+        self.assertEqual(
+            ["Target.setAutoAttach", "Fetch.enable", "Page.navigate"],
+            calibration["commands_not_observed"],
+        )
+        self.assertEqual(
+            "observed-live",
+            facts["oopif-auto-attachment-disabled"]["status"],
+        )
+        self.assertEqual(
+            "observed-live",
+            facts["xhtml-document-response"]["status"],
+        )
+
     def test_keeps_vitalsource_xhtml_as_a_document_response(self) -> None:
         source = (
             f"before{ORIGINAL_DOMAIN_GATE}middle{ORIGINAL_PARAM_GATE}"
