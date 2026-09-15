@@ -269,6 +269,20 @@ class TheTestedHeadingFingerprintsTheClaimText(unittest.TestCase):
         self.assertEqual(0, status)
         self.assertEqual([mock.call.utf8(), mock.call.floor()], calls.mock_calls)
 
+    def test_the_printing_mode_refuses_a_second_positional_source(self):
+        with tempfile.TemporaryDirectory() as temp:
+            claims = Path(temp) / "claims.md"
+            claims.write_text("## CLAIM: A heading.\n", encoding="utf-8")
+            stdout, stderr = io.StringIO(), io.StringIO()
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                status = ledger.main(
+                    [str(claims), str(Path(temp) / "second.md"), "--heading-digests"]
+                )
+
+        self.assertEqual(2, status)
+        self.assertEqual("", stdout.getvalue())
+        self.assertEqual(f"{ledger.USAGE}\n", stderr.getvalue())
+
     def test_a_missing_fingerprint_is_the_shared_required_field_finding(self):
         record = replace_field(CLEAN, "TESTED-HEADING", None)
         self.assertEqual([ledger.MISSING_FIELD], kinds(ledger_text(record)))

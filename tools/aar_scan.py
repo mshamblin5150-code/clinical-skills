@@ -1829,7 +1829,6 @@ GRADER = run_grader.Grader(
     ),
     validate=validate,
     source_error_to_stdout=False,
-    allow_extra_positionals=True,
 )
 
 

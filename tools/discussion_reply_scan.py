@@ -1022,7 +1022,6 @@ GRADER = run_grader.Grader(
         run_grader.Option("--show", repeatable=False),
         run_grader.Option("--submission", takes_value=True, missing_value="--submission needs a key", repeatable=False),
     ),
-    allow_extra_positionals=False,
 )
 
 

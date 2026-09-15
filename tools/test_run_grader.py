@@ -81,6 +81,17 @@ class TheRunnerOwnsTheCommandTail(unittest.TestCase):
         self.assertIn("unrecognized option --shwo", stderr)
         self.assertFalse(called)
 
+    def test_parse_refuses_a_second_positional_source(self):
+        command = run_grader.Grader(
+            usage="usage: example.py <source>",
+            load=lambda parsed: parsed.source,
+            grade=lambda _source, _parsed: None,
+            format_report=lambda _scan, _source, show=False: "never",
+        )
+
+        with self.assertRaisesRegex(run_grader.ParseError, "one source at a time"):
+            run_grader.parse(command, ["first", "second"])
+
     def test_a_source_failure_exits_before_a_report_is_printed(self):
         def load(_parsed):
             raise run_grader.SourceError("source could not be read")

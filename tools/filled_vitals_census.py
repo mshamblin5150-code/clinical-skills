@@ -757,7 +757,6 @@ GRADER = run_grader.Grader(
         ),
     ),
     source_error_to_stdout=False,
-    allow_extra_positionals=True,
 )
 
 

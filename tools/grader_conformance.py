@@ -45,6 +45,13 @@ DECLARED_LIMITS = (
         "discovery and the adoption walk cannot count the replaced tests.",
         run_grader.EvidenceDisposition.BEHAVIOR,
     ),
+    (
+        "second positional refusal through each member's main",
+        "The case covers only the path its declared empty-population argv takes through "
+        "main; a branch a member handles before the runner on arguments the case does "
+        "not pass is invisible.",
+        run_grader.EvidenceDisposition.BEHAVIOR,
+    ),
 )
 
 
@@ -415,6 +422,26 @@ def for_module(module: Any) -> type[unittest.TestCase]:
             source = inspect.getsource(module.main)
             self.assertIn("run_grader.run", source)
             self.assertIs(module.GRADER.format_report, module.format_report)
+
+        def test_the_module_main_refuses_a_second_positional_source(self):
+            provider = caller_globals.get("empty_population_input")
+            self.assertIsNotNone(
+                provider,
+                "the member test module supplies no command argv",
+            )
+            with tempfile.TemporaryDirectory() as directory:
+                case = provider(Path(directory))
+                argv = [*case.argv, str(Path(directory) / "second-source")]
+                stdout, stderr = io.StringIO(), io.StringIO()
+                with (
+                    case.context_factory(),
+                    contextlib.redirect_stdout(stdout),
+                    contextlib.redirect_stderr(stderr),
+                ):
+                    status = module.main(argv)
+
+            self.assertEqual(2, status)
+            self.assertIn("one source at a time", stderr.getvalue())
 
         def test_an_unrecognized_flag_refuses_before_loading(self):
             with self.assertRaises(run_grader.ParseError):
