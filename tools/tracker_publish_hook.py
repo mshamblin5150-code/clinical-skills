@@ -1016,6 +1016,8 @@ def _analyze_source_word(
             following = source[index + 1]
             if quote != '"' or following in '$`"\\\r\n':
                 if following not in "\r\n":
+                    if not field_has_text and following == "-":
+                        injected_option = True
                     parts.append(following)
                     field_has_text = True
                 index += 2
@@ -1050,6 +1052,8 @@ def _analyze_source_word(
                 failure_kind = failure_kind or "external-variable"
             index = match.end()
             continue
+        if not field_has_text and character == "-":
+            injected_option = True
         parts.append(character)
         field_has_text = True
         index += 1

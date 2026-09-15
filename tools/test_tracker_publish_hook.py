@@ -612,6 +612,25 @@ class InlineTrackerTextIsRead(unittest.TestCase):
             "unclassified-api-arguments",
         )
 
+    def test_expansion_split_cannot_hide_a_literal_option_suffix(self) -> None:
+        commands = (
+            "SEP=' '; gh api -X GET "
+            "repos/example/project/issues/7$SEP-X POST -f body=Injected",
+            "SEP=' '; gh api -X GET "
+            'repos/example/project/issues/7$SEP"-X" POST -f body=Injected',
+            "SEP=' '; gh api -X GET "
+            "repos/example/project/issues/7$SEP\\-X POST -f body=Injected",
+        )
+
+        for command in commands:
+            with self.subTest(command=command):
+                result = hook.extract(command)
+                self.assertIsNone(result.grade_route)
+                self.assertEqual(
+                    result.unclassified_api_calls[0].kind,
+                    "unclassified-api-arguments",
+                )
+
     def test_nondefault_ifs_cannot_inject_api_publication_options(self) -> None:
         commands = (
             "IFS=,; ARGS='7,-f,body=Injected'; ",
