@@ -60,6 +60,7 @@ import re
 import sys
 from collections import defaultdict
 from dataclasses import dataclass
+from functools import cache
 from pathlib import Path
 
 import run_grader
@@ -484,6 +485,7 @@ def _markdown_files(directory: Path) -> dict[str, Path]:
     }
 
 
+@cache
 def _official_descriptor(system: str, code: str) -> str | None:
     if system.upper().startswith("ICD"):
         import icd10_lookup
@@ -504,26 +506,72 @@ def _official_descriptor(system: str, code: str) -> str | None:
         connection.close()
 
 
-def _valid_route(subject: AgreementSubject, route: str) -> bool:
+def _route_tokens(value: str) -> list[str]:
+    without_parentheticals = re.sub(r"\([^)]*\)", "", value)
+    return [
+        token
+        for token in re.findall(r"[a-z0-9]+", without_parentheticals.lower())
+        if token != "nec"
+    ]
+
+
+def _is_subsequence(needles: list[str], haystack: list[str]) -> bool:
+    position = 0
+    for token in haystack:
+        if position < len(needles) and token == needles[position]:
+            position += 1
+    return position == len(needles)
+
+
+@cache
+def _index_route_catalog() -> dict[str, tuple[str, str | None, str | None, str | None]]:
+    import icd10_lookup
+
+    connection = icd10_lookup.open_database()
+    try:
+        rows = connection.execute(
+            "SELECT path, code, see, see_also FROM index_entry ORDER BY path",
+        ).fetchall()
+    finally:
+        connection.close()
+
+    rendered: dict[str, tuple[str, str | None, str | None, str | None]] = {}
+    for path, code, see, see_also in rows:
+        destination = (
+            f"code {icd10_lookup.dotted(code)}" if code else
+            f"see {see}" if see else
+            f"see also {see_also}" if see_also else
+            "no direct destination"
+        )
+        rendered[f"{path} -> {destination}"] = (path, code, see, see_also)
+    return rendered
+
+
+def _valid_route(subject: AgreementSubject, route: str, agreeing_words: str) -> bool:
     if route == "descriptor words":
         return True
     if subject.system != "ICD-10":
         return False
-    import icd10_lookup
 
     normalized = subject.code.replace(".", "").upper()
-    connection = icd10_lookup.open_database()
-    try:
-        paths = connection.execute(
-            "SELECT path FROM index_entry WHERE code = ? ORDER BY path",
-            (normalized,),
-        ).fetchall()
-    finally:
-        connection.close()
-    expected = {
-        f"{path} -> code {icd10_lookup.dotted(normalized)}" for (path,) in paths
-    }
-    return route in expected
+    rendered = _index_route_catalog()
+
+    steps = route.split(" | ")
+    if not steps or any(step not in rendered for step in steps):
+        return False
+    resolved = [rendered[step] for step in steps]
+    first_main_term = resolved[0][0].split(">", 1)[0]
+    alternatives = [part.strip() for part in first_main_term.split(",")]
+    word_tokens = _route_tokens(agreeing_words)
+    if not any(_is_subsequence(_route_tokens(term), word_tokens) for term in alternatives):
+        return False
+    for previous, following in zip(resolved, resolved[1:]):
+        referral = previous[2] or previous[3]
+        if not referral or not _is_subsequence(
+            _route_tokens(referral), _route_tokens(following[0])
+        ):
+            return False
+    return resolved[-1][1] == normalized
 
 
 def _preceding_support(text: str, position: int) -> str:
@@ -560,10 +608,8 @@ def _agreement_subjects(text: str) -> tuple[tuple[AgreementSubject, ...], int, i
             # declining to propose it. Only a worksheet entry with its required
             # quotation belongs to the agreement population.
             continue
-        support = (
-            "\n".join((_preceding_support(text, start), descriptor))
-            if is_differential
-            else (anchor.group(1) if anchor else "")
+        support = _preceding_support(text, start) if is_differential else (
+            anchor.group(1) if anchor else ""
         )
         official = _official_descriptor(system, code)
         if official is not None:
@@ -631,6 +677,10 @@ def _brief_payload(pairs: list[AgreementPair], unread: int) -> dict:
         "instructions": (
             "For every code, record agreeing_words, route, encounter_evidence, "
             "open_status_evidence, threshold, and waits_on_result; use 'none' when absent. "
+            "Copy subject_id, system, code, and role exactly. Every evidence value is a nonempty "
+            "string. Route is the literal 'descriptor words' or exact index output; join a "
+            "referral chain with ' | ', beginning at a term in agreeing_words and ending at the "
+            "subject code. "
             "Agreement requires note words that state the descriptor or reach it through an "
             "official alphabetic-index path; topical relation is insufficient. A differential "
             "code is read against the diagnosis considered by its entry. A present descriptor "
@@ -780,13 +830,20 @@ def _run_agreement(argv: list[str]) -> int:
     try:
         payload = json.loads(args.agreement_read.read_text(encoding="utf-8"))
         supplied_pairs = payload["pairs"]
+        if not isinstance(supplied_pairs, list):
+            raise TypeError("pairs is not a list")
         record_pairs: dict[str, dict] = {}
         for row in supplied_pairs:
+            if not isinstance(row, dict) or "stem" not in row:
+                unread += 1
+                continue
             stem = row["stem"]
-            if "codes" in row:
-                record_pairs[stem] = row
-            else:
-                record_pairs.setdefault(stem, {"stem": stem, "codes": []})["codes"].append(row)
+            if stem in record_pairs or not isinstance(row.get("codes"), list):
+                unread += 1
+                continue
+            record_pairs[stem] = row
+        expected_stems = {pair.stem for pair in pairs}
+        unread += len(set(record_pairs) - expected_stems)
     except (OSError, ValueError, KeyError, TypeError) as error:
         print(f"descriptor agreement read: unread record ({error})")
         return 2
@@ -837,7 +894,7 @@ def _run_agreement(argv: list[str]) -> int:
                     findings.append(f"{pair.stem}: {subject.code} has no agreeing words")
             elif words not in pair.note or words not in subject.support:
                 findings.append(f"{pair.stem}: {subject.code} agreeing words are not verbatim")
-            if route == "none" or not _valid_route(subject, route):
+            if route == "none" or not _valid_route(subject, route, words):
                 if subject.role != "procedure":
                     findings.append(f"{pair.stem}: {subject.code} has no descriptor or index route")
             waits = record["waits_on_result"]

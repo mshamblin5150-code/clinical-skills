@@ -293,9 +293,10 @@ reader. For every code the reader records `agreeing_words`, `route`, `encounter_
 `open_status_evidence`, `threshold`, and `waits_on_result`; each absent value is the literal
 `none`, and every field is a nonempty string. Copy the brief's stable `subject_id` into each record;
 it distinguishes repeated occurrences of the same system, code, and role. The route is the exact
-literal `descriptor words` or the complete alphabetic-index path returned by
-`python tools/icd10_lookup.py --index <term>`. The record is saved as JSON with one `pairs` entry
-per filename stem and one `codes` entry per brief subject.
+literal `descriptor words` or a complete alphabetic-index route returned by
+`python tools/icd10_lookup.py --index <term>`. A referral chain joins its exact printed steps with
+` | `, begins with a term present in `agreeing_words`, and ends at the subject code. The record is
+saved as JSON with one `pairs` entry per filename stem and one `codes` entry per brief subject.
 
 Read each claim by the descriptor it makes. A differential code agrees with the diagnosis its
 entry considers. An entry descriptor that waits on an absent or pending result fails even when the

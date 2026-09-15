@@ -883,6 +883,34 @@ class AgreementModes(unittest.TestCase):
 
         self.assertEqual(0, self.grade(record)[0])
 
+    def test_a_referral_chain_starts_in_the_agreeing_words_and_ends_at_the_code(self):
+        subject = scan.AgreementSubject(
+            "ICD-10", "F17.210", "Nicotine dependence, cigarettes, uncomplicated",
+            "entry", "current daily smoker", "ICD-10:F17.210:entry:1",
+        )
+        route = (
+            "Smoker -> see Dependence, drug, nicotine | "
+            "Dependence (on) (syndrome) > drug NEC > nicotine > cigarettes -> code F17.210"
+        )
+
+        self.assertTrue(scan._valid_route(subject, route, "current daily smoker"))
+        self.assertFalse(
+            scan._valid_route(
+                subject,
+                "Dependence (on) (syndrome) > drug NEC > nicotine > cigarettes -> code F17.210",
+                "current daily smoker",
+            )
+        )
+
+    def test_a_differential_descriptor_cannot_supply_its_own_agreeing_words(self):
+        worksheet = AGREEMENT_WORKSHEET.replace(
+            "Plantar wart was considered for the focal plantar lesion.",
+            "A focal lesion was considered.",
+        )
+        (self.worksheets / "case-01.md").write_text(worksheet, encoding="utf-8")
+
+        self.assertEqual(1, self.grade(self.clean_record())[0])
+
     def test_a_malformed_evidence_field_is_unread(self):
         record = self.clean_record()
         record["pairs"][0]["codes"][0]["threshold"] = None
@@ -900,6 +928,18 @@ class AgreementModes(unittest.TestCase):
         ]
         self.assertEqual(2, len(duplicate))
         record["pairs"][0]["codes"].remove(duplicate[-1])
+
+        self.assertEqual(2, self.grade(record)[0])
+
+    def test_duplicate_pair_records_are_unread(self):
+        record = self.clean_record()
+        record["pairs"].append(record["pairs"][0].copy())
+
+        self.assertEqual(2, self.grade(record)[0])
+
+    def test_a_surplus_pair_record_is_unread(self):
+        record = self.clean_record()
+        record["pairs"].append({"stem": "case-99", "codes": []})
 
         self.assertEqual(2, self.grade(record)[0])
 
@@ -1032,7 +1072,7 @@ class CommittedAgreementControls(unittest.TestCase):
         status, report = self.grade("descriptor-agreement-negative-control")
         self.assertEqual(1, status)
         self.assertRegex(report, r"codes with no agreeing words\s+3")
-        self.assertRegex(report, r"non-verbatim agreeing words\s+0")
+        self.assertRegex(report, r"non-verbatim agreeing words\s+1")
         self.assertRegex(report, r"codes with no route\s+3")
         self.assertRegex(report, r"descriptors waiting on results\s+2")
         self.assertRegex(report, r"note/worksheet bind findings\s+4")
