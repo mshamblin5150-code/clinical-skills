@@ -338,6 +338,19 @@ class InlineTrackerTextIsRead(unittest.TestCase):
             [("body", "Comment edit")],
         )
 
+    def test_later_api_comment_identifier_assignment_is_not_reconstructed(self) -> None:
+        result = hook.extract(
+            "gh api repos/example/project/issues/comments/$CID "
+            "-f body='Comment edit'; CID=123"
+        )
+
+        self.assertIsNone(result.grade_route)
+        self.assertEqual(result.unreadable, ())
+        self.assertEqual(
+            result.unclassified_api_calls[0].kind,
+            "unclassified-api-identifier",
+        )
+
     def test_api_collection_endpoints_use_create_semantics(self) -> None:
         issue = hook.extract(
             "gh api repos/example/project/issues "
@@ -371,6 +384,7 @@ class InlineTrackerTextIsRead(unittest.TestCase):
 
     def test_named_text_free_api_writes_are_not_tracker_publications(self) -> None:
         commands = (
+            "gh api repos/example/project/git/refs -f ref=refs/heads/topic",
             "gh api --method DELETE repos/example/project/git/refs/heads/topic",
             "gh api repos/example/project/issues/670/dependencies/blocked_by "
             "-f issue_id=671",
@@ -425,6 +439,25 @@ class InlineTrackerTextIsRead(unittest.TestCase):
         self.assertEqual(result.publications, ())
         self.assertEqual(result.unreadable, ())
 
+    def test_graphql_query_operation_is_read_from_json_input(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / "request.json").write_text(
+                json.dumps({"query": "query { viewer { login } }"}),
+                encoding="utf-8",
+            )
+            command = (
+                f'cd "{root.as_posix()}" && '
+                "gh api graphql --input request.json"
+            )
+
+            result = hook.extract(command)
+
+        self.assertIsNone(result.grade_route)
+        self.assertEqual(result.publications, ())
+        self.assertEqual(result.unreadable, ())
+        self.assertEqual(result.unclassified_api_calls, ())
+
     def test_unreadable_graphql_query_file_is_refused_as_an_unreadable_body(self) -> None:
         with tempfile.TemporaryDirectory() as folder:
             command = (
@@ -440,6 +473,16 @@ class InlineTrackerTextIsRead(unittest.TestCase):
 
     def test_runtime_graphql_document_is_refused_as_an_unreadable_body(self) -> None:
         result = hook.extract("gh api graphql -f query=$QUERY")
+
+        self.assertIsNone(result.grade_route)
+        self.assertEqual(result.publications, ())
+        self.assertEqual(result.unreadable[0].kind, "external-variable")
+
+    def test_later_graphql_assignment_does_not_make_the_document_readable(self) -> None:
+        result = hook.extract(
+            "gh api graphql -f query=$QUERY; "
+            "QUERY='query { viewer { login } }'"
+        )
 
         self.assertIsNone(result.grade_route)
         self.assertEqual(result.publications, ())
@@ -488,7 +531,40 @@ class InlineTrackerTextIsRead(unittest.TestCase):
         result = hook.extract("gh api orgs/example/issues -f body='Unknown route'")
 
         self.assertIsNone(result.grade_route)
-        self.assertEqual(result.unreadable[0].kind, "unclassified-api-endpoint")
+        self.assertEqual(result.unreadable, ())
+        self.assertEqual(
+            result.unclassified_api_calls[0].kind,
+            "unclassified-api-endpoint",
+        )
+
+    def test_every_named_api_publication_route_stays_classified(self) -> None:
+        commands = (
+            (("issue", "create"), "gh api repos/example/project/issues -f title='T'"),
+            (("issue", "edit"), "gh api repos/example/project/issues/12 -f body='B'"),
+            (("issue", "comment"), (
+                "gh api repos/example/project/issues/12/comments -f body='B'"
+            )),
+            (("issue", "comment"), (
+                "gh api repos/example/project/issues/comments/12 -f body='B'"
+            )),
+            (("pr", "create"), "gh api repos/example/project/pulls -f title='T'"),
+            (("pr", "edit"), "gh api repos/example/project/pulls/13 -f body='B'"),
+            (("pr", "comment"), (
+                "gh api repos/example/project/pulls/13/comments -f body='B'"
+            )),
+            (("pr", "comment"), (
+                "gh api repos/example/project/pulls/comments/13 -f body='B'"
+            )),
+            (("pr", "review"), (
+                "gh api repos/example/project/pulls/13/reviews -f body='B'"
+            )),
+        )
+
+        for expected, command in commands:
+            with self.subTest(route=expected):
+                result = hook.extract(command)
+                self.assertEqual(result.grade_route, expected)
+                self.assertTrue(result.publications)
 
 
 class InlineTrackerTextMustBeShellReproducible(unittest.TestCase):
@@ -1921,6 +1997,33 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
         command = (
             "gh api graphql -f query='query { viewer { login } }' "
             "-f query='mutation { addComment(input: {}) { clientMutationId } }'"
+        )
+
+        specific = hook.handle(self.payload(command))["hookSpecificOutput"]
+
+        self.assertEqual(specific["permissionDecision"], "deny")
+        self.assertIn("GraphQL mutation", specific["additionalContext"])
+
+    def test_graphql_mutation_from_json_input_is_unclassified(self) -> None:
+        request = json.dumps(
+            {"query": "mutation { addComment(input: {}) { clientMutationId } }"}
+        )
+        command = (
+            "gh api graphql --input - <<'JSON'\n"
+            f"{request}\n"
+            "JSON"
+        )
+
+        specific = hook.handle(self.payload(command))["hookSpecificOutput"]
+
+        self.assertEqual(specific["permissionDecision"], "deny")
+        self.assertIn("GraphQL mutation", specific["additionalContext"])
+
+    def test_graphql_mutation_with_a_body_variable_is_unclassified(self) -> None:
+        command = (
+            "gh api graphql "
+            "-f query='mutation($body: String!) { addComment(input: {}) "
+            "{ clientMutationId } }' -f body='Publication text'"
         )
 
         specific = hook.handle(self.payload(command))["hookSpecificOutput"]

@@ -286,12 +286,21 @@ class UnclassifiedApiCall(NamedTuple):
     endpoint: str
 
 
+class ApiInput(NamedTuple):
+    request: dict[str, object]
+    origin: str
+    path: Path | None = None
+    resolved_against: str | None = None
+    reconstructed_path: str | None = None
+
+
 class Extraction(NamedTuple):
     route: tuple[str, ...] | None
     number: int | None
     publications: tuple[Publication, ...]
-    unreadable: tuple[Unreadable | UnclassifiedApiCall, ...]
+    unreadable: tuple[Unreadable, ...]
     grade_route: tuple[str, ...] | None = None
+    unclassified_api_calls: tuple[UnclassifiedApiCall, ...] = ()
 
 
 class Finding(NamedTuple):
@@ -343,7 +352,7 @@ API_VALUE_OPTIONS = (
 )
 API_NON_PUBLICATION_ENDPOINTS = (
     re.compile(r"/?markdown(?:\?.*)?\Z"),
-    re.compile(r"/?repos/[^/?]+/[^/?]+/git/refs/.+"),
+    re.compile(r"/?repos/[^/?]+/[^/?]+/git/refs(?:/.+)?(?:\?.*)?\Z"),
 )
 API_NON_PUBLICATION_RECORD_ENDPOINTS = (
     re.compile(
@@ -925,6 +934,9 @@ def _api_graphql_field(
     arguments: list[str], command: str, target: str
 ) -> str | Unreadable | None:
     found: str | Unreadable | None = None
+    assignment_scope = _api_assignment_scope(command)
+    assignments = shell_reader.plain_assignments(assignment_scope)
+    substitutions = shell_reader.substitution_assignments(assignment_scope)
     index = 0
     while index < len(arguments):
         option = _api_value_option(arguments, index)
@@ -938,15 +950,15 @@ def _api_graphql_field(
                         "body",
                         value[1:],
                         command,
-                        shell_reader.plain_assignments(command),
-                        shell_reader.substitution_assignments(command),
+                        assignments,
+                        substitutions,
                     )
                     found = read if isinstance(read, Unreadable) else read.text
                 else:
                     expanded, kind = shell_reader.expand(
                         value,
-                        shell_reader.plain_assignments(command),
-                        shell_reader.substitution_assignments(command),
+                        assignments,
+                        substitutions,
                     )
                     found = (
                         Unreadable("body", kind, value)
@@ -1052,12 +1064,30 @@ def _graphql_operation(
 
 
 def _api_identifier(identifier: str, command: str) -> str | None:
-    assignments = shell_reader.plain_assignments(command)
-    substitutions = shell_reader.substitution_assignments(command)
+    assignment_scope = _api_assignment_scope(command)
+    assignments = shell_reader.plain_assignments(assignment_scope)
+    substitutions = shell_reader.substitution_assignments(assignment_scope)
     expanded, kind = shell_reader.expand(identifier, assignments, substitutions)
     if kind is not None or expanded is None or re.search(r"[/\?]", expanded):
         return None
     return expanded
+
+
+def _api_assignment_scope(command: str) -> str:
+    """Return only shell text whose assignments precede the modeled API call."""
+    prefix: list[str] = []
+    for piece in shell_reader.shell_pieces(command):
+        if piece in shell_reader.SEPARATORS:
+            if piece in ("|", "||", "&"):
+                prefix = []
+            else:
+                prefix.append(piece)
+            continue
+        prefix.append(piece)
+        for tokens, index in shell_reader.executable_calls(piece, "gh"):
+            if tokens[index + 1 : index + 2] == ["api"]:
+                return "".join(prefix)
+    return command
 
 
 def _api_route_match(
@@ -1091,8 +1121,19 @@ def _api_grade_route(
             return UnclassifiedApiCall("unclassified-api-identifier", endpoint)
         return None
     if endpoint == "graphql":
-        document = _api_graphql_field(arguments, command, "query")
-        operation_name = _api_graphql_field(arguments, command, "operationName")
+        api_input = _api_input(arguments, command)
+        if isinstance(api_input, Unreadable):
+            return api_input
+        if api_input is not None:
+            request_document = api_input.request.get("query")
+            request_operation = api_input.request.get("operationName")
+            document = request_document if isinstance(request_document, str) else None
+            operation_name = (
+                request_operation if isinstance(request_operation, str) else None
+            )
+        else:
+            document = _api_graphql_field(arguments, command, "query")
+            operation_name = _api_graphql_field(arguments, command, "operationName")
         if isinstance(document, Unreadable):
             return document
         if isinstance(operation_name, Unreadable):
@@ -1197,6 +1238,74 @@ def _read_file_field(
     )
 
 
+def _read_api_input(source: str, command: str) -> ApiInput | Unreadable:
+    assignment_scope = _api_assignment_scope(command)
+    assignments = shell_reader.plain_assignments(assignment_scope)
+    substitutions = shell_reader.substitution_assignments(assignment_scope)
+    if source == "-":
+        heredoc = HEREDOC.search(command)
+        if heredoc is None:
+            return Unreadable("body", "pipe", source)
+        request_text = heredoc.group("body")
+        origin = "inline heredoc"
+        path = None
+        resolved_against = None
+        reconstructed_path = None
+    else:
+        read = _read_file_field(
+            "body", source, command, assignments, substitutions
+        )
+        if isinstance(read, Unreadable):
+            return read
+        request_text = read.text
+        origin = read.origin
+        path = read.path
+        resolved_against = read.resolved_against
+        reconstructed_path = read.reconstructed_path
+    try:
+        request = json.loads(request_text)
+        if not isinstance(request, dict):
+            raise ValueError("API input is not an object")
+    except (json.JSONDecodeError, ValueError):
+        return Unreadable(
+            "body",
+            "invalid-input",
+            origin,
+            resolved_against,
+            reconstructed_path,
+        )
+    return ApiInput(
+        request,
+        origin,
+        path,
+        resolved_against,
+        reconstructed_path,
+    )
+
+
+def _api_input(
+    arguments: list[str], command: str
+) -> ApiInput | Unreadable | None:
+    source: str | None = None
+    found = False
+    index = 0
+    while index < len(arguments):
+        option = _api_value_option(arguments, index)
+        if option is None:
+            index += 1
+            continue
+        name, value, width = option
+        if name == "input":
+            found = True
+            source = value
+        index += width
+    if not found:
+        return None
+    if source is None:
+        return Unreadable("body", "missing-value", "--input")
+    return _read_api_input(source, command)
+
+
 def extract(command: str) -> Extraction:
     """Read inline tracker fields from one ``gh`` invocation."""
     publish = _publish_tokens(command)
@@ -1232,14 +1341,17 @@ def extract(command: str) -> Extraction:
     api_grade = (
         _api_grade_route(arguments, command) if route == ("api",) else route
     )
-    if isinstance(api_grade, (Unreadable, UnclassifiedApiCall)):
+    if isinstance(api_grade, UnclassifiedApiCall):
+        return Extraction(route, number, (), (), None, (api_grade,))
+    if isinstance(api_grade, Unreadable):
         return Extraction(route, number, (), (api_grade,), None)
     grade_route = api_grade
     if route == ("api",) and grade_route is None:
         return Extraction(route, number, (), (), None)
     publications: list[Publication] = []
-    assignments = shell_reader.plain_assignments(command)
-    substitutions = shell_reader.substitution_assignments(command)
+    assignment_scope = _api_assignment_scope(command)
+    assignments = shell_reader.plain_assignments(assignment_scope)
+    substitutions = shell_reader.substitution_assignments(assignment_scope)
     index = 0
     while index < len(arguments):
         token = arguments[index]
@@ -1319,55 +1431,26 @@ def extract(command: str) -> Extraction:
             source = api_option[1]
             if source is None:
                 raise ValueError("missing API input was not refused")
-            try:
-                if source == "-":
-                    heredoc = HEREDOC.search(command)
-                    if heredoc is None:
-                        unreadable = Unreadable("body", "pipe", source)
-                        return Extraction(
-                            route, number, tuple(publications), (unreadable,)
-                        )
-                    request_text = heredoc.group("body")
-                    origin = "inline heredoc"
-                    path = None
-                    resolved_against = None
-                    reconstructed_path = None
-                else:
-                    read = _read_file_field(
-                        "body", source, command, assignments, substitutions
-                    )
-                    if isinstance(read, Unreadable):
-                        return Extraction(
-                            route, number, tuple(publications), (read,), grade_route
-                        )
-                    request_text = read.text
-                    origin = read.origin
-                    path = read.path
-                    resolved_against = read.resolved_against
-                    reconstructed_path = read.reconstructed_path
-                request = json.loads(request_text)
-                if not isinstance(request, dict):
-                    raise ValueError("API input is not an object")
-            except (json.JSONDecodeError, ValueError):
-                unreadable = Unreadable(
-                    "body",
-                    "invalid-input",
-                    origin,
-                    resolved_against,
-                    reconstructed_path,
+            api_input = _read_api_input(source, command)
+            if isinstance(api_input, Unreadable):
+                return Extraction(
+                    route,
+                    number,
+                    tuple(publications),
+                    (api_input,),
+                    grade_route,
                 )
-                return Extraction(route, number, tuple(publications), (unreadable,))
             for field in ("title", "body"):
-                value = request.get(field)
+                value = api_input.request.get(field)
                 if isinstance(value, str):
                     publications.append(
                         Publication(
                             field,
                             value,
-                            origin,
-                            path,
-                            resolved_against,
-                            reconstructed_path,
+                            api_input.origin,
+                            api_input.path,
+                            api_input.resolved_against,
+                            api_input.reconstructed_path,
                         )
                     )
             index += api_option[2]
@@ -1876,12 +1959,6 @@ def unreadable_remedy(row: Unreadable) -> str:
 def _unreadable_report(extracted: Extraction) -> str:
     lines = []
     for row in extracted.unreadable:
-        if isinstance(row, UnclassifiedApiCall):
-            lines.append(
-                "tracker pre-publish: NOT SCANNED -- unclassified API call "
-                f"({row.kind}); {UNCLASSIFIED_API_REMEDIES[row.kind]}"
-            )
-            continue
         reconstructed = row.reconstructed_path or row.source
         if row.resolved_against is not None:
             resolved_against = row.resolved_against
@@ -1901,6 +1978,14 @@ def _unreadable_report(extracted: Extraction) -> str:
     return "\n".join(lines)
 
 
+def _unclassified_api_report(extracted: Extraction) -> str:
+    return "\n".join(
+        "tracker pre-publish: NOT SCANNED -- unclassified API call "
+        f"({row.kind}); {UNCLASSIFIED_API_REMEDIES[row.kind]}"
+        for row in extracted.unclassified_api_calls
+    )
+
+
 def grade_command(command: str) -> CommandGrade | None:
     """Grade one Bash publication command without writing the hook marker."""
     if _unreproduced_publish_route(command) is not None:
@@ -1914,6 +1999,8 @@ def grade_command(command: str) -> CommandGrade | None:
     extracted = extract(command)
     if extracted.route is None:
         return None
+    if extracted.unclassified_api_calls:
+        return CommandGrade(False, True, _unclassified_api_report(extracted))
     if extracted.unreadable:
         return CommandGrade(False, True, _unreadable_report(extracted))
 
