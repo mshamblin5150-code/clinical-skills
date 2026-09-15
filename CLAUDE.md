@@ -1177,11 +1177,15 @@ Covered by `tools/test_discussion_reply_scan.py`.
 
 `tools/tracker_population.py` derives the three-file manifest that bounds a
 full tracker harvest. It reads the kept GraphQL issue/pull-request totals and
-the two kept `per_page=1` HTTP comment probes; it opens no socket. A comments
+the two kept `per_page=1` HTTP comment probes; it opens no socket. The GraphQL
+text passes through `github_graphql.read_response` with no declared absences,
+so any complaint makes the population not derived. A comments
 probe with `rel="last"` contributes that last page, while a probe without the
 header must carry zero or one JSON row and contributes its array length. Any
 other probe shape exits 2 without writing the manifest. Run these probes before
 the paginated harvest so tracker growth cannot produce a false complete result.
+The shared payload reader's boundary belongs to
+`github_graphql.DECLARED_LIMITS`; this section copies none of its rows.
 
 ### Tracker scan
 
@@ -1439,6 +1443,10 @@ sends each field through `phi_scan`, `tracker_branch_scope`, and
 the last grader compares the proposal with the current body text from readback;
 when that read fails it reports the rule `NOT GRADED` and does not refuse on it.
 `PUBLISH_ROUTES` owns command classification; the stub is only a cost guard.
+`fetch_readback` passes the batched GraphQL stdout through
+`github_graphql.read_response` and declares `NOT_FOUND` only at each requested
+`issueOrPullRequest` alias; every other complaint becomes that context-blind
+read failure.
 
 `tracker_publish_hook.COMMAND_TOOLS` is the shared roster of command-bearing
 tools and the shell each carries. `Bash` and `Monitor` carry the modeled bash
@@ -1572,6 +1580,10 @@ delta reviews; the record derives the packets changed by that delta or requires
 one authored `--no-work` sentence. `reconciled_through` is the floor beneath
 those records and advances across the contiguous reviewed first-parent prefix,
 independently of the ready-ticket remainder, which every run still names.
+The issues population probe and `user_content_edits` GraphQL response both pass
+through `github_graphql.read_response` with no declared absences. A nonzero
+`gh` status is therefore accepted only far enough to let a JSON payload decide;
+non-JSON stdout keeps the command's existing stderr refusal.
 
 Every map overwrite takes the map's own nonblocking artifact-lock identity,
 compares the state-block hash through a fresh single-record read immediately

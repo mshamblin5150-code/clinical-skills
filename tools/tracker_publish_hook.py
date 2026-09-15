@@ -56,6 +56,7 @@ import sys
 from typing import NamedTuple
 
 import phi_scan
+from github_graphql import DeclaredAbsence, GraphQLResponseError, read_response
 import tracker_bodies
 import tracker_coordinates
 import tracker_measurements
@@ -1388,27 +1389,30 @@ def fetch_readback(
     resolved alias and ``null`` for an unresolved one.  The payload, not the
     process status, therefore decides whether the read succeeded.
     """
-    completed = subprocess.run(
-        [
-            "gh",
-            "api",
-            "graphql",
-            "-F",
-            f"owner={REPOSITORY_OWNER}",
-            "-F",
-            f"name={REPOSITORY_NAME}",
-            "-f",
-            "query=" + _readback_query(numbers),
-        ],
-        cwd=Path(__file__).resolve().parent.parent,
-        capture_output=True,
-        encoding="utf-8",
-        errors="replace",
+    declared_absences = tuple(
+        DeclaredAbsence("NOT_FOUND", ("repository", f"record_{number}"))
+        for number in sorted(numbers)
     )
-    document = json.loads(completed.stdout)
-    if not isinstance(document, dict):
-        raise ValueError("tracker readback payload was not an object")
-    data = document.get("data")
+    try:
+        data = read_response(subprocess.run(
+            [
+                "gh",
+                "api",
+                "graphql",
+                "-F",
+                f"owner={REPOSITORY_OWNER}",
+                "-F",
+                f"name={REPOSITORY_NAME}",
+                "-f",
+                "query=" + _readback_query(numbers),
+            ],
+            cwd=Path(__file__).resolve().parent.parent,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+        ).stdout, declared_absences).data
+    except GraphQLResponseError as error:
+        raise ValueError(str(error)) from error
     repository = data.get("repository") if isinstance(data, dict) else None
     if not isinstance(repository, dict):
         raise ValueError("tracker readback payload had no repository data")

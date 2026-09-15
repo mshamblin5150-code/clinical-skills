@@ -2058,6 +2058,51 @@ class GitHubIssuePopulation(unittest.TestCase):
         self.assertIn("unread remainder 0", output.getvalue())
         self.assertEqual(output.getvalue().count("unread remainder"), 1)
 
+    def test_status_one_with_a_complaint_refuses_from_the_payload(self):
+        tracker = imap.GitHub("owner/repo")
+        probe = json.dumps({
+            "data": {"repository": {
+                "issues": {"totalCount": 1},
+                "pullRequests": {"totalCount": 0},
+            }},
+            "errors": [{
+                "type": "FORBIDDEN",
+                "path": ["repository", "issues"],
+                "message": "Resource not accessible",
+            }],
+        })
+        completed = mock.Mock(returncode=1, stdout=probe, stderr="gh status text")
+
+        with mock.patch.object(imap.subprocess, "run", return_value=completed):
+            with self.assertRaisesRegex(imap.MapError, "FORBIDDEN"):
+                tracker.issues()
+
+    def test_status_one_with_a_complaint_free_payload_is_read(self):
+        tracker = imap.GitHub("owner/repo")
+        responses = [
+            mock.Mock(returncode=1, stdout=self.probe(1, 0), stderr="gh status text"),
+            mock.Mock(
+                returncode=0,
+                stdout=self.harvest({"number": 1, "labels": [], "assignees": []}),
+                stderr="",
+            ),
+        ]
+
+        with mock.patch.object(imap.subprocess, "run", side_effect=responses):
+            self.assertEqual([row["number"] for row in tracker.issues()], [1])
+
+    def test_non_json_status_one_keeps_the_existing_stderr_message(self):
+        tracker = imap.GitHub("owner/repo")
+        completed = mock.Mock(
+            returncode=1,
+            stdout="not json",
+            stderr="the transport failed",
+        )
+
+        with mock.patch.object(imap.subprocess, "run", return_value=completed):
+            with self.assertRaisesRegex(imap.MapError, "the transport failed"):
+                tracker._run(["api", "graphql"])
+
     def test_a_short_read_names_both_counts_shortfall_and_highest_number(self):
         tracker = imap.GitHub("owner/repo")
         payload = self.harvest(
@@ -2502,6 +2547,41 @@ class RevisionChainAttribution(unittest.TestCase):
         self.assertIn(str(imap.REVISION_WINDOW), limit)
         self.assertEqual(len(history.revisions), imap.REVISION_WINDOW)
         self.assertTrue(history.older_remainder)
+
+    def test_status_one_revision_history_uses_a_complaint_free_payload(self):
+        payload = json.dumps({
+            "data": {"repository": {"issue": {"userContentEdits": {
+                "pageInfo": {"hasNextPage": False},
+                "nodes": [{
+                    "id": "r1",
+                    "editedAt": "2026-09-12T00:00:00Z",
+                    "diff": "body",
+                }],
+            }}}},
+        })
+        completed = mock.Mock(returncode=1, stdout=payload, stderr="gh status text")
+        tracker = imap.GitHub("owner/repo")
+
+        with mock.patch.object(imap.subprocess, "run", return_value=completed):
+            history = tracker.user_content_edits(596)
+
+        self.assertEqual(tuple(row.revision_id for row in history.revisions), ("r1",))
+
+    def test_status_one_revision_complaint_raises_map_error_from_payload(self):
+        payload = json.dumps({
+            "data": {"repository": {"issue": None}},
+            "errors": [{
+                "type": "FORBIDDEN",
+                "path": ["repository", "issue"],
+                "message": "Resource not accessible",
+            }],
+        })
+        completed = mock.Mock(returncode=1, stdout=payload, stderr="gh status text")
+        tracker = imap.GitHub("owner/repo")
+
+        with mock.patch.object(imap.subprocess, "run", return_value=completed):
+            with self.assertRaisesRegex(imap.MapError, "FORBIDDEN"):
+                tracker.user_content_edits(596)
 
 
 def _exc_name(exc):

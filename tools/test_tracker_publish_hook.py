@@ -2857,7 +2857,11 @@ class BatchedGraphqlReadback(unittest.TestCase):
                     "record_18": None,
                 }
             },
-            "errors": [{"message": "Could not resolve record 18"}],
+            "errors": [{
+                "type": "NOT_FOUND",
+                "path": ["repository", "record_18"],
+                "message": "Could not resolve record 18",
+            }],
         }
         completed = mock.Mock(returncode=1, stdout=json.dumps(payload), stderr="error")
         with mock.patch.object(hook.subprocess, "run", return_value=completed) as run:
@@ -2875,6 +2879,36 @@ class BatchedGraphqlReadback(unittest.TestCase):
         completed = mock.Mock(returncode=1, stdout=json.dumps(payload), stderr="error")
         with mock.patch.object(hook.subprocess, "run", return_value=completed):
             with self.assertRaisesRegex(ValueError, "omitted requested record"):
+                hook.fetch_readback(frozenset({17}))
+
+    def test_forbidden_null_alias_is_not_misreported_as_absent(self) -> None:
+        payload = {
+            "data": {"repository": {"record_17": None}},
+            "errors": [{
+                "type": "FORBIDDEN",
+                "path": ["repository", "record_17"],
+                "message": "Resource not accessible",
+            }],
+        }
+        completed = mock.Mock(returncode=1, stdout=json.dumps(payload), stderr="error")
+
+        with mock.patch.object(hook.subprocess, "run", return_value=completed):
+            with self.assertRaisesRegex(ValueError, "FORBIDDEN"):
+                hook.fetch_readback(frozenset({17}))
+
+    def test_nested_not_found_is_not_misreported_as_an_absent_record(self) -> None:
+        payload = {
+            "data": {"repository": {"record_17": {"number": 17, "labels": None}}},
+            "errors": [{
+                "type": "NOT_FOUND",
+                "path": ["repository", "record_17", "labels"],
+                "message": "Labels could not be read",
+            }],
+        }
+        completed = mock.Mock(returncode=1, stdout=json.dumps(payload), stderr="error")
+
+        with mock.patch.object(hook.subprocess, "run", return_value=completed):
+            with self.assertRaisesRegex(ValueError, "labels"):
                 hook.fetch_readback(frozenset({17}))
 
 

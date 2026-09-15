@@ -32,6 +32,22 @@ class PopulationRoutesAreIndependent(unittest.TestCase):
         })
         self.assertEqual(tracker_population.issue_population(text), 12)
 
+    def test_issue_population_refuses_a_complaint_beside_complete_counts(self):
+        text = json.dumps({
+            "data": {"repository": {
+                "issues": {"totalCount": 7},
+                "pullRequests": {"totalCount": 5},
+            }},
+            "errors": [{
+                "type": "FORBIDDEN",
+                "path": ["repository", "issues"],
+                "message": "Resource not accessible",
+            }],
+        })
+
+        with self.assertRaisesRegex(tracker_population.PopulationError, "FORBIDDEN"):
+            tracker_population.issue_population(text)
+
     def test_comment_population_uses_the_last_page_at_per_page_one(self):
         link = (
             '<https://api.github.test/comments?per_page=1&page=2>; rel="next", '

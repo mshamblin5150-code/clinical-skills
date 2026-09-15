@@ -62,6 +62,7 @@ import artifact_lock
 import artifact_provenance
 from console_codec import require_python_floor, use_utf8
 import git_paths
+from github_graphql import GraphQLResponseError, read_response
 import repo_root
 import tracker_publish_hook
 
@@ -712,7 +713,18 @@ class GitHub:
         except FileNotFoundError as err:
             raise MapError("`gh` is not installed or not on PATH") from err
         if proc.returncode != 0:
-            raise MapError(f"gh {' '.join(args[:3])}... failed: {proc.stderr.strip()[:400]}")
+            if "graphql" in args:
+                try:
+                    json.loads(proc.stdout)
+                except (json.JSONDecodeError, TypeError):
+                    raise MapError(
+                        f"gh {' '.join(args[:3])}... failed: "
+                        f"{proc.stderr.strip()[:400]}"
+                    )
+            else:
+                raise MapError(
+                    f"gh {' '.join(args[:3])}... failed: {proc.stderr.strip()[:400]}"
+                )
         return proc.stdout
 
     def issues(self) -> list[dict]:
@@ -728,19 +740,18 @@ query($owner:String!,$name:String!){
   }
 }
 """.strip()
-        probe = self._run([
-            "api", "graphql", "-f", f"query={query}",
-            "-F", f"owner={owner}", "-F", f"name={name}",
-        ])
-        probe_at = datetime.datetime.now(datetime.timezone.utc).isoformat()
         try:
-            repository = json.loads(probe)["data"]["repository"]
+            repository = read_response(self._run([
+                "api", "graphql", "-f", f"query={query}",
+                "-F", f"owner={owner}", "-F", f"name={name}",
+            ])).data["repository"]
             counts = (
                 repository["issues"]["totalCount"],
                 repository["pullRequests"]["totalCount"],
             )
-        except (json.JSONDecodeError, KeyError, TypeError) as err:
+        except (GraphQLResponseError, KeyError, TypeError) as err:
             raise MapError(f"invalid tracker issue population probe: {err}") from err
+        probe_at = datetime.datetime.now(datetime.timezone.utc).isoformat()
         if any(
             not isinstance(count, int) or isinstance(count, bool) or count < 0
             for count in counts
@@ -859,15 +870,12 @@ query($owner:String!, $name:String!, $number:Int!) {
   }
 }
 """.replace("$WINDOW", str(REVISION_WINDOW))
-        out = self._run(
-            [
+        try:
+            connection = read_response(self._run([
                 "api", "graphql", "-f", f"query={query}",
                 "-F", f"owner={owner}", "-F", f"name={name}",
                 "-F", f"number={number}",
-            ]
-        )
-        try:
-            connection = json.loads(out)["data"]["repository"]["issue"][
+            ])).data["repository"]["issue"][
                 "userContentEdits"
             ]
             revisions = tuple(
@@ -878,7 +886,9 @@ query($owner:String!, $name:String!, $number:Int!) {
                 bool(connection["pageInfo"]["hasNextPage"])
                 or len(revisions) >= REVISION_WINDOW
             )
-        except (KeyError, TypeError, json.JSONDecodeError) as err:
+        except GraphQLResponseError as err:
+            raise MapError(f"tracker revision history complaint: {err}") from err
+        except (KeyError, TypeError) as err:
             raise MapError("tracker revision history had an unreadable shape") from err
         return RevisionHistory(revisions, older_remainder)
 
