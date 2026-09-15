@@ -389,7 +389,6 @@ GRADER = run_grader.Grader(
     load=_load,
     grade=_grade,
     format_report=format_report,
-    allow_extra_positionals=False,
     exit_2_limbs=EXIT_2_LIMBS,
     invalid_invocation_limb=INVALID_INVOCATION,
 )

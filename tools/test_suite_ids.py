@@ -73,6 +73,7 @@ class EveryDeclaredLimitHasAnEvidenceDisposition(unittest.TestCase):
         "whether every generated class a test module creates is bound where "
         "discovery can find it"
     )
+    SECOND_POSITIONAL = "second positional refusal through each member's main"
 
     def test_every_limit_has_one_disposition_and_behavior_has_the_binding_row(self):
         for subject, _reason, disposition in grader_conformance.DECLARED_LIMITS:
@@ -84,7 +85,7 @@ class EveryDeclaredLimitHasAnEvidenceDisposition(unittest.TestCase):
             for subject, _reason, disposition in grader_conformance.DECLARED_LIMITS
             if disposition is run_grader.EvidenceDisposition.BEHAVIOR
         ]
-        self.assertEqual([self.DOUBLE_BINDING], behavior)
+        self.assertEqual([self.DOUBLE_BINDING, self.SECOND_POSITIONAL], behavior)
 
 
 class ASecondBindingOfOneKindStillReplacesTheFirst(unittest.TestCase):
@@ -121,7 +122,7 @@ class ASecondBindingOfOneKindStillReplacesTheFirst(unittest.TestCase):
                 )
                 self.assertEqual([], loader.errors)
                 synthetic = sys.modules[module_name]
-                self.assertEqual(7, len(discovered))
+                self.assertEqual(8, len(discovered))
                 self.assertNotIn(
                     synthetic._first[0], {test.__class__ for test in discovered}
                 )
