@@ -321,3 +321,10 @@ veto over `gh`.
   unrecognized shape age it identically. Filed.
 - **Every route ADR 0083 already named**: the GitHub web UI, a session with hooks disabled or
   overridden, the workspace trust gate, and GitHub's retained pre-edit revisions.
+
+**Correction, 2026-09-15:** the synthetic-pragma bullet above is ruled by
+[ADR 0239](0239-a-tracker-record-cannot-declare-its-own-phi-exemption.md) on
+[#1145](https://github.com/mshamblin5150-code/clinical-skills/issues/1145): the hook stops reading the
+declaration from tracker text, and a declaration in a record is not itself a finding. The bullet also
+overstates the stake, since the hook's PHI findings advise and never refuse. This record's rulings are
+unchanged.
