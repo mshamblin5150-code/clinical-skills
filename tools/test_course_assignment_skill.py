@@ -83,10 +83,10 @@ class TheCourseAssignmentWorkflow(unittest.TestCase):
         self.assertIn("do not switch routes or retry the load", self.skill)
 
     def test_declared_limits_are_pointed_to_without_a_second_copy(self):
-        self.assertIn("deck_scan.DECLARED_LIMITS", self.skill)
+        self.assertEqual(1, self.skill.count("deck_scan.DECLARED_LIMITS"))
         for limit in deck_scan.DECLARED_LIMITS:
             with self.subTest(limit=limit.key):
-                self.assertIn(f"`{limit.key}`", self.skill)
+                self.assertNotIn(f"`{limit.key}`", self.skill)
         limits = tuple(limit.limit for limit in deck_scan.DECLARED_LIMITS)
         self.assertEqual((), bind(limits, self.skill, mode=NAMING))
 

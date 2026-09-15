@@ -19,14 +19,29 @@ from unittest import mock
 
 import deck_scan as scan
 import file_digest
+import research_ledger
 from grader_conformance import EmptyPopulationInput, for_module
 
 
 GraderConformance = for_module(scan)
+POWERPOINT_FIXTURE = Path(__file__).with_name("testdata") / "deck-scan-smartart-chart.pptx"
+MISSING_DIAGRAM_FIXTURE = (
+    Path(__file__).with_name("testdata")
+    / "deck-scan-smartart-chart-missing-diagram.pptx"
+)
+CURRENCY_FORMAT_FIXTURE = (
+    Path(__file__).with_name("testdata")
+    / "deck-scan-smartart-chart-currency-format.pptx"
+)
 
 
 A = "http://schemas.openxmlformats.org/drawingml/2006/main"
 P = "http://schemas.openxmlformats.org/presentationml/2006/main"
+R = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+DGM = "http://schemas.openxmlformats.org/drawingml/2006/diagram"
+DSP = "http://schemas.microsoft.com/office/drawing/2008/diagram"
+C = "http://schemas.openxmlformats.org/drawingml/2006/chart"
+PACKAGE_REL = "http://schemas.openxmlformats.org/package/2006/relationships"
 
 
 def paragraph(text: str, *, points: int = 28) -> str:
@@ -60,6 +75,99 @@ def table_slide_xml(text: str, *, points: int = 28) -> str:
     <a:bodyPr/><a:lstStyle/>{paragraph(text, points=points)}
   </a:txBody></a:tc></a:tr></a:tbl></a:graphicData></a:graphic></p:graphicFrame>
 </p:spTree></p:cSld></p:sld>'''
+
+
+def object_slide_xml(
+    *bullets: str,
+    diagram: str | None = None,
+    chart: str | None = None,
+    ordinary_title: bool = True,
+) -> str:
+    objects = []
+    if diagram:
+        objects.append(
+            f'<p:graphicFrame><a:graphic><a:graphicData uri="{DGM}">'
+            f'<dgm:relIds xmlns:dgm="{DGM}" xmlns:r="{R}" r:dm="{diagram}"/>'
+            '</a:graphicData></a:graphic></p:graphicFrame>'
+        )
+    if chart:
+        objects.append(
+            f'<p:graphicFrame><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/chart">'
+            f'<c:chart xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" xmlns:r="{R}" r:id="{chart}"/>'
+            '</a:graphicData></a:graphic></p:graphicFrame>'
+        )
+    ordinary_text = (
+        slide_xml("Synthetic title", *bullets).split("<p:spTree>", 1)[1].split("</p:spTree>", 1)[0]
+        if ordinary_title
+        else ""
+    )
+    return (
+        f'<?xml version="1.0" encoding="UTF-8"?>'
+        f'<p:sld xmlns:p="{P}" xmlns:a="{A}"><p:cSld><p:spTree>'
+        f'{ordinary_text}'
+        f'{"".join(objects)}</p:spTree></p:cSld></p:sld>'
+    )
+
+
+def relationships_xml(*relationships: tuple[str, str, str]) -> str:
+    rows = "".join(
+        f'<Relationship Id="{identifier}" Type="{kind}" Target="{target}"/>'
+        for identifier, kind, target in relationships
+    )
+    return f'<Relationships xmlns="{PACKAGE_REL}">{rows}</Relationships>'
+
+
+def diagram_data_xml(
+    model_id: str,
+    text: str,
+    *,
+    drawing_id: str | None = None,
+) -> str:
+    extension = (
+        f'<dgm:extLst><a:ext uri="{DSP}"><dsp:dataModelExt xmlns:dsp="{DSP}" '
+        f'relId="{drawing_id}"/></a:ext></dgm:extLst>'
+        if drawing_id
+        else ""
+    )
+    return (
+        f'<dgm:dataModel xmlns:dgm="{DGM}" xmlns:a="{A}"><dgm:ptLst>'
+        f'<dgm:pt modelId="{model_id}"><dgm:prSet/><dgm:t><a:bodyPr/><a:lstStyle/>'
+        f'{paragraph(text)}</dgm:t></dgm:pt></dgm:ptLst>{extension}</dgm:dataModel>'
+    )
+
+
+def diagram_drawing_xml(model_id: str, text: str, *, points: int = 28) -> str:
+    return (
+        f'<dsp:drawing xmlns:dsp="{DSP}" xmlns:a="{A}"><dsp:spTree>'
+        f'<dsp:sp modelId="{model_id}"><dsp:txBody><a:bodyPr/><a:lstStyle/>'
+        f'{paragraph(text, points=points)}</dsp:txBody></dsp:sp>'
+        f'</dsp:spTree></dsp:drawing>'
+    )
+
+
+def chart_xml() -> str:
+    return f'''<c:chartSpace xmlns:c="{C}" xmlns:a="{A}"><c:chart>
+<c:title><c:tx><c:rich>{paragraph("Synthetic households")}</c:rich></c:tx></c:title>
+<c:plotArea><c:barChart><c:ser>
+<c:idx val="0"/><c:tx><c:v>Program total</c:v></c:tx>
+<c:dLbls>
+  <c:dLbl><c:idx val="0"/><c:numFmt formatCode="General" sourceLinked="0"/><c:showVal val="1"/></c:dLbl>
+  <c:dLbl><c:idx val="1"/><c:numFmt formatCode="0%" sourceLinked="0"/><c:showVal val="1"/></c:dLbl>
+</c:dLbls>
+<c:cat><c:strLit><c:pt idx="0"><c:v>Households</c:v></c:pt><c:pt idx="1"><c:v>Participation</c:v></c:pt><c:pt idx="2"><c:v>Stored only</c:v></c:pt></c:strLit></c:cat>
+<c:val><c:numLit><c:pt idx="0"><c:v>325</c:v></c:pt><c:pt idx="1"><c:v>0.42</c:v></c:pt><c:pt idx="2"><c:v>999</c:v></c:pt></c:numLit></c:val>
+</c:ser></c:barChart></c:plotArea></c:chart></c:chartSpace>'''
+
+
+def trusted_claim(*figures: str) -> str:
+    claim = "The synthetic control records " + ", ".join(figures) + "."
+    return (
+        f"DATE: 2026-09-14\n\n## CLAIM: {claim}\n"
+        "STATUS: sourced\n"
+        "REFUTATION: stands - the source states the synthetic values.\n"
+        f"TESTED-HEADING: {research_ledger.heading_digest(claim)}\n"
+        "SECOND-ROUTE: publisher HTML -> synthetic source PDF\n"
+    )
 
 
 BAR = """\
@@ -96,12 +204,19 @@ class Run:
             encoding="utf-8",
         )
 
-    def write_deck(self, slides: tuple[str, ...], notes: tuple[str, ...] = ()) -> None:
+    def write_deck(
+        self,
+        slides: tuple[str, ...],
+        notes: tuple[str, ...] = (),
+        parts: dict[str, str] | None = None,
+    ) -> None:
         with zipfile.ZipFile(self.deck, "w") as archive:
             for index, xml in enumerate(slides, 1):
                 archive.writestr(f"ppt/slides/slide{index}.xml", xml)
             for index, xml in enumerate(notes, 1):
                 archive.writestr(f"ppt/notesSlides/notesSlide{index}.xml", xml)
+            for name, xml in (parts or {}).items():
+                archive.writestr(name, xml)
         self.write_heading_read()
 
     def write_heading_read(self) -> None:
@@ -251,6 +366,624 @@ class TheDeckContainerReadsOnlyTheSlideFace(unittest.TestCase):
 
         self.assertEqual(1, status)
         self.assertIn(f"{scan.FONT_POINTS}: 1", stdout)
+
+    def test_layout_alternative_and_master_text_are_not_slide_face_text(self):
+        slide = slide_xml("Synthetic title").replace(
+            "</p:spTree>",
+            '<p:pic><p:nvPicPr><p:cNvPr id="4" name="Picture" '
+            'descr="Alternative figure 881"/></p:nvPicPr></p:pic></p:spTree>',
+        )
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            run.write_deck(
+                (slide,),
+                parts={
+                    "ppt/slides/_rels/slide1.xml.rels": relationships_xml(
+                        (
+                            "rId1",
+                            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout",
+                            "../slideLayouts/slideLayout1.xml",
+                        ),
+                    ),
+                    "ppt/slideLayouts/slideLayout1.xml": slide_xml(
+                        "Layout figure 771"
+                    ),
+                    "ppt/notesMasters/notesMaster1.xml": notes_xml(
+                        "Notes master figure 661"
+                    ),
+                    "ppt/handoutMasters/handoutMaster1.xml": notes_xml(
+                        "Handout master figure 551"
+                    ),
+                },
+            )
+            status, stdout, _ = run.grade("--show")
+
+        self.assertEqual(0, status)
+        self.assertIn("figures           0", stdout)
+        for excluded in ("881", "771", "661", "551"):
+            self.assertNotIn(excluded, stdout)
+
+
+class SmartArtIsSlideFaceText(unittest.TestCase):
+    def test_a_smartart_paragraph_enters_the_bullet_word_figure_and_font_populations(self):
+        text = "one two three four five six seven costs $19,500"
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            run.write_deck(
+                (object_slide_xml(diagram="rId2"),),
+                parts={
+                    "ppt/slides/_rels/slide1.xml.rels": relationships_xml(
+                        (
+                            "rId2",
+                            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramData",
+                            "../diagrams/data1.xml",
+                        ),
+                        (
+                            "rId3",
+                            "http://schemas.microsoft.com/office/2007/relationships/diagramDrawing",
+                            "../diagrams/drawing1.xml",
+                        ),
+                    ),
+                    "ppt/diagrams/data1.xml": diagram_data_xml("node-1", text),
+                    "ppt/diagrams/drawing1.xml": diagram_drawing_xml("node-1", text),
+                },
+            )
+            status, stdout, _ = run.grade()
+
+        self.assertEqual(1, status)
+        self.assertIn("diagram text read 1", stdout)
+        self.assertIn(f"{scan.WORDS_PER_BULLET}: 1", stdout)
+        self.assertIn(f"{scan.FONT_POINTS}: 0", stdout)
+        self.assertIn(f"{scan.UNTRACED_FIGURE}: 1", stdout)
+
+    def test_smartart_font_grading_uses_the_matching_drawing_part_size(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            run.write_deck(
+                (object_slide_xml(diagram="rId2"),),
+                parts={
+                    "ppt/slides/_rels/slide1.xml.rels": relationships_xml(
+                        (
+                            "rId2",
+                            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramData",
+                            "../diagrams/data1.xml",
+                        ),
+                        (
+                            "rId3",
+                            "http://schemas.microsoft.com/office/2007/relationships/diagramDrawing",
+                            "../diagrams/drawing1.xml",
+                        ),
+                    ),
+                    "ppt/diagrams/data1.xml": diagram_data_xml("node-1", "Within limit"),
+                    "ppt/diagrams/drawing1.xml": diagram_drawing_xml(
+                        "node-1", "Duplicated drawing text", points=32
+                    ),
+                },
+            )
+            status, stdout, _ = run.grade()
+
+        self.assertEqual(1, status)
+        self.assertIn("font runs read    2", stdout)
+        self.assertIn(f"{scan.FONT_POINTS}: 1", stdout)
+
+    def test_smartart_drawing_text_is_not_read_or_counted_twice(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            run.write_deck(
+                (object_slide_xml(diagram="rId2"),),
+                parts={
+                    "ppt/slides/_rels/slide1.xml.rels": relationships_xml(
+                        (
+                            "rId2",
+                            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramData",
+                            "../diagrams/data1.xml",
+                        ),
+                        (
+                            "rId3",
+                            "http://schemas.microsoft.com/office/2007/relationships/diagramDrawing",
+                            "../diagrams/drawing1.xml",
+                        ),
+                    ),
+                    "ppt/diagrams/data1.xml": diagram_data_xml(
+                        "node-1", "Data value $19,500"
+                    ),
+                    "ppt/diagrams/drawing1.xml": diagram_drawing_xml(
+                        "node-1", "Drawing duplicate $88,000"
+                    ),
+                },
+            )
+            status, stdout, _ = run.grade("--show")
+
+        self.assertEqual(1, status)
+        self.assertIn("figures           1", stdout)
+        self.assertIn("19,500 has no claim record", stdout)
+        self.assertNotIn("88,000", stdout)
+
+    def test_each_smartart_uses_the_drawing_relationship_named_by_its_data_part(self):
+        slide = object_slide_xml(diagram="rId2").replace(
+            "</p:spTree>",
+            f'<p:graphicFrame><a:graphic><a:graphicData uri="{DGM}">'
+            f'<dgm:relIds xmlns:dgm="{DGM}" xmlns:r="{R}" r:dm="rId4"/>'
+            '</a:graphicData></a:graphic></p:graphicFrame></p:spTree>',
+        )
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            run.write_deck(
+                (slide,),
+                parts={
+                    "ppt/slides/_rels/slide1.xml.rels": relationships_xml(
+                        (
+                            "rId2",
+                            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramData",
+                            "../diagrams/data1.xml",
+                        ),
+                        (
+                            "rId3",
+                            "http://schemas.microsoft.com/office/2007/relationships/diagramDrawing",
+                            "../diagrams/drawing1.xml",
+                        ),
+                        (
+                            "rId4",
+                            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramData",
+                            "../diagrams/data2.xml",
+                        ),
+                        (
+                            "rId5",
+                            "http://schemas.microsoft.com/office/2007/relationships/diagramDrawing",
+                            "../diagrams/drawing2.xml",
+                        ),
+                    ),
+                    "ppt/diagrams/data1.xml": diagram_data_xml(
+                        "node-1", "First diagram", drawing_id="rId3"
+                    ),
+                    "ppt/diagrams/drawing1.xml": diagram_drawing_xml(
+                        "node-1", "First diagram", points=28
+                    ),
+                    "ppt/diagrams/data2.xml": diagram_data_xml(
+                        "node-2", "Second diagram", drawing_id="rId5"
+                    ),
+                    "ppt/diagrams/drawing2.xml": diagram_drawing_xml(
+                        "node-2", "Second diagram", points=32
+                    ),
+                },
+            )
+            status, stdout, _ = run.grade()
+
+        self.assertEqual(1, status)
+        self.assertIn("diagram text read 2", stdout)
+        self.assertIn(f"{scan.FONT_POINTS}: 1", stdout)
+
+
+class ChartTextIsSlideFaceText(unittest.TestCase):
+    def test_chart_text_and_displayed_general_and_percent_labels_enter_the_figure_population(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            run.write_deck(
+                (object_slide_xml(chart="rId2"),),
+                parts={
+                    "ppt/slides/_rels/slide1.xml.rels": relationships_xml(
+                        (
+                            "rId2",
+                            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart",
+                            "../charts/chart1.xml",
+                        ),
+                    ),
+                    "ppt/charts/chart1.xml": chart_xml(),
+                },
+            )
+            status, stdout, _ = run.grade("--show")
+
+        self.assertEqual(1, status)
+        self.assertIn("chart text read   7", stdout)
+        self.assertIn("figures           2", stdout)
+        self.assertIn("325 has no claim record", stdout)
+        self.assertIn("42% has no claim record", stdout)
+        self.assertNotIn("999 has no claim record", stdout)
+        self.assertIn(f"{scan.WORDS_PER_BULLET}: 0", stdout)
+
+    def test_a_chart_only_slide_counts_as_read_slide_face_text(self):
+        unlabeled = chart_xml().replace('<c:showVal val="1"', '<c:showVal val="0"')
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            run.write_deck(
+                (object_slide_xml(chart="rId2", ordinary_title=False),),
+                parts={
+                    "ppt/slides/_rels/slide1.xml.rels": relationships_xml(
+                        (
+                            "rId2",
+                            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart",
+                            "../charts/chart1.xml",
+                        ),
+                    ),
+                    "ppt/charts/chart1.xml": unlabeled,
+                },
+            )
+            status, stdout, _ = run.grade()
+
+        self.assertEqual(0, status)
+        self.assertIn("font runs read    0", stdout)
+        self.assertIn("chart text read   5", stdout)
+
+    def test_general_formats_binary_rounding_noise_as_powerpoint_displays_it(self):
+        noisy = (
+            chart_xml()
+            .replace("<c:v>325</c:v>", "<c:v>4.4000000000000004</c:v>", 1)
+            .replace(
+                'formatCode="0%" sourceLinked="0"/><c:showVal val="1"',
+                'formatCode="0%" sourceLinked="0"/><c:showVal val="0"',
+                1,
+            )
+        )
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            run.write_deck(
+                (object_slide_xml(chart="rId2"),),
+                parts={
+                    "ppt/slides/_rels/slide1.xml.rels": relationships_xml(
+                        (
+                            "rId2",
+                            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart",
+                            "../charts/chart1.xml",
+                        ),
+                    ),
+                    "ppt/charts/chart1.xml": noisy,
+                },
+            )
+            status, stdout, _ = run.grade("--show")
+
+        self.assertEqual(1, status)
+        self.assertIn("4.4 has no claim record", stdout)
+        self.assertNotIn("4.4000000000000004 has no claim record", stdout)
+
+    def test_a_linked_chart_title_is_read_from_its_cached_value(self):
+        linked_title = chart_xml().replace(
+            f'<c:tx><c:rich>{paragraph("Synthetic households")}</c:rich></c:tx>',
+            '<c:tx><c:strRef><c:f>Sheet1!$A$1</c:f><c:strCache>'
+            '<c:pt idx="0"><c:v>Linked synthetic title</c:v></c:pt>'
+            '</c:strCache></c:strRef></c:tx>',
+            1,
+        )
+        linked_title = linked_title.replace('<c:showVal val="1"', '<c:showVal val="0"')
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            run.write_deck(
+                (object_slide_xml(chart="rId2", ordinary_title=False),),
+                parts={
+                    "ppt/slides/_rels/slide1.xml.rels": relationships_xml(
+                        (
+                            "rId2",
+                            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart",
+                            "../charts/chart1.xml",
+                        ),
+                    ),
+                    "ppt/charts/chart1.xml": linked_title,
+                },
+            )
+            status, stdout, _ = run.grade()
+
+        self.assertEqual(0, status)
+        self.assertIn("chart text read   5", stdout)
+
+    def test_a_text_box_overlaid_on_a_chart_remains_a_slide_bullet(self):
+        unlabeled = chart_xml().replace('<c:showVal val="1"', '<c:showVal val="0"')
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            run.write_deck(
+                (
+                    object_slide_xml(
+                        "one two three four five six seven costs $19,500",
+                        chart="rId2",
+                    ),
+                ),
+                parts={
+                    "ppt/slides/_rels/slide1.xml.rels": relationships_xml(
+                        (
+                            "rId2",
+                            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart",
+                            "../charts/chart1.xml",
+                        ),
+                    ),
+                    "ppt/charts/chart1.xml": unlabeled,
+                },
+            )
+            status, stdout, _ = run.grade()
+
+        self.assertEqual(1, status)
+        self.assertIn(f"{scan.WORDS_PER_BULLET}: 1", stdout)
+        self.assertIn(f"{scan.UNTRACED_FIGURE}: 1", stdout)
+        self.assertIn("chart text read   5", stdout)
+
+
+class ThePowerPointAuthoredObjectControl(unittest.TestCase):
+    def run_from_fixture(self, root: Path, fixture: Path = POWERPOINT_FIXTURE) -> Run:
+        run = Run(root)
+        run.deck.write_bytes(fixture.read_bytes())
+        run.write_heading_read()
+        run.retain(1, 2)
+        run.write_rendered(slides="2 of 2 read")
+        return run
+
+    def make_other_findings_clean(self, run: Run) -> None:
+        (run.root / "bar.md").write_text(
+            BAR.replace("WORDS-PER-BULLET: 6", "WORDS-PER-BULLET: 20"),
+            encoding="utf-8",
+        )
+        (run.root / "claims.md").write_text(
+            trusted_claim("$99,000", "325", "42%"), encoding="utf-8"
+        )
+
+    def test_powerpoint_authored_smartart_and_chart_text_are_read(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = self.run_from_fixture(Path(temp))
+            status, stdout, _ = run.grade()
+
+        self.assertEqual(1, status)
+        self.assertIn("diagram text read 1", stdout)
+        self.assertIn("chart text read   6", stdout)
+        self.assertIn(f"{scan.WORDS_PER_BULLET}: 1", stdout)
+        self.assertIn(f"{scan.UNTRACED_FIGURE}: 3", stdout)
+
+    def test_a_copy_with_its_diagram_part_removed_exits_two(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = self.run_from_fixture(Path(temp), MISSING_DIAGRAM_FIXTURE)
+            self.make_other_findings_clean(run)
+            status, stdout, stderr = run.grade()
+
+        self.assertEqual(2, status, stdout + stderr)
+        self.assertIn("unread members    1", stdout)
+
+    def test_a_copy_with_an_unmeasured_chart_format_exits_two(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = self.run_from_fixture(Path(temp), CURRENCY_FORMAT_FIXTURE)
+            self.make_other_findings_clean(run)
+            status, stdout, stderr = run.grade()
+
+        self.assertEqual(2, status, stdout + stderr)
+        self.assertIn("unread members    1", stdout)
+
+
+class UnreadObjectMembersAreNotScanned(unittest.TestCase):
+    def test_the_declared_limits_name_the_intentionally_unread_slide_surfaces(self):
+        keys = {limit.key for limit in scan.DECLARED_LIMITS}
+        self.assertTrue(
+            {
+                "slide-layout-text-unread",
+                "alternative-text-unread",
+                "value-axis-ticks-unread",
+                "chart-font-sizes-unread",
+            }.issubset(keys)
+        )
+
+    def test_missing_and_unparseable_referenced_parts_exit_two(self):
+        cases = (
+            (
+                "missing diagram",
+                object_slide_xml(diagram="rId2"),
+                relationships_xml(
+                    (
+                        "rId2",
+                        "http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramData",
+                        "../diagrams/data1.xml",
+                    ),
+                ),
+                {},
+            ),
+            (
+                "unparseable diagram",
+                object_slide_xml(diagram="rId2"),
+                relationships_xml(
+                    (
+                        "rId2",
+                        "http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramData",
+                        "../diagrams/data1.xml",
+                    ),
+                    (
+                        "rId3",
+                        "http://schemas.microsoft.com/office/2007/relationships/diagramDrawing",
+                        "../diagrams/drawing1.xml",
+                    ),
+                ),
+                {
+                    "ppt/diagrams/data1.xml": "<broken",
+                    "ppt/diagrams/drawing1.xml": diagram_drawing_xml("node-1", "Synthetic"),
+                },
+            ),
+            (
+                "unmatched diagram drawing",
+                object_slide_xml(diagram="rId2"),
+                relationships_xml(
+                    (
+                        "rId2",
+                        "http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramData",
+                        "../diagrams/data1.xml",
+                    ),
+                    (
+                        "rId3",
+                        "http://schemas.microsoft.com/office/2007/relationships/diagramDrawing",
+                        "../diagrams/drawing1.xml",
+                    ),
+                ),
+                {
+                    "ppt/diagrams/data1.xml": diagram_data_xml(
+                        "node-1", "Synthetic diagram"
+                    ),
+                    "ppt/diagrams/drawing1.xml": diagram_drawing_xml(
+                        "another-node", "Synthetic diagram"
+                    ),
+                },
+            ),
+            (
+                "missing chart",
+                object_slide_xml(chart="rId2"),
+                relationships_xml(
+                    (
+                        "rId2",
+                        "http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart",
+                        "../charts/chart1.xml",
+                    ),
+                ),
+                {},
+            ),
+            (
+                "unparseable chart",
+                object_slide_xml(chart="rId2"),
+                relationships_xml(
+                    (
+                        "rId2",
+                        "http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart",
+                        "../charts/chart1.xml",
+                    ),
+                ),
+                {"ppt/charts/chart1.xml": "<broken"},
+            ),
+        )
+        for name, slide, relationships, object_parts in cases:
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as temp:
+                run = Run(Path(temp))
+                run.write_deck(
+                    (slide,),
+                    parts={
+                        "ppt/slides/_rels/slide1.xml.rels": relationships,
+                        **object_parts,
+                    },
+                )
+                status, stdout, stderr = run.grade()
+
+                self.assertEqual(2, status)
+                self.assertIn("unread members    1", stdout)
+                self.assertNotIn("deck findings require review", stderr)
+
+    def test_an_unparseable_slide_relationship_part_exits_two(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            run.write_deck(
+                (object_slide_xml(chart="rId2"),),
+                parts={"ppt/slides/_rels/slide1.xml.rels": "<broken"},
+            )
+            status, _, stderr = run.grade()
+
+        self.assertEqual(2, status)
+        self.assertIn("could not read the deck run", stderr)
+
+    def test_an_unmeasured_labeled_value_format_exits_two(self):
+        currency_chart = chart_xml().replace(
+            'formatCode="General"', 'formatCode="$0"', 1
+        ).replace(
+            'formatCode="0%" sourceLinked="0"/><c:showVal val="1"',
+            'formatCode="0%" sourceLinked="0"/><c:showVal val="0"',
+            1,
+        )
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            run.write_deck(
+                (object_slide_xml(chart="rId2"),),
+                parts={
+                    "ppt/slides/_rels/slide1.xml.rels": relationships_xml(
+                        (
+                            "rId2",
+                            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart",
+                            "../charts/chart1.xml",
+                        ),
+                    ),
+                    "ppt/charts/chart1.xml": currency_chart,
+                },
+            )
+            status, stdout, _ = run.grade()
+
+        self.assertEqual(2, status)
+        self.assertIn("unread members    1", stdout)
+
+    def test_a_source_linked_label_uses_the_value_cache_format(self):
+        source_linked = (
+            chart_xml()
+            .replace(
+                '<c:numFmt formatCode="General" sourceLinked="0"',
+                '<c:numFmt formatCode="General" sourceLinked="1"',
+                1,
+            )
+            .replace("<c:numLit>", "<c:numLit><c:formatCode>$0</c:formatCode>", 1)
+            .replace(
+                'formatCode="0%" sourceLinked="0"/><c:showVal val="1"',
+                'formatCode="0%" sourceLinked="0"/><c:showVal val="0"',
+                1,
+            )
+        )
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            run.write_deck(
+                (object_slide_xml(chart="rId2"),),
+                parts={
+                    "ppt/slides/_rels/slide1.xml.rels": relationships_xml(
+                        (
+                            "rId2",
+                            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart",
+                            "../charts/chart1.xml",
+                        ),
+                    ),
+                    "ppt/charts/chart1.xml": source_linked,
+                },
+            )
+            status, stdout, _ = run.grade()
+
+        self.assertEqual(2, status)
+        self.assertIn("unread members    1", stdout)
+
+    def test_a_pie_percentage_label_exits_two(self):
+        pie_chart = (
+            chart_xml()
+            .replace("<c:barChart>", "<c:pieChart>")
+            .replace("</c:barChart>", "</c:pieChart>")
+            .replace(
+                '<c:numFmt formatCode="General" sourceLinked="0"/><c:showVal val="1"',
+                '<c:numFmt formatCode="General" sourceLinked="0"/><c:showVal val="0"/><c:showPercent val="1"',
+                1,
+            )
+            .replace(
+                'formatCode="0%" sourceLinked="0"/><c:showVal val="1"',
+                'formatCode="0%" sourceLinked="0"/><c:showVal val="0"',
+                1,
+            )
+        )
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            run.write_deck(
+                (object_slide_xml(chart="rId2"),),
+                parts={
+                    "ppt/slides/_rels/slide1.xml.rels": relationships_xml(
+                        (
+                            "rId2",
+                            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart",
+                            "../charts/chart1.xml",
+                        ),
+                    ),
+                    "ppt/charts/chart1.xml": pie_chart,
+                },
+            )
+            status, stdout, _ = run.grade()
+
+        self.assertEqual(2, status)
+        self.assertIn("unread members    1", stdout)
+
+    def test_a_finding_outranks_an_unread_member(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            run.write_deck(
+                (object_slide_xml("one two three four five six seven", chart="rId2"),),
+                parts={
+                    "ppt/slides/_rels/slide1.xml.rels": relationships_xml(
+                        (
+                            "rId2",
+                            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart",
+                            "../charts/missing.xml",
+                        ),
+                    ),
+                },
+            )
+            status, stdout, _ = run.grade()
+
+        self.assertEqual(1, status)
+        self.assertIn("unread members    1", stdout)
+        self.assertIn(f"{scan.WORDS_PER_BULLET}: 1", stdout)
 
 
 class FiguresReadSlidesAndSpeakerNotes(unittest.TestCase):
