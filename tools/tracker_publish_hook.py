@@ -1532,10 +1532,27 @@ def _api_grade_route(
 
 
 def _record_number(
-    route: tuple[str, ...], arguments: list[str], command: str = ""
+    route: tuple[str, ...],
+    arguments: list[str],
+    command: str = "",
+    sources: tuple[str, ...] | None = None,
 ) -> int | None:
     if route == ("api",):
-        route_match = _api_route_match(_api_endpoint(arguments), command)
+        endpoint = _api_endpoint(arguments)
+        reconstruct_identifier = True
+        endpoint_source = _api_endpoint_source(arguments, sources)
+        if endpoint_source:
+            assignments, substitutions, _uncertain = _publish_assignments(command)
+            expanded_endpoint, endpoint_kind = _expand_source_word(
+                endpoint_source, assignments, substitutions
+            )
+            if endpoint_kind is not None or expanded_endpoint is None:
+                return None
+            endpoint = expanded_endpoint
+            reconstruct_identifier = False
+        route_match = _api_route_match(
+            endpoint, command, reconstruct_identifier
+        )
         if route_match is None or isinstance(route_match, UnclassifiedApiCall):
             return None
         identifier = route_match[1]
@@ -1752,7 +1769,7 @@ def extract(command: str) -> Extraction:
             return Extraction(
                 route, None, (), (), None, (dynamic_arguments,)
             )
-    number = _record_number(route, arguments, command)
+    number = _record_number(route, arguments, command, argument_sources)
     api_grade = (
         _api_grade_route(arguments, command, argument_sources)
         if route == ("api",)

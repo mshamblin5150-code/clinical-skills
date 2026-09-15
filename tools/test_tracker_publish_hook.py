@@ -352,8 +352,18 @@ class InlineTrackerTextIsRead(unittest.TestCase):
             literal.unclassified_api_calls[0].kind,
             "unclassified-api-identifier",
         )
+        self.assertIsNone(literal.number)
         self.assertEqual(active.grade_route, ("issue", "comment"))
         self.assertEqual(active.number, 7)
+
+    def test_composite_api_endpoint_reconstructs_record_number(self) -> None:
+        result = hook.extract(
+            "A=1; B=2; gh api -X POST "
+            "repos/example/project/issues/comments/$A$B -f body='Comment'"
+        )
+
+        self.assertEqual(result.grade_route, ("issue", "comment"))
+        self.assertEqual(result.number, 12)
 
     def test_later_api_comment_identifier_assignment_is_not_reconstructed(self) -> None:
         result = hook.extract(
