@@ -512,6 +512,52 @@ class InlineTrackerTextIsRead(unittest.TestCase):
                     "unclassified-api-identifier",
                 )
 
+    def test_escape_bearing_api_identifier_assignment_is_refused(self) -> None:
+        assignments = (
+            "CID=7\\8",
+            'CID="7\\\n8"',
+        )
+
+        for assignment in assignments:
+            with self.subTest(assignment=assignment):
+                result = hook.extract(
+                    assignment
+                    + "; gh api repos/example/project/issues/comments/$CID "
+                    "-f body='Comment edit'"
+                )
+                self.assertIsNone(result.grade_route)
+                self.assertEqual(
+                    result.unclassified_api_calls[0].kind,
+                    "unclassified-api-identifier",
+                )
+
+    def test_export_assignments_expand_from_one_snapshot(self) -> None:
+        unresolved = hook.extract(
+            "export OTHER=7 CID=$OTHER; "
+            "gh api repos/example/project/issues/comments/$CID "
+            "-f body='Comment edit'"
+        )
+        inherited = hook.extract(
+            "OTHER=9; export OTHER=7 CID=$OTHER; "
+            "gh api repos/example/project/issues/comments/$CID "
+            "-f body='Comment edit'"
+        )
+        separate = hook.extract(
+            "export OTHER=7; export CID=$OTHER; "
+            "gh api repos/example/project/issues/comments/$CID "
+            "-f body='Comment edit'"
+        )
+
+        self.assertIsNone(unresolved.grade_route)
+        self.assertEqual(
+            unresolved.unclassified_api_calls[0].kind,
+            "unclassified-api-identifier",
+        )
+        self.assertEqual(inherited.grade_route, ("issue", "comment"))
+        self.assertEqual(inherited.number, 9)
+        self.assertEqual(separate.grade_route, ("issue", "comment"))
+        self.assertEqual(separate.number, 7)
+
     def test_api_collection_endpoints_use_create_semantics(self) -> None:
         issue = hook.extract(
             "gh api repos/example/project/issues "

@@ -1124,6 +1124,8 @@ def _publish_assignments(
         next_piece = pieces[position + 1] if position + 1 < len(pieces) else None
         if next_piece in ("|", "&"):
             continue
+        export_assignments = assignments.copy()
+        export_substitutions = frozenset(substitutions)
         for word in assignment_words:
             match = PUBLISH_ASSIGNMENT_WORD.fullmatch(word)
             name = word.partition("=")[0]
@@ -1139,15 +1141,33 @@ def _publish_assignments(
                 assignments[name] = single
                 substitutions.discard(name)
                 continue
-            value = match.group("double")
+            double = match.group("double")
+            value = double
             if value is None:
                 value = match.group("bare") or ""
             if "$(" in value or "`" in value:
                 assignments.pop(name, None)
                 substitutions.add(name)
                 continue
+            if (
+                double is None and "\\" in value
+            ) or (
+                double is not None
+                and re.search(r'\\(?:[$`"\\]|\r?\n)', value) is not None
+            ):
+                assignments.pop(name, None)
+                substitutions.discard(name)
+                continue
+            expansion_assignments = (
+                export_assignments if words[0] == "export" else assignments
+            )
+            expansion_substitutions = (
+                export_substitutions
+                if words[0] == "export"
+                else frozenset(substitutions)
+            )
             expanded, kind = shell_reader.expand(
-                value, assignments, frozenset(substitutions)
+                value, expansion_assignments, expansion_substitutions
             )
             if (
                 kind is not None
