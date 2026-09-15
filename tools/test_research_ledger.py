@@ -2246,7 +2246,8 @@ class TheSkillSaysWhatThisChecks(ProseBind, unittest.TestCase):
 
     # One phrase per row. Keyed on the module's own tuple, so a row added without
     # a sentence in the skill fails here rather than quietly becoming a rule only
-    # the scanner knows -- which is what ``AGENTS.md`` classes this tool by.
+    # the scanner knows. ``AGENTS.md`` classes this as a Required command because
+    # the skill requires its clean exit before drafting.
     ROW_PHRASES = {
         ledger.CITED_TOPIC_NOT_IN_EVIDENCE: (
             "an UpToDate topic cited here that no accumulated manifest carries"
@@ -2309,9 +2310,8 @@ class TheSkillSaysWhatThisChecks(ProseBind, unittest.TestCase):
     }
 
     def test_the_skill_writes_out_every_row_the_grader_applies(self):
-        """``AGENTS.md`` classes this tool as one a skill *names* rather than one
-        it depends on, and that class is defined by the instruction being complete
-        without the command. A row only the scanner knows breaks it."""
+        """The skill states every row while still requiring this command's clean
+        exit. A row only the scanner knows breaks that documented fallback."""
         for kind in ledger.KINDS:
             with self.subTest(row=kind):
                 self.assertIn(kind, self.ROW_PHRASES, "row is not written into the skill")

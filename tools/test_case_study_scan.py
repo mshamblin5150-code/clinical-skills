@@ -1320,9 +1320,8 @@ class EveryRowIsDeclared(unittest.TestCase):
         """A row added with no sentence in the skill fails here.
 
         ``test_checks_ledger.ROW_PHRASES``'s arrangement, keyed on the module's own
-        tuple: [AGENTS.md](AGENTS.md) classes this as a tool a skill *names* rather
-        than one it depends on, and that class is defined by the instruction being
-        complete without the command. **The enumeration in the skill is the one
+        tuple: [AGENTS.md](AGENTS.md) classes this as a Required command because the
+        skill requires its clean exit. **The enumeration in the skill is the one
         copy** -- ``CLAUDE.md`` points at it rather than repeating it, because two
         hand-kept lists of a set held in code is
         [#220](https://github.com/mshamblin5150-code/clinical-skills/issues/220).
