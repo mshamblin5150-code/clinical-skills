@@ -216,8 +216,8 @@ the brief to a fresh reader who did not generate the worksheets, then grade that
 record:
 
 ```bash
-python tools/anchor_scan.py <run>/worksheets --notes <run> --agreement-brief > scratch/agreement-brief.json
-python tools/anchor_scan.py <run>/worksheets --notes <run> --agreement-read scratch/agreement-read.json
+python tools/anchor_scan.py <run>/worksheets --notes <run> --agreement-brief > <run>/agreement/brief.json
+python tools/anchor_scan.py <run>/worksheets --notes <run> --agreement-read <run>/agreement-reader/read.json
 ```
 
 Exit 0 is required before the roll-up is complete. An unpaired note or worksheet, an unread code,

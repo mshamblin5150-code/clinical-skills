@@ -495,8 +495,8 @@ After saving both files, create the blind agreement brief and grade a fresh read
 record:
 
 ```bash
-python tools/anchor_scan.py <run>/worksheets --notes <run> --agreement-brief > scratch/agreement-brief.json
-python tools/anchor_scan.py <run>/worksheets --notes <run> --agreement-read scratch/agreement-read.json
+python tools/anchor_scan.py <run>/worksheets --notes <run> --agreement-brief > <run>/agreement/brief.json
+python tools/anchor_scan.py <run>/worksheets --notes <run> --agreement-read <run>/agreement-reader/read.json
 ```
 
 Completion requires exit 0. That read also binds, in both directions, the note's preexisting and

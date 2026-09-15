@@ -794,6 +794,7 @@ class AgreementModes(unittest.TestCase):
         for subject in brief["pairs"][0]["codes"]:
             records.append(
                 {
+                    "subject_id": subject["subject_id"],
                     "system": subject["system"],
                     "code": subject["code"],
                     "role": subject["role"],
@@ -866,6 +867,41 @@ class AgreementModes(unittest.TestCase):
         record["pairs"][0]["codes"][0]["agreeing_words"] = "unrelated words"
 
         self.assertEqual(1, self.grade(record)[0])
+
+    def test_a_fabricated_index_route_fails(self):
+        record = self.clean_record()
+        record["pairs"][0]["codes"][0]["route"] = "banana"
+
+        self.assertEqual(1, self.grade(record)[0])
+
+    def test_an_exact_official_index_route_passes(self):
+        record = self.clean_record()
+        row = next(
+            item for item in record["pairs"][0]["codes"] if item["code"] == "R12"
+        )
+        row["route"] = "Heartburn -> code R12"
+
+        self.assertEqual(0, self.grade(record)[0])
+
+    def test_a_malformed_evidence_field_is_unread(self):
+        record = self.clean_record()
+        record["pairs"][0]["codes"][0]["threshold"] = None
+
+        self.assertEqual(2, self.grade(record)[0])
+
+    def test_duplicate_subject_occurrences_each_require_a_reader_row(self):
+        first = AGREEMENT_WORKSHEET.split("ICD-10  M79.675", 1)[0]
+        heartburn = first[first.index("ICD-10  R12") :]
+        worksheet = AGREEMENT_WORKSHEET.replace(heartburn, heartburn + heartburn, 1)
+        (self.worksheets / "case-01.md").write_text(worksheet, encoding="utf-8")
+        record = self.clean_record()
+        duplicate = [
+            row for row in record["pairs"][0]["codes"] if row["code"] == "R12"
+        ]
+        self.assertEqual(2, len(duplicate))
+        record["pairs"][0]["codes"].remove(duplicate[-1])
+
+        self.assertEqual(2, self.grade(record)[0])
 
     def test_a_differential_descriptor_waiting_on_a_result_fails(self):
         record = self.clean_record()
@@ -993,7 +1029,14 @@ class CommittedAgreementControls(unittest.TestCase):
         self.assertEqual("none", rows[("M79.5", "entry")]["agreeing_words"])
         self.assertNotEqual("none", rows[("M79.5", "differential")]["waits_on_result"])
         self.assertEqual("none", rows[("Z13.1", "differential")]["agreeing_words"])
-        self.assertEqual(1, self.grade("descriptor-agreement-negative-control")[0])
+        status, report = self.grade("descriptor-agreement-negative-control")
+        self.assertEqual(1, status)
+        self.assertRegex(report, r"codes with no agreeing words\s+3")
+        self.assertRegex(report, r"non-verbatim agreeing words\s+0")
+        self.assertRegex(report, r"codes with no route\s+3")
+        self.assertRegex(report, r"descriptors waiting on results\s+2")
+        self.assertRegex(report, r"note/worksheet bind findings\s+4")
+        self.assertRegex(report, r"unread remainder 1")
 
     def mutated_note_path(self, old: str, new: str) -> Path:
         raw = tempfile.TemporaryDirectory()

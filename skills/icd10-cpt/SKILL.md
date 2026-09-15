@@ -283,15 +283,17 @@ alphabetic index. Topical relation is not agreement. Run the separate agreement 
 worksheet and note have been saved with matching filename stems in separate directories:
 
 ```bash
-python tools/anchor_scan.py <worksheets directory> --notes <notes directory> --agreement-brief > scratch/agreement-brief.json
-python tools/anchor_scan.py <worksheets directory> --notes <notes directory> --agreement-read scratch/agreement-read.json
+python tools/anchor_scan.py <run>/worksheets --notes <run>/notes --agreement-brief > <run>/agreement/brief.json
+python tools/anchor_scan.py <run>/worksheets --notes <run>/notes --agreement-read <run>/agreement-reader/read.json
 ```
 
 The brief supplies the complete note with its tier block and each code's number, official
 descriptor, system, and role. It supplies no worksheet quotation. Give only that brief to a fresh
 reader. For every code the reader records `agreeing_words`, `route`, `encounter_evidence`,
 `open_status_evidence`, `threshold`, and `waits_on_result`; each absent value is the literal
-`none`. The route is `descriptor words` or the alphabetic-index path returned by
+`none`, and every field is a nonempty string. Copy the brief's stable `subject_id` into each record;
+it distinguishes repeated occurrences of the same system, code, and role. The route is the exact
+literal `descriptor words` or the complete alphabetic-index path returned by
 `python tools/icd10_lookup.py --index <term>`. The record is saved as JSON with one `pairs` entry
 per filename stem and one `codes` entry per brief subject.
 

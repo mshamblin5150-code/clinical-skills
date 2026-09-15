@@ -58,6 +58,7 @@ import argparse
 import json
 import re
 import sys
+from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -456,10 +457,11 @@ class AgreementSubject:
     descriptor: str
     role: str
     support: str
+    subject_id: str = ""
 
     @property
-    def key(self) -> tuple[str, str, str]:
-        return self.system, self.code, self.role
+    def key(self) -> str:
+        return self.subject_id
 
 
 @dataclass(frozen=True)
@@ -482,7 +484,7 @@ def _markdown_files(directory: Path) -> dict[str, Path]:
     }
 
 
-def _official_descriptor(system: str, code: str, fallback: str) -> str | None:
+def _official_descriptor(system: str, code: str) -> str | None:
     if system.upper().startswith("ICD"):
         import icd10_lookup
 
@@ -500,6 +502,28 @@ def _official_descriptor(system: str, code: str, fallback: str) -> str | None:
         return match.description if match else None
     finally:
         connection.close()
+
+
+def _valid_route(subject: AgreementSubject, route: str) -> bool:
+    if route == "descriptor words":
+        return True
+    if subject.system != "ICD-10":
+        return False
+    import icd10_lookup
+
+    normalized = subject.code.replace(".", "").upper()
+    connection = icd10_lookup.open_database()
+    try:
+        paths = connection.execute(
+            "SELECT path FROM index_entry WHERE code = ? ORDER BY path",
+            (normalized,),
+        ).fetchall()
+    finally:
+        connection.close()
+    expected = {
+        f"{path} -> code {icd10_lookup.dotted(normalized)}" for (path,) in paths
+    }
+    return route in expected
 
 
 def _preceding_support(text: str, position: int) -> str:
@@ -536,10 +560,12 @@ def _agreement_subjects(text: str) -> tuple[tuple[AgreementSubject, ...], int, i
             # declining to propose it. Only a worksheet entry with its required
             # quotation belongs to the agreement population.
             continue
-        support = _preceding_support(text, start) if is_differential else (
-            anchor.group(1) if anchor else ""
+        support = (
+            "\n".join((_preceding_support(text, start), descriptor))
+            if is_differential
+            else (anchor.group(1) if anchor else "")
         )
-        official = _official_descriptor(system, code, descriptor)
+        official = _official_descriptor(system, code)
         if official is not None:
             subjects.append(AgreementSubject(system, code, official, role, support))
         else:
@@ -548,7 +574,7 @@ def _agreement_subjects(text: str) -> tuple[tuple[AgreementSubject, ...], int, i
     if refusal >= 0:
         for match in REFUSAL_MARK.finditer(text, refusal):
             code = match.group("code").upper()
-            official = _official_descriptor("ICD-10", code, match.group("descriptor"))
+            official = _official_descriptor("ICD-10", code)
             if official is not None:
                 subjects.append(
                     AgreementSubject(
@@ -557,7 +583,22 @@ def _agreement_subjects(text: str) -> tuple[tuple[AgreementSubject, ...], int, i
                 )
             else:
                 unread += 1
-    return tuple(subjects), len(RENDERED_EM.findall(text)), unread
+    occurrences: defaultdict[tuple[str, str, str], int] = defaultdict(int)
+    identified: list[AgreementSubject] = []
+    for subject in subjects:
+        identity = (subject.system, subject.code, subject.role)
+        occurrences[identity] += 1
+        identified.append(
+            AgreementSubject(
+                subject.system,
+                subject.code,
+                subject.descriptor,
+                subject.role,
+                subject.support,
+                f"{subject.system}:{subject.code}:{subject.role}:{occurrences[identity]}",
+            )
+        )
+    return tuple(identified), len(RENDERED_EM.findall(text)), unread
 
 
 def _pair_agreement_sources(worksheets: Path, notes: Path) -> tuple[list[AgreementPair], int]:
@@ -610,6 +651,7 @@ def _brief_payload(pairs: list[AgreementPair], unread: int) -> dict:
                         "code": subject.code,
                         "descriptor": subject.descriptor,
                         "role": subject.role,
+                        "subject_id": subject.subject_id,
                     }
                     for subject in pair.subjects
                 ],
@@ -623,12 +665,32 @@ def _brief_payload(pairs: list[AgreementPair], unread: int) -> dict:
 
 def _section_codes(note: str, heading: str) -> set[str]:
     lines = note.splitlines()
-    start = next((i for i, line in enumerate(lines) if heading in line.lower()), None)
+    start = next(
+        (
+            i
+            for i, line in enumerate(lines)
+            if line.lstrip(" #*\t").lower().startswith(heading)
+        ),
+        None,
+    )
     if start is None:
         return set()
-    selected: list[str] = []
+    first = lines[start]
+    selected: list[str] = [first.split(":", 1)[1].strip(" *") if ":" in first else ""]
+    closing_labels = (
+        "preexisting diagnoses",
+        "final diagnosis",
+        "age-appropriate screening",
+        "p:",
+        "proposed coding worksheet",
+        "medatrax entry",
+        "tier block",
+        "drift matrix",
+        "drift verdicts",
+    )
     for line in lines[start + 1 :]:
-        if re.match(r"^[ \t]*(?:#{1,6}[ \t]+|\*\*[^*]+:\*\*)", line):
+        label = line.lstrip(" #*\t").lower()
+        if any(label.startswith(candidate) for candidate in closing_labels):
             break
         selected.append(line)
     section = "\n".join(selected)
@@ -736,12 +798,10 @@ def _run_agreement(argv: list[str]) -> int:
             unread += len(pair.subjects) or 1
             continue
         record_rows = record_pair.get("codes", [])
-        records = {
-            (row.get("system"), row.get("code"), row.get("role")): row
-            for row in record_rows
-        }
+        records = {row.get("subject_id"): row for row in record_rows}
         expected = {subject.key: subject for subject in pair.subjects}
         unread += len(set(expected) - set(records)) + len(set(records) - set(expected))
+        unread += len(record_rows) - len(records)
         for key in set(expected) & set(records):
             subject = expected[key]
             record = records[key]
@@ -753,7 +813,19 @@ def _run_agreement(argv: list[str]) -> int:
                 "threshold",
                 "waits_on_result",
             )
-            if any(field not in record for field in required):
+            if any(
+                field not in record
+                or not isinstance(record[field], str)
+                or not record[field]
+                for field in required
+            ):
+                unread += 1
+                continue
+            if (
+                record.get("system"),
+                record.get("code"),
+                record.get("role"),
+            ) != (subject.system, subject.code, subject.role):
                 unread += 1
                 continue
             words = record["agreeing_words"]
@@ -765,7 +837,7 @@ def _run_agreement(argv: list[str]) -> int:
                     findings.append(f"{pair.stem}: {subject.code} has no agreeing words")
             elif words not in pair.note or words not in subject.support:
                 findings.append(f"{pair.stem}: {subject.code} agreeing words are not verbatim")
-            if not isinstance(route, str) or route == "none" or not route:
+            if route == "none" or not _valid_route(subject, route):
                 if subject.role != "procedure":
                     findings.append(f"{pair.stem}: {subject.code} has no descriptor or index route")
             waits = record["waits_on_result"]
