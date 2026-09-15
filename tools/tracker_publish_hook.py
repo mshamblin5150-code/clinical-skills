@@ -2311,7 +2311,9 @@ def analyze(
         raise ValueError("publication has no tracker record")
     phi_counts = Counter(
         finding.rule
-        for finding in phi_scan.scan_text(publication.text, publication.field, index)
+        for finding in phi_scan.scan_lines(
+            publication.text, publication.field, index, True
+        )
     )
     findings = [
         Finding(f"phi:{rule}", count, publication.field, "advise")

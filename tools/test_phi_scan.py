@@ -30,7 +30,7 @@ DATES = {"4-17-88", "11/02/2011"}
 def scan(text, path="some/file.md", names=None, dates=None):
     index = ps.build_index(NAMES if names is None else names,
                            DATES if dates is None else dates)
-    return ps.scan_text(text, path, index)
+    return ps.scan_file_text(text, path, index)
 
 
 class CorpusLayer(unittest.TestCase):
@@ -131,7 +131,7 @@ class CorpusIndexing(unittest.TestCase):
 
     def indexed(self, text, names):
         index = ps.build_index(names, set())
-        return {(f.line, f.match) for f in ps.scan_text(text, "f.md", index)}
+        return {(f.line, f.match) for f in ps.scan_file_text(text, "f.md", index)}
 
     def assert_agrees(self, text):
         self.assertEqual(self.indexed(text, self.HOSTILE),
@@ -288,7 +288,7 @@ class CorpusIndexing(unittest.TestCase):
         order they are reported in, so the test fails if the buckets leak out.
         """
         names = {"Zeta Alpha", "Beta Gamma"}   # bucket words: alpha, gamma
-        found = [f.match for f in ps.scan_text(
+        found = [f.match for f in ps.scan_file_text(
             "Zeta Alpha met Beta Gamma", "f.md", ps.build_index(names, set()))]
         self.assertEqual(found, ["Beta Gamma", "Zeta Alpha"])
 
@@ -496,7 +496,7 @@ class CoveredNamePruning(unittest.TestCase):
 
     def refused_lines(self, text, names):
         index = ps.build_index(names, set())
-        return {f.line for f in ps.scan_text(text, "f.md", index)}
+        return {f.line for f in ps.scan_file_text(text, "f.md", index)}
 
     def assert_refuses_the_same_lines(self, text, names):
         self.assertEqual(self.refused_lines(text, ps.prune_covered(names)),

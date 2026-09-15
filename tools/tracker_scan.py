@@ -83,7 +83,7 @@ is the acknowledgment for a repository that genuinely has none.
 
 **A record cannot exempt itself and a file can, which is the one asymmetry here
 that is not `phi_scan`'s.** A blob **is** a file, so ``--history`` honours a
-``phi-scan: synthetic`` declaration exactly as `phi_scan.scan_text` does. An
+``phi-scan: synthetic`` declaration exactly as `phi_scan.scan_file_text` does. An
 issue body, a commit message and a path are not files: nobody reviewed them, and
 a ticket *about* the pragma quotes the pragma by nature. Those go through
 `phi_scan.scan_lines` with the shape layer forced on. `Record.is_file` is which.
@@ -734,7 +734,7 @@ def scan_records(records: Iterable[Record], index: CorpusIndex) -> list[ScannedF
     findings: list[ScannedFinding] = []
     for record in records:
         if record.is_file:
-            record_findings = phi_scan.scan_text(record.text, record.ref, index)
+            record_findings = phi_scan.scan_file_text(record.text, record.ref, index)
         else:
             record_findings = phi_scan.scan_lines(
                 record.text, record.ref, index, True

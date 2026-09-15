@@ -180,7 +180,7 @@ class ARecordCannotExemptItselfAndAFileCan(unittest.TestCase):
     """The pragma is a **file**'s to declare, and a ticket is not a file.
 
     This is the whole reason `phi_scan.scan_lines` was split out of
-    `phi_scan.scan_text`. A ticket about the ``dob`` shape quotes a ``dob``, and
+    `phi_scan.scan_file_text`. A ticket about the ``dob`` shape quotes a ``dob``, and
     a ticket about the pragma quotes the pragma -- so reading the exemption out
     of the text being scanned lets the record most likely to carry a real
     identifier be the one that turns the detector off.
@@ -203,7 +203,9 @@ class ARecordCannotExemptItselfAndAFileCan(unittest.TestCase):
         self.assertTrue(phi_scan.declares_synthetic(self.PRAGMA_AND_A_SHAPE))
         rules = {
             f.rule
-            for f in phi_scan.scan_text(self.PRAGMA_AND_A_SHAPE, "a.py", index())
+            for f in phi_scan.scan_file_text(
+                self.PRAGMA_AND_A_SHAPE, "a.py", index()
+            )
         }
         self.assertNotIn("dob-with-date", rules)
 

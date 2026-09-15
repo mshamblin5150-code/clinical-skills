@@ -2217,6 +2217,29 @@ class UnreadableTrackerTextIsClassified(unittest.TestCase):
 
 
 class PublishedFieldsAreGradedWithoutEchoingThem(unittest.TestCase):
+    def test_a_tracker_body_cannot_switch_off_its_own_phi_shape_layer(self) -> None:
+        body = "DOB: 01/02/2000\nSSN: 123-45-6789\nSeen 1/2/2026"
+        index = phi_scan.build_index(set(), set())
+
+        def phi_rows(text: str) -> list[tuple[str, int, str, str]]:
+            analysis = hook.analyze(
+                hook.Publication("body", text),
+                index=index,
+                issue=None,
+                remote_fresh=True,
+            )
+            return [
+                (row.rule, row.count, row.field, row.posture)
+                for row in analysis.findings
+                if row.rule.startswith("phi:")
+            ]
+
+        without_pragma = phi_rows(body)
+        with_pragma = phi_rows(f"{phi_scan.SYNTHETIC_PRAGMA}\n{body}")
+
+        self.assertTrue(without_pragma)
+        self.assertEqual(without_pragma, with_pragma)
+
     def test_the_redaction_walk_covers_each_previously_silent_aperture(self) -> None:
         marker = "salted-redaction-marker-834"
         fixtures = {
