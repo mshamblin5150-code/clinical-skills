@@ -193,8 +193,23 @@ class TheDriftMatrixCarriesBothRows(unittest.TestCase):
         # would silently redirect every one of them.
         self.assertIn("**Row 23 is appended for the reason rows 14 through 22 were.", self.text)
 
+    def test_row_35_closes_every_active_final_diagnosis(self):
+        # The public medication-plan prose is the generating rule; the appended
+        # row makes that same obligation part of the terminal completion walk.
+        self.assertIn(
+            "Every active final diagnosis maps to an outpatient pharmacologic action"
+            " or an explicit nonpharmacologic or no-medication decision",
+            self.text,
+        )
+        row = _row(self.text, 35)
+        self.assertIn("Every active final diagnosis", row)
+        self.assertIn("outpatient pharmacologic action", row)
+        self.assertIn("explicit nonpharmacologic or no-medication decision", row)
+        self.assertIn("An in-clinic dose alone is insufficient", row)
+        self.assertIn("ongoing treatment after discharge", row)
+
     def test_no_row_was_renumbered(self):
-        # The cheap guard on the convention: 34 rows, numbered 1 to 34 in order.
+        # The cheap guard on the convention: 35 rows, numbered 1 to 35 in order.
         # Scoped to rows whose second cell is a bolded test name, which is the
         # drift matrix's own shape -- an unrelated numbered table added to this
         # file later must not fail this test for a reason that is not about it.
@@ -206,11 +221,11 @@ class TheDriftMatrixCarriesBothRows(unittest.TestCase):
         # fixture sets and ADR 0001. Read 23 until #85 added row 24; #132 appended
         # row 25; #159 appended row 26; #205 appended row 27; this change
         # appended rows 28 through 32; HPI ownership appended row 33; the coding
-        # worksheet appended row 34.
+        # worksheet appended row 34; plan closure appended row 35.
         numbers = [
             int(m) for m in re.findall(r"^\| (\d+) \| \*\*[^*]+\*\* \|", self.text, re.M)
         ]
-        self.assertEqual(numbers, list(range(1, 35)))
+        self.assertEqual(numbers, list(range(1, 36)))
 
 
 class BothTemplatesRenderTheRule(unittest.TestCase):
