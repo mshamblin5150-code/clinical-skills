@@ -427,7 +427,10 @@ def _branch_row(rule: str, surface: Surface, trigger: Trigger) -> PostureRow:
         rule.replace(":", "-"),
         surface,
         trigger,
-        PostureCell(normal, rule, conditions) if key in HOOK_BRANCH_KEYS else ABSENT,
+        PostureCell(normal, rule, conditions)
+        if key in HOOK_BRANCH_KEYS
+        and not (rule == "branch:in-flight" and trigger is Trigger.CREATE)
+        else ABSENT,
         PostureCell(normal, rule, conditions) if key in DIRECT_WRITER_KEYS else ABSENT,
         PostureCell(
             Posture.REPORT,
@@ -574,22 +577,20 @@ POSTURE_ROWS = (
     *(
         _row(
             f"hook-unreadable-{rule}",
-            surface,
-            trigger,
+            Surface.BODY,
+            Trigger.BODY_EDIT,
             _cell(Posture.DENY, rule),
         )
         for rule in DECLARED_UNREADABLE_RULES
-        for surface, trigger in PUBLICATION_SCOPES
     ),
     *(
         _row(
             f"hook-{rule}",
-            surface,
-            trigger,
+            Surface.BODY,
+            Trigger.BODY_EDIT,
             _cell(Posture.DENY, rule),
         )
         for rule in DECLARED_UNCLASSIFIED_API_RULES
-        for surface, trigger in PUBLICATION_SCOPES
     ),
     *(
         _row(

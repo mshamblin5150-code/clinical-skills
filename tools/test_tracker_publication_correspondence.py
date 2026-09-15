@@ -408,6 +408,14 @@ class EveryRuledTriggerIsDrivenAtBothHostBoundaries(unittest.TestCase):
             self.assertEqual(correspondence.Posture.ABSENT, row.cell(host).posture)
 
     def test_branch_trigger_exclusions_and_label_title_are_observed(self) -> None:
+        create_in_flight = correspondence.posture_row(
+            "branch-in-flight",
+            correspondence.Surface.BODY,
+            correspondence.Trigger.CREATE,
+        )
+        self.assertEqual(correspondence.Posture.ABSENT, create_in_flight.hook_command.posture)
+        self.assertEqual(correspondence.Posture.REPORT, create_in_flight.changed_record.posture)
+
         title_event = {
             **issue_event("edited", "Ordinary body.", labels=("in flight",)),
             "issue": {
@@ -503,6 +511,44 @@ class EveryRuledTriggerIsDrivenAtBothHostBoundaries(unittest.TestCase):
                 with self.subTest(row=row.predicate, trigger=row.trigger, host=host):
                     self.assertEqual(correspondence.Posture.REPORT, cell.posture)
                     self.assertIn(owners[cell.rule], selected)
+
+    def test_every_command_extraction_rule_denies_at_handle(self) -> None:
+        for kind in correspondence.DECLARED_UNREADABLE_RULES:
+            extracted = tracker_publish_hook.Extraction(
+                ("issue", "edit"),
+                1149,
+                (),
+                (tracker_publish_hook.Unreadable("body", kind, "synthetic"),),
+                ("issue", "edit"),
+            )
+            with (
+                self.subTest(kind=kind),
+                mock.patch.object(tracker_publish_hook, "extract", return_value=extracted),
+                mock.patch.object(tracker_publish_hook, "write_marker"),
+            ):
+                response = tracker_publish_hook.handle(hook_payload("gh issue edit 1149"))
+                specific = response["hookSpecificOutput"]
+                self.assertEqual("deny", specific["permissionDecision"])
+                self.assertIn(kind, specific["additionalContext"])
+
+        for kind in correspondence.DECLARED_UNCLASSIFIED_API_RULES:
+            extracted = tracker_publish_hook.Extraction(
+                ("api",),
+                None,
+                (),
+                (),
+                None,
+                (tracker_publish_hook.UnclassifiedApiCall(kind, "synthetic endpoint"),),
+            )
+            with (
+                self.subTest(kind=kind),
+                mock.patch.object(tracker_publish_hook, "extract", return_value=extracted),
+                mock.patch.object(tracker_publish_hook, "write_marker"),
+            ):
+                response = tracker_publish_hook.handle(hook_payload("gh api synthetic"))
+                specific = response["hookSpecificOutput"]
+                self.assertEqual("deny", specific["permissionDecision"])
+                self.assertIn(kind, specific["additionalContext"])
 
 
 class RuntimeConditionsQualifyPostureAtTheHostsIOSeams(unittest.TestCase):
