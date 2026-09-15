@@ -97,3 +97,12 @@ grades it afterwards with the shape layer on.
 
 **A publication that never reaches the hook**, and GitHub's retained pre-edit revisions: the routes ADR
 0083 already named.
+
+**Correction, 2026-09-15:** the direct-writer paragraph above was written against `8b4e44fa` and was
+overtaken the same day by
+[ADR 0240](0240-the-map-s-direct-writer-grades-through-analyze-and-runs-no-readback.md) on
+[#1148](https://github.com/mshamblin5150-code/clinical-skills/issues/1148), which rules that
+`authorize_issue_body` grades through `analyze`. Once both builds land, the direct writer grades PHI
+and inherits ruling 1, so it ignores the declaration too, and neither build waits on the other. The
+narrowing of `implementation_map.DECLARED_LIMITS` belongs to #1148's build. The rulings above are
+unchanged.
