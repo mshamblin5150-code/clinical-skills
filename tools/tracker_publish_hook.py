@@ -1027,6 +1027,7 @@ def _source_fanout_kind(
     brace_candidates: list[bool] = []
     bracket_start: int | None = None
     assignment_name_valid = False
+    assignment_separator: int | None = None
     if assignment_tilde:
         for position, character in enumerate(characters):
             if (
@@ -1041,6 +1042,7 @@ def _source_fanout_kind(
                     r"[A-Za-z_][A-Za-z0-9_]*",
                     "".join(item.value for item in name),
                 ) is not None
+                assignment_separator = position
                 break
     for position, character in enumerate(characters):
         if character.quote is not None or character.escaped:
@@ -1050,9 +1052,16 @@ def _source_fanout_kind(
             position == 0
             or (
                 assignment_name_valid
-                and characters[position - 1].quote is None
-                and not characters[position - 1].escaped
-                and characters[position - 1].value in ("=", ":")
+                and assignment_separator is not None
+                and (
+                    position == assignment_separator + 1
+                    or (
+                        position > assignment_separator + 1
+                        and characters[position - 1].quote is None
+                        and not characters[position - 1].escaped
+                        and characters[position - 1].value == ":"
+                    )
+                )
             )
         ):
             return "tilde-expansion"
@@ -1166,7 +1175,7 @@ def _analyze_source_word(
         field_has_text = True
         position += 1
     return (
-        None if failure_kind is not None else "".join(parts),
+        "".join(parts),
         failure_kind,
         unquoted_names,
         False,
@@ -1183,7 +1192,7 @@ def _expand_source_word(
     expanded, kind, _names, _dynamic, _injected = _analyze_source_word(
         source, assignments, substitutions, assignment_tilde
     )
-    return expanded, kind
+    return (None if kind is not None else expanded), kind
 
 
 def _api_expanded_arguments(
@@ -1193,10 +1202,8 @@ def _api_expanded_arguments(
 ) -> list[str] | UnclassifiedApiCall:
     """Reconstruct each API argv word once before classifying its contents."""
     assignments, substitutions, _uncertain = _publish_assignments(command)
-    specialized_failures: set[int] = set()
     option_value_indices: set[int] = set()
     separate_value_indices: set[int] = set()
-    option_records: list[tuple[str, str | None, int]] = []
     endpoint_index: int | None = None
     index = 0
     while index < len(arguments):
@@ -1211,48 +1218,77 @@ def _api_expanded_arguments(
         option_value_indices.add(value_index)
         if width == 2 and value is not None:
             separate_value_indices.add(value_index)
-        option_records.append((name, value, value_index))
         index += width
-    endpoint = _api_endpoint(arguments)
-    if endpoint_index is not None:
-        expanded_endpoint, endpoint_kind = _expand_source_word(
-            sources[endpoint_index], assignments, substitutions
-        )
-        if endpoint_kind is None and expanded_endpoint is not None:
-            endpoint = expanded_endpoint
-    if endpoint == "graphql":
-        for name, value, value_index in option_records:
-            key = "" if value is None else value.partition("=")[0]
-            if name == "input" or (
-                name in ("raw-field", "field")
-                and key in ("query", "operationName")
-            ):
-                specialized_failures.add(value_index)
     expanded_arguments: list[str] = []
+    failed_indices: set[int] = set()
     for index, (argument, source) in enumerate(
         zip(arguments, sources, strict=True)
     ):
-        expanded, kind = _expand_source_word(
+        expanded, kind, _names, _dynamic, _injected = _analyze_source_word(
             source,
             assignments,
             substitutions,
             index in separate_value_indices,
         )
-        if kind is not None or expanded is None:
+        if kind is not None:
+            failed_indices.add(index)
+        expanded_arguments.append(
+            argument
+            if kind is not None and index == endpoint_index
+            else (expanded if kind is None or expanded else argument)
+        )
+
+    endpoint = _api_endpoint(expanded_arguments)
+    read_bypass = (
+        _api_explicit_method(expanded_arguments) == "GET"
+        or any(
+            pattern.fullmatch(endpoint)
+            for pattern in (
+                *API_NON_PUBLICATION_ENDPOINTS,
+                *API_NON_PUBLICATION_RECORD_ENDPOINTS,
+            )
+        )
+    )
+    specialized_failures: set[int] = set()
+    index = 0
+    while index < len(expanded_arguments):
+        option = _api_value_option(expanded_arguments, index)
+        if option is None:
+            index += 1
+            continue
+        name, value, width = option
+        value_index = index + 1 if width == 2 and value is not None else index
+        key = "" if value is None else value.partition("=")[0]
+        if endpoint == "graphql" and (
+            name == "input"
+            or (
+                name in ("raw-field", "field")
+                and key in ("query", "operationName")
+            )
+        ):
+            specialized_failures.add(value_index)
+        index += width
+
+    for index in failed_indices:
+        argument = arguments[index]
+        if index == endpoint_index:
             stable_endpoint = (
-                index == endpoint_index
-                and not argument.startswith(("$", "`"))
+                not argument.startswith(("$", "`"))
             )
-            if stable_endpoint or index in specialized_failures:
-                expanded_arguments.append(argument)
-                continue
-            remedy = (
-                "unclassified-api-identifier"
-                if _api_dynamic_identifier_source(argument)
-                else "unclassified-api-arguments"
-            )
-            return UnclassifiedApiCall(remedy, argument)
-        expanded_arguments.append(expanded)
+        else:
+            stable_endpoint = False
+        if (
+            stable_endpoint
+            or index in specialized_failures
+            or (read_bypass and index in option_value_indices)
+        ):
+            continue
+        remedy = (
+            "unclassified-api-identifier"
+            if _api_dynamic_identifier_source(argument)
+            else "unclassified-api-arguments"
+        )
+        return UnclassifiedApiCall(remedy, argument)
     return expanded_arguments
 
 

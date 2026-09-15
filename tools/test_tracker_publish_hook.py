@@ -783,6 +783,18 @@ class InlineTrackerTextIsRead(unittest.TestCase):
                 self.assertEqual(result.grade_route, ("issue", "comment"))
                 self.assertEqual(result.publications[0].text, "~")
 
+        later_equals = (
+            ("body==~", "=~"),
+            ("body=x=~", "x=~"),
+        )
+        for field, expected in later_equals:
+            with self.subTest(field=field):
+                result = hook.extract(
+                    "gh api -X POST repos/o/r/issues/7/comments -f " + field
+                )
+                self.assertEqual(result.grade_route, ("issue", "comment"))
+                self.assertEqual(result.publications[0].text, expected)
+
     def test_nondefault_ifs_cannot_inject_api_publication_options(self) -> None:
         commands = (
             "IFS=,; ARGS='7,-f,body=Injected'; ",
@@ -1190,6 +1202,7 @@ class InlineTrackerTextIsRead(unittest.TestCase):
             'END=graphql; gh api "$END" -f "query=$QUERY"',
             'BASE=graph; END=${BASE}ql; gh api "$END" '
             '-f "operationName=$OPERATION" -f "query=$QUERY"',
+            'END=graphql; KEY=query; gh api "$END" -f "$KEY=$QUERY"',
             'END=graphql; gh api "$END" --input "$REQUEST"',
         )
 
@@ -1206,6 +1219,20 @@ class InlineTrackerTextIsRead(unittest.TestCase):
             'gh api "$END" -f text=$TEXT',
             "BASE=mark; END=${BASE}down; TEXT='hello world'; "
             'gh api "$END" -f text=$TEXT',
+        )
+
+        for command in commands:
+            with self.subTest(command=command):
+                result = hook.extract(command)
+                self.assertIsNone(result.grade_route)
+                self.assertEqual(result.unclassified_api_calls, ())
+                self.assertEqual(result.unreadable, ())
+
+    def test_read_bypasses_allow_unknown_quoted_option_values(self) -> None:
+        commands = (
+            'gh api markdown -f "text=$TEXT"',
+            'gh api -X GET repos/o/r/issues/7 -f "data=$VALUE"',
+            'gh api -X PATCH repos/o/r/git/refs/heads/topic -f "ref=$REF"',
         )
 
         for command in commands:
