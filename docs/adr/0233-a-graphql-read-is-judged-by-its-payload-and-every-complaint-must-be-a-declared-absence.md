@@ -2,8 +2,8 @@
 
 [#1126](https://github.com/mshamblin5150-code/clinical-skills/issues/1126) found `gh api graphql`
 returning a complete, correct answer with exit status 1, the inverse of
-[#993](https://github.com/mshamblin5150-code/clinical-skills/issues/993)'s short read with exit status
-0. Trusting the status and distrusting it are both unsafe, and the repository had no rule for which to
+[#993](https://github.com/mshamblin5150-code/clinical-skills/issues/993)'s short read with exit
+status 0. Trusting the status and distrusting it are both unsafe, and the repository had no rule for which to
 do. Grilled 2026-09-14 against `9770b1a0`; the clinician ruled every point below on the same day.
 Nothing is built here; this is the record the build reads.
 
