@@ -514,6 +514,26 @@ class InlineTrackerTextIsRead(unittest.TestCase):
             "unclassified-api-arguments",
         )
 
+    def test_nondefault_ifs_cannot_inject_api_publication_options(self) -> None:
+        commands = (
+            "IFS=,; ARGS='7,-f,body=Injected'; ",
+            "opaque_step; ARGS='7,-f,body=Injected'; ",
+        )
+
+        for prefix in commands:
+            with self.subTest(prefix=prefix):
+                result = hook.extract(
+                    prefix
+                    + "gh api repos/example/project/issues/comments/$ARGS"
+                )
+                self.assertIsNone(result.grade_route)
+                self.assertEqual(result.publications, ())
+                self.assertEqual(result.unreadable, ())
+                self.assertEqual(
+                    result.unclassified_api_calls[0].kind,
+                    "unclassified-api-arguments",
+                )
+
     def test_double_quoted_api_identifier_assignment_chain_is_reconstructed(self) -> None:
         result = hook.extract(
             "OTHER=7; CID=\"$OTHER\"; "
@@ -702,6 +722,32 @@ class InlineTrackerTextIsRead(unittest.TestCase):
         self.assertIsNone(result.grade_route)
         self.assertEqual(result.publications, ())
         self.assertEqual(result.unreadable, ())
+
+    def test_named_nonpublication_expansions_are_left_alone(self) -> None:
+        commands = (
+            "TEXT='hello world'; gh api markdown -f text=$TEXT",
+            "REF='refs/heads/a b'; gh api repos/example/project/git/refs "
+            "-f ref=$REF",
+        )
+
+        for command in commands:
+            with self.subTest(command=command):
+                result = hook.extract(command)
+                self.assertIsNone(result.grade_route)
+                self.assertEqual(result.publications, ())
+                self.assertEqual(result.unreadable, ())
+                self.assertEqual(result.unclassified_api_calls, ())
+
+    def test_explicit_get_expansions_are_left_alone(self) -> None:
+        result = hook.extract(
+            "ARGS='body=hello world'; gh api -X GET "
+            "repos/example/project/issues -f data=$ARGS"
+        )
+
+        self.assertIsNone(result.grade_route)
+        self.assertEqual(result.publications, ())
+        self.assertEqual(result.unreadable, ())
+        self.assertEqual(result.unclassified_api_calls, ())
 
     def test_graphql_query_operation_is_read_from_json_input(self) -> None:
         with tempfile.TemporaryDirectory() as folder:

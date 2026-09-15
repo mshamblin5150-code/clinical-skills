@@ -921,6 +921,21 @@ def _api_method(arguments: list[str]) -> str:
     return "POST" if has_parameters else "GET"
 
 
+def _api_explicit_method(arguments: list[str]) -> str | None:
+    method: str | None = None
+    index = 0
+    while index < len(arguments):
+        option = _api_value_option(arguments, index)
+        if option is None:
+            index += 1
+            continue
+        name, value, width = option
+        if name == "method" and value is not None:
+            method = value.upper()
+        index += width
+    return method
+
+
 def _api_endpoint(arguments: list[str]) -> str:
     index = 0
     while index < len(arguments):
@@ -940,7 +955,7 @@ def _api_graphql_field(
     arguments: list[str], command: str, target: str
 ) -> str | Unreadable | None:
     found: str | Unreadable | None = None
-    assignments, substitutions = _publish_assignments(command)
+    assignments, substitutions, _uncertain = _publish_assignments(command)
     index = 0
     while index < len(arguments):
         option = _api_value_option(arguments, index)
@@ -1068,7 +1083,7 @@ def _graphql_operation(
 
 
 def _api_identifier(identifier: str, command: str) -> str | None:
-    assignments, substitutions = _publish_assignments(command)
+    assignments, substitutions, _uncertain = _publish_assignments(command)
     expanded, kind = shell_reader.expand(identifier, assignments, substitutions)
     if (
         kind is not None
@@ -1113,10 +1128,11 @@ def _expand_publish_assignment(
 
 def _publish_assignments(
     command: str,
-) -> tuple[dict[str, str], frozenset[str]]:
+) -> tuple[dict[str, str], frozenset[str], bool]:
     """Read persistent assignments completed before the modeled publication."""
     assignments: dict[str, str] = {}
     substitutions: set[str] = set()
+    uncertain_shell_state = False
     pieces = shell_reader.shell_pieces(command)
     conditional = False
     for position, piece in enumerate(pieces):
@@ -1125,6 +1141,7 @@ def _publish_assignments(
                 assignments.clear()
                 substitutions.clear()
                 conditional = True
+                uncertain_shell_state = True
             elif piece in (";", "\n"):
                 conditional = False
             continue
@@ -1134,7 +1151,11 @@ def _publish_assignments(
                 continue
             route = ("api",) if tail[0] == "api" else tuple(tail[:2])
             if route in PUBLISH_ROUTES:
-                return assignments, frozenset(substitutions)
+                return (
+                    assignments,
+                    frozenset(substitutions),
+                    uncertain_shell_state,
+                )
         words = shell_reader.source_words(piece)
         if not words or conditional:
             continue
@@ -1145,6 +1166,7 @@ def _publish_assignments(
         ):
             assignments.clear()
             substitutions.clear()
+            uncertain_shell_state = True
             continue
         next_piece = pieces[position + 1] if position + 1 < len(pieces) else None
         if next_piece in ("|", "&"):
@@ -1197,7 +1219,7 @@ def _publish_assignments(
                 continue
             assignments[name] = expanded
             substitutions.discard(name)
-    return assignments, frozenset(substitutions)
+    return assignments, frozenset(substitutions), uncertain_shell_state
 
 
 def _unquoted_variable_names(source: str) -> tuple[set[str], bool]:
@@ -1251,7 +1273,7 @@ def _api_identifier_source(argument: str, name: str) -> bool:
 def _api_dynamic_arguments(
     arguments: list[str], sources: tuple[str, ...], command: str
 ) -> UnclassifiedApiCall | None:
-    assignments, substitutions = _publish_assignments(command)
+    assignments, substitutions, uncertain_shell_state = _publish_assignments(command)
     for argument, source in zip(arguments, sources, strict=True):
         names, dynamic = _unquoted_variable_names(source)
         if dynamic:
@@ -1267,7 +1289,9 @@ def _api_dynamic_arguments(
             if not value and _api_identifier_source(argument, name):
                 continue
             if (
-                not value
+                uncertain_shell_state
+                or "IFS" in assignments
+                or not value
                 or re.search(r"[\s*?\[]", value) is not None
                 or (source in (f"${name}", "${" + name + "}") and value.startswith("-"))
             ):
@@ -1424,7 +1448,7 @@ def _read_file_field(
 
 
 def _read_api_input(source: str, command: str) -> ApiInput | Unreadable:
-    assignments, substitutions = _publish_assignments(command)
+    assignments, substitutions, _uncertain = _publish_assignments(command)
     if source == "-":
         heredoc = HEREDOC.search(command)
         if heredoc is None:
@@ -1521,13 +1545,22 @@ def extract(command: str) -> Extraction:
     arguments = source_tail[route_width:]
     argument_sources = sources[source_start + 1 + route_width :]
     if route == ("api",):
-        dynamic_arguments = _api_dynamic_arguments(
-            arguments, argument_sources, command
-        )
-        if dynamic_arguments is not None:
-            return Extraction(
-                route, None, (), (), None, (dynamic_arguments,)
+        endpoint = _api_endpoint(arguments)
+        listed_nonpublication = any(
+            pattern.fullmatch(endpoint)
+            for pattern in (
+                *API_NON_PUBLICATION_ENDPOINTS,
+                *API_NON_PUBLICATION_RECORD_ENDPOINTS,
             )
+        )
+        if _api_explicit_method(arguments) != "GET" and not listed_nonpublication:
+            dynamic_arguments = _api_dynamic_arguments(
+                arguments, argument_sources, command
+            )
+            if dynamic_arguments is not None:
+                return Extraction(
+                    route, None, (), (), None, (dynamic_arguments,)
+                )
     number = _record_number(route, arguments, command)
     api_grade = (
         _api_grade_route(arguments, command) if route == ("api",) else route
@@ -1540,7 +1573,7 @@ def extract(command: str) -> Extraction:
     if route == ("api",) and grade_route is None:
         return Extraction(route, number, (), (), None)
     publications: list[Publication] = []
-    assignments, substitutions = _publish_assignments(command)
+    assignments, substitutions, _uncertain = _publish_assignments(command)
     index = 0
     while index < len(arguments):
         token = arguments[index]
