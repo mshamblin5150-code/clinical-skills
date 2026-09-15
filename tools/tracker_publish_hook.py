@@ -139,8 +139,8 @@ NOT_REACHED = (
     (
         "the refusing hook covers one of two publishers",
         "This Claude Code hook prevents a damaged publication from this "
-        "publisher only. The GitHub workflow reaches both known publishers "
-        "after publication and reports rather than prevents.",
+        "publisher only. The GitHub workflow reaches no unwatched write after "
+        "publication; merge receipts are graded before they post.",
     ),
     (
         "a failed tracker readback leaves the publication context-blind",

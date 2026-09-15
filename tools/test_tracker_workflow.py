@@ -15,6 +15,7 @@ import test_module_sections
 import tracker_branch_scope
 import tracker_bodies
 import tracker_coordinates
+import tracker_event_checks
 import tracker_filed_from
 import tracker_merge_receipt
 import tracker_publish_hook
@@ -271,93 +272,52 @@ class EveryChangedTrackerRecordTriggersTheShapeScan(unittest.TestCase):
 
     def test_the_changed_event_is_the_only_harvest(self):
         text = workflow_text()
-        self.assertIn("tracker_scan.py --github-event", text)
+        self.assertRegex(text, r"tracker_event_checks\.py\s+--github-event")
         self.assertIn("GITHUB_EVENT_PATH", text)
         self.assertNotIn("gh api", text)
 
-    def test_changed_bodies_run_the_body_shape_scan_and_report_coverage(self):
-        text = workflow_text()
-        step = text.partition("Changed tracker body integrity")[2].partition(
-            "\n      - name:"
+    def test_changed_record_dispatch_is_owned_by_one_command(self):
+        job = workflow_text().partition("  changed-record:")[2].partition(
+            "\n  merge-receipts:"
         )[0]
-
-        self.assertIn("tracker_bodies.py --github-event", step)
-        self.assertIn("GITHUB_EVENT_PATH", step)
-        self.assertIn("GITHUB_EVENT_NAME", step)
-        self.assertIn("GITHUB_STEP_SUMMARY", step)
-        self.assertIn("### Tracker body integrity", step)
-        self.assertIn("github.event.changes.body", step)
-        for action in ("opened", "created", "submitted", "edited"):
-            self.assertIn(f"github.event.action == '{action}'", step)
-        self.assertNotIn("github.event.action != 'edited'", step)
-        self.assertNotIn("github.event.action == 'labeled'", step)
-        self.assertNotIn("gh api", step)
-
-    def test_changed_bodies_report_the_coordinate_grade_through_its_event_mode(self):
-        step = workflow_text().partition(
-            "Changed tracker coordinate accompaniment"
-        )[2].partition("\n      - name:")[0]
-
-        self.assertIn("tracker_coordinates.py --github-event", step)
-        self.assertIn("GITHUB_EVENT_PATH", step)
-        self.assertIn("GITHUB_EVENT_NAME", step)
-        self.assertIn("GITHUB_STEP_SUMMARY", step)
-        self.assertIn("### Tracker coordinate accompaniment", step)
-        self.assertIn("github.event.changes.body", step)
-        for action in ("opened", "created", "submitted", "edited"):
-            self.assertIn(f"github.event.action == '{action}'", step)
-        self.assertIn("exit $status", step)
-
-    def test_an_edited_map_body_runs_the_refusing_producer_stamp_check(self):
-        step = workflow_text().partition(
-            "Implementation map producer stamp"
-        )[2].partition("\n      - name:")[0]
-
-        self.assertIn("github.event_name == 'issues'", step)
-        self.assertIn("github.event.action == 'edited'", step)
-        self.assertIn("github.event.issue.number == 596", step)
-        self.assertIn("github.event.changes.body", step)
-        self.assertIn("tools/map_scan.py --github-event", step)
-        self.assertIn("--event-name $env:GITHUB_EVENT_NAME", step)
-        self.assertNotIn("--advisory", step)
-        self.assertIn("exit $status", step)
-
-    def test_issue_opens_and_body_edits_run_the_filed_from_grader(self):
-        step = workflow_text().partition(
-            "Filed-from line preservation"
-        )[2].partition("\n      - name:")[0]
-
-        self.assertIn("github.event_name == 'issues'", step)
-        self.assertIn("github.event.action == 'opened'", step)
-        self.assertIn("github.event.action == 'edited'", step)
-        self.assertIn("github.event.changes.body", step)
-        self.assertIn("tracker_filed_from.py --github-event", step)
-        self.assertIn("--event-name $env:GITHUB_EVENT_NAME", step)
-        self.assertIn("### Tracker Filed-from line", step)
-        self.assertIn("exit $status", step)
-        self.assertNotIn("continue-on-error", step)
+        self.assertEqual(job.count("python tools/tracker_event_checks.py"), 1)
+        self.assertIn("$env:GITHUB_EVENT_PATH", job)
+        self.assertIn("--event-name $env:GITHUB_EVENT_NAME", job)
+        for old_command in (
+            "tracker_scan.py --github-event",
+            "tracker_branch_scope.py --github-event",
+            "tracker_bodies.py --github-event",
+            "tracker_coordinates.py --github-event",
+            "tracker_measurements.py --github-event",
+            "tracker_filed_from.py --github-event",
+            "map_scan.py --github-event",
+        ):
+            self.assertNotIn(old_command, job)
 
     def test_the_body_shape_workflow_uses_the_public_event_mode(self):
         self.assertTrue(hasattr(tracker_bodies, "load_github_event"))
 
     def test_a_bodyless_review_does_not_report_did_not_scan(self):
-        self.assertRegex(
-            workflow_text(),
-            r"github\.event\.review\.body\s*!=\s*null",
+        self.assertEqual(
+            tracker_event_checks.select_checks(
+                {"action": "submitted", "review": {"body": None}},
+                "pull_request_review",
+            ),
+            (),
         )
 
     def test_an_edit_that_changes_no_text_does_not_start_a_text_scan(self):
-        text = workflow_text()
-        self.assertIn("github.event.changes.title", text)
-        self.assertIn("github.event.changes.body", text)
+        self.assertEqual(
+            tracker_event_checks.select_checks(
+                {"action": "edited", "changes": {}}, "issues"
+            ),
+            (),
+        )
 
     def test_the_ci_run_names_and_accepts_its_dead_corpus_layer(self):
         text = workflow_text()
         self.assertRegex(text, r"(?m)^\s*name:\s*tracker PHI shape layer only\s*$")
-        command = next(
-            line for line in text.splitlines() if "tracker_scan.py --github-event" in line
-        )
-        self.assertIn(phi_scan.ALLOW_NO_CORPUS_FLAG, command)
+        self.assertIn(phi_scan.ALLOW_NO_CORPUS_FLAG, tracker_event_checks.PHI.extra_args)
 
     def test_pull_request_code_is_never_executed_by_the_privileged_event(self):
         text = workflow_text()
@@ -398,26 +358,18 @@ class ACompletedMergePublishesAnImmutableTicketReceipt(unittest.TestCase):
         text = workflow_text()
         self.assertIn("tracker_merge_receipt.py", text)
         self.assertIn("gh pr view", text)
-        self.assertIn("gh issue comment", text)
+        self.assertIn("tracker_merge_receipt.py --publish-plan", text)
         self.assertIn("issues: write", text)
         self.assertIn("github.event.repository.default_branch", text)
 
-    def test_each_receipt_is_published_before_its_in_flight_label_is_discharged(self):
-        text = workflow_text()
-        receipt_loop = text.partition("Get-Content -LiteralPath $plan")[2]
-
-        comment = receipt_loop.index("gh issue comment $receipt.ticket")
-        discharge = receipt_loop.index(
-            'gh issue edit $receipt.ticket --remove-label "in flight"'
-        )
-
-        self.assertLess(comment, discharge)
+    def test_publication_and_label_discharge_share_the_tested_publisher(self):
+        self.assertIn("tracker_merge_receipt.py --publish-plan", workflow_text())
+        self.assertTrue(hasattr(tracker_merge_receipt, "publish_receipts"))
 
     def test_tracker_citations_are_scoped_at_the_publication_event(self):
         text = workflow_text()
-        self.assertIn("--github-event", text)
+        self.assertRegex(text, r"tracker_event_checks\.py\s+--github-event")
         self.assertIn("--event-name", text)
-        self.assertIn("Dated main-branch scope for tracker citations", text)
 
     def test_the_maintainer_rule_names_both_sides_of_the_state_change(self):
         text = ISSUE_TRACKER.read_text(encoding="utf-8")
@@ -427,16 +379,16 @@ class ACompletedMergePublishesAnImmutableTicketReceipt(unittest.TestCase):
         self.assertIn("merge receipt", text.lower())
         self.assertIn("do not rewrite", text.lower())
 
-    def test_receipts_are_published_before_the_planners_status_is_enforced(self):
+    def test_the_plan_is_clean_before_the_publisher_can_mutate_any_ticket(self):
         step = workflow_text().partition(
             "Publish one immutable receipt per explicitly referenced ticket"
         )[2].partition("\n      #")[0]
         status = step.index("$status = $LASTEXITCODE")
-        publication = step.index("gh issue comment", status)
-        enforcement = step.index("exit $status", publication)
+        enforcement = step.index("exit $status", status)
+        publication = step.index("tracker_merge_receipt.py --publish-plan", enforcement)
 
-        self.assertLess(status, publication)
-        self.assertLess(publication, enforcement)
+        self.assertLess(status, enforcement)
+        self.assertLess(enforcement, publication)
 
 
 class PullRequestsGradeTheReceiptPlanBeforeMerge(unittest.TestCase):

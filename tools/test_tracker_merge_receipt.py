@@ -9,6 +9,7 @@ from pathlib import Path
 from unittest import mock
 
 import tracker_merge_receipt as receipt
+import tracker_branch_scope
 
 
 def merged_pr(body: str, **changes):
@@ -381,6 +382,66 @@ class CommandLineOutputIsMachineReadable(unittest.TestCase):
 
         self.assertEqual(status, 1)
         self.assertIn("Binds no ticket", report.getvalue())
+
+
+class ReceiptPublicationIsGradedBeforeItMutatesTheTracker(unittest.TestCase):
+    def rows(self):
+        return receipt.plan_receipts(
+            merged_pr("Part of #290\n\nPart of #298\n")
+        )
+
+    @staticmethod
+    def ticket(row, *, comments=()):
+        return {
+            "number": row.ticket,
+            "url": f"https://github.com/example/clinical-skills/issues/{row.ticket}",
+            "labels": [{"name": "in flight"}],
+            "comments": [{"body": body} for body in comments],
+        }
+
+    def test_one_refused_receipt_posts_none_and_retains_every_label(self):
+        rows = self.rows()
+        rows[1] = receipt.Receipt(
+            rows[1].ticket,
+            rows[1].body.replace("This immutable merge receipt", "This changed receipt"),
+        )
+        mutations = []
+
+        status = receipt.publish_receipts(
+            rows,
+            read_ticket=lambda row: self.ticket(row),
+            grade_event=lambda document, event_name: tracker_branch_scope.grade(
+                document, event_name
+            ).status,
+            post_comment=lambda row: mutations.append(("post", row.ticket)) or 0,
+            remove_label=lambda row: mutations.append(("remove", row.ticket)) or 0,
+        )
+
+        self.assertEqual(status, 1)
+        self.assertEqual(mutations, [])
+
+    def test_a_correct_receipt_on_an_in_flight_ticket_uses_the_exact_escape(self):
+        row = self.rows()[0]
+        event = receipt.receipt_event(row, self.ticket(row))
+
+        result = tracker_branch_scope.grade(event, "issue_comment")
+
+        self.assertEqual(result.status, 0, result.report)
+
+    def test_an_exact_landed_receipt_is_not_reposted_but_discharges_the_label(self):
+        row = self.rows()[0]
+        mutations = []
+
+        status = receipt.publish_receipts(
+            [row],
+            read_ticket=lambda candidate: self.ticket(candidate, comments=[row.body]),
+            grade_event=lambda event, event_name: 0,
+            post_comment=lambda candidate: mutations.append(("post", candidate.ticket)) or 0,
+            remove_label=lambda candidate: mutations.append(("remove", candidate.ticket)) or 0,
+        )
+
+        self.assertEqual(status, 0)
+        self.assertEqual(mutations, [("remove", row.ticket)])
 
 class DeclaredLimitsHaveOneOwner(unittest.TestCase):
     def test_the_ratified_population_is_present_in_both_directions(self):

@@ -1022,9 +1022,10 @@ class TheDocSaysWhatThisChecks(unittest.TestCase):
         self.assertIn("literal-newline-escape", self.doc)
         self.assertIn("doubled-path-separator", self.doc)
 
-    def test_the_doc_names_both_publication_hosts(self):
+    def test_the_doc_names_the_live_hosts_and_the_unwatched_write_grade(self):
         self.assertIn("tracker_publish_hook.py", self.doc)
-        self.assertIn("tracker_bodies.py --github-event", self.doc)
+        self.assertIn("tracker_event_checks.py", self.doc)
+        self.assertIn("before any receipt posts", self.doc)
 
 
 class DeclaredLimitsHaveOneOwner(unittest.TestCase):

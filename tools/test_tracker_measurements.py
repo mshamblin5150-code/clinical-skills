@@ -15,6 +15,7 @@ from unittest import mock
 
 import artifact_lock_test_support  # noqa: F401
 import phi_scan
+import tracker_event_checks
 import tracker_measurements as measurements
 import tracker_publish_hook as publish_hook
 
@@ -264,11 +265,21 @@ class TheCommandSurfaces(unittest.TestCase):
         )
 
         self.assertIn("python tools/tracker_measurements.py", checks)
-        self.assertIn(
-            "python tools/tracker_measurements.py --github-event", tracker
+        self.assertIn("python tools/tracker_event_checks.py", tracker)
+        selected = tracker_event_checks.select_checks(
+            {
+                "action": "created",
+                "issue": {"number": 1, "labels": []},
+                "comment": {"body": "text"},
+            },
+            "issue_comment",
         )
-        for workflow in (checks, tracker):
-            self.assertIn("### Publication measurement base", workflow)
+        self.assertIn(tracker_event_checks.MEASUREMENTS, selected)
+        self.assertIn("### Publication measurement base", checks)
+        self.assertEqual(
+            tracker_event_checks.MEASUREMENTS.heading,
+            "Publication measurement base",
+        )
 
 
 if __name__ == "__main__":

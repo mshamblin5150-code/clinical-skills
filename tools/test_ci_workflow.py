@@ -28,6 +28,7 @@ import unittest
 from pathlib import Path
 
 import python_floor
+import tracker_event_checks
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 WORKFLOW = REPO_ROOT / ".github" / "workflows" / "checks.yml"
@@ -103,9 +104,9 @@ TRACKER_EVENTS = {
 }
 
 
-def tracker_branch_scope_step(text):
+def tracker_event_checks_step(text):
     lines = text.splitlines()
-    command = next(i for i, line in enumerate(lines) if "tracker_branch_scope.py" in line)
+    command = next(i for i, line in enumerate(lines) if "tracker_event_checks.py" in line)
     start = max(i for i, line in enumerate(lines[: command + 1]) if re.match(r"^\s*- name:", line))
     end = next(
         (
@@ -133,16 +134,15 @@ class TheWorkflowExists(unittest.TestCase):
 
 class TrackerBranchScopeCoversEveryPublicationEvent(unittest.TestCase):
     def test_the_text_floor_pins_all_five_events(self):
-        step = tracker_branch_scope_step(tracker_workflow_text())
-
-        for event in TRACKER_EVENTS:
-            with self.subTest(event=event):
-                self.assertIn(f"github.event_name == '{event}'", step)
+        self.assertEqual(set(tracker_event_checks.EVENT_NAMES), TRACKER_EVENTS)
 
     def test_the_text_floor_pins_the_step_summary(self):
-        step = tracker_branch_scope_step(tracker_workflow_text())
+        step = tracker_event_checks_step(tracker_workflow_text())
+        source = (REPO_ROOT / "tools" / "tracker_event_checks.py").read_text(
+            encoding="utf-8"
+        )
 
-        self.assertIn("GITHUB_STEP_SUMMARY", step)
+        self.assertIn("GITHUB_STEP_SUMMARY", source)
         self.assertNotIn("merge-receipts", step)
 
 
@@ -580,13 +580,11 @@ class TheFileIsValidYaml(unittest.TestCase):
         step = next(
             row
             for row in document["jobs"]["changed-record"]["steps"]
-            if "tracker_branch_scope.py" in row.get("run", "")
+            if "tracker_event_checks.py" in row.get("run", "")
         )
 
-        for event in TRACKER_EVENTS:
-            with self.subTest(event=event):
-                self.assertIn(f"github.event_name == '{event}'", step["if"])
-        self.assertIn("GITHUB_STEP_SUMMARY", step["run"])
+        self.assertIn("--github-event $env:GITHUB_EVENT_PATH", step["run"])
+        self.assertIn("--event-name $env:GITHUB_EVENT_NAME", step["run"])
 
 
 class TheWorkflowIsAdvisory(unittest.TestCase):
