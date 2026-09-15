@@ -683,6 +683,19 @@ class InlineTrackerTextIsRead(unittest.TestCase):
             "unclassified-api-arguments",
         )
 
+    def test_known_api_field_with_unknown_value_is_unreadable(self) -> None:
+        commands = (
+            'gh api repos/o/r/issues/comments/7 -f "body=$VALUE"',
+            'KEY=body; gh api repos/o/r/issues/comments/7 -f "$KEY=$VALUE"',
+            'gh api repos/o/r/issues/7 -f "title=$VALUE"',
+        )
+
+        for command in commands:
+            with self.subTest(command=command):
+                result = hook.extract(command)
+                self.assertEqual(result.unclassified_api_calls, ())
+                self.assertEqual(result.unreadable[0].kind, "external-variable")
+
     def test_unknown_whole_api_option_is_refused(self) -> None:
         commands = (
             'gh api -X GET repos/o/r/issues/7 -f body=Injected "$OPT" POST',
@@ -1233,6 +1246,20 @@ class InlineTrackerTextIsRead(unittest.TestCase):
             'gh api markdown -f "text=$TEXT"',
             'gh api -X GET repos/o/r/issues/7 -f "data=$VALUE"',
             'gh api -X PATCH repos/o/r/git/refs/heads/topic -f "ref=$REF"',
+        )
+
+        for command in commands:
+            with self.subTest(command=command):
+                result = hook.extract(command)
+                self.assertIsNone(result.grade_route)
+                self.assertEqual(result.unclassified_api_calls, ())
+                self.assertEqual(result.unreadable, ())
+
+    def test_named_nonpublication_ignores_unknown_post_endpoint_words(self) -> None:
+        commands = (
+            'gh api markdown "$OPT" POST',
+            "gh api markdown $OPT POST",
+            'gh api repos/o/r/git/refs "$OPT" POST',
         )
 
         for command in commands:

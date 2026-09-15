@@ -1239,15 +1239,16 @@ def _api_expanded_arguments(
         )
 
     endpoint = _api_endpoint(expanded_arguments)
+    named_nonpublication = any(
+        pattern.fullmatch(endpoint)
+        for pattern in (
+            *API_NON_PUBLICATION_ENDPOINTS,
+            *API_NON_PUBLICATION_RECORD_ENDPOINTS,
+        )
+    )
     read_bypass = (
         _api_explicit_method(expanded_arguments) == "GET"
-        or any(
-            pattern.fullmatch(endpoint)
-            for pattern in (
-                *API_NON_PUBLICATION_ENDPOINTS,
-                *API_NON_PUBLICATION_RECORD_ENDPOINTS,
-            )
-        )
+        or named_nonpublication
     )
     specialized_failures: set[int] = set()
     index = 0
@@ -1259,11 +1260,14 @@ def _api_expanded_arguments(
         name, value, width = option
         value_index = index + 1 if width == 2 and value is not None else index
         key = "" if value is None else value.partition("=")[0]
-        if endpoint == "graphql" and (
-            name == "input"
-            or (
-                name in ("raw-field", "field")
-                and key in ("query", "operationName")
+        if name == "input" or (
+            name in ("raw-field", "field")
+            and (
+                key in ("body", "title")
+                or (
+                    endpoint == "graphql"
+                    and key in ("query", "operationName")
+                )
             )
         ):
             specialized_failures.add(value_index)
@@ -1281,6 +1285,11 @@ def _api_expanded_arguments(
             stable_endpoint
             or index in specialized_failures
             or (read_bypass and index in option_value_indices)
+            or (
+                named_nonpublication
+                and endpoint_index is not None
+                and index > endpoint_index
+            )
         ):
             continue
         remedy = (
@@ -1628,13 +1637,17 @@ def _api_dynamic_arguments(
     sources: tuple[str, ...],
     command: str,
     read_bypass: bool = False,
+    nonpublication_bypass: bool = False,
 ) -> UnclassifiedApiCall | None:
     assignments, substitutions, uncertain_shell_state = _publish_assignments(command)
     separate_value_indices: set[int] = set()
+    endpoint_index: int | None = None
     index = 0
     while index < len(arguments):
         option = _api_value_option(arguments, index)
         if option is None:
+            if endpoint_index is None and not arguments[index].startswith("-"):
+                endpoint_index = index
             index += 1
             continue
         _name, value, width = option
@@ -1644,6 +1657,12 @@ def _api_dynamic_arguments(
     for index, (argument, source) in enumerate(
         zip(arguments, sources, strict=True)
     ):
+        if (
+            nonpublication_bypass
+            and endpoint_index is not None
+            and index > endpoint_index
+        ):
+            continue
         (
             expanded_source,
             source_kind,
@@ -2033,6 +2052,7 @@ def extract(command: str) -> Extraction:
             command,
             _api_explicit_method(expanded_arguments) == "GET"
             or listed_nonpublication,
+            listed_nonpublication,
         )
         if dynamic_arguments is not None:
             return Extraction(
@@ -2104,6 +2124,30 @@ def extract(command: str) -> Extraction:
                 )
             key, separator, value = option_value.partition("=")
             if separator and key in ("body", "title"):
+                source_argument = _api_option_source_argument(
+                    arguments,
+                    argument_sources,
+                    index,
+                    option_value,
+                    width,
+                )
+                _expanded, source_kind, _names, _dynamic, _injected = (
+                    _analyze_source_word(
+                        source_argument,
+                        assignments,
+                        substitutions,
+                        width == 2,
+                    )
+                )
+                if source_kind is not None:
+                    unreadable = Unreadable(key, source_kind, source_argument)
+                    return Extraction(
+                        route,
+                        number,
+                        tuple(publications),
+                        (unreadable,),
+                        grade_route,
+                    )
                 if value.startswith("@") and option_name == "field":
                     read = _read_file_field(
                         key,
@@ -2124,6 +2168,30 @@ def extract(command: str) -> Extraction:
             source = api_option[1]
             if source is None:
                 raise ValueError("missing API input was not refused")
+            source_argument = _api_option_source_argument(
+                arguments,
+                argument_sources,
+                index,
+                source,
+                api_option[2],
+            )
+            _expanded, source_kind, _names, _dynamic, _injected = (
+                _analyze_source_word(
+                    source_argument,
+                    assignments,
+                    substitutions,
+                    api_option[2] == 2,
+                )
+            )
+            if source_kind is not None:
+                unreadable = Unreadable("body", source_kind, source_argument)
+                return Extraction(
+                    route,
+                    number,
+                    tuple(publications),
+                    (unreadable,),
+                    grade_route,
+                )
             api_input = _read_api_input(source, command, False)
             if isinstance(api_input, Unreadable):
                 return Extraction(
