@@ -11,7 +11,14 @@ carries every shape #1139 describes.
 Grilled 2026-09-15. **Twenty rulings, by the clinician, on that date.** Nothing is built here; this is
 the record the build reads.
 
-**Measured at:** fc7c6e3b7947a23e7bd407ec5b2fb37357754681
+**Measured at:** 5314d90a1a02dfa0ca59f78f06af13fef2c4a0ba
+
+*Re-declared from `fc7c6e3` on 2026-09-15, for the correction beneath ruling 2 alone.* The measured
+section below is the record of the tree before #1139's build and is not re-derived here. That build
+changed `reference/icd10cm-2026.sqlite`, `tools/icd10_build.py`, `skills/icd10-cpt/SKILL.md`,
+`skills/clinical-note/SKILL.md` and `fixtures/worksheet-grammar-positive-control/README.md`, so its
+sentences that the database holds the tabular alone and that `skills/icd10-cpt/SKILL.md` did not
+change no longer describe `main`.
 
 ## Measured before ruling
 
@@ -60,6 +67,12 @@ that accepted every shape above.
 the drug table and the external-cause index stay out. Reading the zip on the maintainer's machine was
 declined because a consumer clone has no zip and would fall back to descriptor words; recalling the
 index was declined as ruling 1's rejected option again.
+
+*Corrected 2026-09-15.* **The second sentence above — *"The neoplasm table, the drug table and the
+external-cause index stay out."* — is superseded by
+[ADR 0248](0248-the-index-tables-ship-and-an-index-path-carries-only-a-code-s-stem.md) ruling 5 and
+is left as written**, being the dated record of what was decided before #1310. All three parts now
+ship. The rest of this ruling is unchanged.
 
 ## Ruling 3 — a differential code agrees with the diagnosis its entry considers
 
