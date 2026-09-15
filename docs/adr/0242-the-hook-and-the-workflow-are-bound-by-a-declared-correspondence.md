@@ -11,7 +11,7 @@ coverage moving while the other stood still, from #1124, #928, #1014, #961, #105
 Grilled 2026-09-15. **Fourteen rulings, by the clinician, on that date.** Nothing is built here; this is
 the record the build reads.
 
-**Measured at:** 0bafece33529131532aa136a33a9d9b0098346f3
+**Measured at:** f0cc32f4ffba81f4a8d07aba618993e9a52328f1
 
 ## Measured before ruling
 
@@ -41,6 +41,11 @@ unreadable and unclassified refusals have no exported vocabulary.
 `branch:in-flight`. A title-only edit runs branch scope over the unchanged body and skips the body,
 coordinate, measurement and Filed-from steps. A label removal, a close with no comment, and an
 approving review with no body reach neither host.
+
+*Correction, 2026-09-15: [ADR 0245](0245-the-tracker-workflow-grades-the-title-that-changed-and-a-label-removal-starts-no-run.md)
+rules that a title-only edit grades the changed title through body integrity,
+coordinate accompaniment, and branch path triggers, without re-grading the
+unchanged body. Measurement and Filed-from remain body-only.*
 
 **Some postures depend on runtime state rather than on the publication.** In `analyze`,
 `branch:unresolved-path` advises instead of denying when the `origin/main` fetch failed, while the

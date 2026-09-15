@@ -1231,6 +1231,11 @@ cleaning one field does not replay an unchanged finding in the other. The
 incremental boundary loses none of the current text a full harvest can read.
 GitHub's retained pre-edit revisions remain outside the API on the ruling below.
 
+For issue and pull-request titles, the changed-record host runs PHI shape, the
+two title-scoped integrity predicates, coordinate accompaniment, and branch
+path triggers. Measurement and Filed-from remain body-only. An `opened` event
+grades both fields; a title-only edit does not re-grade the unchanged body.
+
 **It is a shape layer run and says so on the check.** `scratch/` must never
 reach a runner, so Actions passes `--allow-no-corpus`, preserves the scanner's
 dead-layer banner in the step summary and claims no patient-name coverage. The
@@ -1386,7 +1391,8 @@ The complete boundary belongs to `tracker_event_checks.NOT_REACHED`; this
 section points to that object and copies none of its rows.
 
 Covered by `tools/test_tracker_event_checks.py`, which drives comment, issue,
-and implementation-map event shapes through the public selection function.
+pull-request, title/body edit, and implementation-map event shapes through the
+public command seam and selection function.
 
 ### Tracker publication correspondence
 
@@ -1481,11 +1487,12 @@ The pre-publication `PreToolUse` hook is registered in
 `tools/tracker_publish_stub.py` and `tools/tracker_publish_hook.py`. The stub
 decodes each Bash payload and returns an empty response only when its command
 text contains no `gh` substring; an undecodable payload fails closed into the
-full hook. The full hook extracts publishable title and body fields
-from one `gh` command, reads current cited-record metadata in one request, and
-sends each field through `phi_scan`, `tracker_branch_scope`, and
-`tracker_filed_from` without returning matched values. For an issue body edit,
-the last grader compares the proposal with the current body text from readback;
+full hook. The full hook extracts publishable title and body fields from one
+`gh` command and reads current cited-record metadata in one request. Both
+fields receive PHI shape, coordinate accompaniment, and branch-path grading; a
+title receives only the two title-scoped integrity rows, while a body receives
+every integrity row, measurement grading, and the applicable Filed-from rule.
+For an issue body edit, Filed-from compares the proposal with the current body text from readback;
 when that read fails it reports the rule `NOT GRADED` and does not refuse on it.
 `PUBLISH_ROUTES` owns command classification; the stub is only a cost guard.
 `fetch_readback` passes the batched GraphQL stdout through
@@ -1676,7 +1683,7 @@ section points to that object and copies none of its rows. Covered by
 
 ### Tracker bodies
 
-The tracker scan reads the tracker's PHI shapes. This one reads **whether a body landed intact**, and it covers [#130](https://github.com/mshamblin5150-code/clinical-skills/issues/130)'s lost bodies, [#155](https://github.com/mshamblin5150-code/clinical-skills/issues/155)'s two encoding mechanisms, and [#723](https://github.com/mshamblin5150-code/clinical-skills/issues/723)'s raw C0 control-character row. **How many there are is what the command prints**, and is deliberately stated nowhere in prose: nothing committed re-derives it, the harvest it is counted from is gitignored, and the next one to arrive moves it. That the #130 count *was* eight on 2026-08-19 is stated once below, because the finding beside it needs the denominator.
+The tracker scan reads the tracker's PHI shapes. This one reads **whether publication text landed intact**: bodies receive the full row set, while titles receive only the raw C0 and flanked-carriage-return rows. It covers [#130](https://github.com/mshamblin5150-code/clinical-skills/issues/130)'s lost bodies, [#155](https://github.com/mshamblin5150-code/clinical-skills/issues/155)'s two encoding mechanisms, and [#723](https://github.com/mshamblin5150-code/clinical-skills/issues/723)'s raw C0 control-character row. **How many there are is what the command prints**, and is deliberately stated nowhere in prose: nothing committed re-derives it, the harvest it is counted from is gitignored, and the next one to arrive moves it. That the #130 count *was* eight on 2026-08-19 is stated once below, because the finding beside it needs the denominator.
 
 ```bash
 : "${TICKET_NUMBER:?set TICKET_NUMBER to the current ticket number}"
@@ -1702,7 +1709,7 @@ python tools/tracker_bodies.py \
 
 **The ticket's decision 2 was answered in prose four days before it was asked, and the bodies kept being lost.** `docs/agents/issue-tracker.md` has carried `--body-file -` and the read-back since 2026-08-11; #130 was filed on the 15th, and comment 17 records four *more* bodies destroyed on 2026-08-19 through a second door — `gh api -f body=@-`, where `-f` takes a literal and only `-F` resolves `@`, so `gh` writes the two characters and exits 0. That is [#214](https://github.com/mshamblin5150-code/clinical-skills/issues/214)'s *what a written instruction cannot do is fail*, arriving at the tracker. **Decision 3 — is a body ever legitimately empty — was ruled by the clinician on 2026-08-19: it is not**, so an empty body is a row rather than a counted-and-passed line.
 
-**The three #130 rows are one question asked three ways: did text land.** The literal `@-`; an empty, whitespace-only, absent or JSON-null body; and a body that is one bare `@token`, which is what `--body @notes.md` writes. **The third row has zero instances across the tracker** and is grounded in the trap `issue-tracker.md` documents beside `@-` rather than in a measurement — which is exactly why it is the narrowest of the three and fires only when the *whole* body is one token, leaving `@someone please look` alone. **#155 adds the fourth row:** UTF-8 decoded through cp1252 or a literal `\uXXXX` escape left undecoded. It counts affected records rather than raw sequences, so the two mechanisms share one comparable unit. **#723 adds the fifth row:** a C0 control other than tab, line feed, or carriage return. That row reads the raw, unstripped body and keeps code spans because a raw control character cannot be a mention.
+**The three #130 rows are one question asked three ways: did text land.** The literal `@-`; an empty, whitespace-only, absent or JSON-null body; and a body that is one bare `@token`, which is what `--body @notes.md` writes. **The third row has zero instances across the tracker** and is grounded in the trap `issue-tracker.md` documents beside `@-` rather than in a measurement — which is exactly why it is the narrowest of the three and fires only when the *whole* body is one token, leaving `@someone please look` alone. **#155 adds the fourth row:** UTF-8 decoded through cp1252 or a literal `\uXXXX` escape left undecoded. It counts affected records rather than raw sequences, so the two mechanisms share one comparable unit. **#723 adds the fifth row:** a C0 control other than tab, line feed, or carriage return. That row reads the raw, unstripped body and keeps code spans because a raw control character cannot be a mention. A created or changed title is its own event record and receives this C0 row plus #777's flanked-carriage-return row; all other integrity rows remain body-only.
 
 **Reading the `issues` REST payload rather than `gh issue list` is the ticket's own finding, and it is the reusable part.** That command **excludes pull requests**. Two of the eight the command found on 2026-08-19 are pull requests — #98 and #71 — so **every sweep that ran #130's own reproduce command re-derived *six, not eight*, and concluded the ticket's title was stale.** How many sweeps is deliberately not stated — a draft of this sentence said *thirteen comments say so* and no reading of that ticket re-derives it, which is [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143) arriving inside the paragraph naming #143's own instrument. **The count half of the title was right and the *three are still open* half was genuinely stale**, which is why every sweep reading the title as wholly stale had a reason to; the instrument could not see two of its members and had no way to report that it could not. This repo's recurring shape once more — a search that could not have worked, answering like a settled negative — arriving on the tracker rather than on a file, and surviving longer than any other instance of it here because each re-derivation *agreed with the last*.
 
@@ -1716,7 +1723,7 @@ python tools/tracker_bodies.py \
 
 **Exit status distinguishes not having scanned from having found nothing** — 0 clean, 1 for a failed body, **2 for every way of not having scanned**: no argument, an incomplete GitHub-event pair, a harvest or event file absent or unreadable, a payload that is neither a JSON list nor a JSON object, and **no record in any file read**. That last limb is `differential_scan.py`'s reasoning: an empty payload would otherwise report zero failures and read exactly like a tracker that has none. **One unreadable file among several is 2 and not a partial scan**, on the same grounds.
 
-**It is also the read-back, and that is one accepted shape rather than a second mode.** It takes a single JSON object as well as a list, so `gh issue view <n> --json number,body,url` piped in grades one record — which catches what `--jq '.body | length'` does not, since a lost body has a length of 2 and reads as a number rather than as a failure. Its separate `--github-event <path> --event-name <name>` mode adapts the changed body from the same five tracker events as the workflow beside it.
+**It is also the read-back, and that is one accepted shape rather than a second mode.** It takes a single JSON object as well as a list, so `gh issue view <n> --json number,body,url` piped in grades one record — which catches what `--jq '.body | length'` does not, since a lost body has a length of 2 and reads as a number rather than as a failure. Its separate `--github-event <path> --event-name <name>` mode reads the body on body-bearing events, both title and body on `opened`, and only the fields named in an `edited` event's `changes` object.
 
 **The publication-host relationship is described, not restated here.** Writer reach belongs to `tracker_publication_correspondence.WRITER_REACH`, and surface-, trigger-, rule-, and condition-qualified posture belongs to `tracker_publication_correspondence.POSTURE_ROWS`. The hook's publisher boundary remains in `tracker_publish_hook.NOT_REACHED`.
 
@@ -1741,7 +1748,8 @@ section copies none of its rows.
 `tools/tracker_measurements.py` owns the exact, record-level `**Measured at:**
 <full commit SHA>` declaration and its forward cutoff. The publication hook
 refuses a stale or malformed declaration through both tracker-writing routes;
-the tracker workflow reports the same changed record after publication. The
+the tracker workflow reports the same changed body after publication. Titles
+are outside the declaration surface at both hosts. The
 pre-commit hook runs `python tools/tracker_measurements.py --staged-adrs` and
 refuses a staged ADR whose declaration differs from that checkout's `HEAD`.
 With no arguments, the command audits committed ADRs at or after its cutoff

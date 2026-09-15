@@ -274,7 +274,12 @@ class EveryRuledTriggerIsDrivenAtBothHostBoundaries(unittest.TestCase):
             },
             "issues",
             True,
-            ("tracker_scan", "tracker_branch_scope"),
+            (
+                "tracker_scan",
+                "tracker_branch_scope",
+                "tracker_bodies",
+                "tracker_coordinates",
+            ),
         ),
         (
             correspondence.Trigger.LABEL_ADDED,
@@ -407,6 +412,19 @@ class EveryRuledTriggerIsDrivenAtBothHostBoundaries(unittest.TestCase):
         for host in correspondence.Host:
             self.assertEqual(correspondence.Posture.ABSENT, row.cell(host).posture)
 
+    def test_label_removal_names_why_neither_host_runs(self) -> None:
+        row = correspondence.posture_row(
+            "no-publication-on-label-removal",
+            correspondence.Surface.LABELS,
+            correspondence.Trigger.LABEL_REMOVED,
+        )
+
+        self.assertEqual(
+            "A removal only takes triggers away, and the named removal is an "
+            "unwatched write no trigger reaches.",
+            row.reason,
+        )
+
     def test_branch_trigger_exclusions_and_label_title_are_observed(self) -> None:
         create_in_flight = correspondence.posture_row(
             "branch-in-flight",
@@ -425,19 +443,26 @@ class EveryRuledTriggerIsDrivenAtBothHostBoundaries(unittest.TestCase):
             "changes": {"title": {"from": "Old title"}},
         }
         title_branch = correspondence.tracker_branch_scope.grade(title_event, "issues")
-        self.assertEqual("branch:in-flight", title_branch.verdict.rule)
+        self.assertIsNone(title_branch.verdict.rule)
         self.assertFalse(any(
             row.predicate == "branch-in-flight"
             and row.surface is correspondence.Surface.TITLE
             for row in correspondence.POSTURE_ROWS
         ))
-        title_edit_body = correspondence.posture_row(
-            "branch-in-flight",
-            correspondence.Surface.BODY,
+        self.assertFalse(any(
+            row.surface is correspondence.Surface.BODY
+            and row.trigger is correspondence.Trigger.TITLE_EDIT
+            for row in correspondence.POSTURE_ROWS
+        ))
+        title_edit_path = correspondence.posture_row(
+            "branch-unresolved-path",
+            correspondence.Surface.TITLE,
             correspondence.Trigger.TITLE_EDIT,
         )
-        self.assertEqual(correspondence.Posture.ABSENT, title_edit_body.hook_command.posture)
-        self.assertEqual(correspondence.Posture.REPORT, title_edit_body.changed_record.posture)
+        self.assertEqual(
+            correspondence.Posture.REPORT,
+            title_edit_path.changed_record.posture,
+        )
 
         review_event = {
             "action": "submitted",

@@ -2888,6 +2888,18 @@ class PublishedFieldsAreGradedWithoutEchoingThem(unittest.TestCase):
         self.assertEqual(["deny"], [row.posture for row in coordinate_findings])
         self.assertIn(hook.COORDINATE_REMEDY, result.report)
 
+    def test_a_title_opening_with_the_measurement_label_is_not_graded(self) -> None:
+        result = hook.analyze(
+            hook.Publication("title", "**Measured at:** not-a-commit"),
+            index=phi_scan.build_index(set(), set()),
+            issue=None,
+            remote_fresh=True,
+        )
+
+        self.assertFalse(
+            any(row.rule.startswith("measurement:") for row in result.findings)
+        )
+
     def test_title_record_keeps_graphql_identity_and_issue_container(self) -> None:
         context = hook.TrackerRecord(
             "old", "https://github.com/example/repo/issues/834", 834,

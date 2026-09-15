@@ -63,6 +63,45 @@ def from_actions_event(
     )
 
 
+def records_from_actions_event(
+    document: object, event_name: str, *, require_container: bool = False
+) -> tuple[TrackerRecord, ...]:
+    """Adapt exactly the tracker fields created or changed by one Actions event."""
+    record = from_actions_event(
+        document, event_name, require_container=require_container
+    )
+    if record is None:
+        return ()
+    assert isinstance(document, dict)
+
+    action = document.get("action")
+    if action == "edited":
+        changes = document.get("changes")
+        if not isinstance(changes, dict):
+            raise ValueError("edited GitHub event has no changes object")
+        fields = tuple(field for field in ("body", "title") if field in changes)
+    elif action == "opened" and event_name in ("issues", "pull_request_target"):
+        fields = ("body", "title")
+    else:
+        fields = ("body",)
+
+    key = EVENT_RECORD_KEYS[event_name]
+    item = document[key]
+    assert isinstance(item, dict)
+    adapted = []
+    for field in fields:
+        text = item.get(field)
+        if field == "body":
+            adapted.append(record._replace(body=text if isinstance(text, str) else ""))
+        else:
+            adapted.append(record._replace(
+                body=text if isinstance(text, str) else "",
+                url=f"{record.url} title",
+                surface="title",
+            ))
+    return tuple(adapted)
+
+
 def from_command(
     body: str, *, url: str, number: int | None, labels: tuple[str, ...],
     route: tuple[str, ...], field: str = "body",
