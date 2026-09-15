@@ -97,14 +97,55 @@ def has_map_producer_stamp(body: str) -> bool:
 
 def fixed_position_line(body: str) -> str | None:
     """Return the Filed-from line only when it occupies its ruled position."""
-    offset = 0
+    return _position_line(body, retired=False)
+
+
+def retired_position_line(body: str) -> str | None:
+    """Return a legacy Filed-from line adjacent to a record scope block."""
+    return _position_line(body, retired=True)
+
+
+def _position_line(body: str, *, retired: bool) -> str | None:
+    lines = body.splitlines()
+    scope_present = False
     for pattern in SCOPE_PATTERNS:
         match = pattern.match(body)
         if match is not None:
-            offset = match.end()
+            scope_present = True
             break
-    match = FILED_FROM.match(body, offset)
-    return None if match is None else match.group(0)
+    if not scope_present:
+        if retired or not lines:
+            return None
+        candidate = lines[0]
+        return candidate if FILED_FROM.fullmatch(candidate) is not None else None
+
+    scope_end = 0
+    if not retired:
+        while (
+            scope_end + 1 < len(lines)
+            and lines[scope_end + 1].startswith(">")
+        ):
+            scope_end += 1
+    candidate_index = scope_end + 1
+    if retired:
+        if (
+            candidate_index >= len(lines)
+            or not tracker_branch_scope.directly_follows_quote_line(
+                lines, candidate_index
+            )
+        ):
+            return None
+    else:
+        if (
+            candidate_index >= len(lines)
+            or lines[candidate_index].strip(" \t")
+        ):
+            return None
+        candidate_index += 1
+        if candidate_index >= len(lines):
+            return None
+    candidate = lines[candidate_index]
+    return candidate if FILED_FROM.fullmatch(candidate) is not None else None
 
 
 def grade_publication(
@@ -127,7 +168,8 @@ def grade_publication(
         return Grade(
             "filed-from:create",
             "deny",
-            "deny: filed-from:create: issue body lacks a Filed-from line at the fixed position",
+            "deny: filed-from:create: issue body must place its Filed-from line "
+            "after the whole record scope block and exactly one blank line",
         )
     if route == ("issue", "edit"):
         if current_body is None:
@@ -136,7 +178,9 @@ def grade_publication(
                 "not-graded",
                 "filed-from: NOT GRADED; current issue body was not read",
             )
-        current_line = fixed_position_line(current_body)
+        current_line = fixed_position_line(current_body) or retired_position_line(
+            current_body
+        )
         if current_line is not None and fixed_position_line(body) != current_line:
             return Grade(
                 "filed-from:edit",
@@ -171,14 +215,17 @@ def _format_scan(
     eligible: int = 1,
     unread: int = 0,
     cap_reached: bool = False,
+    retired_position: int | None = None,
 ) -> Scan:
     lines = [
         f"Filed-from line over {subject}",
         f"records read {records}",
         f"eligible records {eligible}",
         f"unread records {unread}",
-        f"findings {len(findings)}",
     ]
+    if retired_position is not None:
+        lines.append(f"line at the retired position {retired_position}")
+    lines.append(f"findings {len(findings)}")
     if complete:
         lines.append("read complete")
     else:
@@ -238,7 +285,9 @@ def grade_event(document: object, event_name: str) -> Scan:
         previous = body_change.get("from")
         if not isinstance(previous, str):
             raise ValueError("GitHub issue previous body was not text")
-        previous_line = fixed_position_line(previous)
+        previous_line = fixed_position_line(previous) or retired_position_line(
+            previous
+        )
         eligible = int(previous_line is not None)
         if previous_line is not None and fixed_position_line(body) != previous_line:
             findings = (Finding("filed-from:edited", url),)
@@ -255,6 +304,7 @@ def grade_open_issues(rows: object, *, cap: int) -> Scan:
     findings: list[Finding] = []
     eligible = 0
     unread = 0
+    retired_position = 0
     for row in rows:
         if not isinstance(row, dict):
             unread += 1
@@ -278,7 +328,9 @@ def grade_open_issues(rows: object, *, cap: int) -> Scan:
             unread += 1
             continue
         eligible += int(opened.eligible)
-        if opened.missing:
+        if opened.eligible and retired_position_line(body) is not None:
+            retired_position += 1
+        elif opened.missing:
             findings.append(Finding("filed-from:sweep", url))
     complete = cap_complete and unread == 0
     return _format_scan(
@@ -289,6 +341,7 @@ def grade_open_issues(rows: object, *, cap: int) -> Scan:
         eligible=eligible,
         unread=unread,
         cap_reached=not cap_complete,
+        retired_position=retired_position,
     )
 
 
