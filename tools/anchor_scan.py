@@ -54,9 +54,14 @@ grader on the shared finding-over-coverage ordering.
 
 from __future__ import annotations
 
+import argparse
+import json
 import re
 import sys
+from collections import defaultdict
+from contextlib import closing
 from dataclasses import dataclass
+from functools import cache
 from pathlib import Path
 
 import run_grader
@@ -97,6 +102,7 @@ LISTING = re.compile(
 )
 
 PEDIATRIC_BAND = re.compile(r"(?i)^Z68\.5")
+EM_LINE = re.compile(r"(?mi)^[ \t]*E/M[ \t]*:[ \t]*(?!None\b)\S")
 
 UNLISTED_MARK = "marked-not-listed"
 UNMARKED_LISTING = "listed-not-marked"
@@ -155,6 +161,11 @@ DECLARED_LIMITS = (
         "ADR 0230 leaves this declared because no admissible candidate population spans marks, listings, and pediatric bands.",
         run_grader.EvidenceDisposition.BEHAVIOR,
     ),
+    (
+        "E/M descriptor agreement",
+        "E/M lines are counted and excluded because their descriptors cannot settle place of service, patient status, and decision-making level.",
+        run_grader.EvidenceDisposition.BEHAVIOR,
+    ),
 )
 
 
@@ -178,6 +189,7 @@ class Worksheet:
     pediatric_not_computed: tuple[str, ...]
     orphaned_details: int = 0
     unread_remainder: int = 0
+    excluded_em: int = 0
 
 
 @dataclass(frozen=True)
@@ -196,6 +208,7 @@ class Scan:
     orphaned_details: int = 0
     findings: tuple[Finding, ...] = ()
     unread_remainder: int = 0
+    excluded_em: int = 0
 
     @property
     def subjects(self) -> int:
@@ -291,6 +304,7 @@ def read_worksheet(text: str) -> Worksheet:
             len(list(ENTRY_CANDIDATE.finditer(candidate_text)))
             - len(candidate_strict_entries),
         ),
+        excluded_em=len(EM_LINE.findall(text)),
     )
 
 
@@ -342,6 +356,7 @@ def survey(sheets: list[Worksheet]) -> Scan:
         orphaned_details=sum(sheet.orphaned_details for sheet in sheets),
         findings=tuple(found),
         unread_remainder=sum(sheet.unread_remainder for sheet in sheets),
+        excluded_em=sum(sheet.excluded_em for sheet in sheets),
     )
 
 
@@ -359,6 +374,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         f"    carrying SOURCE: filled          {scan.marked}",
         f"  codes listed in the block          {scan.listed}",
         f"  pediatric Z68.5- bands             {scan.pediatric_bands}",
+        f"  E/M lines excluded                  {scan.excluded_em}",
         f"  orphaned detail lines               {scan.orphaned_details}",
         run_grader.format_unread_remainder(scan.unread_remainder),
         "",
@@ -421,8 +437,489 @@ GRADER = run_grader.Grader(
 )
 
 
+AGREEMENT_ANCHOR = re.compile(r'(?mi)^[ \t]*ANCHOR[ \t]*:[ \t]*"(.*)"[ \t]*$')
+REFUSAL_MARK = re.compile(rf"(?mi)^[ \t]*NOT CODED:[ \t]*(?P<code>{CODE})\b[ \t]+(?P<descriptor>\S.*)$")
+NOTE_REFUSAL = re.compile(rf"(?i)\bNOT CODED:[ \t]*(?P<code>{CODE})\b")
+PROPOSED_INSTEAD = re.compile(rf"(?mi)^[ \t]*proposed instead:[ \t]*(?P<code>{CODE})\b", re.IGNORECASE)
+ICD_TOKEN = re.compile(r"\b[A-Z][0-9][0-9A-Z](?:\.[0-9A-Z]{1,4})?\b")
+RENDERED_PROCEDURE = re.compile(rf"(?mi)^[ \t]*(?P<system>CPT|HCPCS)[ \t]*:[ \t]*(?P<code>{CODE})\b")
+RENDERED_EM = EM_LINE
+DIFFERENTIAL_HEADING = re.compile(
+    r"(?mi)^(?:---[ \t]*|#{1,6}[ \t]+)DIFFERENTIAL,?[ \t]+DOCUMENTS MDM,?[ \t]+NOT FOR ENTRY(?:[ \t]*---)?[ \t]*$"
+)
+REFUSAL_HEADING = re.compile(
+    r"(?mi)^(?:---[ \t]*|#{1,6}[ \t]+)NOT CODED,?[ \t]+NOTHING ESTABLISHED IT(?:[ \t]*---)?[ \t]*$"
+)
+
+
+@dataclass(frozen=True)
+class AgreementSubject:
+    system: str
+    code: str
+    descriptor: str
+    role: str
+    support: str
+    subject_id: str = ""
+
+    @property
+    def key(self) -> str:
+        return self.subject_id
+
+
+@dataclass(frozen=True)
+class AgreementPair:
+    stem: str
+    note: str
+    worksheet: str
+    subjects: tuple[AgreementSubject, ...]
+    excluded_em: int
+    unread_remainder: int = 0
+
+
+def _markdown_files(directory: Path) -> dict[str, Path]:
+    if not directory.is_dir():
+        return {}
+    return {
+        path.stem: path
+        for path in sorted(directory.glob("*.md"))
+        if path.name.lower() != "readme.md"
+    }
+
+
+@cache
+def _official_descriptor(system: str, code: str) -> str | None:
+    if system.upper().startswith("ICD"):
+        import icd10_lookup
+
+        with closing(icd10_lookup.open_database()) as connection:
+            match = icd10_lookup.describe(connection, code)
+            return match.long if match else None
+    import procedure_codes_lookup
+
+    with closing(procedure_codes_lookup.open_database()) as connection:
+        match = procedure_codes_lookup.describe(connection, code)
+        return match.description if match else None
+
+
+def _route_tokens(value: str) -> list[str]:
+    without_parentheticals = re.sub(r"\([^)]*\)", "", value)
+    return [
+        token
+        for token in re.findall(r"[a-z0-9]+", without_parentheticals.lower())
+        if token != "nec"
+    ]
+
+
+def _is_subsequence(needles: list[str], haystack: list[str]) -> bool:
+    position = 0
+    for token in haystack:
+        if position < len(needles) and token == needles[position]:
+            position += 1
+    return position == len(needles)
+
+
+@cache
+def _index_route_catalog() -> dict[str, tuple[str, str | None, str | None, str | None]]:
+    import icd10_lookup
+
+    with closing(icd10_lookup.open_database()) as connection:
+        rows = connection.execute(
+            "SELECT path, code, see, see_also FROM index_entry ORDER BY path",
+        ).fetchall()
+
+    rendered: dict[str, tuple[str, str | None, str | None, str | None]] = {}
+    for path, code, see, see_also in rows:
+        destination = (
+            f"code {icd10_lookup.dotted(code)}" if code else
+            f"see {see}" if see else
+            f"see also {see_also}" if see_also else
+            "no direct destination"
+        )
+        rendered[f"{path} -> {destination}"] = (path, code, see, see_also)
+    return rendered
+
+
+def _valid_route(subject: AgreementSubject, route: str, agreeing_words: str) -> bool:
+    if route == "descriptor words":
+        return True
+    if subject.system != "ICD-10":
+        return False
+
+    normalized = subject.code.replace(".", "").upper()
+    rendered = _index_route_catalog()
+
+    steps = route.split(" | ")
+    if not steps or any(step not in rendered for step in steps):
+        return False
+    resolved = [rendered[step] for step in steps]
+    first_main_term = resolved[0][0].split(">", 1)[0]
+    alternatives = [part.strip() for part in first_main_term.split(",")]
+    word_tokens = _route_tokens(agreeing_words)
+    if not any(_is_subsequence(_route_tokens(term), word_tokens) for term in alternatives):
+        return False
+    for previous, following in zip(resolved, resolved[1:]):
+        referral = previous[2] or previous[3]
+        if not referral or not _is_subsequence(
+            _route_tokens(referral), _route_tokens(following[0])
+        ):
+            return False
+    return resolved[-1][1] == normalized
+
+
+def _requires_encounter_evidence(subject: AgreementSubject) -> bool:
+    descriptor = subject.descriptor.lower()
+    return subject.role == "procedure" or bool(
+        re.search(r"\b(?:encounter for|initial encounter|subsequent encounter)\b", descriptor)
+    )
+
+
+def _preceding_support(text: str, position: int) -> str:
+    before = text[:position].splitlines()
+    return next((line.strip() for line in reversed(before) if line.strip() and not line.startswith("---")), "")
+
+
+def _agreement_subjects(text: str) -> tuple[tuple[AgreementSubject, ...], int, int]:
+    entries = list(ENTRY.finditer(text))
+    differential_match = DIFFERENTIAL_HEADING.search(text)
+    refusal_match = REFUSAL_HEADING.search(text)
+    differential = differential_match.start() if differential_match else -1
+    refusal = refusal_match.start() if refusal_match else -1
+    subjects: list[AgreementSubject] = []
+    unread = max(0, len(list(ENTRY_CANDIDATE.finditer(text))) - len(entries))
+
+    for index, match in enumerate(entries):
+        start = match.start()
+        if refusal >= 0 and start >= refusal:
+            continue
+        system = match.group("system").upper().replace("ICD10", "ICD-10")
+        code = match.group("code").upper()
+        descriptor = match.group("descriptor").strip()
+        is_differential = differential >= 0 and start >= differential
+        role = "differential" if is_differential else (
+            "procedure" if system in {"CPT", "HCPCS"} else "entry"
+        )
+        end = entries[index + 1].start() if index + 1 < len(entries) else len(text)
+        if refusal >= 0:
+            end = min(end, refusal) if end > start else end
+        anchor = AGREEMENT_ANCHOR.search(text, match.end(), end)
+        if system in {"CPT", "HCPCS"} and not anchor:
+            # Procedure-code prose can begin with ``CPT 12345`` while explicitly
+            # declining to propose it. Only a worksheet entry with its required
+            # quotation belongs to the agreement population.
+            continue
+        support = _preceding_support(text, start) if is_differential else (
+            anchor.group(1) if anchor else ""
+        )
+        official = _official_descriptor(system, code)
+        if official is not None:
+            subjects.append(AgreementSubject(system, code, official, role, support))
+        else:
+            unread += 1
+
+    if refusal >= 0:
+        for match in REFUSAL_MARK.finditer(text, refusal):
+            code = match.group("code").upper()
+            official = _official_descriptor("ICD-10", code)
+            if official is not None:
+                subjects.append(
+                    AgreementSubject(
+                        "ICD-10", code, official, "refused", _preceding_support(text, match.start())
+                    )
+                )
+            else:
+                unread += 1
+    occurrences: defaultdict[tuple[str, str, str], int] = defaultdict(int)
+    identified: list[AgreementSubject] = []
+    for subject in subjects:
+        identity = (subject.system, subject.code, subject.role)
+        occurrences[identity] += 1
+        identified.append(
+            AgreementSubject(
+                subject.system,
+                subject.code,
+                subject.descriptor,
+                subject.role,
+                subject.support,
+                f"{subject.system}:{subject.code}:{subject.role}:{occurrences[identity]}",
+            )
+        )
+    return tuple(identified), len(RENDERED_EM.findall(text)), unread
+
+
+def _pair_agreement_sources(worksheets: Path, notes: Path) -> tuple[list[AgreementPair], int]:
+    worksheet_files = _markdown_files(worksheets)
+    note_files = _markdown_files(notes)
+    stems = sorted(set(worksheet_files) & set(note_files))
+    unread = len(set(worksheet_files) ^ set(note_files))
+    pairs: list[AgreementPair] = []
+    for stem in stems:
+        worksheet = worksheet_files[stem].read_text(encoding="utf-8", errors="replace")
+        note = note_files[stem].read_text(encoding="utf-8", errors="replace")
+        subjects, worksheet_em, subject_unread = _agreement_subjects(worksheet)
+        pairs.append(
+            AgreementPair(
+                stem,
+                note,
+                worksheet,
+                subjects,
+                worksheet_em + len(RENDERED_EM.findall(note)),
+                subject_unread,
+            )
+        )
+        unread += subject_unread
+    return pairs, unread
+
+
+def _brief_payload(pairs: list[AgreementPair], unread: int) -> dict:
+    return {
+        "mode": "descriptor agreement blind brief",
+        "instructions": (
+            "For every code, record agreeing_words, route, encounter_evidence, "
+            "open_status_evidence, threshold, and waits_on_result; use 'none' when absent. "
+            "Copy subject_id, system, code, and role exactly. Every evidence value is a nonempty "
+            "string. Route is the literal 'descriptor words' or exact index output; join a "
+            "referral chain with ' | ', beginning at a term in agreeing_words and ending at the "
+            "subject code. "
+            "Agreement requires note words that state the descriptor or reach it through an "
+            "official alphabetic-index path; topical relation is insufficient. A differential "
+            "code is read against the diagnosis considered by its entry. A present descriptor "
+            "resting on history needs note evidence that the finding remains unresolved and is "
+            "addressed today. An encounter or procedure descriptor needs evidence that its purpose "
+            "or act belongs to this encounter, not a later recommendation. A bare value reaches an "
+            "abnormality descriptor only through a threshold stated by the note or a committed "
+            "source. For every entry or differential code, name any result the descriptor still "
+            "waits on. CPT and HCPCS have no index route and use descriptor words only."
+        ),
+        "pairs": [
+            {
+                "stem": pair.stem,
+                "note": pair.note,
+                "codes": [
+                    {
+                        "system": subject.system,
+                        "code": subject.code,
+                        "descriptor": subject.descriptor,
+                        "role": subject.role,
+                        "subject_id": subject.subject_id,
+                    }
+                    for subject in pair.subjects
+                ],
+            }
+            for pair in pairs
+        ],
+        "excluded_em": sum(pair.excluded_em for pair in pairs),
+        "unread remainder": unread,
+    }
+
+
+def _section_codes(note: str, heading: str) -> set[str]:
+    lines = note.splitlines()
+    start = next(
+        (
+            i
+            for i, line in enumerate(lines)
+            if line.lstrip(" #*\t").lower().startswith(heading)
+        ),
+        None,
+    )
+    if start is None:
+        return set()
+    first = lines[start]
+    selected: list[str] = [first.split(":", 1)[1].strip(" *") if ":" in first else ""]
+    closing_labels = (
+        "preexisting diagnoses",
+        "final diagnosis",
+        "age-appropriate screening",
+        "p:",
+        "proposed coding worksheet",
+        "medatrax entry",
+        "tier block",
+        "drift matrix",
+        "drift verdicts",
+    )
+    for line in lines[start + 1 :]:
+        label = line.lstrip(" #*\t").lower()
+        if any(label.startswith(candidate) for candidate in closing_labels):
+            break
+        selected.append(line)
+    section = "\n".join(selected)
+    refused = {match.group("code").upper() for match in NOTE_REFUSAL.finditer(section)}
+    return {match.group(0).upper() for match in ICD_TOKEN.finditer(section)} - refused
+
+
+def _binding_findings(pair: AgreementPair) -> list[str]:
+    proposed_icd = {s.code for s in pair.subjects if s.role == "entry" and s.system == "ICD-10"}
+    differential_icd = {s.code for s in pair.subjects if s.role == "differential"}
+    refused_icd = {s.code for s in pair.subjects if s.role == "refused"}
+    procedure = {
+        (s.system, s.code) for s in pair.subjects if s.role == "procedure"
+    }
+
+    note_diagnoses = _section_codes(pair.note, "preexisting diagnoses") | _section_codes(
+        pair.note, "final diagnosis"
+    )
+    note_differential = _section_codes(pair.note, "differential")
+    note_refused = {match.group("code").upper() for match in NOTE_REFUSAL.finditer(pair.note)}
+    note_procedure = {
+        (match.group("system").upper(), match.group("code").upper())
+        for match in RENDERED_PROCEDURE.finditer(pair.note)
+    }
+    comparisons = (
+        ("for-entry diagnosis", note_diagnoses, proposed_icd),
+        ("differential", note_differential, differential_icd),
+        ("refusal", note_refused, refused_icd),
+        ("procedure", note_procedure, procedure),
+    )
+    findings = [
+        f"{pair.stem}: {label} bind differs"
+        for label, note_side, worksheet_side in comparisons
+        if note_side != worksheet_side
+    ]
+    substitutes = {
+        match.group("code").upper() for match in PROPOSED_INSTEAD.finditer(pair.worksheet)
+    }
+    if not substitutes <= proposed_icd:
+        findings.append(f"{pair.stem}: proposed-instead code is absent from for-entry proposals")
+    return findings
+
+
+def _agreement_report(pairs: list[AgreementPair], findings: list[str], unread: int) -> str:
+    waits = sum(" entry waits on " in finding for finding in findings)
+    missing = sum("has no agreeing words" in finding for finding in findings)
+    verbatim = sum("agreeing words are not verbatim" in finding for finding in findings)
+    route = sum("has no descriptor or index route" in finding for finding in findings)
+    encounter = sum("has no encounter evidence" in finding for finding in findings)
+    binds = sum(
+        "bind differs" in finding or "proposed-instead" in finding for finding in findings
+    )
+    return "\n".join(
+        (
+            "descriptor agreement read",
+            "",
+            f"  paired notes and worksheets          {len(pairs)}",
+            f"  codes read                           {sum(len(pair.subjects) for pair in pairs)}",
+            f"  E/M lines excluded                  {sum(pair.excluded_em for pair in pairs)}",
+            f"  agreement findings                 {len(findings)}",
+            f"    codes with no agreeing words      {missing}",
+            f"    non-verbatim agreeing words       {verbatim}",
+            f"    codes with no route               {route}",
+            f"    codes with no encounter evidence  {encounter}",
+            f"    descriptors waiting on results    {waits}",
+            f"    note/worksheet bind findings      {binds}",
+            run_grader.format_unread_remainder(unread),
+        )
+    )
+
+
+def _run_agreement(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser(prog="anchor_scan.py")
+    parser.add_argument("worksheets", type=Path)
+    parser.add_argument("--notes", type=Path, required=True)
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--agreement-brief", action="store_true")
+    mode.add_argument("--agreement-read", type=Path)
+    args = parser.parse_args(argv)
+    pairs, unread = _pair_agreement_sources(args.worksheets, args.notes)
+    if not pairs:
+        unread += 1
+
+    if args.agreement_brief:
+        print(json.dumps(_brief_payload(pairs, unread), indent=2, ensure_ascii=True))
+        return 2 if unread else 0
+
+    assert args.agreement_read is not None
+    try:
+        payload = json.loads(args.agreement_read.read_text(encoding="utf-8"))
+        supplied_pairs = payload["pairs"]
+        if not isinstance(supplied_pairs, list):
+            raise TypeError("pairs is not a list")
+        record_pairs: dict[str, dict] = {}
+        for row in supplied_pairs:
+            if not isinstance(row, dict) or "stem" not in row:
+                unread += 1
+                continue
+            stem = row["stem"]
+            if stem in record_pairs or not isinstance(row.get("codes"), list):
+                unread += 1
+                continue
+            record_pairs[stem] = row
+        expected_stems = {pair.stem for pair in pairs}
+        unread += len(set(record_pairs) - expected_stems)
+    except (OSError, ValueError, KeyError, TypeError) as error:
+        print(f"descriptor agreement read: unread record ({error})")
+        return 2
+
+    findings: list[str] = []
+    for pair in pairs:
+        record_pair = record_pairs.get(pair.stem)
+        if record_pair is None:
+            unread += len(pair.subjects) or 1
+            continue
+        record_rows = record_pair.get("codes", [])
+        valid_rows = [row for row in record_rows if isinstance(row, dict)]
+        unread += len(record_rows) - len(valid_rows)
+        records = {row.get("subject_id"): row for row in valid_rows}
+        expected = {subject.key: subject for subject in pair.subjects}
+        unread += len(set(expected) - set(records)) + len(set(records) - set(expected))
+        unread += len(valid_rows) - len(records)
+        for key in set(expected) & set(records):
+            subject = expected[key]
+            record = records[key]
+            required = (
+                "agreeing_words",
+                "route",
+                "encounter_evidence",
+                "open_status_evidence",
+                "threshold",
+                "waits_on_result",
+            )
+            if any(
+                field not in record
+                or not isinstance(record[field], str)
+                or not record[field]
+                for field in required
+            ):
+                unread += 1
+                continue
+            if (
+                record.get("system"),
+                record.get("code"),
+                record.get("role"),
+            ) != (subject.system, subject.code, subject.role):
+                unread += 1
+                continue
+            words = record["agreeing_words"]
+            route = record["route"]
+            if not isinstance(words, str) or not words or words == "none":
+                if subject.role == "procedure":
+                    unread += 1
+                else:
+                    findings.append(f"{pair.stem}: {subject.code} has no agreeing words")
+            elif words not in pair.note or words not in subject.support:
+                findings.append(f"{pair.stem}: {subject.code} agreeing words are not verbatim")
+            if route == "none" or not _valid_route(subject, route, words):
+                if subject.role != "procedure":
+                    findings.append(f"{pair.stem}: {subject.code} has no descriptor or index route")
+            if (
+                _requires_encounter_evidence(subject)
+                and record["encounter_evidence"] == "none"
+            ):
+                findings.append(f"{pair.stem}: {subject.code} has no encounter evidence")
+            waits = record["waits_on_result"]
+            if subject.role in {"entry", "differential"} and isinstance(waits, str) and waits != "none":
+                findings.append(f"{pair.stem}: {subject.code} entry waits on {waits}")
+        findings.extend(_binding_findings(pair))
+
+    print(_agreement_report(pairs, findings, unread))
+    if findings:
+        return 1
+    return 2 if unread else 0
+
+
 def main(argv: list[str]) -> int:
     """``argv`` is the argument list without the program name."""
+    if any(arg in {"--agreement-brief", "--agreement-read"} for arg in argv):
+        return _run_agreement(argv)
     return run_grader.run(GRADER, argv)
 
 

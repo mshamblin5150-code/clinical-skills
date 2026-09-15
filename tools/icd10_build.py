@@ -4,20 +4,16 @@
 
 ``<release-directory>`` holds the CMS release zips as downloaded, unextracted. The
 two this reads are the code-descriptions zip (fixed-width order file) and the code
-tables zip (tabular XML). The addendum, the alphabetic index, the neoplasm table
-and the table of drugs and chemicals are deliberately not read — see *What is not
-in here* below.
+tables zip (tabular XML and alphabetic-index XML). The addendum, neoplasm table,
+drug table, and external-cause index are deliberately not read.
 
 The output is committed. That is unusual for a generated file and it was decided
 deliberately: ``icd10-cpt`` is on the consumer's critical path, and a database
 that has to be built before the skill works would make the skill's Markdown
-insufficient on its own. It is 13.6 MB on disk and 2.68 MB as a git object.
+insufficient on its own.
 
 **What is not in here, and what that costs.**
 
-- **The alphabetic index.** So this database *verifies* a code, it does not *find*
-  one. The skill's shape is that the agent recalls a candidate and the database
-  adjudicates it. A diagnosis phrase with no recalled candidate gets no help.
 - **Neoplasm and drug tables.** No use case in this corpus.
 - **Anything above the tabular's own text.** Coding *guidelines* — the FY2026
   official guidelines PDF — are not machine-readable here and are not shipped.
@@ -48,6 +44,7 @@ DEFAULT_OUT = REPO_ROOT / "reference" / "icd10cm-2026.sqlite"
 # than as a silently empty table.
 ORDER_MEMBER = "Code Descriptions/icd10cm_order_2026.txt"
 TABULAR_MEMBER = "Table and Index/icd10cm_tabular_2026.xml"
+INDEX_MEMBER = "Table and Index/icd10cm_index_2026.xml"
 
 # The order file is fixed-width, and the columns are positional rather than
 # delimited: five-digit order number, then the code, then the billable flag, then
@@ -84,6 +81,17 @@ class Note:
     code: str
     kind: str
     text: str
+
+
+@dataclass(frozen=True)
+class IndexEntry:
+    """One alphabetic-index term at its complete path."""
+
+    term: str
+    path: str
+    code: str | None
+    see: str | None
+    see_also: str | None
 
 
 def parse_order_line(line: str) -> Code:
@@ -132,6 +140,53 @@ def parse_tabular(xml_text: str) -> list[Note]:
     return notes
 
 
+def parse_index(xml_text: str) -> list[IndexEntry]:
+    """Read main terms and nested terms without importing the other CMS tables."""
+    root = ET.fromstring(xml_text)
+    entries: list[IndexEntry] = []
+
+    def index_text(element: ET.Element) -> str:
+        pieces = [element.text or ""]
+        for child in element:
+            if child.tag == "nemod":
+                pieces.append(" ")
+            pieces.extend(("".join(child.itertext()), child.tail or ""))
+        return " ".join("".join(pieces).split())
+
+    def walk(element: ET.Element, parents: tuple[str, ...]) -> None:
+        title = element.find("title")
+        if title is None:
+            return
+        term = index_text(title)
+        if not term:
+            return
+        parts = (*parents, term)
+
+        def direct_text(tag: str) -> str | None:
+            child = element.find(tag)
+            if child is None:
+                return None
+            value = _flatten(child)
+            return value or None
+
+        code = direct_text("code")
+        entries.append(
+            IndexEntry(
+                term=term,
+                path=" > ".join(parts),
+                code=code.replace(".", "").upper() if code else None,
+                see=direct_text("see"),
+                see_also=direct_text("seeAlso"),
+            )
+        )
+        for child in element.findall("term"):
+            walk(child, parts)
+
+    for main_term in root.iter("mainTerm"):
+        walk(main_term, ())
+    return entries
+
+
 def parse_version(xml_text: str) -> str | None:
     version = ET.fromstring(xml_text).find("version")
     if version is None or not version.text:
@@ -154,6 +209,7 @@ def release_string(version: str | None, source: Path) -> str:
 SCHEMA = """
 DROP TABLE IF EXISTS code;
 DROP TABLE IF EXISTS note;
+DROP TABLE IF EXISTS index_entry;
 DROP TABLE IF EXISTS meta;
 
 CREATE TABLE code (
@@ -170,11 +226,27 @@ CREATE TABLE note (
 );
 CREATE INDEX note_code ON note (code);
 
+CREATE TABLE index_entry (
+    term     TEXT NOT NULL COLLATE NOCASE,
+    path     TEXT NOT NULL,
+    code     TEXT,
+    see      TEXT,
+    see_also TEXT
+);
+CREATE INDEX index_entry_term ON index_entry (term COLLATE NOCASE);
+CREATE INDEX index_entry_code ON index_entry (code);
+
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 """
 
 
-def write_database(path: Path, codes: list[Code], notes: list[Note], release: str) -> None:
+def write_database(
+    path: Path,
+    codes: list[Code],
+    notes: list[Note],
+    release: str,
+    index: list[IndexEntry] | None = None,
+) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     connection = sqlite3.connect(path)
     try:
@@ -187,12 +259,18 @@ def write_database(path: Path, codes: list[Code], notes: list[Note], release: st
             "INSERT INTO note VALUES (?, ?, ?)",
             [(n.code, n.kind, n.text) for n in notes],
         )
+        index_rows = index or []
+        connection.executemany(
+            "INSERT INTO index_entry VALUES (?, ?, ?, ?, ?)",
+            [(row.term, row.path, row.code, row.see, row.see_also) for row in index_rows],
+        )
         connection.executemany(
             "INSERT INTO meta VALUES (?, ?)",
             [
                 ("release", release),
                 ("codes", str(len(codes))),
                 ("notes", str(len(notes))),
+                ("index_entries", str(len(index_rows))),
             ],
         )
         connection.commit()
@@ -228,16 +306,19 @@ def main(argv: list[str]) -> int:
     tables = find_zip(args.release, "code-tables")
 
     tabular = read_member(tables, TABULAR_MEMBER)
+    index_xml = read_member(tables, INDEX_MEMBER)
     codes = parse_order_file(read_member(descriptions, ORDER_MEMBER))
     notes = parse_tabular(tabular)
+    index = parse_index(index_xml)
     release = release_string(parse_version(tabular), descriptions)
 
-    write_database(DEFAULT_OUT, codes, notes, release)
+    write_database(DEFAULT_OUT, codes, notes, release, index)
     size = DEFAULT_OUT.stat().st_size
 
     print(f"release  {release}")
     print(f"codes    {len(codes):,} ({sum(1 for c in codes if c.billable):,} billable)")
     print(f"notes    {len(notes):,}")
+    print(f"index    {len(index):,}")
     print(f"written  {DEFAULT_OUT.relative_to(REPO_ROOT)}  {size:,} bytes")
     return 0
 

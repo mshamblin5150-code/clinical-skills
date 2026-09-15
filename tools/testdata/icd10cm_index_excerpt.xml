@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ICD10CM.index>
+  <version>2026</version>
+  <title>ICD-10-CM INDEX TO DISEASES and INJURIES</title>
+  <letter>
+    <title>E</title>
+    <mainTerm>
+      <title>Elevated, elevation</title>
+      <term level="1">
+        <title>blood pressure</title>
+        <seeAlso>Hypertension</seeAlso>
+        <term level="2">
+          <title>reading<nemod>(incidental) (isolated) (nonspecific)</nemod>, no diagnosis of hypertension</title>
+          <code>R03.0</code>
+        </term>
+      </term>
+      <term level="1">
+        <title>troponin</title>
+        <code>R79.89</code>
+      </term>
+    </mainTerm>
+  </letter>
+  <letter>
+    <title>S</title>
+    <mainTerm>
+      <title>Smoker</title>
+      <see>Dependence, drug, nicotine</see>
+    </mainTerm>
+  </letter>
+</ICD10CM.index>

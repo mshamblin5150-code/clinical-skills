@@ -47,6 +47,8 @@ encounter earns the code.
 
 **`tools/aar_scan.py` is a Required command for `aar`.** It extracts the run and grades the after-action record; the invoking skill resumes its completion grader only after exit 0. After an install has been tried, a consumer without the command can walk the same rows by eye but cannot call the after-action review mechanically verified.
 
+**`tools/anchor_scan.py` is a Required command for `icd10-cpt` and for the descriptor-agreement steps inherited by `clinical-note` and `batch-shift`.** Its ordinary mode grades worksheet anchors. Its agreement-brief mode produces the answer-free note/code brief, and its agreement-read mode grades the separated reader's record and the bidirectional note/worksheet code bind. Without a clean required run, descriptor agreement and the paired code populations are not mechanically verified.
+
 **`tools/peer_critique_scan.py` and `tools/voice_model_scan.py` are Required commands for `peer-critique`.** The first is its completion grader; after an install has been tried, a consumer without it can walk the same rows by eye but cannot call the run mechanically verified. The second is required before drafting against the clinician's model; without it the draft is not written against the model. `tools/voice_model_scan.py` is a Required command for `discussion-reply` and `setup-clinical-skills` on the same terms.
 
 **`practicum-case-study` requires its committed readers, graders, and producers.**

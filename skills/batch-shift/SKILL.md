@@ -173,6 +173,11 @@ checkout's `scratch/runs/shift-<date>/` as `note-N.md`. These Markdown files are
 read by the roll-up and terminal graders, not the finished document handed to the course. Keep them
 at the run-directory top level; `filled_vitals_census.py` reads that non-recursive population.
 
+Save each note pass's complete private coding worksheet as
+`scratch/runs/shift-<date>/worksheets/note-N.md`. The filename stem pairs it with the note; the
+subdirectory keeps worksheets out of note-only graders. This is `clinical-note`'s descriptor-
+agreement path inherited per encounter, not a second generated worksheet.
+
 ### 6. Roll up the shift
 
 First the **schedule table** — the Medatrax entry view, one row per encounter in visit order:
@@ -205,6 +210,20 @@ NEW GLOSSARY CANDIDATES: <unknown tokens seen across the shift, with frequency>
 ```
 
 Completion: every encounter appears in exactly one of the two note lists.
+
+Run descriptor agreement once across the paired shift after every note and worksheet exists. This
+**Second reader** applies [standing rule 6](../../AGENTS.md), first reads
+[sourcing.md](../_shared/reference/sourcing.md), did not generate the worksheets, and receives the
+blind brief before its own JSON record is graded:
+
+```bash
+python tools/anchor_scan.py <run>/worksheets --notes <run> --agreement-brief > <run>/agreement/brief.json
+python tools/anchor_scan.py <run>/worksheets --notes <run> --agreement-read <run>/agreement-reader/read.json
+```
+
+Exit 0 is required before the roll-up is complete. An unpaired note or worksheet, an unread code,
+or a difference between the note's submitted code populations and the saved worksheet stops the
+shift.
 
 **Read FLAGS first.** A gap is work outstanding and announces itself. A flag is a note that reads perfectly well and acted on only part of what it documented — nothing about it looks wrong. The roll-up is the only place the pattern is visible: one flag in one note looks like a hard case, five across a shift is what a twelve-hour day does to documentation.
 

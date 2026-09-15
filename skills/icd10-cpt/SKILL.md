@@ -41,7 +41,7 @@ It answers four things: does the code exist, what is its official descriptor, is
 - **`CONFIDENCE` means something narrower.** `verify this number` is for a code you did not look up. A code you did look up is verified against a named release and says so.
 - **Billability is checked, and it is the quiet one.** `Z68.2` is a real code with a real descriptor that cannot be submitted — it is a header, and only its children are billable. A proposal carrying a header code reads as correct right up to the rejection.
 
-**What the lookup cannot do.** There is no alphabetic index in the database, so it verifies a candidate rather than finding one from a diagnosis phrase. `--find` is a substring match over descriptors, which is weaker: a miss is not evidence that no code exists. And nothing in it encodes the official coding guidelines. It answers *does this code exist and what governs it*, never *is this the right code*.
+**What each lookup does.** A direct code verifies identity, descriptor, billability, and inherited notes. `--find` is a substring match over descriptors. `--index` traces an exact final term through the official alphabetic index and prints its complete path plus direct code or referral. A miss from either search mode is not evidence that no code exists. Nothing in the database encodes the official coding guidelines, and no lookup decides whether the encounter earns a code.
 
 This repo also ships the licensed 2026 procedure-code database at
 `reference/procedure-codes-2026.sqlite`:
@@ -276,6 +276,50 @@ cross-references, families, or coding instructions, so it cannot mechanically
 grade a family walk. Their specificity reasons keep the ordinary human
 verification posture; a clean ICD-10 second read says nothing about them.
 
+#### Descriptor agreement is a separate blind read
+
+A quotation agrees when its words state the official descriptor or reach the code through the
+alphabetic index. Topical relation is not agreement. Run the separate agreement reader after the
+worksheet and note have been saved with matching filename stems in separate directories:
+
+```bash
+python tools/anchor_scan.py <run>/worksheets --notes <run>/notes --agreement-brief > <run>/agreement/brief.json
+python tools/anchor_scan.py <run>/worksheets --notes <run>/notes --agreement-read <run>/agreement-reader/read.json
+```
+
+The brief supplies the complete note with its tier block and each code's number, official
+descriptor, system, and role. It supplies no worksheet quotation. This **Second reader** applies
+[standing rule 6](../../AGENTS.md), first reads [sourcing.md](../_shared/reference/sourcing.md), and
+receives only that brief. For every code the reader records `agreeing_words`, `route`, `encounter_evidence`,
+`open_status_evidence`, `threshold`, and `waits_on_result`; each absent value is the literal
+`none`, and every field is a nonempty string. Copy the brief's stable `subject_id` into each record;
+it distinguishes repeated occurrences of the same system, code, and role. The route is the exact
+literal `descriptor words` or a complete alphabetic-index route returned by
+`python tools/icd10_lookup.py --index <term>`. A referral chain joins its exact printed steps with
+` | `, begins with a term present in `agreeing_words`, and ends at the subject code. The record is
+saved as JSON with one `pairs` entry per filename stem and one `codes` entry per brief subject.
+
+Read each claim by the descriptor it makes. A differential code agrees with the diagnosis its
+entry considers. An entry descriptor that waits on an absent or pending result fails even when the
+diagnosis is hedged. A refusal's code agrees with the considered diagnosis; its `proposed instead`
+code takes the ordinary entry check and already appears above. A history agrees with a present
+descriptor only while the note shows it unresolved and addressed in this encounter. A bare value
+agrees with an abnormality descriptor only through a threshold the note or a committed source
+states. Where the quotation appears is immaterial; `agreeing_words` names the exact words.
+
+An encounter or procedure descriptor agrees only with an act or purpose documented for this
+encounter. A later recommendation earns no code and no refusal. CPT and HCPCS use descriptor words
+because their database carries no index; a procedure the words cannot settle is `none` and enters
+the unread remainder. E/M lines are counted and excluded because their descriptors cannot settle
+place of service, patient status, and decision-making level.
+
+`--agreement-read` requires the agreeing words verbatim in both the note and the worksheet support,
+requires every paired note and worksheet, and applies the note bind in both directions: preexisting
+and final diagnosis codes equal for-entry ICD-10 codes; differential codes equal `NOT FOR ENTRY`
+codes; welded `NOT CODED:` codes equal refusal records; rendered `CPT:` and `HCPCS:` codes equal the
+worksheet's procedure codes. `E/M:` is outside the bind. Exit 1 is a finding. Exit 2 is an unread
+record, unpaired file, missing subject, or other unread remainder.
+
 #### A filled value is coded, and it is marked
 
 **A code whose only anchor is a filled value is proposed like any other, carries `SOURCE: filled`, and is listed again in step 4.** The code is derived from the note's own stated value and looked up, not withheld and not recalled.
@@ -483,6 +527,10 @@ the procedure-code database alone does not change this boundary.
 ## Completion
 
 Every proposed code has a code number, a descriptor, an anchor, a specificity flag, and a confidence flag — five parts, no exceptions. **A code whose anchor was filled carries a sixth, `SOURCE`.** A code missing any of the five, or a filled-anchored code missing its sixth, is not ready to hand over.
+
+Both descriptor-agreement commands have run over the saved notes and worksheets, every reader
+record was graded from its own file, the bind is clean, and the agreement read exits 0. Descriptor
+agreement is separate from specificity verification; neither pass receives the other's brief or record.
 
 Every proposed CPT or HCPCS code was queried against
 `reference/procedure-codes-2026.sqlite` on the encounter's service date. A code

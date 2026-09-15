@@ -366,7 +366,14 @@ The differential scan reads a `clinical-note` run. This one reads an **`icd10-cp
 
 ```bash
 python tools/anchor_scan.py <a run directory>
+python tools/anchor_scan.py <worksheets directory> --notes <notes directory> --agreement-brief
+python tools/anchor_scan.py <worksheets directory> --notes <notes directory> --agreement-read <record.json>
 ```
+
+The two agreement modes pair notes and worksheets by filename stem. The brief carries complete
+notes and official descriptors but no worksheet quotations; the read grades a separate reader's
+verbatim agreeing words and the bidirectional note/worksheet code bind. E/M lines are reported and
+excluded. Unpaired artifacts and incomplete reader coverage enter the shared unread remainder.
 
 **Two tests, and neither needs a reader.** First, the mark and the listing must agree — every code carrying `SOURCE: filled` appears under `CODED, ANCHOR WAS FILLED`, and every code that block lists carries `SOURCE: filled` on its own entry. **Either direction alone is the failure**, which is `skills/icd10-cpt/SKILL.md`'s *"Both, not one instead of the other"* made runnable. Second, every for-entry pediatric `Z68.5-` band carries the affirmative `CONFIDENCE` line `verified against ICD-10-CM FY2026 and CDC 2022 Extended BMI-for-Age`. [#123](https://github.com/mshamblin5150-code/clinical-skills/issues/123) retired the old test that forbade an ICD-only verification claim and replaced it with this positive evidence that the committed calculator was used; a bare `verify this number`, or a sentence merely naming an unavailable table, fails that test.
 

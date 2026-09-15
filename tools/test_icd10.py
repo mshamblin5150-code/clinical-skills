@@ -18,9 +18,11 @@ finds nothing and the rule built on it silently never fires.
 
 from __future__ import annotations
 
+import io
 import sqlite3
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 
 import icd10_build as build
@@ -29,6 +31,7 @@ import icd10_lookup as lookup
 TESTDATA = Path(__file__).resolve().parent / "testdata"
 ORDER = (TESTDATA / "icd10cm_order_excerpt.txt").read_text(encoding="utf-8")
 TABULAR = (TESTDATA / "icd10cm_tabular_excerpt.xml").read_text(encoding="utf-8")
+INDEX = (TESTDATA / "icd10cm_index_excerpt.xml").read_text(encoding="utf-8")
 
 # The excerpt holds these seventeen and nothing else. Stated here so a change to
 # the file has to be made in both places on purpose.
@@ -125,6 +128,31 @@ class TabularNotes(unittest.TestCase):
         self.assertEqual(build.parse_tabular(markup)[0].text, "code first the cause")
 
 
+class AlphabeticIndex(unittest.TestCase):
+    def test_reads_a_nested_path_to_its_code(self):
+        rows = build.parse_index(INDEX)
+
+        reading = next(row for row in rows if row.code == "R030")
+        self.assertEqual(
+            reading.path,
+            "Elevated, elevation > blood pressure > reading (incidental) "
+            "(isolated) (nonspecific), no diagnosis of hypertension",
+        )
+
+    def test_reads_a_see_referral_without_inventing_a_code(self):
+        smoker = next(row for row in build.parse_index(INDEX) if row.term == "Smoker")
+
+        self.assertIsNone(smoker.code)
+        self.assertEqual(smoker.see, "Dependence, drug, nicotine")
+
+    def test_keeps_a_see_also_referral_on_its_own_path(self):
+        pressure = next(
+            row for row in build.parse_index(INDEX) if row.path == "Elevated, elevation > blood pressure"
+        )
+
+        self.assertEqual(pressure.see_also, "Hypertension")
+
+
 class ReleaseProvenance(unittest.TestCase):
     """A committed code set that cannot name its own revision cannot be audited."""
 
@@ -151,7 +179,11 @@ def build_excerpt_database(release: str = "test release") -> Path:
     """A throwaway database built from the excerpts, for one test class."""
     path = Path(tempfile.mkdtemp()) / "excerpt.sqlite"
     build.write_database(
-        path, build.parse_order_file(ORDER), build.parse_tabular(TABULAR), release
+        path,
+        build.parse_order_file(ORDER),
+        build.parse_tabular(TABULAR),
+        release,
+        build.parse_index(INDEX),
     )
     return path
 
@@ -193,7 +225,11 @@ class BuildsADatabase(unittest.TestCase):
 
     def test_rebuilding_over_an_existing_file_does_not_double_the_rows(self):
         build.write_database(
-            self.path, build.parse_order_file(ORDER), build.parse_tabular(TABULAR), "second"
+            self.path,
+            build.parse_order_file(ORDER),
+            build.parse_tabular(TABULAR),
+            "second",
+            build.parse_index(INDEX),
         )
         again = sqlite3.connect(self.path)
         self.assertEqual(again.execute("SELECT count(*) FROM code").fetchone()[0], EXCERPT_CODES)
@@ -219,6 +255,33 @@ class Lookup(ExcerptDatabase):
         # Proposing it reads as correct until the claim is rejected.
         self.assertFalse(lookup.describe(self.db, "Z68.2").billable)
         self.assertTrue(lookup.describe(self.db, "Z68.20").billable)
+
+
+class IndexLookup(ExcerptDatabase):
+    def test_finds_the_path_for_an_exact_term(self):
+        matches = lookup.index_paths(self.db, "Smoker")
+
+        self.assertEqual(len(matches), 1)
+        self.assertEqual(matches[0].see, "Dependence, drug, nicotine")
+
+    def test_finds_every_exact_nested_term(self):
+        matches = lookup.index_paths(self.db, "blood pressure")
+
+        self.assertEqual([row.path for row in matches], ["Elevated, elevation > blood pressure"])
+
+    def test_index_mode_prints_the_path_and_destination(self):
+        output = io.StringIO()
+        with redirect_stdout(output):
+            status = lookup.main(["--database", str(self.path), "--index", "Smoker"])
+
+        self.assertEqual(status, 0)
+        self.assertIn("Smoker -> see Dependence, drug, nicotine", output.getvalue())
+
+    def test_index_mode_distinguishes_a_miss(self):
+        with redirect_stdout(io.StringIO()):
+            status = lookup.main(["--database", str(self.path), "--index", "Absent term"])
+
+        self.assertEqual(status, 1)
 
 
 class NotesReachTheCodeThatNeedsThem(ExcerptDatabase):

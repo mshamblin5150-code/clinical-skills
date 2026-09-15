@@ -486,6 +486,25 @@ After the clinical note and before or after the Medatrax field block, emit a vis
 
 Run [icd10-cpt](../icd10-cpt/SKILL.md) over the complete note plus its tier block. Verify every CPT and HCPCS identity, descriptor, support anchor, specificity, and status on the service date before choosing what appears. Those checks stay in the private reasoning. The visible worksheet contains one terse `E/M:` code-and-short-descriptor line, then terse `CPT:` and `HCPCS:` code-and-short-descriptor lines for supported services only; use `None` when a category has no supported entry. Do not print anchors, provenance, specificity, confidence, date-status commentary, or the selection process, and do not pad the worksheet with an action the encounter did not document.
 
+Save the private `icd10-cpt` pass's complete anchored worksheet under the run's `worksheets/`
+subdirectory with the same filename stem as the note. The saved worksheet is run evidence and is
+never rendered into the finished note. Keeping it apart from the notes is required: run graders
+read every top-level Markdown file as one artifact type.
+
+After saving both files, create the blind agreement brief. This **Second reader** applies
+[standing rule 6](../../AGENTS.md), first reads [sourcing.md](../_shared/reference/sourcing.md), and
+returns the separate record that is graded:
+
+```bash
+python tools/anchor_scan.py <run>/worksheets --notes <run> --agreement-brief > <run>/agreement/brief.json
+python tools/anchor_scan.py <run>/worksheets --notes <run> --agreement-read <run>/agreement-reader/read.json
+```
+
+Completion requires exit 0. That read also binds, in both directions, the note's preexisting and
+final codes, differential codes, welded `NOT CODED:` codes, and rendered `CPT:` and `HCPCS:` lines
+to their private worksheet populations. The rendered `E/M:` line is counted and excluded. A batch
+run performs the same paired read once over the shift rather than weakening it per note.
+
 The procedure database does not select an E/M level. Apply the problems-addressed, data, and risk elements and the applicable CPT instructions before rendering the terse line. Those checks stay in the private reasoning; the worksheet itself does not narrate them or attach verification language.
 
 #### Which value was chosen is the instruction, and the note says how it was chosen
