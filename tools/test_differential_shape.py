@@ -246,18 +246,52 @@ class BothTemplatesRenderTheRule(unittest.TestCase):
 
     def test_the_hp_notes_keep_reasoning_out_of_the_differential(self):
         text = HP.read_text(encoding="utf-8")
-        self.assertIn(
-            "the numbered differential item is one clean diagnosis-and-code line",
-            text,
+        template = text.split("```", 2)[1]
+        differential = template.split("Differential diagnoses:", 1)[1].split(
+            "Final diagnosis:", 1
+        )[0]
+        lines = [line.strip() for line in differential.splitlines() if line.strip()]
+        self.assertEqual(
+            lines,
+            [
+                "1. <diagnosis - code>",
+                "2. <diagnosis - code>",
+                "3. <diagnosis - code>",
+            ],
         )
-        self.assertNotIn("the numbered item is two lines", text)
+        self.assertNotIn("rationale", differential.lower())
+        self.assertNotIn("NOT CODED", differential)
+
+        mdm = template.split("Medical Decision Making:", 1)[1].split(
+            "Screenings appropriate for age:", 1
+        )[0]
+        for number in range(1, 4):
+            self.assertIn(
+                f"{number}. <same diagnosis - code as differential item {number}>",
+                mdm,
+            )
+        self.assertEqual(
+            len(re.findall(r"(?m)^\d+\. <same diagnosis - code as differential item \d+>", mdm)),
+            3,
+        )
+        self.assertIn("patient-specific evidence", mdm)
 
     def test_the_hp_hpi_placeholder_does_not_invite_current_exam_content(self):
         text = HP.read_text(encoding="utf-8")
         hpi = text.split("History of Present Illness", 1)[1].split(
             "Past Medical History including Medications", 1
         )[0]
-        self.assertNotIn("current appearance", hpi)
+        for misplaced in (
+            "current appearance",
+            "current examination",
+            "current results",
+            "administered today",
+            "orders",
+            "referral",
+            "transfer",
+            "disposition",
+        ):
+            self.assertNotIn(misplaced, hpi.lower())
 
     def test_the_hp_notes_do_not_claim_a_rubric_departure(self):
         # Numbering is the rubric's own "3 differential diagnoses" read plainly.
