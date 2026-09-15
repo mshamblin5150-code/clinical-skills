@@ -1,9 +1,10 @@
 # Descriptor-agreement negative control
 
-This control pairs exact copies of
+This control pairs deidentified control copies of
 `fixtures/filled-anchor/notes/case-01.md` and
 `fixtures/worksheet-grammar-positive-control/case-01.md` in isolated
-stem-matched directories. A fresh reader received the blind agreement brief
+stem-matched directories; the note copy normalizes one historical British spelling to American
+English without changing its clinical content. A fresh reader received the blind agreement brief
 without being told which rows were suspect and wrote `agreement-read.json`.
 
 The read is expected to fail. It independently re-derived failures for

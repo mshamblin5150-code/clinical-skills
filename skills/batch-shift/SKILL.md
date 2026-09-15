@@ -211,9 +211,10 @@ NEW GLOSSARY CANDIDATES: <unknown tokens seen across the shift, with frequency>
 
 Completion: every encounter appears in exactly one of the two note lists.
 
-Run descriptor agreement once across the paired shift after every note and worksheet exists. Give
-the brief to a fresh reader who did not generate the worksheets, then grade that reader's own JSON
-record:
+Run descriptor agreement once across the paired shift after every note and worksheet exists. This
+**Second reader** applies [standing rule 6](../../AGENTS.md), first reads
+[sourcing.md](../_shared/reference/sourcing.md), did not generate the worksheets, and receives the
+blind brief before its own JSON record is graded:
 
 ```bash
 python tools/anchor_scan.py <run>/worksheets --notes <run> --agreement-brief > <run>/agreement/brief.json

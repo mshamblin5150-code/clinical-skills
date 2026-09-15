@@ -491,8 +491,9 @@ subdirectory with the same filename stem as the note. The saved worksheet is run
 never rendered into the finished note. Keeping it apart from the notes is required: run graders
 read every top-level Markdown file as one artifact type.
 
-After saving both files, create the blind agreement brief and grade a fresh reader's separate
-record:
+After saving both files, create the blind agreement brief. This **Second reader** applies
+[standing rule 6](../../AGENTS.md), first reads [sourcing.md](../_shared/reference/sourcing.md), and
+returns the separate record that is graded:
 
 ```bash
 python tools/anchor_scan.py <run>/worksheets --notes <run> --agreement-brief > <run>/agreement/brief.json

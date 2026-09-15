@@ -288,8 +288,9 @@ python tools/anchor_scan.py <run>/worksheets --notes <run>/notes --agreement-rea
 ```
 
 The brief supplies the complete note with its tier block and each code's number, official
-descriptor, system, and role. It supplies no worksheet quotation. Give only that brief to a fresh
-reader. For every code the reader records `agreeing_words`, `route`, `encounter_evidence`,
+descriptor, system, and role. It supplies no worksheet quotation. This **Second reader** applies
+[standing rule 6](../../AGENTS.md), first reads [sourcing.md](../_shared/reference/sourcing.md), and
+receives only that brief. For every code the reader records `agreeing_words`, `route`, `encounter_evidence`,
 `open_status_evidence`, `threshold`, and `waits_on_result`; each absent value is the literal
 `none`, and every field is a nonempty string. Copy the brief's stable `subject_id` into each record;
 it distinguishes repeated occurrences of the same system, code, and role. The route is the exact
@@ -528,8 +529,8 @@ the procedure-code database alone does not change this boundary.
 Every proposed code has a code number, a descriptor, an anchor, a specificity flag, and a confidence flag — five parts, no exceptions. **A code whose anchor was filled carries a sixth, `SOURCE`.** A code missing any of the five, or a filled-anchored code missing its sixth, is not ready to hand over.
 
 Both descriptor-agreement commands have run over the saved notes and worksheets, every reader
-record was graded from its own file, the bind is clean, and the agreement read exits 0. This reader
-is separate from the specificity Second reader; neither receives the other's brief or record.
+record was graded from its own file, the bind is clean, and the agreement read exits 0. Descriptor
+agreement is separate from specificity verification; neither pass receives the other's brief or record.
 
 Every proposed CPT or HCPCS code was queried against
 `reference/procedure-codes-2026.sqlite` on the encounter's service date. A code
