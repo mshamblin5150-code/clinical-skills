@@ -989,10 +989,12 @@ def _analyze_source_word(
     source: str,
     assignments: dict[str, str],
     substitutions: frozenset[str],
-) -> tuple[str | None, str | None, set[str], bool]:
+) -> tuple[str | None, str | None, set[str], bool, bool]:
     parts: list[str] = []
     unquoted_names: set[str] = set()
     failure_kind: str | None = None
+    field_has_text = False
+    injected_option = False
     quote: str | None = None
     index = 0
     variable = re.compile(
@@ -1015,21 +1017,33 @@ def _analyze_source_word(
             if quote != '"' or following in '$`"\\\r\n':
                 if following not in "\r\n":
                     parts.append(following)
+                    field_has_text = True
                 index += 2
                 continue
         if quote != "'" and source.startswith("$(", index):
-            return None, "command-substitution", unquoted_names, True
+            return None, "command-substitution", unquoted_names, True, False
         if quote != "'" and character == "`":
-            return None, "command-substitution", unquoted_names, True
+            return None, "command-substitution", unquoted_names, True, False
         if quote != "'" and character == "$":
             match = variable.match(source, index)
             if match is None:
-                return None, "external-variable", unquoted_names, True
+                return None, "external-variable", unquoted_names, True, False
             name = match.group("braced") or match.group("plain")
             if quote is None:
                 unquoted_names.add(name)
             if name in assignments:
-                parts.append(assignments[name])
+                assigned = assignments[name]
+                parts.append(assigned)
+                if quote is None:
+                    for assigned_character in assigned:
+                        if assigned_character.isspace():
+                            field_has_text = False
+                        else:
+                            if not field_has_text and assigned_character == "-":
+                                injected_option = True
+                            field_has_text = True
+                elif assigned:
+                    field_has_text = True
             elif name in substitutions:
                 failure_kind = failure_kind or "command-substitution"
             else:
@@ -1037,12 +1051,14 @@ def _analyze_source_word(
             index = match.end()
             continue
         parts.append(character)
+        field_has_text = True
         index += 1
     return (
         None if failure_kind is not None else "".join(parts),
         failure_kind,
         unquoted_names,
         False,
+        injected_option,
     )
 
 
@@ -1051,7 +1067,7 @@ def _expand_source_word(
     assignments: dict[str, str],
     substitutions: frozenset[str],
 ) -> tuple[str | None, str | None]:
-    expanded, kind, _names, _dynamic = _analyze_source_word(
+    expanded, kind, _names, _dynamic, _injected = _analyze_source_word(
         source, assignments, substitutions
     )
     return expanded, kind
@@ -1228,6 +1244,16 @@ def _api_identifier(
     return expanded
 
 
+def _endpoint_failure_is_query_only(source: str) -> bool:
+    query = source.find("?")
+    if query < 0:
+        return False
+    dynamic_positions = [match.start() for match in re.finditer(r"[$`]", source)]
+    return bool(dynamic_positions) and all(
+        position > query for position in dynamic_positions
+    )
+
+
 def _expand_publish_assignment(
     value: str,
     assignments: dict[str, str],
@@ -1355,13 +1381,6 @@ def _publish_assignments(
     return assignments, frozenset(substitutions), uncertain_shell_state
 
 
-def _unquoted_variable_names(source: str) -> tuple[set[str], bool]:
-    _expanded, _kind, names, dynamic = _analyze_source_word(
-        source, {}, frozenset()
-    )
-    return names, dynamic
-
-
 def _api_identifier_source(argument: str, name: str) -> bool:
     patterns = [pattern for pattern, _route in API_ROUTE_PATTERNS]
     patterns.extend(API_NON_PUBLICATION_RECORD_ENDPOINTS)
@@ -1393,7 +1412,13 @@ def _api_dynamic_arguments(
 ) -> UnclassifiedApiCall | None:
     assignments, substitutions, uncertain_shell_state = _publish_assignments(command)
     for argument, source in zip(arguments, sources, strict=True):
-        names, dynamic = _unquoted_variable_names(source)
+        (
+            expanded_source,
+            source_kind,
+            names,
+            dynamic,
+            injected_option,
+        ) = _analyze_source_word(source, assignments, substitutions)
         if dynamic:
             kind = (
                 "unclassified-api-identifier"
@@ -1401,9 +1426,6 @@ def _api_dynamic_arguments(
                 else "unclassified-api-arguments"
             )
             return UnclassifiedApiCall(kind, argument)
-        expanded_source, source_kind = _expand_source_word(
-            source, assignments, substitutions
-        )
         if names and source_kind is not None:
             kind = (
                 "unclassified-api-identifier"
@@ -1411,13 +1433,7 @@ def _api_dynamic_arguments(
                 else "unclassified-api-arguments"
             )
             return UnclassifiedApiCall(kind, argument)
-        if names and expanded_source is not None and expanded_source.startswith("-"):
-            return UnclassifiedApiCall("unclassified-api-arguments", argument)
-        if names and expanded_source is not None and any(
-            word.startswith("-")
-            for word in re.split(r"\s+", expanded_source)[1:]
-            if word
-        ):
+        if names and injected_option:
             return UnclassifiedApiCall("unclassified-api-arguments", argument)
         for name in names:
             if name not in assignments:
@@ -1429,11 +1445,6 @@ def _api_dynamic_arguments(
                 return UnclassifiedApiCall(kind, argument)
             value = assignments[name]
             split_capable = re.search(r"[\s*?\[]", value) is not None
-            injected_option = any(
-                word.startswith("-")
-                for word in re.split(r"\s+", value)[1:]
-                if word
-            )
             if not value and _api_identifier_source(argument, name):
                 return UnclassifiedApiCall(
                     "unclassified-api-identifier", argument
@@ -1442,7 +1453,6 @@ def _api_dynamic_arguments(
                 return UnclassifiedApiCall("unclassified-api-arguments", argument)
             if split_capable and (
                 not read_bypass
-                or injected_option
                 or re.search(r"[*?\[]", value) is not None
             ):
                 return UnclassifiedApiCall("unclassified-api-arguments", argument)
@@ -1482,6 +1492,13 @@ def _api_grade_route(
         if endpoint_kind is None and expanded_endpoint is not None:
             endpoint = expanded_endpoint
             endpoint_expanded = True
+        elif not _endpoint_failure_is_query_only(endpoint_source):
+            kind = (
+                "unclassified-api-identifier"
+                if _api_dynamic_identifier_source(endpoint)
+                else "unclassified-api-endpoint"
+            )
+            return UnclassifiedApiCall(kind, endpoint)
     if any(pattern.fullmatch(endpoint) for pattern in API_NON_PUBLICATION_ENDPOINTS):
         return None
     for pattern in API_NON_PUBLICATION_RECORD_ENDPOINTS:
@@ -1555,6 +1572,8 @@ def _record_number(
             if endpoint_kind is None and expanded_endpoint is not None:
                 endpoint = expanded_endpoint
                 reconstruct_identifier = False
+            elif not _endpoint_failure_is_query_only(endpoint_source):
+                return None
         route_match = _api_route_match(
             endpoint, command, reconstruct_identifier
         )

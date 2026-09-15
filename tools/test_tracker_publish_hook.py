@@ -374,6 +374,19 @@ class InlineTrackerTextIsRead(unittest.TestCase):
         self.assertEqual(result.grade_route, ("issue", "comment"))
         self.assertEqual(result.number, 7)
 
+    def test_unresolved_structural_endpoint_expansion_is_unclassified(self) -> None:
+        result = hook.extract(
+            'gh api -X POST "repos/$OWNER/project/issues/7/comments" '
+            "-f body='Comment'"
+        )
+
+        self.assertIsNone(result.grade_route)
+        self.assertIsNone(result.number)
+        self.assertEqual(
+            result.unclassified_api_calls[0].kind,
+            "unclassified-api-endpoint",
+        )
+
     def test_later_api_comment_identifier_assignment_is_not_reconstructed(self) -> None:
         result = hook.extract(
             "gh api repos/example/project/issues/comments/$CID "
@@ -858,6 +871,19 @@ class InlineTrackerTextIsRead(unittest.TestCase):
         self.assertEqual(result.publications, ())
         self.assertEqual(result.unreadable, ())
         self.assertEqual(result.unclassified_api_calls, ())
+
+    def test_quoted_dash_text_does_not_become_an_injected_option(self) -> None:
+        commands = (
+            'A=text; gh api markdown -f note=$A" -safe"',
+            'A=value; gh api -X GET repos/o/r/issues/7 '
+            '-f data=$A" -safe"',
+        )
+
+        for command in commands:
+            with self.subTest(command=command):
+                result = hook.extract(command)
+                self.assertIsNone(result.grade_route)
+                self.assertEqual(result.unclassified_api_calls, ())
 
     def test_dynamic_arguments_cannot_override_an_explicit_get(self) -> None:
         commands = (
