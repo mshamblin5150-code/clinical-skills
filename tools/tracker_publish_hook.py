@@ -1200,6 +1200,80 @@ def _publish_assignments(
     return assignments, frozenset(substitutions)
 
 
+def _unquoted_variable_names(source: str) -> tuple[set[str], bool]:
+    names: set[str] = set()
+    dynamic = False
+    quote: str | None = None
+    index = 0
+    variable = re.compile(
+        r"\$(?:\{(?P<braced>[A-Za-z_][A-Za-z0-9_]*)\}|"
+        r"(?P<plain>[A-Za-z_][A-Za-z0-9_]*))"
+    )
+    while index < len(source):
+        character = source[index]
+        if character == "\\" and quote != "'" and index + 1 < len(source):
+            index += 2
+            continue
+        if character in ("'", '"'):
+            if quote is None:
+                quote = character
+            elif quote == character:
+                quote = None
+            index += 1
+            continue
+        if quote is None and character == "`":
+            dynamic = True
+        if quote is None and character == "$":
+            match = variable.match(source, index)
+            if match is None:
+                dynamic = True
+            else:
+                names.add(match.group("braced") or match.group("plain"))
+                index = match.end()
+                continue
+        index += 1
+    return names, dynamic
+
+
+def _api_identifier_source(argument: str, name: str) -> bool:
+    for pattern, _route in API_ROUTE_PATTERNS:
+        match = pattern.fullmatch(argument)
+        if match is not None and match.group("identifier") in (
+            f"${name}",
+            "${" + name + "}",
+        ):
+            return True
+    return False
+
+
+def _api_dynamic_arguments(
+    arguments: list[str], sources: tuple[str, ...], command: str
+) -> UnclassifiedApiCall | None:
+    assignments, substitutions = _publish_assignments(command)
+    graphql = _api_endpoint(arguments) == "graphql"
+    for argument, source in zip(arguments, sources, strict=True):
+        if graphql and argument.startswith(("query=", "operationName=")):
+            continue
+        names, dynamic = _unquoted_variable_names(source)
+        if dynamic:
+            return UnclassifiedApiCall("unclassified-api-arguments", argument)
+        for name in names:
+            if name not in assignments:
+                if name in substitutions or not _api_identifier_source(argument, name):
+                    return UnclassifiedApiCall(
+                        "unclassified-api-arguments", argument
+                    )
+                continue
+            value = assignments[name]
+            if (
+                not value
+                or re.search(r"[\s*?\[]", value) is not None
+                or (source in (f"${name}", "${" + name + "}") and value.startswith("-"))
+            ):
+                return UnclassifiedApiCall("unclassified-api-arguments", argument)
+    return None
+
+
 def _api_route_match(
     endpoint: str, command: str
 ) -> tuple[tuple[str, ...], str] | UnclassifiedApiCall | None:
@@ -1454,6 +1528,14 @@ def extract(command: str) -> Extraction:
     if isinstance(api_grade, Unreadable):
         return Extraction(route, number, (), (api_grade,), None)
     grade_route = api_grade
+    if route == ("api",):
+        dynamic_arguments = _api_dynamic_arguments(
+            arguments, argument_sources, command
+        )
+        if dynamic_arguments is not None:
+            return Extraction(
+                route, number, (), (), None, (dynamic_arguments,)
+            )
     if route == ("api",) and grade_route is None:
         return Extraction(route, number, (), (), None)
     publications: list[Publication] = []
@@ -2048,6 +2130,10 @@ UNCLASSIFIED_API_REMEDIES = {
     "unclassified-api-identifier": (
         "the record identifier cannot be reconstructed; type the literal "
         "identifier in the endpoint before retrying"
+    ),
+    "unclassified-api-arguments": (
+        "an unquoted runtime expansion can change the API argument list; "
+        "type the endpoint and options explicitly before retrying"
     ),
 }
 

@@ -500,6 +500,20 @@ class InlineTrackerTextIsRead(unittest.TestCase):
             "unclassified-api-identifier",
         )
 
+    def test_unquoted_api_assignment_cannot_inject_publication_options(self) -> None:
+        result = hook.extract(
+            "ARGS='7 -f body=Injected'; "
+            "gh api repos/example/project/issues/comments/$ARGS"
+        )
+
+        self.assertIsNone(result.grade_route)
+        self.assertEqual(result.publications, ())
+        self.assertEqual(result.unreadable, ())
+        self.assertEqual(
+            result.unclassified_api_calls[0].kind,
+            "unclassified-api-arguments",
+        )
+
     def test_double_quoted_api_identifier_assignment_chain_is_reconstructed(self) -> None:
         result = hook.extract(
             "OTHER=7; CID=\"$OTHER\"; "
