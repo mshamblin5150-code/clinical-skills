@@ -378,6 +378,12 @@ class InlineTrackerTextIsRead(unittest.TestCase):
             "repos/example/project/issues/670/dependencies/blocked_by/671",
             "gh api --method DELETE repos/example/project/issues/670/sub_issue",
             "gh api --method DELETE repos/example/project/issues/670/labels/bug",
+            "gh api --method DELETE "
+            "repos/example/project/issues/670/reactions/55",
+            "gh api --method DELETE "
+            "repos/example/project/issues/comments/777/reactions/55",
+            "gh api --method DELETE "
+            "repos/example/project/pulls/comments/888/reactions/55",
         )
 
         for command in commands:
@@ -466,6 +472,23 @@ class InlineTrackerTextIsRead(unittest.TestCase):
             [(row.field, row.text) for row in result.publications],
             [("body", "Issue edit")],
         )
+
+    def test_attached_api_body_field_is_extracted(self) -> None:
+        result = hook.extract(
+            "gh api repos/example/project/issues/670 -fbody='Issue edit'"
+        )
+
+        self.assertEqual(result.grade_route, ("issue", "edit"))
+        self.assertEqual(
+            [(row.field, row.text) for row in result.publications],
+            [("body", "Issue edit")],
+        )
+
+    def test_non_repository_issue_collection_is_unclassified(self) -> None:
+        result = hook.extract("gh api orgs/example/issues -f body='Unknown route'")
+
+        self.assertIsNone(result.grade_route)
+        self.assertEqual(result.unreadable[0].kind, "unclassified-api-endpoint")
 
 
 class InlineTrackerTextMustBeShellReproducible(unittest.TestCase):
@@ -1885,6 +1908,26 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
         self.assertEqual(specific["permissionDecision"], "deny")
         self.assertIn("GraphQL mutation", specific["additionalContext"])
 
+    def test_selected_query_in_a_mixed_graphql_document_is_read_only(self) -> None:
+        command = (
+            "gh api graphql -f operationName=Read "
+            "-f query='query Read { viewer { login } } "
+            "mutation Write { addComment(input: {}) { clientMutationId } }'"
+        )
+
+        self.assertEqual(hook.handle(self.payload(command)), {})
+
+    def test_later_repeated_graphql_query_field_decides_the_operation(self) -> None:
+        command = (
+            "gh api graphql -f query='query { viewer { login } }' "
+            "-f query='mutation { addComment(input: {}) { clientMutationId } }'"
+        )
+
+        specific = hook.handle(self.payload(command))["hookSpecificOutput"]
+
+        self.assertEqual(specific["permissionDecision"], "deny")
+        self.assertIn("GraphQL mutation", specific["additionalContext"])
+
     def test_unknown_write_endpoint_is_unclassified_on_modeled_tools(self) -> None:
         command = (
             "gh api repos/example/project/commits/abc/comments "
@@ -2352,10 +2395,10 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
 
     def test_attached_api_fields_use_implicit_post_create_semantics(self) -> None:
         commands = (
-            "gh api repos/example/project/issues -f=title=Ticket",
-            "gh api repos/example/project/issues -ftitle=Ticket",
-            "gh api repos/example/project/issues -F=title=Ticket",
-            "gh api repos/example/project/issues -Ftitle=Ticket",
+            "gh api repos/example/project/issues -f=title='Ticket'",
+            "gh api repos/example/project/issues -ftitle='Ticket'",
+            "gh api repos/example/project/issues -F=title='Ticket'",
+            "gh api repos/example/project/issues -Ftitle='Ticket'",
         )
 
         for command in commands:

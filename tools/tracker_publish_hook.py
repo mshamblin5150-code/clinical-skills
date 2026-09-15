@@ -324,7 +324,6 @@ INLINE_FLAGS = {
     "-b": "body",
 }
 FILE_FLAGS = {"--body-file": "body", "-F": "body"}
-API_VALUE_FLAGS = {"-f", "--raw-field", "-F", "--field"}
 API_VALUE_OPTIONS = (
     ("raw-field", ("--raw-field", "-f")),
     ("field", ("--field", "-F")),
@@ -346,7 +345,7 @@ API_NON_PUBLICATION_RECORD_ENDPOINTS = (
         r"/?repos/[^/?]+/[^/?]+/issues/(?P<identifier>[^/?]+)/"
         r"(?:dependencies/(?:blocked_by|blocking)(?:/[^/?]+)?|"
         r"sub_issues(?:/priority)?|sub_issue|parent|labels(?:/[^/?]+)?|"
-        r"assignees|reactions|lock)(?:\?.*)?\Z"
+        r"assignees|reactions(?:/[^/?]+)?|lock)(?:\?.*)?\Z"
     ),
     re.compile(
         r"/?repos/[^/?]+/[^/?]+/pulls/(?P<identifier>[^/?]+)/"
@@ -354,11 +353,11 @@ API_NON_PUBLICATION_RECORD_ENDPOINTS = (
     ),
     re.compile(
         r"/?repos/[^/?]+/[^/?]+/issues/comments/"
-        r"(?P<identifier>[^/?]+)/reactions(?:\?.*)?\Z"
+        r"(?P<identifier>[^/?]+)/reactions(?:/[^/?]+)?(?:\?.*)?\Z"
     ),
     re.compile(
         r"/?repos/[^/?]+/[^/?]+/pulls/comments/"
-        r"(?P<identifier>[^/?]+)/reactions(?:\?.*)?\Z"
+        r"(?P<identifier>[^/?]+)/reactions(?:/[^/?]+)?(?:\?.*)?\Z"
     ),
 )
 API_ROUTE_PATTERNS = (
@@ -878,7 +877,7 @@ def _api_value_option(
                 return name, token[len(flag) + 1 :], 1
             if flag.startswith("-") and not flag.startswith("--"):
                 if token.startswith(flag) and len(token) > len(flag):
-                    return name, token[len(flag) :], 1
+                    return name, token[len(flag) :].removeprefix("="), 1
     return None
 
 
@@ -917,9 +916,10 @@ def _api_endpoint(arguments: list[str]) -> str:
     return ""
 
 
-def _api_graphql_document(
-    arguments: list[str], command: str
+def _api_graphql_field(
+    arguments: list[str], command: str, target: str
 ) -> str | Unreadable | None:
+    found: str | Unreadable | None = None
     index = 0
     while index < len(arguments):
         option = _api_value_option(arguments, index)
@@ -927,7 +927,7 @@ def _api_graphql_document(
             name, option_value, width = option
             value = "" if option_value is None else option_value
             key, separator, value = value.partition("=")
-            if name in ("raw-field", "field") and separator and key == "query":
+            if name in ("raw-field", "field") and separator and key == target:
                 if value.startswith("@") and name == "field":
                     read = _read_file_field(
                         "body",
@@ -936,29 +936,33 @@ def _api_graphql_document(
                         shell_reader.plain_assignments(command),
                         shell_reader.substitution_assignments(command),
                     )
-                    return read if isinstance(read, Unreadable) else read.text
-                expanded, kind = shell_reader.expand(
-                    value,
-                    shell_reader.plain_assignments(command),
-                    shell_reader.substitution_assignments(command),
-                )
-                return (
-                    Unreadable("body", kind, value)
-                    if kind is not None
-                    else expanded
-                )
+                    found = read if isinstance(read, Unreadable) else read.text
+                else:
+                    expanded, kind = shell_reader.expand(
+                        value,
+                        shell_reader.plain_assignments(command),
+                        shell_reader.substitution_assignments(command),
+                    )
+                    found = (
+                        Unreadable("body", kind, value)
+                        if kind is not None
+                        else expanded
+                    )
             index += width
             continue
         index += 1
-    return None
+    return found
 
 
-def _graphql_operation(document: str) -> str | None:
-    operations: set[str] = set()
+def _graphql_operation(
+    document: str, operation_name: str | None = None
+) -> str | None:
+    operations: list[tuple[str | None, str]] = []
     braces = 0
     parentheses = 0
     brackets = 0
     definition: str | None = None
+    awaiting_name = False
     index = 0
     while index < len(document):
         if document.startswith('"""', index):
@@ -984,7 +988,10 @@ def _graphql_operation(document: str) -> str | None:
         if character == "{":
             if braces == parentheses == brackets == 0:
                 if definition is None:
-                    operations.add("query")
+                    operations.append((None, "query"))
+                elif awaiting_name and definition != "fragment":
+                    operations.append((None, definition))
+                    awaiting_name = False
                 braces = 1
             else:
                 braces += 1
@@ -994,9 +1001,13 @@ def _graphql_operation(document: str) -> str | None:
             braces = max(0, braces - 1)
             if braces == parentheses == brackets == 0:
                 definition = None
+                awaiting_name = False
             index += 1
             continue
         if character == "(":
+            if braces == parentheses == brackets == 0 and awaiting_name:
+                operations.append((None, definition or "query"))
+                awaiting_name = False
             parentheses += 1
         elif character == ")":
             parentheses = max(0, parentheses - 1)
@@ -1004,25 +1015,35 @@ def _graphql_operation(document: str) -> str | None:
             brackets += 1
         elif character == "]":
             brackets = max(0, brackets - 1)
+        elif character == "@" and braces == parentheses == brackets == 0:
+            if awaiting_name:
+                operations.append((None, definition or "query"))
+                awaiting_name = False
         elif braces == parentheses == brackets == 0:
             name = re.match(r"[_A-Za-z][_0-9A-Za-z]*", document[index:])
             if name is not None:
                 token = name.group(0)
-                if definition is None and token in (
+                if awaiting_name and definition != "fragment":
+                    operations.append((token, definition or "query"))
+                    awaiting_name = False
+                elif definition is None and token in (
                     "query",
                     "mutation",
                     "subscription",
                     "fragment",
                 ):
                     definition = token
-                    if token != "fragment":
-                        operations.add(token)
+                    awaiting_name = token != "fragment"
                 index += len(token)
                 continue
         index += 1
-    if "mutation" in operations:
+    if operation_name is not None:
+        selected = [operation for name, operation in operations if name == operation_name]
+        return selected[0] if len(selected) == 1 else None
+    operation_kinds = {operation for _name, operation in operations}
+    if "mutation" in operation_kinds:
         return "mutation"
-    return "query" if operations == {"query"} else None
+    return "query" if operation_kinds == {"query"} else None
 
 
 def _api_identifier(identifier: str, command: str) -> str | None:
@@ -1065,13 +1086,17 @@ def _api_grade_route(
             return Unreadable("body", "unclassified-api-identifier", endpoint)
         return None
     if endpoint == "graphql":
-        document = _api_graphql_document(arguments, command)
+        document = _api_graphql_field(arguments, command, "query")
+        operation_name = _api_graphql_field(arguments, command, "operationName")
         if isinstance(document, Unreadable):
             return document
+        if isinstance(operation_name, Unreadable):
+            return operation_name
         if document is not None:
-            if _graphql_operation(document) == "query":
+            operation = _graphql_operation(document, operation_name)
+            if operation == "query":
                 return None
-            if _graphql_operation(document) == "mutation":
+            if operation == "mutation":
                 return Unreadable(
                     "body", "unclassified-api-mutation", "graphql"
                 )
@@ -1080,9 +1105,13 @@ def _api_grade_route(
         return route_match
     if route_match is not None:
         return route_match[0]
-    if re.search(r"/pulls(?:\Z|\?)", endpoint):
+    if re.fullmatch(
+        r"/?repos/[^/?]+/[^/?]+/pulls(?:\?.*)?\Z", endpoint
+    ):
         return ("pr", "create")
-    if re.search(r"/issues(?:\Z|\?)", endpoint):
+    if re.fullmatch(
+        r"/?repos/[^/?]+/[^/?]+/issues(?:\?.*)?\Z", endpoint
+    ):
         return ("issue", "create")
     return Unreadable("body", "unclassified-api-endpoint", endpoint)
 
@@ -1212,11 +1241,19 @@ def extract(command: str) -> Extraction:
     while index < len(arguments):
         token = arguments[index]
         source_token = argument_sources[index]
+        api_option = _api_value_option(arguments, index) if route == ("api",) else None
+        if (
+            api_option is not None
+            and api_option[0] in ("raw-field", "field", "input")
+            and api_option[1] is None
+        ):
+            unreadable = Unreadable("body", "missing-value", token)
+            return Extraction(
+                route, number, tuple(publications), (unreadable,), grade_route
+            )
         body_flag = (
             token in INLINE_FLAGS
             or token in FILE_FLAGS
-            or (route == ("api",) and token in API_VALUE_FLAGS)
-            or (route == ("api",) and token == "--input")
             or (
                 route == ("issue", "close")
                 and token in ("--comment", "-c")
@@ -1236,10 +1273,16 @@ def extract(command: str) -> Extraction:
             publications.append(read)
             index += 2
             continue
-        if route == ("api",) and token in API_VALUE_FLAGS and index + 1 < len(arguments):
-            key, separator, value = arguments[index + 1].partition("=")
+        if api_option is not None and api_option[0] in ("raw-field", "field"):
+            option_name, option_value, width = api_option
+            if option_value is None:
+                unreadable = Unreadable("body", "missing-value", token)
+                return Extraction(
+                    route, number, tuple(publications), (unreadable,), grade_route
+                )
+            key, separator, value = option_value.partition("=")
             if separator and key in ("body", "title"):
-                if value.startswith("@") and token in ("-F", "--field"):
+                if value.startswith("@") and option_name == "field":
                     read = _read_file_field(
                         key, value[1:], command, assignments, substitutions
                     )
@@ -1247,7 +1290,11 @@ def extract(command: str) -> Extraction:
                         return Extraction(route, number, tuple(publications), (read,))
                     publications.append(read)
                 else:
-                    source_argument = argument_sources[index + 1]
+                    if width == 2:
+                        source_argument = argument_sources[index + 1]
+                    else:
+                        option_prefix = token[: len(token) - len(option_value)]
+                        source_argument = source_token[len(option_prefix) :]
                     literal_prefix = key + "="
                     source_has_literal_prefix = source_argument.startswith(
                         literal_prefix
@@ -1263,10 +1310,12 @@ def extract(command: str) -> Extraction:
                     if isinstance(read, Unreadable):
                         return Extraction(route, number, tuple(publications), (read,), grade_route)
                     publications.append(read)
-            index += 2
+            index += width
             continue
-        if route == ("api",) and token == "--input" and index + 1 < len(arguments):
-            source = arguments[index + 1]
+        if api_option is not None and api_option[0] == "input":
+            source = api_option[1]
+            if source is None:
+                raise ValueError("missing API input was not refused")
             try:
                 if source == "-":
                     heredoc = HEREDOC.search(command)
@@ -1318,7 +1367,7 @@ def extract(command: str) -> Extraction:
                             reconstructed_path,
                         )
                     )
-            index += 2
+            index += api_option[2]
             continue
         if token in INLINE_FLAGS and index + 1 < len(arguments):
             read = _read_inline_value(
