@@ -575,7 +575,7 @@ _REFERENCE_FILLER = {
 _PLACEHOLDER_FILLER = _REFERENCE_FILLER | {
     "accidental", "adverse", "assault", "behavior", "benign", "ca", "cause",
     "chemicals", "contact", "drug", "drugs", "effect", "external", "injury",
-    "intentional", "malignant", "neoplasm", "neoplastic", "poisoning", "primary", "secondary",
+    "intentional", "malignant", "nec", "neoplasm", "neoplastic", "poisoning", "primary", "secondary",
     "self", "specified", "table", "underdosing", "undetermined", "unintentional",
     "unspecified",
 }
@@ -683,6 +683,23 @@ def _contains_tokens(needles: list[str], haystack: list[str]) -> bool:
     return all(available[token] >= count for token, count in wanted.items())
 
 
+def _segment_alternatives(segment: str) -> list[list[str]]:
+    parenthetical = re.findall(r"\(([^()]*)\)", segment)
+    base = re.sub(r"\([^()]*\)", "", segment)
+    phrases = re.split(r"\s*,\s*|\s+or\s+", base) + parenthetical
+    return [
+        tokens
+        for phrase in phrases
+        if (
+            tokens := [
+                token
+                for token in _route_tokens(phrase)
+                if token not in _PLACEHOLDER_FILLER
+            ]
+        )
+    ]
+
+
 def _reference_matches(
     referral: str,
     following_path: str,
@@ -745,16 +762,12 @@ def _reference_matches(
     if placeholder:
         evidence = set(_route_tokens(note_evidence))
         supplied_segments = [
-            [
-                token
-                for token in _route_tokens(segment)
-                if token not in _PLACEHOLDER_FILLER
-            ]
+            _segment_alternatives(segment)
             for segment in following_path.split(" > ")
         ]
         supplied_segments = [segment for segment in supplied_segments if segment]
         return bool(supplied_segments) and all(
-            any(alternative in evidence for alternative in segment)
+            any(all(token in evidence for token in alternative) for alternative in segment)
             for segment in supplied_segments
         )
     return True

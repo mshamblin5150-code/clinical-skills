@@ -1021,6 +1021,25 @@ class AgreementModes(unittest.TestCase):
                 "malignant neoplasm of alveolar ridge",
             )
         )
+        multiword_destination = (
+            "Neoplasm, neoplastic > connective tissue > abdominal wall > Malignant Primary"
+        )
+        self.assertTrue(
+            scan._reference_matches(
+                reference,
+                multiword_destination,
+                "C499",
+                "malignant neoplasm of connective tissue of the abdominal wall",
+            )
+        )
+        self.assertFalse(
+            scan._reference_matches(
+                reference,
+                multiword_destination,
+                "C499",
+                "malignant neoplasm involving connective abdominal structures",
+            )
+        )
         self.assertFalse(
             scan._reference_matches(
                 "Contact, with, by type of instrument",
