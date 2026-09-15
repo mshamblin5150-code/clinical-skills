@@ -60,7 +60,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import run_grader
-from worksheet_grammar import CODE, ENTRY, entry_is_for_entry, paired_entry
+from worksheet_grammar import CODE, ENTRY, ENTRY_CANDIDATE, entry_is_for_entry, paired_entry
 
 SOURCE = re.compile(r"(?mi)^[ \t]*SOURCE[ \t]*:[ \t]*(.*?)[ \t]*$")
 CONFIDENCE = re.compile(r"(?mi)^[ \t]*CONFIDENCE[ \t]*:[ \t]*(.*?)[ \t]*$")
@@ -121,11 +121,6 @@ DECLARED_LIMITS = (
         run_grader.EvidenceDisposition.BEHAVIOR,
     ),
     (
-        "recognized code-entry openings",
-        "Only lines beginning ICD-10, CPT, or HCPCS open entries; #1066 owns partial reads of other forms.",
-        run_grader.EvidenceDisposition.BEHAVIOR,
-    ),
-    (
         "recognized filled-anchor listing lines",
         "A listing is read only as a code followed by a dash and value on its own line.",
         run_grader.EvidenceDisposition.BEHAVIOR,
@@ -157,7 +152,7 @@ DECLARED_LIMITS = (
     ),
     (
         "per-run gradeable coverage",
-        "A worksheet with no mark, listing, or pediatric band adds nothing beside readable worksheets; #1066 owns the repair.",
+        "ADR 0230 leaves this declared because no admissible candidate population spans marks, listings, and pediatric bands.",
         run_grader.EvidenceDisposition.BEHAVIOR,
     ),
 )
@@ -182,6 +177,7 @@ class Worksheet:
     pediatric: tuple[str, ...]
     pediatric_not_computed: tuple[str, ...]
     orphaned_details: int = 0
+    unread_remainder: int = 0
 
 
 @dataclass(frozen=True)
@@ -199,6 +195,7 @@ class Scan:
     pediatric_not_computed: int
     orphaned_details: int = 0
     findings: tuple[Finding, ...] = ()
+    unread_remainder: int = 0
 
     @property
     def subjects(self) -> int:
@@ -227,16 +224,17 @@ def _block_lines(text: str) -> tuple[list[str], bool]:
 
 def read_worksheet(text: str) -> Worksheet:
     """Parse one worksheet into its marks, listings and pediatric bands."""
+    step_four = next(
+        (match.start() for match in STEP_FOUR_START.finditer(text)), len(text)
+    )
+    candidate_text = text[:step_four]
     found = list(ENTRY.finditer(text))
+    candidate_strict_entries = list(ENTRY.finditer(candidate_text))
 
     entries = [
         (match.start(), match.group("code"), entry_is_for_entry(text, found, index))
         for index, match in enumerate(found)
     ]
-
-    step_four = next(
-        (match.start() for match in STEP_FOUR_START.finditer(text)), len(text)
-    )
 
     def owner(match: re.Match[str]) -> tuple[int, str, bool] | None:
         """The entry a detail line belongs to inside the pairing population."""
@@ -288,6 +286,11 @@ def read_worksheet(text: str) -> Worksheet:
             code for index, code in pediatric_entries if index not in computed
         ),
         orphaned_details=orphaned,
+        unread_remainder=max(
+            0,
+            len(list(ENTRY_CANDIDATE.finditer(candidate_text)))
+            - len(candidate_strict_entries),
+        ),
     )
 
 
@@ -338,6 +341,7 @@ def survey(sheets: list[Worksheet]) -> Scan:
         pediatric_not_computed=sum(1 for f in found if f.kind == PEDIATRIC_NOT_COMPUTED),
         orphaned_details=sum(sheet.orphaned_details for sheet in sheets),
         findings=tuple(found),
+        unread_remainder=sum(sheet.unread_remainder for sheet in sheets),
     )
 
 
@@ -356,6 +360,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         f"  codes listed in the block          {scan.listed}",
         f"  pediatric Z68.5- bands             {scan.pediatric_bands}",
         f"  orphaned detail lines               {scan.orphaned_details}",
+        run_grader.format_unread_remainder(scan.unread_remainder),
         "",
         f"  A1/A2/A5 - marked, not listed      {scan.unlisted_marks}",
         f"  A1/A2/A5 - listed, not marked      {scan.unmarked_listings}",
@@ -402,7 +407,7 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
         scan=scan,
         source=source.directory.name,
         findings_failed=bool(scan.findings),
-        coverage_failed=not scan.subjects,
+        coverage_failed=not scan.subjects or bool(scan.unread_remainder),
         diagnostics=tuple(diagnostics),
     )
 

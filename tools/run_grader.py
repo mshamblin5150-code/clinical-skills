@@ -26,6 +26,12 @@ NOT_GRADED = "not graded"
 UNREADABLE_RUN_ARTIFACT = "a run artifact could not be opened"
 
 
+def format_unread_remainder(count: int) -> str:
+    """Return the one report line shared by measured partial reads."""
+
+    return f"unread remainder {count}"
+
+
 class EvidenceDisposition(Enum):
     """How a grader-family declared limit is supported."""
 

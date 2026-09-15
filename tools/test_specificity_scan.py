@@ -26,10 +26,16 @@ from pathlib import Path
 
 import specificity_scan as scan
 import run_grader
-from grader_conformance import EmptyPopulationInput, for_module
+from grader_conformance import (
+    EmptyPopulationInput,
+    UnreadRemainderInput,
+    for_module,
+    unread_remainder_conformance,
+)
 from prose_bind import NAMING, ProseBind, bind, section
 
 GraderConformance = for_module(scan)
+UnreadRemainderConformance = unread_remainder_conformance(scan)
 from icd10_lookup import describe, normalize, notes_for, open_database
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -49,10 +55,10 @@ class TheDeclaredLimitsObjectOwnsBothProseSurfaces(unittest.TestCase):
                 self.assertEqual(1, surface.count(self.POINTER))
                 self.assertEqual((), bind(scan.DECLARED_LIMITS, surface, mode=NAMING))
 
-    def test_the_partition_is_two_declared_readings_and_seven_behaviors(self):
+    def test_the_partition_is_two_declared_readings_and_six_behaviors(self):
         dispositions = [row[2] for row in scan.DECLARED_LIMITS]
         self.assertEqual(2, dispositions.count(run_grader.EvidenceDisposition.DECLARED_READING))
-        self.assertEqual(7, dispositions.count(run_grader.EvidenceDisposition.BEHAVIOR))
+        self.assertEqual(6, dispositions.count(run_grader.EvidenceDisposition.BEHAVIOR))
         self.assertTrue(all(subject and reason for subject, reason, _ in scan.DECLARED_LIMITS))
 
 
@@ -60,11 +66,10 @@ class EveryBehaviorLimitHasALiveControl(unittest.TestCase):
     CONTROLS = {
         "alphanumeric substance after a keyword": "DeclaredLimitBoundaryControls.test_a_stock_phrase_satisfies_the_substance_shape",
         "unspecified-descriptor advisory input": "DeclaredLimitBoundaryControls.test_a_wrapped_unspecified_word_is_outside_the_advisory",
-        "recognized code-entry and flag forms": "DeclaredLimitBoundaryControls.test_an_unrecognized_entry_and_flag_disappear_beside_a_readable_entry",
         "contiguous indented flag pairing": "DeclaredLimitBoundaryControls.test_a_blank_line_orphans_the_flag_instead_of_borrowing_an_entry",
         "NOT FOR ENTRY flag exemption": "TheParserPairsAFlagWithItsDescriptor.test_a_differential_flag_is_exempt_from_both_tests",
         "values beginning with neither branch keyword": "AFlagCarriesSubstanceBeyondItsKeyword.test_n_a_and_an_empty_value_remain_neither_keyword",
-        "`icd10-cpt` step-4 listing lines matching ENTRY": "DeclaredLimitBoundaryControls.test_a_step_four_listing_that_matches_entry_inflates_the_unread_remainder",
+        "`icd10-cpt` step-4 listing lines matching ENTRY": "DeclaredLimitBoundaryControls.test_a_step_four_listing_that_matches_entry_inflates_the_strict_floor",
     }
 
     def test_each_behavior_subject_names_a_passing_control(self):
@@ -77,13 +82,14 @@ class EveryBehaviorLimitHasALiveControl(unittest.TestCase):
 
 
 class DeclaredLimitBoundaryControls(unittest.TestCase):
-    def test_a_step_four_listing_that_matches_entry_inflates_the_unread_remainder(self):
+    def test_a_step_four_listing_that_matches_entry_inflates_the_strict_floor(self):
         text = (
             entry("R12", "Heartburn", "complete - R12 has no further axis")
             + "\n\n--- CODED, ANCHOR WAS FILLED ---\n"
             + "ICD-10  Z68.36  - BMI 36.4 from a filled height\n"
         )
         self.assertEqual((2, 1), scan.entry_flag_coverage(text))
+        self.assertEqual(0, scan.candidate_unread_remainder(text))
 
     def test_a_stock_phrase_satisfies_the_substance_shape(self):
         flags = scan.read_flags(entry("I10", "Hypertension", "complete - nothing more to add"))
@@ -112,9 +118,10 @@ class DeclaredLimitBoundaryControls(unittest.TestCase):
             stdout, stderr = io.StringIO(), io.StringIO()
             with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
                 status = scan.main([temp])
-        self.assertEqual(0, status)
+        self.assertEqual(2, status)
         self.assertIn("for-entry codes read             1", stdout.getvalue())
-        self.assertEqual("", stderr.getvalue())
+        self.assertIn("population was not completely scanned", stderr.getvalue())
+        self.assertIn("unread remainder 2", stdout.getvalue())
 
     def test_a_blank_line_orphans_the_flag_instead_of_borrowing_an_entry(self):
         flags, orphans = scan.read_flags_with_orphans(
@@ -188,6 +195,31 @@ def empty_population_input(root: Path) -> EmptyPopulationInput:
         (str(empty),),
         population_size=lambda result: result.flags - result.not_for_entry_flags,
         twin_argv=(str(twin),),
+    )
+
+
+def unread_remainder_input(root: Path) -> UnreadRemainderInput:
+    unread, twin = root / "unread", root / "twin"
+    unread.mkdir()
+    twin.mkdir()
+    readable = entry("I10", "Hypertension", "complete - no further axis")
+    missed = (
+        "ICD-10  R12  Heartburn\n"
+        "  ANCHOR: synthetic\n"
+        "- SPECIFICITY: complete - R12 has no further axis"
+    )
+    (unread / "codes.md").write_text(worksheet(readable, missed), encoding="utf-8")
+    (twin / "codes.md").write_text(
+        worksheet(
+            readable,
+            entry("R12", "Heartburn", "complete - R12 has no further axis"),
+        ),
+        encoding="utf-8",
+    )
+    return UnreadRemainderInput(
+        (str(unread),),
+        (str(twin),),
+        unread_remainder=lambda result: result.unread_remainder,
     )
 
 
@@ -529,6 +561,10 @@ class TheCommittedRunCoverageIsPinned(unittest.TestCase):
         texts = list(run_grader.read_run_directory(RUN_2))
         coverage = [scan.entry_flag_coverage(text) for text in texts]
         self.assertEqual((209, 9), tuple(map(sum, zip(*coverage))))
+
+    def test_the_relaxed_candidate_remainder_is_zero(self):
+        texts = list(run_grader.read_run_directory(RUN_2))
+        self.assertEqual(0, sum(scan.candidate_unread_remainder(text) for text in texts))
 
     def test_step_four_detail_lines_do_not_become_orphans(self):
         texts = list(run_grader.read_run_directory(RUN_2))
@@ -1021,6 +1057,7 @@ class ThePositiveControlCoversEveryForEntryCode(unittest.TestCase):
 
         self.assertEqual((12, 0), tuple(map(sum, zip(*coverage))))
         self.assertEqual((0, 0), (result.failing_flags, result.orphaned_details))
+        self.assertEqual(0, sum(scan.candidate_unread_remainder(text) for text in texts))
 
 
 if __name__ == "__main__":

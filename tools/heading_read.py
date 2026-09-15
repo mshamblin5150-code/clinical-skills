@@ -13,6 +13,7 @@ from typing import NamedTuple
 
 import file_digest
 import research_ledger
+import run_grader
 from run_grader import EvidenceDisposition
 
 
@@ -77,7 +78,6 @@ ROUTES = frozenset(("separate context", "orchestrator walk"))
 
 MISSING_RECORD = "missing-heading-read"
 DUPLICATE_RECORD = "duplicate-heading-read"
-UNREAD_RECORD = "unread-heading-read"
 UNKNOWN_ROUTE = "unknown-heading-read-route"
 SENTENCE_COUNT_MISMATCH = "heading-read-sentence-count"
 UNKNOWN_HEADING = "heading-read-unknown-heading"
@@ -88,7 +88,6 @@ REPORTED_FINDING = "heading-read-finding"
 KINDS = (
     MISSING_RECORD,
     DUPLICATE_RECORD,
-    UNREAD_RECORD,
     UNKNOWN_ROUTE,
     SENTENCE_COUNT_MISMATCH,
     UNKNOWN_HEADING,
@@ -237,10 +236,13 @@ def scan(text: str, bindings: tuple[Binding, ...]) -> Scan:
         for record in matches:
             found.extend(_record_findings(record, binding))
     unread = max(0, population - read)
-    if unread:
-        found.append(Finding(UNREAD_RECORD, "heading-read.md", f"{unread} candidate record(s) unread"))
     return Scan(read, unread, tuple(found))
 
 
 def format_coverage(result: Scan) -> str:
-    return f"heading-read records: {result.records_read}; unread remainder: {result.unread}"
+    return "\n".join(
+        (
+            f"heading-read records: {result.records_read}",
+            run_grader.format_unread_remainder(result.unread),
+        )
+    )

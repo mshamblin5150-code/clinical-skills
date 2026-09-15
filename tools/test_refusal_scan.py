@@ -10,10 +10,16 @@ from pathlib import Path
 
 import refusal_scan as scan
 import run_grader
-from grader_conformance import EmptyPopulationInput, for_module
+from grader_conformance import (
+    EmptyPopulationInput,
+    UnreadRemainderInput,
+    for_module,
+    unread_remainder_conformance,
+)
 from prose_bind import NAMING, bind, section
 
 GraderConformance = for_module(scan)
+UnreadRemainderConformance = unread_remainder_conformance(scan)
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -73,6 +79,27 @@ def empty_population_input(root: Path) -> EmptyPopulationInput:
         (str(empty),),
         population_size=lambda result: result.population,
         twin_argv=(str(twin),),
+    )
+
+
+def unread_remainder_input(root: Path) -> UnreadRemainderInput:
+    unread, twin = root / "unread", root / "twin"
+    unread.mkdir()
+    twin.mkdir()
+    second_block = (
+        worksheet(refusal())
+        + "\n--- NOT CODED, NOTHING ESTABLISHED IT ---\n"
+        + refusal(code="J15.7", descriptor="Pneumonia due to Mycoplasma pneumoniae")
+    )
+    (unread / "codes.md").write_text(second_block, encoding="utf-8")
+    (twin / "codes.md").write_text(
+        worksheet(refusal(), refusal(code="J15.7", descriptor="Pneumonia due to Mycoplasma pneumoniae")),
+        encoding="utf-8",
+    )
+    return UnreadRemainderInput(
+        (str(unread),),
+        (str(twin),),
+        unread_remainder=lambda result: result.unread_remainder,
     )
 
 
@@ -189,6 +216,26 @@ class TheCommandReportsWhetherItScanned(unittest.TestCase):
             self.run_over({"case-01.md": worksheet(refusal(needs=None))})[0],
             1,
         )
+
+    def test_a_second_refusal_block_is_a_reported_remainder(self):
+        second = (
+            worksheet(refusal())
+            + "\n--- NOT CODED, NOTHING ESTABLISHED IT ---\n"
+            + refusal(code="J15.7", descriptor="Pneumonia due to Mycoplasma pneumoniae")
+        )
+        status, report = self.run_over({"case-01.md": second})
+        self.assertEqual(2, status)
+        self.assertIn("unread remainder 2", report.splitlines())
+
+    def test_a_heading_inside_the_block_exposes_the_mark_after_it(self):
+        hidden = worksheet(
+            refusal()
+            + "\n### Further refusals\n"
+            + refusal(code="J15.7", descriptor="Pneumonia due to Mycoplasma pneumoniae")
+        )
+        status, report = self.run_over({"case-01.md": hidden})
+        self.assertEqual(2, status)
+        self.assertIn("unread remainder 1", report.splitlines())
 
     def test_no_refusals_is_unscanned(self):
         stderr = io.StringIO()

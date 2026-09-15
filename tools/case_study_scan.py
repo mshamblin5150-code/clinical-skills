@@ -418,7 +418,10 @@ DECLARED_LIMITS = (
         EvidenceDisposition.BEHAVIOR,
     ),
     ("an unnamed cross-reference is never resolved", EvidenceDisposition.BEHAVIOR),
-    ("a misspelled optional heading disables its row", EvidenceDisposition.BEHAVIOR),
+    (
+        "a misspelled optional heading disables its row under ADR 0230",
+        EvidenceDisposition.BEHAVIOR,
+    ),
     ("whether an MDM citation supports its claim", EvidenceDisposition.DECLARED_READING),
 )
 NOT_REACHED = tuple(key for key, _ in DECLARED_LIMITS)

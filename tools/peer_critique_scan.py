@@ -130,8 +130,16 @@ NO_RUN_DIRECTORY = "no run directory"
 NO_CRITIQUE = "no critique in the run"
 NO_ROSTER = "no roster post carries an AUTHOR line"
 REFUSED_LABEL = "critique reference label refused"
+UNREAD_REMAINDER = "unread remainder"
 INVALID_INVOCATION = "invalid invocation"
-EXIT_2_LIMBS = (INVALID_INVOCATION, NO_RUN_DIRECTORY, NO_CRITIQUE, NO_ROSTER, REFUSED_LABEL)
+EXIT_2_LIMBS = (
+    INVALID_INVOCATION,
+    NO_RUN_DIRECTORY,
+    NO_CRITIQUE,
+    NO_ROSTER,
+    REFUSED_LABEL,
+    UNREAD_REMAINDER,
+)
 
 UNJOINED_SOURCE_FIELDS = ", ".join(REFUTATION_EVIDENCE_COMPLEMENT)
 UNJOINED_SOURCE_FIELDS_LIMIT = (
@@ -489,7 +497,10 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
             if graded
             else f"literal ampersands: {NOT_GRADED}"
         ),
-        f"heading-read records: {scan.heading_reads}; unread remainder: {scan.heading_read_unread}",
+        f"heading-read records: {scan.heading_reads}",
+        run_grader.format_unread_remainder(
+            scan.heading_read_unread + scan.posts_total - scan.posts_read
+        ),
         f"findings: {len(scan.findings)}",
     ]
     reference_rows = {
@@ -578,8 +589,20 @@ def grade(source: RunSource, parsed: run_grader.Parsed) -> run_grader.Grade[Scan
             for finding in scanned.findings
         )
         or aar_failed,
-        coverage_failed=not scanned.reference_boundary_graded,
-        coverage_limbs=(REFUSED_LABEL,) if not scanned.reference_boundary_graded else (),
+        coverage_failed=(
+            not scanned.reference_boundary_graded
+            or scanned.heading_read_unread > 0
+            or scanned.posts_read < scanned.posts_total
+        ),
+        coverage_limbs=(
+            *((REFUSED_LABEL,) if not scanned.reference_boundary_graded else ()),
+            *(
+                (UNREAD_REMAINDER,)
+                if scanned.heading_read_unread > 0
+                or scanned.posts_read < scanned.posts_total
+                else ()
+            ),
+        ),
         diagnostics=(
             (f"refused reference label in critique.md: {source.refused_label}",)
             if source.refused_label is not None

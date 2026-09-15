@@ -295,6 +295,7 @@ class Scan:
     reference_boundary_graded: bool
     heading_reads: int
     heading_read_unread: int
+    reference_unread: int
     findings: tuple[Finding, ...] = ()
     citation_coverage: CitationCoverage = CitationCoverage()
 
@@ -424,13 +425,17 @@ def _target_name(reply: Reply, roster: tuple[str, ...]) -> str | None:
     return matches[0] if len(matches) == 1 else None
 
 
-def _address_finding(reply: Reply, roster: tuple[str, ...]) -> Finding | None:
+def _address_finding(
+    reply: Reply, roster: tuple[str, ...], *, roster_complete: bool = True
+) -> Finding | None:
     target = _target_name(reply, roster)
     opening = next(
         (line.strip() for line in reply.body.splitlines() if line.strip() and not line.lstrip().startswith("<!--")),
         "",
     )
     if target is None:
+        if not roster_complete:
+            return None
         return Finding(ADDRESSED_NAME, reply.path.name, "filename target is not unique on the roster")
     first = target.split()[0]
     if not opening.startswith(f"{first},"):
@@ -690,13 +695,8 @@ def load(parsed: run_grader.Parsed) -> RunSource:
         )
     except (OSError, UnicodeError, ValueError) as failure:
         raise run_grader.SourceError(f"could not read the run: {failure}") from failure
-    if len(roster) != len(post_paths):
-        raise run_grader.SourceError(
-            f"roster read {len(roster)} of {len(post_paths)} post files; "
-            f"unread remainder {len(post_paths) - len(roster)}"
-        )
-    if not roster:
-        raise run_grader.SourceError("roster read 0 of 0 post files; unread remainder 0")
+    if not post_paths:
+        raise run_grader.SourceError("no posts found in the run")
     return RunSource(
         path=root,
         replies=replies,
@@ -815,7 +815,13 @@ def survey(source: RunSource) -> Scan:
         address_findings = tuple(
             finding
             for reply in source.replies
-            for finding in (_address_finding(reply, source.roster),)
+            for finding in (
+                _address_finding(
+                    reply,
+                    source.roster,
+                    roster_complete=len(source.roster) == source.posts_total,
+                ),
+            )
             if finding is not None
         )
         return Scan(
@@ -833,6 +839,10 @@ def survey(source: RunSource) -> Scan:
             reference_boundary_graded=False,
             heading_reads=heading.records_read,
             heading_read_unread=heading.unread,
+            reference_unread=sum(
+                len(reply.references) - len(_valid_references(reply))
+                for reply in source.replies
+            ),
             findings=(
                 address_findings
                 + editor_findings
@@ -866,7 +876,11 @@ def survey(source: RunSource) -> Scan:
         finding
         for reply in source.replies
         for finding in (
-            _address_finding(reply, source.roster),
+            _address_finding(
+                reply,
+                source.roster,
+                roster_complete=len(source.roster) == source.posts_total,
+            ),
             _word_finding(reply),
             _reference_finding(reply, source.claims),
         )
@@ -918,6 +932,10 @@ def survey(source: RunSource) -> Scan:
         reference_boundary_graded=True,
         heading_reads=heading.records_read,
         heading_read_unread=heading.unread,
+        reference_unread=sum(
+            len(reply.references) - len(_valid_references(reply))
+            for reply in source.replies
+        ),
         findings=findings,
         citation_coverage=coverage,
     )
@@ -952,7 +970,13 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
             f"{scan.editor_units_total}; unread "
             f"{scan.editor_units_total - scan.editor_units_read}"
         ),
-        f"heading-read records: {scan.heading_reads}; unread remainder: {scan.heading_read_unread}",
+        f"heading-read records: {scan.heading_reads}",
+        run_grader.format_unread_remainder(
+            scan.heading_read_unread
+            + scan.reference_unread
+            + scan.posts_total
+            - scan.posts_read
+        ),
         f"findings: {len(scan.findings)}",
     ]
     for kind in ROWS:
@@ -1007,7 +1031,12 @@ def grade(source: RunSource, _parsed: run_grader.Parsed) -> run_grader.Grade[Sca
             for finding in scanned.findings
         )
         or aar_failed,
-        coverage_failed=not scanned.reference_boundary_graded,
+        coverage_failed=(
+            not scanned.reference_boundary_graded
+            or scanned.heading_read_unread > 0
+            or scanned.reference_unread > 0
+            or scanned.posts_read < scanned.posts_total
+        ),
         diagnostics=refused,
         reports=(aar_report,),
     )

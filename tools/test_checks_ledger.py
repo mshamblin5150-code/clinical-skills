@@ -936,6 +936,15 @@ class TheCommandExitsOnWhatItFound(unittest.TestCase):
         self.assertEqual(1, status)
         self.assertRegex(report, rf"(?m){checks.heading_read.DRAFT_MISMATCH}\s+1$")
 
+    def test_a_finding_outranks_an_unread_heading_read_record(self):
+        text = whole_file() + "\n## HEADING-READ draft-without-a-colon.md\n"
+        directory, path = in_a_file(text)
+        with directory:
+            status, report, _ = run([str(path)])
+        self.assertEqual(1, status)
+        self.assertIn("unread remainder 1", report.splitlines())
+        self.assertNotIn("unread-heading-read", report)
+
     def test_a_failing_record_exits_one(self):
         directory, path = in_a_file(whole_file().replace("VERDICT: clean\n", "\n", 1))
         with directory:
@@ -1428,7 +1437,6 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
         checks.RENDER_FINGERPRINT_MISMATCH: "the highest retained pass has no fingerprint, or its fingerprint differs from the output Markdown",
         checks.heading_read.MISSING_RECORD: "a missing-heading-read record",
         checks.heading_read.DUPLICATE_RECORD: "a duplicate-heading-read record",
-        checks.heading_read.UNREAD_RECORD: "an unread-heading-read record",
         checks.heading_read.UNKNOWN_ROUTE: "an unknown-heading-read-route record",
         checks.heading_read.SENTENCE_COUNT_MISMATCH: "a heading-read-sentence-count mismatch",
         checks.heading_read.UNKNOWN_HEADING: "a heading-read-unknown-heading pair",

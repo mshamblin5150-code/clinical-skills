@@ -971,11 +971,11 @@ def format_report(scan: Scan, _source: str, show: bool = False) -> str:
         f"  figures           {scan.figures_read}",
         f"  diagram text read {scan.diagram_text_read}",
         f"  chart text read   {scan.chart_text_read}",
-        f"  unread members    {scan.unread_members}",
         f"  rendered records  {scan.rendered_records}",
         f"  retained passes   {scan.retained_passes}",
         f"  retained passes without a record {scan.unrecorded_passes}",
-        f"  heading-read records {scan.heading_reads}; unread remainder {scan.heading_read_unread}",
+        f"  heading-read records {scan.heading_reads}",
+        run_grader.format_unread_remainder(scan.heading_read_unread + scan.unread_members),
         "",
     ]
     for row in ROWS:
@@ -1017,7 +1017,11 @@ def grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
         scan=scanned,
         source=str(source.root),
         findings_failed=bool(scanned.findings) or aar_failed,
-        coverage_failed=no_slide_face_text or scanned.unread_members > 0,
+        coverage_failed=(
+            no_slide_face_text
+            or scanned.unread_members > 0
+            or scanned.heading_read_unread > 0
+        ),
         diagnostics=tuple(diagnostics),
         reports=(rendered.report, aar_report),
     )

@@ -97,13 +97,8 @@ DECLARED_LIMITS = (
         run_grader.EvidenceDisposition.DECLARED_READING,
     ),
     (
-        "recognized height and weight units",
-        "Height is read only as feet-and-inches or bare inches and weight only in pounds; #1066 owns other forms.",
-        run_grader.EvidenceDisposition.BEHAVIOR,
-    ),
-    (
         "recognized FILLED-asserted key lines",
-        "An unrecognized key is invisible to both parsing and coverage, so the reported coverage is a floor; #1066 owns the repair.",
+        "ADR 0230 leaves the asserted-key vocabulary declared; the reported coverage remains a floor outside those keys.",
         run_grader.EvidenceDisposition.BEHAVIOR,
     ),
     (
@@ -220,6 +215,12 @@ SPO2_DECL = re.compile(
 # five to leave uncounted. **Counting is not that rule**, which is about a
 # disclosure's wording and stays with a reader.
 PAIN_DECL = re.compile(r"(\d{1,2})\s*/\s*10\b" + _TO_FILLED)
+HEIGHT_CANDIDATE = re.compile(
+    r"(?im)^[ \t.]*(?:ht|height)\b[ \t:]*\d"
+)
+WEIGHT_CANDIDATE = re.compile(
+    r"(?im)^[ \t.]*(?:wt|weight)\b[ \t:]*\d"
+)
 
 # One entry per counted class, and **adding a class is one entry and nothing
 # else** -- the report, the census and the extractor all read this tuple. It was
@@ -368,6 +369,8 @@ class Fill:
     # ``None`` where the note declared no filled height, so a control with
     # nothing to fail is never counted as having failed.
     height_names_person: bool | None = None
+    height_candidate: bool = False
+    weight_candidate: bool = False
 
     @property
     def body(self) -> tuple[int, int] | None:
@@ -415,6 +418,7 @@ class Scan:
     height_counts: tuple[tuple[int, int], ...] = ()
     body_counts: tuple[tuple[tuple[int, int], int], ...] = ()
     findings: tuple[Finding, ...] = ()
+    unread_remainder: int = 0
 
     def count_of(self, key: str) -> int:
         """How many notes declared one counted class, by its ``COUNTED_CLASSES`` key."""
@@ -532,6 +536,8 @@ def read_fill(text: str) -> Fill:
                 )
             )
         ),
+        height_candidate=bool(HEIGHT_CANDIDATE.search(block)),
+        weight_candidate=bool(WEIGHT_CANDIDATE.search(block)),
     )
 
 
@@ -570,6 +576,11 @@ def survey(texts: list[str]) -> Scan:
         ),
         height_counts=tuple(sorted(heights.items())),
         body_counts=tuple(sorted(bodies.items())),
+        unread_remainder=sum(
+            int(fill.height_candidate and fill.height_in is None)
+            + int(fill.weight_candidate and fill.weight_lb is None)
+            for fill in fills
+        ),
     )
     findings: list[Finding] = []
     if scan.repeated_bodies:
@@ -619,6 +630,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         f"  {'scanned':<32}{scan.asserted_keys_read} of"
         f" {scan.asserted_keys} {KEY_NOUN}",
         f"  notes read                      {scan.notes}",
+        run_grader.format_unread_remainder(scan.unread_remainder),
         f"  declaring a filled height       {scan.heights}",
         f"    distinct values               {scan.distinct_heights}",
         f"    largest group at one value    {scan.largest_height_group}",
@@ -707,7 +719,7 @@ def grade(
         else ""
     )
     findings_failed = bool(scan.findings or aar_failed)
-    coverage_failed = False
+    coverage_failed = bool(scan.asserted_keys_unread or scan.unread_remainder)
     diagnostics: tuple[str, ...] = ()
     if findings_failed:
         # 1 outranks 2 deliberately: returning 2 where something was graded and
@@ -721,10 +733,18 @@ def grade(
             "\n" + unread + "\n".join(findings) + ("\n" if findings else "") + "Re-run with --show to see"
             " which values, and do not paste that output.",
         )
-    elif unread:
-        coverage_failed = True
+    elif unread or scan.unread_remainder:
+        candidate_note = (
+            f"{scan.unread_remainder} height or weight candidate(s) were unread."
+            if scan.unread_remainder
+            else ""
+        )
         diagnostics = (
-            "\n" + unread.rstrip("\n") + f" No graded row was measured over the whole of"
+            "\n"
+            + unread.rstrip("\n")
+            + (" " if unread and candidate_note else "")
+            + candidate_note
+            + f" No graded row was measured over the whole of"
             f" {directory.name}. This is not a pass.",
         )
     elif not scan.gradeable:

@@ -1286,7 +1286,7 @@ of its own**, **a second drug welded into one drug row, discharged by the first 
 rendered document can**, **a narrative citation preceding the source quotation**, **whether a
 block quotation's parenthetical or narrative citation placement is correct**, **care-setting
 agreement across sections**, **a cross-reference inside range that lands on the wrong item**, **an
-unnamed cross-reference is never resolved**, **a misspelled optional heading disables its row**, and
+unnamed cross-reference is never resolved**, **a misspelled optional heading disables its row under ADR 0230**, and
 **whether an MDM citation supports its claim**.
 
 **The two findings in his list that mattered most clinically are in that list rather than in the

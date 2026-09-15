@@ -39,7 +39,12 @@ import discussion_artifact as artifact
 import research_ledger
 import reference_scan as scan
 from prose_bind import ENUMERATION, NAMING, bind
-from grader_conformance import EmptyPopulationInput, for_module
+from grader_conformance import (
+    EmptyPopulationInput,
+    UnreadRemainderInput,
+    for_module,
+    unread_remainder_conformance,
+)
 
 GraderConformance = for_module(scan)
 
@@ -118,6 +123,29 @@ def draft(*entries: str, body: str = BODY, heading: str = "## References") -> st
 
 
 CLEAN = draft(ACOG, UPTODATE)
+
+
+def unread_remainder_input(root: Path) -> UnreadRemainderInput:
+    unread = root / "unread.md"
+    twin = root / "twin.md"
+    clean_body = (
+        "# Draft\n\nA claim stands "
+        "(American College of Obstetricians and Gynecologists, 2023).\n"
+    )
+    unread_body = clean_body + (
+        "The translated work is malformed "
+        "(American College of Obstetricians and Gynecologists, 1899-2010).\n"
+    )
+    unread.write_text(draft(ACOG, body=unread_body), encoding="utf-8")
+    twin.write_text(draft(ACOG, body=clean_body), encoding="utf-8")
+    return UnreadRemainderInput(
+        (str(unread), "--as-of", AS_OF.isoformat()),
+        (str(twin), "--as-of", AS_OF.isoformat()),
+        unread_remainder=lambda result: result.citation_coverage.unread,
+    )
+
+
+UnreadRemainderConformance = unread_remainder_conformance(scan)
 
 
 def empty_population_input(root: Path) -> EmptyPopulationInput:
@@ -1030,6 +1058,18 @@ class TheCitationParserReadsTheShapesAPAActuallyWrites(unittest.TestCase):
 
         self.assertEqual(1, document.citation_coverage.candidates)
         self.assertEqual(1, document.citation_coverage.unread)
+
+    def test_a_translated_work_ascii_hyphen_is_unread_not_a_one_year_citation(self):
+        body = "The work remains influential (Freud, 1899-2010)."
+
+        self.assertEqual((), scan.read_citations(body))
+        self.assertEqual(1, scan.citation_coverage(body).unread)
+
+    def test_a_replacement_character_in_a_citation_is_unread(self):
+        body = "The result remains uncertain (Freud\ufffd, 2010)."
+
+        self.assertEqual((), scan.read_citations(body))
+        self.assertEqual(1, scan.citation_coverage(body).unread)
 
     def test_discussion_reader_stops_an_author_at_the_sentence_boundary(self):
         reference = artifact.ReferenceKeySet.from_references(

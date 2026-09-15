@@ -26,7 +26,12 @@ from pathlib import Path
 
 import block_scan
 import run_grader
-from grader_conformance import EmptyPopulationInput, for_module
+from grader_conformance import (
+    EmptyPopulationInput,
+    UnreadRemainderInput,
+    for_module,
+    unread_remainder_conformance,
+)
 from prose_bind import NAMING, bind, section
 
 GraderConformance = for_module(block_scan)
@@ -48,7 +53,7 @@ class TheDeclaredLimitsObjectOwnsBothProseSurfaces(unittest.TestCase):
     def test_the_partition_is_two_declared_readings_and_six_behaviors(self):
         dispositions = [row[2] for row in block_scan.DECLARED_LIMITS]
         self.assertEqual(2, dispositions.count(run_grader.EvidenceDisposition.DECLARED_READING))
-        self.assertEqual(6, dispositions.count(run_grader.EvidenceDisposition.BEHAVIOR))
+        self.assertEqual(5, dispositions.count(run_grader.EvidenceDisposition.BEHAVIOR))
         self.assertTrue(all(subject and reason for subject, reason, _ in block_scan.DECLARED_LIMITS))
 
 
@@ -58,7 +63,6 @@ class EveryBehaviorLimitHasALiveControl(unittest.TestCase):
         "label-like lines that do not head a line": "ALabelHeadsALineRatherThanOpeningAProseSentence.test_a_rejected_label_like_line_is_a_review_candidate",
         "closed vocabulary of row-opening subjects": "TheThreeRowsFireOnWhatOpensAnEntry.test_a_list_numeral_and_markdown_heading_are_outside_the_row_openers",
         "race mentions anywhere under FILLED-asserted": "TheThreeRowsFireOnWhatOpensAnEntry.test_race_named_in_a_wrap_under_asserted_satisfies_the_second_limb",
-        "notes whose tier block is unreadable or absent": "TheThreeRowsFireOnWhatOpensAnEntry.test_a_note_with_no_block_is_counted_and_grades_nothing",
         "unrecognized FILLED-asserted keys": "ALabelHeadsALineRatherThanOpeningAProseSentence.test_a_garbled_asserted_key_is_a_candidate_and_its_absence_limb_is_not_graded",
     }
 
@@ -120,6 +124,24 @@ def empty_population_input(root: Path) -> EmptyPopulationInput:
         population_size=lambda result: result.notes_with_block,
         twin_argv=(str(twin),),
     )
+
+
+def unread_remainder_input(root: Path) -> UnreadRemainderInput:
+    unread, twin = root / "unread", root / "twin"
+    unread.mkdir()
+    twin.mkdir()
+    (unread / "case-01.md").write_text(CLEAN, encoding="utf-8")
+    (unread / "case-02.md").write_text(NO_BLOCK, encoding="utf-8")
+    (twin / "case-01.md").write_text(CLEAN, encoding="utf-8")
+    (twin / "case-02.md").write_text(CLEAN, encoding="utf-8")
+    return UnreadRemainderInput(
+        (str(unread),),
+        (str(twin),),
+        unread_remainder=lambda result: result.unread_remainder,
+    )
+
+
+UnreadRemainderConformance = unread_remainder_conformance(block_scan)
 
 
 def write_run(notes: dict[str, str]) -> tempfile.TemporaryDirectory:
@@ -426,6 +448,7 @@ class TheThreeRowsFireOnWhatOpensAnEntry(unittest.TestCase):
         self.assertEqual(scan.notes_read, 1)
         self.assertEqual(scan.notes_with_block, 0)
         self.assertEqual(scan.findings, ())
+        self.assertEqual(scan.unread_remainder, 1)
 
 
 class TheReportCarriesNoNoteText(unittest.TestCase):
