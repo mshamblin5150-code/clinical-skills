@@ -418,7 +418,7 @@ class InlineTrackerTextIsRead(unittest.TestCase):
 
     def test_nonmutating_commands_preserve_api_assignment(self) -> None:
         commands = (
-            "CID=7; :; ",
+            "CID=7; command :; ",
             "CID=7; command true; ",
         )
 
@@ -431,6 +431,43 @@ class InlineTrackerTextIsRead(unittest.TestCase):
                 )
                 self.assertEqual(result.grade_route, ("issue", "comment"))
                 self.assertEqual(result.number, 7)
+
+    def test_shadowable_noop_makes_api_assignment_unreconstructable(self) -> None:
+        result = hook.extract(
+            "CID=7; :; "
+            "gh api repos/example/project/issues/comments/$CID "
+            "-f body='Comment edit'"
+        )
+
+        self.assertIsNone(result.grade_route)
+        self.assertEqual(
+            result.unclassified_api_calls[0].kind,
+            "unclassified-api-identifier",
+        )
+
+    def test_unresolved_api_identifier_assignment_is_not_reconstructed(self) -> None:
+        for assignment in ("CID=$OTHER", "CID=${OTHER}"):
+            with self.subTest(assignment=assignment):
+                result = hook.extract(
+                    assignment
+                    + "; gh api repos/example/project/issues/comments/$CID "
+                    "-f body='Comment edit'"
+                )
+                self.assertIsNone(result.grade_route)
+                self.assertEqual(
+                    result.unclassified_api_calls[0].kind,
+                    "unclassified-api-identifier",
+                )
+
+    def test_known_api_identifier_assignment_chain_is_reconstructed(self) -> None:
+        result = hook.extract(
+            "OTHER=7; CID=$OTHER; "
+            "gh api repos/example/project/issues/comments/$CID "
+            "-f body='Comment edit'"
+        )
+
+        self.assertEqual(result.grade_route, ("issue", "comment"))
+        self.assertEqual(result.number, 7)
 
     def test_api_collection_endpoints_use_create_semantics(self) -> None:
         issue = hook.extract(
@@ -577,6 +614,22 @@ class InlineTrackerTextIsRead(unittest.TestCase):
 
         self.assertIsNone(result.grade_route)
         self.assertEqual(result.publications, ())
+        self.assertEqual(result.unreadable[0].kind, "external-variable")
+
+    def test_unresolved_graphql_assignment_chain_is_refused(self) -> None:
+        result = hook.extract(
+            "QUERY=$OTHER; gh api graphql -f query=$QUERY"
+        )
+
+        self.assertIsNone(result.grade_route)
+        self.assertEqual(result.unreadable[0].kind, "external-variable")
+
+    def test_unresolved_graphql_input_path_assignment_is_refused(self) -> None:
+        result = hook.extract(
+            "REQUEST=$OTHER; gh api graphql --input $REQUEST"
+        )
+
+        self.assertIsNone(result.grade_route)
         self.assertEqual(result.unreadable[0].kind, "external-variable")
 
     def test_api_output_options_before_endpoint_do_not_change_its_route(self) -> None:

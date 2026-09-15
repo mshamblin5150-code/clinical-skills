@@ -1107,7 +1107,7 @@ def _publish_assignments(
             re.match(r"[A-Za-z_][A-Za-z0-9_]*=", word) is None
             for word in assignment_words
         ):
-            if words not in ((":",), ("command", ":"), ("command", "true")):
+            if words not in (("command", ":"), ("command", "true")):
                 assignments.clear()
                 substitutions.clear()
             continue
@@ -1118,7 +1118,22 @@ def _publish_assignments(
             plain = shell_reader.plain_assignments(word)
             dynamic = shell_reader.substitution_assignments(word)
             for name, value in plain.items():
-                assignments[name] = value
+                expanded, kind = shell_reader.expand(
+                    value, assignments, frozenset(substitutions)
+                )
+                if (
+                    kind is not None
+                    or expanded is None
+                    or "$" in expanded
+                    or "`" in expanded
+                ):
+                    assignments.pop(name, None)
+                    if kind == "command-substitution" or "$(" in value:
+                        substitutions.add(name)
+                    else:
+                        substitutions.discard(name)
+                    continue
+                assignments[name] = expanded
                 substitutions.discard(name)
             for name in dynamic:
                 assignments.pop(name, None)
