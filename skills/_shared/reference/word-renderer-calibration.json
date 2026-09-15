@@ -1,5 +1,5 @@
 {
-  "command": "python tools/docx_word_probe.py --word",
+  "command": "tools/docx_word_probe.py --word",
   "pad_rows": {
     "prescription-pad-pagination": {
       "measured_on": "2026-09-13",

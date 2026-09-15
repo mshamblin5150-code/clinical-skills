@@ -468,7 +468,10 @@ python tools/docx_word_probe.py --word
 
 **The third command is maintainer-only.** It requires installed Word, runs the one-time
 calibration in [ADR 0008](docs/adr/0008-word-is-a-one-time-calibration-instrument.md), and is
-never on the consumer or CI path.
+never on the consumer or CI path. The calibration record stores the instrument identity as
+`tools/docx_word_probe.py --word`, without the interpreter prefix; the runnable maintainer command
+is the fenced command above. This distinction keeps the record from presenting maintainer tooling
+as a literal skill command while preserving the command a maintainer actually runs.
 
 **PyMuPDF was the obvious guess and it is the wrong tool**, asked and answered once so it is not re-litigated: PyMuPDF reads and writes PDFs, and no PDF library authors a Word document. The tools here that carry that dependency open a PDF; document authorship is not another such use. **That matters because a consumer runs Python on this path** — [AGENTS.md](AGENTS.md)'s point about `icd10_lookup.py`, arriving at a second skill.
 
@@ -549,9 +552,9 @@ with a number.
 #215's amended recency rule: `RECENCY` one of four dispositions, a reference stating a year, an old
 one saying why it stands, and the excuse carrying a reason. #231's citation rows, below. The report
 prints the ticket beside each row, and **`skills/practicum-case-study/SKILL.md` step 3 writes every one of them out in a table** —
-a test keyed on the module's own tuple fails if the next one arrives without one, because `AGENTS.md`
-classes this as a tool a skill *names* rather than one it depends on, and that class is defined by
-the instruction being complete without the command.
+a test keyed on the module's own tuple fails if the next one arrives without one. `AGENTS.md`
+classes this as a **Required command** because the skill requires its clean exit before drafting; the written
+rows preserve the by-eye fallback when the command cannot run after installation has been tried.
 
 ADR 0149 and #818 add the `unreadable` status and refutation branches and require their failed-read
 instrument pair. The shared pointer and failed-read rules live in

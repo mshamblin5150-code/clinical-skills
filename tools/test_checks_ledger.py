@@ -1421,7 +1421,8 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
 
     # One phrase per row, keyed on the module's own tuple, so a row added without
     # a sentence in the skill fails here rather than becoming a rule only the
-    # scanner knows -- which is what ``AGENTS.md`` classes this tool by.
+    # scanner knows. ``AGENTS.md`` classes this as a Required command because the
+    # skill requires its clean exit before submission.
     ROW_PHRASES = {
         checks.MISSING_CHECK: "a heading the table names that is not in the file",
         checks.DUPLICATE_CHECK: "two records under one check",

@@ -846,10 +846,11 @@ records, or no `DATE` header. Re-run with `--show` to see which records, and **t
 read it, do not paste it. The command's full coverage inventory is
 `research_ledger.DECLARED_LIMITS`; the refutation pass remains the clinical-source reading.
 
-**Every rule the command applies is written above, so a harness with no Python walks the ledger by
-eye instead.** The command saves the reading; it is not where the rule lives. That is
-`icd10-cpt`'s arrangement with `tools/specificity_scan.py`, and [AGENTS.md](../../AGENTS.md) keeps
-the two classes of tool citation apart deliberately.
+**Every rule the command applies is written above, so after the install has been tried a harness
+with no Python walks the ledger by eye instead.** The command remains required because its
+clean exit is required before drafting; without it the run cannot be called mechanically verified.
+That is `icd10-cpt`'s arrangement with `tools/specificity_scan.py`, and
+[AGENTS.md](../../AGENTS.md) files both by what skipping them costs.
 
 **Where the harness cannot research at all** — no subagent, no search, nothing to read — the record
 is written `STATUS: unsourced` with that said plainly, and the
@@ -1002,10 +1003,10 @@ The entry lines are long and are not wrapped, which is the point rather than an 
 guideline entry takes no retrieval date and the UpToDate entry takes one, and the database name is
 italicized in the entry and plain in the sentence above it.
 
-**Every rule the command applies is written in the table above, so a harness with no Python walks
-the list by eye instead.** The command saves the reading; it is not where the rule lives. That is
-step 3's arrangement with `tools/research_ledger.py`, and [AGENTS.md](../../AGENTS.md) keeps the two
-classes of tool citation apart deliberately.
+**Every rule the command applies is written in the table above, so after the install has been tried
+a harness with no Python walks the list by eye instead.** Its clean exit remains required; without
+the command the run cannot be called mechanically verified. That is step 3's arrangement with
+`tools/research_ledger.py`, and [AGENTS.md](../../AGENTS.md) files both by what skipping them costs.
 
 ### 8. Emit the document
 
@@ -1475,10 +1476,11 @@ skimmed is what a well-formed `clean` from a reader that read looks like.
 If the draft changes after any row was dispatched, recompute its fingerprint and rerun every row;
 no prior record is banked across a draft change.
 
-**Every rule the command applies is written above, so a harness with no Python walks the file by
-eye instead.** The command saves the reading; it is not where the rule lives — step 3's arrangement
-with `tools/research_ledger.py`, and [AGENTS.md](../../AGENTS.md) keeps the two classes of tool
-citation apart deliberately.
+**Every rule the command applies is written above, so after the install has been tried a harness
+with no Python walks the file by eye instead.** Its clean exit remains required before submission;
+without the command the run cannot be called mechanically verified. This is step 3's arrangement
+with `tools/research_ledger.py`, and [AGENTS.md](../../AGENTS.md) files both by what skipping them
+costs.
 
 **A finding is fixed, not handed over.** Ruled on
 [#211](https://github.com/mshamblin5150-code/clinical-skills/issues/211) and inherited here: the

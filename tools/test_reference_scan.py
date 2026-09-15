@@ -1535,7 +1535,8 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
 
     # One phrase per row, keyed on the module's own tuple, so a row added without
     # a sentence in the skill fails here rather than quietly becoming a rule only
-    # the scanner knows -- which is the class ``AGENTS.md`` puts this tool in.
+    # the scanner knows. ``AGENTS.md`` classes this as a Required command because
+    # the skill requires its clean exit.
     #
     # **A phrase has to describe what the scanner *does*, not the wider rule the
     # table states**, and two of these did not when they were written: the
