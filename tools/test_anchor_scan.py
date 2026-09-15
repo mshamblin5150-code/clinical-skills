@@ -1081,6 +1081,14 @@ class CommittedAgreementControls(unittest.TestCase):
 
     def test_the_blind_negative_reader_rederived_the_predicted_rows(self):
         base = self.ROOT / "descriptor-agreement-negative-control"
+        self.assertEqual(
+            (self.ROOT / "filled-anchor" / "notes" / "case-01.md").read_bytes(),
+            (base / "notes" / "case-01.md").read_bytes(),
+        )
+        self.assertEqual(
+            (self.ROOT / "worksheet-grammar-positive-control" / "case-01.md").read_bytes(),
+            (base / "worksheets" / "case-01.md").read_bytes(),
+        )
         record = json.loads((base / "agreement-read.json").read_text(encoding="utf-8"))
         rows = {
             (row["code"], row["role"]): row

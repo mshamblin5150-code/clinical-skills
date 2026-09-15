@@ -217,6 +217,9 @@ class Evidence(unittest.TestCase):
             "filled-anchor-run-2": "fixtures/filled-anchor/run-2/case-01.md",
             "slot-form-run": "fixtures/slot-form-run/day-a-case-06.md",
             "blind-run": "fixtures/blind-run/duration-span-case-01.md",
+            "descriptor-agreement-negative-control": (
+                "fixtures/descriptor-agreement-negative-control/notes/case-01.md"
+            ),
         }
         self.assertEqual(set(cases), {record.key for record in scan.RUN_RECORDS})
         for key, path in cases.items():
@@ -407,7 +410,7 @@ class TheRunRecord(unittest.TestCase):
         cls.report = scan.scan(scan.tracked_files(), scan.read_tracked)
 
     def test_the_tally_is_unchanged(self):
-        evidence = self.report.evidence
+        evidence = self.report.evidence.by_record["filled-anchor-notes"]
         self.assertEqual(len(evidence.forms), RECORD_FORMS)
         self.assertEqual(evidence.occurrences, RECORD_OCCURRENCES)
         self.assertEqual(len(evidence.files), RECORD_NOTES)
@@ -445,7 +448,7 @@ class TheRunRecord(unittest.TestCase):
         # lost one while the twelve notes did not move a byte, which is the
         # growth rule read in both directions at once.
         self.assertEqual(
-            sorted(self.report.evidence.forms),
+            sorted(self.report.evidence.by_record["filled-anchor-notes"].forms),
             ["behaviour", "caesarean", "counselling", "dyspnoea", "fibre",
              "grey", "hypoxaemia", "hypoxaemic", "immobilisation", "judgement",
              "labelled", "neighbour", "programme"],
