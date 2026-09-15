@@ -325,6 +325,675 @@ class InlineTrackerTextIsRead(unittest.TestCase):
         self.assertEqual(result.route, ("api",))
         self.assertEqual(result.grade_route, ("issue", "edit"))
 
+    def test_same_command_api_comment_identifier_is_reconstructed(self) -> None:
+        result = hook.extract(
+            "CID=123; gh api repos/example/project/issues/comments/$CID "
+            "-f body='Comment edit'"
+        )
+
+        self.assertEqual(result.grade_route, ("issue", "comment"))
+        self.assertEqual(result.number, 123)
+        self.assertEqual(
+            [(row.field, row.text) for row in result.publications],
+            [("body", "Comment edit")],
+        )
+
+    def test_api_identifier_expands_only_in_shell_active_quotes(self) -> None:
+        literal = hook.extract(
+            "CID=7; gh api 'repos/example/project/issues/comments/$CID' "
+            "-f body='Comment edit'"
+        )
+        active = hook.extract(
+            'CID=7; gh api "repos/example/project/issues/comments/$CID" '
+            "-f body='Comment edit'"
+        )
+
+        self.assertEqual(
+            literal.unclassified_api_calls[0].kind,
+            "unclassified-api-identifier",
+        )
+        self.assertIsNone(literal.number)
+        self.assertEqual(active.grade_route, ("issue", "comment"))
+        self.assertEqual(active.number, 7)
+
+    def test_composite_api_endpoint_reconstructs_record_number(self) -> None:
+        result = hook.extract(
+            "A=1; B=2; gh api -X POST "
+            "repos/example/project/issues/comments/$A$B -f body='Comment'"
+        )
+
+        self.assertEqual(result.grade_route, ("issue", "comment"))
+        self.assertEqual(result.number, 12)
+
+    def test_unrelated_endpoint_expansion_keeps_literal_record_number(self) -> None:
+        result = hook.extract(
+            'gh api -X POST "repos/example/project/issues/7/comments?foo=$X" '
+            "-f body='Comment'"
+        )
+
+        self.assertEqual(result.grade_route, ("issue", "comment"))
+        self.assertEqual(result.number, 7)
+
+    def test_unresolved_structural_endpoint_expansion_is_unclassified(self) -> None:
+        result = hook.extract(
+            'gh api -X POST "repos/$OWNER/project/issues/7/comments" '
+            "-f body='Comment'"
+        )
+
+        self.assertIsNone(result.grade_route)
+        self.assertIsNone(result.number)
+        self.assertEqual(
+            result.unclassified_api_calls[0].kind,
+            "unclassified-api-endpoint",
+        )
+
+    def test_later_api_comment_identifier_assignment_is_not_reconstructed(self) -> None:
+        result = hook.extract(
+            "gh api repos/example/project/issues/comments/$CID "
+            "-f body='Comment edit'; CID=123"
+        )
+
+        self.assertIsNone(result.grade_route)
+        self.assertEqual(result.unreadable, ())
+        self.assertEqual(
+            result.unclassified_api_calls[0].kind,
+            "unclassified-api-identifier",
+        )
+
+    def test_api_command_prefix_assignment_is_not_reconstructed(self) -> None:
+        result = hook.extract(
+            "CID=123 gh api repos/example/project/issues/comments/$CID "
+            "-f body='Comment edit'"
+        )
+
+        self.assertIsNone(result.grade_route)
+        self.assertEqual(result.unreadable, ())
+        self.assertEqual(
+            result.unclassified_api_calls[0].kind,
+            "unclassified-api-identifier",
+        )
+
+    def test_prior_command_local_api_assignment_is_not_reconstructed(self) -> None:
+        result = hook.extract(
+            "CID=123 echo setup; "
+            "gh api repos/example/project/issues/comments/$CID "
+            "-f body='Comment edit'"
+        )
+
+        self.assertIsNone(result.grade_route)
+        self.assertEqual(
+            result.unclassified_api_calls[0].kind,
+            "unclassified-api-identifier",
+        )
+
+    def test_unset_api_identifier_assignment_is_not_reconstructed(self) -> None:
+        result = hook.extract(
+            "CID=123; command unset CID; "
+            "gh api repos/example/project/issues/comments/$CID "
+            "-f body='Comment edit'"
+        )
+
+        self.assertIsNone(result.grade_route)
+        self.assertEqual(
+            result.unclassified_api_calls[0].kind,
+            "unclassified-api-identifier",
+        )
+
+    def test_conditional_api_identifier_assignment_is_not_reconstructed(self) -> None:
+        result = hook.extract(
+            "CID=7; false && CID=9; "
+            "gh api repos/example/project/issues/comments/$CID "
+            "-f body='Comment edit'"
+        )
+
+        self.assertIsNone(result.grade_route)
+        self.assertEqual(
+            result.unclassified_api_calls[0].kind,
+            "unclassified-api-identifier",
+        )
+
+    def test_intervening_command_makes_api_assignment_unreconstructable(self) -> None:
+        result = hook.extract(
+            "CID=7; opaque_step; "
+            "gh api repos/example/project/issues/comments/$CID "
+            "-f body='Comment edit'"
+        )
+
+        self.assertIsNone(result.grade_route)
+        self.assertEqual(
+            result.unclassified_api_calls[0].kind,
+            "unclassified-api-identifier",
+        )
+
+    def test_command_qualified_noops_make_api_state_unreconstructable(self) -> None:
+        commands = (
+            "CID=7; command :; ",
+            "CID=7; command true; ",
+        )
+
+        for prefix in commands:
+            with self.subTest(prefix=prefix):
+                result = hook.extract(
+                    prefix
+                    + "gh api repos/example/project/issues/comments/$CID "
+                    "-f body='Comment edit'"
+                )
+                self.assertIsNone(result.grade_route)
+                self.assertEqual(
+                    result.unclassified_api_calls[0].kind,
+                    "unclassified-api-identifier",
+                )
+
+    def test_shadowable_noop_makes_api_assignment_unreconstructable(self) -> None:
+        result = hook.extract(
+            "CID=7; :; "
+            "gh api repos/example/project/issues/comments/$CID "
+            "-f body='Comment edit'"
+        )
+
+        self.assertIsNone(result.grade_route)
+        self.assertEqual(
+            result.unclassified_api_calls[0].kind,
+            "unclassified-api-identifier",
+        )
+
+    def test_unresolved_api_identifier_assignment_is_not_reconstructed(self) -> None:
+        for assignment in ("CID=$OTHER", "CID=${OTHER}"):
+            with self.subTest(assignment=assignment):
+                result = hook.extract(
+                    assignment
+                    + "; gh api repos/example/project/issues/comments/$CID "
+                    "-f body='Comment edit'"
+                )
+                self.assertIsNone(result.grade_route)
+                self.assertEqual(
+                    result.unclassified_api_calls[0].kind,
+                    "unclassified-api-identifier",
+                )
+
+    def test_known_api_identifier_assignment_chain_is_reconstructed(self) -> None:
+        result = hook.extract(
+            "OTHER=7; CID=$OTHER; "
+            "gh api repos/example/project/issues/comments/$CID "
+            "-f body='Comment edit'"
+        )
+
+        self.assertEqual(result.grade_route, ("issue", "comment"))
+        self.assertEqual(result.number, 7)
+
+    def test_known_embedded_api_identifier_assignments_are_reconstructed(self) -> None:
+        commands = (
+            "OTHER=7; CID=${OTHER}8; ",
+            "A=1; B=2; CID=$A$B; ",
+        )
+
+        for prefix, number in zip(commands, (78, 12), strict=True):
+            with self.subTest(prefix=prefix):
+                result = hook.extract(
+                    prefix
+                    + "gh api repos/example/project/issues/comments/$CID "
+                    "-f body='Comment edit'"
+                )
+                self.assertEqual(result.grade_route, ("issue", "comment"))
+                self.assertEqual(result.number, number)
+
+    def test_empty_api_identifier_assignment_is_refused(self) -> None:
+        result = hook.extract(
+            "CID=; gh api repos/example/project/issues/comments/$CID "
+            "-f body='Comment edit'"
+        )
+
+        self.assertIsNone(result.grade_route)
+        self.assertEqual(
+            result.unclassified_api_calls[0].kind,
+            "unclassified-api-identifier",
+        )
+
+    def test_unquoted_api_assignment_cannot_inject_publication_options(self) -> None:
+        result = hook.extract(
+            "ARGS='7 -f body=Injected'; "
+            "gh api repos/example/project/issues/comments/$ARGS"
+        )
+
+        self.assertIsNone(result.grade_route)
+        self.assertEqual(result.publications, ())
+        self.assertEqual(result.unreadable, ())
+        self.assertEqual(
+            result.unclassified_api_calls[0].kind,
+            "unclassified-api-arguments",
+        )
+
+    def test_empty_quote_prefix_cannot_hide_an_injected_api_option(self) -> None:
+        commands = (
+            "ARGS=-f; gh api -X POST repos/example/project/issues/7/comments "
+            "''$ARGS body=Injected",
+            "ARGS=--method=POST; gh api -X GET "
+            "repos/example/project/issues/7 -f body=x ''$ARGS",
+        )
+
+        for command in commands:
+            with self.subTest(command=command):
+                result = hook.extract(command)
+                self.assertIsNone(result.grade_route)
+                self.assertEqual(result.publications, ())
+                self.assertEqual(
+                    result.unclassified_api_calls[0].kind,
+                    "unclassified-api-arguments",
+                )
+
+    def test_adjacent_variable_cannot_hide_an_injected_api_option(self) -> None:
+        commands = (
+            "A=7; B=' -f body=Injected'; "
+            "gh api repos/example/project/issues/comments/$A$B",
+            "A=7; B=' --method=POST'; gh api -X GET "
+            "repos/example/project/issues/$A $B -f body=Injected",
+        )
+
+        for command in commands:
+            with self.subTest(command=command):
+                result = hook.extract(command)
+                self.assertIsNone(result.grade_route)
+                self.assertEqual(result.publications, ())
+                self.assertEqual(
+                    result.unclassified_api_calls[0].kind,
+                    "unclassified-api-arguments",
+                )
+
+    def test_split_delimiter_and_option_variables_are_analyzed_together(self) -> None:
+        result = hook.extract(
+            "ID=7; SEP=' '; OPT='-X POST'; gh api -X GET "
+            "repos/example/project/issues/$ID$SEP$OPT -f body=Injected"
+        )
+
+        self.assertIsNone(result.grade_route)
+        self.assertEqual(result.publications, ())
+        self.assertEqual(
+            result.unclassified_api_calls[0].kind,
+            "unclassified-api-arguments",
+        )
+
+    def test_expansion_split_cannot_hide_a_literal_option_suffix(self) -> None:
+        commands = (
+            "SEP=' '; gh api -X GET "
+            "repos/example/project/issues/7$SEP-X POST -f body=Injected",
+            "SEP=' '; gh api -X GET "
+            'repos/example/project/issues/7$SEP"-X" POST -f body=Injected',
+            "SEP=' '; gh api -X GET "
+            "repos/example/project/issues/7$SEP\\-X POST -f body=Injected",
+        )
+
+        for command in commands:
+            with self.subTest(command=command):
+                result = hook.extract(command)
+                self.assertIsNone(result.grade_route)
+                self.assertEqual(
+                    result.unclassified_api_calls[0].kind,
+                    "unclassified-api-arguments",
+                )
+
+    def test_expansion_split_cannot_hide_a_quoted_variable_option(self) -> None:
+        commands = (
+            "SEP=' '; OPT='--method=POST'; gh api -X GET "
+            'repos/o/r/issues/7 -f data=x$SEP"$OPT" -f body=Injected',
+            "SEP=' '; OPT='-X'; gh api -X GET "
+            'repos/o/r/issues/7 -f data=x$SEP"$OPT" POST -f body=Injected',
+        )
+
+        for command in commands:
+            with self.subTest(command=command):
+                result = hook.extract(command)
+                self.assertIsNone(result.grade_route)
+                self.assertEqual(
+                    result.unclassified_api_calls[0].kind,
+                    "unclassified-api-arguments",
+                )
+
+        literal = hook.extract(
+            "SEP=' '; OPT='--method=POST'; gh api -X GET "
+            "repos/o/r/issues/7 -f data=x$SEP'$OPT'"
+        )
+        self.assertEqual(literal.unclassified_api_calls, ())
+
+    def test_api_field_assignments_are_expanded_before_classification(self) -> None:
+        commands = (
+            "FIELD='body=Injected'; gh api "
+            'repos/example/project/issues/comments/7 -f "$FIELD"',
+            "FIELD='body=Injected'; gh api "
+            "repos/example/project/issues/comments/7 -f $FIELD",
+            "KEY=body; gh api repos/example/project/issues/comments/7 "
+            '-f "$KEY=Injected"',
+        )
+
+        for command in commands:
+            with self.subTest(command=command):
+                result = hook.extract(command)
+                self.assertEqual(result.grade_route, ("issue", "comment"))
+                self.assertEqual(result.number, 7)
+                self.assertEqual(result.publications[0].field, "body")
+                self.assertEqual(result.publications[0].text, "Injected")
+
+    def test_unknown_api_field_assignment_is_refused(self) -> None:
+        result = hook.extract(
+            'gh api repos/example/project/issues/comments/7 -f "$FIELD"'
+        )
+
+        self.assertIsNone(result.grade_route)
+        self.assertEqual(
+            result.unclassified_api_calls[0].kind,
+            "unclassified-api-arguments",
+        )
+
+    def test_known_api_field_with_unknown_value_is_unreadable(self) -> None:
+        commands = (
+            'gh api repos/o/r/issues/comments/7 -f "body=$VALUE"',
+            'KEY=body; gh api repos/o/r/issues/comments/7 -f "$KEY=$VALUE"',
+            'gh api repos/o/r/issues/7 -f "title=$VALUE"',
+        )
+
+        for command in commands:
+            with self.subTest(command=command):
+                result = hook.extract(command)
+                self.assertEqual(result.unclassified_api_calls, ())
+                self.assertEqual(result.unreadable[0].kind, "external-variable")
+
+    def test_unknown_whole_api_option_is_refused(self) -> None:
+        commands = (
+            'gh api -X GET repos/o/r/issues/7 -f body=Injected "$OPT" POST',
+            'gh api -X GET repos/o/r/issues/7 -f body=Injected "$OPT=POST"',
+            'gh api -X GET "$OPT" POST repos/o/r/issues/7 -f body=Injected',
+        )
+
+        for command in commands:
+            with self.subTest(command=command):
+                result = hook.extract(command)
+                self.assertIsNone(result.grade_route)
+                self.assertEqual(
+                    result.unclassified_api_calls[0].kind,
+                    "unclassified-api-arguments",
+                )
+
+    def test_unquoted_api_brace_expansion_is_refused(self) -> None:
+        commands = (
+            "gh api -X POST repos/o/r/issues/7/comments "
+            "-fbody={Safe,Injected}",
+            "gh api -X POST repos/o/r/issues/7/comments "
+            "--raw-field=body={Safe,Injected}",
+            "gh api -X POST repos/o/r/issues/7/comments "
+            "-fbody='$'{Safe,Injected}",
+            "gh api -X POST repos/o/r/issues/7/comments "
+            "-fbody=\\${Safe,Injected}",
+        )
+
+        for command in commands:
+            with self.subTest(command=command):
+                result = hook.extract(command)
+                self.assertIsNone(result.grade_route)
+                self.assertEqual(
+                    result.unclassified_api_calls[0].kind,
+                    "unclassified-api-arguments",
+                )
+
+        safe_commands = (
+            "gh api -X POST repos/o/r/issues/7/comments "
+            "-f'body={Safe,Injected}'",
+            "gh api -X POST repos/o/r/issues/7/comments "
+            "-fbody=\\{Safe,Injected\\}",
+        )
+        for command in safe_commands:
+            with self.subTest(command=command):
+                result = hook.extract(command)
+                self.assertEqual(result.grade_route, ("issue", "comment"))
+                self.assertEqual(result.publications[0].text, "{Safe,Injected}")
+
+        wholly_quoted = hook.extract(
+            "gh api -X POST repos/o/r/issues/7/comments "
+            "-fbody='${Safe,Injected}'"
+        )
+        self.assertEqual(wholly_quoted.grade_route, ("issue", "comment"))
+        self.assertEqual(
+            wholly_quoted.publications[0].text,
+            "${Safe,Injected}",
+        )
+
+    def test_unquoted_api_pathname_expansion_is_refused(self) -> None:
+        commands = (
+            "gh api -X POST repos/o/r/issues/7/comments -f body=*",
+            "gh api -X POST repos/o/r/issues/7/comments -f body=?",
+            "gh api -X POST repos/o/r/issues/7/comments -f 'body=x'[ab]",
+        )
+
+        for command in commands:
+            with self.subTest(command=command):
+                result = hook.extract(command)
+                self.assertIsNone(result.grade_route)
+                self.assertEqual(
+                    result.unclassified_api_calls[0].kind,
+                    "unclassified-api-arguments",
+                )
+
+        safe_commands = (
+            "gh api -X POST repos/o/r/issues/7/comments -f 'body=*'",
+            "gh api -X POST repos/o/r/issues/7/comments -f body=\\?",
+            "gh api -X POST repos/o/r/issues/7/comments -f 'body=[ab]'",
+        )
+        for command in safe_commands:
+            with self.subTest(command=command):
+                result = hook.extract(command)
+                self.assertEqual(result.grade_route, ("issue", "comment"))
+
+    def test_unquoted_api_process_substitution_is_refused(self) -> None:
+        commands = (
+            "gh api -X POST repos/o/r/issues/7/comments -f body=<(true)",
+            "gh api -X POST repos/o/r/issues/7/comments -fbody=>(true)",
+            "gh api -X POST repos/o/r/issues/7/comments "
+            "-f body=<(printf Injected)",
+        )
+
+        for command in commands:
+            with self.subTest(command=command):
+                result = hook.extract(command)
+                self.assertIsNone(result.grade_route)
+                self.assertEqual(
+                    result.unclassified_api_calls[0].kind,
+                    "unclassified-api-arguments",
+                )
+
+        safe_commands = (
+            "gh api -X POST repos/o/r/issues/7/comments -f 'body=<(true)'",
+            "gh api -X POST repos/o/r/issues/7/comments -f body=\\<(true)",
+        )
+        for command in safe_commands:
+            with self.subTest(command=command):
+                result = hook.extract(command)
+                self.assertEqual(result.grade_route, ("issue", "comment"))
+                self.assertEqual(result.publications[0].text, "<(true)")
+
+    def test_dynamic_attached_api_flag_preserves_value_quotes(self) -> None:
+        commands = (
+            "OPT=-f; gh api repos/o/r/issues/comments/7 "
+            '"$OPT"\'body=$VALUE\'',
+            "OPT=--raw-field=; gh api repos/o/r/issues/comments/7 "
+            '"$OPT"\'body=$VALUE\'',
+            "OPT=-f; gh api repos/o/r/issues/comments/7 "
+            '"$OPT"body=\\$VALUE',
+        )
+
+        for command in commands:
+            with self.subTest(command=command):
+                result = hook.extract(command)
+                self.assertEqual(result.grade_route, ("issue", "comment"))
+                self.assertEqual(result.unreadable, ())
+                self.assertEqual(result.publications[0].text, "$VALUE")
+
+        graphql = hook.extract(
+            "OPT=-f; gh api graphql "
+            '"$OPT"\'query=query($owner:String!){viewer{login}}\''
+        )
+        self.assertEqual(graphql.unreadable, ())
+        self.assertEqual(graphql.unclassified_api_calls, ())
+
+    def test_unquoted_leading_tilde_api_argument_is_refused(self) -> None:
+        commands = (
+            "gh api graphql --input ~/body.json",
+            "gh api -X POST repos/o/r/issues/7/comments -f body=~",
+            "gh api -X POST repos/o/r/issues/7/comments -f body=x:~",
+        )
+
+        for command in commands:
+            with self.subTest(command=command):
+                result = hook.extract(command)
+                self.assertIsNone(result.grade_route)
+                self.assertEqual(
+                    result.unclassified_api_calls[0].kind,
+                    "unclassified-api-arguments",
+                )
+
+        safe_commands = (
+            "gh api -X POST repos/o/r/issues/7/comments -f 'body=~'",
+            "gh api -X POST repos/o/r/issues/7/comments -fbody=~",
+            "gh api -X POST repos/o/r/issues/7/comments -f 'body'=~",
+            "gh api -X POST repos/o/r/issues/7/comments -f b'ody'=~",
+            "gh api -X POST repos/o/r/issues/7/comments -f body\\=~",
+        )
+        for command in safe_commands:
+            with self.subTest(command=command):
+                result = hook.extract(command)
+                self.assertEqual(result.grade_route, ("issue", "comment"))
+                self.assertEqual(result.publications[0].text, "~")
+
+        later_equals = (
+            ("body==~", "=~"),
+            ("body=x=~", "x=~"),
+        )
+        for field, expected in later_equals:
+            with self.subTest(field=field):
+                result = hook.extract(
+                    "gh api -X POST repos/o/r/issues/7/comments -f " + field
+                )
+                self.assertEqual(result.grade_route, ("issue", "comment"))
+                self.assertEqual(result.publications[0].text, expected)
+
+    def test_nondefault_ifs_cannot_inject_api_publication_options(self) -> None:
+        commands = (
+            "IFS=,; ARGS='7,-f,body=Injected'; ",
+            "opaque_step; ARGS='7,-f,body=Injected'; ",
+        )
+
+        for prefix in commands:
+            with self.subTest(prefix=prefix):
+                result = hook.extract(
+                    prefix
+                    + "gh api repos/example/project/issues/comments/$ARGS"
+                )
+                self.assertIsNone(result.grade_route)
+                self.assertEqual(result.publications, ())
+                self.assertEqual(result.unreadable, ())
+                self.assertEqual(
+                    result.unclassified_api_calls[0].kind,
+                    "unclassified-api-arguments",
+                )
+
+    def test_double_quoted_api_identifier_assignment_chain_is_reconstructed(self) -> None:
+        result = hook.extract(
+            "OTHER=7; CID=\"$OTHER\"; "
+            "gh api repos/example/project/issues/comments/$CID "
+            "-f body='Comment edit'"
+        )
+
+        self.assertEqual(result.grade_route, ("issue", "comment"))
+        self.assertEqual(result.number, 7)
+
+    def test_single_quoted_api_identifier_indirection_is_refused(self) -> None:
+        result = hook.extract(
+            "OTHER=7; CID='$OTHER'; "
+            "gh api repos/example/project/issues/comments/$CID "
+            "-f body='Comment edit'"
+        )
+
+        self.assertIsNone(result.grade_route)
+        self.assertEqual(
+            result.unclassified_api_calls[0].kind,
+            "unclassified-api-identifier",
+        )
+
+    def test_compound_api_identifier_assignment_is_refused(self) -> None:
+        assignments = (
+            "CID='1'${OTHER}'2'",
+            "CID='7'8",
+            'OTHER=7; CID="$OTHER"8',
+        )
+
+        for assignment in assignments:
+            with self.subTest(assignment=assignment):
+                result = hook.extract(
+                    assignment
+                    + "; gh api repos/example/project/issues/comments/$CID "
+                    "-f body='Comment edit'"
+                )
+                self.assertIsNone(result.grade_route)
+                self.assertEqual(
+                    result.unclassified_api_calls[0].kind,
+                    "unclassified-api-identifier",
+                )
+
+    def test_escape_bearing_api_identifier_assignment_is_refused(self) -> None:
+        assignments = (
+            "CID=7\\8",
+            'CID="7\\\n8"',
+        )
+
+        for assignment in assignments:
+            with self.subTest(assignment=assignment):
+                result = hook.extract(
+                    assignment
+                    + "; gh api repos/example/project/issues/comments/$CID "
+                    "-f body='Comment edit'"
+                )
+                self.assertIsNone(result.grade_route)
+                self.assertEqual(
+                    result.unclassified_api_calls[0].kind,
+                    "unclassified-api-identifier",
+                )
+
+    def test_export_assignment_commands_make_api_state_unreconstructable(self) -> None:
+        commands = (
+            "command export OTHER=7 CID=$OTHER; ",
+            "OTHER=9; command export OTHER=7 CID=$OTHER; ",
+            "command export OTHER=7; command export CID=$OTHER; ",
+        )
+
+        for prefix in commands:
+            with self.subTest(prefix=prefix):
+                result = hook.extract(
+                    prefix
+                    + "gh api repos/example/project/issues/comments/$CID "
+                    "-f body='Comment edit'"
+                )
+                self.assertIsNone(result.grade_route)
+                self.assertEqual(
+                    result.unclassified_api_calls[0].kind,
+                    "unclassified-api-identifier",
+                )
+
+    def test_shadowable_assignment_builtins_invalidate_api_state(self) -> None:
+        commands = (
+            "CID=7; export OTHER=1; ",
+            "CID=7; unset OTHER; ",
+        )
+
+        for prefix in commands:
+            with self.subTest(prefix=prefix):
+                result = hook.extract(
+                    prefix
+                    + "gh api repos/example/project/issues/comments/$CID "
+                    "-f body='Comment edit'"
+                )
+                self.assertIsNone(result.grade_route)
+                self.assertEqual(
+                    result.unclassified_api_calls[0].kind,
+                    "unclassified-api-identifier",
+                )
+
     def test_api_collection_endpoints_use_create_semantics(self) -> None:
         issue = hook.extract(
             "gh api repos/example/project/issues "
@@ -337,6 +1006,558 @@ class InlineTrackerTextIsRead(unittest.TestCase):
 
         self.assertEqual(issue.grade_route, ("issue", "create"))
         self.assertEqual(pull.grade_route, ("pr", "create"))
+
+    def test_markdown_render_fields_are_not_tracker_publications(self) -> None:
+        result = hook.extract(
+            "gh api markdown -f text='Text sent only to the renderer'"
+        )
+
+        self.assertEqual(result.route, ("api",))
+        self.assertIsNone(result.grade_route)
+        self.assertEqual(result.publications, ())
+        self.assertEqual(result.unreadable, ())
+
+    def test_markdown_pipe_input_is_not_read_as_a_tracker_body(self) -> None:
+        result = hook.extract("printf '%s' text | gh api markdown --input -")
+
+        self.assertEqual(result.route, ("api",))
+        self.assertIsNone(result.grade_route)
+        self.assertEqual(result.publications, ())
+        self.assertEqual(result.unreadable, ())
+
+    def test_named_text_free_api_writes_are_not_tracker_publications(self) -> None:
+        commands = (
+            "gh api repos/example/project/git/refs -f ref=refs/heads/topic",
+            "gh api --method DELETE repos/example/project/git/refs/heads/topic",
+            "gh api repos/example/project/issues/670/dependencies/blocked_by "
+            "-f issue_id=671",
+            "gh api --method DELETE "
+            "repos/example/project/issues/670/dependencies/blocked_by/671",
+            "gh api --method DELETE repos/example/project/issues/670/sub_issue",
+            "gh api --method DELETE repos/example/project/issues/670/labels/bug",
+            "gh api --method DELETE "
+            "repos/example/project/issues/670/reactions/55",
+            "gh api --method DELETE "
+            "repos/example/project/issues/comments/777/reactions/55",
+            "gh api --method DELETE "
+            "repos/example/project/pulls/comments/888/reactions/55",
+        )
+
+        for command in commands:
+            with self.subTest(command=command):
+                result = hook.extract(command)
+                self.assertIsNone(result.grade_route)
+                self.assertEqual(result.publications, ())
+                self.assertEqual(result.unreadable, ())
+
+    def test_graphql_query_documents_are_read_only(self) -> None:
+        commands = (
+            "gh api graphql -f query='query { viewer { login } }'",
+            "gh api graphql -f query='{ viewer { login } }'",
+            "gh api graphql --raw-field=query='query { viewer { login } }'",
+            "gh api graphql -fquery='query { viewer { login } }'",
+        )
+
+        for command in commands:
+            with self.subTest(command=command):
+                result = hook.extract(command)
+                self.assertIsNone(result.grade_route)
+                self.assertEqual(result.publications, ())
+                self.assertEqual(result.unreadable, ())
+
+    def test_graphql_query_operation_is_read_from_a_field_file(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / "query.graphql").write_text(
+                "query { viewer { login } }", encoding="utf-8"
+            )
+            command = (
+                f'cd "{root.as_posix()}" && '
+                "gh api graphql -F query=@query.graphql"
+            )
+
+            result = hook.extract(command)
+
+        self.assertIsNone(result.grade_route)
+        self.assertEqual(result.publications, ())
+        self.assertEqual(result.unreadable, ())
+
+    def test_graphql_field_file_expands_only_shell_active_path_variables(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / "$FILE").write_text(
+                "query { viewer { login } }", encoding="utf-8"
+            )
+            (root / "mutation.graphql").write_text(
+                "mutation { deleteProjectV2(input: {}) { clientMutationId } }",
+                encoding="utf-8",
+            )
+            prefix = f'cd "{root.as_posix()}"; FILE=mutation.graphql; '
+            literal = hook.extract(
+                prefix + "gh api graphql -F 'query=@$FILE'"
+            )
+            active = hook.extract(
+                prefix + 'gh api graphql -F "query=@$FILE"'
+            )
+
+        self.assertIsNone(literal.grade_route)
+        self.assertEqual(literal.unclassified_api_calls, ())
+        self.assertEqual(
+            active.unclassified_api_calls[0].kind,
+            "unclassified-api-mutation",
+        )
+
+    def test_named_nonpublication_expansions_are_left_alone(self) -> None:
+        commands = (
+            "TEXT='hello world'; gh api markdown -f text=$TEXT",
+            "REF='refs/heads/a b'; gh api repos/example/project/git/refs "
+            "-f ref=$REF",
+        )
+
+        for command in commands:
+            with self.subTest(command=command):
+                result = hook.extract(command)
+                self.assertIsNone(result.grade_route)
+                self.assertEqual(result.publications, ())
+                self.assertEqual(result.unreadable, ())
+                self.assertEqual(result.unclassified_api_calls, ())
+
+    def test_explicit_get_expansions_are_left_alone(self) -> None:
+        result = hook.extract(
+            "ARGS='body=hello world'; gh api -X GET "
+            "repos/example/project/issues -f data=$ARGS"
+        )
+
+        self.assertIsNone(result.grade_route)
+        self.assertEqual(result.publications, ())
+        self.assertEqual(result.unreadable, ())
+        self.assertEqual(result.unclassified_api_calls, ())
+
+    def test_quoted_dash_text_does_not_become_an_injected_option(self) -> None:
+        commands = (
+            'A=text; gh api markdown -f note=$A" -safe"',
+            'A=value; gh api -X GET repos/o/r/issues/7 '
+            '-f data=$A" -safe"',
+        )
+
+        for command in commands:
+            with self.subTest(command=command):
+                result = hook.extract(command)
+                self.assertIsNone(result.grade_route)
+                self.assertEqual(result.unclassified_api_calls, ())
+
+    def test_dynamic_arguments_cannot_override_an_explicit_get(self) -> None:
+        commands = (
+            "ARGS='7 -X POST -f body=Injected'; gh api -X GET "
+            "repos/example/project/issues/comments/$ARGS",
+            "ARGS='--method=POST'; gh api -X GET "
+            "repos/example/project/issues/7 -f body=x $ARGS",
+        )
+
+        for command in commands:
+            with self.subTest(command=command):
+                result = hook.extract(command)
+                self.assertIsNone(result.grade_route)
+                self.assertEqual(
+                    result.unclassified_api_calls[0].kind,
+                    "unclassified-api-arguments",
+                )
+
+    def test_dynamic_owner_cannot_reshape_a_nonpublication_endpoint(self) -> None:
+        result = hook.extract(
+            "OWNER='example/project/issues/7/comments -f body=Injected'; "
+            "gh api repos/$OWNER/x/issues/8/labels"
+        )
+
+        self.assertIsNone(result.grade_route)
+        self.assertEqual(
+            result.unclassified_api_calls[0].kind,
+            "unclassified-api-arguments",
+        )
+
+    def test_graphql_query_operation_is_read_from_json_input(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / "request.json").write_text(
+                json.dumps({"query": "query { viewer { login } }"}),
+                encoding="utf-8",
+            )
+            command = (
+                f'cd "{root.as_posix()}" && '
+                "gh api graphql --input request.json"
+            )
+
+            result = hook.extract(command)
+
+        self.assertIsNone(result.grade_route)
+        self.assertEqual(result.publications, ())
+        self.assertEqual(result.unreadable, ())
+        self.assertEqual(result.unclassified_api_calls, ())
+
+    def test_graphql_input_expands_only_shell_active_path_variables(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / "$FILE").write_text(
+                json.dumps({"query": "query { viewer { login } }"}),
+                encoding="utf-8",
+            )
+            (root / "mutation.json").write_text(
+                json.dumps(
+                    {
+                        "query": (
+                            "mutation { deleteProjectV2(input: {}) "
+                            "{ clientMutationId } }"
+                        )
+                    }
+                ),
+                encoding="utf-8",
+            )
+            prefix = f'cd "{root.as_posix()}"; FILE=mutation.json; '
+            literal = hook.extract(
+                prefix + "gh api graphql --input '$FILE'"
+            )
+            active = hook.extract(
+                prefix + 'gh api graphql --input "$FILE"'
+            )
+
+        self.assertIsNone(literal.grade_route)
+        self.assertEqual(literal.unclassified_api_calls, ())
+        self.assertEqual(
+            active.unclassified_api_calls[0].kind,
+            "unclassified-api-mutation",
+        )
+
+    def test_unreadable_graphql_query_file_is_refused_as_an_unreadable_body(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            command = (
+                f'cd "{Path(folder).as_posix()}" && '
+                "gh api graphql -F query=@missing.graphql"
+            )
+
+            result = hook.extract(command)
+
+        self.assertIsNone(result.grade_route)
+        self.assertEqual(result.publications, ())
+        self.assertEqual(result.unreadable[0].kind, "missing-file")
+
+    def test_runtime_graphql_document_is_refused_as_an_unreadable_body(self) -> None:
+        result = hook.extract('gh api graphql -f "query=$QUERY"')
+
+        self.assertIsNone(result.grade_route)
+        self.assertEqual(result.publications, ())
+        self.assertEqual(result.unreadable[0].kind, "external-variable")
+
+    def test_later_graphql_assignment_does_not_make_the_document_readable(self) -> None:
+        result = hook.extract(
+            'gh api graphql -f "query=$QUERY"; '
+            "QUERY='query { viewer { login } }'"
+        )
+
+        self.assertIsNone(result.grade_route)
+        self.assertEqual(result.publications, ())
+        self.assertEqual(result.unreadable[0].kind, "external-variable")
+
+    def test_prior_command_local_graphql_assignment_is_not_reconstructed(self) -> None:
+        result = hook.extract(
+            "QUERY='query { viewer { login } }' echo setup; "
+            'gh api graphql -f "query=$QUERY"'
+        )
+
+        self.assertIsNone(result.grade_route)
+        self.assertEqual(result.publications, ())
+        self.assertEqual(result.unreadable[0].kind, "external-variable")
+
+    def test_unresolved_graphql_assignment_chain_is_refused(self) -> None:
+        result = hook.extract(
+            'QUERY=$OTHER; gh api graphql -f "query=$QUERY"'
+        )
+
+        self.assertIsNone(result.grade_route)
+        self.assertEqual(result.unreadable[0].kind, "external-variable")
+
+    def test_reconstructed_graphql_endpoint_preserves_unreadable_remedy(self) -> None:
+        commands = (
+            'END=graphql; gh api "$END" -f "query=$QUERY"',
+            'BASE=graph; END=${BASE}ql; gh api "$END" '
+            '-f "operationName=$OPERATION" -f "query=$QUERY"',
+            'END=graphql; KEY=query; gh api "$END" -f "$KEY=$QUERY"',
+            'END=graphql; gh api "$END" --input "$REQUEST"',
+        )
+
+        for command in commands:
+            with self.subTest(command=command):
+                result = hook.extract(command)
+                self.assertIsNone(result.grade_route)
+                self.assertEqual(result.unclassified_api_calls, ())
+                self.assertEqual(result.unreadable[0].kind, "external-variable")
+
+    def test_reconstructed_nonpublication_endpoint_keeps_read_bypass(self) -> None:
+        commands = (
+            "END=markdown; TEXT='hello world'; "
+            'gh api "$END" -f text=$TEXT',
+            "BASE=mark; END=${BASE}down; TEXT='hello world'; "
+            'gh api "$END" -f text=$TEXT',
+        )
+
+        for command in commands:
+            with self.subTest(command=command):
+                result = hook.extract(command)
+                self.assertIsNone(result.grade_route)
+                self.assertEqual(result.unclassified_api_calls, ())
+                self.assertEqual(result.unreadable, ())
+
+    def test_read_bypasses_allow_unknown_quoted_option_values(self) -> None:
+        commands = (
+            'gh api markdown -f "text=$TEXT"',
+            'gh api -X GET repos/o/r/issues/7 -f "data=$VALUE"',
+            'gh api -X PATCH repos/o/r/git/refs/heads/topic -f "ref=$REF"',
+        )
+
+        for command in commands:
+            with self.subTest(command=command):
+                result = hook.extract(command)
+                self.assertIsNone(result.grade_route)
+                self.assertEqual(result.unclassified_api_calls, ())
+                self.assertEqual(result.unreadable, ())
+
+    def test_named_nonpublication_ignores_unknown_post_endpoint_words(self) -> None:
+        commands = (
+            'gh api markdown "$OPT" POST',
+            "gh api markdown $OPT POST",
+            'gh api repos/o/r/git/refs "$OPT" POST',
+        )
+
+        for command in commands:
+            with self.subTest(command=command):
+                result = hook.extract(command)
+                self.assertIsNone(result.grade_route)
+                self.assertEqual(result.unclassified_api_calls, ())
+                self.assertEqual(result.unreadable, ())
+
+    def test_unquoted_graphql_assignment_cannot_inject_fields(self) -> None:
+        commands = (
+            "QUERY='query Q{viewer{login}} -f "
+            "query=mutation{addComment(input:{body:Injected})"
+            "{clientMutationId}}'; gh api graphql -f query=$QUERY",
+            "TAIL='-f query=query{viewer{login}}'; gh api graphql "
+            "-f query='mutation{deleteProjectV2(input:{})"
+            "{clientMutationId}}' $TAIL",
+        )
+
+        for command in commands:
+            with self.subTest(command=command):
+                result = hook.extract(command)
+                self.assertIsNone(result.grade_route)
+                self.assertEqual(result.publications, ())
+                self.assertEqual(result.unreadable, ())
+                self.assertEqual(
+                    result.unclassified_api_calls[0].kind,
+                    "unclassified-api-arguments",
+                )
+
+    def test_single_quoted_graphql_variable_is_document_text(self) -> None:
+        result = hook.extract(
+            "QUERY='query($owner:String!){repository(owner:$owner){name}}'; "
+            'gh api graphql -f "query=$QUERY"'
+        )
+
+        self.assertIsNone(result.grade_route)
+        self.assertEqual(result.unreadable, ())
+        self.assertEqual(result.unclassified_api_calls, ())
+
+    def test_single_quoted_graphql_field_does_not_expand_shell_variable(self) -> None:
+        commands = (
+            "QUERY='mutation { x }'; gh api graphql -f 'query=$QUERY'",
+            'QUERY="mutation { x }"; gh api graphql -f "query=\\$QUERY"',
+        )
+
+        for command in commands:
+            with self.subTest(command=command):
+                result = hook.extract(command)
+                self.assertIsNone(result.grade_route)
+                self.assertEqual(result.unreadable, ())
+                self.assertEqual(
+                    result.unclassified_api_calls[0].kind,
+                    "unclassified-api-endpoint",
+                )
+
+    def test_segmented_graphql_fields_expand_only_active_variables(self) -> None:
+        commands = (
+            "OP=mutation; gh api graphql -f query=''$OP' M{x}'",
+            'OP=mutation; gh api graphql -f "query=${OP} M{x}"',
+        )
+
+        for command in commands:
+            with self.subTest(command=command):
+                result = hook.extract(command)
+                self.assertIsNone(result.grade_route)
+                self.assertEqual(result.unreadable, ())
+                self.assertEqual(
+                    result.unclassified_api_calls[0].kind,
+                    "unclassified-api-mutation",
+                )
+
+    def test_known_embedded_graphql_assignment_is_reconstructed(self) -> None:
+        result = hook.extract(
+            "HEAD='query {'; TAIL='viewer { login }}'; QUERY=$HEAD$TAIL; "
+            'gh api graphql -f "query=$QUERY"'
+        )
+
+        self.assertIsNone(result.grade_route)
+        self.assertEqual(result.unreadable, ())
+        self.assertEqual(result.unclassified_api_calls, ())
+
+    def test_single_quoted_graphql_mutation_variable_gets_mutation_remedy(self) -> None:
+        result = hook.extract(
+            "QUERY='mutation($body:String!){addComment(input:{body:$body})"
+            "{clientMutationId}}'; gh api graphql -f \"query=$QUERY\""
+        )
+
+        self.assertIsNone(result.grade_route)
+        self.assertEqual(result.unreadable, ())
+        self.assertEqual(
+            result.unclassified_api_calls[0].kind,
+            "unclassified-api-mutation",
+        )
+
+    def test_compound_graphql_assignment_is_refused(self) -> None:
+        result = hook.extract(
+            "QUERY='query { viewer { login } }'${TAIL}''; "
+            'gh api graphql -f "query=$QUERY"'
+        )
+
+        self.assertIsNone(result.grade_route)
+        self.assertEqual(result.unreadable[0].kind, "external-variable")
+
+    def test_unresolved_graphql_input_path_assignment_is_refused(self) -> None:
+        result = hook.extract(
+            'REQUEST=$OTHER; gh api graphql --input "$REQUEST"'
+        )
+
+        self.assertIsNone(result.grade_route)
+        self.assertEqual(result.unreadable[0].kind, "external-variable")
+
+    def test_api_output_options_before_endpoint_do_not_change_its_route(self) -> None:
+        commands = (
+            "gh api --header Accept:application/json --method DELETE "
+            "repos/example/project/git/refs/heads/topic",
+            "gh api --jq . --method DELETE "
+            "repos/example/project/git/refs/heads/topic",
+            "gh api --template '{{.name}}' --method DELETE "
+            "repos/example/project/git/refs/heads/topic",
+        )
+
+        for command in commands:
+            with self.subTest(command=command):
+                result = hook.extract(command)
+                self.assertIsNone(result.grade_route)
+                self.assertEqual(result.unreadable, ())
+
+    def test_header_before_issue_endpoint_stays_on_the_issue_edit_route(self) -> None:
+        result = hook.extract(
+            "gh api --header Accept:application/json --method PATCH "
+            "repos/example/project/issues/670 -f body='Issue edit'"
+        )
+
+        self.assertEqual(result.grade_route, ("issue", "edit"))
+        self.assertEqual(
+            [(row.field, row.text) for row in result.publications],
+            [("body", "Issue edit")],
+        )
+
+    def test_attached_api_body_field_is_extracted(self) -> None:
+        result = hook.extract(
+            "gh api repos/example/project/issues/670 -fbody='Issue edit'"
+        )
+
+        self.assertEqual(result.grade_route, ("issue", "edit"))
+        self.assertEqual(
+            [(row.field, row.text) for row in result.publications],
+            [("body", "Issue edit")],
+        )
+
+    def test_non_repository_issue_collection_is_unclassified(self) -> None:
+        result = hook.extract("gh api orgs/example/issues -f body='Unknown route'")
+
+        self.assertIsNone(result.grade_route)
+        self.assertEqual(result.unreadable, ())
+        self.assertEqual(
+            result.unclassified_api_calls[0].kind,
+            "unclassified-api-endpoint",
+        )
+
+    def test_every_named_api_publication_route_stays_classified(self) -> None:
+        commands = (
+            (("issue", "create"), "gh api repos/example/project/issues -f title='T'"),
+            (("issue", "edit"), "gh api repos/example/project/issues/12 -f body='B'"),
+            (("issue", "comment"), (
+                "gh api repos/example/project/issues/12/comments -f body='B'"
+            )),
+            (("issue", "comment"), (
+                "gh api repos/example/project/issues/comments/12 -f body='B'"
+            )),
+            (("pr", "create"), "gh api repos/example/project/pulls -f title='T'"),
+            (("pr", "edit"), "gh api repos/example/project/pulls/13 -f body='B'"),
+            (("pr", "comment"), (
+                "gh api repos/example/project/pulls/13/comments -f body='B'"
+            )),
+            (("pr", "comment"), (
+                "gh api repos/example/project/pulls/comments/13 -f body='B'"
+            )),
+            (("pr", "review"), (
+                "gh api repos/example/project/pulls/13/reviews -f body='B'"
+            )),
+        )
+
+        for expected, command in commands:
+            with self.subTest(route=expected):
+                result = hook.extract(command)
+                self.assertEqual(result.grade_route, expected)
+                self.assertTrue(result.publications)
+
+    def test_api_field_files_expand_only_shell_active_path_variables(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / "$FILE").write_text("Literal body", encoding="utf-8")
+            (root / "safe.md").write_text("Active body", encoding="utf-8")
+            prefix = f'cd "{root.as_posix()}"; FILE=safe.md; '
+            commands = (
+                (
+                    prefix
+                    + "gh api repos/o/r/issues/comments/7 -F 'body=@$FILE'",
+                    "Literal body",
+                ),
+                (
+                    prefix
+                    + 'gh api repos/o/r/issues/comments/7 -F "body=@$FILE"',
+                    "Active body",
+                ),
+                (
+                    prefix
+                    + 'gh api repos/o/r/issues/comments/7 -F "body=@\\$FILE"',
+                    "Literal body",
+                ),
+            )
+
+            for command, expected in commands:
+                with self.subTest(command=command):
+                    result = hook.extract(command)
+                    self.assertEqual(result.grade_route, ("issue", "comment"))
+                    self.assertEqual(result.publications[0].text, expected)
+
+    def test_composite_api_identifiers_keep_identifier_remedy(self) -> None:
+        commands = (
+            "gh api repos/o/r/issues/comments/${IDS[$n]} -f body=x",
+            "A=1; gh api repos/o/r/issues/comments/$A$B -f body=x",
+        )
+
+        for command in commands:
+            with self.subTest(command=command):
+                result = hook.extract(command)
+                self.assertEqual(
+                    result.unclassified_api_calls[0].kind,
+                    "unclassified-api-identifier",
+                )
 
 
 class InlineTrackerTextMustBeShellReproducible(unittest.TestCase):
@@ -1695,6 +2916,168 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
                 )
                 self.assertIn("NOT SCANNED", specific["additionalContext"])
 
+    def test_graphql_mutation_is_unclassified_on_each_modeled_command_tool(self) -> None:
+        command = (
+            "gh api graphql -f query='mutation { addComment(input: {}) "
+            "{ clientMutationId } }'"
+        )
+
+        for tool_name in ("Bash", "Monitor"):
+            with self.subTest(tool=tool_name):
+                payload = self.payload(command)
+                payload["tool_name"] = tool_name
+                specific = hook.handle(payload)["hookSpecificOutput"]
+
+                self.assertEqual(specific["permissionDecision"], "deny")
+                self.assertEqual(
+                    specific["permissionDecisionReason"], hook.UNSCANNED_REFUSAL
+                )
+                self.assertIn("NOT SCANNED", specific["additionalContext"])
+                self.assertIn("GraphQL mutation", specific["additionalContext"])
+                self.assertIn("gh issue", specific["additionalContext"])
+                self.assertIn("gh pr", specific["additionalContext"])
+
+    def test_named_non_publications_are_untouched_on_modeled_tools(self) -> None:
+        commands = (
+            "gh api markdown -f text='render only'",
+            "printf '%s' text | gh api markdown --input -",
+            "gh api --method DELETE repos/example/project/git/refs/heads/topic",
+            "gh api repos/example/project/issues/670/dependencies/blocked_by "
+            "-f issue_id=671",
+            "gh api graphql -f query='{ viewer { login } }'",
+        )
+
+        for tool_name in ("Bash", "Monitor"):
+            for command in commands:
+                with self.subTest(tool=tool_name, command=command):
+                    payload = self.payload(command)
+                    payload["tool_name"] = tool_name
+                    self.assertEqual(hook.handle(payload), {})
+
+    def test_graphql_mutation_in_a_same_command_variable_is_unclassified(self) -> None:
+        command = (
+            "QUERY='mutation { addComment(input: {}) { clientMutationId } }'; "
+            'gh api graphql -f "query=$QUERY"'
+        )
+
+        specific = hook.handle(self.payload(command))["hookSpecificOutput"]
+
+        self.assertEqual(specific["permissionDecision"], "deny")
+        self.assertIn("GraphQL mutation", specific["additionalContext"])
+
+    def test_selected_mutation_in_a_mixed_graphql_document_is_unclassified(self) -> None:
+        command = (
+            "gh api graphql -f operationName=Write "
+            "-f query='query Read { viewer { login } } "
+            "mutation Write { addComment(input: {}) { clientMutationId } }'"
+        )
+
+        specific = hook.handle(self.payload(command))["hookSpecificOutput"]
+
+        self.assertEqual(specific["permissionDecision"], "deny")
+        self.assertIn("GraphQL mutation", specific["additionalContext"])
+
+    def test_selected_query_in_a_mixed_graphql_document_is_read_only(self) -> None:
+        command = (
+            "gh api graphql -f operationName=Read "
+            "-f query='query Read { viewer { login } } "
+            "mutation Write { addComment(input: {}) { clientMutationId } }'"
+        )
+
+        self.assertEqual(hook.handle(self.payload(command)), {})
+
+    def test_later_repeated_graphql_query_field_decides_the_operation(self) -> None:
+        command = (
+            "gh api graphql -f query='query { viewer { login } }' "
+            "-f query='mutation { addComment(input: {}) { clientMutationId } }'"
+        )
+
+        specific = hook.handle(self.payload(command))["hookSpecificOutput"]
+
+        self.assertEqual(specific["permissionDecision"], "deny")
+        self.assertIn("GraphQL mutation", specific["additionalContext"])
+
+    def test_graphql_mutation_from_json_input_is_unclassified(self) -> None:
+        request = json.dumps(
+            {"query": "mutation { addComment(input: {}) { clientMutationId } }"}
+        )
+        command = (
+            "gh api graphql --input - <<'JSON'\n"
+            f"{request}\n"
+            "JSON"
+        )
+
+        specific = hook.handle(self.payload(command))["hookSpecificOutput"]
+
+        self.assertEqual(specific["permissionDecision"], "deny")
+        self.assertIn("GraphQL mutation", specific["additionalContext"])
+
+    def test_graphql_mutation_with_a_body_variable_is_unclassified(self) -> None:
+        command = (
+            "gh api graphql "
+            "-f query='mutation($body: String!) { addComment(input: {}) "
+            "{ clientMutationId } }' -f body='Publication text'"
+        )
+
+        specific = hook.handle(self.payload(command))["hookSpecificOutput"]
+
+        self.assertEqual(specific["permissionDecision"], "deny")
+        self.assertIn("GraphQL mutation", specific["additionalContext"])
+
+    def test_unknown_write_endpoint_is_unclassified_on_modeled_tools(self) -> None:
+        command = (
+            "gh api repos/example/project/commits/abc/comments "
+            "-f body='Commit comment'"
+        )
+
+        for tool_name in ("Bash", "Monitor"):
+            with self.subTest(tool=tool_name):
+                payload = self.payload(command)
+                payload["tool_name"] = tool_name
+                specific = hook.handle(payload)["hookSpecificOutput"]
+
+                self.assertEqual(specific["permissionDecision"], "deny")
+                self.assertEqual(
+                    specific["permissionDecisionReason"], hook.UNSCANNED_REFUSAL
+                )
+                self.assertIn("NOT SCANNED", specific["additionalContext"])
+                self.assertIn("route table", specific["additionalContext"])
+                self.assertIn("non-publication list", specific["additionalContext"])
+                self.assertIn(
+                    "unclassified API call", specific["additionalContext"]
+                )
+                self.assertNotIn("unreadable body", specific["additionalContext"])
+                self.assertNotIn("resolved against", specific["additionalContext"])
+
+    def test_unassigned_api_record_identifier_is_unclassified(self) -> None:
+        command = (
+            'gh api "repos/example/project/issues/comments/$CID" '
+            "-f body='Comment edit'"
+        )
+
+        for tool_name in ("Bash", "Monitor"):
+            with self.subTest(tool=tool_name):
+                payload = self.payload(command)
+                payload["tool_name"] = tool_name
+                specific = hook.handle(payload)["hookSpecificOutput"]
+
+                self.assertEqual(specific["permissionDecision"], "deny")
+                self.assertIn("NOT SCANNED", specific["additionalContext"])
+                self.assertIn(
+                    "type the literal identifier", specific["additionalContext"]
+                )
+
+    def test_unassigned_text_free_subresource_identifier_is_unclassified(self) -> None:
+        command = (
+            'gh api "repos/example/project/issues/$IID/labels" '
+            "-f labels[]=bug"
+        )
+
+        specific = hook.handle(self.payload(command))["hookSpecificOutput"]
+
+        self.assertEqual(specific["permissionDecision"], "deny")
+        self.assertIn("type the literal identifier", specific["additionalContext"])
+
     def test_an_argv_list_publication_refuses_on_powershell(self) -> None:
         command = (
             "python -c \"subprocess.run(['gh', 'issue', 'comment', '5', "
@@ -1739,7 +3122,6 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
 
     def test_loose_controls_that_do_not_publish_are_untouched(self) -> None:
         commands = (
-            "gh api graphql -f query='{viewer{login}}'",
             "gh issue edit 5 --add-label bug",
             "subprocess.run(['gh', 'issue', 'view', '5', '--json', 'body'])",
             "python -c \"print('no command')\"",
@@ -1753,6 +3135,15 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
                     payload = self.payload(command)
                     payload["tool_name"] = tool_name
                     self.assertEqual(hook.handle(payload), {})
+
+    def test_powershell_still_refuses_graphql_query_fields(self) -> None:
+        payload = self.payload("gh api graphql -f query='{viewer{login}}'")
+        payload["tool_name"] = "PowerShell"
+
+        specific = hook.handle(payload)["hookSpecificOutput"]
+
+        self.assertEqual(specific["permissionDecision"], "deny")
+        self.assertIn("unmodeled shell", specific["additionalContext"])
 
     def test_an_unmodeled_shell_leaves_read_only_gh_alone(self) -> None:
         payload = {
@@ -2105,10 +3496,10 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
 
     def test_attached_api_fields_use_implicit_post_create_semantics(self) -> None:
         commands = (
-            "gh api repos/example/project/issues -f=title=Ticket",
-            "gh api repos/example/project/issues -ftitle=Ticket",
-            "gh api repos/example/project/issues -F=title=Ticket",
-            "gh api repos/example/project/issues -Ftitle=Ticket",
+            "gh api repos/example/project/issues -f=title='Ticket'",
+            "gh api repos/example/project/issues -ftitle='Ticket'",
+            "gh api repos/example/project/issues -F=title='Ticket'",
+            "gh api repos/example/project/issues -Ftitle='Ticket'",
         )
 
         for command in commands:
@@ -2962,7 +4353,8 @@ class DeclaredLimitsHaveOneOwner(unittest.TestCase):
         rule this object already carried: a limit lives here rather than in the
         docstring or ``CLAUDE.md``. ADR 0109 adds the AAR paraphrase ceiling.
         #999 ruling 5 adds the non-canonical-origin boundary. ADR 0191 ruling 8
-        adds the retired-citation row's one-pairing ceiling.
+        adds the retired-citation row's one-pairing ceiling. ADR 0234 adds the
+        two non-publication-list floors and the runtime GraphQL-document limit.
         """
         self.assertEqual(
             set(dict(hook.NOT_REACHED)),
@@ -2985,6 +4377,9 @@ class DeclaredLimitsHaveOneOwner(unittest.TestCase):
                 "a program-formatted command is invisible",
                 "an argv list assembled in pieces is invisible",
                 "an alias or function standing in for gh is invisible",
+                "a newly added API endpoint is refused until classified",
+                "a wrong non-publication entry silently passes",
+                "a GraphQL document assembled at run time is unreadable",
             },
         )
 
