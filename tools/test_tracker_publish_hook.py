@@ -325,6 +325,19 @@ class InlineTrackerTextIsRead(unittest.TestCase):
         self.assertEqual(result.route, ("api",))
         self.assertEqual(result.grade_route, ("issue", "edit"))
 
+    def test_same_command_api_comment_identifier_is_reconstructed(self) -> None:
+        result = hook.extract(
+            "CID=123; gh api repos/example/project/issues/comments/$CID "
+            "-f body='Comment edit'"
+        )
+
+        self.assertEqual(result.grade_route, ("issue", "comment"))
+        self.assertEqual(result.number, 123)
+        self.assertEqual(
+            [(row.field, row.text) for row in result.publications],
+            [("body", "Comment edit")],
+        )
+
     def test_api_collection_endpoints_use_create_semantics(self) -> None:
         issue = hook.extract(
             "gh api repos/example/project/issues "
@@ -337,6 +350,88 @@ class InlineTrackerTextIsRead(unittest.TestCase):
 
         self.assertEqual(issue.grade_route, ("issue", "create"))
         self.assertEqual(pull.grade_route, ("pr", "create"))
+
+    def test_markdown_render_fields_are_not_tracker_publications(self) -> None:
+        result = hook.extract(
+            "gh api markdown -f text='Text sent only to the renderer'"
+        )
+
+        self.assertEqual(result.route, ("api",))
+        self.assertIsNone(result.grade_route)
+        self.assertEqual(result.publications, ())
+        self.assertEqual(result.unreadable, ())
+
+    def test_markdown_pipe_input_is_not_read_as_a_tracker_body(self) -> None:
+        result = hook.extract("printf '%s' text | gh api markdown --input -")
+
+        self.assertEqual(result.route, ("api",))
+        self.assertIsNone(result.grade_route)
+        self.assertEqual(result.publications, ())
+        self.assertEqual(result.unreadable, ())
+
+    def test_named_text_free_api_writes_are_not_tracker_publications(self) -> None:
+        commands = (
+            "gh api --method DELETE repos/example/project/git/refs/heads/topic",
+            "gh api repos/example/project/issues/670/dependencies/blocked_by "
+            "-f issue_id=671",
+        )
+
+        for command in commands:
+            with self.subTest(command=command):
+                result = hook.extract(command)
+                self.assertIsNone(result.grade_route)
+                self.assertEqual(result.publications, ())
+                self.assertEqual(result.unreadable, ())
+
+    def test_graphql_query_documents_are_read_only(self) -> None:
+        commands = (
+            "gh api graphql -f query='query { viewer { login } }'",
+            "gh api graphql -f query='{ viewer { login } }'",
+        )
+
+        for command in commands:
+            with self.subTest(command=command):
+                result = hook.extract(command)
+                self.assertIsNone(result.grade_route)
+                self.assertEqual(result.publications, ())
+                self.assertEqual(result.unreadable, ())
+
+    def test_graphql_query_operation_is_read_from_a_field_file(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / "query.graphql").write_text(
+                "query { viewer { login } }", encoding="utf-8"
+            )
+            command = (
+                f'cd "{root.as_posix()}" && '
+                "gh api graphql -F query=@query.graphql"
+            )
+
+            result = hook.extract(command)
+
+        self.assertIsNone(result.grade_route)
+        self.assertEqual(result.publications, ())
+        self.assertEqual(result.unreadable, ())
+
+    def test_unreadable_graphql_query_file_is_refused_as_an_unreadable_body(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            command = (
+                f'cd "{Path(folder).as_posix()}" && '
+                "gh api graphql -F query=@missing.graphql"
+            )
+
+            result = hook.extract(command)
+
+        self.assertIsNone(result.grade_route)
+        self.assertEqual(result.publications, ())
+        self.assertEqual(result.unreadable[0].kind, "missing-file")
+
+    def test_runtime_graphql_document_is_refused_as_an_unreadable_body(self) -> None:
+        result = hook.extract("gh api graphql -f query=$QUERY")
+
+        self.assertIsNone(result.grade_route)
+        self.assertEqual(result.publications, ())
+        self.assertEqual(result.unreadable[0].kind, "external-variable")
 
 
 class InlineTrackerTextMustBeShellReproducible(unittest.TestCase):
@@ -1695,6 +1790,104 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
                 )
                 self.assertIn("NOT SCANNED", specific["additionalContext"])
 
+    def test_graphql_mutation_is_unclassified_on_each_modeled_command_tool(self) -> None:
+        command = (
+            "gh api graphql -f query='mutation { addComment(input: {}) "
+            "{ clientMutationId } }'"
+        )
+
+        for tool_name in ("Bash", "Monitor"):
+            with self.subTest(tool=tool_name):
+                payload = self.payload(command)
+                payload["tool_name"] = tool_name
+                specific = hook.handle(payload)["hookSpecificOutput"]
+
+                self.assertEqual(specific["permissionDecision"], "deny")
+                self.assertEqual(
+                    specific["permissionDecisionReason"], hook.UNSCANNED_REFUSAL
+                )
+                self.assertIn("NOT SCANNED", specific["additionalContext"])
+                self.assertIn("GraphQL mutation", specific["additionalContext"])
+                self.assertIn("gh issue", specific["additionalContext"])
+                self.assertIn("gh pr", specific["additionalContext"])
+
+    def test_named_non_publications_are_untouched_on_modeled_tools(self) -> None:
+        commands = (
+            "gh api markdown -f text='render only'",
+            "printf '%s' text | gh api markdown --input -",
+            "gh api --method DELETE repos/example/project/git/refs/heads/topic",
+            "gh api repos/example/project/issues/670/dependencies/blocked_by "
+            "-f issue_id=671",
+            "gh api graphql -f query='{ viewer { login } }'",
+        )
+
+        for tool_name in ("Bash", "Monitor"):
+            for command in commands:
+                with self.subTest(tool=tool_name, command=command):
+                    payload = self.payload(command)
+                    payload["tool_name"] = tool_name
+                    self.assertEqual(hook.handle(payload), {})
+
+    def test_graphql_mutation_in_a_same_command_variable_is_unclassified(self) -> None:
+        command = (
+            "QUERY='mutation { addComment(input: {}) { clientMutationId } }'; "
+            "gh api graphql -f query=$QUERY"
+        )
+
+        specific = hook.handle(self.payload(command))["hookSpecificOutput"]
+
+        self.assertEqual(specific["permissionDecision"], "deny")
+        self.assertIn("GraphQL mutation", specific["additionalContext"])
+
+    def test_unknown_write_endpoint_is_unclassified_on_modeled_tools(self) -> None:
+        command = (
+            "gh api repos/example/project/commits/abc/comments "
+            "-f body='Commit comment'"
+        )
+
+        for tool_name in ("Bash", "Monitor"):
+            with self.subTest(tool=tool_name):
+                payload = self.payload(command)
+                payload["tool_name"] = tool_name
+                specific = hook.handle(payload)["hookSpecificOutput"]
+
+                self.assertEqual(specific["permissionDecision"], "deny")
+                self.assertEqual(
+                    specific["permissionDecisionReason"], hook.UNSCANNED_REFUSAL
+                )
+                self.assertIn("NOT SCANNED", specific["additionalContext"])
+                self.assertIn("route table", specific["additionalContext"])
+                self.assertIn("non-publication list", specific["additionalContext"])
+
+    def test_unassigned_api_record_identifier_is_unclassified(self) -> None:
+        command = (
+            "gh api repos/example/project/issues/comments/$CID "
+            "-f body='Comment edit'"
+        )
+
+        for tool_name in ("Bash", "Monitor"):
+            with self.subTest(tool=tool_name):
+                payload = self.payload(command)
+                payload["tool_name"] = tool_name
+                specific = hook.handle(payload)["hookSpecificOutput"]
+
+                self.assertEqual(specific["permissionDecision"], "deny")
+                self.assertIn("NOT SCANNED", specific["additionalContext"])
+                self.assertIn(
+                    "type the literal identifier", specific["additionalContext"]
+                )
+
+    def test_unassigned_text_free_subresource_identifier_is_unclassified(self) -> None:
+        command = (
+            "gh api repos/example/project/issues/$IID/labels "
+            "-f labels[]=bug"
+        )
+
+        specific = hook.handle(self.payload(command))["hookSpecificOutput"]
+
+        self.assertEqual(specific["permissionDecision"], "deny")
+        self.assertIn("type the literal identifier", specific["additionalContext"])
+
     def test_an_argv_list_publication_refuses_on_powershell(self) -> None:
         command = (
             "python -c \"subprocess.run(['gh', 'issue', 'comment', '5', "
@@ -1739,7 +1932,6 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
 
     def test_loose_controls_that_do_not_publish_are_untouched(self) -> None:
         commands = (
-            "gh api graphql -f query='{viewer{login}}'",
             "gh issue edit 5 --add-label bug",
             "subprocess.run(['gh', 'issue', 'view', '5', '--json', 'body'])",
             "python -c \"print('no command')\"",
@@ -1753,6 +1945,15 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
                     payload = self.payload(command)
                     payload["tool_name"] = tool_name
                     self.assertEqual(hook.handle(payload), {})
+
+    def test_powershell_still_refuses_graphql_query_fields(self) -> None:
+        payload = self.payload("gh api graphql -f query='{viewer{login}}'")
+        payload["tool_name"] = "PowerShell"
+
+        specific = hook.handle(payload)["hookSpecificOutput"]
+
+        self.assertEqual(specific["permissionDecision"], "deny")
+        self.assertIn("unmodeled shell", specific["additionalContext"])
 
     def test_an_unmodeled_shell_leaves_read_only_gh_alone(self) -> None:
         payload = {
@@ -2962,7 +3163,8 @@ class DeclaredLimitsHaveOneOwner(unittest.TestCase):
         rule this object already carried: a limit lives here rather than in the
         docstring or ``CLAUDE.md``. ADR 0109 adds the AAR paraphrase ceiling.
         #999 ruling 5 adds the non-canonical-origin boundary. ADR 0191 ruling 8
-        adds the retired-citation row's one-pairing ceiling.
+        adds the retired-citation row's one-pairing ceiling. ADR 0234 adds the
+        two non-publication-list floors and the runtime GraphQL-document limit.
         """
         self.assertEqual(
             set(dict(hook.NOT_REACHED)),
@@ -2985,6 +3187,9 @@ class DeclaredLimitsHaveOneOwner(unittest.TestCase):
                 "a program-formatted command is invisible",
                 "an argv list assembled in pieces is invisible",
                 "an alias or function standing in for gh is invisible",
+                "a newly added API endpoint is refused until classified",
+                "a wrong non-publication entry silently passes",
+                "a GraphQL document assembled at run time is unreadable",
             },
         )
 

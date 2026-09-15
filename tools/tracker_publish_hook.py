@@ -194,6 +194,24 @@ NOT_REACHED = (
         "An alias or function invoked under another name carries no gh word "
         "for the static classifier to recognize.",
     ),
+    (
+        "a newly added API endpoint is refused until classified",
+        "The non-publication list is a floor. An endpoint GitHub adds later is "
+        "refused as an unclassified API call until the route table or the "
+        "non-publication list names it.",
+    ),
+    (
+        "a wrong non-publication entry silently passes",
+        "A text-bearing endpoint placed on the non-publication list is left "
+        "alone, so the classifier cannot establish that every listed endpoint "
+        "publishes no tracker text.",
+    ),
+    (
+        "a GraphQL document assembled at run time is unreadable",
+        "The reader can judge a literal document, a same-command plain "
+        "assignment, or a resolved field file. A document assembled by a "
+        "substitution or an earlier command is refused rather than inferred.",
+    ),
 )
 
 
@@ -307,6 +325,81 @@ INLINE_FLAGS = {
 }
 FILE_FLAGS = {"--body-file": "body", "-F": "body"}
 API_VALUE_FLAGS = {"-f", "--raw-field", "-F", "--field"}
+API_ENDPOINT_VALUE_FLAGS = API_VALUE_FLAGS | {
+    "--cache",
+    "--hostname",
+    "--input",
+    "--method",
+    "--preview",
+    "-H",
+    "-X",
+}
+API_NON_PUBLICATION_ENDPOINTS = (
+    re.compile(r"/?markdown(?:\?.*)?\Z"),
+    re.compile(r"/?repos/[^/?]+/[^/?]+/git/refs/.+"),
+)
+API_NON_PUBLICATION_RECORD_ENDPOINTS = (
+    re.compile(
+        r"/?repos/[^/?]+/[^/?]+/issues/(?P<identifier>[^/?]+)/"
+        r"(?:dependencies/(?:blocked_by|blocking)|sub_issues|parent|labels|"
+        r"assignees|reactions|lock)(?:\?.*)?\Z"
+    ),
+    re.compile(
+        r"/?repos/[^/?]+/[^/?]+/pulls/(?P<identifier>[^/?]+)/"
+        r"(?:labels|assignees|reactions|lock|requested_reviewers)(?:\?.*)?\Z"
+    ),
+)
+API_ROUTE_PATTERNS = (
+    (
+        re.compile(
+            r"/?repos/[^/?]+/[^/?]+/issues/"
+            r"(?P<identifier>[^/?]+)/comments(?:\?.*)?\Z"
+        ),
+        ("issue", "comment"),
+    ),
+    (
+        re.compile(
+            r"/?repos/[^/?]+/[^/?]+/pulls/"
+            r"(?P<identifier>[^/?]+)/reviews(?:\?.*)?\Z"
+        ),
+        ("pr", "review"),
+    ),
+    (
+        re.compile(
+            r"/?repos/[^/?]+/[^/?]+/pulls/"
+            r"(?P<identifier>[^/?]+)/comments(?:\?.*)?\Z"
+        ),
+        ("pr", "comment"),
+    ),
+    (
+        re.compile(
+            r"/?repos/[^/?]+/[^/?]+/pulls/"
+            r"(?P<identifier>[^/?]+)(?:\?.*)?\Z"
+        ),
+        ("pr", "edit"),
+    ),
+    (
+        re.compile(
+            r"/?repos/[^/?]+/[^/?]+/issues/"
+            r"(?P<identifier>[^/?]+)(?:\?.*)?\Z"
+        ),
+        ("issue", "edit"),
+    ),
+    (
+        re.compile(
+            r"/?repos/[^/?]+/[^/?]+/issues/comments/"
+            r"(?P<identifier>[^/?]+)(?:\?.*)?\Z"
+        ),
+        ("issue", "comment"),
+    ),
+    (
+        re.compile(
+            r"/?repos/[^/?]+/[^/?]+/pulls/comments/"
+            r"(?P<identifier>[^/?]+)(?:\?.*)?\Z"
+        ),
+        ("pr", "comment"),
+    ),
+)
 TARGET_VALUE_FLAGS = {
     "--add-assignee",
     "--add-label",
@@ -710,11 +803,7 @@ def loose_command_calls(
 
 
 def _loose_api_is_publication(call: LooseCommand) -> bool:
-    if not _loose_has_publication_flag(call):
-        return False
-    if re.match(r"\s*(?:,\s*)?['\"]?graphql\b", call.arguments, re.IGNORECASE):
-        return bool(re.search(r"\bmutation\b", call.arguments, re.IGNORECASE))
-    return True
+    return _loose_has_publication_flag(call)
 
 
 def _loose_has_publication_flag(call: LooseCommand) -> bool:
@@ -793,49 +882,136 @@ def _api_method(arguments: list[str]) -> str:
     return "POST" if has_parameters else "GET"
 
 
-def _api_grade_route(arguments: list[str]) -> tuple[str, ...] | None:
+def _api_endpoint(arguments: list[str]) -> str:
+    index = 0
+    while index < len(arguments):
+        token = arguments[index]
+        if token in API_ENDPOINT_VALUE_FLAGS:
+            index += 2
+            continue
+        if token.startswith("-"):
+            index += 1
+            continue
+        return token
+    return ""
+
+
+def _api_graphql_document(
+    arguments: list[str], command: str
+) -> str | Unreadable | None:
+    index = 0
+    while index < len(arguments):
+        token = arguments[index]
+        if token in API_VALUE_FLAGS and index + 1 < len(arguments):
+            key, separator, value = arguments[index + 1].partition("=")
+            if separator and key == "query":
+                if value.startswith("@") and token in ("-F", "--field"):
+                    read = _read_file_field(
+                        "body",
+                        value[1:],
+                        command,
+                        shell_reader.plain_assignments(command),
+                        shell_reader.substitution_assignments(command),
+                    )
+                    return read if isinstance(read, Unreadable) else read.text
+                expanded, kind = shell_reader.expand(
+                    value,
+                    shell_reader.plain_assignments(command),
+                    shell_reader.substitution_assignments(command),
+                )
+                return (
+                    Unreadable("body", kind, value)
+                    if kind is not None
+                    else expanded
+                )
+            index += 2
+            continue
+        index += 1
+    return None
+
+
+def _graphql_operation(document: str) -> str | None:
+    match = re.match(r"(?:\s|#[^\r\n]*(?:\r?\n|\Z)|,)*(query|mutation|\{)", document)
+    if match is None:
+        return None
+    return "query" if match.group(1) == "{" else match.group(1)
+
+
+def _api_identifier(identifier: str, command: str) -> str | None:
+    assignments = shell_reader.plain_assignments(command)
+    substitutions = shell_reader.substitution_assignments(command)
+    expanded, kind = shell_reader.expand(identifier, assignments, substitutions)
+    if kind is not None or expanded is None or re.search(r"[/\?]", expanded):
+        return None
+    return expanded
+
+
+def _api_route_match(
+    endpoint: str, command: str
+) -> tuple[tuple[str, ...], str] | Unreadable | None:
+    for pattern, route in API_ROUTE_PATTERNS:
+        match = pattern.fullmatch(endpoint)
+        if match is None:
+            continue
+        identifier = match.group("identifier")
+        expanded = _api_identifier(identifier, command)
+        if expanded is None:
+            return Unreadable("body", "unclassified-api-identifier", endpoint)
+        return route, expanded
+    return None
+
+
+def _api_grade_route(
+    arguments: list[str], command: str = ""
+) -> tuple[str, ...] | Unreadable | None:
     if _api_method(arguments) == "GET":
         return None
-    endpoint = next(
-        (
-            token
-            for token in arguments
-            if re.search(r"/(?:issues|pulls)(?:/|\?|\Z)", token)
-        ),
-        "",
-    )
-    if re.search(r"/issues/[0-9]+/comments(?:\Z|\?)", endpoint):
-        return ("issue", "comment")
-    if re.search(r"/pulls/[0-9]+/reviews(?:\Z|\?)", endpoint):
-        return ("pr", "review")
-    if re.search(r"/pulls/[0-9]+/comments(?:\Z|\?)", endpoint):
-        return ("pr", "comment")
-    if re.search(r"/pulls/[0-9]+(?:\Z|\?)", endpoint):
-        return ("pr", "edit")
-    if re.search(r"/issues/[0-9]+(?:\Z|\?)", endpoint):
-        return ("issue", "edit")
-    if re.search(r"/issues/comments/[0-9]+(?:\Z|\?)", endpoint):
-        return ("issue", "comment")
-    if re.search(r"/pulls/comments/[0-9]+(?:\Z|\?)", endpoint):
-        return ("pr", "comment")
+    endpoint = _api_endpoint(arguments)
+    if any(pattern.fullmatch(endpoint) for pattern in API_NON_PUBLICATION_ENDPOINTS):
+        return None
+    for pattern in API_NON_PUBLICATION_RECORD_ENDPOINTS:
+        match = pattern.fullmatch(endpoint)
+        if match is None:
+            continue
+        if _api_identifier(match.group("identifier"), command) is None:
+            return Unreadable("body", "unclassified-api-identifier", endpoint)
+        return None
+    if endpoint == "graphql":
+        document = _api_graphql_document(arguments, command)
+        if isinstance(document, Unreadable):
+            return document
+        if document is not None:
+            if _graphql_operation(document) == "query":
+                return None
+            if _graphql_operation(document) == "mutation":
+                return Unreadable(
+                    "body", "unclassified-api-mutation", "graphql"
+                )
+    route_match = _api_route_match(endpoint, command)
+    if isinstance(route_match, Unreadable):
+        return route_match
+    if route_match is not None:
+        return route_match[0]
     if re.search(r"/pulls(?:\Z|\?)", endpoint):
         return ("pr", "create")
     if re.search(r"/issues(?:\Z|\?)", endpoint):
         return ("issue", "create")
-    return ("issue", "edit")
+    return Unreadable("body", "unclassified-api-endpoint", endpoint)
 
 
-def _record_number(route: tuple[str, ...], arguments: list[str]) -> int | None:
+def _record_number(
+    route: tuple[str, ...], arguments: list[str], command: str = ""
+) -> int | None:
     if route == ("api",):
-        match = next(
-            (
-                found
-                for token in arguments
-                if (found := API_RECORD_NUMBER.search(token)) is not None
-            ),
-            None,
+        route_match = _api_route_match(_api_endpoint(arguments), command)
+        if route_match is None or isinstance(route_match, Unreadable):
+            return None
+        identifier = route_match[1]
+        return (
+            int(identifier)
+            if identifier is not None and identifier.isdecimal()
+            else None
         )
-        return None if match is None else int(match.group("number"))
     if route in (("issue", "create"), ("pr", "create")) or not arguments:
         return None
     index = 0
@@ -932,8 +1108,13 @@ def extract(command: str) -> Extraction:
     route_width = len(route)
     arguments = source_tail[route_width:]
     argument_sources = sources[source_start + 1 + route_width :]
-    number = _record_number(route, arguments)
-    grade_route = _api_grade_route(arguments) if route == ("api",) else route
+    number = _record_number(route, arguments, command)
+    api_grade = (
+        _api_grade_route(arguments, command) if route == ("api",) else route
+    )
+    if isinstance(api_grade, Unreadable):
+        return Extraction(route, number, (), (api_grade,), None)
+    grade_route = api_grade
     if route == ("api",) and grade_route is None:
         return Extraction(route, number, (), (), None)
     publications: list[Publication] = []
@@ -1523,6 +1704,19 @@ UNREADABLE_REMEDIES = {
     "missing-value": (
         "supply the flag value, save the exact publication command, and run "
         "`python tools/tracker_publish_hook.py --command-file <path>` before retrying"
+    ),
+    "unclassified-api-mutation": (
+        "a GraphQL mutation is an unclassified API call; publish through `gh issue` "
+        "or `gh pr`, or use a named REST `/issues` or `/pulls` endpoint"
+    ),
+    "unclassified-api-endpoint": (
+        "this unclassified API call names neither the route table nor the "
+        "non-publication list; add the endpoint to the correct classification "
+        "before retrying"
+    ),
+    "unclassified-api-identifier": (
+        "the record identifier cannot be reconstructed; type the literal "
+        "identifier in the endpoint before retrying"
     ),
 }
 
