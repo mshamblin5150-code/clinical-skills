@@ -1,6 +1,6 @@
 # Comprehensive SOAP note
 
-Branch: Comprehensive SOAP selected because no course H&P count was available; redo as an FNP H&P if this encounter belongs among the course's first six documented encounters.
+Branch: Comprehensive SOAP selected because no course H&P count was available; redo as an FNP H&P if this encounter belongs among the program's first six documented encounters.
 
 S:
 
