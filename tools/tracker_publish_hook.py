@@ -1069,7 +1069,10 @@ def _source_fanout_kind(
         ):
             return "process-substitution"
         if value == "{" and (
-            position == 0 or characters[position - 1].value != "$"
+            position == 0
+            or characters[position - 1].value != "$"
+            or characters[position - 1].quote is not None
+            or characters[position - 1].escaped
         ):
             brace_candidates.append(False)
         elif brace_candidates and (

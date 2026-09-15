@@ -718,6 +718,10 @@ class InlineTrackerTextIsRead(unittest.TestCase):
             "-fbody={Safe,Injected}",
             "gh api -X POST repos/o/r/issues/7/comments "
             "--raw-field=body={Safe,Injected}",
+            "gh api -X POST repos/o/r/issues/7/comments "
+            "-fbody='$'{Safe,Injected}",
+            "gh api -X POST repos/o/r/issues/7/comments "
+            "-fbody=\\${Safe,Injected}",
         )
 
         for command in commands:
@@ -740,6 +744,16 @@ class InlineTrackerTextIsRead(unittest.TestCase):
                 result = hook.extract(command)
                 self.assertEqual(result.grade_route, ("issue", "comment"))
                 self.assertEqual(result.publications[0].text, "{Safe,Injected}")
+
+        wholly_quoted = hook.extract(
+            "gh api -X POST repos/o/r/issues/7/comments "
+            "-fbody='${Safe,Injected}'"
+        )
+        self.assertEqual(wholly_quoted.grade_route, ("issue", "comment"))
+        self.assertEqual(
+            wholly_quoted.publications[0].text,
+            "${Safe,Injected}",
+        )
 
     def test_unquoted_api_pathname_expansion_is_refused(self) -> None:
         commands = (
