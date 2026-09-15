@@ -503,7 +503,7 @@ class TheCommandStatesItsSearchAndSweepPopulations(unittest.TestCase):
             real_read_text = Path.read_text
 
             def fail_candidate(path: Path, *args, **kwargs):
-                if path == candidate:
+                if path.samefile(candidate):
                     raise OSError("denied")
                 return real_read_text(path, *args, **kwargs)
 
