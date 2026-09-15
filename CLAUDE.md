@@ -1413,6 +1413,18 @@ Covered by `tools/test_tracker_readback.py`, which drives invented publication
 text and fetched-record dictionaries through the parser and formatter without
 opening a socket.
 
+### Browser tab hook
+
+The browser-tab `PreToolUse` hook is registered without an `if` condition in
+`.claude/settings.json` for both shared browser tool families and implemented
+by `tools/browser_tab_hook.py`. It refuses a direct page action, or any inner
+page action in `browser_batch`, when that action names no tab, and gives the
+owner-preserving remedy. Page actions are derived from the reviewed tool-schema
+slice by the presence of its singular tab-id property, excluding tools marked
+with the management role in that same family schema. The complete
+boundary belongs to `browser_tab_hook.DECLARED_LIMITS`; this section points at
+that object and copies none of its rows.
+
 ### Tracker publish hook
 
 The pre-publication `PreToolUse` hook is registered in

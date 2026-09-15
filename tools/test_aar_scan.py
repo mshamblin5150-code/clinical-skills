@@ -255,6 +255,10 @@ class CommandModes(unittest.TestCase):
             "  transcripts skipped by bytes    0\n"
             "  transcripts read                0\n"
             "  sittings begun after extract    0\n"
+            "  unowned browser page actions    0 (reported, not graded)\n"
+            "  tab creation parses: tabs_create_mcp  0\n"
+            "  tab creation parses: tabs_context_mcp 0\n"
+            "  tab creation parses: navigate no tab  0\n"
             "  findings                        1\n\n"
             "  declared limits:\n"
             "    semantic classification\n"
@@ -265,7 +269,8 @@ class CommandModes(unittest.TestCase):
             "    transcript flush\n"
             "    run-key discovery\n"
             "    subagent launch-result drift\n"
-            "    correction kind misplacement\n",
+            "    correction kind misplacement\n"
+            "    browser tab ownership\n",
         )
 
     def test_the_extract_mode_writes_and_reports_its_private_packet(self) -> None:
@@ -1082,6 +1087,407 @@ class SubmissionRecord(unittest.TestCase):
         self.assertEqual(fields["SUBAGENT-JOINED-RESULTS"], "1")
         self.assertEqual(fields["SUBAGENT-UNJOINED"], "0")
         self.assertEqual(fields["NOTIFICATIONS-WITHOUT-JOIN-KEY"], "0")
+
+    def test_browser_ownership_is_reported_with_all_three_creation_routes(self) -> None:
+        rows = [
+            row(
+                "assistant",
+                "create-call",
+                {
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "id": "create-1",
+                            "name": "mcp__claude-in-chrome__tabs_create_mcp",
+                            "input": {},
+                        }
+                    ]
+                },
+            ),
+            row(
+                "user",
+                "create-result",
+                {
+                    "content": [
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": "create-1",
+                            "content": "Created new tab. Tab ID: 11",
+                        }
+                    ]
+                },
+            ),
+            row(
+                "assistant",
+                "context-call",
+                {
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "id": "context-1",
+                            "name": "mcp__claude-in-chrome__tabs_context_mcp",
+                            "input": {"createIfEmpty": True},
+                        }
+                    ]
+                },
+            ),
+            row(
+                "user",
+                "context-result",
+                {
+                    "content": [
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": "context-1",
+                            "content": "Created new tab because no tabs were available. Tab ID: 12",
+                        }
+                    ]
+                },
+            ),
+            row(
+                "assistant",
+                "navigate-create",
+                {
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "id": "navigate-1",
+                            "name": "mcp__claude-in-chrome__navigate",
+                            "input": {"url": "https://example.test"},
+                        }
+                    ]
+                },
+            ),
+            row(
+                "user",
+                "navigate-result",
+                {
+                    "content": [
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": "navigate-1",
+                            "content": "Created new tab for navigation. Tab ID: 13",
+                        }
+                    ]
+                },
+            ),
+            row(
+                "assistant",
+                "page-actions",
+                {
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "id": "owned-action",
+                            "name": "mcp__claude-in-chrome__read_page",
+                            "input": {"tabId": 11},
+                        },
+                        {
+                            "type": "tool_use",
+                            "id": "unowned-action",
+                            "name": "mcp__claude-in-chrome__read_page",
+                            "input": {"tabId": 99},
+                        },
+                    ]
+                },
+            ),
+        ]
+        self.transcript.write_text(
+            "\n".join(json.dumps(item) for item in rows) + "\n",
+            encoding="utf-8",
+        )
+
+        fields, _identifiers = self.extract()
+
+        self.assertEqual(fields["UNOWNED-BROWSER-PAGE-ACTIONS"], "1")
+        self.assertEqual(fields["TAB-CREATION-PARSES-TABS-CREATE-MCP"], "1")
+        self.assertEqual(fields["TAB-CREATION-PARSES-TABS-CONTEXT-MCP"], "1")
+        self.assertEqual(fields["TAB-CREATION-PARSES-NAVIGATE-WITHOUT-TAB"], "1")
+
+    def test_create_if_empty_does_not_make_an_existing_returned_tab_owned(self) -> None:
+        rows = [
+            row(
+                "assistant",
+                "context-call",
+                {
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "id": "context-1",
+                            "name": "mcp__claude-in-chrome__tabs_context_mcp",
+                            "input": {"createIfEmpty": True},
+                        }
+                    ]
+                },
+            ),
+            row(
+                "user",
+                "context-result",
+                {
+                    "content": [
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": "context-1",
+                            "content": '{"availableTabs": [{"tabId": 12}]}',
+                        }
+                    ]
+                },
+            ),
+            row(
+                "assistant",
+                "page-action",
+                {
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "id": "unowned-action",
+                            "name": "mcp__claude-in-chrome__read_page",
+                            "input": {"tabId": 12},
+                        }
+                    ]
+                },
+            ),
+        ]
+
+        diagnostics = aar_scan._browser_diagnostics(rows)
+
+        self.assertEqual(diagnostics.unowned_page_actions, 1)
+        self.assertEqual(diagnostics.creation_parses_tabs_context_mcp, 0)
+
+    def test_creation_parse_counter_requires_a_parsed_tab_id(self) -> None:
+        rows = [
+            row(
+                "assistant",
+                "create-call",
+                {
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "id": "create-1",
+                            "name": "mcp__claude-in-chrome__tabs_create_mcp",
+                            "input": {},
+                        }
+                    ]
+                },
+            ),
+            row(
+                "user",
+                "create-result",
+                {
+                    "content": [
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": "create-1",
+                            "content": "Tab creation failed before an id was returned.",
+                        }
+                    ]
+                },
+            ),
+        ]
+
+        diagnostics = aar_scan._browser_diagnostics(rows)
+
+        self.assertEqual(diagnostics.creation_parses_tabs_create_mcp, 0)
+
+    def test_batched_tab_creation_owns_its_real_shaped_result(self) -> None:
+        rows = [
+            row(
+                "assistant",
+                "batch-create",
+                {
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "id": "batch-1",
+                            "name": "mcp__claude-in-chrome__browser_batch",
+                            "input": {
+                                "actions": [
+                                    {"name": "tabs_create_mcp", "input": {}}
+                                ]
+                            },
+                        }
+                    ]
+                },
+            ),
+            row(
+                "user",
+                "batch-result",
+                {
+                    "content": [
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": "batch-1",
+                            "content": "Result 1: Created new tab. Tab ID: 41",
+                        }
+                    ]
+                },
+            ),
+            row(
+                "assistant",
+                "page-actions",
+                {
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "id": "owned-action",
+                            "name": "mcp__claude-in-chrome__read_page",
+                            "input": {"tabId": 41},
+                        },
+                        {
+                            "type": "tool_use",
+                            "id": "unowned-action",
+                            "name": "mcp__claude-in-chrome__read_page",
+                            "input": {"tabId": 42},
+                        },
+                    ]
+                },
+            ),
+        ]
+
+        diagnostics = aar_scan._browser_diagnostics(rows)
+
+        self.assertEqual(diagnostics.creation_parses_tabs_create_mcp, 1)
+        self.assertEqual(diagnostics.unowned_page_actions, 1)
+
+    def test_creation_marker_owns_only_the_tab_id_in_its_own_record(self) -> None:
+        rows = [
+            row(
+                "assistant",
+                "context-call",
+                {
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "id": "context-1",
+                            "name": "mcp__claude-in-chrome__tabs_context_mcp",
+                            "input": {"createIfEmpty": True},
+                        }
+                    ]
+                },
+            ),
+            row(
+                "user",
+                "context-result",
+                {
+                    "content": [
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": "context-1",
+                            "content": (
+                                '{"availableTabs": ['
+                                '{"created": true, "tabId": 12}, '
+                                '{"tabId": 99}]}'
+                            ),
+                        }
+                    ]
+                },
+            ),
+            row(
+                "assistant",
+                "page-actions",
+                {
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "id": "owned-action",
+                            "name": "mcp__claude-in-chrome__read_page",
+                            "input": {"tabId": 12},
+                        },
+                        {
+                            "type": "tool_use",
+                            "id": "unowned-action",
+                            "name": "mcp__claude-in-chrome__read_page",
+                            "input": {"tabId": 99},
+                        },
+                    ]
+                },
+            ),
+        ]
+
+        diagnostics = aar_scan._browser_diagnostics(rows)
+
+        self.assertEqual(diagnostics.unowned_page_actions, 1)
+
+    def test_in_app_tab_creation_owns_only_its_returned_tab(self) -> None:
+        rows = [
+            row(
+                "assistant",
+                "create-call",
+                {
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "id": "create-1",
+                            "name": "mcp__Claude_Browser__tabs_create",
+                            "input": {},
+                        }
+                    ]
+                },
+            ),
+            row(
+                "user",
+                "create-result",
+                {
+                    "content": [
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": "create-1",
+                            "content": '{"tabId": 31}',
+                        }
+                    ]
+                },
+            ),
+            row(
+                "assistant",
+                "page-actions",
+                {
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "id": "owned-action",
+                            "name": "mcp__Claude_Browser__read_page",
+                            "input": {"tabId": 31},
+                        },
+                        {
+                            "type": "tool_use",
+                            "id": "unowned-action",
+                            "name": "mcp__Claude_Browser__read_page",
+                            "input": {"tabId": 32},
+                        },
+                    ]
+                },
+            ),
+        ]
+
+        diagnostics = aar_scan._browser_diagnostics(rows)
+
+        self.assertEqual(diagnostics.creation_parses_tabs_create_mcp, 0)
+        self.assertEqual(diagnostics.unowned_page_actions, 1)
+
+    def test_browser_ownership_report_is_not_a_graded_finding(self) -> None:
+        scan = aar_scan.Scan(
+            submission="post-1",
+            records=1,
+            population=1,
+            corrections=0,
+            sustains=0,
+            unread=0,
+            findings=(),
+            browser=aar_scan.BrowserDiagnostics(
+                unowned_page_actions=2,
+                creation_parses_tabs_create_mcp=3,
+                creation_parses_tabs_context_mcp=4,
+                creation_parses_navigate_without_tab=5,
+            ),
+        )
+
+        report = aar_scan.format_report(scan, "run")
+
+        self.assertEqual(scan.findings, ())
+        self.assertIn("unowned browser page actions    2 (reported, not graded)", report)
+        self.assertIn("tab creation parses: tabs_create_mcp  3", report)
+        self.assertIn("tab creation parses: tabs_context_mcp 4", report)
+        self.assertIn("tab creation parses: navigate no tab  5", report)
 
     def test_an_unknown_extract_format_is_not_scanned(self) -> None:
         self.write_clean()

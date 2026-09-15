@@ -39,6 +39,7 @@ import git_paths
 import shell_reader
 import repo_root
 import run_grader
+import browser_tab_hook
 
 
 NOT_GRADED = run_grader.NOT_GRADED
@@ -257,6 +258,10 @@ DECLARED_LIMITS = (
         "correction kind misplacement",
         "A correction misplaced onto a tool-status or skill-prompt entry is shown in the kind table and is not refused.",
     ),
+    (
+        "browser tab ownership",
+        "The transcript cannot reveal a clinician handover or prove a conditional tab creation unless the tool result marks it, so ownership is reported conservatively and never graded.",
+    ),
 )
 NOT_REACHED = tuple(reason for _subject, reason in DECLARED_LIMITS)
 
@@ -331,6 +336,14 @@ class UnknownExtractFormat(ValueError):
 
 
 @dataclass(frozen=True)
+class BrowserDiagnostics:
+    unowned_page_actions: int = 0
+    creation_parses_tabs_create_mcp: int = 0
+    creation_parses_tabs_context_mcp: int = 0
+    creation_parses_navigate_without_tab: int = 0
+
+
+@dataclass(frozen=True)
 class ExtractDiagnostics:
     harness_versions: tuple[str, ...]
     undeclared_envelopes: int
@@ -340,6 +353,7 @@ class ExtractDiagnostics:
     joined_results: int
     unjoined_launches: int
     notifications_without_join_key: int
+    browser: BrowserDiagnostics
 
 
 @dataclass(frozen=True)
@@ -375,6 +389,7 @@ class Scan:
     transcripts_skipped_by_time: int = 0
     transcripts_skipped_by_byte_search: int = 0
     transcripts_read: int = 0
+    browser: BrowserDiagnostics = BrowserDiagnostics()
 
 
 @dataclass(frozen=True)
@@ -947,11 +962,166 @@ def _notification_keys(value: str) -> set[str]:
     }
 
 
+def _tool_results(rows: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
+    results: dict[str, Any] = {}
+    for row in rows:
+        if row.get("type") != "user":
+            continue
+        for block in _content_blocks(row.get("message")):
+            tool_id = _text(block.get("tool_use_id"))
+            if block.get("type") == "tool_result" and tool_id:
+                results[tool_id] = block.get("content")
+    return results
+
+
+def _decoded_json(value: Any) -> Any:
+    if not isinstance(value, str):
+        return value
+    try:
+        return json.loads(value)
+    except json.JSONDecodeError:
+        return value
+
+
+def _tab_ids(value: Any) -> set[str]:
+    value = _decoded_json(value)
+    if isinstance(value, str):
+        return set(
+            re.findall(r"\b(?:Tab ID|tabId|tab_id)\s*[:=]\s*([A-Za-z0-9_-]+)", value)
+        )
+    if isinstance(value, list):
+        return {tab for item in value for tab in _tab_ids(item)}
+    if isinstance(value, dict):
+        found = {
+            str(item)
+            for name, item in value.items()
+            if name in {"tabId", "tab_id"} and item is not None and item != ""
+        }
+        return found | {tab for item in value.values() for tab in _tab_ids(item)}
+    return set()
+
+
+def _created_tab_ids(value: Any) -> set[str]:
+    value = _decoded_json(value)
+    if isinstance(value, str):
+        return set(
+            re.findall(
+                r"\bCreated new tab\b[^\r\n]{0,160}?\b(?:Tab ID|tabId|tab_id)\s*[:=]\s*([A-Za-z0-9_-]+)",
+                value,
+                flags=re.IGNORECASE,
+            )
+        )
+    if isinstance(value, list):
+        return {tab for item in value for tab in _created_tab_ids(item)}
+    if not isinstance(value, dict):
+        return set()
+    direct = (
+        {
+            str(value[name])
+            for name in ("tabId", "tab_id")
+            if value.get("created") is True and value.get(name) not in {None, ""}
+        }
+    )
+    return direct | {tab for item in value.values() for tab in _created_tab_ids(item)}
+
+
+def _browser_diagnostics(rows: Iterable[Mapping[str, Any]]) -> BrowserDiagnostics:
+    rows = tuple(rows)
+    results = _tool_results(rows)
+    owned: set[str] = set()
+    unowned = 0
+    created_directly = 0
+    created_from_context = 0
+    created_by_navigation = 0
+    for row in rows:
+        if row.get("type") != "assistant":
+            continue
+        for block in _content_blocks(row.get("message")):
+            if block.get("type") != "tool_use":
+                continue
+            name = _text(block.get("name"))
+            tool_input = block.get("input")
+            if not isinstance(tool_input, dict):
+                tool_input = {}
+            local = browser_tab_hook.local_tool_name(name)
+            family = browser_tab_hook.tool_family(name)
+            roles = browser_tab_hook.BROWSER_TOOL_ROLES.get(family, {})
+            report_creation_coverage = roles.get("reportCreationCoverage") is True
+            result_tabs = _tab_ids(results.get(_text(block.get("id"))))
+            created_tabs = _created_tab_ids(results.get(_text(block.get("id"))))
+            if local == roles.get("create"):
+                created_directly += bool(result_tabs) and report_creation_coverage
+                owned.update(result_tabs)
+                continue
+            if local == roles.get("context") and tool_input.get("createIfEmpty") is True:
+                created_from_context += bool(created_tabs) and report_creation_coverage
+                owned.update(created_tabs)
+                continue
+            if local == roles.get("batch"):
+                creation_routes = {
+                    "create"
+                    if action == roles.get("create")
+                    else "context"
+                    if action == roles.get("context")
+                    and action_input.get("createIfEmpty") is True
+                    else "navigate"
+                    if action == roles.get("navigate")
+                    and not action_input.get("tabId")
+                    else ""
+                    for action, action_input in browser_tab_hook.batch_actions(
+                        name, tool_input
+                    )
+                } - {""}
+                if creation_routes:
+                    owned.update(created_tabs)
+                if len(creation_routes) == 1 and created_tabs and report_creation_coverage:
+                    route = next(iter(creation_routes))
+                    created_directly += route == "create"
+                    created_from_context += route == "context"
+                    created_by_navigation += route == "navigate"
+            for action, action_input in browser_tab_hook.page_actions(name, tool_input):
+                tab = action_input.get("tabId")
+                if (
+                    local != roles.get("batch")
+                    and action == roles.get("navigate")
+                    and (tab is None or tab == "")
+                ):
+                    created_by_navigation += bool(created_tabs) and report_creation_coverage
+                    owned.update(created_tabs)
+                elif tab is not None and tab != "" and str(tab) not in owned:
+                    unowned += 1
+    return BrowserDiagnostics(
+        unowned_page_actions=unowned,
+        creation_parses_tabs_create_mcp=created_directly,
+        creation_parses_tabs_context_mcp=created_from_context,
+        creation_parses_navigate_without_tab=created_by_navigation,
+    )
+
+
+def _sum_browser_diagnostics(
+    diagnostics: Iterable[BrowserDiagnostics],
+) -> BrowserDiagnostics:
+    rows = tuple(diagnostics)
+    return BrowserDiagnostics(
+        unowned_page_actions=sum(row.unowned_page_actions for row in rows),
+        creation_parses_tabs_create_mcp=sum(
+            row.creation_parses_tabs_create_mcp for row in rows
+        ),
+        creation_parses_tabs_context_mcp=sum(
+            row.creation_parses_tabs_context_mcp for row in rows
+        ),
+        creation_parses_navigate_without_tab=sum(
+            row.creation_parses_navigate_without_tab for row in rows
+        ),
+    )
+
+
 def extract_diagnostics(
     transcripts: Iterable[Path], population: Iterable[Candidate]
 ) -> ExtractDiagnostics:
     candidates = tuple(population)
-    rows = [row for path in transcripts for row in read_transcript(path)]
+    transcript_rows = [read_transcript(path) for path in transcripts]
+    rows = [row for source_rows in transcript_rows for row in source_rows]
     versions = tuple(sorted({_text(row.get("version")) for row in rows if _text(row.get("version"))}))
     codex = any(row.get("type") in CODEX_ROW_TYPES for row in rows)
     undeclared_rows = (
@@ -991,6 +1161,7 @@ def extract_diagnostics(
         for key in _notification_keys(candidate.text)
     }
     joined = len(launch_keys & result_keys)
+    browser = _sum_browser_diagnostics(map(_browser_diagnostics, transcript_rows))
     return ExtractDiagnostics(
         harness_versions=versions,
         undeclared_envelopes=undeclared_envelopes,
@@ -1002,6 +1173,7 @@ def extract_diagnostics(
         notifications_without_join_key=sum(
             1 for candidate in notifications if not _notification_keys(candidate.text)
         ),
+        browser=browser,
     )
 
 
@@ -1051,6 +1223,10 @@ def write_extract(
         f"SUBAGENT-JOINED-RESULTS: {diagnostics.joined_results}",
         f"SUBAGENT-UNJOINED: {diagnostics.unjoined_launches}",
         f"NOTIFICATIONS-WITHOUT-JOIN-KEY: {diagnostics.notifications_without_join_key}",
+        f"UNOWNED-BROWSER-PAGE-ACTIONS: {diagnostics.browser.unowned_page_actions}",
+        f"TAB-CREATION-PARSES-TABS-CREATE-MCP: {diagnostics.browser.creation_parses_tabs_create_mcp}",
+        f"TAB-CREATION-PARSES-TABS-CONTEXT-MCP: {diagnostics.browser.creation_parses_tabs_context_mcp}",
+        f"TAB-CREATION-PARSES-NAVIGATE-WITHOUT-TAB: {diagnostics.browser.creation_parses_navigate_without_tab}",
         f"UNMARKED-PRIOR-REVIEWS: {_unmarked_prior_reviews(run, transcripts)}",
         "ENTRY-KINDS: "
         + " | ".join(
@@ -1445,6 +1621,20 @@ def _survey_round(run: Path, submission: str, round_number: int) -> Scan:
             "transcripts_read": "TRANSCRIPTS-READ",
         }.items()
     }
+    browser = BrowserDiagnostics(
+        unowned_page_actions=_optional_count(
+            extract_fields, "UNOWNED-BROWSER-PAGE-ACTIONS"
+        ),
+        creation_parses_tabs_create_mcp=_optional_count(
+            extract_fields, "TAB-CREATION-PARSES-TABS-CREATE-MCP"
+        ),
+        creation_parses_tabs_context_mcp=_optional_count(
+            extract_fields, "TAB-CREATION-PARSES-TABS-CONTEXT-MCP"
+        ),
+        creation_parses_navigate_without_tab=_optional_count(
+            extract_fields, "TAB-CREATION-PARSES-NAVIGATE-WITHOUT-TAB"
+        ),
+    )
     return Scan(
         submission=submission,
         records=records,
@@ -1455,6 +1645,7 @@ def _survey_round(run: Path, submission: str, round_number: int) -> Scan:
         findings=tuple(findings),
         kind_counts=kind_counts,
         later_sittings=later_sittings,
+        browser=browser,
         **diagnostic_counts,
     )
 
@@ -1510,6 +1701,7 @@ def survey(run: Path, submission: str) -> Scan:
             scan.transcripts_skipped_by_byte_search for scan in scans
         ),
         transcripts_read=sum(scan.transcripts_read for scan in scans),
+        browser=_sum_browser_diagnostics(scan.browser for scan in scans),
     )
 
 
@@ -1527,6 +1719,10 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         f"  transcripts skipped by bytes    {scan.transcripts_skipped_by_byte_search}",
         f"  transcripts read                {scan.transcripts_read}",
         f"  sittings begun after extract    {scan.later_sittings}",
+        f"  unowned browser page actions    {scan.browser.unowned_page_actions} (reported, {NOT_GRADED})",
+        f"  tab creation parses: tabs_create_mcp  {scan.browser.creation_parses_tabs_create_mcp}",
+        f"  tab creation parses: tabs_context_mcp {scan.browser.creation_parses_tabs_context_mcp}",
+        f"  tab creation parses: navigate no tab  {scan.browser.creation_parses_navigate_without_tab}",
         f"  findings                        {len(scan.findings)}",
     ]
     lines.extend(

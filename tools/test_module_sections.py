@@ -58,6 +58,7 @@ DECLARED_SECTIONS = {
     "course_assignment_scan": "Course assignment artifact grading",
     "apa7_coverage": "APA manual coverage",
     "block_scan": "Block scan",
+    "browser_tab_hook": "Browser tab hook",
     "case_study_render": "Render scan",
     "case_study_scan": "Case study house style",
     "cdc_percentile": "CDC BMI-for-age table",

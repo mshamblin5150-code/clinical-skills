@@ -30,6 +30,16 @@
             "timeout": 30
           }
         ]
+      },
+      {
+        "matcher": "mcp__claude-in-chrome__.*|mcp__Claude_Browser__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"$CLAUDE_PROJECT_DIR/tools/browser_tab_hook.py\"",
+            "timeout": 30
+          }
+        ]
       }
     ],
     "PostToolUse": [
