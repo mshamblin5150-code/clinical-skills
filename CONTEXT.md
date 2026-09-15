@@ -859,6 +859,10 @@ _Avoid_: browser access, logged-in fetch, subscription access, real session
 A browser tab one context opened for itself, or that the clinician handed that context in chat, and the only tab that context may act on or must close. It applies to every browser surface agents share, signed-in or not: every context in a session reaches the same tabs, so a tab another context opened is not owned merely because it is reachable, and a tab in the clinician's own window was never an agent's to reach. Distinct from an **authenticated route**, which is the session a tab reaches: every owned tab in the group reaches the same session, and ownership is what separates them.
 _Avoid_: the clinician's tab, the current tab, the active tab, the live tab
 
+**Reference lifecycle**:
+The browser-debugger lifecycle recorded from Claude in Chrome that a Codex patch copies, dated and tied to one extension version, with each fact marked as backed by the extension's code, inferred from the absence of code, or observed live. It is what a repair copies from and never what decides whether a read counts: a page that visibly passes the reading standard is a read however stale the record is. Distinct from a **calibrated property**, which is Word's observed behavior under a renderer's own settings rather than one agent's behavior copied into another, and from an **authenticated route**, which is the session a read reaches rather than how a browser attaches to it.
+_Avoid_: parity, the way Claude does it, Claude's working lifecycle, reference implementation
+
 **Relative link**:
 A path in a tracked Markdown file naming another tracked file or directory, distinct from a **citation**, which is tracker text. It resolves against the linking file's directory and is checked by exact-case membership in the Git index after any anchor fragment is dropped.
 _Avoid_: citation, URL, cross-reference
