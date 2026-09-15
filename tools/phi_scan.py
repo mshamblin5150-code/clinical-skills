@@ -817,7 +817,7 @@ def scan_lines(
 ) -> list[Finding]:
     """Every line of ``text``, with the shape layer decided by the caller.
 
-    Split out of `scan_text` for ``tracker_scan``, and the split is the whole
+    Split out of `scan_file_text` for ``tracker_scan``, and the split is the whole
     point rather than tidiness: a **file** may declare ``phi-scan: synthetic``
     and switch the shape layer off, and an issue body or a commit message may
     not. Those are text nobody can be trusted to have written under this repo's
@@ -834,7 +834,7 @@ def scan_lines(
     return findings
 
 
-def scan_text(text: str, path: str, index: CorpusIndex) -> list[Finding]:
+def scan_file_text(text: str, path: str, index: CorpusIndex) -> list[Finding]:
     """Corpus layer always runs. Shape layer runs unless the file opts out."""
     return scan_lines(text, path, index, shapes=not declares_synthetic(text))
 
@@ -1006,7 +1006,7 @@ def scan_all(index: CorpusIndex, paths: Sequence[str] | None = None) -> list[Fin
         text = read_text_if_text(full)
         if text is None:
             continue
-        findings.extend(scan_text(text, path, index))
+        findings.extend(scan_file_text(text, path, index))
     return findings
 
 
