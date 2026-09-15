@@ -152,8 +152,12 @@ Moving a gating root's top-level rise under the **owning checkout**'s **Ticket d
 _Avoid_: clean up, clear, purge, sweep (in the tracker sense — see the tracker terms)
 
 **Stale registration**:
-A worktree that `git worktree list` still reports and whose directory is gone. Distinct from an **unreadable source**, where the directory is there and cannot be read: a stale registration holds nothing, because there is nothing left to hold it. It is always a **peer root** — the **owning checkout** resolves through its `.git` pointer and the **committing checkout** is the one a **Session** is standing in, so neither can be in this state.
+A worktree that `git worktree list` still reports, whose directory is not present when the census runs, and which is not locked. The census cannot tell a deleted directory from one on an unmounted volume, so "not present" is all it asserts, and nothing it reads establishes that the checkout is empty. Distinct from an **unreadable source**, where the directory is there and cannot be read, and from a **locked registration**, where git has been told the storage comes and goes. It is always a **peer root** — the **owning checkout** resolves through its `.git` pointer and the **committing checkout** is the one a **Session** is standing in, so neither can be in this state.
 _Avoid_: dead worktree, orphaned worktree, stale root, missing root
+
+**Locked registration**:
+A worktree that `git worktree list` reports as locked and whose directory is not present when the census runs. The lock is git's own declaration that the checkout lives on storage that comes and goes, so it may still hold material; it is named on every run, never graded, and no command clears it. Always a **peer root**.
+_Avoid_: unmounted worktree, offline root, missing volume
 
 **Run key**:
 The identity of one unit of work, and it names the directory holding that unit's whole provenance record. For a graded artifact it is course, module and artifact — every part read off the live LMS or off which skill is running, and no part typed — and it prefixes the filename of every submission made from it. For a shift it is `shift-` and the visit date, which step 1 of the shift has already settled. That date is part of what the shift *is*, not the date of a sitting: a shift split on Monday and finished on Tuesday is two sittings and one key.
