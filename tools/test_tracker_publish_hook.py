@@ -492,6 +492,26 @@ class InlineTrackerTextIsRead(unittest.TestCase):
             "unclassified-api-identifier",
         )
 
+    def test_compound_api_identifier_assignment_is_refused(self) -> None:
+        assignments = (
+            "CID='1'${OTHER}'2'",
+            "CID='7'8",
+            'OTHER=7; CID="$OTHER"8',
+        )
+
+        for assignment in assignments:
+            with self.subTest(assignment=assignment):
+                result = hook.extract(
+                    assignment
+                    + "; gh api repos/example/project/issues/comments/$CID "
+                    "-f body='Comment edit'"
+                )
+                self.assertIsNone(result.grade_route)
+                self.assertEqual(
+                    result.unclassified_api_calls[0].kind,
+                    "unclassified-api-identifier",
+                )
+
     def test_api_collection_endpoints_use_create_semantics(self) -> None:
         issue = hook.extract(
             "gh api repos/example/project/issues "
@@ -669,6 +689,15 @@ class InlineTrackerTextIsRead(unittest.TestCase):
             result.unclassified_api_calls[0].kind,
             "unclassified-api-mutation",
         )
+
+    def test_compound_graphql_assignment_is_refused(self) -> None:
+        result = hook.extract(
+            "QUERY='query { viewer { login } }'${TAIL}''; "
+            "gh api graphql -f query=$QUERY"
+        )
+
+        self.assertIsNone(result.grade_route)
+        self.assertEqual(result.unreadable[0].kind, "external-variable")
 
     def test_unresolved_graphql_input_path_assignment_is_refused(self) -> None:
         result = hook.extract(

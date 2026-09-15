@@ -350,6 +350,12 @@ API_VALUE_OPTIONS = (
     ("preview", ("--preview", "-p")),
     ("template", ("--template", "-t")),
 )
+PUBLISH_ASSIGNMENT_WORD = re.compile(
+    r"\A(?P<name>[A-Za-z_][A-Za-z0-9_]*)="
+    r"(?:'(?P<single>[^']*)'|\"(?P<double>[^\"]*)\"|"
+    r"(?P<bare>[^'\"\s;&|]*))\Z",
+    re.DOTALL,
+)
 API_NON_PUBLICATION_ENDPOINTS = (
     re.compile(r"/?markdown(?:\?.*)?\Z"),
     re.compile(r"/?repos/[^/?]+/[^/?]+/git/refs(?:/.+)?(?:\?.*)?\Z"),
@@ -1119,34 +1125,44 @@ def _publish_assignments(
         if next_piece in ("|", "&"):
             continue
         for word in assignment_words:
-            plain = shell_reader.plain_assignments(word)
-            dynamic = shell_reader.substitution_assignments(word)
-            for name, value in plain.items():
-                source_value = word.partition("=")[2]
-                if source_value.startswith("'") and source_value.endswith("'"):
-                    assignments[name] = value
+            match = PUBLISH_ASSIGNMENT_WORD.fullmatch(word)
+            name = word.partition("=")[0]
+            if match is None:
+                assignments.pop(name, None)
+                if "$(" in word or "`" in word:
+                    substitutions.add(name)
+                else:
                     substitutions.discard(name)
-                    continue
-                expanded, kind = shell_reader.expand(
-                    value, assignments, frozenset(substitutions)
-                )
-                if (
-                    kind is not None
-                    or expanded is None
-                    or "$" in expanded
-                    or "`" in expanded
-                ):
-                    assignments.pop(name, None)
-                    if kind == "command-substitution" or "$(" in value:
-                        substitutions.add(name)
-                    else:
-                        substitutions.discard(name)
-                    continue
-                assignments[name] = expanded
+                continue
+            single = match.group("single")
+            if single is not None:
+                assignments[name] = single
                 substitutions.discard(name)
-            for name in dynamic:
+                continue
+            value = match.group("double")
+            if value is None:
+                value = match.group("bare") or ""
+            if "$(" in value or "`" in value:
                 assignments.pop(name, None)
                 substitutions.add(name)
+                continue
+            expanded, kind = shell_reader.expand(
+                value, assignments, frozenset(substitutions)
+            )
+            if (
+                kind is not None
+                or expanded is None
+                or "$" in expanded
+                or "`" in expanded
+            ):
+                assignments.pop(name, None)
+                if kind == "command-substitution":
+                    substitutions.add(name)
+                else:
+                    substitutions.discard(name)
+                continue
+            assignments[name] = expanded
+            substitutions.discard(name)
     return assignments, frozenset(substitutions)
 
 
