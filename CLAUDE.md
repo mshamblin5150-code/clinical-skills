@@ -1370,7 +1370,9 @@ publishes no tracker comment.
 `tools/tracker_event_checks.py` is the single dispatcher for one GitHub tracker
 event. It selects the check set formerly expressed by per-step workflow
 conditions, runs each selected command, and writes one step-summary section per
-check. The PHI shape layer remains advisory because a runner has no PHI corpus;
+check. Each heading names `CLEAN`, `FINDING`, or `DID NOT SCAN` from the
+command's exit status, and the section carries both standard output and standard
+error. The PHI shape layer remains advisory because a runner has no PHI corpus;
 every other selected check refuses on a nonzero exit. Both the ordinary
 `changed-record` job and the merge-receipt pre-publication path use this seam.
 The complete boundary belongs to `tracker_event_checks.NOT_REACHED`; this

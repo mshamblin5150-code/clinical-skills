@@ -63,7 +63,7 @@ class Check:
 
 PHI = Check(
     "tracker_scan",
-    "Tracker PHI scan coverage",
+    "Tracker PHI shape layer",
     refusing=False,
     extra_args=("--allow-no-corpus",),
 )
@@ -129,8 +129,17 @@ def select_checks(document: Any, event_name: str) -> tuple[Check, ...]:
     return tuple(selected)
 
 
-def _summary_section(heading: str, report: str) -> str:
-    return f"### {heading}\n\n```\n{report.rstrip()}\n```\n"
+def _status_label(returncode: int) -> str:
+    return {0: "CLEAN", 1: "FINDING", 2: "DID NOT SCAN"}.get(
+        returncode, f"EXIT {returncode}"
+    )
+
+
+def _summary_section(heading: str, returncode: int, report: str) -> str:
+    return (
+        f"### {heading}: {_status_label(returncode)}\n\n"
+        f"```\n{report.rstrip()}\n```\n"
+    )
 
 
 def _append_summary(path: Path | None, section: str) -> None:
@@ -171,7 +180,7 @@ def run_selected(
         report = "\n".join(
             part.rstrip() for part in (completed.stdout, completed.stderr) if part.rstrip()
         )
-        section = _summary_section(check.heading, report)
+        section = _summary_section(check.heading, completed.returncode, report)
         print(section, end="")
         _append_summary(summary_path, section)
         if check.refusing and completed.returncode != 0 and status == 0:

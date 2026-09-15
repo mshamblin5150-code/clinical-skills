@@ -52,9 +52,65 @@ class TheEventDispatcherOwnsTheChangedRecordCheckSet(unittest.TestCase):
 
         self.assertEqual(status, 2)
         self.assertEqual(len(calls), 2)
-        self.assertIn("### Tracker PHI scan coverage", report)
+        self.assertIn("### Tracker PHI shape layer", report)
         self.assertIn("### Tracker branch scope", report)
         self.assertIn("--allow-no-corpus", calls[0][0])
+
+    def test_each_summary_names_its_exit_posture_and_carries_stderr(self):
+        def runner(command, **kwargs):
+            module = Path(command[1]).stem
+            status = {"tracker_scan": 1, "tracker_branch_scope": 2}[module]
+            return subprocess.CompletedProcess(
+                command,
+                status,
+                f"{module} stdout\n",
+                f"{module} stderr\n",
+            )
+
+        with tempfile.TemporaryDirectory() as raw:
+            event_path = Path(raw) / "event.json"
+            summary = Path(raw) / "summary.md"
+            event_path.write_text("{}", encoding="utf-8")
+
+            checks.run_selected(
+                event_path,
+                "issue_comment",
+                (checks.PHI, checks.BRANCH),
+                runner=runner,
+                summary_path=summary,
+            )
+
+            report = summary.read_text(encoding="utf-8")
+
+        self.assertIn("### Tracker PHI shape layer: FINDING", report)
+        self.assertIn("tracker_scan stderr", report)
+        self.assertIn("### Tracker branch scope: DID NOT SCAN", report)
+        self.assertIn("tracker_branch_scope stderr", report)
+
+    def test_a_clean_phi_shape_heading_preserves_the_unchecked_names_warning(self):
+        warning = "PATIENT NAMES ARE NOT CHECKED -- corpus layer unavailable\n"
+
+        def runner(command, **kwargs):
+            return subprocess.CompletedProcess(command, 0, "shape findings: 0\n", warning)
+
+        with tempfile.TemporaryDirectory() as raw:
+            event_path = Path(raw) / "event.json"
+            summary = Path(raw) / "summary.md"
+            event_path.write_text("{}", encoding="utf-8")
+
+            checks.run_selected(
+                event_path,
+                "issue_comment",
+                (checks.PHI,),
+                runner=runner,
+                summary_path=summary,
+            )
+
+            report = summary.read_text(encoding="utf-8")
+
+        self.assertIn("### Tracker PHI shape layer: CLEAN", report)
+        self.assertIn("PATIENT NAMES ARE NOT CHECKED", report)
+        self.assertNotIn("Tracker PHI scan coverage: CLEAN", report)
 
     def test_an_issue_comment_created_runs_the_shared_record_checks(self):
         self.assert_selected(
