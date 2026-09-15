@@ -30,6 +30,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from console_codec import require_python_floor, use_utf8
+from github_graphql import GraphQLResponseError, read_response
 
 
 class PopulationError(Exception):
@@ -45,10 +46,10 @@ def _count(value: object, label: str) -> int:
 def issue_population(text: str) -> int:
     """Sum GraphQL's independent issue and pull-request populations."""
     try:
-        repository = json.loads(text)["data"]["repository"]
+        repository = read_response(text).data["repository"]
         issues = repository["issues"]["totalCount"]
         pulls = repository["pullRequests"]["totalCount"]
-    except (json.JSONDecodeError, KeyError, TypeError) as error:
+    except (GraphQLResponseError, KeyError, TypeError) as error:
         raise PopulationError(f"invalid issue population probe: {error}") from error
     return _count(issues, "issues.totalCount") + _count(
         pulls, "pullRequests.totalCount"

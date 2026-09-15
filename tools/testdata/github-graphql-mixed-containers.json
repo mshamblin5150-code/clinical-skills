@@ -1,0 +1,16 @@
+{
+  "data": {
+    "repository": {
+      "issue_17": {"number": 17},
+      "issue_18": null,
+      "pull_18": {"number": 18}
+    }
+  },
+  "errors": [
+    {
+      "type": "NOT_FOUND",
+      "path": ["repository", "issue_18"],
+      "message": "Could not resolve to an Issue with the number of 18."
+    }
+  ]
+}
