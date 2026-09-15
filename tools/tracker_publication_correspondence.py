@@ -468,11 +468,14 @@ POSTURE_ROWS = (
         changed=_cell(Posture.REPORT, "filed-from:edited"),
     ),
     _row("filed-from-not-graded-on-comment", Surface.COMMENT, Trigger.COMMENT),
-    _row(
-        "aar-working-source-quotation",
-        Surface.COMMENT,
-        Trigger.COMMENT,
-        _cell(Posture.DENY, "aar-quotation"),
+    *(
+        _row(
+            "aar-working-source-quotation",
+            surface,
+            trigger,
+            _cell(Posture.DENY, "aar-quotation"),
+        )
+        for surface, trigger in BODY_SCOPES
     ),
     _row(
         "comment-verdict-discriminator",
@@ -480,11 +483,19 @@ POSTURE_ROWS = (
         Trigger.COMMENT,
         _cell(Posture.ADVISE, "verdict:missing-discriminator"),
     ),
-    _row(
-        "retired-correction-citation",
-        Surface.COMMENT,
-        Trigger.COMMENT,
-        _cell(Posture.ADVISE, "citation:retired-correction-rule"),
+    *(
+        _row(
+            "retired-correction-citation",
+            surface,
+            trigger,
+            _cell(Posture.ADVISE, "citation:retired-correction-rule"),
+            direct=(
+                _cell(Posture.ADVISE, "citation:retired-correction-rule")
+                if (surface, trigger) in DIRECT_WRITER_KEYS
+                else ABSENT
+            ),
+        )
+        for surface, trigger in PUBLICATION_SCOPES
     ),
     _row(
         "implementation-map-producer-stamp",
