@@ -6,8 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "if": "Bash(gh *)",
-            "command": "python \"$CLAUDE_PROJECT_DIR/tools/tracker_publish_hook.py\"",
+            "command": "python \"$CLAUDE_PROJECT_DIR/tools/tracker_publish_stub.py\"",
             "timeout": 30
           }
         ]

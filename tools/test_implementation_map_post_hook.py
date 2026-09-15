@@ -62,6 +62,36 @@ class CommandContext(unittest.TestCase):
         self.assertIn("PowerShell", context)
         self.assertIn("unmodeled shell", context)
 
+    def test_an_unmodeled_shell_without_map_work_is_silent(self):
+        self.assertEqual(
+            hook.handle(
+                self.payload("Write-Output 'ordinary work'", tool_name="PowerShell")
+            ),
+            {},
+        )
+
+    def test_a_compound_ready_flip_reports_that_work_was_not_derived(self):
+        response = hook.handle(
+            self.payload("{ gh issue edit 920 --add-label ready-for-agent; }")
+        )
+
+        context = response["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("not derived", context)
+        self.assertIn("inspect the completed command by hand", context)
+
+    def test_an_argv_list_ready_flip_reports_that_work_was_not_derived(self):
+        response = hook.handle(
+            self.payload(
+                "subprocess.run(['gh', 'issue', 'edit', '920', "
+                "'--add-label', 'ready-for-agent'])"
+            )
+        )
+
+        self.assertIn(
+            "not derived",
+            response["hookSpecificOutput"]["additionalContext"],
+        )
+
     def test_monitor_uses_the_modeled_command_reader(self):
         response = hook.handle(
             self.payload(
@@ -141,6 +171,15 @@ class AdrMergeContext(unittest.TestCase):
         self.assertIn("ADR 0168", specific["additionalContext"])
         self.assertNotIn("permissionDecision", specific)
 
+    def test_a_nested_pr_merge_reports_that_work_was_not_derived(self):
+        response = hook.handle(
+            {"tool_name": "Bash", "tool_input": {"command": "sh -c 'gh pr merge --merge'"}}
+        )
+
+        specific = response["hookSpecificOutput"]
+        self.assertIn("not derived", specific["additionalContext"])
+        self.assertNotIn("permissionDecision", specific)
+
     def test_push_to_main_names_the_branch_adr(self):
         old = subprocess.run(
             ["git", "rev-parse", "origin/main"], cwd=self.root, check=True,
@@ -161,6 +200,22 @@ class AdrMergeContext(unittest.TestCase):
             )
 
         self.assertIn("ADR 0168", response["hookSpecificOutput"]["additionalContext"])
+
+    def test_a_nested_push_to_main_reports_that_work_was_not_derived(self):
+        with mock.patch.object(hook, "_default_branch_name", return_value="main"):
+            response = hook.handle(
+                {
+                    "tool_name": "Monitor",
+                    "tool_input": {
+                        "command": "bash -c 'git push origin HEAD:main'"
+                    },
+                }
+            )
+
+        self.assertIn(
+            "not derived",
+            response["hookSpecificOutput"]["additionalContext"],
+        )
 
     def test_fully_qualified_push_to_main_is_classified(self):
         with mock.patch.object(hook, "_default_branch_name", return_value="main"):
@@ -268,8 +323,16 @@ class ProjectRegistration(unittest.TestCase):
                 )
 
     def test_declared_limits_are_owned_here(self):
-        self.assertEqual(len(hook.DECLARED_LIMITS), 5)
+        self.assertEqual(len(hook.DECLARED_LIMITS), 9)
         self.assertTrue(any("number or URL" in row for row in hook.DECLARED_LIMITS))
+        for phrase in (
+            "G=gh",
+            "string formatting",
+            "argv list assembled in pieces",
+            "alias or function",
+        ):
+            with self.subTest(phrase=phrase):
+                self.assertTrue(any(phrase in row for row in hook.DECLARED_LIMITS))
 
 
 if __name__ == "__main__":

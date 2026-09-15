@@ -35,6 +35,12 @@ defect quotes the pairing on purpose and tracker prose carries no
 mention-versus-use exemption. It grades one literal pairing, grown on recorded
 instances, and how narrow that is belongs to ``NOT_REACHED`` with every other
 ceiling.
+
+One anchor-free loose classifier also finds literal publications the precise
+single-call reader did not reproduce, including quoted argv lists. A modeled
+command carrying such a publication is refused unread before any partial grade;
+the same classifier bounds the unmodeled-shell refusal and the implementation-
+map post-hook's observation. Runtime assembly remains in ``NOT_REACHED``.
 """
 
 from __future__ import annotations
@@ -167,6 +173,26 @@ NOT_REACHED = (
         "false are all outside it. Nothing here can establish that a cited "
         "record says what a sentence claims it says.",
     ),
+    (
+        "a shell command assembled at run time is invisible",
+        "A command such as `G=gh; $G issue comment ...` carries no literal gh "
+        "publication for the static classifier to recognize.",
+    ),
+    (
+        "a program-formatted command is invisible",
+        "A command assembled by string formatting inside a program is outside "
+        "the literal command text this classifier reads.",
+    ),
+    (
+        "an argv list assembled in pieces is invisible",
+        "The argv-list form reaches one literal list only; a list assembled "
+        "from variables or concatenated pieces is outside it.",
+    ),
+    (
+        "an alias or function standing in for gh is invisible",
+        "An alias or function invoked under another name carries no gh word "
+        "for the static classifier to recognize.",
+    ),
 )
 
 
@@ -260,6 +286,13 @@ class CommandGrade(NamedTuple):
     scanned: bool
     denied: bool
     report: str
+
+
+class LooseCommand(NamedTuple):
+    executable: str
+    route: tuple[str, ...]
+    arguments: str
+    argv_list: bool
 
 
 _USE_ANALYSIS_ROUTE = object()
@@ -406,15 +439,14 @@ API_RECORD_NUMBER = re.compile(r"/(?:issues|pulls?)/(?P<number>[0-9]+)(?:/|\Z)")
 RAW_PUBLISH_ROUTE = re.compile(
     r"(?:\A|[;&|]\s*)gh\s+(?:(api)\b|([A-Za-z]+)\s+([A-Za-z]+)\b)"
 )
-LOOSE_PUBLISH_ROUTE = re.compile(
-    r"(?:\A|\r?\n\s*|[;&|{(]\s*|\b(?:then|do|else)\s+)"
-    r"gh\s+(?:(api)\b|([A-Za-z]+)\s+([A-Za-z]+)\b)"
-    r"(?P<arguments>[^;&|}\r\n]*)",
-    re.IGNORECASE,
-)
 LOOSE_PUBLICATION_FLAG = re.compile(
     r"(?<!\S)(?:(?:--body(?:-file)?|--title|--comment|--input|"
     r"--raw-field|--field)(?:\s|=|\Z)|-[btFcf](?:\S*|\s|\Z))"
+)
+LOOSE_ARGV_PUBLICATION_FLAG = re.compile(
+    r"['\"](?:(?:--body(?:-file)?|--title|--comment|--input|"
+    r"--raw-field|--field)(?:['\"]|=)|-[btFcf](?:['\"]|\S))",
+    re.IGNORECASE,
 )
 HEREDOC = re.compile(
     r"<<-?\s*['\"]?(?P<tag>[A-Za-z_][A-Za-z0-9_]*)['\"]?[ \t]*\r?\n"
@@ -627,21 +659,108 @@ def _raw_publish_route(command: str) -> tuple[str, ...] | None:
     return route if route in PUBLISH_ROUTES else None
 
 
-def _loose_publish_route(command: str) -> tuple[str, ...] | None:
-    """Classify a likely publication without reproducing an unmodeled shell."""
-    for match in LOOSE_PUBLISH_ROUTE.finditer(command):
-        route = (
-            ("api",)
-            if match.group(1)
-            else (match.group(2).lower(), match.group(3).lower())
+def loose_command_calls(
+    command: str,
+    executable: str,
+    routes: tuple[tuple[str, ...], ...],
+) -> tuple[LooseCommand, ...]:
+    """Find literal command and argv-list routes without requiring an anchor."""
+    found: list[tuple[int, LooseCommand]] = []
+    for route in routes:
+        words = r"\s+".join(re.escape(word) for word in route)
+        text = re.compile(
+            rf"\b{re.escape(executable)}\b\s+{words}\b"
+            r"(?P<arguments>[^;&|}\r\n]*)",
+            re.IGNORECASE,
         )
-        if route not in PUBLISH_ROUTES:
+        argv_words = r"\s*,\s*".join(
+            rf"['\"]{re.escape(word)}['\"]" for word in route
+        )
+        argv = re.compile(
+            rf"['\"]{re.escape(executable)}['\"]\s*,\s*{argv_words}"
+            r"(?P<arguments>[^\]\r\n]*)",
+            re.IGNORECASE,
+        )
+        for match in text.finditer(command):
+            found.append(
+                (
+                    match.start(),
+                    LooseCommand(
+                        executable,
+                        route,
+                        match.group("arguments"),
+                        False,
+                    ),
+                )
+            )
+        for match in argv.finditer(command):
+            found.append(
+                (
+                    match.start(),
+                    LooseCommand(
+                        executable,
+                        route,
+                        match.group("arguments"),
+                        True,
+                    ),
+                )
+            )
+    return tuple(row for _position, row in sorted(found, key=lambda item: item[0]))
+
+
+def _loose_api_is_publication(call: LooseCommand) -> bool:
+    flag = (
+        LOOSE_ARGV_PUBLICATION_FLAG
+        if call.argv_list
+        else LOOSE_PUBLICATION_FLAG
+    )
+    if not flag.search(call.arguments):
+        return False
+    if re.match(r"\s*(?:,\s*)?['\"]?graphql\b", call.arguments, re.IGNORECASE):
+        return bool(re.search(r"\bmutation\b", call.arguments, re.IGNORECASE))
+    return True
+
+
+def loose_publish_calls(command: str) -> tuple[LooseCommand, ...]:
+    """Classify literal publications without claiming their bytes are reproducible."""
+    publications: list[LooseCommand] = []
+    for call in loose_command_calls(command, "gh", PUBLISH_ROUTES):
+        if call.route == ("issue", "create"):
+            publications.append(call)
             continue
-        if route == ("issue", "create"):
-            return route
-        if LOOSE_PUBLICATION_FLAG.search(match.group("arguments")):
-            return route
-    return None
+        if call.route == ("api",):
+            if _loose_api_is_publication(call):
+                publications.append(call)
+            continue
+        flag = (
+            LOOSE_ARGV_PUBLICATION_FLAG
+            if call.argv_list
+            else LOOSE_PUBLICATION_FLAG
+        )
+        if flag.search(call.arguments):
+            publications.append(call)
+    return tuple(publications)
+
+
+def _loose_publish_route(command: str) -> tuple[str, ...] | None:
+    """Return the first likely publication in any literal command position."""
+    calls = loose_publish_calls(command)
+    return calls[0].route if calls else None
+
+
+def _unreproduced_publish_route(command: str) -> tuple[str, ...] | None:
+    """Return a loose publication the precise single-call reader did not reach."""
+    calls = list(loose_publish_calls(command))
+    publish = _publish_tokens(command)
+    if publish is not None:
+        tokens, start = publish
+        tail = tokens[start + 1 :]
+        precise = ("api",) if tail[0] == "api" else tuple(tail[:2])
+        for index, call in enumerate(calls):
+            if call.route == precise:
+                del calls[index]
+                break
+    return calls[0].route if calls else None
 
 
 def _api_method(arguments: list[str]) -> str:
@@ -1436,6 +1555,14 @@ def _unreadable_report(extracted: Extraction) -> str:
 
 def grade_command(command: str) -> CommandGrade | None:
     """Grade one Bash publication command without writing the hook marker."""
+    if _unreproduced_publish_route(command) is not None:
+        return CommandGrade(
+            False,
+            True,
+            "tracker pre-publish: NOT SCANNED -- unreproduced publication; "
+            "publish one top-level `gh` command per Bash call, and if a script "
+            "merely mentions a publication, run that script from a file",
+        )
     extracted = extract(command)
     if extracted.route is None:
         return None

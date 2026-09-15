@@ -1390,24 +1390,29 @@ opening a socket.
 
 The pre-publication `PreToolUse` hook is registered in
 `.claude/settings.json` and implemented by
-`tools/tracker_publish_hook.py`. It extracts publishable title and body fields
+`tools/tracker_publish_stub.py` and `tools/tracker_publish_hook.py`. The stub
+decodes each Bash payload and returns an empty response only when its command
+text contains no `gh` substring; an undecodable payload fails closed into the
+full hook. The full hook extracts publishable title and body fields
 from one `gh` command, reads current cited-record metadata in one request, and
 sends each field through `phi_scan`, `tracker_branch_scope`, and
 `tracker_filed_from` without returning matched values. For an issue body edit,
 the last grader compares the proposal with the current body text from readback;
 when that read fails it reports the rule `NOT GRADED` and does not refuse on it.
-`PUBLISH_ROUTES` owns command classification; the settings condition is only a
-cost guard.
+`PUBLISH_ROUTES` owns command classification; the stub is only a cost guard.
 
 `tracker_publish_hook.COMMAND_TOOLS` is the shared roster of command-bearing
 tools and the shell each carries. `Bash` and `Monitor` carry the modeled bash
-grammar and use the precise classifier; `PowerShell` is unmodeled, so a loose
-classifier recognizes only a likely `PUBLISH_ROUTES` publication and refuses it
-unread. The loose and precise anchors deliberately disagree: a false refusal
-costs a retype through `Bash`, while a missed publication cannot be withdrawn.
-Read-only `gh` commands remain outside both publication paths. The `Bash`
-registration keeps its cost guard; the `PowerShell` and `Monitor` registrations
-have no `if` condition.
+grammar and use the precise reader; `PowerShell` is unmodeled. One anchor-free
+loose classifier finds a literal `gh` route with a publication flag, including
+a literal argv list. On the modeled path, a loose publication the precise
+single-call reader did not reach is refused as an **unreproduced publication**;
+on an unmodeled path every loose publication is refused unread. A false refusal
+costs a retype through one top-level Bash `gh`, while a missed publication
+cannot be withdrawn. The precise reader's route and method judgment wins for
+the call it reaches, so read-only `gh api` calls and flag-free edits remain
+untouched. None of the three registrations carries an `if` condition; Bash
+alone invokes the stub, while PowerShell and Monitor invoke the full hook.
 
 `tools/command_tool_roster.py --session-end` is a separate `SessionEnd` hook.
 It reads every command-bearing tool name in the supplied transcript, including
@@ -1451,9 +1456,10 @@ stale verdict: publication volume rather than elapsed time decides what an old
 marker means, and an absent or invalid marker remains distinct from a clean
 scan.
 
-Covered by `tools/test_tracker_publish_hook.py`, which drives synthetic command
-strings and hook payloads through the extractor, grader, and JSON protocol with
-temporary body files. It performs no publication.
+Covered by `tools/test_tracker_publish_hook.py` and
+`tools/test_tracker_publish_stub.py`, which drive synthetic command strings and
+hook payloads through the cost guard, extractor, grader, and JSON protocol with
+temporary body files. They perform no publication.
 
 ### Tracker Filed-from line
 

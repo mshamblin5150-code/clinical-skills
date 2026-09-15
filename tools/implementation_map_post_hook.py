@@ -1,9 +1,11 @@
 """Add non-blocking context after acts that incur implementation-map work.
 
-Command tokenization is owned by ``tracker_publish_hook.gh_command_tokens``;
-this hook classifies only the ruled label and merge routes. It reads no tracker
-record, never refuses the completed command, and emits no response for any
-other command. The complete boundary is ``DECLARED_LIMITS``.
+Precise command tokenization is owned by
+``tracker_publish_hook.gh_command_tokens``; its anchor-free companion is
+``tracker_publish_hook.loose_command_calls``. This hook classifies only the
+ruled label, merge, and default-branch push routes. It reads no tracker record,
+never refuses the completed command, and emits no response for any other
+command. The complete boundary is ``DECLARED_LIMITS``.
 """
 
 from __future__ import annotations
@@ -30,6 +32,14 @@ DECLARED_LIMITS = (
     "A session may read the additional context and still decline to act on it.",
     "A PR selected by number or URL cannot be tied to the session branch without "
     "a tracker read, so only an omitted selector or the current branch name is classified.",
+    "A command assembled at run time, such as `G=gh; $G ...`, carries no literal "
+    "route for this static classifier.",
+    "A command built by string formatting in a program carries no literal route "
+    "for this static classifier.",
+    "An argv list assembled in pieces is outside the literal-list form this "
+    "static classifier reaches.",
+    "An alias or function standing in for gh carries no gh word for this static "
+    "classifier.",
 )
 
 
@@ -238,6 +248,56 @@ def _lands_default_branch(command: str) -> bool:
     return False
 
 
+def _precise_map_action(command: str) -> bool:
+    if any(
+        _arguments(command, route) is not None
+        for route in (("issue", "edit"), ("issue", "create"), ("pr", "merge"))
+    ):
+        return True
+    return any(
+        tokens[index + 1 : index + 2] == ["push"]
+        for tokens, index in tracker_publish_hook.command_tokens(command, "git")
+    )
+
+
+def _loose_push_lands_default(arguments: str) -> bool:
+    tokens = re.findall(r"[+A-Za-z0-9_./:-]+", arguments)
+    if "--delete" in arguments or re.search(r"(?:\A|\s)-d(?:\s|\Z)", arguments):
+        return False
+    default = _default_branch_name()
+    current = _git_line(("branch", "--show-current"))
+    if any(
+        _push_target(token) == default
+        and _push_source(token) in ("HEAD", current)
+        for token in tokens
+    ):
+        return True
+    positional = [token for token in tokens if not token.startswith("-")]
+    return current == default and positional in (
+        [],
+        ["origin"],
+        ["HEAD"],
+        ["origin", "HEAD"],
+    )
+
+
+def _loose_map_action(command: str) -> bool:
+    ready_routes = (("issue", "edit"), ("issue", "create"))
+    for call in tracker_publish_hook.loose_command_calls(command, "gh", ready_routes):
+        flag = "--add-label" if call.route == ("issue", "edit") else "--label"
+        short_create = call.route == ("issue", "create") and "-l" in call.arguments
+        if READY_LABEL in call.arguments and (flag in call.arguments or short_create):
+            return True
+    if tracker_publish_hook.loose_command_calls(command, "gh", (("pr", "merge"),)):
+        return True
+    return any(
+        _loose_push_lands_default(call.arguments)
+        for call in tracker_publish_hook.loose_command_calls(
+            command, "git", (("push",),)
+        )
+    )
+
+
 def _response_text(response: object) -> str:
     return response if isinstance(response, str) else json.dumps(response, ensure_ascii=False)
 
@@ -266,10 +326,13 @@ def handle(payload: dict) -> dict:
         command = payload["tool_input"]["command"]
         if not isinstance(tool_name, str) or not isinstance(command, str):
             return {}
-        if (
+        modeled = (
             tracker_publish_hook.COMMAND_TOOLS.get(tool_name)
-            != tracker_publish_hook.MODELED_SHELL
-        ):
+            == tracker_publish_hook.MODELED_SHELL
+        )
+        if not modeled:
+            if not _loose_map_action(command):
+                return {}
             return _specific(
                 "Implementation-map work was not derived from the completed "
                 f"{tool_name} command because it carries an unmodeled shell; "
@@ -292,6 +355,11 @@ def handle(payload: dict) -> dict:
                     f"This merge lands {names}. Record each ADR's implementation-map "
                     "review now with apply-delta."
                 )
+        if not _precise_map_action(command) and _loose_map_action(command):
+            return _specific(
+                "Implementation-map work was not derived from the completed "
+                f"{tool_name} command; inspect the completed command by hand."
+            )
     except (KeyError, TypeError, ValueError):
         return {}
     return {}
