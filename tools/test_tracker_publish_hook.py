@@ -1726,6 +1726,17 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
         self.assertEqual(specific["permissionDecision"], "deny")
         self.assertIn("unreproduced publication", specific["additionalContext"])
 
+    def test_a_read_only_precise_api_call_does_not_hide_a_later_api_publish(self) -> None:
+        command = (
+            "gh api graphql -f query='{viewer{login}}' && "
+            "gh api repos/o/r/issues/6 -f body=x"
+        )
+
+        specific = hook.handle(self.payload(command))["hookSpecificOutput"]
+
+        self.assertEqual(specific["permissionDecision"], "deny")
+        self.assertIn("unreproduced publication", specific["additionalContext"])
+
     def test_loose_controls_that_do_not_publish_are_untouched(self) -> None:
         commands = (
             "gh api graphql -f query='{viewer{login}}'",

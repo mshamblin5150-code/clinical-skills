@@ -752,15 +752,12 @@ def _unreproduced_publish_route(command: str) -> tuple[str, ...] | None:
     calls = list(loose_publish_calls(command))
     publish = _publish_tokens(command)
     if publish is not None:
-        extracted = extract(command)
-        precise_is_publication = (
-            extracted.route in (("api",), ("issue", "create"))
-            or bool(extracted.publications)
-            or bool(extracted.unreadable)
-        )
-        if precise_is_publication:
+        tokens, start = publish
+        precise_calls = loose_publish_calls(" ".join(tokens[start:]))
+        if precise_calls:
+            precise = precise_calls[0].route
             for index, call in enumerate(calls):
-                if call.route == extracted.route:
+                if call.route == precise:
                     del calls[index]
                     break
     return calls[0].route if calls else None
