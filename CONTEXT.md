@@ -789,6 +789,10 @@ _Avoid_: soft gate, degraded gate, best-effort gate
 The members of a population a grader counted by a looser route than its read and did not read: a form written beside forms it recognizes, which its rows never grade. Printed on every run, and a nonzero one means the run was not scanned unless a finding already fails it. Distinct from a **declared limit**, which names the forms even the looser count cannot see; and from a replaced byte, which leaves its member read.
 _Avoid_: skipped count, miss count, unparsed lines, coverage gap
 
+**Declared absence**:
+A member of a read that the reader stated, before reading, may come back as not existing, named by the exact place it would sit and the one kind of complaint that means *does not exist*. A read whose every complaint is a declared absence is complete; any other complaint makes the read not scanned, however much else it returned. Distinct from a **Declared no-binding**, which is an authored statement about a message rather than a read's expectation about a member; and from **Stated evidence absence**, which is a claim about a source.
+_Avoid_: tolerated error, allowed error, expected failure, partial success
+
 ### Checks
 
 **Prose bind**:
