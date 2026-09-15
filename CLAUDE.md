@@ -2579,9 +2579,11 @@ unconditionally on every commit.
 python tools/scratch_census.py
 ```
 
-**It counts unaccounted top-level entries across every registered checkout that owns a scratch root.**
-The owning checkout is compared with its grandfathered integer baseline, the committing checkout
-with its zero ratchet, and every peer checkout reports and is never graded.
+**It counts unaccounted top-level entries in the two gating roots and counts files under every peer
+scratch root.** The owning checkout is compared with its grandfathered integer baseline, the
+committing checkout with its zero ratchet, and every peer checkout reports its filesystem-only
+state and is never graded. The accounted-name vocabulary is applied to neither peer admission nor
+peer output.
 `scratch_census.OWNING_BASELINE` is the baseline and `STANDING_ARTIFACTS` is the derived floor of
 documented entries; neither is restated here.
 

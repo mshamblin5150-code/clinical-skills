@@ -178,28 +178,66 @@ class ScratchCensusCommandTests(ScratchRepository):
         )
         self.assertIn(
             f"REPORT ONLY: {other / 'scratch'}: "
-            "1 file, 0 unaccounted; never graded",
+            "1 file; never graded",
             finished.stdout,
         )
         self.assertIn("CLEAN", finished.stdout)
 
-    def test_a_peer_loose_entry_reports_without_grading_the_commit(self) -> None:
+    def test_a_peer_uncited_empty_directory_is_empty_and_prints_no_ordinary_line(
+        self,
+    ) -> None:
         self.assertIn(census.ABANDONED_WORKTREE_LIMIT, census.DECLARED_LIMITS)
         other = self.add_worktree()
         (other / "scratch").mkdir()
         private_name = "do-not-print-this-name"
         (other / "scratch" / private_name).mkdir()
 
+        ordinary = self.run_census()
+        measured = self.run_census("--worktrees")
+
+        self.assertEqual(ordinary.returncode, 0, ordinary.stderr)
+        self.assertEqual(measured.returncode, 0, measured.stderr)
+        self.assertIn(
+            "REPORT ONLY: 1 peer roots; 0 no root, 1 empty, "
+            "0 carrying material, 0 unreadable, 0 stale",
+            ordinary.stdout,
+        )
+        self.assertNotIn(f"REPORT ONLY: {other / 'scratch'}:", ordinary.stdout)
+        self.assertIn(
+            f"REPORT ONLY: {other / 'scratch'}: 0 files; never graded",
+            measured.stdout,
+        )
+        peer_lines = "\n".join(
+            line
+            for line in measured.stdout.splitlines()
+            if line.startswith("REPORT ONLY:")
+        )
+        self.assertNotIn("unaccounted", peer_lines)
+        self.assertNotIn("FINDING", ordinary.stdout + measured.stdout)
+        self.assertNotIn(
+            private_name,
+            ordinary.stdout + ordinary.stderr + measured.stdout + measured.stderr,
+        )
+
+    def test_a_directory_symbolic_link_under_a_peer_root_counts_as_no_file(
+        self,
+    ) -> None:
+        self.assertIn(census.PEER_DIRECTORY_LINK_LIMIT, census.DECLARED_LIMITS)
+        other = self.add_worktree()
+        scratch = other / "scratch"
+        scratch.mkdir()
+        target = other.parent / "link-target"
+        target.mkdir()
+        (target / "material.txt").touch()
+        try:
+            (scratch / "linked-directory").symlink_to(target, target_is_directory=True)
+        except OSError as error:
+            self.skipTest(f"directory links unavailable: {error}")
+
         finished = self.run_census()
 
         self.assertEqual(finished.returncode, 0, finished.stderr)
-        self.assertIn(
-            f"REPORT ONLY: {other / 'scratch'}: "
-            "0 files, 1 unaccounted; never graded",
-            finished.stdout,
-        )
-        self.assertNotIn("FINDING", finished.stdout)
-        self.assertNotIn(private_name, finished.stdout + finished.stderr)
+        self.assertNotIn(f"REPORT ONLY: {other / 'scratch'}:", finished.stdout)
 
     def test_the_owning_checkout_refuses_only_above_its_ceiling(self) -> None:
         private_name = "another-private-name"
@@ -473,16 +511,18 @@ class ScratchCensusCommandTests(ScratchRepository):
         owning = self.root
         unreadable = owning.parent / "unreadable-peer"
 
-        def count(
+        def count_gating(
             root: Path, _accounted: frozenset[str]
         ) -> census.RootCount:
-            if root == unreadable:
-                raise OSError("cannot read peer")
             return census.RootCount(
                 root,
                 census.OWNING_BASELINE,
                 census.OWNING_BASELINE,
             )
+
+        def count_peer(root: Path) -> census.PeerRootCount:
+            self.assertEqual(root, unreadable)
+            raise OSError("cannot read peer")
 
         output = io.StringIO()
         with (
@@ -496,7 +536,8 @@ class ScratchCensusCommandTests(ScratchRepository):
             mock.patch.object(
                 census, "accounted_names", return_value=frozenset()
             ),
-            mock.patch.object(census, "count_root", side_effect=count),
+            mock.patch.object(census, "count_root", side_effect=count_gating),
+            mock.patch.object(census, "count_peer_root", side_effect=count_peer),
             redirect_stdout(output),
         ):
             status = census.main([])
@@ -511,6 +552,65 @@ class ScratchCensusCommandTests(ScratchRepository):
             f"REPORT ONLY: {unreadable / 'scratch'}: unreadable; never graded",
             output.getvalue(),
         )
+
+    def test_an_inaccessible_peer_scratch_root_is_unreadable_on_every_path(
+        self,
+    ) -> None:
+        other = self.add_worktree()
+        scratch = other / "scratch"
+        scratch.mkdir()
+        original_stat = census.Path.stat
+
+        def stat(path: Path, *args: object, **kwargs: object) -> object:
+            if path == scratch:
+                raise PermissionError("forced inaccessible peer scratch root")
+            return original_stat(path, *args, **kwargs)
+
+        for accounted_failure in (False, True):
+            for arguments in ([], ["--worktrees"]):
+                with self.subTest(
+                    accounted_failure=accounted_failure,
+                    arguments=arguments,
+                ):
+                    output = io.StringIO()
+                    error = io.StringIO()
+                    account = (
+                        mock.patch.object(
+                            census,
+                            "accounted_names",
+                            side_effect=census.CensusNotRun("forced grep failure"),
+                        )
+                        if accounted_failure
+                        else mock.patch.object(
+                            census,
+                            "accounted_names",
+                            return_value=frozenset(),
+                        )
+                    )
+                    with (
+                        mock.patch.object(census.Path, "cwd", return_value=self.root),
+                        mock.patch.object(
+                            census.Path,
+                            "stat",
+                            autospec=True,
+                            side_effect=stat,
+                        ),
+                        account,
+                        redirect_stdout(output),
+                        redirect_stderr(error),
+                    ):
+                        status = census.main(arguments)
+
+                    self.assertEqual(status, 2 if accounted_failure else 0)
+                    self.assertIn(
+                        "REPORT ONLY: 1 peer roots; 0 no root, 0 empty, "
+                        "0 carrying material, 1 unreadable, 0 stale, 0 locked",
+                        output.getvalue(),
+                    )
+                    self.assertIn(
+                        f"REPORT ONLY: {scratch}: unreadable; never graded",
+                        output.getvalue(),
+                    )
 
     def test_scope_and_peer_lines_precede_gating_verdict_and_remedy(self) -> None:
         peer = self.add_worktree()
@@ -557,6 +657,11 @@ class ScratchCensusCommandTests(ScratchRepository):
             f"PRE-REMOVAL: {other}: scratch 0 files; output 0 files; "
             "0 untracked files; 0 tracked changes; "
             "0 commits not on origin/main; unlocked",
+            measured.stdout,
+        )
+        self.assertIn(
+            f"REPORT ONLY: {other / 'scratch'}: "
+            "0 files; never graded",
             measured.stdout,
         )
         self.assertNotIn("worktree state:", measured.stdout)
@@ -757,7 +862,17 @@ class AccountedSetTests(unittest.TestCase):
         stale = root / "stale"
         roots = (root, committing, material, empty, absent, unreadable, stale)
 
-        def count(path: Path, _accounted: frozenset[str]) -> census.RootCount | None:
+        gating_roots = {root, committing}
+
+        def count_gating(
+            path: Path, _accounted: frozenset[str]
+        ) -> census.RootCount:
+            self.assertIn(path, gating_roots)
+            unaccounted = census.OWNING_BASELINE if path == root else 0
+            return census.RootCount(path, unaccounted, unaccounted)
+
+        def count_peer(path: Path) -> census.PeerRootCount | None:
+            self.assertNotIn(path, gating_roots)
             if path == absent:
                 return None
             if path == unreadable:
@@ -765,9 +880,16 @@ class AccountedSetTests(unittest.TestCase):
             if path == stale:
                 raise FileNotFoundError(path)
             files = 1 if path == material else 0
-            return census.RootCount(path, 99, files)
+            return census.PeerRootCount(path, files)
 
-        def run(arguments: list[str]) -> tuple[int, str, str]:
+        def run(
+            arguments: list[str], *, accounted_failure: bool
+        ) -> tuple[int, str, str]:
+            def account(_checkout: Path) -> frozenset[str]:
+                if accounted_failure:
+                    raise census.CensusNotRun("forced grep failure")
+                return frozenset({"sessions"})
+
             output = io.StringIO()
             error = io.StringIO()
             with (
@@ -783,48 +905,77 @@ class AccountedSetTests(unittest.TestCase):
                 mock.patch.object(
                     census,
                     "accounted_names",
-                    side_effect=census.CensusNotRun("forced grep failure"),
+                    side_effect=account,
                 ),
-                mock.patch.object(census, "count_root", side_effect=count),
+                mock.patch.object(census, "count_root", side_effect=count_gating),
+                mock.patch.object(census, "count_peer_root", side_effect=count_peer),
                 redirect_stdout(output),
                 redirect_stderr(error),
             ):
                 status = census.main(arguments)
             return status, output.getvalue(), error.getvalue()
 
-        status, ordinary, error = run([])
-        measured_status, measured, measured_error = run(["--worktrees"])
+        success_status, success_ordinary, success_error = run(
+            [], accounted_failure=False
+        )
+        failure_status, failure_ordinary, failure_error = run(
+            [], accounted_failure=True
+        )
+        success_measured_status, success_measured, success_measured_error = run(
+            ["--worktrees"], accounted_failure=False
+        )
+        failure_measured_status, failure_measured, failure_measured_error = run(
+            ["--worktrees"], accounted_failure=True
+        )
 
-        self.assertEqual((status, measured_status), (2, 2))
-        self.assertIn("forced grep failure", error)
-        self.assertIn("forced grep failure", measured_error)
+        self.assertEqual(
+            (
+                success_status,
+                failure_status,
+                success_measured_status,
+                failure_measured_status,
+            ),
+            (0, 2, 0, 2),
+        )
+        self.assertEqual(success_error + success_measured_error, "")
+        self.assertIn("forced grep failure", failure_error)
+        self.assertIn("forced grep failure", failure_measured_error)
+        outputs = (
+            success_ordinary,
+            failure_ordinary,
+            success_measured,
+            failure_measured,
+        )
+        ordinary_outputs = (success_ordinary, failure_ordinary)
+        measured_outputs = (success_measured, failure_measured)
+        for output in outputs:
+            peer_lines = "\n".join(
+                line for line in output.splitlines() if line.startswith("REPORT ONLY:")
+            )
+            self.assertNotIn("unaccounted", peer_lines)
         self.assertIn(
             "REPORT ONLY: 5 peer roots; 1 no root, 1 empty, "
             "1 carrying material, 1 unreadable, 1 stale, 0 locked",
-            ordinary,
+            success_ordinary,
         )
-        self.assertIn(
-            f"REPORT ONLY: {material / 'scratch'}: "
-            "1 file; unaccounted not scanned; never graded",
-            ordinary,
+        material_line = f"REPORT ONLY: {material / 'scratch'}: 1 file; never graded"
+        unreadable_line = (
+            f"REPORT ONLY: {unreadable / 'scratch'}: unreadable; never graded"
         )
-        self.assertIn(
-            f"REPORT ONLY: {unreadable / 'scratch'}: unreadable; never graded",
-            ordinary,
-        )
-        self.assertNotIn(f"REPORT ONLY: {empty / 'scratch'}:", ordinary)
-        self.assertIn(f"GATING: {root / 'scratch'}:", ordinary)
-        self.assertIn(f"GATING: {committing / 'scratch'}:", ordinary)
-        self.assertIn(
-            f"REPORT ONLY: {empty / 'scratch'}: "
-            "0 files; unaccounted not scanned; never graded",
-            measured,
-        )
-        self.assertNotIn("99 unaccounted", ordinary + measured)
-        self.assertNotIn("REMEDY: run git worktree prune", ordinary)
-        self.assertIn("REMEDY: run git worktree prune", measured)
-        self.assertIn("pruning cannot be undone", measured)
-        self.assertIn("git worktree lock <path>", measured)
+        empty_line = f"REPORT ONLY: {empty / 'scratch'}: 0 files; never graded"
+        for output in outputs:
+            self.assertIn(material_line, output)
+        for output in ordinary_outputs:
+            self.assertIn(unreadable_line, output)
+            self.assertNotIn(f"REPORT ONLY: {empty / 'scratch'}:", output)
+            self.assertIn(f"GATING: {root / 'scratch'}:", output)
+            self.assertIn(f"GATING: {committing / 'scratch'}:", output)
+            self.assertNotIn("REMEDY: run git worktree prune", output)
+        for output in measured_outputs:
+            self.assertIn(empty_line, output)
+            self.assertIn("REMEDY: run git worktree prune", output)
+            self.assertIn("pruning cannot be undone", output)
+            self.assertIn("git worktree lock <path>", output)
 
     def test_exit_2_prose_points_to_the_owned_object_without_copying_limbs(
         self,
