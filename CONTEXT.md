@@ -843,6 +843,10 @@ _Avoid_: verification, second opinion, double-check, independence
 The clinician's own logged-in browser session, used as an access path by a fan-out agent. It is one particular path, not a property of a pass: it reaches subscription-gated sources this account pays for, and it is distinct from an anonymous fetch, which reaches a login wall and can return 200 from the form, and from the in-app browser pane, which is a separate unauthenticated surface. Distinct from a **second route**, which is a comparison between two passes' paths — an authenticated route is a thing one pass may take, and taking it establishes nothing about independence.
 _Avoid_: browser access, logged-in fetch, subscription access, real session
 
+**Owned tab**:
+A browser tab one context opened for itself, or that the clinician handed that context in chat, and the only tab that context may act on or must close. It applies to every browser surface agents share, signed-in or not: every context in a session reaches the same tabs, so a tab another context opened is not owned merely because it is reachable, and a tab in the clinician's own window was never an agent's to reach. Distinct from an **authenticated route**, which is the session a tab reaches: every owned tab in the group reaches the same session, and ownership is what separates them.
+_Avoid_: the clinician's tab, the current tab, the active tab, the live tab
+
 **Relative link**:
 A path in a tracked Markdown file naming another tracked file or directory, distinct from a **citation**, which is tracker text. It resolves against the linking file's directory and is checked by exact-case membership in the Git index after any anchor fragment is dropped.
 _Avoid_: citation, URL, cross-reference
