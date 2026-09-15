@@ -281,11 +281,16 @@ class Unreadable(NamedTuple):
     reconstructed_path: str | None = None
 
 
+class UnclassifiedApiCall(NamedTuple):
+    kind: str
+    endpoint: str
+
+
 class Extraction(NamedTuple):
     route: tuple[str, ...] | None
     number: int | None
     publications: tuple[Publication, ...]
-    unreadable: tuple[Unreadable, ...]
+    unreadable: tuple[Unreadable | UnclassifiedApiCall, ...]
     grade_route: tuple[str, ...] | None = None
 
 
@@ -1057,7 +1062,7 @@ def _api_identifier(identifier: str, command: str) -> str | None:
 
 def _api_route_match(
     endpoint: str, command: str
-) -> tuple[tuple[str, ...], str] | Unreadable | None:
+) -> tuple[tuple[str, ...], str] | UnclassifiedApiCall | None:
     for pattern, route in API_ROUTE_PATTERNS:
         match = pattern.fullmatch(endpoint)
         if match is None:
@@ -1065,14 +1070,14 @@ def _api_route_match(
         identifier = match.group("identifier")
         expanded = _api_identifier(identifier, command)
         if expanded is None:
-            return Unreadable("body", "unclassified-api-identifier", endpoint)
+            return UnclassifiedApiCall("unclassified-api-identifier", endpoint)
         return route, expanded
     return None
 
 
 def _api_grade_route(
     arguments: list[str], command: str = ""
-) -> tuple[str, ...] | Unreadable | None:
+) -> tuple[str, ...] | Unreadable | UnclassifiedApiCall | None:
     if _api_method(arguments) == "GET":
         return None
     endpoint = _api_endpoint(arguments)
@@ -1083,7 +1088,7 @@ def _api_grade_route(
         if match is None:
             continue
         if _api_identifier(match.group("identifier"), command) is None:
-            return Unreadable("body", "unclassified-api-identifier", endpoint)
+            return UnclassifiedApiCall("unclassified-api-identifier", endpoint)
         return None
     if endpoint == "graphql":
         document = _api_graphql_field(arguments, command, "query")
@@ -1097,11 +1102,9 @@ def _api_grade_route(
             if operation == "query":
                 return None
             if operation == "mutation":
-                return Unreadable(
-                    "body", "unclassified-api-mutation", "graphql"
-                )
+                return UnclassifiedApiCall("unclassified-api-mutation", "graphql")
     route_match = _api_route_match(endpoint, command)
-    if isinstance(route_match, Unreadable):
+    if isinstance(route_match, UnclassifiedApiCall):
         return route_match
     if route_match is not None:
         return route_match[0]
@@ -1113,7 +1116,7 @@ def _api_grade_route(
         r"/?repos/[^/?]+/[^/?]+/issues(?:\?.*)?\Z", endpoint
     ):
         return ("issue", "create")
-    return Unreadable("body", "unclassified-api-endpoint", endpoint)
+    return UnclassifiedApiCall("unclassified-api-endpoint", endpoint)
 
 
 def _record_number(
@@ -1121,7 +1124,7 @@ def _record_number(
 ) -> int | None:
     if route == ("api",):
         route_match = _api_route_match(_api_endpoint(arguments), command)
-        if route_match is None or isinstance(route_match, Unreadable):
+        if route_match is None or isinstance(route_match, UnclassifiedApiCall):
             return None
         identifier = route_match[1]
         return (
@@ -1229,7 +1232,7 @@ def extract(command: str) -> Extraction:
     api_grade = (
         _api_grade_route(arguments, command) if route == ("api",) else route
     )
-    if isinstance(api_grade, Unreadable):
+    if isinstance(api_grade, (Unreadable, UnclassifiedApiCall)):
         return Extraction(route, number, (), (api_grade,), None)
     grade_route = api_grade
     if route == ("api",) and grade_route is None:
@@ -1842,6 +1845,8 @@ UNREADABLE_REMEDIES = {
         "supply the flag value, save the exact publication command, and run "
         "`python tools/tracker_publish_hook.py --command-file <path>` before retrying"
     ),
+}
+UNCLASSIFIED_API_REMEDIES = {
     "unclassified-api-mutation": (
         "a GraphQL mutation is an unclassified API call; publish through `gh issue` "
         "or `gh pr`, or use a named REST `/issues` or `/pulls` endpoint"
@@ -1871,6 +1876,12 @@ def unreadable_remedy(row: Unreadable) -> str:
 def _unreadable_report(extracted: Extraction) -> str:
     lines = []
     for row in extracted.unreadable:
+        if isinstance(row, UnclassifiedApiCall):
+            lines.append(
+                "tracker pre-publish: NOT SCANNED -- unclassified API call "
+                f"({row.kind}); {UNCLASSIFIED_API_REMEDIES[row.kind]}"
+            )
+            continue
         reconstructed = row.reconstructed_path or row.source
         if row.resolved_against is not None:
             resolved_against = row.resolved_against

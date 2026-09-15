@@ -1947,6 +1947,11 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
                 self.assertIn("NOT SCANNED", specific["additionalContext"])
                 self.assertIn("route table", specific["additionalContext"])
                 self.assertIn("non-publication list", specific["additionalContext"])
+                self.assertIn(
+                    "unclassified API call", specific["additionalContext"]
+                )
+                self.assertNotIn("unreadable body", specific["additionalContext"])
+                self.assertNotIn("resolved against", specific["additionalContext"])
 
     def test_unassigned_api_record_identifier_is_unclassified(self) -> None:
         command = (
