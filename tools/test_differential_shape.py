@@ -34,6 +34,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 SKILL = REPO_ROOT / "skills" / "clinical-note" / "SKILL.md"
 SOAP = REPO_ROOT / "skills" / "clinical-note" / "SOAP.md"
 HP = REPO_ROOT / "skills" / "clinical-note" / "HP.md"
+BATCH_SHIFT = REPO_ROOT / "skills" / "batch-shift" / "SKILL.md"
 DAY_B = REPO_ROOT / "fixtures" / "day-b" / "assertions.md"
 
 
@@ -308,12 +309,35 @@ class BothTemplatesRenderTheRule(unittest.TestCase):
         for path in (SOAP, HP):
             self.assertIn("issues/70", path.read_text(encoding="utf-8"))
 
-    def test_both_templates_emit_a_separated_proposed_coding_worksheet(self):
+    def test_both_templates_emit_a_terse_proposed_coding_worksheet(self):
         for path in (SOAP, HP):
             text = path.read_text(encoding="utf-8")
-            self.assertIn("Proposed coding worksheet — verify before entry", text)
-            self.assertIn("E/M supporting elements", text)
-            self.assertIn("CPT and HCPCS", text)
+            template = text.split("```", 2)[1]
+            worksheet = template.split("Proposed coding worksheet", 1)[1]
+            self.assertIn("E/M:", worksheet)
+            self.assertIn("CPT:", worksheet)
+            self.assertIn("HCPCS:", worksheet)
+            self.assertNotIn("verify before entry", worksheet.lower())
+            for commentary in ("anchor", "specificity", "confidence", "service-date"):
+                self.assertNotIn(commentary, worksheet.lower())
+
+    def test_both_templates_carry_the_clinicians_normal_exam_language(self):
+        expected = (
+            "Cardiovascular: Regular rate and rhythm; no murmurs, gallops, or friction rubs; "
+            "radial pulses 2+ bilaterally; posterior tibial pulses 2+ bilaterally\n"
+            "Respiratory: Clear to auscultation bilaterally\n"
+            "GI: Bowel sounds are positive in all quadrants; no tenderness, guarding, masses, or "
+            "organomegaly noted\n"
+            "Neurologic: Alert and oriented x 4"
+        )
+        for path in (SOAP, HP):
+            template = path.read_text(encoding="utf-8").split("```", 2)[1]
+            self.assertIn(expected, template)
+
+    def test_both_templates_make_started_cetirizine_daily(self):
+        for path in (SOAP, HP):
+            text = path.read_text(encoding="utf-8")
+            self.assertIn("cetirizine 10 mg PO daily, ongoing", text)
 
 
 class TheSkillCarriesTheCodingWorksheetRule(unittest.TestCase):
@@ -323,21 +347,29 @@ class TheSkillCarriesTheCodingWorksheetRule(unittest.TestCase):
     def test_the_worksheet_is_separated_from_the_note_and_medatrax(self):
         self.assertIn("### A separated coding worksheet follows every note", self.text)
         self.assertIn("outside the clinical note body and outside the Medatrax field block", self.text)
+        self.assertIn("`Proposed coding worksheet`", self.text)
+        self.assertNotIn("verify before entry", self.text.lower())
 
     def test_the_worksheet_routes_through_the_coding_skill(self):
         self.assertIn("Run [icd10-cpt](../icd10-cpt/SKILL.md)", self.text)
         self.assertIn("service date", self.text)
 
-    def test_the_em_level_is_not_presented_as_verified_by_the_database(self):
+    def test_the_em_level_is_selected_before_the_terse_worksheet_is_rendered(self):
         self.assertIn("The procedure database does not select an E/M level", self.text)
-        self.assertIn("clinician assigns the final E/M level", self.text)
+        self.assertIn("Those checks stay in the private reasoning", self.text)
 
     def test_row_34_names_the_complete_coding_surface(self):
         row = _row(self.text, 34)
-        self.assertIn("E/M supporting elements", row)
-        self.assertIn("supported CPT and HCPCS", row)
-        self.assertIn("official descriptor", row)
-        self.assertIn("procedure-code database", row)
+        self.assertIn("one terse `E/M:` line", row)
+        self.assertIn("`CPT:` and `HCPCS:` lines", row)
+        self.assertIn("no anchor, specificity, confidence", row)
+
+
+class TheShiftDocumentKeepsBodyListsAtNormalWeight(unittest.TestCase):
+    def test_batch_shift_reserves_bold_for_headings_and_field_labels(self):
+        text = BATCH_SHIFT.read_text(encoding="utf-8")
+        self.assertIn("Numbered body entries remain regular weight", text)
+        self.assertIn("Only headings and field labels are bold", text)
 
 
 class TheFixtureRowSaysWhatItCounts(unittest.TestCase):

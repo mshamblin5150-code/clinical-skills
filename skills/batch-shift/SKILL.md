@@ -240,6 +240,8 @@ It is offered rather than produced because of what step 6 just printed. The FILL
 
 Head it with the constants step 6 already states once — course, date, preceptor, site — then the notes, numbered, in source order, one per page.
 
+**Only headings and field labels are bold. Numbered body entries remain regular weight**, including consecutive differential, diagnosis, MDM, plan, and coding entries. A numbered line is content rather than a heading; the Word exporter must not turn a sequence of them bold merely because each begins with a digit.
+
 What stays out, and this is the whole point of the step:
 
 | Kept out | Because |

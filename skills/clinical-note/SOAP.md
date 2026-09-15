@@ -39,6 +39,10 @@ O:
 VS: BP, HR, T, RR, SpO2, Ht, Wt ∴ BMI
 Gen: <appearance, work of breathing>
 <then each system examined; state normal for the ones filled>
+Cardiovascular: Regular rate and rhythm; no murmurs, gallops, or friction rubs; radial pulses 2+ bilaterally; posterior tibial pulses 2+ bilaterally
+Respiratory: Clear to auscultation bilaterally
+GI: Bowel sounds are positive in all quadrants; no tenderness, guarding, masses, or organomegaly noted
+Neurologic: Alert and oriented x 4
 Labs/Tests today: <given results; given orders carrying no result, marked as ordered;
                   treatments administered in clinic>
 
@@ -61,9 +65,10 @@ Pharm:
 Education: <technique, precautions, what was reviewed>
 Follow up: <interval, and what would bring them back sooner>
 
-Proposed coding worksheet — verify before entry
-E/M supporting elements: <problems addressed; data reviewed or analyzed; management risk; clinician assigns the final level>
-CPT and HCPCS: <each supported documented service or supply, with official descriptor, verbatim anchor, specificity, provenance when filled, and service-date confidence>
+Proposed coding worksheet
+E/M: <code - short descriptor>
+CPT: <code - short descriptor; one line per supported procedure, or None>
+HCPCS: <code and units - short descriptor; one line per supported supply or drug, or None>
 ```
 
 ## Section notes
@@ -80,7 +85,7 @@ CPT and HCPCS: <each supported documented service or supply, with official descr
 
 **Medication completeness follows PMH coverage, not a minimum count.** In the private `FILLED·asserted` accounting, map every PMH condition to its medication, a shared medication, or no routine maintenance pharmacotherapy on the available facts. Keep that accounting out of the finished note and do not pad the list for appearance.
 
-**The proposed coding worksheet is separated from both the clinical note and the Medatrax fields.** Run [icd10-cpt](../icd10-cpt/SKILL.md) against the note plus tier block. List the E/M supporting elements and supported CPT and HCPCS entries, not unsupported possibilities. The procedure database verifies identity, descriptor, and service-date status; it does not choose the E/M level, which remains the clinician's decision under the applicable CPT instructions.
+**The proposed coding worksheet is separated from both the clinical note and the Medatrax fields.** Run [icd10-cpt](../icd10-cpt/SKILL.md) against the note plus tier block, complete its support and service-date checks privately, and render only terse `E/M:`, `CPT:`, and `HCPCS:` code-and-descriptor lines. Do not expose anchors, specificity, confidence, provenance, date-status commentary, or the selection process in the worksheet.
 
 **ROS uses one system per line.** After the last named system, write the exact global closer `All other systems reviewed and are negative.` The individual system lines remain succinct and do not use that phrase.
 
@@ -96,6 +101,8 @@ CPT and HCPCS: <each supported documented service or supply, with official descr
 **Only two of the three leave the note.** The preexisting diagnoses and the final diagnosis go on to Medatrax's `ICD-10-CM` category; the differential's codes stay on this page, because they document medical decision-making rather than record what the patient had. What that costs if it is got wrong is in [icd10-cpt](../icd10-cpt/SKILL.md), with the rule.
 
 **Generic names in the Plan.** Shorthand records brands; the note records generics — Toradol → ketorolac, Decadron → dexamethasone, Duoneb → ipratropium-albuterol, Phenergan DM → promethazine DM. Keep the dose and route exactly as given, and fill the duration where the drug has a standard course.
+
+**Started cetirizine becomes a daily ongoing medication.** Unless the shorthand supplies a different regimen, write `cetirizine 10 mg PO daily, ongoing`; do not turn a new Zyrtec instruction into a short nightly course. A clinic-administered dose does not by itself complete the outpatient pharmacologic plan when the diagnosed condition still needs treatment after discharge.
 
 **A Plan parenthetical, where there is one, is the trade name and nothing else.** `Amoxicillin-clavulanate (Augmentin) 875/125 mg PO twice daily x 10 days`. Not which parts of the sig came from the shorthand and which were supplied, not why the duration was chosen, not which ear is inflamed — that reasoning goes in the Assessment and the tier accounting goes in the tier block. The trade name is permitted here, not required; `Home meds` is the one line whose parenthetical carries something else, and what it carries is the reason for taking. The rule itself is drift row 12 in [SKILL.md](SKILL.md).
 

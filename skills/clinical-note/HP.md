@@ -69,6 +69,10 @@ BP / HR / Temp / O2 Sat / Height / Weight / BMI
 Physical Exam (pertinent to the differential)
 Use short succinct statements, do not use sentences
 <system: fragment; fragment>
+Cardiovascular: Regular rate and rhythm; no murmurs, gallops, or friction rubs; radial pulses 2+ bilaterally; posterior tibial pulses 2+ bilaterally
+Respiratory: Clear to auscultation bilaterally
+GI: Bowel sounds are positive in all quadrants; no tenderness, guarding, masses, or organomegaly noted
+Neurologic: Alert and oriented x 4
 
 Lab, x-ray, other tests
 <given results; given orders carrying no result, marked as ordered;
@@ -118,9 +122,10 @@ Discussion
 significance of any genetic or chronic condition that is not driving the acute
 illness but matters for counseling and future care>
 
-Proposed coding worksheet — verify before entry
-E/M supporting elements: <problems addressed; data reviewed or analyzed; management risk; clinician assigns the final level>
-CPT and HCPCS: <each supported documented service or supply, with official descriptor, verbatim anchor, specificity, provenance when filled, and service-date confidence>
+Proposed coding worksheet
+E/M: <code - short descriptor>
+CPT: <code - short descriptor; one line per supported procedure, or None>
+HCPCS: <code and units - short descriptor; one line per supported supply or drug, or None>
 ```
 
 ## Section notes
@@ -131,7 +136,7 @@ CPT and HCPCS: <each supported documented service or supply, with official descr
 
 **The HPI is patient history.** Its narrative advances the symptom chronology, context, prior evaluation, attempted treatment, and response. Current examination findings, current results, medication administered today, orders, referral, transfer, and disposition begin in their owning later sections and are not replayed here. Apply [SKILL.md](SKILL.md)'s *HPI is history, not a replay of the visit* ownership pass before finishing.
 
-**The proposed coding worksheet is separated from both the clinical note and the Medatrax fields.** Run [icd10-cpt](../icd10-cpt/SKILL.md) against the note plus tier block. List the E/M supporting elements and supported CPT and HCPCS entries, not unsupported possibilities. The procedure database verifies identity, descriptor, and service-date status; it does not choose the E/M level, which remains the clinician's decision under the applicable CPT instructions.
+**The proposed coding worksheet is separated from both the clinical note and the Medatrax fields.** Run [icd10-cpt](../icd10-cpt/SKILL.md) against the note plus tier block, complete its support and service-date checks privately, and render only terse `E/M:`, `CPT:`, and `HCPCS:` code-and-descriptor lines. Do not expose anchors, specificity, confidence, provenance, date-status commentary, or the selection process in the worksheet.
 
 **ROS and Physical Exam** — individual lines use fragments: `Respiratory: No wheeze; no increased work of breathing`, never `Respiratory reviewed and negative`. Write one ROS system per line, then end the ROS with the single global closer `All other systems reviewed and are negative.`
 
@@ -200,6 +205,8 @@ Medical Decision Making:
 **Screenings** is a filled list keyed to the patient's age. The rubric wants it present even when nothing was done.
 
 **Pharmacologic** carries doses. Concentration and volume are givens; the milligram equivalent is **derived** and its arithmetic goes in the tier block — in the block, never beside the drug. **A parenthetical on a Pharmacologic line, where there is one, holds the trade name and nothing else**: the tier of each part of the sig belongs in the tier block, and `Medications (with reason for taking)` is the heading where a reason lives. The rule itself is drift row 12 in [SKILL.md](SKILL.md).
+
+**Started cetirizine becomes a daily ongoing medication.** Unless the shorthand supplies a different regimen, write `cetirizine 10 mg PO daily, ongoing`; do not turn a new Zyrtec instruction into a short nightly course. A clinic-administered dose does not by itself complete the outpatient pharmacologic plan when the diagnosed condition still needs treatment after discharge.
 
 **Historical medications are complete too.** The Medications list never defers with `unavailable` or `reconcile`. Infer a compatible regimen for PMH conditions that ordinarily receive maintenance pharmacotherapy, and complete any named drug's dose, route, frequency, and ongoing status or duration. Declare every generated component in `FILLED·asserted`.
 
