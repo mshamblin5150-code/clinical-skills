@@ -184,8 +184,12 @@ A value computed from a given by a rule with exactly one right answer, such as a
 _Avoid_: calculated, inferred
 
 **Filled**:
-Content generated to satisfy the rubric where shorthand cannot supply it. Always unremarkable — normal, absent, or not reported.
+Content generated to satisfy the rubric where shorthand cannot supply it. Unremarkable unless a standing clinical rule names a constrained exception.
 _Avoid_: generated, invented, made up
+
+**Family-history assignment**:
+The filled relative-to-disease relationship used when the shorthand gives a family disease bundle without naming its relatives. The diseases remain given and no new disease is created.
+_Avoid_: fabricated family history, assumed family disease
 
 **Asserted**:
 A filled claim about the patient's past, such as a medication they already take or a condition they already carry.

@@ -88,6 +88,8 @@ Differential diagnoses with rationale:
    <Most likely because …>
 2. <diagnosis - code>
    <Less likely because …>
+3. <diagnosis - code>
+   <Less likely because …>
 
 Final diagnosis: <condition - code; condition - code where the encounter
 established more than one>
@@ -96,6 +98,7 @@ Medical Decision Making:
 1. <same diagnosis - code as differential item 1: patient-specific discriminator,
    favored or less-likely position, and resulting decision>
 2. <same diagnosis - code as differential item 2, in the same order>
+3. <same diagnosis - code as differential item 3, in the same order>
 
 Screenings appropriate for age:
 <list>
@@ -124,7 +127,7 @@ illness but matters for counseling and future care>
 
 **ROS and Physical Exam** — individual lines use fragments: `Respiratory: No wheeze; no increased work of breathing`, never `Respiratory reviewed and negative`. Write one ROS system per line, then end the ROS with the single global closer `All other systems reviewed and are negative.`
 
-**Family History** is filled almost entirely. Where no family disease is supplied, phrase each line as a report of absence — `No chronic illness reported` — never as an examined finding. Where the shorthand supplies a family disease bundle without relatives, distribute every disease plausibly across the three generations under [SKILL.md](SKILL.md)'s rule and permit the same disease in more than one relative. Every multi-disease line in this section joins the last disease with `and`, never `or`.
+**Family History** is filled almost entirely. Where no family disease is supplied, phrase each line as a report of absence — `No chronic illness reported` — never as an examined finding. Where the shorthand supplies a family disease bundle without relatives, distribute every disease plausibly across the three generations under [SKILL.md](SKILL.md)'s rule and permit the same disease in more than one relative. Each relative's multi-disease list in this section joins the last disease with `and`, never `or`.
 
 **Social History is no longer that**, and it used to be governed by the same sentence. Every one of the twelve lines carries a value, **and none of them is a hedge**: `tobacco not documented this visit` is a sentence defending the note rather than reporting on the patient, which drift row 12 has forbidden since issue #28. Which value each line takes is [SKILL.md](SKILL.md)'s business under *Which way a social or allergy slot reads* — tobacco is settled by a count over the corpus and every other social line by the grounding rule — and drift row 17 checks it. Do not restate those rules here; do apply them, and declare every filled line in `FILLED·asserted` carrying its value. Issue #29.
 
@@ -143,7 +146,7 @@ illness but matters for counseling and future care>
 
 **Every final diagnosis already exists in the differential with the same code.** Add entries when the conclusion contains more than the rubric's three-item floor; never introduce a diagnosis only on the `Final diagnosis` line.
 
-**Medical Decision Making is required on every H&P.** Number it one-for-one with the differential and keep the same order. Each item repeats the differential's diagnosis-and-code pair, applies a case-specific discriminator, states why it is favored or less likely, and identifies the decision that follows into the Plan. This is the clinician's case-study MDM shape adapted to a clinical note without scholarly citations.
+**Medical Decision Making is required on every H&P.** Number it one-for-one with the differential and keep the same order. Each item repeats the differential's diagnosis-and-code pair, applies a case-specific discriminator, states why it is favored or less likely, and explains why that evidence leads to the decision carried into the Plan. This is the clinician's case-study MDM shape adapted to a clinical note without scholarly citations.
 
 **The list is numbered and ranked most likely first, and `1.` is the most-likely entry.** The rule is [SKILL.md](SKILL.md)'s under *The shape of the differential* and binds both branches; what this template decides is the rendering, and on this branch **the numbered item is two lines** — the code line the rubric's shape requires, and the rationale line beneath it. The second line is a continuation of the item that opened above it and never opens one of its own. **A diagnosis argued down inside a paragraph is a defect rather than an entry**, so three diagnoses rejected in prose are three numbered items here. The rubric asks for *"3 differential diagnoses with rationale"* and numbering them is its own instruction read plainly, not a departure from it. Drift row 23 walks it. Issue [#70](https://github.com/mshamblin5150-code/clinical-skills/issues/70).
 
