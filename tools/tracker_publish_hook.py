@@ -992,6 +992,7 @@ def _analyze_source_word(
 ) -> tuple[str | None, str | None, set[str], bool]:
     parts: list[str] = []
     unquoted_names: set[str] = set()
+    failure_kind: str | None = None
     quote: str | None = None
     index = 0
     variable = re.compile(
@@ -1030,14 +1031,19 @@ def _analyze_source_word(
             if name in assignments:
                 parts.append(assignments[name])
             elif name in substitutions:
-                return None, "command-substitution", unquoted_names, False
+                failure_kind = failure_kind or "command-substitution"
             else:
-                return None, "external-variable", unquoted_names, False
+                failure_kind = failure_kind or "external-variable"
             index = match.end()
             continue
         parts.append(character)
         index += 1
-    return "".join(parts), None, unquoted_names, False
+    return (
+        None if failure_kind is not None else "".join(parts),
+        failure_kind,
+        unquoted_names,
+        False,
+    )
 
 
 def _expand_source_word(

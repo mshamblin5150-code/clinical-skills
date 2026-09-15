@@ -549,6 +549,24 @@ class InlineTrackerTextIsRead(unittest.TestCase):
                     "unclassified-api-arguments",
                 )
 
+    def test_adjacent_variable_cannot_hide_an_injected_api_option(self) -> None:
+        commands = (
+            "A=7; B=' -f body=Injected'; "
+            "gh api repos/example/project/issues/comments/$A$B",
+            "A=7; B=' --method=POST'; gh api -X GET "
+            "repos/example/project/issues/$A $B -f body=Injected",
+        )
+
+        for command in commands:
+            with self.subTest(command=command):
+                result = hook.extract(command)
+                self.assertIsNone(result.grade_route)
+                self.assertEqual(result.publications, ())
+                self.assertEqual(
+                    result.unclassified_api_calls[0].kind,
+                    "unclassified-api-arguments",
+                )
+
     def test_nondefault_ifs_cannot_inject_api_publication_options(self) -> None:
         commands = (
             "IFS=,; ARGS='7,-f,body=Injected'; ",
