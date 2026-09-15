@@ -1066,7 +1066,160 @@ class PublishReadsItselfBack(unittest.TestCase):
         self.assertEqual(rc, 0, out)
         authorize.assert_called_once()
         self.assertEqual(authorize.call_args.args[1], "issue #596")
-        self.assertEqual(authorize.call_args.kwargs, {"issue_number": 596})
+        self.assertEqual(authorize.call_args.kwargs["issue_number"], 596)
+        self.assertEqual(authorize.call_args.kwargs["issue"]["number"], 596)
+        self.assertEqual(authorize.call_args.kwargs["issue"]["labels"], [])
+
+    def test_publish_prints_the_direct_writer_analysis_report(self):
+        tracker = FakeTracker(
+            [
+                issue(1, labels=["ready"]),
+                issue(2, labels=["ready"]),
+                map_issue(self.state, 596),
+            ],
+            blocked={2: [1]},
+        )
+        with mock.patch.object(
+            imap.tracker_publish_hook,
+            "authorize_issue_body",
+            return_value="advise: phi:ssn: 1 finding(s) in body",
+        ):
+            rc, out = run(imap.cmd_publish, tracker, args())
+
+        self.assertEqual(rc, 0, out)
+        self.assertIn("advise: phi:ssn: 1 finding(s) in body", out)
+
+    def test_publish_rereads_state_after_analysis_before_overwriting(self):
+        concurrent = state_with([
+            packet("PA", [1]),
+            packet("PB", [2]),
+            packet("PX", [9], outcome="Concurrent judgment"),
+        ], edges=[hard(1, 2)])
+        tracker = FakeTracker(
+            [
+                issue(1, labels=["ready"]),
+                issue(2, labels=["ready"]),
+                map_issue(self.state, 596),
+            ],
+            blocked={2: [1]},
+        )
+        original_hash = imap.state_hash(tracker.rows[596]["body"])
+
+        def concurrent_edit(*_args, **_kwargs):
+            tracker.rows[596]["body"] = imap.state_block(concurrent)
+            return "scanned body: 0 findings"
+
+        with mock.patch.object(
+            imap.tracker_publish_hook,
+            "authorize_issue_body",
+            side_effect=concurrent_edit,
+        ):
+            result, out = run(
+                lambda target, ns: imap.publish_body(
+                    target,
+                    596,
+                    self.state,
+                    ns,
+                    expected_state_hash=original_hash,
+                ),
+                tracker,
+                args(),
+            )
+
+        self.assertEqual(result.outcome, imap.PublishOutcome.STATE_CHANGED, out)
+        self.assertEqual(tracker.update_calls, 0)
+
+    def test_phi_shape_is_advisory_and_publication_proceeds(self):
+        synthetic_ssn = "-".join(("123", "45", "6789"))
+        state = state_with([
+            packet("PA", [1], outcome=f"Synthetic shape {synthetic_ssn} for gate test"),
+            packet("PB", [2]),
+        ], edges=[hard(1, 2)])
+        tracker = FakeTracker(
+            [
+                issue(1, labels=["ready"]),
+                issue(2, labels=["ready"]),
+                map_issue(self.state, 596),
+            ],
+            blocked={2: [1]},
+        )
+        index = imap.tracker_publish_hook.phi_scan.build_index(set(), set())
+        with (
+            mock.patch.object(
+                imap.tracker_publish_hook,
+                "current_index",
+                return_value=(index, ()),
+            ),
+            mock.patch.object(
+                imap.tracker_publish_hook,
+                "refresh_default_branch",
+                return_value=True,
+            ),
+        ):
+            result, out = run(
+                lambda target, ns: imap.publish_body(target, 596, state, ns),
+                tracker,
+                args(),
+            )
+
+        self.assertEqual(result.exit_status, 0, out)
+        self.assertEqual(tracker.update_calls, 1)
+        self.assertIn("advise: phi:ssn", out)
+
+    def test_branch_scope_refusal_preserves_the_authored_outcome(self):
+        outcome = (
+            "Authored judgment at "
+            "[an unresolved path](https://github.com/mshamblin5150-code/"
+            "clinical-skills/blob/main/not-present.md)"
+        )
+        state = state_with([
+            packet("PA", [1], outcome=outcome),
+            packet("PB", [2]),
+        ], edges=[hard(1, 2)])
+        tracker = FakeTracker(
+            [
+                issue(1, labels=["ready"]),
+                issue(2, labels=["ready"]),
+                map_issue(self.state, 596),
+            ],
+            blocked={2: [1]},
+        )
+        index = imap.tracker_publish_hook.phi_scan.build_index(set(), set())
+        with (
+            mock.patch.object(
+                imap.tracker_publish_hook,
+                "current_index",
+                return_value=(index, ()),
+            ),
+            mock.patch.object(
+                imap.tracker_publish_hook,
+                "refresh_default_branch",
+                return_value=True,
+            ),
+        ):
+            result, out = run(
+                lambda target, ns: imap.publish_body(
+                    target,
+                    596,
+                    state,
+                    ns,
+                    refused_outcomes=(outcome,),
+                ),
+                tracker,
+                args(),
+            )
+
+        self.assertEqual(result.exit_status, 1, out)
+        self.assertEqual(result.outcome, imap.PublishOutcome.BODY_REFUSED)
+        self.assertEqual(tracker.update_calls, 0)
+        self.assertIn("branch:unresolved-path", out)
+        match = re.search(r"outcome record: (.+)", out)
+        self.assertIsNotNone(match, out)
+        record_path = Path(match.group(1).strip())
+        try:
+            self.assertIn(outcome, record_path.read_text(encoding="utf-8"))
+        finally:
+            record_path.unlink(missing_ok=True)
 
     def test_publish_revalidates_and_names_an_unmapped_ready_ticket(self):
         tracker = FakeTracker(
@@ -1670,7 +1823,9 @@ class PublishReadsItselfBack(unittest.TestCase):
             )
 
         self.assertEqual(rc, 1, out)
-        self.assertEqual(tracker.get_calls, 6)
+        # Each attempt reads the candidate state, the analyzer context, and a
+        # fresh post-grade state for the overwrite guard.
+        self.assertEqual(tracker.get_calls, 9)
         self.assertEqual(tracker.head_calls, 1)
         self.assertIn("3 attempts", out)
         preserve.assert_called_once()
@@ -1745,6 +1900,26 @@ class PublishReadsItselfBack(unittest.TestCase):
             # a second init refuses: one map per repository
             with self.assertRaises(imap.MapError):
                 run(imap.cmd_init, tracker, ns)
+
+    def test_init_grades_the_title_before_creating_the_issue(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "state.json"
+            path.write_text(json.dumps(self.state), encoding="utf-8")
+            tracker = FakeTracker([
+                issue(1, labels=["ready"]),
+                issue(2, labels=["ready"]),
+            ], blocked={2: [1]})
+            ns = args(state=str(path), title="Map", label=[], adopt=None)
+            with mock.patch.object(
+                imap.tracker_publish_hook,
+                "authorize_issue_body",
+                return_value="scanned title: 0 findings",
+            ) as authorize:
+                rc, out = run(imap.cmd_init, tracker, ns)
+
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(authorize.call_args.kwargs["title"], "Map")
+        self.assertIn("scanned title: 0 findings", out)
 
     def test_init_adopt_locks_the_adopted_issue_and_compares_its_hash(self):
         original = imap.state_block(self.state)

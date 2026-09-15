@@ -20,13 +20,13 @@ same-command assignments are substituted, including where a variable names only
 the leading part of a path, and a Git Bash ``/c/...`` path is also tried in its
 Windows spelling. What is left unreadable is refused above.
 
-Every readable body is graded through ``tracker_bodies.grade``. On the command
-route, each returned row refuses as ``body:<kind>`` and carries the remedy from
-``BODY_REMEDIES``. The direct writer keeps its existing exception interface. A
-title stays outside that body grader and keeps only the C0-control and
-flanked-carriage-return predicates. What a clean run does not establish is
-owned by ``NOT_REACHED`` below rather than copied into this docstring or
-``CLAUDE.md``.
+Every readable publication is graded through ``analyze``. On the command route,
+each denying row refuses and carries its rule's remedy. The direct writer uses
+the same analysis and preserves advisory rows as report lines; its map-specific
+producer-stamp check remains on top. A title stays outside the body grader and
+keeps only the C0-control and flanked-carriage-return predicates. What a clean
+run does not establish is owned by ``NOT_REACHED`` below rather than copied into
+this docstring or ``CLAUDE.md``.
 
 **One row advises on a retired citation**: a paragraph stating the
 correct-in-place rule beside ``#436``, which rules nothing about corrections.
@@ -2460,42 +2460,82 @@ def authorize_issue_body(
     label: str,
     *,
     issue_number: int | None = None,
-) -> None:
-    """Apply the complete shared body-grade refusal for direct writers.
+    issue: TrackerRecord | dict | None = None,
+    title: str | None = None,
+) -> str:
+    """Grade a direct issue publication through the shared analyzer.
 
     Most tracker writes arrive as a shell command and enter through ``handle``.
     An in-process writer already holds the exact body, so making it reconstruct
     shell quoting would add a second, weaker extraction path. This entry point
-    feeds that body string to the same ``tracker_bodies.grade`` call instead;
-    every row in ``tracker_bodies.KINDS`` therefore refuses on both routes.
+    sends its exact fields through ``analyze`` and returns the resulting report
+    without running the command route's citation readback.
     """
-    findings = tracker_bodies.grade(
-        [tracker_bodies.Record("direct publication", label, tracker_bodies.ISSUE, body)]
-    )
-    if findings:
-        kinds = ", ".join(row.kind for row in findings)
-        raise ValueError(f"tracker body refused for {label}: {kinds}")
-    coordinate_findings = tracker_coordinates.grade(body, label)
-    if coordinate_findings:
+    if isinstance(issue, TrackerRecord):
+        context_number = issue.number
+    elif isinstance(issue, dict) and isinstance(issue.get("number"), int):
+        context_number = issue["number"]
+    else:
+        context_number = None
+    if (
+        issue_number is not None
+        and context_number is not None
+        and issue_number != context_number
+    ):
         raise ValueError(
-            f"tracker body refused for {label}: {tracker_coordinates.UNANCHORED}; "
-            f"remedy: {COORDINATE_REMEDY}"
+            f"tracker body refused for {label}: issue number and context disagree"
         )
-    measurement_findings = tracker_measurements.grade_current(body, label)
-    if measurement_findings:
-        rules = ", ".join(row.rule for row in measurement_findings)
-        raise ValueError(f"tracker body refused for {label}: {rules}")
-    if issue_number is not None:
+    publication_number = (
+        issue_number if issue_number is not None else context_number
+    )
+    if publication_number is not None:
         # Lazy import avoids the module-level cycle: implementation_map uses
         # this direct-writer gate when it publishes the same body.
         from implementation_map import MAP_ISSUE, producer_stamp_problem
 
-        if issue_number == MAP_ISSUE:
+        if publication_number == MAP_ISSUE:
             problem = producer_stamp_problem(body)
             if problem is not None:
                 raise ValueError(
                     f"tracker body refused for {label}: producer stamp: {problem}"
                 )
+    index, missing = current_index()
+    remote_fresh = refresh_default_branch()
+    route = (
+        ("issue", "edit")
+        if publication_number is not None
+        else ("issue", "create")
+    )
+    publications = [Publication("body", body)]
+    if title is not None:
+        publications.append(Publication("title", title))
+    analyses = [
+        analyze(
+            publication,
+            index=index,
+            issue=issue,
+            remote_fresh=remote_fresh,
+            route=route,
+        )
+        for publication in publications
+    ]
+    lines = []
+    if missing:
+        lines.append(
+            "PHI corpus layer incomplete: " + ", ".join(missing) + " not available"
+        )
+    lines.extend(analysis.report for analysis in analyses)
+    denied = tuple(
+        finding.rule
+        for analysis in analyses
+        for finding in analysis.findings
+        if finding.posture == "deny"
+    )
+    report = "\n".join(lines)
+    if denied:
+        rules = ", ".join(dict.fromkeys(denied))
+        raise ValueError(f"tracker body refused for {label}: {rules}\n{report}")
+    return report
 
 
 def current_index() -> tuple[phi_scan.CorpusIndex, tuple[str, ...]]:
