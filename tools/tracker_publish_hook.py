@@ -985,15 +985,29 @@ def _api_option_source_argument(
     return sources[index][len(option_prefix) :]
 
 
-def _has_unquoted_brace_expansion(source: str) -> bool:
+class _SourceCharacter(NamedTuple):
+    value: str
+    quote: str | None
+    escaped: bool
+    index: int
+
+
+def _source_characters(source: str) -> tuple[_SourceCharacter, ...]:
+    """Return shell characters with quote and escape provenance."""
+    characters: list[_SourceCharacter] = []
     quote: str | None = None
-    candidates: list[bool] = []
     index = 0
     while index < len(source):
         character = source[index]
         if character == "\\" and quote != "'" and index + 1 < len(source):
-            index += 2
-            continue
+            following = source[index + 1]
+            if quote != '"' or following in '$`"\\\r\n':
+                if following not in "\r\n":
+                    characters.append(
+                        _SourceCharacter(following, quote, True, index + 1)
+                    )
+                index += 2
+                continue
         if character in ("'", '"'):
             if quote is None:
                 quote = character
@@ -1001,97 +1015,98 @@ def _has_unquoted_brace_expansion(source: str) -> bool:
                 quote = None
             index += 1
             continue
-        if quote is None:
-            if character == "{" and (index == 0 or source[index - 1] != "$"):
-                candidates.append(False)
-            elif candidates and (
-                character == "," or source.startswith("..", index)
-            ):
-                candidates[-1] = True
-            elif character == "}" and candidates:
-                if candidates.pop():
-                    return True
+        characters.append(_SourceCharacter(character, quote, False, index))
         index += 1
-    return False
+    return tuple(characters)
 
 
-def _has_unquoted_pathname_expansion(source: str) -> bool:
-    quote: str | None = None
+def _source_fanout_kind(
+    characters: tuple[_SourceCharacter, ...],
+    assignment_tilde: bool,
+) -> str | None:
+    brace_candidates: list[bool] = []
     bracket_start: int | None = None
-    index = 0
-    while index < len(source):
-        character = source[index]
-        if character == "\\" and quote != "'" and index + 1 < len(source):
-            index += 2
+    for position, character in enumerate(characters):
+        if character.quote is not None or character.escaped:
             continue
-        if character in ("'", '"'):
-            if quote is None:
-                quote = character
-            elif quote == character:
-                quote = None
-            index += 1
-            continue
-        if quote is None:
-            if character in ("*", "?"):
-                return True
-            if character == "[":
-                bracket_start = index
-            elif character == "]" and bracket_start is not None:
-                candidate = source[bracket_start : index + 1]
+        value = character.value
+        if value == "~" and (
+            position == 0
+            or (
+                assignment_tilde
+                and characters[position - 1].quote is None
+                and not characters[position - 1].escaped
+                and characters[position - 1].value in ("=", ":")
+            )
+        ):
+            return "tilde-expansion"
+        if value == "{" and (
+            position == 0 or characters[position - 1].value != "$"
+        ):
+            brace_candidates.append(False)
+        elif brace_candidates and (
+            value == ","
+            or (
+                value == "."
+                and position + 1 < len(characters)
+                and characters[position + 1].value == "."
+                and characters[position + 1].quote is None
+                and not characters[position + 1].escaped
+            )
+        ):
+            brace_candidates[-1] = True
+        elif value == "}" and brace_candidates:
+            if brace_candidates.pop():
+                return "brace-expansion"
+        if value in ("*", "?"):
+            return "pathname-expansion"
+        if value == "[":
+            bracket_start = position
+        elif value == "]" and bracket_start is not None:
+            candidate = characters[bracket_start : position + 1]
+            if len(candidate) > 2:
+                candidate_text = "".join(item.value for item in candidate)
                 if (
-                    len(candidate) > 2
-                    and "$" not in candidate
-                    and "`" not in candidate
+                    "$" not in candidate_text
+                    and "`" not in candidate_text
                 ):
-                    return True
-                bracket_start = None
-        index += 1
-    return False
+                    return "pathname-expansion"
+            bracket_start = None
+    return None
 
 
 def _analyze_source_word(
     source: str,
     assignments: dict[str, str],
     substitutions: frozenset[str],
+    assignment_tilde: bool = False,
 ) -> tuple[str | None, str | None, set[str], bool, bool]:
-    if _has_unquoted_brace_expansion(source):
-        return None, "brace-expansion", set(), True, False
-    if _has_unquoted_pathname_expansion(source):
-        return None, "pathname-expansion", set(), True, False
-    if source.startswith("~"):
-        return None, "tilde-expansion", set(), True, False
+    characters = _source_characters(source)
+    fanout_kind = _source_fanout_kind(characters, assignment_tilde)
+    if fanout_kind is not None:
+        return None, fanout_kind, set(), True, False
     parts: list[str] = []
     unquoted_names: set[str] = set()
     failure_kind: str | None = None
     field_has_text = False
     injected_option = False
-    quote: str | None = None
-    index = 0
+    position = 0
     variable = re.compile(
         r"\$(?:\{(?P<braced>[A-Za-z_][A-Za-z0-9_]*)\}|"
         r"(?P<plain>[A-Za-z_][A-Za-z0-9_]*))"
     )
-    while index < len(source):
-        character = source[index]
-        if character in ("'", '"'):
-            if quote is None:
-                quote = character
-                index += 1
-                continue
-            if quote == character:
-                quote = None
-                index += 1
-                continue
-        if character == "\\" and quote != "'" and index + 1 < len(source):
-            following = source[index + 1]
-            if quote != '"' or following in '$`"\\\r\n':
-                if following not in "\r\n":
-                    if not field_has_text and following == "-":
-                        injected_option = True
-                    parts.append(following)
-                    field_has_text = True
-                index += 2
-                continue
+    while position < len(characters):
+        item = characters[position]
+        character = item.value
+        quote = item.quote
+        index = item.index
+        if item.escaped:
+            if not field_has_text and character == "-":
+                injected_option = True
+            parts.append(character)
+            field_has_text = True
+            position += 1
+            continue
         if quote != "'" and source.startswith("$(", index):
             return None, "command-substitution", unquoted_names, True, False
         if quote != "'" and character == "`":
@@ -1122,13 +1137,18 @@ def _analyze_source_word(
                 failure_kind = failure_kind or "command-substitution"
             else:
                 failure_kind = failure_kind or "external-variable"
-            index = match.end()
+            position += 1
+            while (
+                position < len(characters)
+                and characters[position].index < match.end()
+            ):
+                position += 1
             continue
         if not field_has_text and character == "-":
             injected_option = True
         parts.append(character)
         field_has_text = True
-        index += 1
+        position += 1
     return (
         None if failure_kind is not None else "".join(parts),
         failure_kind,
@@ -1142,9 +1162,10 @@ def _expand_source_word(
     source: str,
     assignments: dict[str, str],
     substitutions: frozenset[str],
+    assignment_tilde: bool = False,
 ) -> tuple[str | None, str | None]:
     expanded, kind, _names, _dynamic, _injected = _analyze_source_word(
-        source, assignments, substitutions
+        source, assignments, substitutions, assignment_tilde
     )
     return expanded, kind
 
@@ -1159,6 +1180,7 @@ def _api_expanded_arguments(
     endpoint = _api_endpoint(arguments)
     specialized_failures: set[int] = set()
     option_value_indices: set[int] = set()
+    separate_value_indices: set[int] = set()
     endpoint_index: int | None = None
     index = 0
     while index < len(arguments):
@@ -1171,6 +1193,8 @@ def _api_expanded_arguments(
         name, value, width = option
         value_index = index + 1 if width == 2 and value is not None else index
         option_value_indices.add(value_index)
+        if width == 2 and value is not None:
+            separate_value_indices.add(value_index)
         key = "" if value is None else value.partition("=")[0]
         if endpoint == "graphql" and (
             name == "input"
@@ -1182,9 +1206,18 @@ def _api_expanded_arguments(
     for index, (argument, source) in enumerate(
         zip(arguments, sources, strict=True)
     ):
-        expanded, kind = _expand_source_word(source, assignments, substitutions)
+        expanded, kind = _expand_source_word(
+            source,
+            assignments,
+            substitutions,
+            index in separate_value_indices,
+        )
         if kind is not None or expanded is None:
-            if index == endpoint_index or index in specialized_failures:
+            stable_endpoint = (
+                index == endpoint_index
+                and not argument.startswith(("$", "`"))
+            )
+            if stable_endpoint or index in specialized_failures:
                 expanded_arguments.append(argument)
                 continue
             remedy = (
@@ -1535,14 +1568,32 @@ def _api_dynamic_arguments(
     read_bypass: bool = False,
 ) -> UnclassifiedApiCall | None:
     assignments, substitutions, uncertain_shell_state = _publish_assignments(command)
-    for argument, source in zip(arguments, sources, strict=True):
+    separate_value_indices: set[int] = set()
+    index = 0
+    while index < len(arguments):
+        option = _api_value_option(arguments, index)
+        if option is None:
+            index += 1
+            continue
+        _name, value, width = option
+        if width == 2 and value is not None:
+            separate_value_indices.add(index + 1)
+        index += width
+    for index, (argument, source) in enumerate(
+        zip(arguments, sources, strict=True)
+    ):
         (
             expanded_source,
             source_kind,
             names,
             dynamic,
             injected_option,
-        ) = _analyze_source_word(source, assignments, substitutions)
+        ) = _analyze_source_word(
+            source,
+            assignments,
+            substitutions,
+            index in separate_value_indices,
+        )
         if dynamic:
             kind = (
                 "unclassified-api-identifier"
