@@ -59,6 +59,7 @@ import json
 import re
 import sys
 from collections import defaultdict
+from contextlib import closing
 from dataclasses import dataclass
 from functools import cache
 from pathlib import Path
@@ -490,20 +491,14 @@ def _official_descriptor(system: str, code: str) -> str | None:
     if system.upper().startswith("ICD"):
         import icd10_lookup
 
-        connection = icd10_lookup.open_database()
-        try:
+        with closing(icd10_lookup.open_database()) as connection:
             match = icd10_lookup.describe(connection, code)
             return match.long if match else None
-        finally:
-            connection.close()
     import procedure_codes_lookup
 
-    connection = procedure_codes_lookup.open_database()
-    try:
+    with closing(procedure_codes_lookup.open_database()) as connection:
         match = procedure_codes_lookup.describe(connection, code)
         return match.description if match else None
-    finally:
-        connection.close()
 
 
 def _route_tokens(value: str) -> list[str]:
@@ -527,13 +522,10 @@ def _is_subsequence(needles: list[str], haystack: list[str]) -> bool:
 def _index_route_catalog() -> dict[str, tuple[str, str | None, str | None, str | None]]:
     import icd10_lookup
 
-    connection = icd10_lookup.open_database()
-    try:
+    with closing(icd10_lookup.open_database()) as connection:
         rows = connection.execute(
             "SELECT path, code, see, see_also FROM index_entry ORDER BY path",
         ).fetchall()
-    finally:
-        connection.close()
 
     rendered: dict[str, tuple[str, str | None, str | None, str | None]] = {}
     for path, code, see, see_also in rows:
@@ -572,6 +564,13 @@ def _valid_route(subject: AgreementSubject, route: str, agreeing_words: str) -> 
         ):
             return False
     return resolved[-1][1] == normalized
+
+
+def _requires_encounter_evidence(subject: AgreementSubject) -> bool:
+    descriptor = subject.descriptor.lower()
+    return subject.role == "procedure" or bool(
+        re.search(r"\b(?:encounter for|initial encounter|subsequent encounter)\b", descriptor)
+    )
 
 
 def _preceding_support(text: str, position: int) -> str:
@@ -789,6 +788,7 @@ def _agreement_report(pairs: list[AgreementPair], findings: list[str], unread: i
     missing = sum("has no agreeing words" in finding for finding in findings)
     verbatim = sum("agreeing words are not verbatim" in finding for finding in findings)
     route = sum("has no descriptor or index route" in finding for finding in findings)
+    encounter = sum("has no encounter evidence" in finding for finding in findings)
     binds = sum(
         "bind differs" in finding or "proposed-instead" in finding for finding in findings
     )
@@ -803,6 +803,7 @@ def _agreement_report(pairs: list[AgreementPair], findings: list[str], unread: i
             f"    codes with no agreeing words      {missing}",
             f"    non-verbatim agreeing words       {verbatim}",
             f"    codes with no route               {route}",
+            f"    codes with no encounter evidence  {encounter}",
             f"    descriptors waiting on results    {waits}",
             f"    note/worksheet bind findings      {binds}",
             run_grader.format_unread_remainder(unread),
@@ -855,10 +856,12 @@ def _run_agreement(argv: list[str]) -> int:
             unread += len(pair.subjects) or 1
             continue
         record_rows = record_pair.get("codes", [])
-        records = {row.get("subject_id"): row for row in record_rows}
+        valid_rows = [row for row in record_rows if isinstance(row, dict)]
+        unread += len(record_rows) - len(valid_rows)
+        records = {row.get("subject_id"): row for row in valid_rows}
         expected = {subject.key: subject for subject in pair.subjects}
         unread += len(set(expected) - set(records)) + len(set(records) - set(expected))
-        unread += len(record_rows) - len(records)
+        unread += len(valid_rows) - len(records)
         for key in set(expected) & set(records):
             subject = expected[key]
             record = records[key]
@@ -897,6 +900,11 @@ def _run_agreement(argv: list[str]) -> int:
             if route == "none" or not _valid_route(subject, route, words):
                 if subject.role != "procedure":
                     findings.append(f"{pair.stem}: {subject.code} has no descriptor or index route")
+            if (
+                _requires_encounter_evidence(subject)
+                and record["encounter_evidence"] == "none"
+            ):
+                findings.append(f"{pair.stem}: {subject.code} has no encounter evidence")
             waits = record["waits_on_result"]
             if subject.role in {"entry", "differential"} and isinstance(waits, str) and waits != "none":
                 findings.append(f"{pair.stem}: {subject.code} entry waits on {waits}")

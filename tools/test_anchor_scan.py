@@ -800,7 +800,11 @@ class AgreementModes(unittest.TestCase):
                     "role": subject["role"],
                     "agreeing_words": words[(subject["role"], subject["code"])],
                     "route": "descriptor words",
-                    "encounter_evidence": "none",
+                    "encounter_evidence": (
+                        "performed in this encounter"
+                        if subject["role"] == "procedure"
+                        else "none"
+                    ),
                     "open_status_evidence": "none",
                     "threshold": "none",
                     "waits_on_result": "none",
@@ -943,6 +947,12 @@ class AgreementModes(unittest.TestCase):
 
         self.assertEqual(2, self.grade(record)[0])
 
+    def test_a_non_object_code_record_is_unread_instead_of_a_traceback(self):
+        record = self.clean_record()
+        record["pairs"][0]["codes"][0] = None
+
+        self.assertEqual(2, self.grade(record)[0])
+
     def test_a_differential_descriptor_waiting_on_a_result_fails(self):
         record = self.clean_record()
         row = next(
@@ -965,6 +975,17 @@ class AgreementModes(unittest.TestCase):
         status, report = self.grade(record)
         self.assertEqual(2, status)
         self.assertRegex(report, r"unread remainder 1")
+
+    def test_a_procedure_without_encounter_evidence_fails(self):
+        record = self.clean_record()
+        row = next(
+            item for item in record["pairs"][0]["codes"] if item["role"] == "procedure"
+        )
+        row["encounter_evidence"] = "none"
+
+        status, report = self.grade(record)
+        self.assertEqual(1, status)
+        self.assertRegex(report, r"codes with no encounter evidence\s+1")
 
     def test_a_final_code_absent_from_the_worksheet_fails_the_bind(self):
         (self.notes / "case-01.md").write_text(
@@ -1074,6 +1095,7 @@ class CommittedAgreementControls(unittest.TestCase):
         self.assertRegex(report, r"codes with no agreeing words\s+3")
         self.assertRegex(report, r"non-verbatim agreeing words\s+1")
         self.assertRegex(report, r"codes with no route\s+3")
+        self.assertRegex(report, r"codes with no encounter evidence\s+2")
         self.assertRegex(report, r"descriptors waiting on results\s+2")
         self.assertRegex(report, r"note/worksheet bind findings\s+4")
         self.assertRegex(report, r"unread remainder 1")
