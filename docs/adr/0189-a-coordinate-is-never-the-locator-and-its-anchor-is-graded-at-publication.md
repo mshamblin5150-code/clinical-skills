@@ -261,6 +261,11 @@ instruction, not a mode.
 request create, comment, edit and review, and the `api` route, so the hook placement picks up issue
 bodies, issue comments, pull request bodies, reviews and review comments at no extra cost.
 
+*2026-09-15: that list omitted titles. The hook has graded a title since this record's build, under
+`test_an_unanchored_coordinate_in_a_title_is_denied`, while the workflow never read one.
+[ADR 0245](0245-the-tracker-workflow-grades-the-title-that-changed-and-a-label-removal-starts-no-run.md)
+ruling 3 ratifies titles as a graded surface at both hosts.*
+
 **Commit messages are outside the walk**, and not on grounds of population size. **A commit message is
 attached to a tree and an issue comment is not.** A coordinate in a commit message resolves exactly
 and permanently — `git show <that commit>:tools/foo.py` — because the record and the tree it was

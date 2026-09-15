@@ -226,6 +226,11 @@ recorded incidents landed; rules 1 and 2 bind that surface and no gate does.
 and **not** by position. Graded forward from a cutoff, on `tracker_coordinates.ADR_CUTOFF`'s
 precedent, so the 15 existing prose declarations stay valid history and are not rewritten.
 
+*2026-09-15: record-level means a title is not a surface for the declaration. The hook graded titles
+for it by placement rather than by ruling;
+[ADR 0245](0245-the-tracker-workflow-grades-the-title-that-changed-and-a-label-removal-starts-no-run.md)
+ruling 4 gives that call a body gate and keeps the workflow body-only.*
+
 **A fixed position was available and is refused.** `tracker_filed_from` needs one because its rule is
 about preservation — whether an edit dropped the line. This one needs only to be findable, and a
 label at line start is sufficient. `docs/agents/issue-tracker.md:283` puts `**Filed from:**` first
