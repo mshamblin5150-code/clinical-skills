@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import os
 import re
+import stat
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -79,6 +80,13 @@ DELETED_COMMITTING_ROOT_LIMIT = (
     "a committing scratch root deleted rather than drained reports as one "
     "never created"
 )
+HARNESS_REMOVAL_LIMIT = (
+    "a harness can remove a worktree without running the pre-removal report"
+)
+RUNNING_SESSION_LIMIT = (
+    "a worktree the pre-removal report does not hold back may still belong "
+    "to a running session"
+)
 
 DECLARED_LIMITS = (
     OWNING_SWAP_LIMIT,
@@ -88,6 +96,8 @@ DECLARED_LIMITS = (
     SHARED_TICKET_DIRECTORY_LIMIT,
     SHARED_CHECKOUT_LIMIT,
     DELETED_COMMITTING_ROOT_LIMIT,
+    HARNESS_REMOVAL_LIMIT,
+    RUNNING_SESSION_LIMIT,
 )
 
 DELIMITED_SCRATCH_NAMES = (
@@ -112,6 +122,37 @@ class RootCount:
 
 
 @dataclass(frozen=True)
+class WorktreeRegistration:
+    root: Path
+    locked: bool
+    lock_reason_present: bool
+
+
+@dataclass(frozen=True)
+class PreRemovalRead:
+    root: Path
+    scratch_files: int
+    output_files: int
+    untracked_files: int
+    tracked_changes: int
+    commits_not_on_main: int
+    locked: bool
+
+    @property
+    def held_back(self) -> bool:
+        return any(
+            (
+                self.scratch_files,
+                self.output_files,
+                self.untracked_files,
+                self.tracked_changes,
+                self.commits_not_on_main,
+                self.locked,
+            )
+        )
+
+
+@dataclass(frozen=True)
 class PeerPopulation:
     roots: tuple[Path, ...]
     counts: tuple[RootCount, ...]
@@ -120,10 +161,11 @@ class PeerPopulation:
     material: tuple[RootCount, ...]
     unreadable: tuple[Path, ...]
     stale: tuple[Path, ...]
+    locked: tuple[WorktreeRegistration, ...]
 
 
 def peer_population(
-    roots: tuple[Path, ...],
+    registrations: tuple[WorktreeRegistration, ...],
     gating_roots: set[Path],
     counts: list[RootCount],
     absent: list[Path],
@@ -131,6 +173,8 @@ def peer_population(
     *,
     unaccounted_available: bool,
 ) -> PeerPopulation:
+    roots = tuple(item.root for item in registrations)
+    registrations_by_root = {item.root: item for item in registrations}
     peer_roots = tuple(root for root in roots if root not in gating_roots)
     peer_counts = tuple(item for item in counts if item.root not in gating_roots)
     peer_absent = tuple(root for root in absent if root not in gating_roots)
@@ -143,6 +187,11 @@ def peer_population(
         root
         for root, state in unavailable.items()
         if root not in gating_roots and state == "stale registration"
+    )
+    peer_locked = tuple(
+        registrations_by_root[root]
+        for root, state in unavailable.items()
+        if root not in gating_roots and state == "locked registration"
     )
     peer_material = tuple(
         item
@@ -161,6 +210,7 @@ def peer_population(
         material=peer_material,
         unreadable=peer_unreadable,
         stale=peer_stale,
+        locked=peer_locked,
     )
 
 
@@ -174,15 +224,19 @@ def print_peer_population(
         f"REPORT ONLY: {len(peers.roots)} peer roots; "
         f"{len(peers.absent)} no root, {len(peers.empty)} empty, "
         f"{len(peers.material)} carrying material, "
-        f"{len(peers.unreadable)} unreadable, {len(peers.stale)} stale"
+        f"{len(peers.unreadable)} unreadable, {len(peers.stale)} stale, "
+        f"{len(peers.locked)} locked"
     )
     counts_by_root = {item.root: item for item in peers.counts}
     material_roots = {item.root for item in peers.material}
     unreadable_roots = set(peers.unreadable)
+    locked_by_root = {item.root: item for item in peers.locked}
     selected_roots = peers.roots if show_all else tuple(
         root
         for root in peers.roots
-        if root in material_roots or root in unreadable_roots
+        if root in material_roots
+        or root in unreadable_roots
+        or root in locked_by_root
     )
     for root in selected_roots:
         item = counts_by_root.get(root)
@@ -196,6 +250,13 @@ def print_peer_population(
             state = "unreadable"
         elif root in peers.stale:
             state = "stale registration"
+        elif root in locked_by_root:
+            reason = (
+                "reason present"
+                if locked_by_root[root].lock_reason_present
+                else "no reason"
+            )
+            state = f"locked registration ({reason})"
         else:
             state = "absent"
         print(f"REPORT ONLY: {root / 'scratch'}: {state}; never graded")
@@ -214,18 +275,42 @@ def run_git(cwd: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
         raise CensusNotRun(str(error)) from None
 
 
-def worktree_roots(checkout: Path) -> tuple[Path, ...]:
+def worktree_registry(checkout: Path) -> tuple[WorktreeRegistration, ...]:
     finished = run_git(checkout, "worktree", "list", "--porcelain")
     if finished.returncode != 0:
         raise CensusNotRun(finished.stderr.strip() or "git worktree list failed")
-    roots = tuple(
-        Path(line.removeprefix("worktree ")).resolve()
-        for line in finished.stdout.splitlines()
-        if line.startswith("worktree ")
-    )
-    if not roots:
+    registrations: list[WorktreeRegistration] = []
+    for block in finished.stdout.strip().split("\n\n"):
+        lines = block.splitlines()
+        root_line = next(
+            (line for line in lines if line.startswith("worktree ")), None
+        )
+        if root_line is None:
+            continue
+        lock_line = next(
+            (
+                line
+                for line in lines
+                if line == "locked" or line.startswith("locked ")
+            ),
+            None,
+        )
+        registrations.append(
+            WorktreeRegistration(
+                root=Path(root_line.removeprefix("worktree ")).resolve(),
+                locked=lock_line is not None,
+                lock_reason_present=bool(
+                    lock_line and lock_line.removeprefix("locked").strip()
+                ),
+            )
+        )
+    if not registrations:
         raise CensusNotRun("git worktree list returned no worktrees")
-    return roots
+    return tuple(registrations)
+
+
+def worktree_roots(checkout: Path) -> tuple[Path, ...]:
+    return tuple(item.root for item in worktree_registry(checkout))
 
 
 def enclosing_worktree(invocation: Path, roots: tuple[Path, ...]) -> Path:
@@ -278,11 +363,16 @@ def count_files(root: Path) -> int:
 
 
 def count_root(root: Path, accounted: frozenset[str]) -> RootCount | None:
-    if not root.is_dir():
-        raise FileNotFoundError(root)
+    root_mode = root.stat().st_mode
+    if not stat.S_ISDIR(root_mode):
+        raise OSError(f"not a directory: {root}")
     scratch = root / "scratch"
-    if not scratch.exists():
+    try:
+        scratch_mode = scratch.stat().st_mode
+    except FileNotFoundError:
         return None
+    if not stat.S_ISDIR(scratch_mode):
+        raise OSError(f"not a directory: {scratch}")
     entries = tuple(scratch.iterdir())
     return RootCount(
         root=root,
@@ -291,42 +381,83 @@ def count_root(root: Path, accounted: frozenset[str]) -> RootCount | None:
     )
 
 
-def worktree_breakdown(
-    owning: Path, worktrees: tuple[Path, ...]
-) -> tuple[int, int, int]:
-    if not worktrees:
-        return 0, 0, 0
-    owning_result = run_git(owning, "rev-parse", "HEAD")
-    if owning_result.returncode != 0:
-        raise CensusNotRun(
-            owning_result.stderr.strip() or "could not measure the owning checkout"
-        )
-    owning_oid = owning_result.stdout.strip()
-    statuses: list[tuple[str, bool]] = []
-    for root in worktrees:
-        finished = run_git(root, "status", "--porcelain=v2", "--branch")
-        if finished.returncode != 0:
-            raise CensusNotRun(
-                finished.stderr.strip() or "could not measure worktree state"
-            )
-        lines = finished.stdout.splitlines()
-        oid = next(
-            (line.removeprefix("# branch.oid ") for line in lines if line.startswith("# branch.oid ")),
-            "",
-        )
-        clean = not any(not line.startswith("# ") for line in lines)
-        statuses.append((oid, clean))
+def optional_tree_file_count(path: Path) -> int:
+    try:
+        path_mode = path.stat().st_mode
+    except FileNotFoundError:
+        return 0
+    if not stat.S_ISDIR(path_mode):
+        raise OSError(f"not a directory: {path}")
+    return count_files(path)
 
-    history_result = run_git(owning, "rev-list", owning_oid)
-    if history_result.returncode != 0:
+
+def pre_removal_read(root: Path, *, locked: bool) -> PreRemovalRead:
+    status = run_git(
+        root,
+        "status",
+        "--porcelain=v2",
+        "-z",
+        "--untracked-files=all",
+    )
+    if status.returncode != 0:
+        raise CensusNotRun(status.stderr.strip() or "could not read worktree state")
+    records = status.stdout.split("\0")
+    untracked = sum(record.startswith("? ") for record in records)
+    tracked = sum(
+        record.startswith(("1 ", "2 ", "u ")) for record in records
+    )
+    history = run_git(root, "rev-list", "--count", "origin/main..HEAD")
+    if history.returncode != 0:
         raise CensusNotRun(
-            history_result.stderr.strip() or "could not measure merged worktrees"
+            history.stderr.strip() or "could not compare the worktree with origin/main"
         )
-    merged_oids = set(history_result.stdout.splitlines())
-    merged = sum(oid in merged_oids for oid, _ in statuses)
-    clean = sum(item[1] for item in statuses)
-    ahead = len(statuses) - merged
-    return merged, clean, ahead
+    try:
+        commits_not_on_main = int(history.stdout.strip())
+    except ValueError:
+        raise CensusNotRun("git rev-list returned a non-integer count") from None
+    return PreRemovalRead(
+        root=root,
+        scratch_files=optional_tree_file_count(root / "scratch"),
+        output_files=optional_tree_file_count(root / "output"),
+        untracked_files=untracked,
+        tracked_changes=tracked,
+        commits_not_on_main=commits_not_on_main,
+        locked=locked,
+    )
+
+
+def print_pre_removal_report(
+    worktrees: tuple[WorktreeRegistration, ...]
+) -> None:
+    def counted(value: int, noun: str) -> str:
+        return f"{value} {noun if value == 1 else noun + 's'}"
+
+    reads: list[PreRemovalRead] = []
+    unread: list[Path] = []
+    for registration in worktrees:
+        root = registration.root
+        try:
+            reads.append(pre_removal_read(root, locked=registration.locked))
+        except (CensusNotRun, OSError):
+            unread.append(root)
+    print(f"pre-removal: {len(reads)} worktrees read; {len(unread)} not read")
+    by_root = {item.root: item for item in reads}
+    for registration in worktrees:
+        root = registration.root
+        item = by_root.get(root)
+        if item is None:
+            print(f"PRE-REMOVAL: {root}: not read; HELD BACK")
+            continue
+        lock_state = "locked" if item.locked else "unlocked"
+        print(
+            f"PRE-REMOVAL: {root}: scratch {counted(item.scratch_files, 'file')}; "
+            f"output {counted(item.output_files, 'file')}; "
+            f"{counted(item.untracked_files, 'untracked file')}; "
+            f"{counted(item.tracked_changes, 'tracked change')}; "
+            f"{counted(item.commits_not_on_main, 'commit')} not on origin/main; "
+            f"{lock_state}"
+            + ("; HELD BACK" if item.held_back else "")
+        )
 
 
 def main(argv: list[str]) -> int:
@@ -336,7 +467,8 @@ def main(argv: list[str]) -> int:
 
     invocation = Path.cwd().resolve()
     try:
-        roots = worktree_roots(invocation)
+        registrations = worktree_registry(invocation)
+        roots = tuple(item.root for item in registrations)
         checkout = enclosing_worktree(invocation, roots)
     except CensusNotRun as error:
         print("coverage: 0 worktrees enumerated; 0 unreadable")
@@ -353,6 +485,7 @@ def main(argv: list[str]) -> int:
     counts: list[RootCount] = []
     absent: list[Path] = []
     unavailable: dict[Path, str] = {}
+    registrations_by_root = {item.root: item for item in registrations}
     for root in roots:
         try:
             counted = count_root(root, accounted)
@@ -361,9 +494,18 @@ def main(argv: list[str]) -> int:
             else:
                 absent.append(root)
         except FileNotFoundError:
-            unavailable[root] = (
-                "unreadable" if root.is_dir() else "stale registration"
-            )
+            try:
+                root.stat()
+            except FileNotFoundError:
+                unavailable[root] = (
+                    "locked registration"
+                    if registrations_by_root[root].locked
+                    else "stale registration"
+                )
+            except OSError:
+                unavailable[root] = "unreadable"
+            else:
+                unavailable[root] = "unreadable"
         except OSError:
             unavailable[root] = "unreadable"
 
@@ -394,10 +536,19 @@ def main(argv: list[str]) -> int:
         f"{sum(item.files for item in counts)} files beneath"
     )
     owning = roots[0]
+    if argv == ["--worktrees"]:
+        measured_worktrees = tuple(
+            item
+            for item in registrations
+            if item.root != owning
+            and unavailable.get(item.root)
+            not in ("stale registration", "locked registration")
+        )
+        print_pre_removal_report(measured_worktrees)
     if accounted_error is not None:
         gating_roots = {owning, checkout}
         peers = peer_population(
-            roots,
+            registrations,
             gating_roots,
             counts,
             absent,
@@ -442,7 +593,7 @@ def main(argv: list[str]) -> int:
     not_scanned = bool(gating_unavailable)
 
     peers = peer_population(
-        roots,
+        registrations,
         {owning, checkout},
         counts,
         absent,
@@ -454,14 +605,6 @@ def main(argv: list[str]) -> int:
         show_all=argv == ["--worktrees"],
         unaccounted_available=True,
     )
-    if argv == ["--worktrees"]:
-        try:
-            measured_roots = tuple(item.root for item in counts if item.root != owning)
-            merged, clean, ahead = worktree_breakdown(owning, measured_roots)
-            print(f"worktree state: {merged} merged; {clean} clean; {ahead} ahead")
-        except CensusNotRun as error:
-            print(f"worktree state: NOT SCANNED ({error})")
-
     if owning_count is not None:
         print(
             f"GATING: {owning_count.root / 'scratch'}: "
