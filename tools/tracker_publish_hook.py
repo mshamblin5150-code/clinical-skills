@@ -1413,6 +1413,12 @@ def _api_dynamic_arguments(
             return UnclassifiedApiCall(kind, argument)
         if names and expanded_source is not None and expanded_source.startswith("-"):
             return UnclassifiedApiCall("unclassified-api-arguments", argument)
+        if names and expanded_source is not None and any(
+            word.startswith("-")
+            for word in re.split(r"\s+", expanded_source)[1:]
+            if word
+        ):
+            return UnclassifiedApiCall("unclassified-api-arguments", argument)
         for name in names:
             if name not in assignments:
                 kind = (
@@ -1546,10 +1552,9 @@ def _record_number(
             expanded_endpoint, endpoint_kind = _expand_source_word(
                 endpoint_source, assignments, substitutions
             )
-            if endpoint_kind is not None or expanded_endpoint is None:
-                return None
-            endpoint = expanded_endpoint
-            reconstruct_identifier = False
+            if endpoint_kind is None and expanded_endpoint is not None:
+                endpoint = expanded_endpoint
+                reconstruct_identifier = False
         route_match = _api_route_match(
             endpoint, command, reconstruct_identifier
         )

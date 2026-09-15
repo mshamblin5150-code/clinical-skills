@@ -365,6 +365,15 @@ class InlineTrackerTextIsRead(unittest.TestCase):
         self.assertEqual(result.grade_route, ("issue", "comment"))
         self.assertEqual(result.number, 12)
 
+    def test_unrelated_endpoint_expansion_keeps_literal_record_number(self) -> None:
+        result = hook.extract(
+            'gh api -X POST "repos/example/project/issues/7/comments?foo=$X" '
+            "-f body='Comment'"
+        )
+
+        self.assertEqual(result.grade_route, ("issue", "comment"))
+        self.assertEqual(result.number, 7)
+
     def test_later_api_comment_identifier_assignment_is_not_reconstructed(self) -> None:
         result = hook.extract(
             "gh api repos/example/project/issues/comments/$CID "
@@ -576,6 +585,19 @@ class InlineTrackerTextIsRead(unittest.TestCase):
                     result.unclassified_api_calls[0].kind,
                     "unclassified-api-arguments",
                 )
+
+    def test_split_delimiter_and_option_variables_are_analyzed_together(self) -> None:
+        result = hook.extract(
+            "ID=7; SEP=' '; OPT='-X POST'; gh api -X GET "
+            "repos/example/project/issues/$ID$SEP$OPT -f body=Injected"
+        )
+
+        self.assertIsNone(result.grade_route)
+        self.assertEqual(result.publications, ())
+        self.assertEqual(
+            result.unclassified_api_calls[0].kind,
+            "unclassified-api-arguments",
+        )
 
     def test_nondefault_ifs_cannot_inject_api_publication_options(self) -> None:
         commands = (
