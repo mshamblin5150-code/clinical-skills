@@ -93,11 +93,11 @@ class ALabelAdditionBindsTheTwoPublicHosts(unittest.TestCase):
         self.assertNotIn("branch:in-flight", str(hook_result))
         self.assertIn("branch:in-flight", stdout.getvalue())
         self.assertEqual(
-            correspondence.Cell(correspondence.Posture.ABSENT),
+            correspondence.PostureCell(correspondence.Posture.ABSENT),
             row.hook_command,
         )
         self.assertEqual(
-            correspondence.Cell(
+            correspondence.PostureCell(
                 correspondence.Posture.REPORT,
                 "branch:in-flight",
             ),
@@ -146,9 +146,88 @@ class TheDeclaredRowsCoverTheDerivedRulePopulation(unittest.TestCase):
         self.assertIn("tracker_publication_correspondence.DECLARED_LIMITS", section)
         self.assertEqual((), bind(correspondence.DECLARED_LIMITS, section, mode=NAMING))
 
+    def test_each_current_pairing_surface_points_at_the_objects_and_copies_no_row(self) -> None:
+        claims = correspondence.prose_row_claims()
+        for relative in correspondence.PAIRING_PROSE:
+            with self.subTest(relative=relative):
+                text = (REPO_ROOT / relative).read_text(encoding="utf-8")
+                self.assertIn("tracker_publication_correspondence.WRITER_REACH", text)
+                self.assertIn("tracker_publication_correspondence.POSTURE_ROWS", text)
+                self.assertEqual((), bind(claims, text, mode=NAMING))
+
+    def test_every_runtime_condition_is_declared_or_checked_as_indifferent_for_each_cell(self) -> None:
+        for row in correspondence.POSTURE_ROWS:
+            for host in correspondence.Host:
+                cell = row.cell(host)
+                declared = dict(cell.conditions)
+                for condition in correspondence.RuntimeCondition:
+                    with self.subTest(row=row.predicate, host=host, condition=condition):
+                        self.assertEqual(
+                            declared.get(condition, cell.posture),
+                            cell.under(condition),
+                        )
+
+
+class EveryBehaviorWriterReachRowCrossesItsPublicSeam(unittest.TestCase):
+    def test_behavior_rows_are_the_four_driven_writer_host_pairs(self) -> None:
+        expected = {
+            (correspondence.Writer.PUBLISHER_COMMAND, correspondence.Host.HOOK_COMMAND),
+            (correspondence.Writer.MAP_SESSION, correspondence.Host.DIRECT_WRITER),
+            (correspondence.Writer.MERGE_RECEIPT, correspondence.Host.RECEIPT_PREPUBLICATION),
+            (correspondence.Writer.HOURLY_MAP_REFRESH, correspondence.Host.DIRECT_WRITER),
+        }
+        declared = {
+            (row.writer, row.host)
+            for row in correspondence.WRITER_REACH
+            if row.disposition is correspondence.EvidenceDisposition.BEHAVIOR
+        }
+        self.assertEqual(expected, declared)
+
+        index = phi_scan.build_index(set(), set())
+        with (
+            mock.patch.object(tracker_publish_hook, "current_index", return_value=(index, ())),
+            mock.patch.object(tracker_publish_hook, "refresh_default_branch", return_value=True),
+            mock.patch.object(tracker_publish_hook, "fetch_readback", return_value=fetched_record()),
+            mock.patch.object(tracker_publish_hook, "write_marker"),
+        ):
+            hook = tracker_publish_hook.handle(
+                hook_payload("gh issue comment 1149 --body 'Ordinary comment.'")
+            )
+            direct_issue = {
+                "number": 1149,
+                "body": "Ordinary body.",
+                "labels": [],
+                "url": "https://example.invalid/issues/1149",
+            }
+            map_session = tracker_publish_hook.authorize_issue_body(
+                "Ordinary body.", "map session writer", issue=direct_issue
+            )
+            hourly = tracker_publish_hook.authorize_issue_body(
+                "Ordinary body.", "hourly map refresh writer", issue=direct_issue
+            )
+        receipt_status, receipt = run_event(
+            {
+                **issue_event("created", "Ordinary body."),
+                "comment": {
+                    "body": "Ordinary comment.",
+                    "html_url": "https://example.invalid/issues/1149#comment",
+                },
+            },
+            "issue_comment",
+        )
+
+        self.assertTrue(hook)
+        self.assertIn("scanned body", map_session)
+        self.assertIn("scanned body", hourly)
+        self.assertEqual(0, receipt_status)
+        self.assertIn("Tracker PHI shape layer", receipt)
+
 
 class EveryRuledTriggerIsDrivenAtBothHostBoundaries(unittest.TestCase):
-    FILED = "**Filed from:** ticket #1149's build, 2026-09-15.\n\nOrdinary body."
+    PHI_SHAPE = "123-45-6789"
+    FILED = (
+        "**Filed from:** ticket #1149 build, 2026-09-15.\n\n" + PHI_SHAPE
+    )
     CASES = (
         (
             correspondence.Trigger.CREATE,
@@ -169,9 +248,9 @@ class EveryRuledTriggerIsDrivenAtBothHostBoundaries(unittest.TestCase):
         ),
         (
             correspondence.Trigger.BODY_EDIT,
-            "gh issue edit 1149 --body 'Ordinary body.'",
+            "gh issue edit 1149 --body '123-45-6789'",
             {
-                **issue_event("edited", "Ordinary body."),
+                **issue_event("edited", PHI_SHAPE),
                 "changes": {"body": {"from": "Old body."}},
             },
             "issues",
@@ -187,9 +266,13 @@ class EveryRuledTriggerIsDrivenAtBothHostBoundaries(unittest.TestCase):
         ),
         (
             correspondence.Trigger.TITLE_EDIT,
-            "gh issue edit 1149 --title 'A changed title'",
+            "gh issue edit 1149 --title '123-45-6789'",
             {
                 **issue_event("edited", "Ordinary body."),
+                "issue": {
+                    **issue_event("edited", "Ordinary body.")["issue"],
+                    "title": PHI_SHAPE,
+                },
                 "changes": {"title": {"from": "Old title"}},
             },
             "issues",
@@ -199,7 +282,7 @@ class EveryRuledTriggerIsDrivenAtBothHostBoundaries(unittest.TestCase):
         (
             correspondence.Trigger.LABEL_ADDED,
             "gh issue edit 1149 --add-label bug",
-            issue_event("labeled", "Ordinary body."),
+            issue_event("labeled", PHI_SHAPE),
             "issues",
             False,
             ("tracker_scan", "tracker_branch_scope"),
@@ -214,11 +297,11 @@ class EveryRuledTriggerIsDrivenAtBothHostBoundaries(unittest.TestCase):
         ),
         (
             correspondence.Trigger.COMMENT,
-            "gh issue comment 1149 --body 'Ordinary comment.'",
+            "gh issue comment 1149 --body '123-45-6789'",
             {
                 **issue_event("created", "Ordinary issue body."),
                 "comment": {
-                    "body": "Ordinary comment.",
+                    "body": PHI_SHAPE,
                     "html_url": "https://example.invalid/issues/1149#comment",
                 },
             },
@@ -234,7 +317,7 @@ class EveryRuledTriggerIsDrivenAtBothHostBoundaries(unittest.TestCase):
         ),
         (
             correspondence.Trigger.REVIEW,
-            "gh pr review 1149 --approve",
+            "gh pr review 1149 --body '123-45-6789' --comment",
             {
                 "action": "submitted",
                 "pull_request": {
@@ -244,11 +327,17 @@ class EveryRuledTriggerIsDrivenAtBothHostBoundaries(unittest.TestCase):
                     "labels": [],
                     "html_url": "https://example.invalid/pull/1149",
                 },
-                "review": {"body": "", "html_url": "https://example.invalid/review/1"},
+                "review": {"body": PHI_SHAPE, "html_url": "https://example.invalid/review/1"},
             },
             "pull_request_review",
-            False,
-            (),
+            True,
+            (
+                "tracker_scan",
+                "tracker_branch_scope",
+                "tracker_bodies",
+                "tracker_coordinates",
+                "tracker_measurements",
+            ),
         ),
         (
             correspondence.Trigger.CLOSE,
@@ -289,6 +378,76 @@ class EveryRuledTriggerIsDrivenAtBothHostBoundaries(unittest.TestCase):
 
                 self.assertEqual(hook_reached, bool(response))
                 self.assertEqual(expected_modules, tuple(calls))
+                if hook_reached:
+                    self.assertIn("phi:ssn", str(response))
+                if expected_modules:
+                    status, report = run_event(document, event_name)
+                    self.assertEqual(0, status)
+                    self.assertIn("ssn", report)
+
+    def test_a_bodyless_review_is_absent_at_both_hosts(self) -> None:
+        command = "gh pr review 1149 --approve"
+        document = {
+            "action": "submitted",
+            "pull_request": {
+                "number": 1149,
+                "body": "Ordinary pull request body.",
+                "title": "Synthetic pull request",
+                "labels": [],
+                "html_url": "https://example.invalid/pull/1149",
+            },
+            "review": {"body": "", "html_url": "https://example.invalid/review/1"},
+        }
+        row = correspondence.posture_row(
+            "no-publication-on-bodyless-review",
+            correspondence.Surface.REVIEW,
+            correspondence.Trigger.REVIEW,
+        )
+        self.assertEqual({}, tracker_publish_hook.handle(hook_payload(command)))
+        status, report = run_event(document, "pull_request_review")
+        self.assertEqual(0, status)
+        self.assertEqual("", report)
+        for host in correspondence.Host:
+            self.assertEqual(correspondence.Posture.ABSENT, row.cell(host).posture)
+
+    def test_every_event_cell_names_a_rule_selected_for_its_trigger_surface(self) -> None:
+        event_inputs = {
+            trigger: (document, event_name)
+            for trigger, _command, document, event_name, _hook, _modules in self.CASES
+        }
+        vocabularies = {
+            "tracker_scan": correspondence.tracker_scan.EVENT_RULES,
+            "tracker_branch_scope": correspondence.tracker_branch_scope.BRANCH_RULES,
+            "tracker_bodies": correspondence.tracker_bodies.KINDS,
+            "tracker_coordinates": (correspondence.tracker_coordinates.UNANCHORED,),
+            "tracker_measurements": correspondence.tracker_measurements.RULES,
+            "tracker_filed_from": correspondence.tracker_filed_from.EVENT_RULES,
+            "map_scan": correspondence.map_scan.EVENT_RULES,
+        }
+        owners = {
+            rule: module
+            for module, rules in vocabularies.items()
+            for rule in rules
+        }
+        for row in correspondence.POSTURE_ROWS:
+            document, event_name = event_inputs[row.trigger]
+            if row.predicate == "implementation-map-producer-stamp":
+                document = json.loads(json.dumps(document))
+                document["issue"]["number"] = 596
+            selected = {
+                check.module
+                for check in tracker_event_checks.select_checks(document, event_name)
+            }
+            for host in (
+                correspondence.Host.CHANGED_RECORD,
+                correspondence.Host.RECEIPT_PREPUBLICATION,
+            ):
+                cell = row.cell(host)
+                if cell.rule is None:
+                    continue
+                with self.subTest(row=row.predicate, trigger=row.trigger, host=host):
+                    self.assertEqual(correspondence.Posture.REPORT, cell.posture)
+                    self.assertIn(owners[cell.rule], selected)
 
 
 class RuntimeConditionsQualifyPostureAtTheHostsIOSeams(unittest.TestCase):
@@ -343,6 +502,9 @@ class RuntimeConditionsQualifyPostureAtTheHostsIOSeams(unittest.TestCase):
         row = correspondence.posture_row(
             "ssn", correspondence.Surface.BODY, correspondence.Trigger.BODY_EDIT
         )
+        receipt_row = correspondence.posture_row(
+            "ssn", correspondence.Surface.COMMENT, correspondence.Trigger.COMMENT
+        )
 
         self.assertIn("advise: phi:ssn", str(hook))
         self.assertIn("advise: phi:ssn", direct)
@@ -350,8 +512,12 @@ class RuntimeConditionsQualifyPostureAtTheHostsIOSeams(unittest.TestCase):
         self.assertEqual(0, receipt_status)
         self.assertIn("ssn", changed)
         self.assertIn("ssn", receipt)
-        for host in correspondence.Host:
-            cell = row.cell(host)
+        for cell in (
+            row.hook_command,
+            row.direct_writer,
+            row.changed_record,
+            receipt_row.receipt_prepublication,
+        ):
             self.assertEqual(
                 cell.posture,
                 cell.under(correspondence.RuntimeCondition.SYNTHETIC_DECLARATION),
@@ -385,6 +551,11 @@ class RuntimeConditionsQualifyPostureAtTheHostsIOSeams(unittest.TestCase):
             correspondence.Surface.BODY,
             correspondence.Trigger.BODY_EDIT,
         )
+        receipt_row = correspondence.posture_row(
+            "branch-unresolved-path",
+            correspondence.Surface.COMMENT,
+            correspondence.Trigger.COMMENT,
+        )
 
         self.assertIn("advise: branch:unresolved-path", str(hook))
         self.assertIn("advise: branch:unresolved-path", direct)
@@ -397,6 +568,12 @@ class RuntimeConditionsQualifyPostureAtTheHostsIOSeams(unittest.TestCase):
         self.assertEqual(
             correspondence.Posture.REPORT,
             row.changed_record.under(correspondence.RuntimeCondition.FETCH_FAILED),
+        )
+        self.assertEqual(
+            correspondence.Posture.REPORT,
+            receipt_row.receipt_prepublication.under(
+                correspondence.RuntimeCondition.FETCH_FAILED
+            ),
         )
 
     def test_a_failed_readback_leaves_filed_from_ungraded_only_at_the_hook(self) -> None:
@@ -434,6 +611,11 @@ class RuntimeConditionsQualifyPostureAtTheHostsIOSeams(unittest.TestCase):
             correspondence.Surface.BODY,
             correspondence.Trigger.BODY_EDIT,
         )
+        comment_row = correspondence.posture_row(
+            "filed-from-not-graded-on-comment",
+            correspondence.Surface.COMMENT,
+            correspondence.Trigger.COMMENT,
+        )
 
         self.assertNotIn("filed-from:edit", str(hook))
         self.assertIn("filed-from:edit", direct)
@@ -446,6 +628,12 @@ class RuntimeConditionsQualifyPostureAtTheHostsIOSeams(unittest.TestCase):
         self.assertEqual(
             correspondence.Posture.REPORT,
             row.changed_record.under(correspondence.RuntimeCondition.READBACK_FAILED),
+        )
+        self.assertEqual(
+            correspondence.Posture.ABSENT,
+            comment_row.receipt_prepublication.under(
+                correspondence.RuntimeCondition.READBACK_FAILED
+            ),
         )
 
 

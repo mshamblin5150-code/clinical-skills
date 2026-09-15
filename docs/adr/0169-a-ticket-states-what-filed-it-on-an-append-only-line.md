@@ -151,7 +151,7 @@ existing `**Filed from:**` line. The workflow reports the same two shapes after 
 Both apply to issues only; a pull request body keeps its own binding grammar. The edit refusal concerns
 an existing line: an edit to a post-cutoff ticket that never got one is not refused for leaving it out,
 and adding the line later is allowed.
-The current correspondence belongs to `tracker_publication_correspondence.WRITER_REACH` and
+Correction, 2026-09-15: the current correspondence belongs to `tracker_publication_correspondence.WRITER_REACH` and
 `tracker_publication_correspondence.POSTURE_ROWS`; this ruling keeps only its rationale.
 
 ### 7. The line is append-only, and its correction sits beneath it

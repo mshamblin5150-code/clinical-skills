@@ -341,4 +341,6 @@ unchanged.
 document says is ruled by
 [ADR 0242](0242-the-hook-and-the-workflow-are-bound-by-a-declared-correspondence.md) on
 [#1149](https://github.com/mshamblin5150-code/clinical-skills/issues/1149): a declared correspondence
-object, driven through both hosts, binds them. This record's rulings are unchanged.
+object, driven through both hosts, binds them. Current writer reach belongs to
+`tracker_publication_correspondence.WRITER_REACH`, and current host posture belongs to
+`tracker_publication_correspondence.POSTURE_ROWS`. This record's rulings are unchanged.

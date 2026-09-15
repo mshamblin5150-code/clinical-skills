@@ -22,7 +22,11 @@ import tracker_scan
 
 
 class EvidenceDisposition(str, Enum):
-    """How a writer-reach claim is supported."""
+    """How a writer-reach claim is supported.
+
+    This correspondence module is outside the ``run_grader`` family and
+    therefore intentionally owns this local disposition vocabulary.
+    """
 
     BEHAVIOR = "behavior"
     DECLARED_READING = "declared-reading"
@@ -75,7 +79,7 @@ class Trigger(str, Enum):
 
 
 @dataclass(frozen=True)
-class Cell:
+class PostureCell:
     posture: Posture
     rule: str | None = None
     conditions: tuple[tuple[RuntimeCondition, Posture], ...] = ()
@@ -97,12 +101,12 @@ class PostureRow:
     predicate: str
     surface: Surface
     trigger: Trigger
-    hook_command: Cell
-    direct_writer: Cell
-    changed_record: Cell
-    receipt_prepublication: Cell
+    hook_command: PostureCell
+    direct_writer: PostureCell
+    changed_record: PostureCell
+    receipt_prepublication: PostureCell
 
-    def cell(self, host: Host) -> Cell:
+    def cell(self, host: Host) -> PostureCell:
         return {
             Host.HOOK_COMMAND: self.hook_command,
             Host.DIRECT_WRITER: self.direct_writer,
@@ -126,7 +130,7 @@ class WriterReach:
             raise ValueError("a behavior row is driven rather than attributed")
 
 
-ABSENT = Cell(Posture.ABSENT)
+ABSENT = PostureCell(Posture.ABSENT)
 
 # These are declarations, deliberately independent of the exported grader
 # vocabularies read by ``hook_rule_population`` and ``event_rule_population``.
@@ -187,18 +191,18 @@ def _cell(
     posture: Posture,
     rule: str,
     *conditions: tuple[RuntimeCondition, Posture],
-) -> Cell:
-    return Cell(posture, rule, conditions)
+) -> PostureCell:
+    return PostureCell(posture, rule, conditions)
 
 
 def _row(
     predicate: str,
     surface: Surface,
     trigger: Trigger,
-    hook: Cell = ABSENT,
-    direct: Cell = ABSENT,
-    changed: Cell = ABSENT,
-    receipt: Cell = ABSENT,
+    hook: PostureCell = ABSENT,
+    direct: PostureCell = ABSENT,
+    changed: PostureCell = ABSENT,
+    receipt: PostureCell = ABSENT,
 ) -> PostureRow:
     return PostureRow(predicate, surface, trigger, hook, direct, changed, receipt)
 
@@ -262,22 +266,118 @@ WRITER_REACH = tuple(
             (
                 False,
                 EvidenceDisposition.DECLARED_READING,
-                "ADR 0242 ruling 9 writer-reach reading",
+                {
+                    Writer.PUBLISHER_COMMAND: "ADR 0099 ruling 4 publisher measurement",
+                    Writer.MAP_SESSION: "ADR 0240 ruling 3 writer measurement",
+                    Writer.MERGE_RECEIPT: "ADR 0241 ruling 8 writer measurement",
+                    Writer.HOURLY_MAP_REFRESH: "ADR 0241 ruling 8 unwatched-write measurement",
+                }[writer],
             ),
         ),
     )
 )
 
-POSTURE_ROWS = (
-    PostureRow(
-        "branch-in-flight",
-        Surface.BODY,
+HOOK_TRIGGERS = frozenset(
+    (Trigger.CREATE, Trigger.BODY_EDIT, Trigger.TITLE_EDIT, Trigger.COMMENT, Trigger.REVIEW)
+)
+DIRECT_WRITER_KEYS = frozenset(((Surface.BODY, Trigger.BODY_EDIT),))
+EVENT_TRIGGERS = frozenset(
+    (
+        Trigger.CREATE,
+        Trigger.BODY_EDIT,
+        Trigger.TITLE_EDIT,
         Trigger.LABEL_ADDED,
-        ABSENT,
-        ABSENT,
-        Cell(Posture.REPORT, "branch:in-flight"),
-        ABSENT,
-    ),
+        Trigger.COMMENT,
+        Trigger.REVIEW,
+    )
+)
+PHI_AND_BRANCH_SCOPES = (
+    (Surface.BODY, Trigger.CREATE),
+    (Surface.TITLE, Trigger.CREATE),
+    (Surface.BODY, Trigger.BODY_EDIT),
+    (Surface.TITLE, Trigger.TITLE_EDIT),
+    (Surface.BODY, Trigger.LABEL_ADDED),
+    (Surface.COMMENT, Trigger.COMMENT),
+    (Surface.REVIEW, Trigger.REVIEW),
+)
+BODY_SCOPES = (
+    (Surface.BODY, Trigger.CREATE),
+    (Surface.BODY, Trigger.BODY_EDIT),
+    (Surface.COMMENT, Trigger.COMMENT),
+    (Surface.REVIEW, Trigger.REVIEW),
+)
+PUBLICATION_SCOPES = (
+    *BODY_SCOPES,
+    (Surface.TITLE, Trigger.CREATE),
+    (Surface.TITLE, Trigger.TITLE_EDIT),
+)
+
+
+def _paired_cells(
+    surface: Surface,
+    trigger: Trigger,
+    hook_rule: str,
+    event_rule: str,
+    *,
+    hook_posture: Posture,
+    event_reaches: bool = True,
+    conditions: tuple[tuple[RuntimeCondition, Posture], ...] = (),
+) -> tuple[PostureCell, PostureCell, PostureCell, PostureCell]:
+    hook = (
+        PostureCell(hook_posture, hook_rule, conditions)
+        if trigger in HOOK_TRIGGERS
+        else ABSENT
+    )
+    direct = (
+        PostureCell(hook_posture, hook_rule, conditions)
+        if (surface, trigger) in DIRECT_WRITER_KEYS
+        else ABSENT
+    )
+    changed = (
+        PostureCell(Posture.REPORT, event_rule, tuple(
+            (condition, Posture.REPORT) for condition, _posture in conditions
+        ))
+        if event_reaches and trigger in EVENT_TRIGGERS
+        else ABSENT
+    )
+    receipt = (
+        PostureCell(Posture.REPORT, event_rule, tuple(
+            (condition, Posture.REPORT) for condition, _posture in conditions
+        ))
+        if trigger is Trigger.COMMENT
+        else ABSENT
+    )
+    return hook, direct, changed, receipt
+
+
+def _paired_row(
+    predicate: str,
+    surface: Surface,
+    trigger: Trigger,
+    hook_rule: str,
+    event_rule: str,
+    *,
+    hook_posture: Posture,
+    event_reaches: bool = True,
+    conditions: tuple[tuple[RuntimeCondition, Posture], ...] = (),
+) -> PostureRow:
+    return PostureRow(
+        predicate,
+        surface,
+        trigger,
+        *_paired_cells(
+            surface,
+            trigger,
+            hook_rule,
+            event_rule,
+            hook_posture=hook_posture,
+            event_reaches=event_reaches,
+            conditions=conditions,
+        ),
+    )
+
+
+POSTURE_ROWS = (
     _row("no-publication-on-label-removal", Surface.LABELS, Trigger.LABEL_REMOVED),
     _row("no-publication-on-bodyless-review", Surface.REVIEW, Trigger.REVIEW),
     _row("no-publication-on-close", Surface.BODY, Trigger.CLOSE),
@@ -299,9 +399,10 @@ POSTURE_ROWS = (
         ),
         changed=_cell(Posture.REPORT, "filed-from:edited"),
     ),
+    _row("filed-from-not-graded-on-comment", Surface.COMMENT, Trigger.COMMENT),
     _row(
         "aar-working-source-quotation",
-        Surface.BODY,
+        Surface.COMMENT,
         Trigger.COMMENT,
         _cell(Posture.DENY, "aar-quotation"),
     ),
@@ -325,127 +426,124 @@ POSTURE_ROWS = (
         changed=_cell(Posture.REPORT, "producer-stamp"),
     ),
     *(
-        _row(
+        _paired_row(
             rule.removeprefix("phi-").replace(":", "-"),
-            Surface.BODY,
-            Trigger.BODY_EDIT,
-            _cell(
-                Posture.ADVISE,
-                f"phi:{rule}",
-                (RuntimeCondition.SYNTHETIC_DECLARATION, Posture.ADVISE),
-            ),
-            direct=_cell(
-                Posture.ADVISE,
-                f"phi:{rule}",
-                (RuntimeCondition.SYNTHETIC_DECLARATION, Posture.ADVISE),
-            ),
-            changed=_cell(
-                Posture.REPORT,
-                rule,
-                (RuntimeCondition.SYNTHETIC_DECLARATION, Posture.REPORT),
-            ),
-            receipt=_cell(
-                Posture.REPORT,
-                rule,
-                (RuntimeCondition.SYNTHETIC_DECLARATION, Posture.REPORT),
-            ),
+            surface,
+            trigger,
+            f"phi:{rule}",
+            rule,
+            hook_posture=Posture.ADVISE,
+            conditions=((RuntimeCondition.SYNTHETIC_DECLARATION, Posture.ADVISE),),
         )
         for rule in DECLARED_EVENT_PHI_RULES
+        for surface, trigger in PHI_AND_BRANCH_SCOPES
     ),
     *(
-        _row(
+        _paired_row(
             f"body-{kind}",
-            Surface.BODY,
-            Trigger.BODY_EDIT,
-            _cell(Posture.DENY, f"body:{kind}"),
-            direct=_cell(Posture.DENY, f"body:{kind}"),
-            changed=_cell(Posture.REPORT, kind),
-            receipt=_cell(Posture.REPORT, kind),
+            surface,
+            trigger,
+            f"body:{kind}",
+            kind,
+            hook_posture=Posture.DENY,
         )
         for kind in DECLARED_BODY_RULES
-    ),
-    _row(
-        "coordinate-accompaniment",
-        Surface.TITLE,
-        Trigger.TITLE_EDIT,
-        _cell(Posture.DENY, "coordinate:unanchored"),
-    ),
-    _row(
-        "coordinate-accompaniment",
-        Surface.BODY,
-        Trigger.BODY_EDIT,
-        _cell(Posture.DENY, "coordinate:unanchored"),
-        direct=_cell(Posture.DENY, "coordinate:unanchored"),
-        changed=_cell(Posture.REPORT, "coordinate:unanchored"),
-        receipt=_cell(Posture.REPORT, "coordinate:unanchored"),
+        for surface, trigger in BODY_SCOPES
     ),
     *(
-        _row(
+        _paired_row(
+            f"title-{kind}",
+            surface,
+            trigger,
+            f"body:{kind}",
+            kind,
+            hook_posture=Posture.DENY,
+            event_reaches=False,
+        )
+        for kind in ("c0-control-character", "carriage-return-flanked")
+        for surface, trigger in (
+            (Surface.TITLE, Trigger.CREATE),
+            (Surface.TITLE, Trigger.TITLE_EDIT),
+        )
+    ),
+    *(
+        _paired_row(
+            "coordinate-accompaniment",
+            surface,
+            trigger,
+            "coordinate:unanchored",
+            "coordinate:unanchored",
+            hook_posture=Posture.DENY,
+            event_reaches=surface is not Surface.TITLE,
+        )
+        for surface, trigger in PUBLICATION_SCOPES
+    ),
+    *(
+        _paired_row(
             rule.replace(":", "-"),
-            Surface.BODY,
-            Trigger.BODY_EDIT,
-            _cell(Posture.DENY, rule),
-            direct=_cell(Posture.DENY, rule),
-            changed=_cell(Posture.REPORT, rule),
-            receipt=_cell(Posture.REPORT, rule),
+            surface,
+            trigger,
+            rule,
+            rule,
+            hook_posture=Posture.DENY,
+            event_reaches=surface is not Surface.TITLE,
         )
         for rule in DECLARED_MEASUREMENT_RULES
+        for surface, trigger in PUBLICATION_SCOPES
     ),
     *(
-        _row(
+        _paired_row(
             rule.replace(":", "-"),
-            Surface.BODY,
-            Trigger.BODY_EDIT,
-            _cell(
-                Posture.ADVISE if rule == "branch:near-miss" else Posture.DENY,
-                rule,
-                *((
-                    (RuntimeCondition.FETCH_FAILED, Posture.ADVISE),
-                ) if rule == "branch:unresolved-path" else ()),
+            surface,
+            trigger,
+            rule,
+            rule,
+            hook_posture=(
+                Posture.ADVISE if rule == "branch:near-miss" else Posture.DENY
             ),
-            direct=_cell(
-                Posture.ADVISE if rule == "branch:near-miss" else Posture.DENY,
-                rule,
-                *((
-                    (RuntimeCondition.FETCH_FAILED, Posture.ADVISE),
-                ) if rule == "branch:unresolved-path" else ()),
+            conditions=(
+                ((RuntimeCondition.FETCH_FAILED, Posture.ADVISE),)
+                if rule == "branch:unresolved-path"
+                else ()
             ),
-            changed=_cell(Posture.REPORT, rule),
-            receipt=_cell(Posture.REPORT, rule),
         )
         for rule in DECLARED_BRANCH_RULES
+        for surface, trigger in PHI_AND_BRANCH_SCOPES
     ),
     *(
         _row(
             f"hook-unreadable-{rule}",
-            Surface.BODY,
-            Trigger.BODY_EDIT,
+            surface,
+            trigger,
             _cell(Posture.DENY, rule),
         )
         for rule in DECLARED_UNREADABLE_RULES
+        for surface, trigger in PUBLICATION_SCOPES
     ),
     *(
         _row(
             f"hook-{rule}",
-            Surface.BODY,
-            Trigger.BODY_EDIT,
+            surface,
+            trigger,
             _cell(Posture.DENY, rule),
         )
         for rule in DECLARED_UNCLASSIFIED_API_RULES
+        for surface, trigger in PUBLICATION_SCOPES
     ),
-    _row(
-        "phi-corpus-name",
-        Surface.BODY,
-        Trigger.BODY_EDIT,
-        _cell(Posture.ADVISE, "phi:corpus-name"),
-        direct=_cell(Posture.ADVISE, "phi:corpus-name"),
-    ),
-    _row(
-        "phi-corpus-date",
-        Surface.BODY,
-        Trigger.BODY_EDIT,
-        _cell(Posture.ADVISE, "phi:corpus-date"),
-        direct=_cell(Posture.ADVISE, "phi:corpus-date"),
+    *(
+        _row(
+            rule.replace(":", "-"),
+            surface,
+            trigger,
+            _cell(Posture.ADVISE, rule),
+            direct=(
+                _cell(Posture.ADVISE, rule)
+                if (surface, trigger) in DIRECT_WRITER_KEYS
+                else ABSENT
+            ),
+        )
+        for rule in ("phi:corpus-name", "phi:corpus-date")
+        for surface, trigger in PUBLICATION_SCOPES
     ),
 )
 
@@ -523,6 +621,34 @@ DECLARED_LIMITS = (
         "The unmodeled argv-list publications measured by ADR 0188 call neither the command hook nor the direct-writer seam.",
     ),
 )
+
+# Ruling 11 deliberately enumerates only the pairing prose that existed when
+# #1149 built.  Discovering a future sentence is outside ``DECLARED_LIMITS``.
+PAIRING_PROSE = (
+    "CLAUDE.md",
+    "docs/agents/issue-tracker.md",
+    "tools/tracker_bodies.py",
+    "docs/adr/0099-a-control-character-in-a-published-tracker-body-is-refused-at-the-publish-event-and-graded-at-every-one.md",
+    "docs/adr/0141-a-collapsed-escape-is-repaired-by-mechanical-inverse-and-the-residual-red-needs-no-register.md",
+    "docs/adr/0155-the-map-render-stamps-its-producer-and-the-graph-draws-only-what-carries-an-edge.md",
+    "docs/adr/0166-codebase-architecture-marks-a-lineage-by-descent.md",
+    "docs/adr/0169-a-ticket-states-what-filed-it-on-an-append-only-line.md",
+    "docs/adr/0177-both-publish-routes-grade-a-body-through-one-grader-and-a-lost-body-refuses.md",
+    "docs/adr/0188-a-publication-in-an-unmodeled-shell-is-refused-and-the-tool-roster-is-keyed-by-shell.md",
+    "docs/adr/0189-a-coordinate-is-never-the-locator-and-its-anchor-is-graded-at-publication.md",
+)
+
+
+def prose_row_claims(rows: tuple[PostureRow, ...] = POSTURE_ROWS) -> tuple[str, ...]:
+    """Render long row claims solely for the no-copy naming bind."""
+    return tuple(
+        f"{row.predicate} on {row.surface.value} for {row.trigger.value} has "
+        + ", ".join(
+            f"{host.value} {row.cell(host).posture.value} {row.cell(host).rule or 'without a rule'}"
+            for host in Host
+        )
+        for row in rows
+    )
 
 
 def posture_row(predicate: str, surface: Surface, trigger: Trigger) -> PostureRow:

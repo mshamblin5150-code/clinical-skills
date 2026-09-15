@@ -170,6 +170,9 @@ the same shape for `blocked`.
   requires every ticket to carry that line from filing, as a labeled **Filed-from line**, and rules a
   publish-hook refusal and a workflow report for a body that drops or alters it. Until its build lands,
   a respec can still remove the line.*
+  *Corrected 2026-09-15: the current writer reach belongs to
+  `tracker_publication_correspondence.WRITER_REACH`, and the current host posture belongs to
+  `tracker_publication_correspondence.POSTURE_ROWS`; the sentence above remains the historical record.*
 - **A label created and deleted between two sweeps.** Ruling 5 compares the vocabulary at the moment
   a sweep runs.
 - **The `/improve-codebase-architecture` skill itself.** It is a plugin skill outside this repository,

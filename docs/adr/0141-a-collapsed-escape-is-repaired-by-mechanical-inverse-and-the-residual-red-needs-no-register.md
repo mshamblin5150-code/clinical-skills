@@ -187,6 +187,10 @@ so it is declared rather than newly opened. And **two rows will ship carrying ze
 by name in ADR 0136 ruling 7: a documented trap with zero instances still earns a row, and a zero
 there is not dead code.
 
+Correction, 2026-09-15: the writer-reach and host-posture facts in the paragraph above are historical.
+Current reach belongs to `tracker_publication_correspondence.WRITER_REACH`, and current posture belongs
+to `tracker_publication_correspondence.POSTURE_ROWS`; the paragraph's rationale remains.
+
 ## Ruling 6 — ADR 0099 finding 5's escape mechanism is corrected and its verdict stands
 
 That finding's conclusion — the earlier sweep's `\e` claim is false — is correct and is not reopened.
