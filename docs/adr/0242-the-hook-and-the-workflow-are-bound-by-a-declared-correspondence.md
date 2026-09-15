@@ -11,7 +11,7 @@ coverage moving while the other stood still, from #1124, #928, #1014, #961, #105
 Grilled 2026-09-15. **Fourteen rulings, by the clinician, on that date.** Nothing is built here; this is
 the record the build reads.
 
-**Measured at:** 2d28b3f131c997f28ee6041e7e23966115882a48
+**Measured at:** f0cc32f4ffba81f4a8d07aba618993e9a52328f1
 
 ## Measured before ruling
 
