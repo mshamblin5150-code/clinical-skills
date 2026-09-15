@@ -1236,7 +1236,9 @@ def _unquoted_variable_names(source: str) -> tuple[set[str], bool]:
 
 
 def _api_identifier_source(argument: str, name: str) -> bool:
-    for pattern, _route in API_ROUTE_PATTERNS:
+    patterns = [pattern for pattern, _route in API_ROUTE_PATTERNS]
+    patterns.extend(API_NON_PUBLICATION_RECORD_ENDPOINTS)
+    for pattern in patterns:
         match = pattern.fullmatch(argument)
         if match is not None and match.group("identifier") in (
             f"${name}",
@@ -1250,10 +1252,7 @@ def _api_dynamic_arguments(
     arguments: list[str], sources: tuple[str, ...], command: str
 ) -> UnclassifiedApiCall | None:
     assignments, substitutions = _publish_assignments(command)
-    graphql = _api_endpoint(arguments) == "graphql"
     for argument, source in zip(arguments, sources, strict=True):
-        if graphql and argument.startswith(("query=", "operationName=")):
-            continue
         names, dynamic = _unquoted_variable_names(source)
         if dynamic:
             return UnclassifiedApiCall("unclassified-api-arguments", argument)
@@ -1265,6 +1264,8 @@ def _api_dynamic_arguments(
                     )
                 continue
             value = assignments[name]
+            if not value and _api_identifier_source(argument, name):
+                continue
             if (
                 not value
                 or re.search(r"[\s*?\[]", value) is not None
@@ -1519,6 +1520,14 @@ def extract(command: str) -> Extraction:
     route_width = len(route)
     arguments = source_tail[route_width:]
     argument_sources = sources[source_start + 1 + route_width :]
+    if route == ("api",):
+        dynamic_arguments = _api_dynamic_arguments(
+            arguments, argument_sources, command
+        )
+        if dynamic_arguments is not None:
+            return Extraction(
+                route, None, (), (), None, (dynamic_arguments,)
+            )
     number = _record_number(route, arguments, command)
     api_grade = (
         _api_grade_route(arguments, command) if route == ("api",) else route
@@ -1528,14 +1537,6 @@ def extract(command: str) -> Extraction:
     if isinstance(api_grade, Unreadable):
         return Extraction(route, number, (), (api_grade,), None)
     grade_route = api_grade
-    if route == ("api",):
-        dynamic_arguments = _api_dynamic_arguments(
-            arguments, argument_sources, command
-        )
-        if dynamic_arguments is not None:
-            return Extraction(
-                route, number, (), (), None, (dynamic_arguments,)
-            )
     if route == ("api",) and grade_route is None:
         return Extraction(route, number, (), (), None)
     publications: list[Publication] = []

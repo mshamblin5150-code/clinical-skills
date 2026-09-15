@@ -736,7 +736,7 @@ class InlineTrackerTextIsRead(unittest.TestCase):
         self.assertEqual(result.unreadable[0].kind, "missing-file")
 
     def test_runtime_graphql_document_is_refused_as_an_unreadable_body(self) -> None:
-        result = hook.extract("gh api graphql -f query=$QUERY")
+        result = hook.extract('gh api graphql -f "query=$QUERY"')
 
         self.assertIsNone(result.grade_route)
         self.assertEqual(result.publications, ())
@@ -744,7 +744,7 @@ class InlineTrackerTextIsRead(unittest.TestCase):
 
     def test_later_graphql_assignment_does_not_make_the_document_readable(self) -> None:
         result = hook.extract(
-            "gh api graphql -f query=$QUERY; "
+            'gh api graphql -f "query=$QUERY"; '
             "QUERY='query { viewer { login } }'"
         )
 
@@ -755,7 +755,7 @@ class InlineTrackerTextIsRead(unittest.TestCase):
     def test_prior_command_local_graphql_assignment_is_not_reconstructed(self) -> None:
         result = hook.extract(
             "QUERY='query { viewer { login } }' echo setup; "
-            "gh api graphql -f query=$QUERY"
+            'gh api graphql -f "query=$QUERY"'
         )
 
         self.assertIsNone(result.grade_route)
@@ -764,16 +764,37 @@ class InlineTrackerTextIsRead(unittest.TestCase):
 
     def test_unresolved_graphql_assignment_chain_is_refused(self) -> None:
         result = hook.extract(
-            "QUERY=$OTHER; gh api graphql -f query=$QUERY"
+            'QUERY=$OTHER; gh api graphql -f "query=$QUERY"'
         )
 
         self.assertIsNone(result.grade_route)
         self.assertEqual(result.unreadable[0].kind, "external-variable")
 
+    def test_unquoted_graphql_assignment_cannot_inject_fields(self) -> None:
+        commands = (
+            "QUERY='query Q{viewer{login}} -f "
+            "query=mutation{addComment(input:{body:Injected})"
+            "{clientMutationId}}'; gh api graphql -f query=$QUERY",
+            "TAIL='-f query=query{viewer{login}}'; gh api graphql "
+            "-f query='mutation{deleteProjectV2(input:{})"
+            "{clientMutationId}}' $TAIL",
+        )
+
+        for command in commands:
+            with self.subTest(command=command):
+                result = hook.extract(command)
+                self.assertIsNone(result.grade_route)
+                self.assertEqual(result.publications, ())
+                self.assertEqual(result.unreadable, ())
+                self.assertEqual(
+                    result.unclassified_api_calls[0].kind,
+                    "unclassified-api-arguments",
+                )
+
     def test_single_quoted_graphql_variable_is_document_text(self) -> None:
         result = hook.extract(
             "QUERY='query($owner:String!){repository(owner:$owner){name}}'; "
-            "gh api graphql -f query=$QUERY"
+            'gh api graphql -f "query=$QUERY"'
         )
 
         self.assertIsNone(result.grade_route)
@@ -783,7 +804,7 @@ class InlineTrackerTextIsRead(unittest.TestCase):
     def test_known_embedded_graphql_assignment_is_reconstructed(self) -> None:
         result = hook.extract(
             "HEAD='query {'; TAIL='viewer { login }}'; QUERY=$HEAD$TAIL; "
-            "gh api graphql -f query=$QUERY"
+            'gh api graphql -f "query=$QUERY"'
         )
 
         self.assertIsNone(result.grade_route)
@@ -793,7 +814,7 @@ class InlineTrackerTextIsRead(unittest.TestCase):
     def test_single_quoted_graphql_mutation_variable_gets_mutation_remedy(self) -> None:
         result = hook.extract(
             "QUERY='mutation($body:String!){addComment(input:{body:$body})"
-            "{clientMutationId}}'; gh api graphql -f query=$QUERY"
+            "{clientMutationId}}'; gh api graphql -f \"query=$QUERY\""
         )
 
         self.assertIsNone(result.grade_route)
@@ -806,7 +827,7 @@ class InlineTrackerTextIsRead(unittest.TestCase):
     def test_compound_graphql_assignment_is_refused(self) -> None:
         result = hook.extract(
             "QUERY='query { viewer { login } }'${TAIL}''; "
-            "gh api graphql -f query=$QUERY"
+            'gh api graphql -f "query=$QUERY"'
         )
 
         self.assertIsNone(result.grade_route)
@@ -814,7 +835,7 @@ class InlineTrackerTextIsRead(unittest.TestCase):
 
     def test_unresolved_graphql_input_path_assignment_is_refused(self) -> None:
         result = hook.extract(
-            "REQUEST=$OTHER; gh api graphql --input $REQUEST"
+            'REQUEST=$OTHER; gh api graphql --input "$REQUEST"'
         )
 
         self.assertIsNone(result.grade_route)
@@ -2296,7 +2317,7 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
     def test_graphql_mutation_in_a_same_command_variable_is_unclassified(self) -> None:
         command = (
             "QUERY='mutation { addComment(input: {}) { clientMutationId } }'; "
-            "gh api graphql -f query=$QUERY"
+            'gh api graphql -f "query=$QUERY"'
         )
 
         specific = hook.handle(self.payload(command))["hookSpecificOutput"]
