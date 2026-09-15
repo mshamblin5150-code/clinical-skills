@@ -48,6 +48,7 @@ class TheReaderPopulationAndThePinsMustAgree(unittest.TestCase):
             tools.mkdir()
             reference.mkdir()
             (reference / "icd10.sqlite").write_bytes(b"reference")
+            (reference / "procedure.sqlite").write_bytes(b"reference")
             (tools / "icd10_lookup.py").write_text(
                 "from pathlib import Path\n"
                 "DEFAULT_DATABASE = Path(__file__).parent.parent / 'reference' / 'icd10.sqlite'\n"
@@ -64,6 +65,7 @@ class TheReaderPopulationAndThePinsMustAgree(unittest.TestCase):
             )
             (tools / "code_set_database_test_support.py").write_text(
                 "ICD10_DATABASE_SHA256 = 'digest'\n"
+                "PROCEDURE_CODES_DATABASE_SHA256 = 'digest'\n"
                 "def assert_code_set_database_digest(*args): pass\n",
                 encoding="utf-8",
             )
@@ -150,25 +152,57 @@ class TheReaderPopulationAndThePinsMustAgree(unittest.TestCase):
                 "    def test_read(self): icd10_lookup.open_database()\n",
                 encoding="utf-8",
             )
+            (tools / "test_wrong_database_pin.py").write_text(
+                "import unittest\nimport procedure_codes_lookup\n"
+                "from code_set_database_test_support import (\n"
+                "    ICD10_DATABASE_SHA256, assert_code_set_database_digest,\n"
+                ")\n"
+                "assert_code_set_database_digest('path', ICD10_DATABASE_SHA256, 'name')\n"
+                "class Reader(unittest.TestCase):\n"
+                "    def test_read(self): procedure_codes_lookup.open_database()\n",
+                encoding="utf-8",
+            )
+            (tools / "test_dual_reader_missing_procedure_pin.py").write_text(
+                "import unittest\nimport icd10_lookup\nimport procedure_codes_lookup\n"
+                "from code_set_database_test_support import (\n"
+                "    ICD10_DATABASE_SHA256, assert_code_set_database_digest,\n"
+                ")\n"
+                "assert_code_set_database_digest('path', ICD10_DATABASE_SHA256, 'name')\n"
+                "class Reader(unittest.TestCase):\n"
+                "    def test_read(self):\n"
+                "        icd10_lookup.open_database()\n"
+                "        procedure_codes_lookup.open_database()\n",
+                encoding="utf-8",
+            )
 
             result = check.audit(tools)
 
             self.assertEqual(
                 frozenset(
                     {
-                        "test_counterfeit",
-                        "test_dynamic_digest",
-                        "test_missing_default",
-                        "test_missing_named",
-                        "test_shadowed_direct",
-                        "test_shadowed_digest_attribute",
-                        "test_shadowed_helper_attribute",
-                        "test_shadowed_module",
+                        ("test_counterfeit", "icd10_lookup"),
+                        ("test_dual_reader_missing_procedure_pin", "procedure_codes_lookup"),
+                        ("test_dynamic_digest", "icd10_lookup"),
+                        ("test_missing_default", "icd10_lookup"),
+                        ("test_missing_named", "icd10_lookup"),
+                        ("test_shadowed_direct", "icd10_lookup"),
+                        ("test_shadowed_digest_attribute", "icd10_lookup"),
+                        ("test_shadowed_helper_attribute", "icd10_lookup"),
+                        ("test_shadowed_module", "icd10_lookup"),
+                        ("test_wrong_database_pin", "procedure_codes_lookup"),
                     }
                 ),
                 result.unpinned_readers,
             )
-            self.assertEqual(frozenset({"test_stale"}), result.stale_pins)
+            self.assertEqual(
+                frozenset(
+                    {
+                        ("test_stale", "icd10_lookup"),
+                        ("test_wrong_database_pin", "icd10_lookup"),
+                    }
+                ),
+                result.stale_pins,
+            )
 
     def test_the_repository_reader_population_and_pins_agree(self):
         output = io.StringIO()

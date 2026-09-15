@@ -17,7 +17,10 @@ TOOLS = Path(__file__).resolve().parent
 LOOKUPS = frozenset({"icd10_lookup", "procedure_codes_lookup"})
 PIN_CALL = "assert_code_set_database_digest"
 PIN_MODULE = "code_set_database_test_support"
-PIN_DIGESTS = frozenset({"ICD10_DATABASE_SHA256", "PROCEDURE_CODES_DATABASE_SHA256"})
+PIN_DIGESTS = {
+    "ICD10_DATABASE_SHA256": "icd10_lookup",
+    "PROCEDURE_CODES_DATABASE_SHA256": "procedure_codes_lookup",
+}
 REFUSAL_MARKER = "CODE_SET_DATABASE_OPEN_REFUSED"
 
 DECLARED_LIMITS = {
@@ -34,6 +37,7 @@ from pathlib import Path
 
 tools = Path(sys.argv[1]).resolve()
 module_name = sys.argv[2]
+lookup_name = sys.argv[3]
 sys.path.insert(0, str(tools))
 
 def install_refusal(module_name):
@@ -46,8 +50,7 @@ def install_refusal(module_name):
         return original(path)
     module.open_database = refused
 
-for lookup in ('icd10_lookup', 'procedure_codes_lookup'):
-    install_refusal(lookup)
+install_refusal(lookup_name)
 
 suite = unittest.defaultTestLoader.loadTestsFromName(module_name)
 result = unittest.TextTestRunner(verbosity=0).run(suite)
@@ -58,10 +61,10 @@ raise SystemExit(0 if result.wasSuccessful() else 1)
 @dataclass(frozen=True)
 class Audit:
     reaching: frozenset[str]
-    readers: frozenset[str]
-    pinned: frozenset[str]
-    unpinned_readers: frozenset[str]
-    stale_pins: frozenset[str]
+    readers: frozenset[tuple[str, str]]
+    pinned: frozenset[tuple[str, str]]
+    unpinned_readers: frozenset[tuple[str, str]]
+    stale_pins: frozenset[tuple[str, str]]
 
 
 def _trees(tools: Path) -> dict[str, ast.Module]:
@@ -118,8 +121,9 @@ class _ModuleBindings(ast.NodeVisitor):
         return
 
 
-def _has_pin(tree: ast.Module) -> bool:
+def _pins(tree: ast.Module) -> frozenset[str]:
     bindings: dict[str, str] = {}
+    pins: set[str] = set()
     for statement in tree.body:
         if isinstance(statement, ast.ImportFrom):
             for alias in statement.names:
@@ -127,7 +131,7 @@ def _has_pin(tree: ast.Module) -> bool:
                 bindings[name] = (
                     "pin-function"
                     if statement.module == PIN_MODULE and alias.name == PIN_CALL
-                    else "pin-digest"
+                    else f"pin-digest:{PIN_DIGESTS[alias.name]}"
                     if statement.module == PIN_MODULE and alias.name in PIN_DIGESTS
                     else "other"
                 )
@@ -146,36 +150,39 @@ def _has_pin(tree: ast.Module) -> bool:
             arguments = statement.value.args
             authentic_digest = len(arguments) >= 2 and (
                 isinstance(arguments[1], ast.Name)
-                and bindings.get(arguments[1].id) == "pin-digest"
+                and bindings.get(arguments[1].id, "").startswith("pin-digest:")
             )
             if authentic_function and authentic_digest:
-                return True
+                pins.add(bindings[arguments[1].id].split(":", 1)[1])
         assigned = _ModuleBindings()
         assigned.visit(statement)
         for name in assigned.names:
             bindings[name] = "other"
-    return False
+    return frozenset(pins)
 
 
-def _readers_under_refusal(tools: Path, reaching: frozenset[str]) -> frozenset[str]:
-    readers: set[str] = set()
+def _readers_under_refusal(
+    tools: Path, reaching: frozenset[str]
+) -> frozenset[tuple[str, str]]:
+    readers: set[tuple[str, str]] = set()
     for module in sorted(reaching):
-        result = subprocess.run(
-            [sys.executable, "-c", _SUBPROCESS, str(tools), module],
-            cwd=tools,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            capture_output=True,
-            check=False,
-        )
-        report = result.stdout + result.stderr
-        if REFUSAL_MARKER in report:
-            readers.add(module)
-        elif result.returncode:
-            raise RuntimeError(
-                f"{module} failed without a Code-set database refusal:\n{report}"
+        for lookup in sorted(LOOKUPS):
+            result = subprocess.run(
+                [sys.executable, "-c", _SUBPROCESS, str(tools), module, lookup],
+                cwd=tools,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                capture_output=True,
+                check=False,
             )
+            report = result.stdout + result.stderr
+            if REFUSAL_MARKER in report:
+                readers.add((module, lookup))
+            elif result.returncode:
+                raise RuntimeError(
+                    f"{module} failed without a Code-set database refusal:\n{report}"
+                )
     return frozenset(readers)
 
 
@@ -193,7 +200,11 @@ def audit(tools: Path = TOOLS) -> Audit:
     reaching = frozenset(
         module for module in test_modules if _reaches_lookup(module, graph)
     )
-    pinned = frozenset(module for module in test_modules if _has_pin(trees[module]))
+    pinned = frozenset(
+        (module, lookup)
+        for module in test_modules
+        for lookup in _pins(trees[module])
+    )
     readers = _readers_under_refusal(tools, reaching)
     return Audit(
         reaching=reaching,
@@ -215,10 +226,10 @@ def main(
     result = audit(tools)
     print("reaching test modules: " + ", ".join(sorted(result.reaching)), file=stream)
     print(DECLARED_LIMITS["import walk"], file=stream)
-    for module in sorted(result.unpinned_readers):
-        print(f"unpinned Code-set database reader: {module}", file=stream)
-    for module in sorted(result.stale_pins):
-        print(f"stale Code-set database pin: {module}", file=stream)
+    for module, lookup in sorted(result.unpinned_readers):
+        print(f"unpinned Code-set database reader: {module} -> {lookup}", file=stream)
+    for module, lookup in sorted(result.stale_pins):
+        print(f"stale Code-set database pin: {module} -> {lookup}", file=stream)
     clean = not result.unpinned_readers and not result.stale_pins
     print(
         "Code-set database reader pins: " + ("clean" if clean else "finding"),
