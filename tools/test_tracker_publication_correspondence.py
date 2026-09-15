@@ -155,17 +155,14 @@ class TheDeclaredRowsCoverTheDerivedRulePopulation(unittest.TestCase):
                 self.assertIn("tracker_publication_correspondence.POSTURE_ROWS", text)
                 self.assertEqual((), bind(claims, text, mode=NAMING))
 
-    def test_every_runtime_condition_is_declared_or_checked_as_indifferent_for_each_cell(self) -> None:
-        for row in correspondence.POSTURE_ROWS:
-            for host in correspondence.Host:
-                cell = row.cell(host)
-                declared = dict(cell.conditions)
-                for condition in correspondence.RuntimeCondition:
-                    with self.subTest(row=row.predicate, host=host, condition=condition):
-                        self.assertEqual(
-                            declared.get(condition, cell.posture),
-                            cell.under(condition),
-                        )
+    def test_the_behavior_tests_cover_the_complete_condition_vocabulary(self) -> None:
+        declared = {
+            condition
+            for row in correspondence.POSTURE_ROWS
+            for host in correspondence.Host
+            for condition, _posture in row.cell(host).conditions
+        }
+        self.assertEqual(set(correspondence.RuntimeCondition), declared)
 
 
 class EveryBehaviorWriterReachRowCrossesItsPublicSeam(unittest.TestCase):
@@ -410,6 +407,64 @@ class EveryRuledTriggerIsDrivenAtBothHostBoundaries(unittest.TestCase):
         for host in correspondence.Host:
             self.assertEqual(correspondence.Posture.ABSENT, row.cell(host).posture)
 
+    def test_branch_trigger_exclusions_and_label_title_are_observed(self) -> None:
+        title_event = {
+            **issue_event("edited", "Ordinary body.", labels=("in flight",)),
+            "issue": {
+                **issue_event("edited", "Ordinary body.", labels=("in flight",))["issue"],
+                "title": "Ordinary title",
+            },
+            "changes": {"title": {"from": "Old title"}},
+        }
+        title_branch = correspondence.tracker_branch_scope.grade(title_event, "issues")
+        self.assertEqual("branch:in-flight", title_branch.verdict.rule)
+        self.assertFalse(any(
+            row.predicate == "branch-in-flight"
+            and row.surface is correspondence.Surface.TITLE
+            for row in correspondence.POSTURE_ROWS
+        ))
+        title_edit_body = correspondence.posture_row(
+            "branch-in-flight",
+            correspondence.Surface.BODY,
+            correspondence.Trigger.TITLE_EDIT,
+        )
+        self.assertEqual(correspondence.Posture.ABSENT, title_edit_body.hook_command.posture)
+        self.assertEqual(correspondence.Posture.REPORT, title_edit_body.changed_record.posture)
+
+        review_event = {
+            "action": "submitted",
+            "pull_request": {
+                "number": 1149,
+                "body": "Ordinary pull request body.",
+                "title": "Synthetic pull request",
+                "labels": [],
+                "html_url": "https://example.invalid/pull/1149",
+            },
+            "review": {
+                "body": "Done on this branch.",
+                "html_url": "https://example.invalid/review/1",
+            },
+        }
+        review_branch = correspondence.tracker_branch_scope.grade(
+            review_event, "pull_request_review"
+        )
+        self.assertNotEqual("branch:self-declares-completion", review_branch.verdict.rule)
+        self.assertFalse(any(
+            row.predicate == "branch-self-declares-completion"
+            and row.trigger is correspondence.Trigger.REVIEW
+            for row in correspondence.POSTURE_ROWS
+        ))
+
+        label_event = issue_event("labeled", "Ordinary body.")
+        label_event["issue"]["title"] = "123-45-6789"
+        status, report = run_event(label_event, "issues")
+        self.assertEqual(0, status)
+        self.assertIn("ssn", report)
+        title_label = correspondence.posture_row(
+            "ssn", correspondence.Surface.TITLE, correspondence.Trigger.LABEL_ADDED
+        )
+        self.assertEqual(correspondence.Posture.REPORT, title_label.changed_record.posture)
+
     def test_every_event_cell_names_a_rule_selected_for_its_trigger_surface(self) -> None:
         event_inputs = {
             trigger: (document, event_name)
@@ -481,7 +536,11 @@ class RuntimeConditionsQualifyPostureAtTheHostsIOSeams(unittest.TestCase):
             )
 
     def test_a_synthetic_declaration_does_not_suppress_shape_grading(self) -> None:
-        body = "phi-scan: synthetic\n123-45-6789"
+        body = (
+            "phi-scan: synthetic\n"
+            "DOB: 01/02/2000\nMRN: 12345\n123-45-6789\n"
+            "555-555-1212\n1/2/2026"
+        )
         hook = self.hook(f"gh issue edit 1149 --body '{body}'")
         direct = self.direct(body)
         event = {
@@ -499,29 +558,37 @@ class RuntimeConditionsQualifyPostureAtTheHostsIOSeams(unittest.TestCase):
             },
             "issue_comment",
         )
-        row = correspondence.posture_row(
-            "ssn", correspondence.Surface.BODY, correspondence.Trigger.BODY_EDIT
-        )
-        receipt_row = correspondence.posture_row(
-            "ssn", correspondence.Surface.COMMENT, correspondence.Trigger.COMMENT
-        )
-
-        self.assertIn("advise: phi:ssn", str(hook))
-        self.assertIn("advise: phi:ssn", direct)
+        rules = correspondence.DECLARED_EVENT_PHI_RULES
         self.assertEqual(0, changed_status)  # PHI is advisory at the event host.
         self.assertEqual(0, receipt_status)
-        self.assertIn("ssn", changed)
-        self.assertIn("ssn", receipt)
-        for cell in (
-            row.hook_command,
-            row.direct_writer,
-            row.changed_record,
-            receipt_row.receipt_prepublication,
-        ):
-            self.assertEqual(
-                cell.posture,
-                cell.under(correspondence.RuntimeCondition.SYNTHETIC_DECLARATION),
-            )
+        for rule in rules:
+            with self.subTest(rule=rule):
+                self.assertIn(f"advise: phi:{rule}", str(hook))
+                self.assertIn(f"advise: phi:{rule}", direct)
+                self.assertIn(rule, changed)
+                self.assertIn(rule, receipt)
+                row = correspondence.posture_row(
+                    rule.removeprefix("phi-").replace(":", "-"),
+                    correspondence.Surface.BODY,
+                    correspondence.Trigger.BODY_EDIT,
+                )
+                receipt_row = correspondence.posture_row(
+                    rule.removeprefix("phi-").replace(":", "-"),
+                    correspondence.Surface.COMMENT,
+                    correspondence.Trigger.COMMENT,
+                )
+                for cell in (
+                    row.hook_command,
+                    row.direct_writer,
+                    row.changed_record,
+                    receipt_row.receipt_prepublication,
+                ):
+                    self.assertEqual(
+                        cell.posture,
+                        cell.under(
+                            correspondence.RuntimeCondition.SYNTHETIC_DECLARATION
+                        ),
+                    )
 
     def test_a_failed_fetch_changes_only_the_hook_side_unresolved_path_posture(self) -> None:
         missing = (

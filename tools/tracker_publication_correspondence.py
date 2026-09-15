@@ -291,11 +291,49 @@ EVENT_TRIGGERS = frozenset(
         Trigger.REVIEW,
     )
 )
-PHI_AND_BRANCH_SCOPES = (
+PHI_SCOPES = (
     (Surface.BODY, Trigger.CREATE),
     (Surface.TITLE, Trigger.CREATE),
     (Surface.BODY, Trigger.BODY_EDIT),
     (Surface.TITLE, Trigger.TITLE_EDIT),
+    (Surface.BODY, Trigger.LABEL_ADDED),
+    (Surface.TITLE, Trigger.LABEL_ADDED),
+    (Surface.COMMENT, Trigger.COMMENT),
+    (Surface.REVIEW, Trigger.REVIEW),
+)
+ISSUE_BRANCH_SCOPES = (
+    (Surface.BODY, Trigger.CREATE),
+    (Surface.BODY, Trigger.BODY_EDIT),
+    (Surface.BODY, Trigger.TITLE_EDIT),
+    (Surface.BODY, Trigger.LABEL_ADDED),
+    (Surface.COMMENT, Trigger.COMMENT),
+)
+HOOK_BRANCH_KEYS = frozenset(
+    (
+        (Surface.BODY, Trigger.CREATE),
+        (Surface.TITLE, Trigger.CREATE),
+        (Surface.BODY, Trigger.BODY_EDIT),
+        (Surface.TITLE, Trigger.TITLE_EDIT),
+        (Surface.COMMENT, Trigger.COMMENT),
+        (Surface.REVIEW, Trigger.REVIEW),
+    )
+)
+EVENT_BRANCH_KEYS = frozenset(
+    (
+        (Surface.BODY, Trigger.CREATE),
+        (Surface.BODY, Trigger.BODY_EDIT),
+        (Surface.BODY, Trigger.TITLE_EDIT),
+        (Surface.BODY, Trigger.LABEL_ADDED),
+        (Surface.COMMENT, Trigger.COMMENT),
+        (Surface.REVIEW, Trigger.REVIEW),
+    )
+)
+ALL_BRANCH_SCOPES = (
+    (Surface.BODY, Trigger.CREATE),
+    (Surface.TITLE, Trigger.CREATE),
+    (Surface.BODY, Trigger.BODY_EDIT),
+    (Surface.TITLE, Trigger.TITLE_EDIT),
+    (Surface.BODY, Trigger.TITLE_EDIT),
     (Surface.BODY, Trigger.LABEL_ADDED),
     (Surface.COMMENT, Trigger.COMMENT),
     (Surface.REVIEW, Trigger.REVIEW),
@@ -377,6 +415,33 @@ def _paired_row(
     )
 
 
+def _branch_row(rule: str, surface: Surface, trigger: Trigger) -> PostureRow:
+    key = (surface, trigger)
+    normal = Posture.ADVISE if rule == "branch:near-miss" else Posture.DENY
+    conditions = (
+        ((RuntimeCondition.FETCH_FAILED, Posture.ADVISE),)
+        if rule == "branch:unresolved-path"
+        else ()
+    )
+    return PostureRow(
+        rule.replace(":", "-"),
+        surface,
+        trigger,
+        PostureCell(normal, rule, conditions) if key in HOOK_BRANCH_KEYS else ABSENT,
+        PostureCell(normal, rule, conditions) if key in DIRECT_WRITER_KEYS else ABSENT,
+        PostureCell(
+            Posture.REPORT,
+            rule,
+            tuple((condition, Posture.REPORT) for condition, _ in conditions),
+        ) if key in EVENT_BRANCH_KEYS else ABSENT,
+        PostureCell(
+            Posture.REPORT,
+            rule,
+            tuple((condition, Posture.REPORT) for condition, _ in conditions),
+        ) if trigger is Trigger.COMMENT else ABSENT,
+    )
+
+
 POSTURE_ROWS = (
     _row("no-publication-on-label-removal", Surface.LABELS, Trigger.LABEL_REMOVED),
     _row("no-publication-on-bodyless-review", Surface.REVIEW, Trigger.REVIEW),
@@ -436,7 +501,7 @@ POSTURE_ROWS = (
             conditions=((RuntimeCondition.SYNTHETIC_DECLARATION, Posture.ADVISE),),
         )
         for rule in DECLARED_EVENT_PHI_RULES
-        for surface, trigger in PHI_AND_BRANCH_SCOPES
+        for surface, trigger in PHI_SCOPES
     ),
     *(
         _paired_row(
@@ -492,23 +557,19 @@ POSTURE_ROWS = (
         for surface, trigger in PUBLICATION_SCOPES
     ),
     *(
-        _paired_row(
-            rule.replace(":", "-"),
-            surface,
-            trigger,
-            rule,
-            rule,
-            hook_posture=(
-                Posture.ADVISE if rule == "branch:near-miss" else Posture.DENY
-            ),
-            conditions=(
-                ((RuntimeCondition.FETCH_FAILED, Posture.ADVISE),)
-                if rule == "branch:unresolved-path"
-                else ()
-            ),
-        )
+        _branch_row(rule, surface, trigger)
         for rule in DECLARED_BRANCH_RULES
-        for surface, trigger in PHI_AND_BRANCH_SCOPES
+        for surface, trigger in (
+            ((Surface.COMMENT, Trigger.COMMENT),)
+            if rule == "branch:self-declares-completion"
+            else ISSUE_BRANCH_SCOPES
+            if rule in (
+                "branch:in-flight",
+                "branch:blockquote-missing",
+                "branch:ancestry-refused",
+            )
+            else ALL_BRANCH_SCOPES
+        )
     ),
     *(
         _row(
