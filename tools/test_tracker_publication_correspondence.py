@@ -73,7 +73,7 @@ class ALabelAdditionBindsTheTwoPublicHosts(unittest.TestCase):
             correspondence.Surface.BODY,
             correspondence.Trigger.LABEL_ADDED,
         )
-        with mock.patch.object(tracker_publish_hook, "write_marker"):
+        with mock.patch.object(tracker_publish_hook, "record_run"):
             hook_result = tracker_publish_hook.handle(
                 hook_payload("gh issue edit 1149 --add-label 'in flight'")
             )
@@ -185,7 +185,7 @@ class EveryBehaviorWriterReachRowCrossesItsPublicSeam(unittest.TestCase):
             mock.patch.object(tracker_publish_hook, "current_index", return_value=(index, ())),
             mock.patch.object(tracker_publish_hook, "refresh_default_branch", return_value=True),
             mock.patch.object(tracker_publish_hook, "fetch_readback", return_value=fetched_record()),
-            mock.patch.object(tracker_publish_hook, "write_marker"),
+            mock.patch.object(tracker_publish_hook, "record_run"),
         ):
             hook = tracker_publish_hook.handle(
                 hook_payload("gh issue comment 1149 --body 'Ordinary comment.'")
@@ -359,7 +359,7 @@ class EveryRuledTriggerIsDrivenAtBothHostBoundaries(unittest.TestCase):
                     mock.patch.object(tracker_publish_hook, "current_index", return_value=(index, ())),
                     mock.patch.object(tracker_publish_hook, "refresh_default_branch", return_value=True),
                     mock.patch.object(tracker_publish_hook, "fetch_readback", return_value=fetched_record()),
-                    mock.patch.object(tracker_publish_hook, "write_marker"),
+                    mock.patch.object(tracker_publish_hook, "record_run"),
                 ):
                     response = tracker_publish_hook.handle(hook_payload(command))
 
@@ -549,7 +549,7 @@ class EveryRuledTriggerIsDrivenAtBothHostBoundaries(unittest.TestCase):
             with (
                 self.subTest(kind=kind),
                 mock.patch.object(tracker_publish_hook, "extract", return_value=extracted),
-                mock.patch.object(tracker_publish_hook, "write_marker"),
+                mock.patch.object(tracker_publish_hook, "record_run"),
             ):
                 response = tracker_publish_hook.handle(hook_payload("gh issue edit 1149"))
                 specific = response["hookSpecificOutput"]
@@ -568,7 +568,7 @@ class EveryRuledTriggerIsDrivenAtBothHostBoundaries(unittest.TestCase):
             with (
                 self.subTest(kind=kind),
                 mock.patch.object(tracker_publish_hook, "extract", return_value=extracted),
-                mock.patch.object(tracker_publish_hook, "write_marker"),
+                mock.patch.object(tracker_publish_hook, "record_run"),
             ):
                 response = tracker_publish_hook.handle(hook_payload("gh api synthetic"))
                 specific = response["hookSpecificOutput"]
@@ -585,7 +585,7 @@ class RuntimeConditionsQualifyPostureAtTheHostsIOSeams(unittest.TestCase):
         with (
             mock.patch.object(tracker_publish_hook, "current_index", return_value=(self.index, ())),
             mock.patch.object(tracker_publish_hook, "refresh_default_branch", return_value=fetch_fresh),
-            mock.patch.object(tracker_publish_hook, "write_marker"),
+            mock.patch.object(tracker_publish_hook, "record_run"),
             mock.patch.object(tracker_publish_hook, "fetch_readback", return_value=readback_result),
         ):
             return tracker_publish_hook.handle(hook_payload(command))
@@ -721,7 +721,7 @@ class RuntimeConditionsQualifyPostureAtTheHostsIOSeams(unittest.TestCase):
             mock.patch.object(tracker_publish_hook, "current_index", return_value=(self.index, ())),
             mock.patch.object(tracker_publish_hook, "refresh_default_branch", return_value=True),
             mock.patch.object(tracker_publish_hook, "fetch_readback", side_effect=OSError("offline")),
-            mock.patch.object(tracker_publish_hook, "write_marker"),
+            mock.patch.object(tracker_publish_hook, "record_run"),
         ):
             hook = tracker_publish_hook.handle(
                 hook_payload(f"gh issue edit 1149 --body '{proposed}'")

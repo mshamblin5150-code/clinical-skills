@@ -21,6 +21,7 @@ from unittest import mock
 
 import name_index as ni
 import phi_scan as ps
+import tracker_publish_marker
 from repo_root import output_root, scratch_root
 
 NAMES = {"Jordan Vance", "Priya Raman"}
@@ -1213,13 +1214,12 @@ class TheCommitPathCoverageNoticesReachTheCommitter(unittest.TestCase):
     def test_the_pre_publish_hook_marker_states_its_exact_age(self):
         with tempfile.TemporaryDirectory() as temporary:
             marker = Path(temporary) / "tracker-publish-hook.json"
+            ran_on = CalendarDate.today() - timedelta(days=37)
             marker.write_text(
                 json.dumps(
                     {
-                        "version": 1,
-                        "ran_on": (
-                            CalendarDate.today() - timedelta(days=37)
-                        ).isoformat(),
+                        "version": 2,
+                        "ran_on": ran_on.isoformat(),
                     }
                 ),
                 encoding="utf-8",
@@ -1227,8 +1227,11 @@ class TheCommitPathCoverageNoticesReachTheCommitter(unittest.TestCase):
 
             notice = ps.tracker_publish_notice(marker=marker)
 
-        self.assertIn(ps.TRACKER_PUBLISH_NOTICE, notice)
-        self.assertIn("37 day(s)", notice)
+        self.assertEqual(
+            notice,
+            "  ** last tracker pre-publish hook run in this checkout: "
+            f"37 day(s) ago ({ran_on.isoformat()}). **",
+        )
         self.assertNotRegex(notice.lower(), r"stale|overdue|threshold|too old")
 
     def test_an_absent_pre_publish_marker_is_distinct_from_a_clean_scan(self):
@@ -1237,12 +1240,47 @@ class TheCommitPathCoverageNoticesReachTheCommitter(unittest.TestCase):
 
             notice = ps.tracker_publish_notice(marker=marker)
 
-        self.assertIn("never run", notice.lower())
+        self.assertEqual(
+            notice,
+            "  ** last tracker pre-publish hook run in this checkout: "
+            "never (no record for this checkout). **",
+        )
+
+    def test_an_invalid_pre_publish_marker_has_the_checkout_wording(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            marker = Path(temporary) / "invalid.json"
+            marker.write_text("{}", encoding="utf-8")
+
+            notice = ps.tracker_publish_notice(marker=marker)
+
+        self.assertEqual(
+            notice,
+            "  ** last tracker pre-publish hook run in this checkout: "
+            "NOT RECORDED -- record invalid. **",
+        )
+
+    def test_a_record_for_another_checkout_reads_as_never_for_this_one(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            runs = root / "runs"
+            tracker_publish_marker.write_marker(
+                module_file=root / "other" / "tools" / "marker.py",
+                runs_root=runs,
+            )
+            this_record = tracker_publish_marker.marker_path(
+                module_file=root / "this" / "tools" / "marker.py",
+                runs_root=runs,
+            )
+
+            notice = ps.tracker_publish_notice(marker=this_record)
+
+        self.assertIn(": never (no record for this checkout)", notice)
 
     def test_the_pre_publish_marker_stays_under_the_accounted_runs_root(self):
         relative = ps.TRACKER_PUBLISH_MARKER.relative_to(ps.SCRATCH)
 
         self.assertEqual(relative.parts[0], "runs")
+        self.assertEqual(relative.parts[1], tracker_publish_marker.MARKER_DIRECTORY)
 
 class AnAllRunStatesItsCoverage(unittest.TestCase):
     """#258 open question 2: on **every** ``--all`` run, not only a degraded one.

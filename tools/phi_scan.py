@@ -109,6 +109,7 @@ from console_codec import require_python_floor, use_utf8
 import git_paths
 from name_index import coverage as index_coverage, looks_like_a_name
 from repo_root import scratch_root
+import tracker_publish_marker
 
 # The tree being committed from -- this worktree. `_git` runs here and `scan_all`
 # walks from here, and both are right: the subject of a commit is the tree making
@@ -156,8 +157,8 @@ ALLOW_NO_CORPUS_CONFIG = "clinical.phiAllowNoCorpus"
 # actually checking rather than from the checkout that holds the PHI corpus.
 TRACKER_HARVEST_MARKER = Path("reference/tracker-scan-harvest.json")
 TRACKER_HARVEST_NOTICE = "last full tracker harvest"
-TRACKER_PUBLISH_MARKER = SCRATCH / "runs" / "tracker-publish-hook.json"
-TRACKER_PUBLISH_NOTICE = "last tracker pre-publish hook run"
+TRACKER_PUBLISH_MARKER = tracker_publish_marker.marker_path()
+TRACKER_PUBLISH_NOTICE = "last tracker pre-publish hook run in this checkout"
 
 # A file declaring this near its top is exempt from the SHAPE layer only.
 SYNTHETIC_PRAGMA = "phi-scan: synthetic"
@@ -1075,17 +1076,17 @@ def tracker_publish_notice(
     """State the pre-publish hook marker's age without inventing a threshold."""
     target = TRACKER_PUBLISH_MARKER if marker is None else marker
     if not target.is_file():
-        return f"  ** {TRACKER_PUBLISH_NOTICE}: never run (marker absent). **"
+        return f"  ** {TRACKER_PUBLISH_NOTICE}: never (no record for this checkout). **"
     try:
         data = json.loads(target.read_text(encoding="utf-8"))
         ran_on = CalendarDate.fromisoformat(data["ran_on"])
-        if data.get("version") != 1:
+        if data.get("version") != tracker_publish_marker.SCHEMA_VERSION:
             raise ValueError("unsupported tracker publish marker")
         age = ((CalendarDate.today() if today is None else today) - ran_on).days
         if age < 0:
             raise ValueError("future tracker publish marker")
     except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError):
-        return f"  ** {TRACKER_PUBLISH_NOTICE}: NOT RECORDED -- marker invalid. **"
+        return f"  ** {TRACKER_PUBLISH_NOTICE}: NOT RECORDED -- record invalid. **"
     return f"  ** {TRACKER_PUBLISH_NOTICE}: {age} day(s) ago ({ran_on.isoformat()}). **"
 
 

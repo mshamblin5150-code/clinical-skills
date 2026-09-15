@@ -1547,22 +1547,35 @@ A clean response establishes only the verdicts reported for that run. The
 complete boundary belongs to `tracker_publish_hook.NOT_REACHED`; this section
 points to the object and copies none of its rows.
 
-The hook writes a separate counts-free marker at
-`scratch/runs/tracker-publish-hook.json`, and the bare
-`python tools/phi_scan.py` commit path states its exact age. The accounted
-`runs` root avoids creating a new top-level scratch entry. No age becomes a
-stale verdict, and an absent or invalid marker remains distinct from a clean
-scan. **That age cannot show a checkout whose hook never registered.** The path
-resolves through `repo_root.scratch_root()`, so every worktree shares one
-file, and `handle` writes it only after a command was graded or refused.
+The hook writes one counts-free, date-only record per checkout under
+`scratch/runs/tracker-publish-hook/`, with the filename derived from the resolved
+checkout path. The stub writes before its `gh` filter and the full hook writes
+before parsing its payload, so a read-only command, an unmodeled-shell refusal,
+or an analysis failure still records that the registered entry point ran. A
+failed record write never changes the hook response, and manual `--command-file`
+pre-grading writes no record. The bare `python tools/phi_scan.py` commit path
+states the exact age of this checkout's schema-versioned record, distinguishes
+never from an invalid record, names no threshold, and never refuses. The retired
+shared `scratch/runs/tracker-publish-hook.json` file is neither read nor changed.
 [ADR 0246](docs/adr/0246-the-publish-marker-records-a-hook-run-per-checkout.md)
-rules a per-checkout record written first at every registered entry point; until
-its build lands, the notice is an account-wide reading of graded commands.
+records the mechanism and its limits.
 
-Covered by `tools/test_tracker_publish_hook.py` and
-`tools/test_tracker_publish_stub.py`, which drive synthetic command strings and
-hook payloads through the cost guard, extractor, grader, and JSON protocol with
-temporary body files. They perform no publication.
+Covered by `tools/test_tracker_publish_marker.py`,
+`tools/test_tracker_publish_hook.py`, and `tools/test_tracker_publish_stub.py`,
+which drive distinct checkout identities, synthetic command strings, and hook
+payloads through the marker, cost guard, extractor, grader, and JSON protocol
+with temporary files. They perform no publication.
+
+### Tracker publish marker
+
+`tracker_publish_marker.py` is the dependency-light shared seam between the
+cheap Bash stub, the full pre-publication hook, and the commit-path notice. It
+derives the resolved checkout root from its own module location, normalizes and
+hashes that identity into a filename, and stores the schema-versioned date-only
+record in the owning checkout's accounted `scratch/runs/` tree. This separation
+lets the stub record its invocation without importing `phi_scan` and lets the
+notice locate exactly the same checkout record. Marker I/O remains best-effort
+at both registered entry points; it never changes a publication decision.
 
 ### Tracker Filed-from line
 
