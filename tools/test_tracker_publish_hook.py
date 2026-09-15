@@ -364,6 +364,32 @@ class InlineTrackerTextIsRead(unittest.TestCase):
             "unclassified-api-identifier",
         )
 
+    def test_prior_command_local_api_assignment_is_not_reconstructed(self) -> None:
+        result = hook.extract(
+            "CID=123 echo setup; "
+            "gh api repos/example/project/issues/comments/$CID "
+            "-f body='Comment edit'"
+        )
+
+        self.assertIsNone(result.grade_route)
+        self.assertEqual(
+            result.unclassified_api_calls[0].kind,
+            "unclassified-api-identifier",
+        )
+
+    def test_unset_api_identifier_assignment_is_not_reconstructed(self) -> None:
+        result = hook.extract(
+            "CID=123; unset CID; "
+            "gh api repos/example/project/issues/comments/$CID "
+            "-f body='Comment edit'"
+        )
+
+        self.assertIsNone(result.grade_route)
+        self.assertEqual(
+            result.unclassified_api_calls[0].kind,
+            "unclassified-api-identifier",
+        )
+
     def test_api_collection_endpoints_use_create_semantics(self) -> None:
         issue = hook.extract(
             "gh api repos/example/project/issues "
@@ -495,6 +521,16 @@ class InlineTrackerTextIsRead(unittest.TestCase):
         result = hook.extract(
             "gh api graphql -f query=$QUERY; "
             "QUERY='query { viewer { login } }'"
+        )
+
+        self.assertIsNone(result.grade_route)
+        self.assertEqual(result.publications, ())
+        self.assertEqual(result.unreadable[0].kind, "external-variable")
+
+    def test_prior_command_local_graphql_assignment_is_not_reconstructed(self) -> None:
+        result = hook.extract(
+            "QUERY='query { viewer { login } }' echo setup; "
+            "gh api graphql -f query=$QUERY"
         )
 
         self.assertIsNone(result.grade_route)

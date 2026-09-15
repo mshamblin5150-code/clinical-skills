@@ -934,9 +934,7 @@ def _api_graphql_field(
     arguments: list[str], command: str, target: str
 ) -> str | Unreadable | None:
     found: str | Unreadable | None = None
-    assignment_scope = _api_assignment_scope(command)
-    assignments = shell_reader.plain_assignments(assignment_scope)
-    substitutions = shell_reader.substitution_assignments(assignment_scope)
+    assignments, substitutions = _api_assignments(command)
     index = 0
     while index < len(arguments):
         option = _api_value_option(arguments, index)
@@ -1064,30 +1062,54 @@ def _graphql_operation(
 
 
 def _api_identifier(identifier: str, command: str) -> str | None:
-    assignment_scope = _api_assignment_scope(command)
-    assignments = shell_reader.plain_assignments(assignment_scope)
-    substitutions = shell_reader.substitution_assignments(assignment_scope)
+    assignments, substitutions = _api_assignments(command)
     expanded, kind = shell_reader.expand(identifier, assignments, substitutions)
     if kind is not None or expanded is None or re.search(r"[/\?]", expanded):
         return None
     return expanded
 
 
-def _api_assignment_scope(command: str) -> str:
-    """Return only shell text whose assignments precede the modeled API call."""
-    prefix: list[str] = []
-    for piece in shell_reader.shell_pieces(command):
+def _api_assignments(
+    command: str,
+) -> tuple[dict[str, str], frozenset[str]]:
+    """Read persistent assignments completed before the modeled API call."""
+    assignments: dict[str, str] = {}
+    substitutions: set[str] = set()
+    pieces = shell_reader.shell_pieces(command)
+    for position, piece in enumerate(pieces):
         if piece in shell_reader.SEPARATORS:
-            if piece in ("|", "||", "&"):
-                prefix = []
-            else:
-                prefix.append(piece)
             continue
         for tokens, index in shell_reader.executable_calls(piece, "gh"):
             if tokens[index + 1 : index + 2] == ["api"]:
-                return "".join(prefix)
-        prefix.append(piece)
-    return command
+                return assignments, frozenset(substitutions)
+        words = shell_reader.source_words(piece)
+        if not words:
+            continue
+        if words[0] == "unset":
+            for name in words[1:]:
+                if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
+                    assignments.pop(name, None)
+                    substitutions.discard(name)
+            continue
+        assignment_words = words[1:] if words[0] == "export" else words
+        if not assignment_words or any(
+            re.match(r"[A-Za-z_][A-Za-z0-9_]*=", word) is None
+            for word in assignment_words
+        ):
+            continue
+        next_piece = pieces[position + 1] if position + 1 < len(pieces) else None
+        if next_piece in ("|", "&"):
+            continue
+        for word in assignment_words:
+            plain = shell_reader.plain_assignments(word)
+            dynamic = shell_reader.substitution_assignments(word)
+            for name, value in plain.items():
+                assignments[name] = value
+                substitutions.discard(name)
+            for name in dynamic:
+                assignments.pop(name, None)
+                substitutions.add(name)
+    return assignments, frozenset(substitutions)
 
 
 def _api_route_match(
@@ -1239,9 +1261,7 @@ def _read_file_field(
 
 
 def _read_api_input(source: str, command: str) -> ApiInput | Unreadable:
-    assignment_scope = _api_assignment_scope(command)
-    assignments = shell_reader.plain_assignments(assignment_scope)
-    substitutions = shell_reader.substitution_assignments(assignment_scope)
+    assignments, substitutions = _api_assignments(command)
     if source == "-":
         heredoc = HEREDOC.search(command)
         if heredoc is None:
@@ -1349,9 +1369,7 @@ def extract(command: str) -> Extraction:
     if route == ("api",) and grade_route is None:
         return Extraction(route, number, (), (), None)
     publications: list[Publication] = []
-    assignment_scope = _api_assignment_scope(command)
-    assignments = shell_reader.plain_assignments(assignment_scope)
-    substitutions = shell_reader.substitution_assignments(assignment_scope)
+    assignments, substitutions = _api_assignments(command)
     index = 0
     while index < len(arguments):
         token = arguments[index]
