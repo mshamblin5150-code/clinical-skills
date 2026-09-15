@@ -709,16 +709,20 @@ def loose_command_calls(
 
 
 def _loose_api_is_publication(call: LooseCommand) -> bool:
+    if not _loose_has_publication_flag(call):
+        return False
+    if re.match(r"\s*(?:,\s*)?['\"]?graphql\b", call.arguments, re.IGNORECASE):
+        return bool(re.search(r"\bmutation\b", call.arguments, re.IGNORECASE))
+    return True
+
+
+def _loose_has_publication_flag(call: LooseCommand) -> bool:
     flag = (
         LOOSE_ARGV_PUBLICATION_FLAG
         if call.argv_list
         else LOOSE_PUBLICATION_FLAG
     )
-    if not flag.search(call.arguments):
-        return False
-    if re.match(r"\s*(?:,\s*)?['\"]?graphql\b", call.arguments, re.IGNORECASE):
-        return bool(re.search(r"\bmutation\b", call.arguments, re.IGNORECASE))
-    return True
+    return flag.search(call.arguments) is not None
 
 
 def loose_publish_calls(command: str) -> tuple[LooseCommand, ...]:
@@ -732,12 +736,7 @@ def loose_publish_calls(command: str) -> tuple[LooseCommand, ...]:
             if _loose_api_is_publication(call):
                 publications.append(call)
             continue
-        flag = (
-            LOOSE_ARGV_PUBLICATION_FLAG
-            if call.argv_list
-            else LOOSE_PUBLICATION_FLAG
-        )
-        if flag.search(call.arguments):
+        if _loose_has_publication_flag(call):
             publications.append(call)
     return tuple(publications)
 
@@ -753,13 +752,17 @@ def _unreproduced_publish_route(command: str) -> tuple[str, ...] | None:
     calls = list(loose_publish_calls(command))
     publish = _publish_tokens(command)
     if publish is not None:
-        tokens, start = publish
-        tail = tokens[start + 1 :]
-        precise = ("api",) if tail[0] == "api" else tuple(tail[:2])
-        for index, call in enumerate(calls):
-            if call.route == precise:
-                del calls[index]
-                break
+        extracted = extract(command)
+        precise_is_publication = (
+            extracted.route in (("api",), ("issue", "create"))
+            or bool(extracted.publications)
+            or bool(extracted.unreadable)
+        )
+        if precise_is_publication:
+            for index, call in enumerate(calls):
+                if call.route == extracted.route:
+                    del calls[index]
+                    break
     return calls[0].route if calls else None
 
 

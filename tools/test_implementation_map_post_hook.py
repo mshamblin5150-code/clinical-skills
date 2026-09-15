@@ -92,6 +92,32 @@ class CommandContext(unittest.TestCase):
             response["hookSpecificOutput"]["additionalContext"],
         )
 
+    def test_an_irrelevant_precise_edit_does_not_hide_a_later_ready_flip(self):
+        response = hook.handle(
+            self.payload(
+                "gh issue edit 5 --add-label bug && "
+                "gh issue edit 6 --add-label ready-for-agent"
+            )
+        )
+
+        self.assertIn(
+            "not derived",
+            response["hookSpecificOutput"]["additionalContext"],
+        )
+
+    def test_one_derived_ready_flip_does_not_hide_a_second_one(self):
+        response = hook.handle(
+            self.payload(
+                "gh issue edit 5 --add-label ready-for-agent && "
+                "gh issue edit 6 --add-label ready-for-agent"
+            )
+        )
+
+        self.assertIn(
+            "not derived",
+            response["hookSpecificOutput"]["additionalContext"],
+        )
+
     def test_monitor_uses_the_modeled_command_reader(self):
         response = hook.handle(
             self.payload(

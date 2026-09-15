@@ -248,18 +248,6 @@ def _lands_default_branch(command: str) -> bool:
     return False
 
 
-def _precise_map_action(command: str) -> bool:
-    if any(
-        _arguments(command, route) is not None
-        for route in (("issue", "edit"), ("issue", "create"), ("pr", "merge"))
-    ):
-        return True
-    return any(
-        tokens[index + 1 : index + 2] == ["push"]
-        for tokens, index in tracker_publish_hook.command_tokens(command, "git")
-    )
-
-
 def _loose_push_lands_default(arguments: str) -> bool:
     tokens = re.findall(r"[+A-Za-z0-9_./:-]+", arguments)
     if "--delete" in arguments or re.search(r"(?:\A|\s)-d(?:\s|\Z)", arguments):
@@ -281,21 +269,78 @@ def _loose_push_lands_default(arguments: str) -> bool:
     )
 
 
-def _loose_map_action(command: str) -> bool:
+def _is_loose_ready(call: tracker_publish_hook.LooseCommand) -> bool:
+    if call.route not in (("issue", "edit"), ("issue", "create")):
+        return False
+    long_flag = "--add-label" if call.route == ("issue", "edit") else "--label"
+    short_create = call.route == ("issue", "create") and re.search(
+        r"(?:\A|[\s,'\"])-l(?:[\s,'\"]|ready-for-agent)",
+        call.arguments,
+    )
+    return READY_LABEL in call.arguments and (
+        long_flag in call.arguments or short_create is not None
+    )
+
+
+def _loose_map_actions(
+    command: str,
+) -> tuple[tracker_publish_hook.LooseCommand, ...]:
+    actions: list[tracker_publish_hook.LooseCommand] = []
     ready_routes = (("issue", "edit"), ("issue", "create"))
     for call in tracker_publish_hook.loose_command_calls(command, "gh", ready_routes):
-        flag = "--add-label" if call.route == ("issue", "edit") else "--label"
-        short_create = call.route == ("issue", "create") and "-l" in call.arguments
-        if READY_LABEL in call.arguments and (flag in call.arguments or short_create):
-            return True
-    if tracker_publish_hook.loose_command_calls(command, "gh", (("pr", "merge"),)):
-        return True
-    return any(
-        _loose_push_lands_default(call.arguments)
+        if _is_loose_ready(call):
+            actions.append(call)
+    actions.extend(
+        tracker_publish_hook.loose_command_calls(command, "gh", (("pr", "merge"),))
+    )
+    actions.extend(
+        call
         for call in tracker_publish_hook.loose_command_calls(
             command, "git", (("push",),)
         )
+        if _loose_push_lands_default(call.arguments)
     )
+    return tuple(actions)
+
+
+def _precise_map_actions(
+    command: str,
+) -> tuple[tracker_publish_hook.LooseCommand, ...]:
+    actions: list[tracker_publish_hook.LooseCommand] = []
+    parsed = tracker_publish_hook.gh_command_tokens(command, ROUTES)
+    if parsed is not None:
+        tokens, index = parsed
+        tail = tokens[index + 1 :]
+        route = tuple(tail[:2])
+        call = tracker_publish_hook.LooseCommand(
+            "gh", route, " ".join(tail[2:]), False
+        )
+        if route == ("pr", "merge") or _is_loose_ready(call):
+            actions.append(call)
+    git_calls = tracker_publish_hook.command_tokens(command, "git")
+    if git_calls:
+        tokens, index = git_calls[0]
+        tail = tokens[index + 1 :]
+        if tail[:1] == ["push"]:
+            call = tracker_publish_hook.LooseCommand(
+                "git", ("push",), " ".join(tail[1:]), False
+            )
+            if _loose_push_lands_default(call.arguments):
+                actions.append(call)
+    return tuple(actions)
+
+
+def _unreproduced_map_action(command: str) -> bool:
+    loose = list(_loose_map_actions(command))
+    for precise in _precise_map_actions(command):
+        for index, candidate in enumerate(loose):
+            if (candidate.executable, candidate.route) == (
+                precise.executable,
+                precise.route,
+            ):
+                del loose[index]
+                break
+    return bool(loose)
 
 
 def _response_text(response: object) -> str:
@@ -331,12 +376,17 @@ def handle(payload: dict) -> dict:
             == tracker_publish_hook.MODELED_SHELL
         )
         if not modeled:
-            if not _loose_map_action(command):
+            if not _loose_map_actions(command):
                 return {}
             return _specific(
                 "Implementation-map work was not derived from the completed "
                 f"{tool_name} command because it carries an unmodeled shell; "
                 "inspect the completed command by hand."
+            )
+        if _unreproduced_map_action(command):
+            return _specific(
+                "Implementation-map work was not derived from the completed "
+                f"{tool_name} command; inspect the completed command by hand."
             )
         ticket = _ready_flip(command, payload.get("tool_response", ""))
         if ticket is not None:
@@ -355,11 +405,6 @@ def handle(payload: dict) -> dict:
                     f"This merge lands {names}. Record each ADR's implementation-map "
                     "review now with apply-delta."
                 )
-        if not _precise_map_action(command) and _loose_map_action(command):
-            return _specific(
-                "Implementation-map work was not derived from the completed "
-                f"{tool_name} command; inspect the completed command by hand."
-            )
     except (KeyError, TypeError, ValueError):
         return {}
     return {}

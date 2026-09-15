@@ -1718,6 +1718,14 @@ class TheHookProtocolReportsOnlyPublishInvocations(unittest.TestCase):
         self.assertIn("unreproduced publication", specific["additionalContext"])
         self.assertNotIn("repair and save", specific["additionalContext"])
 
+    def test_a_flag_free_precise_call_does_not_hide_a_later_same_route_publish(self) -> None:
+        command = "gh issue edit 5 --add-label bug && gh issue edit 6 --body 'text'"
+
+        specific = hook.handle(self.payload(command))["hookSpecificOutput"]
+
+        self.assertEqual(specific["permissionDecision"], "deny")
+        self.assertIn("unreproduced publication", specific["additionalContext"])
+
     def test_loose_controls_that_do_not_publish_are_untouched(self) -> None:
         commands = (
             "gh api graphql -f query='{viewer{login}}'",

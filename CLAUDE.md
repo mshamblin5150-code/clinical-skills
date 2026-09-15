@@ -1411,7 +1411,7 @@ on an unmodeled path every loose publication is refused unread. A false refusal
 costs a retype through one top-level Bash `gh`, while a missed publication
 cannot be withdrawn. The precise reader's route and method judgment wins for
 the call it reaches, so read-only `gh api` calls and flag-free edits remain
-untouched. None of the three registrations carries an `if` condition; Bash
+untouched. No registration carries an `if` condition; Bash
 alone invokes the stub, while PowerShell and Monitor invoke the full hook.
 
 `tools/command_tool_roster.py --session-end` is a separate `SessionEnd` hook.
