@@ -263,6 +263,11 @@ than a ruling about a patient. All three hold, and two hold more strongly here:
 the hook already extracts both, and that record measured 32 publishes carrying a title and no body
 flag.
 
+*2026-09-15: the workflow never graded a title for this row, on any event, because its event reader
+reads only a body.
+[ADR 0245](0245-the-tracker-workflow-grades-the-title-that-changed-and-a-label-removal-starts-no-run.md)
+ruling 2 extends the workflow to titles; until that build lands, the title half holds at the hook only.*
+
 **The workflow step stays advisory and the asymmetry is deliberate**: the hook refuses because it can
 still prevent, the workflow reports because it cannot.
 
