@@ -377,7 +377,7 @@ record, unpaired file, missing subject, or other unread remainder.
 
 **A code whose only anchor is a filled value is proposed like any other, carries `SOURCE: filled`, and is listed again in step 4.** The code is derived from the note's own stated value and looked up, not withheld and not recalled.
 
-**Withholding it was the previous rule and it was wrong for a reason that has nothing to do with whether the code is earned.** [clinical-note](../clinical-note/SKILL.md) writes codes into the Medatrax `Preexisting diagnoses` and `Final diagnosis` fields, because those are fields and something goes in them. So a rule that refused those same codes here produced two documents, from one pipeline, disagreeing about one number — with nothing in either saying which was right. **The clinician cannot adjudicate that and should not be asked to.** Marking gives the same protection without the contradiction: the code is present, so the two agree, and the mark says what the note alone cannot.
+**Withholding it was the previous rule and it was wrong for a reason that has nothing to do with whether the code is earned.** [clinical-note](../clinical-note/SKILL.md) writes codes under the note's `Preexisting diagnoses` and `Final diagnosis` headings. They are note headings, not structured Medatrax fields. So a rule that refused those same codes here produced two documents, from one pipeline, disagreeing about one number — with nothing in either saying which was right. **The clinician cannot adjudicate that and should not be asked to.** Marking gives the same protection without the contradiction: the code is present, so the two agree, and the mark says what the note alone cannot.
 
 **The mark is not a formality, and this is what it buys.** The note is written so given and filled content read identically — that is deliberate, and it is why the tier block exists at all. Once a code leaves this worksheet, nothing downstream can recover whether anybody measured the patient. `SOURCE: filled` is the last point in the pipeline where that fact is still knowable.
 
@@ -490,7 +490,7 @@ the worksheet explains why that otherwise repeated code belongs in the MDM.
 - **Specificity** drops. A differential is coded at the unspecified level on purpose, so `needs: laterality` on a diagnosis the note is arguing against is noise in a block that already runs long.
 - **Descriptor and confidence stay.** They are the two defenses against a fluent, plausible, wrong code number, and a differential code is exactly as easy to invent as any other. Look each one up.
 
-**Where they must not go.** `reference/medatrax-fields.md` names `ICD-10-CM` as an Add Visit Data category, and that category takes the **preexisting diagnoses and the final diagnoses only** — what the patient had. `reports/diagnosisstatistics.aspx` reports across a whole rotation, and loading it with five to seven entries per encounter, most of them diagnoses the note argues *against*, would make it describe a caseload nobody saw.
+**Where they must not go.** Medatrax exposes `ICD-10-CM` under Add Visit Data, but this workflow leaves that category empty. Preexisting, differential, and final-diagnosis codes remain inside the approved note form. `reports/diagnosisstatistics.aspx` therefore does not become a second, conflicting code population.
 
 **The uncertainty rule above applies inside the differential too, and this is where it bites hardest.** The entries most worth coding are the ones the encounter could not establish — a suspected pneumonia, an untested influenza — and those are exactly the entries where an organism-specific descriptor would assert what the note denies. `Z20.822` over `U07.1` is that rule, on a differential line.
 
@@ -621,10 +621,12 @@ And every occurrence of spirometry identifies the intervention. An affected entr
 qualified clinician restatement while unrelated extraction continued; no worksheet line relies on
 a qualifier written somewhere else.
 
-**Then invoke `/AAR`; the worksheet is not complete without it.** Use the worksheet's submission key and date. After `/AAR` exits clean, rerun the separated-read completion command with `--submission <submission-key>`:
+**This skill writes no posted reading and performs no second portal entry.** The worksheet rides on the note's Medatrax record and uses the note's submission key: `shift-<date>` under `batch-shift`, or the standalone encounter key otherwise. Diagnosis codes remain inside the approved note; enter nothing under Add Visit Data.
+
+**Then invoke `/AAR`; the worksheet is not complete without it.** Use that note submission key. After `/AAR` exits clean, rerun the separated-read completion command with the same key:
 
 ```bash
-python tools/specificity_scan.py <run directory> --second-read <record.json> --submission <submission-key>
+python tools/specificity_scan.py <run directory> --second-read <record.json> --submission <note-submission-key>
 ```
 
 Exit 0 must include `the after-action review: clean`. The brief mode is not terminal and deliberately does not grade this row.

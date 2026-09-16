@@ -33,9 +33,12 @@ that has drifted from the file a reader opens is worse than none, because it rea
 as agreement.
 """
 
+# phi-scan: synthetic
+
 from __future__ import annotations
 
 import io
+import hashlib
 import re
 import tempfile
 import unittest
@@ -2138,6 +2141,61 @@ class TheSkillsWorkedExamplesPassTheScanner(unittest.TestCase):
         joined = "\n".join(block for _, block in self.readable())
         self.assertTrue(joined.strip())
         self.assertEqual(ds.note_findings(ds.read_note(joined)), [])
+
+
+class MedatraxSubmissionFingerprint(unittest.TestCase):
+    def setUp(self) -> None:
+        self.temporary = tempfile.TemporaryDirectory()
+        self.run = Path(self.temporary.name) / "encounter"
+        self.run.mkdir()
+        self.note = self.run / "encounter.md"
+        self.note.write_text(CLEAN_SOAP, encoding="utf-8")
+
+    def tearDown(self) -> None:
+        self.temporary.cleanup()
+
+    def write_reading(self, digest: str | None) -> None:
+        fingerprint = "" if digest is None else f"SUBMISSION-SHA256: {digest}\n"
+        (self.run / "reread.md").write_text(
+            "## REREAD: encounter-2026-08-17\n"
+            "POST-URL: https://example.org/patient-visits\n"
+            "POSTED: 08/17/2026 21:14\n"
+            "READ: 1 of 1 read\n"
+            "VERDICT: matches - The saved visit and note form matched.\n"
+            + fingerprint
+            + "VISIT: 1 | patient 1 | reference matched P-17 | patient-detail=/patients/17 | "
+            "note-view=/forms/view?resultid=31 | visit-date=08/17/2026 | matches\n",
+            encoding="utf-8",
+        )
+
+    def invoke(self) -> tuple[int, str, str]:
+        stdout, stderr = io.StringIO(), io.StringIO()
+        with redirect_stdout(stdout), redirect_stderr(stderr):
+            status = ds.main(
+                [str(self.run), "--submission", "encounter-2026-08-17"]
+            )
+        return status, stdout.getvalue(), stderr.getvalue()
+
+    def test_current_fingerprint_is_clean(self) -> None:
+        self.write_reading(hashlib.sha256(self.note.read_bytes()).hexdigest())
+        _status, stdout, stderr = self.invoke()
+        self.assertIn("the Medatrax posted reading: clean", stdout)
+        self.assertIn("notes read                       1", stdout)
+        self.assertNotIn("SUBMISSION-SHA256", stderr)
+
+    def test_missing_fingerprint_is_a_finding(self) -> None:
+        self.write_reading(None)
+        status, _stdout, stderr = self.invoke()
+        self.assertEqual(1, status)
+        self.assertIn("SUBMISSION-SHA256 is missing", stderr)
+
+    def test_stale_fingerprint_is_a_finding(self) -> None:
+        self.write_reading(hashlib.sha256(self.note.read_bytes()).hexdigest())
+        with self.note.open("a", encoding="utf-8") as note:
+            note.write("\nPlan: changed after the posted reading.\n")
+        status, _stdout, stderr = self.invoke()
+        self.assertEqual(1, status)
+        self.assertIn("SUBMISSION-SHA256 does not match", stderr)
 
 
 if __name__ == "__main__":

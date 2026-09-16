@@ -78,6 +78,7 @@ from pathlib import Path
 import run_grader
 from corpus_census import Reading, is_normal_bp
 import aar_scan
+import medatrax_posting
 
 
 NOT_GRADED = run_grader.NOT_GRADED
@@ -675,7 +676,16 @@ def load(parsed: run_grader.Parsed) -> tuple[Path, list[str]]:
     # or ``output/``, and its path names the shift and often the site.
     if not directory.is_dir():
         raise run_grader.SourceError(f"no directory named {directory.name}")
-    notes = run_grader.read_run_directory(directory)
+    posting_paths = (
+        medatrax_posting.note_paths(directory, batch=True)
+        if parsed.value("--submission")
+        else ()
+    )
+    notes = (
+        [path.read_text(encoding="utf-8", errors="replace") for path in posting_paths]
+        if posting_paths
+        else run_grader.read_run_directory(directory)
+    )
     if not notes:
         raise run_grader.SourceError(f"no notes found in {directory.name}")
     return directory, notes
@@ -688,6 +698,9 @@ def grade(
     scan = survey(notes)
     aar_failed, aar_report = aar_scan.completion_gate(
         directory, parsed.value("--submission")
+    )
+    posting_failed, posting_report = medatrax_posting.completion_gate(
+        directory, parsed.value("--submission"), batch=True
     )
 
     diagnostic_by_kind = {
@@ -718,7 +731,7 @@ def grade(
         if scan.asserted_keys_unread
         else ""
     )
-    findings_failed = bool(scan.findings or aar_failed)
+    findings_failed = bool(scan.findings or aar_failed or posting_failed)
     coverage_failed = bool(scan.asserted_keys_unread or scan.unread_remainder)
     diagnostics: tuple[str, ...] = ()
     if findings_failed:
@@ -730,7 +743,8 @@ def grade(
         # ordering: a count printed ahead of its caveat is read as the verdict,
         # and every finding below is a count.
         diagnostics = (
-            "\n" + unread + "\n".join(findings) + ("\n" if findings else "") + "Re-run with --show to see"
+            "\n" + unread + "\n".join(findings) + ("\n" if findings else "")
+            + (posting_report + "\n" if posting_failed else "") + "Re-run with --show to see"
             " which values, and do not paste that output.",
         )
     elif unread or scan.unread_remainder:
@@ -759,7 +773,7 @@ def grade(
         findings_failed=findings_failed,
         coverage_failed=coverage_failed,
         diagnostics=diagnostics,
-        reports=(aar_report,),
+        reports=(aar_report, posting_report),
     )
 
 

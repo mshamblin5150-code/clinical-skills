@@ -27,6 +27,7 @@ import re
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from code_set_database_test_support import (
     ICD10_DATABASE_SHA256,
@@ -1073,6 +1074,24 @@ class ThePositiveControlCoversEveryForEntryCode(unittest.TestCase):
         self.assertEqual((12, 0), tuple(map(sum, zip(*coverage))))
         self.assertEqual((0, 0), (result.failing_flags, result.orphaned_details))
         self.assertEqual(0, sum(scan.candidate_unread_remainder(text) for text in texts))
+
+
+class TheWorksheetUsesTheNoteSubmissionKey(unittest.TestCase):
+    def test_the_note_key_is_passed_to_the_shared_completion_gate(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            run = Path(temporary)
+            (run / "codes.md").write_text(
+                worksheet(entry("R12", "Heartburn", "complete - R12 has no further axis")),
+                encoding="utf-8",
+            )
+            with patch.object(
+                scan.aar_scan,
+                "completion_gate",
+                return_value=(False, "the after-action review: clean"),
+            ) as gate, contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                scan.main([str(run), "--submission", "encounter-17-2026-08-17"])
+
+        gate.assert_called_once_with(run, "encounter-17-2026-08-17")
 
 
 if __name__ == "__main__":

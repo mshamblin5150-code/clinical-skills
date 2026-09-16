@@ -19,15 +19,20 @@ The other half is the silent failure mode every extractor here shares with
 body values and must keep reading as given.
 """
 
+# phi-scan: synthetic
+
 import io
+import hashlib
 import tempfile
 import textwrap
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
+from unittest.mock import patch
 
 import filled_vitals_census as fvc
 import grader_conformance
+import medatrax_posting
 import run_grader
 from prose_bind import NAMING, bind, section
 
@@ -54,6 +59,16 @@ class TheDeclaredLimitsObjectOwnsBothProseSurfaces(unittest.TestCase):
         self.assertEqual(1, dispositions.count(run_grader.EvidenceDisposition.DECLARED_READING))
         self.assertEqual(7, dispositions.count(run_grader.EvidenceDisposition.BEHAVIOR))
         self.assertTrue(all(subject and reason for subject, reason, _ in fvc.DECLARED_LIMITS))
+
+    def test_the_posting_helpers_limits_are_bound_to_its_docstring(self):
+        self.assertEqual(
+            (),
+            bind(
+                medatrax_posting.DECLARED_LIMITS,
+                medatrax_posting.__doc__ or "",
+                mode=NAMING,
+            ),
+        )
 
 
 class EveryBehaviorLimitHasALiveControl(unittest.TestCase):
@@ -189,6 +204,7 @@ class CommandSurface(unittest.TestCase):
         run = Path(self.temporary.name) / "run"
         run.mkdir()
         self.run = written(run, one=self.BODY)
+        (self.run / "one.md").rename(self.run / "note-1.md")
 
     def tearDown(self) -> None:
         self.temporary.cleanup()
@@ -227,6 +243,63 @@ class CommandSurface(unittest.TestCase):
             invoke_main([str(missing)]),
             (2, "", "no directory named missing\n"),
         )
+
+    def write_posted_reading(self, digest: str | None) -> None:
+        fingerprint = "" if digest is None else f"SUBMISSION-SHA256: {digest}\n"
+        (self.run / "reread.md").write_text(
+            "## REREAD: shift-2026-08-17\n"
+            "POST-URL: https://example.org/patient-visits\n"
+            "POSTED: 08/17/2026 21:14\n"
+            "READ: 1 of 1 read\n"
+            "VERDICT: matches - The saved visit and note form matched.\n"
+            + fingerprint
+            + "VISIT: 1 | patient 1 | reference matched P-17 | patient-detail=/patients/17 | "
+            "note-view=/forms/view?resultid=31 | visit-date=08/17/2026 | matches\n",
+            encoding="utf-8",
+        )
+
+    def note_digest(self) -> str:
+        return hashlib.sha256((self.run / "note-1.md").read_bytes()).hexdigest()
+
+    def test_submission_accepts_the_current_note_fingerprint(self) -> None:
+        self.write_posted_reading(self.note_digest())
+
+        with patch.object(
+            fvc.aar_scan,
+            "completion_gate",
+            return_value=(False, "the after-action review: clean"),
+        ):
+            status, stdout, stderr = invoke_main(
+                [str(self.run), "--submission", "shift-2026-08-17"]
+            )
+
+        self.assertEqual(0, status)
+        self.assertIn("the after-action review: clean", stdout)
+        self.assertIn("the Medatrax posted reading: clean", stdout)
+        self.assertIn("notes read                      1", stdout)
+        self.assertNotIn("SUBMISSION-SHA256", stderr)
+
+    def test_submission_refuses_a_missing_note_fingerprint(self) -> None:
+        self.write_posted_reading(None)
+
+        status, _stdout, stderr = invoke_main(
+            [str(self.run), "--submission", "shift-2026-08-17"]
+        )
+
+        self.assertEqual(1, status)
+        self.assertIn("SUBMISSION-SHA256 is missing", stderr)
+
+    def test_submission_refuses_a_stale_note_fingerprint(self) -> None:
+        self.write_posted_reading(self.note_digest())
+        with (self.run / "note-1.md").open("a", encoding="utf-8") as note:
+            note.write("\nPlan: changed after the posted reading.\n")
+
+        status, _stdout, stderr = invoke_main(
+            [str(self.run), "--submission", "shift-2026-08-17"]
+        )
+
+        self.assertEqual(1, status)
+        self.assertIn("SUBMISSION-SHA256 does not match", stderr)
 
 
 class FilledBlock(unittest.TestCase):
