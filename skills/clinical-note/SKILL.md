@@ -747,9 +747,13 @@ A bracketed tail on the item's own line, so the citation survives the line being
 
 **The sheet is named first**, because every field after it resolves only inside that sheet: `aha-2025` is a key in one sheet's `## Sources` and `adults-htn` is a key in its `## Populations`.
 
+The class is the sheet's `class` cell verbatim, including any commas. An empty class cell writes no `Class` word or class in the tail.
+
 ```
 FILLED·proposed   Colorectal cancer screening discussed [uspstf: grade A, adults 50 to 75, 2021]
 FILLED·proposed   Continue lisinopril 20 mg daily, recheck 4 weeks [thresholds/hypertension: aha-2025 Class 1, adults-htn, SBP >=140]
+FILLED·proposed   Confirm acute babesiosis with peripheral blood smear or PCR [thresholds/babesiosis: idsa-2020 Class strong recommendation, moderate-quality evidence, suspected-acute-babesiosis, confirm with peripheral blood smear or PCR rather than antibody testing]
+FILLED·proposed   Select empiric therapy with K. kingae activity [thresholds/acute-bacterial-arthritis: idsa-2023, suspected-aba-age-6-to-48-months, age 6-48 months: select empiric therapy that includes K. kingae activity rather than only S. aureus activity]
 FILLED·proposed   Zoster vaccination discussed [uspstf: no row]
 FILLED·proposed   Inhaled maintenance therapy reviewed [recalled, no shipped sheet; catalog lists GOLD 2026]
 ```
