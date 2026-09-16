@@ -2048,6 +2048,26 @@ reader then opens the rendered destination in the corresponding authenticated
 VitalSource book. The normalized licensed CSV is a rebuild input, not a second
 committed copy of the code set.
 
+### Coding freshness
+
+`python tools/coding_freshness.py <batch-codes.json> --cpt-receipt
+<cpt-receipt.json> --receipt <batch-freshness.json>` is the fail-closed gate before a finalized
+coding worksheet or Review sheet is rendered. The manifest names every encounter in exact order,
+binds its normalized clinical-and-coding content by SHA-256, and carries its account-backed status
+with a SHA-256 fingerprint of the private identity-map or Medatrax evidence
+and final code populations. On every batch the command derives the service-date-applicable release
+from the live CDC page and the most recently published update from the live CMS page; its production
+CLI takes no URL or as-of override. It binds the private CPT receipt to the committed source edition,
+fingerprint, and database-derived edition boundary, checks selected codes against the committed
+databases on the service date, and refuses missing, duplicate, or reordered encounters. Exit 0
+writes the private technical receipt and prints
+`coding-freshness: PASS`; exits 1 and 2 write no pass receipt.
+
+The rendered artifact receives only the compact pass line. URLs, source and database fingerprints,
+the as-of date, selected-code population, and status evidence stay in the private JSON receipt. The
+gate's complete claim boundary is `coding_freshness.DECLARED_LIMITS`; this section points to that
+object without copying its rows.
+
 ### CDC BMI-for-age table
 
 `reference/cdc-bmi-for-age-2022.csv` is committed for the same consumer-critical-path reason as the ICD database. It is CDC's public 2022 Extended BMI-for-Age data file, downloaded byte-for-byte from `https://www.cdc.gov/growthcharts/data/extended-bmi/bmi-age-2022.csv`: **438 data rows, 219 per sex**, plus its header. The source page is `https://www.cdc.gov/growthcharts/extended-bmi-data-files.htm`; SHA-256 at import on 2026-08-20 was `7F416A213157A5209BB6CBFD1B19292510248F3F31FE43C9FF63F6D8E39F7890`.

@@ -241,23 +241,39 @@ shift.
 python tools/filled_vitals_census.py <the run directory>
 ```
 
-It counts declared-filled values only, prints no value unless `--show` asks, and exits non-zero when two notes share a filled body. **Its output is for you, not for the shift document** — the roll-up is working output, and [step 7](#7-offer-the-shift-document) already says which half of that leaves the machine.
+It counts declared-filled values only, prints no value unless `--show` asks, and exits non-zero when two notes share a filled body. **Its output is for you, not for the Review sheet** — the roll-up is working output, and [step 7](#7-build-the-review-sheet) already says which half of that leaves the machine.
 
 The glossary candidates are the compounding part. Tokens that appeared more than once are the ones worth adding — offer to add them, and the next shift needs less input than this one. **They go to `scratch/shorthand.md`, not to [GLOSSARY.md](../clinical-note/GLOSSARY.md)**, unless the token is one the whole field writes: a form harvested from one clinician's day file is that clinician's until something says otherwise. [GLOSSARY.md](../clinical-note/GLOSSARY.md)'s *Two glossaries* section is the rule, and this roll-up is the instrument [setup-clinical-skills](../setup-clinical-skills/SKILL.md) step 9 points back at for growing the per-account file.
 
-### 7. Offer the shift document
+### 7. Build the Review sheet
 
-**Offer a `.docx` of the shift. Produce it only when the clinician asks.**
+The **Review sheet** is the shift's approval artifact: one `.docx` containing every finished note
+and its finalized `Coding worksheet`, numbered in source order. A single encounter is never handed
+over alone. Head the file with the constants step 6 already states once — course, date, preceptor,
+site — and begin every encounter on a new page.
 
-The shift is the unit that leaves the machine — a single encounter is never handed over on its own, which is why the emit lives here and [clinical-note](../clinical-note/SKILL.md) **never writes a document**.
+**Before rendering anything, invoke `handoff` for the supervised human Medatrax walkthrough.** The
+fresh session learns the actual portal route and records any consequence for patient-status evidence,
+fields, or the Review-sheet layout. Resume this step only after those consequences have been
+incorporated. The walkthrough authorizes no later unattended entry.
 
-**That sentence used to read *"`clinical-note` has no document branch at all"*, and *branch* is the wrong word for it.** In this repo a branch is which template a note is written against — SOAP or H&P, [CONTEXT.md](../../CONTEXT.md) — and `clinical-note` has two of those. What it does not have is a `.docx` emit. The two senses sat four steps apart in this file and read as a contradiction, which [#90](https://github.com/mshamblin5150-code/clinical-skills/issues/90)'s third comment flagged.
+It is batch-atomic. Before rendering, create one private manifest naming every encounter in exact
+order. Each record carries its stable id, one-based order, final ICD-10-CM, E/M, CPT, and HCPCS
+populations, one patient-status record whose evidence is `identity-map` or `medatrax` plus a SHA-256
+fingerprint of that private evidence, and the
+normalized SHA-256 of that clinical note plus visible worksheet. Normalize as UTF-8 with LF line
+endings, remove trailing whitespace from every line, and end with exactly one newline; exclude tier
+blocks, Medatrax fields, and technical receipts. Then run:
 
-It is offered rather than produced because of what step 6 just printed. The FILLED block is generated content awaiting confirmation, and standing rule 2 puts that confirmation before submission. A document written straight off the roll-up is a document of unconfirmed content that looks finished. So the offer comes after the FLAGS, and the file comes after the clinician has read them.
+```bash
+python tools/coding_freshness.py <batch-codes.json> --cpt-receipt <cpt-receipt.json> --receipt <batch-freshness.json>
+```
 
-**One file per shift. The finished notes and nothing else.**
-
-Head it with the constants step 6 already states once — course, date, preceptor, site — then the notes, numbered, in source order, one per page.
+Exit 0 and `coding-freshness: PASS` are required. An unknown status or any unread, stale,
+incomplete, unsupported, nonbillable, or service-date-invalid code blocks the whole Review sheet;
+do not render a partial batch as ready for approval. Each visible worksheet carries only
+`Coding freshness: PASS`, while URLs, fingerprints, timestamps, source locators, and database
+hashes remain in the private receipt.
 
 **Only headings and field labels are bold. Numbered body entries remain regular weight**, including consecutive differential, diagnosis, MDM, plan, and coding entries. A numbered line is content rather than a heading; the Word exporter must not turn a sequence of them bold merely because each begins with a digit.
 
@@ -268,12 +284,21 @@ What stays out, and this is the whole point of the step:
 | The tier blocks — `DERIVED`, `FILLED`, `FLAG`, `GAPS`, `UNKNOWN` | Working output. A FLAG says *this note failed to act on what it documented*; traveling inside the file it describes, it is a defect report stapled to the work |
 | The per-encounter Medatrax field blocks | Portal data entry. They are tabbed into a form, not read |
 | The schedule table and the shift summary | The tabbing and triage views of the day, for the chat |
+| Private anchored worksheets and freshness receipts | Evidence for the gates, not clinician-facing coding content |
 
 **The document carries exactly what the notes carry.** Writing it is not a second pass at de-identification and it is not the moment to restore anything: `[PT]`, `[DOB]`, `[MRN]`, `[SITE]` stay as placeholders. It is, though, the last point at which a leaked identifier is still cheap to catch and the first at which it becomes a file that gets opened somewhere else — so read the notes for real names before writing, not after.
 
 **Write it into `output/notes/`.** Standing rule 1: `output/` is the gitignored home for finished work, as `scratch/` is for working material, and `.gitignore` excludes both along with `*.docx`. Name it by date; a filename is text like any other and carries no patient name and no Patient Reference.
 
-Completion: every confirmed encounter from step 4 appears in the document exactly once, and no tier block, Medatrax block, schedule row or summary line appears in it at all.
+Completion: every confirmed encounter from step 4 appears exactly once; every note is immediately
+followed by its final worksheet; and no tier block, Medatrax block, schedule row, summary line,
+private anchored worksheet, or technical receipt appears. The approval identity covers normalized
+note and worksheet content, status evidence, encounter membership and order, and the freshness
+receipt. A substantive change invalidates the entire approval; layout-only regeneration from
+unchanged normalized content does not.
+
+Clinician approval of the Review sheet authorizes no portal entry. The earlier supervised walkthrough
+teaches the route; unattended entry remains separately gated and is neither built nor attempted here.
 
 **Then invoke `/AAR`; the shift is not complete without it.** Use `shift-<date>` as the submission key and this shift's run directory. After `/AAR` exits clean, rerun the completion grader with its expected review row enabled:
 
