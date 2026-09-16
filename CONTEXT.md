@@ -591,6 +591,10 @@ _Avoid_: replacement, fetch, migration, swap
 The distilled decision points of one clinical topic, drawn from every guideline in the corpus that addresses it. Curated Markdown that a tool audits, never a generated artifact.
 _Avoid_: summary, digest, extract, cheat sheet
 
+**Threshold tail**:
+The bracketed citation on a proposed item's own line that names one **Threshold sheet** row by its source, class, population, and value. Its class is the row's own wording, so the sheet rather than the punctuation says where the class ends, and a row with no class is cited without one. It identifies a row and never argues that the row applies to the patient.
+_Avoid_: citation tail, guideline tag, threshold reference, class token
+
 **Topic**:
 The subject a threshold sheet is keyed to, such as hypertension. The unit a clinician cites; a guideline document is not one, and several documents may address the same topic. Distinct from the **catalog topic**, which is a document's own wording rather than the clinician's, so one topic in this sense may be spread across several catalog topics under names no committed artifact groups.
 _Avoid_: condition, subject, area
