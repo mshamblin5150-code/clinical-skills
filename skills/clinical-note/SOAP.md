@@ -55,6 +55,7 @@ Differential:
 
 Preexisting diagnoses (ICD10): <condition - CODE; condition - CODE>
 Final diagnosis: <condition - CODE>
+E/M: <supported complexity> complexity — <concise patient-specific problems/data/risk reason>; <code>, <new|established> patient.
 Age-appropriate screening to consider: <list keyed to age, sex and risk factors>
 
 P:
@@ -65,10 +66,17 @@ Pharm:
 Education: <technique, precautions, what was reviewed>
 Follow up: <interval, and what would bring them back sooner>
 
-Proposed coding worksheet
-E/M: <code - short descriptor>
+Coding worksheet
+Patient status: <new|established> — <identity map|Medatrax>
+ICD-10-CM: <final for-entry code - descriptor; one line per code>
+E/M: <final code - descriptor>
+Problems: <level and concise patient-specific support>
+Data: <level and concise patient-specific support>
+Risk: <level and concise patient-specific support>
+MDM: <supported complexity> — <the two of three elements met>
 CPT: <code - short descriptor; one line per supported procedure, or None>
 HCPCS: <code and units - short descriptor; one line per supported supply or drug, or None>
+Coding freshness: PASS
 ```
 
 ## Section notes
@@ -85,7 +93,7 @@ HCPCS: <code and units - short descriptor; one line per supported supply or drug
 
 **Medication completeness follows PMH coverage, not a minimum count.** In the private `FILLED·asserted` accounting, map every PMH condition to its medication, a shared medication, or no routine maintenance pharmacotherapy on the available facts. Keep that accounting out of the finished note and do not pad the list for appearance.
 
-**The proposed coding worksheet is separated from both the clinical note and the Medatrax fields.** Run [icd10-cpt](../icd10-cpt/SKILL.md) against the note plus tier block, complete its support and service-date checks privately, and render only terse `E/M:`, `CPT:`, and `HCPCS:` code-and-descriptor lines. Do not expose anchors, specificity, confidence, provenance, date-status commentary, or the selection process in the worksheet.
+**The finalized coding worksheet is separated from both the clinical note and the Medatrax fields.** Run [icd10-cpt](../icd10-cpt/SKILL.md) against the note plus tier block and complete the required coding-freshness gate. Render the final code populations, account-backed status, patient-specific problems/data/risk support, two-of-three conclusion, and compact pass line. Keep technical receipts, anchors, specificity, confidence, provenance, and source locators private.
 
 **ROS uses one system per line.** After the last named system, write the exact global closer `All other systems reviewed and are negative.` The individual system lines remain succinct and do not use that phrase.
 

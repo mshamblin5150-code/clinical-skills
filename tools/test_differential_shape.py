@@ -324,17 +324,25 @@ class BothTemplatesRenderTheRule(unittest.TestCase):
         for path in (SOAP, HP):
             self.assertIn("issues/70", path.read_text(encoding="utf-8"))
 
-    def test_both_templates_emit_a_terse_proposed_coding_worksheet(self):
+    def test_both_templates_emit_the_final_explanatory_coding_worksheet(self):
         for path in (SOAP, HP):
             text = path.read_text(encoding="utf-8")
             template = text.split("```", 2)[1]
-            worksheet = template.split("Proposed coding worksheet", 1)[1]
-            self.assertIn("E/M:", worksheet)
-            self.assertIn("CPT:", worksheet)
-            self.assertIn("HCPCS:", worksheet)
-            self.assertNotIn("verify before entry", worksheet.lower())
-            for commentary in ("anchor", "specificity", "confidence", "service-date"):
-                self.assertNotIn(commentary, worksheet.lower())
+            worksheet = template.split("Coding worksheet", 1)[1]
+            for field in (
+                "Patient status:",
+                "ICD-10-CM:",
+                "E/M:",
+                "Problems:",
+                "Data:",
+                "Risk:",
+                "MDM:",
+                "CPT:",
+                "HCPCS:",
+                "Coding freshness: PASS",
+            ):
+                self.assertIn(field, worksheet)
+            self.assertNotIn("Proposed coding worksheet", template)
 
     def test_both_templates_carry_the_clinicians_normal_exam_language(self):
         expected = (
@@ -360,24 +368,25 @@ class TheSkillCarriesTheCodingWorksheetRule(unittest.TestCase):
         self.text = SKILL.read_text(encoding="utf-8")
 
     def test_the_worksheet_is_separated_from_the_note_and_medatrax(self):
-        self.assertIn("### A separated coding worksheet follows every note", self.text)
+        self.assertIn("### A finalized coding worksheet follows every note", self.text)
         self.assertIn("outside the clinical note body and outside the Medatrax field block", self.text)
-        self.assertIn("`Proposed coding worksheet`", self.text)
-        self.assertNotIn("verify before entry", self.text.lower())
+        self.assertIn("`Coding worksheet`", self.text)
 
     def test_the_worksheet_routes_through_the_coding_skill(self):
         self.assertIn("Run [icd10-cpt](../icd10-cpt/SKILL.md)", self.text)
         self.assertIn("service date", self.text)
 
-    def test_the_em_level_is_selected_before_the_terse_worksheet_is_rendered(self):
-        self.assertIn("The procedure database does not select an E/M level", self.text)
-        self.assertIn("Those checks stay in the private reasoning", self.text)
+    def test_the_em_level_and_reason_are_finalized_before_rendering(self):
+        self.assertIn("The note body also carries one E/M logical paragraph", self.text)
+        self.assertIn("Select the complexity the encounter earns; never default to moderate", self.text)
+        self.assertIn("problems, data, and risk", self.text)
 
     def test_row_34_names_the_complete_coding_surface(self):
         row = _row(self.text, 34)
-        self.assertIn("one terse `E/M:` line", row)
-        self.assertIn("`CPT:` and `HCPCS:` lines", row)
-        self.assertIn("no anchor, specificity, confidence", row)
+        self.assertIn("final ICD-10-CM, E/M, CPT, and HCPCS selections", row)
+        self.assertIn("account-backed patient status", row)
+        self.assertIn("two-of-three MDM conclusion", row)
+        self.assertIn("`Coding freshness: PASS`", row)
 
 
 class TheShiftDocumentKeepsBodyListsAtNormalWeight(unittest.TestCase):

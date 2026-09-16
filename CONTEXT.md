@@ -1207,6 +1207,18 @@ _Avoid_: advice, note, statement, finding, body text
 The repair of a **carried claim** written at the claim itself, with a dated line recording what it said and why it changed. Where that line sits is the tracker's procedure to state and not part of the term. Distinct from a footer, which is the same words at the bottom of a long record and reaches nobody who already carried the claim, and from the comment that carries a correction's *evidence*, which is a published reading and not the repair. It is named because *corrected in place* already means three things here — a body edit, a ratified record's dated footer, and leaving a paragraph untouched during a migration — and only the first is this. **Not the sense the bare Correction gives the word**, which is a reversal observed in a session's transcript: that one is an event read off a record and this one is an act on a published record, so neither narrows the other.
 _Avoid_: edit, fix, amendment, footnote, annotation
 
+**Review sheet**:
+The batch-atomic Word artifact generated after the supervised Medatrax handoff is incorporated and then approved by the clinician. It contains every finished note and that encounter's finalized **Coding worksheet**, in encounter order, and exists only when every encounter has passed **Coding freshness** and has account-backed patient status. Its approval binds normalized clinical and coding content, status evidence, batch membership and order, and the private freshness receipts; a substantive change invalidates the batch approval, while layout-only regeneration from unchanged normalized content does not. Distinct from a working shift roll-up, whose schedule, flags, tier blocks and portal fields never enter it, and from a **Posted reading**, which can exist only after entry.
+_Avoid_: shift document, batch document, approval packet, review packet
+
+**Coding freshness**:
+The conjunction of current-source evidence and service-date validity for every final code in one Review sheet. ICD-10-CM and HCPCS prove public-source currency from the live CDC and CMS release pages on each batch; CPT proves licensed-source currency with a private edition-and-fingerprint receipt that expires at the next edition boundary or a fingerprint change. Code identity, completeness, billability where applicable, and activity on the service date are separate checks, so a current source cannot rescue an inactive code and an active-looking code cannot rescue a stale source. Any unread limb blocks the batch. Distinct from a database digest pin, which detects bytes changing but says nothing about whether the bytes are the current authority.
+_Avoid_: fresh codes, latest codes, current enough, date check
+
+**Coding worksheet**:
+The final per-encounter coding surface rendered in a Review sheet. It names final ICD-10-CM, E/M, CPT and HCPCS selections, account-backed new-or-established status, patient-specific problems/data/risk support, the two-of-three MDM conclusion, and the compact `Coding freshness: PASS`. Its private anchored worksheet remains the evidence-bearing source for descriptor agreement and is not this rendered surface. Distinct from a proposal: the clinical skills select the supported codes, while the clinician's Review-sheet reading is quality control.
+_Avoid_: proposed coding worksheet, coding proposal, terse code list
+
 ### Review
 
 **Correction**:

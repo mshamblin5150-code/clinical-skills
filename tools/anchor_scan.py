@@ -1086,6 +1086,7 @@ def _section_codes(note: str, heading: str) -> set[str]:
         "final diagnosis",
         "age-appropriate screening",
         "p:",
+        "coding worksheet",
         "proposed coding worksheet",
         "medatrax entry",
         "tier block",

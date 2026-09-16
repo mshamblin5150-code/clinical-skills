@@ -480,11 +480,13 @@ measurements before entry.
 
 **The pediatric case takes the committed growth-chart tool.** Ages 2–19 take `Z68.5-`, a CDC growth-chart percentile rather than an adult BMI band. Run `python tools/cdc_percentile.py <sex> <completed-months> <BMI>`; it reads `reference/cdc-bmi-for-age-2022.csv` and returns the percentile, `Z68.5-` band and the corresponding `E66.-` code where one applies. Where the encounter gives only whole years, pass `--age-years`: the tool fills the midpoint month, and that month is declared in `FILLED·asserted` and named beside every code that rests on it. The clinician submitting the encounter confirms it during the ordinary filled-content review; nobody is an implementation-time approval gate. The band is verified against the CDC table; a filled height, weight or age month remains filled and still requires confirmation.
 
-### A separated coding worksheet follows every note
+### A finalized coding worksheet follows every note
 
-After the clinical note and before or after the Medatrax field block, emit a visibly separated heading, `Proposed coding worksheet`. It is outside the clinical note body and outside the Medatrax field block; no proposed procedure or E/M code is silently presented as part of the patient's record or copied into Add Visit Data.
+After the clinical note and before or after the Medatrax field block, emit the visibly separated heading `Coding worksheet`. It is outside the clinical note body and outside the Medatrax field block. Its selections are final for the Review sheet; nothing is copied into Add Visit Data by this step.
 
-Run [icd10-cpt](../icd10-cpt/SKILL.md) over the complete note plus its tier block. Verify every CPT and HCPCS identity, descriptor, support anchor, specificity, and status on the service date before choosing what appears. Those checks stay in the private reasoning. The visible worksheet contains one terse `E/M:` code-and-short-descriptor line, then terse `CPT:` and `HCPCS:` code-and-short-descriptor lines for supported services only; use `None` when a category has no supported entry. Do not print anchors, provenance, specificity, confidence, date-status commentary, or the selection process, and do not pad the worksheet with an action the encounter did not document.
+Run [icd10-cpt](../icd10-cpt/SKILL.md) over the complete note plus its tier block. Verify every code's identity, descriptor, support anchor, specificity, and status on the service date before choosing what appears. The visible worksheet carries final ICD-10-CM, E/M, CPT, and HCPCS selections; patient status and whether the identity map or Medatrax established it; concise patient-specific problems, data, and risk support; the two-of-three MDM conclusion; and exactly `Coding freshness: PASS`. Use `None` only where the encounter supports no entry in that category. Do not print technical hashes, timestamps, source locators, or private anchor and confidence records.
+
+The note body also carries one E/M logical paragraph. H&P places it at the end of Medical Decision Making; SOAP places it after Final diagnosis and before age-appropriate screening. Write `E/M: <supported complexity> complexity — <concise patient-specific problems/data/risk reason>; <code>, <new|established> patient.` The sentence may wrap naturally but is one paragraph. Select the complexity the encounter earns; never default to moderate.
 
 Save the private `icd10-cpt` pass's complete anchored worksheet under the run's `worksheets/`
 subdirectory with the same filename stem as the note. The saved worksheet is run evidence and is
@@ -501,11 +503,26 @@ python tools/anchor_scan.py <run>/worksheets --notes <run> --agreement-read <run
 ```
 
 Completion requires exit 0. That read also binds, in both directions, the note's preexisting and
-final codes, differential codes, welded `NOT CODED:` codes, and rendered `CPT:` and `HCPCS:` lines
-to their private worksheet populations. The rendered `E/M:` line is counted and excluded. A batch
+final codes, differential codes, welded `NOT CODED:` codes, and rendered procedure lines to their
+private worksheet populations. E/M selection additionally requires the applicable rendered CPT
+instructions and the patient-specific problems, data, and risk analysis; the code database verifies
+the selected code's identity and service-date status but never substitutes for that reading. A batch
 run performs the same paired read once over the shift rather than weakening it per note.
 
-The procedure database does not select an E/M level. Apply the problems-addressed, data, and risk elements and the applicable CPT instructions before rendering the terse line. Those checks stay in the private reasoning; the worksheet itself does not narrate them or attach verification language.
+Before the worksheet can say `PASS`, write one private batch manifest naming every encounter in
+Review-sheet order. Each encounter record carries its stable id, one-based order, final code
+populations, identity-map or Medatrax status evidence plus that private evidence's SHA-256, and a SHA-256 over its normalized clinical
+note plus visible coding worksheet. Normalize as UTF-8 with LF line endings, remove trailing
+whitespace from every line, and end with exactly one newline; exclude tier blocks, Medatrax fields,
+and technical receipts. Run the required freshness gate with the current private CPT receipt:
+
+```bash
+python tools/coding_freshness.py <batch-codes.json> --cpt-receipt <cpt-receipt.json> --receipt <batch-freshness.json>
+```
+
+Exit 0 and `coding-freshness: PASS` are required. An unknown patient status or any unread, stale,
+incomplete, unsupported, nonbillable, or service-date-invalid code blocks finalization. The JSON
+manifest and receipt stay private; the rendered worksheet carries only the compact pass line.
 
 #### Which value was chosen is the instruction, and the note says how it was chosen
 
@@ -1209,7 +1226,7 @@ Walk every row. **Emit a verdict for each one by name** — a summary line invit
 | 31 | **Family history distribution** | Every family disease named in the shorthand is assigned across the required relatives in a plausible three-generation pattern, with repetition permitted. The diseases remain given and only the relationships are filled; no disease is added and no assignment supports a patient diagnosis, finding, or result. The whole bundle is not copied under both parents; no relative line defers the distribution; each generated assignment is declared in `FILLED·asserted`. Each relative's multi-disease list in Family History joins its final disease with `and`, never `or` |
 | 32 | **ROS layout** | In both branches, each named ROS system occupies its own line and the section ends with `All other systems reviewed and are negative.` No individual system line uses that phrase |
 | 33 | **HPI ownership** | Every HPI sentence reports the patient or caregiver's symptom chronology, associated symptoms, context, prior evaluation, attempted treatment, or response. Current physical-examination findings, current results, medication administered today, orders, referral, transfer, and disposition appear only in their owning Objective, Assessment/MDM, or Plan sections and are not replayed in the HPI |
-| 34 | **Coding worksheet** | Every finished encounter is followed by a separated `Proposed coding worksheet`, outside the clinical note body and Medatrax fields. It supplies one terse `E/M:` line and terse `CPT:` and `HCPCS:` lines for supported services only. Internal checks retain the support anchor, specificity, provenance, confidence, and service-date verification, but the rendered worksheet carries no anchor, specificity, confidence, provenance, date-status, or selection-process commentary; no undocumented service is coded and no differential code is offered for entry |
+| 34 | **Coding worksheet** | Every finished encounter is followed by a separated final `Coding worksheet`, outside the clinical note body and Medatrax fields. It supplies final ICD-10-CM, E/M, CPT, and HCPCS selections; account-backed patient status; concise patient-specific problems, data, and risk support; the two-of-three MDM conclusion; and `Coding freshness: PASS`. The note carries the matching one-paragraph complexity reason, final code, and status in its branch-specific position. Private records retain anchors, specificity, provenance, confidence, source currency, and service-date evidence; no undocumented service or differential code is offered for entry, and any blocked encounter blocks the batch |
 | 35 | **Plan closure** | Every active final diagnosis maps to an outpatient pharmacologic action or an explicit nonpharmacologic or no-medication decision. An in-clinic dose alone is insufficient when the diagnosis needs ongoing treatment after discharge |
 
 **Row 14 is appended rather than slotted beside row 4**, which is where it belongs by subject. Rows 1 through 13 are cited by number across this file, three fixture sets and [ADR 0001](../../docs/adr/0001-fixture-asserts-on-named-findings.md), so renumbering to put it in its natural place would silently redirect every one of those citations. Its subject is row 4's, its number is not, and that is a deliberate cost.

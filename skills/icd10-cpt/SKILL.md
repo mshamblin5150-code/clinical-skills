@@ -1,9 +1,9 @@
 ---
 name: icd10-cpt
-description: Propose ICD-10-CM diagnosis codes and CPT procedure codes from a documented encounter, each anchored to the note text supporting it. Use when the user asks for codes, needs to code an encounter, or mentions ICD-10, CPT, or E/M level.
+description: Select and verify ICD-10-CM, E/M, CPT, and HCPCS codes from a documented encounter, each anchored to the note text supporting it. Use when the user asks for codes, needs to code an encounter, or mentions ICD-10, CPT, HCPCS, or E/M level.
 ---
 
-Codes are **proposed**, never asserted. A code you supply is a suggestion the clinician verifies before it is entered anywhere — this skill's output is a worksheet, not a coding decision.
+A direct coding consultation produces proposals the clinician verifies. When [clinical-note](../clinical-note/SKILL.md) invokes this skill for a Review sheet, the skill selects the supported codes and produces a finalized `Coding worksheet` only after account-backed patient status and the required coding-freshness gate pass. The clinician's Review-sheet reading is quality control; it is not the act that chooses the code.
 
 Three disciplines make that verification fast:
 
@@ -555,9 +555,9 @@ overlying pain; tib/fib film ordered, no result
 
 **The second block works the same way and cannot use the same device**, because its code *is* proposed and *does* belong in that list. The equivalent is `SOURCE: filled` on the code itself in step 3 — the mark travels with the line rather than living in a heading. **The principle is identical in both: a block heading does not survive being copied one line at a time.** A worksheet that named the filled anchor only here, and left the proposed code bare, would lose the disclosure to a copy-paste — which is exactly the silent failure [#10](https://github.com/mshamblin5150-code/clinical-skills/issues/10) opened for, arriving by a different route.
 
-### 5. E/M level — only if asked
+### 5. Select the E/M level when the note path asks
 
-Offer the supporting elements (problems addressed, data reviewed, risk) and let the clinician assign the level. Do not select an E/M level unprompted.
+A direct coding consultation offers the supporting elements unless the user asks for a level. A `clinical-note` call is the request: select the final supported E/M code, state new-or-established status from the private identity map or Medatrax, and render the problems, data, and risk elements with concise patient-specific support. Unknown status blocks selection; never infer it from other encounters in the shift.
 
 **The differential is where the first element is documented, and that is the job those codes do.** A differential entry with its rationale is a problem addressed. A suspected diagnosis that drove an order — a swab sent, a film taken — is what *data reviewed* is reviewing. And an entry the encounter could not exclude is the one that carries the most weight in that column, because an undiagnosed new problem with an uncertain prognosis is not a low-complexity problem however ordinary the visit felt.
 
@@ -566,14 +566,13 @@ So the codes on the differential are required, and none of them is for entry. Th
 **The procedure database does not verify MDM phrasing or map elements to a
 level.** The medical decision making table is an AMA CPT document rather than a
 code row. When E/M is asked for, read the applicable rendered section of **CPT
-Professional 2026** through `vitalsource-chrome`, offer the supporting elements,
-and let the clinician assign the level. If the live book cannot be read, label
-the phrasing recalled rather than presenting it as verified.
+Professional 2026** through `vitalsource-chrome`, apply the documented elements,
+and select the level supported by two of the three columns. If the live book
+cannot be read, the note path is blocked rather than finalized from recall.
 
-**The MDM phrasing here is recalled, and nothing in this repo verifies it** when
-the live book has not been read. The table is an **AMA CPT** document, and no AMA document is among the nine societies in the committed guideline corpus. The
-authenticated VitalSource book is the verification route outside that corpus;
-the procedure-code database alone does not change this boundary.
+The table is an **AMA CPT** document, and no AMA document is among the nine societies in the committed guideline corpus. The authenticated VitalSource book is the verification route outside that corpus; the procedure-code database alone does not change this boundary.
+
+**The MDM phrasing here is recalled, and nothing in this repo verifies it** when the live book has not been read. That is why a note-path run reads the authenticated CPT table and blocks instead of finalizing from this prose.
 
 **No lookup is added to this skill by [#85](https://github.com/mshamblin5150-code/clinical-skills/issues/85), and that is a ruling rather than an omission.** [clinical-note](../clinical-note/SKILL.md) is obliged to consult a sheet where one covers what a Plan item asserts; this worksheet is not, on any encounter. **A code is anchored to what the note documents, never to whether the number should have met a target** — a coder who declined `I10` because a pressure sat under a threshold sheet's cutoff, or who withheld a screening `Z` code because the patient fell outside a USPSTF population, would be re-deciding the clinical question from the worksheet with the note as its only input. That is the anchor rule running backwards, and step 3's *filled value is coded, and it is marked* already settled the general form of it: mark what a code rests on, never withhold on a ground the note does not carry.
 
@@ -592,6 +591,19 @@ the lookup. A code from a partial system is complete only after its rendered
 VitalSource destination page was read; its confidence line names the book and
 edition. A search snippet, an incomplete-set miss, or recall alone still reads
 `verify this number`.
+
+For the note path, every finalized population appears under its encounter in one ordered private
+batch manifest. That record also carries the account-backed status and the normalized SHA-256 of
+the clinical note plus visible coding worksheet. The required gate exits 0:
+
+```bash
+python tools/coding_freshness.py <batch-codes.json> --cpt-receipt <cpt-receipt.json> --receipt <batch-freshness.json>
+```
+
+The live CDC and CMS release checks, the CPT edition-and-fingerprint receipt, database
+completeness, code identity, billability where applicable, service-date activity, and every
+encounter's account-backed patient status must all pass. The rendered worksheet says only
+`Coding freshness: PASS`; technical receipt content remains private.
 
 **Every specificity flag carries substance beyond its keyword — a bare `complete` and a bare `needs:` both fail.** Present-but-bare is the one way a part can be there and still fail, which is why it is said here as well as in step 3. A descriptor saying `unspecified` or `not specified` may read `complete` only when the reason explains why nothing the bedside can supply would move the code; `python tools/specificity_scan.py <run directory>` enforces the reason and reports that shape as advisory for a reader.
 

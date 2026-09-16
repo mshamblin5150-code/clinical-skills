@@ -104,6 +104,8 @@ Medical Decision Making:
 3. <same diagnosis - code as differential item 3> — <favored, less likely, or must exclude>.
    <patient-specific evidence and why it leads to the resulting decision>
 
+E/M: <supported complexity> complexity — <concise patient-specific problems/data/risk reason>; <code>, <new|established> patient.
+
 Screenings appropriate for age:
 <list>
 
@@ -122,10 +124,17 @@ Discussion
 significance of any genetic or chronic condition that is not driving the acute
 illness but matters for counseling and future care>
 
-Proposed coding worksheet
-E/M: <code - short descriptor>
+Coding worksheet
+Patient status: <new|established> — <identity map|Medatrax>
+ICD-10-CM: <final for-entry code - descriptor; one line per code>
+E/M: <final code - descriptor>
+Problems: <level and concise patient-specific support>
+Data: <level and concise patient-specific support>
+Risk: <level and concise patient-specific support>
+MDM: <supported complexity> — <the two of three elements met>
 CPT: <code - short descriptor; one line per supported procedure, or None>
 HCPCS: <code and units - short descriptor; one line per supported supply or drug, or None>
+Coding freshness: PASS
 ```
 
 ## Section notes
@@ -136,7 +145,7 @@ HCPCS: <code and units - short descriptor; one line per supported supply or drug
 
 **The HPI is patient history.** Its narrative advances the symptom chronology, context, prior evaluation, attempted treatment, and response. Current examination findings, current results, medication administered today, orders, referral, transfer, and disposition begin in their owning later sections and are not replayed here. Apply [SKILL.md](SKILL.md)'s *HPI is history, not a replay of the visit* ownership pass before finishing.
 
-**The proposed coding worksheet is separated from both the clinical note and the Medatrax fields.** Run [icd10-cpt](../icd10-cpt/SKILL.md) against the note plus tier block, complete its support and service-date checks privately, and render only terse `E/M:`, `CPT:`, and `HCPCS:` code-and-descriptor lines. Do not expose anchors, specificity, confidence, provenance, date-status commentary, or the selection process in the worksheet.
+**The finalized coding worksheet is separated from both the clinical note and the Medatrax fields.** Run [icd10-cpt](../icd10-cpt/SKILL.md) against the note plus tier block and complete the required coding-freshness gate. Render the final code populations, account-backed status, patient-specific problems/data/risk support, two-of-three conclusion, and compact pass line. Keep technical receipts, anchors, specificity, confidence, provenance, and source locators private.
 
 **ROS and Physical Exam** — individual lines use fragments: `Respiratory: No wheeze; no increased work of breathing`, never `Respiratory reviewed and negative`. Write one ROS system per line, then end the ROS with the single global closer `All other systems reviewed and are negative.`
 
