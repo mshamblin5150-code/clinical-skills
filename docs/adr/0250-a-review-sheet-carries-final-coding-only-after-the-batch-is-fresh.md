@@ -86,3 +86,11 @@ until the procedure and the ticket's supervised-entry record both exist.
 - `coding_freshness.py` is required before a Review sheet is rendered.
 - The #1205 build stops after merge for the handoff route and generates no Review sheet before that walkthrough is incorporated.
 - No broader tracker reconciliation or ticket sweep is part of this ruling.
+
+---
+
+**Superseded in part 2026-09-16 by
+[ADR 0251](0251-the-cpt-mdm-table-is-a-committed-two-reader-sheet-and-the-cpt-edition-is-judged-by-service-date.md), and left as
+written.** Ruling 5's CPT receipt expiry, *"it expires when that boundary passes"*, is judged by the
+encounter's service date rather than the day the gate runs. A fingerprint change still invalidates the
+receipt, and every other ruling here stands.
