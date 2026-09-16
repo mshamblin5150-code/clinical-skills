@@ -2048,23 +2048,37 @@ reader then opens the rendered destination in the corresponding authenticated
 VitalSource book. The normalized licensed CSV is a rebuild input, not a second
 committed copy of the code set.
 
+### CPT E/M MDM sheet
+
+`tools/cpt_mdm_sheet.py` compares two independent rendered-book transcripts,
+publishes the agreed grid and dependent E/M definitions to
+`reference/cpt-em-mdm-2026.md`, and grades per-entry agreement dates and digests.
+Its staged mode is the hook's edition-sheet check; its receipt mode derives
+the private CPT source fields from the procedure database into the owning
+checkout's `scratch/`. The print ISBN on the rendered copyright page differs
+from the VitalSource ebook identifier in the database. The sheet does not
+license or cover unrelated CPT instructions. The command's complete claim
+boundary is `cpt_mdm_sheet.DECLARED_LIMITS`; this section does not copy it.
+
 ### Coding freshness
 
 `python tools/coding_freshness.py <batch-codes.json> --cpt-receipt
 <cpt-receipt.json> --receipt <batch-freshness.json>` is the fail-closed gate before a finalized
 coding worksheet or Review sheet is rendered. The manifest names every encounter in exact order,
-binds its normalized clinical-and-coding content by SHA-256, and carries its account-backed status
-with a SHA-256 fingerprint of the private identity-map or Medatrax evidence
+binds its normalized clinical-and-coding content by SHA-256, and carries its stated ED or office
+setting and account-backed office status (ED status is not applicable)
+with a SHA-256 fingerprint of the private identity-map or Medatrax evidence for office encounters
 and final code populations. On every batch the command derives the service-date-applicable release
 from the live CDC page and the most recently published update from the live CMS page; its production
 CLI takes no URL or as-of override. It binds the private CPT receipt to the committed source edition,
-fingerprint, and database-derived edition boundary, checks selected codes against the committed
+fingerprint, and database-derived service-date edition boundary, requires a passing MDM sheet for
+that service date whose line-ending-normalized content matches `HEAD`, checks selected codes against the committed
 databases on the service date, and refuses missing, duplicate, or reordered encounters. Exit 0
 writes the private technical receipt and prints
 `coding-freshness: PASS`; exits 1 and 2 write no pass receipt.
 
 The rendered artifact receives only the compact pass line. URLs, source and database fingerprints,
-the as-of date, selected-code population, and status evidence stay in the private JSON receipt. The
+the as-of date, selected-code population, committed-sheet SHA-256, and status evidence stay in the private JSON receipt. The
 gate's complete claim boundary is `coding_freshness.DECLARED_LIMITS`; this section points to that
 object without copying its rows.
 

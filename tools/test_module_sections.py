@@ -65,6 +65,7 @@ DECLARED_SECTIONS = {
     "checks_ledger": "Post-draft checks",
     "closing_keyword_scan": "Closing keyword scan",
     "coding_freshness": "Coding freshness",
+    "cpt_mdm_sheet": "CPT E/M MDM sheet",
     "code_set_database_reader_check": "Code-set database reader pins",
     "command_tool_roster": "Tracker publish hook",
     "corpus_census": "Corpus census",

@@ -114,6 +114,13 @@ for python in python python3 py; do
             "$python" "$repo_root/tools/apa7_coverage.py" --quiet >&2 || status=1
         fi
 
+        # **The ninth refusing check.** #1333. The licensed E/M sheet is a
+        # two-reader, digest-bound artifact. Unrelated commits pay nothing.
+        if git diff --cached --name-only --no-renames --diff-filter=ACDM \
+            | grep -Eq '^reference/cpt-em-mdm-[0-9]{4}\.md$'; then
+            "$python" "$repo_root/tools/cpt_mdm_sheet.py" --staged >&2 || status=1
+        fi
+
         # **The next refusing check.** #961. A staged ADR that opts into the
         # publication-base declaration must still name this pre-commit HEAD.
         # The command reads the index rather than the worktree, and a branch

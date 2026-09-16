@@ -486,7 +486,7 @@ After the clinical note and before or after the Medatrax field block, emit the v
 
 Run [icd10-cpt](../icd10-cpt/SKILL.md) over the complete note plus its tier block. Verify every code's identity, descriptor, support anchor, specificity, and status on the service date before choosing what appears. The visible worksheet carries final ICD-10-CM, E/M, CPT, and HCPCS selections; patient status and whether the identity map or Medatrax established it; concise patient-specific problems, data, and risk support; the two-of-three MDM conclusion; and exactly `Coding freshness: PASS`. Use `None` only where the encounter supports no entry in that category. Do not print technical hashes, timestamps, source locators, or private anchor and confidence records.
 
-The note body also carries one E/M logical paragraph. H&P places it at the end of Medical Decision Making; SOAP places it after Final diagnosis and before age-appropriate screening. Write `E/M: <supported complexity> complexity — <concise patient-specific problems/data/risk reason>; <code>, <new|established> patient.` The sentence may wrap naturally but is one paragraph. Select the complexity the encounter earns; never default to moderate.
+The note body also carries one E/M logical paragraph. H&P places it at the end of Medical Decision Making; SOAP places it after Final diagnosis and before age-appropriate screening. Write `E/M: <supported complexity> complexity — <concise patient-specific problems/data/risk reason>; <code>, <new|established> patient.` for office or clinic. For an ED encounter, end at `<code>, emergency department service.` because patient status is not an ED level axis. The sentence may wrap naturally but is one paragraph. Select the complexity the encounter earns; never default to moderate.
 
 Save the private `icd10-cpt` pass's complete anchored worksheet under the run's `worksheets/`
 subdirectory with the same filename stem as the note. The saved worksheet is run evidence and is
@@ -504,14 +504,20 @@ python tools/anchor_scan.py <run>/worksheets --notes <run> --agreement-read <run
 
 Completion requires exit 0. That read also binds, in both directions, the note's preexisting and
 final codes, differential codes, welded `NOT CODED:` codes, and rendered procedure lines to their
-private worksheet populations. E/M selection additionally requires the applicable rendered CPT
-instructions and the patient-specific problems, data, and risk analysis; the code database verifies
-the selected code's identity and service-date status but never substitutes for that reading. A batch
+private worksheet populations. E/M selection additionally requires the passing committed MDM sheet
+for the service-date edition, or the rendered CPT instructions when the sheet does not cover the date
+or the selection turns on guidance it lacks (time, same-day modifier 25, critical care, prolonged
+services), and the patient-specific problems, data, and risk analysis. ED uses 99281–99285 by MDM
+without patient status; office or clinic uses 99202–99215 by MDM with account-backed status. An
+unstated or other setting blocks selection. The code database verifies identity and service-date
+status but never substitutes for the sheet or needed rendered reading. A batch
 run performs the same paired read once over the shift rather than weakening it per note.
 
 Before the worksheet can say `PASS`, write one private batch manifest naming every encounter in
-Review-sheet order. Each encounter record carries its stable id, one-based order, final code
-populations, identity-map or Medatrax status evidence plus that private evidence's SHA-256, and a SHA-256 over its normalized clinical
+Review-sheet order. Each encounter record carries its stable id, one-based order, stated
+`setting` (`office` or `emergency-department`), final code populations, office identity-map or
+Medatrax status evidence plus that private evidence's SHA-256 (ED uses
+`{"value":"not-applicable"}`), and a SHA-256 over its normalized clinical
 note plus visible coding worksheet. Normalize as UTF-8 with LF line endings, remove trailing
 whitespace from every line, and end with exactly one newline; exclude tier blocks, Medatrax fields,
 and technical receipts. Run the required freshness gate with the current private CPT receipt:

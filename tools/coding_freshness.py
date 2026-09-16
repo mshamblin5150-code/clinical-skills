@@ -15,6 +15,7 @@ import html
 import json
 import re
 import sqlite3
+import subprocess
 import sys
 from datetime import date, datetime
 from pathlib import Path
@@ -23,8 +24,10 @@ from urllib.request import urlopen
 from console_codec import require_python_floor, use_utf8
 import icd10_lookup
 import procedure_codes_lookup
+import cpt_mdm_sheet
 
 
+ROOT = Path(__file__).resolve().parent.parent
 ICD_RELEASE_URL = "https://www.cdc.gov/nchs/icd/icd-10-cm/files.html"
 HCPCS_RELEASE_URL = (
     "https://www.cms.gov/medicare/coding-billing/"
@@ -33,6 +36,8 @@ HCPCS_RELEASE_URL = (
 STATUS_VALUES = frozenset({"new", "established"})
 STATUS_EVIDENCE = frozenset({"identity-map", "medatrax"})
 SHA256 = re.compile(r"[0-9a-f]{64}")
+OFFICE_EM = frozenset(f"992{number:02d}" for number in range(2, 16))
+ED_EM = frozenset(f"992{number}" for number in range(81, 86))
 MONTH = (
     r"(?:January|February|March|April|May|June|July|August|September|October|"
     r"November|December)"
@@ -44,6 +49,7 @@ DECLARED_LIMITS = (
     "The live pages establish which named release applies or was most recently published; the gate does not download and byte-compare the authority's release archive with the committed database.",
     "The CPT receipt proves that its declared edition, fingerprint, and derived boundary match the database; it cannot prove that the authenticated book reading which authored the private receipt occurred.",
     "Code identity, completeness, billability, and date status do not establish medical necessity, descriptor agreement with the note, CPT instructions, or the E/M level.",
+    "The MDM sheet gate checks agreement digests and edition coverage, not the clinical support for a selected level or whether its readers viewed the book.",
 )
 
 
@@ -53,6 +59,18 @@ def sha256(path: Path) -> str:
         for block in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(block)
     return digest.hexdigest()
+
+
+def committed_sheet_sha256(path: Path) -> str:
+    relative = path.relative_to(ROOT).as_posix()
+    committed = subprocess.run(
+        ["git", "show", f"HEAD:{relative}"], cwd=ROOT, capture_output=True,
+    )
+    if committed.returncode:
+        raise ValueError("MDM sheet is not committed at HEAD")
+    if committed.stdout.replace(b"\r\n", b"\n") != path.read_bytes().replace(b"\r\n", b"\n"):
+        raise ValueError("MDM sheet differs from its committed version")
+    return hashlib.sha256(committed.stdout).hexdigest()
 
 
 def read_url(url: str) -> str:
@@ -161,13 +179,23 @@ def read_encounters(manifest: dict[str, object], findings: list[str]) -> list[di
         normalized = raw.get("normalized_sha256")
         status = raw.get("patient_status")
         codes = raw.get("codes")
+        em_code = str(codes.get("em", "")).strip().upper() if isinstance(codes, dict) else ""
+        setting = raw.get("setting")
+        expected_family = {
+            "emergency-department": ED_EM,
+            "office": OFFICE_EM,
+        }.get(setting) if isinstance(setting, str) else None
+        if expected_family is None or em_code not in expected_family:
+            findings.append(f"encounter {position} E/M code disagrees with stated place of service")
         if not isinstance(encounter_id, str) or not encounter_id.strip():
             findings.append(f"encounter {position} has no stable id")
         if not isinstance(order, int):
             findings.append(f"encounter {position} has no integer order")
         if not isinstance(normalized, str) or SHA256.fullmatch(normalized.lower()) is None:
             findings.append(f"encounter {position} normalized content hash is unreadable")
-        if (
+        if em_code in ED_EM and isinstance(status, dict) and status.get("value") == "not-applicable":
+            pass
+        elif (
             not isinstance(status, dict)
             or status.get("value") not in STATUS_VALUES
             or status.get("evidence") not in STATUS_EVIDENCE
@@ -201,6 +229,7 @@ def read_encounters(manifest: dict[str, object], findings: list[str]) -> list[di
                 "order": clean_order,
                 "normalized_sha256": clean_normalized,
                 "patient_status": clean_status,
+                "setting": setting,
                 "codes": {
                     "icd10": icd10,
                     "em": em.strip().upper(),
@@ -252,8 +281,9 @@ def validate_procedures(
     as_of: date,
     hcpcs_page: str,
     cpt_receipt: dict[str, object],
+    procedure_database: Path,
     findings: list[str],
-) -> tuple[dict[str, str | None], dict[str, str | None]]:
+) -> tuple[dict[str, str | None], dict[str, str | None], Path | None, str | None]:
     cpt_source = source_row(connection, "CPT")
     hcpcs_source = source_row(connection, "HCPCS")
     hcpcs_effective = date.fromisoformat(str(hcpcs_source["effective_date"]))
@@ -277,8 +307,10 @@ def validate_procedures(
     else:
         if declared_boundary != boundary:
             findings.append("CPT edition boundary does not match its source")
-        if as_of > boundary:
+        if date.fromisoformat(service_date) > boundary:
             findings.append("CPT freshness receipt expired at the next edition boundary")
+    if date.fromisoformat(service_date) < date.fromisoformat(str(cpt_source["effective_date"])):
+        findings.append("CPT source edition does not cover the service date")
 
     cpt: set[str] = set()
     hcpcs: set[str] = set()
@@ -290,6 +322,28 @@ def validate_procedures(
             cpt.add(em)
         cpt.update(codes["cpt"])
         hcpcs.update(codes["hcpcs"])
+
+    if cpt:
+        edition_year = date.fromisoformat(service_date).year
+        selected_sheet = ROOT / "reference" / f"cpt-em-mdm-{edition_year}.md"
+        if any(
+            str(encounter["codes"]["em"]) not in OFFICE_EM | ED_EM
+            for encounter in encounters
+        ):
+            findings.append("E/M family is outside the supported ED and office MDM sheet")
+        try:
+            entries = cpt_mdm_sheet.grade(selected_sheet, procedure_database)
+            if not entries or any(entry.edition != edition_year for entry in entries.values()):
+                raise ValueError("edition does not cover the service date")
+            if selected_sheet.name != f"cpt-em-mdm-{edition_year}.md":
+                raise ValueError("sheet filename does not match service-date edition")
+            sheet_digest = committed_sheet_sha256(selected_sheet)
+        except (OSError, ValueError) as error:
+            findings.append(f"E/M MDM sheet is missing or invalid: {error}")
+            sheet_digest = None
+    else:
+        selected_sheet = None
+        sheet_digest = None
 
     for system, population in (("CPT", cpt), ("HCPCS", hcpcs)):
         if population and not procedure_codes_lookup.complete(connection, system):
@@ -309,9 +363,9 @@ def validate_procedures(
         if not isinstance(codes, dict) or not isinstance(status, dict):
             continue
         entry = procedure_codes_lookup.describe(connection, str(codes["em"]))
-        if entry is not None and f"{status.get('value')} patient" not in entry.description.lower():
+        if entry is not None and str(codes["em"]) in OFFICE_EM and f"{status.get('value')} patient" not in entry.description.lower():
             findings.append(f"encounter {encounter['id']} E/M code disagrees with patient status")
-    return cpt_source, hcpcs_source
+    return cpt_source, hcpcs_source, selected_sheet, sheet_digest
 
 
 def main(argv: list[str]) -> int:
@@ -356,13 +410,14 @@ def main(argv: list[str]) -> int:
         icd_token = validate_icd(
             icd_connection, icd_codes, service_date, icd_page, findings
         )
-        cpt_source, hcpcs_source = validate_procedures(
+        cpt_source, hcpcs_source, selected_sheet, sheet_digest = validate_procedures(
             procedure_connection,
             encounters,
             service_date,
             today(),
             hcpcs_page,
             cpt_receipt,
+            args.procedure_database,
             findings,
         )
     finally:
@@ -392,6 +447,8 @@ def main(argv: list[str]) -> int:
                 "source_sha256": cpt_source["sha256"],
                 "database_sha256": sha256(args.procedure_database),
                 "valid_through": derived_cpt_boundary(cpt_source).isoformat(),
+                "mdm_sheet_filename": selected_sheet.name if selected_sheet else None,
+                "mdm_sheet_sha256": sheet_digest,
             },
             "hcpcs": {
                 "source_id": hcpcs_source["id"],
