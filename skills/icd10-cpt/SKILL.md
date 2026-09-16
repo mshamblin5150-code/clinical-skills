@@ -563,16 +563,36 @@ A direct coding consultation offers the supporting elements unless the user asks
 
 So the codes on the differential are required, and none of them is for entry. They are not a claim in miniature; they are the written form of the reasoning, and the reasoning is the element.
 
-**The procedure database does not verify MDM phrasing or map elements to a
-level.** The medical decision making table is an AMA CPT document rather than a
-code row. When E/M is asked for, read the applicable rendered section of **CPT
-Professional 2026** through `vitalsource-chrome`, apply the documented elements,
-and select the level supported by two of the three columns. If the live book
-cannot be read, the note path is blocked rather than finalized from recall.
+**The procedure database verifies code identity, not the MDM elements.** For an
+MDM-based E/M level, read the passing `reference/cpt-em-mdm-<edition>.md` sheet
+whose edition covers the service date. Apply its grid and dependent definitions
+to the note's patient-specific problems, data, and risk; two of the three
+elements determine the level. The sheet carries the book, edition, printed-page
+locator, agreeing two-reader date, and per-entry digest. The 2026 sheet is
+`reference/cpt-em-mdm-2026.md`; run `python tools/cpt_mdm_sheet.py` on it.
 
-The table is an **AMA CPT** document, and no AMA document is among the nine societies in the committed guideline corpus. The authenticated VitalSource book is the verification route outside that corpus; the procedure-code database alone does not change this boundary.
+The note's **stated place of service** decides the family. Emergency department
+uses 99281–99285 by MDM alone, without a new/established distinction. Office or
+clinic uses 99202–99215 by MDM, with new/established status backed by the private
+identity map or Medatrax. An unstated or other setting, including urgent care,
+observation, or inpatient, blocks selection; do not infer an office family.
 
-**The MDM phrasing here is recalled, and nothing in this repo verifies it** when the live book has not been read. That is why a note-path run reads the authenticated CPT table and blocks instead of finalizing from this prose.
+Read the rendered CPT Professional book through `vitalsource-chrome` when the
+service date falls outside every committed sheet's edition, or when the level
+depends on guidance absent from the sheet—total time, modifier 25 on a same-day
+procedure, critical care, or prolonged services. If that live reading cannot be
+completed, the E/M line stays pending. The database and this prose never
+substitute for the sheet or required rendered page.
+
+The freshness gate still requires a committed sheet covering the service date;
+a live reading cannot carry the 2026 sheet into a later edition.
+
+The first authenticated 2026 reader confirms the ebook identifier and edition
+against the procedure database's CPT `source` row, then derives the private
+receipt in this checkout with `python tools/cpt_mdm_sheet.py --write-receipt
+scratch/sessions/cpt-2026/cpt-2026-receipt.json`. The rendered copyright page lists a distinct
+print ISBN; the VitalSource ebook identifier is the database's ISBN. This
+receipt has no hand-entered fields and stays in `scratch/`.
 
 **No lookup is added to this skill by [#85](https://github.com/mshamblin5150-code/clinical-skills/issues/85), and that is a ruling rather than an omission.** [clinical-note](../clinical-note/SKILL.md) is obliged to consult a sheet where one covers what a Plan item asserts; this worksheet is not, on any encounter. **A code is anchored to what the note documents, never to whether the number should have met a target** — a coder who declined `I10` because a pressure sat under a threshold sheet's cutoff, or who withheld a screening `Z` code because the patient fell outside a USPSTF population, would be re-deciding the clinical question from the worksheet with the note as its only input. That is the anchor rule running backwards, and step 3's *filled value is coded, and it is marked* already settled the general form of it: mark what a code rests on, never withhold on a ground the note does not carry.
 
@@ -600,7 +620,7 @@ the clinical note plus visible coding worksheet. The required gate exits 0:
 python tools/coding_freshness.py <batch-codes.json> --cpt-receipt <cpt-receipt.json> --receipt <batch-freshness.json>
 ```
 
-The live CDC and CMS release checks, the CPT edition-and-fingerprint receipt, database
+The live CDC and CMS release checks, the CPT edition-and-fingerprint receipt, passing service-date MDM sheet, database
 completeness, code identity, billability where applicable, service-date activity, and every
 encounter's account-backed patient status must all pass. The rendered worksheet says only
 `Coding freshness: PASS`; technical receipt content remains private.

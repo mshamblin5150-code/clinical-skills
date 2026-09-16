@@ -618,15 +618,14 @@ class TheCoderGainsNoObligation(ProseBind, unittest.TestCase):
         self.assertIn("CMS and NCHS document", self.text)
         self.assertIn("no CMS or NCHS coding document is among the nine societies", self.text)
 
-    def test_the_mdm_paragraph_names_the_ama_gap(self):
-        self.assertIn("**AMA CPT** document", self.text)
-        self.assertIn("no AMA document is among the nine societies", self.text)
+    def test_the_mdm_paragraph_names_the_committed_ama_sheet_boundary(self):
+        self.assertIn("reference/cpt-em-mdm-2026.md", self.text)
+        self.assertIn("The database and this prose never", self.text)
+        self.assertIn("substitute for the sheet or required rendered page", self.text)
 
     def test_the_greppable_guideline_anchors_match_their_current_evidence(self):
-        self.assertIn(
-            "**The MDM phrasing here is recalled, and nothing in this repo verifies it**",
-            self.text,
-        )
+        self.assertIn("two of the three", self.text)
+        self.assertIn("a live reading cannot carry the 2026 sheet into a later edition", self.text)
         self.assertIn("Official Guidelines Section IV.H", self.text)
         self.assertIn("ADR 0248 records the source reading", self.text)
 

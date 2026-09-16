@@ -20,6 +20,10 @@ The books are the human authorities for instructions, symbols, parentheticals,
 cross-references, and worked guidance. The database verifies code identity,
 descriptor, modifier identity, and service-date status only.
 
+The licensed, two-reader E/M MDM grid and its dependent definitions are in
+[`cpt-em-mdm-2026.md`](cpt-em-mdm-2026.md), with printed-page locators. The sheet
+is separate from this database and does not carry other CPT instructions.
+
 ## Rebuild
 
 ```bash

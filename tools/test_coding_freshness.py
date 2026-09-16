@@ -32,6 +32,7 @@ assert_code_set_database_digest(
 )
 
 import coding_freshness as gate
+import cpt_mdm_sheet
 
 
 ICD_PAGE = """
@@ -61,6 +62,7 @@ class CodingFreshnessMain(unittest.TestCase):
                         {
                             "id": "note-1",
                             "order": 1,
+                            "setting": "office",
                             "normalized_sha256": self.content_hash,
                             "patient_status": {
                                 "value": "established",
@@ -95,6 +97,21 @@ class CodingFreshnessMain(unittest.TestCase):
             encoding="utf-8",
         )
         self.output = self.directory / "freshness.json"
+        (self.directory / "reference").mkdir()
+        self.mdm_sheet = self.directory / "reference" / "cpt-em-mdm-2026.md"
+        first = self.directory / "first.md"
+        second = self.directory / "second.md"
+        read = (
+            "# CPT E/M MDM 2026\n\n" +
+            "".join(
+                f"## Entry: {name}\nLocator: CPT Professional 2026, p. 10\n"
+                f"```text\n{'Moderate decisions.' if name == 'table-moderate' else name}\n```\n\n"
+                for name in sorted(cpt_mdm_sheet.REQUIRED_ENTRIES)
+            )
+        )
+        first.write_text(read, encoding="utf-8")
+        second.write_text(read, encoding="utf-8")
+        cpt_mdm_sheet.compare(first, second, self.mdm_sheet, "2026-09-16")
 
     def tearDown(self):
         self.temporary.cleanup()
@@ -110,6 +127,7 @@ class CodingFreshnessMain(unittest.TestCase):
         with (
             patch.object(gate, "read_url", side_effect=pages),
             patch.object(gate, "today", return_value=gate.date(2026, 9, 15)),
+            patch.object(gate, "ROOT", self.directory),
             contextlib.redirect_stdout(stdout),
         ):
             status = gate.main(
@@ -134,6 +152,67 @@ class CodingFreshnessMain(unittest.TestCase):
         self.assertEqual("note-1", receipt["encounters"][0]["id"])
         self.assertEqual("99214", receipt["encounters"][0]["codes"]["em"])
         self.assertIn("database_sha256", receipt["sources"]["cpt"])
+        self.assertEqual(self.mdm_sheet.name, receipt["sources"]["cpt"]["mdm_sheet_filename"])
+        self.assertEqual(64, len(receipt["sources"]["cpt"]["mdm_sheet_sha256"]))
+
+    def test_missing_or_tampered_mdm_sheet_refuses_final_em(self):
+        self.mdm_sheet.write_text(
+            self.mdm_sheet.read_text(encoding="utf-8").replace("Moderate decisions", "High decisions"),
+            encoding="utf-8",
+        )
+        status, output = self.run_gate()
+        self.assertEqual(1, status)
+        self.assertIn("MDM sheet", output)
+        self.assertFalse(self.output.exists())
+
+    def test_cpt_receipt_is_judged_by_service_date_not_check_date(self):
+        value = self.load_manifest()
+        value["service_date"] = "2026-12-20"
+        self.save_manifest(value)
+        stdout = io.StringIO()
+        with (
+            patch.object(gate, "read_url", side_effect=(ICD_PAGE, HCPCS_PAGE)),
+            patch.object(gate, "today", return_value=gate.date(2027, 1, 4)),
+            patch.object(gate, "ROOT", self.directory),
+            contextlib.redirect_stdout(stdout),
+        ):
+            gate.main([
+                str(self.manifest), "--cpt-receipt", str(self.cpt_receipt),
+                "--receipt", str(self.output),
+            ])
+        self.assertNotIn("CPT freshness receipt expired", stdout.getvalue())
+
+    def test_next_edition_service_date_has_no_2026_mdm_coverage(self):
+        value = self.load_manifest()
+        value["service_date"] = "2027-01-02"
+        self.save_manifest(value)
+        status, output = self.run_gate()
+        self.assertEqual(1, status)
+        self.assertIn("CPT freshness receipt expired", output)
+        self.assertIn("E/M MDM sheet is missing or invalid", output)
+
+    def test_ed_em_does_not_require_new_or_established_patient_status(self):
+        value = self.load_manifest()
+        value["encounters"][0]["setting"] = "emergency-department"
+        value["encounters"][0]["codes"]["em"] = "99283"
+        value["encounters"][0]["patient_status"] = {"value": "not-applicable"}
+        self.save_manifest(value)
+        status, output = self.run_gate()
+        self.assertEqual(0, status, output)
+
+    def test_unstated_or_mismatched_setting_refuses_em(self):
+        value = self.load_manifest()
+        del value["encounters"][0]["setting"]
+        self.save_manifest(value)
+        status, output = self.run_gate()
+        self.assertEqual(1, status)
+        self.assertIn("stated place of service", output)
+
+        value["encounters"][0]["setting"] = "emergency-department"
+        self.save_manifest(value)
+        status, output = self.run_gate()
+        self.assertEqual(1, status)
+        self.assertIn("stated place of service", output)
 
     def test_stale_icd_release_still_listed_beside_the_applicable_one_blocks(self):
         page = ICD_PAGE.replace(
