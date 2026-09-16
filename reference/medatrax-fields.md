@@ -37,7 +37,50 @@ Five behaviors that decide whether a sweep works at all. Each one has cost a pas
 
 Picklist strings are exact — match them character for character, here and in the per-account lists this file points at. Site names are where that bites: on this account one entry ends in a trailing period and another sets its hyphen with spaces around it. A near-miss does not match.
 
-**Scope.** This file currently documents Medatrax for *reading* — what the fields are, what they accept, and how a note supplies them. Entering encounters through the portal is out of scope for this pass, **not permanently**: the field table and selection rules below are written to serve entry when it lands, which is the destination of the whole toolchain.
+## Entering encounters
+
+Start at **Patients**, which opens the Patient Visit List. Keep `Course` at `(All Courses)` while
+matching a returning patient; a course filter can hide the patient's earlier visit.
+
+### New patient
+
+1. Click **New Patient** on the Patient Visit List.
+2. Select the visit date from the calendar and enter the approved patient and visit fields in the
+   order shown under *Per-encounter fields* below. `Height` is inches. Times accept `HHMM`.
+3. Click **Create**. Medatrax opens Patient Detail and generates the Patient Reference there.
+4. Copy that reference into the private identity map immediately, before opening the note form.
+5. Read every displayed Patient Detail field back against the approved Medatrax block. `Preceptor`
+   is displayed as `First Last` even though its entry picklist is `Last,First`.
+
+### New visit for a returning patient
+
+1. Find the Patient Reference from the private identity map, search it on the Patient Visit List,
+   and open Patient Detail.
+2. Click **New Visit**. The page carries forward the Patient Reference, demographics, course, and
+   site. The visit date, times, case type, blood pressure, respiratory rate, preceptor, height, BMI,
+   and Patient Time still require the approved visit values; do not treat a carried value as proof
+   that it is current.
+3. Click **Submit**, then read the saved visit back on Patient Detail. If the entry session is only
+   inspecting the route, click **Cancel**; opening New Visit alone creates no visit.
+
+The Patient Visit List's `Created` column is the patient's first creation time, not the creation time
+of each later visit. This is visible on a returning Patient Reference whose distinct visit dates carry
+the same `Created` value. For a returning patient's posted reading, record the visit date instead of
+`Created`.
+
+### Note form
+
+1. From Patient Detail, click **New Form**. In the upper *Open New Form* panel, select the approved
+   form and course, then click **Open New Form**. Do not use the lower existing-form search panel.
+2. The form selects the Patient Reference, but its date, location, and preceptor can open with
+   unrelated defaults. Replace all three with the approved visit values before pasting the note.
+3. Paste each note section into its matching box. Enter the separate vital-sign boxes exactly as the
+   note states them. Click **Finish**; a completed save returns to the Forms page.
+4. In the lower existing-form panel, search by form, visit date, Patient Reference, location, and
+   course. Open **View** and read every rendered field against the approved note. Copy `resultid`
+   from that View link; never guess it.
+5. Return to Patient Detail and confirm the saved form appears under the same visit. Leave **Add
+   Visit Data** empty.
 
 ## Hour requirements and deadlines
 
@@ -223,7 +266,11 @@ ICD-10-CM        Medications        FNP Clinical Experience Check List
 FNP EMT/ICD Codes    Procedure Codes    Drug List
 ```
 
-Plus PMHNP-only categories. `ICD-10-CM`, `Procedure Codes` and `FNP EMT/ICD Codes` are where [icd10-cpt](../skills/icd10-cpt/SKILL.md) output lands.
+Plus PMHNP-only categories.
+
+**Enter nothing here for the clinical-note workflow.** Preexisting and final diagnosis codes remain
+inside the note form. Procedure and E/M codes remain in the approved note and coding worksheet; they
+are not duplicated under Add Visit Data.
 
 ## Reports
 

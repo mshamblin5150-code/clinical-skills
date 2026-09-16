@@ -1,5 +1,7 @@
 """Contract tests for the submission-keyed after-action review. #814."""
 
+# phi-scan: synthetic
+
 from __future__ import annotations
 
 import io
@@ -1740,6 +1742,25 @@ class SubmissionRecord(unittest.TestCase):
             ),
             encoding="utf-8",
         )
+        self.assertIn(
+            "posted-reading-mismatch",
+            [finding.kind for finding in aar_scan.survey(self.run, self.submission).findings],
+        )
+
+    def test_a_changed_visit_locator_moves_with_the_posted_reading_block(self) -> None:
+        reread = self.run / "reread.md"
+        reread.write_text(
+            reread.read_text(encoding="utf-8")
+            + "VISIT: 1 | reference matched | patient-detail=/patients/17 | "
+            "note-view=/forms/view?resultid=31 | visit-date=08/17/2026 | matches\n",
+            encoding="utf-8",
+        )
+        self.write_clean()
+        reread.write_text(
+            reread.read_text(encoding="utf-8").replace("resultid=31", "resultid=32"),
+            encoding="utf-8",
+        )
+
         self.assertIn(
             "posted-reading-mismatch",
             [finding.kind for finding in aar_scan.survey(self.run, self.submission).findings],

@@ -225,7 +225,7 @@ REREAD_BLOCK = re.compile(
     r"(?P<body>.*?)(?=^## REREAD:|\Z)"
 )
 REREAD_FIELD = re.compile(
-    r"(?mi)^(?P<name>POST-URL|POSTED|READ|SUBMISSION-SHA256|VERDICT)\s*:\s*(?P<value>[^\n]*)$"
+    r"(?mi)^(?P<name>POST-URL|POSTED|READ|SUBMISSION-SHA256|VERDICT|VISIT)\s*:\s*(?P<value>[^\n]*)$"
 )
 REREAD_FIELDS = ("POST-URL", "POSTED", "READ", "SUBMISSION-SHA256", "VERDICT")
 SHA256 = re.compile(r"[0-9a-f]{64}", re.ASCII)
@@ -305,6 +305,7 @@ class PostedReading:
     verdict: str
     verdict_detail: str
     missing_fields: tuple[str, ...]
+    visits: tuple[str, ...] = ()
 
     @property
     def missing_record_fields(self) -> tuple[str, ...]:
@@ -350,8 +351,12 @@ def read_posted_readings(text: str) -> tuple[PostedReading, ...]:
         if REREAD_FIELD.sub("", block.group("body")).strip():
             raise ValueError(f"reread.md has unreadable content in {artifact}")
         fields: dict[str, str] = {}
+        visits: list[str] = []
         for match in matches:
             name = match.group("name").upper()
+            if name == "VISIT":
+                visits.append(match.group("value").strip())
+                continue
             if name in fields:
                 raise ValueError(f"reread.md has a duplicate {name} field for {artifact}")
             fields[name] = match.group("value").strip()
@@ -374,6 +379,7 @@ def read_posted_readings(text: str) -> tuple[PostedReading, ...]:
                 missing_fields=tuple(
                     name for name in REREAD_FIELDS if not fields.get(name, "")
                 ),
+                visits=tuple(visits),
             )
         )
     return tuple(records)

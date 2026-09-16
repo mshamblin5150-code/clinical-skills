@@ -106,7 +106,7 @@ Coding freshness: PASS
 
 **Codes belong in this note, in three places.** Preexisting diagnoses, **every differential entry**, and the final diagnosis all carry ICD-10-CM. Route them through [icd10-cpt](../icd10-cpt/SKILL.md) so each is anchored and flagged, then place them here. **Give it the tier assignment along with the text** — it marks a code resting on a filled value `SOURCE: filled`, and it cannot see which values those are from the note body alone.
 
-**Only two of the three leave the note.** The preexisting diagnoses and the final diagnosis go on to Medatrax's `ICD-10-CM` category; the differential's codes stay on this page, because they document medical decision-making rather than record what the patient had. What that costs if it is got wrong is in [icd10-cpt](../icd10-cpt/SKILL.md), with the rule.
+**All three stay in the note form.** Preexisting, differential, and final-diagnosis codes are note content. Enter none of them under Medatrax Add Visit Data. What a differential code is for, and what an overstated descriptor costs, are in [icd10-cpt](../icd10-cpt/SKILL.md).
 
 **Generic names in the Plan.** Shorthand records brands; the note records generics — Toradol → ketorolac, Decadron → dexamethasone, Duoneb → ipratropium-albuterol, Phenergan DM → promethazine DM. Keep the dose and route exactly as given, and fill the duration where the drug has a standard course.
 

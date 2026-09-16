@@ -284,6 +284,25 @@ class CitationResolutionIsDirectional(unittest.TestCase):
 
 
 class PostedReadingsAreSharedArtifacts(unittest.TestCase):
+    def test_a_portal_record_preserves_each_visit_locator(self):
+        records = artifact.read_posted_readings(
+            """\
+## REREAD: shift-2026-08-17
+POST-URL: https://example.org/patient-visits
+POSTED: 08/17/2026 21:14
+READ: 2 of 2 read
+VERDICT: matches - Every saved visit and note form matched the approved review.
+SUBMISSION-SHA256: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+VISIT: 1 | reference matched | patient-detail=/patients/17 | note-view=/forms/view?resultid=31 | visit-date=08/17/2026 | matches
+VISIT: 2 | reference new | patient-detail=/patients/18 | note-view=/forms/view?resultid=32 | created=08/17/2026 21:14 | matches
+"""
+        )
+
+        self.assertEqual(1, len(records))
+        self.assertEqual(2, len(records[0].visits))
+        self.assertIn("resultid=31", records[0].visits[0])
+        self.assertIn("reference new", records[0].visits[1])
+
     def test_one_record_preserves_the_entry_and_verdict_substance(self):
         records = artifact.read_posted_readings(
             """\

@@ -126,6 +126,8 @@ Preceptors and sites are per-account picklists. Read them off the portal and rec
 
 Also collect the **preceptor name mapping**: day files name preceptors by first name, Medatrax wants `Last,First`. Ask for the mapping directly.
 
+For every course, also ask who the **primary preceptor** is and record one explicit rule for a day file that names someone absent from the picklist: use that primary preceptor, or stop and ask each time. Do not infer this choice from a prior course.
+
 **A name that maps to nobody is a question, not a defect.** The person a day file names may be a physician the clinician rounded with who is not on the picklist at all — in which case nothing is missing from the record and nothing needs mapping. Ask what goes in the box instead, and **write the ruling into the profile**. **Never guess a nearest surname match**: that is how a shift's hours get attributed to someone who was not there, and nothing downstream will catch it.
 
 **This step collects the answer; it does not decide what to do with one.** [batch-shift](../batch-shift/SKILL.md) step 1 owns that — the lookup order, and why a clinician entering his own preceptor of record is a different act from an agent guessing a surname. **Stated there and not restated here on purpose**, so the two cannot drift apart again.

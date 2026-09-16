@@ -222,6 +222,7 @@ from pathlib import Path
 
 import run_grader
 import aar_scan
+import medatrax_posting
 
 EXPECTED_COMPLETION_CHECKS = (aar_scan.EXPECTED_ROW,)
 import threshold_coverage
@@ -1442,7 +1443,15 @@ def _load(parsed: run_grader.Parsed) -> Source:
         raise run_grader.SourceError(
             f"no directory named {directory.name}", exit_2_limb=NO_DIRECTORY
         )
-    texts = tuple(run_grader.read_run_directory(directory))
+    posting_paths = (
+        medatrax_posting.note_paths(directory, batch=False)
+        if parsed.value("--submission")
+        else ()
+    )
+    texts = tuple(
+        path.read_text(encoding="utf-8", errors="replace")
+        for path in posting_paths
+    ) or tuple(run_grader.read_run_directory(directory))
     if not texts:
         raise run_grader.SourceError(
             f"no notes found in {directory.name}", exit_2_limb=NO_NOTES
@@ -1533,14 +1542,19 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
     aar_failed, aar_report = aar_scan.completion_gate(
         source.directory, _parsed.value("--submission")
     )
+    posting_failed, posting_report = medatrax_posting.completion_gate(
+        source.directory, _parsed.value("--submission"), batch=False
+    )
+    if posting_failed:
+        diagnostics.append("\n" + posting_report)
     return run_grader.Grade(
         scan=scan,
         source=source.directory.name,
-        findings_failed=has_findings or aar_failed,
+        findings_failed=has_findings or aar_failed or posting_failed,
         coverage_failed=coverage_failed,
         coverage_limbs=tuple(coverage_limbs),
         diagnostics=tuple(diagnostics),
-        reports=(aar_report,),
+        reports=(aar_report, posting_report),
     )
 
 

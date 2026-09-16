@@ -252,10 +252,9 @@ and its finalized `Coding worksheet`, numbered in source order. A single encount
 over alone. Head the file with the constants step 6 already states once — course, date, preceptor,
 site — and begin every encounter on a new page.
 
-**Before rendering anything, invoke `handoff` for the supervised human Medatrax walkthrough.** The
-fresh session learns the actual portal route and records any consequence for patient-status evidence,
-fields, or the Review-sheet layout. Resume this step only after those consequences have been
-incorporated. The walkthrough authorizes no later unattended entry.
+The supervised Medatrax route is recorded in
+[reference/medatrax-fields.md](../../reference/medatrax-fields.md). Apply it; do not run a new
+walkthrough for each shift.
 
 It is batch-atomic. Before rendering, create one private manifest naming every encounter in exact
 order. Each record carries its stable id, one-based order, final ICD-10-CM, E/M, CPT, and HCPCS
@@ -297,13 +296,51 @@ note and worksheet content, status evidence, encounter membership and order, and
 receipt. A substantive change invalidates the entire approval; layout-only regeneration from
 unchanged normalized content does not.
 
-Clinician approval of the Review sheet authorizes no portal entry. The earlier supervised walkthrough
-teaches the route; unattended entry remains separately gated and is neither built nor attempted here.
+**The Review sheet is the one shift-level go-ahead.** Before any entry, show every note, every
+patient marked with its matched Patient Reference or `NEW PATIENT`, the resolved preceptor, and
+every finalized E/M line. One explicit approval authorizes the entire listed shift and nothing
+outside it.
 
-**Then invoke `/AAR`; the shift is not complete without it.** Use `shift-<date>` as the submission key and this shift's run directory. After `/AAR` exits clean, rerun the completion grader with its expected review row enabled:
+Ask the shift start once. Read that date's hours from the Time Log and bind every visit start and end
+inside the window from start through start plus those hours. If the Time Log has no row, ask for the
+start and hours together.
+
+Enter one patient at a time by the reference procedure. Put each new Patient Reference into the
+private identity map immediately after Medatrax generates it. Leave Add Visit Data empty. After each
+save, read Patient Detail and the note form back against that encounter's approved field block and
+note. Correct an ordinary mismatch to the approved value and read it again; any other discrepancy
+stops for the clinician. On that patient's `VISIT:` line, append
+`correction=<field>: <saved value> -> <approved value>; reread matches` for every correction. A
+clean first read needs no correction clause.
+
+After an interruption, sign back in, read what saved, and search the Patient Visit List for a record
+created during the interruption. Resume only when none exists. A partial record stops the shift for
+the clinician; never delete it.
+
+After all visits and forms read back, write one `reread.md` record. `POST-URL` is the copied Patient
+Visit List address; `POSTED` is the last entered visit's displayed `Created`; `READ` is `N of N
+read`; and `SUBMISSION-SHA256` is the SHA-256 of the raw `note-N.md` bytes concatenated in ascending
+numeric N. Compute it only after the notes are final and before `/AAR` extracts the record. Add one
+line per encounter:
+
+```text
+## REREAD: shift-<date>
+POST-URL: <Patient Visit List address>
+POSTED: <last entered visit's Created value as displayed>
+READ: N of N read
+VERDICT: matches - <what was compared>
+SUBMISSION-SHA256: <SHA-256 of note-1.md through note-N.md bytes>
+VISIT: <N> | patient <number> | reference <matched|new> <Patient Reference> | patient-detail=<copied address> | note-view=<copied View address including resultid> | <created=<displayed Created>|visit-date=<returning visit date>> | matches
+```
+
+Copy every locator and time from Medatrax; never construct a `resultid`. Because `Created` is the
+patient's first creation time, use the visit date on a returning patient's `VISIT:` line.
+
+**Then invoke `/AAR`; the shift is not complete without it.** Use `shift-<date>` as the submission key and this shift's run directory. After `/AAR` exits clean, rerun the completion grader with its expected review and posting rows enabled:
 
 ```bash
 python tools/filled_vitals_census.py <the run directory> --submission shift-<date>
 ```
 
-An exit of 0 must include `the after-action review: clean`. An absent or malformed review is a finding, not an optional reflection.
+An exit of 0 must include `the after-action review: clean` and `the Medatrax posted reading: clean`.
+An absent or malformed review, missing fingerprint, or note changed after the reading is a finding.
