@@ -1122,6 +1122,65 @@ class TheRow24MechanicalFloorUsesTheCommandSeam(unittest.TestCase):
         self.assertIn("row 24 - guideline tail violations  0", report)
         self.assertIn("row 24 candidates - dependency needs a reader  1", report)
 
+    def test_source_page_unread_is_a_candidate(self):
+        status, report, error = self.run_command(
+            "FILLED·proposed   1. Review source recommendation "
+            "[recalled, source page unread]"
+        )
+
+        self.assertEqual(status, 0, error)
+        self.assertIn("row 24 - guideline tail violations  0", report)
+        self.assertIn("row 24 candidates - dependency needs a reader  1", report)
+
+    def test_near_miss_tails_are_findings_even_without_a_trigger_word(self):
+        for tail in (
+            "recalled, no single shipped sheet governs the interval",
+            "recalled, source page unread, later",
+            "uspstf grade A, adults, 2021",
+            "thresholds/hypertension sheet does not settle it",
+            "guideline/example draft, recommendation, adults, p. 1",
+        ):
+            with self.subTest(tail=tail):
+                status, report, error = self.run_command(
+                    f"FILLED·proposed   1. Review care [{tail}]", "--show"
+                )
+                self.assertEqual(status, 1, report + error)
+                self.assertIn("malformed guideline tail", report)
+
+    def test_a_bracket_outside_the_tail_keyword_prefix_is_not_read_as_a_tail(self):
+        status, report, error = self.run_command(
+            "FILLED·proposed   1. Review care [no sheet settles this]"
+        )
+
+        self.assertEqual(status, 0, error)
+        self.assertIn("row 24 candidates - dependency needs a reader  1", report)
+
+    def test_sheet_does_not_settle_verdict_is_matched_whole(self):
+        for verdict in (
+            "sheet does not settle offloading",
+            "idsa-2014, sheet does not settle it",
+            "sheet does not settle it, offloading",
+        ):
+            with self.subTest(verdict=verdict):
+                status, report, error = self.run_command(
+                    "FILLED·proposed   1. Review care "
+                    f"[thresholds/hypertension: {verdict}]", "--show"
+                )
+                self.assertEqual(status, 1, report + error)
+                self.assertIn("malformed threshold verdict", report)
+
+    def test_other_recalled_wordings_are_findings(self):
+        for tail in (
+            "recalled, no shipped sheet, extra",
+            "recalled, no shipped sheet; catalog lists",
+        ):
+            with self.subTest(tail=tail):
+                status, report, error = self.run_command(
+                    f"FILLED·proposed   1. Review care [{tail}]", "--show"
+                )
+                self.assertEqual(status, 1, report + error)
+                self.assertIn("malformed guideline tail", report)
+
     def test_sheet_does_not_settle_fails_when_the_item_names_a_sheet_value(self):
         status, report, _ = self.run_command(
             "FILLED·proposed   1. Blood pressure target 130/80 [thresholds/hypertension: sheet does not settle it]"
@@ -1187,6 +1246,26 @@ class TheRow24MechanicalFloorUsesTheCommandSeam(unittest.TestCase):
         self.assertEqual(status, 0, report)
         self.assertIn("row 24 - guideline tail violations  0", report)
         self.assertIn("row 24 candidates - dependency needs a reader  1", report)
+
+
+class TheDescriptorAgreementFixtureIsDivergentForRow24(unittest.TestCase):
+    RUN = REPO_ROOT / "fixtures" / "descriptor-agreement-note-path-control" / "notes"
+
+    def test_its_refused_tail_classes_remain_findings(self):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with redirect_stdout(stdout), redirect_stderr(stderr):
+            status = ds.main([str(self.RUN)])
+        notes = [ds.read_note(text) for text in run_grader.read_run_directory(self.RUN)]
+        reasons = {
+            finding.reason for note in notes for finding in note.guideline_findings
+        }
+
+        self.assertEqual(status, 1, stdout.getvalue() + stderr.getvalue())
+        self.assertEqual(
+            reasons,
+            {"malformed threshold verdict", "malformed guideline tail"},
+        )
 
 
 class TheFilledAnchorRunHasNothingToScan(unittest.TestCase):
@@ -1790,6 +1869,9 @@ class TheValidationSetsLimitsAreDeclared(unittest.TestCase):
     def test_the_keys_are_distinct(self):
         self.assertEqual(len(set(self.keys())), len(self.keys()))
 
+    def test_guideline_keyword_prefix_limit_is_declared(self):
+        self.assertIn("guideline attempts outside the tail keyword prefix", self.keys())
+
     def test_the_module_docstring_points_at_the_object_and_copies_none_of_it(self):
         """One object, on #241's terms. A docstring restating a row is the second
         copy that ticket exists to refuse."""
@@ -2122,6 +2204,22 @@ class TheSkillsWorkedExamplesPassTheScanner(unittest.TestCase):
     """
 
     FILES = ("SKILL.md", "SOAP.md", "HP.md")
+
+    def test_the_unread_source_page_example_is_a_candidate(self):
+        skill = SKILL.read_text(encoding="utf-8")
+        fragment = "[recalled, source page unread]"
+        lines = [
+            line
+            for line in skill.splitlines()
+            if line.startswith("FILLED·proposed") and fragment in line
+        ]
+        self.assertEqual(len(lines), 1)
+        note = ds.read_note(
+            "A:\n\nDifferential:\n1. Viral upper respiratory infection - J06.9: favored.\n"
+            + lines[0] + "\n"
+        )
+        self.assertEqual(note.guideline_findings, ())
+        self.assertEqual(len(note.guideline_candidates), 1)
 
     def test_the_comma_and_empty_class_examples_pass_row_24(self):
         skill = SKILL.read_text(encoding="utf-8")

@@ -305,11 +305,19 @@ TIER_LABEL = re.compile(
     r"^(?:DERIVED|FILLED·asserted|FILLED·proposed|FLAG|GAPS|UNKNOWN)\b"
 )
 GUIDELINE_TAIL = re.compile(
-    r"\[((?:uspstf|thresholds/[^:\]]+|guideline/[^:\]]+):[^\]]+|recalled, no shipped sheet[^\]]*)\]",
+    r"\[((?:uspstf|thresholds/[^:\]]+|guideline/[^:\]]+):[^\]]+|recalled,[^\]]*)\]",
     re.IGNORECASE,
 )
 GUIDELINE_TAIL_START = re.compile(
-    r"\[(?:uspstf|thresholds/[^:\]]+|guideline/[^:\]]+):|\[recalled, no shipped sheet",
+    r"\[(?:uspstf|thresholds/|guideline/|recalled)",
+    re.IGNORECASE,
+)
+GUIDELINE_ATTEMPT = re.compile(
+    r"\[((?:uspstf|thresholds/|guideline/|recalled)[^\]]*)\]",
+    re.IGNORECASE,
+)
+RECALLED_NO_SHEET = re.compile(
+    r"recalled, no shipped sheet(?:; catalog lists [^\s;\]][^;\]]*)?",
     re.IGNORECASE,
 )
 GUIDELINE_TRIGGER = re.compile(
@@ -423,6 +431,15 @@ NOT_VALIDATED_AGAINST = (
         "reasoning remain outside it. The command therefore prints the narrow "
         "populations and the reader residue on every report; it never promotes "
         "its clean count to the wide Assessment verdict.",
+    ),
+    (
+        "guideline attempts outside the tail keyword prefix",
+        "A bracketed proposal segment is opened as a guideline attempt only "
+        "when it begins with uspstf, thresholds/, guideline/, or recalled. "
+        "A proposed verdict beginning with another word remains unread as a "
+        "tail; without a separately recognizable subject trigger it stays a "
+        "candidate. This bounded prefix leaves clinical interpretation with "
+        "the reader instead of treating every bracketed aside as a citation.",
     ),
 )
 
@@ -934,7 +951,7 @@ def _guideline_floor(
     parsed_thresholds: dict[Path, threshold_grammar.Sheet] = {}
 
     for item in items:
-        opening_tails = list(GUIDELINE_TAIL.finditer(item.text))
+        opening_tails = list(GUIDELINE_ATTEMPT.finditer(item.text))
         continuation_tails = [
             (line, text)
             for line, text in item.continuation
@@ -967,10 +984,26 @@ def _guideline_floor(
             continue
 
         for match in opening_tails:
+            if GUIDELINE_TAIL.fullmatch(match.group(0)) is None:
+                findings.append(
+                    GuidelineFinding(item.line, "malformed guideline tail", item.text)
+                )
+                continue
             tail = match.group(1).strip()
             subject = (item.text[: match.start()] + item.text[match.end() :]).strip()
             lowered = tail.casefold()
-            if lowered.startswith("recalled, no shipped sheet"):
+            if lowered.startswith("recalled"):
+                if not (
+                    RECALLED_NO_SHEET.fullmatch(tail)
+                    or lowered == "recalled, source page unread"
+                ):
+                    findings.append(
+                        GuidelineFinding(item.line, "malformed guideline tail", item.text)
+                    )
+                    continue
+                if lowered == "recalled, source page unread":
+                    candidates.append(GuidelineCandidate(item.line, item.text))
+                    continue
                 checked += 1
                 topics = tuple(topic for topic, _artifact in THRESHOLD_ARTIFACT_TOPICS)
                 if _lexical_subject_topic_names(subject, topics):
@@ -1068,7 +1101,7 @@ def _guideline_floor(
             checked += 1
             rows = parsed_sheet.rows
             verdict = verdict.strip()
-            if verdict.casefold().startswith("sheet does not settle it"):
+            if verdict.casefold() == "sheet does not settle it":
                 subject_signals = _threshold_signal_values(subject.replace(",", ""))
                 subject_words = _topic_words(subject)
                 contradicts = any(
