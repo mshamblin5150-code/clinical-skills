@@ -952,6 +952,65 @@ class TheRow24MechanicalFloorUsesTheCommandSeam(unittest.TestCase):
         self.assertIn("row 24 - guideline tail violations  0", report)
         self.assertIn("guideline tails checked against shipped sheets  2", report)
 
+    def test_every_shipped_threshold_row_can_be_cited_and_unknown_classes_fail(self):
+        root = REPO_ROOT / "reference" / "thresholds"
+        excluded = {"README.md", "coverage.md", "subjects.md"}
+        positive: list[str] = []
+        negative: list[str] = []
+        for sheet in sorted(root.glob("*.md")):
+            if sheet.name in excluded:
+                continue
+            parsed = ds.threshold_grammar.parse(sheet.read_text(encoding="utf-8"), sheet)
+            self.assertTrue(parsed.ok, f"{sheet}: {parsed.why_not}")
+            classes_by_source: dict[str, set[str]] = {}
+            for row in parsed.rows:
+                classes_by_source.setdefault(row.source, set()).add(row.klass)
+                prefix = f"{row.source} Class {row.klass}" if row.klass else row.source
+                positive.append(
+                    f"FILLED·proposed   Threshold review "
+                    f"[thresholds/{sheet.stem}: {prefix}, {row.population}, {row.value}]"
+                )
+            for source, classes in classes_by_source.items():
+                absent = "not-a-held-class, with-comma"
+                self.assertNotIn(absent, classes)
+                row = next(row for row in parsed.rows if row.source == source)
+                negative.append(
+                    f"FILLED·proposed   Threshold review "
+                    f"[thresholds/{sheet.stem}: {source} Class {absent}, "
+                    f"{row.population}, {row.value}]"
+                )
+
+        self.assertTrue(positive, "the shipped parser returned no threshold rows")
+        status, report, error = self.run_command("\n".join(positive), "--show")
+        self.assertEqual(status, 0, report + error)
+        self.assertIn("row 24 - guideline tail violations  0", report)
+
+        status, report, error = self.run_command("\n".join(negative), "--show")
+        self.assertEqual(status, 1, report + error)
+        self.assertIn(f"row 24 - guideline tail violations  {len(negative)}", report)
+        self.assertEqual(
+            report.count("threshold source, strength, population, and value do not match a shipped row"),
+            len(negative),
+        )
+        self.assertNotIn("malformed threshold verdict", report)
+
+    def test_every_sheet_class_reading_is_tried(self):
+        sheet = self.write_threshold_sheet("weight", "guideline")
+        text = sheet.read_text(encoding="utf-8")
+        text = text.replace(
+            "| weight-loss | adults-overweight | >=5% of body weight | lose at least 5% | draft-src | 1 | rec-1 | 1 |",
+            "| weight-loss | adults-overweight | >=5% of body weight | lose at least 5% | draft-src | 1 | rec-1 | alpha |\n"
+            "| weight-loss | adults-overweight | >=7% of body weight | lose at least 7% | draft-src | 1 | rec-2 | alpha, beta |",
+        )
+        sheet.write_text(text, encoding="utf-8")
+        with patch.object(ds, "THRESHOLD_ROOT", sheet.parent):
+            status, report, error = self.run_command(
+                "FILLED·proposed   Weight target "
+                "[thresholds/weight: draft-src Class alpha, beta, adults-overweight, >=7% of body weight]"
+            )
+        self.assertEqual(status, 0, report + error)
+        self.assertIn("row 24 - guideline tail violations  0", report)
+
     def test_qualitative_guideline_tail_preserves_status_identifier_population_and_page(self):
         status, report, error = self.run_command(
             "FILLED·proposed   1. IV crystalloid volume expansion "
@@ -2063,6 +2122,20 @@ class TheSkillsWorkedExamplesPassTheScanner(unittest.TestCase):
     """
 
     FILES = ("SKILL.md", "SOAP.md", "HP.md")
+
+    def test_the_comma_and_empty_class_examples_pass_row_24(self):
+        skill = SKILL.read_text(encoding="utf-8")
+        for fragment in (
+            "idsa-2020 Class strong recommendation, moderate-quality evidence, suspected-acute-babesiosis",
+            "idsa-2023, suspected-aba-age-6-to-48-months",
+        ):
+            lines = [line for line in skill.splitlines() if fragment in line]
+            self.assertEqual(len(lines), 1, fragment)
+            note = ds.read_note(
+                "A:\n\nDifferential:\n1. Viral upper respiratory infection - J06.9: favored.\n"
+                + lines[0] + "\n"
+            )
+            self.assertEqual(note.guideline_findings, (), fragment)
 
     def blocks(self, name: str) -> list[str]:
         """Every fenced block in one skill file, walked line by line.

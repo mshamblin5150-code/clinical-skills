@@ -325,9 +325,13 @@ USPSTF_CITATION = re.compile(
     re.IGNORECASE,
 )
 THRESHOLD_CITATION = re.compile(
-    r"^([a-z0-9-]+)[ \t]+Class[ \t]+([A-Za-z0-9]+),[ \t]*([^,]+),[ \t]*(.+)$",
+    r"^([a-z0-9-]+)[ \t]+Class[ \t]+(.+),[ \t]*([^,]+),[ \t]*(.+)$",
     re.IGNORECASE,
 )
+THRESHOLD_EMPTY_CLASS_CITATION = re.compile(
+    r"^([a-z0-9-]+),[ \t]*([^,]+),[ \t]*(.+)$", re.IGNORECASE
+)
+THRESHOLD_FIELDS = re.compile(r"^([^,]+),[ \t]*(.+)$")
 QUALITATIVE_GUIDELINE_CITATION = re.compile(
     r"^(draft|final|guideline|recommendation),[ \t]*([^,]+),[ \t]*(.+),"
     r"[ \t]*p\.[ \t]*\d+(?:[-–]\d+)?$",
@@ -927,6 +931,7 @@ def _guideline_floor(
     source_classes_read = 0
     source_class_tails = 0
     parse_failures: dict[Path, ThresholdSheetFailure] = {}
+    parsed_thresholds: dict[Path, threshold_grammar.Sheet] = {}
 
     for item in items:
         opening_tails = list(GUIDELINE_TAIL.finditer(item.text))
@@ -1049,9 +1054,11 @@ def _guideline_floor(
                     )
                 )
                 continue
-            parsed_sheet = threshold_grammar.parse(
-                sheet.read_text(encoding="utf-8"), sheet
-            )
+            if sheet not in parsed_thresholds:
+                parsed_thresholds[sheet] = threshold_grammar.parse(
+                    sheet.read_text(encoding="utf-8"), sheet
+                )
+            parsed_sheet = parsed_thresholds[sheet]
             if not parsed_sheet.ok:
                 parse_failures.setdefault(
                     sheet,
@@ -1081,7 +1088,8 @@ def _guideline_floor(
                     candidates.append(GuidelineCandidate(item.line, item.text))
                 continue
             citation = THRESHOLD_CITATION.fullmatch(verdict)
-            if citation is None:
+            empty_citation = THRESHOLD_EMPTY_CLASS_CITATION.fullmatch(verdict)
+            if citation is None and empty_citation is None:
                 findings.append(
                     GuidelineFinding(item.line, "malformed threshold verdict", item.text)
                 )
@@ -1095,13 +1103,24 @@ def _guideline_floor(
                     )
                 )
                 continue
-            source = citation.group(1).casefold()
-            strength = citation.group(2).casefold()
-            population = citation.group(3).strip()
-            value = citation.group(4).strip()
-            cited_value = _normalized_value(value)
-            cited_signals = _threshold_signals(value)
+            source = (citation or empty_citation).group(1).casefold()
+            # A class can itself contain commas. Let each class held by this
+            # source delimit a possible reading; never choose only the longest.
+            readings: list[tuple[str, str, str]] = []
             source_class_tails += 1
+            if citation is not None:
+                for klass in {
+                    row.klass for row in rows
+                    if row.source.casefold() == source and row.klass
+                }:
+                    prefix = f"{source} Class {klass},"
+                    if not verdict.casefold().startswith(prefix.casefold()):
+                        continue
+                    fields = THRESHOLD_FIELDS.fullmatch(verdict[len(prefix):].lstrip())
+                    if fields:
+                        readings.append((klass, fields.group(1).strip(), fields.group(2).strip()))
+            elif empty_citation is not None:
+                readings.append(("", empty_citation.group(2).strip(), empty_citation.group(3).strip()))
             source_row = next(
                 (
                     details
@@ -1115,21 +1134,18 @@ def _guideline_floor(
             )
             if source_class:
                 source_classes_read += 1
-            matching_rows = [
-                row
-                for row in rows
-                if row.source.casefold() == source
-                and row.klass.casefold() == strength
-                and (
-                    cited_signals <= _threshold_signals(row.value)
-                    if cited_signals
-                    else cited_value in _normalized_value(row.value)
+            if not any(
+                population and value and any(
+                    row.source.casefold() == source
+                    and row.klass.casefold() == strength.casefold()
+                    and (
+                        _threshold_signals(value) <= _threshold_signals(row.value)
+                        if _threshold_signals(value)
+                        else _normalized_value(value) in _normalized_value(row.value)
+                    )
+                    for row in rows
                 )
-            ]
-            if (
-                not population
-                or not value
-                or not matching_rows
+                for strength, population, value in readings
             ):
                 findings.append(
                     GuidelineFinding(
@@ -1160,9 +1176,22 @@ def read_note(text: str) -> Note:
     line frequently carries no mark at all and the two cannot be paired
     positionally the way ``specificity_scan.py`` pairs a flag to its code.
     """
-    lines = [_readable(line) for line in text.splitlines()]
+    raw_lines = text.splitlines()
+    lines = [_readable(line) for line in raw_lines]
     labeled_blocks, numbered_items, ranking_findings = _labeled_differential_items(lines)
-    proposed_items = _read_proposed_items(lines)
+    # A quoted cell inside a citation is part of that row's verbatim value,
+    # not a prose mention. Keep it while masking code spans outside tails.
+    guideline_lines = []
+    for line in raw_lines:
+        tails = tuple(GUIDELINE_TAIL.finditer(line))
+        guideline_lines.append(CODE_SPAN.sub(
+            lambda match: match.group(0) if any(
+                tail.start() <= match.start() and match.end() <= tail.end()
+                for tail in tails
+            ) else " " * len(match.group(0)),
+            line,
+        ))
+    proposed_items = _read_proposed_items(guideline_lines)
     guideline = _guideline_floor(proposed_items)
     refused, spans = _refusals(lines)
     conclusion = _conclusion_lines(lines)
