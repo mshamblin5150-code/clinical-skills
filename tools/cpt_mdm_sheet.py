@@ -32,7 +32,7 @@ DECLARED_LIMITS = (
     "The receipt derives database identity and date boundaries; it cannot prove authenticated reading.",
 )
 REQUIRED_ENTRIES = frozenset({
-    "mdm-selection", "mdm-two-of-three", "history-exam-level", "ed-status", "table-footnote",
+    "mdm-selection", "mdm-two-of-three", "table-footnote",
     "table-straightforward", "table-low", "table-moderate", "table-high",
     "definition-problem", "definition-problem-addressed", "problem-counting-guidance",
     "condition-management-risk", "definition-minimal",
@@ -48,7 +48,7 @@ REQUIRED_ENTRIES = frozenset({
     "definition-risk", "definition-morbidity", "definition-social-determinants",
     "definition-surgery-minor-major", "definition-surgery-elective-emergency",
     "definition-surgery-risk-factors", "definition-intensive-monitoring",
-    "definition-parenteral-controlled", "emergency-time",
+    "definition-parenteral-controlled",
 })
 
 
@@ -114,6 +114,8 @@ def source_metadata(database: Path) -> dict[str, str]:
 def compare(first: Path, second: Path, output: Path, agreement_date: str,
             database: Path = DEFAULT_DATABASE) -> None:
     date.fromisoformat(agreement_date)
+    if first.resolve() == second.resolve():
+        raise ValueError("two independent transcript paths are required")
     left, right = read_entries(first.read_text(encoding="utf-8")), read_entries(second.read_text(encoding="utf-8"))
     if left.keys() != right.keys():
         raise ValueError("entry populations disagree: " + ", ".join(sorted(left.keys() ^ right.keys())))
@@ -136,10 +138,11 @@ def compare(first: Path, second: Path, output: Path, agreement_date: str,
         f"Book: {source['title']}",
         f"Edition: {source['edition']}",
         f"ISBN (VitalSource ebook): {source['isbn']}",
-        "Print ISBN on copyright page: 978-1-64016-322-5" if year == 2026 else "Print ISBN: see rendered copyright page",
         "Permission: Internal repository storage of the MDM grid and dependent E/M guideline definitions under the maintainer's AMA permission; no other CPT text is licensed by this sheet.",
         "",
     ]
+    if year == 2026:
+        lines.insert(5, "Print ISBN on copyright page: 978-1-64016-322-5")
     for entry in left.values():
         lines.extend((
             f"## Entry: {entry.identifier}",
@@ -172,11 +175,11 @@ def grade_content(content: str, database: Path = DEFAULT_DATABASE) -> dict[str, 
     return entries
 
 
-def grade(path: Path) -> dict[str, Entry]:
-    return grade_content(path.read_text(encoding="utf-8"))
+def grade(path: Path, database: Path = DEFAULT_DATABASE) -> dict[str, Entry]:
+    return grade_content(path.read_text(encoding="utf-8"), database)
 
 
-def grade_staged() -> None:
+def grade_staged(database: Path = DEFAULT_DATABASE) -> None:
     changes = read_path_records(
         ROOT, "diff", "--cached", "--name-only", "--no-renames", "--diff-filter=ACDM", "-z"
     )
@@ -189,7 +192,7 @@ def grade_staged() -> None:
         )
         if staged.returncode:
             raise ValueError(f"staged sheet missing or removed: {name}")
-        grade_content(staged.stdout.decode("utf-8"))
+        grade_content(staged.stdout.decode("utf-8"), database)
 
 
 def receipt_fields(database: Path) -> dict[str, object]:
@@ -216,25 +219,26 @@ def main(argv: list[str]) -> int:
         if args.staged:
             if args.sheet or args.compare or args.output or args.write_receipt:
                 raise ValueError("--staged takes no other mode")
-            grade_staged()
+            grade_staged(args.database)
         elif args.compare:
             if not args.output or not args.agreement_date or args.sheet or args.write_receipt:
                 raise ValueError("comparison requires --output and --agreement-date only")
             compare(*args.compare, args.output, args.agreement_date, args.database)
-            grade(args.output)
+            grade(args.output, args.database)
         elif args.write_receipt:
             if args.sheet or args.output or args.agreement_date:
                 raise ValueError("receipt mode takes only --write-receipt and --database")
             destination = args.write_receipt.resolve()
-            if not destination.is_relative_to((ROOT / "scratch").resolve()):
-                raise ValueError("private CPT receipt must be inside this checkout's scratch/")
+            sessions = (ROOT / "scratch" / "sessions").resolve()
+            if not destination.is_relative_to(sessions) or len(destination.relative_to(sessions).parts) < 2:
+                raise ValueError("private CPT receipt must be inside this checkout's scratch/sessions/<key>/")
             import json
 
             fields = receipt_fields(args.database)
             destination.parent.mkdir(parents=True, exist_ok=True)
             destination.write_text(json.dumps(fields, indent=2) + "\n", encoding="utf-8")
         elif args.sheet:
-            grade(args.sheet)
+            grade(args.sheet, args.database)
         else:
             raise ValueError("provide a sheet, --compare, or --write-receipt")
     except (OSError, UnicodeError, ValueError, sqlite3.Error, GitPathError) as error:

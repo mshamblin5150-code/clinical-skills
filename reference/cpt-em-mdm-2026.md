@@ -18,28 +18,12 @@ The amount and/or complexity of data to be reviewed and analyzed.
 The risk of complications and/or morbidity or mortality of patient management.
 ```
 
-## Entry: history-exam-level
-Locator: CPT Professional 2026, p. 7
-Agreement date: 2026-09-16
-SHA-256: 843017aaf8721fde323accf8cbe6f9df9639d4f0905169f970a4c7786991f048
-```text
-E/M codes that have levels of services include a medically appropriate history and/or physical examination, when performed. The nature and extent of the history and/or physical examination are determined by the treating physician or other qualified health care professional reporting the service. The care team may collect information, and the patient or caregiver may supply information directly (eg, by electronic health record [EHR] portal or questionnaire) that is reviewed by the reporting physician or other qualified health care professional. The extent of history and physical examination is not an element in selection of the level of these E/M service codes.
-```
-
 ## Entry: mdm-two-of-three
 Locator: CPT Professional 2026, p. 8
 Agreement date: 2026-09-16
 SHA-256: ce5adb3b17e9dddf9aad5b646f2a0eee781026d51ad825bdd309d1ce4ecef37f
 ```text
 The Levels of Medical Decision Making (MDM) table (Table 1) is a guide to assist in selecting the level of MDM for reporting an E/M services code. The table includes the four levels of MDM (ie, straightforward, low, moderate, high) and the three elements of MDM (ie, number and complexity of problems addressed at the encounter, amount and/or complexity of data reviewed and analyzed, and risk of complications and/or morbidity or mortality of patient management). To qualify for a particular level of MDM, two of the three elements for that level of MDM must be met or exceeded.
-```
-
-## Entry: ed-status
-Locator: CPT Professional 2026, p. 5
-Agreement date: 2026-09-16
-SHA-256: b32f4374a6146a428f583ccf4fa4fa500d977e7d91363b329407856cc8ae8d1d
-```text
-No distinction is made between new and established patients in the emergency department. E/M services in the emergency department category may be reported for any new or established patient who presents for treatment in the emergency department.
 ```
 
 ## Entry: table-footnote
@@ -416,12 +400,4 @@ Agreement date: 2026-09-16
 SHA-256: a0be0c5b1a5e293b18b75d5ff9177062aa57be03e4f496675c4ca21b965f7509
 ```text
 Social determinants of health: Economic and social conditions that influence the health of people and communities. Examples may include food or housing insecurity.
-```
-
-## Entry: emergency-time
-Locator: CPT Professional 2026, p. 13
-Agreement date: 2026-09-16
-SHA-256: 212dbe3b3ad9df7ea504ee03e30a6f4922d859cf2cf57a8fb173dee5a6fcbd41
-```text
-Time is not a descriptive component for the emergency department levels of E/M services because emergency department services are typically provided on a variable intensity basis, often involving multiple encounters with several patients over an extended period of time.
 ```

@@ -15,6 +15,7 @@ import html
 import json
 import re
 import sqlite3
+import subprocess
 import sys
 from datetime import date, datetime
 from pathlib import Path
@@ -58,6 +59,18 @@ def sha256(path: Path) -> str:
         for block in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(block)
     return digest.hexdigest()
+
+
+def committed_sheet_sha256(path: Path) -> str:
+    relative = path.relative_to(ROOT).as_posix()
+    committed = subprocess.run(
+        ["git", "show", f"HEAD:{relative}"], cwd=ROOT, capture_output=True,
+    )
+    if committed.returncode:
+        raise ValueError("MDM sheet is not committed at HEAD")
+    if committed.stdout.replace(b"\r\n", b"\n") != path.read_bytes().replace(b"\r\n", b"\n"):
+        raise ValueError("MDM sheet differs from its committed version")
+    return hashlib.sha256(committed.stdout).hexdigest()
 
 
 def read_url(url: str) -> str:
@@ -268,8 +281,9 @@ def validate_procedures(
     as_of: date,
     hcpcs_page: str,
     cpt_receipt: dict[str, object],
+    procedure_database: Path,
     findings: list[str],
-) -> tuple[dict[str, str | None], dict[str, str | None], Path | None]:
+) -> tuple[dict[str, str | None], dict[str, str | None], Path | None, str | None]:
     cpt_source = source_row(connection, "CPT")
     hcpcs_source = source_row(connection, "HCPCS")
     hcpcs_effective = date.fromisoformat(str(hcpcs_source["effective_date"]))
@@ -318,15 +332,18 @@ def validate_procedures(
         ):
             findings.append("E/M family is outside the supported ED and office MDM sheet")
         try:
-            entries = cpt_mdm_sheet.grade(selected_sheet)
+            entries = cpt_mdm_sheet.grade(selected_sheet, procedure_database)
             if not entries or any(entry.edition != edition_year for entry in entries.values()):
                 raise ValueError("edition does not cover the service date")
             if selected_sheet.name != f"cpt-em-mdm-{edition_year}.md":
                 raise ValueError("sheet filename does not match service-date edition")
+            sheet_digest = committed_sheet_sha256(selected_sheet)
         except (OSError, ValueError) as error:
             findings.append(f"E/M MDM sheet is missing or invalid: {error}")
+            sheet_digest = None
     else:
         selected_sheet = None
+        sheet_digest = None
 
     for system, population in (("CPT", cpt), ("HCPCS", hcpcs)):
         if population and not procedure_codes_lookup.complete(connection, system):
@@ -348,7 +365,7 @@ def validate_procedures(
         entry = procedure_codes_lookup.describe(connection, str(codes["em"]))
         if entry is not None and str(codes["em"]) in OFFICE_EM and f"{status.get('value')} patient" not in entry.description.lower():
             findings.append(f"encounter {encounter['id']} E/M code disagrees with patient status")
-    return cpt_source, hcpcs_source, selected_sheet
+    return cpt_source, hcpcs_source, selected_sheet, sheet_digest
 
 
 def main(argv: list[str]) -> int:
@@ -393,13 +410,14 @@ def main(argv: list[str]) -> int:
         icd_token = validate_icd(
             icd_connection, icd_codes, service_date, icd_page, findings
         )
-        cpt_source, hcpcs_source, selected_sheet = validate_procedures(
+        cpt_source, hcpcs_source, selected_sheet, sheet_digest = validate_procedures(
             procedure_connection,
             encounters,
             service_date,
             today(),
             hcpcs_page,
             cpt_receipt,
+            args.procedure_database,
             findings,
         )
     finally:
@@ -430,7 +448,7 @@ def main(argv: list[str]) -> int:
                 "database_sha256": sha256(args.procedure_database),
                 "valid_through": derived_cpt_boundary(cpt_source).isoformat(),
                 "mdm_sheet_filename": selected_sheet.name if selected_sheet else None,
-                "mdm_sheet_sha256": sha256(selected_sheet) if selected_sheet else None,
+                "mdm_sheet_sha256": sheet_digest,
             },
             "hcpcs": {
                 "source_id": hcpcs_source["id"],

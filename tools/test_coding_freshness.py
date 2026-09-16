@@ -122,12 +122,15 @@ class CodingFreshnessMain(unittest.TestCase):
     def save_manifest(self, value: dict) -> None:
         self.manifest.write_text(json.dumps(value), encoding="utf-8")
 
-    def run_gate(self, pages: tuple[str, str] = (ICD_PAGE, HCPCS_PAGE)) -> tuple[int, str]:
+    def run_gate(self, pages: tuple[str, str] = (ICD_PAGE, HCPCS_PAGE),
+                 committed_error: bool = False) -> tuple[int, str]:
         stdout = io.StringIO()
         with (
             patch.object(gate, "read_url", side_effect=pages),
             patch.object(gate, "today", return_value=gate.date(2026, 9, 15)),
             patch.object(gate, "ROOT", self.directory),
+            patch.object(gate, "committed_sheet_sha256", return_value="c" * 64,
+                         side_effect=ValueError("not committed") if committed_error else None),
             contextlib.redirect_stdout(stdout),
         ):
             status = gate.main(
@@ -170,17 +173,39 @@ class CodingFreshnessMain(unittest.TestCase):
         value["service_date"] = "2026-12-20"
         self.save_manifest(value)
         stdout = io.StringIO()
+        extended_icd_page = ICD_PAGE.replace("September 30, 2026", "December 31, 2026")
         with (
-            patch.object(gate, "read_url", side_effect=(ICD_PAGE, HCPCS_PAGE)),
+            patch.object(gate, "read_url", side_effect=(extended_icd_page, HCPCS_PAGE)),
             patch.object(gate, "today", return_value=gate.date(2027, 1, 4)),
             patch.object(gate, "ROOT", self.directory),
+            patch.object(gate, "committed_sheet_sha256", return_value="c" * 64),
             contextlib.redirect_stdout(stdout),
         ):
-            gate.main([
+            status = gate.main([
                 str(self.manifest), "--cpt-receipt", str(self.cpt_receipt),
                 "--receipt", str(self.output),
             ])
-        self.assertNotIn("CPT freshness receipt expired", stdout.getvalue())
+        self.assertEqual(0, status, stdout.getvalue())
+        self.assertEqual("coding-freshness: PASS\n", stdout.getvalue())
+
+    def test_sheet_must_match_committed_blob(self):
+        import subprocess
+
+        sheet = self.mdm_sheet
+        original = sheet.read_bytes()
+        with (
+            patch.object(gate, "ROOT", self.directory),
+            patch.object(gate.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, original)),
+        ):
+            self.assertEqual(64, len(gate.committed_sheet_sha256(sheet)))
+            sheet.write_bytes(original.replace(b"Moderate decisions", b"Altered decisions"))
+            with self.assertRaisesRegex(ValueError, "differs from its committed version"):
+                gate.committed_sheet_sha256(sheet)
+
+    def test_uncommitted_sheet_refuses_final_em(self):
+        status, output = self.run_gate(committed_error=True)
+        self.assertEqual(1, status)
+        self.assertIn("not committed", output)
 
     def test_next_edition_service_date_has_no_2026_mdm_coverage(self):
         value = self.load_manifest()

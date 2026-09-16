@@ -6,6 +6,7 @@ phi-scan: synthetic
 import contextlib
 import hashlib
 import io
+import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
@@ -63,6 +64,14 @@ class SheetCommand(unittest.TestCase):
         self.assertIn("table-straightforward", message)
         self.assertFalse(self.output.exists())
 
+    def test_same_transcript_path_is_not_two_independent_reads(self):
+        status, message = self.run_command(
+            "--compare", self.first, self.first, "--output", self.output,
+            "--agreement-date", "2026-09-16",
+        )
+        self.assertEqual(1, status)
+        self.assertIn("independent", message)
+
     def test_later_text_edit_without_two_reader_agreement_is_refused(self):
         self.run_command(
             "--compare", self.first, self.second, "--output", self.output,
@@ -101,10 +110,39 @@ class SheetCommand(unittest.TestCase):
         self.assertEqual(1, status)
         self.assertIn("ISBN", message)
 
+    def test_next_edition_uses_supplied_rebuilt_source_database(self):
+        database = self.root / "cpt-2027.sqlite"
+        connection = sqlite3.connect(database)
+        try:
+            connection.execute(
+                "CREATE TABLE source (id TEXT, title TEXT, edition TEXT, isbn TEXT, "
+                "sha256 TEXT, effective_date TEXT, system TEXT)"
+            )
+            connection.execute(
+                "INSERT INTO source VALUES (?, ?, ?, ?, ?, ?, ?)",
+                ("licensed-2027", "CPT Professional 2027", "Professional Edition 2027",
+                 "ebook-2027", "a" * 64, "2027-01-01", "CPT"),
+            )
+            connection.commit()
+        finally:
+            connection.close()
+        next_read = transcription().replace("2026", "2027")
+        self.first.write_text(next_read, encoding="utf-8")
+        self.second.write_text(next_read, encoding="utf-8")
+        status, message = self.run_command(
+            "--compare", self.first, self.second, "--output", self.output,
+            "--agreement-date", "2027-09-16", "--database", database,
+        )
+        self.assertEqual(0, status, message)
+        self.assertEqual(2027, next(iter(sheet.grade(self.output, database).values())).edition)
+        with self.assertRaisesRegex(ValueError, "edition differs"):
+            sheet.grade(self.output)
+
     def test_private_receipt_derives_edition_fingerprint_and_boundary_from_source_row(self):
         import json
 
-        with tempfile.TemporaryDirectory(dir=sheet.ROOT / "scratch") as private:
+        (sheet.ROOT / "scratch" / "sessions").mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=sheet.ROOT / "scratch" / "sessions") as private:
             destination = Path(private) / "cpt.json"
             status, message = self.run_command("--write-receipt", destination)
             self.assertEqual(0, status, message)
@@ -117,6 +155,13 @@ class SheetCommand(unittest.TestCase):
         status, message = self.run_command("--write-receipt", self.root / "cpt.json")
         self.assertEqual(1, status)
         self.assertIn("scratch", message)
+
+    def test_receipt_refuses_loose_checkout_scratch_path(self):
+        status, message = self.run_command(
+            "--write-receipt", sheet.ROOT / "scratch" / "loose.json"
+        )
+        self.assertEqual(1, status)
+        self.assertIn("sessions", message)
 
 
 if __name__ == "__main__":

@@ -2072,13 +2072,13 @@ and final code populations. On every batch the command derives the service-date-
 from the live CDC page and the most recently published update from the live CMS page; its production
 CLI takes no URL or as-of override. It binds the private CPT receipt to the committed source edition,
 fingerprint, and database-derived service-date edition boundary, requires a passing MDM sheet for
-that service date, checks selected codes against the committed
+that service date whose line-ending-normalized content matches `HEAD`, checks selected codes against the committed
 databases on the service date, and refuses missing, duplicate, or reordered encounters. Exit 0
 writes the private technical receipt and prints
 `coding-freshness: PASS`; exits 1 and 2 write no pass receipt.
 
 The rendered artifact receives only the compact pass line. URLs, source and database fingerprints,
-the as-of date, selected-code population, and status evidence stay in the private JSON receipt. The
+the as-of date, selected-code population, committed-sheet SHA-256, and status evidence stay in the private JSON receipt. The
 gate's complete claim boundary is `coding_freshness.DECLARED_LIMITS`; this section points to that
 object without copying its rows.
 
