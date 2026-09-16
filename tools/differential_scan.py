@@ -1110,17 +1110,26 @@ def _guideline_floor(
             source_class_tails += 1
             if citation is not None:
                 for klass in {
-                    row.klass for row in rows
+                    row.klass
+                    for row in rows
                     if row.source.casefold() == source and row.klass
                 }:
                     prefix = f"{source} Class {klass},"
+                    # Preserve the scanner's preexisting case-insensitive join;
+                    # the writing rule still asks for the cell as printed.
                     if not verdict.casefold().startswith(prefix.casefold()):
                         continue
-                    fields = THRESHOLD_FIELDS.fullmatch(verdict[len(prefix):].lstrip())
+                    fields = THRESHOLD_FIELDS.fullmatch(
+                        verdict[len(prefix):].lstrip()
+                    )
                     if fields:
-                        readings.append((klass, fields.group(1).strip(), fields.group(2).strip()))
+                        readings.append(
+                            (klass, fields.group(1).strip(), fields.group(2).strip())
+                        )
             elif empty_citation is not None:
-                readings.append(("", empty_citation.group(2).strip(), empty_citation.group(3).strip()))
+                readings.append(
+                    ("", empty_citation.group(2).strip(), empty_citation.group(3).strip())
+                )
             source_row = next(
                 (
                     details
@@ -1134,19 +1143,25 @@ def _guideline_floor(
             )
             if source_class:
                 source_classes_read += 1
-            if not any(
-                population and value and any(
+            matched = False
+            for strength, population, value in readings:
+                if not population or not value:
+                    continue
+                cited_signals = _threshold_signals(value)
+                cited_value = _normalized_value(value)
+                if any(
                     row.source.casefold() == source
                     and row.klass.casefold() == strength.casefold()
                     and (
-                        _threshold_signals(value) <= _threshold_signals(row.value)
-                        if _threshold_signals(value)
-                        else _normalized_value(value) in _normalized_value(row.value)
+                        cited_signals <= _threshold_signals(row.value)
+                        if cited_signals
+                        else cited_value in _normalized_value(row.value)
                     )
                     for row in rows
-                )
-                for strength, population, value in readings
-            ):
+                ):
+                    matched = True
+                    break
+            if not matched:
                 findings.append(
                     GuidelineFinding(
                         item.line,
@@ -1184,13 +1199,17 @@ def read_note(text: str) -> Note:
     guideline_lines = []
     for line in raw_lines:
         tails = tuple(GUIDELINE_TAIL.finditer(line))
-        guideline_lines.append(CODE_SPAN.sub(
-            lambda match: match.group(0) if any(
-                tail.start() <= match.start() and match.end() <= tail.end()
-                for tail in tails
-            ) else " " * len(match.group(0)),
-            line,
-        ))
+        guideline_lines.append(
+            CODE_SPAN.sub(
+                lambda match: match.group(0)
+                if any(
+                    tail.start() <= match.start() and match.end() <= tail.end()
+                    for tail in tails
+                )
+                else " " * len(match.group(0)),
+                line,
+            )
+        )
     proposed_items = _read_proposed_items(guideline_lines)
     guideline = _guideline_floor(proposed_items)
     refused, spans = _refusals(lines)
