@@ -7,11 +7,11 @@ counts only. ``--show`` includes finding detail and remains private working
 material. Exit 0 means the mechanical rows pass, 1 means at least one finding,
 and 2 means the run could not be completely scanned.
 
-``--html`` names the Canvas submission and grades bold paragraph headings, comment
-residue, paragraph-text parity, and its block reading backed by retained pixels.
-``--docx`` names the archival render and reports paragraph-text parity only. Without
-either option, its artifact-specific rows report ``not graded``; an absent input never
-masquerades as a passing count.
+``--html`` names the full Canvas body. An inline outcome grades its bold headings,
+comments, paragraph text, and retained box reading. An attachment outcome instead
+grades the final Word page reading and the copy downloaded from the posted entry.
+``--docx`` names the Word render; its paragraph-text parity is reported on either
+route. Without the relevant input, artifact-specific rows cannot pass.
 
 What a clean run does not establish is ``NOT_REACHED``. The tuple is the one
 reader-facing inventory of this command's limits; this docstring deliberately
@@ -96,6 +96,7 @@ BARE_VERDICT = "bare-verdict"
 UNLOCATED_READING = "unlocated-reading"
 BORROWED_LOCATOR = "borrowed-locator"
 SUBMISSION_FINGERPRINT = "submission-fingerprint"
+POSTED_ATTACHMENT = "posted-attachment"
 ROWS = {
     WORD_FLOOR: "the post reaches the signed word floor",
     EMPTY_BODY: "the post contains body text after headings are removed",
@@ -106,7 +107,7 @@ ROWS = {
     BOLD_HEADINGS: "every submission heading is a bold paragraph",
     RENDERED_COMMENTS: "the HTML submission carries no comment delimiter",
     SUBMISSION_TEXT: "the HTML submission paragraph text matches the Markdown",
-    RENDERED_PAGES: "every Canvas-box pass has a complete block reading backed by kept pixels",
+    RENDERED_PAGES: "the selected carrier has a complete visual reading backed by kept pixels",
     LEGAL_REFERENCE_NAME: "every legal reference entry names its legal source",
     MISSING_POSTED_READING: "a posted initial entry has a complete posted reading",
     UNKNOWN_VERDICT: "the posted reading uses a declared verdict",
@@ -114,6 +115,7 @@ ROWS = {
     UNLOCATED_READING: "the posted reading carries its board entry id",
     BORROWED_LOCATOR: "the posted reading locator belongs to the initial post",
     SUBMISSION_FINGERPRINT: "the posted reading is bound to the current submission files",
+    POSTED_ATTACHMENT: "the posted entry carries the checked Word document's bytes",
     **{kind: "the heading read agrees with the final draft and current claim headings" for kind in heading_read.KINDS},
 }
 KINDS = tuple(ROWS)
@@ -125,6 +127,7 @@ POSTED_READING_ROWS = (
     UNLOCATED_READING,
     BORROWED_LOCATOR,
     SUBMISSION_FINGERPRINT,
+    POSTED_ATTACHMENT,
 )
 
 GATED_ROW_SETS = {
@@ -406,6 +409,7 @@ class Scan:
     rendered_text_mismatches: int | None
     missing_pass_numbers: int
     html_graded: bool
+    render_route: str
     rendered_pages_graded: bool
     docx_graded: bool
     reference_boundary_graded: bool
@@ -885,6 +889,15 @@ def load(parsed: run_grader.Parsed) -> RunSource:
             if reread_path.is_file()
             else ()
         )
+        initial_reading = next(
+            (item for item in readings if item.artifact == draft.stem), None
+        )
+        if initial_reading is not None and initial_reading.composer_outcome not in {
+            "inline", "attachment"
+        }:
+            raise run_grader.SourceError(
+                "initial post REREAD needs COMPOSER-OUTCOME: inline or attachment"
+            )
         post_text = post_path.read_text(encoding="utf-8") if post_path.is_file() else ""
     except (OSError, UnicodeError, ValueError) as failure:
         raise run_grader.SourceError(f"could not read the discussion-post run: {failure}") from failure
@@ -950,6 +963,16 @@ def _posted_reading_findings(source: RunSource) -> tuple[Finding, ...]:
         )
     findings: list[Finding] = []
     missing = list(reading.missing_record_fields)
+    if (
+        not reading.html_bytes.isdigit()
+        or (source.html is not None and int(reading.html_bytes) != source.html.stat().st_size)
+    ):
+        missing.append("HTML-BYTES matching the built HTML")
+    if reading.composer_outcome == "attachment":
+        if not reading.refusal_is_dated:
+            missing.append("REFUSAL with date and observed wording")
+        if not reading.attachment:
+            missing.append("ATTACHMENT")
     if not posting_absent and not source.post_url:
         missing.append(f"{submission} POST-URL")
     if not posting_absent and not source.post_posted:
@@ -991,7 +1014,11 @@ def _posted_reading_findings(source: RunSource) -> tuple[Finding, ...]:
                 f"{source.draft.name} SUBMISSION-SHA256 is missing, malformed, or stale",
             )
         )
-    if source.html is not None and not source.html_matches_rebuild:
+    if (
+        reading.composer_outcome == "inline"
+        and source.html is not None
+        and not source.html_matches_rebuild
+    ):
         findings.append(
             Finding(
                 SUBMISSION_FINGERPRINT,
@@ -1007,6 +1034,21 @@ def _posted_reading_findings(source: RunSource) -> tuple[Finding, ...]:
                 f"{source.docx.name} parts differ from docx_write.parts() for {source.draft.name}",
             )
         )
+    if reading.composer_outcome == "attachment":
+        retained = reading.posted_attachment(source.path)
+        if source.docx is None or retained is None or not retained.is_file():
+            findings.append(Finding(
+                POSTED_ATTACHMENT, submission,
+                "ATTACHMENT must name an existing posted/ Word copy and --docx is required",
+            ))
+        elif (
+            retained.name != source.docx.name
+            or file_digest.sha256(retained) != file_digest.sha256(source.docx)
+        ):
+            findings.append(Finding(
+                POSTED_ATTACHMENT, submission,
+                "posted attachment filename or SHA-256 differs from the local Word document",
+            ))
     return tuple(findings)
 
 
@@ -1025,6 +1067,11 @@ def _rendered_comment_findings(source: RunSource) -> tuple[Finding, ...]:
 
 
 def _submission_findings(source: RunSource) -> tuple[Finding, ...]:
+    reading = next(
+        (item for item in source.readings if item.artifact == source.draft.stem), None
+    )
+    if reading is not None and reading.composer_outcome == "attachment":
+        return ()
     if source.html is None:
         return ()
     headings = tuple(
@@ -1161,8 +1208,80 @@ def _rendered_page_findings(source: RunSource) -> RenderedPageSurvey:
     return RenderedPageSurvey(tuple(findings), engine_available)
 
 
+def _attachment_page_findings(source: RunSource) -> RenderedPageSurvey:
+    """Grade the last retained Word pass after a refused inline attempt."""
+    if not source.render_passes or not source.rendered_readings:
+        return RenderedPageSurvey((Finding(
+            RENDERED_PAGES, "render", "no visually checked Word render pass"
+        ),))
+    number, retained = source.render_passes[-1]
+    reading = source.rendered_readings[-1]
+    details = list(reading.errors)
+    if len(source.rendered_readings) not in {
+        len(source.render_passes), source.render_passes[-1][0]
+    }:
+        details.append("RENDERED record count differs from retained pass count")
+    if reading.artifact != "post.md" or reading.measure != "PAGES":
+        details.append("attachment render needs a post.md PAGES reading")
+    if reading.source not in {"word-pdf", "word-xps", "clinician"}:
+        details.append("attachment render needs a Word export SOURCE")
+    if (
+        reading.units_seen is None
+        or reading.units_seen < 1
+        or reading.units_seen != reading.units_expected
+    ):
+        details.append("not every Word page was read")
+    if reading.unseen is None or reading.unseen.casefold() != "none":
+        details.append("UNSEEN must say none")
+    if reading.verdict is None or not reading.verdict.casefold().startswith("clean -"):
+        details.append("last Word render verdict is not clean")
+    exports = [
+        item for item in retained.exports if item.suffix.casefold() in {".pdf", ".xps"}
+    ]
+    if len(exports) != 1:
+        details.append("Word pass needs exactly one PDF or XPS export")
+    else:
+        try:
+            pages = page_image.export_page_count(exports[0])
+            if pages != reading.units_expected or len(retained.pixels) != pages:
+                details.append("Word export page count differs from the reading or pixels")
+        except pdf_engine.EngineUnavailable:
+            return RenderedPageSurvey(
+                tuple(Finding(RENDERED_PAGES, f"pass-{number}", detail) for detail in details),
+                False,
+            )
+        except pdf_engine.SourceUnreadable as failure:
+            details.append(str(failure))
+    for pixel in retained.pixels:
+        try:
+            failure = page_image.page_read_error(pixel)
+        except pdf_engine.EngineUnavailable:
+            return RenderedPageSurvey(
+                tuple(Finding(RENDERED_PAGES, f"pass-{number}", detail) for detail in details),
+                False,
+            )
+        if failure:
+            details.append(f"{pixel.name} {failure}")
+    digest = file_digest.recorded_sha256(
+        source.path / "render" / f"pass-{number}" / "post-draft.sha256"
+    )
+    if digest != file_digest.sha256(source.draft):
+        details.append("Word pass has no matching Markdown fingerprint")
+    return RenderedPageSurvey(
+        (Finding(RENDERED_PAGES, f"pass-{number}", "; ".join(details)),)
+        if details else ()
+    )
+
+
 def survey(source: RunSource) -> Scan:
-    rendered_pages = _rendered_page_findings(source)
+    initial_reading = next(
+        (item for item in source.readings if item.artifact == source.draft.stem), None
+    )
+    attachment = initial_reading is not None and initial_reading.composer_outcome == "attachment"
+    rendered_pages = (
+        _attachment_page_findings(source)
+        if attachment else _rendered_page_findings(source)
+    )
     has_posted_reading = any(
         item.artifact == source.draft.stem for item in source.readings
     )
@@ -1205,7 +1324,8 @@ def survey(source: RunSource) -> Scan:
                 else None
             ),
             missing_pass_numbers=source.missing_pass_numbers,
-            html_graded=source.html is not None,
+            html_graded=source.html is not None and not attachment,
+            render_route="attachment" if attachment else "inline",
             rendered_pages_graded=rendered_pages.engine_available,
             docx_graded=source.docx is not None,
             reference_boundary_graded=False,
@@ -1327,7 +1447,8 @@ def survey(source: RunSource) -> Scan:
             else None
         ),
         missing_pass_numbers=source.missing_pass_numbers,
-        html_graded=source.html is not None,
+        html_graded=source.html is not None and not attachment,
+        render_route="attachment" if attachment else "inline",
         rendered_pages_graded=rendered_pages.engine_available,
         docx_graded=source.docx is not None,
         reference_boundary_graded=True,
@@ -1427,6 +1548,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
             BORROWED_LOCATOR,
             *heading_read.KINDS,
             SUBMISSION_FINGERPRINT,
+            POSTED_ATTACHMENT,
         } and not scan.reference_boundary_graded:
             lines.append(f"{kind}: {NOT_GRADED}")
         elif kind == RENDERED_PAGES and not scan.rendered_pages_graded:
@@ -1435,7 +1557,13 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
                 f"{pdf_engine.RENDER_UNAVAILABLE}; "
                 "not mechanically verified"
             )
-        elif kind in {BOLD_HEADINGS, RENDERED_COMMENTS, SUBMISSION_TEXT, RENDERED_PAGES} and not scan.html_graded:
+        elif kind in {BOLD_HEADINGS, RENDERED_COMMENTS, SUBMISSION_TEXT} and not scan.html_graded:
+            lines.append(f"{kind}: {NOT_GRADED}")
+        elif (
+            kind == RENDERED_PAGES
+            and not scan.html_graded
+            and scan.render_route != "attachment"
+        ):
             lines.append(f"{kind}: {NOT_GRADED}")
         else:
             lines.append(
@@ -1464,7 +1592,14 @@ def grade(source: RunSource, _parsed: run_grader.Parsed) -> run_grader.Grade[Sca
         source=str(source.path),
         findings_failed=any(
             all(
-                getattr(scanned, gate) or gate in PARTIAL_GATES or finding.kind not in kinds
+                getattr(scanned, gate)
+                or gate in PARTIAL_GATES
+                or finding.kind not in kinds
+                or (
+                    gate == "html_graded"
+                    and scanned.render_route == "attachment"
+                    and finding.kind == RENDERED_PAGES
+                )
                 for gate, (kinds, _field_names) in GATED_ROW_SETS.items()
             )
             for finding in scanned.findings

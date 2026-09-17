@@ -292,6 +292,9 @@ action. For `canvas-composer`, load `submission.html` through the declared route
 when the live assignment requires it, and serialize the Composer HTML to
 `submission-readback.html`. Compare the built and serialized HTML as the shared sheet requires. A
 non-clean comparison stops and returns to the clinician; do not switch routes or retry the load.
+This skill already attaches its graded deck or document as the selected carrier and takes no
+Initial-post attachment fallback after a Composer size refusal. Read the LMS for a created entry,
+report the refusal and what was found, and stop at the clinician.
 Then submit and read the posted artifact back from the LMS. Append this exact record to
 `reread.md`, using the output deck stem as the heading on both submission branches:
 

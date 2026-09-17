@@ -59,6 +59,37 @@ it. A clean pre-posting readback establishes neither that the correct Composer w
 Canvas preserved the same content after posting; the posted reading remains the account
 of the board state.
 
+## Initial-post attachment fallback (only when the calling skill opts in)
+
+After the calling skill's existing explicit submit authorization, click **Reply** with the full
+body loaded. Record the built HTML's byte count beside the observed outcome; the count never
+predicts or chooses a route. Read the result on the page. Only a visible message-size refusal
+triggers this fallback. Record the refusal's exact observed wording and ISO date. For acceptance,
+an unfamiliar error, no response, or uncertainty, read the board for a created entry, report
+what is there, and stop at the clinician. Do not retry or create a second entry on an uncertain
+result. Do not match the refusal against a fixed string or a byte threshold.
+
+If the signed bar requires substantive content in the post body itself, stop at the clinician:
+an attached document under a pointer cannot satisfy that bar. Otherwise replace the refused
+body with this fixed pointer, substituting only the artifact title and attached filename:
+
+```text
+<artifact title>
+
+Canvas refused the full text inline for message size. The complete submission is attached as <attachment filename>.
+```
+
+Attach the finished `.docx`. Read back the pointer's body text and the Composer's displayed
+attachment filename and size. Show those readings and the visually checked document to the
+clinician and wait for a **fresh explicit authorization** to submit this attached entry. The
+authorization for the earlier full-body click does not cover it. After posting, use the posted
+entry's **own attachment link** to download the file into `<run-directory>/posted/<filename>`.
+Keep that copy for the terminal grader's SHA-256 comparison with the local `.docx`; a copy from
+the general files area does not establish what this entry carries. Write
+`COMPOSER-OUTCOME: attachment`, `HTML-BYTES:`, `REFUSAL: <ISO date> - <observed wording>`, and
+`ATTACHMENT: posted/<filename>` in the posted reading before `/AAR` extracts it. An accepted
+full-body entry instead records `COMPOSER-OUTCOME: inline` and `HTML-BYTES:`.
+
 The dated observations behind the surface discriminator, route, and known limits are in
 [`canvas-editor-calibration.json`](canvas-editor-calibration.json). They cover one institution,
 Canvas instance, theme, account, and measurement date; they do not establish a stable Canvas-wide

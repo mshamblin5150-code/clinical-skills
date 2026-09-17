@@ -53,8 +53,9 @@ output/discussions/<course>-<module>-discussion-<date>.html
 output/discussions/<course>-<module>-discussion-<date>.docx
 ```
 
-The `.html` is the submission loaded into Canvas. The Markdown is its source of record, and the
-`.docx` is its archival paper-shaped rendering. `output/` holds the submission and its renders;
+The `.html` is the full body loaded into Canvas. The Markdown is its source of record, and the
+`.docx` is its archival rendering or, after an observed Composer size refusal, the attached
+submission. `output/` holds the submission and its renders;
 provenance stays in the run directory.
 
 For this skill, the canonical artifacts governed by [standing rule 6](../../AGENTS.md) are
@@ -340,12 +341,13 @@ exact APA indentation, and the pixel-backed box reading still verifies the curre
 Gate 2. Own-line comments are absent. A mid-line or multi-line HTML comment
 remains a real delimiter so `rendered-comments` can refuse it rather than hiding it in the box.
 
-The `.docx` is archival and uses proper named heading styles. ADR 0013's direct-formatting
+The `.docx` is archival on an inline post and becomes the submission only after the shared
+sheet's observed message-size refusal and attachment fallback. It uses proper named heading styles. ADR 0013's direct-formatting
 `--bold-headings` route is historical: its Word-to-Canvas measurement remains the reason the HTML
 route uses `<strong>`, but no discussion-post document is destined for a Word paste now.
 The archive is graded only through `rendered-text`, a reported paragraph-text parity count that
-does not change exit status. It is not rasterized or visually graded, because it is not the
-submission.
+does not change exit status on the inline path. After an observed size refusal, render and
+visually check the Word pages before asking for the attachment go-ahead.
 
 The Markdown is the authoritative artifact. If the Word renderer refuses an existing document, the refusal
 can mean Word or a person owns changes Git cannot restore. Read the document and recover the edit
@@ -369,6 +371,8 @@ Before Gate 1, inspect the topic-level Canvas Composer and read
 [canvas-editor.md](../_shared/reference/canvas-editor.md). Choose its first supported **Load route**
 before loading, and declare the route and its cost to the clinician at Gate 1. This trigger applies
 because the live assignment accepts the initial post through the topic-level Composer.
+This skill opts in to the shared sheet's Initial-post attachment fallback when the signed bar
+allows a pointer body.
 
 Show the final post and clean source-check summary to the clinician. **Gate 1** is the clinician's
 explicit approval of the post and authorizes loading it into the box, not submission. That approval
@@ -411,9 +415,10 @@ Run the artifact grader:
 python tools/discussion_post_scan.py scratch/runs/<course>-<module>-discussion --draft output/discussions/<course>-<module>-discussion-<date>.md --html output/discussions/<course>-<module>-discussion-<date>.html --docx output/discussions/<course>-<module>-discussion-<date>.docx
 ```
 
-The HTML submission owns the graded `bold-headings`, `rendered-comments`, `submission-text`,
-and `rendered-pages` rows. The archival Word document owns only the reported `rendered-text`
-count. A missing or malformed record, an unreadable capture, a nonidentical retained HTML export, a
+On an inline post the HTML owns the graded `bold-headings`, `rendered-comments`,
+`submission-text`, and `rendered-pages` rows; Word owns only the reported `rendered-text`
+count. On an attachment post the final Word render owns `rendered-pages`, and the posted copy
+must match the local `.docx` by SHA-256. A missing or malformed record, an unreadable capture, a nonidentical retained HTML export, a
 false block denominator, an incomplete final reading, or a non-clean final verdict makes the scan
 exit 1.
 
@@ -422,6 +427,25 @@ A non-clean reading stops here and returns to the clinician; the agent does not
 adjudicate its own load, switch routes, or retry. **Gate 2** is the clinician's explicit
 authorization to submit. Gate 2 authorizes submit and nothing else does. After Gate 2, submit and reread
 the posted board version.
+
+Click Reply on the full body after Gate 2 and follow the shared sheet's observed outcome procedure.
+Record the output HTML's byte count, which never chooses a route. Only a visible message-size
+refusal opens the attachment fallback. If the signed bar requires post-body content, stop at the
+clinician. Otherwise render the finished `.docx` only now, into the next retained pass:
+
+```bash
+python tools/discussion_post_render.py <run-directory> --docx <output .docx> --draft <output Markdown>
+```
+
+A vision-capable reader opens every retained Word page image, compares it with the Markdown,
+and appends a `## RENDERED: post.md` record with `PAGES: <seen> of <expected> imaged`, the
+render command's `SOURCE`, `UNSEEN: none`, an ISO `READ` date, and a substantiated
+`VERDICT: clean - ...`. The final pass retains `post-draft.sha256`; a changed Markdown or a
+missing visual reading refuses the attachment path. Then load the shared sheet's fixed pointer,
+attach the `.docx`, read back the pointer body and the displayed filename and size, and ask the
+clinician for a **fresh explicit submit authorization**. After posting, download the attachment
+from that entry's own link into `<run-directory>/posted/`. For any other click outcome, read the
+board for an entry, report what was found, and stop at the clinician.
 
 The graders read the Markdown, HTML, Word archive, and ledger; the reread owns any change between
 the inspected box and the posted entry.
@@ -436,6 +460,10 @@ POST-URL: <the initial post's own deep link>
 POSTED: <the board's posted timestamp>
 READ: <ISO date of this reading>
 SUBMISSION-SHA256: <SHA-256 of the output Markdown>
+COMPOSER-OUTCOME: <inline or attachment>
+HTML-BYTES: <byte count of the built HTML>
+REFUSAL: <ISO date> - <observed wording, attachment only>
+ATTACHMENT: posted/<filename, attachment only>
 VERDICT: matches - <what the reading found>
 ```
 

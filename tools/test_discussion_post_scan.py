@@ -293,6 +293,8 @@ def unread_remainder_input(root: Path) -> UnreadRemainderInput:
         "POST-URL: https://example.org/t?entry_id=41\n"
         "POSTED: 2026-08-28T19:30:00-04:00\n"
         "READ: 2026-08-28\n"
+        "COMPOSER-OUTCOME: inline\n"
+        "HTML-BYTES: 123\n"
         f"SUBMISSION-SHA256: {file_digest.sha256(unread_run.draft)}\n"
         "VERDICT: matches - The artifact and posted entry agree.\n"
     )
@@ -1332,11 +1334,95 @@ class APostedInitialEntryHasItsOwnReading(unittest.TestCase):
             f"POST-URL: {self.POST_URL}\n"
             "POSTED: 2026-08-28T19:30:00-04:00\n"
             "READ: 2026-08-28\n"
+            "COMPOSER-OUTCOME: inline\n"
+            f"HTML-BYTES: {len(post_html.render(BODY).encode('utf-8'))}\n"
             f"SUBMISSION-SHA256: {file_digest.sha256(run.draft)}\n"
             "VERDICT: matches - The headings, paragraphs, and references are present.\n",
             encoding="utf-8",
         )
         return run
+
+    def attachment_run(self, root: Path) -> tuple[Run, Path, Path]:
+        run = self.posted_run(root)
+        html = root / "post.html"
+        html.write_text(post_html.render(BODY), encoding="utf-8", newline="")
+        document = root / "post.docx"
+        docx_write.write_docx(BODY, document)
+        run.record_canvas_render(html, render_pass=1)
+        run.record_render(render_pass=2)
+        (root / "render" / "pass-2" / "post-draft.sha256").write_text(
+            file_digest.sha256(run.draft) + "\n", encoding="ascii"
+        )
+        reread = root / "reread.md"
+        reread.write_text(
+            reread.read_text(encoding="utf-8").replace(
+                "COMPOSER-OUTCOME: inline\n",
+                "COMPOSER-OUTCOME: attachment\n"
+                "REFUSAL: 2026-09-17 - message size exceeds maximum length\n"
+                "ATTACHMENT: posted/post.docx\n",
+            ),
+            encoding="utf-8",
+        )
+        posted = root / "posted"
+        posted.mkdir()
+        (posted / document.name).write_bytes(document.read_bytes())
+        return run, html, document
+
+    def test_a_missing_composer_outcome_exits_two(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = self.posted_run(Path(temp))
+            reread = run.root / "reread.md"
+            reread.write_text(
+                reread.read_text(encoding="utf-8").replace("COMPOSER-OUTCOME: inline\n", ""),
+                encoding="utf-8",
+            )
+            status, _out, error = run.grade()
+        self.assertEqual(2, status)
+        self.assertIn("COMPOSER-OUTCOME", error)
+
+    def test_an_unknown_composer_outcome_exits_two(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = self.posted_run(Path(temp))
+            reread = run.root / "reread.md"
+            reread.write_text(
+                reread.read_text(encoding="utf-8").replace(
+                    "COMPOSER-OUTCOME: inline", "COMPOSER-OUTCOME: retry"
+                ),
+                encoding="utf-8",
+            )
+            status, _out, error = run.grade()
+        self.assertEqual(2, status)
+        self.assertIn("COMPOSER-OUTCOME", error)
+
+    def test_the_attachment_route_checks_the_posted_copy_and_word_pages(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run, html, document = self.attachment_run(Path(temp))
+            status, out, error = run.grade("--html", str(html), "--docx", str(document))
+        self.assertEqual((0, ""), (status, error))
+        self.assertIn("posted-attachment: 0", out)
+        self.assertIn("rendered-pages: 0", out)
+        self.assertIn("bold-headings: not graded", out)
+
+    def test_the_attachment_route_refuses_a_missing_or_changed_posted_copy(self):
+        for mutation in ("missing", "changed"):
+            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as temp:
+                run, html, document = self.attachment_run(Path(temp))
+                posted = run.root / "posted" / document.name
+                if mutation == "missing":
+                    posted.unlink()
+                else:
+                    posted.write_bytes(b"different Word bytes")
+                status, out, _ = run.grade("--html", str(html), "--docx", str(document))
+                self.assertEqual(1, status)
+                self.assertIn("posted-attachment: 1", out)
+
+    def test_the_attachment_route_refuses_an_unchecked_word_render(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run, html, document = self.attachment_run(Path(temp))
+            (run.root / "render" / "pass-2" / "post-draft.sha256").unlink()
+            status, out, _ = run.grade("--html", str(html), "--docx", str(document))
+        self.assertEqual(1, status)
+        self.assertIn("rendered-pages: 1", out)
 
     def test_a_complete_initial_post_reading_passes(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -1355,6 +1441,8 @@ class APostedInitialEntryHasItsOwnReading(unittest.TestCase):
                 f"POST-URL: {self.POST_URL}\n"
                 "POSTED: 2026-08-28T19:30:00-04:00\n"
                 "READ: 2026-08-28\n"
+                "COMPOSER-OUTCOME: inline\n"
+                "HTML-BYTES: 123\n"
                 f"SUBMISSION-SHA256: {'0' * 64}\n"
                 "VERDICT: matches - The headings, paragraphs, and references are present.\n",
                 encoding="utf-8",
@@ -2387,10 +2475,12 @@ class TheRenderedDocumentContractIsPublished(unittest.TestCase):
     def test_the_skill_publishes_the_counted_render_route(self):
         text = self.skill_text()
         self.assertIn("post_html.py", text)
-        self.assertNotIn("discussion_post_render.py", text)
+        self.assertIn("discussion_post_render.py", text)
         self.assertIn("render/pass-N/", text)
         self.assertIn("## RENDERED: post.md", text)
         self.assertIn("BLOCKS:", text)
+        self.assertIn("PAGES:", text)
+        self.assertIn("posted/", text)
         self.assertIn("canvas-box", text)
         self.assertIn("Re-renders append", text)
 

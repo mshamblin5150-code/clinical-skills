@@ -44,9 +44,9 @@ the assignment's Canvas Composer. The read selects that sheet's first supported 
 `file-upload`, the route is the rendered `.docx`. Show the transcription, precedence, submission
 type, selected route, and its cost to the clinician at the existing bar approval; this adds no gate.
 Do not write the bar's `SIGNED:` ISO date or draft until the clinician explicitly approves it.
-Everything after selection on the Composer branch, including a size refusal and attachment
-fallback, remains owned by [#1154](https://github.com/mshamblin5150-code/clinical-skills/issues/1154)
-and is not silently resolved by treating the `.docx` as the deliverable.
+On the Composer branch, follow the shared sheet's Initial-post attachment fallback. This skill
+opts in because its checked `.docx` can become the submission after an observed message-size
+refusal; the signed bar still decides whether a pointer body is allowed.
 
 The signed bar also carries the research policy exactly once:
 
@@ -1407,6 +1407,8 @@ be several of them at once:
 | the highest retained pass has no fingerprint, or its fingerprint differs from the output Markdown | the retained pixels were not produced from the draft being graded; re-render into a new pass |
 | any `## CHECK:` record has no `DRAFT`, or its `DRAFT` differs from the output Markdown | that row was not read against the current draft and must be rerun |
 | the submission's posted reading has no `SUBMISSION-SHA256`, or it differs from the output Markdown | the reading is not bound to the current submitted source |
+| the `canvas-composer` inline HTML is missing or differs from the Markdown rebuild, or `HTML-BYTES` does not match | the Composer carrier cannot be tied to the checked source |
+| the `canvas-composer` posted attachment is missing or differs in filename or SHA-256 from the local `.docx`, or the local Word parts differ from the Markdown | the posted entry has not been shown to carry the visually checked document |
 | a missing-heading-read record | the required `## HEADING-READ:` record is absent, so no final draft-to-heading reading can block the go-ahead |
 | a duplicate-heading-read record | more than one record names the expected draft, so no single final reading is authoritative |
 | an unread-heading-read record | a heading-read-shaped candidate was not read as the expected record, so the reported coverage is partial |
@@ -1581,8 +1583,15 @@ its substantiated verdict is required before submission.
 
 After every check above is clean, show the clinician the finished artifact and selected submission
 route and wait for the explicit go-ahead. Post through the branch recorded in `bar.md`. The
-`file-upload` branch posts the `.docx`; the `canvas-composer` branch remains governed by #1154 for
-its inline size refusal, attachment fallback, and which file is graded. Once either branch has a
+`file-upload` branch posts the `.docx`. On `canvas-composer`, build the `.html` from the checked
+Markdown with `python tools/post_html.py <output Markdown> <same-stem .html>`, load it by the
+declared route, and compare the serialized Composer HTML with that build under the shared sheet.
+The existing go-ahead authorizes the full-body submit click. Follow the shared sheet's observed
+outcome procedure. A message-size refusal alone permits the fixed pointer and checked `.docx`;
+show its body and displayed attachment filename and size, then get the fresh explicit go-ahead.
+The existing `the rendered document` check remains required on both outcomes. Download an
+attached document from the posted entry's own link into `<run-directory>/posted/` before grading.
+Once either branch has a
 posted entry, read that entry back and append this record to `<run-directory>/reread.md`:
 
 ```text
@@ -1591,6 +1600,10 @@ POST-URL: <the posted entry's LMS URL>
 POSTED: <the LMS's posted timestamp>
 READ: <ISO date of this reading>
 SUBMISSION-SHA256: <SHA-256 of the output Markdown>
+COMPOSER-OUTCOME: <inline or attachment, only for canvas-composer>
+HTML-BYTES: <byte count of the built HTML, only for canvas-composer>
+REFUSAL: <ISO date> - <wording observed on the page, attachment only>
+ATTACHMENT: posted/<filename, attachment only>
 VERDICT: matches - <what was compared with the submitted artifact>
 ```
 

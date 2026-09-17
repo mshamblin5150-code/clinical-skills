@@ -293,7 +293,9 @@ result is the reply omitting the `INVOKED` comments. Load it by the route alread
 `response-<name>-readback.html`. Rerun `discussion_reply_scan.py` before posting. A non-clean
 `editor-readback` comparison stops and returns to the clinician; do not switch routes or retry the
 load. A clean comparison authorizes no posting by itself: the clinician's existing go-ahead is
-the single posting gate. Submit it, then reread the posted board version. Use the
+the single posting gate. If the submit click shows a message-size refusal, read the board for a
+created entry, report the outcome, and stop at the clinician; this Reply has no attachment
+fallback. Submit it, then reread the posted board version. Use the
 entry's Copy Link control to read its own `?entry_id=` deep link; do not copy a classmate's locator
 from `posts/`. Append this record to the run's one `reread.md`:
 

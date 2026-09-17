@@ -35,6 +35,8 @@ from pathlib import Path
 from unittest import mock
 
 import checks_ledger as checks
+import docx_write
+import post_html
 from grader_conformance import EmptyPopulationInput, for_module
 from prose_bind import ENUMERATION, NAMING, ProseBind, bind, normalized as normalized_prose
 
@@ -1446,6 +1448,8 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
         checks.heading_read.DEFECT_VERDICT: "a heading-read-defect verdict",
         checks.heading_read.REPORTED_FINDING: "a heading-read-finding line",
         checks.SUBMISSION_FINGERPRINT: "the submission's posted reading has no `SUBMISSION-SHA256`, or it differs from the output Markdown",
+        checks.INLINE_HTML: "the `canvas-composer` inline HTML is missing or differs from the Markdown rebuild",
+        checks.POSTED_ATTACHMENT: "the `canvas-composer` posted attachment is missing or differs in filename or SHA-256",
     }
 
     def test_the_skill_writes_out_every_row_the_grader_applies(self):
@@ -1500,6 +1504,94 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
         blocks = re.findall(r"```\n(## CHECK:.*?)```", self.skill, re.S)
         self.assertTrue(blocks, "the skill should carry a worked check record")
         return blocks
+
+
+class ComposerAttachmentOutcome(unittest.TestCase):
+    def prepare(self, path: Path, outcome: str | None) -> None:
+        (path.parent / "bar.md").write_text(
+            "SUBMISSION-TYPE: canvas-composer\n", encoding="utf-8"
+        )
+        run([str(path), "--submission", "case-study"])
+        output = path.parent / "output"
+        html = output / "case-study.html"
+        html.write_text(post_html.render(DRAFT_TEXT), encoding="utf-8", newline="")
+        docx = output / "case-study.docx"
+        docx_write.write_docx(DRAFT_TEXT, docx)
+        reread = path.parent / "reread.md"
+        text = reread.read_text(encoding="utf-8")
+        fields = f"HTML-BYTES: {html.stat().st_size}\n"
+        if outcome is not None:
+            fields += f"COMPOSER-OUTCOME: {outcome}\n"
+        if outcome == "attachment":
+            fields += (
+                "REFUSAL: 2026-09-17 - message size exceeds maximum length\n"
+                "ATTACHMENT: posted/case-study.docx\n"
+            )
+            posted = path.parent / "posted"
+            posted.mkdir()
+            (posted / docx.name).write_bytes(docx.read_bytes())
+        reread.write_text(text.replace("VERDICT:", fields + "VERDICT:"), encoding="utf-8")
+
+    def grade_submission(self, path: Path) -> tuple[int, str, str]:
+        with mock.patch.object(
+            checks.aar_scan, "completion_gate",
+            return_value=(False, "the after-action review: clean"),
+        ):
+            return run([str(path), "--submission", "case-study"])
+
+    def test_a_composer_reading_without_an_outcome_exits_two(self):
+        directory, path = in_a_file(whole_file())
+        with directory:
+            self.prepare(path, None)
+            status, _out, error = self.grade_submission(path)
+        self.assertEqual(2, status)
+        self.assertIn("COMPOSER-OUTCOME", error)
+
+    def test_a_composer_reading_with_an_unknown_outcome_exits_two(self):
+        directory, path = in_a_file(whole_file())
+        with directory:
+            self.prepare(path, "retry")
+            status, _out, error = self.grade_submission(path)
+        self.assertEqual(2, status)
+        self.assertIn("COMPOSER-OUTCOME", error)
+
+    def test_inline_html_has_a_clean_control_and_a_mismatch(self):
+        directory, path = in_a_file(whole_file())
+        with directory:
+            self.prepare(path, "inline")
+            clean, _out, _err = self.grade_submission(path)
+            (path.parent / "output" / "case-study.html").write_bytes(b"changed HTML")
+            changed, report, _err = self.grade_submission(path)
+        self.assertEqual(0, clean)
+        self.assertEqual(1, changed)
+        self.assertIn("inline-html", report)
+
+    def test_attachment_bytes_have_clean_missing_and_mismatch_controls(self):
+        directory, path = in_a_file(whole_file())
+        with directory:
+            self.prepare(path, "attachment")
+            clean, _out, _err = self.grade_submission(path)
+            posted = path.parent / "posted" / "case-study.docx"
+            posted.write_bytes(b"changed Word bytes")
+            changed, report, _err = self.grade_submission(path)
+            posted.unlink()
+            missing, missing_report, _err = self.grade_submission(path)
+        self.assertEqual(0, clean)
+        self.assertEqual(1, changed)
+        self.assertEqual(1, missing)
+        self.assertIn("posted-attachment", report)
+        self.assertIn("posted-attachment", missing_report)
+
+    def test_matching_posted_bytes_do_not_excuse_an_unrendered_word_document(self):
+        directory, path = in_a_file(whole_file())
+        with directory:
+            self.prepare(path, "attachment")
+            bad_bytes = b"not the rendered Word document"
+            (path.parent / "output" / "case-study.docx").write_bytes(bad_bytes)
+            (path.parent / "posted" / "case-study.docx").write_bytes(bad_bytes)
+            status, report, _err = self.grade_submission(path)
+        self.assertEqual(1, status)
+        self.assertIn("posted-attachment", report)
 
 
 if __name__ == "__main__":
