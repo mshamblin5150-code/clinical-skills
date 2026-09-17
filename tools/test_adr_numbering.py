@@ -125,6 +125,32 @@ class AdrPreCommitHookTests(unittest.TestCase):
 
 
 class AdrNextCommandTests(TempGitRepository):
+    def test_help_prints_usage_without_claiming_a_number(self) -> None:
+        adr_dir = self.root / "docs" / "adr"
+        before = sorted(adr_dir.iterdir())
+
+        for option in ("-h", "--help"):
+            with self.subTest(option=option):
+                finished = self.run_command(option)
+
+                self.assertEqual(finished.returncode, 0, finished.stderr)
+                self.assertIn("usage:", finished.stdout)
+                self.assertEqual(finished.stderr, "")
+                self.assertEqual(sorted(adr_dir.iterdir()), before)
+
+    def test_unknown_options_exit_two_without_claiming_a_number(self) -> None:
+        adr_dir = self.root / "docs" / "adr"
+        before = sorted(adr_dir.iterdir())
+
+        for option in ("-", "-x", "--unknown"):
+            with self.subTest(option=option):
+                finished = self.run_command(option)
+
+                self.assertEqual(finished.returncode, 2)
+                self.assertIn("usage:", finished.stderr)
+                self.assertEqual(finished.stdout, "")
+                self.assertEqual(sorted(adr_dir.iterdir()), before)
+
     def test_the_highest_number_across_worktrees_wins(self) -> None:
         other = self.add_worktree()
         (other / "docs" / "adr" / "0009-uncommitted.md").write_text(
