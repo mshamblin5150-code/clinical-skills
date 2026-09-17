@@ -62,6 +62,13 @@ Distinct from the **Submission** it carries, and from the **Posted reading** tak
 is the only account of what a **Reply** will be marked on.
 _Avoid_: paste, upload, paste route
 
+**Attachment fallback**:
+Posting an **Initial post** as an attached document under a fixed pointer body after its **Composer**
+refused the full text for message size, which makes the attached document the **Submission**.
+Discovered by the refusal and never predicted from the size. Distinct from a **Load route**, which
+carries a contribution into the Composer without changing what is submitted.
+_Avoid_: upload route, attachment route, file fallback, size fallback
+
 **Peer critique**:
 The eight-heading scholarly response to one classmate's case study, carrying its own references. A
 separate graded artifact from the **Reply** the clinician leaves the same classmate on the **Board**:
