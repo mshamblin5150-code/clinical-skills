@@ -26,6 +26,14 @@ _Avoid_: writeup, report
 Which template a note is written against — FNP H&P or comprehensive SOAP.
 _Avoid_: format, type, form
 
+**Entry copy**:
+The version of a **Note** that is entered in Medatrax, derived by a command from the finished note rather than written. It is the note with every refused-code clause removed, wherever in the note the clause sits; the finished note keeps those clauses because the graders read them. The check that reads the portal back after entry compares against this copy. Distinct from a **Posted reading**, which is taken after entry and records what the portal saved.
+_Avoid_: upload, Medatrax note, posted note, clean copy
+
+**Plan label**:
+One of the four headings a note's Plan is organized under, identical on both **Branches**: `Non-pharmacologic:`, `Pharmacologic:`, `Health Promotion/Patient Education:`, and `Referral/Follow-up:`. Every Plan item sits under one of them and no fifth heading is added; content that looks like its own category, such as oxygen or a lab order, is placed under the nearest of the four. A short phrase before a colon inside a Plan is read as a label and must be one of these or a declared exception such as a sig line.
+_Avoid_: plan subheading, plan section, plan category
+
 ### Coursework
 
 **Board**:
