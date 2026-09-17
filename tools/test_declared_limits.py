@@ -50,6 +50,7 @@ NO_LIMITS = {
     "discussion_post_render": "the renderer formats already graded discussion-post content",
     "docx_read": "a document-reading adapter with no independent completeness claim",
     "docx_word_probe": "a Word automation probe that reports only the operation it performs",
+    "entry_copy": "a deterministic note derivative that checks the specified Plan label grammar and refused-code marks without claiming clinical completeness",
     "git_ancestry": "shared ancestry predicates with no declared repository-population conclusion",
     "git_paths": "a byte-preserving Git path adapter with no independent completeness claim",
     "guidelines_build": "build orchestration over contracts declared by the guideline tools it calls",

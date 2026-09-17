@@ -60,11 +60,11 @@ Age-appropriate screening to consider: <list keyed to age, sex and risk factors>
 
 P:
 
-Nonpharm: <rest, hydration, counseling, red flags>
-Pharm:
+Non-pharmacologic: <rest, hydration, monitoring, positioning, laboratory and imaging orders>
+Pharmacologic:
 <Generic name dose route frequency duration — one per line>
-Education: <technique, precautions, what was reviewed>
-Follow up: <interval, and what would bring them back sooner>
+Health Promotion/Patient Education: <technique, precautions, health promotion, what was reviewed>
+Referral/Follow-up: <referrals, interval, and what would bring them back sooner>
 
 Coding worksheet
 Patient status: <new|established> — <identity map|Medatrax>
@@ -154,6 +154,8 @@ Drift row 22 walks it, and `python tools/differential_scan.py <a run directory>`
 **Screening keys to risk, not just age.** A 0.5 PPD × 40 year history is 20 pack-years, which crosses the LDCT lung-cancer screening threshold — so the derived value earns a screening line. Compute the pack-years and say so.
 
 **Labs/Tests today is never filled.** Only what was given, plus treatments administered in clinic. Where there is none, say so rather than leave the line to be completed by someone else.
+
+**The four Plan labels above are exhaustive.** Oxygen belongs under `Pharmacologic:`. Monitoring, positioning, and laboratory and imaging orders belong under `Non-pharmacologic:`; orders also remain on Objective's `Labs/Tests today` line. Health promotion belongs under `Health Promotion/Patient Education:`, and referrals under `Referral/Follow-up:`. Write no fifth label.
 
 **Never filled does not mean results only, and this line used to say it did.** An order the encounter recorded belongs here as an order with no result — `Monospot, sent, no result recorded` — because a given order is a given and dropping it because it has no value to report is how one goes missing. `No new testing today` describes an encounter that ordered nothing; it is **false** of one whose plan line names a test, however few answers came back. [SKILL.md](SKILL.md)'s *A given order is a given* is the rule and drift row 18 is what counts it. Issue #66.
 
