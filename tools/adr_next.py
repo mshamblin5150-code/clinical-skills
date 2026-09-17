@@ -199,6 +199,13 @@ USAGE = 'usage: adr_next.py "title"'
 
 
 def main(argv: list[str]) -> int:
+    if argv in (["-h"], ["--help"]):
+        print(USAGE)
+        return 0
+    if len(argv) == 1 and argv[0].startswith("-") and argv != ["--check-staged"]:
+        print(USAGE, file=sys.stderr)
+        return 2
+
     cwd = Path.cwd()
     try:
         checkout = checkout_root(cwd)
