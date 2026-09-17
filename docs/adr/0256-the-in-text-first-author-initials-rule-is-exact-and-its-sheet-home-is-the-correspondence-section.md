@@ -1,13 +1,14 @@
 # The in-text first-author initials rule is exact and its sheet home is the correspondence section
 
-**Measured at:** d2dc54c1be927106933aa3a95f348bbf2b1975e3
+**Measured at:** 63a04187a3531d868f3a6f0c9b40800b5f77c1b5
 
 [#1167](https://github.com/mshamblin5150-code/clinical-skills/issues/1167) was filed from
 [#959](https://github.com/mshamblin5150-code/clinical-skills/issues/959)'s grilling as ADR 0195
 ruling 10 item 1. Neither citation reader resolves an in-text citation carrying the first author's
 initials, and the ticket held that whether APA obliges the form was an open reading of
 `skills/_shared/reference/apa7.md` §38. Grilled 2026-09-17; the clinician ruled every point below
-the same day. Freshness gate `FRESH` at `d2dc54c1`. Nothing is built here; this is the record the
+the same day. Freshness gate `FRESH` at `d2dc54c1`; the declaration names the commit carrying this record,
+which changed no tool, so every figure below re-derives there. Nothing is built here; this is the record the
 build reads.
 
 ## Measured before ruling
@@ -86,7 +87,8 @@ coauthors do not. The §8.20 registry row binds §5 beside §38. Editing §38 wa
 withdrawn once its cost was counted: 45 registry rows bind §38, against three for §5 (8.4, 9.51 and
 9.52), and every staled item needs a re-read in the clinician's signed-in session. ADR 0214 ruling 6
 set that precedent. The ticket is done when those items and §8.20 are re-read and
-`python tools/apa7_coverage.py` reports `gone-stale 0`.
+`python tools/apa7_coverage.py` reports `gone-stale 0`. Following that precedent, the ticket is
+labeled `ready-for-human`: an agent can make every edit, but the re-read needs the signed-in session.
 
 ## Ruling 7 — the two readers are repaired separately
 
