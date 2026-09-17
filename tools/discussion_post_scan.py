@@ -83,6 +83,7 @@ EMPTY_BODY = "empty-body"
 REFERENCE_MINIMUM = "reference-minimum"
 UNTRACED_NUMBER = "untraced-number"
 UNTRACED_CITATION = "untraced-citation"
+MISSING_FIRST_AUTHOR_INITIALS = "missing-first-author-initials"
 RESPENT_RECORD = "respent-record"
 BOLD_HEADINGS = "bold-headings"
 RENDERED_COMMENTS = "rendered-comments"
@@ -103,6 +104,7 @@ ROWS = {
     REFERENCE_MINIMUM: "the post reaches the signed reference minimum",
     UNTRACED_NUMBER: "every graded body number traces to a believed claim record",
     UNTRACED_CITATION: "every in-text citation has a claim record for its source",
+    MISSING_FIRST_AUTHOR_INITIALS: "same-surname first authors with different initials are distinguished in text",
     RESPENT_RECORD: "every in-text citation has its own claim record",
     BOLD_HEADINGS: "every submission heading is a bold paragraph",
     RENDERED_COMMENTS: "the HTML submission carries no comment delimiter",
@@ -151,6 +153,7 @@ GATED_ROW_SETS = {
             REFERENCE_MINIMUM,
             UNTRACED_NUMBER,
             UNTRACED_CITATION,
+            MISSING_FIRST_AUTHOR_INITIALS,
             RESPENT_RECORD,
             LEGAL_REFERENCE_NAME,
         ),
@@ -380,6 +383,7 @@ class ClaimReferenceIndex(ReferenceKeySet):
         return cls(
             keys.keys,
             keys.prefix_keys,
+            keys.first_authors,
             records,
         )
 
@@ -1338,6 +1342,7 @@ def survey(source: RunSource) -> Scan:
     words = len(WORD.findall(_countable_body(source.body)))
     records = _claim_records(source.claims)
     reference_key_set = ClaimReferenceIndex.from_records(records)
+    listed_references = ReferenceKeySet.from_references(source.references)
     body_citations, citations, coverage = _citation_keys(source.body, reference_key_set)
     numbers = traceable_numeric_values(source.body, body_citations)
     findings: list[Finding] = list(_posted_reading_findings(source) + heading_findings)
@@ -1391,6 +1396,14 @@ def survey(source: RunSource) -> Scan:
     for occurrence, (citation, keys) in enumerate(
         zip(body_citations, citations, strict=True), start=1
     ):
+        if listed_references.missing_first_author_initials(citation.author):
+            findings.append(
+                Finding(
+                    MISSING_FIRST_AUTHOR_INITIALS,
+                    source.draft.name,
+                    f"citation occurrence {occurrence} omits required first-author initials",
+                )
+            )
         candidates = reference_key_set.matching_record_indices(keys)
         if not candidates:
             findings.append(

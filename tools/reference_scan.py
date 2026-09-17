@@ -541,6 +541,7 @@ UPTODATE_ITALICS = "uptodate-italics"
 INTEXT_YEAR_MISMATCH = "intext-year-mismatch"
 UNCITED_ENTRY = "uncited-entry"
 UNLISTED_CITATION = "unlisted-citation"
+MISSING_FIRST_AUTHOR_INITIALS = "missing-first-author-initials"
 LEGAL_REFERENCE_LACKS_NAME = "legal-reference-lacks-name"
 CITATION_READER_COVERAGE = "citation-reader-coverage"
 REFERENCE_BUCKETS = (
@@ -598,6 +599,7 @@ BODY_ROWS = (
     UPTODATE_ITALICS,
     INTEXT_YEAR_MISMATCH,
     UNLISTED_CITATION,
+    MISSING_FIRST_AUTHOR_INITIALS,
     CITATION_READER_COVERAGE,
 )
 NON_FINDING_BODY_ROWS = (CITATION_READER_COVERAGE,)
@@ -627,6 +629,7 @@ ROWS = {
     LEGAL_REFERENCE_LACKS_NAME: "apa7 8",
     UNCITED_ENTRY: "apa7 5",
     UNLISTED_CITATION: "apa7 5",
+    MISSING_FIRST_AUTHOR_INITIALS: "apa7 5",
 }
 KINDS = tuple(ROWS)
 
@@ -690,6 +693,10 @@ SOURCE_CLASS_SETTLES_RETRIEVAL_DATE = {
 }
 
 NOT_REACHED = (
+    (
+        "first-name citations for an author whose surname changed",
+        "The exceptional first-name form in APA section 8.20 is owned by issue #1350; this reader compares initials and surnames only.",
+    ),
     (
         "republished original publication date",
         "Section 31's original date element is parsed and never compared with the "
@@ -942,6 +949,13 @@ def citation_key(author: str) -> str:
     """
     text = SIGNAL_PHRASE.sub("", re.sub(r"\s+", " ", author)).strip()
     text = without_leading_article(text)
+    initialed = re.match(
+        r"^(?P<initials>(?:[" + UPPER + r"]\.\s*)+)"
+        r"(?P<surname>[" + UPPER + r"](?:" + LETTER + r"|['’.\-])*)\b",
+        text,
+    )
+    if initialed is not None and initialed.group("surname").casefold() not in {"a", "an", "the"}:
+        return normalize(initialed.group("initials") + initialed.group("surname")).replace(" ", "")
     match = FIRST_WORD.match(text)
     if not match:
         return ""
@@ -993,9 +1007,26 @@ class Entry:
         """Citation-pairing keys without changing ``key``'s grouping contract."""
 
         keys = [(self.key, year_key(self.year))] if self.key and self.year else []
+        first_author = self.first_author_initials
+        if first_author is not None and self.year:
+            surname, initials = first_author
+            keys.append((initials + surname, year_key(self.year)))
         if DATE_FREE_CONSTITUTION.search(self.text) and self.key:
             keys.append((self.key, ""))
         return tuple(dict.fromkeys(keys))
+
+    @property
+    def first_author_initials(self) -> tuple[str, str] | None:
+        """First personal author's surname and complete initials, if present."""
+
+        match = re.match(
+            r"^\s*(?P<surname>[" + UPPER + r"](?:" + LETTER + r"|['’.\-])*),\s*"
+            r"(?P<initials>(?:[" + UPPER + r"]\.\s*)+)",
+            self.text,
+        )
+        if match is None:
+            return None
+        return normalize(match.group("surname")), normalize(match.group("initials")).replace(" ", "")
 
     @property
     def authors(self) -> str:
@@ -1365,6 +1396,21 @@ def _evidenced_narratives(
                 candidate = without_leading_article(written)
                 if normalize(candidate) != normalized_author:
                     continue
+                # The suffix walk reaches the surname before the preceding initials.
+                # Do not evidence a bare surname when the text actually names an
+                # initialed first author, including one with the wrong initials.
+                prefix_initials = re.search(
+                    r"(?:[" + UPPER + r"]\.\s*)+$", prefix[:author_start]
+                )
+                if prefix_initials is not None:
+                    first_author = entry.first_author_initials
+                    candidate = prefix[prefix_initials.start() :].strip()
+                    if (
+                        first_author is None
+                        or citation_key(candidate) != first_author[1] + first_author[0]
+                    ):
+                        continue
+                    author_start = prefix_initials.start()
                 first_letter = next(
                     (character for character in candidate if character.isalpha()),
                     "",
@@ -1863,8 +1909,15 @@ def _citation_findings(document: Document) -> list[Finding]:
         for key, year in entry.resolution_keys:
             listed.setdefault(key, set()).add(year)
     cited = {citation.key for citation in document.citations}
+    first_authors: dict[str, set[str]] = {}
+    for entry in document.entries:
+        if (first_author := entry.first_author_initials) is not None:
+            first_authors.setdefault(first_author[0], set()).add(first_author[1])
+    ambiguous = {surname for surname, initials in first_authors.items() if len(initials) > 1}
 
     for citation in document.citations:
+        if citation.key in ambiguous:
+            found.append(Finding(MISSING_FIRST_AUTHOR_INITIALS, "body", f"{citation.key} {citation.year}"))
         if citation.key not in listed:
             found.append(Finding(UNLISTED_CITATION, "body", f"{citation.key} {citation.year}"))
         elif citation.year not in listed[citation.key]:

@@ -131,6 +131,11 @@ LEGAL_READER_NOT_REACHED = (
 )
 CITATION_RESOLUTION_NOT_REACHED = (
     (
+        "first-name citations for an author whose surname changed",
+        "The exceptional first-name form in APA section 8.20 is owned by issue #1350; this reader compares initials and surnames only.",
+        EvidenceDisposition.BEHAVIOR,
+    ),
+    (
         "whether a republished citation's original element matches its source",
         "The shared date grammar keys untraced-citation and respent-record on the "
         "second element only. No row compares the parsed original element with the "
@@ -623,6 +628,13 @@ def author_key(value: str) -> str:
 def citation_author_keys(value: str) -> tuple[str, ...]:
     """Return the exact key expressed by one citation phrase."""
 
+    # APA's optional coauthor initials do not distinguish the first author.
+    value = re.sub(
+        r"(\s+(?:&|and)\s+)(?:[" + UPPER + r"]\.\s*)+(?=[" + UPPER + r"])",
+        r"\1",
+        value,
+    )
+
     definition = re.fullmatch(r"\s*(?P<full>.+?)\s*\[(?P<alias>[^\]]+)\]\s*", value)
     if definition is not None:
         full = definition.group("full")
@@ -671,6 +683,7 @@ class ReferenceKeySet:
 
     keys: frozenset[CitationKey] = frozenset()
     prefix_keys: frozenset[CitationKey] = frozenset()
+    first_authors: frozenset[tuple[str, str]] = frozenset()
 
     @classmethod
     def from_references(cls, references: Collection[str]) -> ReferenceKeySet:
@@ -685,6 +698,10 @@ class ReferenceKeySet:
                 (author, year)
                 for author, year, prefix in keyed
                 if prefix
+            ),
+            frozenset(
+                author for reference in references
+                if (author := _first_author_initials(reference)) is not None
             ),
         )
 
@@ -701,7 +718,24 @@ class ReferenceKeySet:
         return cls(
             frozenset(key for item in sets for key in item.keys),
             frozenset(key for item in sets for key in item.prefix_keys),
+            frozenset(author for item in sets for author in item.first_authors),
         )
+
+    def missing_first_author_initials(self, citation_author: str) -> bool:
+        """Whether this citation omits initials needed to distinguish entries."""
+
+        phrase = _without_signal_word(citation_author)
+        if re.match(r"^\s*(?:[" + UPPER + r"]\.\s*)+[" + UPPER + r"]", phrase):
+            return False
+        first = re.match(r"^\s*([" + UPPER + r"](?:" + LETTER + r"|['’.\-])*)", phrase)
+        if first is None:
+            return False
+        remainder = phrase[first.end() :].strip()
+        if remainder and re.match(r"^(?:&|and\b|et\s+al\.)", remainder, re.I) is None:
+            return False
+        surname = author_key(first.group(1))
+        initials = {value for name, value in self.first_authors if name == surname}
+        return len(initials) > 1
 
     def resolves(self, citation_key: CitationKey) -> bool:
         citation_author, citation_year_value = citation_key
@@ -761,6 +795,12 @@ def _reference_key_data(reference: str) -> tuple[tuple[str, str, bool], ...]:
         keys = [author_key(surnames[0])]
         if len(surnames) > 1:
             keys.insert(0, author_key(" and ".join(surnames)))
+        first = _first_author_initials(reference)
+        if first is not None:
+            initialed = first[1] + first[0]
+            keys.append(initialed)
+            if len(surnames) > 1:
+                keys.append(initialed + "and" + author_key(" and ".join(surnames[1:])))
     else:
         title_proper = re.sub(r"(?:\s*\([^()]*\))+\s*$", "", author_text)
         keys = [author_key(title_proper)]
@@ -772,6 +812,19 @@ def _reference_key_data(reference: str) -> tuple[tuple[str, str, bool], ...]:
             continue
         keyed.append((key, years[0], prefix))
     return tuple(keyed)
+
+
+def _first_author_initials(reference: str) -> tuple[str, str] | None:
+    """Read only the first personal author's surname and complete initials."""
+
+    match = re.match(
+        r"^\s*(?P<surname>[" + UPPER + r"](?:" + LETTER + r"|['’.\-])*),\s*"
+        r"(?P<initials>(?:[" + UPPER + r"]\.\s*)+)",
+        reference,
+    )
+    if match is None:
+        return None
+    return author_key(match.group("surname")), author_key(match.group("initials"))
 
 
 def reference_keys(reference: str) -> tuple[CitationKey, ...]:
@@ -888,6 +941,17 @@ def _evidenced_citations(
             if not _valid_evidenced_author(body, author, word_start, block.end()):
                 continue
             if reference_key_set.recognizes_author(key):
+                prefix_initials = re.search(
+                    r"(?:[" + UPPER + r"]\.\s*)+$", prefix[:word_start]
+                )
+                if prefix_initials is not None:
+                    initialed_author = prefix[prefix_initials.start() :].strip()
+                    if not reference_key_set.recognizes_author(
+                        author_key(initialed_author)
+                    ):
+                        continue
+                    author = initialed_author
+                    word_start = prefix_initials.start()
                 longest = Citation(author, year_values[0], word_start, block.end())
                 break
         if longest is not None:
