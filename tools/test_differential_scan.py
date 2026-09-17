@@ -1266,6 +1266,23 @@ class TheDescriptorAgreementFixtureIsDivergentForRow24(unittest.TestCase):
             reasons,
             {"malformed threshold verdict", "malformed guideline tail"},
         )
+        findings = [finding for note in notes for finding in note.guideline_findings]
+        refused_shapes = (
+            ("idsa-2014, sheet does not settle", "malformed threshold verdict"),
+            ("sheet does not settle follow-up", "malformed threshold verdict"),
+            ("uspstf-2021-tobacco grade A", "malformed threshold verdict"),
+            ("gold-2026 narrative,", "malformed threshold verdict"),
+            ("recalled, no single shipped sheet", "malformed guideline tail"),
+        )
+        for tail, reason in refused_shapes:
+            with self.subTest(tail=tail):
+                self.assertTrue(
+                    any(
+                        tail in finding.label and finding.reason == reason
+                        for finding in findings
+                    ),
+                    f"fixture no longer refuses {tail!r} as {reason}",
+                )
 
 
 class TheFilledAnchorRunHasNothingToScan(unittest.TestCase):
