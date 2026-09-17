@@ -744,6 +744,12 @@ NOT_REACHED = (
         "legislative materials, proposed rules, executive orders, patents, parallel "
         "reporters, official-version choice, state-specific form, or current legal status.",
     ),
+    (
+        "combining mark without a precomposed form",
+        "NFC composes a surname only where a precomposed character exists. A remaining "
+        "combining mark still interrupts the name pattern, so a surname such as "
+        "Ą̃žuolas is keyed as a rather than as its full folded name.",
+    ),
 )
 
 
@@ -1649,6 +1655,7 @@ def read_document(text: str) -> Document:
     set the second one flush, with no indent. The docstring above claimed parity
     with the renderer at the time, which is what made it worth finding.
     """
+    text = unicodedata.normalize("NFC", text)
     lines = text.replace("\r\n", "\n").split("\n")
     parsed = tuple(renderer_blocks(text))
     start: int | None = None

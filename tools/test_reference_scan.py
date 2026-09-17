@@ -1394,6 +1394,42 @@ class TheCommandExitsOnWhatItFound(unittest.TestCase):
     def test_a_clean_draft_exits_zero(self):
         self.assertEqual(self._run(CLEAN), 0)
 
+    def test_an_nfd_author_and_citation_resolve_like_their_nfc_twins(self):
+        for surname in ("Ku\u0308bler-Ross", "Kübler-Ross"):
+            with self.subTest(surname=surname):
+                entry = f"{surname}, E. (2014). On grief. Publisher."
+                body = f"# Case\n\nThe work is cited ({surname}, 2014).\n"
+                text = draft(entry, body=body)
+                document = scan.read_document(text)
+                self.assertEqual(document.entries[0].key, "kubler ross")
+                self.assertEqual(document.citations[0].key, "kubler ross")
+                self.assertEqual(self._run(text), 0, self.last)
+
+    def test_mixed_nfd_and_nfc_author_forms_resolve_through_the_command(self):
+        entry = "Ku\u0308bler-Ross, E. (2014). On grief. Publisher."
+        body = "# Case\n\nThe work is cited (Kübler-Ross, 2014).\n"
+        self.assertEqual(self._run(draft(entry, body=body)), 0, self.last)
+
+    def test_a_different_nfd_ku_author_does_not_claim_the_entry(self):
+        kubler = "Ku\u0308bler-Ross"
+        kuhn = "Ku\u030ahn"
+        entry = f"{kubler}, E. (2014). On grief. Publisher."
+        body = f"# Case\n\nA different work is cited ({kuhn}, 2014).\n"
+        self.assertEqual(self._run(draft(entry, body=body)), 1, self.last)
+        self.assertIn("unlisted-citation", self.last)
+        self.assertIn("uncited-entry", self.last)
+
+    def test_two_nfd_ku_entries_do_not_claim_one_citation(self):
+        kubler = "Ku\u0308bler-Ross"
+        kuhn = "Ku\u030ahn"
+        entries = (
+            f"{kubler}, E. (2014). On grief. Publisher.",
+            f"{kuhn}, A. (2014). On care. Publisher.",
+        )
+        body = f"# Case\n\nOnly one work is cited ({kubler}, 2014).\n"
+        self.assertEqual(self._run(draft(*entries, body=body)), 1, self.last)
+        self.assertIn("uncited-entry", self.last)
+
     def test_a_failing_draft_exits_one(self):
         self.assertEqual(self._run(draft(UPTODATE, ACOG)), 1)
 
@@ -2111,6 +2147,7 @@ class EveryDeclaredLimitIsReDerivedAtTheScannerSeam(unittest.TestCase):
             "UpToDate last update year": self.uptodate_last_update_year,
             "the source exists and says so": self.source_exists_and_says_so,
             "legal form and authority validity": self.legal_form_and_authority_validity,
+            "combining mark without a precomposed form": self.combining_mark_without_a_precomposed_form,
         }
         self.assertEqual(set(handlers), set(dict(scan.NOT_REACHED)))
         for key, handler in handlers.items():
@@ -2176,6 +2213,14 @@ class EveryDeclaredLimitIsReDerivedAtTheScannerSeam(unittest.TestCase):
 
         code_section = scan.read_document(draft(NAMED_LEGAL, body="# Case\n")).entries[0]
         self.assertTrue(code_section.is_legal)
+
+    def combining_mark_without_a_precomposed_form(self):
+        surname = "\u0104\u0303žuolas"
+        entry = f"{surname}, A. (2014). A study. Publisher."
+        body = f"# Case\n\nThe work is cited ({surname}, 2014).\n"
+        document = scan.read_document(draft(entry, body=body))
+        self.assertEqual(document.entries[0].key, "a")
+        self.assertEqual(document.citations[0].key, "a")
 
     def uptodate_last_update_year(self):
         entry = UPTODATE.replace("(2025)", "(2019)")
