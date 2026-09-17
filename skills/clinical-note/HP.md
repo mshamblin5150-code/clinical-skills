@@ -110,9 +110,6 @@ Screenings appropriate for age:
 <list>
 
 Plan
-Plan is decided upon by the preceptor, Non-pharmacologic, Pharmacologic,
-Health Promotion/Patient Education, Referral/follow-up
-
 Non-pharmacologic:
 Pharmacologic:
 <drug concentration; dose route frequency duration>
@@ -138,6 +135,8 @@ Coding freshness: PASS
 ```
 
 ## Section notes
+
+**The four Plan labels above are exhaustive.** Oxygen belongs under `Pharmacologic:`. Monitoring, positioning, and laboratory and imaging orders belong under `Non-pharmacologic:`; orders also remain on Objective's `Labs/Tests today` line. Health promotion belongs under `Health Promotion/Patient Education:`, and referrals under `Referral/Follow-up:`. Write no fifth label.
 
 **No OLDCARTS element is ever blank.** Eight headings, eight values — `not documented` beside any of them is a defect, not a disclosure. Where the shorthand supplies none, infer one that follows from the presenting complaint; that is the same act as the exam of a system the shorthand never mentions, which [SKILL.md](SKILL.md) lists as grounded and expected. Each filled element is declared in `FILLED·asserted` carrying its value.
 

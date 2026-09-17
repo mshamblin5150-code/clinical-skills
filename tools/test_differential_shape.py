@@ -209,7 +209,7 @@ class TheDriftMatrixCarriesBothRows(unittest.TestCase):
         self.assertIn("ongoing treatment after discharge", row)
 
     def test_no_row_was_renumbered(self):
-        # The cheap guard on the convention: 35 rows, numbered 1 to 35 in order.
+        # The cheap guard on the convention: 36 rows, numbered 1 to 36 in order.
         # Scoped to rows whose second cell is a bolded test name, which is the
         # drift matrix's own shape -- an unrelated numbered table added to this
         # file later must not fail this test for a reason that is not about it.
@@ -221,11 +221,11 @@ class TheDriftMatrixCarriesBothRows(unittest.TestCase):
         # fixture sets and ADR 0001. Read 23 until #85 added row 24; #132 appended
         # row 25; #159 appended row 26; #205 appended row 27; this change
         # appended rows 28 through 32; HPI ownership appended row 33; the coding
-        # worksheet appended row 34; plan closure appended row 35.
+        # worksheet appended row 34; plan closure appended row 35; Entry copy appended row 36.
         numbers = [
             int(m) for m in re.findall(r"^\| (\d+) \| \*\*[^*]+\*\* \|", self.text, re.M)
         ]
-        self.assertEqual(numbers, list(range(1, 36)))
+        self.assertEqual(numbers, list(range(1, 37)))
 
 
 class BothTemplatesRenderTheRule(unittest.TestCase):

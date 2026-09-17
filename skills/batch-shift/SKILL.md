@@ -305,10 +305,12 @@ Ask the shift start once. Read that date's hours from the Time Log and bind ever
 inside the window from start through start plus those hours. If the Time Log has no row, ask for the
 start and hours together.
 
+For every final `note-N.md`, run `python tools/entry_copy.py <path to note-N.md>` and require exit 0 before portal entry. The derived files live in that run's `entry-copies/` subdirectory and can be regenerated from a finished note returned to an existing run after its Plan is relabeled. A refusal blocks the shift's entry until the finished note is corrected and the command succeeds. Enter each derived Entry copy, while `SUBMISSION-SHA256` continues to use the finished `note-N.md` bytes.
+
 Enter one patient at a time by the reference procedure. Put each new Patient Reference into the
 private identity map immediately after Medatrax generates it. Leave Add Visit Data empty. After each
-save, read Patient Detail and the note form back against that encounter's approved field block and
-note. Correct an ordinary mismatch to the approved value and read it again; any other discrepancy
+save, read Patient Detail against that encounter's approved field block and the saved note form against its
+derived Entry copy. Correct an ordinary mismatch to the approved value and read it again; any other discrepancy
 stops for the clinician. On that patient's `VISIT:` line, append
 `correction=<field>: <saved value> -> <approved value>; reread matches` for every correction. A
 clean first read needs no correction clause.
@@ -328,7 +330,7 @@ line per encounter:
 POST-URL: <Patient Visit List address>
 POSTED: <last entered visit's Created value as displayed>
 READ: N of N read
-VERDICT: matches - <what was compared>
+VERDICT: matches - <field blocks and saved notes compared with the derived Entry copies>
 SUBMISSION-SHA256: <SHA-256 of note-1.md through note-N.md bytes>
 VISIT: <N> | patient <number> | reference <matched|new> <Patient Reference> | patient-detail=<copied address> | note-view=<copied View address including resultid> | <created=<displayed Created>|visit-date=<returning visit date>> | matches
 ```
