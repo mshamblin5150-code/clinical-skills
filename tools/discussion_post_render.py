@@ -26,6 +26,7 @@ import office_process
 import page_image
 import pdf_engine
 import render_pass
+import case_study_render
 from discussion_artifact import AUTOMATED_RENDERED_SOURCES
 
 
@@ -149,11 +150,22 @@ def render(
     docx: Path,
     expected_pages: int | None = None,
     clinician_export: Path | None = None,
+    draft: Path | None = None,
 ) -> tuple[str, Path, int]:
     if not run.is_dir():
         raise RenderError(f"no run directory at {run}")
     if not docx.is_file():
         raise RenderError(f"no rendered document at {docx}")
+    if draft is not None and not draft.is_file():
+        raise RenderError(f"no source Markdown at {draft}")
+    markdown_digest = None
+    if draft is not None:
+        if draft.resolve() != docx.with_suffix(".md").resolve():
+            raise RenderError("--draft must be the Word document's adjacent Markdown")
+        try:
+            _source, markdown_digest = case_study_render.matching_markdown(docx)
+        except case_study_render.RenderError as failure:
+            raise RenderError(str(failure)) from failure
     if pdf_engine.engine_version() is None:
         raise RenderError("pymupdf is not installed")
 
@@ -181,6 +193,10 @@ def render(
                 retained_export,
                 staging / f"post{retained_export.suffix.lower()}",
             )
+            if markdown_digest is not None:
+                (staging / "post-draft.sha256").write_text(
+                    markdown_digest + "\n", encoding="ascii"
+                )
         retained = tuple(staging.glob("*.png"))
         if not render_pass.images_cover_exported_pages(len(retained), pages):
             raise RenderError(
@@ -198,6 +214,7 @@ def main(argv: list[str]) -> int:
     )
     parser.add_argument("run")
     parser.add_argument("--docx", required=True)
+    parser.add_argument("--draft")
     parser.add_argument("--expected-pages", type=int)
     parser.add_argument("--clinician-export")
     try:
@@ -207,6 +224,7 @@ def main(argv: list[str]) -> int:
             Path(args.docx),
             args.expected_pages,
             Path(args.clinician_export) if args.clinician_export else None,
+            Path(args.draft) if args.draft else None,
         )
     except (RenderError, OSError) as failure:
         print(f"render did not complete: {failure}", file=sys.stderr)

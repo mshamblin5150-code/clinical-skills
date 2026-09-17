@@ -95,6 +95,11 @@ link, and `tools/docx_write.py` produces its archival Word document. Without tha
 no archival document. Its declared limits remain reader-owned and live in
 `discussion_post_scan.NOT_REACHED` rather than in a second prose copy.
 
+**`tools/discussion_post_render.py` is Required after an observed Composer message-size refusal
+on `discussion-post`.** It retains a page-faithful Word export, page pixels, and the checked
+Markdown fingerprint for the attachment fallback. Without its clean exit and a visually checked
+page reading, the attached `.docx` cannot receive the fallback go-ahead or pass the terminal grader.
+
 **The shared UpToDate path depends on committed store and sheet tools.**
 `tools/uptodate_store.py` ingests one deliberately supplied dump into `scratch/uptodate/`, writes
 its per-dump manifest and FTS5 index, searches the accumulated store, and reports unfiled

@@ -13,6 +13,8 @@ import sys
 import unicodedata
 from collections.abc import Collection, Iterator
 from dataclasses import dataclass
+from datetime import date
+from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from run_grader import EvidenceDisposition
@@ -224,10 +226,13 @@ REREAD_BLOCK = re.compile(
     r"(?ms)^## REREAD:\s*(?P<artifact>[^\n]+?)\s*$"
     r"(?P<body>.*?)(?=^## REREAD:|\Z)"
 )
-REREAD_FIELD = re.compile(
-    r"(?mi)^(?P<name>POST-URL|POSTED|READ|SUBMISSION-SHA256|VERDICT|VISIT)\s*:\s*(?P<value>[^\n]*)$"
+REREAD_REQUIRED_FIELDS = ("POST-URL", "POSTED", "READ", "SUBMISSION-SHA256", "VERDICT")
+REREAD_FIELDS = REREAD_REQUIRED_FIELDS + (
+    "COMPOSER-OUTCOME", "HTML-BYTES", "REFUSAL", "ATTACHMENT"
 )
-REREAD_FIELDS = ("POST-URL", "POSTED", "READ", "SUBMISSION-SHA256", "VERDICT")
+REREAD_FIELD = re.compile(
+    r"(?mi)^(?P<name>" + "|".join((*REREAD_FIELDS, "VISIT")) + r")\s*:\s*(?P<value>[^\n]*)$"
+)
 SHA256 = re.compile(r"[0-9a-f]{64}", re.ASCII)
 POSTED_READING_VERDICTS = frozenset({"matches", "diverges"})
 AUTOMATED_RENDERED_SOURCES = frozenset(("word-pdf", "word-xps"))
@@ -306,6 +311,10 @@ class PostedReading:
     verdict_detail: str
     missing_fields: tuple[str, ...]
     visits: tuple[str, ...] = ()
+    composer_outcome: str = ""
+    html_bytes: str = ""
+    refusal: str = ""
+    attachment: str = ""
 
     @property
     def missing_record_fields(self) -> tuple[str, ...]:
@@ -328,6 +337,33 @@ class PostedReading:
     @property
     def entry_id(self) -> str | None:
         return discussion_entry_id(self.post_url)
+
+    def posted_attachment(self, run: Path) -> Path | None:
+        """Accept only a named copy immediately inside this run's posted directory."""
+        name = self.attachment
+        relative = Path(name)
+        if (
+            not name.startswith("posted/")
+            or len(relative.parts) != 2
+            or relative.parts[0] != "posted"
+            or relative.name in {"", ".", ".."}
+            or relative.suffix.casefold() != ".docx"
+            or "\\" in name
+        ):
+            return None
+        candidate = run / relative
+        return candidate if candidate.resolve().parent == (run / "posted").resolve() else None
+
+    @property
+    def refusal_is_dated(self) -> bool:
+        observed_date, separator, wording = self.refusal.partition(" - ")
+        if not separator or not wording.strip():
+            return False
+        try:
+            date.fromisoformat(observed_date)
+        except ValueError:
+            return False
+        return True
 
 
 def read_posted_readings(text: str) -> tuple[PostedReading, ...]:
@@ -377,9 +413,13 @@ def read_posted_readings(text: str) -> tuple[PostedReading, ...]:
                 verdict=verdict,
                 verdict_detail=detail,
                 missing_fields=tuple(
-                    name for name in REREAD_FIELDS if not fields.get(name, "")
+                    name for name in REREAD_REQUIRED_FIELDS if not fields.get(name, "")
                 ),
                 visits=tuple(visits),
+                composer_outcome=fields.get("COMPOSER-OUTCOME", ""),
+                html_bytes=fields.get("HTML-BYTES", ""),
+                refusal=fields.get("REFUSAL", ""),
+                attachment=fields.get("ATTACHMENT", ""),
             )
         )
     return tuple(records)

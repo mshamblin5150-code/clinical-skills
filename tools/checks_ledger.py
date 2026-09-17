@@ -177,6 +177,8 @@ import aar_scan
 import heading_read
 import research_ledger
 from discussion_artifact import PostedReading, read_posted_readings
+import post_html
+import case_study_render
 
 EXPECTED_COMPLETION_CHECKS = (aar_scan.EXPECTED_ROW,)
 from run_grader import EvidenceDisposition
@@ -394,6 +396,8 @@ RENDER_PASS_MISMATCH = "render-pass-mismatch"
 DRAFT_FINGERPRINT_MISMATCH = "draft-fingerprint-mismatch"
 RENDER_FINGERPRINT_MISMATCH = "render-fingerprint-mismatch"
 SUBMISSION_FINGERPRINT = "submission-fingerprint"
+INLINE_HTML = "inline-html"
+POSTED_ATTACHMENT = "posted-attachment"
 
 # Which ruling each row belongs to, so a reader knows which ticket to go and read.
 # **Spelled out rather than built from ``KINDS``**, and that is the whole of what
@@ -417,6 +421,8 @@ ROWS = {
     RENDER_FINGERPRINT_MISMATCH: "#1020",
     **{kind: "#1032" for kind in heading_read.KINDS},
     SUBMISSION_FINGERPRINT: "#1035",
+    INLINE_HTML: "#1154",
+    POSTED_ATTACHMENT: "#1154",
 }
 KINDS = tuple(ROWS)
 HEADING_READ_ROWS = {kind: ROWS[kind] for kind in heading_read.KINDS}
@@ -804,6 +810,7 @@ class BoundChecksSource:
     document_digest: str
     claims: tuple[research_ledger.Record, ...]
     readings: tuple[PostedReading, ...]
+    composer_run: bool = False
 
 
 def _submission_document(submission: str) -> Path:
@@ -853,6 +860,23 @@ def _load(parsed: run_grader.Parsed) -> BoundChecksSource:
             if reread_path.is_file()
             else ()
         )
+        bar = path.with_name("bar.md")
+        composer_run = bar.is_file() and re.search(
+            r"(?m)^SUBMISSION-TYPE:\s*canvas-composer\s*$",
+            bar.read_text(encoding="utf-8"),
+        ) is not None
+        if submission is not None and composer_run:
+            reading = next(
+                (item for item in readings if item.artifact == submission), None
+            )
+            if reading is not None and reading.composer_outcome not in {
+                "inline", "attachment"
+            }:
+                raise run_grader.SourceError(
+                    "Composer REREAD needs COMPOSER-OUTCOME: inline or attachment"
+                )
+    except run_grader.SourceError:
+        raise
     except (OSError, UnicodeError, ValueError) as failure:
         raise run_grader.SourceError(f"could not read reread.md: {failure}") from failure
     return BoundChecksSource(
@@ -864,6 +888,7 @@ def _load(parsed: run_grader.Parsed) -> BoundChecksSource:
         digest,
         tuple(research_ledger.read_records(claims_text)),
         readings,
+        composer_run,
     )
 
 
@@ -988,6 +1013,61 @@ def _grade(
                         f"{source.document.name} SUBMISSION-SHA256 is missing, malformed, or stale",
                     )
                 )
+            if source.composer_run and reading is not None:
+                html = source.document.with_suffix(".html")
+                if (
+                    not html.is_file()
+                    or not reading.html_bytes.isdigit()
+                    or int(reading.html_bytes) != html.stat().st_size
+                ):
+                    extra.append(Finding(
+                        INLINE_HTML, "the posted reading",
+                        "HTML-BYTES is missing or differs from the built HTML",
+                    ))
+                if reading.composer_outcome == "inline":
+                    if (
+                        not html.is_file()
+                        or html.read_bytes() != post_html.render(
+                            source.document_bytes.decode("utf-8")
+                        ).encode("utf-8")
+                    ):
+                        extra.append(Finding(
+                            INLINE_HTML, "the posted reading",
+                            "inline HTML is missing or differs from the Markdown rebuild",
+                        ))
+                else:
+                    local_docx = source.document.with_suffix(".docx")
+                    posted = reading.posted_attachment(source.path.parent)
+                    if not reading.refusal_is_dated:
+                        extra.append(Finding(
+                            POSTED_ATTACHMENT, "the posted reading",
+                            "REFUSAL needs its date and observed wording",
+                        ))
+                    if not local_docx.is_file() or posted is None or not posted.is_file():
+                        extra.append(Finding(
+                            POSTED_ATTACHMENT, "the posted reading",
+                            "ATTACHMENT must name an existing posted/ Word copy",
+                        ))
+                    elif (
+                        posted.name != local_docx.name
+                        or file_digest.sha256(posted) != file_digest.sha256(local_docx)
+                    ):
+                        extra.append(Finding(
+                            POSTED_ATTACHMENT, "the posted reading",
+                            "posted attachment filename or SHA-256 differs from the local Word document",
+                        ))
+                    if local_docx.is_file():
+                        try:
+                            _markdown, checked_digest = case_study_render.matching_markdown(
+                                local_docx
+                            )
+                            if checked_digest != source.document_digest:
+                                raise case_study_render.RenderError("source fingerprint differs")
+                        except case_study_render.RenderError:
+                            extra.append(Finding(
+                                POSTED_ATTACHMENT, "the posted reading",
+                                "local Word parts differ from the visually checked Markdown",
+                            ))
         scan = _add_findings(scan, extra)
         rendered_report = f"the rendered pass: {'finding' if extra else 'clean'}"
     diagnostics: list[str] = []

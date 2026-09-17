@@ -44,7 +44,8 @@ class ExportBoundReached(RenderError):
     pass
 
 
-def _matching_markdown(docx: Path) -> tuple[Path, str]:
+def matching_markdown(docx: Path) -> tuple[Path, str]:
+    """Verify a Word file's current parts against its adjacent Markdown source."""
     markdown = docx.with_suffix(".md")
     if not markdown.is_file():
         raise RenderError(f"no Markdown source beside {docx.name}")
@@ -156,7 +157,7 @@ def render(
         raise RenderError(f"no run directory at {run}")
     if not docx.is_file():
         raise RenderError(f"no rendered document at {docx}")
-    _, markdown_digest = _matching_markdown(docx)
+    _, markdown_digest = matching_markdown(docx)
     if clinician_export is not None and (
         clinician_export.suffix.lower() not in {".pdf", ".xps"}
         or not clinician_export.is_file()

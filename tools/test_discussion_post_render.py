@@ -20,6 +20,7 @@ from unittest import mock
 
 import discussion_post_render as render
 import docx_write
+import file_digest
 
 
 PNG = base64.b64decode(
@@ -116,7 +117,7 @@ class TheRenderCommand(unittest.TestCase):
             stderr="",
         )
 
-    def run_command(self):
+    def run_command(self, *extra: str):
         stdout, stderr = io.StringIO(), io.StringIO()
         with (
             mock.patch.dict(sys.modules, {"pymupdf": FakePyMuPDF()}),
@@ -124,8 +125,25 @@ class TheRenderCommand(unittest.TestCase):
             contextlib.redirect_stdout(stdout),
             contextlib.redirect_stderr(stderr),
         ):
-            status = render.main([str(self.root), "--docx", str(self.docx)])
+            status = render.main([str(self.root), "--docx", str(self.docx), *extra])
         return status, stdout.getvalue(), stderr.getvalue()
+
+    def test_an_attachment_render_retains_the_source_fingerprint(self):
+        draft = self.root / "post.md"
+        draft.write_text("# Synthetic\n\nBody.\n", encoding="utf-8")
+        status, _out, error = self.run_command("--draft", str(draft))
+        fingerprint = self.root / "render" / "pass-1" / "post-draft.sha256"
+        self.assertEqual((0, ""), (status, error))
+        self.assertEqual(file_digest.sha256(draft), fingerprint.read_text(encoding="ascii").strip())
+
+    def test_an_attachment_render_refuses_word_bytes_not_built_from_the_draft(self):
+        draft = self.root / "post.md"
+        draft.write_text("# Synthetic\n\nBody.\n", encoding="utf-8")
+        self.docx.write_bytes(b"not a Word document")
+        status, _out, error = self.run_command("--draft", str(draft))
+        self.assertEqual(2, status)
+        self.assertIn("with its Markdown", error)
+        self.assertFalse((self.root / "render" / "pass-1").exists())
 
     def test_each_render_keeps_a_new_complete_pass(self):
         first, first_out, first_err = self.run_command()
