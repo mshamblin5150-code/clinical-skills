@@ -844,6 +844,87 @@ class TheCliniciansWordFloorIsEnforced(unittest.TestCase):
 
 
 class EachReplyCarriesEvidence(unittest.TestCase):
+    def test_unneeded_initials_resolve_at_the_command_boundary(self):
+        original = "Quill, R. (2024). Measuring usable access in community care. Journal of Care, 4(2), 10-18."
+        cases = (
+            ("Taylor, J. M. (2015). Study. Journal of Care.", "(J.M.Taylor, 2015)"),
+            ("Chen, L., & Chen, W. (2015). Study. Journal of Care.", "(L. Chen & W. Chen, 2015)"),
+        )
+        for entry, cited in cases:
+            with self.subTest(cited=cited), tempfile.TemporaryDirectory() as temp:
+                run = Run(Path(temp))
+                response = run.root / "response-maren.md"
+                response.write_text(BODY.replace("(Quill, 2024)", cited).replace(original, entry), encoding="utf-8")
+                (run.root / "claims.md").write_text(
+                    CLAIMS.replace(original, entry).replace("PAGE-YEAR: 2024", "PAGE-YEAR: 2015"),
+                    encoding="utf-8",
+                )
+                run.write_heading_read()
+                run.refresh_fingerprint()
+                output = io.StringIO()
+                with redirect_stdout(output), redirect_stderr(io.StringIO()):
+                    scan.main([temp])
+                self.assertIn(f"{scan.MISSING_FIRST_AUTHOR_INITIALS}: 0", output.getvalue())
+                self.assertIn(f"{scan.UNRESOLVED_CITATION}: 0", output.getvalue())
+
+    def test_shared_first_author_initials_need_no_disambiguation(self):
+        first = "Taylor, J. M. (2015). First study. Journal of Care."
+        second = "Taylor, J. M. (2016). Second study. Journal of Care."
+        original = "Quill, R. (2024). Measuring usable access in community care. Journal of Care, 4(2), 10-18."
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            response = run.root / "response-maren.md"
+            response.write_text(
+                BODY.replace("(Quill, 2024)", "(Taylor, 2015; Taylor, 2016)")
+                .replace(original, first + "\n\n" + second),
+                encoding="utf-8",
+            )
+            (run.root / "claims.md").write_text(
+                CLAIMS.replace(original, first).replace("PAGE-YEAR: 2024", "PAGE-YEAR: 2015"),
+                encoding="utf-8",
+            )
+            run.write_heading_read()
+            run.refresh_fingerprint()
+            output = io.StringIO()
+            with redirect_stdout(output), redirect_stderr(io.StringIO()):
+                scan.main([temp])
+        self.assertIn(f"{scan.MISSING_FIRST_AUTHOR_INITIALS}: 0", output.getvalue())
+        self.assertIn(f"{scan.UNRESOLVED_CITATION}: 0", output.getvalue())
+
+    def test_first_author_initials_are_exact_at_the_command_boundary(self):
+        first = "Taylor, J. M., & Neimeyer, R. A. (2015). First study. Journal of Care."
+        second = "Taylor, T. (2015). Second study. Journal of Care."
+        original = "Quill, R. (2024). Measuring usable access in community care. Journal of Care, 4(2), 10-18."
+        cases = (
+            ("(J. M. Taylor & Neimeyer, 2015; T. Taylor, 2015)", 0, 0),
+            ("(J.M.Taylor & Neimeyer, 2015; T. Taylor, 2015)", 0, 0),
+            ("(J. Taylor & Neimeyer, 2015; T. Taylor, 2015)", 0, 1),
+            ("(R. Taylor & Neimeyer, 2015; T. Taylor, 2015)", 0, 1),
+            ("(Taylor & Neimeyer, 2015; T. Taylor, 2015)", 1, 0),
+            ("J. M. Taylor and Neimeyer (2015)", 0, 0),
+            ("J. Taylor and Neimeyer (2015)", 0, 1),
+            ("Taylor and Neimeyer (2015)", 1, 0),
+        )
+        for cited, missing, unresolved in cases:
+            with self.subTest(cited=cited), tempfile.TemporaryDirectory() as temp:
+                run = Run(Path(temp))
+                response = run.root / "response-maren.md"
+                response.write_text(
+                    BODY.replace("(Quill, 2024)", cited).replace(original, first + "\n\n" + second),
+                    encoding="utf-8",
+                )
+                (run.root / "claims.md").write_text(
+                    CLAIMS.replace(original, first).replace("PAGE-YEAR: 2024", "PAGE-YEAR: 2015"),
+                    encoding="utf-8",
+                )
+                run.write_heading_read()
+                run.refresh_fingerprint()
+                output = io.StringIO()
+                with redirect_stdout(output), redirect_stderr(io.StringIO()):
+                    scan.main([temp])
+                self.assertIn(f"{scan.MISSING_FIRST_AUTHOR_INITIALS}: {missing}", output.getvalue())
+                self.assertIn(f"{scan.UNRESOLVED_CITATION}: {unresolved}", output.getvalue())
+
     def test_a_reply_without_its_own_reference_list_fails(self):
         with tempfile.TemporaryDirectory() as temp:
             run = Run(Path(temp))
@@ -1508,6 +1589,10 @@ class EveryDeclaredLimitHasOneCheckedInventory(unittest.TestCase):
 
 class EveryBehaviorLimitHasALiveHandler(unittest.TestCase):
     HANDLERS = {
+        "first-name citations for an author whose surname changed": (
+            "CitationResolutionResidues.test_first_name_form_remains_unlisted",
+            "EachReplyCarriesEvidence.test_first_author_initials_are_exact_at_the_command_boundary",
+        ),
         "whether a shortened title resolves against more than one reference entry": (
             "CitationResolutionResidues.test_the_three_declared_prefix_edges_resolve",
             "EachReplyCarriesEvidence.test_a_shortened_title_citation_resolves",
@@ -1562,6 +1647,16 @@ class EveryBehaviorLimitHasALiveHandler(unittest.TestCase):
 
 
 class CitationResolutionResidues(unittest.TestCase):
+    def test_first_name_form_remains_unlisted(self):
+        references = scan.ReferenceKeySet.from_references(
+            ("Williams, S. (2019). A study. Journal of Care.",)
+        )
+        first_name = scan.read_citations("The result is reported (Sarah Williams, 2019).", references)
+        ordinary = scan.read_citations("The result is reported (Williams, 2019).", references)
+        self.assertEqual(1, len(first_name))
+        self.assertFalse(references.resolves(scan.citation_occurrence_keys(first_name)[0][0]))
+        self.assertTrue(references.resolves(scan.citation_occurrence_keys(ordinary)[0][0]))
+
     def test_the_three_declared_prefix_edges_resolve(self):
         today = scan.ReferenceKeySet.from_references(
             ("Nursing today. (2020). Publisher.",)

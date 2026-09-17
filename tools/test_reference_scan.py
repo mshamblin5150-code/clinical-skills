@@ -339,7 +339,10 @@ class SortedIsSorted(unittest.TestCase):
         entry = "Zhou, A. (in press). Gamma. Journal."
 
         self.assertEqual("in press", scan.read_document(draft(entry)).entries[0].year)
-        self.assertEqual((("zhou", "in press"),), artifact.reference_keys(entry))
+        self.assertEqual(
+            (("zhou", "in press"), ("azhou", "in press")),
+            artifact.reference_keys(entry),
+        )
 
     def test_numerals_are_alphabetized_as_if_spelled_out(self):
         """§9.49: the positive control proves the ordering row is live."""
@@ -668,6 +671,77 @@ class TheDatabaseNameIsItalicizedInExactlyOnePlace(unittest.TestCase):
 
 
 class TheYearsAgreeAndBothDirectionsAreChecked(unittest.TestCase):
+    def test_first_author_initials_are_exact_at_the_command_boundary(self):
+        entries = (
+            "Taylor, J. M., & Neimeyer, R. A. (2015). First study. Journal of Care.",
+            "Taylor, T. (2015). Second study. Journal of Care.",
+        )
+        cases = (
+            ("(J. M. Taylor & Neimeyer, 2015; T. Taylor, 2015)", 0, 0),
+            ("(J.M.Taylor & Neimeyer, 2015; T. Taylor, 2015)", 0, 0),
+            ("(J. Taylor & Neimeyer, 2015; T. Taylor, 2015)", 1, 0),
+            ("(R. Taylor & Neimeyer, 2015; T. Taylor, 2015)", 1, 0),
+            ("(Taylor & Neimeyer, 2015; T. Taylor, 2015)", 0, 1),
+        )
+        for cited, unlisted, missing in cases:
+            with self.subTest(cited=cited), tempfile.TemporaryDirectory() as temp:
+                path = Path(temp) / "draft.md"
+                path.write_text(draft(*entries, body=f"# Case\n\nEvidence {cited}.\n"), encoding="utf-8")
+                output = io.StringIO()
+                with redirect_stdout(output), redirect_stderr(io.StringIO()):
+                    scan.main([str(path)])
+                self.assertRegex(output.getvalue(), rf"{scan.UNLISTED_CITATION}\s+{unlisted}\b")
+                self.assertRegex(output.getvalue(), rf"{scan.MISSING_FIRST_AUTHOR_INITIALS}\s+{missing}\b")
+
+    def test_narrative_first_author_initials_remain_visible_at_the_command_boundary(self):
+        entries = (
+            "Taylor, J. M., & Neimeyer, R. A. (2015). First study. Journal of Care.",
+            "Taylor, T. (2015). Second study. Journal of Care.",
+        )
+        cases = (
+            ("J. M. Taylor and Neimeyer (2015)", 0, 0),
+            ("J. Taylor and Neimeyer (2015)", 1, 0),
+            ("Taylor and Neimeyer (2015)", 0, 1),
+        )
+        for cited, unlisted, missing in cases:
+            with self.subTest(cited=cited), tempfile.TemporaryDirectory() as temp:
+                path = Path(temp) / "draft.md"
+                body = f"# Case\n\n{cited} report the finding. T. Taylor (2015) confirms it.\n"
+                path.write_text(draft(*entries, body=body), encoding="utf-8")
+                output = io.StringIO()
+                with redirect_stdout(output), redirect_stderr(io.StringIO()):
+                    scan.main([str(path)])
+                self.assertRegex(output.getvalue(), rf"{scan.UNLISTED_CITATION}\s+{unlisted}\b")
+                self.assertRegex(output.getvalue(), rf"{scan.MISSING_FIRST_AUTHOR_INITIALS}\s+{missing}\b")
+
+    def test_unneeded_initials_and_same_initials_resolve_at_the_command_boundary(self):
+        cases = (
+            (
+                ("Taylor, J. M. (2015). Study. Journal of Care.",),
+                "(J.M.Taylor, 2015)",
+            ),
+            (
+                ("Chen, L., & Chen, W. (2015). Study. Journal of Care.",),
+                "(L. Chen & W. Chen, 2015)",
+            ),
+            (
+                (
+                    "Taylor, J. M. (2015). First study. Journal of Care.",
+                    "Taylor, J. M. (2016). Second study. Journal of Care.",
+                ),
+                "(Taylor, 2015; Taylor, 2016)",
+            ),
+        )
+        for entries, cited in cases:
+            with self.subTest(cited=cited), tempfile.TemporaryDirectory() as temp:
+                path = Path(temp) / "draft.md"
+                path.write_text(draft(*entries, body=f"# Case\n\nEvidence {cited}.\n"), encoding="utf-8")
+                output = io.StringIO()
+                with redirect_stdout(output), redirect_stderr(io.StringIO()):
+                    scan.main([str(path)])
+                self.assertRegex(output.getvalue(), rf"{scan.UNLISTED_CITATION}\s+0\b")
+                self.assertRegex(output.getvalue(), rf"{scan.MISSING_FIRST_AUTHOR_INITIALS}\s+0\b")
+
     def test_an_in_text_year_that_differs_is_a_finding(self):
         body = BODY.replace("Gupta & Hooton, 2025", "Gupta & Hooton, 2024")
         self.assertIn(scan.INTEXT_YEAR_MISMATCH, kinds(draft(ACOG, UPTODATE, body=body)))
@@ -1602,6 +1676,7 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
         ),
         scan.UNCITED_ENTRY: "An entry in the list that is cited nowhere in the body",
         scan.UNLISTED_CITATION: "A citation in the body with no entry in the list",
+        scan.MISSING_FIRST_AUTHOR_INITIALS: "A citation missing first-author initials",
     }
 
     def test_the_skill_writes_out_every_row_the_scanner_applies(self):
@@ -1747,6 +1822,8 @@ Stewardship review is standing practice (Chen, 2024), and the two reviews disagr
 
 Pathways were followed (Ibarra, 2020), and one source is cited nowhere (Nobody, 2020). qxmarkerxq
 
+The ambiguous author is cited (Taylor, 2015). qxmarkerxq
+
 The topic was read on *UpToDate* the same morning. qxmarkerxq
 
 Course material arrived with Links to an external site. attached. qxmarkerxq
@@ -1777,6 +1854,8 @@ LEAKY_ENTRIES = (
     # malformed-date -- a real month with no space after it.
     "Ibarra, P. (2020). Pyelonephritis pathways. Clinical Notes, 4(1), 5-12. "
     "Retrieved August19, 2026, from https://example.org/ibarra",
+    "Taylor, J. M. (2015). First study. Journal of Care.",
+    "Taylor, T. (2015). Second study. Journal of Care.",
 )
 
 # heading-not-apa comes from the label. The section is still found, because
@@ -2140,6 +2219,7 @@ class EveryDeclaredLimitIsReDerivedAtTheScannerSeam(unittest.TestCase):
 
     def test_every_declared_limit_has_one_behavior_measurement(self):
         handlers = {
+            "first-name citations for an author whose surname changed": self.first_name_citations,
             "republished original publication date": self.republished_original_publication_date,
             "author-shaped slash span": self.author_shaped_slash_span,
             "unwarranted retrieval date": self.unwarranted_retrieval_date,
@@ -2153,6 +2233,13 @@ class EveryDeclaredLimitIsReDerivedAtTheScannerSeam(unittest.TestCase):
         for key, handler in handlers.items():
             with self.subTest(key=key):
                 handler()
+
+    def first_name_citations(self):
+        entry = "Williams, S. (2019). Study. Journal of Care."
+        first_name = draft(entry, body="# Case\n\nThe result was reported (Sarah Williams, 2019).\n")
+        self.assertIn(scan.UNLISTED_CITATION, kinds(first_name))
+        ordinary = draft(entry, body="# Case\n\nWilliams (2019) reports the result.\n")
+        self.assertNotIn(scan.UNLISTED_CITATION, kinds(ordinary))
 
     def republished_original_publication_date(self):
         entry = "Freud, S. (2010). Civilization and its discontents."

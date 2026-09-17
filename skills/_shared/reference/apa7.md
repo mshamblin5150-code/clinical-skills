@@ -31,9 +31,8 @@ instruction needs a written rule behind it, or *"fix the reference list"* is a w
 check. **Ruled 2026-08-18**, and the words that settled it were the clinician's: *ordering the
 differential is very important, but that shouldn't take the place of tidiness.*
 
-**Readers:** the `practicum-case-study`, `discussion-post` and `peer-critique` skills. The first
-links this sheet directly; the others link it from their own workflows because the reference scanner
-is shared.
+**Readers:** the `practicum-case-study`, `discussion-post`, `discussion-reply` and `peer-critique`
+skills. They link the APA rule at the points where their reference readers apply it.
 
 ---
 
@@ -192,6 +191,14 @@ epigraphs or research-participant quotations handled under the manual's specific
 A two-date citation for a republished, translated, or reissued work still resolves to the one entry
 for the version used; see §31.
 
+*Publication Manual* §8.20 adds an author-name correspondence rule. When different listed first
+authors share a surname but have different initials, include the first author's complete initials
+in every in-text citation of those works, even across publication years. The initials must match
+the reference entry exactly after punctuation and spacing are ignored. If those first authors also
+share initials, use the ordinary author–date form. Coauthors of one work who share a surname do not
+require initials merely because they are coauthors. The exceptional first-name form for a person
+whose name changed is tracked separately in #1350.
+
 ## 6. What the renderer applies, and what it does not
 
 `tools/docx_write.py` is what turns the Markdown into the submitted `.docx`. **It applies every
@@ -330,10 +337,11 @@ is the published `APA_SOURCE_CLASSES` vocabulary term rather than a paraphrase.
 sheet states that no command grades, so a run walks it by eye — and since
 [#241](https://github.com/mshamblin5150-code/clinical-skills/issues/241) the walk is not left to
 memory either: [practicum-case-study](../../practicum-case-study/SKILL.md) step 9 names the row `the reference list, the part no command
-reaches` and `tools/checks_ledger.py` expects it, so a run that returns no verdict on that row fails. **One row and one verdict for all three**, which is the honest width of it — a run that read only the UpToDate years and wrote `clean` discharges the row, and no command can tell. What the grader catches is a run that never looked at all.
+reaches` and `tools/checks_ledger.py` expects it, so a run that returns no verdict on that row fails. **One row and one verdict for all listed readings**, which is the honest width of it — a run that read only the UpToDate years and wrote `clean` discharges the row, and no command can tell. What the grader catches is a run that never looked at all.
 
 | What stays a reading | Why no command reaches it |
 | --- | --- |
+| **first-name citations for an author whose surname changed** | The exceptional form in §8.20 is tracked in #1350; the command compares initials and surnames, not a first name used to clarify a name change |
 | The **republished original publication date** | §31's original date element is parsed and not compared with the entry. APA's own Gilgamesh example reverses the range between its entry and citation, so joining the halves would fail the source that defines the rule |
 | An **author-shaped slash span** | Grammar alone recognizes a span such as `(Cohort A, 2013/2014)`, which can raise `unlisted-citation` even when the span is not a citation. The measured corpus supplied no such false positive |
 | An **unwarranted retrieval date** on a guideline, a statement or a textbook | §4 says those take none. The command refuses one only when a committed source classifier settles that the cited form is fixed. DOI presence alone is not the archive test, and an unresolved URL cannot distinguish a stable PDF from a page designed to change |

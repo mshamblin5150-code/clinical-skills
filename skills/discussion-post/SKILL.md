@@ -302,7 +302,10 @@ python tools/discussion_post_scan.py scratch/runs/<course>-<module>-discussion -
 repeating a value does not spend another record. Its `untraced-citation` row requires every
 in-text citation to have a claim record for its source, while `respent-record` requires each
 citation to carry its own record. One record may therefore trace a number and carry the citation
-beside it, but two citations may not spend that record. The report counts distinct numeric values
+beside it, but two citations may not spend that record. Its `missing-first-author-initials` row
+fires when listed first authors share a surname but have different initials and an in-text citation
+omits the first author's initials. The initials must match the entry in full;
+[apa7.md](../_shared/reference/apa7.md) §5 states the rule. The report counts distinct numeric values
 and claim records, along with the word ceiling, invoked sources, and unfilled invoked properties;
 the latter fields remain counted without grading. Its default output is counts only; `--show`
 includes private finding detail and must not be pasted.

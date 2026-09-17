@@ -321,6 +321,14 @@ class CitationResolutionResidues(unittest.TestCase):
         self.assertTrue(group.resolves(("worldhealth", "2020")))
         self.assertTrue(today.resolves(("nursingtod", "2020")))
 
+    def test_first_name_form_for_name_change_is_not_supported(self):
+        references = scan.ReferenceKeySet.from_references(
+            ("Williams, S. (2019). A title.", "Williams, S. (2020). Another title.")
+        )
+
+        self.assertTrue(references.resolves(("williams", "2019")))
+        self.assertFalse(references.resolves(("sarahwilliams", "2019")))
+
 
 class TheWordCeilingIsReportedAndNeverGraded(unittest.TestCase):
     def test_a_critique_past_the_ceiling_is_clean(self):
@@ -550,6 +558,9 @@ class TheDeclaredLimitsAreDerivedAndBound(unittest.TestCase):
 
 class EveryBehaviorLimitHasALiveHandler(unittest.TestCase):
     HANDLERS = {
+        "first-name citations for an author whose surname changed": (
+            "CitationResolutionResidues.test_first_name_form_for_name_change_is_not_supported",
+        ),
         "whether a shortened title resolves against more than one reference entry": (
             "CitationResolutionResidues.test_the_three_declared_prefix_edges_resolve",
             "EveryRowFiresOnItsOwnDefect.test_a_shortened_title_citation_resolves",

@@ -67,6 +67,7 @@ WORD_FLOOR = "word-floor"
 WORD_FLOOR_COUNT = 150
 REFERENCE_MINIMUM = "reference-minimum"
 UNRESOLVED_CITATION = "unresolved-citation"
+MISSING_FIRST_AUTHOR_INITIALS = "missing-first-author-initials"
 UNTRACED_NUMBER = "untraced-number"
 RESPENT_SOURCE = "respent-source"
 INVOKED_PROPERTY = "invoked-property"
@@ -83,6 +84,7 @@ ROWS = {
     WORD_FLOOR: f"the reply contains at least {WORD_FLOOR_COUNT} words",
     REFERENCE_MINIMUM: "the reply contains at least one reference",
     UNRESOLVED_CITATION: "every in-text citation resolves within the reply",
+    MISSING_FIRST_AUTHOR_INITIALS: "same-surname first authors with different initials are distinguished in text",
     UNTRACED_NUMBER: "every body number traces to a believed claim record",
     RESPENT_SOURCE: "a later reply does not spend an earlier reply's source",
     INVOKED_PROPERTY: "every invoked source names a property beyond its domain noun",
@@ -105,6 +107,7 @@ GATED_ROW_SETS = {
             WORD_FLOOR,
             REFERENCE_MINIMUM,
             UNRESOLVED_CITATION,
+            MISSING_FIRST_AUTHOR_INITIALS,
             UNTRACED_NUMBER,
             RESPENT_SOURCE,
             INVOKED_PROPERTY,
@@ -520,7 +523,7 @@ def _citation_findings(
     citations: tuple[Citation, ...],
     references: ReferenceKeySet,
 ) -> tuple[Finding, ...]:
-    return tuple(
+    unresolved = tuple(
         Finding(
             UNRESOLVED_CITATION,
             reply.path.name,
@@ -529,6 +532,16 @@ def _citation_findings(
         for citation, keys in zip(citations, citation_occurrence_keys(citations))
         if not any(references.resolves(key) for key in keys)
     )
+    missing = tuple(
+        Finding(
+            MISSING_FIRST_AUTHOR_INITIALS,
+            reply.path.name,
+            f"{citation.author}, {citation.year} omits required first-author initials",
+        )
+        for citation in citations
+        if references.missing_first_author_initials(citation.author)
+    )
+    return unresolved + missing
 
 
 def _numeric_values(reply: Reply, citations: tuple[Citation, ...]) -> tuple[str, ...]:
