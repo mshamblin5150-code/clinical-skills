@@ -367,17 +367,64 @@ class TheHeadingRowProvesPresenceAndNotAnswer(unittest.TestCase):
 
 
 class TheNumericWalkMatchesTokensAndNotMeaning(unittest.TestCase):
-    def test_a_number_traced_to_an_unrelated_restatement_passes(self):
-        """The declared blind spot: the token matches, the meaning is unread."""
-
-        claims = claim_record(47).replace(
+    def test_heading_number_traces_when_restatement_disagrees(self):
+        claims = claim_record(42).replace(
+            "RESTATEMENT: the result was 42",
             "RESTATEMENT: the result was 47",
-            "RESTATEMENT: an unrelated 47 appears here",
         )
         self.assertNotIn(
             scan.UNTRACED_NUMBER,
-            kinds(build_run(claims=claims, extra="\n\nThe rate was 47 percent.\n")),
+            kinds(build_run(claims=claims, extra="\n\nThe rate was 42 percent.\n")),
         )
+        findings = [
+            finding
+            for finding in graded(
+                build_run(claims=claims, extra="\n\nThe rate was 47 percent.\n")
+            ).findings
+            if finding.kind == scan.UNTRACED_NUMBER
+        ]
+        self.assertEqual(
+            "47 appears only in a claim record's restatement; state it in the heading",
+            findings[0].detail,
+        )
+
+    def test_restatement_only_number_requires_the_heading(self):
+        claims = claim_record(47).replace(
+            "## CLAIM: a claim carrying 47", "## CLAIM: a claim carrying a result"
+        ).replace(
+            research_ledger.heading_digest("a claim carrying 47"),
+            research_ledger.heading_digest("a claim carrying a result"),
+        )
+        findings = [
+            finding
+            for finding in graded(
+                build_run(claims=claims, extra="\n\nThe rate was 47 percent.\n")
+            ).findings
+            if finding.kind == scan.UNTRACED_NUMBER
+        ]
+        self.assertEqual(
+            "47 appears only in a claim record's restatement; state it in the heading",
+            findings[0].detail,
+        )
+
+    def test_passage_locator_number_does_not_trace(self):
+        claims = claim_record(47).replace(
+            "## CLAIM: a claim carrying 47", "## CLAIM: a claim carrying a result"
+        ).replace(
+            research_ledger.heading_digest("a claim carrying 47"),
+            research_ledger.heading_digest("a claim carrying a result"),
+        ).replace(
+            "RESTATEMENT: the result was 47",
+            "RESTATEMENT: the result was described\nPASSAGE: table 47",
+        )
+        findings = [
+            finding
+            for finding in graded(
+                build_run(claims=claims, extra="\n\nThe rate was 47 percent.\n")
+            ).findings
+            if finding.kind == scan.UNTRACED_NUMBER
+        ]
+        self.assertEqual("47 is absent from claims.md", findings[0].detail)
 
     def test_a_number_absent_from_every_record_still_fails(self):
         findings = [
@@ -581,8 +628,8 @@ class EveryBehaviorLimitHasALiveHandler(unittest.TestCase):
             "TheHeadingRowProvesPresenceAndNotAnswer.test_irrelevant_prose_under_a_required_heading_passes",
             "TheHeadingRowProvesPresenceAndNotAnswer.test_an_empty_required_heading_still_fails",
         ),
-        "whether a believed record's heading and restatement support the number traced from it": (
-            "TheNumericWalkMatchesTokensAndNotMeaning.test_a_number_traced_to_an_unrelated_restatement_passes",
+        "whether a believed record's heading supports the number traced from it": (
+            "TheNumericWalkMatchesTokensAndNotMeaning.test_restatement_only_number_requires_the_heading",
             "TheNumericWalkMatchesTokensAndNotMeaning.test_a_number_absent_from_every_record_still_fails",
         ),
         "whether a sourced record missing one or more of SOURCE, REFERENCE, RESTATEMENT, PASSAGE, RECENCY, RESOLVED, PAGE-YEAR, STATED-EXPIRY is still believed": (

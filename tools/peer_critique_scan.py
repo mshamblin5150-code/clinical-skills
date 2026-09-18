@@ -171,7 +171,7 @@ DECLARED_LIMITS = (
         EvidenceDisposition.DECLARED_READING,
     ),
     (
-        "whether a believed record's heading and restatement support the number traced from it",
+        "whether a believed record's heading supports the number traced from it",
         "The tracing walk matches numeric tokens and never judges support. The refutation leg owns source-to-heading agreement, and the heading read owns draft-to-heading agreement.",
         EvidenceDisposition.BEHAVIOR,
     ),
@@ -306,21 +306,22 @@ def _word_count(body: str) -> int:
     return len(WORD.findall(strip_discussion_markers(body)))
 
 
-def _claim_tokens(claims: str) -> tuple[set[str], set[str]]:
+def _claim_tokens(claims: str) -> tuple[set[str], set[str], set[str]]:
     believed: set[str] = set()
-    mentioned: set[str] = set()
+    disbelieved: set[str] = set()
+    restatement_numbers: set[str] = set()
     for block in CLAIM_BLOCK.finditer(claims):
         text = block.group("block")
         heading = text.splitlines()[0] if text.splitlines() else ""
         restatement = " ".join(found.group("value") for found in RESTATEMENT.finditer(text))
-        values = {
-            value.casefold()
-            for value in (*NUMBER.findall(heading), *NUMBER.findall(restatement))
-        }
-        mentioned.update(values)
+        heading_numbers = {value.casefold() for value in NUMBER.findall(heading)}
+        block_restatement_numbers = {value.casefold() for value in NUMBER.findall(restatement)}
+        restatement_numbers.update(block_restatement_numbers)
         if claim_record_can_certify_values(text):
-            believed.update(values)
-    return believed, mentioned
+            believed.update(heading_numbers)
+        else:
+            disbelieved.update(heading_numbers | block_restatement_numbers)
+    return believed, disbelieved, restatement_numbers
 
 
 def _body_numeric_tokens(source: RunSource) -> tuple[str, ...]:
@@ -334,14 +335,16 @@ def _body_numeric_tokens(source: RunSource) -> tuple[str, ...]:
 
 
 def _numeric_findings(source: RunSource) -> tuple[Finding, ...]:
-    believed, mentioned = _claim_tokens(source.claims)
+    believed, disbelieved, restatement_numbers = _claim_tokens(source.claims)
     return tuple(
         Finding(
             UNTRACED_NUMBER,
             "critique.md",
             (
                 f"{value} appears only in a disbelieved claim record"
-                if value in mentioned
+                if value in disbelieved
+                else f"{value} appears only in a claim record's restatement; state it in the heading"
+                if value in restatement_numbers
                 else f"{value} is absent from claims.md"
             ),
         )

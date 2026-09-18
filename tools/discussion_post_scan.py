@@ -182,7 +182,7 @@ UNJOINED_SOURCE_FIELDS_LIMIT = (
 DECLARED_LIMITS = (
     *CITATION_RESOLUTION_NOT_REACHED,
     (
-        "whether a believed record's heading and restatement support the number traced from it",
+        "whether a believed record's heading supports the number traced from it",
         "The certifier reads numeric tokens and never judges support. The refutation leg owns source-to-heading agreement, and the heading read owns draft-to-heading agreement.",
         EvidenceDisposition.BEHAVIOR,
     ),
@@ -357,7 +357,8 @@ class RunSource:
 class ClaimRecord:
     numbers: frozenset[str]
     references: ReferenceKeySet
-    all_numbers: frozenset[str] = frozenset()
+    disbelieved_numbers: frozenset[str] = frozenset()
+    restatement_numbers: frozenset[str] = frozenset()
 
 
 @dataclass(frozen=True)
@@ -499,14 +500,14 @@ def _claim_records(claims: str) -> tuple[ClaimRecord, ...]:
         lines = block.splitlines()
         heading = lines[0] if lines else ""
         restatement = RESTATEMENT.search(block)
-        trace_text = heading + "\n" + (
-            restatement.group("value") if restatement else ""
-        )
-        all_numbers = frozenset(
-            value.casefold() for value in NUMBER.findall(trace_text)
-        )
-        numbers = (
-            all_numbers if claim_record_can_certify_values(block) else frozenset()
+        numbers_in_heading = frozenset(value.casefold() for value in NUMBER.findall(heading))
+        restatement_numbers = frozenset(
+            value.casefold() for value in NUMBER.findall(restatement.group("value"))
+        ) if restatement else frozenset()
+        believed = claim_record_can_certify_values(block)
+        numbers = numbers_in_heading if believed else frozenset()
+        disbelieved_numbers = (
+            frozenset(numbers_in_heading | restatement_numbers) if not believed else frozenset()
         )
         reference = CLAIM_REFERENCE.search(block)
         keys = (
@@ -522,7 +523,8 @@ def _claim_records(claims: str) -> tuple[ClaimRecord, ...]:
         records.append(
             ClaimRecord(
                 numbers=numbers,
-                all_numbers=all_numbers,
+                disbelieved_numbers=disbelieved_numbers,
+                restatement_numbers=restatement_numbers,
                 references=keys,
             )
         )
@@ -1375,8 +1377,11 @@ def survey(source: RunSource) -> Scan:
     traced_numbers = frozenset(
         value for record in records for value in record.numbers
     )
-    all_claim_numbers = frozenset(
-        value for record in records for value in record.all_numbers
+    disbelieved_numbers = frozenset(
+        value for record in records for value in record.disbelieved_numbers
+    )
+    restatement_numbers = frozenset(
+        value for record in records for value in record.restatement_numbers
     )
     distinct_numbers = tuple(dict.fromkeys(value.casefold() for value in numbers))
     for value in distinct_numbers:
@@ -1387,7 +1392,9 @@ def survey(source: RunSource) -> Scan:
                     source.draft.name,
                     (
                         f"{value} appears only in a disbelieved claim record"
-                        if value in all_claim_numbers
+                        if value in disbelieved_numbers
+                        else f"{value} appears only in a claim record's restatement; state it in the heading"
+                        if value in restatement_numbers
                         else f"{value} is absent from claims.md"
                     ),
                 )
