@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 
 from console_codec import require_python_floor, use_utf8
+from note_grammar import parse
 
 
 REFUSAL = re.compile(r"NOT CODED:\s*[A-Z][0-9][0-9A-Z]*(?:\.[0-9A-Z]+)?\b")
@@ -22,8 +23,9 @@ PLAN_LABELS = frozenset(
     }
 )
 PLAN_EXCEPTIONS = frozenset({"Sig", "Dispense", "Refills"})
-PLAN_ENDS = frozenset({"Discussion", "Coding worksheet"})
+PLAN_ENDS = frozenset({"Coding worksheet"})
 ABBREVIATIONS = frozenset({"dr", "mr", "mrs", "ms", "st", "vs", "etc"})
+PORTAL_VERDICTS = {"∴": ";"}  # Measured in the saved Medatrax note form.
 
 
 def _plain(line: str) -> str:
@@ -103,6 +105,27 @@ def _without_refusals(note: str) -> str:
     return note
 
 
+def _portal_characters(copy: str) -> str:
+    """Apply measured portal characters only to text pasted in the four boxes."""
+    try:
+        parsed = parse(copy)
+    except ValueError:
+        # Legacy partial worked examples have no four-section form to paste.
+        # A full run still reaches form_sections, which refuses this shape.
+        if any(not char.isascii() for char in copy):
+            raise
+        return copy
+    result = [parsed.buckets["preamble"]]
+    for label in "SOAP":
+        heading, body = parsed.buckets[label].split("\n", 1)
+        for char in body:
+            if not char.isascii() and char not in PORTAL_VERDICTS:
+                raise ValueError(f"unmeasured portal character U+{ord(char):04X}")
+        result.append(heading + "\n" + "".join(PORTAL_VERDICTS.get(char, char) for char in body))
+    result.append(parsed.buckets["tail"])
+    return "".join(result)
+
+
 def derive(note: str) -> str:
     _found, invalid = _plan_labels(note)
     if invalid:
@@ -110,7 +133,7 @@ def derive(note: str) -> str:
     copy = _without_refusals(note)
     if MARK.search(copy):
         raise ValueError("NOT CODED mark survived Entry copy derivation")
-    return copy
+    return _portal_characters(copy)
 
 
 def main(argv: list[str] | None = None) -> int:

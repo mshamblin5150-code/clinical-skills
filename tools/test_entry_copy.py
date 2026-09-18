@@ -146,6 +146,24 @@ class EntryCopyCommand(unittest.TestCase):
         )
         self.assertEqual(0, result.returncode, result.stderr)
 
+    def test_measured_character_is_substituted_and_unmeasured_character_refuses(self) -> None:
+        note = "S:\nGiven ∴ accepted.\nO:\nObjective.\nA:\nAssessment.\nP:\n" + LABELS + "Coding worksheet\n"
+        result = self.invoke(note)
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn("Given ; accepted.", self.copy.read_text(encoding="utf-8"))
+        result = self.invoke(note.replace("Given ∴", "Given –"))
+        self.assertNotEqual(0, result.returncode)
+        self.assertFalse(self.copy.exists())
+        result = self.invoke(note.replace("Given ∴ accepted.", "## History\nGiven – accepted."))
+        self.assertNotEqual(0, result.returncode)
+        self.assertFalse(self.copy.exists())
+        result = self.invoke(note.replace("Coding worksheet", "Discussion\nUnmeasured – text\nCoding worksheet"))
+        self.assertNotEqual(0, result.returncode)
+        self.assertFalse(self.copy.exists())
+        result = self.invoke(note.replace("Coding worksheet", "Discussion\nUnexpectedProbe: value\nCoding worksheet"))
+        self.assertNotEqual(0, result.returncode)
+        self.assertFalse(self.copy.exists())
+
 
 class CommittedNotePlans(unittest.TestCase):
     def test_preserved_fixture_notes_are_named_refusals(self) -> None:

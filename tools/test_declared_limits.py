@@ -64,6 +64,7 @@ NO_LIMITS = {
     "icd10_build": "a database builder whose input and schema checks define its work",
     "icd10_lookup": "an exact local database lookup rather than a completeness grader",
     "name_index": "a generated heading index whose producer contract owns completeness",
+    "note_grammar": "a pure note parser whose boundary checks are part of its return contract",
     "office_process": "a process-control adapter with no independent artifact-coverage claim",
     "page_image": "a page-image conversion adapter with no independent coverage claim",
     "page_text": "a page-text extraction adapter with no independent coverage claim",

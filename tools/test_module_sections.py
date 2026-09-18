@@ -82,6 +82,7 @@ DECLARED_SECTIONS = {
     "docx_word_probe": "Word documents, both directions",
     "docx_write": "Word documents, both directions",
     "filled_vitals_census": "Filled-vitals census",
+    "form_sections": "Medatrax form sections",
     "guidelines_build": "Guideline text extraction",
     "guidelines_catalog": "Guideline catalog",
     "guidelines_currency": "Guideline edition currency",

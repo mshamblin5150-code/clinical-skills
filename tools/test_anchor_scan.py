@@ -869,6 +869,34 @@ class AgreementModes(unittest.TestCase):
         self.assertIn("Heartburn", [row["descriptor"] for row in brief["pairs"][0]["codes"]])
         self.assertEqual(1, brief["excluded_em"])
 
+    def test_narrow_brief_declares_full_bound_and_records_compose(self):
+        (self.worksheets / "case-02.md").write_text(AGREEMENT_WORKSHEET, encoding="utf-8")
+        (self.notes / "case-02.md").write_text(AGREEMENT_NOTE, encoding="utf-8")
+        output = io.StringIO()
+        with redirect_stdout(output):
+            status = scan.main([str(self.worksheets), "--notes", str(self.notes),
+                                "--agreement-brief", "--stem", "case-02"])
+        self.assertEqual(0, status)
+        brief = json.loads(output.getvalue())
+        self.assertEqual(["case-02"], [pair["stem"] for pair in brief["pairs"]])
+        self.assertEqual(2, brief["full_pair_count"])
+        self.assertEqual(["case-02"], brief["requested_stems"])
+        root = Path(self.raw.name)
+        first = root / "first.json"
+        second = root / "second.json"
+        first.write_text(json.dumps(self.clean_record()), encoding="utf-8")
+        other = self.clean_record()
+        other["pairs"][0]["stem"] = "case-02"
+        second.write_text(json.dumps(other), encoding="utf-8")
+        with redirect_stdout(io.StringIO()):
+            status = scan.main([str(self.worksheets), "--notes", str(self.notes),
+                                "--agreement-read", str(first), str(second)])
+        self.assertEqual(0, status)
+        with redirect_stdout(io.StringIO()):
+            duplicate = scan.main([str(self.worksheets), "--notes", str(self.notes),
+                                   "--agreement-read", str(first), str(first)])
+        self.assertEqual(2, duplicate)
+
     def test_the_brief_carries_the_stem_table_and_cross_reference_rules(self):
         instructions = self.brief()["instructions"]
 
