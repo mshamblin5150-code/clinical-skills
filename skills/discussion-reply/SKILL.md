@@ -239,7 +239,7 @@ refuses partial roster coverage, then verifies the response filename and address
 against that roster, the 150-word floor, one APA author-year reference backed by the corresponding
 tagged claim record, every recognized APA narrative or parenthetical author-year citation resolving
 to that response's own list, every Arabic numeral in the body tracing to an exact token in that
-response's believed tagged `CLAIM` heading or `RESTATEMENT`, and no source appearing in more than one
+response's believed tagged `CLAIM` heading, and no source appearing in more than one
 response. The `missing-first-author-initials` row fires when listed first authors share a surname
 but have different initials and an in-text citation omits the first author's complete initials;
 [apa7.md](../_shared/reference/apa7.md) §5 states the rule. Citation years and page locators, and the reference list, are excluded from the

@@ -29,6 +29,7 @@ import docx_write
 import file_digest
 import post_html
 import page_image
+import research_ledger
 from grader_conformance import (
     EmptyPopulationInput,
     UnreadRemainderInput,
@@ -2098,13 +2099,13 @@ class TheMechanicalBarRowsAreGraded(unittest.TestCase):
         self.assertEqual(1, status)
         self.assertIn("15% is absent from claims.md", stdout)
 
-    def test_numeric_identity_does_not_establish_restatement_support(self):
+    def test_heading_number_traces_when_restatement_disagrees(self):
         with tempfile.TemporaryDirectory() as temp:
             run = Run(Path(temp))
             (run.root / "claims.md").write_text(
                 CLAIMS.replace(
                     "Completed visits improved by 12% when both supports were present.",
-                    "An unrelated outcome changed by 99%.",
+                    "An unrelated outcome changed by 17%.",
                 ),
                 encoding="utf-8",
             )
@@ -2112,6 +2113,38 @@ class TheMechanicalBarRowsAreGraded(unittest.TestCase):
 
         self.assertEqual(0, status)
         self.assertIn("untraced-number: 0", stdout)
+
+    def test_restatement_only_number_requires_the_heading(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            (run.root / "claims.md").write_text(
+                CLAIMS.replace(
+                    "Completed visits improved by 12% when both supports were present.",
+                    "Completed visits improved by 17% when both supports were present.",
+                ),
+                encoding="utf-8",
+            )
+            run.draft.write_text(BODY.replace("12% improvement", "17% improvement"), encoding="utf-8")
+            status, stdout, _ = run.grade("--show")
+
+        self.assertEqual(1, status)
+        self.assertIn("17% appears only in a claim record's restatement; state it in the heading", stdout)
+
+    def test_passage_locator_number_does_not_trace(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            (run.root / "claims.md").write_text(
+                CLAIMS.replace(
+                    "RESTATEMENT: Completed visits improved by 12% when both supports were present.",
+                    "RESTATEMENT: Completed visits improved by 12% when both supports were present.\nPASSAGE: table 17",
+                ),
+                encoding="utf-8",
+            )
+            run.draft.write_text(BODY.replace("12% improvement", "17 completed visits"), encoding="utf-8")
+            status, stdout, _ = run.grade("--show")
+
+        self.assertEqual(1, status)
+        self.assertIn("17 is absent from claims.md", stdout)
 
     def test_a_refuted_record_keeps_its_reference_key_but_not_its_number(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -2167,9 +2200,13 @@ class TheMechanicalBarRowsAreGraded(unittest.TestCase):
     def test_one_record_can_trace_two_numbers_and_carry_its_citation(self):
         with tempfile.TemporaryDirectory() as temp:
             run = Run(Path(temp))
+            heading = "The combined program reported a 12% improvement across 500 visits."
             claims = CLAIMS.replace(
-                "Completed visits improved by 12%",
-                "Completed visits improved by 12% across 500 visits",
+                "## CLAIM: The combined program reported a 12% improvement.",
+                f"## CLAIM: {heading}",
+            ).replace(
+                "29ec7c8e79f10939f61e449398fa776cb9d16fb130e1937aa7dd3f147e5f6302",
+                research_ledger.heading_digest(heading),
             )
             (run.root / "claims.md").write_text(claims, encoding="utf-8")
             run.draft.write_text(
@@ -2607,8 +2644,8 @@ class EveryBehaviorLimitHasALiveHandler(unittest.TestCase):
             "CitationResolutionResidues.test_the_three_declared_prefix_edges_resolve",
             "ACompletePostPasses.test_a_shortened_title_citation_resolves_to_its_claim_record",
         ),
-        "whether a believed record's heading and restatement support the number traced from it": (
-            "TheMechanicalBarRowsAreGraded.test_numeric_identity_does_not_establish_restatement_support",
+        "whether a believed record's heading supports the number traced from it": (
+            "TheMechanicalBarRowsAreGraded.test_heading_number_traces_when_restatement_disagrees",
             "TheMechanicalBarRowsAreGraded.test_only_believed_claim_records_trace_body_numbers",
         ),
         scan.UNJOINED_SOURCE_FIELDS_LIMIT[0]: (

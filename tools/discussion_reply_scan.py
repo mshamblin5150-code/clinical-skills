@@ -144,7 +144,7 @@ INVOKED_PROPERTY_LIMIT = (
 DECLARED_LIMITS = (
     *CITATION_RESOLUTION_NOT_REACHED,
     (
-        "whether a believed record's heading and restatement support the number traced from it",
+        "whether a believed record's heading supports the number traced from it",
         "The certifier reads numeric tokens and never judges support. The refutation leg owns source-to-heading agreement, and the heading read owns draft-to-heading agreement.",
         EvidenceDisposition.BEHAVIOR,
     ),
@@ -556,30 +556,33 @@ def _number_findings(
     reply: Reply, citations: tuple[Citation, ...], claims: str
 ) -> tuple[Finding, ...]:
     traced: set[str] = set()
-    mentioned: set[str] = set()
+    disbelieved: set[str] = set()
+    restatement_numbers: set[str] = set()
     target = reply.path.stem.removeprefix("response-")
     for claim, block in _scoped_claim_blocks(claims, target):
         restatement = RESTATEMENT.search(block)
-        trace_text = claim + "\n" + (
-            restatement.group("value") if restatement else ""
+        heading_numbers = {value.casefold() for value in NUMBER.findall(claim)}
+        block_restatement_numbers = (
+            {value.casefold() for value in NUMBER.findall(restatement.group("value"))}
+            if restatement else set()
         )
-        block_numbers = {
-            value.casefold() for value in NUMBER.findall(trace_text)
-        }
-        mentioned.update(block_numbers)
+        restatement_numbers.update(block_restatement_numbers)
         if not claim_record_can_certify_values(block):
+            disbelieved.update(heading_numbers | block_restatement_numbers)
             # _claimed_references intentionally still reads this block. A
             # disbelieved record cannot certify a number, but its reference key
             # remains visible so narrative citation recognition cannot vanish.
             continue
-        traced.update(block_numbers)
+        traced.update(heading_numbers)
     return tuple(
         Finding(
             UNTRACED_NUMBER,
             reply.path.name,
             (
                 f"{value} appears only in a disbelieved claim record"
-                if value.casefold() in mentioned
+                if value.casefold() in disbelieved
+                else f"{value} appears only in a claim record's restatement; state it in the heading"
+                if value.casefold() in restatement_numbers
                 else f"{value} is absent from claims.md"
             ),
         )
