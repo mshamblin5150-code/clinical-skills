@@ -144,6 +144,14 @@ DECLARED_CANDIDATES = (
         "A Null span is a span retired after two reads found nothing.",
     ),
     Candidate(
+        "Note",
+        Verdict.NARROWING,
+        "A Note section is one of the four spans a note is divided into. Ruled with "
+        "ADR 0259, which named it against Form sections: the reading of a note's "
+        "structure and the strings typed into the portal are the same content in two "
+        "roles, and only the reading is part of a note.",
+    ),
+    Candidate(
         "Recommendation",
         Verdict.NARROWING,
         "The compound headings name records, sweeps, labels, or omissions of recommendations.",

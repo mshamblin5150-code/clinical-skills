@@ -30,6 +30,14 @@ _Avoid_: format, type, form
 The version of a **Note** that is entered in Medatrax, derived by a command from the finished note rather than written. It is the note with every refused-code clause removed, wherever in the note the clause sits; the finished note keeps those clauses because the graders read them. The check that reads the portal back after entry compares against this copy. Distinct from a **Posted reading**, which is taken after entry and records what the portal saved.
 _Avoid_: upload, Medatrax note, posted note, clean copy
 
+**Note section**:
+One of the four spans a **Note** is divided into — `S`, `O`, `A`, `P` — as a reading of the document's structure. The heading opening a span may be bare or prefixed, and its colon is optional per letter, so the reading is a grammar rather than a literal. A span's end is its successor's heading, and the Plan's end is a recognized closer; a Plan reaching the end of the file has not been read, because the reading that swallows what follows a Plan yields four plausible spans and is wrong in the direction nothing reports.
+_Avoid_: SOAP section, heading, block, part
+
+**Form sections**:
+The four strings typed into the portal's boxes, derived from an **Entry copy**'s **Note sections** and stored per note. Distinct from the Entry copy, which is regenerable, and from the **Note sections** it is read from: once written it is the only record of what was actually typed, so it is evidence rather than output and is never replaced without being asked. A difference between it and a fresh derivation says the note moved after entry; that is reported and never graded, because already-posted notes are not corrected in bulk.
+_Avoid_: boxes, form fields, section copy, paste copy
+
 **Plan label**:
 One of the four headings a note's Plan is organized under, identical on both **Branches**: `Non-pharmacologic:`, `Pharmacologic:`, `Health Promotion/Patient Education:`, and `Referral/Follow-up:`. Every Plan item sits under one of them and no fifth heading is added; content that looks like its own category, such as oxygen or a lab order, is placed under the nearest of the four. A short phrase before a colon inside a Plan is read as a label and must be one of these or a declared exception such as a sig line.
 _Avoid_: plan subheading, plan section, plan category
