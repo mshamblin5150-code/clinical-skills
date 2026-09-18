@@ -4748,6 +4748,13 @@ class SourcedRecordsReachTheDraftReferenceListOrAreDropped(unittest.TestCase):
                 status = ledger.main([str(claims), "--draft", str(draft)])
             return status, out.getvalue()
 
+    def assert_not_listed(self, status: int, report: str) -> None:
+        self.assertEqual(status, 1, report)
+        self.assertRegex(
+            next(line for line in report.splitlines() if ledger.SOURCED_RECORD_NOT_LISTED in line),
+            rf"{ledger.SOURCED_RECORD_NOT_LISTED}\s+1$",
+        )
+
     def test_an_uncited_sourced_record_is_a_finding_without_evidence(self):
         status, report = self.run_main(a_drug_claim(CEFTRIAXONE_CLAIM))
 
@@ -4921,14 +4928,51 @@ DROPPED: the claim was cut.
 
         self.assertEqual(status, 0, report)
 
-    def test_a_one_word_unfamiliar_container_after_an_abbreviation_is_metadata(self):
+    def test_different_one_word_opaque_containers_do_not_match(self):
         recorded = "Author, A. (2026). Care in the U.S. Clinicalgada."
         listed = "Author, A. (2026). Care in the U.S. Dynafoo."
         record = with_reference(a_drug_claim(CEFTRIAXONE_CLAIM), recorded)
 
         status, report = self.run_main(record, references=(listed,))
 
+        self.assert_not_listed(status, report)
+
+    def test_same_one_word_opaque_container_matches(self):
+        reference = "Author, A. (2026). Care in the U.S. Clinicalgada."
+        record = with_reference(a_drug_claim(CEFTRIAXONE_CLAIM), reference)
+
+        status, report = self.run_main(record, references=(reference,))
+
         self.assertEqual(status, 0, report)
+
+    def test_different_opaque_containers_do_not_collapse_title_only_references(self):
+        recorded = "Author, A. (2026). Care in the U.S. Alpha."
+        listed = "Author, A. (2026). Care in the U.S. Beta."
+        record = with_reference(a_drug_claim(CEFTRIAXONE_CLAIM), recorded)
+
+        status, report = self.run_main(record, references=(listed,))
+
+        self.assert_not_listed(status, report)
+
+    def test_opaque_container_must_equal_the_named_container_in_both_directions(self):
+        opaque = "Author, A. (2026). Care in the U.S. Alpha."
+        named = "Author, A. (2026). Care in the U.S. Beta, 1(2), 3-4."
+        for recorded, listed in ((opaque, named), (named, opaque)):
+            with self.subTest(recorded=recorded):
+                record = with_reference(a_drug_claim(CEFTRIAXONE_CLAIM), recorded)
+                status, report = self.run_main(record, references=(listed,))
+
+                self.assert_not_listed(status, report)
+
+    def test_opaque_container_matches_the_named_container_in_both_directions(self):
+        opaque = "Author, A. (2026). Care in the U.S. Alpha."
+        named = "Author, A. (2026). Care in the U.S. Alpha, 1(2), 3-4."
+        for recorded, listed in ((opaque, named), (named, opaque)):
+            with self.subTest(recorded=recorded):
+                record = with_reference(a_drug_claim(CEFTRIAXONE_CLAIM), recorded)
+                status, report = self.run_main(record, references=(listed,))
+
+                self.assertEqual(status, 0, report)
 
     def test_a_one_word_title_continuation_after_an_initialism_is_not_discarded(self):
         recorded = "Author, A. (2026). U.S. Healthcare. Journal."
@@ -4939,21 +4983,29 @@ DROPPED: the claim was cut.
 
         self.assertEqual(status, 1, report)
 
-    def test_an_unfamiliar_container_after_a_word_abbreviation_is_metadata(self):
+    def test_different_opaque_containers_after_a_word_abbreviation_do_not_match(self):
         recorded = "Author, A. (2026). Guidance from Acme Inc. Clinicalgada."
         listed = "Author, A. (2026). Guidance from Acme Inc. Dynafoo."
         record = with_reference(a_drug_claim(CEFTRIAXONE_CLAIM), recorded)
 
         status, report = self.run_main(record, references=(listed,))
 
-        self.assertEqual(status, 0, report)
+        self.assert_not_listed(status, report)
 
-    def test_a_multi_word_unfamiliar_container_after_an_abbreviation_is_metadata(self):
+    def test_different_multi_word_opaque_containers_do_not_match(self):
         recorded = "Author, A. (2026). Care in the U.S. Clinicalgada Archive."
         listed = "Author, A. (2026). Care in the U.S. Dynafoo Library."
         record = with_reference(a_drug_claim(CEFTRIAXONE_CLAIM), recorded)
 
         status, report = self.run_main(record, references=(listed,))
+
+        self.assert_not_listed(status, report)
+
+    def test_same_multi_word_opaque_container_matches(self):
+        reference = "Author, A. (2026). Care in the U.S. Clinicalgada Archive."
+        record = with_reference(a_drug_claim(CEFTRIAXONE_CLAIM), reference)
+
+        status, report = self.run_main(record, references=(reference,))
 
         self.assertEqual(status, 0, report)
 
