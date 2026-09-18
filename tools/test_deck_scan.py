@@ -19,6 +19,7 @@ from unittest import mock
 
 import deck_scan as scan
 import file_digest
+import render_pass
 import research_ledger
 from grader_conformance import (
     EmptyPopulationInput,
@@ -238,6 +239,8 @@ class Run:
                 self.retain(1, 1)
             if not (self.root / "rendered.md").is_file():
                 self.write_rendered()
+            if not (self.root / "adversarial.md").is_file():
+                self.write_adversarial()
         stdout, stderr = io.StringIO(), io.StringIO()
         with redirect_stdout(stdout), redirect_stderr(stderr):
             status = scan.main([str(self.root), "--pptx", str(self.deck), *extra])
@@ -279,6 +282,35 @@ class Run:
             encoding="utf-8",
         )
 
+    def write_adversarial(
+        self,
+        *,
+        deck: str = "synthetic.pptx",
+        pass_number: str | None = None,
+        slides: str | None = None,
+        unseen: str = "none",
+        claims: str | None = None,
+        verdict: str = "clean - every slide agrees with its record",
+    ) -> None:
+        digest = file_digest.sha256(self.root / "claims.md") if claims is None else claims
+        passes = render_pass.read_passes(self.root / "render")
+        if pass_number is None:
+            pass_number = str(passes[-1][0]) if passes else "1"
+        if slides is None:
+            png_count = sum(1 for path in passes[-1][1].glob("*.png")) if passes else 0
+            with zipfile.ZipFile(self.deck) as archive:
+                slide_count = sum(bool(scan.SLIDE_PART.fullmatch(name)) for name in archive.namelist())
+            slides = f"{png_count} of {slide_count} read"
+        (self.root / "adversarial.md").write_text(
+            f"## ADVERSARIAL: {deck}\n"
+            f"PASS: {pass_number}\n"
+            f"SLIDES: {slides}\n"
+            f"UNSEEN: {unseen}\n"
+            f"CLAIMS: {digest}\n"
+            f"VERDICT: {verdict}\n",
+            encoding="utf-8",
+        )
+
     def write_reread(self, *, fingerprint: str | None = None) -> None:
         digest = file_digest.sha256(self.deck) if fingerprint is None else fingerprint
         (self.root / "reread.md").write_text(
@@ -314,6 +346,7 @@ def empty_population_input(root: Path) -> EmptyPopulationInput:
     for run in (empty, twin):
         run.retain(1, 1)
         run.write_rendered()
+        run.write_adversarial()
     return EmptyPopulationInput(
         (str(empty.root), "--pptx", str(empty.deck)),
         population_size=lambda result: result.font_runs_read,
@@ -339,6 +372,7 @@ def unread_remainder_input(root: Path) -> UnreadRemainderInput:
         (run.root / "claims.md").write_text(
             trusted_claim("$99,000", "325", "42%"), encoding="utf-8"
         )
+        run.write_adversarial()
         return run
 
     unread = configured(unread_root, MISSING_DIAGRAM_FIXTURE)
@@ -1444,6 +1478,73 @@ class TheRenderedDeckRecordNamesTheTerminalPass(unittest.TestCase):
             status, _, _ = run.grade()
 
         self.assertEqual(status, 1)
+
+
+class TheAdversarialReadNamesTheDeckPassAndClaims(unittest.TestCase):
+    def test_preflight_and_submission_require_a_record_for_the_highest_pass(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            run.write_deck((slide_xml("Plan", "Within limit"),))
+            run.retain(1, 1)
+            run.write_rendered()
+            preflight, _, _ = run.grade(bind=False)
+            submission, _, _ = run.terminal(bind=False)
+            run.write_adversarial()
+            clean_preflight, report, _ = run.grade(bind=False)
+            clean_submission, _, _ = run.terminal()
+
+        self.assertEqual((preflight, submission), (1, 1))
+        self.assertEqual((clean_preflight, clean_submission), (0, 0))
+        self.assertIn("adversarial-record: 0", report)
+
+    def test_each_record_refusal_has_a_clean_preflight_control(self):
+        cases = (
+            ("missing", lambda run: (run.root / "adversarial.md").unlink()),
+            ("malformed", lambda run: run.write_adversarial(pass_number="0")),
+            ("other deck", lambda run: run.write_adversarial(deck="another.pptx")),
+            ("old pass", lambda run: run.retain(2, 1)),
+            ("other bytes", lambda run: (run.root / "render" / "pass-1" / "deck.sha256").write_text("f" * 64 + "\n", encoding="ascii")),
+            ("short PNG count", lambda run: run.write_adversarial(slides="0 of 1 read")),
+            ("wrong deck count", lambda run: run.write_adversarial(slides="1 of 2 read")),
+            ("unseen", lambda run: run.write_adversarial(unseen="slide 1")),
+            ("defect", lambda run: run.write_adversarial(verdict="defect - missing claim")),
+            ("no verdict reason", lambda run: run.write_adversarial(verdict="clean")),
+            ("blank verdict reason", lambda run: run.write_adversarial(verdict="clean -   ")),
+            ("stale claims", lambda run: (run.root / "claims.md").write_text("revised claims\n", encoding="utf-8")),
+        )
+        for name, damage in cases:
+            with self.subTest(case=name), tempfile.TemporaryDirectory() as temp:
+                run = Run(Path(temp))
+                run.write_deck((slide_xml("Plan", "Within limit"),))
+                run.retain(1, 1)
+                run.write_rendered()
+                run.write_adversarial()
+                control, report, _ = run.grade(bind=False)
+                damage(run)
+                refused, failed_report, _ = run.grade(bind=False)
+                self.assertEqual(control, 0, name)
+                self.assertIn("adversarial-record: 0", report)
+                self.assertEqual(refused, 1, name)
+                self.assertNotIn("adversarial-record: 0", failed_report)
+
+    def test_latest_read_must_name_the_highest_pass_and_be_clean(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            run.write_deck((slide_xml("Plan", "Within limit"),))
+            run.retain(1, 1)
+            run.retain(2, 1)
+            run.write_rendered(pass_number="2")
+            run.write_adversarial(pass_number="2")
+            clean, _, _ = run.grade(bind=False)
+            current = (run.root / "adversarial.md").read_text(encoding="utf-8")
+            run.write_adversarial(pass_number="1")
+            old = (run.root / "adversarial.md").read_text(encoding="utf-8")
+            (run.root / "adversarial.md").write_text(current + old, encoding="utf-8")
+            refused, report, _ = run.grade(bind=False)
+
+        self.assertEqual(clean, 0)
+        self.assertEqual(refused, 1)
+        self.assertNotIn("adversarial-record: 0", report)
 
 
 class AnUnreadableOrUnsignedBarDidNotScan(unittest.TestCase):

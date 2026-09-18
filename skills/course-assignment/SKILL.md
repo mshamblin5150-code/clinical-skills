@@ -145,21 +145,6 @@ A generated image may depict a concept, and a visible caption must call that spa
 generated image must never stand in for the actual site. Use a real site photograph where the
 slide claims the actual site. This is a reader-owned convention, not something the file can prove.
 
-The adversarial investor reader first reads and applies
-[sourcing.md](../_shared/reference/sourcing.md). After the deck exists, give only the rendered slide images, the speaker-note text, and `claims.md`
-to this **Second reader** under [standing rule 6](../../AGENTS.md). It attacks the rendered artifact for records that do not exist.
-It also compares each slide with the believed records behind it and reports when a figure or
-assertion's value or sense differs from the claim heading, when a record qualifier is absent, or
-when a record heading no longer matches the slide text it sources. For this check, a
-qualifier appears on the same slide face as its claim; speaker notes do not satisfy the qualifier.
-If the condition cannot fit the signed bullet limit, move or split the claim. It reads as the
-investor named by the assignment and
-returns every unsupported assertion and agreement finding keyed to slide number for
-`adversarial.md`. Correcting a stale heading creates a new claim under ADR 0208 ruling 3. Research,
-Refutation, and this adversarial read have three distinct subjects, and each may fail while the
-other two pass. Add records for supported claims or remove the assertions; never convert a miss
-into an unrecorded hedge.
-
 ## 4. Grade the PowerPoint package
 
 This **Grader handoff** under [standing rule 6](../../AGENTS.md) runs:
@@ -183,6 +168,8 @@ The rows are:
   are excluded.
 - `rendered-record`: one finding for each malformed record or failed terminal join to the deck,
   highest retained pass, slide count, PNG count, unseen count, or clean visual verdict.
+- `adversarial-record`: one finding for each malformed record or failed join to the final deck,
+  highest retained pass, slide count, PNG count, unseen count, clean verdict, or current `claims.md`.
 - `submission-fingerprint`: one finding when the terminal posted-reading record is missing its fingerprint
   or its fingerprint does not match the submitted `.pptx`.
 - Heading-read enforcement uses `missing-heading-read`, `duplicate-heading-read`,
@@ -228,11 +215,6 @@ only the last pass must contain exactly one readable image for every exported pa
 final images than exported pages is exit 1. No measurable retained export is exit 2. The gap count is
 reported on every run and never graded.
 
-After the render, rerun `deck_scan.py --pptx <deck>` before asking for the go-ahead. Both this run
-and the terminal `--submission` run refuse a missing retained pass, a rendered record whose `PASS`
-does not name the highest pass, a missing `deck.sha256`, or a fingerprint that differs from the
-named `.pptx`. The remaining adversarial-artifact boundary is named above by its declared-limit key.
-
 The engine-reaching grader must exit 0 unless this run's engine check reported the engine missing
 and the install did not happen. Only in that case may its exit 2 be accepted; report that the run is
 not mechanically verified and that the retained-render and coverage rows were walked by eye. A
@@ -263,6 +245,34 @@ record must name the output deck and highest retained pass, all deck slides must
 and `UNSEEN` must be `none` with a reasoned clean verdict. Earlier retained passes need no record;
 the report counts them without grading their absence.
 
+The adversarial investor reader first reads and applies
+[sourcing.md](../_shared/reference/sourcing.md). After the visual read, give this fresh
+**Second reader** under [standing rule 6](../../AGENTS.md) only the highest retained pass's PNGs,
+the final speaker-note text from the output `.pptx`, and `claims.md`. The orchestrator computes
+`file_digest.sha256` of `claims.md` when briefing the reader and names that digest in the brief.
+The reader attacks the rendered artifact for records that do not exist. It also compares each slide
+with the believed records behind it and reports when a figure or assertion's value or sense differs
+from the claim heading, when a record qualifier is absent, or when a record heading no longer
+matches the slide text it sources. For this check, a qualifier appears on the same slide face as its
+claim; speaker notes do not satisfy the qualifier. If the condition cannot fit the signed bullet
+limit, move or split the claim. It reads as the investor named by the assignment and returns every
+unsupported assertion and agreement finding keyed to slide number for `adversarial.md`. Correcting a
+stale heading creates a new claim under ADR 0208 ruling 3. Research, Refutation, and this
+adversarial read have three distinct subjects, and each may fail while the other two pass. Add
+records for supported claims or remove the assertions; never convert a miss into an unrecorded hedge.
+
+The orchestrator writes one `adversarial.md` record per read:
+
+```text
+## ADVERSARIAL: <course>-<module>-course-assignment-<date>.pptx
+PASS: <positive retained pass number>
+SLIDES: <read PNG count> of <deck slide count> read
+UNSEEN: none | <what was not read>
+CLAIMS: <SHA-256 of claims.md when the reader was briefed>
+VERDICT: clean - <reason> | defect - <reason>
+<findings keyed to slide number>
+```
+
 Before the go-ahead, this fresh **Second reader** under [standing rule 6](../../AGENTS.md) receives only the final `.pptx` (including its slide
 bullets and speaker-note sentences), `claims.md`, and the printed heading digests. Do not give it
 sources. It writes the shared `## HEADING-READ: <deck>.pptx` record from
@@ -271,6 +281,13 @@ slide bullets and speaker-note sentences. Repair every `unrecorded` or `drifted`
 the read after any repair. With no second context, write `ROUTE: orchestrator walk`. Rerun
 `deck_scan.py --pptx <deck>`; it refuses a missing record, a stale deck digest, or a pair to an old
 heading before the go-ahead.
+
+Both this scan and the terminal `--submission` scan require a clean adversarial record naming the
+highest retained pass and current `claims.md`. They also refuse a missing retained pass, a rendered
+record naming another pass, a missing `deck.sha256`, or a fingerprint that differs from the named
+`.pptx`. A deck repair returns to `deck_render.py` and repeats the visual, adversarial, and heading
+reads on the new pass. A `claims.md`-only repair returns to the adversarial read, followed by the
+heading read and `deck_scan.py --pptx <deck>`.
 
 ## 6. Approve, submit, and reread
 

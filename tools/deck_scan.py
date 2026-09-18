@@ -53,6 +53,10 @@ RENDERED_HEADER = re.compile(r"(?i)^[ \t]*#+[ \t]*RENDERED[ \t]*:[ \t]*(.*?)[ \t
 RENDERED_FIELD = re.compile(
     r"(?i)^[ \t]*(PASS|SLIDES|SOURCE|UNSEEN|READ|VERDICT)[ \t]*:[ \t]*(.*?)[ \t]*$"
 )
+ADVERSARIAL_HEADER = re.compile(r"(?i)^[ \t]*#+[ \t]*ADVERSARIAL[ \t]*:[ \t]*(.*?)[ \t]*$")
+ADVERSARIAL_FIELD = re.compile(
+    r"(?i)^[ \t]*(PASS|SLIDES|UNSEEN|CLAIMS|VERDICT)[ \t]*:[ \t]*(.*?)[ \t]*$"
+)
 POSITIVE_INTEGER = re.compile(r"[1-9][0-9]*", re.ASCII)
 SLIDES_READ = re.compile(r"([0-9]+)[ \t]+of[ \t]+([0-9]+)[ \t]+read", re.IGNORECASE | re.ASCII)
 
@@ -62,6 +66,7 @@ WORDS_PER_BULLET = "words-per-bullet"
 FONT_POINTS = "font-points"
 UNTRACED_FIGURE = "untraced-figure"
 RENDERED_RECORD = "rendered-record"
+ADVERSARIAL_RECORD = "adversarial-record"
 SUBMISSION_FINGERPRINT = "submission-fingerprint"
 ROWS = (
     SLIDE_COUNT,
@@ -70,6 +75,7 @@ ROWS = (
     FONT_POINTS,
     UNTRACED_FIGURE,
     RENDERED_RECORD,
+    ADVERSARIAL_RECORD,
     SUBMISSION_FINGERPRINT,
 ) + heading_read.KINDS
 KINDS = ROWS
@@ -117,7 +123,7 @@ DECLARED_LIMITS = (
     ),
     DeclaredLimit(
         "record-slide-agreement-unverified",
-        "No mechanical row checks that a believed record agrees with the slide it sources; the adversarial agreement read protects only the deck the reader was given, which is not bound to the final deck until #1229.",
+        "No mechanical row checks that a believed record agrees with the slide it sources; the adversarial agreement read protects the deck the reader was given.",
     ),
     SOURCED_FIELD_COMPLETENESS_LIMIT,
     DeclaredLimit(
@@ -151,10 +157,6 @@ DECLARED_LIMITS = (
     DeclaredLimit(
         "render-source-unproven",
         "The rendered-record SOURCE is declared and never proven.",
-    ),
-    DeclaredLimit(
-        "adversarial-bytes-unbound",
-        "adversarial.md is not bound to the deck's bytes.",
     ),
     DeclaredLimit(
         "platform-repair-after-reading-unobserved",
@@ -231,6 +233,7 @@ class Source:
     notes: tuple[str, ...]
     claims: str
     rendered_text: str | None
+    adversarial_text: str | None
     heading_read_text: str
     readings: tuple[PostedReading, ...]
 
@@ -663,6 +666,7 @@ def load(
         raise run_grader.SourceError("--pptx needs a PowerPoint file")
     deck = Path(deck_value)
     bar_path, claims_path, rendered_path = root / "bar.md", root / "claims.md", root / "rendered.md"
+    adversarial_path = root / "adversarial.md"
     reread_path = root / "reread.md"
     if not bar_path.is_file() or not claims_path.is_file():
         raise run_grader.SourceError("run needs bar.md and claims.md before it can be scanned")
@@ -702,6 +706,7 @@ def load(
         raise run_grader.SourceError(f"could not read the deck run: {failure}") from failure
     try:
         rendered_text = rendered_path.read_text(encoding="utf-8") if rendered_path.is_file() else None
+        adversarial_text = adversarial_path.read_text(encoding="utf-8") if adversarial_path.is_file() else None
         readings = (
             read_posted_readings(reread_path.read_text(encoding="utf-8"))
             if reread_path.is_file()
@@ -718,6 +723,7 @@ def load(
         notes,
         claims,
         rendered_text,
+        adversarial_text,
         heading_read_text,
         readings,
     )
@@ -751,7 +757,9 @@ def _submission_fingerprint_findings(
     )
 
 
-def _rendered_records(text: str) -> tuple[RenderedRecord, ...]:
+def _read_records(
+    text: str, header_pattern: re.Pattern[str], field_pattern: re.Pattern[str]
+) -> tuple[RenderedRecord, ...]:
     records: list[RenderedRecord] = []
     deck: str | None = None
     fields: dict[str, str] = {}
@@ -762,20 +770,24 @@ def _rendered_records(text: str) -> tuple[RenderedRecord, ...]:
             records.append(RenderedRecord(deck, dict(fields), dict(counts)))
 
     for line in text.splitlines():
-        header = RENDERED_HEADER.match(line)
+        header = header_pattern.match(line)
         if header:
             close()
             deck, fields, counts = header.group(1).strip(), {}, {}
             continue
         if deck is None:
             continue
-        named = RENDERED_FIELD.match(line)
+        named = field_pattern.match(line)
         if named:
             name = named.group(1).upper()
             counts[name] = counts.get(name, 0) + 1
             fields[name] = named.group(2).strip()
     close()
     return tuple(records)
+
+
+def _rendered_records(text: str) -> tuple[RenderedRecord, ...]:
+    return _read_records(text, RENDERED_HEADER, RENDERED_FIELD)
 
 
 def _rendered_grade(
@@ -874,6 +886,67 @@ def _rendered_grade(
     return RenderedAssessment(
         tuple(found), len(records), len(passes), unrecorded, report
     )
+
+
+def _adversarial_findings(source: Source) -> tuple[Finding, ...]:
+    records = _read_records(source.adversarial_text or "", ADVERSARIAL_HEADER, ADVERSARIAL_FIELD)
+    passes = render_pass.read_passes(source.root / "render")
+    found: list[Finding] = []
+    if not records:
+        return (Finding(ADVERSARIAL_RECORD, None, "adversarial.md has no ADVERSARIAL record"),)
+
+    parsed_passes: list[int | None] = []
+    parsed_slides: list[tuple[int, int] | None] = []
+    for record in records:
+        invalid: list[str] = []
+        if not record.deck.casefold().endswith(".pptx"):
+            invalid.append("header does not name a .pptx")
+        for name in ("PASS", "SLIDES", "UNSEEN", "CLAIMS", "VERDICT"):
+            if record.counts.get(name, 0) != 1 or not record.value(name):
+                invalid.append(f"{name} must appear once with a value")
+        pass_value = record.value("PASS")
+        pass_number = int(pass_value) if POSITIVE_INTEGER.fullmatch(pass_value) else None
+        parsed_passes.append(pass_number)
+        if pass_number is None:
+            invalid.append("PASS is not a positive integer")
+        slides_match = SLIDES_READ.fullmatch(record.value("SLIDES"))
+        parsed_slides.append(
+            (int(slides_match.group(1)), int(slides_match.group(2))) if slides_match else None
+        )
+        if slides_match is None:
+            invalid.append("SLIDES is not n of m read")
+        if not re.fullmatch(r"[0-9a-f]{64}", record.value("CLAIMS"), re.ASCII):
+            invalid.append("CLAIMS is not a SHA-256 digest")
+        verdict = record.value("VERDICT")
+        if not re.fullmatch(r"(?is)(?:clean|defect)[ \t]+-[ \t]+.+", verdict):
+            invalid.append("VERDICT needs clean or defect with a reason")
+        if invalid:
+            found.append(Finding(ADVERSARIAL_RECORD, None, "; ".join(invalid)))
+        if record.deck != source.deck.name:
+            found.append(Finding(ADVERSARIAL_RECORD, None, "adversarial record names another deck"))
+        if pass_number is not None and pass_number not in {number for number, _ in passes}:
+            found.append(Finding(ADVERSARIAL_RECORD, None, "adversarial record names no retained pass"))
+
+    highest = passes[-1][0] if passes else None
+    if highest is None or highest not in parsed_passes:
+        found.append(Finding(ADVERSARIAL_RECORD, None, "no adversarial record names the highest retained pass"))
+    elif parsed_passes[-1] != highest:
+        found.append(Finding(ADVERSARIAL_RECORD, None, "latest adversarial record does not name the highest retained pass"))
+    else:
+        record = records[-1]
+        png_count = sum(1 for path in passes[-1][1].glob("*.png") if path.is_file())
+        slide_count = len(source.slides)
+        if parsed_slides[-1] != (png_count, slide_count) or png_count != slide_count:
+            found.append(Finding(ADVERSARIAL_RECORD, None, "highest-pass slide and PNG counts do not match the deck"))
+        if record.value("UNSEEN").casefold() != "none":
+            found.append(Finding(ADVERSARIAL_RECORD, None, "highest-pass UNSEEN is not none"))
+        if not re.fullmatch(r"(?is)clean[ \t]+-[ \t]+.+", record.value("VERDICT")):
+            found.append(Finding(ADVERSARIAL_RECORD, None, "latest VERDICT is not clean with a reason"))
+        if record.value("CLAIMS") != file_digest.sha256(source.root / "claims.md"):
+            found.append(Finding(ADVERSARIAL_RECORD, None, "CLAIMS does not match current claims.md"))
+        if file_digest.recorded_sha256(passes[-1][1] / "deck.sha256") != file_digest.sha256(source.deck):
+            found.append(Finding(ADVERSARIAL_RECORD, None, "highest retained pass does not match the deck bytes"))
+    return tuple(found)
 
 
 def _figures(text: str) -> set[str]:
@@ -998,6 +1071,7 @@ def grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
         unrecorded_passes=rendered.unrecorded_passes,
         findings=scanned.findings
         + rendered.findings
+        + _adversarial_findings(source)
         + _submission_fingerprint_findings(source, _parsed.value("--submission")),
     )
     aar_failed, aar_report = aar_scan.completion_gate(
