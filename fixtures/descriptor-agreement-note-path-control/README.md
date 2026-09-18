@@ -7,6 +7,11 @@ stem-paired directories. A fresh reader received only the agreement brief and
 wrote `agreement-read.json`; a non-authoring check accepted the record and the
 bidirectional bind with exit 0.
 
+ADR 0258 changed the worksheet shape after this run. Its differential and
+refusal rows lack authored `ANCHOR` quotations, so the retained read now exits
+2 with an unread remainder. The note, worksheet, and reader record remain
+byte-for-byte as produced.
+
 `generation-record.md` records the generating pass. These files are fixtures,
 not patient records.
 

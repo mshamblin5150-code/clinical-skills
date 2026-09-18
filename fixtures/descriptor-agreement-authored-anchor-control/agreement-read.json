@@ -1,0 +1,45 @@
+{
+  "pairs": [
+    {
+      "stem": "case-01",
+      "codes": [
+        {
+          "subject_id": "ICD-10:M79.672:entry:1",
+          "system": "ICD-10",
+          "code": "M79.672",
+          "role": "entry",
+          "agreeing_words": "Pain in left foot",
+          "route": "descriptor words",
+          "encounter_evidence": "**Final diagnosis:** Pain in left foot - M79.672",
+          "open_status_evidence": "none",
+          "threshold": "none",
+          "waits_on_result": "none"
+        },
+        {
+          "subject_id": "ICD-10:B07.0:differential:1",
+          "system": "ICD-10",
+          "code": "B07.0",
+          "role": "differential",
+          "agreeing_words": "Plantar wart",
+          "route": "descriptor words",
+          "encounter_evidence": "1. Plantar wart - B07.0: focal plantar lesion; considered but unconfirmed.",
+          "open_status_evidence": "considered but unconfirmed",
+          "threshold": "none",
+          "waits_on_result": "none"
+        },
+        {
+          "subject_id": "ICD-10:M86.9:refused:1",
+          "system": "ICD-10",
+          "code": "M86.9",
+          "role": "refused",
+          "agreeing_words": "Osteomyelitis, unspecified",
+          "route": "descriptor words",
+          "encounter_evidence": "NOT CODED: M86.9 Osteomyelitis, unspecified; no imaging established bone infection.",
+          "open_status_evidence": "none",
+          "threshold": "none",
+          "waits_on_result": "none"
+        }
+      ]
+    }
+  ]
+}
