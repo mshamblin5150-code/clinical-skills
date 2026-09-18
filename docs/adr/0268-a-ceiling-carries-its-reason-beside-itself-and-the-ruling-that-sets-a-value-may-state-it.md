@@ -1,6 +1,6 @@
 # A ceiling carries its reason beside itself and the ruling that sets a value may state it
 
-**Measured at:** 5b13b9705d13a5e342b53428f31af962fec1de63
+**Measured at:** b69f577f9fc81efbdd17b61ee4a20a2f5c6299b3
 
 [#1160](https://github.com/mshamblin5150-code/clinical-skills/issues/1160) was filed out of
 [ADR 0192](0192-a-ceiling-names-a-relationship-and-a-count-sits-beside-what-it-counts.md)'s own
@@ -25,7 +25,8 @@ sum(s.declared
 the only graded file carrying the marker. `RULING_EXEMPT_CEILING` is `2` and has no comment of any
 kind; every other ceiling in `tools/test_skill_agreement.py` carries one.
 
-`git grep -n "ceiling of 2" docs/adr/` returns three records, not the two the ticket body names:
+The pre-ruling search for the literal numeric-ceiling clause returned three records, not the two
+the ticket body names:
 [ADR 0075](0075-a-ruling-ordinal-has-one-referent-addenda-continue-the-numbering-and-the-citation-resolver-is-a-third-walker-joining-against-the-record-s-own-list.md)
 ruling 7, which set the value;
 [ADR 0128](0128-a-read-once-cache-of-a-committed-reference-file-gets-a-public-reset-and-a-declared-limit-and-the-pattern-is-not-generalized.md)'s

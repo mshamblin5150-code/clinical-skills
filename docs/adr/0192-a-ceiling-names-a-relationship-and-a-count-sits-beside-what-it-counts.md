@@ -142,13 +142,16 @@ verdict is owed and none is written.
 
 ## What this record does not settle
 
-**Where `RULING_EXEMPT_CEILING`'s reason and digit live.** The constant carries no comment at all,
-and its reason is in ADR 0075 ruling 7 -- *"a ceiling of 2 held just above the one declaration"*.
-**Ruling 2 is therefore already violated for that ceiling**, in a direction this record does not
-repair: the digit is restated in ADR 0075 and again in ADR 0128, both remote from the constant, and
-ADR 0128 also states the live slack as *"one slot already spent"*, which is a count of declared
-exemptions written where nothing joins it to them. Filed separately, because moving a reason out of
-two ratified records is a decision about those records rather than a repair to this one.
+**Where `RULING_EXEMPT_CEILING`'s reason and digit lived at this record's ratification.** The constant
+then carried no comment at all, and its reason was in ADR 0075 ruling 7 -- *"a ceiling of 2 held just
+above the one declaration"*. **Ruling 2 was therefore already violated for that ceiling**, in a
+direction this record did not repair: the digit was restated in ADR 0075 and again in ADR 0128, both
+remote from the constant, and ADR 0128 then stated the live slack as *"one slot already spent"*, a
+count of declared exemptions written where nothing joined it to them. Filed separately, because
+moving a reason out of two ratified records is a decision about those records rather than a repair
+to this one.
+
+*At `b69f577f`, ADR 0268 settled this carried claim through [#1160](https://github.com/mshamblin5150-code/clinical-skills/issues/1160).*
 
 *This paragraph read that ADR 0075 and ADR 0133 cite the constant **without** stating its reason.
 That was false and was caught before the merge by grepping the records rather than reasoning from

@@ -225,6 +225,9 @@ class PendingTestsGateOnlyWhatTheirResultsWouldEstablish(ProseBind, unittest.Tes
 #: because the skills are not uniform about depth and the number is the subject.
 STEP_HEADING = re.compile(r"^#{2,4}\s+(\d+)\.\s")
 
+#: A deliberate mention is a declared count, not an opt-out. The ceiling sits
+#: just above what is declared, so an exemption past it has to be argued for in
+#: a diff rather than typed. ADR 0075 ruling 7 set the value.
 RULING_EXEMPT_CEILING = 2
 RULING_UNNUMBERED_MARKER = re.compile(r"<!--\s*no-numbered-rulings\s*-->")
 #: Raised 18 -> 19 on #790's stranding sweep, to admit ADR 0101. That
@@ -1786,6 +1789,36 @@ class ACeilingsProseNamesNoOrdinal(ProseBind, unittest.TestCase):
             with self.subTest(phrase=phrase[:32]):
                 with self.assertRaises(AssertionError):
                     self.assertProseNotIn(phrase, self.comment_block(planted, "PLANTED"))
+
+
+class ARulingCeilingCarriesItsReason(ProseBind, unittest.TestCase):
+    """#1160 floor: a comment naming ADR 0075 ruling 7 and no retired ADR 0128 clause.
+
+    Only these exact shapes are reached; a reworded slack claim elsewhere escapes.
+    """
+
+    def test_the_constant_comment_names_its_ruling(self) -> None:
+        block = ACeilingsProseNamesNoOrdinal.comment_block(
+            read(SELF), "RULING_EXEMPT_CEILING"
+        )
+        self.assertTrue(block)
+        self.assertProseIn("ADR 0075 ruling 7", block)
+
+    def test_the_comment_bind_is_live_through_the_reader(self) -> None:
+        source = read(SELF)
+        changed = source.replace(
+            "ADR 0075 ruling 7 set the value.", "ADR 0075 ruling X set the value.", 1
+        )
+        self.assertNotEqual(changed, source)
+        block = ACeilingsProseNamesNoOrdinal.comment_block(
+            changed, "RULING_EXEMPT_CEILING"
+        )
+        with self.assertRaises(AssertionError):
+            self.assertProseIn("ADR 0075 ruling 7", block)
+
+    def test_adr_0128_does_not_restore_the_retired_slack_clause(self) -> None:
+        adr_0128 = next((REPO_ROOT / "docs" / "adr").glob("0128-*.md"))
+        self.assertProseNotIn("with one slot already spent", read(adr_0128))
 
 
 class TheTwoRootDocumentsAreNotOneKind(unittest.TestCase):
