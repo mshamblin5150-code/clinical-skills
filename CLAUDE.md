@@ -182,6 +182,9 @@ from that path. The preceding order remains historical.
 **Correction, 2026-09-12:** `command_tool_roster.py` is now the most recent direct command and calls
 `use_utf8` from that path. The preceding order remains historical.
 
+**Correction, 2026-09-17:** `form_sections.py` is now the most recent direct command and calls
+`use_utf8` and `require_python_floor` from that path. The preceding order remains historical.
+
 ### Suite run
 
 `tools/suite.py` is the one complete-suite interface. It discovers the `test*.py` population under
@@ -313,6 +316,12 @@ Covered by `tools/test_specificity_scan.py`, which builds synthetic worksheets i
 ### Medatrax Entry copy
 
 `python tools/entry_copy.py <finished note path>` writes `entry-copies/<note filename>` beneath the finished note's directory, including for a finished note returned to an existing run. It removes each welded `NOT CODED:` clause through its semicolon or sentence-ending period while keeping surrounding prose. It requires each of the four Plan labels named in [ADR 0254](docs/adr/0254-the-note-entered-in-medatrax-is-a-derived-entry-copy-and-its-plan-takes-four-labels.md) exactly once. Within the Plan, any line whose text before its first colon is four words or fewer must be one of those labels or `Sig`, `Dispense`, or `Refills`. A failed label check or surviving `NOT CODED` mark exits nonzero and removes any prior derived copy at that path. The source note remains the submission fingerprint population; the derived file is one directory below it. `tools/test_entry_copy.py` exercises the command and names the committed fixture notes whose preserved Plans it refuses.
+
+The Entry copy applies portal-character substitutions supported by a measured verdict and refuses unmeasured non-ASCII characters in pasted sections. Its complete boundary is `entry_copy.PORTAL_VERDICTS`; this section does not duplicate the table.
+
+### Medatrax form sections
+
+`python tools/form_sections.py <entry-copies/note-N.md>` derives the four form strings using `note_grammar.parse`. It writes `private/form-sections/note-N.json` only when absent; when present it compares and reports differences without grading or overwriting the evidence. Explicit `--replace` replaces it. The command reports the line count and length of all six buckets and the shared unread remainder. The limits belong to `form_sections.DECLARED_LIMITS` and `note_grammar.parse`'s public contract, not a second list here.
 
 ### Differential scan
 

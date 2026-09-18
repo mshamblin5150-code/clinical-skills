@@ -71,6 +71,7 @@ from functools import cache
 from pathlib import Path
 
 import run_grader
+from console_codec import require_python_floor, use_utf8
 from worksheet_grammar import CODE, ENTRY, ENTRY_CANDIDATE, FIELD, entry_is_for_entry, paired_entry
 
 SOURCE = re.compile(r"(?mi)^[ \t]*SOURCE[ \t]*:[ \t]*(.*?)[ \t]*$")
@@ -1023,11 +1024,16 @@ def _agreement_subjects(text: str) -> tuple[tuple[AgreementSubject, ...], int, i
     return tuple(identified), len(RENDERED_EM.findall(text)), unread
 
 
-def _pair_agreement_sources(worksheets: Path, notes: Path) -> tuple[list[AgreementPair], int]:
+def _pair_agreement_sources(
+    worksheets: Path, notes: Path, requested: set[str] | None = None
+) -> tuple[list[AgreementPair], int, int]:
     worksheet_files = _markdown_files(worksheets)
     note_files = _markdown_files(notes)
     stems = sorted(set(worksheet_files) & set(note_files))
-    unread = len(set(worksheet_files) ^ set(note_files))
+    full_pair_count = len(stems)
+    unread = len(set(worksheet_files) ^ set(note_files)) if requested is None else len(requested - set(stems))
+    if requested is not None:
+        stems = [stem for stem in stems if stem in requested]
     pairs: list[AgreementPair] = []
     for stem in stems:
         worksheet = worksheet_files[stem].read_text(encoding="utf-8", errors="replace")
@@ -1044,7 +1050,7 @@ def _pair_agreement_sources(worksheets: Path, notes: Path) -> tuple[list[Agreeme
             )
         )
         unread += subject_unread
-    return pairs, unread
+    return pairs, unread, full_pair_count
 
 
 def _anchor_findings(pairs: list[AgreementPair]) -> list[str]:
@@ -1056,8 +1062,11 @@ def _anchor_findings(pairs: list[AgreementPair]) -> list[str]:
     ]
 
 
-def _brief_payload(pairs: list[AgreementPair], unread: int, finding_count: int = 0) -> dict:
-    return {
+def _brief_payload(
+    pairs: list[AgreementPair], unread: int, full_pair_count: int,
+    requested: list[str] | None, finding_count: int = 0,
+) -> dict:
+    payload = {
         "mode": "descriptor agreement blind brief",
         "instructions": (
             "For every code, record agreeing_words, route, encounter_evidence, "
@@ -1110,6 +1119,10 @@ def _brief_payload(pairs: list[AgreementPair], unread: int, finding_count: int =
         "unread remainder": unread,
         "agreement findings": finding_count,
     }
+    if requested is not None:
+        payload["requested_stems"] = requested
+        payload["full_pair_count"] = full_pair_count
+    return payload
 
 
 def _section_codes(note: str, heading: str) -> set[str]:
@@ -1236,15 +1249,23 @@ def _run_agreement(argv: list[str]) -> int:
     parser.add_argument("--show", action="store_true")
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--agreement-brief", action="store_true")
-    mode.add_argument("--agreement-read", type=Path)
+    mode.add_argument("--agreement-read", type=Path, nargs="+")
+    parser.add_argument("--stem", action="append", default=None)
     args = parser.parse_args(argv)
-    pairs, unread = _pair_agreement_sources(args.worksheets, args.notes)
+    if args.stem and not args.agreement_brief:
+        parser.error("--stem requires --agreement-brief")
+    pairs, unread, full_pair_count = _pair_agreement_sources(
+        args.worksheets, args.notes, set(args.stem) if args.stem else None
+    )
     if not pairs:
         unread += 1
 
     if args.agreement_brief:
         anchor_findings = _anchor_findings(pairs)
-        print(json.dumps(_brief_payload(pairs, unread, len(anchor_findings)), indent=2, ensure_ascii=True))
+        print(json.dumps(
+            _brief_payload(pairs, unread, full_pair_count, args.stem, len(anchor_findings)),
+            indent=2, ensure_ascii=True,
+        ))
         if args.show:
             for finding in anchor_findings:
                 print(f"finding: {finding}", file=sys.stderr)
@@ -1252,20 +1273,21 @@ def _run_agreement(argv: list[str]) -> int:
 
     assert args.agreement_read is not None
     try:
-        payload = json.loads(args.agreement_read.read_text(encoding="utf-8"))
-        supplied_pairs = payload["pairs"]
-        if not isinstance(supplied_pairs, list):
-            raise TypeError("pairs is not a list")
         record_pairs: dict[str, dict] = {}
-        for row in supplied_pairs:
-            if not isinstance(row, dict) or "stem" not in row:
-                unread += 1
-                continue
-            stem = row["stem"]
-            if stem in record_pairs or not isinstance(row.get("codes"), list):
-                unread += 1
-                continue
-            record_pairs[stem] = row
+        for path in args.agreement_read:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            supplied_pairs = payload["pairs"]
+            if not isinstance(supplied_pairs, list):
+                raise TypeError("pairs is not a list")
+            for row in supplied_pairs:
+                if not isinstance(row, dict) or "stem" not in row:
+                    unread += 1
+                    continue
+                stem = row["stem"]
+                if stem in record_pairs or not isinstance(row.get("codes"), list):
+                    unread += 1
+                    continue
+                record_pairs[stem] = row
         expected_stems = {pair.stem for pair in pairs}
         unread += len(set(record_pairs) - expected_stems)
     except (OSError, ValueError, KeyError, TypeError) as error:
@@ -1360,6 +1382,8 @@ def _run_agreement(argv: list[str]) -> int:
 def main(argv: list[str]) -> int:
     """``argv`` is the argument list without the program name."""
     if any(arg in {"--agreement-brief", "--agreement-read"} for arg in argv):
+        use_utf8()
+        require_python_floor()
         return _run_agreement(argv)
     return run_grader.run(GRADER, argv)
 
