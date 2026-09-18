@@ -1330,7 +1330,14 @@ class NoSurnameCitationResolution(unittest.TestCase):
 class RepublishedDateExamplesComeFromApaSectionThirtyOne(unittest.TestCase):
     """The sheet owns every example; neither parser test retypes APA's strings."""
 
-    def examples(self) -> list[tuple[str, str, str, str]]:
+    def test_section_prose_names_both_citation_readers(self):
+        section = numbered_markdown_section(APA7.read_text(encoding="utf-8"), 31)
+        table = docx_write.markdown_tables(section)[0]
+        prose = section.replace(table, "")
+        self.assertIn("`reference_scan`", prose)
+        self.assertIn("`discussion_artifact`", prose)
+
+    def examples(self) -> list[tuple[str, str, str]]:
         section = numbered_markdown_section(APA7.read_text(encoding="utf-8"), 31)
         tables = docx_write.markdown_tables(section)
         self.assertEqual(len(tables), 1, "section 31 must publish one example table")
@@ -1345,7 +1352,6 @@ class RepublishedDateExamplesComeFromApaSectionThirtyOne(unittest.TestCase):
                 "Reference entry",
                 "In-text citation",
                 "Matching year",
-                "`reference_scan` resolution",
             ],
         )
         return [
@@ -1356,7 +1362,7 @@ class RepublishedDateExamplesComeFromApaSectionThirtyOne(unittest.TestCase):
     def test_every_published_form_is_read_and_keys_on_the_second_date(self):
         examples = self.examples()
         self.assertTrue(examples, "an empty table would make the loop pass")
-        for reference, citation, expected_year, disposition in examples:
+        for reference, citation, expected_year in examples:
             with self.subTest(citation=citation):
                 reference_citations = scan.read_citations(citation)
                 discussion_citations = artifact.read_citations(citation)
@@ -1375,13 +1381,13 @@ class RepublishedDateExamplesComeFromApaSectionThirtyOne(unittest.TestCase):
                     (item.key, item.year) in reference_pairs
                     for item in reference_citations
                 )
-                self.assertTrue(reference_resolves, disposition)
+                self.assertTrue(reference_resolves, citation)
 
     def test_the_shared_discussion_reader_resolves_both_parenthetical_and_narrative_forms(self):
         examples = self.examples()
         watson = [row for row in examples if row[0].startswith("Watson,")]
         self.assertEqual(len(watson), 2)
-        for reference, citation, _expected_year, _disposition in watson:
+        for reference, citation, _expected_year in watson:
             reference_pairs = artifact.ReferenceKeySet.from_references((reference,))
             occurrences = artifact.citation_occurrence_keys(
                 artifact.read_citations(citation, reference_pairs)
@@ -1395,12 +1401,8 @@ class RepublishedDateExamplesComeFromApaSectionThirtyOne(unittest.TestCase):
                     )
                 )
 
-    def test_the_only_recorded_author_shape_residues_are_their_existing_tickets(self):
-        dispositions = {disposition for *_rest, disposition in self.examples()}
-        self.assertEqual(dispositions, {"clean"})
-
     def test_dropping_the_approximate_range_limb_kills_the_gilgamesh_form(self):
-        _reference, citation, _year, _disposition = next(
+        _reference, citation, _year = next(
             row for row in self.examples() if "ca." in row[1]
         )
         weakened_date = artifact.REPUBLISHED_DATE_ELEMENT.replace(
@@ -1420,7 +1422,7 @@ class RepublishedDateExamplesComeFromApaSectionThirtyOne(unittest.TestCase):
             self.assertEqual(scan.read_citations(citation), ())
 
     def test_dropping_the_narrative_limb_kills_the_watson_form(self):
-        _reference, citation, _year, _disposition = next(
+        _reference, citation, _year = next(
             row
             for row in self.examples()
             if row[0].startswith("Watson,") and not row[1].startswith("(")
