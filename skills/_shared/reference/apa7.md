@@ -359,6 +359,8 @@ reaches` and `tools/checks_ledger.py` expects it, so a run that returns no verdi
 | **whether a citation stopping mid-word resolves** | The normalized relation has no word-boundary check, so a citation ending within a title word can resolve |
 | **spelled-out group citation after its abbreviation** | A full group name still resolves after its alias is defined; the command does not grade consistency of later usage |
 | **first-word equality on the surname path** | Personal-author keys still use the first significant surname word, which can make authors with the same key indistinguishable |
+| **different multi-word surnames sharing a first word** | A citation to Garcia Martinez can resolve clean against a Garcia Lopez entry through the unchanged first-word key |
+| **group author ending in initial-shaped abbreviation** | A non-legal group name ending in initials such as Department of Health and Human Services, U.S. is read as a personal author |
 | **first-name citations combining a given name with initials** | The single-given-name form resolves, but a combined form such as `Sarah M. Williams` has no declared initials join |
 | **hyphenated given names in first-name citations** | A hyphenated form such as `Mary-Kate Williams` has no declared first-initial join |
 | The **republished original publication date** | §31's original date element is parsed and not compared with the entry. APA's own Gilgamesh example reverses the range between its entry and citation, so joining the halves would fail the source that defines the rule |

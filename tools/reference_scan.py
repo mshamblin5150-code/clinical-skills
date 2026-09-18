@@ -253,6 +253,7 @@ from discussion_artifact import (
     group_abbreviation_definitions,
     legal_citation_spans,
     legal_reference_lacks_name,
+    personal_authors,
 )
 from docx_write import HEADING as RENDERER_MARKDOWN_HEADING
 from docx_write import REFERENCE_HEADING as RENDERER_HEADING
@@ -708,6 +709,14 @@ NOT_REACHED = (
         "Personal-author citations retain the first significant surname key, so two authors sharing that key remain indistinguishable here.",
     ),
     (
+        "different multi-word surnames sharing a first word",
+        "Garcia Martinez, 2020 resolves clean against Garcia Lopez, M. (2020) through the unchanged first-word key.",
+    ),
+    (
+        "group author ending in initial-shaped abbreviation",
+        "A non-legal group author ending in initials such as Department of Health and Human Services, U.S. reads as a personal author.",
+    ),
+    (
         "first-name citations combining a given name with initials",
         "The single-given-name form is read, but Sarah M. Williams combines a given name and initials without a declared join.",
     ),
@@ -969,10 +978,11 @@ def citation_key(author: str) -> str:
     text = without_leading_article(text)
     initialed = re.match(
         r"^(?P<initials>(?:[" + UPPER + r"]\.\s*)+)"
-        r"(?P<surname>[" + UPPER + r"](?:" + LETTER + r"|['’.\-])*)\b",
+        r"(?P<surname>[" + UPPER + r"](?:" + LETTER + r"|['’.\-]|\s)*?)"
+        r"(?=\s+(?:&|and)\s+|\s+et\s+al\.|$)",
         text,
     )
-    if initialed is not None and initialed.group("surname").casefold() not in {"a", "an", "the"}:
+    if initialed is not None and initialed.group("surname").split()[0].casefold() not in {"a", "an", "the"}:
         return normalize(initialed.group("initials") + initialed.group("surname")).replace(" ", "")
     match = FIRST_WORD.match(text)
     if not match:
@@ -1080,14 +1090,12 @@ class Entry:
     def first_author_initials(self) -> tuple[str, str] | None:
         """First personal author's surname and complete initials, if present."""
 
-        match = re.match(
-            r"^\s*(?P<surname>[" + UPPER + r"](?:" + LETTER + r"|['’.\-])*),\s*"
-            r"(?P<initials>(?:[" + UPPER + r"]\.\s*)+)",
-            self.text,
-        )
-        if match is None:
+        match = self._year_match
+        authors = personal_authors(self.text[: match.start()] if match else self.text)
+        if not authors:
             return None
-        return normalize(match.group("surname")), normalize(match.group("initials")).replace(" ", "")
+        surname, initials = authors[0]
+        return normalize(surname).replace(" ", ""), normalize(initials).replace(" ", "")
 
     @property
     def authors(self) -> str:
@@ -1143,16 +1151,7 @@ class Entry:
         legal = LEGAL_CITATION.search(author_text)
         if legal is not None:
             return author_text[: legal.start()].rstrip("., ")
-        surnames = re.findall(
-            r"(?:^|(?:,\s*&?|\s+&|\s+and)\s*)(["
-            + UPPER
-            + r"](?:"
-            + LETTER
-            + r"|['’.\-])*),\s*["
-            + UPPER
-            + r"](?:[.\-]|\s|$)",
-            author_text,
-        )
+        surnames = tuple(surname for surname, _initials in personal_authors(author_text))
         if len(surnames) == 1:
             return surnames[0]
         if len(surnames) == 2:
@@ -1283,7 +1282,7 @@ def summarize_buckets(
 
 @dataclass(frozen=True)
 class Citation:
-    """One in-text citation with its full phrase for no-surname resolution."""
+    """One in-text citation with its written phrase for surname reading."""
 
     key: str
     year: str
@@ -1672,7 +1671,7 @@ def read_citations(
             phrase,
             start if any(definition.alias == phrase for definition in definitions) else -1,
         )
-        seen.setdefault(identity, Citation(key, year, phrase, start, first_name_citation(author)))
+        seen.setdefault(identity, Citation(key, year, author, start, first_name_citation(author)))
 
     for definition in definitions:
         if definition.year is not None:
@@ -2010,14 +2009,14 @@ def _citation_findings(document: Document) -> list[Finding]:
 
     def matches(citation: Citation, entry: Entry) -> bool:
         if entry.title_proper_key:
-            phrase = citation.phrase
-            if citation.phrase in alias_groups:
-                groups = alias_groups[citation.phrase]
+            phrase = citation_phrase_key(citation.phrase)
+            if phrase in alias_groups:
+                groups = alias_groups[phrase]
                 phrase = (
                     next(iter(groups))
                     if len(groups) == 1
                     and any(
-                        definition.alias == citation.phrase
+                        definition.alias == phrase
                         and definition.start < citation.start
                         for definition in definitions
                     )
@@ -2028,7 +2027,8 @@ def _citation_findings(document: Document) -> list[Finding]:
             initial, remainder = citation.first_name
             _surname, initials = entry.first_author_initials
             listed_author = entry.citation_author.replace("&", " and ")
-            return initials.startswith(initial) and remainder == citation_phrase_key(listed_author)
+            if initials.startswith(initial) and remainder == citation_phrase_key(listed_author):
+                return True
         return any(citation.key == key for key, _year in entry.resolution_keys)
     first_authors: dict[str, set[str]] = {}
     for entry in document.entries:
@@ -2037,7 +2037,11 @@ def _citation_findings(document: Document) -> list[Finding]:
     ambiguous = {surname for surname, initials in first_authors.items() if len(initials) > 1}
 
     for citation in document.citations:
-        if citation.key in ambiguous:
+        phrase = SIGNAL_PHRASE.sub("", citation.phrase).strip()
+        bare_surname = re.split(
+            r"\s+(?:&|and)\s+|\s+et\s+al\.", phrase, maxsplit=1, flags=re.I
+        )[0]
+        if normalize(bare_surname).replace(" ", "") in ambiguous:
             found.append(Finding(MISSING_FIRST_AUTHOR_INITIALS, "body", f"{citation.key} {citation.year}"))
         matched = tuple(entry for entry in document.entries if matches(citation, entry))
         listed_years = {

@@ -730,6 +730,48 @@ class TheYearsAgreeAndBothDirectionsAreChecked(unittest.TestCase):
                 self.assertRegex(output.getvalue(), rf"{scan.UNLISTED_CITATION}\s+{unlisted}\b")
                 self.assertRegex(output.getvalue(), rf"{scan.MISSING_FIRST_AUTHOR_INITIALS}\s+{missing}\b")
 
+    def test_multiword_first_author_initials_and_first_word_limit(self):
+        entries = (
+            "Garcia Lopez, M. (2020). First study. Journal of Care.",
+            "Garcia Lopez, R. (2021). Second study. Journal of Care.",
+        )
+        cases = (
+            ("(M. Garcia Lopez, 2020)", 0, 0),
+            ("(Garcia Lopez, 2020)", 0, 1),
+            ("(Garcia Martinez, 2020)", 0, 0),
+        )
+        for cited, unlisted, missing in cases:
+            with self.subTest(cited=cited):
+                found = kinds(draft(*entries, body=f"# Case\n\nEvidence {cited}.\n"))
+                self.assertEqual(unlisted, found.count(scan.UNLISTED_CITATION))
+                self.assertEqual(missing, found.count(scan.MISSING_FIRST_AUTHOR_INITIALS))
+
+        distinct = (
+            entries[0],
+            "Garcia Martinez, R. (2021). Second study. Journal of Care.",
+        )
+        found = kinds(draft(*distinct, body="# Case\n\nEvidence (Garcia Lopez, 2020).\n"))
+        self.assertNotIn(scan.MISSING_FIRST_AUTHOR_INITIALS, found)
+        for other_surname in ("Garcia Lopez-Martinez", "Garcia Lopezson"):
+            with self.subTest(other_surname=other_surname):
+                found = kinds(draft(*entries, body=f"# Case\n\n({other_surname}, 2020).\n"))
+                self.assertNotIn(scan.MISSING_FIRST_AUTHOR_INITIALS, found)
+
+        for entry, cited, surname in (
+            ("Garcia Lopez, M., & Smith, J. (2020). Study. Journal of Care.",
+             "(Garcia Lopez & Smith, 2020)", "garcialopez"),
+            ("St. Peter, A. (2020). Study. Journal of Care.",
+             "(A. St. Peter, 2020)", "stpeter"),
+            ("Van der Berg, A. (2020). Study. Journal of Care.",
+             "(A. Van der Berg, 2020)", "vanderberg"),
+            ("Garcia-Lopez, M. (2020). Study. Journal of Care.",
+             "(M. Garcia-Lopez, 2020)", "garcia-lopez"),
+        ):
+            with self.subTest(entry=entry):
+                document = scan.read_document(draft(entry, body=f"# Case\n\n{cited} reports this.\n"))
+                self.assertEqual(surname.replace("-", ""), document.entries[0].first_author_initials[0])
+                self.assertNotIn(scan.UNLISTED_CITATION, kinds(draft(entry, body=f"# Case\n\n{cited} reports this.\n")))
+
     def test_narrative_first_author_initials_remain_visible_at_the_command_boundary(self):
         entries = (
             "Taylor, J. M., & Neimeyer, R. A. (2015). First study. Journal of Care.",
@@ -897,6 +939,25 @@ class TheYearsAgreeAndBothDirectionsAreChecked(unittest.TestCase):
 
 class SupportedLegalEntriesResolveByTitleAndYear(unittest.TestCase):
     """Chapter 11's title-year rule at the finished-draft seam."""
+
+    def test_personal_group_and_legal_entry_keys_remain_unchanged(self):
+        cases = (
+            ("Professional and Vocational Regulations, 16 CCR § 1481", "professional", None),
+            ("Eligibility for prescriptive authority, W. Va. Code § 30-7-15b", "eligibility", None),
+            ("Consolidated Appropriations Act, 2023, Pub. L. No. 117-328, § 1263", "consolidated", None),
+            ("Payment for nurse practitioners' services, 42 C.F.R. § 414.56", "payment", None),
+            ("Advanced practice registered nurse licensure requirements "
+             "(W. Va. Code R. § 19-7, 2024)", "advanced", None),
+            ("World Health Organization. (2020). Report. Publisher.", "world", None),
+            ("Garcia, M. (2020). Study. Journal.", "garcia", ("garcia", "m")),
+            ("Smith, J. (2020). Study. Journal.", "smith", ("smith", "j")),
+            ("Garcia-Lopez, M. (2020). Study. Journal.", "garcia lopez", ("garcialopez", "m")),
+        )
+        for text, key, first_author in cases:
+            with self.subTest(text=text):
+                entry = scan.read_document(draft(text, body="# Case\n\nNo citation.\n")).entries[0]
+                self.assertEqual(key, entry.key)
+                self.assertEqual(first_author, entry.first_author_initials)
 
     CITATIONS = {
         "parenthetical section": f"({LEGAL_SECTION}, 2026)",
@@ -2338,6 +2399,8 @@ class EveryDeclaredLimitIsReDerivedAtTheScannerSeam(unittest.TestCase):
             "whether a citation stopping mid-word resolves": self.mid_word_prefix,
             "spelled-out group citation after its abbreviation": self.spelled_out_after_definition,
             "first-word equality on the surname path": self.surname_first_word,
+            "different multi-word surnames sharing a first word": self.multiword_first_word,
+            "group author ending in initial-shaped abbreviation": self.group_with_final_initials,
             "first-name citations combining a given name with initials": self.first_name_with_initials,
             "hyphenated given names in first-name citations": self.hyphenated_given_name,
             "republished original publication date": self.republished_original_publication_date,
@@ -2389,6 +2452,18 @@ class EveryDeclaredLimitIsReDerivedAtTheScannerSeam(unittest.TestCase):
         )
         self.assertNotIn(scan.UNLISTED_CITATION, kinds(draft(*entries, body=body)))
         self.assertNotIn(scan.UNCITED_ENTRY, kinds(draft(*entries, body=body)))
+
+    def multiword_first_word(self):
+        entry = "Garcia Lopez, M. (2020). Study. Publisher."
+        body = "# Case\n\n(Garcia Martinez, 2020) reports this.\n"
+        found = kinds(draft(entry, body=body))
+        self.assertNotIn(scan.UNLISTED_CITATION, found)
+        self.assertNotIn(scan.UNCITED_ENTRY, found)
+
+    def group_with_final_initials(self):
+        entry = "Department of Health and Human Services, U.S. (2020). Report. Publisher."
+        document = scan.read_document(draft(entry, body="# Case\n\n(Department, 2020).\n"))
+        self.assertEqual(("departmentofhealthandhumanservices", "us"), document.entries[0].first_author_initials)
 
     def first_name_with_initials(self):
         entry = "Williams, S. (2019). Study. Journal of Care."
