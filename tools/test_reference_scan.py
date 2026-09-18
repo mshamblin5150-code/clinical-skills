@@ -671,6 +671,43 @@ class TheDatabaseNameIsItalicizedInExactlyOnePlace(unittest.TestCase):
 
 
 class TheYearsAgreeAndBothDirectionsAreChecked(unittest.TestCase):
+    def test_first_name_form_joins_only_a_listed_first_initial(self):
+        entries = (
+            "Williams, S. M. (2019). First study. Journal of Care.",
+            "Williams, S. (2020). Second study. Journal of Care.",
+        )
+        cases = (
+            ("Sarah Williams (2019) stated this.", False),
+            ("The result was reported (Shonda Williams, 2020).", False),
+            ("The result was reported (Range Williams, 2019).", True),
+            ("Sarah M. Williams (2019) stated this.", True),
+            ("Mary-Kate Williams (2019) stated this.", True),
+        )
+        for body, unlisted in cases:
+            with self.subTest(body=body):
+                found = kinds(draft(*entries, body="# Case\n\n" + body + "\n"))
+                self.assertEqual(unlisted, scan.UNLISTED_CITATION in found)
+        entry = "Williams, R. (2019). Study. Journal of Care."
+        body = "# Case\n\nThe result was reported (Range Williams, 2019).\n"
+        self.assertNotIn(scan.UNLISTED_CITATION, kinds(draft(entry, body=body)))
+
+    def test_first_name_form_keeps_coauthor_tails_and_satisfies_initials(self):
+        entries = (
+            "Williams, S., & Jones, P. (2019). First study. Journal of Care.",
+            "Williams, S., Jones, P., & Doe, R. (2020). Second study. Journal of Care.",
+            "Williams, R. (2021). Third study. Journal of Care.",
+        )
+        for cited in (
+            "(Sarah Williams & Jones, 2019)",
+            "Sarah Williams and Jones (2019) report this.",
+            "(Shonda Williams et al., 2020)",
+            "Shonda Williams et al. (2020) report this.",
+        ):
+            with self.subTest(cited=cited):
+                found = kinds(draft(*entries, body="# Case\n\n" + cited + "\n"))
+                self.assertNotIn(scan.UNLISTED_CITATION, found)
+                self.assertNotIn(scan.MISSING_FIRST_AUTHOR_INITIALS, found)
+
     def test_first_author_initials_are_exact_at_the_command_boundary(self):
         entries = (
             "Taylor, J. M., & Neimeyer, R. A. (2015). First study. Journal of Care.",
@@ -2301,7 +2338,8 @@ class EveryDeclaredLimitIsReDerivedAtTheScannerSeam(unittest.TestCase):
             "whether a citation stopping mid-word resolves": self.mid_word_prefix,
             "spelled-out group citation after its abbreviation": self.spelled_out_after_definition,
             "first-word equality on the surname path": self.surname_first_word,
-            "first-name citations for an author whose surname changed": self.first_name_citations,
+            "first-name citations combining a given name with initials": self.first_name_with_initials,
+            "hyphenated given names in first-name citations": self.hyphenated_given_name,
             "republished original publication date": self.republished_original_publication_date,
             "author-shaped slash span": self.author_shaped_slash_span,
             "unwarranted retrieval date": self.unwarranted_retrieval_date,
@@ -2352,12 +2390,17 @@ class EveryDeclaredLimitIsReDerivedAtTheScannerSeam(unittest.TestCase):
         self.assertNotIn(scan.UNLISTED_CITATION, kinds(draft(*entries, body=body)))
         self.assertNotIn(scan.UNCITED_ENTRY, kinds(draft(*entries, body=body)))
 
-    def first_name_citations(self):
+    def first_name_with_initials(self):
         entry = "Williams, S. (2019). Study. Journal of Care."
-        first_name = draft(entry, body="# Case\n\nThe result was reported (Sarah Williams, 2019).\n")
+        first_name = draft(entry, body="# Case\n\nThe result was reported (Sarah M. Williams, 2019).\n")
         self.assertIn(scan.UNLISTED_CITATION, kinds(first_name))
         ordinary = draft(entry, body="# Case\n\nWilliams (2019) reports the result.\n")
         self.assertNotIn(scan.UNLISTED_CITATION, kinds(ordinary))
+
+    def hyphenated_given_name(self):
+        entry = "Williams, S. (2019). Study. Journal of Care."
+        body = "# Case\n\nThe result was reported (Mary-Kate Williams, 2019).\n"
+        self.assertIn(scan.UNLISTED_CITATION, kinds(draft(entry, body=body)))
 
     def republished_original_publication_date(self):
         entry = "Freud, S. (2010). Civilization and its discontents."

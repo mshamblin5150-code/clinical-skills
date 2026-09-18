@@ -920,17 +920,28 @@ def _scan_line(
     for name, pattern in index.candidates(text):
         if pattern.search(text):
             findings.append(Finding(path, number, "corpus-name", name))
-    for match in NUMERIC_CORPUS_DATE.finditer(text):
+    # The APA registry's checked cell records when a public manual page was read.
+    # A patient visit on that day does not turn this metadata into a patient date.
+    # Keep scanning every other cell, and keep the shape layer on the whole line.
+    date_text = text
+    if path == "skills/_shared/reference/apa7-coverage.md":
+        date_text = re.sub(
+            r"^(\|\s*[^|]+\|\s*[^|]+\|\s*read-root\s*\|\s*)"
+            r"\d{4}-\d{2}-\d{2}(?=\s*\|)",
+            r"\1[manual-read-date]",
+            text,
+        )
+    for match in NUMERIC_CORPUS_DATE.finditer(date_text):
         if _parse_numeric_dates(match.group(0)) & index.calendar_dates:
             findings.append(Finding(path, number, "corpus-date", match.group(0)))
-    for match in WRITTEN_CORPUS_DATE.finditer(text):
+    for match in WRITTEN_CORPUS_DATE.finditer(date_text):
         if _parse_written_dates(match) & index.calendar_dates:
             findings.append(Finding(path, number, "corpus-date", match.group(0)))
-    for match in ISO_CORPUS_DATE.finditer(text):
+    for match in ISO_CORPUS_DATE.finditer(date_text):
         if _parse_iso_date(match.group(0)) in index.calendar_dates:
             findings.append(Finding(path, number, "corpus-date", match.group(0)))
     for date in index.unparsed_dates:
-        if date in text:
+        if date in date_text:
             findings.append(Finding(path, number, "corpus-date", date))
     if shapes:
         for rule, pattern in SHAPE_RULES.items():

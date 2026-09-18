@@ -2628,9 +2628,13 @@ class TheRenderedDocumentContractIsPublished(unittest.TestCase):
 
 class EveryBehaviorLimitHasALiveHandler(unittest.TestCase):
     HANDLERS = {
-        "first-name citations for an author whose surname changed": (
-            "CitationResolutionResidues.test_first_name_form_remains_unlisted",
-            "ACompletePostPasses.test_first_author_initials_are_exact_at_the_command_boundary",
+        "first-name citations combining a given name with initials": (
+            "CitationResolutionResidues.test_combined_given_name_and_initials_remain_unlisted",
+            "CitationResolutionResidues.test_single_given_name_resolves",
+        ),
+        "hyphenated given names in first-name citations": (
+            "CitationResolutionResidues.test_hyphenated_given_name_remains_unlisted",
+            "CitationResolutionResidues.test_single_given_name_resolves",
         ),
         "whether a shortened title resolves against more than one reference entry": (
             "CitationResolutionResidues.test_the_three_declared_prefix_edges_resolve",
@@ -2702,15 +2706,35 @@ class EveryBehaviorLimitHasALiveHandler(unittest.TestCase):
 
 
 class CitationResolutionResidues(unittest.TestCase):
-    def test_first_name_form_remains_unlisted(self):
+    def test_single_given_name_resolves(self):
         references = artifact.ReferenceKeySet.from_references(
             ("Williams, S. (2019). A study. Journal of Care.",)
         )
-        first_name = artifact.read_citations("The result is reported (Sarah Williams, 2019).", references)
-        ordinary = artifact.read_citations("The result is reported (Williams, 2019).", references)
-        self.assertEqual(1, len(first_name))
-        self.assertFalse(references.resolves(artifact.citation_occurrence_keys(first_name)[0][0]))
-        self.assertTrue(references.resolves(artifact.citation_occurrence_keys(ordinary)[0][0]))
+        body = "The result is reported (Sarah Williams, 2019)."
+        cited = artifact.read_citations(body, references)
+        self.assertTrue(any(
+            references.resolves(key)
+            for key in artifact.citation_occurrence_keys(cited, body, references)[0]
+        ))
+
+    def test_combined_given_name_and_initials_remain_unlisted(self):
+        self._assert_first_name_limit("Sarah M. Williams")
+
+    def test_hyphenated_given_name_remains_unlisted(self):
+        self._assert_first_name_limit("Mary-Kate Williams")
+
+    def _assert_first_name_limit(self, name):
+        references = artifact.ReferenceKeySet.from_references(
+            ("Williams, S. (2019). A study. Journal of Care.",)
+        )
+        body = f"The result is reported ({name}, 2019)."
+        cited = artifact.read_citations(body, references)
+        self.assertTrue(cited)
+        self.assertFalse(any(
+            references.resolves(key)
+            for keys in artifact.citation_occurrence_keys(cited, body, references)
+            for key in keys
+        ))
 
     def test_the_three_declared_prefix_edges_resolve(self):
         today = artifact.ReferenceKeySet.from_references(

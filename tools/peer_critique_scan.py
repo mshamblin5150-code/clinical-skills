@@ -366,7 +366,9 @@ def _citation_findings(source: RunSource) -> tuple[Finding, ...]:
             "critique.md",
             f"{citation.author}, {citation.year} has no matching reference",
         )
-        for citation, keys in zip(citations, citation_occurrence_keys(citations))
+        for citation, keys in zip(
+            citations, citation_occurrence_keys(citations, source.body, references)
+        )
         if not any(references.resolves(key) for key in keys)
     )
 

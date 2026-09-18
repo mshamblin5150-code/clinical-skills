@@ -321,13 +321,40 @@ class CitationResolutionResidues(unittest.TestCase):
         self.assertTrue(group.resolves(("worldhealth", "2020")))
         self.assertTrue(today.resolves(("nursingtod", "2020")))
 
-    def test_first_name_form_for_name_change_is_not_supported(self):
+    def test_single_given_name_resolves_in_critique(self):
         references = scan.ReferenceKeySet.from_references(
             ("Williams, S. (2019). A title.", "Williams, S. (2020). Another title.")
         )
+        body = "The result is reported (Sarah Williams, 2019)."
+        cited = scan.read_citations(body, references)
+        self.assertTrue(any(
+            references.resolves(key)
+            for key in scan.citation_occurrence_keys(cited, body, references)[0]
+        ))
+        self.assertNotIn(
+            scan.UNRESOLVED_CITATION,
+            kinds(build_run(
+                extra="\n\n" + body,
+                references=REFERENCES + "\nWilliams, S. (2019). A title.\n",
+            )),
+        )
 
-        self.assertTrue(references.resolves(("williams", "2019")))
-        self.assertFalse(references.resolves(("sarahwilliams", "2019")))
+    def test_combined_given_name_and_initials_remain_unlisted(self):
+        self._assert_first_name_limit("Sarah M. Williams")
+
+    def test_hyphenated_given_name_remains_unlisted(self):
+        self._assert_first_name_limit("Mary-Kate Williams")
+
+    def _assert_first_name_limit(self, name):
+        references = scan.ReferenceKeySet.from_references(("Williams, S. (2019). A title.",))
+        body = f"The result is reported ({name}, 2019)."
+        cited = scan.read_citations(body, references)
+        self.assertTrue(cited)
+        self.assertFalse(any(
+            references.resolves(key)
+            for keys in scan.citation_occurrence_keys(cited, body, references)
+            for key in keys
+        ))
 
 
 class TheWordCeilingIsReportedAndNeverGraded(unittest.TestCase):
@@ -605,8 +632,13 @@ class TheDeclaredLimitsAreDerivedAndBound(unittest.TestCase):
 
 class EveryBehaviorLimitHasALiveHandler(unittest.TestCase):
     HANDLERS = {
-        "first-name citations for an author whose surname changed": (
-            "CitationResolutionResidues.test_first_name_form_for_name_change_is_not_supported",
+        "first-name citations combining a given name with initials": (
+            "CitationResolutionResidues.test_combined_given_name_and_initials_remain_unlisted",
+            "CitationResolutionResidues.test_single_given_name_resolves_in_critique",
+        ),
+        "hyphenated given names in first-name citations": (
+            "CitationResolutionResidues.test_hyphenated_given_name_remains_unlisted",
+            "CitationResolutionResidues.test_single_given_name_resolves_in_critique",
         ),
         "whether a shortened title resolves against more than one reference entry": (
             "CitationResolutionResidues.test_the_three_declared_prefix_edges_resolve",

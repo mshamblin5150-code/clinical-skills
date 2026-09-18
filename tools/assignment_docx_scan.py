@@ -427,10 +427,11 @@ def survey(source: Source) -> Scan:
         findings.append(Finding(CLAIM_LEDGER, "claims.md has no CLAIM record"))
     for number in sorted(set(traceable_numeric_values(body)) - claim_numbers):
         findings.append(Finding(UNTRACED_NUMBER, f"{number} has no claim record"))
-    cited = read_citations(body, ReferenceKeySet.from_references(references))
+    reference_key_set = ReferenceKeySet.from_references(references)
+    cited = read_citations(body, reference_key_set)
     claim_key_set = ReferenceKeySet.exact(claim_keys)
     for citation, candidates in zip(
-        cited, citation_occurrence_keys(cited), strict=True
+        cited, citation_occurrence_keys(cited, body, reference_key_set), strict=True
     ):
         if not any(claim_key_set.resolves(candidate) for candidate in candidates):
             findings.append(

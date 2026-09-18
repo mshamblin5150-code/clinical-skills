@@ -140,8 +140,13 @@ LEGAL_READER_NOT_REACHED = (
 )
 CITATION_RESOLUTION_NOT_REACHED = (
     (
-        "first-name citations for an author whose surname changed",
-        "The exceptional first-name form in APA section 8.20 is owned by issue #1350; this reader compares initials and surnames only.",
+        "first-name citations combining a given name with initials",
+        "APA section 8.20's single-given-name form is read, but a form such as Sarah M. Williams has no declared initials join.",
+        EvidenceDisposition.BEHAVIOR,
+    ),
+    (
+        "hyphenated given names in first-name citations",
+        "A hyphenated given name such as Mary-Kate Williams has no declared first-initial join.",
         EvidenceDisposition.BEHAVIOR,
     ),
     (
@@ -734,10 +739,34 @@ def citation_occurrence_keys(
                     else ()
                 )
             author_keys.extend(full_keys)
+        if references is not None:
+            author_keys.extend(_first_name_reference_keys(citation.author, references))
         occurrences.append(
             tuple((key, citation.year) for key in dict.fromkeys(author_keys))
         )
     return tuple(occurrences)
+
+
+def _first_name_reference_keys(author: str, references: ReferenceKeySet) -> tuple[str, ...]:
+    """Expand one given name only through first initials present in the list."""
+
+    phrase = _without_signal_word(author)
+    match = re.fullmatch(
+        r"\s*(?P<given>[" + UPPER + r"][" + LOWER + r"]+)\s+"
+        r"(?P<surname>[" + UPPER + r"](?:" + LETTER + r"|['’.\-])*)"
+        r"(?P<tail>\s+(?:(?:&|and)\s+.+|et\s+al\.))?\s*",
+        phrase,
+    )
+    if match is None:
+        return ()
+    surname = author_key(match.group("surname"))
+    first = author_key(match.group("given"))[0]
+    tail = match.group("tail") or ""
+    return tuple(dict.fromkeys(
+        author_key(initials.upper() + ". " + match.group("surname") + tail)
+        for name, initials in references.first_authors
+        if name == surname and initials.startswith(first)
+    ))
 
 
 CitationKey = tuple[str, str]
@@ -1007,6 +1036,13 @@ def _evidenced_citations(
             if not _valid_evidenced_author(body, author, word_start, block.end()):
                 continue
             if reference_key_set.recognizes_author(key):
+                if re.search(
+                    r"[" + UPPER + r"][" + LOWER + r"]+(?:-|\s+)$", prefix[:word_start]
+                ) and any(
+                    name == author_key(author.split()[0])
+                    for name, _initials in reference_key_set.first_authors
+                ):
+                    continue
                 prefix_initials = re.search(
                     r"(?:[" + UPPER + r"]\.\s*)+$", prefix[:word_start]
                 )
