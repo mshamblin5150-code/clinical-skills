@@ -49,7 +49,7 @@ Twelve independent generating passes, one per case, each given `skills/icd10-cpt
 | — proposed for entry | 209 | `anchor_scan` |
 | — differential, `NOT FOR ENTRY` | 87 | grep 2 |
 | codes carrying `SOURCE: filled` | 29 | `anchor_scan` |
-| codes listed under the strict `CODED, ANCHOR WAS FILLED` form | 23 | `anchor_scan` |
+| codes listed under `CODED, ANCHOR WAS FILLED` | 26 | `anchor_scan` |
 | `SPECIFICITY` flags | 200 | `specificity_scan` |
 | worksheets carrying `NOT CODED, NOTHING ESTABLISHED IT` | 12 | `refusal_scan` |
 | refusal records inside that block | 52 | `refusal_scan` |
@@ -79,9 +79,9 @@ All three print counts only and are safe to paste. **Their `--show` output is PH
 
 This preserved run has four divergence classes: case 3 uses `ALSO PROPOSED ABOVE`; case 5 appends tails after `NOT FOR ENTRY`; case 6 prefixes three step-4 listings with a code-system token; and cases 4 and 8 prefix the step-4 heading with `###`. The worksheets remain byte-for-byte run evidence.
 
-`anchor_scan` exits 1 with five findings: three marked codes use a non-template listing and two pediatric bands lack the required computation sentence. Its 10-of-12 block count reports the two prefixed headings; a worksheet with no recognized block supplies no listing population, so the scanner does not turn that absence into one finding per marked code. `specificity_scan` exits 2: its 200 flags have no C5 fault, but nine of 209 for-entry codes have no paired flag. `refusal_scan` exits 0 over 52 structurally complete records across twelve blocks. A clean refusal scan is not F1 by itself: the row also compares the printed per-case vector, which is what makes a silent drop visible. It verifies that descriptor text is present, not that the text is official; that remains ungraded with C2. And `anchor_scan` still cannot see whether the *right* codes were marked, which needs the note beside the worksheet; that reading is in [assertions.md](../assertions.md).
+`anchor_scan` exits 1 with five findings: three marked codes use a non-template listing and two pediatric bands lack the required computation sentence. It reads the filled-anchor block in all twelve worksheets, including the two with prefixed headings. `specificity_scan` exits 2: its 200 flags have no C5 fault, but nine of 209 for-entry codes have no paired flag. `refusal_scan` exits 0 over 52 structurally complete records across twelve blocks. All three report ten readable non-template block headings and zero unread remainder. A clean refusal scan is not F1 by itself: the row also compares the printed per-case vector, which is what makes a silent drop visible. It verifies that descriptor text is present, not that the text is official; that remains ungraded with C2. And `anchor_scan` still cannot see whether the *right* codes were marked, which needs the note beside the worksheet; that reading is in [assertions.md](../assertions.md).
 
-**Case 4 is worth opening first if you are here to check the tooling.** Its intended step-4 filled block is empty — correctly, since both its inputs are given — and it says so in a sentence that names `E66.3` and `Z68.25`. The line is beneath a `###`-prefixed heading the skill never permits, so `anchor_scan` reports no filled-anchor block at all; it does not claim to have read the block's line format. That visible absence is the strict opener doing its job on preserved divergent output.
+**Case 4 is worth opening first if you are here to check the tooling.** Its intended step-4 filled block is empty — correctly, since both its inputs are given — and it says so in a sentence that names `E66.3` and `Z68.25`. Its `###`-prefixed heading still diverges from the template; `anchor_scan` now reads that block and includes the heading in the off-template count. The preserved worksheet remains the evidence of what the run wrote.
 
 ## Its spellings are American, and that is a result rather than a default
 

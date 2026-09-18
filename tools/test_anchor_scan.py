@@ -45,6 +45,7 @@ assert_code_set_database_digest(
 )
 
 import anchor_scan as scan
+import refusal_scan
 import run_grader
 from grader_conformance import (
     EmptyPopulationInput,
@@ -87,7 +88,7 @@ class EveryBehaviorLimitHasALiveControl(unittest.TestCase):
         "recognized filled-anchor listing lines": "DeclaredLimitBoundaryControls.test_a_table_listing_is_unread_beside_the_code_dash_form",
         "recognized SOURCE marks": "DeclaredLimitBoundaryControls.test_only_a_value_beginning_with_filled_marks_the_code",
         "filled-anchor block closing headings": "DeclaredLimitBoundaryControls.test_a_subheading_ends_the_filled_anchor_block",
-        "filled-anchor block opening form": "DeclaredLimitBoundaryControls.test_only_the_delimited_line_opens_the_filled_anchor_block",
+        "filled-anchor block opening form": "DeclaredLimitBoundaryControls.test_three_heading_forms_open_the_filled_anchor_block",
         "contiguous indented detail pairing": "DeclaredLimitBoundaryControls.test_a_blank_line_orphans_a_recognized_source",
         "pediatric-band computation": "DeclaredLimitBoundaryControls.test_the_required_sentence_is_not_a_recomputation",
         "per-run gradeable coverage": "DeclaredLimitBoundaryControls.test_an_unread_worksheet_adds_nothing_beside_a_readable_one",
@@ -134,7 +135,7 @@ class DeclaredLimitBoundaryControls(unittest.TestCase):
         )
         self.assertEqual(frozenset(), sheet.listed)
 
-    def test_only_the_delimited_line_opens_the_filled_anchor_block(self):
+    def test_three_heading_forms_open_the_filled_anchor_block(self):
         prose = scan.read_worksheet(
             "Accounting note names CODED, ANCHOR WAS FILLED for review.\n"
             "Z68.36 - BMI 36.4\n"
@@ -144,9 +145,10 @@ class DeclaredLimitBoundaryControls(unittest.TestCase):
             "Z68.36 - BMI 36.4\n"
         )
         delimited = scan.read_worksheet(f"{BLOCK}\nZ68.36 - BMI 36.4\n")
+        plain = scan.read_worksheet("## Coded, anchor was filled: confirm before submitting\nZ68.36 - BMI 36.4\n")
         self.assertEqual((frozenset(), False), (prose.listed, prose.has_block))
-        self.assertEqual((frozenset(), False), (prefixed.listed, prefixed.has_block))
-        self.assertEqual((frozenset({"Z68.36"}), True), (delimited.listed, delimited.has_block))
+        for sheet in (prefixed, delimited, plain):
+            self.assertEqual((frozenset({"Z68.36"}), True), (sheet.listed, sheet.has_block))
 
     def test_an_unrecognized_block_is_reported_without_inventing_listing_findings(self):
         sheet = scan.read_worksheet(
@@ -231,15 +233,11 @@ def unread_remainder_input(root: Path) -> UnreadRemainderInput:
     unread, twin = root / "unread", root / "twin"
     unread.mkdir()
     twin.mkdir()
-    unread_text = worksheet(
-        entry("I10", "Hypertension", source="filled")
-        + "\n- ICD-10 R12 Heartburn\n  - **SOURCE:** filled\n",
-        block="I10 - filled pressure",
-    )
     twin_text = worksheet(
         entry("I10", "Hypertension", source="filled"),
         block="I10 - filled pressure",
     )
+    unread_text = twin_text + "\n### --- NOT CODED, NOTHING ESTABLISHED MAYBE ---\n"
     (unread / "codes.md").write_text(unread_text, encoding="utf-8")
     (twin / "codes.md").write_text(twin_text, encoding="utf-8")
     return UnreadRemainderInput(
@@ -636,12 +634,39 @@ class TheCommittedRunsFiguresArePinned(unittest.TestCase):
         # parser buys and does not buy.
         self.assertEqual(self.scan.proposed, 209)
 
-    def test_twenty_nine_marks_and_twenty_three_strict_listings(self):
+    def test_twenty_nine_marks_and_twenty_six_read_listings(self):
         self.assertEqual(self.scan.marked, 29)
-        self.assertEqual(self.scan.listed, 23)
+        self.assertEqual(self.scan.listed, 26)
 
-    def test_ten_worksheets_carry_the_strict_step_four_block(self):
-        self.assertEqual(self.scan.with_block, 10)
+    def test_twelve_worksheets_carry_the_step_four_block(self):
+        self.assertEqual(self.scan.with_block, 12)
+        self.assertEqual(self.scan.off_template_headings, 10)
+        self.assertEqual(self.scan.unread_remainder, 0)
+
+    def test_prefixed_differential_blocks_keep_their_entries_out_of_entry_role(self):
+        paths = (self.directory / f"case-{number:02}.md" for number in (2, 4, 8))
+        counts = [
+            sum(subject.role == "differential" for subject in scan._agreement_subjects(
+                path.read_text(encoding="utf-8")
+            )[0])
+            for path in paths
+        ]
+        self.assertEqual([5, 12, 12], counts)
+
+    def test_descriptor_agreement_reads_the_same_refusal_population(self):
+        for directory in (
+            self.directory,
+            REPO_ROOT / "fixtures" / "descriptor-agreement-note-path-control" / "worksheets",
+        ):
+            with self.subTest(directory=directory.name):
+                texts = run_grader.read_run_directory(directory)
+                agreement = sum(
+                    subject.role == "refused"
+                    for text in texts
+                    for subject in scan._agreement_subjects(text)[0]
+                )
+                refusals = sum(len(refusal_scan.read_worksheet(text).refusals) for text in texts)
+                self.assertEqual(agreement, refusals)
 
     def test_the_preserved_run_exposes_its_two_pre_calculator_bands(self):
         # The run is byte-for-byte evidence from before #123. Rewriting its two

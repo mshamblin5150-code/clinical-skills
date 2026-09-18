@@ -57,16 +57,14 @@ from worksheet_grammar import (
     entry_is_for_entry,
     field_candidates,
     paired_entry,
+    STEP_FOUR_START,
+    heading_counts,
 )
 
 EXPECTED_COMPLETION_CHECKS = (aar_scan.EXPECTED_ROW,)
 from icd10_lookup import CATEGORY_LENGTH, describe, normalize, notes_for, open_database
 
 SPECIFICITY = re.compile(r"(?mi)^[ \t]*SPECIFICITY[ \t]*:[ \t]*(.*?)[ \t]*$")
-STEP_FOUR_START = re.compile(
-    r"(?im)^---[ \t]+(?:CODED,[ \t]*ANCHOR[ \t]+WAS[ \t]+FILLED\b|"
-    r"NOT[ \t]+CODED,[ \t]+NOTHING[ \t]+ESTABLISHED[ \t]+IT\b).*---[ \t]*$"
-)
 
 # The code set's own words for *an axis exists and this code does not name it*.
 # ``Other specified ...`` is deliberately outside it -- see the module docstring.
@@ -208,6 +206,9 @@ class Scan:
     for_entry_codes_without_flag: int = 0
     orphaned_details: int = 0
     unread_remainder: int = 0
+    off_template_headings: int = 0
+    heading_candidates: int = 0
+    generic_differential_headings: int = 0
 
 
 @dataclass
@@ -617,6 +618,9 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         f"    neither keyword                {scan.unrecognized_flags}",
         f"    on a NOT FOR ENTRY line        {scan.not_for_entry_flags}",
         f"  orphaned detail lines           {scan.orphaned_details}",
+        f"  keyword heading candidates     {scan.heading_candidates}",
+        f"  generic Differential headings  {scan.generic_differential_headings}",
+        f"  off-template block headings     {scan.off_template_headings}",
         "",
         f"  C5 - flag carries no reason      {scan.bare_flags}",
         f"  C5 - welded keyword              {scan.welded_keywords}",
@@ -680,6 +684,9 @@ class Source:
     for_entry_codes_without_flag: int
     orphaned_details: int
     unread_remainder: int
+    off_template_headings: int
+    heading_candidates: int
+    generic_differential_headings: int
 
 
 def _load(parsed: run_grader.Parsed) -> Source:
@@ -691,6 +698,7 @@ def _load(parsed: run_grader.Parsed) -> Source:
         raise run_grader.SourceError(f"no worksheets found in {directory.name}")
     coverage = tuple(entry_flag_coverage(text) for text in worksheets)
     flag_records = tuple(read_flags_with_orphans(text) for text in worksheets)
+    heading_populations = tuple(heading_counts(text) for text in worksheets)
     return Source(
         directory,
         tuple(tuple(flags) for flags, _orphans in flag_records),
@@ -698,7 +706,11 @@ def _load(parsed: run_grader.Parsed) -> Source:
         sum(item[0] for item in coverage),
         sum(item[1] for item in coverage),
         sum(orphans for _flags, orphans in flag_records),
-        sum(candidate_unread_remainder(text) for text in worksheets),
+        sum(candidate_unread_remainder(text) for text in worksheets)
+        + sum(headings.unread for headings in heading_populations),
+        sum(headings.off_template for headings in heading_populations),
+        sum(headings.candidates for headings in heading_populations),
+        sum(headings.generic_differential for headings in heading_populations),
     )
 
 
@@ -730,6 +742,9 @@ def _grade(
         for_entry_codes_without_flag=source.for_entry_codes_without_flag,
         orphaned_details=source.orphaned_details,
         unread_remainder=source.unread_remainder,
+        off_template_headings=source.off_template_headings,
+        heading_candidates=source.heading_candidates,
+        generic_differential_headings=source.generic_differential_headings,
     )
     diagnostics: list[str] = []
     reports: list[str] = []

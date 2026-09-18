@@ -1,5 +1,6 @@
 """Tests for the shared ``icd10-cpt`` worksheet grammar."""
 
+import ast
 import unittest
 from pathlib import Path
 
@@ -100,6 +101,50 @@ class DetailPairing(unittest.TestCase):
 
 
 class OwnershipContract(unittest.TestCase):
+    def test_three_forms_and_near_miss_counts_share_one_grammar(self):
+        text = (
+            "--- NOT CODED, NOTHING ESTABLISHED IT ---\n"
+            "### --- not coded, nothing established it ---\n"
+            "## Not coded, nothing established it\n"
+            "### --- NOT CODED, NOTHING ESTABLISHED MAYBE ---\n"
+            "### Differential\n"
+        )
+        self.assertEqual(3, len(grammar.REFUSAL_HEADING.findall(text)))
+        self.assertEqual(grammar.HeadingCounts(5, 1, 2, 1), grammar.heading_counts(text))
+
+    def test_committed_worksheet_sets_have_no_heading_near_miss(self):
+        for directory in (
+            ROOT / "fixtures" / "filled-anchor" / "run-2",
+            ROOT / "fixtures" / "descriptor-agreement-note-path-control" / "worksheets",
+        ):
+            with self.subTest(directory=directory.name):
+                self.assertEqual(0, sum(
+                    grammar.heading_counts(path.read_text(encoding="utf-8")).unread
+                    for path in directory.glob("*.md")
+                    if path.name.lower() != "readme.md"
+                ))
+
+    def test_no_other_tool_owns_a_standalone_step_four_phrase(self):
+        # AST string equality is a floor: fragments, computed strings, and prose
+        # containing a phrase are outside this ownership check.
+        phrases = {
+            "DIFFERENTIAL, DOCUMENTS MDM, NOT FOR ENTRY",
+            "UNDOCUMENTED, WOULD SUPPORT A MORE SPECIFIC CODE",
+            "CODED, ANCHOR WAS FILLED",
+            "NOT CODED, NOTHING ESTABLISHED IT",
+        }
+        for path in (ROOT / "tools").glob("*.py"):
+            if path.name.startswith("test_") or path.name == "worksheet_grammar.py":
+                continue
+            with self.subTest(path=path.name):
+                tree = ast.parse(path.read_text(encoding="utf-8-sig"))
+                self.assertFalse(any(
+                    isinstance(node, ast.Constant)
+                    and isinstance(node.value, str)
+                    and node.value.strip().upper() in phrases
+                    for node in ast.walk(tree)
+                ))
+
     def test_shared_module_stays_a_library_without_console_setup(self):
         source = (ROOT / "tools" / "worksheet_grammar.py").read_text(encoding="utf-8")
 
@@ -113,10 +158,11 @@ class OwnershipContract(unittest.TestCase):
         self.assertIn("tools/worksheet_grammar.py", prose)
         self.assertIn("orphaned detail line", prose)
 
-    def test_refusal_scanner_intentionally_keeps_its_own_marker(self):
+    def test_refusal_scanner_imports_the_shared_headings(self):
         source = (ROOT / "tools" / "refusal_scan.py").read_text(encoding="utf-8")
 
-        self.assertIn("Intentionally local rather than imported", source)
+        self.assertIn("from worksheet_grammar import", source)
+        self.assertIn("REFUSAL_HEADING", source)
         self.assertRegex(source, r"NOT_FOR_ENTRY\s*=\s*re\.compile")
 
 

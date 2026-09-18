@@ -219,19 +219,12 @@ def unread_remainder_input(root: Path) -> UnreadRemainderInput:
     unread.mkdir()
     twin.mkdir()
     readable = entry("I10", "Hypertension", "complete - no further axis")
-    missed = (
-        "ICD-10  R12  Heartburn\n"
-        "  ANCHOR: synthetic\n"
-        "- SPECIFICITY: complete - R12 has no further axis"
-    )
-    (unread / "codes.md").write_text(worksheet(readable, missed), encoding="utf-8")
-    (twin / "codes.md").write_text(
-        worksheet(
-            readable,
-            entry("R12", "Heartburn", "complete - R12 has no further axis"),
-        ),
+    twin_text = worksheet(readable)
+    (unread / "codes.md").write_text(
+        twin_text + "\n### --- NOT CODED, NOTHING ESTABLISHED MAYBE ---\n",
         encoding="utf-8",
     )
+    (twin / "codes.md").write_text(twin_text, encoding="utf-8")
     return UnreadRemainderInput(
         (str(unread),),
         (str(twin),),

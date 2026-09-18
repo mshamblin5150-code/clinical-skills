@@ -7,6 +7,74 @@ used by graders that attribute an indented detail line to a code entry.
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
+
+
+# icd10-cpt step 4 has one set of phrases. The optional confirmation tail is part of the
+# filled-anchor heading, while the old NOT CODED phrase remains a different block.
+_PHRASES = {
+    "differential": r"DIFFERENTIAL,[ \t]+DOCUMENTS[ \t]+MDM,[ \t]+NOT[ \t]+FOR[ \t]+ENTRY",
+    "undocumented": r"UNDOCUMENTED,[ \t]+WOULD[ \t]+SUPPORT[ \t]+A[ \t]+MORE[ \t]+SPECIFIC[ \t]+CODE",
+    "filled": r"CODED,[ \t]+ANCHOR[ \t]+WAS[ \t]+FILLED(?:[ \t]+[—-][ \t]+CONFIRM[ \t]+BEFORE[ \t]+SUBMITTING|:[ \t]*CONFIRM[ \t]+BEFORE[ \t]+SUBMITTING)?",
+    "refusal": r"NOT[ \t]+CODED,[ \t]+NOTHING[ \t]+ESTABLISHED[ \t]+IT",
+}
+
+
+def _heading(phrase: str) -> re.Pattern[str]:
+    return re.compile(
+        rf"(?im)^[ \t]*(?:---[ \t]*{phrase}[ \t]*---|"
+        rf"#{{1,6}}[ \t]+(?:---[ \t]*{phrase}[ \t]*---|{phrase}))[ \t]*$"
+    )
+
+
+DIFFERENTIAL_HEADING = _heading(_PHRASES["differential"])
+UNDOCUMENTED_HEADING = _heading(_PHRASES["undocumented"])
+BLOCK_HEADING = _heading(_PHRASES["filled"])
+REFUSAL_HEADING = _heading(_PHRASES["refusal"])
+STEP_FOUR_START = _heading(
+    rf"(?:{_PHRASES['undocumented']}|{_PHRASES['filled']}|{_PHRASES['refusal']})"
+)
+_BLOCKS = (DIFFERENTIAL_HEADING, UNDOCUMENTED_HEADING, BLOCK_HEADING, REFUSAL_HEADING)
+_HEADING_SHAPE = re.compile(r"^[ \t]*(?:(?:#{1,6}[ \t]+)?---[^\r\n]+---|#{1,6}[ \t]+[^\r\n]+)[ \t]*$")
+ANY_HEADING = re.compile(r"^[ \t]*(?:#{1,6}[ \t]+|---[ \t]+\S.*---[ \t]*$)")
+_STEP_FOUR_WORD = re.compile(
+    r"DIFFERENTIAL|NOT[ \t]+FOR[ \t]+ENTRY|NOT[ \t]+CODED|"
+    r"ANCHOR[ \t]+WAS[ \t]+FILLED|UNDOCUMENTED",
+    re.IGNORECASE,
+)
+_GENERIC_DIFFERENTIAL = re.compile(r"^[ \t]*#{1,6}[ \t]+DIFFERENTIAL[ \t]*$", re.IGNORECASE)
+
+
+@dataclass(frozen=True)
+class HeadingCounts:
+    candidates: int
+    unread: int
+    off_template: int
+    generic_differential: int
+
+
+def heading_counts(text: str) -> HeadingCounts:
+    """Return the keyword-heading population and its three dispositions.
+
+    The candidate floor is limited to heading-shaped keyword lines. A generic
+    ``### Differential`` is a known section label, counted separately so the
+    preserved worksheets' section scaffolding never masquerades as an icd10-cpt step-4 block.
+    Other titles without these words remain outside the population.
+    """
+    candidates = unread = off_template = generic_differential = 0
+    for line in text.splitlines():
+        if not _HEADING_SHAPE.fullmatch(line):
+            continue
+        if any(pattern.fullmatch(line) for pattern in _BLOCKS):
+            candidates += 1
+            off_template += int(not line.lstrip().startswith("---"))
+        elif _STEP_FOUR_WORD.search(line):
+            candidates += 1
+            if _GENERIC_DIFFERENTIAL.fullmatch(line):
+                generic_differential += 1
+            else:
+                unread += 1
+    return HeadingCounts(candidates, unread, off_template, generic_differential)
 
 
 CODE = r"(?:[A-Z][0-9][0-9A-Z](?:\.[0-9A-Z]{1,4})?|[0-9]{5}|[A-Z][0-9]{4})"
