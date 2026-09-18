@@ -529,7 +529,10 @@ def _citation_findings(
             reply.path.name,
             f"{citation.author}, {citation.year} has no matching reference",
         )
-        for citation, keys in zip(citations, citation_occurrence_keys(citations))
+        for citation, keys in zip(
+            citations,
+            citation_occurrence_keys(citations, reply.body, references),
+        )
         if not any(references.resolves(key) for key in keys)
     )
     missing = tuple(

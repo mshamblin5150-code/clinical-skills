@@ -166,6 +166,42 @@ class ReferenceKeysUseTheTitleProper(unittest.TestCase):
 
 
 class CitationResolutionIsDirectional(unittest.TestCase):
+    def test_group_abbreviation_requires_an_earlier_reference_backed_definition(self):
+        references = artifact.ReferenceKeySet.from_references((
+            "American Psychological Association. (2017). Report. Publisher.",
+        ))
+        cases = (
+            "The American Psychological Association (APA) reported this (APA, 2017).",
+            "The American Psychological Association (APA, 2017) reported this. "
+            "Later (APA, 2017).",
+            "(American Psychological Association [APA], 2017). Later (APA, 2017).",
+            "American Psychological\nAssociation (APA) reported this (APA, 2017).",
+        )
+        for body in cases:
+            with self.subTest(body=body):
+                citations = artifact.read_citations(body, references)
+                occurrences = artifact.citation_occurrence_keys(citations, body, references)
+                self.assertTrue(occurrences)
+                self.assertTrue(all(any(references.resolves(key) for key in keys) for keys in occurrences))
+
+        before = "(APA, 2017). The American Psychological Association (APA) reported this."
+        citations = artifact.read_citations(before, references)
+        keys = artifact.citation_occurrence_keys(citations, before, references)
+        self.assertFalse(any(references.resolves(key) for key in keys[0]))
+
+    def test_colliding_group_abbreviations_resolve_for_neither_group(self):
+        references = artifact.ReferenceKeySet.from_references((
+            "American Psychological Association. (2017). Report. Publisher.",
+            "American Pediatric Association. (2017). Report. Publisher.",
+        ))
+        body = (
+            "American Psychological Association (APA) and American Pediatric "
+            "Association (APA) reported this (APA, 2017)."
+        )
+        citations = artifact.read_citations(body, references)
+        keys = artifact.citation_occurrence_keys(citations, body, references)
+        self.assertFalse(any(references.resolves(key) for key in keys[-1]))
+
     def test_a_shortened_title_resolves_without_becoming_a_member(self):
         references = artifact.ReferenceKeySet.from_references(
             (
