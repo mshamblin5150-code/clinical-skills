@@ -41,14 +41,15 @@ class TheCourseAssignmentWorkflow(unittest.TestCase):
         self.assertIn("explicit confirmation", self.skill)
 
     def test_research_refutation_and_adversarial_reads_have_distinct_subjects(self):
+        skill = " ".join(self.skill.split())
         self.assertIn("Research produces claim records", self.skill)
         self.assertIn("refutation leg attacks the reference", self.skill)
-        self.assertIn("attacks the rendered artifact for records that do not exist", self.skill)
-        self.assertIn("keyed to slide number", self.skill)
-        self.assertIn("value or sense differs from the claim heading", self.skill)
-        self.assertIn("qualifier appears on the same slide face as its claim", self.skill)
-        self.assertIn("speaker notes do not satisfy the qualifier", self.skill)
-        self.assertIn("heading no longer matches the slide text it sources", self.skill)
+        self.assertIn("attacks the rendered artifact for records that do not exist", skill)
+        self.assertIn("keyed to slide number", skill)
+        self.assertIn("value or sense differs from the claim heading", skill)
+        self.assertIn("qualifier appears on the same slide face as its claim", skill)
+        self.assertIn("speaker notes do not satisfy the qualifier", skill)
+        self.assertIn("heading no longer matches the slide text it sources", skill)
 
     def test_the_population_split_and_every_grader_row_are_written_out(self):
         self.assertIn("slide face alone", self.skill)
@@ -72,6 +73,33 @@ class TheCourseAssignmentWorkflow(unittest.TestCase):
         self.assertIn("only the last pass", self.skill)
         self.assertIn("clinician-supplied PDF", self.skill)
         self.assertIn("explicit go-ahead", self.skill)
+
+    def test_adversarial_read_follows_the_retained_render_and_names_its_inputs(self):
+        production = self.skill.split("## 3. Produce the deck", 1)[1].split("## 4.", 1)[0]
+        inspection = " ".join(self.skill.split("## 5. Render and inspect every slide", 1)[1].split("## 6.", 1)[0].split())
+        self.assertNotIn("The adversarial investor reader", production)
+        ordered = (
+            "python tools/deck_render.py",
+            "python tools/render_scan.py",
+            "This vision-capable **Second reader**",
+            "The adversarial investor reader",
+            "this fresh **Second reader**",
+            "Rerun `deck_scan.py --pptx <deck>`",
+        )
+        positions = [inspection.index(item) for item in ordered]
+        self.assertEqual(positions, sorted(positions))
+        for phrase in (
+            "highest retained",
+            "final speaker-note text",
+            "file_digest.sha256",
+            "CLAIMS: <SHA-256 of claims.md when the reader was briefed>",
+            "PASS: <positive retained pass number>",
+            "SLIDES: <read PNG count> of <deck slide count> read",
+            "UNSEEN: none | <what was not read>",
+            "VERDICT: clean - <reason> | defect - <reason>",
+            "`claims.md`-only repair",
+        ):
+            self.assertIn(phrase, inspection)
 
     def test_the_live_submission_type_selects_one_carrier_before_the_gate(self):
         self.assertIn("SUBMISSION-TYPE: file-upload | canvas-composer", self.skill)
