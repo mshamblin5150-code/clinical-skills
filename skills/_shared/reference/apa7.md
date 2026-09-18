@@ -777,16 +777,18 @@ and [*How to cite translated works*](https://apastyle.apa.org/blog/citing-transl
 
 **APA examples:**
 
-| Reference entry | In-text citation | Matching year | `reference_scan` resolution |
-| --- | --- | --- | --- |
-| `Watson, J. B., & Rayner, R. (2013). Conditioned emotional reactions: The case of Little Albert (D. Webb, Ed.). CreateSpace Independent Publishing Platform. https://a.co/06Se6Na (Original work published 1920)` | `(Watson & Rayner, 1920/2013)` | `2013` | clean |
-| `Watson, J. B., & Rayner, R. (2013). Conditioned emotional reactions: The case of Little Albert (D. Webb, Ed.). CreateSpace Independent Publishing Platform. https://a.co/06Se6Na (Original work published 1920)` | `Watson and Rayner (1920/2013)` | `2013` | clean |
-| `Kübler-Ross, E. (with Byock, I.). (2014). On death & dying: What the dying have to teach doctors, nurses, clergy & their own families (50th anniversary ed.). Scribner. (Original work published 1969)` | `(Kübler-Ross, 1969/2014, foreword by Byock, p. xv)` | `2014` | clean |
-| `Kübler-Ross, E. (with Byock, I.). (2014). On death & dying: What the dying have to teach doctors, nurses, clergy & their own families (50th anniversary ed.). Scribner. (Original work published 1969)` | `Kübler-Ross (1969/2014)` | `2014` | clean |
-| `King James Bible. (2017). King James Bible Online. https://www.kingjamesbibleonline.org/ (Original work published 1769)` | `(King James Bible, 1769/2017, Song of Solomon 8:6)` | `2017` | clean |
-| `King James Bible. (2017). King James Bible Online. https://www.kingjamesbibleonline.org/ (Original work published 1769)` | `King James Bible (1769/2017)` | `2017` | clean |
-| `Alighieri, D. (2001). The divine comedy (H. F. Cary, Trans.). Bartleby. https://www.bartleby.com/20/ (Original work published 1909)` | `(Alighieri, 1909/2001, Inferno, Canto XIII, Lines 72–74)` | `2001` | clean |
-| `The epic of Gilgamesh (M. G. Kovaks, Trans.). (1998). Academy of Ancient Texts. https://www.ancienttexts.org/library/mesopotamian/gilgamesh/ (Original work published ca. 2500–2750 B.C.E.)` | `(The Epic of Gilgamesh, ca. 2750–2500 B.C.E./1998, Tablet II)` | `1998` | clean |
+Every example below resolves to its entry on the matching year in both citation readers, `reference_scan` and `discussion_artifact`, which the other graders read citations through. The suite re-derives that from this table.
+
+| Reference entry | In-text citation | Matching year |
+| --- | --- | --- |
+| `Watson, J. B., & Rayner, R. (2013). Conditioned emotional reactions: The case of Little Albert (D. Webb, Ed.). CreateSpace Independent Publishing Platform. https://a.co/06Se6Na (Original work published 1920)` | `(Watson & Rayner, 1920/2013)` | `2013` |
+| `Watson, J. B., & Rayner, R. (2013). Conditioned emotional reactions: The case of Little Albert (D. Webb, Ed.). CreateSpace Independent Publishing Platform. https://a.co/06Se6Na (Original work published 1920)` | `Watson and Rayner (1920/2013)` | `2013` |
+| `Kübler-Ross, E. (with Byock, I.). (2014). On death & dying: What the dying have to teach doctors, nurses, clergy & their own families (50th anniversary ed.). Scribner. (Original work published 1969)` | `(Kübler-Ross, 1969/2014, foreword by Byock, p. xv)` | `2014` |
+| `Kübler-Ross, E. (with Byock, I.). (2014). On death & dying: What the dying have to teach doctors, nurses, clergy & their own families (50th anniversary ed.). Scribner. (Original work published 1969)` | `Kübler-Ross (1969/2014)` | `2014` |
+| `King James Bible. (2017). King James Bible Online. https://www.kingjamesbibleonline.org/ (Original work published 1769)` | `(King James Bible, 1769/2017, Song of Solomon 8:6)` | `2017` |
+| `King James Bible. (2017). King James Bible Online. https://www.kingjamesbibleonline.org/ (Original work published 1769)` | `King James Bible (1769/2017)` | `2017` |
+| `Alighieri, D. (2001). The divine comedy (H. F. Cary, Trans.). Bartleby. https://www.bartleby.com/20/ (Original work published 1909)` | `(Alighieri, 1909/2001, Inferno, Canto XIII, Lines 72–74)` | `2001` |
+| `The epic of Gilgamesh (M. G. Kovaks, Trans.). (1998). Academy of Ancient Texts. https://www.ancienttexts.org/library/mesopotamian/gilgamesh/ (Original work published ca. 2500–2750 B.C.E.)` | `(The Epic of Gilgamesh, ca. 2750–2500 B.C.E./1998, Tablet II)` | `1998` |
 
 **Abstracted date form:** Put both publication years in the in-text citation, separated by a slash,
 with the earlier year first. The original element may carry `ca.`, an en-dash year range, and an era
