@@ -13,3 +13,8 @@ the historical differential row whose osteomyelitis discussion is paired with
 descriptor the reader could not settle remains in the shared unread remainder,
 and the later note/worksheet bind correctly exposes the legacy run's structural
 differences.
+
+ADR 0258 requires authored anchors on differential and refusal rows. This
+retained worksheet predates that rule, so its read now exits 2 with an unread
+remainder alongside its original findings. The note, worksheet, and reader
+record remain byte-for-byte as produced.

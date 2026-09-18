@@ -147,6 +147,12 @@ open-ended values and may carry any text that fits on that line. A fixed phrase
 owns the rest of its line: `NOT FOR ENTRY` and the affirmative CDC `CONFIDENCE`
 sentence run to end of line with no tail after them.
 
+Every for-entry, procedure, differential, and refusal row carries `ANCHOR: "<verbatim note text>"`
+immediately after the last physical line of its code header, before any other field. If a descriptor
+wraps, finish its header before the anchor. The anchor is one contiguous, exact run from the paired
+note, with the original spacing and case. For a refusal, quote the note text naming the considered
+diagnosis, not the awaited study. The differential's own authored entry is not its anchor.
+
 **`SOURCE` appears only where the anchor was filled**, so an ordinary code keeps its five parts and a filled-anchored one carries six. It is a line on the code itself and not only a step-4 heading, for the reason step 4 gives about `NOT CODED`: **a block heading does not survive being copied one line at a time**, and the proposed-code list is exactly the block a clinician scans for things to enter.
 
 CPT and HCPCS entries take the same shape, plus the note text documenting
@@ -366,8 +372,16 @@ because their database carries no index; a procedure the words cannot settle is 
 the unread remainder. E/M lines are counted and excluded because their descriptors cannot settle
 place of service, patient status, and decision-making level.
 
-`--agreement-read` requires the agreeing words verbatim in both the note and the worksheet support,
-requires every paired note and worksheet, and applies the note bind in both directions: preexisting
+`--agreement-read` requires each anchor verbatim in its paired note and the reader's agreeing words
+verbatim in both that note and the row's anchor. If a reader's span fails, the reader retries. If it
+still fails, the author widens only that anchor to the sentence it sits in. If it still fails, log
+that subject's ID and the retry and widening history in the run's unread record, then omit that
+subject from the reader's `codes` array. The grader counts the missing subject in its unread
+remainder and exits 2. Use `--show` on either agreement mode to inspect
+findings by `subject_id`; the default report prints counts only. A clean `descriptor words` route
+establishes that the span is note text also quoted by the worksheet; it does not establish that the
+words state the descriptor. The read also requires every paired note and worksheet, and applies the
+note bind in both directions: preexisting
 and final diagnosis codes equal for-entry ICD-10 codes; differential codes equal `NOT FOR ENTRY`
 codes; welded `NOT CODED:` codes equal refusal records; rendered `CPT:` and `HCPCS:` codes equal the
 worksheet's procedure codes. `E/M:` is outside the bind. Exit 1 is a finding. Exit 2 is an unread
@@ -468,12 +482,13 @@ COVID-19 — documented household contact, congruent symptoms, no test obtained
 
 Both branches of [clinical-note](../clinical-note/SKILL.md) carry a differential and both put a code on every entry — [SOAP.md](../clinical-note/SOAP.md) and [HP.md](../clinical-note/HP.md). Those codes **document medical decision-making**; they are not candidates for entry anywhere. Step 5 says what they document.
 
-They get their own section, and **three parts rather than five**:
+They get their own section, with a descriptor, anchor, and confidence line:
 
 ```
 --- DIFFERENTIAL, DOCUMENTS MDM, NOT FOR ENTRY ---
 <the diagnosis, why it was considered, and — when the code is proposed above — why it repeats here>
 ICD-10  J20.9  Acute bronchitis, unspecified   NOT FOR ENTRY
+  ANCHOR: "<verbatim note text>"
   CONFIDENCE: verified against ICD-10-CM FY2026
 ```
 
@@ -484,9 +499,9 @@ is proposed for entry above and appears again to document the differential, its
 differential line still ends in `NOT FOR ENTRY`. The prose line above it is where
 the worksheet explains why that otherwise repeated code belongs in the MDM.
 
-**Two of the five parts drop, and two do not.**
+**Specificity and source drop; the anchor remains a quotation.**
 
-- **Anchor** is the differential entry itself, named rather than re-quoted. The entry is in the Assessment with its rationale attached, which is more than a quoted fragment would carry.
+- **Anchor** quotes one contiguous run of the differential entry in the note, immediately below the code header.
 - **Specificity** drops. A differential is coded at the unspecified level on purpose, so `needs: laterality` on a diagnosis the note is arguing against is noise in a block that already runs long.
 - **Descriptor and confidence stay.** They are the two defenses against a fluent, plausible, wrong code number, and a differential code is exactly as easy to invent as any other. Look each one up.
 
@@ -603,6 +618,8 @@ Every proposed code has a code number, a descriptor, an anchor, a specificity fl
 Both descriptor-agreement commands have run over the saved notes and worksheets, every reader
 record was graded from its own file, the bind is clean, and the agreement read exits 0. Descriptor
 agreement is separate from specificity verification; neither pass receives the other's brief or record.
+The clean read establishes the mechanical quotation and bind checks. Read whether each quotation
+supports its descriptor as a separate clinical judgment.
 
 Every proposed CPT or HCPCS code was queried against
 `reference/procedure-codes-2026.sqlite` on the encounter's service date. A code
@@ -629,7 +646,7 @@ encounter's account-backed patient status must all pass. The rendered worksheet 
 
 **Every for-entry ICD-10 code has a separated read whose reader did not see the worksheet.** Every subject code is covered; every source fact agrees with the committed FY2026 release; and the original reason has been read beside the independent `"about"` account. A missing or partial read is not completion. Agreement is a smoke test and never proof.
 
-**A differential code is the one shape with fewer, and it is not an exception to that sentence** — it is a different thing being written down. Number, descriptor, confidence, three parts, plus `NOT FOR ENTRY` on the line. Anything with five parts or six is a code proposed for entry; anything with three is documentation of reasoning. **The count is still how the two are told apart** — the gap is five-or-six against three, and nothing lands between — which is why neither shape may borrow from the other.
+**A differential code is a distinct shape.** It carries number, descriptor, anchor, confidence, and `NOT FOR ENTRY` on the code line. An entry proposal also carries specificity and, where filled, source. The `NOT FOR ENTRY` marker, not a part count, identifies the reasoning code.
 
 And every value the FILLED block declared has been accounted for: either it supports no code, or every code it supports carries `SOURCE: filled` **and** appears under `CODED, ANCHOR WAS FILLED`. **Both, not one instead of the other** — the block is the summary a clinician reads once, the `SOURCE` line is what survives the code being copied out of the list. A filled value that quietly supports an unmarked proposed code is the defect this skill was rewritten to catch, and marking rather than refusing did not retire it.
 

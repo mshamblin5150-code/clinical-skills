@@ -22,7 +22,7 @@ import re
 import shutil
 import tempfile
 import unittest
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
@@ -74,9 +74,9 @@ class TheDeclaredLimitsObjectOwnsBothProseSurfaces(unittest.TestCase):
                 self.assertEqual(1, surface.count(self.POINTER))
                 self.assertEqual((), bind(scan.DECLARED_LIMITS, surface, mode=NAMING))
 
-    def test_the_partition_is_two_declared_readings_and_nine_behaviors(self):
+    def test_the_partition_is_three_declared_readings_and_nine_behaviors(self):
         dispositions = [row[2] for row in scan.DECLARED_LIMITS]
-        self.assertEqual(2, dispositions.count(run_grader.EvidenceDisposition.DECLARED_READING))
+        self.assertEqual(3, dispositions.count(run_grader.EvidenceDisposition.DECLARED_READING))
         self.assertEqual(9, dispositions.count(run_grader.EvidenceDisposition.BEHAVIOR))
         self.assertTrue(all(subject and reason for subject, reason, _ in scan.DECLARED_LIMITS))
 
@@ -780,12 +780,14 @@ CPT  10060  Incision and drainage of abscess; simple or single
 
 Plantar wart was considered for the focal plantar lesion.
 ICD-10  B07.0  Plantar wart  NOT FOR ENTRY
+  ANCHOR: "Plantar wart"
   CONFIDENCE: verified against ICD-10-CM FY2026
 
 --- NOT CODED, NOTHING ESTABLISHED IT ---
 
 Osteomyelitis was considered but no imaging established bone infection.
   NOT CODED: M86.9  Osteomyelitis, unspecified
+  ANCHOR: "Osteomyelitis, unspecified"
   needs: imaging establishing bone infection
   proposed instead: M79.675  Pain in left toe(s)
 """
@@ -845,7 +847,7 @@ class AgreementModes(unittest.TestCase):
             )
         return {"pairs": [{"stem": "case-01", "codes": records}]}
 
-    def grade(self, record: dict) -> tuple[int, str]:
+    def grade(self, record: dict, show: bool = False) -> tuple[int, str]:
         record_path = Path(self.raw.name) / "agreement-read.json"
         record_path.write_text(json.dumps(record), encoding="utf-8")
         output = io.StringIO()
@@ -857,6 +859,7 @@ class AgreementModes(unittest.TestCase):
                     str(self.notes),
                     "--agreement-read",
                     str(record_path),
+                    *(["--show"] if show else []),
                 ]
             )
         return status, output.getvalue()
@@ -945,7 +948,122 @@ class AgreementModes(unittest.TestCase):
         record = self.clean_record()
         record["pairs"][0]["codes"][0]["agreeing_words"] = "unrelated words"
 
-        self.assertEqual(1, self.grade(record)[0])
+        status, report = self.grade(record, show=True)
+        self.assertEqual(1, status)
+        self.assertIn("ICD-10:R12:entry:1 agreeing words are not note text", report)
+
+    def test_note_words_from_outside_the_anchor_have_a_distinct_finding(self):
+        record = self.clean_record()
+        record["pairs"][0]["codes"][0]["agreeing_words"] = "focal plantar lesion"
+
+        status, report = self.grade(record, show=True)
+        self.assertEqual(1, status)
+        self.assertIn("ICD-10:R12:entry:1 agreeing words are from the wrong place", report)
+        self.assertNotIn("ICD-10:R12:entry:1 agreeing words are not note text", report)
+
+    def test_non_verbatim_anchor_is_a_finding(self):
+        record = self.clean_record()
+        worksheet = AGREEMENT_WORKSHEET.replace('ANCHOR: "Occasional heartburn"', 'ANCHOR: "Imagined heartburn"')
+        (self.worksheets / "case-01.md").write_text(worksheet, encoding="utf-8")
+
+        status, report = self.grade(record, show=True)
+        self.assertEqual(1, status)
+        self.assertIn("ICD-10:R12:entry:1 anchor is not verbatim note text", report)
+
+    def test_brief_shows_non_verbatim_anchor_without_leaking_it_into_json(self):
+        worksheet = AGREEMENT_WORKSHEET.replace('ANCHOR: "Occasional heartburn"', 'ANCHOR: "Imagined heartburn"')
+        (self.worksheets / "case-01.md").write_text(worksheet, encoding="utf-8")
+        output, diagnostics = io.StringIO(), io.StringIO()
+        with redirect_stdout(output), redirect_stderr(diagnostics):
+            status = scan.main(
+                [str(self.worksheets), "--notes", str(self.notes), "--agreement-brief", "--show"]
+            )
+        brief = json.loads(output.getvalue())
+        self.assertEqual(1, status)
+        self.assertEqual(1, brief["agreement findings"])
+        self.assertNotIn("anchor", json.dumps(brief).lower())
+        self.assertIn("ICD-10:R12:entry:1 anchor is not verbatim note text", diagnostics.getvalue())
+
+    def test_anchorless_differential_is_unread(self):
+        record = self.clean_record()
+        worksheet = AGREEMENT_WORKSHEET.replace('  ANCHOR: "Plantar wart"\n', "")
+        (self.worksheets / "case-01.md").write_text(worksheet, encoding="utf-8")
+
+        status, report = self.grade(record)
+        self.assertEqual(2, status)
+        self.assertIn("unread remainder 1", report)
+
+    def test_an_anchor_after_intervening_prose_is_unread(self):
+        record = self.clean_record()
+        worksheet = AGREEMENT_WORKSHEET.replace(
+            'ICD-10  B07.0  Plantar wart  NOT FOR ENTRY\n  ANCHOR:',
+            'ICD-10  B07.0  Plantar wart  NOT FOR ENTRY\nExtra rationale.\n  ANCHOR:',
+        )
+        (self.worksheets / "case-01.md").write_text(worksheet, encoding="utf-8")
+        self.assertEqual(2, self.grade(record)[0])
+
+    def test_an_anchor_after_indented_prose_is_unread(self):
+        record = self.clean_record()
+        worksheet = AGREEMENT_WORKSHEET.replace(
+            'ICD-10  B07.0  Plantar wart  NOT FOR ENTRY\n  ANCHOR:',
+            'ICD-10  B07.0  Plantar wart  NOT FOR ENTRY\n  Unrelated rationale prose.\n  ANCHOR:',
+        )
+        (self.worksheets / "case-01.md").write_text(worksheet, encoding="utf-8")
+        self.assertEqual(2, self.grade(record)[0])
+
+    def test_an_anchor_across_a_section_heading_is_unread(self):
+        record = self.clean_record()
+        worksheet = AGREEMENT_WORKSHEET.replace(
+            '  NOT CODED: M86.9  Osteomyelitis, unspecified\n  ANCHOR:',
+            '  NOT CODED: M86.9  Osteomyelitis, unspecified\n--- OTHER ---\n  ANCHOR:',
+        )
+        (self.worksheets / "case-01.md").write_text(worksheet, encoding="utf-8")
+        self.assertEqual(2, self.grade(record)[0])
+
+    def test_an_anchor_after_a_blank_line_is_unread(self):
+        record = self.clean_record()
+        worksheet = AGREEMENT_WORKSHEET.replace(
+            '  NOT CODED: M86.9  Osteomyelitis, unspecified\n  ANCHOR:',
+            '  NOT CODED: M86.9  Osteomyelitis, unspecified\n\n  ANCHOR:',
+        )
+        (self.worksheets / "case-01.md").write_text(worksheet, encoding="utf-8")
+        self.assertEqual(2, self.grade(record)[0])
+
+    def test_an_unanchored_procedure_with_detail_fields_is_unread(self):
+        record = self.clean_record()
+        worksheet = AGREEMENT_WORKSHEET.replace('  ANCHOR: "Incision and drainage of abscess"\n', "")
+        (self.worksheets / "case-01.md").write_text(worksheet, encoding="utf-8")
+        self.assertEqual(2, self.grade(record)[0])
+
+    def test_a_bare_unanchored_procedure_is_unread(self):
+        subjects, _, unread = scan._agreement_subjects(
+            "CPT  10060  Incision and drainage of abscess; simple or single\n"
+        )
+        self.assertEqual(1, unread)
+        self.assertEqual(("10060",), tuple(subject.code for subject in subjects))
+
+    def test_anchor_after_wrapped_differential_header_preserves_not_for_entry(self):
+        worksheet = AGREEMENT_WORKSHEET.replace(
+            "ICD-10  B07.0  Plantar wart  NOT FOR ENTRY\n  ANCHOR:",
+            "ICD-10  B07.0  Plantar wart\n  NOT FOR ENTRY\n  ANCHOR:",
+        )
+        entries = list(scan.ENTRY.finditer(worksheet))
+        differential = next(i for i, entry in enumerate(entries) if entry.group("code") == "B07.0")
+        self.assertFalse(scan.entry_is_for_entry(worksheet, entries, differential))
+        (self.worksheets / "case-01.md").write_text(worksheet, encoding="utf-8")
+        self.assertEqual(0, self.grade(self.clean_record())[0])
+
+    def test_show_gates_row_keys_and_bind_details(self):
+        (self.notes / "case-01.md").write_text(
+            AGREEMENT_NOTE.replace("Pain in left toe(s) - **M79.675**", "Pain in left toe(s) - **M25.572**"),
+            encoding="utf-8",
+        )
+        status, plain = self.grade(self.clean_record())
+        shown_status, shown = self.grade(self.clean_record(), show=True)
+        self.assertEqual((1, 1), (status, shown_status))
+        self.assertNotIn("M25.572", plain)
+        self.assertNotIn("ICD-10:R12:entry:1", plain)
+        self.assertIn("note only ['M25.572'], worksheet only ['M79.675']", shown)
 
     def test_a_fabricated_index_route_fails(self):
         record = self.clean_record()
@@ -1196,7 +1314,7 @@ class AgreementModes(unittest.TestCase):
         }
 
         with patch.object(scan, "_index_route_catalog", return_value=catalog):
-            status, report = self.grade(record)
+            status, report = self.grade(record, show=True)
 
         self.assertEqual(2, status)
         self.assertIn("Opaque CMS wording", report)
@@ -1324,15 +1442,6 @@ class AgreementModes(unittest.TestCase):
     def test_a_benign_morphology_does_not_wait_for_tissue(self):
         self.assertTrue(scan._neoplasm_column_agrees("Benign", "likely lipoma on examination"))
 
-    def test_a_differential_descriptor_cannot_supply_its_own_agreeing_words(self):
-        worksheet = AGREEMENT_WORKSHEET.replace(
-            "Plantar wart was considered for the focal plantar lesion.",
-            "A focal lesion was considered.",
-        )
-        (self.worksheets / "case-01.md").write_text(worksheet, encoding="utf-8")
-
-        self.assertEqual(1, self.grade(self.clean_record())[0])
-
     def test_a_malformed_evidence_field_is_unread(self):
         record = self.clean_record()
         record["pairs"][0]["codes"][0]["threshold"] = None
@@ -1415,6 +1524,7 @@ class AgreementModes(unittest.TestCase):
 
 
     def test_a_refusal_dropped_from_the_note_fails_the_bind(self):
+        record = self.clean_record()
         (self.notes / "case-01.md").write_text(
             AGREEMENT_NOTE.replace(
                 "NOT CODED: M86.9 Osteomyelitis, unspecified, no imaging established bone infection.\n",
@@ -1423,7 +1533,7 @@ class AgreementModes(unittest.TestCase):
             encoding="utf-8",
         )
 
-        self.assertEqual(1, self.grade(self.clean_record())[0])
+        self.assertEqual(1, self.grade(record)[0])
 
     def test_an_inline_welded_refusal_participates_in_the_bind(self):
         note = AGREEMENT_NOTE.replace(
@@ -1471,7 +1581,7 @@ class AgreementModes(unittest.TestCase):
 class CommittedAgreementControls(unittest.TestCase):
     ROOT = Path(__file__).resolve().parent.parent / "fixtures"
 
-    def grade(self, control: str, root: Path | None = None) -> tuple[int, str]:
+    def grade(self, control: str, root: Path | None = None, show: bool = False) -> tuple[int, str]:
         base = root or self.ROOT / control
         output = io.StringIO()
         with redirect_stdout(output):
@@ -1482,21 +1592,54 @@ class CommittedAgreementControls(unittest.TestCase):
                     str(base / "notes"),
                     "--agreement-read",
                     str(base / "agreement-read.json"),
+                    *(["--show"] if show else []),
                 ]
             )
         return status, output.getvalue()
 
-    def test_the_blind_positive_and_note_path_records_are_clean(self):
-        for control in (
-            "descriptor-agreement-positive-control",
-            "descriptor-agreement-note-path-control",
-            "descriptor-agreement-index-table-control",
+    def test_retained_controls_are_unread_under_the_authored_anchor_rule(self):
+        for control, reasons in (
+            ("descriptor-agreement-positive-control", {"agreeing words are from the wrong place"}),
+            ("descriptor-agreement-note-path-control", {"agreeing words are from the wrong place"}),
+            ("descriptor-agreement-negative-control", {
+                "has no agreeing words", "agreeing words are from the wrong place",
+                "has no descriptor or index route", "has no encounter evidence",
+                "entry waits on", "bind differs",
+            }),
         ):
             with self.subTest(control=control):
-                status, report = self.grade(control)
-                self.assertEqual(0, status)
-                self.assertIn("agreement findings                 0", report)
-                self.assertIn("unread remainder 0", report)
+                status, report = self.grade(control, show=True)
+                self.assertEqual(2, status)
+                observed = {
+                    reason for reason in (
+                        "has no agreeing words", "agreeing words are from the wrong place",
+                        "agreeing words are not note text", "anchor is not verbatim note text",
+                        "has no descriptor or index route", "has no encounter evidence",
+                        "entry waits on", "bind differs",
+                    ) if any(reason in line for line in report.splitlines() if "finding:" in line)
+                }
+                self.assertEqual(reasons, observed)
+
+    def test_index_table_control_remains_clean(self):
+        status, report = self.grade("descriptor-agreement-index-table-control")
+        self.assertEqual(0, status)
+        self.assertIn("agreement findings                 0", report)
+        self.assertIn("unread remainder 0", report)
+
+    def test_authored_anchor_blind_control_is_clean_in_both_modes(self):
+        base = self.ROOT / "descriptor-agreement-authored-anchor-control"
+        output = io.StringIO()
+        with redirect_stdout(output):
+            brief_status = scan.main(
+                [str(base / "worksheets"), "--notes", str(base / "notes"), "--agreement-brief"]
+            )
+        brief = json.loads(output.getvalue())
+        self.assertEqual(0, brief_status)
+        self.assertNotIn("anchor", json.dumps(brief).lower())
+        status, report = self.grade("descriptor-agreement-authored-anchor-control")
+        self.assertEqual(0, status)
+        self.assertIn("agreement findings                 0", report)
+        self.assertIn("unread remainder 0", report)
 
     def mutated_index_table_control(
         self,
@@ -1608,14 +1751,9 @@ class CommittedAgreementControls(unittest.TestCase):
         self.assertNotEqual("none", rows[("M79.5", "differential")]["waits_on_result"])
         self.assertEqual("none", rows[("Z13.1", "differential")]["agreeing_words"])
         status, report = self.grade("descriptor-agreement-negative-control")
-        self.assertEqual(1, status)
+        self.assertEqual(2, status)
         self.assertRegex(report, r"codes with no agreeing words\s+3")
-        self.assertRegex(report, r"non-verbatim agreeing words\s+1")
-        self.assertRegex(report, r"codes with no route\s+3")
-        self.assertRegex(report, r"codes with no encounter evidence\s+2")
-        self.assertRegex(report, r"descriptors waiting on results\s+2")
-        self.assertRegex(report, r"note/worksheet bind findings\s+4")
-        self.assertRegex(report, r"unread remainder 1")
+        self.assertIn("unread remainder", report)
 
 
     def mutated_note_path(self, old: str, new: str) -> Path:
@@ -1636,22 +1774,30 @@ class CommittedAgreementControls(unittest.TestCase):
             "Final diagnosis: Cutaneous abscess of left foot - L02.612; "
             "Pain in left toe(s) - M25.572",
         )
-        self.assertEqual(1, self.grade("", root)[0])
+        status, report = self.grade("", root)
+        self.assertEqual(2, status)
+        self.assertIn("note/worksheet bind findings", report)
 
     def test_a_one_line_differential_mutation_fires_the_committed_bind(self):
         old = "Pain in left toe(s) - M79.675: severe focal pain"
         root = self.mutated_note_path(
             old, "Pain in left toe(s) - M25.572: severe focal pain"
         )
-        self.assertEqual(1, self.grade("", root)[0])
+        status, report = self.grade("", root)
+        self.assertEqual(2, status)
+        self.assertIn("note/worksheet bind findings", report)
 
     def test_a_one_line_refusal_mutation_fires_the_committed_bind(self):
         root = self.mutated_note_path("NOT CODED: S90.452A", "NOT CODED: S90.452D")
-        self.assertEqual(1, self.grade("", root)[0])
+        status, report = self.grade("", root)
+        self.assertEqual(2, status)
+        self.assertIn("note/worksheet bind findings", report)
 
     def test_a_one_line_procedure_mutation_fires_the_committed_bind(self):
         root = self.mutated_note_path("CPT: None", "CPT: 10060")
-        self.assertEqual(1, self.grade("", root)[0])
+        status, report = self.grade("", root)
+        self.assertEqual(2, status)
+        self.assertIn("note/worksheet bind findings", report)
 
 
 class CommittedIndexAndTableControls(unittest.TestCase):
