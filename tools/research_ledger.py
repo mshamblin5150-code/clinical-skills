@@ -891,6 +891,16 @@ def read_records(text: str) -> list[Record]:
     return records
 
 
+def has_substantive_refutation(record: Record) -> bool:
+    """Whether a recognized refutation gives a reason beyond the restatement."""
+    verdict, reason = keyword_of(record.value("REFUTATION"), REFUTATION_VALUES)
+    return bool(
+        verdict
+        and SUBSTANCE.search(reason)
+        and normalize(reason) != normalize(record.value("RESTATEMENT"))
+    )
+
+
 def _sourceless_findings(record: Record) -> list[Finding]:
     """The sourceless status branches: a reason and no source-claim fields.
 
@@ -1066,12 +1076,13 @@ def _citation_findings(record: Record, as_of: date | None) -> list[Finding]:
             # unrecognized word is a record the refutation row never read.
             found.append(Finding(UNKNOWN_REFUTATION, claim, refutation))
         else:
-            if not SUBSTANCE.search(reason):
-                found.append(Finding(BARE_REFUTATION, claim, refutation))
-            elif normalize(reason) == normalize(record.value("RESTATEMENT")):
-                # The first agent re-asserting rather than a second one checking.
-                # ``RESTATEMENT_ECHOES_CLAIM``'s trick, one level up.
-                found.append(Finding(REFUTATION_ECHOES_RESTATEMENT, claim, refutation))
+            if not has_substantive_refutation(record):
+                if not SUBSTANCE.search(reason):
+                    found.append(Finding(BARE_REFUTATION, claim, refutation))
+                else:
+                    # The first agent re-asserting rather than a second one checking.
+                    # ``RESTATEMENT_ECHOES_CLAIM``'s trick, one level up.
+                    found.append(Finding(REFUTATION_ECHOES_RESTATEMENT, claim, refutation))
             if verdict == REFUTATION_REFUTED:
                 # A **failure**, unlike ``unsourced``, which the skill routes to
                 # ``PROPOSED`` honestly. This is a false citation sitting in the

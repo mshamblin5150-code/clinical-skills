@@ -63,6 +63,7 @@ DECLARED_SECTIONS = {
     "case_study_scan": "Case study house style",
     "cdc_percentile": "CDC BMI-for-age table",
     "checks_ledger": "Post-draft checks",
+    "claim_ledger_census": "Claim ledger census",
     "closing_keyword_scan": "Closing keyword scan",
     "coding_freshness": "Coding freshness",
     "cpt_mdm_sheet": "CPT E/M MDM sheet",
