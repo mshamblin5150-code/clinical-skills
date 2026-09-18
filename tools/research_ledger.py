@@ -1488,26 +1488,38 @@ def reference_identity(reference: str) -> tuple[str, str, str] | None:
     return normalize(reference[: matched.start()]), bare_year, normalize(title)
 
 
-def reference_identities(reference: str) -> frozenset[tuple[str, str, str]]:
+@dataclass(frozen=True)
+class ReferenceIdentity:
+    author: str
+    year: str
+    title: str
+    container: str | None
+    fallback: bool = False
+
+
+def reference_identities(reference: str) -> frozenset[ReferenceIdentity]:
     """Return the title identity and a bounded alias for an opaque final container.
 
     Plain-text APA loses the italics that distinguish a title ending in an
     initialism from its container.  When the ordinary parser finds no container
-    at all, admit the final one-word sentence element as an opaque container.
-    A recognized trailing container keeps the ordinary title authoritative, so
-    distinct titles such as ``U.S. Healthcare`` and ``U.S. Medicine`` do not
-    collapse onto the initialism.
+    at all, admit the final sentence element as an opaque container. Its
+    normalized value must equal the other side's container when the alias is
+    used. Where both titles read ordinarily, key and title alone decide the
+    match; their containers do not.
     """
     identity = reference_identity(reference)
     if identity is None:
         return frozenset()
-    identities = {identity}
     matched = REFERENCE_IDENTITY_YEAR.search(reference)
     assert matched is not None
     remainder = reference[matched.end() :].lstrip(". \t")
     remainder = REFERENCE_RETRIEVAL.sub("", remainder)
     remainder = REFERENCE_LOCATOR.sub("", remainder).rstrip(". \t")
     title = _reference_title(reference, matched.end())
+    container = None
+    if normalize(title) != normalize(remainder):
+        container = normalize(remainder[len(title) :].lstrip(". \t").split(",", 1)[0])
+    identities = {ReferenceIdentity(*identity, container)}
     if normalize(title) == normalize(remainder):
         opaque = re.fullmatch(
             r"(?P<title>.+\b(?P<end>[A-Za-z.]+)\.)\s+[^.\r\n]+",
@@ -1522,8 +1534,21 @@ def reference_identities(reference: str) -> frozenset[tuple[str, str, str]]:
                 dotted or len(token) == 1 or token in TITLE_ABBREVIATIONS
             )
             if recognized_end and SUBSTANCE.search(alias):
-                identities.add((identity[0], identity[1], alias))
+                identities.add(
+                    ReferenceIdentity(
+                        identity[0], identity[1], alias,
+                        normalize(remainder[len(opaque.group("title")) :]), True,
+                    )
+                )
     return frozenset(identities)
+
+
+def _reference_identities_match(left: ReferenceIdentity, right: ReferenceIdentity) -> bool:
+    if (left.author, left.year, left.title) != (right.author, right.year, right.title):
+        return False
+    return not (left.fallback or right.fallback) or (
+        left.container is not None and left.container == right.container
+    )
 
 
 def draft_reference_findings(
@@ -1536,7 +1561,11 @@ def draft_reference_findings(
         if record.status != SOURCED or "DROPPED" in record.fields:
             continue
         identities = reference_identities(record.value("REFERENCE"))
-        if not identities or identities.isdisjoint(listed):
+        if not any(
+            _reference_identities_match(identity, listed_identity)
+            for identity in identities
+            for listed_identity in listed
+        ):
             found.append(
                 Finding(
                     SOURCED_RECORD_NOT_LISTED,
