@@ -1,6 +1,6 @@
 # The CPT descriptor set is rebuilt by two readers and a verified flag gates it
 
-**Measured at:** 6ede4b5f6b6cd4e7882dc4914fbc7471518c2394
+**Measured at:** 412ab87cf6df4a46cfde18c4ed8305754db8abe6
 
 [#1348](https://github.com/mshamblin5150-code/clinical-skills/issues/1348) found CPT descriptors in
 `reference/procedure-codes-2026.sqlite` that name a sibling code's analyte: 87804 returns the
@@ -136,6 +136,28 @@ gitignored run material and are reported on the tracker, never in this record.
 #1348 is widened to rulings 1 through 7 and the post-rebuild census. The immediate correction in
 ruling 8 is filed separately because it touches run worksheets rather than the database or tools,
 has an earlier deadline, and would otherwise wait behind the rebuild.
+
+## Ruling 10 — the interim piece is its own ticket and the immediate correction waits on it
+
+Ruling 9 filed two tickets. It is superseded, because the immediate correction cannot redo
+descriptor agreement while the blind agreement brief draws each CPT code's official descriptor from
+the database: a reader briefed for 87804 would again receive the group B term beside influenza.
+
+So there are three tickets. The interim piece is split from #1348 and carries ruling 2's flag and
+lookup warning, the `icd10-cpt` routing to the rendered page, and one change to the brief: while
+`cpt_descriptors` is `unverified`, the brief takes a CPT code's descriptor from a run-supplied record
+of its rendered-page read, naming the book and the printed page, and a code with no such record is
+an unread remainder rather than a subject briefed with the database text. The immediate correction
+in ruling 8 is blocked on that piece and redoes each worksheet line and its agreement through the
+command once it lands. #1348 keeps the rebuild, the build guard, the bullet join, the
+`vitalsource-chrome` exception and the post-rebuild census.
+
+Briefing the reader by hand now was refused because it creates a route around the brief that the
+next run would copy. Correcting the worksheet lines now and deferring agreement was refused because
+it leaves unsubmitted runs half corrected in a state that reads as finished.
+
+The measurements above were re-derived at this record's new declaration; the database and the
+build are unchanged since the first declaration.
 
 ## What this record does not settle
 
