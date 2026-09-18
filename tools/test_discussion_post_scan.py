@@ -2648,6 +2648,10 @@ class EveryBehaviorLimitHasALiveHandler(unittest.TestCase):
             "CitationResolutionResidues.test_the_three_declared_prefix_edges_resolve",
             "ACompletePostPasses.test_a_shortened_title_citation_resolves_to_its_claim_record",
         ),
+        "group author ending in initial-shaped abbreviation": (
+            "CitationResolutionResidues.test_group_ending_in_initials_reads_as_personal",
+            "CitationResolutionResidues.test_the_three_declared_prefix_edges_resolve",
+        ),
         "whether a believed record's heading supports the number traced from it": (
             "TheMechanicalBarRowsAreGraded.test_heading_number_traces_when_restatement_disagrees",
             "TheMechanicalBarRowsAreGraded.test_only_believed_claim_records_trace_body_numbers",
@@ -2706,6 +2710,13 @@ class EveryBehaviorLimitHasALiveHandler(unittest.TestCase):
 
 
 class CitationResolutionResidues(unittest.TestCase):
+    def test_group_ending_in_initials_reads_as_personal(self):
+        references = artifact.ReferenceKeySet.from_references((
+            "Department of Health and Human Services, U.S. (2020). Report. Publisher.",
+        ))
+        self.assertIn(("departmentofhealthandhumanservices", "us"), references.first_authors)
+        self.assertNotIn(("departmentofhealthandhumanservices", "2020"), references.prefix_keys)
+
     def test_single_given_name_resolves(self):
         references = artifact.ReferenceKeySet.from_references(
             ("Williams, S. (2019). A study. Journal of Care.",)

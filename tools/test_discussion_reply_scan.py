@@ -1651,6 +1651,10 @@ class EveryBehaviorLimitHasALiveHandler(unittest.TestCase):
             "CitationResolutionResidues.test_the_three_declared_prefix_edges_resolve",
             "EachReplyCarriesEvidence.test_a_shortened_title_citation_resolves",
         ),
+        "group author ending in initial-shaped abbreviation": (
+            "CitationResolutionResidues.test_group_ending_in_initials_reads_as_personal",
+            "CitationResolutionResidues.test_the_three_declared_prefix_edges_resolve",
+        ),
         "whether a republished citation's original element matches its source": (
             "ACompleteRunPasses.test_a_republished_original_element_is_not_compared",
             "ACompleteRunPasses.test_a_republished_second_year_must_match_the_claim_record",
@@ -1693,6 +1697,13 @@ class EveryBehaviorLimitHasALiveHandler(unittest.TestCase):
 
 
 class CitationResolutionResidues(unittest.TestCase):
+    def test_group_ending_in_initials_reads_as_personal(self):
+        references = scan.ReferenceKeySet.from_references((
+            "Department of Health and Human Services, U.S. (2020). Report. Publisher.",
+        ))
+        self.assertIn(("departmentofhealthandhumanservices", "us"), references.first_authors)
+        self.assertNotIn(("departmentofhealthandhumanservices", "2020"), references.prefix_keys)
+
     def test_single_given_name_resolves(self):
         references = scan.ReferenceKeySet.from_references(
             ("Williams, S. (2019). A study. Journal of Care.",)

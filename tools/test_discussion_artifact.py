@@ -166,6 +166,58 @@ class ReferenceKeysUseTheTitleProper(unittest.TestCase):
 
 
 class CitationResolutionIsDirectional(unittest.TestCase):
+    def test_multiword_surnames_keep_the_first_author_and_coauthor(self):
+        cases = (
+            ("Garcia Lopez, M. (2020). Study. Journal.",
+             (("garcialopez", "2020"), ("mgarcialopez", "2020"))),
+            ("Garcia Lopez, M., & Smith, J. (2020). Study. Journal.",
+             (("garcialopezandsmith", "2020"), ("garcialopez", "2020"),
+              ("mgarcialopez", "2020"), ("mgarcialopezandsmith", "2020"))),
+            ("St. Peter, A. (2020). Study. Journal.",
+             (("stpeter", "2020"), ("astpeter", "2020"))),
+            ("Van der Berg, A. (2020). Study. Journal.",
+             (("vanderberg", "2020"), ("avanderberg", "2020"))),
+        )
+        for entry, expected in cases:
+            with self.subTest(entry=entry):
+                self.assertEqual(expected, artifact.reference_keys(entry))
+
+        references = artifact.ReferenceKeySet.from_references((cases[1][0],))
+        for body, expected in (
+            ("(Garcia Lopez & Smith, 2020)", True),
+            ("(Smith, 2020)", False),
+            ("(M. Garcia Lopez, 2020)", True),
+        ):
+            with self.subTest(body=body):
+                citations = artifact.read_citations(body, references)
+                keys = artifact.citation_occurrence_keys(citations, body, references)
+                self.assertEqual(expected, any(references.resolves(key) for row in keys for key in row))
+
+    def test_multiword_missing_initials_only_when_the_whole_surname_collides(self):
+        same_surname = artifact.ReferenceKeySet.from_references((
+            "Garcia Lopez, M. (2020). First study. Journal.",
+            "Garcia Lopez, R. (2021). Second study. Journal.",
+        ))
+        different_surnames = artifact.ReferenceKeySet.from_references((
+            "Garcia Lopez, M. (2020). First study. Journal.",
+            "Garcia Martinez, R. (2021). Second study. Journal.",
+        ))
+        self.assertTrue(same_surname.missing_first_author_initials("Garcia Lopez"))
+        self.assertFalse(different_surnames.missing_first_author_initials("Garcia Lopez"))
+        self.assertFalse(same_surname.missing_first_author_initials("M. Garcia Lopez"))
+
+    def test_single_and_hyphenated_surname_keys_stay_unchanged(self):
+        for entry, expected in (
+            ("Garcia, M. (2020). Study. Journal.",
+             (("garcia", "2020"), ("mgarcia", "2020"))),
+            ("Smith, J. (2020). Study. Journal.",
+             (("smith", "2020"), ("jsmith", "2020"))),
+            ("Garcia-Lopez, M. (2020). Study. Journal.",
+             (("garcialopez", "2020"), ("mgarcialopez", "2020"))),
+        ):
+            with self.subTest(entry=entry):
+                self.assertEqual(expected, artifact.reference_keys(entry))
+
     def test_first_name_form_joins_only_a_listed_first_initial(self):
         entries = (
             "Williams, S. M. (2019). First study. Publisher.",

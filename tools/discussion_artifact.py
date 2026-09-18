@@ -171,6 +171,11 @@ CITATION_RESOLUTION_NOT_REACHED = (
         "Normalized keys retain no word boundaries, so a character prefix ending inside a title word still resolves.",
         EvidenceDisposition.BEHAVIOR,
     ),
+    (
+        "group author ending in initial-shaped abbreviation",
+        "A non-legal group author ending in initials such as Department of Health and Human Services, U.S. reads as a personal author.",
+        EvidenceDisposition.BEHAVIOR,
+    ),
 )
 _TITLE_NUMBER_LEGAL_AUTHOR = (
     _TITLE_NUMBER_LEGAL_SOURCE + r"\s*(?:§+|sections?\s+)\s*" + LEGAL_SECTION_NUMBER
@@ -822,13 +827,7 @@ class ReferenceKeySet:
         phrase = _without_signal_word(citation_author)
         if re.match(r"^\s*(?:[" + UPPER + r"]\.\s*)+[" + UPPER + r"]", phrase):
             return False
-        first = re.match(r"^\s*([" + UPPER + r"](?:" + LETTER + r"|['’.\-])*)", phrase)
-        if first is None:
-            return False
-        remainder = phrase[first.end() :].strip()
-        if remainder and re.match(r"^(?:&|and\b|et\s+al\.)", remainder, re.I) is None:
-            return False
-        surname = author_key(first.group(1))
+        surname = author_key(re.split(r"\s+(?:&|and)\s+|\s+et\s+al\.", phrase, maxsplit=1, flags=re.I)[0])
         initials = {value for name, value in self.first_authors if name == surname}
         return len(initials) > 1
 
@@ -877,10 +876,7 @@ def _reference_key_data(reference: str) -> tuple[tuple[str, str, bool], ...]:
     legal = LEGAL_CITATION.search(author_text)
     if year is None and legal is None:
         return ()
-    surnames = re.findall(
-        r"(?:^|(?:,\s*&?|\s+&|\s+and)\s*)([" + UPPER + r"](?:" + LETTER + r"|['’.\-])*),\s*[" + UPPER + r"](?:[.\-]|\s|$)",
-        author_text,
-    )
+    surnames = tuple(surname for surname, _initials in personal_authors(author_text))
     keys: list[str]
     prefix = False
     if legal is not None:
@@ -912,14 +908,28 @@ def _reference_key_data(reference: str) -> tuple[tuple[str, str, bool], ...]:
 def _first_author_initials(reference: str) -> tuple[str, str] | None:
     """Read only the first personal author's surname and complete initials."""
 
-    match = re.match(
-        r"^\s*(?P<surname>[" + UPPER + r"](?:" + LETTER + r"|['’.\-])*),\s*"
-        r"(?P<initials>(?:[" + UPPER + r"]\.\s*)+)",
-        reference,
-    )
-    if match is None:
+    year = REFERENCE_YEAR.search(reference)
+    authors = personal_authors(reference[: year.start()] if year else reference)
+    if not authors:
         return None
-    return author_key(match.group("surname")), author_key(match.group("initials"))
+    surname, initials = authors[0]
+    return author_key(surname), author_key(initials)
+
+
+def personal_authors(author_text: str) -> tuple[tuple[str, str], ...]:
+    """Read surnames by the comma before initials, after each author separator."""
+
+    if LEGAL_CITATION.search(author_text):
+        return ()
+    pattern = (
+        r"(?:^|,\s*(?:&\s*)?|\s+(?:&|and)\s+)\s*"
+        r"(?P<surname>[" + UPPER + r"](?:" + LETTER + r"|['’.\-]|\s)*?),\s*"
+        r"(?P<initials>(?:[" + UPPER + r"](?:\.\s*|(?=$)))+)"
+    )
+    return tuple(
+        (match.group("surname").strip(), match.group("initials").strip())
+        for match in re.finditer(pattern, author_text)
+    )
 
 
 def reference_keys(reference: str) -> tuple[CitationKey, ...]:
