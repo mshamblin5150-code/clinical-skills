@@ -1,6 +1,10 @@
 # A ceiling carries its reason beside itself and the ruling that sets a value may state it
 
-**Measured at:** b69f577f9fc81efbdd17b61ee4a20a2f5c6299b3
+**Measured at:** 9eadfecdde6450597e2902974d24fedf77252958
+
+**Historical source:** 5b13b9705d13a5e342b53428f31af962fec1de63. The publication reread at
+`9eadfecd` checked the original search against that source commit and confirmed the constant in
+`HEAD`; the measurements below remain anchored to the original commit.
 
 [#1160](https://github.com/mshamblin5150-code/clinical-skills/issues/1160) was filed out of
 [ADR 0192](0192-a-ceiling-names-a-relationship-and-a-count-sits-beside-what-it-counts.md)'s own
