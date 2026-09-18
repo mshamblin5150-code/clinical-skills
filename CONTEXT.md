@@ -987,7 +987,7 @@ One execution of every test discovery finds under `tools/`, complete only when e
 _Avoid_: gate, repo-wide gate, test run, CI, the tests
 
 **Worksheet grammar**:
-The single object holding what a line of an `icd10-cpt` worksheet is — what opens a code entry, what a code looks like, what opens a field, what marks a line not for entry — imported by every grader that reads one. It exists because two graders reading the same file must agree about what a line is, or they grade different populations of one document and nothing reports the disagreement. Distinct from a helper two modules happen to have written alike, where a shared object would forbid a divergence the copies exist to permit.
+The single object holding what a line of an `icd10-cpt` worksheet is — what opens a code entry, what a code looks like, what opens a field, what marks a line not for entry, what heads a block whichever of its written forms a run used — imported by every grader that reads one. It exists because two graders reading the same file must agree about what a line is, or they grade different populations of one document and nothing reports the disagreement. Distinct from a helper two modules happen to have written alike, where a shared object would forbid a divergence the copies exist to permit.
 _Avoid_: shared regexes, parser, common patterns, entry rules
 
 **Orphaned detail line**:
