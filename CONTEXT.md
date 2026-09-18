@@ -1018,6 +1018,10 @@ _Avoid_: semantic agreement, topical support, anchor match, related anchor
 The committed ICD-10-CM or procedure-code database a code lookup opens. A test may take it as the reference for any claim except that its builder read the official release correctly — that comparison has **Shared-reader blindness**, so it belongs to tests over committed release excerpts.
 _Avoid_: shipped database, which collides with **Shipped artifact**; reference database, code database
 
+**Descriptor verification**:
+Whether a **Code-set database**'s descriptor text has been shown to be the book's, earned only by two independent extractions of different methods agreeing on every code, with each disagreement settled on the rendered page. While a code set is unverified, a lookup's descriptor is a locator and the rendered page supplies the text. Distinct from completeness, which says whether a miss is evidence that no code exists and says nothing about whether a hit's text is right; a set can be complete and unverified at once.
+_Avoid_: descriptor completeness, validated descriptors, clean descriptors
+
 **Mechanically verified**:
 A run every one of whose named checks ran as its command and came back clean. A run whose check was walked by eye instead — because the command, or the **engine** it needs, could not run on that machine and could not be installed there — may still be complete, but it is never mechanically verified, and it says so rather than leaving a reader to assume the stronger claim. The walk and the command read the same written rules; what differs is only whether a machine applied them.
 _Avoid_: verified, checked, validated, confirmed
