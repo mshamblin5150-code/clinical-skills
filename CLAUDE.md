@@ -206,6 +206,9 @@ from that path. The preceding order remains historical.
 **Correction, 2026-09-17:** `form_sections.py` is now the most recent direct command and calls
 `use_utf8` and `require_python_floor` from that path. The preceding order remains historical.
 
+**Correction after the 2026-09-17 entry:** `claim_ledger_census.py` is now the most recent direct command and
+calls `use_utf8` and `require_python_floor` from that path. The preceding order remains historical.
+
 ### Suite run
 
 `tools/suite.py` is the one complete-suite interface. It discovers the `test*.py` population under
