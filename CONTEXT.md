@@ -274,6 +274,10 @@ _Avoid_: sources file, bibliography, notes
 One entry in a claim ledger. It is the unit a citation spends and the unit a number is traced against, and those are different relations: a citation consumes a record so that no other citation may consume the same one, while a number only has to appear somewhere in the ledger. So one record can answer a figure and the citation beside it in the same sentence, and a source cited twice needs two.
 _Avoid_: claim, entry, source record
 
+**Ledger snapshot**:
+A working copy of a [[Claim ledger]] kept beside it in its run directory — taken before a refutation pass, or staged mid-run — and read by nothing that grades or certifies. It is preserved run material, never corrected into agreement with the ledger, and a figure counted over it is a figure about the snapshot, not about the run.
+_Avoid_: working ledger, staged ledger, backup ledger, draft ledger
+
 **Claim heading**:
 The first line of a [[Claim record]]: the claim the graded document will make, including any number it will state. It is a working statement before research, corrected wherever its source does not support it, and a heading changed after its refutation is a new claim.
 _Avoid_: claim question, claim title, prompt
