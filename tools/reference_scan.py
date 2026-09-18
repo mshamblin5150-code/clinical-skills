@@ -697,7 +697,7 @@ SOURCE_CLASS_SETTLES_RETRIEVAL_DATE = {
 NOT_REACHED = (
     *(
         (subject, reason)
-        for subject, reason, _disposition in CITATION_RESOLUTION_NOT_REACHED[2:5]
+        for subject, reason, _disposition in CITATION_RESOLUTION_NOT_REACHED[3:6]
     ),
     (
         "spelled-out group citation after its abbreviation",
@@ -708,8 +708,12 @@ NOT_REACHED = (
         "Personal-author citations retain the first significant surname key, so two authors sharing that key remain indistinguishable here.",
     ),
     (
-        "first-name citations for an author whose surname changed",
-        "The exceptional first-name form in APA section 8.20 is owned by issue #1350; this reader compares initials and surnames only.",
+        "first-name citations combining a given name with initials",
+        "The single-given-name form is read, but Sarah M. Williams combines a given name and initials without a declared join.",
+    ),
+    (
+        "hyphenated given names in first-name citations",
+        "A hyphenated given name such as Mary-Kate Williams has no declared first-initial join against a listed entry.",
     ),
     (
         "republished original publication date",
@@ -986,6 +990,24 @@ def citation_phrase_key(author: str) -> str:
     phrase = SIGNAL_PHRASE.sub("", re.sub(r"\s+", " ", author)).strip()
     phrase = re.sub(r"\s*\[[^\]]+\]\s*$", "", phrase)
     return normalize(without_leading_article(phrase)).replace(" ", "")
+
+
+def first_name_citation(author: str) -> tuple[str, str] | None:
+    """Return the entry's first initial and surname/tail for one given name."""
+
+    phrase = SIGNAL_PHRASE.sub("", author).strip()
+    match = re.fullmatch(
+        r"(?P<given>[" + UPPER + r"][" + LOWER + r"]+)\s+"
+        r"(?P<remainder>[" + UPPER + r"](?:" + LETTER + r"|['’.\-])*"
+        r"(?:\s+(?:(?:&|and)\s+.+|et\s+al\.))?)",
+        phrase,
+    )
+    if match is None:
+        return None
+    return (
+        normalize(match.group("given"))[0],
+        normalize(match.group("remainder").replace("&", " and ")).replace(" ", ""),
+    )
 
 
 @dataclass(frozen=True)
@@ -1267,6 +1289,7 @@ class Citation:
     year: str
     phrase: str = ""
     start: int = -1
+    first_name: tuple[str, str] | None = None
 
 
 @dataclass(frozen=True)
@@ -1436,6 +1459,12 @@ def _evidenced_narratives(
                     break
                 candidate = without_leading_article(written)
                 if normalize(candidate) != normalized_author:
+                    continue
+                # A preceding given name belongs to this citation. Leave it to
+                # the grammar rather than evidencing a bare surname suffix.
+                if entry.first_author_initials is not None and re.search(
+                    r"\b[" + UPPER + r"][" + LOWER + r"]+\s+$", prefix[:author_start]
+                ):
                     continue
                 # The suffix walk reaches the surname before the preceding initials.
                 # Do not evidence a bare surname when the text actually names an
@@ -1643,7 +1672,7 @@ def read_citations(
             phrase,
             start if any(definition.alias == phrase for definition in definitions) else -1,
         )
-        seen.setdefault(identity, Citation(key, year, phrase, start))
+        seen.setdefault(identity, Citation(key, year, phrase, start, first_name_citation(author)))
 
     for definition in definitions:
         if definition.year is not None:
@@ -1995,6 +2024,11 @@ def _citation_findings(document: Document) -> list[Finding]:
                     else ""
                 )
             return bool(phrase) and entry.title_proper_key.startswith(phrase)
+        if citation.first_name is not None and entry.first_author_initials is not None:
+            initial, remainder = citation.first_name
+            _surname, initials = entry.first_author_initials
+            listed_author = entry.citation_author.replace("&", " and ")
+            return initials.startswith(initial) and remainder == citation_phrase_key(listed_author)
         return any(citation.key == key for key, _year in entry.resolution_keys)
     first_authors: dict[str, set[str]] = {}
     for entry in document.entries:

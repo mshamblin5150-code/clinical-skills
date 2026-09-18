@@ -166,6 +166,58 @@ class ReferenceKeysUseTheTitleProper(unittest.TestCase):
 
 
 class CitationResolutionIsDirectional(unittest.TestCase):
+    def test_first_name_form_joins_only_a_listed_first_initial(self):
+        entries = (
+            "Williams, S. M. (2019). First study. Publisher.",
+            "Williams, S. (2020). Second study. Publisher.",
+        )
+        references = artifact.ReferenceKeySet.from_references(entries)
+        cases = (
+            ("Sarah Williams (2019) stated this.", True),
+            ("(Shonda Williams, 2020) stated this.", True),
+            ("(Range Williams, 2019) stated this.", False),
+            ("Sarah M. Williams (2019) stated this.", False),
+            ("Mary-Kate Williams (2019) stated this.", False),
+        )
+        for body, expected in cases:
+            with self.subTest(body=body):
+                citations = artifact.read_citations(body, references)
+                occurrences = artifact.citation_occurrence_keys(citations, body, references)
+                self.assertEqual(expected, any(references.resolves(key) for keys in occurrences for key in keys))
+                self.assertFalse(any(references.missing_first_author_initials(c.author) for c in citations))
+
+        wrong_name = artifact.ReferenceKeySet.from_references(
+            ("Williams, R. (2019). Study. Publisher.",)
+        )
+        body = "(Range Williams, 2019)"
+        citations = artifact.read_citations(body, wrong_name)
+        occurrences = artifact.citation_occurrence_keys(citations, body, wrong_name)
+        self.assertTrue(any(wrong_name.resolves(key) for keys in occurrences for key in keys))
+
+    def test_first_name_form_keeps_coauthor_tails_and_satisfies_initials(self):
+        references = artifact.ReferenceKeySet.from_references((
+            "Williams, S., & Jones, P. (2019). First study. Publisher.",
+            "Williams, S., Jones, P., & Doe, R. (2020). Second study. Publisher.",
+            "Williams, R. (2021). Third study. Publisher.",
+        ))
+        for body in (
+            "(Sarah Williams & Jones, 2019)",
+            "Sarah Williams and Jones (2019) report this.",
+            "(Shonda Williams et al., 2020)",
+            "Shonda Williams et al. (2020) report this.",
+        ):
+            with self.subTest(body=body):
+                citations = artifact.read_citations(body, references)
+                occurrences = artifact.citation_occurrence_keys(citations, body, references)
+                self.assertEqual(1, len(citations))
+                self.assertTrue(any(references.resolves(key) for keys in occurrences for key in keys))
+                self.assertFalse(references.missing_first_author_initials(citations[0].author))
+
+        body = "(Range Williams, 2019)"
+        citations = artifact.read_citations(body, references)
+        occurrences = artifact.citation_occurrence_keys(citations, body, references)
+        self.assertFalse(any(references.resolves(key) for keys in occurrences for key in keys))
+
     def test_group_abbreviation_requires_an_earlier_reference_backed_definition(self):
         references = artifact.ReferenceKeySet.from_references((
             "American Psychological Association. (2017). Report. Publisher.",

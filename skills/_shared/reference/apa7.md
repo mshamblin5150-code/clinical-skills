@@ -196,8 +196,10 @@ authors share a surname but have different initials, include the first author's 
 in every in-text citation of those works, even across publication years. The initials must match
 the reference entry exactly after punctuation and spacing are ignored. If those first authors also
 share initials, use the ordinary author–date form. Coauthors of one work who share a surname do not
-require initials merely because they are coauthors. The exceptional first-name form for a person
-whose name changed is tracked separately in #1350.
+require initials merely because they are coauthors. When different people share a surname and first
+initial, §8.20 permits a first name to clarify their difference. This reader joins one given name by
+its first letter to the listed first author's first initial, with the surname and year still required;
+the same form resolves cleanly when listed first authors have different initials.
 
 *Publication Manual* §8.21 defines a group abbreviation with the full group name at its first
 mention. The narrative citation puts the abbreviation inside the year parentheses; the
@@ -357,7 +359,8 @@ reaches` and `tools/checks_ledger.py` expects it, so a run that returns no verdi
 | **whether a citation stopping mid-word resolves** | The normalized relation has no word-boundary check, so a citation ending within a title word can resolve |
 | **spelled-out group citation after its abbreviation** | A full group name still resolves after its alias is defined; the command does not grade consistency of later usage |
 | **first-word equality on the surname path** | Personal-author keys still use the first significant surname word, which can make authors with the same key indistinguishable |
-| **first-name citations for an author whose surname changed** | The exceptional form in §8.20 is tracked in #1350; the command compares initials and surnames, not a first name used to clarify a name change |
+| **first-name citations combining a given name with initials** | The single-given-name form resolves, but a combined form such as `Sarah M. Williams` has no declared initials join |
+| **hyphenated given names in first-name citations** | A hyphenated form such as `Mary-Kate Williams` has no declared first-initial join |
 | The **republished original publication date** | §31's original date element is parsed and not compared with the entry. APA's own Gilgamesh example reverses the range between its entry and citation, so joining the halves would fail the source that defines the rule |
 | An **author-shaped slash span** | Grammar alone recognizes a span such as `(Cohort A, 2013/2014)`, which can raise `unlisted-citation` even when the span is not a citation. The measured corpus supplied no such false positive |
 | An **unwarranted retrieval date** on a guideline, a statement or a textbook | §4 says those take none. The command refuses one only when a committed source classifier settles that the cited form is fixed. DOI presence alone is not the archive test, and an unresolved URL cannot distinguish a stable PDF from a page designed to change |

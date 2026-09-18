@@ -35,6 +35,14 @@ def scan(text, path="some/file.md", names=None, dates=None):
 
 
 class CorpusLayer(unittest.TestCase):
+    def test_apa_manual_checked_date_is_not_a_patient_date(self):
+        path = "skills/_shared/reference/apa7-coverage.md"
+        row = "| 8.20 | Authors With the Same Surname | read-root | 1988-04-17 | evidence | refutation | 5 | digest |"
+        self.assertNotIn("corpus-date", [f.rule for f in scan(row, path=path)])
+        self.assertIn("corpus-date", [f.rule for f in scan(row, path="other.md")])
+        evidence = row.replace("evidence", "evidence from 1988-04-17")
+        self.assertIn("corpus-date", [f.rule for f in scan(evidence, path=path)])
+
     def test_catches_a_corpus_name(self):
         found = scan("seen by Jordan Vance today")
         self.assertEqual([f.rule for f in found], ["corpus-name"])
