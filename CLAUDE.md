@@ -129,6 +129,27 @@ The command reads `git worktree list --porcelain`, then reads every registered w
 
 Also not required to use the clinical skills, and deliberately not cited from [AGENTS.md](AGENTS.md) — a consumer needs the Markdown and nothing else.
 
+### Claim ledger census
+
+`tools/claim_ledger_census.py` counts the claim ledgers the run certifiers actually load:
+`runs/*/claims.md` beneath every registered checkout's `scratch/` root. It imports
+`research_ledger`'s record parser and substantive-refutation predicate. Its report gives the
+checkout and root denominators, ledgers with a `DATE:` header, records by `STATUS`, sourced records
+without a substantive refutation, and separate counts for snapshots beside a ledger and runs with
+claim files but no ledger.
+
+```bash
+python tools/claim_ledger_census.py
+```
+
+The report has no `--show` and prints only fixed labels and integers, never a claim, filename, or
+path. Exit 0 means the census completed. With a valid invocation, exit 2 means the registered
+checkout population could not be enumerated or a registered scratch root could not be read. An
+argument also exits 2 with usage.
+Neither of those counts changes status. A nonzero run-without-ledger count needs a reader; the precise
+boundary is `claim_ledger_census.DECLARED_LIMITS`, not a claim that those files were graded. A
+separate clone and material outside registered checkouts remain outside the population.
+
 ### Worksheet grammar
 
 `tools/worksheet_grammar.py` owns the `icd10-cpt` worksheet grammar imported by `anchor_scan`, `specificity_scan`, `refusal_scan`, and `differential_scan`: entry, code, field, and line-scoped `NOT FOR ENTRY` shapes, entry classification, contiguous-indented pairing, and every `icd10-cpt` step-4 block phrase. New output puts `NOT FOR ENTRY` on the code's own physical line; classification still searches the bounded entry header so preserved worksheets whose official descriptor wrapped before that line-scoped marker remain readable. A recognized detail separated from its nearest entry by a blank or unindented line is an orphaned detail line. The shared block grammar reads bare delimited, Markdown-prefixed delimited, and plain Markdown headings in any case. The three worksheet graders print the keyword-heading candidate denominator, readable non-template block headings, generic Differential section labels, and unread remainder. The generic label has its own visible count because committed worksheets use `### Differential` immediately before the full block title; it does not claim to be the `icd10-cpt` step-4 block. The shared module has no command line; it therefore has no console-codec call.

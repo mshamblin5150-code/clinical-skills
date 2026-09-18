@@ -421,6 +421,8 @@ This is the rule most likely to be quietly narrowed, because narrowing it feels 
 
 **The expected verdict is "untouched", and most of them will be.** Of the 38 swept afterwards, 26 were untouched and saying so plainly is the correct output — a sweep that finds something in every ticket is not being skeptical enough. Fan the reading out across subagents if the tracker is long; that is what they are for, and this repo already authorizes them. Take each verdict as a claim and re-derive any figure before writing it anywhere.
 
+A claim-record figure published to the tracker or an ADR is read off `python tools/claim_ledger_census.py`, never counted by hand over `claims*.md`.
+
 ### What a sweep looks for
 
 Not "is there a ticket about this file." **Take what the work actually established and ask which tickets it moves — then read the rest anyway.** Four shapes recur, and the last two are the ones that get missed:
