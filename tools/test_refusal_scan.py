@@ -86,16 +86,12 @@ def unread_remainder_input(root: Path) -> UnreadRemainderInput:
     unread, twin = root / "unread", root / "twin"
     unread.mkdir()
     twin.mkdir()
-    second_block = (
-        worksheet(refusal())
-        + "\n--- NOT CODED, NOTHING ESTABLISHED IT ---\n"
-        + refusal(code="J15.7", descriptor="Pneumonia due to Mycoplasma pneumoniae")
-    )
-    (unread / "codes.md").write_text(second_block, encoding="utf-8")
-    (twin / "codes.md").write_text(
-        worksheet(refusal(), refusal(code="J15.7", descriptor="Pneumonia due to Mycoplasma pneumoniae")),
+    twin_text = worksheet(refusal())
+    (unread / "codes.md").write_text(
+        twin_text + "\n### --- NOT CODED, NOTHING ESTABLISHED MAYBE ---\n",
         encoding="utf-8",
     )
+    (twin / "codes.md").write_text(twin_text, encoding="utf-8")
     return UnreadRemainderInput(
         (str(unread),),
         (str(twin),),
@@ -345,6 +341,8 @@ class TheCommittedRunPinsTheWalkedRow(unittest.TestCase):
 
     def test_the_walked_row_is_clean(self):
         self.assertEqual(self.scan.findings, ())
+        self.assertEqual(self.scan.off_template_headings, 10)
+        self.assertEqual(self.scan.unread_remainder, 0)
 
     def test_both_prose_surfaces_carry_the_pinned_vector(self):
         for path in (ASSERTIONS, RUN_README):

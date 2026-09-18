@@ -131,7 +131,7 @@ Also not required to use the clinical skills, and deliberately not cited from [A
 
 ### Worksheet grammar
 
-`tools/worksheet_grammar.py` owns the `icd10-cpt` worksheet grammar imported by `anchor_scan` and `specificity_scan`: entry, code, field, and line-scoped `NOT FOR ENTRY` shapes plus entry classification and the contiguous-indented pairing bound. New output puts `NOT FOR ENTRY` on the code's own physical line; classification still searches the bounded entry header so preserved worksheets whose official descriptor wrapped before that line-scoped marker remain readable. A recognized detail separated from its nearest entry by a blank or unindented line is an orphaned detail line. Both graders print the orphan count on every run and never gate on it. The shared module has no command line; it therefore has no console-codec call.
+`tools/worksheet_grammar.py` owns the `icd10-cpt` worksheet grammar imported by `anchor_scan`, `specificity_scan`, `refusal_scan`, and `differential_scan`: entry, code, field, and line-scoped `NOT FOR ENTRY` shapes, entry classification, contiguous-indented pairing, and every `icd10-cpt` step-4 block phrase. New output puts `NOT FOR ENTRY` on the code's own physical line; classification still searches the bounded entry header so preserved worksheets whose official descriptor wrapped before that line-scoped marker remain readable. A recognized detail separated from its nearest entry by a blank or unindented line is an orphaned detail line. The shared block grammar reads bare delimited, Markdown-prefixed delimited, and plain Markdown headings in any case. The three worksheet graders print the keyword-heading candidate denominator, readable non-template block headings, generic Differential section labels, and unread remainder. The generic label has its own visible count because committed worksheets use `### Differential` immediately before the full block title; it does not claim to be the `icd10-cpt` step-4 block. The shared module has no command line; it therefore has no console-codec call.
 
 ### Console codec
 
@@ -297,7 +297,7 @@ Covered by `tools/test_filled_vitals_census.py`, which runs against the twelve c
 
 The complete boundary of a clean result is declared in `specificity_scan.DECLARED_LIMITS`.
 
-Before the `icd10-cpt` step-4 boundary, relaxed-prefix code-entry and `SPECIFICITY`-field candidates are counted independently of the strict worksheet grammar. Their unmatched forms enter the shared unread remainder; listing-shaped strict entries after `icd10-cpt` step 4 remain the declared coverage floor beyond that candidate population.
+Before the `icd10-cpt` step-4 boundary, relaxed-prefix code-entry and `SPECIFICITY`-field candidates are counted independently of the strict worksheet grammar. Their unmatched forms and step-4 heading near misses enter the shared unread remainder; listing-shaped strict entries after `icd10-cpt` step 4 remain the declared coverage floor beyond that candidate population. The report also counts readable non-template block headings without grading them.
 
 The filled-vitals census reads a `clinical-note` run. This one reads an **`icd10-cpt` run**, and it is `fixtures/filled-anchor` **C5** made runnable — [#56](https://github.com/mshamblin5150-code/clinical-skills/issues/56).
 
@@ -373,7 +373,7 @@ Covered by `tools/test_differential_scan.py`, which builds synthetic notes in th
 
 The complete boundary of a clean result is declared in `anchor_scan.DECLARED_LIMITS`.
 
-Before `icd10-cpt` step 4, relaxed-prefix code-entry candidates are counted independently of strict entry openings. An unmatched candidate enters the shared unread remainder; the per-run gradeable-coverage limit remains declared under ADR 0230 because marks, listings, and pediatric bands have no admissible common candidate population.
+Before `icd10-cpt` step 4, relaxed-prefix code-entry candidates are counted independently of strict entry openings. An unmatched candidate or step-4 heading near miss enters the shared unread remainder; the report counts readable non-template block headings without grading them. The per-run gradeable-coverage limit remains declared under ADR 0230 because marks, listings, and pediatric bands have no admissible common candidate population.
 
 The differential scan reads a `clinical-note` run. This one reads an **`icd10-cpt`** run again, and it is `fixtures/filled-anchor`'s **ANCHOR** class reduced to the part a machine can settle — [#124](https://github.com/mshamblin5150-code/clinical-skills/issues/124).
 
@@ -390,7 +390,7 @@ excluded. Unpaired artifacts and incomplete reader coverage enter the shared unr
 
 **Two tests, and neither needs a reader.** First, the mark and the listing must agree — every code carrying `SOURCE: filled` appears under `CODED, ANCHOR WAS FILLED`, and every code that block lists carries `SOURCE: filled` on its own entry. **Either direction alone is the failure**, which is `skills/icd10-cpt/SKILL.md`'s *"Both, not one instead of the other"* made runnable. Second, every for-entry pediatric `Z68.5-` band carries the affirmative `CONFIDENCE` line `verified against ICD-10-CM FY2026 and CDC 2022 Extended BMI-for-Age`. [#123](https://github.com/mshamblin5150-code/clinical-skills/issues/123) retired the old test that forbade an ICD-only verification claim and replaced it with this positive evidence that the committed calculator was used; a bare `verify this number`, or a sentence merely naming an unavailable table, fails that test.
 
-**The pre-#46 heading is not this block, and the lookbehind that says so is the load-bearing line in the parser.** Run 1 refused every filled anchor and wrote them under `NOT CODED, ANCHOR WAS FILLED`. A scanner reading that as the new block would report a clean pass for the exact behavior #46 reversed; this one reads a run reproducing run 1 as having **marked nothing** and exits 2.
+**The pre-#46 heading is a different phrase.** Run 1 refused every filled anchor and wrote them under `NOT CODED, ANCHOR WAS FILLED`. A scanner reading that as the new block would report a clean pass for the exact behavior #46 reversed; the shared phrase grammar keeps it outside the filled-anchor block.
 
 **Counts only by default**, on `specificity_scan.py`'s and `differential_scan.py`'s terms and for their reason: a run directory under `scratch/` or `output/` is a patient record, and a code with the value it rests on is a measurement attached to an encounter. **`--show` output is PHI**: read it, do not paste it.
 
@@ -432,13 +432,13 @@ The block scan reads a `clinical-note` run's tier block. This one reads an **`ic
 refusal record**, and it is the mechanical half of the rule that a refused code has to say what it
 would have taken.
 
-Refusal-block headings and `NOT CODED` marks are separate candidate populations. Headings after the first and marks after the first readable heading enter one shared unread remainder without becoming refusal findings.
+Refusal-block headings and `NOT CODED` marks are separate candidate populations. Headings after the first, marks after the first readable heading, and keyword-bearing `icd10-cpt` step-4 heading near misses enter one shared unread remainder without becoming refusal findings. Readable non-template block headings are counted and never graded.
 
 ```bash
 python tools/refusal_scan.py <a run directory>
 ```
 
-**It reads one block and nothing else** — `--- NOT CODED, NOTHING ESTABLISHED IT ---`. A refusal
+**It reads one block and nothing else** — the `NOT CODED, NOTHING ESTABLISHED IT` block in any of the shared grammar's three heading forms. A refusal
 inside it must weld `NOT CODED` to its code and a nonempty descriptor, state what would establish the
 code, and name what the encounter supports instead. **Codes in the differential are outside the block
 and do not inflate the count**, which is the narrowing that keeps the denominator honest: a note that

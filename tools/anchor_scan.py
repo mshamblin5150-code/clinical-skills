@@ -33,8 +33,8 @@ synthetic coverage.
 
 **That last behavior is the point rather than an edge case.** Run 1 refused every
 filled anchor it was offered and wrote them under the pre-#46 heading,
-``NOT CODED, ANCHOR WAS FILLED``. This parser does not read that as the block --
-the lookbehind on ``NOT`` is deliberate -- so a run reproducing run 1 reads as
+``NOT CODED, ANCHOR WAS FILLED``. The shared heading grammar keeps that phrase
+separate from the filled-anchor block, so a run reproducing run 1 reads as
 having marked nothing and exits 2. A scanner that scored it clean would report a
 pass for the exact behavior #46 reversed.
 
@@ -72,7 +72,10 @@ from pathlib import Path
 
 import run_grader
 from console_codec import require_python_floor, use_utf8
-from worksheet_grammar import CODE, ENTRY, ENTRY_CANDIDATE, FIELD, entry_is_for_entry, paired_entry
+from worksheet_grammar import (
+    BLOCK_HEADING, CODE, DIFFERENTIAL_HEADING, ENTRY, ENTRY_CANDIDATE, FIELD,
+    REFUSAL_HEADING, STEP_FOUR_START, entry_is_for_entry, heading_counts, paired_entry,
+)
 
 SOURCE = re.compile(r"(?mi)^[ \t]*SOURCE[ \t]*:[ \t]*(.*?)[ \t]*$")
 CONFIDENCE = re.compile(r"(?mi)^[ \t]*CONFIDENCE[ \t]*:[ \t]*(.*?)[ \t]*$")
@@ -80,17 +83,6 @@ FILLED = re.compile(r"(?i)^filled\b")
 CDC_COMPUTED = re.compile(
     r"(?i)^verified against ICD-10-CM FY2026 and "
     r"CDC 2022 Extended BMI-for-Age\.?$"
-)
-
-# ``icd10-cpt`` step 4's heading. The lookbehind is the load-bearing part: ``NOT
-# CODED, ANCHOR WAS FILLED`` is the pre-#46 heading, and reading it as this block
-# would score a run that refused every filled anchor as one that marked them all.
-BLOCK_HEADING = re.compile(
-    r"(?i)^---[ \t]+CODED,[ \t]*ANCHOR[ \t]+WAS[ \t]+FILLED\b.*---[ \t]*$"
-)
-STEP_FOUR_START = re.compile(
-    r"(?im)^---[ \t]+(?:CODED,[ \t]*ANCHOR[ \t]+WAS[ \t]+FILLED\b|"
-    r"NOT[ \t]+CODED,[ \t]+NOTHING[ \t]+ESTABLISHED[ \t]+IT\b).*---[ \t]*$"
 )
 
 # Any other ``--- ... ---`` or Markdown heading closes the block.
@@ -150,7 +142,7 @@ DECLARED_LIMITS = (
     ),
     (
         "filled-anchor block opening form",
-        "Only the delimited heading at line start opens the filled-anchor block; a Markdown prefix does not.",
+        "The shared grammar reads bare, Markdown-prefixed, and plain Markdown block headings.",
         run_grader.EvidenceDisposition.BEHAVIOR,
     ),
     (
@@ -207,6 +199,9 @@ class Worksheet:
     orphaned_details: int = 0
     unread_remainder: int = 0
     excluded_em: int = 0
+    off_template_headings: int = 0
+    heading_candidates: int = 0
+    generic_differential_headings: int = 0
 
 
 @dataclass(frozen=True)
@@ -226,6 +221,9 @@ class Scan:
     findings: tuple[Finding, ...] = ()
     unread_remainder: int = 0
     excluded_em: int = 0
+    off_template_headings: int = 0
+    heading_candidates: int = 0
+    generic_differential_headings: int = 0
 
     @property
     def subjects(self) -> int:
@@ -305,6 +303,7 @@ def read_worksheet(text: str) -> Worksheet:
 
     block, has_block = _block_lines(text)
     listed = {m.group(1) for line in block for m in [LISTING.match(line)] if m}
+    headings = heading_counts(text)
 
     return Worksheet(
         proposed=sum(1 for *_rest, for_entry in entries if for_entry),
@@ -320,8 +319,11 @@ def read_worksheet(text: str) -> Worksheet:
             0,
             len(list(ENTRY_CANDIDATE.finditer(candidate_text)))
             - len(candidate_strict_entries),
-        ),
+        ) + headings.unread,
         excluded_em=len(EM_LINE.findall(text)),
+        off_template_headings=headings.off_template,
+        heading_candidates=headings.candidates,
+        generic_differential_headings=headings.generic_differential,
     )
 
 
@@ -374,6 +376,9 @@ def survey(sheets: list[Worksheet]) -> Scan:
         findings=tuple(found),
         unread_remainder=sum(sheet.unread_remainder for sheet in sheets),
         excluded_em=sum(sheet.excluded_em for sheet in sheets),
+        off_template_headings=sum(sheet.off_template_headings for sheet in sheets),
+        heading_candidates=sum(sheet.heading_candidates for sheet in sheets),
+        generic_differential_headings=sum(sheet.generic_differential_headings for sheet in sheets),
     )
 
 
@@ -393,6 +398,9 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         f"  pediatric Z68.5- bands             {scan.pediatric_bands}",
         f"  E/M lines excluded                  {scan.excluded_em}",
         f"  orphaned detail lines               {scan.orphaned_details}",
+        f"  keyword heading candidates         {scan.heading_candidates}",
+        f"  generic Differential headings      {scan.generic_differential_headings}",
+        f"  off-template block headings        {scan.off_template_headings}",
         run_grader.format_unread_remainder(scan.unread_remainder),
         "",
         f"  A1/A2/A5 - marked, not listed      {scan.unlisted_marks}",
@@ -461,13 +469,6 @@ PROPOSED_INSTEAD = re.compile(rf"(?mi)^[ \t]*proposed instead:[ \t]*(?P<code>{CO
 ICD_TOKEN = re.compile(r"\b[A-Z][0-9][0-9A-Z](?:\.[0-9A-Z]{1,4})?\b")
 RENDERED_PROCEDURE = re.compile(rf"(?mi)^[ \t]*(?P<system>CPT|HCPCS)[ \t]*:[ \t]*(?P<code>{CODE})\b")
 RENDERED_EM = EM_LINE
-DIFFERENTIAL_HEADING = re.compile(
-    r"(?mi)^(?:---[ \t]*|#{1,6}[ \t]+)DIFFERENTIAL,?[ \t]+DOCUMENTS MDM,?[ \t]+NOT FOR ENTRY(?:[ \t]*---)?[ \t]*$"
-)
-REFUSAL_HEADING = re.compile(
-    r"(?mi)^(?:---[ \t]*|#{1,6}[ \t]+)NOT CODED,?[ \t]+NOTHING ESTABLISHED IT(?:[ \t]*---)?[ \t]*$"
-)
-
 
 @dataclass(frozen=True)
 class AgreementSubject:
@@ -951,14 +952,16 @@ def _agreement_subjects(text: str) -> tuple[tuple[AgreementSubject, ...], int, i
     entries = list(ENTRY.finditer(text))
     differential_match = DIFFERENTIAL_HEADING.search(text)
     refusal_match = REFUSAL_HEADING.search(text)
+    step_four_match = STEP_FOUR_START.search(text)
     differential = differential_match.start() if differential_match else -1
     refusal = refusal_match.start() if refusal_match else -1
+    step_four = step_four_match.start() if step_four_match else -1
     subjects: list[AgreementSubject] = []
-    unread = max(0, len(list(ENTRY_CANDIDATE.finditer(text))) - len(entries))
+    unread = max(0, len(list(ENTRY_CANDIDATE.finditer(text))) - len(entries)) + heading_counts(text).unread
 
     for index, match in enumerate(entries):
         start = match.start()
-        if refusal >= 0 and start >= refusal:
+        if (refusal >= 0 and start >= refusal) or (step_four >= 0 and start >= step_four):
             continue
         system = match.group("system").upper().replace("ICD10", "ICD-10")
         code = match.group("code").upper()
@@ -991,7 +994,8 @@ def _agreement_subjects(text: str) -> tuple[tuple[AgreementSubject, ...], int, i
         refusals = list(REFUSAL_MARK.finditer(text, refusal))
         for index, match in enumerate(refusals):
             code = match.group("code").upper()
-            official = _official_descriptor("ICD-10", code)
+            system = "CPT" if code.isdigit() else "ICD-10"
+            official = _official_descriptor(system, code)
             end = refusals[index + 1].start() if index + 1 < len(refusals) else len(text)
             support = _authored_anchor(
                 text, match.end(), end, match.group("descriptor"), official
@@ -1001,7 +1005,7 @@ def _agreement_subjects(text: str) -> tuple[tuple[AgreementSubject, ...], int, i
             if official is not None:
                 subjects.append(
                     AgreementSubject(
-                        "ICD-10", code, official, "refused", support
+                        system, code, official, "refused", support
                     )
                 )
             else:

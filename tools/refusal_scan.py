@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Grade the mechanical refusal-record row in ``icd10-cpt`` worksheets.
 
-The scanner reads only ``--- NOT CODED, NOTHING ESTABLISHED IT ---``. A refusal
+The scanner reads the icd10-cpt step-4 refusal heading in all three supported forms. A refusal
 inside that block must weld ``NOT CODED`` to its code and nonempty descriptor,
 state what would establish the code, and name what the encounter supports instead.
 It cannot judge whether descriptor text is official. Codes in the differential are
@@ -22,27 +22,18 @@ from pathlib import Path
 
 import run_grader
 from run_grader import EvidenceDisposition
+from worksheet_grammar import ANY_HEADING, DIFFERENTIAL_HEADING, REFUSAL_HEADING, heading_counts
 
 
 CODE = r"(?:[A-Z][0-9][0-9A-Z](?:\.[0-9A-Z]{1,4})?|[0-9]{5})"
-REFUSAL_HEADING = re.compile(
-    r"^[ \t]*(?:#{1,6}[ \t]*)?---[ \t]*NOT CODED, NOTHING ESTABLISHED IT[ \t]*---[ \t]*$",
-    re.IGNORECASE,
-)
 MARK = re.compile(rf"^[ \t]*NOT CODED:[ \t]*({CODE})\b[ \t]+(\S.*)$")
 NEEDS = re.compile(r"^[ \t]*needs:[ \t]*\S", re.IGNORECASE)
 SUBSTITUTE = re.compile(r"^[ \t]*proposed instead:[ \t]*\S", re.IGNORECASE)
 MARK_MENTION = re.compile(r"^[ \t]*NOT CODED:", re.IGNORECASE)
-MARKDOWN_HEADING = re.compile(
-    r"^[ \t]*(?:#{1,6}[ \t]+|---[ \t]+\S.*---[ \t]*$)"
-)
 ENTRY = re.compile(
     rf"^[ \t]*(?:ICD-?10(?:-CM)?|CPT|HCPCS)[ \t]+({CODE})\b",
     re.IGNORECASE,
 )
-# Intentionally local rather than imported from ``worksheet_grammar``: this
-# scanner grades the ``icd10-cpt`` step-4 refusal block, while that grammar marks differential
-# entry lines. The identical phrase does not make the two populations one.
 NOT_FOR_ENTRY = re.compile(r"NOT FOR ENTRY[ \t]*$", re.IGNORECASE)
 
 MISSING_NEEDS = "missing needs"
@@ -120,6 +111,9 @@ class Worksheet:
     has_block: bool = False
     unread_headings: int = 0
     unread_marks: int = 0
+    off_template_headings: int = 0
+    heading_candidates: int = 0
+    generic_differential_headings: int = 0
 
 
 @dataclass(frozen=True)
@@ -131,6 +125,9 @@ class Scan:
     per_worksheet: tuple[int, ...]
     unread_headings: int = 0
     unread_marks: int = 0
+    off_template_headings: int = 0
+    heading_candidates: int = 0
+    generic_differential_headings: int = 0
     findings: tuple[Finding, ...] = ()
 
     @property
@@ -155,7 +152,7 @@ def _block_lines(lines: list[str]) -> tuple[list[str], bool]:
 
     block: list[str] = []
     for line in lines[start + 1 :]:
-        if MARKDOWN_HEADING.match(line):
+        if ANY_HEADING.match(line):
             break
         block.append(line)
     return block, True
@@ -167,7 +164,7 @@ def _entry_sets(lines: list[str]) -> tuple[set[str], set[str]]:
     in_differential = False
 
     for line in lines:
-        if "DIFFERENTIAL, DOCUMENTS MDM, NOT FOR ENTRY" in line.upper():
+        if DIFFERENTIAL_HEADING.fullmatch(line):
             in_differential = True
             continue
         if REFUSAL_HEADING.search(line):
@@ -213,13 +210,15 @@ def read_worksheet(text: str) -> Worksheet:
             )
         )
 
+    headings_population = heading_counts(text)
+
     return Worksheet(
         refusals=tuple(refusals),
         proposed=frozenset(proposed),
         differential=frozenset(differential),
         malformed_marks=malformed,
         has_block=has_block,
-        unread_headings=max(0, len(headings) - int(has_block)),
+        unread_headings=max(0, len(headings) - int(has_block)) + headings_population.unread,
         unread_marks=max(
             0,
             sum(
@@ -230,6 +229,9 @@ def read_worksheet(text: str) -> Worksheet:
             - len(marks)
             - malformed,
         ),
+        off_template_headings=headings_population.off_template,
+        heading_candidates=headings_population.candidates,
+        generic_differential_headings=headings_population.generic_differential,
     )
 
 
@@ -258,6 +260,9 @@ def survey(sheets: list[Worksheet]) -> Scan:
         per_worksheet=tuple(len(sheet.refusals) for sheet in sheets),
         unread_headings=sum(sheet.unread_headings for sheet in sheets),
         unread_marks=sum(sheet.unread_marks for sheet in sheets),
+        off_template_headings=sum(sheet.off_template_headings for sheet in sheets),
+        heading_candidates=sum(sheet.heading_candidates for sheet in sheets),
+        generic_differential_headings=sum(sheet.generic_differential_headings for sheet in sheets),
         findings=findings,
     )
 
@@ -273,6 +278,9 @@ def format_report(result: Scan, source: str, show: bool = False) -> str:
         + ",".join(str(count) for count in result.per_worksheet),
         f"unread refusal headings           {result.unread_headings}",
         f"unread refusal marks              {result.unread_marks}",
+        f"keyword heading candidates       {result.heading_candidates}",
+        f"generic Differential headings    {result.generic_differential_headings}",
+        f"off-template block headings       {result.off_template_headings}",
         run_grader.format_unread_remainder(result.unread_remainder),
         f"findings                         {len(result.findings)}",
     ]

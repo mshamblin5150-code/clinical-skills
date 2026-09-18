@@ -228,6 +228,7 @@ EXPECTED_COMPLETION_CHECKS = (aar_scan.EXPECTED_ROW,)
 import threshold_coverage
 import threshold_grammar
 import threshold_sheet
+from worksheet_grammar import REFUSAL_HEADING
 
 # ``M86.9``, ``R06.02``, ``A41.9``. Letter, digit, alphanumeric, optional dotted
 # extension -- which is what keeps ``97.3`` and ``4/10`` out.
@@ -257,8 +258,6 @@ BARE_MARK = re.compile(r"NOT CODED(?![ \t]*:)")
 # ``icd10-cpt`` step 4's block heading, which is a bare mark and is not a refusal.
 # Removed before the bare marks are counted, so a worksheet's own scaffolding does
 # not read as a note written in the retired form.
-BLOCK_HEADING = re.compile(r"NOT CODED, NOTHING ESTABLISHED IT")
-
 # A pipe table in a note is the drift matrix or a Medatrax field block, never a
 # differential entry. Skipping the row outright is what makes a verdict *about*
 # row 22 unreadable as a violation of it rather than merely unlikely to be one.
@@ -1248,7 +1247,7 @@ def read_note(text: str) -> Note:
     refused, spans = _refusals(lines)
     conclusion = _conclusion_lines(lines)
     unwelded = sum(
-        len(BARE_MARK.findall(BLOCK_HEADING.sub("", line))) for line in lines
+        len(BARE_MARK.findall(REFUSAL_HEADING.sub("", line))) for line in lines
     )
 
     def in_a_clause(index: int, position: int) -> bool:
