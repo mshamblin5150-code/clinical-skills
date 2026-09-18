@@ -155,10 +155,14 @@ which the parser's own comment says place their list under the H1.
 
 It is latent: nothing cites any of the four by ordinal today. It would go live on the first
 citation, because `RULING_CITATION` accepts `decision` as an ordinal word — so the natural way to
-cite one is unresolvable, against a ceiling of 2 with one slot already spent. This record therefore
+cite one is unresolvable except through the ruling hatch, whose limit is
+`RULING_EXEMPT_CEILING`. This record therefore
 refers to ADR 0127 without an ordinal deliberately. Filed as
 [#886](https://github.com/mshamblin5150-code/clinical-skills/issues/886) rather than folded in here,
 because it has nothing to do with this cache and it carries a decision of its own.
+
+*At `b69f577f` ([#1160](https://github.com/mshamblin5150-code/clinical-skills/issues/1160)): This
+clause previously named the ceiling's digit and a count of slots already spent.*
 
 **Whether the two injection sites should ever become public.** Ruling 1 withholds the seam on what a
 caller could certify with it. If ruling 4 is ever built, that objection dissolves and the question
