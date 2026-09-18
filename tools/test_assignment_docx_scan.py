@@ -5,12 +5,14 @@ from __future__ import annotations
 import unittest
 import tempfile
 import zipfile
+from dataclasses import replace
 from pathlib import Path
 from xml.etree import ElementTree
 
 import assignment_docx
 import assignment_docx_scan as scan
 import file_digest
+import research_ledger
 import run_grader
 from grader_conformance import EmptyPopulationInput, for_module
 
@@ -140,6 +142,52 @@ class WordRangeTest(unittest.TestCase):
             result = scan.survey(scan.load(parsed))
 
         self.assertTrue(any(item.kind == scan.WORD_RANGE for item in result.findings))
+
+
+class CitationClaimTraceTest(unittest.TestCase):
+    def test_first_name_citation_traces_only_the_matching_first_initial(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            inputs = empty_population_input(Path(directory))
+            run = Path(inputs.argv[0])
+            artifact = Path(inputs.argv[2])
+            entry = "Williams, S. (2019). A study. Journal of Care."
+            spec = assignment_docx.fixture_spec()
+            spec = replace(
+                spec,
+                sections=(assignment_docx.Section(
+                    "Purpose and Scope",
+                    ("The result was reported (Sarah Williams, 2019).",),
+                ),),
+                references=(entry,),
+            )
+            assignment_docx.build(spec, artifact, force=True)
+            file_digest.write_recorded_sha256(
+                run / "render" / "pass-1" / scan.FINGERPRINT_FILE,
+                file_digest.sha256(artifact),
+            )
+            heading = "The result was reported."
+            claim = (
+                f"DATE: 2026-09-13\n\n## CLAIM: {heading}\n"
+                "STATUS: sourced\n"
+                f"REFERENCE: {entry}\n"
+                "REFUTATION: stands - the result appears in the article.\n"
+                f"TESTED-HEADING: {research_ledger.heading_digest(heading)}\n"
+                "SECOND-ROUTE: article page -> independent reader\n"
+            )
+            (run / "claims.md").write_text(claim, encoding="utf-8")
+            parsed = run_grader.Parsed(source=str(run), values={"--docx": str(artifact)})
+            matching = scan.survey(scan.load(parsed))
+            (run / "claims.md").write_text(
+                claim.replace("Williams, S.", "Williams, R."), encoding="utf-8"
+            )
+            wrong_initial = scan.survey(scan.load(parsed))
+
+        self.assertNotIn(
+            scan.UNTRACED_CITATION,
+            {item.kind for item in matching.findings},
+            matching.findings,
+        )
+        self.assertIn(scan.UNTRACED_CITATION, {item.kind for item in wrong_initial.findings})
 
 
 def empty_population_input(root: Path) -> EmptyPopulationInput:
