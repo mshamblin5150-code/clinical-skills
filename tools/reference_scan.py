@@ -242,6 +242,7 @@ from pathlib import Path
 import run_grader
 from run_grader import NOT_GRADED
 from discussion_artifact import (
+    CITATION_RESOLUTION_NOT_REACHED,
     LETTER,
     LEGAL_CITATION,
     LEGAL_READER_MECHANISMS,
@@ -249,6 +250,7 @@ from discussion_artifact import (
     LOWER,
     UPPER,
     citation_year,
+    group_abbreviation_definitions,
     legal_citation_spans,
     legal_reference_lacks_name,
 )
@@ -693,6 +695,18 @@ SOURCE_CLASS_SETTLES_RETRIEVAL_DATE = {
 }
 
 NOT_REACHED = (
+    *(
+        (subject, reason)
+        for subject, reason, _disposition in CITATION_RESOLUTION_NOT_REACHED[2:5]
+    ),
+    (
+        "spelled-out group citation after its abbreviation",
+        "A full group name still resolves after an abbreviation is defined; this reader does not grade consistency of the writer's later choice.",
+    ),
+    (
+        "first-word equality on the surname path",
+        "Personal-author citations retain the first significant surname key, so two authors sharing that key remain indistinguishable here.",
+    ),
     (
         "first-name citations for an author whose surname changed",
         "The exceptional first-name form in APA section 8.20 is owned by issue #1350; this reader compares initials and surnames only.",
@@ -966,6 +980,14 @@ def citation_key(author: str) -> str:
     return normalize(word)
 
 
+def citation_phrase_key(author: str) -> str:
+    """Keep the whole no-surname citation phrase for directional resolution."""
+
+    phrase = SIGNAL_PHRASE.sub("", re.sub(r"\s+", " ", author)).strip()
+    phrase = re.sub(r"\s*\[[^\]]+\]\s*$", "", phrase)
+    return normalize(without_leading_article(phrase)).replace(" ", "")
+
+
 @dataclass(frozen=True)
 class Entry:
     """One line of the reference list, which is one rendered paragraph."""
@@ -989,6 +1011,23 @@ class Entry:
     @property
     def key(self) -> str:
         return first_word(self.text)
+
+    @property
+    def title_proper_key(self) -> str:
+        """Full author slot only when it contains no personal-author initials."""
+
+        match = self._year_match
+        if match is None or self.is_legal:
+            return ""
+        head = self.text[: match.start()].rstrip()
+        while True:
+            stripped = _AUTHOR_ROLE.sub("", head).rstrip()
+            if stripped == head:
+                break
+            head = stripped
+        if re.search(r",\s*[" + UPPER + r"]\.", head):
+            return ""
+        return normalize(without_leading_article(head.rstrip(". "))).replace(" ", "")
 
     @property
     def _legal_match(self) -> re.Match[str] | None:
@@ -1222,10 +1261,12 @@ def summarize_buckets(
 
 @dataclass(frozen=True)
 class Citation:
-    """One in-text citation, reduced to the two things a string test can compare."""
+    """One in-text citation with its full phrase for no-surname resolution."""
 
     key: str
     year: str
+    phrase: str = ""
+    start: int = -1
 
 
 @dataclass(frozen=True)
@@ -1574,18 +1615,40 @@ def read_citations(
 ) -> tuple[Citation, ...]:
     """Every distinct in-text citation, parenthetical and narrative.
 
-    Deduplicated on the pair, so a source cited nine times is one key and the year
-    row reports one finding rather than nine.
+    Deduplicated on the full phrase and year, except that separate bare alias
+    occurrences retain their positions to enforce definition order.
     """
-    seen: dict[tuple[str, str], Citation] = {}
+    seen: dict[tuple[str, str, str, int], Citation] = {}
     legal_spans = legal_citation_spans(body)
+    definitions = group_abbreviation_definitions(
+        body,
+        {entry.title_proper_key for entry in entries if entry.title_proper_key},
+        citation_phrase_key,
+    )
+    definition_spans = tuple(
+        (definition.start, body.find(")", definition.start) + 1)
+        for definition in definitions
+        if definition.year is not None
+    )
 
-    def add(author: str, token: str) -> None:
+    def add(author: str, token: str, start: int = -1) -> None:
         key = citation_key(author)
         if not key:
             return
-        pair = (key, year_key(citation_year(token)))
-        seen.setdefault(pair, Citation(key=pair[0], year=pair[1]))
+        year = year_key(citation_year(token))
+        phrase = citation_phrase_key(author)
+        identity = (
+            key,
+            year,
+            phrase,
+            start if any(definition.alias == phrase for definition in definitions) else -1,
+        )
+        seen.setdefault(identity, Citation(key, year, phrase, start))
+
+    for definition in definitions:
+        if definition.year is not None:
+            full_name = body[definition.start : body.find("(", definition.start)].strip()
+            add(full_name, definition.year, definition.start)
 
     for match in LEGAL_CITATION.finditer(body):
         token = (
@@ -1595,12 +1658,15 @@ def read_citations(
             or ""
         )
         pair = (normalize(_legal_section_text(match)), year_key(token))
-        seen.setdefault(pair, Citation(key=pair[0], year=pair[1]))
+        seen.setdefault(
+            (pair[0], pair[1], pair[0], -1),
+            Citation(pair[0], pair[1], pair[0], match.start()),
+        )
 
     for block in PAREN_BLOCK.finditer(body):
         if any(
             start <= block.start() and block.end() <= end
-            for start, end in legal_spans
+            for start, end in (*legal_spans, *definition_spans)
         ):
             continue
         # One set of parentheses, several works. Splitting first is what makes the
@@ -1625,7 +1691,7 @@ def read_citations(
             if evidenced is not None:
                 author, dates = evidenced
                 for token in dates:
-                    add(author, token)
+                    add(author, token, start)
                 cursor += len(part) + 1
                 continue
             match = CITATION_PART.match(stripped)
@@ -1633,13 +1699,13 @@ def read_citations(
                 cursor += len(part) + 1
                 continue
             author = match.group(1)
-            add(author, match.group(2))
+            add(author, match.group(2), start)
             rest = stripped[match.end() :]
             while True:
                 extra = EXTRA_YEAR.match(rest)
                 if not extra:
                     break
-                add(author, extra.group(1))
+                add(author, extra.group(1), start)
                 rest = rest[extra.end() :]
             cursor += len(part) + 1
     # A rendered heading is a paragraph boundary, including when it contains a
@@ -1662,11 +1728,11 @@ def read_citations(
     )
     for author, dates, _start, _end in evidence_narratives:
         for token in dates:
-            add(author, token)
+            add(author, token, _start)
     for match in NARRATIVE.finditer(narrative_body):
         if any(
             start <= match.start() and match.end() <= end
-            for start, end in legal_spans
+            for start, end in (*legal_spans, *definition_spans)
         ):
             continue
         if any(
@@ -1675,13 +1741,13 @@ def read_citations(
         ):
             continue
         author = match.group(1)
-        add(author, match.group(2))
+        add(author, match.group(2), match.start())
         rest = match.group(0)[match.end(2) - match.start() :]
         while True:
             extra = EXTRA_YEAR.match(rest)
             if not extra:
                 break
-            add(author, extra.group(1))
+            add(author, extra.group(1), match.start())
             rest = rest[extra.end() :]
     return tuple(seen.values())
 
@@ -1904,11 +1970,32 @@ def _disambiguation_findings(entries: tuple[Entry, ...]) -> list[Finding]:
 def _citation_findings(document: Document) -> list[Finding]:
     """Both directions of section 5, plus the year the two have to agree on."""
     found: list[Finding] = []
-    listed: dict[str, set[str]] = {}
-    for entry in document.entries:
-        for key, year in entry.resolution_keys:
-            listed.setdefault(key, set()).add(year)
-    cited = {citation.key for citation in document.citations}
+    definitions = group_abbreviation_definitions(
+        document.body,
+        {entry.title_proper_key for entry in document.entries if entry.title_proper_key},
+        citation_phrase_key,
+    )
+    alias_groups: dict[str, set[str]] = {}
+    for definition in definitions:
+        alias_groups.setdefault(definition.alias, set()).add(definition.group)
+
+    def matches(citation: Citation, entry: Entry) -> bool:
+        if entry.title_proper_key:
+            phrase = citation.phrase
+            if citation.phrase in alias_groups:
+                groups = alias_groups[citation.phrase]
+                phrase = (
+                    next(iter(groups))
+                    if len(groups) == 1
+                    and any(
+                        definition.alias == citation.phrase
+                        and definition.start < citation.start
+                        for definition in definitions
+                    )
+                    else ""
+                )
+            return bool(phrase) and entry.title_proper_key.startswith(phrase)
+        return any(citation.key == key for key, _year in entry.resolution_keys)
     first_authors: dict[str, set[str]] = {}
     for entry in document.entries:
         if (first_author := entry.first_author_initials) is not None:
@@ -1918,18 +2005,29 @@ def _citation_findings(document: Document) -> list[Finding]:
     for citation in document.citations:
         if citation.key in ambiguous:
             found.append(Finding(MISSING_FIRST_AUTHOR_INITIALS, "body", f"{citation.key} {citation.year}"))
-        if citation.key not in listed:
+        matched = tuple(entry for entry in document.entries if matches(citation, entry))
+        listed_years = {
+            year for entry in matched for _key, year in entry.resolution_keys
+        }
+        if not matched:
             found.append(Finding(UNLISTED_CITATION, "body", f"{citation.key} {citation.year}"))
-        elif citation.year not in listed[citation.key]:
+        elif citation.year not in listed_years:
             found.append(
                 Finding(
                     INTEXT_YEAR_MISMATCH,
                     "body",
-                    f"{citation.key} cited as {citation.year}, listed as {'/'.join(sorted(listed[citation.key]))}",
+                    f"{citation.key} cited as {citation.year}, listed as {'/'.join(sorted(listed_years))}",
                 )
             )
     for entry in document.entries:
-        entry_cited = any(key in cited for key, _year in entry.resolution_keys)
+        entry_cited = any(
+            matches(citation, entry)
+            and (
+                not entry.title_proper_key
+                or citation.year == year_key(entry.year)
+            )
+            for citation in document.citations
+        )
         if (
             entry.year
             and not (entry.is_legal and not entry.key)

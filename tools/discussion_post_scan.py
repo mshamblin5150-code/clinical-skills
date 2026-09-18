@@ -488,7 +488,7 @@ def _citation_keys(
     body_citations = read_citations(body, reference_key_set)
     return (
         body_citations,
-        citation_occurrence_keys(body_citations),
+        citation_occurrence_keys(body_citations, body, reference_key_set),
         citation_coverage(body, reference_key_set),
     )
 

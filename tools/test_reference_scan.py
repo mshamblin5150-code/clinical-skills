@@ -1252,6 +1252,81 @@ class TheCitationParserReadsTheShapesAPAActuallyWrites(unittest.TestCase):
         self.assertEqual(2, coverage.unread)
 
 
+class NoSurnameCitationResolution(unittest.TestCase):
+    def check(self, entry: str, body: str) -> list[str]:
+        return kinds(draft(entry, body="# Case\n\n" + body + "\n"))
+
+    def test_same_opening_word_does_not_resolve_a_different_work_or_group(self):
+        cases = (
+            (
+                "The epic of Gilgamesh (M. G. Kovaks, Trans.). (1998). Academy.",
+                "(The Epic of American Civilization, 1998)",
+            ),
+            (
+                "World Health Organization. (2020). Report. Publisher.",
+                "(World Bank, 2020)",
+            ),
+        )
+        for entry, citation in cases:
+            with self.subTest(citation=citation):
+                found = self.check(entry, citation)
+                self.assertIn(scan.UNLISTED_CITATION, found)
+                self.assertIn(scan.UNCITED_ENTRY, found)
+
+    def test_wrong_year_does_not_count_as_citing_the_title_entry(self):
+        entry = "World Health Organization. (2020). Report. Publisher."
+        found = self.check(entry, "(World Health Organization, 2021)")
+        self.assertIn(scan.INTEXT_YEAR_MISMATCH, found)
+        self.assertIn(scan.UNCITED_ENTRY, found)
+
+    def test_apa_gilgamesh_row_still_resolves(self):
+        section = numbered_markdown_section(APA7.read_text(encoding="utf-8"), 31)
+        line = next(line for line in section.splitlines() if "The epic of Gilgamesh" in line)
+        entry, citation = re.findall(r"`([^`]*)`", line)[:2]
+        found = self.check(entry, citation)
+        self.assertNotIn(scan.UNLISTED_CITATION, found)
+        self.assertNotIn(scan.UNCITED_ENTRY, found)
+
+    def test_group_definition_forms_and_bare_alias(self):
+        section = numbered_markdown_section(APA7.read_text(encoding="utf-8"), 5)
+        examples = (
+            re.findall(r"`([^`]*)`", line)
+            for line in section.splitlines()
+            if line.startswith("| `")
+        )
+        rows = tuple((entry, example) for entry, example in examples)
+        self.assertEqual(2, len(rows))
+        for entry, example in rows:
+            with self.subTest(example=example):
+                found = self.check(entry, example + " and (APA, 2017) agreed.")
+                self.assertNotIn(scan.UNLISTED_CITATION, found)
+                self.assertNotIn(scan.UNCITED_ENTRY, found)
+        prose = "The American Psychological Association (APA) reported this (APA, 2017)."
+        self.assertNotIn(scan.UNLISTED_CITATION, self.check(rows[0][0], prose))
+        wrapped = "American Psychological\nAssociation (APA) reported this (APA, 2017)."
+        self.assertNotIn(scan.UNLISTED_CITATION, self.check(rows[0][0], wrapped))
+
+    def test_alias_before_definition_and_collision_remain_unlisted(self):
+        entry = "American Psychological Association. (2017). Report. Publisher."
+        before = "(APA, 2017). The American Psychological Association (APA) reported this."
+        self.assertIn(scan.UNLISTED_CITATION, self.check(entry, before))
+        other = "American Pediatric Association. (2017). Report. Publisher."
+        collision = (
+            "American Psychological Association (APA) and American Pediatric "
+            "Association (APA) spoke. (APA, 2017)."
+        )
+        self.assertIn(
+            scan.UNLISTED_CITATION,
+            kinds(draft(entry, other, body="# Case\n\n" + collision + "\n")),
+        )
+
+    def test_personal_initials_and_legal_entry_stay_on_their_paths(self):
+        personal = "Van der Berg, A. (2020). Study. Publisher."
+        self.assertEqual("", scan.read_document(draft(personal)).entries[0].title_proper_key)
+        legal = scan.read_document(draft(NAMED_LEGAL)).entries[0]
+        self.assertEqual("", legal.title_proper_key)
+
+
 class RepublishedDateExamplesComeFromApaSectionThirtyOne(unittest.TestCase):
     """The sheet owns every example; neither parser test retypes APA's strings."""
 
@@ -2219,6 +2294,11 @@ class EveryDeclaredLimitIsReDerivedAtTheScannerSeam(unittest.TestCase):
 
     def test_every_declared_limit_has_one_behavior_measurement(self):
         handlers = {
+            "whether a shortened title resolves against more than one reference entry": self.shortened_title_ambiguity,
+            "whether a citation naming part of a group author's name resolves": self.partial_group_name,
+            "whether a citation stopping mid-word resolves": self.mid_word_prefix,
+            "spelled-out group citation after its abbreviation": self.spelled_out_after_definition,
+            "first-word equality on the surname path": self.surname_first_word,
             "first-name citations for an author whose surname changed": self.first_name_citations,
             "republished original publication date": self.republished_original_publication_date,
             "author-shaped slash span": self.author_shaped_slash_span,
@@ -2233,6 +2313,42 @@ class EveryDeclaredLimitIsReDerivedAtTheScannerSeam(unittest.TestCase):
         for key, handler in handlers.items():
             with self.subTest(key=key):
                 handler()
+
+    def shortened_title_ambiguity(self):
+        body = "# Case\n\n(The History, 2020) discusses both works.\n"
+        entries = (
+            "The history of medicine. (2020). Publisher.",
+            "The history of nursing. (2020). Publisher.",
+        )
+        self.assertNotIn(scan.UNLISTED_CITATION, kinds(draft(*entries, body=body)))
+        self.assertNotIn(scan.UNCITED_ENTRY, kinds(draft(*entries, body=body)))
+
+    def partial_group_name(self):
+        body = "# Case\n\n(World Health, 2020) reports this.\n"
+        entry = "World Health Organization. (2020). Report. Publisher."
+        self.assertNotIn(scan.UNLISTED_CITATION, kinds(draft(entry, body=body)))
+
+    def mid_word_prefix(self):
+        body = "# Case\n\n(Psychologica, 2017) reports this.\n"
+        entry = "Psychological Association. (2017). Report. Publisher."
+        self.assertNotIn(scan.UNLISTED_CITATION, kinds(draft(entry, body=body)))
+
+    def spelled_out_after_definition(self):
+        body = (
+            "# Case\n\nAmerican Psychological Association (APA) recommends this. "
+            "(American Psychological Association, 2017) reports it.\n"
+        )
+        entry = "American Psychological Association. (2017). Report. Publisher."
+        self.assertNotIn(scan.UNLISTED_CITATION, kinds(draft(entry, body=body)))
+
+    def surname_first_word(self):
+        body = "# Case\n\n(Smith, 2020) reports this.\n"
+        entries = (
+            "Smith, J. (2020). One. Publisher.",
+            "Smith, K. (2020). Two. Publisher.",
+        )
+        self.assertNotIn(scan.UNLISTED_CITATION, kinds(draft(*entries, body=body)))
+        self.assertNotIn(scan.UNCITED_ENTRY, kinds(draft(*entries, body=body)))
 
     def first_name_citations(self):
         entry = "Williams, S. (2019). Study. Journal of Care."

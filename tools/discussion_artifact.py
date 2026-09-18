@@ -11,7 +11,7 @@ from __future__ import annotations
 import re
 import sys
 import unicodedata
-from collections.abc import Collection, Iterator
+from collections.abc import Callable, Collection, Iterator
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
@@ -71,6 +71,15 @@ NARRATIVE_DEFINITION = re.compile(
     r"\b(?P<author>" + AUTHOR_PHRASE + r")\s*"
     r"\((?P<alias>[" + UPPER + r"][A-Z0-9.\-]*),\s*"
     r"(?P<year>" + YEAR + r")\)"
+)
+GROUP_SOFT_SPACE = r"(?:[ \t]+|[ \t]*\n[ \t]*)"
+GROUP_DEFINITION = re.compile(
+    r"\b(?P<name>" + AUTHOR_PHRASE.replace(r"\s+", GROUP_SOFT_SPACE) + r")"
+    r"(?:[ \t]*\n[ \t]*)?[ \t]*"
+    r"(?:\((?P<narrative>[" + UPPER + r"][A-Z0-9.\-]*)"
+    r"(?:,[ \t]*(?P<year>" + YEAR + r"))?\)"
+    r"|[ \t]*\[(?P<parenthetical>[" + UPPER + r"][A-Z0-9.\-]*)\]"
+    r",[ \t]*" + YEAR + r")"
 )
 NARRATIVE_CITATION = re.compile(
     r"\b(?P<author>" + AUTHOR_PHRASE + r"(?:\s+et\s+al\.)?)\s*"
@@ -545,6 +554,38 @@ class Citation:
 
 
 @dataclass(frozen=True)
+class GroupDefinition:
+    alias: str
+    group: str
+    start: int
+    year: str | None
+
+
+def group_abbreviation_definitions(
+    body: str,
+    group_keys: Collection[str],
+    key: Callable[[str], str],
+) -> tuple[GroupDefinition, ...]:
+    """Read APA 8.21 definitions only for groups present in the reference list."""
+
+    known = set(group_keys)
+    definitions: list[GroupDefinition] = []
+    for match in GROUP_DEFINITION.finditer(body):
+        group = key(match.group("name"))
+        if group not in known or _inside_code(body, match.start(), match.end()):
+            continue
+        definitions.append(
+            GroupDefinition(
+                key(match.group("narrative") or match.group("parenthetical")),
+                group,
+                match.start(),
+                match.group("year"),
+            )
+        )
+    return tuple(definitions)
+
+
+@dataclass(frozen=True)
 class CitationCoverage:
     candidates: int = 0
     evidenced: int = 0
@@ -655,18 +696,43 @@ def citation_author_keys(value: str) -> tuple[str, ...]:
 
 def citation_occurrence_keys(
     citations: tuple[Citation, ...],
+    body: str = "",
+    references: ReferenceKeySet | None = None,
 ) -> tuple[tuple[tuple[str, str], ...], ...]:
     """Resolve full-name abbreviation definitions across citation occurrences."""
 
+    definitions = group_abbreviation_definitions(
+        body,
+        {group for group, _year in references.prefix_keys} if references else (),
+        author_key,
+    )
+    groups_by_alias: dict[str, set[str]] = {}
+    for definition in definitions:
+        groups_by_alias.setdefault(definition.alias, set()).add(definition.group)
     aliases: dict[str, tuple[str, ...]] = {}
     occurrences: list[tuple[tuple[str, str], ...]] = []
     for citation in citations:
         author_keys = list(citation_author_keys(citation.author))
         if len(author_keys) > 1:
             full, alias, *alternates = author_keys
-            aliases[alias] = tuple(dict.fromkeys((full, *alternates)))
+            if references is None:
+                aliases[alias] = tuple(dict.fromkeys((full, *alternates)))
+            else:
+                author_keys = [full, *alternates]
         elif author_keys:
             full_keys = aliases.get(author_keys[0], ())
+            if references is not None:
+                eligible = groups_by_alias.get(author_keys[0], set())
+                full_keys = (
+                    (next(iter(eligible)),)
+                    if len(eligible) == 1
+                    and any(
+                        definition.alias == author_keys[0]
+                        and definition.start < citation.start
+                        for definition in definitions
+                    )
+                    else ()
+                )
             author_keys.extend(full_keys)
         occurrences.append(
             tuple((key, citation.year) for key in dict.fromkeys(author_keys))
@@ -983,7 +1049,20 @@ def _read_citations(
         )
         for match in legal_citations
     )
-    definitions = tuple(NARRATIVE_DEFINITION.finditer(body))
+    recognized_definitions = group_abbreviation_definitions(
+        body,
+        {group for group, _year in reference_key_set.prefix_keys},
+        author_key,
+    )
+    definitions = tuple(
+        match
+        for match in NARRATIVE_DEFINITION.finditer(body)
+        if not reference_key_set.keys
+        or any(
+            definition.start == match.start() and definition.year is not None
+            for definition in recognized_definitions
+        )
+    )
     definition_spans = tuple((match.start(), match.end()) for match in definitions)
     found.extend(
         Citation(

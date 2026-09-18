@@ -199,6 +199,17 @@ share initials, use the ordinary author–date form. Coauthors of one work who s
 require initials merely because they are coauthors. The exceptional first-name form for a person
 whose name changed is tracked separately in #1350.
 
+*Publication Manual* §8.21 defines a group abbreviation with the full group name at its first
+mention. The narrative citation puts the abbreviation inside the year parentheses; the
+parenthetical citation puts it in brackets. A prose mention can also introduce it. The entry
+spells out the name, and a bare abbreviation identifies that group only after its definition.
+If two groups claim the same abbreviation, neither can use it alone.
+
+| Reference entry | §8.21 in-text example |
+| --- | --- |
+| `American Psychological Association. (2017). Report. Publisher.` | `The American Psychological Association (APA, 2017)` |
+| `American Psychological Association. (2017). Report. Publisher.` | `(American Psychological Association [APA], 2017)` |
+
 ## 6. What the renderer applies, and what it does not
 
 `tools/docx_write.py` is what turns the Markdown into the submitted `.docx`. **It applies every
@@ -341,6 +352,11 @@ reaches` and `tools/checks_ledger.py` expects it, so a run that returns no verdi
 
 | What stays a reading | Why no command reaches it |
 | --- | --- |
+| **whether a shortened title resolves against more than one reference entry** | A citation ending before two title proper keys diverge can resolve against both; the prefix relation has no ambiguity threshold |
+| **whether a citation naming part of a group author's name resolves** | Group authors share the no-surname branch with titles, so a partial organization name can satisfy the prefix relation |
+| **whether a citation stopping mid-word resolves** | The normalized relation has no word-boundary check, so a citation ending within a title word can resolve |
+| **spelled-out group citation after its abbreviation** | A full group name still resolves after its alias is defined; the command does not grade consistency of later usage |
+| **first-word equality on the surname path** | Personal-author keys still use the first significant surname word, which can make authors with the same key indistinguishable |
 | **first-name citations for an author whose surname changed** | The exceptional form in §8.20 is tracked in #1350; the command compares initials and surnames, not a first name used to clarify a name change |
 | The **republished original publication date** | §31's original date element is parsed and not compared with the entry. APA's own Gilgamesh example reverses the range between its entry and citation, so joining the halves would fail the source that defines the rule |
 | An **author-shaped slash span** | Grammar alone recognizes a span such as `(Cohort A, 2013/2014)`, which can raise `unlisted-citation` even when the span is not a citation. The measured corpus supplied no such false positive |
