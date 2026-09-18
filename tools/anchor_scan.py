@@ -71,7 +71,7 @@ from functools import cache
 from pathlib import Path
 
 import run_grader
-from worksheet_grammar import CODE, ENTRY, ENTRY_CANDIDATE, entry_is_for_entry, paired_entry
+from worksheet_grammar import CODE, ENTRY, ENTRY_CANDIDATE, FIELD, entry_is_for_entry, paired_entry
 
 SOURCE = re.compile(r"(?mi)^[ \t]*SOURCE[ \t]*:[ \t]*(.*?)[ \t]*$")
 CONFIDENCE = re.compile(r"(?mi)^[ \t]*CONFIDENCE[ \t]*:[ \t]*(.*?)[ \t]*$")
@@ -151,6 +151,11 @@ DECLARED_LIMITS = (
         "filled-anchor block opening form",
         "Only the delimited heading at line start opens the filled-anchor block; a Markdown prefix does not.",
         run_grader.EvidenceDisposition.BEHAVIOR,
+    ),
+    (
+        "descriptor words agreement route",
+        "A clean descriptor-words route establishes that the reader's span is note text also quoted by the worksheet; it does not establish that those words state the descriptor.",
+        run_grader.EvidenceDisposition.DECLARED_READING,
     ),
     (
         "contiguous indented detail pairing",
@@ -915,9 +920,30 @@ def _requires_encounter_evidence(subject: AgreementSubject) -> bool:
     )
 
 
-def _preceding_support(text: str, position: int) -> str:
-    before = text[:position].splitlines()
-    return next((line.strip() for line in reversed(before) if line.strip() and not line.startswith("---")), "")
+def _authored_anchor(
+    text: str, start: int, end: int, header: str, official: str | None,
+) -> str:
+    """Read only an anchor that is the first field after a code header."""
+    field = FIELD.search(text, start, end)
+    if field is None or field.group("field").upper() != "ANCHOR":
+        return ""
+    between = text[start:field.start()].splitlines()
+    marker = bool(re.search(r"\bNOT FOR ENTRY$", header))
+    descriptor = re.sub(r"\s+NOT FOR ENTRY$", "", header).strip()
+    for line in between[1:]:
+        if not line.strip() or line[0] not in " \t" or ":" in line:
+            return ""
+        continuation = line.strip()
+        if continuation == "NOT FOR ENTRY" and not marker:
+            marker = True
+            continue
+        if marker or official is None or not official.startswith(descriptor) or descriptor == official:
+            return ""
+        descriptor = f"{descriptor} {continuation}"
+        if not official.startswith(descriptor):
+            return ""
+    anchor = AGREEMENT_ANCHOR.match(text, field.start(), end)
+    return anchor.group(1) if anchor else ""
 
 
 def _agreement_subjects(text: str) -> tuple[tuple[AgreementSubject, ...], int, int]:
@@ -943,29 +969,38 @@ def _agreement_subjects(text: str) -> tuple[tuple[AgreementSubject, ...], int, i
         end = entries[index + 1].start() if index + 1 < len(entries) else len(text)
         if refusal >= 0:
             end = min(end, refusal) if end > start else end
-        anchor = AGREEMENT_ANCHOR.search(text, match.end(), end)
-        if system in {"CPT", "HCPCS"} and not anchor:
-            # Procedure-code prose can begin with ``CPT 12345`` while explicitly
-            # declining to propose it. Only a worksheet entry with its required
-            # quotation belongs to the agreement population.
-            continue
-        support = _preceding_support(text, start) if is_differential else (
-            anchor.group(1) if anchor else ""
-        )
         official = _official_descriptor(system, code)
+        support = _authored_anchor(text, match.end(), end, descriptor, official)
+        if system in {"CPT", "HCPCS"} and not support:
+            # Procedure-code prose can begin with ``CPT 12345`` while explicitly
+            # declining to propose it. Detail fields distinguish an actual
+            # unanchored proposal from such a prose mention.
+            if FIELD.search(text, match.end(), end) is None and re.search(
+                r"\bnot proposed\b", descriptor, re.IGNORECASE
+            ):
+                continue
+        if not support:
+            unread += 1
         if official is not None:
             subjects.append(AgreementSubject(system, code, official, role, support))
         else:
             unread += 1
 
     if refusal >= 0:
-        for match in REFUSAL_MARK.finditer(text, refusal):
+        refusals = list(REFUSAL_MARK.finditer(text, refusal))
+        for index, match in enumerate(refusals):
             code = match.group("code").upper()
             official = _official_descriptor("ICD-10", code)
+            end = refusals[index + 1].start() if index + 1 < len(refusals) else len(text)
+            support = _authored_anchor(
+                text, match.end(), end, match.group("descriptor"), official
+            )
+            if not support:
+                unread += 1
             if official is not None:
                 subjects.append(
                     AgreementSubject(
-                        "ICD-10", code, official, "refused", _preceding_support(text, match.start())
+                        "ICD-10", code, official, "refused", support
                     )
                 )
             else:
@@ -1012,7 +1047,16 @@ def _pair_agreement_sources(worksheets: Path, notes: Path) -> tuple[list[Agreeme
     return pairs, unread
 
 
-def _brief_payload(pairs: list[AgreementPair], unread: int) -> dict:
+def _anchor_findings(pairs: list[AgreementPair]) -> list[str]:
+    return [
+        f"{pair.stem}: {subject.key} anchor is not verbatim note text"
+        for pair in pairs
+        for subject in pair.subjects
+        if subject.support and subject.support not in pair.note
+    ]
+
+
+def _brief_payload(pairs: list[AgreementPair], unread: int, finding_count: int = 0) -> dict:
     return {
         "mode": "descriptor agreement blind brief",
         "instructions": (
@@ -1064,6 +1108,7 @@ def _brief_payload(pairs: list[AgreementPair], unread: int) -> dict:
         ],
         "excluded_em": sum(pair.excluded_em for pair in pairs),
         "unread remainder": unread,
+        "agreement findings": finding_count,
     }
 
 
@@ -1127,7 +1172,9 @@ def _binding_findings(pair: AgreementPair) -> list[str]:
         ("procedure", note_procedure, procedure),
     )
     findings = [
-        f"{pair.stem}: {label} bind differs"
+        f"{pair.stem}: {label} bind differs: "
+        f"note only {sorted(note_side - worksheet_side)}, "
+        f"worksheet only {sorted(worksheet_side - note_side)}"
         for label, note_side, worksheet_side in comparisons
         if note_side != worksheet_side
     ]
@@ -1135,7 +1182,10 @@ def _binding_findings(pair: AgreementPair) -> list[str]:
         match.group("code").upper() for match in PROPOSED_INSTEAD.finditer(pair.worksheet)
     }
     if not substitutes <= proposed_icd:
-        findings.append(f"{pair.stem}: proposed-instead code is absent from for-entry proposals")
+        findings.append(
+            f"{pair.stem}: proposed-instead code is absent from for-entry proposals: "
+            f"worksheet only {sorted(substitutes - proposed_icd)}"
+        )
     return findings
 
 
@@ -1144,10 +1194,13 @@ def _agreement_report(
     findings: list[str],
     unread: int,
     unread_routes: list[str] | None = None,
+    show: bool = False,
 ) -> str:
     waits = sum(" entry waits on " in finding for finding in findings)
     missing = sum("has no agreeing words" in finding for finding in findings)
-    verbatim = sum("agreeing words are not verbatim" in finding for finding in findings)
+    not_note = sum("agreeing words are not note text" in finding for finding in findings)
+    wrong_place = sum("agreeing words are from the wrong place" in finding for finding in findings)
+    anchors = sum("anchor is not verbatim note text" in finding for finding in findings)
     route = sum("has no descriptor or index route" in finding for finding in findings)
     encounter = sum("has no encounter evidence" in finding for finding in findings)
     binds = sum(
@@ -1161,14 +1214,18 @@ def _agreement_report(
             f"  E/M lines excluded                  {sum(pair.excluded_em for pair in pairs)}",
             f"  agreement findings                 {len(findings)}",
             f"    codes with no agreeing words      {missing}",
-            f"    non-verbatim agreeing words       {verbatim}",
+            f"    agreeing words absent from note   {not_note}",
+            f"    agreeing words from wrong place  {wrong_place}",
+            f"    non-verbatim anchors              {anchors}",
             f"    codes with no route               {route}",
             f"    codes with no encounter evidence  {encounter}",
             f"    descriptors waiting on results    {waits}",
             f"    note/worksheet bind findings      {binds}",
             run_grader.format_unread_remainder(unread),
     ]
-    lines.extend(f"    unread cross-reference            {route}" for route in unread_routes or ())
+    if show:
+        lines.extend(f"    finding: {finding}" for finding in findings)
+        lines.extend(f"    unread cross-reference: {route}" for route in unread_routes or ())
     return "\n".join(lines)
 
 
@@ -1176,6 +1233,7 @@ def _run_agreement(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(prog="anchor_scan.py")
     parser.add_argument("worksheets", type=Path)
     parser.add_argument("--notes", type=Path, required=True)
+    parser.add_argument("--show", action="store_true")
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--agreement-brief", action="store_true")
     mode.add_argument("--agreement-read", type=Path)
@@ -1185,8 +1243,12 @@ def _run_agreement(argv: list[str]) -> int:
         unread += 1
 
     if args.agreement_brief:
-        print(json.dumps(_brief_payload(pairs, unread), indent=2, ensure_ascii=True))
-        return 2 if unread else 0
+        anchor_findings = _anchor_findings(pairs)
+        print(json.dumps(_brief_payload(pairs, unread, len(anchor_findings)), indent=2, ensure_ascii=True))
+        if args.show:
+            for finding in anchor_findings:
+                print(f"finding: {finding}", file=sys.stderr)
+        return 2 if unread else (1 if anchor_findings else 0)
 
     assert args.agreement_read is not None
     try:
@@ -1213,6 +1275,7 @@ def _run_agreement(argv: list[str]) -> int:
     findings: list[str] = []
     unread_routes: list[str] = []
     for pair in pairs:
+        findings.extend(_anchor_findings([pair]))
         record_pair = record_pairs.get(pair.stem)
         if record_pair is None:
             unread += len(pair.subjects) or 1
@@ -1256,19 +1319,21 @@ def _run_agreement(argv: list[str]) -> int:
                 if subject.role == "procedure":
                     unread += 1
                 else:
-                    findings.append(f"{pair.stem}: {subject.code} has no agreeing words")
-            elif words not in pair.note or words not in subject.support:
-                findings.append(f"{pair.stem}: {subject.code} agreeing words are not verbatim")
+                    findings.append(f"{pair.stem}: {subject.key} has no agreeing words")
+            elif words not in pair.note:
+                findings.append(f"{pair.stem}: {subject.key} agreeing words are not note text")
+            elif words not in subject.support:
+                findings.append(f"{pair.stem}: {subject.key} agreeing words are from the wrong place")
             route_status = _route_status(
                 subject, route, words, record["encounter_evidence"]
             )
             if route == "none" or route_status is RouteStatus.INVALID:
                 if subject.role != "procedure":
-                    findings.append(f"{pair.stem}: {subject.code} has no descriptor or index route")
+                    findings.append(f"{pair.stem}: {subject.key} has no descriptor or index route")
             elif route_status is RouteStatus.UNREAD:
                 unread += 1
                 unread_routes.extend(
-                    f"{pair.stem}: {subject.code}: {referral}"
+                    f"{pair.stem}: {subject.key}: {referral}"
                     for referral in _unmatched_cross_references(
                         subject,
                         route,
@@ -1280,16 +1345,16 @@ def _run_agreement(argv: list[str]) -> int:
                 _requires_encounter_evidence(subject)
                 and record["encounter_evidence"] == "none"
             ):
-                findings.append(f"{pair.stem}: {subject.code} has no encounter evidence")
+                findings.append(f"{pair.stem}: {subject.key} has no encounter evidence")
             waits = record["waits_on_result"]
             if subject.role in {"entry", "differential"} and isinstance(waits, str) and waits != "none":
-                findings.append(f"{pair.stem}: {subject.code} entry waits on {waits}")
+                findings.append(f"{pair.stem}: {subject.key} entry waits on {waits}")
         findings.extend(_binding_findings(pair))
 
-    print(_agreement_report(pairs, findings, unread, unread_routes))
-    if findings:
-        return 1
-    return 2 if unread else 0
+    print(_agreement_report(pairs, findings, unread, unread_routes, args.show))
+    if unread:
+        return 2
+    return 1 if findings else 0
 
 
 def main(argv: list[str]) -> int:
