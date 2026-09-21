@@ -94,6 +94,8 @@ Treat a chapter as unread until every printed page from its first page through t
 
 For each requested chapter, retain the edition and ISBN when known, verified printed page range, every subsection encountered, page-bounded paraphrases relevant to the task, and any claim the chapter narrows or refutes. Do not retain long copyrighted extracts. Quote only the shortest decisive fragment.
 
+**Two-reader code-set rebuild exception.** For a complete code-set rebuild under the maintainer's written AMA permission for internal database storage, a structural extraction may serve as one of two independent readers, but it is never evidence on its own. The other reader transcribes rendered-page screenshots, including printed-page layout; every disagreement is settled on that rendered destination page. The retained full transcription is authorized only by that written permission. Everywhere else, the screenshot-only evidence rule in step 2 and the no-long-extract rule above remain in force.
+
 ## 5. Recover without inventing a read
 
 Stop immediately if the pane returns to a five-dot spinner, disappears, or shows `chrome-error://chromewebdata`.

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -125,6 +126,53 @@ PATCH_LIFECYCLE_SEAMS = {
 }
 ALREADY_PATCHED = "already-patched"
 
+CURRENT_MIME_GATE = re.compile(
+    r'function [A-Za-z_$][\w$]*\(t\)\{return t==="text/html"\|\|'
+    r'[A-Za-z_$][\w$]*\(t\)\}'
+)
+CURRENT_PATCHED_MIME_GATE = re.compile(
+    r'function [A-Za-z_$][\w$]*\(t\)\{return t==="text/html"\|\|'
+    r't==="application/xhtml\+xml"\|\|[A-Za-z_$][\w$]*\(t\)\}'
+)
+CURRENT_SECURITY_GATE = re.compile(
+    r'if\(r==null\|\|![A-Za-z_$][\w$]*\.has\(r\)\|\|'
+    r'[A-Za-z_$][\w$]*\.has\(r\)\|\|[A-Za-z_$][\w$]*\.has\(t\)\|\|n==="block"'
+)
+CURRENT_PARAM_GATE = re.compile(
+    r'case"Tracing\.start":return [A-Za-z_$][\w$]*\(e\);default:return!1'
+)
+CURRENT_DISPATCH = re.compile(
+    r'\?await p\.withCommandTelemetry\(U,H,async\(\)=>await [A-Za-z_$][\w$]*\(H,ae\)\)'
+    r':await p\.withCommandTelemetry\(U,H,async\(\)=>await ae\.executeUnhandledCommand'
+    r'\(\{type:U,\.\.\.H\}\)\)'
+)
+
+
+def patch_current_bundle(source: str) -> str | None:
+    """Handle the reviewed 26.915 browser-service layout without changing its CDP gate."""
+    markers = (
+        CURRENT_SECURITY_GATE,
+        CURRENT_PARAM_GATE,
+        CURRENT_DISPATCH,
+    )
+    if not all(len(pattern.findall(source)) == 1 for pattern in markers):
+        return None
+    if source.count('Page.navigate",{url:o}') != 1:
+        raise PatchError("Codex Chrome's current navigation seam drifted")
+    if source.count(ORIGINAL_ENABLE_OOPIF_START) != 1 or DISABLE_OOPIF_METHOD in source:
+        raise PatchError("Codex Chrome's current OOPIF methods drifted")
+    original_attach = source.count(ORIGINAL_ATTACH_HANDLER)
+    patched_attach = source.count(PATCHED_ATTACH_HANDLER)
+    original_mime = CURRENT_MIME_GATE.findall(source)
+    patched_mime = CURRENT_PATCHED_MIME_GATE.findall(source)
+    if (original_attach, patched_attach, len(original_mime), len(patched_mime)) == (0, 1, 0, 1):
+        return source
+    if (original_attach, patched_attach, len(original_mime), len(patched_mime)) != (1, 0, 1, 0):
+        raise PatchError("Codex Chrome's current attachment or XHTML seam drifted")
+    mime = original_mime[0]
+    patched_mime_text = mime.replace('t==="text/html"||', 't==="text/html"||t==="application/xhtml+xml"||', 1)
+    return source.replace(ORIGINAL_ATTACH_HANDLER, PATCHED_ATTACH_HANDLER, 1).replace(mime, patched_mime_text, 1)
+
 
 class PatchError(RuntimeError):
     """Raised when a bundle cannot be changed without guessing."""
@@ -139,6 +187,9 @@ class PatchResult:
 
 def patch_source(source: str) -> str:
     """Return a patched bundle or fail closed when reviewed seams drifted."""
+    current = patch_current_bundle(source)
+    if current is not None:
+        return current
     pristine_security_gate = (
         source.count(ORIGINAL_DOMAIN_GATE) == 1
         and source.count(ORIGINAL_PARAM_GATE) == 1
