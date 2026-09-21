@@ -146,6 +146,32 @@ CURRENT_DISPATCH = re.compile(
     r':await p\.withCommandTelemetry\(U,H,async\(\)=>await ae\.executeUnhandledCommand'
     r'\(\{type:U,\.\.\.H\}\)\)'
 )
+ORIGINAL_FRAME_ROUTE_OOPIF = (
+    'async frameRouteForFirstOopif(e,r,n={}){'
+    'if(!r.includes(Gl)||!IX(this.cdp))return null;'
+    'qe(n),await this.cdp.enableOopifAutoAttach(e.target.tabId,n),qe(n);'
+)
+PATCHED_FRAME_ROUTE_OOPIF = ORIGINAL_FRAME_ROUTE_OOPIF.replace(
+    'if(!r.includes(Gl)',
+    'if(this.cdp.currentTopLevelUrl(e.target.tabId)?.startsWith('
+    '"https://bookshelf.vitalsource.com/"))return null;if(!r.includes(Gl)',
+)
+CURRENT_FRAME_ROUTE_TAIL = (
+    r'if\(!r\.includes\(([A-Za-z_$][\w$]*)\)\|\|!'
+    r'([A-Za-z_$][\w$]*)\(this\.cdp\)\)return null;'
+    r'([A-Za-z_$][\w$]*)\(n\),await this\.cdp\.enableOopifAutoAttach'
+    r'\(e\.target\.tabId,n\),\3\(n\);'
+)
+CURRENT_FRAME_ROUTE_OOPIF = re.compile(
+    r'async frameRouteForFirstOopif\(e,r,n=\{\}\)\{'
+    + CURRENT_FRAME_ROUTE_TAIL
+)
+CURRENT_PATCHED_FRAME_ROUTE_OOPIF = re.compile(
+    r'async frameRouteForFirstOopif\(e,r,n=\{\}\)\{'
+    r'if\(this\.cdp\.currentTopLevelUrl\(e\.target\.tabId\)\?\.startsWith'
+    r'\("https://bookshelf\.vitalsource\.com/"\)\)return null;'
+    + CURRENT_FRAME_ROUTE_TAIL
+)
 
 
 def patch_current_bundle(source: str) -> str | None:
@@ -165,13 +191,29 @@ def patch_current_bundle(source: str) -> str | None:
     patched_attach = source.count(PATCHED_ATTACH_HANDLER)
     original_mime = CURRENT_MIME_GATE.findall(source)
     patched_mime = CURRENT_PATCHED_MIME_GATE.findall(source)
-    if (original_attach, patched_attach, len(original_mime), len(patched_mime)) == (0, 1, 0, 1):
-        return source
-    if (original_attach, patched_attach, len(original_mime), len(patched_mime)) != (1, 0, 1, 0):
+    state = (original_attach, patched_attach, len(original_mime), len(patched_mime))
+    if state not in ((0, 1, 0, 1), (1, 0, 1, 0)):
         raise PatchError("Codex Chrome's current attachment or XHTML seam drifted")
-    mime = original_mime[0]
-    patched_mime_text = mime.replace('t==="text/html"||', 't==="text/html"||t==="application/xhtml+xml"||', 1)
-    return source.replace(ORIGINAL_ATTACH_HANDLER, PATCHED_ATTACH_HANDLER, 1).replace(mime, patched_mime_text, 1)
+    if state == (1, 0, 1, 0):
+        mime = original_mime[0]
+        patched_mime_text = mime.replace('t==="text/html"||', 't==="text/html"||t==="application/xhtml+xml"||', 1)
+        source = source.replace(ORIGINAL_ATTACH_HANDLER, PATCHED_ATTACH_HANDLER, 1).replace(mime, patched_mime_text, 1)
+    route = CURRENT_FRAME_ROUTE_OOPIF.findall(source)
+    patched_route = CURRENT_PATCHED_FRAME_ROUTE_OOPIF.findall(source)
+    if len(route) == 1 and not patched_route:
+        match = CURRENT_FRAME_ROUTE_OOPIF.search(source)
+        assert match is not None
+        original = match.group(0)
+        patched = original.replace(
+            '{if(!r.includes(',
+            '{if(this.cdp.currentTopLevelUrl(e.target.tabId)?.startsWith('
+            '"https://bookshelf.vitalsource.com/"))return null;if(!r.includes(',
+            1,
+        )
+        return source.replace(original, patched, 1)
+    if not route and len(patched_route) == 1:
+        return source
+    raise PatchError("Codex Chrome's current frame routing seam drifted")
 
 
 class PatchError(RuntimeError):
