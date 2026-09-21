@@ -33,9 +33,11 @@ licensed CSV seam. The database names the maintainer's 2026 CPT and HCPCS
 VitalSource editions as its book authorities and records completeness by code
 system. An incomplete-system miss establishes nothing and routes the reader to
 the rendered book page under `vitalsource-chrome`; the database never turns a
-partial import into a false refusal. The database verifies identity, descriptor,
-modifier identity, and date status, not book instructions or whether the
-encounter earns the code.
+partial import into a false refusal. The separate `cpt_descriptors` flag is
+`unverified` until the two-reader rebuild; while unverified, every CPT descriptor
+comes from a rendered book page and the lookup text is only a locator. The
+database verifies identity, modifier identity, and date status, not book
+instructions or whether the encounter earns the code.
 
 **One code family takes a second committed lookup.** A pediatric `Z68.5-` is a CDC growth-chart percentile, so `clinical-note` and `icd10-cpt` run `tools/cdc_percentile.py` against `reference/cdc-bmi-for-age-2022.csv` as well as checking the returned codes against ICD-10-CM. Where only whole-year age is known, the tool fills and discloses a midpoint month rather than withholding the band. An agent that cannot run it is working from recall, and every pediatric BMI code it proposes must carry `verify this number`. [#123](https://github.com/mshamblin5150-code/clinical-skills/issues/123).
 

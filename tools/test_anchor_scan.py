@@ -20,9 +20,10 @@ import io
 import json
 import re
 import shutil
+import sqlite3
 import tempfile
 import unittest
-from contextlib import redirect_stderr, redirect_stdout
+from contextlib import closing, redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
@@ -619,10 +620,18 @@ class TheCommittedRunsFiguresArePinned(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
+        cls.verified_patch = patch(
+            "procedure_codes_lookup.cpt_descriptors_verified", return_value=True
+        )
+        cls.verified_patch.start()
         cls.directory = REPO_ROOT / "fixtures" / "filled-anchor" / "run-2"
         cls.scan = scan.survey(
             [scan.read_worksheet(text) for text in run_grader.read_run_directory(cls.directory)]
         )
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.verified_patch.stop()
 
     def test_twelve_worksheets(self):
         self.assertEqual(self.scan.worksheets, 12)
@@ -704,6 +713,11 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
 
     def test_a_not_coded_record_may_carry_confidence(self):
         self.assertIn("A `NOT CODED` record may carry", self.text)
+
+    def test_cpt_descriptor_route_is_bound_to_the_database_flag(self):
+        self.assertIn("`cpt_descriptors` flag", self.text)
+        self.assertIn("While it is `unverified`", self.text)
+        self.assertIn("rendered CPT Professional destination page", self.text)
 
     def test_the_skill_carries_the_external_cause_neoplasm_and_drug_rulings(self):
         for phrase in (
@@ -820,6 +834,11 @@ Osteomyelitis was considered but no imaging established bone infection.
 
 class AgreementModes(unittest.TestCase):
     def setUp(self):
+        verified_patch = patch(
+            "procedure_codes_lookup.cpt_descriptors_verified", return_value=True
+        )
+        verified_patch.start()
+        self.addCleanup(verified_patch.stop)
         self.raw = tempfile.TemporaryDirectory()
         root = Path(self.raw.name)
         self.worksheets = root / "worksheets"
@@ -1601,6 +1620,88 @@ class AgreementModes(unittest.TestCase):
         )
 
         self.assertEqual(1, self.grade(self.clean_record())[0])
+
+
+class CptRenderedDescriptorBrief(unittest.TestCase):
+    def test_committed_descriptor_set_is_unverified(self):
+        import procedure_codes_lookup
+
+        with closing(procedure_codes_lookup.open_database()) as connection:
+            self.assertFalse(procedure_codes_lookup.cpt_descriptors_verified(connection))
+            self.assertTrue(procedure_codes_lookup.complete(connection, "CPT"))
+
+    def setUp(self):
+        self.raw = tempfile.TemporaryDirectory()
+        self.addCleanup(self.raw.cleanup)
+        root = Path(self.raw.name)
+        self.worksheets = root / "worksheets"
+        self.notes = root / "notes"
+        self.worksheets.mkdir()
+        self.notes.mkdir()
+        (self.worksheets / "case.md").write_text(
+            'CPT  87804  Influenza antigen visual assay\n'
+            '  ANCHOR: "Influenza antigen visual assay"\n'
+            '  SPECIFICITY: complete - performed today\n'
+            '  CONFIDENCE: CPT Professional 2026, Professional Edition 2026, printed page 100\n',
+            encoding="utf-8",
+        )
+        (self.notes / "case.md").write_text(
+            "Influenza antigen visual assay performed today.\nCPT: 87804 Influenza antigen visual assay\n",
+            encoding="utf-8",
+        )
+        self.record = root / "rendered.json"
+
+    def brief(self, *extra: str) -> tuple[int, dict]:
+        output = io.StringIO()
+        with redirect_stdout(output):
+            status = scan.main([
+                str(self.worksheets), "--notes", str(self.notes),
+                *extra, "--agreement-brief",
+            ])
+        return status, json.loads(output.getvalue())
+
+    def test_unverified_cpt_without_page_read_is_unread(self):
+        status, brief = self.brief()
+        self.assertEqual(2, status)
+        self.assertGreater(brief["unread remainder"], 0)
+        self.assertEqual([], brief["pairs"][0]["codes"])
+
+    def test_unverified_cpt_briefs_only_rendered_page_text(self):
+        self.record.write_text(json.dumps({"codes": [{
+            "code": "87804", "descriptor": "Influenza antigen visual assay",
+            "book": "CPT Professional 2026", "edition": "Professional Edition 2026",
+            "printed_page": "100",
+        }]}), encoding="utf-8")
+        status, brief = self.brief("--rendered-descriptors", str(self.record))
+        self.assertEqual(0, status)
+        self.assertEqual("Influenza antigen visual assay", brief["pairs"][0]["codes"][0]["descriptor"])
+        self.assertNotIn("Streptococcus, group B", json.dumps(brief))
+
+    def test_wrong_book_record_leaves_cpt_unread(self):
+        self.record.write_text(json.dumps({"codes": [{
+            "code": "87804", "descriptor": "Influenza antigen visual assay",
+            "book": "HCPCS 2026 Level II Professional Edition",
+            "edition": "Professional Edition 2026", "printed_page": "100",
+        }]}), encoding="utf-8")
+        status, brief = self.brief("--rendered-descriptors", str(self.record))
+        self.assertEqual(2, status)
+        self.assertEqual([], brief["pairs"][0]["codes"])
+
+    def test_verified_test_database_uses_its_descriptor(self):
+        import procedure_codes_lookup
+
+        database = Path(self.raw.name) / "verified.sqlite"
+        shutil.copyfile(procedure_codes_lookup.DEFAULT_DATABASE, database)
+        with closing(sqlite3.connect(database)) as connection:
+            connection.execute(
+                "UPDATE meta SET value = 'verified' WHERE key = 'cpt_descriptors'"
+            )
+            connection.commit()
+        original_open = procedure_codes_lookup.open_database
+        with patch.object(procedure_codes_lookup, "open_database", side_effect=lambda: original_open(database)):
+            status, brief = self.brief()
+        self.assertEqual(0, status)
+        self.assertIn("Streptococcus, group B", brief["pairs"][0]["codes"][0]["descriptor"])
 
 
 class CommittedAgreementControls(unittest.TestCase):

@@ -97,6 +97,13 @@ def complete(connection: sqlite3.Connection, system: str) -> bool:
     return row is not None and row[0] == "yes"
 
 
+def cpt_descriptors_verified(connection: sqlite3.Connection) -> bool:
+    row = connection.execute(
+        "SELECT value FROM meta WHERE key = 'cpt_descriptors'"
+    ).fetchone()
+    return row is not None and row[0] == "verified"
+
+
 def _report(
     connection: sqlite3.Connection, entry: Match | None, requested: str, on: str
 ) -> int:
@@ -112,6 +119,8 @@ def _report(
         return 1
     validity = "active" if valid_on(entry, on) else f"NOT ACTIVE ON {on}"
     print(f"{entry.system} {entry.code}  {entry.description}")
+    if entry.system == "CPT" and not cpt_descriptors_verified(connection):
+        print("  CPT DESCRIPTORS UNVERIFIED - take descriptor from the rendered VitalSource page")
     print(f"  {validity}; {entry.kind}")
     if entry.short_description:
         print(f"  short: {entry.short_description}")
@@ -154,6 +163,8 @@ def main(argv: list[str]) -> int:
             for entry in matches:
                 mark = " " if valid_on(entry, args.on) else "*"
                 print(f"{mark}{entry.system:<5} {entry.code:<5} {entry.description}")
+                if entry.system == "CPT" and not cpt_descriptors_verified(connection):
+                    print("  CPT DESCRIPTORS UNVERIFIED - take descriptor from the rendered VitalSource page")
             print(f"-- {len(matches)} match(es); * = not active on {args.on}")
             systems = (args.system,) if args.system else ("CPT", "HCPCS")
             incomplete = [system for system in systems if not complete(connection, system)]

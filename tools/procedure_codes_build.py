@@ -342,6 +342,7 @@ def write_database(
             "cpt_codes": str(sum(e.system == "CPT" for e in entries)),
             "hcpcs_complete": "yes",
             "cpt_complete": "yes" if cpt_complete else "no",
+            "cpt_descriptors": "unverified",
         }
         connection.executemany("INSERT INTO meta VALUES (?, ?)", counts.items())
         connection.commit()

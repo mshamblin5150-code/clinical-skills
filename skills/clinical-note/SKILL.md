@@ -497,9 +497,14 @@ After saving both files, create the blind agreement brief. This **Second reader*
 [standing rule 6](../../AGENTS.md), first reads [sourcing.md](../_shared/reference/sourcing.md), and
 returns the separate record that is graded:
 
+When `cpt_descriptors` is `unverified`, first save the rendered CPT page reads in
+`<run>/agreement/cpt-rendered-pages.json` using the record shape in
+[icd10-cpt](../icd10-cpt/SKILL.md). Supply the same record to both commands;
+omit `--rendered-descriptors` when the set is verified and no record exists.
+
 ```bash
-python tools/anchor_scan.py <run>/worksheets --notes <run> --agreement-brief > <run>/agreement/brief.json
-python tools/anchor_scan.py <run>/worksheets --notes <run> --agreement-read <run>/agreement-reader/read.json
+python tools/anchor_scan.py <run>/worksheets --notes <run> --rendered-descriptors <run>/agreement/cpt-rendered-pages.json --agreement-brief > <run>/agreement/brief.json
+python tools/anchor_scan.py <run>/worksheets --notes <run> --rendered-descriptors <run>/agreement/cpt-rendered-pages.json --agreement-read <run>/agreement-reader/read.json
 ```
 
 Completion requires exit 0. That read also binds, in both directions, the note's preexisting and
