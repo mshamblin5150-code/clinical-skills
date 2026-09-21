@@ -8,6 +8,7 @@ import sqlite3
 import tempfile
 import unittest
 import zipfile
+from contextlib import redirect_stdout
 from pathlib import Path
 
 import procedure_codes_build as build
@@ -165,6 +166,17 @@ class Lookup(unittest.TestCase):
     def test_database_does_not_claim_a_partial_cpt_import_is_complete(self):
         self.assertFalse(lookup.complete(self.connection, "CPT"))
         self.assertTrue(lookup.complete(self.connection, "HCPCS"))
+        self.assertFalse(lookup.cpt_descriptors_verified(self.connection))
+
+    def test_unverified_cpt_hit_warns_without_warning_on_hcpcs(self):
+        output = io.StringIO()
+        with redirect_stdout(output):
+            status = lookup.main([
+                "12345", "J1100", "--database", str(self.path), "--on", "2026-10-01"
+            ])
+        self.assertEqual(0, status)
+        self.assertEqual(1, output.getvalue().count("CPT DESCRIPTORS UNVERIFIED"))
+        self.assertIn("rendered VitalSource page", output.getvalue())
 
     def test_infers_hcpcs_from_the_alphanumeric_shape(self):
         self.assertEqual(lookup.describe(self.connection, "j1100").system, "HCPCS")

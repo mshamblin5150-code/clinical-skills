@@ -216,9 +216,14 @@ Run descriptor agreement once across the paired shift after every note and works
 [sourcing.md](../_shared/reference/sourcing.md), did not generate the worksheets, and receives the
 blind brief before its own JSON record is graded:
 
+When `cpt_descriptors` is `unverified`, first save the shift's rendered CPT
+page reads in `<run>/agreement/cpt-rendered-pages.json` using the record shape
+in [icd10-cpt](../icd10-cpt/SKILL.md). Supply it to both commands; omit
+`--rendered-descriptors` when the set is verified and no record exists.
+
 ```bash
-python tools/anchor_scan.py <run>/worksheets --notes <run> --agreement-brief > <run>/agreement/brief.json
-python tools/anchor_scan.py <run>/worksheets --notes <run> --agreement-read <run>/agreement-reader/read.json
+python tools/anchor_scan.py <run>/worksheets --notes <run> --rendered-descriptors <run>/agreement/cpt-rendered-pages.json --agreement-brief > <run>/agreement/brief.json
+python tools/anchor_scan.py <run>/worksheets --notes <run> --rendered-descriptors <run>/agreement/cpt-rendered-pages.json --agreement-read <run>/agreement-reader/read.json
 ```
 
 Exit 0 is required before the roll-up is complete. An unpaired note or worksheet, an unread code,

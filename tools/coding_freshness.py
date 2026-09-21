@@ -363,8 +363,15 @@ def validate_procedures(
         if not isinstance(codes, dict) or not isinstance(status, dict):
             continue
         entry = procedure_codes_lookup.describe(connection, str(codes["em"]))
-        if entry is not None and str(codes["em"]) in OFFICE_EM and f"{status.get('value')} patient" not in entry.description.lower():
-            findings.append(f"encounter {encounter['id']} E/M code disagrees with patient status")
+        code = str(codes["em"])
+        if entry is not None and code in OFFICE_EM:
+            if procedure_codes_lookup.cpt_descriptors_verified(connection):
+                agrees = f"{status.get('value')} patient" in entry.description.lower()
+            else:
+                expected = "new" if code in {"99202", "99203", "99204", "99205"} else "established"
+                agrees = status.get("value") == expected
+            if not agrees:
+                findings.append(f"encounter {encounter['id']} E/M code disagrees with patient status")
     return cpt_source, hcpcs_source, selected_sheet, sheet_digest
 
 

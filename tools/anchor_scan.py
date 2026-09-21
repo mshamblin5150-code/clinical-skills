@@ -505,7 +505,7 @@ def _markdown_files(directory: Path) -> dict[str, Path]:
 
 
 @cache
-def _official_descriptor(system: str, code: str) -> str | None:
+def _database_descriptor(system: str, code: str) -> str | None:
     if system.upper().startswith("ICD"):
         import icd10_lookup
 
@@ -517,6 +517,51 @@ def _official_descriptor(system: str, code: str) -> str | None:
     with closing(procedure_codes_lookup.open_database()) as connection:
         match = procedure_codes_lookup.describe(connection, code)
         return match.description if match else None
+
+
+def _rendered_descriptors(path: Path | None) -> dict[str, dict[str, str]]:
+    if path is None:
+        return {}
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    rows = payload["codes"]
+    if not isinstance(rows, list):
+        raise ValueError("rendered descriptor codes must be a list")
+    descriptors: dict[str, dict[str, str]] = {}
+    for row in rows:
+        if not isinstance(row, dict) or any(
+            not isinstance(row.get(field), str) or not row[field].strip()
+            for field in ("code", "descriptor", "book", "edition", "printed_page")
+        ):
+            raise ValueError("each rendered descriptor needs code, descriptor, book, edition, printed_page")
+        code = row["code"].strip().upper()
+        if code in descriptors:
+            raise ValueError(f"duplicate rendered descriptor for {code}")
+        descriptors[code] = {
+            field: row[field].strip()
+            for field in ("descriptor", "book", "edition", "printed_page")
+        }
+    return descriptors
+
+
+def _official_descriptor(
+    system: str, code: str,
+    rendered_descriptors: dict[str, dict[str, str]] | None = None,
+) -> str | None:
+    if system == "CPT":
+        import procedure_codes_lookup
+
+        with closing(procedure_codes_lookup.open_database()) as connection:
+            match = procedure_codes_lookup.describe(connection, code)
+            if match is None:
+                return None
+            if not procedure_codes_lookup.cpt_descriptors_verified(connection):
+                page = (rendered_descriptors or {}).get(code)
+                if page and (page["book"], page["edition"]) == (
+                    match.source_title, match.source_edition
+                ):
+                    return page["descriptor"]
+                return None
+    return _database_descriptor(system, code)
 
 
 def _route_tokens(value: str) -> list[str]:
@@ -948,7 +993,9 @@ def _authored_anchor(
     return anchor.group(1) if anchor else ""
 
 
-def _agreement_subjects(text: str) -> tuple[tuple[AgreementSubject, ...], int, int]:
+def _agreement_subjects(
+    text: str, rendered_descriptors: dict[str, dict[str, str]] | None = None
+) -> tuple[tuple[AgreementSubject, ...], int, int]:
     entries = list(ENTRY.finditer(text))
     differential_match = DIFFERENTIAL_HEADING.search(text)
     refusal_match = REFUSAL_HEADING.search(text)
@@ -973,7 +1020,7 @@ def _agreement_subjects(text: str) -> tuple[tuple[AgreementSubject, ...], int, i
         end = entries[index + 1].start() if index + 1 < len(entries) else len(text)
         if refusal >= 0:
             end = min(end, refusal) if end > start else end
-        official = _official_descriptor(system, code)
+        official = _official_descriptor(system, code, rendered_descriptors)
         support = _authored_anchor(text, match.end(), end, descriptor, official)
         if system in {"CPT", "HCPCS"} and not support:
             # Procedure-code prose can begin with ``CPT 12345`` while explicitly
@@ -995,7 +1042,7 @@ def _agreement_subjects(text: str) -> tuple[tuple[AgreementSubject, ...], int, i
         for index, match in enumerate(refusals):
             code = match.group("code").upper()
             system = "CPT" if code.isdigit() else "ICD-10"
-            official = _official_descriptor(system, code)
+            official = _official_descriptor(system, code, rendered_descriptors)
             end = refusals[index + 1].start() if index + 1 < len(refusals) else len(text)
             support = _authored_anchor(
                 text, match.end(), end, match.group("descriptor"), official
@@ -1029,7 +1076,8 @@ def _agreement_subjects(text: str) -> tuple[tuple[AgreementSubject, ...], int, i
 
 
 def _pair_agreement_sources(
-    worksheets: Path, notes: Path, requested: set[str] | None = None
+    worksheets: Path, notes: Path, rendered_descriptors: dict[str, dict[str, str]],
+    requested: set[str] | None = None,
 ) -> tuple[list[AgreementPair], int, int]:
     worksheet_files = _markdown_files(worksheets)
     note_files = _markdown_files(notes)
@@ -1042,7 +1090,9 @@ def _pair_agreement_sources(
     for stem in stems:
         worksheet = worksheet_files[stem].read_text(encoding="utf-8", errors="replace")
         note = note_files[stem].read_text(encoding="utf-8", errors="replace")
-        subjects, worksheet_em, subject_unread = _agreement_subjects(worksheet)
+        subjects, worksheet_em, subject_unread = _agreement_subjects(
+            worksheet, rendered_descriptors
+        )
         pairs.append(
             AgreementPair(
                 stem,
@@ -1250,6 +1300,7 @@ def _run_agreement(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(prog="anchor_scan.py")
     parser.add_argument("worksheets", type=Path)
     parser.add_argument("--notes", type=Path, required=True)
+    parser.add_argument("--rendered-descriptors", type=Path)
     parser.add_argument("--show", action="store_true")
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--agreement-brief", action="store_true")
@@ -1258,8 +1309,14 @@ def _run_agreement(argv: list[str]) -> int:
     args = parser.parse_args(argv)
     if args.stem and not args.agreement_brief:
         parser.error("--stem requires --agreement-brief")
+    try:
+        rendered_descriptors = _rendered_descriptors(args.rendered_descriptors)
+    except (OSError, ValueError, KeyError, TypeError) as error:
+        print(f"descriptor agreement: unread rendered-page record ({error})")
+        return 2
     pairs, unread, full_pair_count = _pair_agreement_sources(
-        args.worksheets, args.notes, set(args.stem) if args.stem else None
+        args.worksheets, args.notes, rendered_descriptors,
+        set(args.stem) if args.stem else None,
     )
     if not pairs:
         unread += 1

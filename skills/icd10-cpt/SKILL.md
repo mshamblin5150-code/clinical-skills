@@ -70,11 +70,22 @@ search for the candidate, and read the rendered destination page. A search
 result or snippet is only a locator. When the set is complete, a miss means the
 number is absent from that named 2026 source.
 
-The procedure database verifies a number, official descriptor, modifier identity,
-and service-date status. It does **not** encode CPT or HCPCS instructions,
+The procedure database verifies a number, modifier identity, and service-date
+status. It verifies descriptor text only for a verified descriptor set. It does
+**not** encode CPT or HCPCS instructions,
 parentheticals, cross-references, bundling rules, or the elements that earn the
 code. Read those from the rendered book page before calling a specificity reason
 complete. `--find` remains descriptor substring search, not an index lookup.
+
+**Descriptor verification is separate from completeness.** Read the database's
+`cpt_descriptors` flag. While it is `unverified`, a CPT hit confirms the code's
+identity and date status, but its database text is only a locator. Take every CPT
+descriptor from the rendered CPT Professional destination page through
+[vitalsource-chrome](../vitalsource-chrome/SKILL.md). Record the code, transcribed
+descriptor, book, edition, and printed page in the run's private rendered-page
+record; the `CONFIDENCE` line names the book, edition, and printed page. When the
+flag is `verified`, use the lookup descriptor as before. HCPCS keeps its lookup
+route. A missing rendered-page read leaves the CPT descriptor unread.
 
 ### Pediatric BMI-for-age
 
@@ -331,13 +342,23 @@ shared four-source index catalog. Topical relation is not agreement. Run the sep
 worksheet and note have been saved with matching filename stems in separate directories:
 
 ```bash
-python tools/anchor_scan.py <run>/worksheets --notes <run>/notes --agreement-brief > <run>/agreement/brief.json
-python tools/anchor_scan.py <run>/worksheets --notes <run>/notes --agreement-read <run>/agreement-reader/read.json
+python tools/anchor_scan.py <run>/worksheets --notes <run>/notes --rendered-descriptors <run>/agreement/cpt-rendered-pages.json --agreement-brief > <run>/agreement/brief.json
+python tools/anchor_scan.py <run>/worksheets --notes <run>/notes --rendered-descriptors <run>/agreement/cpt-rendered-pages.json --agreement-read <run>/agreement-reader/read.json
 ```
 
 The brief supplies the complete note with its tier block and each code's number, official
-descriptor, system, and role. It supplies no worksheet quotation. This **Second reader** applies
-[standing rule 6](../../AGENTS.md), first reads [sourcing.md](../_shared/reference/sourcing.md), and
+descriptor, system, and role. It supplies no worksheet quotation.
+
+While `cpt_descriptors` is `unverified`, write the private rendered-page record
+before either command. Its JSON shape is
+`{"codes":[{"code":"87804","descriptor":"<transcribed rendered-page text>","book":"CPT Professional 2026","edition":"Professional Edition 2026","printed_page":"<printed page>"}]}`.
+One entry per distinct CPT code suffices across the run. A CPT code without a
+complete record joins the shared unread remainder; the database descriptor never
+enters its brief. With `verified`, the record is optional and the brief uses the
+database descriptor; omit `--rendered-descriptors` when no record exists.
+
+This **Second reader** applies [standing rule 6](../../AGENTS.md), first reads
+[sourcing.md](../_shared/reference/sourcing.md), and
 receives only that brief. For every code the reader records `agreeing_words`, `route`, `encounter_evidence`,
 `open_status_evidence`, `threshold`, and `waits_on_result`; each absent value is the literal
 `none`, and every field is a nonempty string. Copy the brief's stable `subject_id` into each record;
@@ -624,7 +645,9 @@ supports its descriptor as a separate clinical judgment.
 Every proposed CPT or HCPCS code was queried against
 `reference/procedure-codes-2026.sqlite` on the encounter's service date. A code
 from a complete system carries the exact descriptor and date-status returned by
-the lookup. A code from a partial system is complete only after its rendered
+the lookup, except that a CPT descriptor with `cpt_descriptors = unverified` comes
+from its rendered page and has a confidence line naming the book, edition, and
+printed page. A code from a partial system is complete only after its rendered
 VitalSource destination page was read; its confidence line names the book and
 edition. A search snippet, an incomplete-set miss, or recall alone still reads
 `verify this number`.
