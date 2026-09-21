@@ -39,6 +39,22 @@ from patch_codex_chrome import (
 
 
 class PatchSourceTests(unittest.TestCase):
+    def test_current_browser_bundle_keeps_security_gate_and_disables_oopif_attach(self) -> None:
+        source = (
+            'function ZK(t,e){let r=iX(t),n=SD.get(t);if(r==null||!KK.has(r)||XK.has(r)||JK.has(t)||n==="block"||QK(t,e))throw Error()}'
+            'case"Tracing.start":return oX(e);default:return!1'
+            'F?await p.withCommandTelemetry(U,H,async()=>await F(H,ae)):await p.withCommandTelemetry(U,H,async()=>await ae.executeUnhandledCommand({type:U,...H}))'
+            'Page.navigate",{url:o}'
+            + ORIGINAL_ENABLE_OOPIF_START
+            + ORIGINAL_ATTACH_HANDLER
+            + 'function aJ(t){return t==="text/html"||c_(t)}'
+        )
+        patched = patch_source(source)
+        self.assertIn(PATCHED_ATTACH_HANDLER, patched)
+        self.assertIn('t==="application/xhtml+xml"', patched)
+        self.assertIn('!KK.has(r)||XK.has(r)||JK.has(t)', patched)
+        self.assertEqual(patched, patch_source(patched))
+
     def test_reference_lifecycle_names_every_patcher_seam(self) -> None:
         record_path = (
             Path(__file__).resolve().parents[1]
@@ -308,6 +324,14 @@ class OnDiskPatchTests(unittest.TestCase):
 
 
 class SkillContractTests(unittest.TestCase):
+    def test_full_transcription_exception_is_scoped_to_two_reader_code_set_rebuild(self) -> None:
+        skill = (REPO_ROOT / "skills/vitalsource-chrome/SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("Two-reader code-set rebuild exception", skill)
+        self.assertIn("structural extraction may serve as one of two independent readers, but it is never evidence on its own", skill)
+        self.assertIn("The other reader transcribes rendered-page screenshots", skill)
+        self.assertIn("written AMA permission for internal database storage", skill)
+        self.assertIn("Everywhere else, the screenshot-only evidence rule", skill)
+
     def test_every_agent_reads_one_standard_and_codex_prepares_one_ordered_route(self) -> None:
         skill = (REPO_ROOT / "skills/vitalsource-chrome/SKILL.md").read_text(
             encoding="utf-8"
