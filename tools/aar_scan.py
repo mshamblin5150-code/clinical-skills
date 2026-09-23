@@ -3,6 +3,8 @@
 
     python tools/aar_scan.py <run-directory> --transcript <session.jsonl> \
         --submission <submission-key> --memory-index <MEMORY.md> --extract
+    python tools/aar_scan.py <run-directory> --submission <submission-key> \
+        --memory-index <MEMORY.md> --extract --rebuild-round <number>
     python tools/aar_scan.py <run-directory> --submission <submission-key> [--show]
 
 The first form writes a reduced, private review packet under ``<run>/aar/``.
@@ -12,7 +14,8 @@ candidate population; a fresh adversarial reader, not this command, classifies
 which candidates are observed corrections and writes the review record.
 ``ENTRY_KINDS`` owns the extract label vocabulary and its generated legend.
 
-The second form grades that record. Counts are safe to paste; ``--show`` names
+The rebuild form repairs a refused round only when its recorded entries match.
+The final form grades the record. Counts are safe to paste; ``--show`` names
 private findings and must not be pasted. A run directory and every artifact
 under ``aar/`` are private working material.
 
@@ -305,6 +308,14 @@ class Candidate:
 
 
 @dataclass(frozen=True)
+class ExtractEntry:
+    identifier: str
+    transcript_id: str
+    kind: str
+    text: str
+
+
+@dataclass(frozen=True)
 class Correction:
     event: str
     fields: Mapping[str, str]
@@ -527,12 +538,12 @@ def _human_kind(row: Mapping[str, Any], value: str) -> str:
     return "clinician"
 
 
-def _human_identifier(uuid: str, kind: str, value: str) -> str:
+def _human_aliases(kind: str, value: str) -> tuple[str, ...]:
     if kind == "task-notification":
         matched = TASK_ID.search(value)
         if matched:
-            return matched.group("id")
-    return uuid
+            return (matched.group("id"),)
+    return ()
 
 
 def _human_candidate(
@@ -544,13 +555,12 @@ def _human_candidate(
     row: Mapping[str, Any] | None = None,
 ) -> Candidate:
     kind = _human_kind(row, value) if row is not None else (_envelope_kind(value) or default_kind)
-    identifier = _human_identifier(uuid, kind, value)
     return Candidate(
-        identifier,
+        uuid,
         transcript_id,
         _declared_entry_kind(kind),
         value,
-        (uuid,) if identifier != uuid else (),
+        _human_aliases(kind, value),
     )
 
 
@@ -845,46 +855,56 @@ def _review_cursors(run: Path) -> dict[str, list[tuple[str, str | None]]]:
             review = read_review(path)
         except ValueError:
             continue
-        transcripts = [value.strip() for value in review.fields.get("TRANSCRIPTS", "").split(",")]
         extract = path.with_name(f"{path.stem}.extract.md")
-        watermarks: dict[str, str] = {}
+        extract_fields: dict[str, str] = {}
         if extract.is_file():
             try:
                 extract_fields, _identifiers = _extract_metadata(extract)
-                watermarks = _transcript_watermarks(
-                    extract_fields.get("TRANSCRIPT-WATERMARKS", "")
-                )
             except ValueError:
-                watermarks = {}
-        if watermarks:
-            for transcript, watermark in watermarks.items():
-                classifier = (
-                    review.fields.get("CLASSIFIER-ENTRY", "")
-                    if watermark == review.fields.get("WATERMARK")
-                    else None
-                )
-                cursors.setdefault(transcript, []).append((watermark, classifier))
-        elif transcripts and review.fields.get("WATERMARK"):
-            cursors.setdefault(transcripts[-1], []).append(
-                (review.fields["WATERMARK"], review.fields.get("CLASSIFIER-ENTRY", ""))
-            )
+                extract_fields = {}
+        _append_review_cursors(cursors, review, extract_fields)
     return cursors
+
+
+def _append_review_cursors(
+    cursors: dict[str, list[tuple[str, str | None]]],
+    review: Review,
+    extract_fields: Mapping[str, str],
+) -> None:
+    watermarks = _transcript_watermarks(
+        extract_fields.get("TRANSCRIPT-WATERMARKS", "")
+    )
+    if watermarks:
+        for transcript_id, watermark in watermarks.items():
+            classifier = (
+                review.fields.get("CLASSIFIER-ENTRY", "")
+                if watermark == review.fields.get("WATERMARK")
+                else None
+            )
+            cursors.setdefault(transcript_id, []).append((watermark, classifier))
+        return
+    transcripts = [
+        value.strip()
+        for value in review.fields.get("TRANSCRIPTS", "").split(",")
+        if value.strip()
+    ]
+    watermark = review.fields.get("WATERMARK", "")
+    if transcripts and watermark:
+        cursors.setdefault(transcripts[-1], []).append(
+            (watermark, review.fields.get("CLASSIFIER-ENTRY", ""))
+        )
 
 
 def _furthest_cursor(
     rows: Iterable[Candidate], cursors: Iterable[tuple[str, str | None]]
 ) -> tuple[str, str | None] | None:
-    candidates_by_identifier = {
-        identifier: index
-        for index, candidate in enumerate(rows)
-        for identifier in (candidate.identifier, *candidate.aliases)
-    }
+    population = tuple(rows)
     available = tuple(cursors)
     if not available:
         return None
     return max(
         available,
-        key=lambda cursor: candidates_by_identifier.get(cursor[0], -1),
+        key=lambda cursor: _cursor_index(population, cursor[0]),
     )
 
 
@@ -901,14 +921,24 @@ def _unmarked_prior_reviews(run: Path, transcripts: Iterable[Path]) -> int:
 def _after_watermark(candidates: list[Candidate], watermark: str | None) -> list[Candidate]:
     if watermark is None:
         return candidates
-    indexes = [
-        index
-        for index, row in enumerate(candidates)
-        if row.identifier == watermark or watermark in row.aliases
-    ]
-    if not indexes:
+    index = _cursor_index(candidates, watermark)
+    if index < 0:
         raise ValueError("prior watermark is not in its transcript population")
-    return candidates[indexes[-1] + 1 :]
+    return candidates[index + 1 :]
+
+
+def _cursor_index(candidates: Iterable[Candidate], cursor: str) -> int:
+    population = tuple(candidates)
+    for index, candidate in enumerate(population):
+        if candidate.kind == "task-notification" and cursor in candidate.aliases:
+            return index
+    for index, candidate in enumerate(population):
+        if candidate.identifier == cursor:
+            return index
+    for index, candidate in enumerate(population):
+        if cursor in candidate.aliases:
+            return index
+    return -1
 
 
 def _collect_population(
@@ -1236,24 +1266,146 @@ def write_extract(
         "",
     ]
     for row in population:
-        text_lines = row.text.splitlines() or [""]
-        lines.extend(
-            [
-                f"## ENTRY: {row.identifier}",
-                f"TRANSCRIPT: {row.transcript_id}",
-                f"KIND: {row.kind}",
-                f"TEXT-LINES: {len(text_lines)}",
-                "TEXT:",
-                *text_lines,
-                "",
-            ]
-        )
-    destination.write_text("\n".join(lines), encoding="utf-8")
+        lines.extend(_extract_entry_lines(row))
+    extract_text = "\n".join(lines)
+    _extract_document_text(extract_text)
+    destination.write_text(extract_text, encoding="utf-8")
     baseline_path(run, submission, round_number).write_text(
         json.dumps(snapshot(memory_index), sort_keys=True) + "\n",
         encoding="utf-8",
     )
     return destination, len(population)
+
+
+def _review_cursors_before_round(
+    run: Path, submission: str, round_number: int
+) -> dict[str, list[tuple[str, str | None]]]:
+    cursors: dict[str, list[tuple[str, str | None]]] = {}
+    for earlier in range(1, round_number):
+        review_file = review_path(run, submission, earlier)
+        extract_file = extract_path(run, submission, earlier)
+        if not review_file.is_file() or not extract_file.is_file():
+            raise ValueError(f"earlier review round {earlier} is incomplete")
+        review = read_review(review_file)
+        fields, _identifiers = _extract_metadata(extract_file)
+        _append_review_cursors(cursors, review, fields)
+    return cursors
+
+
+def _rebuild_population(
+    run: Path,
+    submission: str,
+    round_number: int,
+    fields: Mapping[str, str],
+    refused_entries: tuple[ExtractEntry, ...],
+) -> list[Candidate]:
+    transcript_paths = [
+        Path(value.strip()).expanduser().resolve()
+        for value in fields.get("TRANSCRIPT-PATHS", "").split("|")
+        if value.strip()
+    ]
+    if not transcript_paths:
+        raise ValueError("refused extract has no transcript paths")
+    recorded_entry_counts: dict[str, int] = {}
+    for entry in refused_entries:
+        recorded_entry_counts[entry.transcript_id] = (
+            recorded_entry_counts.get(entry.transcript_id, 0) + 1
+        )
+    if set(recorded_entry_counts) != {path.stem for path in transcript_paths}:
+        raise ValueError("refused extract transcript paths do not match its entries")
+    cursors = _review_cursors_before_round(run, submission, round_number)
+    rebuilt: list[Candidate] = []
+    for transcript_path in transcript_paths:
+        rows = reduce_transcript(transcript_path)
+        selected = _furthest_cursor(rows, cursors.get(transcript_path.stem, ()))
+        watermark, prior_review = selected or ("", None)
+        current = _after_watermark(rows, watermark or None)
+        if prior_review:
+            current = [
+                replace(candidate, kind="prior-review")
+                if candidate.identifier == prior_review
+                or prior_review in candidate.aliases
+                else candidate
+                for candidate in current
+            ]
+        recorded_entry_count = recorded_entry_counts[transcript_path.stem]
+        if len(current) < recorded_entry_count:
+            raise ValueError(
+                f"transcript {transcript_path.stem} has fewer entries than the refused extract"
+            )
+        rebuilt.extend(current[:recorded_entry_count])
+    return rebuilt
+
+
+def _render_rebuilt_extract(header: str, population: Iterable[Candidate]) -> str:
+    lines = [header, ""]
+    for candidate in population:
+        lines.extend(_extract_entry_lines(candidate))
+    return "\n".join(lines)
+
+
+def _extract_entry_lines(candidate: Candidate) -> list[str]:
+    text_lines = candidate.text.splitlines() or [""]
+    return [
+        f"## ENTRY: {candidate.identifier}",
+        f"TRANSCRIPT: {candidate.transcript_id}",
+        f"KIND: {candidate.kind}",
+        f"TEXT-LINES: {len(text_lines)}",
+        "TEXT:",
+        *text_lines,
+        "",
+    ]
+
+
+def _rendered_candidate_text(candidate: Candidate) -> str:
+    return "\n".join(candidate.text.splitlines() or [""])
+
+
+def rebuild_extract(
+    run: Path, submission: str, round_number: int
+) -> tuple[Path, int, Path]:
+    destination = extract_path(run, submission, round_number)
+    try:
+        refused_text = destination.read_text(encoding="utf-8", errors="replace")
+    except OSError as exc:
+        raise ValueError(f"cannot read refused round {round_number}") from exc
+    fields, refused_entries = _extract_entries_text(
+        refused_text, allow_duplicate_identifiers=True
+    )
+    if fields.get("FORMAT", "1") != "2":
+        raise ValueError("only format 2 extracts can be rebuilt")
+    population = _rebuild_population(
+        run, submission, round_number, fields, refused_entries
+    )
+    if len(population) != len(refused_entries):
+        raise ValueError("rebuilt extract population does not match the refused extract")
+    for refused, rebuilt in zip(refused_entries, population):
+        if (
+            refused.transcript_id != rebuilt.transcript_id
+            or refused.kind != rebuilt.kind
+            or refused.text != _rendered_candidate_text(rebuilt)
+        ):
+            raise ValueError("rebuilt extract entries do not match the refused extract")
+        if (
+            refused.kind != "task-notification"
+            and refused.identifier != rebuilt.identifier
+        ):
+            raise ValueError(
+                "rebuilt extract changed a non-notification entry identifier"
+            )
+    header = refused_text.split("\n\n", 1)[0]
+    rebuilt_text = _render_rebuilt_extract(header, population)
+    _extract_document_text(rebuilt_text)
+    refused_root = run / "aar" / "refused"
+    refused_root.mkdir(parents=True, exist_ok=True)
+    archived = refused_root / destination.name
+    suffix = 2
+    while archived.exists():
+        archived = refused_root / f"{destination.stem}.{suffix}{destination.suffix}"
+        suffix += 1
+    destination.replace(archived)
+    destination.write_text(rebuilt_text, encoding="utf-8")
+    return destination, len(population), archived
 
 
 def _parse_fields(lines: list[str]) -> dict[str, str]:
@@ -1320,11 +1472,38 @@ def read_review(path: Path) -> Review:
 
 def _extract_document(
     path: Path,
-) -> tuple[dict[str, str], set[str], dict[str, str]]:
+) -> tuple[dict[str, str], set[str], dict[str, str], set[str]]:
     try:
-        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+        text = path.read_text(encoding="utf-8", errors="replace")
     except OSError as exc:
         raise ValueError(f"cannot read extract {path.name}") from exc
+    return _extract_document_text(text)
+
+
+def _extract_document_text(
+    text: str,
+) -> tuple[dict[str, str], set[str], dict[str, str], set[str]]:
+    fields, entries = _extract_entries_text(text)
+    identifiers = {entry.identifier for entry in entries}
+    task_aliases = {
+        matched.group("id")
+        for entry in entries
+        if entry.kind == "task-notification"
+        for matched in [TASK_ID.search(entry.text)]
+        if matched is not None
+    }
+    return (
+        fields,
+        identifiers,
+        {entry.identifier: entry.kind for entry in entries},
+        task_aliases,
+    )
+
+
+def _extract_entries_text(
+    text: str, *, allow_duplicate_identifiers: bool = False
+) -> tuple[dict[str, str], tuple[ExtractEntry, ...]]:
+    lines = text.splitlines()
     try:
         header_end = lines.index("")
     except ValueError as exc:
@@ -1335,18 +1514,18 @@ def _extract_document(
     if extracted_at:
         _utc_timestamp(extracted_at, "EXTRACTED-AT")
     if format_version == "1":
-        identifiers = {
-            line.partition(":")[2].strip()
+        entries = tuple(
+            ExtractEntry(line.partition(":")[2].strip(), "", "", "")
             for line in lines[header_end + 1 :]
             if line.startswith("## ENTRY:")
-        }
-        return fields, identifiers, {}
+        )
+        return fields, entries
     if format_version != "2":
         raise UnknownExtractFormat(f"unknown extract format {format_version}")
     if not fields.get("EXTRACTED-AT"):
         raise ValueError("format 2 extract has no EXTRACTED-AT field")
     identifiers: set[str] = set()
-    entry_kinds: dict[str, str] = {}
+    entries: list[ExtractEntry] = []
     index = header_end + 1
     while index < len(lines):
         if not lines[index]:
@@ -1355,7 +1534,9 @@ def _extract_document(
         if not lines[index].startswith("## ENTRY:"):
             raise ValueError(f"extract entry expected at line {index + 1}")
         identifier = lines[index].partition(":")[2].strip()
-        if not identifier or identifier in identifiers:
+        if not identifier or (
+            not allow_duplicate_identifiers and identifier in identifiers
+        ):
             raise ValueError("extract entry identifier is absent or duplicated")
         identifiers.add(identifier)
         index += 1
@@ -1369,7 +1550,6 @@ def _extract_document(
         entry_kind = parsed_entry_fields.get("KIND", "")
         if entry_kind not in ENTRY_KINDS:
             raise ValueError(f"extract entry {identifier} has an unknown KIND field")
-        entry_kinds[identifier] = entry_kind
         if index >= len(lines):
             raise ValueError(f"extract entry {identifier} has no TEXT-LINES field")
         count_value = lines[index].partition(":")[2].strip()
@@ -1381,12 +1561,21 @@ def _extract_document(
             raise ValueError(f"extract entry {identifier} has a truncated body")
         if lines[index + 1] != "TEXT:":
             raise ValueError(f"extract entry {identifier} has no TEXT field")
+        body = "\n".join(lines[index + 2 : index + text_lines + 2])
+        entries.append(
+            ExtractEntry(
+                identifier,
+                parsed_entry_fields["TRANSCRIPT"],
+                entry_kind,
+                body,
+            )
+        )
         index += text_lines + 2
-    return fields, identifiers, entry_kinds
+    return fields, tuple(entries)
 
 
 def _extract_metadata(path: Path) -> tuple[dict[str, str], set[str]]:
-    fields, identifiers, _entry_kinds = _extract_document(path)
+    fields, identifiers, _entry_kinds, _task_aliases = _extract_document(path)
     return fields, identifiers
 
 
@@ -1479,7 +1668,7 @@ def _survey_round(run: Path, submission: str, round_number: int) -> Scan:
     except ValueError as exc:
         return Scan(submission, 1, 0, 0, 0, 0, (Finding("unscannable-review", str(exc)),))
     try:
-        extract_fields, identifiers, entry_kinds = _extract_document(
+        extract_fields, identifiers, entry_kinds, task_aliases = _extract_document(
             extract_path(run, submission, round_number)
         )
     except UnknownExtractFormat:
@@ -1540,7 +1729,10 @@ def _survey_round(run: Path, submission: str, round_number: int) -> Scan:
         findings.append(Finding("population-mismatch", f"record {population}; extract {expected_population}"))
     if unread != 0:
         findings.append(Finding("unread-candidates", str(unread)))
-    if review.fields.get("WATERMARK") != extract_fields.get("WATERMARK") or review.fields.get("WATERMARK") not in identifiers:
+    if review.fields.get("WATERMARK") != extract_fields.get("WATERMARK") or (
+        review.fields.get("WATERMARK") not in identifiers
+        and review.fields.get("WATERMARK") not in task_aliases
+    ):
         findings.append(Finding("watermark-mismatch", review.fields.get("WATERMARK", "")))
     if review.fields.get("TRANSCRIPTS") != extract_fields.get("TRANSCRIPTS"):
         findings.append(Finding("transcript-mismatch", review.fields.get("TRANSCRIPTS", "")))
@@ -1934,7 +2126,8 @@ def count_later_sittings(run: Path, extracted_at: datetime) -> int:
 
 USAGE = (
     "usage: aar_scan.py <run-directory> --submission <key> "
-    "[--transcript <jsonl> --memory-index <path> --extract] [--show]"
+    "[--transcript <jsonl> --memory-index <path> --extract "
+    "[--rebuild-round <number>]] [--show]"
 )
 
 
@@ -1943,6 +2136,16 @@ def validate(parsed: run_grader.Parsed) -> str | None:
         return "--submission is required"
     if parsed.enabled("--extract") and not parsed.value("--memory-index"):
         return "--extract requires --memory-index"
+    rebuild = parsed.value("--rebuild-round")
+    if rebuild and not parsed.enabled("--extract"):
+        return "--rebuild-round requires --extract"
+    if rebuild:
+        try:
+            round_number = int(rebuild)
+        except ValueError:
+            return "--rebuild-round needs a positive round number"
+        if round_number < 1:
+            return "--rebuild-round needs a positive round number"
     return None
 
 
@@ -1966,33 +2169,51 @@ def grade(run: Path, parsed: run_grader.Parsed) -> run_grader.Grade[Scan] | run_
     if parsed.enabled("--extract"):
         transcript_value = parsed.value("--transcript")
         memory_value = parsed.value("--memory-index")
+        rebuild_value = parsed.value("--rebuild-round")
         assert memory_value is not None  # validate owns this invocation requirement
+        rebuilt_scan: Scan | None = None
         try:
             transcript = (
                 Path(transcript_value).expanduser().resolve()
                 if transcript_value
                 else None
             )
-            destination, count = write_extract(
-                run, transcript, submission, Path(memory_value).expanduser().resolve()
-            )
+            if rebuild_value:
+                rebuilt_round = int(rebuild_value)
+                destination, count, _archived = rebuild_extract(
+                    run, submission, rebuilt_round
+                )
+                if review_path(run, submission, rebuilt_round).is_file():
+                    rebuilt_scan = survey(run, submission)
+            else:
+                destination, count = write_extract(
+                    run, transcript, submission, Path(memory_value).expanduser().resolve()
+                )
             extract_fields, _identifiers = _extract_metadata(destination)
         except (OSError, ValueError, subprocess.SubprocessError, git_paths.GitPathError) as exc:
             return run_grader.EarlyExit(
                 2,
                 stderr=(f"after-action review NOT SCANNED: {exc}",),
             )
-        return run_grader.EarlyExit(
-            0,
-            stdout=(
+        stdout = (
                 f"after-action review extract over {run.name}",
                 f"  candidate population            {count}",
                 f"  transcripts found               {extract_fields['TRANSCRIPTS-FOUND']}",
                 f"  transcripts skipped by time     {extract_fields['TRANSCRIPTS-SKIPPED-BY-TIME']}",
                 f"  transcripts skipped by bytes    {extract_fields['TRANSCRIPTS-SKIPPED-BY-BYTE-SEARCH']}",
                 f"  transcripts read                {extract_fields['TRANSCRIPTS-READ']}",
+                *(
+                    (f"  rebuilt round                 {rebuild_value}",)
+                    if rebuild_value
+                    else ()
+                ),
                 f"  private extract written         {destination.name}",
-            ),
+        )
+        if rebuilt_scan is not None:
+            stdout = (*stdout, "", format_report(rebuilt_scan, run.name))
+        return run_grader.EarlyExit(
+            1 if rebuilt_scan is not None and rebuilt_scan.findings else 0,
+            stdout=stdout,
         )
 
     try:
@@ -2022,6 +2243,11 @@ GRADER = run_grader.Grader(
         run_grader.Option("--transcript", takes_value=True),
         run_grader.Option("--memory-index", takes_value=True),
         run_grader.Option("--extract"),
+        run_grader.Option(
+            "--rebuild-round",
+            takes_value=True,
+            missing_value="--rebuild-round needs a positive round number",
+        ),
     ),
     validate=validate,
     source_error_to_stdout=False,
