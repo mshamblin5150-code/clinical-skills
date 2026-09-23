@@ -156,6 +156,29 @@ class InstallerContract(unittest.TestCase):
         self.assertFalse((self.home / ".codex" / "AGENTS.md").exists())
         self.assertFalse((self.home / ".codex" / "hooks.json").exists())
 
+    def test_checkout_line_endings_do_not_make_identical_tracked_text_different(self) -> None:
+        for relative in (
+            Path("docs/agents/grilling.md"),
+            Path("tools/grilling_stop_hook.py"),
+        ):
+            text = (self.source / relative).read_text(encoding="utf-8")
+            (self.source / relative).write_bytes(
+                text.replace("\n", "\r\n").encode("utf-8")
+            )
+            (self.owning / relative).write_bytes(text.encode("utf-8"))
+
+        self.install()
+
+        self.assertTrue((self.home / ".codex" / "AGENTS.md").exists())
+
+    def test_a_standalone_carriage_return_is_content_and_still_refuses(self) -> None:
+        relative = Path("docs/agents/grilling.md")
+        (self.source / relative).write_bytes(b"first\rsecond\n")
+        (self.owning / relative).write_bytes(b"first\nsecond\n")
+
+        with self.assertRaisesRegex(ValueError, "owning checkout"):
+            self.install()
+
 
 if __name__ == "__main__":
     unittest.main()

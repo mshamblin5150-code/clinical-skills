@@ -137,14 +137,16 @@ def _require_matching_owning_checkout(
         source = source_root / relative
         installed = owning_checkout / relative
         try:
-            matches = source.read_bytes() == installed.read_bytes()
-        except OSError:
+            source_text = _read_exact(source).replace("\r\n", "\n")
+            installed_text = _read_exact(installed).replace("\r\n", "\n")
+            matches = source_text == installed_text
+        except (OSError, UnicodeError):
             matches = False
         if not matches:
             mismatches.append(relative.as_posix())
     if mismatches:
         raise ValueError(
-            "the owning checkout does not contain this installer's tracked bytes: "
+            "the owning checkout does not contain this installer's tracked content: "
             + ", ".join(mismatches)
             + "; update the owning checkout before installing"
         )
