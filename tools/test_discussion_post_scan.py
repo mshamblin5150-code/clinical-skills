@@ -162,6 +162,11 @@ class Run:
     def __init__(self, root: Path):
         self.root = root
         self.draft = root / "nur0000-m2.md"
+        (root / "project-context.md").write_text(
+            "PROJECT-CONTEXT: none - synthetic discussion\n"
+            "CONFIRMED: 2026-09-23\nCONTEXT-DIGEST: none\n",
+            encoding="utf-8",
+        )
         (root / "bar.md").write_text(BAR, encoding="utf-8")
         (root / "claims.md").write_text(CLAIMS, encoding="utf-8")
         self.draft.write_text(BODY, encoding="utf-8")
@@ -174,6 +179,8 @@ class Run:
             f"DRAFT: {digest}\n"
             "ROUTE: separate context\n"
             "SENTENCES: 0 factual, 0 clinician's own\n"
+            "CONTEXT-DIGEST: none\n"
+            "CONTEXT-VERDICT: none\n"
             "VERDICT: clean\n",
             encoding="utf-8",
         )
@@ -1862,6 +1869,11 @@ class TheSubmissionJoinsItsRunDirectory(unittest.TestCase):
         run.mkdir(parents=True)
         (run / "bar.md").write_text(BAR, encoding="utf-8")
         (run / "claims.md").write_text(CLAIMS, encoding="utf-8")
+        (run / "project-context.md").write_text(
+            "PROJECT-CONTEXT: none - synthetic discussion\n"
+            "CONFIRMED: 2026-09-23\nCONTEXT-DIGEST: none\n",
+            encoding="utf-8",
+        )
         draft = root / "output" / "discussions" / f"{draft_key or run_key}-2026-08-22.md"
         draft.parent.mkdir(parents=True)
         draft.write_text(BODY, encoding="utf-8")
@@ -1869,6 +1881,7 @@ class TheSubmissionJoinsItsRunDirectory(unittest.TestCase):
         (run / "heading-read.md").write_text(
             f"## HEADING-READ: {draft.name}\nDRAFT: {digest}\n"
             "ROUTE: separate context\nSENTENCES: 0 factual, 0 clinician's own\n"
+            "CONTEXT-DIGEST: none\nCONTEXT-VERDICT: none\n"
             "VERDICT: clean\n",
             encoding="utf-8",
         )

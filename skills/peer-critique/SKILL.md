@@ -184,9 +184,16 @@ inventoried in `research_ledger.DECLARED_LIMITS`; this skill points there withou
 Immediately before drafting the first prose, run:
 
 ```bash
+python tools/project_context.py scratch/runs/<run-key> --write
 python tools/voice_model_identity.py scratch/runs/<run-key> --write
 python tools/voice_model_scan.py
 ```
+
+First write and confirm `project-context.md`, then retrieve every place owed by
+[sourcing.md](../_shared/reference/sourcing.md). The project-context command must exit 0. An
+unregistered project stops for the clinician's answer; an unreachable place stops until it is
+readable or the clinician confirms its waiver. A later direction amends and re-confirms the record
+before prose resumes.
 
 Read only the canonical path the identity command reports.
 
@@ -248,7 +255,9 @@ here so a reader who cannot run the command walks the same checks:
 The final-draft reading adds `missing-heading-read`, `duplicate-heading-read`,
 `unread-heading-read`, `unknown-heading-read-route`,
 `heading-read-sentence-count`, `heading-read-unknown-heading`, `heading-read-dropped-heading`,
-`heading-read-draft-mismatch`, `heading-read-defect`, and `heading-read-finding`.
+`heading-read-draft-mismatch`, `heading-read-defect`, `heading-read-finding`,
+`heading-read-context-digest`, `heading-read-context-verdict-shape`, and
+`heading-read-context-defect`.
 
 The word count excludes the reference list. The 750-word expectation is **reported and never
 graded**, on the no-stated-maximum rule in step 4, and the count of literal ampersands is reported

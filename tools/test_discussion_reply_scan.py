@@ -83,6 +83,11 @@ VERDICT: matches - The paragraphs, references, and bold label are present.
 class Run:
     def __init__(self, root: Path):
         self.root = root
+        (root / "project-context.md").write_text(
+            "PROJECT-CONTEXT: none - synthetic reply\n"
+            "CONFIRMED: 2026-09-23\nCONTEXT-DIGEST: none\n",
+            encoding="utf-8",
+        )
         (root / "posts").mkdir()
         (root / "board-2026-08-22.md").write_text(
             "COURSE: NUR 0000\nMODULE: 2\n", encoding="utf-8"
@@ -111,6 +116,8 @@ class Run:
                 f"DRAFT: {digest}\n"
                 "ROUTE: separate context\n"
                 "SENTENCES: 0 factual, 0 clinician's own\n"
+                "CONTEXT-DIGEST: none\n"
+                "CONTEXT-VERDICT: none\n"
                 "VERDICT: clean\n"
             )
         (self.root / "heading-read.md").write_text("\n".join(records), encoding="utf-8")
@@ -169,10 +176,12 @@ class TheHeadingReadPrecedesEachReplyGoAhead(unittest.TestCase):
             )[:8]
             (run.root / "heading-read.md").write_text(
                 f"## HEADING-READ: response-maren.md\nDRAFT: {maren_digest}\n"
-                "ROUTE: separate context\nSENTENCES: 0 factual, 0 clinician's own\nVERDICT: clean\n\n"
+                "ROUTE: separate context\nSENTENCES: 0 factual, 0 clinician's own\n"
+                "CONTEXT-DIGEST: none\nCONTEXT-VERDICT: none\nVERDICT: clean\n\n"
                 f"## HEADING-READ: response-noah.md\nDRAFT: {noah_digest}\n"
                 "ROUTE: separate context\nSENTENCES: 1 factual, 0 clinician's own\n"
-                f"PAIR: paragraph 1 -> {maren_prefix}\nVERDICT: clean\n",
+                f"PAIR: paragraph 1 -> {maren_prefix}\nCONTEXT-DIGEST: none\n"
+                "CONTEXT-VERDICT: none\nVERDICT: clean\n",
                 encoding="utf-8",
             )
             stdout = io.StringIO()

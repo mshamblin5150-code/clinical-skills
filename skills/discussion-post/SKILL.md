@@ -128,8 +128,15 @@ inventory of what that command cannot decide.
 Immediately before drafting the first prose, run:
 
 ```bash
+python tools/project_context.py scratch/runs/<course>-<module>-discussion --write
 python tools/voice_model_identity.py scratch/runs/<course>-<module>-discussion --write
 ```
+
+First write and confirm `project-context.md`, then retrieve every place owed by
+[sourcing.md](../_shared/reference/sourcing.md). The project-context command must exit 0. An
+unregistered project stops for the clinician's answer; an unreachable place stops until it is
+readable or the clinician confirms its waiver. A later search direction amends and re-confirms the
+record before prose resumes.
 
 Read only the canonical path the identity command reports and use register 3 throughout. Preserve confirmed sentence shapes,
 hedges attached to facts, and the clinician's argumentative posture. Do not copy chat typos or
@@ -293,7 +300,8 @@ the read after any repair. With no second context, write `ROUTE: orchestrator wa
 Its heading-read rows are `missing-heading-read`, `duplicate-heading-read`, `unread-heading-read`,
 `unknown-heading-read-route`, `heading-read-sentence-count`, `heading-read-unknown-heading`,
 `heading-read-dropped-heading`, `heading-read-draft-mismatch`, `heading-read-defect`, and
-`heading-read-finding`.
+`heading-read-finding`, plus `heading-read-context-digest`,
+`heading-read-context-verdict-shape`, and `heading-read-context-defect`.
 
 Each source grader is a **Grader handoff** under [standing rule 6](../../AGENTS.md):
 

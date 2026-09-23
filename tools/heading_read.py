@@ -1,8 +1,10 @@
 """Parse and grade ADR 0219 heading-read records.
 
 The caller owns sentence identification and pairing. This module grades the
-recorded shape, its draft fingerprint, and each pair against current claim
-headings. ``heading_read.DECLARED_LIMITS`` is the complete coverage boundary.
+recorded shape, its draft and project-context fingerprints, and each pair
+against current claim headings. ``heading_read.DECLARED_LIMITS`` owns the
+pairing boundary; the project-context row's ceiling belongs to
+``project_context.DECLARED_LIMITS`` and is not copied here.
 """
 
 from __future__ import annotations
@@ -67,7 +69,7 @@ HEADER = re.compile(r"(?mi)^[ \t]*##[ \t]+HEADING-READ[ \t]*:[ \t]*(.*?)[ \t]*$"
 HEADING_CANDIDATE = re.compile(r"(?mi)^[ \t]*##[ \t]+HEADING-READ\b.*$")
 OTHER_HEADER = re.compile(r"^[ \t]*#{1,6}[ \t]+")
 FIELD = re.compile(
-    r"(?i)^[ \t]*(DRAFT|ROUTE|SENTENCES|PAIR|VERDICT|FINDINGS)[ \t]*:[ \t]*(.*?)[ \t]*$"
+    r"(?i)^[ \t]*(DRAFT|ROUTE|SENTENCES|PAIR|CONTEXT-DIGEST|CONTEXT-VERDICT|VERDICT|FINDINGS)[ \t]*:[ \t]*(.*?)[ \t]*$"
 )
 SENTENCES = re.compile(
     r"(?i)^(?P<factual>[0-9]+)[ \t]+factual,[ \t]*(?P<own>[0-9]+)[ \t]+clinician's own$",
@@ -85,6 +87,9 @@ DROPPED_HEADING = "heading-read-dropped-heading"
 DRAFT_MISMATCH = "heading-read-draft-mismatch"
 DEFECT_VERDICT = "heading-read-defect"
 REPORTED_FINDING = "heading-read-finding"
+CONTEXT_DIGEST_MISMATCH = "heading-read-context-digest"
+CONTEXT_VERDICT_SHAPE = "heading-read-context-verdict-shape"
+CONTEXT_DEFECT_VERDICT = "heading-read-context-defect"
 KINDS = (
     MISSING_RECORD,
     DUPLICATE_RECORD,
@@ -95,6 +100,9 @@ KINDS = (
     DRAFT_MISMATCH,
     DEFECT_VERDICT,
     REPORTED_FINDING,
+    CONTEXT_DIGEST_MISMATCH,
+    CONTEXT_VERDICT_SHAPE,
+    CONTEXT_DEFECT_VERDICT,
 )
 
 
@@ -114,6 +122,7 @@ class Binding:
     artifact: str
     draft: bytes
     claims: tuple[research_ledger.Record, ...]
+    context_digest: str
 
 
 @dataclass(frozen=True)
@@ -205,6 +214,58 @@ def _record_findings(record: Record, binding: Binding) -> list[Finding]:
                 DRAFT_MISMATCH,
                 artifact,
                 f"recorded {record.value('DRAFT') or 'nothing'}, current {current_digest}",
+            )
+        )
+
+    recorded_context = record.value("CONTEXT-DIGEST").casefold()
+    expected_context = binding.context_digest.casefold()
+    if recorded_context != expected_context:
+        found.append(
+            Finding(
+                CONTEXT_DIGEST_MISMATCH,
+                artifact,
+                f"recorded {recorded_context or 'nothing'}, expected {expected_context or 'nothing'}",
+            )
+        )
+
+    context_verdict = record.value("CONTEXT-VERDICT")
+    if expected_context == "none":
+        if context_verdict.casefold() != "none":
+            found.append(
+                Finding(
+                    CONTEXT_DEFECT_VERDICT,
+                    artifact,
+                    context_verdict or "CONTEXT-VERDICT is missing",
+                )
+            )
+    elif context_verdict.casefold() != "agrees":
+        shaped = re.fullmatch(
+            r"(?i)(narrows|contradicts)[ \t]+-[ \t]+[^,]+,[ \t]+.+",
+            context_verdict,
+        )
+        if shaped is None:
+            conflict = re.fullmatch(
+                r"(?i)sources-conflict[ \t]+-[ \t]+(?P<left>[^,]+?)[ \t]+and[ \t]+(?P<right>[^,]*),[ \t]+(?P<difference>.+)",
+                context_verdict,
+            )
+            if conflict is not None:
+                left = conflict.group("left").strip()
+                right = conflict.group("right").strip()
+                if left and right and left.casefold() != right.casefold():
+                    shaped = conflict
+        if shaped is None:
+            found.append(
+                Finding(
+                    CONTEXT_VERDICT_SHAPE,
+                    artifact,
+                    context_verdict or "CONTEXT-VERDICT is missing",
+                )
+            )
+        found.append(
+            Finding(
+                CONTEXT_DEFECT_VERDICT,
+                artifact,
+                context_verdict or "CONTEXT-VERDICT is missing",
             )
         )
 

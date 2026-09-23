@@ -73,13 +73,54 @@ from it.
 
 ## A heading read binds the final draft to the ledger
 
+Before the first prose in a coursework run, write the purpose-named
+`<run-directory>/project-context.md`. Its confirmed header declares either the project or `none`
+with a reason. The account registry resolved by `repo_root.project_registry()` states one
+`MEMORY-INDEX:` and each `PROJECT:` with its absolute `LOCATION:` paths and named `SERVICE:` MCP
+servers. Never write a service URL. An unregistered project stops for the clinician's ruling.
+
+```text
+PROJECT-CONTEXT: <project> | none - <reason>
+PROJECT-SEARCH: <location or service> - "<terms>"
+PROJECT-WAIVE: <location or service> - <what failed and when>; proceed without, per the clinician
+CONFIRMED: <ISO date>
+
+## PLACE: <owed location or service>
+STATE: read | searched | unreadable | absent
+ROOT: <absolute searched path root>
+TERMS: <searched path terms>
+EXAMINED: <nonnegative count>
+UNREADABLE: <nonnegative count>
+CORPUS-SIZE: <nonnegative service count>
+QUERY: <terms> | THRESHOLD: <value> | LIMIT: <count> | HITS: <count>
+DETAIL: <why an unreadable or absent place failed>
+OPENED: <file path or service item identifier> | none
+```
+
+The memory index and every registered project place are owed. Each `PROJECT-SEARCH` adds or
+constrains one owed place; a direction given later amends and re-confirms the header before drafting.
+Every owed place has exactly one entry. A searched path carries `ROOT`, `TERMS`, `EXAMINED`,
+`UNREADABLE`, and `OPENED`; a searched service carries `CORPUS-SIZE`, one `QUERY` per query, and
+opened identifiers only. `OPENED: none` records a bounded miss, never a settled negative.
+`unreadable` or `absent` blocks unless the confirmed header waives that exact place.
+
+Run `python tools/project_context.py <run-directory> --write` after retrieval and before drafting.
+When service items were opened, pass a `place -> item identifier -> returned text` JSON object on
+standard input with `--service-payloads -`; the command hashes the returned text without storing it.
+The command hashes opened file bytes, writes every item hash and the sorted-triple context digest,
+and exits 0 only when the gate passes. Exit 1 is a finding. Exit 2 means the owed population was not
+established, including an unavailable registry or unregistered project. The completion grader
+rehashes file items; drift is exit-2 coverage, while a finding still wins. It does not retrieve
+service items again.
+
 Before any go-ahead, a fresh context receives only the final draft, `claims.md`, and the headings
-with digests printed by the command above. It is not given sources. It pairs every factual sentence
+with digests printed by `research_ledger.py --heading-digests`, plus every item pointer recorded in
+`project-context.md`. It opens those items itself; it is not given summaries. It pairs every factual sentence
 with the first eight hex characters of the current heading digest and judges only whether the
 sentence claims more than that heading. A paraphrase claiming no more is a match; an absent claim is
 `unrecorded`, and a broader population or subject, changed number, added entity or condition, or
 dropped limitation is `drifted`. The clinician's own reasoning and experience are counted but need
-no pair. A harness without a second context performs the same written walk and records `ROUTE:
+no claim-heading pair; they remain subject to the project-context verdict. A harness without a second context performs the same written walk and records `ROUTE:
 orchestrator walk`.
 
 ```text
@@ -88,13 +129,18 @@ DRAFT: <SHA-256 of the draft's raw bytes>
 ROUTE: separate context | orchestrator walk
 SENTENCES: <n> factual, <n> clinician's own
 PAIR: <location> -> <first 8 hex of the heading digest>
+CONTEXT-DIGEST: <the project-context record's digest> | none
+CONTEXT-VERDICT: agrees | none | narrows | contradicts | sources-conflict - <location>, <what differs>
 VERDICT: clean | defect - <substance>
 FINDINGS: unrecorded | drifted - <location>, <what differs>
 ```
 
 A clean record has one `PAIR` per factual sentence. Pairs plus findings equal the factual count;
 every prefix names a current, non-`DROPPED` heading; and `DRAFT` matches the final artifact. A
-finding blocks the go-ahead. Repair a drifted sentence toward the correct side: return it to its
+non-`none` context digest matches the machine-written project-context digest and only `agrees` is
+clean. On a `none` run both context fields are `none`. `narrows`, `contradicts`, and
+`sources-conflict` are findings; the last names both sources and only the clinician resolves it,
+with that ruling written to memory. A finding blocks the go-ahead. Repair a drifted sentence toward the correct side: return it to its
 heading, or change and refute the heading again. Give an unrecorded sentence a full researched and
 refuted record or cut it. Every repair changes the draft, so a fresh heading read replaces the old
 one before the go-ahead.

@@ -27,6 +27,7 @@ from repo_root import (
     ensure_outside_checkout,
     main_repo_root,
     output_root,
+    project_registry,
     scratch_root,
 )
 
@@ -121,6 +122,25 @@ class CanonicalVoiceModel(Checkouts):
         self.assertEqual(resolved.path, self.main / "scratch" / "voice-model.md")
         self.assertFalse(resolved.exists)
         self.assertIsNone(resolved.sha256)
+
+
+class ProjectRegistry(Checkouts):
+    """One resolver owns the account's project registry. #1395."""
+
+    def test_a_worktree_resolves_the_registry_in_the_owning_checkout(self):
+        gitdir = self.main / ".git" / "worktrees" / "ticket-93"
+        tree = self.worktree(gitdir.as_posix())
+
+        self.assertEqual(
+            project_registry(tree / "tools"),
+            self.main / "scratch" / "project-registry.md",
+        )
+
+    def test_absence_keeps_the_canonical_registry_path(self):
+        resolved = project_registry(self.main / "tools")
+
+        self.assertEqual(resolved, self.main / "scratch" / "project-registry.md")
+        self.assertFalse(resolved.exists())
 
 
 class OutputRoot(Checkouts):

@@ -103,6 +103,7 @@ DECLARED_SECTIONS = {
     "pdf_engine": "Console codec",
     "phi_scan": "PHI pre-commit hook",
     "post_html": "Discussion post grading",
+    "project_context": "Coursework project context",
     "procedure_codes_build": "Procedure-code database",
     "procedure_codes_lookup": "Procedure-code database",
     "python_floor": "Continuous integration",

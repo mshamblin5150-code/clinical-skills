@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Grade the canonical Word artifact for a course-assignment DOCX run."""
+"""Grade the canonical Word artifact for a course-assignment DOCX run.
+
+The project-context row's ceiling belongs to
+``project_context.DECLARED_LIMITS``; this module copies no row.
+"""
 
 from __future__ import annotations
 
@@ -26,11 +30,13 @@ from discussion_artifact import (
 )
 from discussion_post_scan import traceable_numeric_values
 import file_digest
+import heading_read
 import reference_scan
 import render_pass
 import research_ledger
 import run_grader
 import voice_model_identity
+import project_context
 from run_grader import NOT_GRADED
 
 
@@ -65,11 +71,13 @@ ROWS = (
     UNTRACED_NUMBER,
     UNTRACED_CITATION,
     RENDERED_RECORD,
-)
+) + heading_read.KINDS
 KINDS = ROWS
+HEADING_READ_ROWS = {kind: kind for kind in heading_read.KINDS}
 EXPECTED_COMPLETION_CHECKS = (
     aar_scan.EXPECTED_ROW,
     voice_model_identity.EXPECTED_ROW,
+    project_context.EXPECTED_ROW,
 )
 
 
@@ -140,6 +148,7 @@ class Source:
     package_findings: tuple[Finding, ...]
     claims: str
     rendered: str
+    heading_read_text: str
 
 
 @dataclass(frozen=True)
@@ -150,6 +159,8 @@ class Scan:
     claim_records: int
     retained_passes: int
     rendered_records: int
+    heading_reads: int
+    heading_read_unread: int
     findings: tuple[Finding, ...]
 
 
@@ -305,9 +316,25 @@ def load(
             package_findings = _package(archive, paragraphs)
         rendered_path = root / "rendered.md"
         rendered = rendered_path.read_text(encoding="utf-8") if rendered_path.is_file() else ""
+        heading_read_path = root / "heading-read.md"
+        heading_read_text = (
+            heading_read_path.read_text(encoding="utf-8")
+            if heading_read_path.is_file()
+            else ""
+        )
     except (OSError, UnicodeError, zipfile.BadZipFile, KeyError, ElementTree.ParseError) as failure:
         raise run_grader.SourceError(f"could not read the DOCX run: {failure}") from failure
-    return Source(root, docx, docx_bytes, bar, paragraphs, package_findings, claims, rendered)
+    return Source(
+        root,
+        docx,
+        docx_bytes,
+        bar,
+        paragraphs,
+        package_findings,
+        claims,
+        rendered,
+        heading_read_text,
+    )
 
 
 def _document_parts(paragraphs: tuple[Paragraph, ...]) -> tuple[str, tuple[str, ...]]:
@@ -409,6 +436,23 @@ def survey(source: Source) -> Scan:
     document = reference_scan.read_document(markdown)
     reference_grade = reference_scan.survey(document, source.bar.signed)
     findings = list(source.package_findings)
+    heading = heading_read.scan(
+        source.heading_read_text,
+        (
+            heading_read.Binding(
+                source.docx.name,
+                source.docx_bytes,
+                tuple(research_ledger.read_records(source.claims)),
+                project_context.recorded_digest(source.root),
+            ),
+        ),
+    )
+    findings.extend(
+        Finding(kind, f"{finding.artifact}: {finding.detail}")
+        for kind in HEADING_READ_ROWS
+        for finding in heading.findings
+        if finding.kind == kind
+    )
     body = document.body
     body_words = len(WORD.findall(body))
     if body_words < source.bar.word_min:
@@ -453,6 +497,8 @@ def survey(source: Source) -> Scan:
         claim_records,
         passes,
         rendered_records,
+        heading.records_read,
+        heading.unread,
         tuple(findings),
     )
 
@@ -467,6 +513,8 @@ def format_report(scan: Scan, _source: str, show: bool = False) -> str:
         f"  claim records     {scan.claim_records}",
         f"  retained passes   {scan.retained_passes}",
         f"  rendered records  {scan.rendered_records}",
+        f"  heading reads     {scan.heading_reads}",
+        run_grader.format_unread_remainder(scan.heading_read_unread),
         "",
     ]
     lines.extend(
@@ -497,13 +545,14 @@ def grade(source: Source, parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
         scan=scan,
         source=str(source.root),
         findings_failed=bool(scan.findings) or aar_failed or gate_failed,
-        coverage_failed=not source.paragraphs,
+        coverage_failed=not source.paragraphs or bool(scan.heading_read_unread),
         diagnostics=("DOCX findings require review",) if scan.findings else (),
-        reports=(gate_report, aar_report),
+        reports=(heading_read.format_coverage(heading_read.Scan(scan.heading_reads, scan.heading_read_unread, ())), gate_report, aar_report),
     )
-    return voice_model_identity.apply_completion_gate(
+    grade = voice_model_identity.apply_completion_gate(
         grade, source.root, submission
     )
+    return project_context.apply_completion_gate(grade, source.root, submission)
 
 
 GRADER = run_grader.Grader(

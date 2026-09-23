@@ -180,9 +180,16 @@ command.
 Immediately before drafting the first prose, run:
 
 ```bash
+python tools/project_context.py scratch/runs/<run-key> --write
 python tools/voice_model_identity.py scratch/runs/<run-key> --write
 python tools/voice_model_scan.py
 ```
+
+First write and confirm `project-context.md`, then retrieve every place owed by
+[sourcing.md](../_shared/reference/sourcing.md). The project-context command must exit 0. An
+unregistered project stops for the clinician's answer; an unreachable place stops until it is
+readable or the clinician confirms its waiver. A later direction amends and re-confirms the record
+before prose resumes.
 
 Read only the canonical path the identity command reports, especially the confirmed reflective and argumentative register. Use
 its discriminating pairs and confirmed constructions. Do not reproduce chat typos or lowercase
@@ -273,7 +280,8 @@ stale record before the go-ahead.
 Its heading-read rows are `missing-heading-read`, `duplicate-heading-read`, `unread-heading-read`,
 `unknown-heading-read-route`, `heading-read-sentence-count`, `heading-read-unknown-heading`,
 `heading-read-dropped-heading`, `heading-read-draft-mismatch`, `heading-read-defect`, and
-`heading-read-finding`.
+`heading-read-finding`, plus `heading-read-context-digest`,
+`heading-read-context-verdict-shape`, and `heading-read-context-defect`.
 
 Show the clean reply and an invoked-source table to the clinician. For every retained invoked
 source, the table shows the invoked source, its domain, and the property it spends. Ask separately whether the substance is

@@ -12,6 +12,7 @@ from unittest import mock
 import repo_root
 import run_grader
 import voice_model_identity as identity
+import project_context
 
 
 class RecordWriter(unittest.TestCase):
@@ -202,7 +203,11 @@ class ScopedCompletionGraders(unittest.TestCase):
                 module = importlib.import_module(module_name)
                 self.assertEqual(
                     module.EXPECTED_COMPLETION_CHECKS,
-                    ("the after-action review", identity.EXPECTED_ROW),
+                    (
+                        "the after-action review",
+                        identity.EXPECTED_ROW,
+                        project_context.EXPECTED_ROW,
+                    ),
                 )
 
     def test_each_scoped_skill_writes_the_record_before_drafting(self) -> None:

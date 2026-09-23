@@ -133,6 +133,14 @@ commands can walk the selected branch's rows and the documented research-record 
 [course-assignment](skills/course-assignment/SKILL.md), but cannot call the run mechanically
 verified.
 
+**The five coursework skills depend on `tools/project_context.py`.** `course-assignment`,
+`discussion-post`, `practicum-case-study`, `discussion-reply`, and `peer-critique` write and confirm
+their purpose-named `project-context.md` before first prose. The command expands the account-owned
+registry resolved by `repo_root.project_registry()`, grades every owed place, hashes opened file
+bytes and supplied service text, and writes the context digest. Their completion graders rehash
+file items and their shared heading read binds the draft to that digest. Without a clean pre-draft
+exit, drafting stops; without the completion row, the run is not mechanically verified.
+
 **`vitalsource-chrome` depends on its committed Codex Chrome patcher.**
 `skills/vitalsource-chrome/scripts/patch_codex_chrome.py` installs the reviewed stable top-level
 attachment and XHTML document classification into both the bundled Chrome cache and active desktop browser runtime. It preserves the

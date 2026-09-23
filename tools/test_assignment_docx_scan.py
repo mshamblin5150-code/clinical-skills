@@ -204,6 +204,21 @@ def empty_population_input(root: Path) -> EmptyPopulationInput:
         encoding="utf-8",
     )
     (run / "claims.md").write_text("DATE: 2026-09-13\n", encoding="utf-8")
+    (run / "project-context.md").write_text(
+        "PROJECT-CONTEXT: none - synthetic assignment\n"
+        "CONFIRMED: 2026-09-23\nCONTEXT-DIGEST: none\n",
+        encoding="utf-8",
+    )
+    (run / "heading-read.md").write_text(
+        f"## HEADING-READ: {artifact.name}\n"
+        f"DRAFT: {file_digest.sha256(artifact)}\n"
+        "ROUTE: separate context\n"
+        "SENTENCES: 0 factual, 0 clinician's own\n"
+        "CONTEXT-DIGEST: none\n"
+        "CONTEXT-VERDICT: none\n"
+        "VERDICT: clean\n",
+        encoding="utf-8",
+    )
     (retained / "page-1.png").write_bytes(b"retained page pixels")
     (retained / "assignment-docx.pdf").write_bytes(b"page-faithful export")
     file_digest.write_recorded_sha256(

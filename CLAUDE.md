@@ -1084,6 +1084,25 @@ row from it.
 
 Covered by `tools/test_voice_model_identity.py`.
 
+### Coursework project context
+
+Before first prose, the five coursework skills write and confirm the purpose-named
+`project-context.md`, retrieve every place owed by the account registry at
+`repo_root.project_registry()`, and run
+`python tools/project_context.py <run-directory> --write`. The gate hashes opened file bytes and
+supplied service text, stores only service identifiers and hashes, and writes one context digest.
+Missing or duplicate owed places, incomplete search evidence, and unwaived unreadable or absent
+places are findings. An unavailable registry or unregistered project is incomplete coverage and
+stops for the clinician's answer.
+
+The same five completion graders enable the shared row with `--submission`. File items are hashed
+again; a moved item is incomplete coverage, service text is not retrieved again, and a finding wins.
+Their shared heading read binds `CONTEXT-DIGEST` to the record and permits only `agrees`, or `none`
+on a confirmed `none` run. The complete ceiling belongs to `project_context.DECLARED_LIMITS`; this
+section copies no row from it.
+
+Covered by `tools/test_project_context.py` and `tools/test_heading_read.py`.
+
 ### Discussion post grading
 
 `discussion-post` produces one graded initial post. This grades it against the bar that post was
