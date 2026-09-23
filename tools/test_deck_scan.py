@@ -374,10 +374,18 @@ class Run:
                 final_confirmation=True,
             )
         scan.voice_model_identity.write_record(self.root)
+        canonical_root = self.root.parent / "canonical-output"
+        canonical = canonical_root / "course-assignments" / self.deck.name
+        canonical.parent.mkdir(parents=True, exist_ok=True)
+        canonical.write_bytes(self.deck.read_bytes())
         with mock.patch.object(
             scan.aar_scan,
             "completion_gate",
             return_value=(False, "the after-action review: clean"),
+        ), mock.patch.object(
+            scan.assignment_submission.repo_root,
+            "output_root",
+            return_value=canonical_root,
         ):
             return self.grade("--submission", self.deck.stem, bind=bind)
 

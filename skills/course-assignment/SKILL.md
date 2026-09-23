@@ -39,7 +39,11 @@ scratch/runs/<course>-<module>-course-assignment/
 
 Each sitting writes a new assignment snapshot. Never overwrite an earlier one. The finished artifact
 goes only to `output/course-assignments/<course>-<module>-course-assignment-<date>.pptx` or the same
-stem ending in `.docx`, according to the signed branch. Images used
+stem ending in `.docx`, according to the signed branch. When the run is launched from a worktree,
+resolve that directory from `repo_root.output_root()` so it belongs to the owning checkout; never
+derive it from the worktree's module root. The reviewed artifact may be built in a run-unique
+private writer path, but before approval its canonical copy must exist at that resolved path and
+have the same raw-byte SHA-256. Images used
 to author it stay in the run directory unless they are already durable public assets. Parallel
 research, refutation, adversarial, and checking contexts each receive a new run-unique private
 path. They return findings to the orchestrator, which alone writes the canonical run files, and
@@ -406,3 +410,8 @@ After `/AAR` is clean, run the artifact-aware completion grader with that same d
 ```bash
 python tools/course_assignment_scan.py <run-directory> --artifact <deck> --submission <deck-stem>
 ```
+
+The terminal grader resolves the owning checkout's canonical copy again and fails completion when
+that copy is missing or its raw-byte SHA-256 differs from the reviewed artifact. Its clean
+submission-gate report names the canonical path. The final report gives that path as a clickable
+Markdown link and never the worktree copy.

@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import file_digest
+import repo_root
 from discussion_artifact import read_posted_readings
 
 
@@ -181,10 +182,12 @@ def submit_is_authorized(staged: StagedUpload) -> bool:
 def completion_gate(
     run: Path, artifact: Path, submission: str | None = None
 ) -> tuple[bool, str]:
-    """Grade approvals and, at completion, the posted filename population."""
+    """Grade approvals and the terminal canonical and posted artifact joins."""
 
     root = Path(run).resolve()
     path = Path(artifact).resolve()
+    canonical = repo_root.output_root() / "course-assignments" / path.name
+    canonical_failure: str | None = None
     try:
         payload = _read(root)
         approved = payload.get("approved_carriers")
@@ -205,6 +208,15 @@ def completion_gate(
             and path.name in filenames
         )
         if clean and submission is not None:
+            if not canonical.is_file():
+                canonical_failure = f"canonical artifact is missing: {canonical}"
+                clean = False
+            elif file_digest.sha256(canonical) != file_digest.sha256(path):
+                canonical_failure = (
+                    f"canonical artifact fingerprint differs: {canonical}"
+                )
+                clean = False
+        if clean and submission is not None:
             readings = read_posted_readings(
                 (root / "reread.md").read_text(encoding="utf-8")
             )
@@ -224,4 +236,10 @@ def completion_gate(
             )
     except (GateError, OSError, UnicodeError, ValueError):
         clean = False
-    return not clean, "submission gates: clean" if clean else "submission gates: not clean"
+    if clean and submission is not None:
+        report = f"submission gates: clean - canonical artifact: {canonical}"
+    elif canonical_failure is not None:
+        report = f"submission gates: not clean - {canonical_failure}"
+    else:
+        report = "submission gates: clean" if clean else "submission gates: not clean"
+    return not clean, report
