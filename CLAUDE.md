@@ -1050,7 +1050,7 @@ Every line beginning `**` at column zero inside the pairs body is a pair candida
 python tools/voice_model_scan.py [<voice-model.md>] [--show]
 ```
 
-**With no path it reads the account-owned model through `repo_root.scratch_root()`**, which is the
+**With no path it reads the account-owned model through `repo_root.canonical_voice_model()`**, which is the
 owning checkout's — a worktree has no model of its own and asking for one there is how the corpus
 census used to fail before #93.
 
@@ -1069,6 +1069,20 @@ rows, 1 for a shape finding, 2 for every way of not having scanned, which the mo
 register the command could read.
 
 Covered by `tools/test_voice_model_scan.py`.
+
+### Coursework voice-model identity
+
+Immediately before drafting, the scoped coursework readers run
+`python tools/voice_model_identity.py <run-directory> --write`. The command writes the canonical
+path, digest, and existence state to its purpose-named run record. Their existing completion
+graders enable the shared identity row with `--submission`: a noncanonical declared path is a
+finding, while a digest that moved at the canonical path is incomplete coverage, and a finding
+wins when both apply.
+
+The complete ceiling belongs to `voice_model_identity.DECLARED_LIMITS`; this section copies no
+row from it.
+
+Covered by `tools/test_voice_model_identity.py`.
 
 ### Discussion post grading
 

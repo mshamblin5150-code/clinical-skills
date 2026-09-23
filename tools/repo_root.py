@@ -70,7 +70,21 @@ fact, readable.
 from __future__ import annotations
 
 from collections.abc import Iterable
+from dataclasses import dataclass
+from hashlib import sha256
 from pathlib import Path
+
+
+VOICE_MODEL_NAME = "voice-model.md"
+
+
+@dataclass(frozen=True)
+class VoiceModelResolution:
+    """The canonical account model at one instant."""
+
+    path: Path
+    sha256: str | None
+    exists: bool
 
 
 def main_repo_root(start: Path | None = None) -> Path:
@@ -110,6 +124,23 @@ def scratch_root(start: Path | None = None) -> Path:
     Absence is a finding, and the caller is the one that has to report it.
     """
     return main_repo_root(start) / "scratch"
+
+
+def canonical_voice_model(start: Path | None = None) -> VoiceModelResolution:
+    """Resolve the one account-owned voice model, including current identity.
+
+    The path belongs to the owning checkout even when the caller runs in a
+    linked worktree. Absence is returned explicitly; a present but unreadable
+    model raises rather than being relabeled absent.
+    """
+    path = scratch_root(start) / VOICE_MODEL_NAME
+    if not path.exists():
+        return VoiceModelResolution(path=path, sha256=None, exists=False)
+    return VoiceModelResolution(
+        path=path,
+        sha256=sha256(path.read_bytes()).hexdigest(),
+        exists=True,
+    )
 
 
 def output_root(start: Path | None = None) -> Path:

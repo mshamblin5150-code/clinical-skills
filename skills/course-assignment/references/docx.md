@@ -38,7 +38,9 @@ citation has its own believed record carrying the matching reference. Grade that
 `tools/research_ledger.py` and grade the reference list with `tools/reference_scan.py`; commands save
 the walk but do not replace the row contracts written in those tools' invoking skill sections.
 
-Read `scratch/voice-model.md` under the main skill's voice rule. Build the document with
+Immediately before drafting, run
+`python tools/voice_model_identity.py <run-directory> --write`. Read only the
+canonical path that command records under the main skill's voice rule. Build the document with
 `tools/assignment_docx.py` or its narrow `AssignmentSpec` interface, supplying title-page metadata
 from the signed run rather than source-code constants. The title page supports a long credential
 line as one fitted line and instructor credentials without embedding personal data in a fixture.

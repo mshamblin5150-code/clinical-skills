@@ -81,6 +81,19 @@ def run(*arguments: str) -> tuple[int, str, str]:
 
 
 class TheSyntheticModelGradesTheGrader(unittest.TestCase):
+    def test_unreadable_default_resolution_is_an_incomplete_scan(self):
+        with mock.patch.object(
+            scan.repo_root,
+            "canonical_voice_model",
+            side_effect=IsADirectoryError("private path withheld"),
+        ):
+            status, stdout, stderr = run()
+
+        self.assertEqual(2, status)
+        self.assertEqual("", stdout)
+        self.assertIn("identity is unreadable", stderr)
+        self.assertNotIn("private path", stderr)
+
     def test_the_committed_model_is_clean_and_the_default_report_is_counts_only(self):
         status, stdout, stderr = run(str(SYNTHETIC))
 
@@ -284,14 +297,20 @@ class TheAbsentModelIsADeclaredDoor(unittest.TestCase):
                     self.assertIn("voice model: NOT RUN", stderr)
                     self.assertIn("voice unmodeled", stderr)
 
-    def test_the_implicit_path_uses_the_account_scratch_root(self):
+    def test_the_implicit_path_uses_the_canonical_model_resolver(self):
         with tempfile.TemporaryDirectory() as directory:
             scratch = Path(directory) / "scratch"
-            with mock.patch.object(scan.repo_root, "scratch_root", return_value=scratch):
+            resolved = scan.repo_root.VoiceModelResolution(
+                scratch / "voice-model.md", None, False
+            )
+            with mock.patch.object(
+                scan.repo_root, "canonical_voice_model", return_value=resolved
+            ) as resolver:
                 status, _, stderr = run()
 
         self.assertEqual(2, status)
         self.assertIn(str(scratch / "voice-model.md"), stderr)
+        resolver.assert_called_once_with()
 
     def test_an_unreadable_shape_and_an_invalid_invocation_are_exit_two(self):
         with tempfile.TemporaryDirectory() as directory:

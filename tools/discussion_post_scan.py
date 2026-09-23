@@ -16,6 +16,9 @@ route. Without the relevant input, artifact-specific rows cannot pass.
 What a clean run does not establish is ``NOT_REACHED``. The tuple is the one
 reader-facing inventory of this command's limits; this docstring deliberately
 copies none of its rows.
+
+The separate voice identity row's ceiling belongs to
+``voice_model_identity.DECLARED_LIMITS``; this module copies no row.
 """
 
 from __future__ import annotations
@@ -66,10 +69,11 @@ import page_image
 import pdf_engine
 from run_grader import NOT_GRADED
 import aar_scan
+import voice_model_identity
 import heading_read
 import research_ledger
 
-EXPECTED_COMPLETION_CHECKS = (aar_scan.EXPECTED_ROW,)
+EXPECTED_COMPLETION_CHECKS = (aar_scan.EXPECTED_ROW, voice_model_identity.EXPECTED_ROW)
 import coursework_run
 from run_grader import EvidenceDisposition
 import docx_write
@@ -1607,7 +1611,7 @@ def grade(source: RunSource, _parsed: run_grader.Parsed) -> run_grader.Grade[Sca
     aar_failed, aar_report = aar_scan.completion_gate(
         source.path, _parsed.value("--submission")
     )
-    return run_grader.Grade(
+    grade = run_grader.Grade(
         scan=scanned,
         source=str(source.path),
         findings_failed=any(
@@ -1637,6 +1641,9 @@ def grade(source: RunSource, _parsed: run_grader.Parsed) -> run_grader.Grade[Sca
             else ()
         ),
         reports=(aar_report,),
+    )
+    return voice_model_identity.apply_completion_gate(
+        grade, source.path, _parsed.value("--submission")
     )
 
 

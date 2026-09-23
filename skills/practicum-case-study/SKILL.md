@@ -441,9 +441,13 @@ settling the one question #213 left open. [../_shared/reference/voice.md](../_sh
 for what to ask for and §4 is how the samples are read; that step points at both rather than
 restating either.
 
-**Look in the main checkout before concluding there is no model.** `scratch/` is gitignored and a `git worktree` has none, so a model that exists can read as missing — see *Where `scratch/` actually is* in [setup-clinical-skills](../setup-clinical-skills/SKILL.md). Declaring an unmodeled voice against a model that was merely out of reach is a false declaration, not a safe default.
+**Resolve the model before concluding there is none.** `tools/voice_model_identity.py` uses the
+account-owned resolver; a worktree's own gitignored `scratch/` is not evidence of absence. See
+*Where `scratch/` actually is* in
+[setup-clinical-skills](../setup-clinical-skills/SKILL.md). Declaring an unmodeled voice against a
+model that was merely out of reach is a false declaration, not a safe default.
 
-**Where there is genuinely no model, the run says so.** A run that finds no `scratch/voice-model.md` writes
+**Where there is genuinely no model, the run says so.** A run whose resolver reports the existing absent-model banner writes
 in the §11 mechanics and **says in the `PROPOSED` block that the voice is unmodeled**, rather than
 claiming a register it has not been given. **The declaration is per register**, not per document —
 [../_shared/reference/voice.md](../_shared/reference/voice.md) §7. A model built from three MDMs and nothing else has
@@ -874,7 +878,13 @@ In skeleton order, in his voice — [../_shared/reference/style.md](../_shared/r
 part that matters most is that the voice is **first person and decisive**. `I would`, `I will`,
 `I'm going to stop`. Never *the provider should consider*.
 
-**Read `scratch/voice-model.md` first, if it exists**, and write each section in the register that
+Immediately before drafting the first prose, run:
+
+```bash
+python tools/voice_model_identity.py scratch/runs/<run-key> --write
+```
+
+**Read only the canonical path the identity command reports**, and write each section in the register that
 section takes — the MDM, the patient education and the reflective prose are three different voices
 and [../_shared/reference/voice.md](../_shared/reference/voice.md) §2 says which is which. Where the model declares a
 register unmodeled, that section is written in the §11 mechanics and the gap is declared in
@@ -1545,7 +1555,8 @@ Then walk this list, by eye — none of it is mechanical:
   `the rendered document`, `SOURCE` naming `word-pdf`, `word-xps`, or `clinician`, and `PASS`
   naming the positive final retained pass?
 - Is the Patient Education spoken, jargon-free, and does it end on the follow-up interval?
-- **Read the draft back against the discriminating pairs in `scratch/voice-model.md`**, register by
+- **Read the draft back against the discriminating pairs in the canonical model recorded by
+  `tools/voice_model_identity.py`**, register by
   register — for each pair, which half does the draft's sentence resemble?
   [../_shared/reference/voice.md](../_shared/reference/voice.md) §5. Where the model is absent or a register is
   unmodeled, that is what `PROPOSED` declares rather than something this step can settle.

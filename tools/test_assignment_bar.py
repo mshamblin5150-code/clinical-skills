@@ -73,6 +73,21 @@ class ArtifactDiscrimination(unittest.TestCase):
         self.assertEqual("docx", envelope.artifact)
         self.assertEqual(17, status)
 
+    def test_dispatcher_preserves_adapter_option_failure(self):
+        with tempfile.TemporaryDirectory() as directory:
+            run = Path(directory)
+            (run / "bar.md").write_text(DOCX_BAR, encoding="utf-8")
+            adapter = mock.Mock()
+            adapter.main.return_value = 2
+            with mock.patch.object(
+                course_assignment_scan, "_import_adapter", return_value=adapter
+            ):
+                status = course_assignment_scan.main(
+                    [str(run), "--artifact", "paper.docx", "--submission", "--show"]
+                )
+
+        self.assertEqual(2, status)
+
     def test_bar_only_validation_does_not_require_a_finished_artifact(self):
         with tempfile.TemporaryDirectory() as directory:
             run = Path(directory)

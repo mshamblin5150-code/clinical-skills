@@ -17,6 +17,9 @@ and the ceiling is a count a reader weighs.
 
 What a clean run does not establish is declared by ``NOT_REACHED``. The module
 owns that complete inventory; this docstring copies no row from it.
+
+The separate voice identity row's ceiling belongs to
+``voice_model_identity.DECLARED_LIMITS``; this module copies no row.
 """
 
 from __future__ import annotations
@@ -44,10 +47,11 @@ import file_digest
 from run_grader import NOT_GRADED, EvidenceDisposition
 from research_ledger import REFUTATION_EVIDENCE_COMPLEMENT
 import aar_scan
+import voice_model_identity
 import heading_read
 import research_ledger
 
-EXPECTED_COMPLETION_CHECKS = (aar_scan.EXPECTED_ROW,)
+EXPECTED_COMPLETION_CHECKS = (aar_scan.EXPECTED_ROW, voice_model_identity.EXPECTED_ROW)
 
 
 MISSING_HEADING = "missing-heading"
@@ -131,6 +135,7 @@ NO_CRITIQUE = "no critique in the run"
 NO_ROSTER = "no roster post carries an AUTHOR line"
 REFUSED_LABEL = "critique reference label refused"
 UNREAD_REMAINDER = "unread remainder"
+VOICE_MODEL_IDENTITY_UNVERIFIED = "canonical voice model identity unverified"
 INVALID_INVOCATION = "invalid invocation"
 EXIT_2_LIMBS = (
     INVALID_INVOCATION,
@@ -139,6 +144,7 @@ EXIT_2_LIMBS = (
     NO_ROSTER,
     REFUSED_LABEL,
     UNREAD_REMAINDER,
+    VOICE_MODEL_IDENTITY_UNVERIFIED,
 )
 
 UNJOINED_SOURCE_FIELDS = ", ".join(REFUTATION_EVIDENCE_COMPLEMENT)
@@ -583,7 +589,7 @@ def load(parsed: run_grader.Parsed) -> RunSource:
 def grade(source: RunSource, parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
     scanned = survey(source)
     aar_failed, aar_report = aar_scan.completion_gate(source.path, parsed.value("--submission"))
-    return run_grader.Grade(
+    grade = run_grader.Grade(
         scan=scanned,
         source=str(source.path),
         findings_failed=any(
@@ -614,6 +620,12 @@ def grade(source: RunSource, parsed: run_grader.Parsed) -> run_grader.Grade[Scan
             else ()
         ),
         reports=(aar_report,),
+    )
+    return voice_model_identity.apply_completion_gate(
+        grade,
+        source.path,
+        parsed.value("--submission"),
+        coverage_limb=VOICE_MODEL_IDENTITY_UNVERIFIED,
     )
 
 

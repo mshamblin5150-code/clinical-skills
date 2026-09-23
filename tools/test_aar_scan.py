@@ -28,6 +28,7 @@ import discussion_reply_scan
 import filled_vitals_census
 import grader_conformance
 import specificity_scan
+import voice_model_identity
 
 
 GraderConformance = grader_conformance.for_module(aar_scan)
@@ -2663,7 +2664,10 @@ class EveryScopedCompletionGraderExpectsTheReview(unittest.TestCase):
         for skill, module_name in aar_scan.COMPLETION_GRADERS.items():
             with self.subTest(skill=skill, grader=module_name):
                 module = importlib.import_module(module_name)
-                self.assertEqual(module.EXPECTED_COMPLETION_CHECKS, (aar_scan.EXPECTED_ROW,))
+                expected = (aar_scan.EXPECTED_ROW,)
+                if skill in voice_model_identity.SCOPED_SKILLS:
+                    expected += (voice_model_identity.EXPECTED_ROW,)
+                self.assertEqual(module.EXPECTED_COMPLETION_CHECKS, expected)
                 text = (
                     Path(__file__).resolve().parent.parent / "skills" / skill / "SKILL.md"
                 ).read_text(encoding="utf-8")

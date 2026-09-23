@@ -326,6 +326,7 @@ class Run:
     def terminal(self, *, bind: bool = True) -> tuple[int, str, str]:
         if bind and not (self.root / "reread.md").is_file():
             self.write_reread()
+        scan.voice_model_identity.write_record(self.root)
         with mock.patch.object(
             scan.aar_scan,
             "completion_gate",

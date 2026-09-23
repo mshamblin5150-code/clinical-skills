@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Dispatch one course-assignment grade through its signed artifact branch."""
+"""Dispatch one course-assignment grade through its signed artifact branch.
+
+The voice identity row's ceiling belongs to
+``voice_model_identity.DECLARED_LIMITS``; this dispatcher copies no row.
+"""
 
 from __future__ import annotations
 
@@ -11,10 +15,11 @@ from types import ModuleType
 import assignment_bar
 import aar_scan
 import run_grader
+import voice_model_identity
 from console_codec import require_python_floor, use_utf8
 
 
-EXPECTED_COMPLETION_CHECKS = (aar_scan.EXPECTED_ROW,)
+EXPECTED_COMPLETION_CHECKS = (aar_scan.EXPECTED_ROW, voice_model_identity.EXPECTED_ROW)
 
 
 def _import_adapter(name: str) -> ModuleType:

@@ -30,6 +30,7 @@ import reference_scan
 import render_pass
 import research_ledger
 import run_grader
+import voice_model_identity
 from run_grader import NOT_GRADED
 
 
@@ -66,7 +67,10 @@ ROWS = (
     RENDERED_RECORD,
 )
 KINDS = ROWS
-EXPECTED_COMPLETION_CHECKS = (aar_scan.EXPECTED_ROW,)
+EXPECTED_COMPLETION_CHECKS = (
+    aar_scan.EXPECTED_ROW,
+    voice_model_identity.EXPECTED_ROW,
+)
 
 
 @dataclass(frozen=True)
@@ -489,13 +493,16 @@ def grade(source: Source, parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
         gate_failed, gate_report = assignment_submission.completion_gate(
             source.root, source.docx
         )
-    return run_grader.Grade(
+    grade = run_grader.Grade(
         scan=scan,
         source=str(source.root),
         findings_failed=bool(scan.findings) or aar_failed or gate_failed,
         coverage_failed=not source.paragraphs,
         diagnostics=("DOCX findings require review",) if scan.findings else (),
         reports=(gate_report, aar_report),
+    )
+    return voice_model_identity.apply_completion_gate(
+        grade, source.root, submission
     )
 
 

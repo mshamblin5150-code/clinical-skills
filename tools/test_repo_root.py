@@ -14,12 +14,14 @@ layer looks for ``scratch/`` somewhere it has never been.
 
 import tempfile
 import unittest
+from hashlib import sha256
 from pathlib import Path
 
 from repo_root import (
     ForeignCheckout,
     InsideCheckout,
     checkout_git_dir,
+    canonical_voice_model,
     enclosing_checkout,
     ensure_main_checkout,
     ensure_outside_checkout,
@@ -94,6 +96,31 @@ class ScratchRoot(Checkouts):
         about a layer going quiet, so the resolver must not quietly return None."""
         self.assertFalse(scratch_root(self.main / "tools").exists())
         self.assertEqual(scratch_root(self.main / "tools").name, "scratch")
+
+
+class CanonicalVoiceModel(Checkouts):
+    """One resolver owns the model's path, digest, and existence state. #1393."""
+
+    def test_a_worktree_resolves_the_existing_account_model_with_its_digest(self):
+        gitdir = self.main / ".git" / "worktrees" / "ticket-93"
+        tree = self.worktree(gitdir.as_posix())
+        model = self.main / "scratch" / "voice-model.md"
+        model.parent.mkdir()
+        payload = b"canonical voice\n"
+        model.write_bytes(payload)
+
+        resolved = canonical_voice_model(tree / "tools")
+
+        self.assertEqual(resolved.path, model)
+        self.assertTrue(resolved.exists)
+        self.assertEqual(resolved.sha256, sha256(payload).hexdigest())
+
+    def test_absence_keeps_the_canonical_path_and_has_no_digest(self):
+        resolved = canonical_voice_model(self.main / "tools")
+
+        self.assertEqual(resolved.path, self.main / "scratch" / "voice-model.md")
+        self.assertFalse(resolved.exists)
+        self.assertIsNone(resolved.sha256)
 
 
 class OutputRoot(Checkouts):
