@@ -60,6 +60,7 @@ NO_LIMITS = {
     "guidelines_manifest_test_support": "test support for guideline-manifest fixtures, not a public checker",
     "guidelines_recs_test_support": "test support for recommendation fixtures, not a public checker",
     "guidelines_search": "a bounded query command whose result limit is separately classified",
+    "install_grilling_guard": "a deterministic installer whose explicitly named user files define its targets",
     "harvest_review": "an interactive review helper that makes no exhaustive population claim",
     "icd10_build": "a database builder whose input and schema checks define its work",
     "icd10_lookup": "an exact local database lookup rather than a completeness grader",
