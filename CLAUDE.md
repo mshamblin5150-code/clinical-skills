@@ -1511,6 +1511,22 @@ Covered by `tools/test_tracker_readback.py`, which drives invented publication
 text and fetched-record dictionaries through the parser and formatter without
 opening a socket.
 
+### Grilling guard
+
+[`docs/agents/grilling.md`](docs/agents/grilling.md) is the one tracked format for a grilling
+question. `python tools/install_grilling_guard.py` places that text in a marked block in the
+user-level Codex `AGENTS.md`, preserves every other line, registers `tools/grilling_stop_hook.py`
+beside existing Stop hooks by the owning checkout's absolute path, and replaces an existing Claude
+memory file named `grill-one-question-at-a-time.md` with a pointer to the tracked source. Repeating
+the command replaces its own block and hook registration instead of appending another copy.
+
+The Stop hook grades only the interval between a command that opens a `grilling`, `grill-me`, or
+`grill-with-docs` skill file and an assistant reply carrying the format's fixed closing line. It
+retracts a bundled, incomplete, or out-of-block question after display, suppresses its own retry,
+and reports a stale installed format block. The complete detection boundary belongs to
+`grilling_stop_hook.DECLARED_LIMITS`; this section points at that object and copies none of its
+rows.
+
 ### Browser tab hook
 
 The browser-tab `PreToolUse` hook is registered without an `if` condition in
