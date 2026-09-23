@@ -908,6 +908,7 @@ without requiring Word or PyMuPDF.
 
 ```bash
 python tools/aar_scan.py <run-directory> --submission <key> --memory-index <MEMORY.md> --extract
+python tools/aar_scan.py <run-directory> --submission <key> --memory-index <MEMORY.md> --extract --rebuild-round <number>
 python tools/aar_scan.py <run-directory> --submission <key> [--show]
 ```
 

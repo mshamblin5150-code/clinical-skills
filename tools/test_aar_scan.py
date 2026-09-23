@@ -482,8 +482,11 @@ class ReductionByEntryShape(unittest.TestCase):
             candidates = aar_scan.reduce_transcript(transcript)
 
         self.assertEqual(
-            [(candidate.identifier, candidate.kind) for candidate in candidates],
-            [("reader-9", "task-notification")],
+            [
+                (candidate.identifier, candidate.kind, candidate.aliases)
+                for candidate in candidates
+            ],
+            [("attachment-row", "task-notification", ("reader-9",))],
         )
 
     def test_assistant_and_queue_notification_envelopes_are_first_class_entries(self) -> None:
@@ -524,11 +527,46 @@ class ReductionByEntryShape(unittest.TestCase):
             candidates = aar_scan.reduce_transcript(transcript)
 
         self.assertEqual(
-            [(candidate.identifier, candidate.kind) for candidate in candidates],
             [
-                ("reader-10", "task-notification"),
-                ("reader-11", "task-notification"),
-                ("unknown-queue-row", "harness-meta"),
+                (candidate.identifier, candidate.kind, candidate.aliases)
+                for candidate in candidates
+            ],
+            [
+                ("assistant-row#text-1", "task-notification", ("reader-10",)),
+                ("queue-row", "task-notification", ("reader-11",)),
+                ("unknown-queue-row", "harness-meta", ()),
+            ],
+        )
+
+    def test_distinct_notifications_for_one_task_keep_their_own_rows(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            transcript = Path(directory) / "session-1.jsonl"
+            notifications = tuple(
+                (
+                    "[SYSTEM NOTIFICATION - NOT USER INPUT]\n"
+                    "<task-notification><task-id>reader-shared</task-id>"
+                    f"<result>{result}</result></task-notification>"
+                )
+                for result in ("First update.", "Second update.")
+            )
+            transcript.write_text(
+                "\n".join(
+                    json.dumps(
+                        row("user", f"notification-{index}", {"content": notification})
+                    )
+                    for index, notification in enumerate(notifications, 1)
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            candidates = aar_scan.reduce_transcript(transcript)
+
+        self.assertEqual(
+            [(candidate.identifier, candidate.aliases) for candidate in candidates],
+            [
+                ("notification-1", ("reader-shared",)),
+                ("notification-2", ("reader-shared",)),
             ],
         )
 
@@ -992,6 +1030,282 @@ class SubmissionRecord(unittest.TestCase):
     def extract(self) -> tuple[dict[str, str], set[str]]:
         aar_scan.write_extract(self.run, self.transcript, self.submission, self.memory)
         return aar_scan._extract_metadata(aar_scan.extract_path(self.run, self.submission))
+
+    def test_repeated_task_notification_rows_form_one_readable_extract(self) -> None:
+        notification = (
+            "[SYSTEM NOTIFICATION - NOT USER INPUT]\n"
+            "<task-notification><task-id>reader-duplicate</task-id>"
+            "<result>Finished.</result></task-notification>"
+        )
+        self.transcript.write_text(
+            "\n".join(
+                json.dumps(item)
+                for item in (
+                    {
+                        "type": "queue-operation",
+                        "uuid": "notification-enqueue",
+                        "operation": "enqueue",
+                        "content": notification,
+                    },
+                    row("user", "notification-delivery", {"content": notification}),
+                    {
+                        "type": "queue-operation",
+                        "uuid": "notification-remove",
+                        "operation": "remove",
+                        "content": notification,
+                    },
+                )
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        destination, count = aar_scan.write_extract(
+            self.run, self.transcript, self.submission, self.memory
+        )
+        _fields, identifiers = aar_scan._extract_metadata(destination)
+
+        self.assertEqual(count, 3)
+        self.assertEqual(
+            identifiers,
+            {"notification-enqueue", "notification-delivery", "notification-remove"},
+        )
+
+    def test_an_unreadable_built_extract_leaves_no_round_files(self) -> None:
+        population = [
+            aar_scan.Candidate("duplicate", self.transcript.stem, "clinician", "First."),
+            aar_scan.Candidate("duplicate", self.transcript.stem, "assistant", "Second."),
+        ]
+        discovery = aar_scan.TranscriptDiscovery(
+            paths=(self.transcript,),
+            found=1,
+            skipped_by_time=0,
+            skipped_by_byte_search=0,
+            read=1,
+        )
+
+        with (
+            mock.patch.object(
+                aar_scan,
+                "_collect_population",
+                return_value=(population, (self.transcript,), discovery),
+            ),
+            self.assertRaisesRegex(ValueError, "identifier is absent or duplicated"),
+        ):
+            aar_scan.write_extract(
+                self.run, self.transcript, self.submission, self.memory
+            )
+
+        self.assertFalse(aar_scan.extract_path(self.run, self.submission).exists())
+        self.assertFalse(aar_scan.baseline_path(self.run, self.submission).exists())
+
+    def test_rebuild_round_repairs_only_notification_identifiers(self) -> None:
+        notification = (
+            "[SYSTEM NOTIFICATION - NOT USER INPUT]\n"
+            "<task-notification><task-id>reader-rebuild</task-id>"
+            "<result>Finished.</result></task-notification>"
+        )
+        identifiers = (
+            "notification-enqueue",
+            "notification-delivery",
+            "notification-remove",
+        )
+        self.transcript.write_text(
+            "\n".join(
+                json.dumps(item)
+                for item in (
+                    {
+                        "type": "queue-operation",
+                        "uuid": identifiers[0],
+                        "operation": "enqueue",
+                        "content": notification,
+                    },
+                    row("user", identifiers[1], {"content": notification}),
+                    {
+                        "type": "queue-operation",
+                        "uuid": identifiers[2],
+                        "operation": "remove",
+                        "content": notification,
+                    },
+                )
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        destination, _count = aar_scan.write_extract(
+            self.run, self.transcript, self.submission, self.memory
+        )
+        fields, _identifiers = aar_scan._extract_metadata(destination)
+        refused = destination.read_text(encoding="utf-8")
+        for identifier in identifiers:
+            refused = refused.replace(
+                f"## ENTRY: {identifier}", "## ENTRY: reader-rebuild"
+            )
+        refused = refused.replace(
+            f"{self.transcript.stem}={identifiers[-1]}",
+            f"{self.transcript.stem}=reader-rebuild",
+        ).replace(
+            f"WATERMARK: {identifiers[-1]}", "WATERMARK: reader-rebuild"
+        )
+        destination.write_text(refused, encoding="utf-8")
+        baseline = aar_scan.baseline_path(self.run, self.submission).read_bytes()
+        review = aar_scan.review_path(self.run, self.submission)
+        review.write_text(
+            "# AFTER-ACTION REVIEW\n"
+            f"SUBMISSION: {self.submission}\n"
+            f"TRANSCRIPTS: {fields['TRANSCRIPTS']}\n"
+            "POPULATION: 3\n"
+            "UNREAD: 0\n"
+            "WATERMARK: reader-rebuild\n"
+            f"MEMORY-INDEX: {self.memory.resolve()}\n"
+            "CLASSIFIER: fresh adversarial reader - test\n"
+            "CLASSIFIER-ENTRY: reader-next\n"
+            "DISAGREEMENTS: none recorded\n"
+            "CORRECTIONS: none\n"
+            "SUSTAINS: none\n",
+            encoding="utf-8",
+        )
+        review_bytes = review.read_bytes()
+
+        status, stdout, stderr = invoke_main(
+            [
+                str(self.run),
+                "--submission",
+                self.submission,
+                "--transcript",
+                str(self.transcript),
+                "--memory-index",
+                str(self.memory),
+                "--extract",
+                "--rebuild-round",
+                "1",
+            ]
+        )
+
+        scan = aar_scan.survey(self.run, self.submission)
+        self.assertEqual([finding.kind for finding in scan.findings], [], stdout)
+        self.assertEqual((status, stderr), (0, ""), stdout)
+        self.assertIn("rebuilt round                 1", stdout)
+        self.assertIn("review records                  1", stdout)
+        self.assertIn("findings                        0", stdout)
+        _fields, rebuilt_identifiers = aar_scan._extract_metadata(destination)
+        self.assertEqual(rebuilt_identifiers, set(identifiers))
+        self.assertEqual(
+            (self.run / "aar" / "refused" / destination.name).read_text(encoding="utf-8"),
+            refused,
+        )
+        self.assertEqual(
+            aar_scan.baseline_path(self.run, self.submission).read_bytes(), baseline
+        )
+        self.assertEqual(review.read_bytes(), review_bytes)
+
+    def test_rebuild_round_rejects_a_changed_non_notification_identifier(self) -> None:
+        self.transcript.write_text(
+            json.dumps(row("user", "original-row", {"content": "Review this."}))
+            + "\n",
+            encoding="utf-8",
+        )
+        destination, _count = aar_scan.write_extract(
+            self.run, self.transcript, self.submission, self.memory
+        )
+        refused = destination.read_bytes()
+        baseline = aar_scan.baseline_path(self.run, self.submission).read_bytes()
+        self.transcript.write_text(
+            json.dumps(row("user", "changed-row", {"content": "Review this."}))
+            + "\n",
+            encoding="utf-8",
+        )
+
+        status, _stdout, stderr = invoke_main(
+            [
+                str(self.run),
+                "--submission",
+                self.submission,
+                "--memory-index",
+                str(self.memory),
+                "--extract",
+                "--rebuild-round",
+                "1",
+            ]
+        )
+
+        self.assertEqual(status, 2)
+        self.assertIn("changed a non-notification entry identifier", stderr)
+        self.assertEqual(destination.read_bytes(), refused)
+        self.assertEqual(
+            aar_scan.baseline_path(self.run, self.submission).read_bytes(), baseline
+        )
+        self.assertFalse((self.run / "aar" / "refused").exists())
+
+    def test_rebuild_round_compares_the_writers_normalized_line_endings(self) -> None:
+        self.transcript.write_text(
+            json.dumps(
+                row("user", "windows-lines", {"content": "First line.\r\nSecond line."})
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        aar_scan.write_extract(
+            self.run, self.transcript, self.submission, self.memory
+        )
+
+        destination, count, _archived = aar_scan.rebuild_extract(
+            self.run, self.submission, 1
+        )
+
+        self.assertEqual(count, 1)
+        _fields, identifiers = aar_scan._extract_metadata(destination)
+        self.assertEqual(identifiers, {"windows-lines"})
+
+    def test_rebuild_round_uses_earlier_cursors_and_its_recorded_entry_count(self) -> None:
+        self.transcript.write_text(
+            json.dumps(row("user", "round-one", {"content": "First round."})) + "\n",
+            encoding="utf-8",
+        )
+        first, _count = aar_scan.write_extract(
+            self.run, self.transcript, self.submission, self.memory
+        )
+        first_fields, _identifiers = aar_scan._extract_metadata(first)
+        aar_scan.review_path(self.run, self.submission).write_text(
+            f"TRANSCRIPTS: {self.transcript.stem}\n"
+            f"WATERMARK: {first_fields['WATERMARK']}\n",
+            encoding="utf-8",
+        )
+        notification = (
+            "<task-notification><task-id>reader-round-two</task-id>"
+            "<result>Finished.</result></task-notification>"
+        )
+        with self.transcript.open("a", encoding="utf-8") as stream:
+            stream.write(
+                json.dumps(row("user", "round-two-first", {"content": notification}))
+                + "\n"
+            )
+            stream.write(
+                json.dumps(row("user", "round-two-second", {"content": notification}))
+                + "\n"
+            )
+        second, _count = aar_scan.write_extract(
+            self.run, self.transcript, self.submission, self.memory
+        )
+        refused = second.read_text(encoding="utf-8")
+        for identifier in ("round-two-first", "round-two-second"):
+            refused = refused.replace(
+                f"## ENTRY: {identifier}", "## ENTRY: reader-round-two"
+            )
+        second.write_text(refused, encoding="utf-8")
+        with self.transcript.open("a", encoding="utf-8") as stream:
+            stream.write(
+                json.dumps(row("user", "after-round-two", {"content": "Later sitting."}))
+                + "\n"
+            )
+
+        destination, count, _archived = aar_scan.rebuild_extract(
+            self.run, self.submission, 2
+        )
+        _fields, identifiers = aar_scan._extract_metadata(destination)
+
+        self.assertEqual(count, 2)
+        self.assertEqual(identifiers, {"round-two-first", "round-two-second"})
 
     def test_version_two_extract_frames_a_body_that_quotes_an_entry_heading(self) -> None:
         self.transcript.write_text(
@@ -1527,7 +1841,17 @@ class SubmissionRecord(unittest.TestCase):
                     row("user", "watermark", {"content": "First sitting."}),
                     row(
                         "user",
-                        "notification-row",
+                        "notification-enqueue",
+                        {
+                            "content": (
+                                "<task-notification><task-id>reader-1</task-id>"
+                                "<result>Earlier verdicts.</result></task-notification>"
+                            )
+                        },
+                    ),
+                    row(
+                        "user",
+                        "notification-delivery",
                         {
                             "content": (
                                 "<task-notification><task-id>reader-1</task-id>"
@@ -1558,7 +1882,13 @@ class SubmissionRecord(unittest.TestCase):
 
         population, _transcripts = aar_scan.collect_population(self.run, self.transcript)
 
-        self.assertEqual([(item.identifier, item.kind) for item in population], [("reader-1", "prior-review")])
+        self.assertEqual(
+            [(item.identifier, item.kind) for item in population],
+            [
+                ("notification-enqueue", "prior-review"),
+                ("notification-delivery", "prior-review"),
+            ],
+        )
 
     def test_prior_records_select_the_furthest_watermark_not_the_last_filename(self) -> None:
         self.transcript.write_text(
@@ -1620,6 +1950,37 @@ class SubmissionRecord(unittest.TestCase):
         population, _transcripts = aar_scan.collect_population(self.run, self.transcript)
 
         self.assertEqual([candidate.identifier for candidate in population], ["after"])
+
+    def test_a_task_id_watermark_resolves_to_its_first_notification_entry(self) -> None:
+        notification = (
+            "<task-notification><task-id>reader-shared</task-id>"
+            "<result>Finished.</result></task-notification>"
+        )
+        self.transcript.write_text(
+            "\n".join(
+                json.dumps(item)
+                for item in [
+                    row("user", "notification-first", {"content": notification}),
+                    row("user", "notification-second", {"content": notification}),
+                    row("user", "after", {"content": "Continue."}),
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        aar = self.run / "aar"
+        aar.mkdir()
+        (aar / "legacy.md").write_text(
+            f"TRANSCRIPTS: {self.transcript.stem}\nWATERMARK: reader-shared\n",
+            encoding="utf-8",
+        )
+
+        population, _transcripts = aar_scan.collect_population(self.run, self.transcript)
+
+        self.assertEqual(
+            [candidate.identifier for candidate in population],
+            ["notification-second", "after"],
+        )
 
     def test_a_legacy_classifier_entry_alias_is_relabelled_as_a_prior_review(self) -> None:
         self.transcript.replace(self.transcript.with_name("rollout.jsonl"))

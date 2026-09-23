@@ -44,7 +44,7 @@ Name every correction and sustain by one entry, using the identifier exactly as 
 
 A preference stated for the first time is not a correction. A correction whose corrector was wrong is supported; identify who was actually in error. The classifier reads the memory index so it can distinguish missing knowledge from knowledge that already existed and went unread.
 
-An entry labeled `prior-review` is a previous classifier's return, not fresh evidence. Re-derive every verdict it contains from the other entries in this extract; do not adopt or exclude it. Retain the extract identifier of this sitting's classifier return for `CLASSIFIER-ENTRY` in the record.
+An entry labeled `prior-review` is a previous classifier's return, not fresh evidence. Re-derive every verdict it contains from the other entries in this extract; do not adopt or exclude it. Retain the task id the classifier's return will carry for `CLASSIFIER-ENTRY` in the record.
 
 The orchestrator verifies the return. It may overrule a classification, but writes both verdicts, who overruled whom, and a substantive reason. It never removes an entry from the fixed population.
 
@@ -79,7 +79,7 @@ UNREAD: 0
 WATERMARK: <copy from the extract>
 MEMORY-INDEX: <path read by the classifier>
 CLASSIFIER: fresh adversarial reader - <identity>
-CLASSIFIER-ENTRY: <extract identifier that will carry this classifier's return>
+CLASSIFIER-ENTRY: <task id the classifier's return will carry>
 DISAGREEMENTS: none recorded
 CORRECTIONS: none
 SUSTAINS: none
