@@ -61,6 +61,13 @@ instructions or whether the encounter earns the code.
 
 **`tools/peer_critique_scan.py` and `tools/voice_model_scan.py` are Required commands for `peer-critique`.** The first is its completion grader; after an install has been tried, a consumer without it can walk the same rows by eye but cannot call the run mechanically verified. The second is required before drafting against the clinician's model; without it the draft is not written against the model. `tools/voice_model_scan.py` is a Required command for `discussion-reply` and `setup-clinical-skills` on the same terms.
 
+**`tools/voice_model_identity.py` is a Required command for the scoped coursework readers.**
+`course-assignment`, `discussion-post`, `practicum-case-study`, `discussion-reply`, and
+`peer-critique` run it immediately before drafting. It resolves the canonical account model and
+writes its path, digest, and existence state into the run directory; their completion graders
+enable the shared identity row with `--submission`. Without a clean required write, the coursework
+draft is not identified against the canonical model.
+
 **`practicum-case-study` requires its committed readers, graders, and producers.**
 `tools/research_ledger.py`, `tools/reference_scan.py`, `tools/checks_ledger.py`, and
 `tools/case_study_scan.py` grade required stages of the run. After an install has been tried, a

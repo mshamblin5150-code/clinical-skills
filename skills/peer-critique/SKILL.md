@@ -181,11 +181,14 @@ inventoried in `research_ledger.DECLARED_LIMITS`; this skill points there withou
 
 ## 4. Draft the critique
 
-Read `scratch/voice-model.md`. Before drafting, run:
+Immediately before drafting the first prose, run:
 
 ```bash
+python tools/voice_model_identity.py scratch/runs/<run-key> --write
 python tools/voice_model_scan.py
 ```
+
+Read only the canonical path the identity command reports.
 
 Exit 0 is required to draft against the model. Exit 2 refuses drafting unless the banner explicitly
 says the model is absent; only that limb opens

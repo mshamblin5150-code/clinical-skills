@@ -180,6 +180,7 @@ def run(argv: list[str], *, bind: bool = True) -> tuple[int, str, str]:
         )
         if "--submission" in arguments:
             submission = arguments[arguments.index("--submission") + 1]
+            checks.voice_model_identity.write_record(checks_path.parent)
             output = checks_path.parent / "output"
             output.mkdir(exist_ok=True)
             document = output / f"{submission}.md"

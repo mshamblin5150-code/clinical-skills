@@ -76,7 +76,7 @@ is authoritative, including edits. Write the complete state to `board-<date>.md`
 classmate contributions under `posts/` for provenance.
 
 The drafting context does not see the classmate posts. Give it only the prompt, the signed bar,
-and `scratch/voice-model.md`. Neighboring posts demonstrate what normal looks like; showing them
+and the canonical model path reported by `tools/voice_model_identity.py`. Neighboring posts demonstrate what normal looks like; showing them
 before drafting quietly normalizes the clinician's argument toward the board.
 
 Open the derived syllabus page. Read the initial-post bar there: word floor and ceiling, reference
@@ -125,15 +125,22 @@ inventory of what that command cannot decide.
 
 ## 3. Draft blind, then derive the claim set from the document
 
-Read `scratch/voice-model.md` and use register 3 throughout. Preserve confirmed sentence shapes,
+Immediately before drafting the first prose, run:
+
+```bash
+python tools/voice_model_identity.py scratch/runs/<course>-<module>-discussion --write
+```
+
+Read only the canonical path the identity command reports and use register 3 throughout. Preserve confirmed sentence shapes,
 hedges attached to facts, and the clinician's argumentative posture. Do not copy chat typos or
 lowercase message openings. An invoked source already present in the clinician's reasoning may
 stay; the skill is licensed to add none.
 
-If `scratch/voice-model.md` is absent, follow [voice.md](../_shared/reference/voice.md)
+If the identity command reports the existing absent-model banner, follow [voice.md](../_shared/reference/voice.md)
 §8's no-model rule in full. Write the declaration it requires to
 `scratch/runs/<course>-<module>-discussion/voice-status.md`. Keep `voice-status.md` in the private
-run record; do not copy it into the finished post or the LMS.
+run record; do not copy it into the finished post or the LMS. Any other nonzero result refuses
+drafting.
 
 Mark every retained invoked source on its own working line:
 

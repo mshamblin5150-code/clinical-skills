@@ -142,9 +142,17 @@ reader's work.
 
 ## 3. Produce the deck
 
-Read `scratch/voice-model.md` and use its reflective or argumentative register. If it is absent,
-follow [voice.md](../_shared/reference/voice.md)'s no-model rule and keep the resulting
-status in the private run record. Generate the `.pptx` agent-side. Do not build or call a repository PowerPoint writer. Keep the
+Immediately before drafting the first prose, resolve and record the canonical model:
+
+```bash
+python tools/voice_model_identity.py scratch/runs/<course>-<module>-course-assignment --write
+```
+
+Read only the path the identity command reports and use its reflective or argumentative register.
+If the command reports the existing absent-model banner, follow
+[voice.md](../_shared/reference/voice.md)'s no-model rule; the machine-written identity record keeps
+that state in the private run directory. Any other nonzero result refuses drafting. Generate the
+`.pptx` agent-side. Do not build or call a repository PowerPoint writer. Keep the
 slide face within the signed container and put the supporting narrative in speaker notes. Speaker
 notes are outside the projected 6x6 container and inside the claim surface because the clinician
 may say them to the audience.

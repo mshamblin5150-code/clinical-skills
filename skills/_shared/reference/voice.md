@@ -378,10 +378,10 @@ from graded prose; it never licenses amplifying the feature to imitate a percent
 **Where a run reads it.** [practicum-case-study](../../practicum-case-study/SKILL.md) step 5, before drafting, and step 9, where the
 draft is read back against the discriminating pairs.
 
-**Where there is no model.** A run that finds no `scratch/voice-model.md` writes in the §11
-mechanics and **says in the `PROPOSED` block that the voice is unmodeled**, rather than claiming a
-register it was not given. That rule predates this file and it survives it. What changes is that
-the declaration is now per register, on §7's terms.
+**Where there is no model.** A run whose `repo_root.canonical_voice_model()` resolution explicitly
+reports absence writes in the §11 mechanics and **says in the `PROPOSED` block that the voice is unmodeled**,
+rather than claiming a register it was not given. That rule predates this file and it survives it.
+What changes is that the declaration is now per register, on §7's terms.
 
 **A run does not stop to collect samples mid-draft.** Building a model is
 [setup-clinical-skills](../../setup-clinical-skills/SKILL.md) step 8's job, it needs the clinician

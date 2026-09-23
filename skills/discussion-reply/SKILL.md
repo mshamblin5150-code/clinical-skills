@@ -177,17 +177,18 @@ command.
 
 ## 3. Draft reply one
 
-Read `scratch/voice-model.md`, especially the confirmed reflective and argumentative register. Use
+Immediately before drafting the first prose, run:
+
+```bash
+python tools/voice_model_identity.py scratch/runs/<run-key> --write
+python tools/voice_model_scan.py
+```
+
+Read only the canonical path the identity command reports, especially the confirmed reflective and argumentative register. Use
 its discriminating pairs and confirmed constructions. Do not reproduce chat typos or lowercase
 message openings. Where the model says invoked sources intensify in citation-bearing writing,
 preserve that option; it licenses adding none and never licenses adding a second instance because
 the first sounded good.
-
-Before drafting, run:
-
-```bash
-python tools/voice_model_scan.py
-```
 
 Exit 0 is required to draft against the model. Exit 1 refuses the draft until the model's shape is
 repaired. Exit 2 refuses drafting unless the banner explicitly says `voice model: NOT RUN -- no
@@ -198,7 +199,7 @@ and rerun rather than treated as unmodeled. The default report is counts only. `
 working material and must not be pasted. A clean scan grades shape, not whether the model is true
 of the clinician.
 
-If `scratch/voice-model.md` is absent, follow [voice.md](../_shared/reference/voice.md)
+If the identity command reports the existing absent-model banner, follow [voice.md](../_shared/reference/voice.md)
 §8's no-model rule in full. Write the declaration it requires to
 `scratch/runs/<run-key>/voice-status.md`. Keep `voice-status.md` in the private run record; it is
 not part of the reply posted to the LMS.

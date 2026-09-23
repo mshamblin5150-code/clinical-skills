@@ -9,6 +9,9 @@ the run could not be completely scanned. The roster coverage ceiling is every
 
 What a clean run does not establish is declared by ``NOT_REACHED``. The module
 owns that complete inventory; this docstring copies no row from it.
+
+The separate voice identity row's ceiling belongs to
+``voice_model_identity.DECLARED_LIMITS``; this module copies no row.
 """
 
 from __future__ import annotations
@@ -54,10 +57,11 @@ import run_grader
 import file_digest
 from run_grader import NOT_GRADED
 import aar_scan
+import voice_model_identity
 import heading_read
 import research_ledger
 
-EXPECTED_COMPLETION_CHECKS = (aar_scan.EXPECTED_ROW,)
+EXPECTED_COMPLETION_CHECKS = (aar_scan.EXPECTED_ROW, voice_model_identity.EXPECTED_ROW)
 from run_grader import EvidenceDisposition
 from research_ledger import REFUTATION_EVIDENCE_COMPLEMENT
 
@@ -1039,7 +1043,7 @@ def grade(source: RunSource, _parsed: run_grader.Parsed) -> run_grader.Grade[Sca
         )
     else:
         aar_failed, aar_report = aar_scan.completion_gate(source.path, None)
-    return run_grader.Grade(
+    grade = run_grader.Grade(
         scan=scanned,
         source=str(source.path),
         findings_failed=any(
@@ -1058,6 +1062,9 @@ def grade(source: RunSource, _parsed: run_grader.Parsed) -> run_grader.Grade[Sca
         ),
         diagnostics=refused,
         reports=(aar_report,),
+    )
+    return voice_model_identity.apply_completion_gate(
+        grade, source.path, submission if submissions else None
     )
 
 

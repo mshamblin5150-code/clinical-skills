@@ -8,6 +8,7 @@ from pathlib import Path
 
 import aar_scan
 import peer_critique_scan
+import voice_model_identity
 from prose_bind import NAMING, ProseBind, bind
 
 
@@ -206,7 +207,8 @@ class TheAfterActionReviewIsWired(unittest.TestCase):
 
     def test_the_grader_declares_the_expected_completion_check(self):
         self.assertEqual(
-            (aar_scan.EXPECTED_ROW,), peer_critique_scan.EXPECTED_COMPLETION_CHECKS
+            (aar_scan.EXPECTED_ROW, voice_model_identity.EXPECTED_ROW),
+            peer_critique_scan.EXPECTED_COMPLETION_CHECKS,
         )
 
 

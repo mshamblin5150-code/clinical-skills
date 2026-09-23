@@ -28,6 +28,7 @@ import heading_read
 import research_ledger
 import file_digest
 import render_pass
+import voice_model_identity
 from discussion_artifact import (
     CLAIM_BLOCK,
     PostedReading,
@@ -95,7 +96,10 @@ ROWS = (
 ) + heading_read.KINDS
 KINDS = ROWS
 HEADING_READ_ROWS = {kind: "the heading read agrees with the deck bytes and current claim headings" for kind in heading_read.KINDS}
-EXPECTED_COMPLETION_CHECKS = (aar_scan.EXPECTED_ROW,)
+EXPECTED_COMPLETION_CHECKS = (
+    aar_scan.EXPECTED_ROW,
+    voice_model_identity.EXPECTED_ROW,
+)
 
 REQUIRED_BAR_FIELDS = (
     "ASSIGNMENT",
@@ -1258,7 +1262,7 @@ def grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
         )
     if scanned.findings:
         diagnostics.append("deck findings require review")
-    return run_grader.Grade(
+    grade = run_grader.Grade(
         scan=scanned,
         source=str(source.root),
         findings_failed=bool(scanned.findings) or aar_failed,
@@ -1270,6 +1274,9 @@ def grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
         ),
         diagnostics=tuple(diagnostics),
         reports=(rendered.report, aar_report),
+    )
+    return voice_model_identity.apply_completion_gate(
+        grade, source.root, _parsed.value("--submission")
     )
 
 

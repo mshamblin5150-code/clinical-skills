@@ -20,6 +20,7 @@ from pathlib import Path
 
 from console_codec import require_python_floor, use_utf8
 from git_paths import GitPathError, read_path_records
+import repo_root
 
 
 # This is the only current statement of the grandfathered owning-checkout count.
@@ -55,7 +56,7 @@ STANDING_ARTIFACTS = frozenset(
         "harvest-reviewed.json",
         "medatrax-profile.md",
         "identity-map.md",
-        "voice-model.md",
+        repo_root.VOICE_MODEL_NAME,
         "shorthand.md",
     }
 )

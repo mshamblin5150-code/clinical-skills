@@ -26,6 +26,9 @@ The complete coverage inventory is ``checks_ledger.DECLARED_LIMITS``. This
 docstring points to that object rather than maintaining another copy of its rows;
 the arguments for the boundaries stay at the code points that create them.
 
+The separate voice identity row's ceiling belongs to
+``voice_model_identity.DECLARED_LIMITS``; this module copies no row.
+
 **The record shape**, one per check, in a Markdown file under ``scratch/``::
 
     ## CHECK: differential ordering
@@ -174,13 +177,14 @@ import file_digest
 import repo_root
 from run_grader import NOT_GRADED
 import aar_scan
+import voice_model_identity
 import heading_read
 import research_ledger
 from discussion_artifact import PostedReading, read_posted_readings
 import post_html
 import case_study_render
 
-EXPECTED_COMPLETION_CHECKS = (aar_scan.EXPECTED_ROW,)
+EXPECTED_COMPLETION_CHECKS = (aar_scan.EXPECTED_ROW, voice_model_identity.EXPECTED_ROW)
 from run_grader import EvidenceDisposition
 
 
@@ -1083,13 +1087,20 @@ def _grade(
     aar_failed, aar_report = aar_scan.completion_gate(
         source.path.parent, submission
     )
-    return run_grader.Grade(
+    grade = run_grader.Grade(
         scan=scan,
         source=source.path.name,
         findings_failed=bool(scan.failing_checks) or aar_failed,
         coverage_failed=not source.records or bool(heading.unread),
         diagnostics=tuple(diagnostics),
-        reports=(heading_read.format_coverage(heading), rendered_report, aar_report),
+        reports=(
+            heading_read.format_coverage(heading),
+            rendered_report,
+            aar_report,
+        ),
+    )
+    return voice_model_identity.apply_completion_gate(
+        grade, source.path.parent, submission
     )
 
 

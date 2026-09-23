@@ -47,6 +47,7 @@ NOT_REACHED = {
 
 INVALID_INVOCATION = "invalid invocation"
 MODEL_ABSENT = "voice model absent"
+MODEL_UNREADABLE = "canonical voice model unreadable"
 SPEC_UNAVAILABLE = "voice model specification unavailable"
 REQUIRED_ITEMS_UNREADABLE = "required item vocabulary unreadable"
 NO_REGISTER_SHAPE = "no register shape read"
@@ -54,6 +55,7 @@ INCOMPLETE_REGISTER_SHAPE = "not every register could be read"
 EXIT_2_LIMBS = (
     INVALID_INVOCATION,
     MODEL_ABSENT,
+    MODEL_UNREADABLE,
     SPEC_UNAVAILABLE,
     REQUIRED_ITEMS_UNREADABLE,
     NO_REGISTER_SHAPE,
@@ -407,7 +409,15 @@ def main(argv: list[str]) -> int:
     """Run the grader; an omitted path resolves the durable account model."""
     arguments = list(argv)
     if not any(not argument.startswith("-") for argument in arguments):
-        arguments.insert(0, str(repo_root.scratch_root() / "voice-model.md"))
+        try:
+            resolved = repo_root.canonical_voice_model()
+        except (OSError, UnicodeError):
+            print(
+                "voice model: NOT RUN -- canonical model identity is unreadable",
+                file=sys.stderr,
+            )
+            return 2
+        arguments.insert(0, str(resolved.path))
     return run_grader.run(GRADER, arguments)
 
 
