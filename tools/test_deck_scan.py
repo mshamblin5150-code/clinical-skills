@@ -181,10 +181,13 @@ ASSIGNMENT: https://example.test/assignment
 SIGNED: 2026-09-02
 ARTIFACT: deck
 SLIDE-MAX: 2
+SLIDE-LIMIT-SCOPE: all
 BULLETS-PER-SLIDE: 2
 WORDS-PER-BULLET: 6
 FONT-POINTS: 30
 FONT-DIRECTION: ceiling
+AUDIENCE-PURPOSE: persuade the hospital board to fund the proposal
+TALK-STYLE: energetic investor pitch grounded in clinical evidence
 SOURCE-CLASSES: society guideline | peer-reviewed | government | tertiary reference | market source
 RECENCY-WINDOW-YEARS: 2
 """
@@ -241,6 +244,8 @@ class Run:
                 self.write_rendered()
             if not (self.root / "adversarial.md").is_file():
                 self.write_adversarial()
+            if not (self.root / "intent.md").is_file():
+                self.write_intent()
         stdout, stderr = io.StringIO(), io.StringIO()
         with redirect_stdout(stdout), redirect_stderr(stderr):
             status = scan.main([str(self.root), "--pptx", str(self.deck), *extra])
@@ -292,6 +297,8 @@ class Run:
         claims: str | None = None,
         verdict: str = "clean - every slide agrees with its record",
     ) -> None:
+        if not (self.root / "intent.md").is_file():
+            self.write_intent()
         digest = file_digest.sha256(self.root / "claims.md") if claims is None else claims
         passes = render_pass.read_passes(self.root / "render")
         if pass_number is None:
@@ -308,6 +315,35 @@ class Run:
             f"UNSEEN: {unseen}\n"
             f"CLAIMS: {digest}\n"
             f"VERDICT: {verdict}\n",
+            encoding="utf-8",
+        )
+
+    def write_intent(
+        self,
+        *,
+        deck: str = "synthetic.pptx",
+        draft: str | None = None,
+        content_slides: str | None = None,
+        reference_slides: str = "none",
+        audience_purpose: str = "persuade the hospital board to fund the proposal",
+        talk_style: str = "energetic investor pitch grounded in clinical evidence",
+        internal_commentary: str = "none",
+        spoken_arc: str = "follows - the problem, evidence, and ask build toward the signed purpose",
+    ) -> None:
+        digest = file_digest.sha256(self.deck) if draft is None else draft
+        if content_slides is None:
+            with zipfile.ZipFile(self.deck) as archive:
+                slide_count = sum(bool(scan.SLIDE_PART.fullmatch(name)) for name in archive.namelist())
+            content_slides = ", ".join(str(number) for number in range(1, slide_count + 1))
+        (self.root / "intent.md").write_text(
+            f"## PRESENTATION-INTENT: {deck}\n"
+            f"DRAFT: {digest}\n"
+            f"CONTENT-SLIDES: {content_slides}\n"
+            f"REFERENCE-SLIDES: {reference_slides}\n"
+            f"AUDIENCE-PURPOSE: {audience_purpose}\n"
+            f"TALK-STYLE: {talk_style}\n"
+            f"INTERNAL-COMMENTARY: {internal_commentary}\n"
+            f"SPOKEN-ARC: {spoken_arc}\n",
             encoding="utf-8",
         )
 
@@ -1545,6 +1581,130 @@ class TheAdversarialReadNamesTheDeckPassAndClaims(unittest.TestCase):
         self.assertEqual(clean, 0)
         self.assertEqual(refused, 1)
         self.assertNotIn("adversarial-record: 0", report)
+
+
+class ThePresentationIntentReadNamesTheSignedDirection(unittest.TestCase):
+    def test_preflight_requires_a_current_presentation_intent_record(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            run.write_deck((slide_xml("Plan", "Within limit"),))
+            run.write_intent()
+            clean, clean_report, _ = run.grade()
+            (run.root / "intent.md").unlink()
+            (run.root / "bar.md").write_text(
+                BAR.replace("SLIDE-LIMIT-SCOPE: all", "SLIDE-LIMIT-SCOPE: content"),
+                encoding="utf-8",
+            )
+            missing, missing_report, _ = run.grade(bind=False)
+
+        self.assertEqual(clean, 0)
+        self.assertIn("presentation-intent-record: 0", clean_report)
+        self.assertEqual(missing, 1)
+        self.assertIn("presentation-intent-record: 1", missing_report)
+        self.assertIn("slide-limit population NOT READ of 1 deck slides", missing_report)
+        self.assertIn("slide-limit matcher intent.md CONTENT-SLIDES", missing_report)
+        self.assertIn("unread remainder 1", missing_report)
+
+    def test_the_record_is_stale_after_the_deck_changes(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            run.write_deck((slide_xml("Plan", "Within limit"),))
+            run.write_intent()
+            run.write_deck((slide_xml("Revised plan", "Within limit"),))
+            status, report, _ = run.grade()
+
+        self.assertEqual(status, 1)
+        self.assertIn("presentation-intent-record: 1", report)
+
+    def test_the_record_joins_every_field_and_partitions_every_slide(self):
+        cases = (
+            ("missing field", lambda run: (run.root / "intent.md").write_text(
+                (run.root / "intent.md").read_text(encoding="utf-8").replace("TALK-STYLE: energetic investor pitch grounded in clinical evidence\n", ""),
+                encoding="utf-8",
+            )),
+            ("duplicate field", lambda run: (run.root / "intent.md").write_text(
+                (run.root / "intent.md").read_text(encoding="utf-8") + "TALK-STYLE: duplicate\n",
+                encoding="utf-8",
+            )),
+            ("wrong purpose", lambda run: run.write_intent(audience_purpose="inform a general audience")),
+            ("wrong style", lambda run: run.write_intent(talk_style="quiet academic lecture")),
+            ("missing slide", lambda run: run.write_intent(content_slides="1", reference_slides="none")),
+            ("overlapping slide", lambda run: run.write_intent(content_slides="1, 2", reference_slides="2")),
+            ("unknown slide", lambda run: run.write_intent(content_slides="1, 3", reference_slides="2")),
+            ("malformed population", lambda run: run.write_intent(content_slides="1-2", reference_slides="none")),
+        )
+        for name, damage in cases:
+            with self.subTest(case=name), tempfile.TemporaryDirectory() as temp:
+                run = Run(Path(temp))
+                run.write_deck(
+                    (
+                        slide_xml("Plan", "Within limit"),
+                        slide_xml("References", "Within limit"),
+                    )
+                )
+                run.retain(1, 2)
+                run.write_rendered(slides="2 of 2 read")
+                run.write_adversarial()
+                run.write_intent(content_slides="1", reference_slides="2")
+                control, _, _ = run.grade()
+                damage(run)
+                refused, report, _ = run.grade()
+
+                self.assertEqual(control, 0, name)
+                self.assertEqual(refused, 1, name)
+                self.assertNotIn("presentation-intent-record: 0", report)
+
+    def test_internal_commentary_and_the_spoken_arc_must_be_clean(self):
+        cases = (
+            ("internal commentary", {"internal_commentary": "found - slide 1 exposes revision history"}),
+            ("departing arc", {"spoken_arc": "departs - the close never makes the signed ask"}),
+            ("unreasoned arc", {"spoken_arc": "follows"}),
+        )
+        for name, fields in cases:
+            with self.subTest(case=name), tempfile.TemporaryDirectory() as temp:
+                run = Run(Path(temp))
+                run.write_deck((slide_xml("Plan", "Within limit"),))
+                run.write_intent()
+                control, _, _ = run.grade()
+                run.write_intent(**fields)
+                refused, report, _ = run.grade()
+
+                self.assertEqual(control, 0, name)
+                self.assertEqual(refused, 1, name)
+                self.assertNotIn("presentation-intent-record: 0", report)
+
+    def test_slide_max_uses_the_population_scope_signed_in_the_bar(self):
+        results = {}
+        for scope in ("content", "all"):
+            with tempfile.TemporaryDirectory() as temp:
+                run = Run(Path(temp))
+                (run.root / "bar.md").write_text(
+                    BAR.replace("SLIDE-MAX: 2", "SLIDE-MAX: 1").replace(
+                        "SLIDE-LIMIT-SCOPE: all", f"SLIDE-LIMIT-SCOPE: {scope}"
+                    ),
+                    encoding="utf-8",
+                )
+                run.write_deck(
+                    (
+                        slide_xml("Plan", "Within limit"),
+                        slide_xml("References", "Within limit"),
+                    )
+                )
+                run.retain(1, 2)
+                run.write_rendered(slides="2 of 2 read")
+                run.write_adversarial()
+                run.write_intent(content_slides="1", reference_slides="2")
+                results[scope] = run.grade()
+
+        self.assertEqual(results["content"][0], 0)
+        self.assertIn("slide-count: 0", results["content"][1])
+        self.assertIn("slide-limit population 1 of 2 deck slides", results["content"][1])
+        self.assertIn("slide-limit matcher intent.md CONTENT-SLIDES", results["content"][1])
+        self.assertIn("unread remainder 0", results["content"][1])
+        self.assertEqual(results["all"][0], 1)
+        self.assertIn("slide-count: 1", results["all"][1])
+        self.assertIn("slide-limit population 2 of 2 deck slides", results["all"][1])
+        self.assertIn("slide-limit matcher PowerPoint slide parts", results["all"][1])
 
 
 class AnUnreadableOrUnsignedBarDidNotScan(unittest.TestCase):

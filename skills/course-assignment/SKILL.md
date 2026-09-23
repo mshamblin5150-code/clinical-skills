@@ -28,6 +28,7 @@ scratch/runs/<course>-<module>-course-assignment/
     assignment-<date>.md
     bar.md
     claims.md
+    intent.md
     adversarial.md
     rendered.md
     submission.md
@@ -61,18 +62,25 @@ SIGNED: <ISO date after clinician approval>
 ARTIFACT: deck
 SUBMISSION-TYPE: file-upload | canvas-composer
 SLIDE-MAX: <integer>
+SLIDE-LIMIT-SCOPE: all | content
 BULLETS-PER-SLIDE: <integer>
 WORDS-PER-BULLET: <integer>
 FONT-POINTS: <integer>
 FONT-DIRECTION: ceiling | floor
+AUDIENCE-PURPOSE: <the assignment's audience-facing purpose>
+TALK-STYLE: <the clinician-confirmed presentation style>
 SOURCE-CLASSES: <one or more values separated by |>
 RECENCY-WINDOW-YEARS: <positive integer>
 ```
 
-Write one `SUBMISSION-TYPE` value read from the live page, not the two-value notation above. Below
+Write one `SUBMISSION-TYPE` and one `SLIDE-LIMIT-SCOPE` value, not the alternatives shown above.
+Use `content` only when the assignment excludes reference slides from its stated maximum; otherwise
+use `all`. `AUDIENCE-PURPOSE` records what the presentation must do for its audience, and
+`TALK-STYLE` records the clinician-confirmed way it should sound. Below
 the fields, copy the relevant assignment and syllabus wording and record the precedence decision.
 Then show `bar.md` to the clinician and wait for explicit confirmation that the transcription,
-direction, source classes, recency window, submission type, and precedence are right. Only then write `SIGNED:` and
+direction, slide-limit scope, audience purpose, talk style, source classes, recency window,
+submission type, and precedence are right. Only then write `SIGNED:` and
 continue. A missing field is not a default: both graders exit 2 because the run was not scanned.
 
 The source-class vocabulary is `society guideline`, `peer-reviewed`, `government`,
@@ -157,7 +165,7 @@ The container population is the slide face alone. A title is not a bullet; every
 paragraph is counted as one. The claim population is the slide face and speaker notes together.
 The rows are:
 
-- `slide-count`: one finding when the deck exceeds `SLIDE-MAX`.
+- `slide-count`: one finding when the population named by `SLIDE-LIMIT-SCOPE` exceeds `SLIDE-MAX`.
 - `bullets-per-slide`: one finding for each slide exceeding `BULLETS-PER-SLIDE`.
 - `words-per-bullet`: one finding for each non-title paragraph exceeding
   `WORDS-PER-BULLET`.
@@ -170,6 +178,10 @@ The rows are:
   highest retained pass, slide count, PNG count, unseen count, or clean visual verdict.
 - `adversarial-record`: one finding for each malformed record or failed join to the final deck,
   highest retained pass, slide count, PNG count, unseen count, clean verdict, or current `claims.md`.
+- `presentation-intent-record`: one finding for a missing or malformed `intent.md`, a stale deck
+  digest, a slide population that is not a complete partition, a purpose or style that differs from
+  the signed bar, exposed internal revision commentary, or a spoken arc without a reasoned
+  `follows` verdict.
 - `submission-fingerprint`: one finding when the terminal posted-reading record is missing its fingerprint
   or its fingerprint does not match the submitted `.pptx`.
 - Heading-read enforcement uses `missing-heading-read`, `duplicate-heading-read`,
@@ -245,6 +257,29 @@ record must name the output deck and highest retained pass, all deck slides must
 and `UNSEEN` must be `none` with a reasoned clean verdict. Earlier retained passes need no record;
 the report counts them without grading their absence.
 
+After that visual read, give a fresh **Second reader** under [standing rule 6](../../AGENTS.md) the
+signed `bar.md`, the final `.pptx` including speaker notes, and every PNG in the highest retained
+pass. The reader classifies slides by their audience job, checks every audience-facing slide and
+speaker-note sentence for internal revision commentary, and compares the final spoken arc with the
+signed audience purpose and talk style. Content and reference populations must partition every deck slide exactly once.
+Write the result to `intent.md`:
+
+```text
+## PRESENTATION-INTENT: <course>-<module>-course-assignment-<date>.pptx
+DRAFT: <SHA-256 of the output .pptx>
+CONTENT-SLIDES: <comma-separated slide numbers> | none
+REFERENCE-SLIDES: <comma-separated slide numbers> | none
+AUDIENCE-PURPOSE: <exact value from bar.md>
+TALK-STYLE: <exact value from bar.md>
+INTERNAL-COMMENTARY: none | found - <slide and commentary>
+SPOKEN-ARC: follows - <reason> | departs - <reason>
+```
+
+`INTERNAL-COMMENTARY: found` and `SPOKEN-ARC: departs` are findings, not alternative clean states.
+The reader's reason explains how the order and close realize or miss the signed direction; a bare
+`follows` is not a verdict. `DRAFT` binds this reading to the PowerPoint bytes, so any deck repair
+requires a fresh presentation-intent read.
+
 The adversarial investor reader first reads and applies
 [sourcing.md](../_shared/reference/sourcing.md). After the visual read, give this fresh
 **Second reader** under [standing rule 6](../../AGENTS.md) only the highest retained pass's PNGs,
@@ -282,12 +317,13 @@ the read after any repair. With no second context, write `ROUTE: orchestrator wa
 `deck_scan.py --pptx <deck>`; it refuses a missing record, a stale deck digest, or a pair to an old
 heading before the go-ahead.
 
-Both this scan and the terminal `--submission` scan require a clean adversarial record naming the
-highest retained pass and current `claims.md`. They also refuse a missing retained pass, a rendered
-record naming another pass, a missing `deck.sha256`, or a fingerprint that differs from the named
-`.pptx`. A deck repair returns to `deck_render.py` and repeats the visual, adversarial, and heading
-reads on the new pass. A `claims.md`-only repair returns to the adversarial read, followed by the
-heading read and `deck_scan.py --pptx <deck>`.
+Both this scan and the terminal `--submission` scan require a current clean presentation-intent
+record and a clean adversarial record naming the highest retained pass and current `claims.md`.
+They also refuse a missing retained pass, a rendered record naming another pass, a missing
+`deck.sha256`, or a fingerprint that differs from the named `.pptx`. A deck repair returns to
+`deck_render.py` and repeats the visual, presentation-intent, adversarial, and heading reads on the
+new pass. A `claims.md`-only repair returns to the adversarial read, followed by the heading read
+and `deck_scan.py --pptx <deck>`.
 
 ## 6. Approve, submit, and reread
 
@@ -300,7 +336,7 @@ Branch on the signed `SUBMISSION-TYPE` before preparing the LMS carrier:
   route** before loading. A Composer-only prose assignment is not the supported deck artifact and
   stops this skill.
 
-Show the clinician the finished deck, notes, adversarial report, grader counts, final rendered
+Show the clinician the finished deck, notes, presentation-intent record, adversarial report, grader counts, final rendered
 slides, submission type, and the selected carrier. For a Canvas Composer, also show the selected
 route and its cost. This is the existing submission gate; wait for the explicit go-ahead once.
 
@@ -334,7 +370,7 @@ with the output deck stem as the submission key. Its completion report must say
 `the after-action review: clean`. Completion requires clean final
 ledger, deck, and render scans, a walk of `deck_scan.NOT_REACHED`, a completed visual comparison, the clinician's submission approval,
 the posted reading, and the after-action review. Keep the signed bar, snapshots, claims,
-adversarial result, Composer files when present, and retained render passes together under the run directory. Remove every
+presentation-intent and adversarial results, Composer files when present, and retained render passes together under the run directory. Remove every
 temporary per-context path; if cleanup fails, report the exact remaining path.
 
 After `/AAR` is clean, run the artifact-aware completion grader with that same deck stem:

@@ -101,6 +101,35 @@ class TheCourseAssignmentWorkflow(unittest.TestCase):
         ):
             self.assertIn(phrase, inspection)
 
+    def test_the_final_deck_gets_a_fingerprinted_presentation_intent_read(self):
+        inspection = " ".join(
+            self.skill.split("## 5. Render and inspect every slide", 1)[1]
+            .split("## 6.", 1)[0]
+            .split()
+        )
+        for phrase in (
+            "SLIDE-LIMIT-SCOPE: all | content",
+            "AUDIENCE-PURPOSE: <the assignment's audience-facing purpose>",
+            "TALK-STYLE: <the clinician-confirmed presentation style>",
+            "## PRESENTATION-INTENT: <course>-<module>-course-assignment-<date>.pptx",
+            "DRAFT: <SHA-256 of the output .pptx>",
+            "CONTENT-SLIDES: <comma-separated slide numbers> | none",
+            "REFERENCE-SLIDES: <comma-separated slide numbers> | none",
+            "INTERNAL-COMMENTARY: none | found - <slide and commentary>",
+            "SPOKEN-ARC: follows - <reason> | departs - <reason>",
+            "intent.md",
+            "partition every deck slide exactly once",
+        ):
+            self.assertIn(phrase, self.skill)
+        self.assertLess(
+            inspection.index("This vision-capable **Second reader**"),
+            inspection.index("## PRESENTATION-INTENT:"),
+        )
+        self.assertLess(
+            inspection.index("## PRESENTATION-INTENT:"),
+            inspection.index("The adversarial investor reader"),
+        )
+
     def test_the_live_submission_type_selects_one_carrier_before_the_gate(self):
         self.assertIn("SUBMISSION-TYPE: file-upload | canvas-composer", self.skill)
         self.assertIn("Branch on the signed `SUBMISSION-TYPE`", self.skill)
