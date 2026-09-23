@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import tempfile
 import unittest
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from unittest import mock
 
@@ -12,6 +14,20 @@ import file_digest
 
 
 class TwoGateUpload(unittest.TestCase):
+    @contextmanager
+    def _canonical_copy(
+        self, canonical_root: Path, artifact: Path
+    ) -> Iterator[Path]:
+        canonical = canonical_root / "course-assignments" / artifact.name
+        canonical.parent.mkdir(parents=True, exist_ok=True)
+        canonical.write_bytes(artifact.read_bytes())
+        with mock.patch.object(
+            assignment_submission.repo_root,
+            "output_root",
+            return_value=canonical_root,
+        ):
+            yield canonical
+
     def _completed_submission(self, root: Path, artifact: Path) -> None:
         staged = assignment_submission.stage(root, artifact, artifact_approved=True)
         assignment_submission.confirm(
@@ -34,19 +50,12 @@ class TwoGateUpload(unittest.TestCase):
             root = Path(directory)
             run = root / "worktree" / "scratch" / "runs" / "assignment"
             reviewed = root / "worktree" / "output" / "course-assignments" / "assignment.pptx"
-            canonical = root / "owning" / "output" / "course-assignments" / reviewed.name
             run.mkdir(parents=True)
             reviewed.parent.mkdir(parents=True)
-            canonical.parent.mkdir(parents=True)
             reviewed.write_bytes(b"reviewed deck")
-            canonical.write_bytes(reviewed.read_bytes())
             self._completed_submission(run, reviewed)
 
-            with mock.patch.object(
-                assignment_submission.repo_root,
-                "output_root",
-                return_value=root / "owning" / "output",
-            ):
+            with self._canonical_copy(root / "owning" / "output", reviewed) as canonical:
                 failed, report = assignment_submission.completion_gate(
                     run, reviewed, submission="assignment"
                 )
@@ -82,19 +91,13 @@ class TwoGateUpload(unittest.TestCase):
             run = root / "run"
             reviewed = root / "worktree" / "output" / "course-assignments" / "assignment.pptx"
             canonical_root = root / "owning" / "output"
-            canonical = canonical_root / "course-assignments" / reviewed.name
             run.mkdir()
             reviewed.parent.mkdir(parents=True)
-            canonical.parent.mkdir(parents=True)
             reviewed.write_bytes(b"reviewed deck")
-            canonical.write_bytes(b"older deck")
             self._completed_submission(run, reviewed)
 
-            with mock.patch.object(
-                assignment_submission.repo_root,
-                "output_root",
-                return_value=canonical_root,
-            ):
+            with self._canonical_copy(canonical_root, reviewed) as canonical:
+                canonical.write_bytes(b"older deck")
                 failed, report = assignment_submission.completion_gate(
                     run, reviewed, submission="assignment"
                 )
@@ -253,10 +256,7 @@ class TwoGateUpload(unittest.TestCase):
             root = Path(directory)
             deck = root / "assignment.pptx"
             canonical_root = root / "canonical-output"
-            canonical = canonical_root / "course-assignments" / deck.name
             deck.write_bytes(b"canonical PowerPoint artifact")
-            canonical.parent.mkdir(parents=True)
-            canonical.write_bytes(deck.read_bytes())
             staged = assignment_submission.stage(root, deck, artifact_approved=True)
             assignment_submission.confirm(
                 staged, uploaded_carriers=(deck,), final_confirmation=True
@@ -273,11 +273,7 @@ class TwoGateUpload(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            with mock.patch.object(
-                assignment_submission.repo_root,
-                "output_root",
-                return_value=canonical_root,
-            ):
+            with self._canonical_copy(canonical_root, deck):
                 failed, report = assignment_submission.completion_gate(
                     root, deck, submission="assignment"
                 )
@@ -318,10 +314,7 @@ class TwoGateUpload(unittest.TestCase):
                 root = Path(directory)
                 docx = root / "assignment.docx"
                 canonical_root = root / "canonical-output"
-                canonical = canonical_root / "course-assignments" / docx.name
                 docx.write_bytes(b"canonical Word artifact")
-                canonical.parent.mkdir(parents=True)
-                canonical.write_bytes(docx.read_bytes())
                 staged = assignment_submission.stage(
                     root, docx, artifact_approved=True
                 )
@@ -344,11 +337,7 @@ class TwoGateUpload(unittest.TestCase):
                     encoding="utf-8",
                 )
 
-                with mock.patch.object(
-                    assignment_submission.repo_root,
-                    "output_root",
-                    return_value=canonical_root,
-                ):
+                with self._canonical_copy(canonical_root, docx):
                     failed, _ = assignment_submission.completion_gate(
                         root, docx, submission="assignment"
                     )
