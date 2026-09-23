@@ -424,6 +424,24 @@ class CitationResolutionIsDirectional(unittest.TestCase):
 
 
 class PostedReadingsAreSharedArtifacts(unittest.TestCase):
+    def test_course_assignment_fields_preserve_the_submitted_filename_population(self):
+        records = artifact.read_posted_readings(
+            "## REREAD: assignment\n"
+            "POST-URL: https://example.test/submission\n"
+            "POSTED: 2026-09-23\n"
+            "READ: 2026-09-23\n"
+            "ATTACHMENT-COUNT: 2\n"
+            "SUBMITTED-FILE: assignment.pptx\n"
+            "SUBMITTED-FILE: appendix.pdf\n"
+            "SUBMISSION-SHA256: " + "a" * 64 + "\n"
+            "VERDICT: matches - the submitted population matches\n"
+        )
+
+        self.assertEqual("2", records[0].attachment_count)
+        self.assertEqual(
+            ("assignment.pptx", "appendix.pdf"), records[0].submitted_files
+        )
+
     def test_a_portal_record_preserves_each_visit_locator(self):
         records = artifact.read_posted_readings(
             """\

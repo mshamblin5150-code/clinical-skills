@@ -252,7 +252,12 @@ REREAD_BLOCK = re.compile(
 )
 REREAD_REQUIRED_FIELDS = ("POST-URL", "POSTED", "READ", "SUBMISSION-SHA256", "VERDICT")
 REREAD_FIELDS = REREAD_REQUIRED_FIELDS + (
-    "COMPOSER-OUTCOME", "HTML-BYTES", "REFUSAL", "ATTACHMENT"
+    "COMPOSER-OUTCOME",
+    "HTML-BYTES",
+    "REFUSAL",
+    "ATTACHMENT",
+    "ATTACHMENT-COUNT",
+    "SUBMITTED-FILE",
 )
 REREAD_FIELD = re.compile(
     r"(?mi)^(?P<name>" + "|".join((*REREAD_FIELDS, "VISIT")) + r")\s*:\s*(?P<value>[^\n]*)$"
@@ -339,6 +344,8 @@ class PostedReading:
     html_bytes: str = ""
     refusal: str = ""
     attachment: str = ""
+    attachment_count: str = ""
+    submitted_files: tuple[str, ...] = ()
 
     @property
     def missing_record_fields(self) -> tuple[str, ...]:
@@ -412,10 +419,14 @@ def read_posted_readings(text: str) -> tuple[PostedReading, ...]:
             raise ValueError(f"reread.md has unreadable content in {artifact}")
         fields: dict[str, str] = {}
         visits: list[str] = []
+        submitted_files: list[str] = []
         for match in matches:
             name = match.group("name").upper()
             if name == "VISIT":
                 visits.append(match.group("value").strip())
+                continue
+            if name == "SUBMITTED-FILE":
+                submitted_files.append(match.group("value").strip())
                 continue
             if name in fields:
                 raise ValueError(f"reread.md has a duplicate {name} field for {artifact}")
@@ -444,6 +455,8 @@ def read_posted_readings(text: str) -> tuple[PostedReading, ...]:
                 html_bytes=fields.get("HTML-BYTES", ""),
                 refusal=fields.get("REFUSAL", ""),
                 attachment=fields.get("ATTACHMENT", ""),
+                attachment_count=fields.get("ATTACHMENT-COUNT", ""),
+                submitted_files=tuple(submitted_files),
             )
         )
     return tuple(records)
