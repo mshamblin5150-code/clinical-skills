@@ -102,6 +102,7 @@ NO_LIMITS = {
 NOT_LIMITS = {
     "apa7_coverage.MEDIA_LIMITS": "historical per-section image and table counts",
     "apa7_coverage.SECTION_LIMITS": "historical last-section numbers by chapter",
+    "deck_scan.SLIDE_LIMIT_SCOPES": "the two signed populations to which the slide maximum can apply",
     "differential_scan.EXIT_2_LIMBS": "the command's classified exit-2 outcomes",
     "guidelines_manifest.DISCOVERY_CEILING": "tokens used by the lexical consumer-discovery walk",
     "guidelines_search.DEFAULT_LIMIT": "the default number of search results to display",

@@ -57,6 +57,19 @@ ADVERSARIAL_HEADER = re.compile(r"(?i)^[ \t]*#+[ \t]*ADVERSARIAL[ \t]*:[ \t]*(.*
 ADVERSARIAL_FIELD = re.compile(
     r"(?i)^[ \t]*(PASS|SLIDES|UNSEEN|CLAIMS|VERDICT)[ \t]*:[ \t]*(.*?)[ \t]*$"
 )
+INTENT_HEADER = re.compile(r"(?i)^[ \t]*#+[ \t]*PRESENTATION-INTENT[ \t]*:[ \t]*(.*?)[ \t]*$")
+INTENT_FIELDS = (
+    "DRAFT",
+    "CONTENT-SLIDES",
+    "REFERENCE-SLIDES",
+    "AUDIENCE-PURPOSE",
+    "TALK-STYLE",
+    "INTERNAL-COMMENTARY",
+    "SPOKEN-ARC",
+)
+INTENT_FIELD = re.compile(
+    rf"(?i)^[ \t]*({'|'.join(map(re.escape, INTENT_FIELDS))})[ \t]*:[ \t]*(.*?)[ \t]*$"
+)
 POSITIVE_INTEGER = re.compile(r"[1-9][0-9]*", re.ASCII)
 SLIDES_READ = re.compile(r"([0-9]+)[ \t]+of[ \t]+([0-9]+)[ \t]+read", re.IGNORECASE | re.ASCII)
 
@@ -67,6 +80,7 @@ FONT_POINTS = "font-points"
 UNTRACED_FIGURE = "untraced-figure"
 RENDERED_RECORD = "rendered-record"
 ADVERSARIAL_RECORD = "adversarial-record"
+PRESENTATION_INTENT_RECORD = "presentation-intent-record"
 SUBMISSION_FINGERPRINT = "submission-fingerprint"
 ROWS = (
     SLIDE_COUNT,
@@ -76,6 +90,7 @@ ROWS = (
     UNTRACED_FIGURE,
     RENDERED_RECORD,
     ADVERSARIAL_RECORD,
+    PRESENTATION_INTENT_RECORD,
     SUBMISSION_FINGERPRINT,
 ) + heading_read.KINDS
 KINDS = ROWS
@@ -87,15 +102,19 @@ REQUIRED_BAR_FIELDS = (
     "SIGNED",
     "ARTIFACT",
     "SLIDE-MAX",
+    "SLIDE-LIMIT-SCOPE",
     "BULLETS-PER-SLIDE",
     "WORDS-PER-BULLET",
     "FONT-POINTS",
     "FONT-DIRECTION",
+    "AUDIENCE-PURPOSE",
+    "TALK-STYLE",
     "SOURCE-CLASSES",
     "RECENCY-WINDOW-YEARS",
 )
 ACCEPTED_ARTIFACTS = ("deck",)
 FONT_DIRECTIONS = ("ceiling", "floor")
+SLIDE_LIMIT_SCOPES = ("all", "content")
 
 
 @dataclass(frozen=True)
@@ -181,10 +200,13 @@ NOT_REACHED = tuple(row.limit for row in DECLARED_LIMITS)
 @dataclass(frozen=True)
 class Bar:
     slide_max: int
+    slide_limit_scope: str
     bullets_per_slide: int
     words_per_bullet: int
     font_points: int
     font_direction: str
+    audience_purpose: str
+    talk_style: str
 
 
 @dataclass(frozen=True)
@@ -234,6 +256,7 @@ class Source:
     claims: str
     rendered_text: str | None
     adversarial_text: str | None
+    intent_text: str | None
     heading_read_text: str
     readings: tuple[PostedReading, ...]
 
@@ -241,6 +264,11 @@ class Source:
 @dataclass(frozen=True)
 class Scan:
     slides_read: int
+    slide_limit_scope: str
+    slide_limit_count: int | None
+    slide_limit_denominator: int
+    slide_limit_matcher: str
+    slide_limit_unread: int
     bullets_read: int
     words_read: int
     font_runs_read: int
@@ -287,12 +315,22 @@ def _read_bar(
     direction = fields["FONT-DIRECTION"].casefold()
     if direction not in FONT_DIRECTIONS:
         raise run_grader.SourceError("bar.md FONT-DIRECTION must be ceiling or floor")
+    slide_limit_scope = fields["SLIDE-LIMIT-SCOPE"].casefold()
+    if slide_limit_scope not in SLIDE_LIMIT_SCOPES:
+        raise run_grader.SourceError("bar.md SLIDE-LIMIT-SCOPE must be all or content")
+    if not fields["AUDIENCE-PURPOSE"].strip():
+        raise run_grader.SourceError("bar.md AUDIENCE-PURPOSE needs a value")
+    if not fields["TALK-STYLE"].strip():
+        raise run_grader.SourceError("bar.md TALK-STYLE needs a value")
     return Bar(
         _integer(fields, "SLIDE-MAX"),
+        slide_limit_scope,
         _integer(fields, "BULLETS-PER-SLIDE"),
         _integer(fields, "WORDS-PER-BULLET"),
         _integer(fields, "FONT-POINTS"),
         direction,
+        fields["AUDIENCE-PURPOSE"],
+        fields["TALK-STYLE"],
     )
 
 
@@ -667,6 +705,7 @@ def load(
     deck = Path(deck_value)
     bar_path, claims_path, rendered_path = root / "bar.md", root / "claims.md", root / "rendered.md"
     adversarial_path = root / "adversarial.md"
+    intent_path = root / "intent.md"
     reread_path = root / "reread.md"
     if not bar_path.is_file() or not claims_path.is_file():
         raise run_grader.SourceError("run needs bar.md and claims.md before it can be scanned")
@@ -707,6 +746,7 @@ def load(
     try:
         rendered_text = rendered_path.read_text(encoding="utf-8") if rendered_path.is_file() else None
         adversarial_text = adversarial_path.read_text(encoding="utf-8") if adversarial_path.is_file() else None
+        intent_text = intent_path.read_text(encoding="utf-8") if intent_path.is_file() else None
         readings = (
             read_posted_readings(reread_path.read_text(encoding="utf-8"))
             if reread_path.is_file()
@@ -724,6 +764,7 @@ def load(
         claims,
         rendered_text,
         adversarial_text,
+        intent_text,
         heading_read_text,
         readings,
     )
@@ -949,6 +990,89 @@ def _adversarial_findings(source: Source) -> tuple[Finding, ...]:
     return tuple(found)
 
 
+def _presentation_intent_records(source: Source) -> tuple[RenderedRecord, ...]:
+    return _read_records(source.intent_text or "", INTENT_HEADER, INTENT_FIELD)
+
+
+def _slide_population(record: RenderedRecord, name: str) -> tuple[int, ...] | None:
+    value = record.value(name)
+    if value.casefold() == "none":
+        return ()
+    if not re.fullmatch(r"[1-9][0-9]*(?:,[ \t]*[1-9][0-9]*)*", value, re.ASCII):
+        return None
+    return tuple(int(item.strip()) for item in value.split(","))
+
+
+def _presentation_intent_findings(source: Source) -> tuple[Finding, ...]:
+    records = _presentation_intent_records(source)
+    if len(records) != 1:
+        return (
+            Finding(
+                PRESENTATION_INTENT_RECORD,
+                None,
+                "intent.md must contain exactly one PRESENTATION-INTENT record",
+            ),
+        )
+    record = records[0]
+    found: list[Finding] = []
+    for name in INTENT_FIELDS:
+        if record.counts.get(name, 0) != 1 or not record.value(name):
+            found.append(
+                Finding(
+                    PRESENTATION_INTENT_RECORD,
+                    None,
+                    f"{name} must appear once with a value",
+                )
+            )
+    if record.deck != source.deck.name:
+        found.append(Finding(PRESENTATION_INTENT_RECORD, None, "intent record names another deck"))
+    if record.value("DRAFT") != file_digest.sha256(source.deck):
+        found.append(Finding(PRESENTATION_INTENT_RECORD, None, "intent record is stale for the deck bytes"))
+    if record.value("AUDIENCE-PURPOSE") != source.bar.audience_purpose:
+        found.append(Finding(PRESENTATION_INTENT_RECORD, None, "AUDIENCE-PURPOSE does not match bar.md"))
+    if record.value("TALK-STYLE") != source.bar.talk_style:
+        found.append(Finding(PRESENTATION_INTENT_RECORD, None, "TALK-STYLE does not match bar.md"))
+
+    content = _slide_population(record, "CONTENT-SLIDES")
+    references = _slide_population(record, "REFERENCE-SLIDES")
+    if content is None or references is None:
+        found.append(
+            Finding(
+                PRESENTATION_INTENT_RECORD,
+                None,
+                "slide populations must be none or comma-separated positive slide numbers",
+            )
+        )
+    else:
+        combined = content + references
+        expected = tuple(slide.number for slide in source.slides)
+        if len(combined) != len(set(combined)) or set(combined) != set(expected):
+            found.append(
+                Finding(
+                    PRESENTATION_INTENT_RECORD,
+                    None,
+                    "content and reference populations must partition every deck slide exactly once",
+                )
+            )
+    if record.value("INTERNAL-COMMENTARY").casefold() != "none":
+        found.append(
+            Finding(
+                PRESENTATION_INTENT_RECORD,
+                None,
+                "INTERNAL-COMMENTARY must be none",
+            )
+        )
+    if not re.fullmatch(r"(?is)follows[ \t]+-[ \t]+.+", record.value("SPOKEN-ARC")):
+        found.append(
+            Finding(
+                PRESENTATION_INTENT_RECORD,
+                None,
+                "SPOKEN-ARC must be follows - with a reasoned verdict",
+            )
+        )
+    return tuple(found)
+
+
 def _figures(text: str) -> set[str]:
     return set(traceable_numeric_values(text))
 
@@ -981,8 +1105,39 @@ def survey(source: Source) -> Scan:
         for finding in heading.findings
         if finding.kind == kind
     ]
-    if len(source.slides) > source.bar.slide_max:
-        findings.append(Finding(SLIDE_COUNT, None, f"{len(source.slides)} slides exceeds {source.bar.slide_max}"))
+    slide_limit_denominator = len(source.slides)
+    counted_slides: int | None = slide_limit_denominator
+    slide_limit_matcher = "PowerPoint slide parts"
+    slide_limit_unread = 0
+    if source.bar.slide_limit_scope == "content":
+        slide_limit_matcher = "intent.md CONTENT-SLIDES"
+        intent_records = _presentation_intent_records(source)
+        content_population = (
+            _slide_population(intent_records[0], "CONTENT-SLIDES")
+            if len(intent_records) == 1
+            else None
+        )
+        reference_population = (
+            _slide_population(intent_records[0], "REFERENCE-SLIDES")
+            if len(intent_records) == 1
+            else None
+        )
+        counted_slides = len(content_population) if content_population is not None else None
+        if content_population is None or reference_population is None:
+            slide_limit_unread = slide_limit_denominator
+        else:
+            classified = set(content_population + reference_population)
+            slide_limit_unread = len(
+                {slide.number for slide in source.slides} - classified
+            )
+    if counted_slides is not None and counted_slides > source.bar.slide_max:
+        findings.append(
+            Finding(
+                SLIDE_COUNT,
+                None,
+                f"{counted_slides} {source.bar.slide_limit_scope} slides exceeds {source.bar.slide_max}",
+            )
+        )
     bullets_read = words_read = font_runs_read = 0
     for slide in source.slides:
         bullets_read += len(slide.bullets)
@@ -1017,6 +1172,11 @@ def survey(source: Source) -> Scan:
         findings.append(Finding(UNTRACED_FIGURE, None, detail))
     return Scan(
         len(source.slides),
+        source.bar.slide_limit_scope,
+        counted_slides,
+        slide_limit_denominator,
+        slide_limit_matcher,
+        slide_limit_unread,
         bullets_read,
         words_read,
         font_runs_read,
@@ -1038,6 +1198,14 @@ def format_report(scan: Scan, _source: str, show: bool = False) -> str:
         "deck scan",
         "",
         f"  slides read       {scan.slides_read}",
+        f"  slide-limit scope {scan.slide_limit_scope}",
+        "  slide-limit population "
+        + (
+            f"{scan.slide_limit_count} of {scan.slide_limit_denominator} deck slides"
+            if scan.slide_limit_count is not None
+            else f"NOT READ of {scan.slide_limit_denominator} deck slides"
+        ),
+        f"  slide-limit matcher {scan.slide_limit_matcher}",
         f"  bullets read      {scan.bullets_read}",
         f"  words read        {scan.words_read}",
         f"  font runs read    {scan.font_runs_read}",
@@ -1048,7 +1216,9 @@ def format_report(scan: Scan, _source: str, show: bool = False) -> str:
         f"  retained passes   {scan.retained_passes}",
         f"  retained passes without a record {scan.unrecorded_passes}",
         f"  heading-read records {scan.heading_reads}",
-        run_grader.format_unread_remainder(scan.heading_read_unread + scan.unread_members),
+        run_grader.format_unread_remainder(
+            scan.heading_read_unread + scan.unread_members + scan.slide_limit_unread
+        ),
         "",
     ]
     for row in ROWS:
@@ -1072,6 +1242,7 @@ def grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
         findings=scanned.findings
         + rendered.findings
         + _adversarial_findings(source)
+        + _presentation_intent_findings(source)
         + _submission_fingerprint_findings(source, _parsed.value("--submission")),
     )
     aar_failed, aar_report = aar_scan.completion_gate(
@@ -1095,6 +1266,7 @@ def grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
             no_slide_face_text
             or scanned.unread_members > 0
             or scanned.heading_read_unread > 0
+            or scanned.slide_limit_unread > 0
         ),
         diagnostics=tuple(diagnostics),
         reports=(rendered.report, aar_report),
