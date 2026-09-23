@@ -202,6 +202,14 @@ _Avoid_: rubric, requirements, spec
 The minimum this repository requires of a graded contribution whatever a course states. Not a **Bar**, which is the course's own statement and varies per board: a house floor is board-independent, and a lower stated Bar does not lower it. Its job is to refuse a contribution too thin to have said anything, never to set a target — length serves the point, so sitting at the floor is legitimate when the point is already across. **Its population is one**: the **Reply** has one, and the **Initial post**'s floor is course-stated and signed.
 _Avoid_: minimum, word count, requirement
 
+**Project context record**:
+A bound coursework run's record, written before its first prose, of the clinician's confirmed declaration of which of his projects the work concerns — or that it concerns none — and of every place searched for what he has already said about it. A miss states where it looked and for what, so it is never a settled negative about the project. It establishes that the run looked and what it found, never that the draft used it; that is the **Heading read**'s verdict. Distinct from the **Bar**, which is transcribed from the course and never carries the clinician's own declarations.
+_Avoid_: context file, memory read, background, project notes
+
+**Project registry**:
+The account's standing statement of the clinician's projects and, for each, the places and services holding what he has said about it, plus the one memory index owed whatever the project. It changes only on his word; a run's one-off direction to search somewhere else belongs to that run's **Project context record**, not here.
+_Avoid_: project list, profile, locations file
+
 ### Tiers
 
 Every line of a finished note is a given, a derived value, or a filled one.
