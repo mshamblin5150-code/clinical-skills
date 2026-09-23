@@ -148,6 +148,14 @@ class TheCourseAssignmentWorkflow(unittest.TestCase):
                 self.assertIn("assignment_submission.upload_is_allowed", surface)
         self.assertIn("excluded by default", " ".join(self.skill.split()))
 
+    def test_completion_binds_and_links_the_canonical_finished_artifact(self):
+        normalized = " ".join(self.skill.split())
+        self.assertIn("`repo_root.output_root()`", self.skill)
+        self.assertIn("canonical copy", normalized)
+        self.assertIn("raw-byte SHA-256", normalized)
+        self.assertIn("Markdown link", normalized)
+        self.assertIn("never the worktree copy", normalized)
+
     def test_declared_limits_are_pointed_to_without_a_second_copy(self):
         self.assertEqual(1, self.skill.count("deck_scan.DECLARED_LIMITS"))
         for limit in deck_scan.DECLARED_LIMITS:

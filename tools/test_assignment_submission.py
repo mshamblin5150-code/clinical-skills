@@ -4,13 +4,108 @@ from __future__ import annotations
 
 import tempfile
 import unittest
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from unittest import mock
 
 import assignment_submission
+import file_digest
 
 
 class TwoGateUpload(unittest.TestCase):
+    @contextmanager
+    def _canonical_copy(
+        self, canonical_root: Path, artifact: Path
+    ) -> Iterator[Path]:
+        canonical = canonical_root / "course-assignments" / artifact.name
+        canonical.parent.mkdir(parents=True, exist_ok=True)
+        canonical.write_bytes(artifact.read_bytes())
+        with mock.patch.object(
+            assignment_submission.repo_root,
+            "output_root",
+            return_value=canonical_root,
+        ):
+            yield canonical
+
+    def _completed_submission(self, root: Path, artifact: Path) -> None:
+        staged = assignment_submission.stage(root, artifact, artifact_approved=True)
+        assignment_submission.confirm(
+            staged, uploaded_carriers=(artifact,), final_confirmation=True
+        )
+        (root / "reread.md").write_text(
+            "## REREAD: assignment\n"
+            "POST-URL: https://example.test/submission\n"
+            "POSTED: 2026-09-23\n"
+            "READ: 2026-09-23\n"
+            "ATTACHMENT-COUNT: 1\n"
+            f"SUBMITTED-FILE: {artifact.name}\n"
+            f"SUBMISSION-SHA256: {file_digest.sha256(artifact)}\n"
+            "VERDICT: matches - the posted artifact matches the reviewed file\n",
+            encoding="utf-8",
+        )
+
+    def test_terminal_completion_names_and_matches_the_canonical_output_copy(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run = root / "worktree" / "scratch" / "runs" / "assignment"
+            reviewed = root / "worktree" / "output" / "course-assignments" / "assignment.pptx"
+            run.mkdir(parents=True)
+            reviewed.parent.mkdir(parents=True)
+            reviewed.write_bytes(b"reviewed deck")
+            self._completed_submission(run, reviewed)
+
+            with self._canonical_copy(root / "owning" / "output", reviewed) as canonical:
+                failed, report = assignment_submission.completion_gate(
+                    run, reviewed, submission="assignment"
+                )
+
+        self.assertFalse(failed, report)
+        self.assertIn(str(canonical), report)
+
+    def test_terminal_completion_refuses_a_missing_canonical_output_copy(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run = root / "run"
+            reviewed = root / "worktree" / "output" / "course-assignments" / "assignment.docx"
+            run.mkdir()
+            reviewed.parent.mkdir(parents=True)
+            reviewed.write_bytes(b"reviewed document")
+            self._completed_submission(run, reviewed)
+            expected = root / "owning" / "output"
+
+            with mock.patch.object(
+                assignment_submission.repo_root, "output_root", return_value=expected
+            ):
+                failed, report = assignment_submission.completion_gate(
+                    run, reviewed, submission="assignment"
+                )
+
+        self.assertTrue(failed)
+        self.assertIn("canonical artifact is missing", report)
+        self.assertIn(str(expected / "course-assignments" / reviewed.name), report)
+
+    def test_terminal_completion_refuses_a_different_canonical_output_copy(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run = root / "run"
+            reviewed = root / "worktree" / "output" / "course-assignments" / "assignment.pptx"
+            canonical_root = root / "owning" / "output"
+            run.mkdir()
+            reviewed.parent.mkdir(parents=True)
+            reviewed.write_bytes(b"reviewed deck")
+            self._completed_submission(run, reviewed)
+
+            with self._canonical_copy(canonical_root, reviewed) as canonical:
+                canonical.write_bytes(b"older deck")
+                failed, report = assignment_submission.completion_gate(
+                    run, reviewed, submission="assignment"
+                )
+
+        self.assertTrue(failed)
+        self.assertIn("canonical artifact fingerprint differs", report)
+        self.assertIn(str(canonical), report)
+
     def test_a_failed_gate_write_leaves_no_partial_record(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -160,6 +255,7 @@ class TwoGateUpload(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             deck = root / "assignment.pptx"
+            canonical_root = root / "canonical-output"
             deck.write_bytes(b"canonical PowerPoint artifact")
             staged = assignment_submission.stage(root, deck, artifact_approved=True)
             assignment_submission.confirm(
@@ -177,9 +273,10 @@ class TwoGateUpload(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            failed, report = assignment_submission.completion_gate(
-                root, deck, submission="assignment"
-            )
+            with self._canonical_copy(canonical_root, deck):
+                failed, report = assignment_submission.completion_gate(
+                    root, deck, submission="assignment"
+                )
             self.assertFalse(failed, report)
 
             reread = root / "reread.md"
@@ -190,9 +287,14 @@ class TwoGateUpload(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
-            failed, _ = assignment_submission.completion_gate(
-                root, deck, submission="assignment"
-            )
+            with mock.patch.object(
+                assignment_submission.repo_root,
+                "output_root",
+                return_value=canonical_root,
+            ):
+                failed, _ = assignment_submission.completion_gate(
+                    root, deck, submission="assignment"
+                )
             self.assertTrue(failed)
 
     def test_completion_requires_the_posted_fingerprint_and_matching_verdict(self):
@@ -211,6 +313,7 @@ class TwoGateUpload(unittest.TestCase):
             with self.subTest(new=new), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
                 docx = root / "assignment.docx"
+                canonical_root = root / "canonical-output"
                 docx.write_bytes(b"canonical Word artifact")
                 staged = assignment_submission.stage(
                     root, docx, artifact_approved=True
@@ -234,9 +337,10 @@ class TwoGateUpload(unittest.TestCase):
                     encoding="utf-8",
                 )
 
-                failed, _ = assignment_submission.completion_gate(
-                    root, docx, submission="assignment"
-                )
+                with self._canonical_copy(canonical_root, docx):
+                    failed, _ = assignment_submission.completion_gate(
+                        root, docx, submission="assignment"
+                    )
 
             self.assertTrue(failed)
 
