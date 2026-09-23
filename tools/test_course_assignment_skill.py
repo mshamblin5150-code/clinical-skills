@@ -139,6 +139,15 @@ class TheCourseAssignmentWorkflow(unittest.TestCase):
         self.assertIn("This is the existing submission gate", self.skill)
         self.assertIn("do not switch routes or retry the load", self.skill)
 
+    def test_submission_approval_binds_the_filename_population(self):
+        for surface in (self.skill, self.docx_branch):
+            with self.subTest(surface=surface[:30]):
+                self.assertIn("ATTACHMENT-COUNT:", surface)
+                self.assertIn("FILENAME:", surface)
+                self.assertIn("SUBMITTED-FILE:", surface)
+                self.assertIn("assignment_submission.upload_is_allowed", surface)
+        self.assertIn("excluded by default", " ".join(self.skill.split()))
+
     def test_declared_limits_are_pointed_to_without_a_second_copy(self):
         self.assertEqual(1, self.skill.count("deck_scan.DECLARED_LIMITS"))
         for limit in deck_scan.DECLARED_LIMITS:

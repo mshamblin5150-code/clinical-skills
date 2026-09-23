@@ -24,6 +24,7 @@ from xml.etree import ElementTree
 import run_grader
 import aar_scan
 import assignment_bar
+import assignment_submission
 import heading_read
 import research_ledger
 import file_digest
@@ -1252,6 +1253,15 @@ def grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
     aar_failed, aar_report = aar_scan.completion_gate(
         source.root, _parsed.value("--submission")
     )
+    submission = _parsed.value("--submission")
+    gate_failed, gate_report = (
+        False,
+        f"submission gates: {run_grader.NOT_GRADED} - --submission was not supplied",
+    )
+    if submission is not None:
+        gate_failed, gate_report = assignment_submission.completion_gate(
+            source.root, source.deck, submission=submission
+        )
     no_slide_face_text = not any(slide.text.strip() for slide in source.slides)
     diagnostics = []
     if no_slide_face_text:
@@ -1265,7 +1275,7 @@ def grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
     grade = run_grader.Grade(
         scan=scanned,
         source=str(source.root),
-        findings_failed=bool(scanned.findings) or aar_failed,
+        findings_failed=bool(scanned.findings) or aar_failed or gate_failed,
         coverage_failed=(
             no_slide_face_text
             or scanned.unread_members > 0
@@ -1273,7 +1283,7 @@ def grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
             or scanned.slide_limit_unread > 0
         ),
         diagnostics=tuple(diagnostics),
-        reports=(rendered.report, aar_report),
+        reports=(rendered.report, gate_report, aar_report),
     )
     return voice_model_identity.apply_completion_gate(
         grade, source.root, _parsed.value("--submission")

@@ -354,6 +354,8 @@ class Run:
             "POST-URL: https://example.test/submission\n"
             "POSTED: 2026-09-13\n"
             "READ: 2026-09-13\n"
+            "ATTACHMENT-COUNT: 1\n"
+            f"SUBMITTED-FILE: {self.deck.name}\n"
             f"SUBMISSION-SHA256: {digest}\n"
             "VERDICT: matches - the submitted deck was read back from the LMS\n",
             encoding="utf-8",
@@ -362,6 +364,15 @@ class Run:
     def terminal(self, *, bind: bool = True) -> tuple[int, str, str]:
         if bind and not (self.root / "reread.md").is_file():
             self.write_reread()
+        if bind:
+            staged = scan.assignment_submission.stage(
+                self.root, self.deck, artifact_approved=True
+            )
+            scan.assignment_submission.confirm(
+                staged,
+                uploaded_carriers=(self.deck,),
+                final_confirmation=True,
+            )
         scan.voice_model_identity.write_record(self.root)
         with mock.patch.object(
             scan.aar_scan,
@@ -1455,6 +1466,23 @@ class TheRenderedDeckRecordNamesTheTerminalPass(unittest.TestCase):
         self.assertEqual(1, status)
         self.assertIn("deck findings require review", stderr)
         self.assertIn("submission-fingerprint: 1", stdout)
+
+    def test_submission_refuses_a_different_posted_filename_population(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = self.a_run(Path(temp))
+            run.write_reread()
+            reread = run.root / "reread.md"
+            reread.write_text(
+                reread.read_text(encoding="utf-8").replace(
+                    f"SUBMITTED-FILE: {run.deck.name}",
+                    "SUBMITTED-FILE: review-notes.docx",
+                ),
+                encoding="utf-8",
+            )
+            status, stdout, stderr = run.terminal()
+
+        self.assertEqual(1, status)
+        self.assertIn("submission gates: not clean", stdout + stderr)
 
     def test_preflight_refuses_a_pass_without_a_fingerprint(self):
         with tempfile.TemporaryDirectory() as temp:

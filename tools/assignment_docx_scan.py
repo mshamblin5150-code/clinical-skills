@@ -491,7 +491,7 @@ def grade(source: Source, parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
     )
     if submission is not None:
         gate_failed, gate_report = assignment_submission.completion_gate(
-            source.root, source.docx
+            source.root, source.docx, submission=submission
         )
     grade = run_grader.Grade(
         scan=scan,

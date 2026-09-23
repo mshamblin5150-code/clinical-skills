@@ -345,17 +345,35 @@ Branch on the signed `SUBMISSION-TYPE` before preparing the LMS carrier:
   stops this skill.
 
 Show the clinician the finished deck, notes, presentation-intent record, adversarial report, grader counts, final rendered
-slides, submission type, and the selected carrier. For a Canvas Composer, also show the selected
-route and its cost. This is the existing submission gate; wait for the explicit go-ahead once.
+slides, submission type, and this exact carrier approval surface:
 
-For `file-upload`, upload the `.pptx` and inspect the LMS submission page before committing the
-action. For `canvas-composer`, load `submission.html` through the declared route, attach the `.pptx`
+```text
+ATTACHMENT-COUNT: <total number of files that will be uploaded>
+FILENAME: <one exact basename, repeated once for every file>
+```
+
+The finished `.pptx` is the only approved carrier by default. A review companion is excluded by
+default and remains outside the upload set unless the clinician explicitly names it before
+approval; merely creating or showing that companion never adds it. For a Canvas Composer, also
+show the selected route and its cost.
+This is the existing submission gate; wait for the explicit go-ahead once. Then call
+`assignment_submission.stage(run, deck, artifact_approved=True, approved_carriers=(...))` with
+exactly the approved files and show `assignment_submission.approval_surface(staged)`. Any mismatch
+with the surface the clinician approved returns to the gate.
+
+Before each file-picker action, require
+`assignment_submission.upload_is_allowed(staged, candidate)` to be true. A false result refuses
+that file; never widen the approved set during upload. For `file-upload`, upload the approved files
+and inspect the LMS submission page before committing the action. For `canvas-composer`, load `submission.html` through the declared route, attach the `.pptx`
 when the live assignment requires it, and serialize the Composer HTML to
 `submission-readback.html`. Compare the built and serialized HTML as the shared sheet requires. A
 non-clean comparison stops and returns to the clinician; do not switch routes or retry the load.
 This skill already attaches its graded deck or document as the selected carrier and takes no
 Initial-post attachment fallback after a Composer size refusal. Read the LMS for a created entry,
 report the refusal and what was found, and stop at the clinician.
+Pass the inspected filename population to
+`assignment_submission.confirm(staged, uploaded_carriers=(...), final_confirmation=True)` and
+require `assignment_submission.submit_is_authorized(staged)` immediately before submitting.
 Then submit and read the posted artifact back from the LMS. Append this exact record to
 `reread.md`, using the output deck stem as the heading on both submission branches:
 
@@ -364,8 +382,10 @@ Then submit and read the posted artifact back from the LMS. Append this exact re
 POST-URL: <the submitted artifact's LMS URL>
 POSTED: <the LMS's posted timestamp>
 READ: <ISO date of this reading>
+ATTACHMENT-COUNT: <submitted file count>
+SUBMITTED-FILE: <submitted basename, repeated once for every submitted file>
 SUBMISSION-SHA256: <SHA-256 of the output .pptx>
-VERDICT: matches - <whether the submitted carrier and deck match>
+VERDICT: matches - <whether the submitted filename population, carrier bytes, and deck match>
 ```
 
 Use `diverges - <what differs>` when the posted artifact does not match. A divergence stops the

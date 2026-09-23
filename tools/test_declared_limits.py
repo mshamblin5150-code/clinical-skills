@@ -35,7 +35,7 @@ NO_LIMITS = {
     "assignment_bar": "a narrow envelope parser whose artifact adapters own branch completeness",
     "assignment_docx": "a deterministic producer whose supplied specification defines its output",
     "assignment_docx_render": "the renderer produces retained evidence and does not grade its coverage",
-    "assignment_submission": "an exact two-record authorization adapter with no population assertion",
+    "assignment_submission": "an exact authorization adapter whose approved carrier set defines its population",
     "artifact_lock_test_support": "test support for artifact-lock fixtures, not a public checker",
     "assertion_record": "shared assertion-record data structures with no independent coverage claim",
     "case_study_render": "the renderer produces retained evidence and does not grade its coverage",
