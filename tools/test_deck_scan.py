@@ -203,6 +203,11 @@ class Run:
     def __init__(self, root: Path):
         self.root = root
         self.deck = root / "synthetic.pptx"
+        (root / "project-context.md").write_text(
+            "PROJECT-CONTEXT: none - synthetic deck\n"
+            "CONFIRMED: 2026-09-23\nCONTEXT-DIGEST: none\n",
+            encoding="utf-8",
+        )
         (root / "bar.md").write_text(BAR, encoding="utf-8")
         (root / "claims.md").write_text(
             "DATE: 2026-09-02\n\n## CLAIM: Build-out costs $47,000.\n"
@@ -232,7 +237,8 @@ class Run:
         digest = hashlib.sha256(self.deck.read_bytes()).hexdigest()
         (self.root / "heading-read.md").write_text(
             f"## HEADING-READ: {self.deck.name}\nDRAFT: {digest}\n"
-            "ROUTE: separate context\nSENTENCES: 0 factual, 0 clinician's own\nVERDICT: clean\n",
+            "ROUTE: separate context\nSENTENCES: 0 factual, 0 clinician's own\n"
+            "CONTEXT-DIGEST: none\nCONTEXT-VERDICT: none\nVERDICT: clean\n",
             encoding="utf-8",
         )
 

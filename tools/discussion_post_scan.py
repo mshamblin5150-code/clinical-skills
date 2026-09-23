@@ -17,8 +17,9 @@ What a clean run does not establish is ``NOT_REACHED``. The tuple is the one
 reader-facing inventory of this command's limits; this docstring deliberately
 copies none of its rows.
 
-The separate voice identity row's ceiling belongs to
-``voice_model_identity.DECLARED_LIMITS``; this module copies no row.
+The shared completion rows' ceilings belong to
+``voice_model_identity.DECLARED_LIMITS`` and
+``project_context.DECLARED_LIMITS``; this module copies no row.
 """
 
 from __future__ import annotations
@@ -70,10 +71,15 @@ import pdf_engine
 from run_grader import NOT_GRADED
 import aar_scan
 import voice_model_identity
+import project_context
 import heading_read
 import research_ledger
 
-EXPECTED_COMPLETION_CHECKS = (aar_scan.EXPECTED_ROW, voice_model_identity.EXPECTED_ROW)
+EXPECTED_COMPLETION_CHECKS = (
+    aar_scan.EXPECTED_ROW,
+    voice_model_identity.EXPECTED_ROW,
+    project_context.EXPECTED_ROW,
+)
 import coursework_run
 from run_grader import EvidenceDisposition
 import docx_write
@@ -1305,6 +1311,7 @@ def survey(source: RunSource) -> Scan:
                 source.draft.name,
                 source.draft_bytes,
                 tuple(research_ledger.read_records(source.claims)),
+                project_context.recorded_digest(source.path),
             ),
         ),
     )
@@ -1642,7 +1649,10 @@ def grade(source: RunSource, _parsed: run_grader.Parsed) -> run_grader.Grade[Sca
         ),
         reports=(aar_report,),
     )
-    return voice_model_identity.apply_completion_gate(
+    grade = voice_model_identity.apply_completion_gate(
+        grade, source.path, _parsed.value("--submission")
+    )
+    return project_context.apply_completion_gate(
         grade, source.path, _parsed.value("--submission")
     )
 

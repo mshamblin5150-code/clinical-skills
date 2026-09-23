@@ -85,6 +85,12 @@ The grader reads these rows:
 - `untraced-citation`: an in-text citation has no matching claim-record reference.
 - `rendered-record`: the final visual record, retained export, page images, highest pass, and raw
   DOCX fingerprint do not form one complete join.
+- Heading-read enforcement uses `missing-heading-read`, `duplicate-heading-read`,
+  `unknown-heading-read-route`, `heading-read-sentence-count`,
+  `heading-read-unknown-heading`, `heading-read-dropped-heading`,
+  `heading-read-draft-mismatch`, `heading-read-defect`, `heading-read-finding`,
+  `heading-read-context-digest`, `heading-read-context-verdict-shape`, and
+  `heading-read-context-defect`.
 
 Default output is counts only; `--show` exposes private details. Exit 0 is clean, exit 1 is a
 finding, and exit 2 means the run was not completely scanned. Independently walk source support,

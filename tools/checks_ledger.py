@@ -26,8 +26,9 @@ The complete coverage inventory is ``checks_ledger.DECLARED_LIMITS``. This
 docstring points to that object rather than maintaining another copy of its rows;
 the arguments for the boundaries stay at the code points that create them.
 
-The separate voice identity row's ceiling belongs to
-``voice_model_identity.DECLARED_LIMITS``; this module copies no row.
+The shared completion rows' ceilings belong to
+``voice_model_identity.DECLARED_LIMITS`` and
+``project_context.DECLARED_LIMITS``; this module copies no row.
 
 **The record shape**, one per check, in a Markdown file under ``scratch/``::
 
@@ -178,13 +179,18 @@ import repo_root
 from run_grader import NOT_GRADED
 import aar_scan
 import voice_model_identity
+import project_context
 import heading_read
 import research_ledger
 from discussion_artifact import PostedReading, read_posted_readings
 import post_html
 import case_study_render
 
-EXPECTED_COMPLETION_CHECKS = (aar_scan.EXPECTED_ROW, voice_model_identity.EXPECTED_ROW)
+EXPECTED_COMPLETION_CHECKS = (
+    aar_scan.EXPECTED_ROW,
+    voice_model_identity.EXPECTED_ROW,
+    project_context.EXPECTED_ROW,
+)
 from run_grader import EvidenceDisposition
 
 
@@ -922,6 +928,7 @@ def _grade(
                     source.document.name,
                     source.document_bytes,
                     source.claims,
+                    project_context.recorded_digest(source.path.parent),
                 ),
             ),
         )
@@ -1099,7 +1106,10 @@ def _grade(
             aar_report,
         ),
     )
-    return voice_model_identity.apply_completion_gate(
+    grade = voice_model_identity.apply_completion_gate(
+        grade, source.path.parent, submission
+    )
+    return project_context.apply_completion_gate(
         grade, source.path.parent, submission
     )
 

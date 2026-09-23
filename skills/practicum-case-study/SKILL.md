@@ -881,8 +881,15 @@ part that matters most is that the voice is **first person and decisive**. `I wo
 Immediately before drafting the first prose, run:
 
 ```bash
+python tools/project_context.py scratch/runs/<run-key> --write
 python tools/voice_model_identity.py scratch/runs/<run-key> --write
 ```
+
+First write and confirm `project-context.md`, then retrieve every place owed by
+[sourcing.md](../_shared/reference/sourcing.md). The project-context command must exit 0. An
+unregistered project stops for the clinician's answer; an unreachable place stops until it is
+readable or the clinician confirms its waiver. A later direction amends and re-confirms the record
+before prose resumes.
 
 **Read only the canonical path the identity command reports**, and write each section in the register that
 section takes — the MDM, the patient education and the reflective prose are three different voices
@@ -1358,6 +1365,8 @@ DRAFT: <SHA-256 of the output Markdown's raw bytes>
 ROUTE: separate context | orchestrator walk
 SENTENCES: <n> factual, <n> clinician's own
 PAIR: <location> -> <first 8 hex of the heading digest>
+CONTEXT-DIGEST: <the project-context record's digest> | none
+CONTEXT-VERDICT: agrees | none | narrows | contradicts | sources-conflict - <location>, <what differs>
 VERDICT: clean | defect - <substance>
 FINDINGS: unrecorded | drifted - <location>, <what differs>
 ```
@@ -1430,6 +1439,9 @@ be several of them at once:
 | a heading-read-draft-mismatch | `DRAFT` is absent or differs from the output Markdown bytes |
 | a heading-read-defect verdict | the reader reported a defect, which blocks the go-ahead |
 | a heading-read-finding line | any `FINDINGS` line reports an `unrecorded` or `drifted` sentence and blocks the go-ahead |
+| a heading-read-context-digest mismatch | `CONTEXT-DIGEST` is absent or differs from the machine-written project-context digest |
+| a heading-read-context-verdict-shape defect | a nonagreeing verdict does not name its location and what differs |
+| a heading-read-context-defect verdict | the reader reported `narrows`, `contradicts`, or `sources-conflict`; revise the draft or obtain the clinician's ruling |
 
 **That last row was off the list entirely until
 [#255](https://github.com/mshamblin5150-code/clinical-skills/issues/255), and it is on for some of

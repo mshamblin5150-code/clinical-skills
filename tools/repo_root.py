@@ -76,6 +76,7 @@ from pathlib import Path
 
 
 VOICE_MODEL_NAME = "voice-model.md"
+PROJECT_REGISTRY_NAME = "project-registry.md"
 
 
 @dataclass(frozen=True)
@@ -141,6 +142,11 @@ def canonical_voice_model(start: Path | None = None) -> VoiceModelResolution:
         sha256=sha256(path.read_bytes()).hexdigest(),
         exists=True,
     )
+
+
+def project_registry(start: Path | None = None) -> Path:
+    """Resolve the one account-owned project registry. #1395."""
+    return scratch_root(start) / PROJECT_REGISTRY_NAME
 
 
 def output_root(start: Path | None = None) -> Path:

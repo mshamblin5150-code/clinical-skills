@@ -93,6 +93,8 @@ def a_clean_record(name: str) -> str:
             f"DRAFT: {DRAFT_SHA}\n"
             "ROUTE: separate context\n"
             "SENTENCES: 0 factual, 0 clinician's own\n"
+            "CONTEXT-DIGEST: none\n"
+            "CONTEXT-VERDICT: none\n"
             "VERDICT: clean\n"
         )
     block = f"## CHECK: {name}\nVERDICT: clean\n"
@@ -173,6 +175,11 @@ def run(argv: list[str], *, bind: bool = True) -> tuple[int, str, str]:
     output_patch = contextlib.nullcontext()
     if bind and arguments and Path(arguments[0]).is_file():
         checks_path = Path(arguments[0])
+        (checks_path.parent / "project-context.md").write_text(
+            "PROJECT-CONTEXT: none - synthetic case study\n"
+            "CONFIRMED: 2026-09-23\nCONTEXT-DIGEST: none\n",
+            encoding="utf-8",
+        )
         retained = checks_path.parent / "render" / "pass-1"
         retained.mkdir(parents=True, exist_ok=True)
         (retained / "case-study-draft.sha256").write_text(
@@ -1448,6 +1455,9 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
         checks.heading_read.DRAFT_MISMATCH: "a heading-read-draft-mismatch",
         checks.heading_read.DEFECT_VERDICT: "a heading-read-defect verdict",
         checks.heading_read.REPORTED_FINDING: "a heading-read-finding line",
+        checks.heading_read.CONTEXT_DIGEST_MISMATCH: "a heading-read-context-digest mismatch",
+        checks.heading_read.CONTEXT_VERDICT_SHAPE: "a heading-read-context-verdict-shape defect",
+        checks.heading_read.CONTEXT_DEFECT_VERDICT: "a heading-read-context-defect verdict",
         checks.SUBMISSION_FINGERPRINT: "the submission's posted reading has no `SUBMISSION-SHA256`, or it differs from the output Markdown",
         checks.INLINE_HTML: "the `canvas-composer` inline HTML is missing or differs from the Markdown rebuild",
         checks.POSTED_ATTACHMENT: "the `canvas-composer` posted attachment is missing or differs in filename or SHA-256",

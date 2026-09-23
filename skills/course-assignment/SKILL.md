@@ -142,11 +142,17 @@ reader's work.
 
 ## 3. Produce the deck
 
-Immediately before drafting the first prose, resolve and record the canonical model:
+Immediately before drafting the first prose, write and confirm the project declaration, retrieve
+every place owed by [sourcing.md](../_shared/reference/sourcing.md), then run both gates:
 
 ```bash
+python tools/project_context.py scratch/runs/<course>-<module>-course-assignment --write
 python tools/voice_model_identity.py scratch/runs/<course>-<module>-course-assignment --write
 ```
+
+The project-context command must exit 0. An unregistered project stops for the clinician's answer;
+an unreachable place stops until it is readable or the clinician confirms its waiver. A later
+search direction amends and re-confirms `project-context.md` before any prose resumes.
 
 Read only the path the identity command reports and use its reflective or argumentative register.
 If the command reports the existing absent-model banner, follow
@@ -195,7 +201,9 @@ The rows are:
 - Heading-read enforcement uses `missing-heading-read`, `duplicate-heading-read`,
   `unread-heading-read`, `unknown-heading-read-route`, `heading-read-sentence-count`,
   `heading-read-unknown-heading`, `heading-read-dropped-heading`,
-  `heading-read-draft-mismatch`, `heading-read-defect`, and `heading-read-finding`.
+  `heading-read-draft-mismatch`, `heading-read-defect`, `heading-read-finding`,
+  `heading-read-context-digest`, `heading-read-context-verdict-shape`, and
+  `heading-read-context-defect`.
 
 The default report prints counts only. `--show` exposes artifact text and remains private. Exit 0
 is clean, 1 means a finding, and 2 means the command did not completely scan the run, bar, or deck.

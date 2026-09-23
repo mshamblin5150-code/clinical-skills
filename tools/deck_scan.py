@@ -7,6 +7,9 @@ Container rows read slide XML plus referenced SmartArt data and chart parts.
 The figure-claim row reads those slide faces and ``ppt/notesSlides/``. Counts
 print by default because a course artifact can contain private material;
 ``--show`` exposes finding details.
+
+The project-context row's ceiling belongs to
+``project_context.DECLARED_LIMITS``; this module copies no row.
 """
 
 from __future__ import annotations
@@ -30,6 +33,7 @@ import research_ledger
 import file_digest
 import render_pass
 import voice_model_identity
+import project_context
 from discussion_artifact import (
     CLAIM_BLOCK,
     PostedReading,
@@ -100,6 +104,7 @@ HEADING_READ_ROWS = {kind: "the heading read agrees with the deck bytes and curr
 EXPECTED_COMPLETION_CHECKS = (
     aar_scan.EXPECTED_ROW,
     voice_model_identity.EXPECTED_ROW,
+    project_context.EXPECTED_ROW,
 )
 
 REQUIRED_BAR_FIELDS = (
@@ -1101,6 +1106,7 @@ def survey(source: Source) -> Scan:
                 source.deck.name,
                 source.deck_bytes,
                 tuple(research_ledger.read_records(source.claims)),
+                project_context.recorded_digest(source.root),
             ),
         ),
     )
@@ -1285,7 +1291,10 @@ def grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
         diagnostics=tuple(diagnostics),
         reports=(rendered.report, gate_report, aar_report),
     )
-    return voice_model_identity.apply_completion_gate(
+    grade = voice_model_identity.apply_completion_gate(
+        grade, source.root, _parsed.value("--submission")
+    )
+    return project_context.apply_completion_gate(
         grade, source.root, _parsed.value("--submission")
     )
 

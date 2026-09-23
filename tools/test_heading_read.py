@@ -26,15 +26,26 @@ DROPPED: the draft no longer makes this claim
 """
 DRAFT = b"Draft sentence.\n"
 DRAFT_DIGEST = "ab80d41641dd1eb842c7e9716e6302ceaafb8bb9b36cf999d9f961f094b2cfcb"
+CONTEXT_DIGEST = "c" * 64
 
 
-def record(*, route: str = "separate context", pairs: tuple[str, ...] = ("paragraph 1 -> 1cb3a5b6",), verdict: str = "clean", findings: tuple[str, ...] = ()) -> str:
+def record(
+    *,
+    route: str = "separate context",
+    pairs: tuple[str, ...] = ("paragraph 1 -> 1cb3a5b6",),
+    verdict: str = "clean",
+    findings: tuple[str, ...] = (),
+    context_digest: str = CONTEXT_DIGEST,
+    context_verdict: str = "agrees",
+) -> str:
     lines = [
         "## HEADING-READ: draft.md",
         f"DRAFT: {DRAFT_DIGEST}",
         f"ROUTE: {route}",
         "SENTENCES: 1 factual, 1 clinician's own",
         *(f"PAIR: {pair}" for pair in pairs),
+        f"CONTEXT-DIGEST: {context_digest}",
+        f"CONTEXT-VERDICT: {context_verdict}",
         f"VERDICT: {verdict}",
         *(f"FINDINGS: {finding}" for finding in findings),
     ]
@@ -46,6 +57,7 @@ def scan(text: str) -> heading_read.Scan:
         artifact="draft.md",
         draft=DRAFT,
         claims=tuple(research_ledger.read_records(CLAIMS)),
+        context_digest=CONTEXT_DIGEST,
     )
     return heading_read.scan(text, (binding,))
 
@@ -103,6 +115,7 @@ class AHeadingReadBindsTheDraftToCurrentClaimHeadings(unittest.TestCase):
             artifact="draft.md",
             draft=DRAFT,
             claims=tuple(research_ledger.read_records(edited_claims)),
+            context_digest=CONTEXT_DIGEST,
         )
         result = heading_read.scan(record(), (changed,))
         self.assertEqual(
@@ -121,6 +134,7 @@ class AHeadingReadBindsTheDraftToCurrentClaimHeadings(unittest.TestCase):
             artifact="draft.md",
             draft=b"Draft sentence!\n",
             claims=tuple(research_ledger.read_records(CLAIMS)),
+            context_digest=CONTEXT_DIGEST,
         )
         result = heading_read.scan(record(), (changed,))
         self.assertEqual([heading_read.DRAFT_MISMATCH], [f.kind for f in result.findings])
@@ -134,6 +148,80 @@ class AHeadingReadBindsTheDraftToCurrentClaimHeadings(unittest.TestCase):
     def test_any_findings_line_blocks_even_when_the_verdict_says_clean(self):
         result = scan(record(verdict="clean", findings=("drifted - paragraph 1, subject broadened",)))
         self.assertIn(heading_read.REPORTED_FINDING, [f.kind for f in result.findings])
+
+    def test_the_context_digest_must_equal_the_project_context_record(self):
+        result = scan(record(context_digest="d" * 64))
+        self.assertIn(heading_read.CONTEXT_DIGEST_MISMATCH, [f.kind for f in result.findings])
+
+    def test_agrees_is_the_only_clean_context_verdict(self):
+        for verdict in (
+            "narrows - planning file, founder motive lost",
+            "contradicts - memory index, audience differs",
+            "sources-conflict - memory index and thought-17, motives differ",
+        ):
+            with self.subTest(verdict=verdict):
+                result = scan(record(context_verdict=verdict))
+                self.assertIn(
+                    heading_read.CONTEXT_DEFECT_VERDICT,
+                    [finding.kind for finding in result.findings],
+                )
+
+    def test_a_non_agreeing_verdict_needs_location_and_difference(self):
+        result = scan(record(context_verdict="narrows"))
+        self.assertIn(
+            heading_read.CONTEXT_VERDICT_SHAPE,
+            [finding.kind for finding in result.findings],
+        )
+
+    def test_a_sources_conflict_verdict_names_two_sources(self):
+        one_source = scan(
+            record(context_verdict="sources-conflict - memory index, motives differ")
+        )
+        two_sources = scan(
+            record(
+                context_verdict=(
+                    "sources-conflict - memory index and thought-17, motives differ"
+                )
+            )
+        )
+
+        self.assertIn(
+            heading_read.CONTEXT_VERDICT_SHAPE,
+            [finding.kind for finding in one_source.findings],
+        )
+        self.assertNotIn(
+            heading_read.CONTEXT_VERDICT_SHAPE,
+            [finding.kind for finding in two_sources.findings],
+        )
+        for verdict in (
+            "sources-conflict - memory index and  , motives differ",
+            "sources-conflict - memory index and memory index, motives differ",
+        ):
+            with self.subTest(verdict=verdict):
+                result = scan(record(context_verdict=verdict))
+                self.assertIn(
+                    heading_read.CONTEXT_VERDICT_SHAPE,
+                    [finding.kind for finding in result.findings],
+                )
+
+    def test_a_none_run_requires_both_context_fields_to_be_none(self):
+        binding = heading_read.Binding(
+            artifact="draft.md",
+            draft=DRAFT,
+            claims=tuple(research_ledger.read_records(CLAIMS)),
+            context_digest="none",
+        )
+        clean = heading_read.scan(
+            record(context_digest="none", context_verdict="none"), (binding,)
+        )
+        self.assertEqual((), clean.findings)
+        wrong = heading_read.scan(
+            record(context_digest="none", context_verdict="agrees"), (binding,)
+        )
+        self.assertIn(
+            heading_read.CONTEXT_DEFECT_VERDICT,
+            [finding.kind for finding in wrong.findings],
+        )
 
     def test_records_for_another_draft_are_the_unread_remainder(self):
         text = record().replace("draft.md", "other.md", 1)

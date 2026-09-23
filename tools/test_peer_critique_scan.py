@@ -76,6 +76,11 @@ def claim_record(
 
 
 def empty_population_input(root: Path) -> EmptyPopulationInput:
+    (root / "project-context.md").write_text(
+        "PROJECT-CONTEXT: none - synthetic critique\n"
+        "CONFIRMED: 2026-09-23\nCONTEXT-DIGEST: none\n",
+        encoding="utf-8",
+    )
     (root / "posts").mkdir()
     (root / "posts" / "synthetic.md").write_text(
         "AUTHOR: Maren Quill\n", encoding="utf-8"
@@ -90,7 +95,8 @@ def empty_population_input(root: Path) -> EmptyPopulationInput:
     digest = hashlib.sha256((root / "critique.md").read_bytes()).hexdigest()
     (root / "heading-read.md").write_text(
         f"## HEADING-READ: critique.md\nDRAFT: {digest}\n"
-        "ROUTE: separate context\nSENTENCES: 0 factual, 0 clinician's own\nVERDICT: clean\n",
+        "ROUTE: separate context\nSENTENCES: 0 factual, 0 clinician's own\n"
+        "CONTEXT-DIGEST: none\nCONTEXT-VERDICT: none\nVERDICT: clean\n",
         encoding="utf-8",
     )
     return EmptyPopulationInput(
@@ -114,6 +120,11 @@ def build_run(
 
     directory = root or Path(tempfile.mkdtemp()) / "run"
     (directory / "posts").mkdir(parents=True)
+    (directory / "project-context.md").write_text(
+        "PROJECT-CONTEXT: none - synthetic critique\n"
+        "CONFIRMED: 2026-09-23\nCONTEXT-DIGEST: none\n",
+        encoding="utf-8",
+    )
     (directory / "posts" / "k.md").write_text("AUTHOR: Maren Quill\n", encoding="utf-8")
     sections = "\n\n".join(
         f"**{heading}**\n\n" + ("" if heading in empty else f"{filler} (Ross, 2025).") + "\n"
@@ -125,7 +136,8 @@ def build_run(
     digest = hashlib.sha256((directory / "critique.md").read_bytes()).hexdigest()
     (directory / "heading-read.md").write_text(
         f"## HEADING-READ: critique.md\nDRAFT: {digest}\n"
-        "ROUTE: separate context\nSENTENCES: 0 factual, 0 clinician's own\nVERDICT: clean\n",
+        "ROUTE: separate context\nSENTENCES: 0 factual, 0 clinician's own\n"
+        "CONTEXT-DIGEST: none\nCONTEXT-VERDICT: none\nVERDICT: clean\n",
         encoding="utf-8",
     )
     if reread is not None:

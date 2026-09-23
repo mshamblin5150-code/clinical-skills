@@ -1887,7 +1887,7 @@ class EveryRuledFanOutReadsTheSharedSourcingRules(unittest.TestCase):
             [
                 heading
                 for heading in re.findall(r"(?m)^## (.+)$", text)
-                if not heading.startswith("HEADING-READ:")
+                if not heading.startswith(("HEADING-READ:", "PLACE:"))
             ],
             [
                 "A pointer is not a source",

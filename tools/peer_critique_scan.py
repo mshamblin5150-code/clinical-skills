@@ -18,8 +18,9 @@ and the ceiling is a count a reader weighs.
 What a clean run does not establish is declared by ``NOT_REACHED``. The module
 owns that complete inventory; this docstring copies no row from it.
 
-The separate voice identity row's ceiling belongs to
-``voice_model_identity.DECLARED_LIMITS``; this module copies no row.
+The shared completion rows' ceilings belong to
+``voice_model_identity.DECLARED_LIMITS`` and
+``project_context.DECLARED_LIMITS``; this module copies no row.
 """
 
 from __future__ import annotations
@@ -48,10 +49,15 @@ from run_grader import NOT_GRADED, EvidenceDisposition
 from research_ledger import REFUTATION_EVIDENCE_COMPLEMENT
 import aar_scan
 import voice_model_identity
+import project_context
 import heading_read
 import research_ledger
 
-EXPECTED_COMPLETION_CHECKS = (aar_scan.EXPECTED_ROW, voice_model_identity.EXPECTED_ROW)
+EXPECTED_COMPLETION_CHECKS = (
+    aar_scan.EXPECTED_ROW,
+    voice_model_identity.EXPECTED_ROW,
+    project_context.EXPECTED_ROW,
+)
 
 
 MISSING_HEADING = "missing-heading"
@@ -416,6 +422,7 @@ def survey(source: RunSource) -> Scan:
                 "critique.md",
                 source.critique_bytes,
                 tuple(research_ledger.read_records(source.claims)),
+                project_context.recorded_digest(source.path),
             ),
         ),
     )
@@ -621,11 +628,16 @@ def grade(source: RunSource, parsed: run_grader.Parsed) -> run_grader.Grade[Scan
         ),
         reports=(aar_report,),
     )
-    return voice_model_identity.apply_completion_gate(
+    grade = voice_model_identity.apply_completion_gate(
         grade,
         source.path,
         parsed.value("--submission"),
         coverage_limb=VOICE_MODEL_IDENTITY_UNVERIFIED,
+    )
+    return project_context.apply_completion_gate(
+        grade,
+        source.path,
+        parsed.value("--submission"),
     )
 
 
