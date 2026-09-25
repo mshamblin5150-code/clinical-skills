@@ -386,6 +386,14 @@ _Avoid_: final, output, deliverable
 The record of a graded contribution as it stands where it was posted after submission — a course Board, a clinical portal, or a Peer-review comment — carrying that surface's own locator, its timestamp, and a verdict on whether what the surface stores is what the artifact says. Read off the posted surface and never off the artifact, so a run that did not go back has none rather than acquiring one. It is also the hand-off an **After-action review** must follow, and its heading names the submission it belongs to. It also carries a fingerprint of the source its verdict describes, so an edit to that source after the reading voids the verdict rather than leaving it standing over a document nobody reread. For a clinical shift, one reading covers every visit entered under the shift's one go-ahead, each visit with its own portal locator and time, because the shift is what was approved. Distinct from a **Submission**, which is the document a course marks: a Reply has no submission. For a Peer critique, ADR 0204 makes the reviewed submission's page the locator because its dated observation exposed no deep link for the comment itself.
 _Avoid_: reread, confirmation, post-check, board diff
 
+**Clinician upload**:
+A **Submission** the clinician puts on the course surface himself, after he has looked at it and approved it. It is one of two routes to the same place — the other is the run uploading the approved files — and it reaches completion the same way, through a **Posted reading** that proves the posted file is the approved one. What it gives up is timing: a wrong file is found only after a submission the course surface cannot take back.
+_Avoid_: manual submission, self-upload, out-of-band upload
+
+**Run status**:
+The one line that ends every reply about a graded run once its approval is recorded, naming where the run stands: awaiting upload, awaiting posted reading, awaiting after-action review, stopped with a reason, or complete. It is how a run says it is finished, so *complete* is a claim held to the run's terminal grade rather than a sentence, and *stopped* hands the run back to the clinician without pretending it is progressing.
+_Avoid_: progress line, done marker, completion claim
+
 **Evidence dump**:
 One handover of complete tertiary-source topic bodies, supplied wholesale for a module rather than found by searching. It is the unit of provenance and no longer the unit of entitlement: dumps accumulate into the **Evidence store**, so a later paper may cite a topic an earlier dump carried.
 _Avoid_: sources, corpus, articles
