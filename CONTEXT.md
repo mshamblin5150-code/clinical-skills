@@ -298,6 +298,14 @@ _Avoid_: heading digest, heading hash, refuted heading, claim fingerprint
 A fresh reader's pairing of every factual sentence in a finished draft with the [[Claim heading]] it rests on, taken before the go-ahead and holding only the draft and the claim ledger. A sentence no heading states is unrecorded; a sentence claiming more than its heading, or other than it, is drifted. It establishes that the draft and the ledger agree, not that either is right, and it expires when the draft or any heading it names changes.
 _Avoid_: draft-to-ledger read, draft check, claim audit, faithfulness check
 
+**Voice read**:
+A fresh reader's comparison of a finished coursework draft with the canonical voice model's discriminating pairs, taken on a copy carrying one [[Planted sentence]] the reader is not told of. Every pair is answered with a quoted draft sentence and the half it resembles, or no counterpart. It establishes consistency with the model's samples, never that the draft sounds like its clinician; a missed plant voids it, and it expires when the draft changes.
+_Avoid_: voice check, voice audit, voice grade, sounds-like check
+
+**Planted sentence**:
+One sentence of a draft rewritten toward a pair's generic half by a context that neither wrote the draft nor reads it, recorded where the [[Voice read]]'s reader cannot see it. It is what lets a voice read fail a reader who did not compare; whether the rewrite is truly generic is a reading no check reaches.
+_Avoid_: canary, decoy, trap, test sentence
+
 **Dropped record**:
 A [[Claim record]] whose source the graded document was going to rest on, and no longer does, and which says why. Its research stays in the ledger and its obligation to reach the reference list is released; it is never a [[Believed record]], because a claim the document no longer makes cannot vouch for a figure the document still states. A record whose claim was cut without saying so is not dropped, it is an uncited source.
 _Avoid_: unused record, orphan record, deleted claim, abandoned claim
