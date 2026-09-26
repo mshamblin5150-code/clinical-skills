@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:pPr><w:pStyle w:val="Heading1"/></w:pPr>
+      <w:r><w:t>Scrubbed Finished Body</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:r><w:t>This paragraph preserves the narrative block shape of a finished Word paper while removing its course subject and authored wording.</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:pPr><w:pStyle w:val="BlockQuotation"/><w:numPr/></w:pPr>
+      <w:r><w:t>This quoted paragraph preserves quoted list material as a body-exempt block.</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:pPr><w:pStyle w:val="Heading1"/></w:pPr>
+      <w:r><w:t>References</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:r><w:t>Author, A. A. (YEAR). Scrubbed title. https://example.invalid/source</w:t></w:r>
+    </w:p>
+    <w:sectPr/>
+  </w:body>
+</w:document>

@@ -253,6 +253,7 @@ here so a reader who cannot run the command walks the same checks:
 | `heading-order` | the headings appear in the order the spec lists them |
 | `addressed-name` | the addressed first name is on the run roster |
 | `word-floor` | the critique contains at least 500 words |
+| `narrative-body` | the shared house-style body row is clean |
 | `reference-minimum` | the critique carries at least 2 references |
 | `unresolved-citation` | every in-text citation resolves to the critique's own list |
 | `untraced-number` | every body numeral traces to a believed claim record |
@@ -271,6 +272,9 @@ The final-draft reading adds `missing-heading-read`, `duplicate-heading-read`,
 The word count excludes the reference list. The 750-word expectation is **reported and never
 graded**, on the no-stated-maximum rule in step 4, and the count of literal ampersands is reported
 for the reason in step 6.
+
+If the command is unavailable, walk its named `narrative-body` row against the same body boundary
+and [style.md](../_shared/reference/style.md); do not restate a second list rule in this skill.
 
 Then run the reference list through the shared APA grader:
 

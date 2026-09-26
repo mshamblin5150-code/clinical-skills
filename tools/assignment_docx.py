@@ -18,10 +18,7 @@ from console_codec import require_python_floor, use_utf8
 from repo_root import ensure_main_checkout, main_repo_root, output_root
 
 
-BLUE = "234E70"
 PALE_BLUE = "EAF2F8"
-GRAPHITE = "30343B"
-LIGHT_GRAY = "D9D9D9"
 FINGERPRINT_FILE = "assignment-docx.sha256"
 
 
@@ -128,69 +125,10 @@ def _xml_paragraph(
     return f"<w:p>{ppr}{body}</w:p>"
 
 
-def _matrix(rows: tuple[CommandRow, ...]) -> str:
-    values = (("Role", "Responsibility", "Decision right"),) + tuple(
-        (row.role, row.responsibility, row.decision_right) for row in rows
-    )
-    widths = (1800, 3780, 3780)
-    grid = "".join(f'<w:gridCol w:w="{width}"/>' for width in widths)
-    rendered_rows = []
-    for index, row in enumerate(values):
-        cells = []
-        for width, value in zip(widths, row, strict=True):
-            fill = f'<w:shd w:fill="{BLUE}"/>' if index == 0 else ""
-            margins = (
-                '<w:tcMar><w:top w:w="100" w:type="dxa"/>'
-                '<w:left w:w="120" w:type="dxa"/>'
-                '<w:bottom w:w="100" w:type="dxa"/>'
-                '<w:right w:w="120" w:type="dxa"/></w:tcMar>'
-            )
-            color = '<w:color w:val="FFFFFF"/>' if index == 0 else ""
-            bold = "<w:b/>" if index == 0 else ""
-            cells.append(
-                '<w:tc><w:tcPr><w:tcW w:w="{width}" w:type="dxa"/>{fill}{margins}'
-                '</w:tcPr><w:p><w:pPr><w:spacing w:line="276" w:lineRule="auto"/>'
-                '</w:pPr><w:r><w:rPr>{color}{bold}</w:rPr>'
-                '<w:t>{value}</w:t></w:r></w:p></w:tc>'.format(
-                    width=width,
-                    fill=fill,
-                    margins=margins,
-                    color=color,
-                    bold=bold,
-                    value=docx_write.esc(value),
-                )
-            )
-        header = "<w:trPr><w:tblHeader/></w:trPr>" if index == 0 else ""
-        rendered_rows.append(f"<w:tr>{header}{''.join(cells)}</w:tr>")
-    borders = "".join(
-        f'<w:{edge} w:val="single" w:sz="4" w:color="{LIGHT_GRAY}"/>'
-        for edge in ("top", "left", "bottom", "right", "insideH", "insideV")
-    )
-    return (
-        '<w:tbl><w:tblPr><w:tblW w:w="9360" w:type="dxa"/>'
-        f'<w:tblBorders>{borders}</w:tblBorders></w:tblPr>'
-        f"<w:tblGrid>{grid}</w:tblGrid>{''.join(rendered_rows)}</w:tbl>"
-    )
-
-
-def _relationship_legend(labels: tuple[str, str, str]) -> str:
-    cells = []
-    for label in labels:
-        cells.append(
-            '<w:tc><w:tcPr><w:tcW w:w="3120" w:type="dxa"/>'
-            '<w:tcMar><w:top w:w="40" w:type="dxa"/><w:left w:w="80" w:type="dxa"/>'
-            '<w:bottom w:w="80" w:type="dxa"/><w:right w:w="80" w:type="dxa"/>'
-            '</w:tcMar></w:tcPr><w:p><w:pPr><w:jc w:val="center"/></w:pPr>'
-            f'<w:r><w:rPr><w:b/><w:color w:val="{GRAPHITE}"/></w:rPr>'
-            f'<w:t>{docx_write.esc(label)}</w:t></w:r></w:p></w:tc>'
-        )
-    return (
-        '<w:tbl><w:tblPr><w:tblW w:w="9360" w:type="dxa"/>'
-        '<w:tblBorders><w:top w:val="none"/><w:left w:val="none"/>'
-        '<w:bottom w:val="none"/><w:right w:val="none"/>'
-        '<w:insideH w:val="none"/><w:insideV w:val="none"/></w:tblBorders>'
-        '</w:tblPr><w:tblGrid><w:gridCol w:w="3120"/><w:gridCol w:w="3120"/>'
-        f'<w:gridCol w:w="3120"/></w:tblGrid><w:tr>{"".join(cells)}</w:tr></w:tbl>'
+def _command_narrative(rows: tuple[CommandRow, ...]) -> tuple[str, ...]:
+    return tuple(
+        f"{row.role}: {row.responsibility}. Decision right: {row.decision_right}."
+        for row in rows
     )
 
 
@@ -303,14 +241,16 @@ def _body(spec: AssignmentSpec) -> str:
     out.extend(
         (
             _xml_paragraph("Command Matrix", style="Heading1"),
-            _xml_paragraph("Table 1 Command and decision relationships", style="Caption"),
-            _matrix(spec.command_rows),
+            *(_xml_paragraph(text, first_line=True) for text in _command_narrative(spec.command_rows)),
             _xml_paragraph("System Relationships", style="Heading1"),
             _xml_paragraph(
                 "Figure 1 " + " to ".join(spec.relationship_labels), style="Caption"
             ),
             _drawing(spec.figure_alt_text),
-            _relationship_legend(spec.relationship_labels),
+            _xml_paragraph(
+                "The figure connects " + ", ".join(spec.relationship_labels) + ".",
+                first_line=True,
+            ),
             _xml_paragraph("References", style="Heading1", page_break_before=True),
         )
     )

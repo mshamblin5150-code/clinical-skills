@@ -40,6 +40,7 @@ import voice_model_identity
 import voice_read
 import imagery_proposals
 import project_context
+import coursework_style
 from run_grader import NOT_GRADED
 
 
@@ -65,6 +66,7 @@ CLAIM_LEDGER = "claim-ledger"
 UNTRACED_NUMBER = "untraced-number"
 UNTRACED_CITATION = "untraced-citation"
 RENDERED_RECORD = "rendered-record"
+NARRATIVE_BODY = "narrative-body"
 ROWS = (
     PACKAGE_STRUCTURE,
     WORD_RANGE,
@@ -74,6 +76,7 @@ ROWS = (
     UNTRACED_NUMBER,
     UNTRACED_CITATION,
     RENDERED_RECORD,
+    NARRATIVE_BODY,
 ) + heading_read.KINDS
 KINDS = ROWS
 HEADING_READ_ROWS = {kind: kind for kind in heading_read.KINDS}
@@ -155,6 +158,7 @@ class Source:
     claims: str
     rendered: str
     heading_read_text: str
+    document: ElementTree.Element
 
 
 @dataclass(frozen=True)
@@ -258,8 +262,6 @@ def _package(
                 defects.append(f"missing native {style} style")
     document_bytes = archive.read("word/document.xml")
     document = document_bytes.decode("utf-8")
-    if "<w:tblHeader" not in document:
-        defects.append("no repeating table header was found")
     document_root = ElementTree.fromstring(document_bytes)
     drawings = tuple(document_root.iter(WP + "docPr"))
     if not drawings:
@@ -280,8 +282,6 @@ def _package(
             if not target or package_target not in names:
                 defects.append("a figure relationship has no readable media target")
     captions = [paragraph.text for paragraph in paragraphs if paragraph.style == "Caption"]
-    if not any(text.casefold().startswith("table ") for text in captions):
-        defects.append("no table caption was found")
     if not any(text.casefold().startswith("figure ") for text in captions):
         defects.append("no figure caption was found")
     if "word/header1.xml" in names and 'w:instr="PAGE"' not in archive.read("word/header1.xml").decode("utf-8"):
@@ -340,6 +340,7 @@ def load(
         claims,
         rendered,
         heading_read_text,
+        document,
     )
 
 
@@ -496,6 +497,13 @@ def survey(source: Source) -> Scan:
             )
     rendered_findings, passes, rendered_records = _rendered_findings(source)
     findings.extend(rendered_findings)
+    findings.extend(
+        Finding(
+            NARRATIVE_BODY,
+            f"{block.kind} block at body line {block.line}",
+        )
+        for block in coursework_style.docx_narrative_blocks(source.document)
+    )
     return Scan(
         len(source.paragraphs),
         body_words,

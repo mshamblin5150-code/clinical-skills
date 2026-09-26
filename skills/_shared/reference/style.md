@@ -1,4 +1,4 @@
-# House style for a practicum case study
+# House style for graded coursework
 
 Derived from **ten graded and returned submissions**, all from one FNP practicum course. This is
 the authority [practicum-case-study](../../practicum-case-study/SKILL.md) points at for voice and for section shapes.
@@ -7,6 +7,24 @@ the authority [practicum-case-study](../../practicum-case-study/SKILL.md) points
 gitignored: it names the clinician, quotes
 his submitted work in full, and links his drive. What survives here is the *shape* — no name, no
 dates finer than a year, no links. Standing rule 1 in [AGENTS.md](../../../AGENTS.md).
+
+## Shared narrative-body rule
+
+Discussion posts, discussion replies, peer critiques, and `course-assignment` Word documents use
+narrative prose in the graded body. Do not use bulleted lists, numbered lists, or tables there.
+The reference list and quoted material are outside this body rule.
+
+Later, narrower rulings remain in force. A practicum case study keeps its MDM, Plan, and
+Patient Education as numbered lists. A presentation keeps bullets on the slide face under the
+container limits signed in that assignment's bar.
+
+The coursework graders expose this rule as `narrative-body`. Each Markdown artifact is read
+through `docx_write.blocks`, the shared renderer grammar. The Word grader projects native list and
+table structures into that same grammar before grading them, so its row follows the artifact rather
+than relying on paragraph text alone.
+
+The Word projection's complete ceiling is `coursework_style.DECLARED_LIMITS`; its remaining
+structures require the page read already owned by the Word branch.
 
 **All ten passed and the ceiling is high**, so this is a description of work that is already
 working. What follows is not a repair list. It is the pattern to match, plus the handful of things

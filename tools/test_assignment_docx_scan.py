@@ -5,12 +5,19 @@ from __future__ import annotations
 import unittest
 import tempfile
 import zipfile
+import io
+import re
+import shutil
+from contextlib import redirect_stderr, redirect_stdout
 from dataclasses import replace
 from pathlib import Path
 from xml.etree import ElementTree
 
 import assignment_docx
 import assignment_docx_scan as scan
+import coursework_run
+import coursework_style
+import docx_write
 import file_digest
 import research_ledger
 import run_grader
@@ -18,6 +25,7 @@ from grader_conformance import EmptyPopulationInput, for_module
 
 
 GraderConformance = for_module(scan)
+REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 class PackageTest(unittest.TestCase):
@@ -96,6 +104,171 @@ class PackageTest(unittest.TestCase):
                 document = ElementTree.fromstring(archive.read("word/document.xml"))
                 findings = scan._package(archive, scan._paragraphs(document))
         self.assertTrue(any("Reference style" in item.detail for item in findings))
+
+
+class NarrativeBodyHouseStyle(unittest.TestCase):
+    def test_the_public_grader_refuses_a_planted_table_and_accepts_correct_prose(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            inputs = empty_population_input(Path(directory))
+            run = Path(inputs.argv[0])
+            artifact = Path(inputs.argv[2])
+            clean_output = io.StringIO()
+            with redirect_stdout(clean_output), redirect_stderr(io.StringIO()):
+                scan.main([str(run), "--docx", str(artifact)])
+            with zipfile.ZipFile(artifact) as archive:
+                parts = {name: archive.read(name) for name in archive.namelist()}
+            document = ElementTree.fromstring(parts["word/document.xml"])
+            body = document.find(".//" + scan.W + "body")
+            references = next(
+                paragraph
+                for paragraph in body.findall(scan.W + "p")
+                if "".join(node.text or "" for node in paragraph.iter(scan.W + "t"))
+                == "References"
+            )
+            table = ElementTree.Element(scan.W + "tbl")
+            row = ElementTree.SubElement(table, scan.W + "tr")
+            cell = ElementTree.SubElement(row, scan.W + "tc")
+            paragraph = ElementTree.SubElement(cell, scan.W + "p")
+            run_node = ElementTree.SubElement(paragraph, scan.W + "r")
+            ElementTree.SubElement(run_node, scan.W + "t").text = "Planted table"
+            body.insert(list(body).index(references), table)
+            parts["word/document.xml"] = ElementTree.tostring(document, encoding="utf-8")
+            with zipfile.ZipFile(artifact, "w") as archive:
+                for name, payload in parts.items():
+                    archive.writestr(name, payload)
+            planted_output = io.StringIO()
+            with redirect_stdout(planted_output), redirect_stderr(io.StringIO()):
+                scan.main([str(run), "--docx", str(artifact)])
+
+        self.assertIn("narrative-body: 0", clean_output.getvalue())
+        self.assertIn("narrative-body: 1", planted_output.getvalue())
+
+
+class FinishedWordPapersAreTheMeasuredControls(unittest.TestCase):
+    """Measure #1426 through the public command without printing private prose."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.finished = sorted((coursework_run.output_root() / "course-assignments").glob("*.docx"))
+        if not cls.finished:
+            raise unittest.SkipTest("private finished Word-paper population unavailable")
+
+    @staticmethod
+    def ensure_graded_body(artifact: Path) -> None:
+        with zipfile.ZipFile(artifact) as archive:
+            parts = {name: archive.read(name) for name in archive.namelist()}
+        document = ElementTree.fromstring(parts["word/document.xml"])
+        if coursework_style.docx_body_markdown(document):
+            return
+        body = document.find(".//" + scan.W + "body")
+        paragraph = ElementTree.Element(scan.W + "p")
+        properties = ElementTree.SubElement(paragraph, scan.W + "pPr")
+        ElementTree.SubElement(properties, scan.W + "pStyle", {scan.W + "val": "Heading1"})
+        run_node = ElementTree.SubElement(paragraph, scan.W + "r")
+        ElementTree.SubElement(run_node, scan.W + "t").text = "Measured Body"
+        body.insert(0, paragraph)
+        parts["word/document.xml"] = ElementTree.tostring(document, encoding="utf-8")
+        with zipfile.ZipFile(artifact, "w") as archive:
+            for name, payload in parts.items():
+                archive.writestr(name, payload)
+
+    @staticmethod
+    def plant_table(artifact: Path) -> None:
+        with zipfile.ZipFile(artifact) as archive:
+            parts = {name: archive.read(name) for name in archive.namelist()}
+        document = ElementTree.fromstring(parts["word/document.xml"])
+        body = document.find(".//" + scan.W + "body")
+        references = next(
+            (
+                paragraph
+                for paragraph in body.findall(scan.W + "p")
+                if "".join(node.text or "" for node in paragraph.iter(scan.W + "t")) == "References"
+            ),
+            None,
+        )
+        table = ElementTree.Element(scan.W + "tbl")
+        row = ElementTree.SubElement(table, scan.W + "tr")
+        cell = ElementTree.SubElement(row, scan.W + "tc")
+        paragraph = ElementTree.SubElement(cell, scan.W + "p")
+        run_node = ElementTree.SubElement(paragraph, scan.W + "r")
+        ElementTree.SubElement(run_node, scan.W + "t").text = "Planted table"
+        boundary = references if references is not None else body.find(scan.W + "sectPr")
+        body.insert(list(body).index(boundary) if boundary is not None else len(body), table)
+        parts["word/document.xml"] = ElementTree.tostring(document, encoding="utf-8")
+        with zipfile.ZipFile(artifact, "w") as archive:
+            for name, payload in parts.items():
+                archive.writestr(name, payload)
+
+    @staticmethod
+    def count(source: Path, *, plant: bool = False) -> int:
+        with tempfile.TemporaryDirectory() as directory:
+            inputs = empty_population_input(Path(directory))
+            run = Path(inputs.argv[0])
+            artifact = Path(inputs.argv[2])
+            shutil.copyfile(source, artifact)
+            FinishedWordPapersAreTheMeasuredControls.ensure_graded_body(artifact)
+            if plant:
+                FinishedWordPapersAreTheMeasuredControls.plant_table(artifact)
+            digest = file_digest.sha256(artifact)
+            file_digest.write_recorded_sha256(
+                run / "render" / "pass-1" / scan.FINGERPRINT_FILE, digest
+            )
+            (run / "heading-read.md").write_text(
+                f"## HEADING-READ: {artifact.name}\nDRAFT: {digest}\n"
+                "ROUTE: separate context\nSENTENCES: 0 factual, 0 clinician's own\n"
+                "CONTEXT-DIGEST: none\nCONTEXT-VERDICT: none\nVERDICT: clean\n",
+                encoding="utf-8",
+            )
+            output = io.StringIO()
+            with redirect_stdout(output), redirect_stderr(io.StringIO()):
+                scan.main([str(run), "--docx", str(artifact)])
+        match = re.search(r"(?m)^narrative-body: (\d+)$", output.getvalue())
+        if match is None:
+            raise AssertionError("public grader omitted narrative-body")
+        return int(match.group(1))
+
+    def test_each_finished_paper_fires_once_for_the_planted_positive(self) -> None:
+        for source in self.finished:
+            self.assertEqual(1, self.count(source, plant=True) - self.count(source))
+
+    def test_real_finished_prose_is_the_negative_control(self) -> None:
+        prose = []
+        for source in self.finished:
+            with zipfile.ZipFile(source) as archive:
+                document = ElementTree.fromstring(archive.read("word/document.xml"))
+            prose.extend(
+                block.text
+                for block in docx_write.blocks(coursework_style.docx_body_markdown(document))
+                if block.kind == "paragraph" and block.text.strip()
+            )
+        self.assertGreater(len(prose), 0)
+        with tempfile.TemporaryDirectory() as directory:
+            artifact = Path(directory) / "real-prose-control.docx"
+            spec = replace(
+                assignment_docx.fixture_spec(),
+                sections=(assignment_docx.Section("Finished Prose", tuple(prose)),),
+            )
+            assignment_docx.build(spec, artifact)
+            self.assertEqual(0, self.count(artifact))
+
+
+class CommittedWordPaperControl(unittest.TestCase):
+    def test_the_public_grader_reads_the_scrubbed_finished_member_and_plant(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            inputs = empty_population_input(Path(directory))
+            artifact = Path(inputs.argv[2])
+            with zipfile.ZipFile(artifact) as archive:
+                parts = {name: archive.read(name) for name in archive.namelist()}
+            parts["word/document.xml"] = (
+                REPO_ROOT / "fixtures" / "coursework-style" / "word-document.xml"
+            ).read_bytes()
+            with zipfile.ZipFile(artifact, "w") as archive:
+                for name, payload in parts.items():
+                    archive.writestr(name, payload)
+            baseline = FinishedWordPapersAreTheMeasuredControls.count(artifact)
+            planted = FinishedWordPapersAreTheMeasuredControls.count(artifact, plant=True)
+        self.assertEqual(0, baseline)
+        self.assertEqual(1, planted - baseline)
 
 
 class WordRangeTest(unittest.TestCase):

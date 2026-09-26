@@ -63,6 +63,7 @@ import voice_model_identity
 import voice_read
 import imagery_proposals
 import project_context
+import coursework_style
 import heading_read
 import research_ledger
 
@@ -80,6 +81,7 @@ from research_ledger import REFUTATION_EVIDENCE_COMPLEMENT
 
 ADDRESSED_NAME = "addressed-name"
 WORD_FLOOR = "word-floor"
+NARRATIVE_BODY = "narrative-body"
 WORD_FLOOR_COUNT = 150
 REFERENCE_MINIMUM = "reference-minimum"
 UNRESOLVED_CITATION = "unresolved-citation"
@@ -98,6 +100,7 @@ SUBMISSION_FINGERPRINT = "submission-fingerprint"
 ROWS = {
     ADDRESSED_NAME: "the addressed first name is on the run roster",
     WORD_FLOOR: f"the reply contains at least {WORD_FLOOR_COUNT} words",
+    NARRATIVE_BODY: "the graded body uses narrative prose rather than lists or tables",
     REFERENCE_MINIMUM: "the reply contains at least one reference",
     UNRESOLVED_CITATION: "every in-text citation resolves within the reply",
     MISSING_FIRST_AUTHOR_INITIALS: "same-surname first authors with different initials are distinguished in text",
@@ -121,6 +124,7 @@ GATED_ROW_SETS = {
     "reference_boundary_graded": (
         (
             WORD_FLOOR,
+            NARRATIVE_BODY,
             REFERENCE_MINIMUM,
             UNRESOLVED_CITATION,
             MISSING_FIRST_AUTHOR_INITIALS,
@@ -940,6 +944,14 @@ def survey(source: RunSource) -> Scan:
         finding
         for reply in source.replies
         for finding in _invoked_findings(reply)
+    ) + tuple(
+        Finding(
+            NARRATIVE_BODY,
+            reply.path.name,
+            f"{block.kind} block at body line {block.line}",
+        )
+        for reply in source.replies
+        for block in coursework_style.narrative_blocks(reply.body)
     ) + editor_findings + _posted_reading_findings(source) + heading_findings
     return Scan(
         responses=len(source.replies),

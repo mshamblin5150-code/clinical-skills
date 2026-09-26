@@ -276,6 +276,81 @@ class TheHeadingReadPrecedesThePostingGoAhead(unittest.TestCase):
         self.assertIn("heading-read-draft-mismatch: 1", stdout)
 
 
+class NarrativeBodyHouseStyle(unittest.TestCase):
+    def test_the_public_grader_refuses_a_planted_list_and_accepts_correct_prose(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            clean_status, clean_report, _ = run.grade()
+            run.draft.write_text(
+                BODY.replace("## References", "- A planted list item\n\n## References"),
+                encoding="utf-8",
+            )
+            planted_status, planted_report, _ = run.grade()
+
+        self.assertEqual(0, clean_status)
+        self.assertIn("narrative-body: 0", clean_report)
+        self.assertEqual(1, planted_status)
+        self.assertIn("narrative-body: 1", planted_report)
+
+
+class FinishedDiscussionPostsAreTheMeasuredControls(unittest.TestCase):
+    """Measure #1426 through the public command without printing private prose."""
+
+    @classmethod
+    def setUpClass(cls):
+        paths = sorted((coursework_run.output_root() / "discussions").glob("*.md"))
+        paths = [path for path in paths if "peer-critique" not in path.name]
+        if not paths:
+            raise unittest.SkipTest("private finished discussion-post population unavailable")
+        cls.finished = [path.read_text(encoding="utf-8") for path in paths]
+
+    @staticmethod
+    def count(text: str) -> int:
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            run.draft.write_text(text, encoding="utf-8")
+            _, report, _ = run.grade()
+        match = re.search(r"(?m)^narrative-body: (\d+)$", report)
+        if match is None:
+            raise AssertionError("public grader omitted narrative-body")
+        return int(match.group(1))
+
+    def test_each_finished_post_fires_once_for_the_planted_positive(self):
+        for text in self.finished:
+            match = scan.REFERENCE_HEADING.search(text)
+            if match is None:
+                continue
+            baseline = self.count(text)
+            planted = self.count(text[: match.start()] + "- Planted list item.\n\n" + text[match.start() :])
+            self.assertEqual(1, planted - baseline)
+
+    def test_real_finished_prose_is_the_negative_control(self):
+        prose = [
+            block.text
+            for text in self.finished
+            for block in docx_write.blocks(text)
+            if block.kind == "paragraph" and block.text.strip()
+        ]
+        self.assertGreater(len(prose), 0)
+        control = BODY.replace("## References", "\n\n".join(prose) + "\n\n## References")
+        self.assertEqual(0, self.count(control))
+
+
+class CommittedDiscussionPostControl(unittest.TestCase):
+    def test_the_public_grader_reads_the_scrubbed_finished_member_and_plant(self):
+        text = (REPO_ROOT / "fixtures" / "coursework-style" / "discussion-post.md").read_text(
+            encoding="utf-8"
+        )
+        match = scan.REFERENCE_HEADING.search(text)
+        self.assertIsNotNone(match)
+        baseline = FinishedDiscussionPostsAreTheMeasuredControls.count(text)
+        planted = FinishedDiscussionPostsAreTheMeasuredControls.count(
+            text[: match.start()] + "- Planted list item.\n\n" + text[match.start() :]
+        )
+        self.assertEqual(0, baseline)
+        self.assertEqual(1, planted - baseline)
+
+
 def empty_population_input(root: Path) -> EmptyPopulationInput:
     run = Run(root)
     (root / "bar.md").write_text(

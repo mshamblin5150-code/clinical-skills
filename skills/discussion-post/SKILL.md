@@ -327,6 +327,9 @@ python tools/discussion_post_scan.py scratch/runs/<course>-<module>-discussion -
 
 `reference_scan.py` walks the APA list and citation resolution unchanged. Its exit must be 0.
 `discussion_post_scan.py` grades the signed word floor and reference minimum. Its
+`narrative-body` row applies the shared house-style rule in
+[style.md](../_shared/reference/style.md) to the graded body through the renderer's block parser.
+Its
 `untraced-number` row requires every distinct body-number value to appear in a believed claim record;
 repeating a value does not spend another record. Its `untraced-citation` row requires every
 in-text citation to have a claim record for its source, while `respent-record` requires each
@@ -348,7 +351,9 @@ scan. Preserve the original checker result, fix findings through the drafting co
 the declared grading surface on the correction. Then walk `discussion_post_scan.NOT_REACHED` item
 by item against the live pages, signed bar, draft, and ledger. In particular, read whether an ISBN
 or other prose bar element is present and whether a reference supports the proposition the bar
-requires; do not substitute a reference count for either judgment.
+requires; do not substitute a reference count for either judgment. If the command is unavailable,
+walk its named `narrative-body` row against the same body boundary; do not restate a second list rule
+in this skill.
 
 ## 7. Generate the HTML submission and archival `.docx`
 

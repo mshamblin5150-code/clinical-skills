@@ -263,6 +263,9 @@ markers. Reference entries must be separated by blank lines and copied from the 
 `REFERENCE` field. `--show` prints names and finding detail, so its output is private working
 material and must not be pasted.
 
+The `narrative-body` row applies the shared house-style rule in
+[style.md](../_shared/reference/style.md) to each reply body through the renderer's block parser.
+
 Exit 0 means every scanned reply and posted reading passes, 1 means a finding, and 2 means the run
 was not completely scannable. Before a new reply is posted, its one expected finding is
 `missing-posted-reading`; every other row must be clean. Fix any other finding through the original
@@ -275,7 +278,9 @@ the two files' paragraph text, anchor destinations, and anchor count.
 
 Walk `discussion_reply_scan.NOT_REACHED` after a clean scan; it is the single inventory of what the
 command cannot decide. A clean scan grades only the mechanically visible set and is not a checked
-voice or a checked board. The clinician answers the substance questions from the table below.
+voice or a checked board. If the command is unavailable, walk its named `narrative-body` row against
+the same body boundary; do not restate a second list rule here. The clinician answers the substance
+questions from the table below.
 
 After each reply is final and before that reply's go-ahead, run the **Planter** and separate fresh
 **Voice reader** in [voice-read.md](../_shared/reference/voice-read.md). Keep the result under that

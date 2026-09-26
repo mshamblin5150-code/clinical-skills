@@ -55,6 +55,7 @@ import imagery_proposals
 import project_context
 import heading_read
 import research_ledger
+import coursework_style
 
 EXPECTED_COMPLETION_CHECKS = (
     aar_scan.EXPECTED_ROW,
@@ -78,6 +79,7 @@ MISSING_POSTED_READING = "missing-posted-reading"
 UNKNOWN_VERDICT = "unknown-verdict"
 BARE_VERDICT = "bare-verdict"
 SUBMISSION_FINGERPRINT = "submission-fingerprint"
+NARRATIVE_BODY = "narrative-body"
 
 #: The floor the spec states. A critique under it has not answered eight headings.
 WORD_FLOOR_COUNT = 500
@@ -105,6 +107,7 @@ ROWS = {
     HEADING_ORDER: "the headings appear in the order the spec lists them",
     ADDRESSED_NAME: "the addressed first name is on the run roster",
     WORD_FLOOR: f"the critique contains at least {WORD_FLOOR_COUNT} words",
+    NARRATIVE_BODY: "the graded body uses narrative prose rather than lists or tables",
     REFERENCE_MINIMUM: f"the critique carries at least {REFERENCE_FLOOR_COUNT} references",
     UNRESOLVED_CITATION: "every in-text citation resolves to the critique's own list",
     UNTRACED_NUMBER: "every body numeral traces to a believed claim record",
@@ -119,7 +122,7 @@ HEADING_READ_ROWS = {kind: ROWS[kind] for kind in heading_read.KINDS}
 
 GATED_ROW_SETS = {
     "reference_boundary_graded": (
-        (WORD_FLOOR, REFERENCE_MINIMUM, UNRESOLVED_CITATION, UNTRACED_NUMBER),
+        (WORD_FLOOR, NARRATIVE_BODY, REFERENCE_MINIMUM, UNRESOLVED_CITATION, UNTRACED_NUMBER),
         (
             "words",
             "word_ceiling",
@@ -477,6 +480,14 @@ def survey(source: RunSource) -> Scan:
         )
     findings.extend(_citation_findings(source))
     findings.extend(_numeric_findings(source))
+    findings.extend(
+        Finding(
+            NARRATIVE_BODY,
+            "critique.md",
+            f"{block.kind} block at body line {block.line}",
+        )
+        for block in coursework_style.narrative_blocks(source.body)
+    )
     return Scan(
         headings_found=len(REQUIRED_HEADINGS) - sum(
             finding.kind == MISSING_HEADING for finding in findings
@@ -529,6 +540,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
     ]
     reference_rows = {
         WORD_FLOOR,
+        NARRATIVE_BODY,
         REFERENCE_MINIMUM,
         UNRESOLVED_CITATION,
         UNTRACED_NUMBER,
