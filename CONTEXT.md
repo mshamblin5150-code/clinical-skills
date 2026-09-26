@@ -507,6 +507,14 @@ _Avoid_: chat history, archive, dump
 A domain the writer reaches outside the immediate subject for -- a mechanism, a discipline, a named authority -- whose real behavior is then spent as the argument. What makes one load-bearing is that the claim rides on what the domain actually does; a decorative one names nothing it is spending. The domain is open by construction, because the same domain can be invoked in one sentence and used literally in the next, so nothing keyed on a list of domains recognizes an instance.
 _Avoid_: metaphor, figure, imagery, amplification, craft metaphor
 
+**Stated principle**:
+A belief the writer states as a belief and argues from across the corpus, quoted in their own words, together with the structure the principles sit in. It is not an [[Invoked source]]: a principle is the ground a claim stands on rather than a domain whose behavior one sentence spends, so it has no property to name and is recorded once for the corpus rather than per use. The same authority can appear as both, invoked in one sentence and stated as a standing principle in another.
+_Avoid_: philosophy, creed, value, belief system, worldview
+
+**Stated writing rule**:
+An instruction the writer has given about their own writing, quoted and dated. It binds on one clear statement, unlike an observed feature, which needs two samples, and it is retired only by a later statement that replaces it. It is neither a trait read from the writing nor a [[Stated principle]] argued from; one that is house style by kind belongs to the style sheet rather than the voice model.
+_Avoid_: preference, stated preference, standing order, word rule
+
 **Publish**:
 Writing bytes to a durable place other people read — a path inside a git checkout, or a tracker record. It is the irreversible step a gate attaches to, which is why the trust rules on build artifacts and the PHI and branch-scope rules on tracker text both attach here and nowhere else; writing the same bytes to a build directory outside every checkout is not one, because nothing there reaches a reader. The two destinations are not equally retractable and the difference is not cosmetic: a checkout path can be rewritten before the commit that carries it, while a tracker publication cannot be withdrawn at all, since GitHub retains a pre-edit revision the API exposes no way to read or delete. This entry read *a path inside a git checkout* alone until 2026-09-01, which made **Publish route** — one command form that puts text on the tracker — a compound whose head term excluded it.
 _Avoid_: write, output, emit, save
