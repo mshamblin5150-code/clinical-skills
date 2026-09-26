@@ -1602,6 +1602,21 @@ and reports a stale installed format block. The complete detection boundary belo
 `grilling_stop_hook.DECLARED_LIMITS`; this section points at that object and copies none of its
 rows.
 
+### Approved run status guard
+
+`tools/run_status_stop_hook.py` enforces the terminal `Run status:` line after a course-assignment
+approval is recorded. Its one-row `RUN_KINDS` table names the run-directory suffix, durable
+approval record, and terminal grader; adding another submission skill is a row rather than another
+hook. The hook retracts a missing or duplicate line, an early `complete`, a reasonless `stopped`,
+and a waiting status that tries to reopen the same stopped approval. The complete detection
+boundary belongs to `run_status_stop_hook.DECLARED_LIMITS`; this section points at that object and
+copies none of its rows.
+
+Claude Code registers the hook in `.claude/settings.json`. After this change is present in the
+owning checkout, `python tools/install_run_status_guard.py` installs the same hook beside existing
+user-level Codex Stop hooks by absolute owning-checkout path. Repeating the command replaces only
+its own registration.
+
 ### Browser tab hook
 
 The browser-tab `PreToolUse` hook is registered without an `if` condition in

@@ -153,24 +153,36 @@ FILENAME: <one exact basename, repeated once for every file>
 ```
 
 The reviewed `.docx` is the only approved carrier by default. A review companion remains outside
-the upload set unless the clinician explicitly names it before approval. **Gate 1** is explicit
+the upload set unless the clinician explicitly names it before approval. Every revision writes its
+retained render passes and review records only in the run directory; another scratch workspace is
+work in progress and supplies no approval evidence. Run `python tools/course_assignment_scan.py
+<run-directory> --artifact <docx>` before approval and require its pre-upload grade to exit 0.
+**Gate 1** is explicit
 approval of that exact filename population; it authorizes choosing and staging only those files in
 Canvas. Bind that decision with
 `assignment_submission.stage(run, docx, artifact_approved=True, approved_carriers=(...))`, which
 records every approved filename and SHA-256 plus the attachment count in the run's durable
-`submission-gates.json`. Show `assignment_submission.approval_surface(staged)` and return to Gate 1
+`submission-gates.json` only after it reruns that clean pre-upload grade against the run directory.
+Show `assignment_submission.approval_surface(staged)` and return to Gate 1
 if it differs from the approved surface. Before every file-picker action, require
 `assignment_submission.upload_is_allowed(staged, candidate)` to be true; a false result refuses the
 file. Inspect the staged
 filename and Canvas assignment page, then stop again. Gate 1 never authorizes the **Submit
-Assignment** click.
+Assignment** click. Per-context scratch paths may be removed after approval is recorded.
+
+From that approval onward, read and apply the shared [run-status.md](run-status.md) contract. End
+every reply that touches the open DOCX run with its single `Run status:` line.
 
 **Gate 2** is a separate explicit confirmation given after the staged-file inspection. Immediately
 before clicking **Submit Assignment**, confirm that the staged file's SHA-256 still matches Gate 1.
 A changed file returns to rendering and Gate 1. Persist the separate decision with
 `assignment_submission.confirm(staged, uploaded_carriers=(...), final_confirmation=True)`. Only a true
 `assignment_submission.submit_is_authorized(staged)` result after that Gate 2 record authorizes
-the click. After submission,
+the click. If the clinician reports that he uploaded the approved DOCX himself, record the route
+instead with
+`assignment_submission.record_clinician_upload(run, docx, uploaded_carriers=(...))`; this refuses
+without the same recorded approval and does not authorize an agent click. In either route, download
+and read the posted artifact before continuing. After submission,
 read the posted artifact and append the main skill's `## REREAD:` record using the DOCX stem,
 including `ATTACHMENT-COUNT:` and one `SUBMITTED-FILE:` for every submitted filename.
 

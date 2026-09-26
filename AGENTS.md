@@ -149,6 +149,14 @@ commands can walk the selected branch's rows and the documented research-record 
 [course-assignment](skills/course-assignment/SKILL.md), but cannot call the run mechanically
 verified.
 
+**Approved `course-assignment` runs depend on the shared status guard.**
+`.claude/settings.json` registers `tools/run_status_stop_hook.py` for Claude Code, and
+`python tools/install_run_status_guard.py` installs the same Stop hook for Codex after the tracked
+files reach the owning checkout. The hook reads its open and close rules from one per-skill table,
+requires exactly one terminal `Run status:` line after recorded approval, and holds `complete` to
+the artifact-aware `--submission` grade. Its complete ceiling belongs to
+`run_status_stop_hook.DECLARED_LIMITS`.
+
 **The five coursework skills depend on `tools/project_context.py`.** `course-assignment`,
 `discussion-post`, `practicum-case-study`, `discussion-reply`, and `peer-critique` write and confirm
 their purpose-named `project-context.md` before first prose. The command expands the account-owned

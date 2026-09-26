@@ -397,10 +397,21 @@ The finished `.pptx` is the only approved carrier by default. A review companion
 default and remains outside the upload set unless the clinician explicitly names it before
 approval; merely creating or showing that companion never adds it. For a Canvas Composer, also
 show the selected route and its cost.
+Every revision writes its retained render passes and review records to the run directory named by
+the run key. A per-context scratch path holds work in progress only and never supplies approval
+evidence. Run `python tools/course_assignment_scan.py <run-directory> --artifact <deck>` before
+approval and require its pre-upload grade to exit 0 against that run directory.
+
 This is the existing submission gate; wait for the explicit go-ahead once. Then call
 `assignment_submission.stage(run, deck, artifact_approved=True, approved_carriers=(...))` with
 exactly the approved files and show `assignment_submission.approval_surface(staged)`. Any mismatch
-with the surface the clinician approved returns to the gate.
+with the surface the clinician approved returns to the gate. `stage` reruns the same pre-upload
+grade and refuses to record approval unless it is clean. After approval is recorded, the
+per-context scratch paths may be removed; the run directory remains intact.
+
+From this approval onward, read and apply the shared
+[run-status.md](references/run-status.md) contract. End every reply that touches the open run with
+its single `Run status:` line.
 
 Before each file-picker action, require
 `assignment_submission.upload_is_allowed(staged, candidate)` to be true. A false result refuses
@@ -415,7 +426,12 @@ report the refusal and what was found, and stop at the clinician.
 Pass the inspected filename population to
 `assignment_submission.confirm(staged, uploaded_carriers=(...), final_confirmation=True)` and
 require `assignment_submission.submit_is_authorized(staged)` immediately before submitting.
-Then submit and read the posted artifact back from the LMS. Append this exact record to
+Then submit and read the posted artifact back from the LMS. If the clinician instead reports that
+he uploaded the approved carrier population, do not call `confirm` or claim the run complete:
+record that route with
+`assignment_submission.record_clinician_upload(run, deck, uploaded_carriers=(...))`, download the
+posted artifact, and take the same posted reading. A clinician upload with no recorded approval is
+refused. Append this exact record to
 `reread.md`, using the output deck stem as the heading on both submission branches:
 
 ```text

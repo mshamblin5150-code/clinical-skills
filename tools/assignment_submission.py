@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
+import sys
 from dataclasses import dataclass
+from enum import Enum
 from pathlib import Path
 
 import file_digest
@@ -17,6 +20,13 @@ class GateError(ValueError):
 
 
 RECORD = "submission-gates.json"
+COURSE_ASSIGNMENT_SCAN = Path(__file__).resolve().parent / "course_assignment_scan.py"
+
+
+class UploadRoute(str, Enum):
+    AWAITING = "awaiting-upload"
+    AGENT = "agent"
+    CLINICIAN = "clinician"
 
 
 @dataclass(frozen=True)
@@ -66,6 +76,50 @@ def _carrier_payload(carriers: tuple[Carrier, ...]) -> list[dict[str, str]]:
     return [{"filename": item.name, "sha256": item.sha256} for item in carriers]
 
 
+def _pre_upload_grade(run: Path, artifact: Path) -> tuple[bool, str]:
+    """Run the artifact-aware grade before durable approval is recorded."""
+
+    completed = subprocess.run(
+        [
+            sys.executable,
+            str(COURSE_ASSIGNMENT_SCAN),
+            str(run),
+            "--artifact",
+            str(artifact),
+        ],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
+    report = "\n".join(
+        part.strip() for part in (completed.stdout, completed.stderr) if part.strip()
+    )
+    return completed.returncode == 0, report or f"grader exited {completed.returncode}"
+
+
+def _next_approval_revision(run: Path) -> int:
+    try:
+        previous = _read(run).get("approval_revision", 0)
+    except GateError:
+        previous = 0
+    return previous + 1 if isinstance(previous, int) and previous >= 0 else 1
+
+
+def _upload_route(payload: dict[str, object]) -> UploadRoute | None:
+    """Read the current route, including the pre-route Gate 2 record shape."""
+
+    try:
+        return UploadRoute(payload.get("upload_route"))
+    except (TypeError, ValueError):
+        return (
+            UploadRoute.AGENT
+            if payload.get("gate2_confirmed") is True
+            else None
+        )
+
+
 def stage(
     run: Path,
     artifact: Path,
@@ -83,6 +137,9 @@ def stage(
         raise GateError("Gate 1 needs an existing run directory")
     if not path.is_file() or path.suffix.casefold() not in {".docx", ".pptx"}:
         raise GateError("Gate 1 needs an existing DOCX or PowerPoint artifact")
+    grade_clean, grade_report = _pre_upload_grade(root, path)
+    if not grade_clean:
+        raise GateError(f"the run-directory pre-upload grade is not clean: {grade_report}")
     carrier_inputs = (path,) if approved_carriers is None else approved_carriers
     carriers = tuple(_carrier(item) for item in carrier_inputs)
     names = tuple(item.name for item in carriers)
@@ -97,12 +154,14 @@ def stage(
         root / RECORD,
         {
             "artifact": path.name,
+            "artifact_path": str(path),
             "sha256": digest,
             "attachment_count": len(carriers),
             "approved_carriers": _carrier_payload(carriers),
             "uploaded_files": [],
             "gate1_approved": True,
-            "gate2_confirmed": False,
+            "upload_route": UploadRoute.AWAITING.value,
+            "approval_revision": _next_approval_revision(root),
         },
     )
     return StagedUpload(root, path, digest, carriers)
@@ -154,8 +213,59 @@ def confirm(
     ):
         raise GateError("the durable Gate 1 record names another artifact or carrier set")
     payload["uploaded_files"] = list(uploaded_names)
-    payload["gate2_confirmed"] = True
+    payload["upload_route"] = UploadRoute.AGENT.value
+    payload.pop("gate2_confirmed", None)
+    payload.pop("clinician_upload_recorded", None)
     _write(staged.run / RECORD, payload)
+
+
+def record_clinician_upload(
+    run: Path,
+    artifact: Path,
+    *,
+    uploaded_carriers: tuple[Path, ...],
+) -> None:
+    """Record the clinician's upload against an existing exact Gate 1 approval."""
+
+    root = Path(run).resolve()
+    path = Path(artifact).resolve()
+    try:
+        payload = _read(root)
+    except GateError as failure:
+        raise GateError("a clinician upload needs recorded approval") from failure
+    if payload.get("gate1_approved") is not True:
+        raise GateError("a clinician upload needs recorded approval")
+    approved = payload.get("approved_carriers")
+    if not isinstance(approved, list) or not all(
+        isinstance(item, dict) for item in approved
+    ):
+        raise GateError("a clinician upload needs a readable recorded approval")
+    approved_names = tuple(str(item.get("filename", "")) for item in approved)
+    uploaded = tuple(Path(item).resolve() for item in uploaded_carriers)
+    uploaded_names = tuple(item.name for item in uploaded)
+    approved_digests = {
+        str(item.get("filename", "")): str(item.get("sha256", ""))
+        for item in approved
+    }
+    if (
+        payload.get("artifact") != path.name
+        or payload.get("sha256") != file_digest.sha256(path)
+        or path.name not in approved_names
+        or uploaded_names != approved_names
+        or any(
+            not candidate.is_file()
+            or file_digest.sha256(candidate) != approved_digests.get(candidate.name)
+            for candidate in uploaded
+        )
+    ):
+        raise GateError(
+            "the clinician-uploaded population differs from the recorded approval"
+        )
+    payload["uploaded_files"] = list(uploaded_names)
+    payload["upload_route"] = UploadRoute.CLINICIAN.value
+    payload.pop("gate2_confirmed", None)
+    payload.pop("clinician_upload_recorded", None)
+    _write(root / RECORD, payload)
 
 
 def submit_is_authorized(staged: StagedUpload) -> bool:
@@ -165,7 +275,7 @@ def submit_is_authorized(staged: StagedUpload) -> bool:
         payload = _read(staged.run)
         return bool(
             payload.get("gate1_approved") is True
-            and payload.get("gate2_confirmed") is True
+            and _upload_route(payload) is UploadRoute.AGENT
             and payload.get("artifact") == staged.artifact.name
             and payload.get("sha256") == staged.sha256
             and payload.get("attachment_count") == len(staged.carriers)
@@ -199,7 +309,8 @@ def completion_gate(
         )
         clean = bool(
             payload.get("gate1_approved") is True
-            and payload.get("gate2_confirmed") is True
+            and _upload_route(payload)
+            in (UploadRoute.AGENT, UploadRoute.CLINICIAN)
             and payload.get("artifact") == path.name
             and path.is_file()
             and payload.get("sha256") == file_digest.sha256(path)

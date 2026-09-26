@@ -13,6 +13,7 @@ from prose_bind import NAMING, bind
 ROOT = Path(__file__).resolve().parents[1]
 SKILL = ROOT / "skills" / "course-assignment" / "SKILL.md"
 DOCX_BRANCH = ROOT / "skills" / "course-assignment" / "references" / "docx.md"
+RUN_STATUS = ROOT / "skills" / "course-assignment" / "references" / "run-status.md"
 AGENTS = ROOT / "AGENTS.md"
 README = ROOT / "README.md"
 CASE_STUDY = ROOT / "skills" / "practicum-case-study" / "SKILL.md"
@@ -24,6 +25,7 @@ class TheCourseAssignmentWorkflow(unittest.TestCase):
     def setUpClass(cls):
         cls.skill = SKILL.read_text(encoding="utf-8")
         cls.docx_branch = DOCX_BRANCH.read_text(encoding="utf-8")
+        cls.run_status = RUN_STATUS.read_text(encoding="utf-8")
 
     def test_the_skill_is_indexed_and_dispatches_only_signed_deck_or_docx_artifacts(self):
         self.assertIn("| course-assignment |", AGENTS.read_text(encoding="utf-8"))
@@ -147,6 +149,28 @@ class TheCourseAssignmentWorkflow(unittest.TestCase):
                 self.assertIn("SUBMITTED-FILE:", surface)
                 self.assertIn("assignment_submission.upload_is_allowed", surface)
         self.assertIn("excluded by default", " ".join(self.skill.split()))
+
+    def test_both_branches_carry_the_clinician_upload_and_run_status_contract(self):
+        for surface in (self.skill, self.docx_branch):
+            with self.subTest(surface=surface[:30]):
+                self.assertIn("assignment_submission.record_clinician_upload", surface)
+                self.assertIn("run-status.md", surface)
+                self.assertIn("Run status:", surface)
+                self.assertIn("run directory", surface)
+        for line in (
+            "Run status: awaiting upload",
+            "Run status: awaiting posted reading",
+            "Run status: awaiting AAR",
+            "Run status: stopped - <reason>",
+            "Run status: complete",
+        ):
+            self.assertIn(line, self.run_status)
+
+    def test_approval_requires_the_run_directory_pre_upload_grade(self):
+        for surface in (self.skill, self.docx_branch):
+            with self.subTest(surface=surface[:30]):
+                self.assertIn("pre-upload grade", surface)
+                self.assertIn("before approval", surface)
 
     def test_completion_binds_and_links_the_canonical_finished_artifact(self):
         normalized = " ".join(self.skill.split())
