@@ -1,9 +1,12 @@
 """Cover ``case_study_scan``'s parser and rows against synthetic drafts.
 
-Every draft here is written in this file and a temp directory. **There is no
-committed case study and there will not be one** -- a finished draft lives under
-``output/`` and is written about a patient, which is ``test_reference_scan``'s
-position exactly, and ``test_differential_scan``'s before it.
+Every durable draft here is written in this file and a temp directory. **There is
+no committed case study and there will not be one** -- a finished draft lives
+under ``output/`` and is written about a patient, which is
+``test_reference_scan``'s position exactly, and ``test_differential_scan``'s
+before it. #1425 adds one conditional local measurement over that private
+population. It retains no prose and asserts counts only; where the population is
+unavailable, that measurement skips rather than replacing it with a fixture.
 
 Three classes read committed files, and each is here for a different reason.
 ``TheSkeletonIsTheSkillsOwn`` derives the section vocabulary from ``SKILL.md``
@@ -506,6 +509,17 @@ class TemperatureUsesTheDegreeSymbol(unittest.TestCase):
         )
         self.assertEqual(kinds(planted).count("temperature-degrees-word"), 1)
 
+    def test_every_authored_numeric_degrees_word_form_fires(self):
+        for temperature in ("102.2 degrees", "39 degrees Celsius"):
+            with self.subTest(temperature=temperature):
+                planted = CLEAN.replace(
+                    "General: + fatigue and fever, - chills and weight loss.",
+                    "General: + fatigue and fever of {temperature}, - chills and weight loss.".format(
+                        temperature=temperature
+                    ),
+                )
+                self.assertEqual(kinds(planted).count("temperature-degrees-word"), 1)
+
     def test_a_quoted_source_threshold_keeps_the_sources_unit(self):
         quoted = CLEAN.replace(
             "## References",
@@ -518,6 +532,14 @@ class TemperatureUsesTheDegreeSymbol(unittest.TestCase):
         quoted = CLEAN.replace(
             "## References",
             'The source states, "Fever begins at 100.4 degrees Fahrenheit" (Ross, 2025).\n\n'
+            "## References",
+        )
+        self.assertEqual(kinds(quoted).count("temperature-degrees-word"), 0)
+
+    def test_a_narrative_citation_before_a_source_quotation_keeps_the_unit(self):
+        quoted = CLEAN.replace(
+            "## References",
+            'Ross (2025) states, "Fever begins at 100.4 degrees Fahrenheit."\n\n'
             "## References",
         )
         self.assertEqual(kinds(quoted).count("temperature-degrees-word"), 0)
@@ -576,6 +598,18 @@ class StandardClinicalLabelsUseAbbreviations(unittest.TestCase):
         )
         self.assertEqual(kinds(planted).count("expanded-clinical-label"), 1)
 
+    def test_an_expanded_label_and_value_in_one_table_cell_fires(self):
+        table = """\
+| Vital signs |
+| --- |
+| Temperature: 102.2°F |
+"""
+        planted = CLEAN.replace(
+            "## Physical Examination",
+            table + "\n## Physical Examination",
+        )
+        self.assertEqual(kinds(planted).count("expanded-clinical-label"), 1)
+
     def test_finished_prose_with_standard_abbreviations_is_the_negative_control(self):
         accepted = CLEAN.replace(
             "General: Alert, in no acute distress.",
@@ -593,6 +627,57 @@ class StandardClinicalLabelsUseAbbreviations(unittest.TestCase):
             "## References",
         )
         self.assertEqual(kinds(prose).count("expanded-clinical-label"), 0)
+
+
+class FinishedCaseStudiesAreTheMeasuredControls(unittest.TestCase):
+    """Run #1425's planted and negative controls without printing draft prose."""
+
+    @classmethod
+    def setUpClass(cls):
+        paths = sorted((coursework_run.output_root() / "case-studies").glob("*.md"))
+        if not paths:
+            raise unittest.SkipTest("private finished case-study population unavailable")
+        cls.finished = [path.read_text(encoding="utf-8") for path in paths]
+        cls.skill = SKILL.read_text(encoding="utf-8")
+
+    @classmethod
+    def count(cls, text: str, row: str) -> int:
+        return sum(finding.kind == row for finding in scan.survey(text, cls.skill).findings)
+
+    def test_each_row_fires_once_per_planted_finished_case(self):
+        plants = {
+            scan.TEMPERATURE_DEGREES_WORD_ROW: "Temperature: 102.2 degrees Fahrenheit.",
+            scan.EXPANDED_CLINICAL_LABEL: "Temperature: 102.2°F.",
+        }
+        for row, plant in plants.items():
+            with self.subTest(row=row):
+                baseline = sum(self.count(text, row) for text in self.finished)
+                planted = sum(self.count(text + "\n\n" + plant, row) for text in self.finished)
+                self.assertEqual(planted - baseline, len(self.finished))
+
+    def test_real_finished_correct_prose_is_the_negative_control(self):
+        controls = {
+            scan.TEMPERATURE_DEGREES_WORD_ROW: re.compile(
+                r"\b\d{1,3}(?:\.\d+)?°F\b", re.I
+            ),
+            scan.EXPANDED_CLINICAL_LABEL: re.compile(
+                r"\b(?:HEENT|T|HR|RR|BP|SpO2)\s*:", re.I
+            ),
+        }
+        for row, pattern in controls.items():
+            with self.subTest(row=row):
+                prose = [
+                    scan.block_text(block)
+                    for text in self.finished
+                    for block in docx_write.blocks(text)
+                    if pattern.search(scan.block_text(block))
+                ]
+                self.assertGreater(len(prose), 0)
+                control = CLEAN.replace(
+                    "## References",
+                    "\n\n".join(prose) + "\n\n## References",
+                )
+                self.assertEqual(self.count(control, row), 0)
 
 
 class TheBoldRow(unittest.TestCase):

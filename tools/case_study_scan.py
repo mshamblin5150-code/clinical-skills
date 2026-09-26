@@ -246,25 +246,30 @@ QUOTED_WORD = re.compile(r"\b[\w’'-]+\b", re.UNICODE)
 # Source quotations are excluded by the row below because house style does not
 # rewrite the source's own unit.
 TEMPERATURE_DEGREES_WORD = re.compile(
-    r"\b\d{2,3}(?:\.\d+)?\s+degrees?\s+(?:Fahrenheit|F)\b",
+    r"\b\d{1,3}(?:\.\d+)?\s+degrees?\b",
     re.I,
 )
+EXPANDED_VITAL_LABEL_TEXT = (
+    r"(?:Temperature|Heart\s+rate|Respiratory\s+rate|Blood\s+pressure|Oxygen\s+saturation)"
+)
+EXPANDED_HEENT_LABEL_TEXT = (
+    r"(?:Head\s*[,/]\s*Eyes\s*[,/]\s*Ears\s*[,/]\s*Nose\s*"
+    r"(?:(?:[,/]\s*)(?:and\s+)?|and\s+)Throat)"
+)
+EXPANDED_CLINICAL_LABEL_TEXT = (
+    r"(?:" + EXPANDED_VITAL_LABEL_TEXT + r"|" + EXPANDED_HEENT_LABEL_TEXT + r")"
+)
+LABEL_BOUNDARY = r"(?:^|(?<=[.!?;])\s+)"
 EXPANDED_HEENT_LABEL = re.compile(
-    r"^\s*(?:\*\*)?Head\s*[,/]\s*Eyes\s*[,/]\s*Ears\s*[,/]\s*Nose\s*[,/]\s*"
-    r"(?:and\s+)?Throat(?:\*\*)?\s*:",
+    LABEL_BOUNDARY + r"(?:\*\*)?" + EXPANDED_HEENT_LABEL_TEXT + r"(?:\*\*)?\s*:",
     re.I,
 )
 EXPANDED_VITAL_LABEL = re.compile(
-    r"(?:^|(?<=[.!?;])\s+)(?:\*\*)?"
-    r"(?:Temperature|Heart\s+rate|Respiratory\s+rate|Blood\s+pressure|Oxygen\s+saturation)"
-    r"(?:\*\*)?\s*:",
+    LABEL_BOUNDARY + r"(?:\*\*)?" + EXPANDED_VITAL_LABEL_TEXT + r"(?:\*\*)?\s*:",
     re.I,
 )
 EXPANDED_CLINICAL_LABEL_CELL = re.compile(
-    r"^\s*(?:\*\*)?(?:"
-    r"Temperature|Heart\s+rate|Respiratory\s+rate|Blood\s+pressure|Oxygen\s+saturation"
-    r"|Head\s*[,/]\s*Eyes\s*[,/]\s*Ears\s*[,/]\s*Nose\s*[,/]\s*(?:and\s+)?Throat"
-    r")(?:\*\*)?\s*:?[\s.]*$",
+    r"^\s*(?:\*\*)?" + EXPANDED_CLINICAL_LABEL_TEXT + r"(?:\*\*)?(?=\s*(?::|\d|$))",
     re.I,
 )
 
@@ -1028,7 +1033,8 @@ def _temperature_unit_findings(sections: list[Section], every: list) -> list[Fin
         quoted_ranges = [
             quote.span()
             for quote in QUOTED_SPAN.finditer(text)
-            if reference_scan.read_citations(text[quote.end() :])
+            if reference_scan.read_citations(text[: quote.start()])
+            or reference_scan.read_citations(text[quote.end() :])
         ]
         unquoted = any(
             not any(first <= match.start() and match.end() <= last for first, last in quoted_ranges)
@@ -1055,7 +1061,7 @@ def _expanded_clinical_label_findings(
     for block in every:
         text = block_text(block)
         table_cell = block.kind == "table" and any(
-            EXPANDED_CLINICAL_LABEL_CELL.fullmatch(cell)
+            EXPANDED_CLINICAL_LABEL_CELL.match(cell)
             for row in block.rows
             for cell in row
         )
