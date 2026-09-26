@@ -154,6 +154,11 @@ python tools/project_context.py scratch/runs/<course>-<module>-course-assignment
 python tools/voice_model_identity.py scratch/runs/<course>-<module>-course-assignment --write
 ```
 
+Also before that first prose, write `voice-reads/<submission-key>/supplied-voice.json` by
+[voice-read.md](../_shared/reference/voice-read.md) step 1: quote every image or reasoning ground the
+clinician authored in this run's input, exclude faculty and source language, or record explicit
+`none`.
+
 The project-context command must exit 0. An unregistered project stops for the clinician's answer;
 an unreachable place stops until it is readable or the clinician confirms its waiver. A later
 search direction amends and re-confirms `project-context.md` before any prose resumes.

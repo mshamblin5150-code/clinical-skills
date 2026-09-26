@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Grade the planted coursework voice read and its model-owned profanity row.
+"""Grade supplied-voice survival, the planted voice read, and model-owned profanity.
 
 ``DECLARED_LIMITS`` is the complete ceiling of these completion gates. The
 scoped coursework graders, their skills, and ``CLAUDE.md`` point to this object and copy
@@ -12,6 +12,7 @@ import hashlib
 import json
 import re
 from dataclasses import dataclass, replace
+from enum import Enum
 from pathlib import Path
 from types import MappingProxyType
 from collections.abc import Mapping
@@ -25,6 +26,7 @@ import voice_model_identity
 PLANTED_COPY_NAME = "voice-read-planted.txt"
 PLANTER_RECORD_NAME = "voice-read-planter.json"
 READER_RECORD_NAME = "voice-read.json"
+SUPPLIED_VOICE_RECORD_NAME = "supplied-voice.json"
 RECORDS_DIRECTORY = "voice-reads"
 EXPECTED_ROW = "the coursework voice read"
 PROFANITY_EXPECTED_ROW = "graded coursework profanity"
@@ -52,6 +54,16 @@ DECLARED_LIMITS = (
     DeclaredLimit(
         "reader-judgment-is-unproven",
         "a well-formed record proves the reader compared but cannot prove every placement was judged well",
+        run_grader.EvidenceDisposition.DECLARED_READING,
+    ),
+    DeclaredLimit(
+        "supplied-voice-capture-is-read",
+        "whether the capture includes every image or reasoning ground the clinician authored and excludes everyone else's language remains a reading",
+        run_grader.EvidenceDisposition.DECLARED_READING,
+    ),
+    DeclaredLimit(
+        "whole-survival-is-read",
+        "whether a quoted draft sentence preserves a supplied image or reasoning ground whole remains the voice reader's judgment",
         run_grader.EvidenceDisposition.DECLARED_READING,
     ),
     DeclaredLimit(
@@ -109,11 +121,15 @@ _READER_KEYS = frozenset(
         "draft_sha256",
         "planted_sha256",
         "model_sha256",
+        "supplied_voice_sha256",
         "suspected_plant_quote",
         "answers",
+        "supplied_voice_answers",
     }
 )
 _ANSWER_KEYS = frozenset({"pair_id", "quote", "resemblance"})
+_SUPPLIED_ITEM_KEYS = frozenset({"id", "kind", "quote"})
+_SUPPLIED_ANSWER_KEYS = frozenset({"item_id", "verdict", "quote"})
 TScan = TypeVar("TScan")
 
 
@@ -122,6 +138,24 @@ class Pair:
     identifier: str
     generic: str
     his: str
+
+
+class SuppliedVoiceKind(str, Enum):
+    IMAGE = "image"
+    REASONING_GROUND = "reasoning-ground"
+
+
+class SurvivalVerdict(str, Enum):
+    KEPT_WHOLE = "kept whole"
+    SHRUNK = "shrunk"
+    DROPPED = "dropped"
+
+
+@dataclass(frozen=True)
+class SuppliedVoiceItem:
+    identifier: str
+    kind: SuppliedVoiceKind
+    quote: str
 
 
 @dataclass(frozen=True)
@@ -273,6 +307,47 @@ def _read_json(path: Path) -> object | None:
         return None
 
 
+def _read_supplied_voice(path: Path) -> tuple[tuple[SuppliedVoiceItem, ...], str] | None:
+    """Read one explicit pre-draft capture and bind it to its exact bytes."""
+    try:
+        raw = path.read_bytes()
+        payload = json.loads(raw.decode("utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return None
+    digest = hashlib.sha256(raw).hexdigest()
+    if payload == {"status": "none"}:
+        return (), digest
+    if not isinstance(payload, dict) or frozenset(payload) != {"status", "items"}:
+        return None
+    if payload.get("status") != "complete" or not isinstance(payload.get("items"), list):
+        return None
+    items: list[SuppliedVoiceItem] = []
+    identifiers: set[str] = set()
+    for item in payload["items"]:
+        if not isinstance(item, dict) or frozenset(item) != _SUPPLIED_ITEM_KEYS:
+            return None
+        identifier = item.get("id")
+        kind_value = item.get("kind")
+        quote = item.get("quote")
+        try:
+            kind = SuppliedVoiceKind(kind_value)
+        except (TypeError, ValueError):
+            return None
+        if (
+            not isinstance(identifier, str)
+            or not identifier.strip()
+            or identifier in identifiers
+            or not isinstance(quote, str)
+            or not quote.strip()
+        ):
+            return None
+        identifiers.add(identifier)
+        items.append(SuppliedVoiceItem(identifier, kind, quote))
+    if not items:
+        return None
+    return tuple(items), digest
+
+
 def _identity_digest(run: Path) -> str | None:
     payload = _read_json(run / voice_model_identity.RECORD_NAME)
     if not isinstance(payload, dict):
@@ -355,6 +430,10 @@ def _voice_result(
 ) -> tuple[bool, bool, str]:
     planter = _read_json(records / PLANTER_RECORD_NAME)
     reader = _read_json(records / READER_RECORD_NAME)
+    supplied_read = _read_supplied_voice(records / SUPPLIED_VOICE_RECORD_NAME)
+    if supplied_read is None:
+        return True, False, "finding - supplied voice capture is missing or invalid"
+    supplied_items, supplied_digest = supplied_read
     if _not_run(planter) and _not_run(reader):
         return False, True, "not scanned - recorded as not run"
     if planter is None or reader is None:
@@ -379,6 +458,7 @@ def _voice_result(
         or not _valid_digest(reader.get("draft_sha256"))
         or not _valid_digest(reader.get("planted_sha256"))
         or not _valid_digest(reader.get("model_sha256"))
+        or not _valid_digest(reader.get("supplied_voice_sha256"))
     ):
         return True, False, "finding - record digest shape is invalid"
     if planter["draft_sha256"] != surface.sha256 or reader["draft_sha256"] != surface.sha256:
@@ -388,6 +468,8 @@ def _voice_result(
     identity_digest = _identity_digest(run)
     if reader["model_sha256"] != model_digest or reader["model_sha256"] != identity_digest:
         return True, False, "finding - model digest does not match the identity record"
+    if reader["supplied_voice_sha256"] != supplied_digest:
+        return True, False, "finding - supplied voice capture digest does not match"
 
     original = planter.get("original_sentence")
     replacement = planter.get("planted_sentence")
@@ -453,7 +535,55 @@ def _voice_result(
         return True, False, "finding - planted sentence was not flagged"
     if real_generic:
         return True, False, "finding - a real draft sentence was placed on a generic half"
-    return False, False, "clean"
+    supplied_answers = reader.get("supplied_voice_answers")
+    if not isinstance(supplied_answers, list):
+        return True, False, "finding - supplied voice answers are missing"
+    supplied_by_id: dict[str, dict[str, object]] = {}
+    for answer in supplied_answers:
+        if (
+            not isinstance(answer, dict)
+            or frozenset(answer) != _SUPPLIED_ANSWER_KEYS
+            or not isinstance(answer.get("item_id"), str)
+        ):
+            return True, False, "finding - supplied voice answer shape is invalid"
+        identifier = answer["item_id"]
+        if identifier in supplied_by_id:
+            return True, False, "finding - supplied voice population is not answered exactly once"
+        supplied_by_id[identifier] = answer
+    population = {item.identifier for item in supplied_items}
+    unknown = set(supplied_by_id) - population
+    if unknown:
+        return True, False, "finding - supplied voice answer names an unknown item"
+    supplied_findings = 0
+    for answer in supplied_by_id.values():
+        verdict_value = answer.get("verdict")
+        quote = answer.get("quote")
+        try:
+            verdict = SurvivalVerdict(verdict_value)
+        except (TypeError, ValueError):
+            return True, False, "finding - supplied voice answer shape is invalid"
+        if verdict is SurvivalVerdict.DROPPED:
+            if quote is not None:
+                return True, False, "finding - dropped supplied item carries a draft quote"
+            supplied_findings += 1
+            continue
+        if not isinstance(quote, str):
+            return True, False, "finding - supplied voice answer shape is invalid"
+        if not _verbatim_sentence(planted, quote):
+            return True, False, "finding - supplied voice quote is not a verbatim sentence in the planted copy"
+        if verdict is SurvivalVerdict.SHRUNK:
+            supplied_findings += 1
+    unanswered = len(population - set(supplied_by_id))
+    suffix = f"; supplied items {len(population)}; unanswered {unanswered}"
+    if supplied_findings:
+        return (
+            True,
+            bool(unanswered),
+            f"finding - {supplied_findings} supplied item(s) shrunk or dropped{suffix}",
+        )
+    if unanswered:
+        return False, True, f"not scanned - supplied item verdict population is incomplete{suffix}"
+    return False, False, f"clean{suffix}"
 
 
 def completion_gate(
@@ -469,7 +599,21 @@ def completion_gate(
         resolved = repo_root.canonical_voice_model()
         if not resolved.exists or resolved.sha256 is None:
             suffix = "not scanned - canonical voice model is absent"
-            return CompletionGate(False, True, (f"{EXPECTED_ROW}: {suffix}", f"{PROFANITY_EXPECTED_ROW}: {suffix}"))
+            keys = tuple(value.strip() for value in submission.split(",") if value.strip())
+            missing = tuple(
+                key
+                for key in keys
+                if _read_supplied_voice(
+                    run / RECORDS_DIRECTORY / Path(key).stem / SUPPLIED_VOICE_RECORD_NAME
+                )
+                is None
+            )
+            voice_suffix = (
+                f"finding - supplied voice capture is missing or invalid for {', '.join(missing)}; {suffix}"
+                if missing
+                else suffix
+            )
+            return CompletionGate(bool(missing), True, (f"{EXPECTED_ROW}: {voice_suffix}", f"{PROFANITY_EXPECTED_ROW}: {suffix}"))
         model_text = resolved.path.read_text(encoding="utf-8")
     except (OSError, UnicodeError):
         suffix = "not scanned - canonical voice model is unreadable"
@@ -489,6 +633,21 @@ def completion_gate(
     for raw_key in keys:
         key = Path(raw_key).stem
         draft = surfaces.get(key)
+        supplied_read = _read_supplied_voice(
+            run / RECORDS_DIRECTORY / key / SUPPLIED_VOICE_RECORD_NAME
+        )
+        if supplied_read is None:
+            voice_results.append(
+                VoiceResult(
+                    key,
+                    True,
+                    draft is None,
+                    "finding - supplied voice capture is missing or invalid; "
+                    f"pair candidates {pair_read.candidates}; "
+                    f"unread remainder {pair_read.unread}",
+                )
+            )
+            continue
         if draft is None:
             voice_results.append(
                 VoiceResult(
@@ -503,7 +662,14 @@ def completion_gate(
             continue
         records = run / RECORDS_DIRECTORY / key
         if not pair_read.items:
-            result = (False, True, "not scanned - no discriminating-pair population was read")
+            supplied_items, _supplied_digest = supplied_read
+            result = (
+                False,
+                True,
+                "not scanned - no discriminating-pair population was read; "
+                f"supplied items {len(supplied_items)}; "
+                f"unanswered {len(supplied_items)}",
+            )
         else:
             result = _voice_result(records, run, draft, pair_read.items, resolved.sha256)
         finding, coverage, report = result

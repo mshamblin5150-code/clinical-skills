@@ -69,6 +69,10 @@ class CompletionGate(unittest.TestCase):
         self.planted = "This is a generic sentence. Another sentence remains."
         self.records = self.run / voice_read.RECORDS_DIRECTORY / "submission"
         self.records.mkdir(parents=True)
+        self.capture_path = self.records / voice_read.SUPPLIED_VOICE_RECORD_NAME
+        self.capture_path.write_text(
+            json.dumps({"status": "none"}) + "\n", encoding="utf-8"
+        )
         (self.records / voice_read.PLANTED_COPY_NAME).write_bytes(
             self.planted.encode("utf-8")
         )
@@ -100,6 +104,9 @@ class CompletionGate(unittest.TestCase):
                     "draft_sha256": digest(self.draft),
                     "planted_sha256": digest(self.planted),
                     "model_sha256": digest(MODEL),
+                    "supplied_voice_sha256": hashlib.sha256(
+                        self.capture_path.read_bytes()
+                    ).hexdigest(),
                     "suspected_plant_quote": "This is a generic sentence.",
                     "answers": [
                         {
@@ -113,6 +120,7 @@ class CompletionGate(unittest.TestCase):
                             "resemblance": "no counterpart",
                         },
                     ],
+                    "supplied_voice_answers": [],
                 }
             )
             + "\n",
@@ -141,6 +149,51 @@ class CompletionGate(unittest.TestCase):
             json.dumps(payload) + "\n", encoding="utf-8"
         )
 
+    def record_supplied_item(
+        self,
+        *,
+        source_quote: str,
+        verdict: str,
+        draft_quote: str | None,
+        kind: str = "image",
+    ) -> None:
+        self.capture_path.write_text(
+            json.dumps(
+                {
+                    "status": "complete",
+                    "items": [
+                        {
+                            "id": "input-1",
+                            "kind": kind,
+                            "quote": source_quote,
+                        }
+                    ],
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        if draft_quote is not None:
+            self.draft += f" {draft_quote}"
+            self.planted += f" {draft_quote}"
+            (self.records / voice_read.PLANTED_COPY_NAME).write_bytes(
+                self.planted.encode("utf-8")
+            )
+            planter = self.payload(voice_read.PLANTER_RECORD_NAME)
+            planter["draft_sha256"] = digest(self.draft)
+            planter["planted_sha256"] = digest(self.planted)
+            self.write_payload(voice_read.PLANTER_RECORD_NAME, planter)
+        reader = self.payload(voice_read.READER_RECORD_NAME)
+        reader["draft_sha256"] = digest(self.draft)
+        reader["planted_sha256"] = digest(self.planted)
+        reader["supplied_voice_sha256"] = hashlib.sha256(
+            self.capture_path.read_bytes()
+        ).hexdigest()
+        reader["supplied_voice_answers"] = [
+            {"item_id": "input-1", "verdict": verdict, "quote": draft_quote}
+        ]
+        self.write_payload(voice_read.READER_RECORD_NAME, reader)
+
     def test_a_correct_record_grades_both_rows_clean(self) -> None:
         result = self.grade()
         self.assertFalse(result.finding)
@@ -148,10 +201,150 @@ class CompletionGate(unittest.TestCase):
         self.assertEqual(
             result.reports,
             (
-                f"{voice_read.EXPECTED_ROW}: clean; pair candidates 2; unread remainder 0",
+                f"{voice_read.EXPECTED_ROW}: clean; supplied items 0; unanswered 0; pair candidates 2; unread remainder 0",
                 f"{voice_read.PROFANITY_EXPECTED_ROW}: clean; profanity rows 1; unread remainder 0",
             ),
         )
+
+    def test_a_supplied_image_kept_whole_grades_clean(self) -> None:
+        self.record_supplied_item(
+            source_quote="They bounce until they bounce off the cliff.",
+            verdict="kept whole",
+            draft_quote="They bounce until they bounce off the cliff.",
+        )
+
+        result = self.grade()
+
+        self.assertFalse(result.finding)
+        self.assertFalse(result.coverage)
+        self.assertIn("supplied items 1", result.reports[0])
+
+    def test_a_supplied_image_shrunk_to_a_flat_payoff_is_a_finding(self) -> None:
+        self.record_supplied_item(
+            source_quote="They bounce until they bounce off the cliff.",
+            verdict="shrunk",
+            draft_quote="Children are resilient.",
+        )
+
+        result = self.grade()
+
+        self.assertTrue(result.finding)
+        self.assertIn("supplied item(s) shrunk or dropped", result.reports[0])
+
+    def test_graded_copy_profanity_removal_is_not_shrinkage(self) -> None:
+        self.record_supplied_item(
+            source_quote="We do not fucking trade the consequence for comfort.",
+            verdict="kept whole",
+            draft_quote="We do not trade the consequence for comfort.",
+            kind="reasoning-ground",
+        )
+
+        result = self.grade()
+
+        self.assertFalse(result.finding)
+        self.assertFalse(result.coverage)
+
+    def test_a_dropped_supplied_reasoning_ground_is_a_finding(self) -> None:
+        self.record_supplied_item(
+            source_quote="A principle without a cost is only decoration.",
+            verdict="dropped",
+            draft_quote=None,
+            kind="reasoning-ground",
+        )
+
+        result = self.grade()
+
+        self.assertTrue(result.finding)
+        self.assertIn("supplied item(s) shrunk or dropped", result.reports[0])
+
+    def test_a_missing_supplied_voice_capture_is_a_finding(self) -> None:
+        self.capture_path.unlink()
+
+        result = self.grade()
+
+        self.assertTrue(result.finding)
+        self.assertIn("supplied voice capture is missing", result.reports[0])
+
+    def test_a_captured_item_without_a_verdict_is_incomplete_not_clean(self) -> None:
+        self.capture_path.write_text(
+            json.dumps(
+                {
+                    "status": "complete",
+                    "items": [
+                        {
+                            "id": "input-1",
+                            "kind": "image",
+                            "quote": "They bounce until they bounce off the cliff.",
+                        }
+                    ],
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        reader = self.payload(voice_read.READER_RECORD_NAME)
+        reader["supplied_voice_sha256"] = hashlib.sha256(
+            self.capture_path.read_bytes()
+        ).hexdigest()
+        self.write_payload(voice_read.READER_RECORD_NAME, reader)
+
+        result = self.grade()
+
+        self.assertFalse(result.finding)
+        self.assertTrue(result.coverage)
+        self.assertIn("verdict population is incomplete", result.reports[0])
+
+    def test_a_shrunk_item_wins_when_another_item_has_no_verdict(self) -> None:
+        self.capture_path.write_text(
+            json.dumps(
+                {
+                    "status": "complete",
+                    "items": [
+                        {
+                            "id": "input-1",
+                            "kind": "image",
+                            "quote": "They bounce until they bounce off the cliff.",
+                        },
+                        {
+                            "id": "input-2",
+                            "kind": "reasoning-ground",
+                            "quote": "A principle without a cost is only decoration.",
+                        },
+                    ],
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        self.draft += " Children are resilient."
+        self.planted += " Children are resilient."
+        (self.records / voice_read.PLANTED_COPY_NAME).write_bytes(
+            self.planted.encode("utf-8")
+        )
+        planter = self.payload(voice_read.PLANTER_RECORD_NAME)
+        planter["draft_sha256"] = digest(self.draft)
+        planter["planted_sha256"] = digest(self.planted)
+        self.write_payload(voice_read.PLANTER_RECORD_NAME, planter)
+        reader = self.payload(voice_read.READER_RECORD_NAME)
+        reader["draft_sha256"] = digest(self.draft)
+        reader["planted_sha256"] = digest(self.planted)
+        reader["supplied_voice_sha256"] = hashlib.sha256(
+            self.capture_path.read_bytes()
+        ).hexdigest()
+        reader["supplied_voice_answers"] = [
+            {
+                "item_id": "input-1",
+                "verdict": "shrunk",
+                "quote": "Children are resilient.",
+            }
+        ]
+        self.write_payload(voice_read.READER_RECORD_NAME, reader)
+
+        result = self.grade()
+
+        self.assertTrue(result.finding)
+        self.assertTrue(result.coverage)
+        self.assertIn("unanswered 1", result.reports[0])
 
     def test_an_unanswered_pair_population_is_a_finding(self) -> None:
         reader = self.payload(voice_read.READER_RECORD_NAME)
@@ -356,6 +549,26 @@ class CompletionGate(unittest.TestCase):
             (profanity.candidates, profanity.unread, profanity.missing),
         )
 
+    def test_missing_capture_is_a_finding_when_no_pair_population_is_read(self) -> None:
+        model_without_pairs = MODEL.replace("### Discriminating pairs", "### Other")
+        self.model.write_text(model_without_pairs, encoding="utf-8")
+        self.resolved = repo_root.VoiceModelResolution(
+            path=self.model, sha256=digest(model_without_pairs), exists=True
+        )
+        identity = json.loads(
+            (self.run / voice_model_identity.RECORD_NAME).read_text(encoding="utf-8")
+        )
+        identity["sha256"] = digest(model_without_pairs)
+        (self.run / voice_model_identity.RECORD_NAME).write_text(
+            json.dumps(identity) + "\n", encoding="utf-8"
+        )
+        self.capture_path.unlink()
+
+        result = self.grade()
+
+        self.assertTrue(result.finding)
+        self.assertIn("supplied voice capture is missing", result.reports[0])
+
 
 class PublicCompletionCommand(unittest.TestCase):
     """Every #1400 refusal is observable through a real completion command."""
@@ -380,6 +593,10 @@ class PublicCompletionCommand(unittest.TestCase):
         self.planted = self.draft.replace(self.original, self.replacement, 1)
         self.records = self.run / voice_read.RECORDS_DIRECTORY / "critique"
         self.records.mkdir(parents=True)
+        self.capture_path = self.records / voice_read.SUPPLIED_VOICE_RECORD_NAME
+        self.capture_path.write_text(
+            json.dumps({"status": "none"}) + "\n", encoding="utf-8"
+        )
         (self.records / voice_read.PLANTED_COPY_NAME).write_bytes(
             self.planted.encode("utf-8")
         )
@@ -404,6 +621,9 @@ class PublicCompletionCommand(unittest.TestCase):
                     "draft_sha256": hashlib.sha256(self.draft_path.read_bytes()).hexdigest(),
                     "planted_sha256": digest(self.planted),
                     "model_sha256": digest(MODEL),
+                    "supplied_voice_sha256": hashlib.sha256(
+                        self.capture_path.read_bytes()
+                    ).hexdigest(),
                     "suspected_plant_quote": self.replacement,
                     "answers": [
                         {
@@ -417,6 +637,7 @@ class PublicCompletionCommand(unittest.TestCase):
                             "resemblance": "no counterpart",
                         },
                     ],
+                    "supplied_voice_answers": [],
                 }
             )
             + "\n",
@@ -469,6 +690,11 @@ class PublicCompletionCommand(unittest.TestCase):
         status, output = self.command()
         self.assertEqual(0, status, output)
         self.assertIn(f"{voice_read.EXPECTED_ROW}: clean", output)
+
+    def test_a_missing_capture_is_a_finding_through_the_public_command(self) -> None:
+        self.capture_path.unlink()
+
+        self.assert_public_finding("supplied voice capture is missing")
 
     def test_incomplete_pair_population_is_public(self) -> None:
         reader = self.payload(voice_read.READER_RECORD_NAME)
@@ -551,6 +777,7 @@ class ScopedCompletionGraders(unittest.TestCase):
                 )
                 self.assertIn("voice-read.md", text)
                 self.assertIn("voice_read.DECLARED_LIMITS", text)
+                self.assertIn("supplied-voice.json", text)
 
     def test_graders_and_claude_point_to_one_limits_object_without_copying_rows(self) -> None:
         root = Path(__file__).resolve().parent.parent

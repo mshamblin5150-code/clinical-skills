@@ -185,6 +185,12 @@ python tools/voice_model_identity.py scratch/runs/<run-key> --write
 python tools/voice_model_scan.py
 ```
 
+Also before each reply's first prose, write that reply's
+`voice-reads/<submission-key>/supplied-voice.json` by
+[voice-read.md](../_shared/reference/voice-read.md) step 1: quote every image or reasoning ground the
+clinician authored in that reply's run input, exclude faculty, classmate, and source language, or
+record explicit `none`.
+
 First write and confirm `project-context.md`, then retrieve every place owed by
 [sourcing.md](../_shared/reference/sourcing.md). The project-context command must exit 0. An
 unregistered project stops for the clinician's answer; an unreachable place stops until it is
