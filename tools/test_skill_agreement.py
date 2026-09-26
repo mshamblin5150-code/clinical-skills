@@ -1204,9 +1204,18 @@ class TheExportMethodHasOneConsumerContract(ProseBind, unittest.TestCase):
             with self.subTest(required=required):
                 self.assertIn(required, module)
 
-    def test_the_contract_does_not_claim_a_runtime_change_to_the_existing_reader(self):
+    def test_the_contract_binds_the_open_search_runtime_and_coverage_report(self):
         corpus_method = read(VOICE_CORPUS_REFERENCE)
-        self.assertProseIn("changes no runtime behavior", corpus_method)
+        module = read(VOICE_CORPUS_MODULE)
+        for required in (
+            "--open-search",
+            "planted control",
+            "conversations read",
+            "unread remainder",
+        ):
+            with self.subTest(required=required):
+                self.assertProseIn(required, corpus_method)
+                self.assertIn(required, module)
         self.assertProseIn("converter's own counts-only report", corpus_method)
 
     def test_the_export_is_optional_and_consent_is_staged(self):

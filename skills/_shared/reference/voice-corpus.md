@@ -44,6 +44,15 @@ The converter and the reader both follow these rules:
 8. Counts only by default. Any output carrying corpus text is PHI and stays under `scratch/`.
 9. Refuse rather than degrade. The converter exits non-zero and says what was not read when its
    source is unrecognized or when the normalized output fails its declared-shape validation.
+10. For each of the three whole-writer records in [voice.md](voice.md) — stated principles,
+    imagery, and stated writing rules — run both searches. First run a seeded `--match` search for
+    known wording. Then run `--open-search`, which has no seed list and counts word sequences that
+    recur across distinct conversations. Its planted control must pass before its coverage is
+    believed. Default output is counts only; `--show` is private working material.
+11. Check `## Searched and ruled out` in the existing model before proposing a candidate. A result
+    from either search stays a candidate until it is quoted, meets the record's attestation rule,
+    and the clinician confirms it. A ruled-out row records the candidate, which search surfaced it,
+    its conversation count, and the clinician's ruling and date.
 
 ## The report is the verification surface
 
@@ -55,6 +64,8 @@ counts-only report** is therefore the evidence that it walked what it claims. It
 - conversation and message totals together;
 - the dated span and the undated count;
 - the selected-message and distinct-conversation totals when a matcher is used; and
+- for an open search, the planted-control result, conversations read, unread remainder, and count
+  of recurring phrases; and
 - for paired records, the missing-reply count and hop distribution.
 
 A report missing one of those rows is not sufficient evidence for a converter. A clean report
@@ -62,7 +73,7 @@ establishes only that the declared walk accounted for its input; it does not est
 prose is the clinician's unwatched writing, that a reply is a rewrite, or that the resulting
 features identify the clinician. Those remain readings under [voice.md](voice.md).
 
-**This ticket changes no runtime behavior in `voice_corpus.py`.** The module remains the ChatGPT
-reference implementation for the normalized shape and calculations; the contract above tells a
-new converter what it must validate and print from its own source walk. Do not read this sheet as a
-claim that the existing CLI gained a deeper shape gate or a new console layout.
+The open search is a discovery instrument, not an attestation instrument. Recurrence across two
+conversations qualifies a phrase for review; it does not establish that the phrase is the
+clinician's, that it expresses a principle or rule, or that a shorter phrase is the meaningful
+unit. Those remain readings and require the confirmation above.

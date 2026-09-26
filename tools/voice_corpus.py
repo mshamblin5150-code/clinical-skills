@@ -3,6 +3,7 @@
     python tools/voice_corpus.py <conversations.json>
     python tools/voice_corpus.py <export> --match "improve this"
     python tools/voice_corpus.py <export> --pairs --match "improve this"
+    python tools/voice_corpus.py <export> --open-search
     python tools/voice_corpus.py <export> --match "the abyss" --show   # PHI
 
 [#213](https://github.com/mshamblin5150-code/clinical-skills/issues/213) built
@@ -153,6 +154,7 @@ from pathlib import Path
 
 from console_codec import require_python_floor, use_utf8
 from repo_root import enclosing_checkout, scratch_root
+import run_grader
 
 CLEAN = 0
 FOUND = 1
@@ -260,6 +262,24 @@ class Pairs:
     missing_reply: int
     hops: dict[int, int]
     conversations: int
+
+
+@dataclass(frozen=True)
+class OpenPhrase:
+    """One unseeded phrase and the distinct conversations attesting it."""
+
+    text: str
+    conversations: int
+
+
+@dataclass(frozen=True)
+class OpenSearch:
+    """The unseeded recurrence read and its conversation-level coverage."""
+
+    records: tuple[OpenPhrase, ...]
+    conversations_read: int
+    unread_remainder: int
+    control_passed: bool
 
 
 def load_export(path: Path):
@@ -501,6 +521,107 @@ def pairs(conversations, pattern) -> Pairs:
     return Pairs(records, missing, dict(hops), len(seen))
 
 
+WORD = re.compile(r"[^\W_]+(?:[-'’][^\W_]+)*", re.UNICODE)
+CONTROL_PHRASE = "open-search planted control fires"
+CONTROL_IDS = ("voice-open-control-1", "voice-open-control-2")
+
+
+def _recurring_phrases(
+    by_conversation: dict[str, list[str]],
+    minimum_words: int = 3,
+    maximum_words: int = 8,
+) -> tuple[OpenPhrase, ...]:
+    """Count unseeded word sequences once per distinct conversation."""
+    attestations: dict[str, set[str]] = {}
+    for conversation_id, texts in by_conversation.items():
+        phrases: set[str] = set()
+        for text in texts:
+            words = [match.group(0).casefold() for match in WORD.finditer(text)]
+            for width in range(minimum_words, min(maximum_words, len(words)) + 1):
+                phrases.update(
+                    " ".join(words[index : index + width])
+                    for index in range(len(words) - width + 1)
+                )
+        for phrase in phrases:
+            attestations.setdefault(phrase, set()).add(conversation_id)
+    records = (
+        OpenPhrase(phrase, len(conversation_ids))
+        for phrase, conversation_ids in attestations.items()
+        if len(conversation_ids) >= 2
+    )
+    return tuple(
+        sorted(
+            records,
+            key=lambda record: (
+                -record.conversations,
+                -len(WORD.findall(record.text)),
+                record.text,
+            ),
+        )
+    )
+
+
+def _open_search_read(conversations) -> tuple[tuple[OpenPhrase, ...], int]:
+    """Run the real export-to-phrase path for an open search."""
+    by_conversation: dict[str, list[str]] = {}
+    for index, conversation in enumerate(conversations):
+        prose = [
+            message.text
+            for message in user_messages(conversation)
+            if message.kind in PROSE_KINDS and message.text.strip()
+        ]
+        if prose:
+            conversation_id = str(
+                conversation.get("conversation_id")
+                or conversation.get("id")
+                or f"<missing-id-{index}>"
+            )
+            by_conversation.setdefault(conversation_id, []).extend(prose)
+    return _recurring_phrases(by_conversation), len(by_conversation)
+
+
+def _control_conversation(conversation_id: str) -> dict:
+    """One planted normalized conversation, passed through the real reader."""
+    return {
+        "conversation_id": conversation_id,
+        "create_time": 1_700_000_000,
+        "mapping": {
+            "control-user": {
+                "id": "control-user",
+                "parent": None,
+                "children": [],
+                "message": {
+                    "author": {"role": "user"},
+                    "content": {"content_type": "text", "parts": [CONTROL_PHRASE]},
+                },
+            }
+        },
+    }
+
+
+def open_search(conversations) -> OpenSearch:
+    """Find recurring phrases without a seed list and report what was unread."""
+    records, conversations_read = _open_search_read(conversations)
+    planted = list(conversations) + [
+        _control_conversation(conversation_id) for conversation_id in CONTROL_IDS
+    ]
+    control_records, control_read = _open_search_read(planted)
+    unread_remainder = max(0, len(conversations) - conversations_read)
+    control_unread = max(0, len(planted) - control_read)
+    control_passed = (
+        any(record.text == CONTROL_PHRASE for record in control_records)
+        and control_read == conversations_read + len(CONTROL_IDS)
+        and control_unread == unread_remainder
+    )
+
+    return OpenSearch(
+        records=records,
+        conversations_read=conversations_read,
+        unread_remainder=unread_remainder,
+        control_passed=control_passed,
+    )
+
+
 def refuse_target(path: Path, scratch: Path | None = None):
     """Why this path may not be written, or ``None``.
 
@@ -527,15 +648,31 @@ def _span(dated):
     return f"{min(dated).date()} -> {max(dated).date()}"
 
 
-def format_report(scan: Scan, selection=None, joined=None, show=False) -> list[str]:
+def format_report(scan: Scan, selection=None, joined=None, opened=None, show=False) -> list[str]:
     """Counts only. Corpus text appears under ``show`` and nowhere else."""
     population = scan.population
-    lines = [
+    lines = []
+    if opened is not None:
+        lines.extend(
+            (
+                f"== open-search planted control {'PASS' if opened.control_passed else 'FAIL'}",
+                f"  open-search conversations read: {opened.conversations_read}",
+                run_grader.format_unread_remainder(opened.unread_remainder),
+                f"  open-search recurring phrases: {len(opened.records)}",
+            )
+        )
+        if show:
+            lines.extend(
+                f"    [{record.conversations} conversation(s)] {record.text}"
+                for record in opened.records
+            )
+        lines.append("")
+    lines.extend([
         "== voice-corpus coverage",
         f"  {population.conversations} conversation(s), {population.messages} message(s), "
         f"{_span(scan.dated)}",
         f"  {population.user_messages} user message(s), the denominator every row below divides by",
-    ]
+    ])
     for kind in KINDS:
         count = scan.by_kind.get(kind, 0)
         note = "  <- prose" if kind in PROSE_KINDS else ""
@@ -609,6 +746,13 @@ def main(argv: list[str]) -> int:
     )
     parser.add_argument("export", nargs="?", help="the export's conversations.json")
     parser.add_argument("--match", help="a regex over his prose messages")
+    parser.add_argument(
+        "--open-search",
+        "--open",
+        dest="open_search",
+        action="store_true",
+        help="count unseeded phrases recurring across distinct conversations",
+    )
     parser.add_argument("--pairs", action="store_true", help="join matches to their reply")
     parser.add_argument("--show", action="store_true", help="print the text. This is PHI.")
     parser.add_argument(
@@ -641,9 +785,15 @@ def main(argv: list[str]) -> int:
     # printed the coverage report, no pair section, no warning and exit 0. That is
     # the defect this whole module is written against, rebuilt inside it, and the
     # spec axis of `/code-review` found it.
-    if (parsed.pairs or parsed.show) and not parsed.match:
+    if parsed.pairs and not parsed.match:
         print(
-            "--pairs and --show need a --match to apply them to; nothing was selected",
+            "--pairs needs a --match to apply it to; nothing was selected",
+            file=sys.stderr,
+        )
+        return NOT_READ
+    if parsed.show and not (parsed.match or parsed.open_search):
+        print(
+            "--show needs --match or --open-search to select private text",
             file=sys.stderr,
         )
         return NOT_READ
@@ -655,6 +805,10 @@ def main(argv: list[str]) -> int:
         # cites: a query that will not parse is 2, because 1 here means a finding
         # about the corpus and no corpus was ever consulted.
         print(f"--match is not a regex: {why}", file=sys.stderr)
+        return NOT_READ
+    opened = open_search(conversations) if parsed.open_search else None
+    if opened is not None and not opened.control_passed:
+        print("open-search planted control failed; no coverage claim made", file=sys.stderr)
         return NOT_READ
 
     # **A refused write is not a refused read**, which is `name_index`'s ordering:
@@ -671,7 +825,9 @@ def main(argv: list[str]) -> int:
             # strength of a flag nobody passed.
             try:
                 target.write_text(
-                    "\n".join(format_report(scan, selection, joined, show=parsed.show)),
+                    "\n".join(
+                        format_report(scan, selection, joined, opened, show=parsed.show)
+                    ),
                     encoding="utf-8",
                 )
             except OSError as why:
@@ -685,13 +841,17 @@ def main(argv: list[str]) -> int:
                 # precedent for an uncaught `OSError` at a write boundary.
                 refused = f"could not write {target}: {why}"
 
-    print("\n".join(format_report(scan, selection, joined, show=parsed.show)))
+    print("\n".join(format_report(scan, selection, joined, opened, show=parsed.show)))
     sys.stdout.flush()
     if refused is not None:
         print(f"\n{refused}", file=sys.stderr)
     # Both limbs are findings rather than not-read conditions: the module read
     # these conversations and could not account for them.
-    return FOUND if scan.by_kind.get("unclassified") or scan.undated else CLEAN
+    if scan.by_kind.get("unclassified") or scan.undated:
+        return FOUND
+    if opened is not None and opened.unread_remainder:
+        return NOT_READ
+    return CLEAN
 
 
 if __name__ == "__main__":

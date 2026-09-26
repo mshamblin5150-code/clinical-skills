@@ -48,6 +48,7 @@ import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest import mock
 
 import voice_corpus
 from prose_bind import NAMING, bind
@@ -686,6 +687,55 @@ class CountsOnlyByDefault(unittest.TestCase):
         with TemporaryDirectory() as tmp:
             _, out, err = run([str(self.export(tmp))])
         self.assertNotIn(MARKER, out + err)
+
+
+class OpenSearchFindsUnseededRecurrence(unittest.TestCase):
+    def export(self, tmp):
+        return export_at(tmp, [
+            linear(
+                message("user", f"{MARKER} the constraint changes the answer today"),
+                conversation_id="open-1",
+            ),
+            linear(
+                message("user", f"tomorrow {MARKER} the constraint changes the answer"),
+                conversation_id="open-2",
+            ),
+            linear(message("assistant", "machine-only"), conversation_id="open-3"),
+        ])
+
+    def test_the_mode_reports_coverage_and_its_planted_control_first(self):
+        with TemporaryDirectory() as tmp:
+            status, out, err = run([str(self.export(tmp)), "--open-search"])
+        self.assertEqual(NOT_READ, status)
+        self.assertEqual("", err)
+        lines = out.splitlines()
+        self.assertEqual("== open-search planted control PASS", lines[0])
+        self.assertIn("open-search conversations read: 2", out)
+        self.assertIn("unread remainder 1", out.splitlines())
+        self.assertIn("open-search recurring phrases:", out)
+
+    def test_default_output_is_counts_only_and_show_reveals_candidates(self):
+        with TemporaryDirectory() as tmp:
+            path = self.export(tmp)
+            _, hidden, _ = run([str(path), "--open-search"])
+            _, shown, _ = run([str(path), "--open-search", "--show"])
+        self.assertNotIn(MARKER, hidden)
+        self.assertIn(MARKER.casefold(), shown.casefold())
+
+    def test_repetition_inside_one_conversation_is_not_an_attestation(self):
+        with TemporaryDirectory() as tmp:
+            path = export_at(tmp, [linear(
+                message("user", f"{MARKER} one two three. {MARKER} one two three."),
+                conversation_id="only-one",
+            )])
+            status, out, _ = run([str(path), "--open-search"])
+        self.assertEqual(CLEAN, status)
+        self.assertIn("open-search recurring phrases: 0", out)
+
+    def test_the_control_fails_when_the_export_reader_is_broken(self):
+        with mock.patch.object(voice_corpus, "user_messages", return_value=[]):
+            result = voice_corpus.open_search([linear(message("user", "ordinary prose"))])
+        self.assertFalse(result.control_passed)
 
 
 class TheCeilingIsDeclared(unittest.TestCase):

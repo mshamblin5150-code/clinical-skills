@@ -58,6 +58,44 @@ Built 2026-08-28. Sources: 6 supplied samples, 0 export conversations.
 ### Coverage
 2 samples.
 
+## Stated principles
+
+### The structure
+
+> "A constraint earns its place by changing the answer."
+
+### The principles, in the writer's words
+
+> "The argument has to name what it cannot carry."
+
+## Imagery
+
+### The domains
+
+> "Orbital mechanics gives me a way to show motion held by a constraint."
+
+### How an image works for the writer
+
+> "The image carries the mechanism instead of decorating the sentence."
+
+### Scale and consequence
+
+> "The orbit stays whole so the objection remains active without collapsing the argument."
+
+## Stated writing rules
+
+Recorded 2026-09-25.
+
+> "Use the image only when its mechanism is the argument."
+
+## Profanity — the list graded copy never carries
+
+- `synthetic-term`
+
+## Searched and ruled out
+
+None.
+
 ## Seen once
 
 None.

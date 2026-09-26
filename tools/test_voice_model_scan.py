@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import io
+import re
 import tempfile
 import unittest
 from pathlib import Path
@@ -116,6 +117,9 @@ class TheSyntheticModelGradesTheGrader(unittest.TestCase):
 
         self.assertIn("The invoked source and what it spends", items)
         self.assertEqual("The invoked source and what it spends", roles["invoked-source"])
+        self.assertEqual("The invoked source and what it spends", roles["corpus-imagery"])
+        self.assertEqual("Stated principles", roles["stated-principles"])
+        self.assertEqual("Stated writing rules", roles["stated-writing-rules"])
 
     def test_the_command_finds_drift_in_the_tracked_item_vocabulary_at_runtime(self):
         spec = VOICE_SPEC.read_text(encoding="utf-8").replace(
@@ -222,6 +226,74 @@ class ShapeFindingsRefuse(unittest.TestCase):
                 status, stdout, _ = self.grade(self.source.replace(line, "", 1))
                 self.assertEqual(1, status)
                 self.assertIn("findings: 1", stdout)
+
+    def test_each_whole_writer_record_is_required(self):
+        sections = (
+            "Stated principles",
+            "Imagery",
+            "Stated writing rules",
+        )
+        for heading in sections:
+            with self.subTest(heading=heading):
+                changed = re.sub(
+                    rf"^## {re.escape(heading)}\s*$.*?(?=^## |\Z)",
+                    "",
+                    self.source,
+                    count=1,
+                    flags=re.MULTILINE | re.DOTALL,
+                )
+                status, stdout, _ = self.grade(changed)
+                self.assertEqual(1, status)
+                self.assertIn("findings: 1", stdout)
+
+    def test_a_duplicate_whole_writer_record_is_a_finding(self):
+        duplicate = (
+            "## Stated principles\n\n"
+            '> "A second section cannot hide behind the first."\n\n'
+        )
+        changed = self.source.replace("## Seen once", duplicate + "## Seen once", 1)
+        status, stdout, _ = self.grade(changed)
+        self.assertEqual(1, status)
+        self.assertIn("whole-writer record headings: 4", stdout)
+        self.assertIn("whole-writer records: 4", stdout)
+
+    def test_a_near_miss_whole_writer_heading_enters_the_unread_remainder(self):
+        changed = self.source.replace("## Imagery", "## Imagery extra", 1)
+        status, stdout, stderr = self.grade(changed)
+        self.assertEqual(1, status)
+        self.assertIn("unread remainder 1", stdout.splitlines())
+        self.assertIn("not completely scanned", stderr)
+
+    def test_each_whole_writer_record_requires_a_quote(self):
+        for heading in ("Stated principles", "Stated writing rules"):
+            with self.subTest(heading=heading):
+                section = re.search(
+                    rf"^## {re.escape(heading)}\s*$.*?(?=^## |\Z)",
+                    self.source,
+                    flags=re.MULTILINE | re.DOTALL,
+                )
+                self.assertIsNotNone(section)
+                unquoted = re.sub(r"^\s*>.*$", "", section.group(0), flags=re.MULTILINE)
+                changed = self.source[: section.start()] + unquoted + self.source[section.end() :]
+                status, stdout, _ = self.grade(changed)
+                self.assertEqual(1, status)
+                self.assertIn("findings: 1", stdout)
+
+    def test_each_imagery_record_requires_its_own_quote(self):
+        quotes = (
+            '> "Orbital mechanics gives me a way to show motion held by a constraint."\n',
+            '> "The image carries the mechanism instead of decorating the sentence."\n',
+            '> "The orbit stays whole so the objection remains active without collapsing the argument."\n',
+        )
+        for quoted in quotes:
+            with self.subTest(quoted=quoted):
+                status, stdout, _ = self.grade(self.source.replace(quoted, "", 1))
+                self.assertEqual(1, status)
+                self.assertIn("findings: 1", stdout)
+
+    def test_the_scanner_declares_presence_and_quotation_as_its_ceiling(self):
+        self.assertIn("whole-writer-record-truth", scan.NOT_REACHED)
+        self.assertIn("whole-writer-record-completeness", scan.NOT_REACHED)
 
     def test_a_finding_wins_over_an_incomplete_register_scan(self):
         changed = self.source.replace(

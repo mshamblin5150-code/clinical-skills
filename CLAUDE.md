@@ -1009,6 +1009,7 @@ The case study house style reads the finished draft. This one reads the **corpus
 python tools/voice_corpus.py <conversations.json>
 python tools/voice_corpus.py <export> --match "improve this"
 python tools/voice_corpus.py <export> --pairs --match "improve this"
+python tools/voice_corpus.py <export> --open-search
 ```
 
 **[voice.md](skills/_shared/reference/voice.md) §3 argues for that corpus directly**: it asks for *writing that already exists*, on the ground that *a sample written in order to demonstrate a voice is a performance of one* and *the tics that identify a person are the ones they are not watching*. **Nobody proofreads a prompt.** The 46 documents were all the second kind of writing — pasted, finished, watched — and the export is the first.
@@ -1033,7 +1034,14 @@ python tools/voice_corpus.py <export> --pairs --match "improve this"
 
 **Counts only by default, and `--show` is PHI**: read it, do not paste it. **Deliberately not `reference_scan.py`'s exception** — that module's output is bounded by what its code can draw from, and this one's is bounded by nothing, because the export is whatever anybody typed for three years and a working nurse's chat history carries patient material. A `--out` target must be under `scratch/` or outside every checkout, on `name_index.refuse_target`'s rule and for its reason. **A refused write is not a refused read**: the run read the whole export, so the refusal is a note on stderr beside the report rather than instead of it.
 
-**Exit status distinguishes not having read from having found nothing** — 0 clean, 1 for a finding, **2 for every way of not having read**: no argument, no file, a payload that is not a JSON list of conversations, no conversation in it, **no user message in any of them**, a `--match` that will not compile, and **`--pairs` or `--show` asked for with no `--match` to apply them to**. That last pair is the module's own subject rebuilt inside it — a flag that silently did nothing, printing the coverage report and exit 0 — and the spec axis of `/code-review` found it; the sentence you are reading omitted both limbs while claiming to list every one, which the same axis found on the next pass. The no-user-message limb is `differential_scan.py`'s reasoning — an export holding only the machine's side would otherwise report a clean partition over nothing. **Two things are findings rather than not-read limbs** — an unrecognized `content_type`, and a conversation carrying no `create_time` — because both are things the module read and could not account for. *(This sentence claimed 1 wins over the undated banner on that module's ordering until both axes of `/code-review` priced it as **vacuous**: undated already returns 1, so there was no 2 for it to outrank, and the test beside it passed on whichever limb happened to be live. The limbs are driven one at a time now.)*
+**The open search has no seed list.** It counts phrases recurring across distinct conversations and
+prints its conversations read and exact shared `unread remainder N` line on every run. Before those
+figures are believed, planted normalized conversations pass through the same message reader,
+classification, conversation grouping, and phrase counter as the supplied export. A nonzero open
+remainder exits 2 unless a finding already establishes exit 1. `--show --open-search` prints the
+candidate phrases and is private working material; counts remain the default.
+
+**Exit status distinguishes not having read from having found nothing** — 0 clean, 1 for a finding, **2 for every way of not having read**: no argument, no file, a payload that is not a JSON list of conversations, no conversation in it, **no user message in any of them**, a `--match` that will not compile, **`--pairs` with no `--match`**, **`--show` with neither `--match` nor `--open-search`**, and a nonzero open-search unread remainder. The flag limbs are the module's own subject rebuilt inside it — a flag that silently did nothing, printing the coverage report and exit 0 — and the spec axis of `/code-review` found the original pair; issue #1427 widened `--show` only for the open mode that supplies its own selection. The no-user-message limb is `differential_scan.py`'s reasoning — an export holding only the machine's side would otherwise report a clean partition over nothing. **Two things are findings rather than not-read limbs** — an unrecognized `content_type`, and a conversation carrying no `create_time` — because both are things the module read and could not account for. *(This sentence claimed 1 wins over the undated banner on that module's ordering until both axes of `/code-review` priced it as **vacuous**: undated already returns 1, so there was no 2 for it to outrank, and the test beside it passed on whichever limb happened to be live. The limbs are driven one at a time now.)*
 
 **What no row reaches is `voice_corpus.NOT_REACHED`, and this section deliberately copies none of it** — [#241](https://github.com/mshamblin5150-code/clinical-skills/issues/241)'s repair adopted at the outset rather than after two copies drifted, and a test asserts both this file and the module docstring point at the object instead of listing it. The sharpest limb is about **whose words a pasted paragraph is**, and the object states it — a matcher reads a message by who sent it, so the corpus's split into typed chat and pasted documents stays a reading rather than a row. *(A first draft of this sentence quoted that limb verbatim, which is the copy the rule forbids, and the test caught it rather than a reader.)*
 
@@ -1058,6 +1066,10 @@ census used to fail before #93.
 clinician.** That second question has no mechanical form and the module says so rather than
 approximating it; `voice_model_scan.NOT_REACHED` owns the complete inventory and this section copies
 no row from it.
+
+The whole-writer section candidates are counted independently of their strict fixed-heading reader.
+A duplicated fixed section is a shape finding; a near-miss heading enters the shared unread
+remainder, so neither can disappear behind the three-record count.
 
 **Counts only by default. `--show` prints finding detail from private working material and must not
 be pasted.**
