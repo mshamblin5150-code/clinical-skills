@@ -164,6 +164,64 @@ class EntryCopyCommand(unittest.TestCase):
         self.assertNotEqual(0, result.returncode)
         self.assertFalse(self.copy.exists())
 
+    def test_clinician_instruction_in_plan_refuses_without_quoting_note(self) -> None:
+        instruction = "Confirm the medication before entry."
+        note = (
+            "S:\nSubjective.\nO:\nObjective.\nA:\nAssessment.\nP:\n"
+            + LABELS
+            + instruction
+            + "\nCoding worksheet\n"
+        )
+        self.copy.parent.mkdir()
+        self.copy.write_text("stale", encoding="utf-8")
+
+        result = self.invoke(note)
+
+        self.assertEqual(1, result.returncode)
+        self.assertIn("before entry", result.stderr)
+        self.assertIn("section P", result.stderr)
+        self.assertNotIn(instruction, result.stderr)
+        self.assertFalse(self.copy.exists())
+
+    def test_clinician_instruction_vocabulary_in_tier_block_passes(self) -> None:
+        note = (
+            "S:\nSubjective.\nO:\nObjective.\nA:\nAssessment.\nP:\n"
+            + LABELS
+            + "## Tier block\nFILLED: Confirm the medication before entry.\n"
+        )
+
+        result = self.invoke(note)
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn(
+            "Confirm the medication before entry.",
+            self.copy.read_text(encoding="utf-8"),
+        )
+
+    def test_preceptor_to_rule_in_assessment_passes(self) -> None:
+        note = (
+            "S:\nSubjective.\nO:\nObjective.\n"
+            "A:\nMedication reaction; preceptor to rule.\nP:\n"
+            + LABELS
+            + "Coding worksheet\n"
+        )
+
+        result = self.invoke(note)
+
+        self.assertEqual(0, result.returncode, result.stderr)
+
+    def test_clinical_confirmation_before_starting_treatment_passes(self) -> None:
+        note = (
+            "S:\nSubjective.\nO:\nObjective.\nA:\nAssessment.\nP:\n"
+            + LABELS
+            + "Confirm a negative pregnancy test before starting isotretinoin.\n"
+            "Coding worksheet\n"
+        )
+
+        result = self.invoke(note)
+
+        self.assertEqual(0, result.returncode, result.stderr)
+
 
 class CommittedNotePlans(unittest.TestCase):
     def test_preserved_fixture_notes_are_named_refusals(self) -> None:
