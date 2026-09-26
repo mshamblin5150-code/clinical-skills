@@ -75,6 +75,7 @@ import voice_model_identity
 import voice_read
 import imagery_proposals
 import project_context
+import coursework_style
 import heading_read
 import research_ledger
 
@@ -96,6 +97,7 @@ from research_ledger import REFUTATION_EVIDENCE_COMPLEMENT
 
 WORD_FLOOR = "word-floor"
 EMPTY_BODY = "empty-body"
+NARRATIVE_BODY = "narrative-body"
 REFERENCE_MINIMUM = "reference-minimum"
 UNTRACED_NUMBER = "untraced-number"
 UNTRACED_CITATION = "untraced-citation"
@@ -117,6 +119,7 @@ POSTED_ATTACHMENT = "posted-attachment"
 ROWS = {
     WORD_FLOOR: "the post reaches the signed word floor",
     EMPTY_BODY: "the post contains body text after headings are removed",
+    NARRATIVE_BODY: "the graded body uses narrative prose rather than lists or tables",
     REFERENCE_MINIMUM: "the post reaches the signed reference minimum",
     UNTRACED_NUMBER: "every graded body number traces to a believed claim record",
     UNTRACED_CITATION: "every in-text citation has a claim record for its source",
@@ -166,6 +169,7 @@ GATED_ROW_SETS = {
         (
             WORD_FLOOR,
             EMPTY_BODY,
+            NARRATIVE_BODY,
             REFERENCE_MINIMUM,
             UNTRACED_NUMBER,
             UNTRACED_CITATION,
@@ -1381,6 +1385,14 @@ def survey(source: RunSource) -> Scan:
         findings.append(Finding(WORD_FLOOR, source.draft.name, f"{words} words"))
     if words == 0:
         findings.append(Finding(EMPTY_BODY, source.draft.name, "no body words"))
+    findings.extend(
+        Finding(
+            NARRATIVE_BODY,
+            source.draft.name,
+            f"{block.kind} block at body line {block.line}",
+        )
+        for block in coursework_style.narrative_blocks(source.body)
+    )
     if len(source.references) < source.bar.reference_minimum:
         findings.append(
             Finding(

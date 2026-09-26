@@ -16,6 +16,8 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 import discussion_reply_scan as scan
+import coursework_run
+import docx_write
 import research_ledger
 import file_digest
 from grader_conformance import (
@@ -158,6 +160,96 @@ class TheHeadingReadPrecedesEachReplyGoAhead(unittest.TestCase):
 
         self.assertEqual(1, status)
         self.assertIn("heading-read-draft-mismatch: 1", stdout.getvalue())
+
+
+class NarrativeBodyHouseStyle(unittest.TestCase):
+    @staticmethod
+    def grade(run: Run) -> tuple[int, str]:
+        run.write_heading_read()
+        stdout = io.StringIO()
+        with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
+            status = scan.main([str(run.root)])
+        return status, stdout.getvalue()
+
+    def test_the_public_grader_refuses_a_planted_list_and_accepts_correct_prose(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            clean_status, clean_report = self.grade(run)
+            response = run.root / "response-maren.md"
+            response.write_text(
+                BODY.replace("**References**", "- A planted list item\n\n**References**"),
+                encoding="utf-8",
+            )
+            run.refresh_fingerprint()
+            planted_status, planted_report = self.grade(run)
+
+        self.assertEqual(0, clean_status)
+        self.assertIn("narrative-body: 0", clean_report)
+        self.assertEqual(1, planted_status)
+        self.assertIn("narrative-body: 1", planted_report)
+
+
+class FinishedDiscussionRepliesAreTheMeasuredControls(unittest.TestCase):
+    """Measure #1426 through the public command without printing private prose."""
+
+    @classmethod
+    def setUpClass(cls):
+        paths = sorted(coursework_run.runs_root().rglob("response-*.md"))
+        paths = [path for path in paths if "aar" not in path.parts]
+        if not paths:
+            raise unittest.SkipTest("private finished discussion-reply population unavailable")
+        cls.finished = [path.read_text(encoding="utf-8") for path in paths]
+
+    @staticmethod
+    def count(text: str) -> int:
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            response = run.root / "response-maren.md"
+            response.write_text(text, encoding="utf-8")
+            run.refresh_fingerprint()
+            _, report = NarrativeBodyHouseStyle.grade(run)
+        match = re.search(r"(?m)^narrative-body: (\d+)$", report)
+        if match is None:
+            raise AssertionError("public grader omitted narrative-body")
+        return int(match.group(1))
+
+    def test_each_finished_reply_fires_once_for_the_planted_positive(self):
+        measured = 0
+        for text in self.finished:
+            match = scan.REFERENCE_LABEL.search(text)
+            if match is None:
+                continue
+            baseline = self.count(text)
+            planted = self.count(text[: match.start()] + "- Planted list item.\n\n" + text[match.start() :])
+            self.assertEqual(1, planted - baseline)
+            measured += 1
+        self.assertGreater(measured, 0)
+
+    def test_real_finished_prose_is_the_negative_control(self):
+        prose = [
+            block.text
+            for text in self.finished
+            for block in docx_write.blocks(text)
+            if block.kind == "paragraph" and block.text.strip()
+        ]
+        self.assertGreater(len(prose), 0)
+        control = BODY.replace("**References**", "\n\n".join(prose) + "\n\n**References**")
+        self.assertEqual(0, self.count(control))
+
+
+class CommittedDiscussionReplyControl(unittest.TestCase):
+    def test_the_public_grader_reads_the_scrubbed_finished_member_and_plant(self):
+        text = (REPO_ROOT / "fixtures" / "coursework-style" / "discussion-reply.md").read_text(
+            encoding="utf-8"
+        )
+        match = scan.REFERENCE_LABEL.search(text)
+        self.assertIsNotNone(match)
+        baseline = FinishedDiscussionRepliesAreTheMeasuredControls.count(text)
+        planted = FinishedDiscussionRepliesAreTheMeasuredControls.count(
+            text[: match.start()] + "- Planted list item.\n\n" + text[match.start() :]
+        )
+        self.assertEqual(0, baseline)
+        self.assertEqual(1, planted - baseline)
 
     def test_a_pair_cannot_borrow_another_replys_claim_heading(self):
         with tempfile.TemporaryDirectory() as temp:

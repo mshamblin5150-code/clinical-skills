@@ -45,9 +45,9 @@ canonical path that command records under the main skill's voice rule. Build the
 from the signed run rather than source-code constants. The title page supports a long credential
 line as one fitted line and instructor credentials without embedding personal data in a fixture.
 The document uses native Word `Title`, heading, caption, and reference styles; running page numbers;
-restrained graphite and blue accents; accessible tables; and inline figures with captions and alt
-text. Use the command-matrix and system-relationship capabilities when they improve the assignment,
-not as decorative filler. The visual direction is APA-dominant: no trademarked insignia, brochure
+restrained graphite and blue accents; narrative command relationships; and inline figures with
+captions and alt text. The graded body follows the shared `narrative-body` rule in
+[style.md](../../_shared/reference/style.md). The visual direction is APA-dominant: no trademarked insignia, brochure
 treatment, or invented organizational identity.
 
 Write the selected metadata, sections, command rows, relationship labels, references, and figure
@@ -75,7 +75,7 @@ python tools/assignment_docx_scan.py <run-directory> --docx <docx>
 The grader reads these rows:
 
 - `package-structure`: every required package part, native style, title metadata, running page
-  field, repeating table header, caption class, and figure alt text is present.
+  field, caption class, and figure alt text is present.
 - `word-range`: the prose body reaches the signed minimum. A numeric `WORD-MAX` is recorded but
   never graded.
 - `reference-minimum`: the References section reaches the signed entry floor.
@@ -85,6 +85,7 @@ The grader reads these rows:
 - `untraced-citation`: an in-text citation has no matching claim-record reference.
 - `rendered-record`: the final visual record, retained export, page images, highest pass, and raw
   DOCX fingerprint do not form one complete join.
+- `narrative-body`: the shared house-style body row is clean.
 - Heading-read enforcement uses `missing-heading-read`, `duplicate-heading-read`,
   `unknown-heading-read-route`, `heading-read-sentence-count`,
   `heading-read-unknown-heading`, `heading-read-dropped-heading`,
@@ -96,6 +97,8 @@ Default output is counts only; `--show` exposes private details. Exit 0 is clean
 finding, and exit 2 means the run was not completely scanned. Independently walk source support,
 assignment-specific prose requirements, whether every visual is warranted, and whether the signed
 bar faithfully transcribes the live pages; the package grader cannot decide those questions.
+If the command is unavailable, walk its named `narrative-body` row against the same body boundary
+and the shared style reference; do not restate a second list rule in this branch.
 
 The reader-owned boundaries are in `assignment_docx_scan.DECLARED_LIMITS`:
 

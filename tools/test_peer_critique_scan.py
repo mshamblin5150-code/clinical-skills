@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import io
 import hashlib
+import re
 import subprocess
 import sys
 import tempfile
@@ -18,10 +19,13 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 import peer_critique_scan as scan
+import coursework_run
+import docx_write
 import research_ledger
 import file_digest
 
 SKILL = Path(__file__).resolve().parents[1] / "skills" / "peer-critique" / "SKILL.md"
+REPO_ROOT = Path(__file__).resolve().parents[1]
 from grader_conformance import (
     EmptyPopulationInput,
     UnreadRemainderInput,
@@ -208,6 +212,93 @@ class TheCleanRunPasses(unittest.TestCase):
         critique = directory / "critique.md"
         critique.write_text(critique.read_text(encoding="utf-8") + "\nLater edit.\n", encoding="utf-8")
         self.assertIn(scan.heading_read.DRAFT_MISMATCH, kinds(directory))
+
+    def test_the_public_grader_refuses_a_planted_list_and_accepts_correct_prose(self):
+        reports = []
+        for directory in (
+            build_run(),
+            build_run(extra="\n\n- A planted list item.\n"),
+        ):
+            stdout = io.StringIO()
+            with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
+                scan.main([str(directory)])
+            reports.append(stdout.getvalue())
+        self.assertIn("narrative-body: 0", reports[0])
+        self.assertIn("narrative-body: 1", reports[1])
+
+
+class FinishedPeerCritiquesAreTheMeasuredControls(unittest.TestCase):
+    """Measure #1426 through the public command without printing private prose."""
+
+    @classmethod
+    def setUpClass(cls):
+        paths = sorted((coursework_run.output_root() / "discussions").glob("*peer-critique*.md"))
+        if not paths:
+            raise unittest.SkipTest("private finished peer-critique population unavailable")
+        cls.finished = [path.read_text(encoding="utf-8") for path in paths]
+
+    @staticmethod
+    def normalized(text: str) -> str:
+        return re.sub(r"(?mi)^#{1,6}\s+References\s*$", "**References**", text)
+
+    @staticmethod
+    def count(text: str) -> int:
+        with tempfile.TemporaryDirectory() as temp:
+            directory = build_run(root=Path(temp) / "run")
+            critique = directory / "critique.md"
+            critique.write_text(text, encoding="utf-8")
+            digest = file_digest.sha256(critique)
+            (directory / "heading-read.md").write_text(
+                f"## HEADING-READ: critique.md\nDRAFT: {digest}\n"
+                "ROUTE: separate context\nSENTENCES: 0 factual, 0 clinician's own\n"
+                "CONTEXT-DIGEST: none\nCONTEXT-VERDICT: none\nVERDICT: clean\n",
+                encoding="utf-8",
+            )
+            (directory / "reread.md").write_text(
+                REREAD.format(submission_sha256=digest), encoding="utf-8"
+            )
+            stdout = io.StringIO()
+            with redirect_stdout(stdout), redirect_stderr(io.StringIO()):
+                scan.main([str(directory)])
+        match = re.search(r"(?m)^narrative-body: (\d+)$", stdout.getvalue())
+        if match is None:
+            raise AssertionError("public grader omitted narrative-body")
+        return int(match.group(1))
+
+    def test_each_finished_critique_fires_once_for_the_planted_positive(self):
+        for source in self.finished:
+            text = self.normalized(source)
+            match = scan.REFERENCE_LABEL.search(text)
+            self.assertIsNotNone(match)
+            baseline = self.count(text)
+            planted = self.count(text[: match.start()] + "- Planted list item.\n\n" + text[match.start() :])
+            self.assertEqual(1, planted - baseline)
+
+    def test_real_finished_prose_is_the_negative_control(self):
+        prose = [
+            block.text
+            for text in self.finished
+            for block in docx_write.blocks(text)
+            if block.kind == "paragraph" and block.text.strip()
+        ]
+        self.assertGreater(len(prose), 0)
+        control = build_run(extra="\n\n" + "\n\n".join(prose)).joinpath("critique.md").read_text(encoding="utf-8")
+        self.assertEqual(0, self.count(control))
+
+
+class CommittedPeerCritiqueControl(unittest.TestCase):
+    def test_the_public_grader_reads_the_scrubbed_finished_member_and_plant(self):
+        text = (REPO_ROOT / "fixtures" / "coursework-style" / "peer-critique.md").read_text(
+            encoding="utf-8"
+        )
+        match = scan.REFERENCE_LABEL.search(text)
+        self.assertIsNotNone(match)
+        baseline = FinishedPeerCritiquesAreTheMeasuredControls.count(text)
+        planted = FinishedPeerCritiquesAreTheMeasuredControls.count(
+            text[: match.start()] + "- Planted list item.\n\n" + text[match.start() :]
+        )
+        self.assertEqual(0, baseline)
+        self.assertEqual(1, planted - baseline)
 
 
 class EveryRowFiresOnItsOwnDefect(unittest.TestCase):
