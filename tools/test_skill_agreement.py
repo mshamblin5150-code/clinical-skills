@@ -174,6 +174,64 @@ def read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
+class ReturningPatientMatchingPrecedesApproval(ProseBind, unittest.TestCase):
+    """#1415: patient identity is settled from the whole map before approval."""
+
+    def test_both_consumers_read_every_identity_map_row_for_the_name(self):
+        required = (
+            "read every identity-map row for that name",
+            "date first seen, age, sex, and any recorded disambiguator",
+            "Only when no row fits",
+        )
+        for path in (BATCH_SHIFT, CLINICAL_NOTE):
+            with self.subTest(path=path):
+                text = read(path)
+                for clause in required:
+                    self.assertProseIn(clause, text)
+
+    def test_batch_reads_returning_patient_demographics_before_review(self):
+        step_seven = read(BATCH_SHIFT).split(
+            "### 7. Build the Review sheet", 1
+        )[1]
+        for clause in (
+            "Before building the Review sheet",
+            "open Patient Detail read-only for every matched returning patient",
+            "Compare its displayed age and sex with the encounter opener",
+            "before approval",
+            "none of these questions is deferred to portal entry",
+        ):
+            with self.subTest(clause=clause):
+                self.assertProseIn(clause, step_seven)
+
+    def test_unresolved_matches_and_demographic_disagreements_share_one_gate(self):
+        step_seven = read(BATCH_SHIFT).split(
+            "### 7. Build the Review sheet", 1
+        )[1]
+        for clause in (
+            "unresolved multiple-row match",
+            "age or sex disagreement",
+            "PRE-APPROVAL PATIENT QUESTIONS",
+        ):
+            with self.subTest(clause=clause):
+                self.assertIn(clause, step_seven)
+
+    def test_standalone_note_runs_apply_the_same_preapproval_gate(self):
+        standalone = read(CLINICAL_NOTE).split(
+            "**A standalone run is a one-encounter batch.**", 1
+        )[1]
+        for clause in (
+            "Before its one explicit go-ahead",
+            "open Patient Detail read-only for a matched returning patient",
+            "compare its displayed age and sex with the encounter opener",
+            "unresolved multiple-row match",
+            "age or sex disagreement",
+            "PRE-APPROVAL PATIENT QUESTIONS",
+            "Do not enter the portal",
+        ):
+            with self.subTest(clause=clause):
+                self.assertProseIn(clause, standalone)
+
+
 class PendingTestsGateOnlyWhatTheirResultsWouldEstablish(ProseBind, unittest.TestCase):
     """#149's converse descriptor rule stays aligned across both consumers."""
 
