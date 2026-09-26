@@ -270,6 +270,14 @@ Walk `discussion_reply_scan.NOT_REACHED` after a clean scan; it is the single in
 command cannot decide. A clean scan grades only the mechanically visible set and is not a checked
 voice or a checked board. The clinician answers the substance questions from the table below.
 
+After each reply is final and before that reply's go-ahead, run the **Planter** and separate fresh
+**Voice reader** in [voice-read.md](../_shared/reference/voice-read.md). Keep the result under that
+reply's submission-key directory; reply two never overwrites reply one's read. A real sentence
+placed on a generic half returns the reply to its author, then both contexts rerun on a fresh plant.
+With no subagent tool, write the two not-run records exactly as the shared sheet requires. The
+completion grader enforces both keyed voice reads and the model-owned profanity row. Its complete
+ceiling is `voice_read.DECLARED_LIMITS`; this skill copies no row.
+
 Before each reply's go-ahead, this fresh **Second reader** under [standing rule 6](../../AGENTS.md) receives only that final
 `response-<name>.md`, `claims.md`, and the printed heading digests. Do not give it sources. Pairs may
 resolve only to `[REPLY: <name>]` records. Write one shared `## HEADING-READ:` record per response

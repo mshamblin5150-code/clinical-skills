@@ -2,7 +2,8 @@
 """Grade the canonical Word artifact for a course-assignment DOCX run.
 
 The project-context row's ceiling belongs to
-``project_context.DECLARED_LIMITS``; this module copies no row.
+``project_context.DECLARED_LIMITS`` and the voice rows' ceiling belongs to
+``voice_read.DECLARED_LIMITS``; this module copies no row.
 """
 
 from __future__ import annotations
@@ -36,6 +37,7 @@ import render_pass
 import research_ledger
 import run_grader
 import voice_model_identity
+import voice_read
 import project_context
 from run_grader import NOT_GRADED
 
@@ -77,6 +79,8 @@ HEADING_READ_ROWS = {kind: kind for kind in heading_read.KINDS}
 EXPECTED_COMPLETION_CHECKS = (
     aar_scan.EXPECTED_ROW,
     voice_model_identity.EXPECTED_ROW,
+    voice_read.EXPECTED_ROW,
+    voice_read.PROFANITY_EXPECTED_ROW,
     project_context.EXPECTED_ROW,
 )
 
@@ -551,6 +555,14 @@ def grade(source: Source, parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
     )
     grade = voice_model_identity.apply_completion_gate(
         grade, source.root, submission
+    )
+    grade = voice_read.apply_completion_gate(
+        grade,
+        source.root,
+        submission,
+        voice_read.draft_surface(
+            ((source.docx, "\n".join(paragraph.text for paragraph in source.paragraphs)),)
+        ),
     )
     return project_context.apply_completion_gate(grade, source.root, submission)
 

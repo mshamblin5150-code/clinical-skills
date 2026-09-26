@@ -10,6 +10,7 @@ import aar_scan
 import peer_critique_scan
 import project_context
 import voice_model_identity
+import voice_read
 from prose_bind import NAMING, ProseBind, bind
 
 
@@ -211,6 +212,8 @@ class TheAfterActionReviewIsWired(unittest.TestCase):
             (
                 aar_scan.EXPECTED_ROW,
                 voice_model_identity.EXPECTED_ROW,
+                voice_read.EXPECTED_ROW,
+                voice_read.PROFANITY_EXPECTED_ROW,
                 project_context.EXPECTED_ROW,
             ),
             peer_critique_scan.EXPECTED_COMPLETION_CHECKS,

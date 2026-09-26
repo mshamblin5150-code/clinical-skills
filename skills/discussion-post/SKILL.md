@@ -290,6 +290,13 @@ scanner both read. Both renderers consume `docx_write.blocks`, so own-line comme
 renders without a second omission rule. `discussion-reply` builds its reply submission with the
 same HTML renderer.
 
+After the Markdown is final and before the go-ahead, run the **Planter** and separate fresh **Voice
+reader** in [voice-read.md](../_shared/reference/voice-read.md). A real sentence placed on a generic
+half returns the draft to its author, then both contexts rerun on a fresh plant. With no subagent
+tool, write the two not-run records exactly as the shared sheet requires. The completion grader
+enforces both the voice read and the model-owned profanity row. Its complete ceiling is
+`voice_read.DECLARED_LIMITS`; this skill copies no row.
+
 Before the go-ahead, this fresh **Second reader** under [standing rule 6](../../AGENTS.md) receives only the final output Markdown, `claims.md`, and
 the printed heading digests. Do not give it sources. It judges only whether each factual sentence
 claims more than its heading, writes the shared `## HEADING-READ:` record from

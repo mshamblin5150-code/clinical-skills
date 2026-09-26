@@ -173,6 +173,7 @@ def kinds(text: str) -> list[str]:
 def run(argv: list[str], *, bind: bool = True) -> tuple[int, str, str]:
     arguments = list(argv)
     output_patch = contextlib.nullcontext()
+    voice_patch = contextlib.nullcontext()
     if bind and arguments and Path(arguments[0]).is_file():
         checks_path = Path(arguments[0])
         (checks_path.parent / "project-context.md").write_text(
@@ -213,12 +214,17 @@ def run(argv: list[str], *, bind: bool = True) -> tuple[int, str, str]:
             output_patch = mock.patch.object(
                 checks.repo_root, "output_root", return_value=output
             )
+            voice_patch = mock.patch.object(
+                checks.voice_read,
+                "apply_completion_gate",
+                side_effect=lambda grade, *_args, **_kwargs: grade,
+            )
         elif "--document" not in arguments:
             document = checks_path.parent / "draft.md"
             document.write_bytes(DRAFT_TEXT.encode())
             arguments += ["--document", str(document)]
     out, err = io.StringIO(), io.StringIO()
-    with output_patch, redirect_stdout(out), redirect_stderr(err):
+    with output_patch, voice_patch, redirect_stdout(out), redirect_stderr(err):
         status = checks.main(arguments)
     return status, out.getvalue(), err.getvalue()
 

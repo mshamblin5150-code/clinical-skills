@@ -68,6 +68,14 @@ writes its path, digest, and existence state into the run directory; their compl
 enable the shared identity row with `--submission`. Without a clean required write, the coursework
 draft is not identified against the canonical model.
 
+**The five coursework skills also depend on the planted voice read graded by `tools/voice_read.py`.**
+After the draft is final and before the go-ahead, a nonauthoring Planter writes one changed copy and
+a separate fresh Voice reader compares it with the canonical model. Their keyed run records bind the
+real draft, planted copy, model digest, complete pair population, and hidden plant. The same shared
+gate reads the model-owned profanity list and is enabled by each completion grader with
+`--submission`. With no subagent tool, the run records `not run` and the grader reports incomplete
+coverage rather than clean. The complete ceiling belongs to `voice_read.DECLARED_LIMITS`.
+
 **`practicum-case-study` requires its committed readers, graders, and producers.**
 `tools/research_ledger.py`, `tools/reference_scan.py`, `tools/checks_ledger.py`, and
 `tools/case_study_scan.py` grade required stages of the run. After an install has been tried, a

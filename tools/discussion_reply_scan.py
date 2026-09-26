@@ -12,6 +12,7 @@ owns that complete inventory; this docstring copies no row from it.
 
 The shared completion rows' ceilings belong to
 ``voice_model_identity.DECLARED_LIMITS`` and
+``voice_read.DECLARED_LIMITS`` and
 ``project_context.DECLARED_LIMITS``; this module copies no row.
 """
 
@@ -59,6 +60,7 @@ import file_digest
 from run_grader import NOT_GRADED
 import aar_scan
 import voice_model_identity
+import voice_read
 import project_context
 import heading_read
 import research_ledger
@@ -66,6 +68,8 @@ import research_ledger
 EXPECTED_COMPLETION_CHECKS = (
     aar_scan.EXPECTED_ROW,
     voice_model_identity.EXPECTED_ROW,
+    voice_read.EXPECTED_ROW,
+    voice_read.PROFANITY_EXPECTED_ROW,
     project_context.EXPECTED_ROW,
 )
 from run_grader import EvidenceDisposition
@@ -1072,6 +1076,20 @@ def grade(source: RunSource, _parsed: run_grader.Parsed) -> run_grader.Grade[Sca
     )
     grade = voice_model_identity.apply_completion_gate(
         grade, source.path, submission if submissions else None
+    )
+    selected_replies = tuple(
+        reply
+        for reply in source.replies
+        if not submissions or reply.path.stem in submissions
+    )
+    grade = voice_read.apply_completion_gate(
+        grade,
+        source.path,
+        submission if submissions else None,
+        {
+            reply.path.stem: voice_read.draft_surface(((reply.path, reply.text),))
+            for reply in selected_replies
+        },
     )
     return project_context.apply_completion_gate(
         grade, source.path, submission if submissions else None

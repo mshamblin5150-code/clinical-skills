@@ -12,6 +12,7 @@ from unittest import mock
 import repo_root
 import run_grader
 import voice_model_identity as identity
+import voice_read
 import project_context
 
 
@@ -206,6 +207,8 @@ class ScopedCompletionGraders(unittest.TestCase):
                     (
                         "the after-action review",
                         identity.EXPECTED_ROW,
+                        voice_read.EXPECTED_ROW,
+                        voice_read.PROFANITY_EXPECTED_ROW,
                         project_context.EXPECTED_ROW,
                     ),
                 )

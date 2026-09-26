@@ -28,6 +28,7 @@ the arguments for the boundaries stay at the code points that create them.
 
 The shared completion rows' ceilings belong to
 ``voice_model_identity.DECLARED_LIMITS`` and
+``voice_read.DECLARED_LIMITS`` and
 ``project_context.DECLARED_LIMITS``; this module copies no row.
 
 **The record shape**, one per check, in a Markdown file under ``scratch/``::
@@ -179,6 +180,7 @@ import repo_root
 from run_grader import NOT_GRADED
 import aar_scan
 import voice_model_identity
+import voice_read
 import project_context
 import heading_read
 import research_ledger
@@ -189,6 +191,8 @@ import case_study_render
 EXPECTED_COMPLETION_CHECKS = (
     aar_scan.EXPECTED_ROW,
     voice_model_identity.EXPECTED_ROW,
+    voice_read.EXPECTED_ROW,
+    voice_read.PROFANITY_EXPECTED_ROW,
     project_context.EXPECTED_ROW,
 )
 from run_grader import EvidenceDisposition
@@ -1108,6 +1112,14 @@ def _grade(
     )
     grade = voice_model_identity.apply_completion_gate(
         grade, source.path.parent, submission
+    )
+    grade = voice_read.apply_completion_gate(
+        grade,
+        source.path.parent,
+        submission,
+        voice_read.draft_surface(
+            ((source.document, source.document_bytes.decode("utf-8", errors="replace")),)
+        ),
     )
     return project_context.apply_completion_gate(
         grade, source.path.parent, submission

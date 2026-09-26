@@ -29,6 +29,7 @@ import filled_vitals_census
 import grader_conformance
 import specificity_scan
 import voice_model_identity
+import voice_read
 import project_context
 
 
@@ -2668,6 +2669,10 @@ class EveryScopedCompletionGraderExpectsTheReview(unittest.TestCase):
                 expected = (aar_scan.EXPECTED_ROW,)
                 if skill in voice_model_identity.SCOPED_SKILLS:
                     expected += (voice_model_identity.EXPECTED_ROW,)
+                    expected += (
+                        voice_read.EXPECTED_ROW,
+                        voice_read.PROFANITY_EXPECTED_ROW,
+                    )
                 if skill in project_context.SCOPED_SKILLS:
                     expected += (project_context.EXPECTED_ROW,)
                 self.assertEqual(module.EXPECTED_COMPLETION_CHECKS, expected)

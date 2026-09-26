@@ -389,6 +389,10 @@ class Run:
             "completion_gate",
             return_value=(False, "the after-action review: clean"),
         ), mock.patch.object(
+            scan.voice_read,
+            "apply_completion_gate",
+            side_effect=lambda grade, *_args, **_kwargs: grade,
+        ), mock.patch.object(
             scan.assignment_submission.repo_root,
             "output_root",
             return_value=canonical_root,

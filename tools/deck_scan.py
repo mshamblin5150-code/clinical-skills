@@ -8,8 +8,9 @@ The figure-claim row reads those slide faces and ``ppt/notesSlides/``. Counts
 print by default because a course artifact can contain private material;
 ``--show`` exposes finding details.
 
-The project-context row's ceiling belongs to
-``project_context.DECLARED_LIMITS``; this module copies no row.
+The shared completion rows' ceilings belong to
+``project_context.DECLARED_LIMITS`` and ``voice_read.DECLARED_LIMITS``; this
+module copies no row.
 """
 
 from __future__ import annotations
@@ -33,6 +34,7 @@ import research_ledger
 import file_digest
 import render_pass
 import voice_model_identity
+import voice_read
 import project_context
 from discussion_artifact import (
     CLAIM_BLOCK,
@@ -104,6 +106,8 @@ HEADING_READ_ROWS = {kind: "the heading read agrees with the deck bytes and curr
 EXPECTED_COMPLETION_CHECKS = (
     aar_scan.EXPECTED_ROW,
     voice_model_identity.EXPECTED_ROW,
+    voice_read.EXPECTED_ROW,
+    voice_read.PROFANITY_EXPECTED_ROW,
     project_context.EXPECTED_ROW,
 )
 
@@ -146,6 +150,10 @@ SOURCED_FIELD_COMPLETENESS_LIMIT = DeclaredLimit(
 )
 
 DECLARED_LIMITS = (
+    DeclaredLimit(
+        "presentation-intent-is-not-voice",
+        "A clean presentation-intent record does not establish consistency with the clinician's canonical voice model; voice_read grades that separate ground.",
+    ),
     DeclaredLimit(
         "claim-support-unverified",
         "A clean figure trace does not establish that a believed record supports the figure read from its heading.",
@@ -1293,6 +1301,18 @@ def grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
     )
     grade = voice_model_identity.apply_completion_gate(
         grade, source.root, _parsed.value("--submission")
+    )
+    voice_text = "\n".join(
+        tuple(slide.text for slide in source.slides) + source.notes
+    )
+    grade = voice_read.apply_completion_gate(
+        grade,
+        source.root,
+        _parsed.value("--submission"),
+        voice_read.draft_surface(
+            ((source.deck, voice_text),),
+            plantable_text="\n".join(source.notes),
+        ),
     )
     return project_context.apply_completion_gate(
         grade, source.root, _parsed.value("--submission")

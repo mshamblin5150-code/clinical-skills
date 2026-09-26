@@ -1137,6 +1137,14 @@ rows whose verdict comes from a command.
 | the faculty's own to-do list | the faculty material, the draft's headings, and `bar.md` on a routed board run | a reader: does every faculty item have a section that answers it, and on a routed run does every signed bar element — including word floor, reference minimum, ISBN, and every prose element — hold in the finished draft | no |
 | the draft label on threshold-sheet citations | the whole draft and every cited row's `## Sources` entry in `reference/thresholds/` | `tools/differential_scan.py` labels every citation backed by a `draft` source; a reader: where a cited threshold row's `source class` is `draft`, does the draft identify that number as coming from a public-review draft and avoid presenting it as guidance in force; never suppress the citation solely because the source is a draft | no |
 
+After the Markdown is final and before the go-ahead, run the **Planter** and separate fresh **Voice
+reader** in [voice-read.md](../_shared/reference/voice-read.md). This is the one draft-against-pairs
+reading; do not add a by-eye copy to the checks table or final walk. A real sentence placed on a
+generic half returns the draft to its author, then both contexts rerun on a fresh plant. With no
+subagent tool, write the two not-run records exactly as the shared sheet requires. The terminal
+checks grader enforces both the voice read and the model-owned profanity row. Its complete ceiling
+is `voice_read.DECLARED_LIMITS`; this skill copies no row.
+
 **The visual row begins with a retained render pass.** For each attempt, create the next
 `<run-directory>/render/pass-N/`; never replace or overwrite an earlier pass. One pass keeps one
 page-faithful PDF or XPS and one 120-dpi PNG per page beside it. Use a filename such as
@@ -1567,11 +1575,9 @@ Then walk this list, by eye — none of it is mechanical:
   `the rendered document`, `SOURCE` naming `word-pdf`, `word-xps`, or `clinician`, and `PASS`
   naming the positive final retained pass?
 - Is the Patient Education spoken, jargon-free, and does it end on the follow-up interval?
-- **Read the draft back against the discriminating pairs in the canonical model recorded by
-  `tools/voice_model_identity.py`**, register by
-  register — for each pair, which half does the draft's sentence resemble?
-  [../_shared/reference/voice.md](../_shared/reference/voice.md) §5. Where the model is absent or a register is
-  unmodeled, that is what `PROPOSED` declares rather than something this step can settle.
+- Is the planted [coursework voice read](../_shared/reference/voice-read.md) complete for the current
+  draft digest, with every generic placement repaired? Where the model is absent or a register is
+  unmodeled, that is what `PROPOSED` declares rather than something this read can settle.
 - Does any number in the body rest on recall rather than on a source in hand?
 - **Does every claim researched in step 3 read the way its ledger record says the source reads?**
   `tools/research_ledger.py` exiting 0 says the records are well formed and says nothing about
