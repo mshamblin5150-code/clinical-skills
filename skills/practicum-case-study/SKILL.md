@@ -1292,6 +1292,9 @@ not set wholly bold, the signature and its date on one line, the prescription ta
 first row, six rows and three columns wide, **a drug that continues carrying a stop criterion**, **no `PROPOSED
 (verify before use)` heading in the submission** — that review block belongs in the run directory —
 and **a source quotation of 40 words or more carrying authored `> ` block markup**.
+The rows also require **Fahrenheit temperatures using the degree symbol rather than the word
+`degrees`**, except inside source quotations, and **HEENT and the vital-sign labels `T`, `HR`, `RR`,
+`BP`, and `SpO2` using the standard clinical abbreviations**.
 
 **It reads the Markdown through the renderer's own parser rather than a copy of it.** A line it
 calls a bullet is a `ListParagraph` in the `.docx`, because `docx_write.blocks` is what both of them

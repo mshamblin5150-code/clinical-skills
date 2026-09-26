@@ -242,6 +242,32 @@ ALL_BOLD = re.compile(r"^\*\*(?!\s)(?:(?!\*\*).)+\*\*$", re.S)
 QUOTED_SPAN = re.compile(r'"(?P<straight>[^"\n]+)"|“(?P<curly>[^”\n]+)”')
 QUOTED_WORD = re.compile(r"\b[\w’'-]+\b", re.UNICODE)
 
+# A numeric Fahrenheit value written with the word instead of the degree symbol.
+# Source quotations are excluded by the row below because house style does not
+# rewrite the source's own unit.
+TEMPERATURE_DEGREES_WORD = re.compile(
+    r"\b\d{2,3}(?:\.\d+)?\s+degrees?\s+(?:Fahrenheit|F)\b",
+    re.I,
+)
+EXPANDED_HEENT_LABEL = re.compile(
+    r"^\s*(?:\*\*)?Head\s*[,/]\s*Eyes\s*[,/]\s*Ears\s*[,/]\s*Nose\s*[,/]\s*"
+    r"(?:and\s+)?Throat(?:\*\*)?\s*:",
+    re.I,
+)
+EXPANDED_VITAL_LABEL = re.compile(
+    r"(?:^|(?<=[.!?;])\s+)(?:\*\*)?"
+    r"(?:Temperature|Heart\s+rate|Respiratory\s+rate|Blood\s+pressure|Oxygen\s+saturation)"
+    r"(?:\*\*)?\s*:",
+    re.I,
+)
+EXPANDED_CLINICAL_LABEL_CELL = re.compile(
+    r"^\s*(?:\*\*)?(?:"
+    r"Temperature|Heart\s+rate|Respiratory\s+rate|Blood\s+pressure|Oxygen\s+saturation"
+    r"|Head\s*[,/]\s*Eyes\s*[,/]\s*Ears\s*[,/]\s*Nose\s*[,/]\s*(?:and\s+)?Throat"
+    r")(?:\*\*)?\s*:?[\s.]*$",
+    re.I,
+)
+
 # A date on the signature line. Three spellings, because the corpus writes the
 # first and a run may write either of the others.
 SIGNATURE_DATE = re.compile(
@@ -319,6 +345,8 @@ RX_TABLE_SHAPE = "rx-table-shape"
 NO_STOP_CRITERION = "no-stop-criterion"
 PROPOSED_HEADING = "proposed-heading"
 UNMARKED_BLOCK_QUOTATION = "unmarked-block-quotation"
+TEMPERATURE_DEGREES_WORD_ROW = "temperature-degrees-word"
+EXPANDED_CLINICAL_LABEL = "expanded-clinical-label"
 
 # Where each row's rule is written, so a reader knows which file to open. Keyed
 # rather than built from ``KINDS``, on ``checks_ledger.ROW_TICKET``'s reasoning: a
@@ -343,6 +371,12 @@ ROWS = {
     ),
     UNMARKED_BLOCK_QUOTATION: (
         "apa7 32, skills/practicum-case-study/SKILL.md step 9 - source quotations of 40 words or more use block markup"
+    ),
+    TEMPERATURE_DEGREES_WORD_ROW: (
+        "style.md 1a - Fahrenheit temperatures use the degree symbol, never the word"
+    ),
+    EXPANDED_CLINICAL_LABEL: (
+        "style.md 1a - HEENT and vital-sign labels use the standard clinical abbreviations"
     ),
 }
 KINDS = tuple(ROWS)
@@ -983,6 +1017,64 @@ def _source_quotation_findings(sections: list[Section], every: list) -> list[Fin
     return found
 
 
+def _temperature_unit_findings(sections: list[Section], every: list) -> list[Finding]:
+    """Numeric Fahrenheit temperatures use the degree symbol, never the word."""
+    owner = section_owner(sections)
+    found = []
+    for block in every:
+        if block.kind == "block-quotation":
+            continue
+        text = block_text(block)
+        quoted_ranges = [
+            quote.span()
+            for quote in QUOTED_SPAN.finditer(text)
+            if reference_scan.read_citations(text[quote.end() :])
+        ]
+        unquoted = any(
+            not any(first <= match.start() and match.end() <= last for first, last in quoted_ranges)
+            for match in TEMPERATURE_DEGREES_WORD.finditer(text)
+        )
+        if unquoted:
+            found.append(
+                Finding(
+                    TEMPERATURE_DEGREES_WORD_ROW,
+                    owner.get(block.line, OUTSIDE_ANY_SECTION),
+                    block.line,
+                    text,
+                )
+            )
+    return found
+
+
+def _expanded_clinical_label_findings(
+    sections: list[Section], every: list
+) -> list[Finding]:
+    """HEENT and vital-sign labels use the clinician's standard abbreviations."""
+    owner = section_owner(sections)
+    found = []
+    for block in every:
+        text = block_text(block)
+        table_cell = block.kind == "table" and any(
+            EXPANDED_CLINICAL_LABEL_CELL.fullmatch(cell)
+            for row in block.rows
+            for cell in row
+        )
+        if (
+            EXPANDED_HEENT_LABEL.search(text)
+            or EXPANDED_VITAL_LABEL.search(text)
+            or table_cell
+        ):
+            found.append(
+                Finding(
+                    EXPANDED_CLINICAL_LABEL,
+                    owner.get(block.line, OUTSIDE_ANY_SECTION),
+                    block.line,
+                    text,
+                )
+            )
+    return found
+
+
 def findings(
     sections: list[Section],
     every: list,
@@ -1007,6 +1099,8 @@ def findings(
         + _rx_findings(sections)
         + _proposed_findings(every)
         + _source_quotation_findings(sections, every)
+        + _temperature_unit_findings(sections, every)
+        + _expanded_clinical_label_findings(sections, every)
     )
     order = {kind: index for index, kind in enumerate(KINDS)}
     return sorted(found, key=lambda f: (order[f.kind], f.line))

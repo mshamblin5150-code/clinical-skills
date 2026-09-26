@@ -169,6 +169,12 @@ ROW_PHRASES = {
     scan.UNMARKED_BLOCK_QUOTATION: (
         "a source quotation of 40 words or more carrying authored `> ` block markup"
     ),
+    scan.TEMPERATURE_DEGREES_WORD_ROW: (
+        "Fahrenheit temperatures using the degree symbol rather than the word `degrees`"
+    ),
+    scan.EXPANDED_CLINICAL_LABEL: (
+        "HEENT and the vital-sign labels `T`, `HR`, `RR`, `BP`, and `SpO2` using the standard clinical abbreviations"
+    ),
 }
 
 
@@ -490,6 +496,103 @@ class TheScaffoldingRow(unittest.TestCase):
     def test_a_phrase_inside_a_table_cell_fires(self):
         text = CLEAN + "\n## Assessment:\n\n| a | b |\n| --- | --- |\n| Using OLDCARTS | x |\n"
         self.assertIn(scan.SCAFFOLDING_PHRASE, kinds(text))
+
+
+class TemperatureUsesTheDegreeSymbol(unittest.TestCase):
+    def test_a_numeric_fahrenheit_temperature_written_with_degrees_fires(self):
+        planted = CLEAN.replace(
+            "General: + fatigue and fever, - chills and weight loss.",
+            "General: + fatigue and fever of 102.2 degrees Fahrenheit, - chills and weight loss.",
+        )
+        self.assertEqual(kinds(planted).count("temperature-degrees-word"), 1)
+
+    def test_a_quoted_source_threshold_keeps_the_sources_unit(self):
+        quoted = CLEAN.replace(
+            "## References",
+            "> The source defines fever as 100.4 degrees Fahrenheit (Ross, 2025).\n\n"
+            "## References",
+        )
+        self.assertEqual(kinds(quoted).count("temperature-degrees-word"), 0)
+
+    def test_an_inline_source_quotation_keeps_the_sources_unit(self):
+        quoted = CLEAN.replace(
+            "## References",
+            'The source states, "Fever begins at 100.4 degrees Fahrenheit" (Ross, 2025).\n\n'
+            "## References",
+        )
+        self.assertEqual(kinds(quoted).count("temperature-degrees-word"), 0)
+
+    def test_the_finished_prose_with_the_degree_symbol_is_the_negative_control(self):
+        accepted = CLEAN.replace(
+            "General: + fatigue and fever, - chills and weight loss.",
+            "General: + fatigue and fever of 102.2°F, - chills and weight loss.",
+        )
+        self.assertEqual(kinds(accepted).count("temperature-degrees-word"), 0)
+
+
+class StandardClinicalLabelsUseAbbreviations(unittest.TestCase):
+    def test_a_spelled_out_heent_label_fires(self):
+        planted = CLEAN.replace(
+            "General: Alert, in no acute distress.",
+            "General: Alert, in no acute distress.\n\n"
+            "Head, eyes, ears, nose, and throat: No acute findings.",
+        )
+        self.assertEqual(kinds(planted).count("expanded-clinical-label"), 1)
+
+    def test_each_spelled_out_vital_label_fires(self):
+        for label, value in (
+            ("Temperature", "102.2°F"),
+            ("Heart rate", "112 beats/min"),
+            ("Respiratory rate", "22 breaths/min"),
+            ("Blood pressure", "118/72 mm Hg"),
+            ("Oxygen saturation", "97% on room air"),
+        ):
+            with self.subTest(label=label):
+                planted = CLEAN.replace(
+                    "General: Alert, in no acute distress.",
+                    "General: Alert, in no acute distress.\n\n{label}: {value}.".format(
+                        label=label, value=value
+                    ),
+                )
+                self.assertEqual(kinds(planted).count("expanded-clinical-label"), 1)
+
+    def test_a_later_expanded_label_in_a_vital_sign_set_fires(self):
+        planted = CLEAN.replace(
+            "General: Alert, in no acute distress.",
+            "General: Alert, in no acute distress.\n\n"
+            "T: 102.2°F. Heart rate: 112 beats/min. RR: 22 breaths/min.",
+        )
+        self.assertEqual(kinds(planted).count("expanded-clinical-label"), 1)
+
+    def test_an_expanded_vital_label_in_a_result_table_fires(self):
+        table = """\
+| Vital sign | Value |
+| --- | --- |
+| Blood pressure | 118/72 mm Hg |
+"""
+        planted = CLEAN.replace(
+            "## Physical Examination",
+            table + "\n## Physical Examination",
+        )
+        self.assertEqual(kinds(planted).count("expanded-clinical-label"), 1)
+
+    def test_finished_prose_with_standard_abbreviations_is_the_negative_control(self):
+        accepted = CLEAN.replace(
+            "General: Alert, in no acute distress.",
+            "General: Alert, in no acute distress.\n\n"
+            "HEENT: No acute findings.\n\n"
+            "T: 102.2°F. HR: 112 beats/min. RR: 22 breaths/min. "
+            "BP: 118/72 mm Hg. SpO2: 97% on room air.",
+        )
+        self.assertEqual(kinds(accepted).count("expanded-clinical-label"), 0)
+
+    def test_expanded_terms_in_ordinary_clinical_prose_are_not_labels(self):
+        prose = CLEAN.replace(
+            "## References",
+            "The blood pressure improved while the heart rate remained elevated.\n\n"
+            "## References",
+        )
+        self.assertEqual(kinds(prose).count("expanded-clinical-label"), 0)
 
 
 class TheBoldRow(unittest.TestCase):
