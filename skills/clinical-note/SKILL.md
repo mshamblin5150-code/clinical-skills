@@ -1144,7 +1144,7 @@ Produce the field block from [../../reference/medatrax-fields.md](../../referenc
 
 Fields carrying a **declared rule** — `Primary Payment Method`, `Race/Ethnicity` — are filled from that rule rather than reported missing. Neither is visible in bedside shorthand, and reporting them missing on every note is what teaches a clinician to skim this block. **The two rules do not live in the same file.** `Race/Ethnicity` is universal Medatrax behavior and is in the reference. `Primary Payment Method` keys on the site, which makes it per-account, so it is in `scratch/medatrax-profile.md` under *Declared field defaults* — the reference names that location where it describes the field, so following the field order still finds it. Do not restate either here.
 
-**Resolve the patient before the fields.** Medatrax stores no name — it generates a Patient Reference and that is its only handle on a person. An encounter entered without matching the existing record creates a **second** patient, silently and unmergeably. So look the name up in the clinician's identity map first, and emit either the matched Patient Reference or an explicit `NEW PATIENT` line. Where the day file gave no name to match on, say that: it is the exact mechanism by which duplicates are made, and it is worth one line rather than a discovery months later. Location and format of the map come from `/setup-clinical-skills`.
+**Resolve the patient before the fields.** Medatrax stores no name — it generates a Patient Reference and that is its only handle on a person. An encounter entered without matching the existing record creates a **second** patient, silently and unmergeably. Look the name up in the clinician's identity map first and **read every identity-map row for that name**; never stop at the first matching name. One row is a candidate, not an automatic match. Where several rows share the name, disambiguate them with the map's own fields: **date first seen, age, sex, and any recorded disambiguator**. If those fields do not settle which fitting row belongs to the encounter, send the unresolved multiple-row match to the batch's pre-approval questions. **Only when no row fits** may the run request a portal lookup. Emit either the settled Patient Reference or an explicit `NEW PATIENT` line after that resolution. Where the day file gave no name to match on, say that: it is the exact mechanism by which duplicates are made, and it is worth one line rather than a discovery months later. Location and format of the map come from `/setup-clinical-skills`.
 
 Every note carries the finalized office E/M paragraph defined under *A finalized coding worksheet follows every note*: the full supported code, new or established status, and concise patient-specific problems, data, and risk support. Read status from the shorthand when it states it. Otherwise use the private identity map and label it `new/established assumed from Medatrax`.
 
@@ -1410,7 +1410,25 @@ A failing row is written as a **FLAG** in the tier block, never quietly repaired
 
 Close with `N given, N derived, N filled` and stop.
 
-**A standalone run is a one-encounter batch.** Before any portal entry, show the clinician the complete note, the patient match or `NEW PATIENT`, the resolved preceptor, and the finalized E/M line. One explicit go-ahead authorizes this batch. Then ask for the shift start and use the Time Log duration as the window, or ask for start and hours together when there is no row. Once the finished note is final, run `python tools/entry_copy.py <finished note path>` and require exit 0. It accepts a finished note returned to an existing run after the Plan has been relabeled, and refuses any clinician-directed instruction declared by `entry_copy.CLINICIAN_INSTRUCTIONS` that survives in a pasted section. The derived file is `entry-copies/<finished note filename>` beside the note's directory, outside the top-level Markdown population used for the submission fingerprint. Run `python tools/form_sections.py <entry-copies/note-N.md>` and require exit 0 before entry. It reports six line counts and lengths, creates a missing `private/form-sections/note-N.json`, and reports a difference from an existing record without blocking or replacing it. Use `--replace` only when deliberately discarding that record. Either command's refusal blocks portal entry until the input is corrected and both commands succeed.
+**A standalone run is a one-encounter batch.** Before its one explicit go-ahead, open Patient Detail
+read-only for a matched returning patient and compare its displayed age and sex with the encounter
+opener. Put any age or sex disagreement, and any unresolved multiple-row match from step 5, in a
+`PRE-APPROVAL PATIENT QUESTIONS` block and obtain the clinician's ruling. Do not enter the portal
+data-entry route or approve the note while that block has an unresolved item. Then show the
+clinician the complete note, the settled patient match or `NEW PATIENT`, the resolved preceptor,
+and the finalized E/M line. One explicit go-ahead authorizes this batch. Ask for the shift start and
+use the Time Log duration as the window, or ask for start and hours together when there is no row.
+Once the finished note is final, run `python tools/entry_copy.py <finished note path>` and require
+exit 0. It accepts a finished note returned to an existing run after the Plan has been relabeled.
+It refuses any clinician-directed instruction declared by `entry_copy.CLINICIAN_INSTRUCTIONS`
+that survives in a pasted section.
+The derived file is `entry-copies/<finished note filename>` beside the note's directory, outside the
+top-level Markdown population used for the submission fingerprint. Run
+`python tools/form_sections.py <entry-copies/note-N.md>` and require exit 0 before entry. It reports
+six line counts and lengths, creates a missing `private/form-sections/note-N.json`, and reports a
+difference from an existing record without blocking or replacing it. Use `--replace` only when
+deliberately discarding that record. Either command's refusal blocks portal entry until the input is
+corrected and both commands succeed.
 
 Follow [the Medatrax entry procedure](../../reference/medatrax-fields.md#entering-encounters) one patient at a time. Enter the derived Entry copy in the note form. Put a newly generated Patient Reference into the private identity map immediately. Leave Add Visit Data empty. Read the saved Patient Detail against the approved field block and the saved note form against the Entry copy. Correct an ordinary mismatch to the approved value and read it again; for any other discrepancy, stop for the clinician. On the `VISIT:` line append `correction=<field>: <saved value> -> <approved value>; reread matches` for every correction. A clean first read needs no correction clause.
 

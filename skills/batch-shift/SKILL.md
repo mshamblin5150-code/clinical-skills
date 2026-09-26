@@ -168,6 +168,13 @@ Run [clinical-note](../clinical-note/SKILL.md) against each confirmed encounter 
 
 Number the output and keep the source order.
 
+For each encounter that gives a name, **read every identity-map row for that name**; never stop at
+the first matching name. One row is a candidate, not an automatic match. Where several rows share
+the name, disambiguate them with the map's own fields: **date first seen, age, sex, and any recorded
+disambiguator**. If those fields do not settle which fitting row belongs to the encounter, record an
+unresolved multiple-row match for step 7's pre-approval questions. **Only when no row fits** may the
+run request a portal lookup; a rejected first row does not establish that the map has no match.
+
 Write each pass's complete working note — body and tier blocks together — into the owning
 checkout's `scratch/runs/shift-<date>/` as `note-N.md`. These Markdown files are the run evidence
 read by the roll-up and terminal graders, not the finished document handed to the course. Keep them
@@ -260,6 +267,15 @@ site — and begin every encounter on a new page.
 The supervised Medatrax route is recorded in
 [reference/medatrax-fields.md](../../reference/medatrax-fields.md). Apply it; do not run a new
 walkthrough for each shift.
+
+**Before building the Review sheet**, use that route to open Patient Detail read-only for every
+matched returning patient. Compare its displayed age and sex with the encounter opener. Collect
+every age or sex disagreement together with every unresolved multiple-row match in one
+`PRE-APPROVAL PATIENT QUESTIONS` block beside the Review-sheet go-ahead. Show that block to the
+clinician and obtain a ruling before approval; none of these questions is deferred to portal entry.
+Do not build or render the Review sheet while the block has an unresolved item. This read happens
+before the approval artifact exists, so an age or sex disagreement cannot first appear during
+entry on a run that followed this skill.
 
 It is batch-atomic. Before rendering, create one private manifest naming every encounter in exact
 order. Each record carries its stable id, one-based order, final ICD-10-CM, E/M, CPT, and HCPCS
