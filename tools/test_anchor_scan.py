@@ -76,10 +76,10 @@ class TheDeclaredLimitsObjectOwnsBothProseSurfaces(unittest.TestCase):
                 self.assertEqual(1, surface.count(self.POINTER))
                 self.assertEqual((), bind(scan.DECLARED_LIMITS, surface, mode=NAMING))
 
-    def test_the_partition_is_three_declared_readings_and_nine_behaviors(self):
+    def test_the_partition_is_three_declared_readings_and_ten_behaviors(self):
         dispositions = [row[2] for row in scan.DECLARED_LIMITS]
         self.assertEqual(3, dispositions.count(run_grader.EvidenceDisposition.DECLARED_READING))
-        self.assertEqual(9, dispositions.count(run_grader.EvidenceDisposition.BEHAVIOR))
+        self.assertEqual(10, dispositions.count(run_grader.EvidenceDisposition.BEHAVIOR))
         self.assertTrue(all(subject and reason for subject, reason, _ in scan.DECLARED_LIMITS))
 
 
@@ -94,6 +94,7 @@ class EveryBehaviorLimitHasALiveControl(unittest.TestCase):
         "pediatric-band computation": "DeclaredLimitBoundaryControls.test_the_required_sentence_is_not_a_recomputation",
         "per-run gradeable coverage": "DeclaredLimitBoundaryControls.test_an_unread_worksheet_adds_nothing_beside_a_readable_one",
         "E/M descriptor agreement": "TheReportCarriesNoCode.test_every_report_prints_the_excluded_em_count",
+        "note-side ICD-10 database membership": "AgreementModes.test_vitamin_b12_in_final_diagnosis_is_counted_but_not_bound",
     }
 
     def test_each_behavior_subject_names_a_passing_control(self):
@@ -987,6 +988,30 @@ class AgreementModes(unittest.TestCase):
         self.assertEqual(0, status)
         self.assertIn("agreement findings                 0", report)
         self.assertIn("E/M lines excluded                  1", report)
+
+    def test_vitamin_b12_in_final_diagnosis_is_counted_but_not_bound(self):
+        note = AGREEMENT_NOTE.replace(
+            "Pain in left toe(s) - **M79.675**",
+            "Pain in left toe(s) - **M79.675**; vitamin B12 deficiency",
+        )
+        (self.notes / "case-01.md").write_text(note, encoding="utf-8")
+
+        status, report = self.grade(self.clean_record())
+
+        self.assertEqual(0, status)
+        self.assertIn("code-shaped tokens not in the code set  1", report)
+
+    def test_a1c_in_differential_is_counted_but_not_bound(self):
+        note = AGREEMENT_NOTE.replace(
+            "Plantar wart - B07.0: focal plantar lesion.",
+            "Plantar wart - B07.0: focal plantar lesion; A1C pending.",
+        )
+        (self.notes / "case-01.md").write_text(note, encoding="utf-8")
+
+        status, report = self.grade(self.clean_record())
+
+        self.assertEqual(0, status)
+        self.assertIn("code-shaped tokens not in the code set  1", report)
 
     def test_words_absent_from_the_worksheet_support_fail(self):
         record = self.clean_record()
