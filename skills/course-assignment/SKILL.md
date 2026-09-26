@@ -328,6 +328,15 @@ VERDICT: clean - <reason> | defect - <reason>
 <findings keyed to slide number>
 ```
 
+After the deck or DOCX is final and before the go-ahead, run the **Planter** and separate fresh
+**Voice reader** in [voice-read.md](../_shared/reference/voice-read.md). For a deck, the voice
+surface includes slide text and speaker notes and the planted sentence comes from the notes; this
+read sits beside `intent.md` and neither replaces the other. A real sentence placed on a generic
+half returns the artifact to its author, then both contexts rerun on a fresh plant. With no subagent
+tool, write the two not-run records exactly as the shared sheet requires. The completion grader
+enforces both the voice read and the model-owned profanity row. Its complete ceiling is
+`voice_read.DECLARED_LIMITS`; this skill copies no row.
+
 Before the go-ahead, this fresh **Second reader** under [standing rule 6](../../AGENTS.md) receives only the final `.pptx` (including its slide
 bullets and speaker-note sentences), `claims.md`, and the printed heading digests. Do not give it
 sources. It writes the shared `## HEADING-READ: <deck>.pptx` record from

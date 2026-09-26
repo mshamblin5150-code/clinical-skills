@@ -3,6 +3,7 @@
 
 The shared completion rows' ceilings belong to
 ``voice_model_identity.DECLARED_LIMITS`` and
+``voice_read.DECLARED_LIMITS`` and
 ``project_context.DECLARED_LIMITS``; this dispatcher copies no row.
 """
 
@@ -17,6 +18,7 @@ import assignment_bar
 import aar_scan
 import run_grader
 import voice_model_identity
+import voice_read
 import project_context
 from console_codec import require_python_floor, use_utf8
 
@@ -24,6 +26,8 @@ from console_codec import require_python_floor, use_utf8
 EXPECTED_COMPLETION_CHECKS = (
     aar_scan.EXPECTED_ROW,
     voice_model_identity.EXPECTED_ROW,
+    voice_read.EXPECTED_ROW,
+    voice_read.PROFANITY_EXPECTED_ROW,
     project_context.EXPECTED_ROW,
 )
 

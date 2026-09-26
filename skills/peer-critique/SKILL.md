@@ -274,6 +274,13 @@ inventory of what the command cannot decide. **A clean scan is not a checked cri
 missed diagnosis is really missed, whether an absent item was ever in the case, and whether the
 tone is one the clinician will sign are all readings, and the clinician answers them.
 
+After `critique.md` is final and before the go-ahead, run the **Planter** and separate fresh **Voice
+reader** in [voice-read.md](../_shared/reference/voice-read.md). A real sentence placed on a generic
+half returns the critique to its author, then both contexts rerun on a fresh plant. With no subagent
+tool, write the two not-run records exactly as the shared sheet requires. The completion grader
+enforces both the voice read and the model-owned profanity row. Its complete ceiling is
+`voice_read.DECLARED_LIMITS`; this skill copies no row.
+
 Before the go-ahead, this fresh **Second reader** under [standing rule 6](../../AGENTS.md) receives only `critique.md`, `claims.md`, and the printed
 heading digests. Do not give it sources. It writes the shared `## HEADING-READ: critique.md` record
 from [sourcing.md](../_shared/reference/sourcing.md) to `<run-directory>/heading-read.md`. Repair

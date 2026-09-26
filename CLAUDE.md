@@ -1084,6 +1084,20 @@ row from it.
 
 Covered by `tools/test_voice_model_identity.py`.
 
+### Coursework voice read
+
+After a scoped coursework draft is final and before the go-ahead, one fresh context plants a
+single generic rewrite in a copy and a separate fresh reader compares that copy with the canonical
+model. The scoped completion graders enable the shared voice-read and model-owned profanity rows with
+`--submission`; keyed records keep sequential discussion replies independent. Missing or malformed
+records, an unflagged plant, an incomplete pair population, a real sentence placed on a generic
+half, or moved identities are findings. A recorded no-subagent run and an unreadable model are
+incomplete coverage rather than clean.
+
+The complete ceiling belongs to `voice_read.DECLARED_LIMITS`; this section copies no row from it.
+
+Covered by `tools/test_voice_read.py`.
+
 ### Coursework project context
 
 Before first prose, the five coursework skills write and confirm the purpose-named

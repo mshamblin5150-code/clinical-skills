@@ -19,6 +19,7 @@ copies none of its rows.
 
 The shared completion rows' ceilings belong to
 ``voice_model_identity.DECLARED_LIMITS`` and
+``voice_read.DECLARED_LIMITS`` and
 ``project_context.DECLARED_LIMITS``; this module copies no row.
 """
 
@@ -71,6 +72,7 @@ import pdf_engine
 from run_grader import NOT_GRADED
 import aar_scan
 import voice_model_identity
+import voice_read
 import project_context
 import heading_read
 import research_ledger
@@ -78,6 +80,8 @@ import research_ledger
 EXPECTED_COMPLETION_CHECKS = (
     aar_scan.EXPECTED_ROW,
     voice_model_identity.EXPECTED_ROW,
+    voice_read.EXPECTED_ROW,
+    voice_read.PROFANITY_EXPECTED_ROW,
     project_context.EXPECTED_ROW,
 )
 import coursework_run
@@ -1651,6 +1655,12 @@ def grade(source: RunSource, _parsed: run_grader.Parsed) -> run_grader.Grade[Sca
     )
     grade = voice_model_identity.apply_completion_gate(
         grade, source.path, _parsed.value("--submission")
+    )
+    grade = voice_read.apply_completion_gate(
+        grade,
+        source.path,
+        _parsed.value("--submission"),
+        voice_read.draft_surface(((source.draft, source.draft_text),)),
     )
     return project_context.apply_completion_gate(
         grade, source.path, _parsed.value("--submission")
