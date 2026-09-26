@@ -1,6 +1,11 @@
 # A clinician upload completes through the posted reading and a status line ends every reply of an approved run
 
-**Measured at:** 7cf0dabfbfdd5b4690289e5c63940dae3b496707
+**Measured at:** ba6bc7f002945b34941370bbd343fb61f24f159d
+
+*Re-declared 2026-09-26 from `7cf0dab` for the supersession marker at the end alone. Since that
+commit `tools/assignment_submission.py` and `skills/course-assignment/SKILL.md` changed with
+#1398's build, so the measured sentence that a clinician upload can never grade clean no longer
+describes `main`; nothing was re-measured.*
 
 [#1398](https://github.com/mshamblin5150-code/clinical-skills/issues/1398) was filed from the
 after-action review of a course-assignment run, 2026-09-22: the clinician uploaded the reviewed deck
@@ -106,3 +111,11 @@ reading was written, or a thin reason, is read by the clinician and not by the c
 
 **A clinician upload the agent is never told about.** The route starts from his report. A run left at
 `awaiting upload` after he submitted elsewhere stays open until a session touches it again.
+
+---
+
+**Superseded in part 2026-09-26 by
+[ADR 0277](0277-the-run-status-check-covers-every-posting-skill-through-one-approval-record.md), and left as
+written.** Ruling 2's status `awaiting upload` is `awaiting posting`, and its *exactly one line* is
+exactly one line per touched run, each naming its run key. The glossary term **Clinician upload** is
+**Clinician posting**. Every other ruling here stands.
