@@ -40,6 +40,8 @@ NOT_REACHED = {
     "model-truth": "whether the modeled observations and pairs are true of the clinician",
     "quotation-provenance": "whether quoted text came from the source the model names",
     "invoked-source-fit": "whether the named domain and property are accurate or load-bearing",
+    "whole-writer-record-truth": "whether a quoted whole-writer record is true of the clinician",
+    "whole-writer-record-completeness": "whether the model contains every principle, image pattern, or stated rule in the corpus",
     "register-candidate": "a malformed register heading that does not begin with a level-two Register label",
     "observation-candidate": "a malformed observation row that does not begin with a number and a period or parenthesis",
     "pair-candidate": "a malformed pair heading that does not begin with two asterisks at column zero",
@@ -62,16 +64,20 @@ EXIT_2_LIMBS = (
     INCOMPLETE_REGISTER_SHAPE,
 )
 ROWS = (
+    "imagery-part-without-quote",
+    "duplicate-whole-writer-record",
     "invoked-domain",
     "invoked-observation",
     "invoked-property",
     "missing-observations",
     "missing-pairs",
     "missing-register",
+    "missing-whole-writer-record",
     "observation-without-quote",
     "pair-floor",
     "pair-generic",
     "pair-his",
+    "whole-writer-record-without-quote",
     "unread-observation",
     "unread-register",
 )
@@ -85,9 +91,10 @@ SECTION_FOUR = re.compile(
 )
 NUMBERED_ITEM = re.compile(
     r"^\d+\. \*\*(?P<name>.+?)\.\*\*"
-    r"(?: <!-- voice-model-scan: (?P<role>[a-z-]+) -->)?",
+    r"(?P<markers>(?: <!-- voice-model-scan: [a-z-]+ -->)*)",
     re.MULTILINE,
 )
+ROLE_MARKER = re.compile(r"<!-- voice-model-scan: (?P<role>[a-z-]+) -->")
 REGISTER_NAMES = {
     "1": "clinical argument",
     "2": "spoken patient education",
@@ -123,36 +130,54 @@ PAIR = re.compile(
 PAIR_CANDIDATE = re.compile(r"^\*\*", re.MULTILINE)
 GENERIC = re.compile(r"^\s*- \*Generic(?:\s*\([^)]*\))?\*:\s*\S", re.MULTILINE | re.IGNORECASE)
 HIS = re.compile(r'^\s*- \*His(?:\s*\([^)]*\))?\*:\s*["“]\S', re.MULTILINE | re.IGNORECASE)
-QUOTE = re.compile(r"^\s*>\s*\S", re.MULTILINE)
+QUOTE = re.compile(r'^\s*>\s*\S|["“][^"”\n]+["”]', re.MULTILINE)
 DOMAIN = re.compile(r"^\s*Domain:\s*(?P<value>\S.*?)\s*$", re.MULTILINE | re.IGNORECASE)
 PROPERTY = re.compile(r"^\s*Property:\s*(?P<value>\S.*?)\s*$", re.MULTILINE | re.IGNORECASE)
 ABSENT_MODEL_BANNER = re.compile(
     r"voice model: NOT RUN -- no model at .+; voice unmodeled"
 )
+WHOLE_WRITER_ROLES = {
+    "stated-principles": "Stated principles",
+    "corpus-imagery": "Imagery",
+    "stated-writing-rules": "Stated writing rules",
+}
+IMAGERY_PARTS = (
+    "The domains",
+    "How an image works for the writer",
+    "Scale and consequence",
+)
+WHOLE_WRITER_CANDIDATE = re.compile(
+    rf"^## (?P<name>{'|'.join(re.escape(heading) for heading in WHOLE_WRITER_ROLES.values())})"
+    r"(?P<rest>[^\n]*)$",
+    re.MULTILINE,
+)
 
 
-def read_required_item_records(text: str) -> tuple[tuple[str, str | None], ...]:
-    """Read ``(name, machine role)`` rows from section 4 once."""
+def read_required_item_records(text: str) -> tuple[tuple[str, tuple[str, ...]], ...]:
+    """Read ``(name, machine roles)`` rows from section 4 once."""
     section = SECTION_FOUR.search(text)
     if section is None:
         return ()
     return tuple(
-        (match.group("name"), match.group("role"))
+        (
+            match.group("name"),
+            tuple(role.group("role") for role in ROLE_MARKER.finditer(match.group("markers"))),
+        )
         for match in NUMBERED_ITEM.finditer(section.group("body"))
     )
 
 
 def read_required_items(text: str) -> tuple[str, ...]:
     """Read the numbered observation vocabulary published by ``voice.md``."""
-    return tuple(name for name, _role in read_required_item_records(text))
+    return tuple(name for name, _roles in read_required_item_records(text))
 
 
 def read_required_roles(text: str) -> dict[str, str]:
     """Read machine roles attached to section 4's numbered item vocabulary."""
     return {
         role: name
-        for name, role in read_required_item_records(text)
-        if role is not None
+        for name, roles in read_required_item_records(text)
+        for role in roles
     }
 
 
@@ -172,6 +197,9 @@ class Scan:
     pairs: int
     unread_pairs: int
     invoked_observations: int
+    whole_writer_records: int
+    whole_writer_record_headings: int
+    unread_whole_writer_records: int
     required_items_read: bool
     findings: tuple[Finding, ...]
 
@@ -201,12 +229,64 @@ def survey(text: str, spec_text: str) -> Scan:
     """Read the model's three public register sections and their shape rows."""
     findings: list[Finding] = []
     required_records = read_required_item_records(spec_text)
-    required_items = tuple(name for name, _role in required_records)
-    required_roles = {role: name for name, role in required_records if role is not None}
+    required_items = tuple(name for name, _roles in required_records)
+    required_roles = read_required_roles(spec_text)
     invoked_item = required_roles.get("invoked-source")
-    required_items_read = bool(required_items and invoked_item)
+    required_items_read = bool(
+        required_items
+        and invoked_item
+        and all(role in required_roles for role in WHOLE_WRITER_ROLES)
+    )
 
     headings = list(REGISTER_CANDIDATE.finditer(text))
+    whole_writer_records = 0
+    whole_writer_candidates = list(WHOLE_WRITER_CANDIDATE.finditer(text))
+    if headings:
+        for role, heading in WHOLE_WRITER_ROLES.items():
+            if role not in required_roles:
+                continue
+            sections = list(re.finditer(
+                rf"^## {re.escape(heading)}\s*$\n(?P<body>.*?)(?=^## |\Z)",
+                text,
+                re.MULTILINE | re.DOTALL,
+            ))
+            if not sections:
+                findings.append(Finding("missing-whole-writer-record", f"{heading} is absent"))
+                continue
+            if len(sections) > 1:
+                findings.append(
+                    Finding(
+                        "duplicate-whole-writer-record",
+                        f"{heading} occurs {len(sections)} times",
+                    )
+                )
+            whole_writer_records += len(sections)
+            for section in sections:
+                body = section.group("body")
+                if role != "corpus-imagery" and QUOTE.search(body) is None:
+                    findings.append(
+                        Finding(
+                            "whole-writer-record-without-quote",
+                            f"{heading} carries no quoted entry",
+                        )
+                    )
+                if role == "corpus-imagery":
+                    for part in IMAGERY_PARTS:
+                        match = re.search(
+                            rf"^### {re.escape(part)}\s*$\n(?P<body>.*?)(?=^### |^## |\Z)",
+                            body,
+                            re.MULTILINE | re.DOTALL,
+                        )
+                        if match is None or QUOTE.search(match.group("body")) is None:
+                            findings.append(
+                                Finding(
+                                    "imagery-part-without-quote",
+                                    f"Imagery / {part} is absent or carries no quoted entry",
+                                )
+                            )
+    unread_whole_writer_records = max(
+        0, len(whole_writer_candidates) - whole_writer_records
+    )
     registers: list[tuple[str, str]] = []
     unread_registers = 0
     seen_registers: set[str] = set()
@@ -312,6 +392,9 @@ def survey(text: str, spec_text: str) -> Scan:
         pairs=pair_count,
         unread_pairs=unread_pairs,
         invoked_observations=invoked_count,
+        whole_writer_records=whole_writer_records,
+        whole_writer_record_headings=len(whole_writer_candidates),
+        unread_whole_writer_records=unread_whole_writer_records,
         required_items_read=required_items_read,
         findings=tuple(findings),
     )
@@ -328,8 +411,12 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         f"observations: {scan.observations}",
         f"unread observation rows: {scan.unread_observations}",
         f"discriminating pairs: {scan.pairs}",
-        run_grader.format_unread_remainder(scan.unread_pairs),
+        run_grader.format_unread_remainder(
+            scan.unread_pairs + scan.unread_whole_writer_records
+        ),
         f"invoked-source observations: {scan.invoked_observations}",
+        f"whole-writer record headings: {scan.whole_writer_record_headings}",
+        f"whole-writer records: {scan.whole_writer_records}",
         f"findings: {len(scan.findings)}",
     ]
     if show:
@@ -370,6 +457,7 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
         or scan.unread_registers > 0
         or scan.unread_observations > 0
         or scan.unread_pairs > 0
+        or scan.unread_whole_writer_records > 0
     )
     required_items_unreadable = not scan.required_items_read
     limbs = tuple(

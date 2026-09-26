@@ -180,13 +180,32 @@ An observation with no quote is a guess about the writing rather than a reading 
 7. **What he never does.** The absences, and they are frequently more diagnostic than anything
    present. No exclamation points, no rhetorical questions, never opens on a definition, never
    closes on a summary — whichever of those the samples actually show.
-8. **The invoked source and what it spends.** <!-- voice-model-scan: invoked-source --> Per invoked source, record the domain it draws on and
+8. **The invoked source and what it spends.** <!-- voice-model-scan: invoked-source --> <!-- voice-model-scan: corpus-imagery --> Per invoked source, record the domain it draws on and
    the property that carries the claim. The domain is whatever the writer has lived, so it stays
-   open rather than being selected from an enumeration.
+   open rather than being selected from an enumeration. Across the corpus, also record the domains
+   the writer draws images from, with two conversations and a quote for each, and how an image
+   works for the writer, with every point quoted. Record the quoted scale at which an image is
+   written and the quoted consequence it spends. A run reuses that image whole or not at all: it
+   does not shrink its mechanism or consequence, enlarge it, add one, or reach for a larger image
+   to meet a rate. [voice-corpus.md](voice-corpus.md) supplies the seeded and open searches that
+   find candidates for these corpus-level records.
+9. **Stated principles.** <!-- voice-model-scan: stated-principles --> Record the principles the writer states and the structure they sit in,
+   in the writer's own quoted words. Record them once for the corpus, with two conversations or
+   samples attesting each principle. Run both searches in [voice-corpus.md](voice-corpus.md) before
+   proposing one.
+10. **Stated writing rules.** <!-- voice-model-scan: stated-writing-rules --> Record quoted, dated rules the writer states about using philosophy and
+    imagery, words, and profanity. One clear statement binds. A later statement that replaces one
+    is recorded as a retirement rather than deleting the earlier rule. A rule that is house style
+    by kind goes to [style.md](style.md), not the voice model. Run both searches in
+    [voice-corpus.md](voice-corpus.md) before proposing one.
 
 ### The two-sample rule
 
 **A feature goes in the model when two samples show it. One occurrence is a sample-ism.**
+
+The exception is a **stated writing rule**: one clear statement binds because it is an instruction,
+not an inferred feature. A later statement retires an earlier one in the record rather than erasing
+it.
 
 That is [#137](https://github.com/mshamblin5150-code/clinical-skills/issues/137)'s discipline
 arriving here, and this repo has generalized from what it had open often enough to know the shape.
@@ -356,6 +375,19 @@ Built <date>. Sources: <n supplied samples>, <n export conversations>.
 
 ## Register 3 — reflective and argumentative prose
     ... the same three subheadings
+
+## Stated principles
+### The structure
+### The principles, in the writer's words       <- quoted; two attestations each
+
+## Imagery
+### The domains                                  <- quoted; two attestations each
+### How an image works for the writer            <- every point quoted
+### Scale and consequence                        <- quoted; preserve the image and what it spends whole
+
+## Stated writing rules                          <- quoted and dated; later rules record retirements
+## Profanity — the list graded copy never carries
+## Searched and ruled out                        <- candidate, search, conversation count, ruling and date
 
 ## Seen once                              <- quarantined, not rules
 ## Seen in the samples, never reproduce   <- the §6 defect list, with quotes
