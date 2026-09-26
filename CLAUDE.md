@@ -1604,11 +1604,11 @@ rows.
 
 ### Approved run status guard
 
-`tools/run_status_stop_hook.py` enforces the terminal `Run status:` line after a course-assignment
-approval is recorded. Its one-row `RUN_KINDS` table names the run-directory suffix, durable
-approval record, and terminal grader; adding another submission skill is a row rather than another
-hook. The hook retracts a missing or duplicate line, an early `complete`, a reasonless `stopped`,
-and a waiting status that tries to reopen the same stopped approval. The complete detection
+`tools/run_status_stop_hook.py` enforces one keyed terminal `Run status:` line per touched approved
+run. Its `RUN_KINDS` table names each posting skill's durable approval record and terminal grader;
+the approval record names the skill, so shared discussion directories and clinical run prefixes do
+not identify it. The hook retracts missing, duplicate, unkeyed or early-complete lines, a reasonless
+`stopped`, and a waiting status that tries to reopen the same stopped approval. The complete detection
 boundary belongs to `run_status_stop_hook.DECLARED_LIMITS`; this section points at that object and
 copies none of its rows.
 

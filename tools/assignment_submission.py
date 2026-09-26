@@ -232,14 +232,14 @@ def record_clinician_upload(
     try:
         payload = _read(root)
     except GateError as failure:
-        raise GateError("a clinician upload needs recorded approval") from failure
+        raise GateError("a clinician posting needs recorded approval") from failure
     if payload.get("gate1_approved") is not True:
-        raise GateError("a clinician upload needs recorded approval")
+        raise GateError("a clinician posting needs recorded approval")
     approved = payload.get("approved_carriers")
     if not isinstance(approved, list) or not all(
         isinstance(item, dict) for item in approved
     ):
-        raise GateError("a clinician upload needs a readable recorded approval")
+        raise GateError("a clinician posting needs a readable recorded approval")
     approved_names = tuple(str(item.get("filename", "")) for item in approved)
     uploaded = tuple(Path(item).resolve() for item in uploaded_carriers)
     uploaded_names = tuple(item.name for item in uploaded)

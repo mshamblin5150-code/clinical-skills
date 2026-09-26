@@ -79,6 +79,7 @@ import run_grader
 from corpus_census import Reading, is_normal_bp
 import aar_scan
 import medatrax_posting
+import approval_record
 
 
 NOT_GRADED = run_grader.NOT_GRADED
@@ -767,13 +768,16 @@ def grade(
             f"\nno note in {directory.name} declares a filled height or a filled"
             " pressure, so neither graded row read anything. This is not a pass.",
         )
-    return run_grader.Grade(
+    result = run_grader.Grade(
         scan=scan,
         source=directory.name,
         findings_failed=findings_failed,
         coverage_failed=coverage_failed,
         diagnostics=diagnostics,
         reports=(aar_report, posting_report),
+    )
+    return approval_record.apply_completion_gate(
+        result, directory, "batch-shift", parsed.value("--submission")
     )
 
 

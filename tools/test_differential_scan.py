@@ -417,6 +417,14 @@ class TheExitStatusSeparatesNotScanningFromFindingNothing(unittest.TestCase):
     def test_a_directory_with_no_notes_is_two(self):
         self.assertEqual(ds.main([str(self.root)]), 2)
 
+    def test_an_unreadable_explicit_note_refuses_instead_of_falling_back(self):
+        self.write("fallback.md", CLEAN_SOAP)
+
+        self.assertEqual(
+            2,
+            ds.main([str(self.root), "--note", str(self.root / "missing.md")]),
+        )
+
     def test_a_directory_whose_notes_hold_no_entry_is_two(self):
         # Not zero. A run whose output landed elsewhere, or whose differential was
         # written in some shape this parser does not read, would otherwise report a

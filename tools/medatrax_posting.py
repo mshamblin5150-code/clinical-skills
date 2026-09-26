@@ -6,6 +6,7 @@ The complete boundary of this helper's clean result is declared in
 
 from __future__ import annotations
 
+import json
 import re
 from hashlib import sha256
 from pathlib import Path
@@ -51,7 +52,34 @@ def note_paths(run: Path, *, batch: bool) -> tuple[Path, ...]:
             if (match := NOTE_NUMBER.fullmatch(path.name)) is not None
         )
         return tuple(path for _number, path in sorted(numbered))
+    approved = _approved_standalone_note(run)
+    if approved is not None:
+        return (approved,)
     return candidates if len(candidates) == 1 else ()
+
+
+def _approved_standalone_note(run: Path) -> Path | None:
+    """Resolve the output note named by one clinical-note approval record."""
+
+    try:
+        payload = json.loads((run / "posting-approvals.json").read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return None
+    items = payload.get("items") if isinstance(payload, dict) else None
+    if not isinstance(items, list):
+        return None
+    matches = tuple(
+        item
+        for item in items
+        if isinstance(item, dict) and item.get("skill") == "clinical-note"
+    )
+    if len(matches) != 1:
+        return None
+    sources = matches[0].get("sources")
+    if not isinstance(sources, list) or len(sources) != 1 or not isinstance(sources[0], str):
+        return None
+    note = Path(sources[0])
+    return note if note.is_file() else None
 
 
 def source_sha256(paths: tuple[Path, ...]) -> str:

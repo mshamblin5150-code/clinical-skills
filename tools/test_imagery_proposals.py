@@ -339,7 +339,7 @@ class CompletionGraderIntegration(unittest.TestCase):
             grade = peer_critique_scan.grade(source, parsed)
 
         self.assertTrue(grade.findings_failed)
-        self.assertIn("unresolved 1", grade.reports[-1])
+        self.assertTrue(any("unresolved 1" in report for report in grade.reports))
 
 
 if __name__ == "__main__":

@@ -315,6 +315,12 @@ Ask whether the substance is right, whether the register is his, and, separately
 proposed image is approved. Apply the record and draft changes in
 [imagery-proposals.md](../_shared/reference/imagery-proposals.md) and rerun the grader. Only an
 explicit go-ahead authorizes posting.
+At that go-ahead call `approval_record.approve(run, skill="peer-critique",
+submission="critique.md", sources=(run / "critique.md",), grader_args=(str(run),),
+content_approved=True)`. Show its `pregrade_report`; incomplete coverage does not block, while a
+finding refuses the record. From this record onward every reply touching the run ends with
+`Run status: <run-key> — <awaiting posting|awaiting posted reading|awaiting AAR|complete|stopped -
+reason>`. Several touched runs each receive their own keyed line, and no classmate name enters it.
 
 **There are two artifacts on two surfaces.** The Reply goes on the board and is written and posted
 by [discussion-reply](../discussion-reply/SKILL.md). The Peer critique goes in the peer-review
@@ -341,8 +347,14 @@ and filed, not repaired in place.
 
 ## 7. Read the stored comment, record, and review
 
-After posting, read Canvas's stored comment text and retain it exactly as
-`critique-stored-comment-readback.txt`. Compare it with `critique.txt` character for character;
+After the run posts, call `approval_record.record_agent_posting(run, skill="peer-critique",
+submission="critique.md")`. If the clinician says he posted the approved critique himself, call
+`approval_record.record_clinician_posting(...)` instead. That clinician-posting route skips the
+run's final read of the loaded Peer-review comment textarea before Submit, so an error is found only
+after Canvas stores it and must be recorded rather than repaired in place; the posted reading
+remains required.
+Then read Canvas's stored comment text and retain it exactly as
+`critique-stored-comment-readback.txt`. Compare it with `critique.txt` character for character and
 compare at minimum the ampersand count. A disagreement is a defect: record it and file it without
 changing the posted comment. ADR 0204 classifies the legacy peer-review page's visible `&amp;`, when
 present, as expected display behavior; it is not filed when the stored comment still matches.

@@ -320,6 +320,14 @@ showing that gate, inspect the threaded Canvas Composer and read
 before loading, and tell the clinician which route will be used and what that route costs as part of
 the same approval. When `voice-status.md` exists, show its unmodeled-voice declaration alongside the
 reply. Only an explicit go-ahead for this reply authorizes posting.
+At that go-ahead call `approval_record.approve(run, skill="discussion-reply",
+submission=response_path.name, sources=(response_path,), grader_args=(str(run),),
+content_approved=True)`. Show its `pregrade_report`; incomplete coverage does not block, while a
+finding refuses the record. Each reply gets its own item. From this record onward every reply
+touching the run ends with `Run status: <run-key> — <awaiting posting|awaiting posted
+reading|awaiting AAR|complete|stopped - reason>`. The run reports the approved reply furthest
+behind, reaches `complete` only when all approved replies grade clean, and never puts a classmate
+name in the line.
 Build the posting HTML from the approved response:
 
 ```bash
@@ -335,9 +343,14 @@ result is the reply omitting the `INVOKED` comments. Load it by the route alread
 load. A clean comparison authorizes no posting by itself: the clinician's existing go-ahead is
 the single posting gate. If the submit click shows a message-size refusal, read the board for a
 created entry, report the outcome, and stop at the clinician; this Reply has no attachment
-fallback. Submit it, then reread the posted board version. Use the
-entry's Copy Link control to read its own `?entry_id=` deep link; do not copy a classmate's locator
-from `posts/`. Append this record to the run's one `reread.md`:
+fallback. Submit it, then call `approval_record.record_agent_posting(run,
+skill="discussion-reply", submission=response_path.name)`. If the clinician says he posted the
+approved reply himself, call `approval_record.record_clinician_posting(...)` instead. That
+clinician-posting route skips the second read of the loaded Canvas box before Submit, so an error is
+found only after the board stores it and may have to remain there; the posted reading remains
+required. Reread the posted board version. Use the entry's Copy Link control to
+read its own `?entry_id=` deep link; do not copy a classmate's locator from `posts/`. Append this
+record to the run's one `reread.md`:
 
 ```text
 ## REREAD: response-<name>.md

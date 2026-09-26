@@ -411,7 +411,7 @@ per-context scratch paths may be removed; the run directory remains intact.
 
 From this approval onward, read and apply the shared
 [run-status.md](references/run-status.md) contract. End every reply that touches the open run with
-its single `Run status:` line.
+its keyed `Run status:` line.
 
 Before each file-picker action, require
 `assignment_submission.upload_is_allowed(staged, candidate)` to be true. A false result refuses
@@ -430,7 +430,7 @@ Then submit and read the posted artifact back from the LMS. If the clinician ins
 he uploaded the approved carrier population, do not call `confirm` or claim the run complete:
 record that route with
 `assignment_submission.record_clinician_upload(run, deck, uploaded_carriers=(...))`, download the
-posted artifact, and take the same posted reading. A clinician upload with no recorded approval is
+posted artifact, and take the same posted reading. A clinician posting with no recorded approval is
 refused. Append this exact record to
 `reread.md`, using the output deck stem as the heading on both submission branches:
 

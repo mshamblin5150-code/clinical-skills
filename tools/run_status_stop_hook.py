@@ -19,7 +19,6 @@ from console_codec import require_python_floor, use_utf8
 @dataclass(frozen=True)
 class RunKind:
     skill: str
-    directory_suffix: str
     approval_record: str
     completion_command: str
 
@@ -27,11 +26,26 @@ class RunKind:
 RUN_KINDS = (
     RunKind(
         skill="course-assignment",
-        directory_suffix="-course-assignment",
         approval_record="submission-gates.json",
         completion_command="course_assignment_scan.py",
     ),
+    *(
+        RunKind(
+            skill=skill,
+            approval_record="posting-approvals.json",
+            completion_command=f"{command}.py",
+        )
+        for skill, command in (
+            ("discussion-post", "discussion_post_scan"),
+            ("discussion-reply", "discussion_reply_scan"),
+            ("peer-critique", "peer_critique_scan"),
+            ("practicum-case-study", "checks_ledger"),
+            ("clinical-note", "differential_scan"),
+            ("batch-shift", "filled_vitals_census"),
+        )
+    ),
 )
+RUN_KIND_BY_SKILL = {item.skill: item for item in RUN_KINDS}
 MODULE_ROOT = Path(__file__).resolve().parent.parent
 STATE_RECORD = "run-status.json"
 RUN_PATH = re.compile(
@@ -39,15 +53,17 @@ RUN_PATH = re.compile(
     r"[^\\/\s\"'`<>|]+"
 )
 STATUS_LINE = re.compile(
-    r"(?m)^Run status: (awaiting upload|awaiting posted reading|awaiting AAR|complete|stopped(?: - (?P<reason>\S.*))?)\s*$"
+    r"(?m)^Run status: (?P<run_key>[A-Za-z0-9][A-Za-z0-9._-]*) — "
+    r"(?P<status>awaiting posting|awaiting posted reading|awaiting AAR|complete|stopped(?: - (?P<reason>\S.*))?)\s*$"
 )
 ANY_STATUS_LINE = re.compile(r"(?m)^Run status:.*$")
+SHA256 = re.compile(r"[0-9a-f]{64}")
 
 DECLARED_LIMITS = (
-    "A run is in scope only after its path appears in the session transcript and its durable approval record says Gate 1 is approved.",
-    "When several approved course-assignment runs appear in one session, the most recently mentioned run is graded.",
+    "A run is in scope only after its path appears in the session transcript and a readable durable approval record names an approved item.",
+    "Every touched open run needs one keyed status line; a current completed approval revision is not reopened by an unrelated later reply.",
     "Waiting-status truth beyond complete and the presence of a stopped reason remains a clinician reading.",
-    "A terminal grade is attempted only for complete and requires the artifact path recorded at approval.",
+    "A terminal grade is attempted only for complete and uses each approved item's recorded public grader invocation.",
     "Malformed transcript rows and unreadable approval records cannot establish an open approved run.",
 )
 
@@ -96,51 +112,144 @@ def _records(transcript: Path) -> tuple[dict[str, object], ...]:
     return tuple(records)
 
 
-def touched_runs(records: tuple[dict[str, object], ...]) -> tuple[tuple[Path, RunKind], ...]:
+def touched_runs(records: tuple[dict[str, object], ...]) -> tuple[Path, ...]:
     """Return transcript-mentioned run directories in last-mentioned order."""
 
-    found: dict[Path, RunKind] = {}
+    found: dict[Path, None] = {}
     for record in records:
         for value in _string_values(record):
             for match in RUN_PATH.finditer(value):
                 path = Path(match.group(0).strip()).resolve()
-                spec = next(
-                    (
-                        item
-                        for item in RUN_KINDS
-                        if path.name.casefold().endswith(item.directory_suffix)
-                    ),
-                    None,
-                )
-                if spec is not None:
-                    found.pop(path, None)
-                    found[path] = spec
-    return tuple(found.items())
+                found.pop(path, None)
+                found[path] = None
+    return tuple(found)
 
 
-def _approval(run: Path, spec: RunKind) -> dict[str, object] | None:
+def _read_object(path: Path) -> dict[str, object] | None:
     try:
-        value = json.loads((run / spec.approval_record).read_text(encoding="utf-8"))
+        value = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError):
         return None
-    return value if isinstance(value, dict) and value.get("gate1_approved") is True else None
+    return value if isinstance(value, dict) else None
+
+
+def approvals(run: Path) -> tuple[tuple[RunKind, dict[str, object]], ...]:
+    """Read every approved item in one run from either durable record shape."""
+
+    found: list[tuple[RunKind, dict[str, object]]] = []
+    assignment_spec = RUN_KIND_BY_SKILL.get("course-assignment")
+    assignment = (
+        _read_object(run / assignment_spec.approval_record)
+        if assignment_spec is not None
+        else None
+    )
+    if assignment is not None and assignment.get("gate1_approved") is True:
+        artifact = assignment.get("artifact_path")
+        if isinstance(artifact, str) and artifact:
+            found.append(
+                (
+                    assignment_spec,
+                    {
+                        **assignment,
+                        "skill": "course-assignment",
+                        "submission": Path(artifact).stem,
+                    },
+                )
+            )
+    posting_specs = tuple(
+        spec for spec in RUN_KIND_BY_SKILL.values() if spec.skill != "course-assignment"
+    )
+    record_names = {spec.approval_record for spec in posting_specs}
+    if len(record_names) != 1:
+        return tuple(found)
+    posting = _read_object(run / next(iter(record_names)))
+    if (
+        posting is None
+        or posting.get("version") != 1
+        or not _positive_integer(posting.get("approval_revision"))
+    ):
+        return tuple(found)
+    items = posting.get("items") if posting is not None else None
+    if isinstance(items, list):
+        validated: list[tuple[RunKind, dict[str, object]]] = []
+        keys: set[tuple[str, str]] = set()
+        for item in items:
+            validated_item = _validated_posting_item(item)
+            if validated_item is None:
+                return tuple(found)
+            spec, value = validated_item
+            key = (spec.skill, str(value["submission"]))
+            if key in keys:
+                return tuple(found)
+            keys.add(key)
+            validated.append((spec, value))
+        found.extend(validated)
+    return tuple(found)
+
+
+def _positive_integer(value: object) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and value > 0
+
+
+def _validated_posting_item(
+    item: object,
+) -> tuple[RunKind, dict[str, object]] | None:
+    if not isinstance(item, dict):
+        return None
+    skill = item.get("skill")
+    spec = RUN_KIND_BY_SKILL.get(skill) if isinstance(skill, str) else None
+    submission = item.get("submission")
+    digest = item.get("sha256")
+    sources = item.get("sources")
+    grader_args = item.get("grader_args")
+    if (
+        spec is None
+        or spec.skill == "course-assignment"
+        or not isinstance(submission, str)
+        or not submission
+        or not isinstance(digest, str)
+        or SHA256.fullmatch(digest) is None
+        or not isinstance(sources, list)
+        or not sources
+        or not all(isinstance(source, str) and source for source in sources)
+        or not isinstance(grader_args, list)
+        or not grader_args
+        or not all(isinstance(argument, str) for argument in grader_args)
+        or "--submission" in grader_args
+        or item.get("posting_route")
+        not in {"awaiting-posting", "agent", "clinician"}
+        or item.get("pregrade_status") not in {"clean", "incomplete"}
+        or not _positive_integer(item.get("approval_revision"))
+    ):
+        return None
+    return spec, item
 
 
 def completion_is_clean(run: Path, spec: RunKind, approval: Mapping[str, object]) -> bool:
-    artifact = approval.get("artifact_path")
-    if not isinstance(artifact, str) or not artifact:
-        return False
-    path = Path(artifact)
+    if spec.skill == "course-assignment":
+        artifact = approval.get("artifact_path")
+        if not isinstance(artifact, str) or not artifact:
+            return False
+        path = Path(artifact)
+        arguments = [str(run), "--artifact", str(path), "--submission", path.stem]
+    else:
+        stored = approval.get("grader_args")
+        submission = approval.get("submission")
+        if (
+            not isinstance(stored, list)
+            or not all(isinstance(value, str) for value in stored)
+            or not isinstance(submission, str)
+            or not submission
+            or "--submission" in stored
+        ):
+            return False
+        arguments = [*stored, "--submission", submission]
     try:
         completed = subprocess.run(
             [
                 sys.executable,
                 str(MODULE_ROOT / "tools" / spec.completion_command),
-                str(run),
-                "--artifact",
-                str(path),
-                "--submission",
-                path.stem,
+                *arguments,
             ],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
@@ -150,6 +259,18 @@ def completion_is_clean(run: Path, spec: RunKind, approval: Mapping[str, object]
     except (OSError, subprocess.TimeoutExpired):
         return False
     return completed.returncode == 0
+
+
+def _approval_revision(items: tuple[tuple[RunKind, dict[str, object]], ...]) -> str:
+    population = sorted(
+        (
+            spec.skill,
+            str(item.get("submission", "")),
+            item.get("approval_revision"),
+        )
+        for spec, item in items
+    )
+    return json.dumps(population, separators=(",", ":"))
 
 
 def _state(run: Path) -> dict[str, object]:
@@ -180,7 +301,7 @@ def _last_assistant_message(records: tuple[dict[str, object], ...]) -> str:
 def _blocked(reason: str) -> dict[str, object]:
     return {
         "decision": "block",
-        "reason": "Retract the reply and end its replacement with exactly one valid Run status: line. "
+        "reason": "Retract the reply and end its replacement with the required keyed Run status: line block. "
         + reason,
     }
 
@@ -199,49 +320,71 @@ def handle(payload: Mapping[str, Any]) -> dict[str, object]:
         message = _last_assistant_message(records)
     if not message:
         return {}
-    open_runs = [
-        (run, spec, approval)
-        for run, spec in touched_runs(records)
-        if (approval := _approval(run, spec)) is not None
-    ]
+    open_runs: list[
+        tuple[Path, tuple[tuple[RunKind, dict[str, object]], ...], str]
+    ] = []
+    for run in touched_runs(records):
+        approved = approvals(run)
+        if not approved:
+            continue
+        revision = _approval_revision(approved)
+        state = _state(run)
+        if state.get("status") == "complete" and state.get("approval_revision") == revision:
+            continue
+        open_runs.append((run, approved, revision))
     if not open_runs:
         return {}
-    run, spec, approval = open_runs[-1]
-    revision = approval.get("approval_revision")
-    state = _state(run)
-    if state.get("status") == "complete" and state.get("approval_revision") == revision:
-        return {}
-    lines = ANY_STATUS_LINE.findall(message)
-    if len(lines) != 1:
-        return _blocked("An approved run reply needs exactly one Run status: line.")
-    match = STATUS_LINE.search(message)
-    if match is None or message[match.end() :].strip():
-        if lines[0].rstrip().endswith("stopped -"):
+    lines = tuple(ANY_STATUS_LINE.finditer(message))
+    if len(lines) != len(open_runs):
+        return _blocked("Each touched approved run needs exactly one keyed Run status: line.")
+    matches = tuple(STATUS_LINE.fullmatch(match.group(0)) for match in lines)
+    if any(match is None for match in matches):
+        if any(line.group(0).rstrip().endswith("stopped -") for line in lines):
             return _blocked("Run status: stopped needs a substantive reason after the hyphen.")
-        return _blocked("The Run status: line is malformed or is not the reply's final line.")
-    status = match.group(1)
-    stopped_here = (
-        state.get("status") == "stopped"
-        and state.get("approval_revision") == revision
-    )
-    if stopped_here and not status.startswith("stopped") and status != "complete":
-        return _blocked("This run stays stopped until it completes or another approval is recorded.")
-    if status == "complete" and not completion_is_clean(run, spec, approval):
-        return _blocked("Run status: complete requires a clean terminal grade.")
-    if status.startswith("stopped"):
-        _write_state(
-            run,
-            {
-                "status": "stopped",
-                "reason": match.group("reason"),
-                "approval_revision": revision,
-            },
+        return _blocked("A Run status: line is malformed.")
+    first = lines[0].start()
+    tail = message[first:].splitlines()
+    if len(tail) != len(lines) or not all(STATUS_LINE.fullmatch(line) for line in tail):
+        return _blocked("The keyed Run status: lines must be the reply's final contiguous block.")
+    by_key = {match.group("run_key"): match for match in matches if match is not None}
+    expected_keys = {run.name for run, _approved, _revision in open_runs}
+    if len(by_key) != len(matches) or set(by_key) != expected_keys:
+        return _blocked("The keyed Run status: lines must name every touched run key once.")
+    for run, approved, revision in open_runs:
+        match = by_key[run.name]
+        status = match.group("status")
+        state = _state(run)
+        stopped_here = (
+            state.get("status") == "stopped"
+            and state.get("approval_revision") == revision
         )
-    elif status == "complete":
-        _write_state(
-            run,
-            {"status": "complete", "approval_revision": revision},
-        )
+        if stopped_here and not status.startswith("stopped") and status != "complete":
+            return _blocked(
+                f"Run {run.name} stays stopped until it completes or another approval is recorded."
+            )
+        if status == "complete" and not all(
+            completion_is_clean(run, spec, approval) for spec, approval in approved
+        ):
+            return _blocked(
+                f"Run status: {run.name} — complete requires a clean terminal grade for every approved item."
+            )
+    for run, _approved, revision in open_runs:
+        match = by_key[run.name]
+        status = match.group("status")
+        if status.startswith("stopped"):
+            _write_state(
+                run,
+                {
+                    "status": "stopped",
+                    "reason": match.group("reason"),
+                    "approval_revision": revision,
+                },
+            )
+        elif status == "complete":
+            _write_state(
+                run,
+                {"status": "complete", "approval_revision": revision},
+            )
     return {}
 
 

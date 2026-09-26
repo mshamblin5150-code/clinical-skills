@@ -425,6 +425,16 @@ loading it into the box, not submission. That approval
 also confirms that every edit implicated by a destination-guard refusal was recovered into the
 authoritative Markdown and, where it changes a factual claim, the claim ledger.
 
+At Gate 1 call `approval_record.approve(run, skill="discussion-post",
+submission=output_markdown.stem, sources=(output_markdown,), grader_args=(str(run), "--draft",
+str(output_markdown), "--html", str(output_html), "--docx", str(output_docx)),
+content_approved=True)`. Show its `pregrade_report`; exit 2 is disclosed as incomplete coverage and
+does not block, while a finding refuses the record. This durable item opens the status contract:
+every later reply touching the run ends with `Run status: <run-key> — <awaiting posting|awaiting
+posted reading|awaiting AAR|complete|stopped - reason>`. Several touched runs each get their own
+keyed line in one final block, and a run with several approved items reports the one furthest behind.
+Never put a classmate name in that line.
+
 Load the exact `.html` contents by the route declared at Gate 1, following `canvas-editor.md`, and
 inspect the rendered Composer before doing anything else.
 
@@ -473,6 +483,8 @@ A non-clean reading stops here and returns to the clinician; the agent does not
 adjudicate its own load, switch routes, or retry. **Gate 2** is the clinician's explicit
 authorization to submit. Gate 2 authorizes submit and nothing else does. After Gate 2, submit and reread
 the posted board version.
+Gate 2 calls the same `approval_record.approve(...)` again for the same item, updating its approval
+revision and fingerprint before the click.
 
 Click Reply on the full body after Gate 2 and follow the shared sheet's observed outcome procedure.
 Record the output HTML's byte count, which never chooses a route. Only a visible message-size
@@ -496,9 +508,15 @@ board for an entry, report what was found, and stop at the clinician.
 The graders read the Markdown, HTML, Word archive, and ledger; the reread owns any change between
 the inspected box and the posted entry.
 
-After submission, read the initial entry's Copy Link and the board's posted timestamp. Add
-`POST-URL:` and `POSTED:` fields to the private `post.md`; this working record is not the graded
-output artifact. Append this record to the run's one `reread.md`, preserving any reply records:
+Immediately after the run posts, call `approval_record.record_agent_posting(run,
+skill="discussion-post", submission=output_markdown.stem)`. If the clinician says he posted the
+approved item himself, call `approval_record.record_clinician_posting(...)` with the same key.
+That clinician-posting route skips the second read of the loaded Canvas box before Submit, so an
+error is found only after the board stores it and may have to remain there; the posted reading below
+is still required.
+Then read the initial entry's Copy Link and the board's posted timestamp. Add `POST-URL:` and
+`POSTED:` fields to the private `post.md`; this working record is not the graded output artifact.
+Append this record to the run's one `reread.md`, preserving any reply records:
 
 ```text
 ## REREAD: <output Markdown stem>

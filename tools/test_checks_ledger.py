@@ -1041,11 +1041,11 @@ class TheCommandExitsOnWhatItFound(unittest.TestCase):
             (render / "pass-2" / "case-study-draft.sha256").write_text(
                 DRAFT_SHA + "\n", encoding="ascii"
             )
-            with mock.patch.object(checks.aar_scan, "completion_gate", return_value=(False, "the after-action review: clean")):
+            with mock.patch.object(checks.aar_scan, "completion_gate", return_value=(False, "the after-action review: clean")), mock.patch.object(checks.approval_record, "completion_gate", return_value=(False, "the approval record: clean")):
                 stale = run([str(path), "--submission", "case-study"])[0]
             text = path.read_text(encoding="utf-8").replace("PASS: 1", "PASS: 2")
             path.write_text(text, encoding="utf-8")
-            with mock.patch.object(checks.aar_scan, "completion_gate", return_value=(False, "the after-action review: clean")):
+            with mock.patch.object(checks.aar_scan, "completion_gate", return_value=(False, "the after-action review: clean")), mock.patch.object(checks.approval_record, "completion_gate", return_value=(False, "the approval record: clean")):
                 clean = run([str(path), "--submission", "case-study"])[0]
 
         self.assertEqual(stale, 1)
@@ -1057,6 +1057,10 @@ class TheCommandExitsOnWhatItFound(unittest.TestCase):
             checks.aar_scan,
             "completion_gate",
             return_value=(False, "the after-action review: clean"),
+        ), mock.patch.object(
+            checks.approval_record,
+            "completion_gate",
+            return_value=(False, "the approval record: clean"),
         ):
             status, stdout, stderr = run([str(path), "--submission", "case-study"])
 
@@ -1553,6 +1557,10 @@ class ComposerAttachmentOutcome(unittest.TestCase):
         with mock.patch.object(
             checks.aar_scan, "completion_gate",
             return_value=(False, "the after-action review: clean"),
+        ), mock.patch.object(
+            checks.approval_record,
+            "completion_gate",
+            return_value=(False, "the approval record: clean"),
         ):
             return run([str(path), "--submission", "case-study"])
 

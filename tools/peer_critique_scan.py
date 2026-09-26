@@ -53,6 +53,7 @@ import voice_model_identity
 import voice_read
 import imagery_proposals
 import project_context
+import approval_record
 import heading_read
 import research_ledger
 import coursework_style
@@ -666,10 +667,13 @@ def grade(source: RunSource, parsed: run_grader.Parsed) -> run_grader.Grade[Scan
         source.path,
         {submission: source.critique} if submission is not None else None,
     )
-    return project_context.apply_completion_gate(
+    grade = project_context.apply_completion_gate(
         grade,
         source.path,
         parsed.value("--submission"),
+    )
+    return approval_record.apply_completion_gate(
+        grade, source.path, "peer-critique", parsed.value("--submission")
     )
 
 

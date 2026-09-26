@@ -174,7 +174,7 @@ filename and Canvas assignment page, then stop again. Gate 1 never authorizes th
 Assignment** click. Per-context scratch paths may be removed after approval is recorded.
 
 From that approval onward, read and apply the shared [run-status.md](run-status.md) contract. End
-every reply that touches the open DOCX run with its single `Run status:` line.
+every reply that touches the open DOCX run with its keyed `Run status:` line.
 
 **Gate 2** is a separate explicit confirmation given after the staged-file inspection. Immediately
 before clicking **Submit Assignment**, confirm that the staged file's SHA-256 still matches Gate 1.

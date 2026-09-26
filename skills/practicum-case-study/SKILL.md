@@ -1634,6 +1634,13 @@ Ask the proposed-image question separately from whether the artifact's substance
 each ruling under [imagery-proposals.md](../_shared/reference/imagery-proposals.md), rerun the
 checks grader, and then wait for the explicit go-ahead. Post through the branch recorded in
 `bar.md`. The
+go-ahead calls `approval_record.approve(run, skill="practicum-case-study",
+submission=output_markdown.stem, sources=(output_markdown,), grader_args=(str(checks_ledger),
+"--document", str(output_markdown)), content_approved=True)`. Show its `pregrade_report`;
+incomplete coverage does not block, while a finding refuses the record. From this record onward
+every reply touching the run ends with `Run status: <run-key> — <awaiting posting|awaiting posted
+reading|awaiting AAR|complete|stopped - reason>`. Several touched runs each get their own keyed
+line, and no classmate or patient name enters it.
 `file-upload` branch posts the `.docx`. On `canvas-composer`, build the `.html` from the checked
 Markdown with `python tools/post_html.py <output Markdown> <same-stem .html>`, load it by the
 declared route, and compare the serialized Composer HTML with that build under the shared sheet.
@@ -1642,8 +1649,15 @@ outcome procedure. A message-size refusal alone permits the fixed pointer and ch
 show its body and displayed attachment filename and size, then get the fresh explicit go-ahead.
 The existing `the rendered document` check remains required on both outcomes. Download an
 attached document from the posted entry's own link into `<run-directory>/posted/` before grading.
-Once either branch has a
-posted entry, read that entry back and append this record to `<run-directory>/reread.md`:
+Once either branch has a posted entry, call `approval_record.record_agent_posting(run,
+skill="practicum-case-study", submission=output_markdown.stem)`. If the clinician says he posted
+the approved artifact himself, call `approval_record.record_clinician_posting(...)` instead. On the
+Composer branch, that clinician-posting route skips the second read of the loaded Composer before
+Submit. On the file-upload branch, it skips the run's check of the displayed attachment filename and
+size before submission. Either route can expose an error only after Canvas stores it, where it may
+have to remain; the posted reading remains required.
+Read that entry back and append this record to
+`<run-directory>/reread.md`:
 
 ```text
 ## REREAD: <output Markdown stem>
