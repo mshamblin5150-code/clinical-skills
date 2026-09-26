@@ -192,6 +192,14 @@ class VoiceResult:
     report: str
 
 
+class ReadResult(NamedTuple):
+    """One keyless completion-reading result."""
+
+    finding: bool
+    coverage: bool
+    report: str
+
+
 def draft_surface(
     artifacts: tuple[tuple[Path, str], ...],
     *,
@@ -351,27 +359,27 @@ def _read_supplied_voice(path: Path) -> tuple[tuple[SuppliedVoiceItem, ...], str
 def _supplied_voice_result(
     records: Path,
     draft_text: str,
-) -> tuple[bool, bool, str]:
+) -> ReadResult:
     """Grade supplied input independently of the model's pair population."""
     supplied_read = _read_supplied_voice(records / SUPPLIED_VOICE_RECORD_NAME)
     if supplied_read is None:
-        return True, False, "finding - supplied voice capture is missing or invalid"
+        return ReadResult(True, False, "finding - supplied voice capture is missing or invalid")
     supplied_items, supplied_digest = supplied_read
     reader = _read_json(records / READER_RECORD_NAME)
     if _not_run(reader):
-        return (
+        return ReadResult(
             False,
             True,
             "not scanned - supplied voice reader recorded as not run; "
             f"supplied items {len(supplied_items)}; unanswered {len(supplied_items)}",
         )
     if not isinstance(reader, dict) or reader.get("status") != "complete":
-        return True, False, "finding - supplied voice reader record is missing or invalid"
+        return ReadResult(True, False, "finding - supplied voice reader record is missing or invalid")
     if reader.get("supplied_voice_sha256") != supplied_digest:
-        return True, False, "finding - supplied voice capture digest does not match"
+        return ReadResult(True, False, "finding - supplied voice capture digest does not match")
     supplied_answers = reader.get("supplied_voice_answers")
     if not isinstance(supplied_answers, list):
-        return True, False, "finding - supplied voice answers are missing"
+        return ReadResult(True, False, "finding - supplied voice answers are missing")
     supplied_by_id: dict[str, dict[str, object]] = {}
     for answer in supplied_answers:
         if (
@@ -379,43 +387,43 @@ def _supplied_voice_result(
             or frozenset(answer) != _SUPPLIED_ANSWER_KEYS
             or not isinstance(answer.get("item_id"), str)
         ):
-            return True, False, "finding - supplied voice answer shape is invalid"
+            return ReadResult(True, False, "finding - supplied voice answer shape is invalid")
         identifier = answer["item_id"]
         if identifier in supplied_by_id:
-            return True, False, "finding - supplied voice population is not answered exactly once"
+            return ReadResult(True, False, "finding - supplied voice population is not answered exactly once")
         supplied_by_id[identifier] = answer
     population = {item.identifier for item in supplied_items}
     if set(supplied_by_id) - population:
-        return True, False, "finding - supplied voice answer names an unknown item"
+        return ReadResult(True, False, "finding - supplied voice answer names an unknown item")
     supplied_findings = 0
     for answer in supplied_by_id.values():
         quote = answer.get("quote")
         try:
             verdict = SurvivalVerdict(answer.get("verdict"))
         except (TypeError, ValueError):
-            return True, False, "finding - supplied voice answer shape is invalid"
+            return ReadResult(True, False, "finding - supplied voice answer shape is invalid")
         if verdict is SurvivalVerdict.DROPPED:
             if quote is not None:
-                return True, False, "finding - dropped supplied item carries a draft quote"
+                return ReadResult(True, False, "finding - dropped supplied item carries a draft quote")
             supplied_findings += 1
             continue
         if not isinstance(quote, str):
-            return True, False, "finding - supplied voice answer shape is invalid"
+            return ReadResult(True, False, "finding - supplied voice answer shape is invalid")
         if not _verbatim_sentence(draft_text, quote):
-            return True, False, "finding - supplied voice quote is not a verbatim sentence in the draft"
+            return ReadResult(True, False, "finding - supplied voice quote is not a verbatim sentence in the draft")
         if verdict is SurvivalVerdict.SHRUNK:
             supplied_findings += 1
     unanswered = len(population - set(supplied_by_id))
     suffix = f"supplied items {len(population)}; unanswered {unanswered}"
     if supplied_findings:
-        return (
+        return ReadResult(
             True,
             bool(unanswered),
             f"finding - {supplied_findings} supplied item(s) shrunk or dropped; {suffix}",
         )
     if unanswered:
-        return False, True, f"not scanned - supplied item verdict population is incomplete; {suffix}"
-    return False, False, suffix
+        return ReadResult(False, True, f"not scanned - supplied item verdict population is incomplete; {suffix}")
+    return ReadResult(False, False, suffix)
 
 
 def _identity_digest(run: Path) -> str | None:
@@ -497,26 +505,26 @@ def _voice_result(
     surface: DraftSurface,
     pairs: tuple[Pair, ...],
     model_digest: str,
-) -> tuple[bool, bool, str]:
+) -> ReadResult:
     planter = _read_json(records / PLANTER_RECORD_NAME)
     reader = _read_json(records / READER_RECORD_NAME)
     if _not_run(planter) and _not_run(reader):
-        return False, True, "not scanned - recorded as not run"
+        return ReadResult(False, True, "not scanned - recorded as not run")
     if planter is None or reader is None:
-        return True, False, "finding - planter or reader record is missing or invalid"
+        return ReadResult(True, False, "finding - planter or reader record is missing or invalid")
     if not isinstance(planter, dict) or not isinstance(reader, dict):
-        return True, False, "finding - planter or reader record shape is invalid"
+        return ReadResult(True, False, "finding - planter or reader record shape is invalid")
     if planter.get("status") != "complete" or reader.get("status") != "complete":
-        return True, False, "finding - planter or reader status is invalid"
+        return ReadResult(True, False, "finding - planter or reader status is invalid")
     if frozenset(planter) != _PLANTER_KEYS or frozenset(reader) != _READER_KEYS:
-        return True, False, "finding - planter or reader record shape is invalid"
+        return ReadResult(True, False, "finding - planter or reader record shape is invalid")
 
     planted_path = records / PLANTED_COPY_NAME
     try:
         planted_bytes = planted_path.read_bytes()
         planted = planted_bytes.decode("utf-8")
     except (OSError, UnicodeError):
-        return True, False, "finding - planted copy is missing or unreadable"
+        return ReadResult(True, False, "finding - planted copy is missing or unreadable")
     planted_digest = hashlib.sha256(planted_bytes).hexdigest()
     if (
         not _valid_digest(planter.get("draft_sha256"))
@@ -526,42 +534,42 @@ def _voice_result(
         or not _valid_digest(reader.get("model_sha256"))
         or not _valid_digest(reader.get("supplied_voice_sha256"))
     ):
-        return True, False, "finding - record digest shape is invalid"
+        return ReadResult(True, False, "finding - record digest shape is invalid")
     if planter["draft_sha256"] != surface.sha256 or reader["draft_sha256"] != surface.sha256:
-        return True, False, "finding - draft digest moved since the read"
+        return ReadResult(True, False, "finding - draft digest moved since the read")
     if planter["planted_sha256"] != planted_digest or reader["planted_sha256"] != planted_digest:
-        return True, False, "finding - planted-copy digest does not match"
+        return ReadResult(True, False, "finding - planted-copy digest does not match")
     identity_digest = _identity_digest(run)
     if reader["model_sha256"] != model_digest or reader["model_sha256"] != identity_digest:
-        return True, False, "finding - model digest does not match the identity record"
+        return ReadResult(True, False, "finding - model digest does not match the identity record")
 
     original = planter.get("original_sentence")
     replacement = planter.get("planted_sentence")
     pair_id = planter.get("pair_id")
     if not all(isinstance(value, str) and value for value in (original, replacement, pair_id)):
-        return True, False, "finding - planter record does not name the changed sentence"
+        return ReadResult(True, False, "finding - planter record does not name the changed sentence")
     if surface.text.count(original) != 1 or original not in surface.plantable_text:
-        return True, False, "finding - planter record does not name one plantable draft sentence"
+        return ReadResult(True, False, "finding - planter record does not name one plantable draft sentence")
     if (
         original == replacement
         or not _verbatim_sentence(surface.text, original)
         or not _one_sentence(replacement)
     ):
-        return True, False, "finding - plant is not one replacement sentence"
+        return ReadResult(True, False, "finding - plant is not one replacement sentence")
     expected_planted = surface.text.replace(original, replacement, 1)
     if planted != expected_planted:
-        return True, False, "finding - planted copy differs in other than the named sentence"
+        return ReadResult(True, False, "finding - planted copy differs in other than the named sentence")
     if not _verbatim_sentence(planted, replacement):
-        return True, False, "finding - planted sentence is not one complete sentence"
+        return ReadResult(True, False, "finding - planted sentence is not one complete sentence")
 
     population = {pair.identifier for pair in pairs}
     if len(population) != len(pairs):
-        return False, True, "not scanned - canonical pair identifiers are not unique"
+        return ReadResult(False, True, "not scanned - canonical pair identifiers are not unique")
     if pair_id not in population:
-        return True, False, "finding - planter pair is not in the canonical model"
+        return ReadResult(True, False, "finding - planter pair is not in the canonical model")
     answers = reader.get("answers")
     if not isinstance(answers, list):
-        return True, False, "finding - pair answers are missing"
+        return ReadResult(True, False, "finding - pair answers are missing")
     by_id: dict[str, dict[str, object]] = {}
     for answer in answers:
         if (
@@ -569,13 +577,13 @@ def _voice_result(
             or frozenset(answer) != _ANSWER_KEYS
             or not isinstance(answer.get("pair_id"), str)
         ):
-            return True, False, "finding - pair answer shape is invalid"
+            return ReadResult(True, False, "finding - pair answer shape is invalid")
         identifier = answer["pair_id"]
         if identifier in by_id:
-            return True, False, "finding - pair population is not answered exactly once"
+            return ReadResult(True, False, "finding - pair population is not answered exactly once")
         by_id[identifier] = answer
     if set(by_id) != population:
-        return True, False, "finding - pair population is not fully answered"
+        return ReadResult(True, False, "finding - pair population is not fully answered")
 
     planted_flagged = False
     real_generic = False
@@ -584,22 +592,22 @@ def _voice_result(
         quote = answer.get("quote")
         if resemblance == "no counterpart":
             if quote is not None:
-                return True, False, "finding - no-counterpart answer carries a quote"
+                return ReadResult(True, False, "finding - no-counterpart answer carries a quote")
             continue
         if resemblance not in {"generic", "his"} or not isinstance(quote, str) or not quote:
-            return True, False, "finding - pair answer shape is invalid"
+            return ReadResult(True, False, "finding - pair answer shape is invalid")
         if not _verbatim_sentence(planted, quote):
-            return True, False, "finding - pair quote is not present or is not a verbatim sentence in the planted copy"
+            return ReadResult(True, False, "finding - pair quote is not present or is not a verbatim sentence in the planted copy")
         if resemblance == "generic":
             if quote == replacement:
                 planted_flagged = True
             else:
                 real_generic = True
     if reader.get("suspected_plant_quote") != replacement or not planted_flagged:
-        return True, False, "finding - planted sentence was not flagged"
+        return ReadResult(True, False, "finding - planted sentence was not flagged")
     if real_generic:
-        return True, False, "finding - a real draft sentence was placed on a generic half"
-    return False, False, "clean"
+        return ReadResult(True, False, "finding - a real draft sentence was placed on a generic half")
+    return ReadResult(False, False, "clean")
 
 
 def completion_gate(
@@ -698,16 +706,16 @@ def completion_gate(
             continue
         supplied_result = _supplied_voice_result(records, draft.text)
         if not pair_read.items:
-            pair_result = (
+            pair_result = ReadResult(
                 False,
                 True,
                 "not scanned - no discriminating-pair population was read",
             )
         else:
             pair_result = _voice_result(records, run, draft, pair_read.items, resolved.sha256)
-        finding = pair_result[0] or supplied_result[0]
-        coverage = pair_result[1] or supplied_result[1]
-        report = f"{pair_result[2]}; {supplied_result[2]}"
+        finding = pair_result.finding or supplied_result.finding
+        coverage = pair_result.coverage or supplied_result.coverage
+        report = f"{pair_result.report}; {supplied_result.report}"
         if pair_read.unread:
             coverage = True
         report += (
