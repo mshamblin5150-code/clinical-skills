@@ -551,6 +551,14 @@ class TemperatureUsesTheDegreeSymbol(unittest.TestCase):
         )
         self.assertEqual(kinds(accepted).count("temperature-degrees-word"), 0)
 
+    def test_a_non_temperature_angular_measurement_is_not_this_row(self):
+        correct = CLEAN.replace(
+            "General: Alert, in no acute distress.",
+            "General: Alert, in no acute distress.\n\n"
+            "Musculoskeletal: Knee flexion is 120 degrees.",
+        )
+        self.assertEqual(kinds(correct).count("temperature-degrees-word"), 0)
+
 
 class StandardClinicalLabelsUseAbbreviations(unittest.TestCase):
     def test_a_spelled_out_heent_label_fires(self):

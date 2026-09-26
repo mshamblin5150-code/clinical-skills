@@ -245,8 +245,13 @@ QUOTED_WORD = re.compile(r"\b[\w’'-]+\b", re.UNICODE)
 # A numeric Fahrenheit value written with the word instead of the degree symbol.
 # Source quotations are excluded by the row below because house style does not
 # rewrite the source's own unit.
+DEGREES_VALUE = r"\d{1,3}(?:\.\d+)?\s+degrees?\b"
 TEMPERATURE_DEGREES_WORD = re.compile(
-    r"\b\d{1,3}(?:\.\d+)?\s+degrees?\b",
+    r"(?:"
+    r"\b(?:temperature|temp|fever|febrile)\b[^.\n]{0,80}?\b" + DEGREES_VALUE
+    + r"|\bT\s*:\s*" + DEGREES_VALUE
+    + r"|\b" + DEGREES_VALUE + r"\s*(?:F(?:ahrenheit)?|C(?:elsius)?)\b"
+    r")",
     re.I,
 )
 EXPANDED_VITAL_LABEL_TEXT = (
