@@ -1,6 +1,6 @@
 # A voice model records what the writer argues from, and a stated rule binds on one statement
 
-**Measured at:** faed48af31199da580a3592de504e8290eddce2b
+**Measured at:** 96e690245f274f7f96930f262e6c82d2d3263ecf
 
 [#1427](https://github.com/mshamblin5150-code/clinical-skills/issues/1427) was filed from the
 review sitting of [#1424](https://github.com/mshamblin5150-code/clinical-skills/issues/1424), where
@@ -161,6 +161,7 @@ model is built.
 
 ## What this record does not settle
 
-**Whether an approved proposed image may later be harvested as the writer's.** Ruling 9 marks it so
-a harvest can tell; whether the clinician's approval makes it attested writing for a later model is
-not ruled here.
+**The spelling of the marks.** How the draft marks a proposed image, how the run record carries
+proposed-and-approved, and how a run records what the clinician supplied are build choices for the
+filed tickets. What the marks must achieve is ruled: an approved proposal is never read back by a
+harvest as attested writing, and a supplied image or principle is checked whole at completion.
