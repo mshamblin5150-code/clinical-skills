@@ -14,6 +14,15 @@ import file_digest
 
 
 class TwoGateUpload(unittest.TestCase):
+    def setUp(self) -> None:
+        self.pre_upload_grade = mock.patch.object(
+            assignment_submission,
+            "_pre_upload_grade",
+            return_value=(True, "pre-upload grade: clean"),
+            create=True,
+        ).start()
+        self.addCleanup(mock.patch.stopall)
+
     @contextmanager
     def _canonical_copy(
         self, canonical_root: Path, artifact: Path
@@ -120,6 +129,24 @@ class TwoGateUpload(unittest.TestCase):
 
             self.assertEqual((), tuple(root.glob("*.building")))
 
+    def test_approval_is_refused_until_the_run_directory_pre_upload_grade_is_clean(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            deck = root / "assignment.pptx"
+            deck.write_bytes(b"reviewed deck")
+            self.pre_upload_grade.return_value = (
+                False,
+                "pre-upload grade: not clean - review records are missing",
+            )
+
+            with self.assertRaisesRegex(
+                assignment_submission.GateError, "review records are missing"
+            ):
+                assignment_submission.stage(root, deck, artifact_approved=True)
+
+            self.pre_upload_grade.assert_called_once_with(root.resolve(), deck.resolve())
+            self.assertFalse((root / assignment_submission.RECORD).exists())
+
     def test_artifact_approval_only_authorizes_staging_the_exact_docx(self):
         with tempfile.TemporaryDirectory() as directory:
             docx = Path(directory) / "assignment.docx"
@@ -137,6 +164,10 @@ class TwoGateUpload(unittest.TestCase):
             )
             failed, _ = assignment_submission.completion_gate(Path(directory), docx)
             self.assertTrue(failed)
+            record = assignment_submission._read(Path(directory))
+            self.assertEqual("awaiting-upload", record["upload_route"])
+            self.assertNotIn("gate2_confirmed", record)
+            self.assertNotIn("clinician_upload_recorded", record)
 
     def test_default_carrier_set_excludes_a_review_companion(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -296,6 +327,51 @@ class TwoGateUpload(unittest.TestCase):
                     root, deck, submission="assignment"
                 )
             self.assertTrue(failed)
+
+    def test_an_approved_clinician_upload_completes_after_the_matching_posted_reading(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            deck = root / "assignment.pptx"
+            canonical_root = root / "canonical-output"
+            deck.write_bytes(b"reviewed deck")
+            assignment_submission.stage(root, deck, artifact_approved=True)
+            assignment_submission.record_clinician_upload(
+                root, deck, uploaded_carriers=(deck,)
+            )
+            self.assertEqual(
+                "clinician", assignment_submission._read(root)["upload_route"]
+            )
+            (root / "reread.md").write_text(
+                "## REREAD: assignment\n"
+                "POST-URL: https://example.test/submission\n"
+                "POSTED: 2026-09-25\n"
+                "READ: 2026-09-25\n"
+                "ATTACHMENT-COUNT: 1\n"
+                "SUBMITTED-FILE: assignment.pptx\n"
+                f"SUBMISSION-SHA256: {file_digest.sha256(deck)}\n"
+                "VERDICT: matches - the clinician-uploaded deck matches the approved artifact\n",
+                encoding="utf-8",
+            )
+
+            with self._canonical_copy(canonical_root, deck):
+                failed, report = assignment_submission.completion_gate(
+                    root, deck, submission="assignment"
+                )
+
+        self.assertFalse(failed, report)
+
+    def test_a_clinician_upload_without_recorded_approval_is_refused(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            deck = root / "assignment.pptx"
+            deck.write_bytes(b"unapproved deck")
+
+            with self.assertRaisesRegex(
+                assignment_submission.GateError, "recorded approval"
+            ):
+                assignment_submission.record_clinician_upload(
+                    root, deck, uploaded_carriers=(deck,)
+                )
 
     def test_completion_requires_the_posted_fingerprint_and_matching_verdict(self):
         replacements = (

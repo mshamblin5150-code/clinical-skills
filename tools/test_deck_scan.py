@@ -371,9 +371,14 @@ class Run:
         if bind and not (self.root / "reread.md").is_file():
             self.write_reread()
         if bind:
-            staged = scan.assignment_submission.stage(
-                self.root, self.deck, artifact_approved=True
-            )
+            with mock.patch.object(
+                scan.assignment_submission,
+                "_pre_upload_grade",
+                return_value=(True, "pre-upload grade: clean"),
+            ):
+                staged = scan.assignment_submission.stage(
+                    self.root, self.deck, artifact_approved=True
+                )
             scan.assignment_submission.confirm(
                 staged,
                 uploaded_carriers=(self.deck,),

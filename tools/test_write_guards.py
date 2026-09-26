@@ -178,7 +178,7 @@ class ModuleRootProperty(unittest.TestCase):
                     f"{path.name}:{line}" for line in account_owned_literal_joins(source)
                 )
 
-        self.assertEqual(len(population), 41)
+        self.assertEqual(len(population), 43)
         self.assertEqual(offenders, [])
 
 
