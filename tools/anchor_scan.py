@@ -171,6 +171,11 @@ DECLARED_LIMITS = (
         run_grader.EvidenceDisposition.BEHAVIOR,
     ),
     (
+        "note-side ICD-10 database membership",
+        "Only code-shaped tokens resolving in the committed ICD-10-CM database participate in the bind; a prose token that is also a valid code remains indistinguishable from a code.",
+        run_grader.EvidenceDisposition.BEHAVIOR,
+    ),
+    (
         "real poisoning descriptor agreement",
         "No committed real note carries a T36-T65 poisoning code; drug-column behavior has synthetic controls only.",
         run_grader.EvidenceDisposition.DECLARED_READING,
@@ -1179,7 +1184,7 @@ def _brief_payload(
     return payload
 
 
-def _section_codes(note: str, heading: str) -> set[str]:
+def _section_codes(note: str, heading: str) -> tuple[set[str], list[str]]:
     lines = note.splitlines()
     start = next(
         (
@@ -1190,7 +1195,7 @@ def _section_codes(note: str, heading: str) -> set[str]:
         None,
     )
     if start is None:
-        return set()
+        return set(), []
     first = lines[start]
     selected: list[str] = [first.split(":", 1)[1].strip(" *") if ":" in first else ""]
     closing_labels = (
@@ -1212,10 +1217,20 @@ def _section_codes(note: str, heading: str) -> set[str]:
         selected.append(line)
     section = "\n".join(selected)
     refused = {match.group("code").upper() for match in NOTE_REFUSAL.finditer(section)}
-    return {match.group(0).upper() for match in ICD_TOKEN.finditer(section)} - refused
+    codes: set[str] = set()
+    excluded: list[str] = []
+    for match in ICD_TOKEN.finditer(section):
+        token = match.group(0).upper()
+        if token in refused:
+            continue
+        if _database_descriptor("ICD-10", token) is None:
+            excluded.append(token)
+        else:
+            codes.add(token)
+    return codes, excluded
 
 
-def _binding_findings(pair: AgreementPair) -> list[str]:
+def _binding_findings(pair: AgreementPair) -> tuple[list[str], list[str]]:
     proposed_icd = {s.code for s in pair.subjects if s.role == "entry" and s.system == "ICD-10"}
     differential_icd = {s.code for s in pair.subjects if s.role == "differential"}
     refused_icd = {s.code for s in pair.subjects if s.role == "refused"}
@@ -1223,10 +1238,10 @@ def _binding_findings(pair: AgreementPair) -> list[str]:
         (s.system, s.code) for s in pair.subjects if s.role == "procedure"
     }
 
-    note_diagnoses = _section_codes(pair.note, "preexisting diagnoses") | _section_codes(
-        pair.note, "final diagnosis"
-    )
-    note_differential = _section_codes(pair.note, "differential")
+    preexisting, preexisting_excluded = _section_codes(pair.note, "preexisting diagnoses")
+    final, final_excluded = _section_codes(pair.note, "final diagnosis")
+    note_diagnoses = preexisting | final
+    note_differential, differential_excluded = _section_codes(pair.note, "differential")
     note_refused = {match.group("code").upper() for match in NOTE_REFUSAL.finditer(pair.note)}
     note_procedure = {
         (match.group("system").upper(), match.group("code").upper())
@@ -1253,7 +1268,11 @@ def _binding_findings(pair: AgreementPair) -> list[str]:
             f"{pair.stem}: proposed-instead code is absent from for-entry proposals: "
             f"worksheet only {sorted(substitutes - proposed_icd)}"
         )
-    return findings
+    excluded = [
+        f"{pair.stem}: {token}"
+        for token in preexisting_excluded + final_excluded + differential_excluded
+    ]
+    return findings, excluded
 
 
 def _agreement_report(
@@ -1261,6 +1280,7 @@ def _agreement_report(
     findings: list[str],
     unread: int,
     unread_routes: list[str] | None = None,
+    excluded_code_tokens: list[str] | None = None,
     show: bool = False,
 ) -> str:
     waits = sum(" entry waits on " in finding for finding in findings)
@@ -1288,11 +1308,16 @@ def _agreement_report(
             f"    codes with no encounter evidence  {encounter}",
             f"    descriptors waiting on results    {waits}",
             f"    note/worksheet bind findings      {binds}",
+            f"    code-shaped tokens not in the code set  {len(excluded_code_tokens or ())}",
             run_grader.format_unread_remainder(unread),
     ]
     if show:
         lines.extend(f"    finding: {finding}" for finding in findings)
         lines.extend(f"    unread cross-reference: {route}" for route in unread_routes or ())
+        lines.extend(
+            f"    code-shaped token not in the code set: {token}"
+            for token in excluded_code_tokens or ()
+        )
     return "\n".join(lines)
 
 
@@ -1357,6 +1382,7 @@ def _run_agreement(argv: list[str]) -> int:
 
     findings: list[str] = []
     unread_routes: list[str] = []
+    excluded_code_tokens: list[str] = []
     for pair in pairs:
         findings.extend(_anchor_findings([pair]))
         record_pair = record_pairs.get(pair.stem)
@@ -1432,9 +1458,20 @@ def _run_agreement(argv: list[str]) -> int:
             waits = record["waits_on_result"]
             if subject.role in {"entry", "differential"} and isinstance(waits, str) and waits != "none":
                 findings.append(f"{pair.stem}: {subject.key} entry waits on {waits}")
-        findings.extend(_binding_findings(pair))
+        binding_findings, pair_excluded_tokens = _binding_findings(pair)
+        findings.extend(binding_findings)
+        excluded_code_tokens.extend(pair_excluded_tokens)
 
-    print(_agreement_report(pairs, findings, unread, unread_routes, args.show))
+    print(
+        _agreement_report(
+            pairs,
+            findings,
+            unread,
+            unread_routes,
+            excluded_code_tokens,
+            args.show,
+        )
+    )
     if unread:
         return 2
     return 1 if findings else 0
