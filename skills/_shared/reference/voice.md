@@ -98,6 +98,15 @@ feature of being graded.
 register and whether it was graded. A `.docx` is read with `tools/docx_read.py`, with `--normalize`
 if it came through a rendered web page.
 
+**Coursework first passes through its co-writing record.** Before a submitted coursework artifact
+is admitted as a writing sample or its prose is harvested as attestation, read the owning run's
+`imagery-proposals.json` under
+[imagery-proposals.md](imagery-proposals.md). Exclude every exact approved image returned by
+`imagery_proposals.harvest_exclusions`; `proposed-and-approved` means the clinician approved its
+use, not that he independently wrote it. A still-`proposed` record is unresolved evidence and is
+not harvested around. This is the same co-written-sample trap as §6, applied before a new proposal
+can teach the model to imitate itself.
+
 **Consent, and it is not a formality.** The samples are the user's own work and a clinical sample
 is a patient record. Three rules, and they are the ones
 [harvest_review.py](../../../tools/harvest_review.py) already runs on:

@@ -7,6 +7,7 @@ import unittest
 from pathlib import Path
 
 import aar_scan
+import imagery_proposals
 import peer_critique_scan
 import project_context
 import voice_model_identity
@@ -214,6 +215,7 @@ class TheAfterActionReviewIsWired(unittest.TestCase):
                 voice_model_identity.EXPECTED_ROW,
                 voice_read.EXPECTED_ROW,
                 voice_read.PROFANITY_EXPECTED_ROW,
+                imagery_proposals.EXPECTED_ROW,
                 project_context.EXPECTED_ROW,
             ),
             peer_critique_scan.EXPECTED_COMPLETION_CHECKS,

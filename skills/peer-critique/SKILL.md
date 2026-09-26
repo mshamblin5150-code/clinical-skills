@@ -197,6 +197,10 @@ before prose resumes.
 
 Read only the canonical path the identity command reports.
 
+Reuse a recorded image whole where it fits. Where none fits, follow
+[imagery-proposals.md](../_shared/reference/imagery-proposals.md); only a new image from a recorded
+domain may be proposed, and one that works never licenses a second instance.
+
 Exit 0 is required to draft against the model. Exit 2 refuses drafting unless the banner explicitly
 says the model is absent; only that limb opens
 [voice.md](../_shared/reference/voice.md) §8's no-model rule, whose declaration is written to
@@ -291,8 +295,17 @@ record before the go-ahead.
 ## 6. Show, then post to the peer-review comment
 
 Show the clean critique to the clinician with the word count, the grader exits, and a short list of
-what the critique credits the classmate for. Ask whether the substance is right and whether the
-register is his. Only an explicit go-ahead authorizes posting.
+what the critique credits the classmate for. If the run proposed imagery, also show this table from
+`imagery-proposals.json`:
+
+| Proposed image | Recorded domain | Real behavior it spends | Approve this image? |
+| --- | --- | --- | --- |
+| `<exact image>` | `<domain>` | `<behavior>` | yes / no |
+
+Ask whether the substance is right, whether the register is his, and, separately, whether each
+proposed image is approved. Apply the record and draft changes in
+[imagery-proposals.md](../_shared/reference/imagery-proposals.md) and rerun the grader. Only an
+explicit go-ahead authorizes posting.
 
 **There are two artifacts on two surfaces.** The Reply goes on the board and is written and posted
 by [discussion-reply](../discussion-reply/SKILL.md). The Peer critique goes in the peer-review

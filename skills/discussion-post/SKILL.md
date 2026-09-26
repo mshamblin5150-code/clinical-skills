@@ -141,7 +141,9 @@ record before prose resumes.
 Read only the canonical path the identity command reports and use register 3 throughout. Preserve confirmed sentence shapes,
 hedges attached to facts, and the clinician's argumentative posture. Do not copy chat typos or
 lowercase message openings. An invoked source already present in the clinician's reasoning may
-stay; the skill is licensed to add none.
+stay. Reuse a recorded image whole where it fits. Where none fits, follow
+[imagery-proposals.md](../_shared/reference/imagery-proposals.md); only a new image from a recorded
+domain may be proposed, and one that works never licenses a second instance.
 
 If the identity command reports the existing absent-model banner, follow [voice.md](../_shared/reference/voice.md)
 §8's no-model rule in full. Write the declaration it requires to
@@ -399,8 +401,17 @@ because the live assignment accepts the initial post through the topic-level Com
 This skill opts in to the shared sheet's Initial-post attachment fallback when the signed bar
 allows a pointer body.
 
-Show the final post and clean source-check summary to the clinician. **Gate 1** is the clinician's
-explicit approval of the post and authorizes loading it into the box, not submission. That approval
+Show the final post and clean source-check summary to the clinician. If the run proposed imagery,
+also show this table from `imagery-proposals.json`:
+
+| Proposed image | Recorded domain | Real behavior it spends | Approve this image? |
+| --- | --- | --- | --- |
+| `<exact image>` | `<domain>` | `<behavior>` | yes / no |
+
+Ask the proposed-image question separately from whether the post's substance is right. Apply each
+yes or no under [imagery-proposals.md](../_shared/reference/imagery-proposals.md) and rerun the
+grader before loading. **Gate 1** is the clinician's explicit approval of the post and authorizes
+loading it into the box, not submission. That approval
 also confirms that every edit implicated by a destination-guard refusal was recovered into the
 authoritative Markdown and, where it changes a factual claim, the claim ledger.
 

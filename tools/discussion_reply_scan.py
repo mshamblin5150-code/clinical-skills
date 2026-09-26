@@ -61,6 +61,7 @@ from run_grader import NOT_GRADED
 import aar_scan
 import voice_model_identity
 import voice_read
+import imagery_proposals
 import project_context
 import heading_read
 import research_ledger
@@ -70,6 +71,7 @@ EXPECTED_COMPLETION_CHECKS = (
     voice_model_identity.EXPECTED_ROW,
     voice_read.EXPECTED_ROW,
     voice_read.PROFANITY_EXPECTED_ROW,
+    imagery_proposals.EXPECTED_ROW,
     project_context.EXPECTED_ROW,
 )
 from run_grader import EvidenceDisposition
@@ -1090,6 +1092,15 @@ def grade(source: RunSource, _parsed: run_grader.Parsed) -> run_grader.Grade[Sca
             reply.path.stem: voice_read.draft_surface(((reply.path, reply.text),))
             for reply in selected_replies
         },
+    )
+    grade = imagery_proposals.apply_completion_gate(
+        grade,
+        source.path,
+        {reply.path.stem: reply.text for reply in selected_replies}
+        if submissions
+        else None,
+        partial=True,
+        known_artifacts={reply.path.stem for reply in source.replies},
     )
     return project_context.apply_completion_gate(
         grade, source.path, submission if submissions else None

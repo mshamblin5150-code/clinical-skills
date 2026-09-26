@@ -260,13 +260,14 @@ class EachDiscussionSkillStatesTheInvokedSourceForm(ProseBind, unittest.TestCase
         self.assertNotIn("consciously", reply)
         self.assertRegex(reply, r"(?i)mark every (?:retained )?invoked source")
 
-    def test_reply_approval_names_the_invoked_source_table_and_two_questions(self):
+    def test_reply_approval_names_the_invoked_source_table_and_three_questions(self):
         reply = read(REPLY)
 
         self.assertProseIn("the invoked source, its domain, and the property it spends", reply)
         self.assertProseIn("whether the substance is right", reply)
         self.assertProseIn("whether each invoked source sounds like the clinician", reply)
-        self.assertProseIn("one approval with two named questions", reply)
+        self.assertProseIn("whether each proposed image is approved", reply)
+        self.assertProseIn("one approval with three named questions", reply)
 
     def test_neither_skill_teaches_magnitude_or_a_domain_taxonomy(self):
         for path in (POST, REPLY):

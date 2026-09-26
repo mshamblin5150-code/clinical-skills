@@ -167,6 +167,11 @@ slide face within the signed container and put the supporting narrative in speak
 notes are outside the projected 6x6 container and inside the claim surface because the clinician
 may say them to the audience.
 
+Reuse a recorded image whole where it fits. Where none fits, follow
+[imagery-proposals.md](../_shared/reference/imagery-proposals.md); only a new image from a recorded
+domain may be proposed, and one that works never licenses a second instance. This concerns the
+authored comparison or metaphor, not the visual asset rule below.
+
 A generated image may depict a concept, and a visible caption must call that space conceptual. A
 generated image must never stand in for the actual site. Use a real site photograph where the
 slide claims the actual site. This is a reader-owned convention, not something the file can prove.
@@ -372,6 +377,16 @@ slides, submission type, and this exact carrier approval surface:
 ATTACHMENT-COUNT: <total number of files that will be uploaded>
 FILENAME: <one exact basename, repeated once for every file>
 ```
+
+If the run proposed imagery, also show this table from `imagery-proposals.json`:
+
+| Proposed image | Recorded domain | Real behavior it spends | Approve this image? |
+| --- | --- | --- | --- |
+| `<exact image>` | `<domain>` | `<behavior>` | yes / no |
+
+Ask the proposed-image question separately from whether the artifact's substance is right. Apply
+each ruling under [imagery-proposals.md](../_shared/reference/imagery-proposals.md) and rerun the
+artifact grader before the go-ahead.
 
 The finished `.pptx` is the only approved carrier by default. A review companion is excluded by
 default and remains outside the upload set unless the clinician explicitly names it before
