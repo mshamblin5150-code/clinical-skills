@@ -348,6 +348,76 @@ def _read_supplied_voice(path: Path) -> tuple[tuple[SuppliedVoiceItem, ...], str
     return tuple(items), digest
 
 
+def _supplied_voice_result(
+    records: Path,
+    draft_text: str,
+) -> tuple[bool, bool, str]:
+    """Grade supplied input independently of the model's pair population."""
+    supplied_read = _read_supplied_voice(records / SUPPLIED_VOICE_RECORD_NAME)
+    if supplied_read is None:
+        return True, False, "finding - supplied voice capture is missing or invalid"
+    supplied_items, supplied_digest = supplied_read
+    reader = _read_json(records / READER_RECORD_NAME)
+    if _not_run(reader):
+        return (
+            False,
+            True,
+            "not scanned - supplied voice reader recorded as not run; "
+            f"supplied items {len(supplied_items)}; unanswered {len(supplied_items)}",
+        )
+    if not isinstance(reader, dict) or reader.get("status") != "complete":
+        return True, False, "finding - supplied voice reader record is missing or invalid"
+    if reader.get("supplied_voice_sha256") != supplied_digest:
+        return True, False, "finding - supplied voice capture digest does not match"
+    supplied_answers = reader.get("supplied_voice_answers")
+    if not isinstance(supplied_answers, list):
+        return True, False, "finding - supplied voice answers are missing"
+    supplied_by_id: dict[str, dict[str, object]] = {}
+    for answer in supplied_answers:
+        if (
+            not isinstance(answer, dict)
+            or frozenset(answer) != _SUPPLIED_ANSWER_KEYS
+            or not isinstance(answer.get("item_id"), str)
+        ):
+            return True, False, "finding - supplied voice answer shape is invalid"
+        identifier = answer["item_id"]
+        if identifier in supplied_by_id:
+            return True, False, "finding - supplied voice population is not answered exactly once"
+        supplied_by_id[identifier] = answer
+    population = {item.identifier for item in supplied_items}
+    if set(supplied_by_id) - population:
+        return True, False, "finding - supplied voice answer names an unknown item"
+    supplied_findings = 0
+    for answer in supplied_by_id.values():
+        quote = answer.get("quote")
+        try:
+            verdict = SurvivalVerdict(answer.get("verdict"))
+        except (TypeError, ValueError):
+            return True, False, "finding - supplied voice answer shape is invalid"
+        if verdict is SurvivalVerdict.DROPPED:
+            if quote is not None:
+                return True, False, "finding - dropped supplied item carries a draft quote"
+            supplied_findings += 1
+            continue
+        if not isinstance(quote, str):
+            return True, False, "finding - supplied voice answer shape is invalid"
+        if not _verbatim_sentence(draft_text, quote):
+            return True, False, "finding - supplied voice quote is not a verbatim sentence in the draft"
+        if verdict is SurvivalVerdict.SHRUNK:
+            supplied_findings += 1
+    unanswered = len(population - set(supplied_by_id))
+    suffix = f"supplied items {len(population)}; unanswered {unanswered}"
+    if supplied_findings:
+        return (
+            True,
+            bool(unanswered),
+            f"finding - {supplied_findings} supplied item(s) shrunk or dropped; {suffix}",
+        )
+    if unanswered:
+        return False, True, f"not scanned - supplied item verdict population is incomplete; {suffix}"
+    return False, False, suffix
+
+
 def _identity_digest(run: Path) -> str | None:
     payload = _read_json(run / voice_model_identity.RECORD_NAME)
     if not isinstance(payload, dict):
@@ -430,10 +500,6 @@ def _voice_result(
 ) -> tuple[bool, bool, str]:
     planter = _read_json(records / PLANTER_RECORD_NAME)
     reader = _read_json(records / READER_RECORD_NAME)
-    supplied_read = _read_supplied_voice(records / SUPPLIED_VOICE_RECORD_NAME)
-    if supplied_read is None:
-        return True, False, "finding - supplied voice capture is missing or invalid"
-    supplied_items, supplied_digest = supplied_read
     if _not_run(planter) and _not_run(reader):
         return False, True, "not scanned - recorded as not run"
     if planter is None or reader is None:
@@ -468,8 +534,6 @@ def _voice_result(
     identity_digest = _identity_digest(run)
     if reader["model_sha256"] != model_digest or reader["model_sha256"] != identity_digest:
         return True, False, "finding - model digest does not match the identity record"
-    if reader["supplied_voice_sha256"] != supplied_digest:
-        return True, False, "finding - supplied voice capture digest does not match"
 
     original = planter.get("original_sentence")
     replacement = planter.get("planted_sentence")
@@ -535,55 +599,7 @@ def _voice_result(
         return True, False, "finding - planted sentence was not flagged"
     if real_generic:
         return True, False, "finding - a real draft sentence was placed on a generic half"
-    supplied_answers = reader.get("supplied_voice_answers")
-    if not isinstance(supplied_answers, list):
-        return True, False, "finding - supplied voice answers are missing"
-    supplied_by_id: dict[str, dict[str, object]] = {}
-    for answer in supplied_answers:
-        if (
-            not isinstance(answer, dict)
-            or frozenset(answer) != _SUPPLIED_ANSWER_KEYS
-            or not isinstance(answer.get("item_id"), str)
-        ):
-            return True, False, "finding - supplied voice answer shape is invalid"
-        identifier = answer["item_id"]
-        if identifier in supplied_by_id:
-            return True, False, "finding - supplied voice population is not answered exactly once"
-        supplied_by_id[identifier] = answer
-    population = {item.identifier for item in supplied_items}
-    unknown = set(supplied_by_id) - population
-    if unknown:
-        return True, False, "finding - supplied voice answer names an unknown item"
-    supplied_findings = 0
-    for answer in supplied_by_id.values():
-        verdict_value = answer.get("verdict")
-        quote = answer.get("quote")
-        try:
-            verdict = SurvivalVerdict(verdict_value)
-        except (TypeError, ValueError):
-            return True, False, "finding - supplied voice answer shape is invalid"
-        if verdict is SurvivalVerdict.DROPPED:
-            if quote is not None:
-                return True, False, "finding - dropped supplied item carries a draft quote"
-            supplied_findings += 1
-            continue
-        if not isinstance(quote, str):
-            return True, False, "finding - supplied voice answer shape is invalid"
-        if not _verbatim_sentence(planted, quote):
-            return True, False, "finding - supplied voice quote is not a verbatim sentence in the planted copy"
-        if verdict is SurvivalVerdict.SHRUNK:
-            supplied_findings += 1
-    unanswered = len(population - set(supplied_by_id))
-    suffix = f"; supplied items {len(population)}; unanswered {unanswered}"
-    if supplied_findings:
-        return (
-            True,
-            bool(unanswered),
-            f"finding - {supplied_findings} supplied item(s) shrunk or dropped{suffix}",
-        )
-    if unanswered:
-        return False, True, f"not scanned - supplied item verdict population is incomplete{suffix}"
-    return False, False, f"clean{suffix}"
+    return False, False, "clean"
 
 
 def completion_gate(
@@ -595,84 +611,103 @@ def completion_gate(
     if submission is None:
         suffix = "not graded - --submission was not supplied"
         return CompletionGate(False, False, (f"{EXPECTED_ROW}: {suffix}", f"{PROFANITY_EXPECTED_ROW}: {suffix}"))
-    try:
-        resolved = repo_root.canonical_voice_model()
-        if not resolved.exists or resolved.sha256 is None:
-            suffix = "not scanned - canonical voice model is absent"
-            keys = tuple(value.strip() for value in submission.split(",") if value.strip())
-            missing = tuple(
-                key
-                for key in keys
-                if _read_supplied_voice(
-                    run / RECORDS_DIRECTORY / Path(key).stem / SUPPLIED_VOICE_RECORD_NAME
-                )
-                is None
-            )
-            voice_suffix = (
-                f"finding - supplied voice capture is missing or invalid for {', '.join(missing)}; {suffix}"
-                if missing
-                else suffix
-            )
-            return CompletionGate(bool(missing), True, (f"{EXPECTED_ROW}: {voice_suffix}", f"{PROFANITY_EXPECTED_ROW}: {suffix}"))
-        model_text = resolved.path.read_text(encoding="utf-8")
-    except (OSError, UnicodeError):
-        suffix = "not scanned - canonical voice model is unreadable"
-        return CompletionGate(False, True, (f"{EXPECTED_ROW}: {suffix}", f"{PROFANITY_EXPECTED_ROW}: {suffix}"))
-
-    pair_read = read_pairs(model_text)
-    profanity_read = read_profanity_terms(model_text)
     keys = tuple(value.strip() for value in submission.split(",") if value.strip())
     surfaces = (
         {Path(key).stem: surface for key in keys}
         if isinstance(surface, DraftSurface)
         else {Path(key).stem: value for key, value in surface.items()}
     )
+    model_suffix: str | None = None
+    try:
+        resolved = repo_root.canonical_voice_model()
+        if not resolved.exists or resolved.sha256 is None:
+            model_suffix = "not scanned - canonical voice model is absent"
+            model_text = ""
+        else:
+            model_text = resolved.path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError):
+        model_suffix = "not scanned - canonical voice model is unreadable"
+        model_text = ""
+
+    if model_suffix is not None:
+        supplied_results: list[VoiceResult] = []
+        for raw_key in keys:
+            key = Path(raw_key).stem
+            draft = surfaces.get(key)
+            records = run / RECORDS_DIRECTORY / key
+            if draft is None:
+                missing = _read_supplied_voice(
+                    records / SUPPLIED_VOICE_RECORD_NAME
+                ) is None
+                supplied_results.append(
+                    VoiceResult(
+                        key,
+                        missing,
+                        True,
+                        (
+                            "finding - supplied voice capture is missing or invalid"
+                            if missing
+                            else "not scanned - submission surface is unreadable"
+                        ),
+                    )
+                )
+                continue
+            finding, coverage, report = _supplied_voice_result(records, draft.text)
+            supplied_results.append(VoiceResult(key, finding, coverage, report))
+        finding = any(result.finding for result in supplied_results)
+        details = "; ".join(
+            f"{result.key}: {result.report}" for result in supplied_results
+        )
+        voice_report = f"{details}; {model_suffix}" if details else model_suffix
+        return CompletionGate(
+            finding,
+            True,
+            (
+                f"{EXPECTED_ROW}: {voice_report}",
+                f"{PROFANITY_EXPECTED_ROW}: {model_suffix}",
+            ),
+        )
+
+    pair_read = read_pairs(model_text)
+    profanity_read = read_profanity_terms(model_text)
     voice_results: list[VoiceResult] = []
     profanity_count = 0
     drafts_with_profanity = 0
     for raw_key in keys:
         key = Path(raw_key).stem
         draft = surfaces.get(key)
-        supplied_read = _read_supplied_voice(
-            run / RECORDS_DIRECTORY / key / SUPPLIED_VOICE_RECORD_NAME
-        )
-        if supplied_read is None:
-            voice_results.append(
-                VoiceResult(
-                    key,
-                    True,
-                    draft is None,
-                    "finding - supplied voice capture is missing or invalid; "
-                    f"pair candidates {pair_read.candidates}; "
-                    f"unread remainder {pair_read.unread}",
-                )
-            )
-            continue
-        if draft is None:
-            voice_results.append(
-                VoiceResult(
-                    key,
-                    False,
-                    True,
-                    "not scanned - submission surface is unreadable; "
-                    f"pair candidates {pair_read.candidates}; "
-                    f"unread remainder {pair_read.unread}",
-                )
-            )
-            continue
         records = run / RECORDS_DIRECTORY / key
+        if draft is None:
+            missing_capture = _read_supplied_voice(
+                records / SUPPLIED_VOICE_RECORD_NAME
+            ) is None
+            voice_results.append(
+                VoiceResult(
+                    key,
+                    missing_capture,
+                    True,
+                    (
+                        "finding - supplied voice capture is missing or invalid; "
+                        if missing_capture
+                        else "not scanned - submission surface is unreadable; "
+                    )
+                    + f"pair candidates {pair_read.candidates}; "
+                    f"unread remainder {pair_read.unread}",
+                )
+            )
+            continue
+        supplied_result = _supplied_voice_result(records, draft.text)
         if not pair_read.items:
-            supplied_items, _supplied_digest = supplied_read
-            result = (
+            pair_result = (
                 False,
                 True,
-                "not scanned - no discriminating-pair population was read; "
-                f"supplied items {len(supplied_items)}; "
-                f"unanswered {len(supplied_items)}",
+                "not scanned - no discriminating-pair population was read",
             )
         else:
-            result = _voice_result(records, run, draft, pair_read.items, resolved.sha256)
-        finding, coverage, report = result
+            pair_result = _voice_result(records, run, draft, pair_read.items, resolved.sha256)
+        finding = pair_result[0] or supplied_result[0]
+        coverage = pair_result[1] or supplied_result[1]
+        report = f"{pair_result[2]}; {supplied_result[2]}"
         if pair_read.unread:
             coverage = True
         report += (

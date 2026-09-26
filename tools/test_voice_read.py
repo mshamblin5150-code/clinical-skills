@@ -569,6 +569,69 @@ class CompletionGate(unittest.TestCase):
         self.assertTrue(result.finding)
         self.assertIn("supplied voice capture is missing", result.reports[0])
 
+    def test_shrunk_supplied_item_is_a_finding_without_model_pairs(self) -> None:
+        self.record_supplied_item(
+            source_quote="They bounce until they bounce off the cliff.",
+            verdict="shrunk",
+            draft_quote="Children are resilient.",
+        )
+        model_without_pairs = MODEL.replace("### Discriminating pairs", "### Other")
+        self.model.write_text(model_without_pairs, encoding="utf-8")
+        self.resolved = repo_root.VoiceModelResolution(
+            path=self.model, sha256=digest(model_without_pairs), exists=True
+        )
+        identity = json.loads(
+            (self.run / voice_model_identity.RECORD_NAME).read_text(encoding="utf-8")
+        )
+        identity["sha256"] = digest(model_without_pairs)
+        (self.run / voice_model_identity.RECORD_NAME).write_text(
+            json.dumps(identity) + "\n", encoding="utf-8"
+        )
+
+        result = self.grade()
+
+        self.assertTrue(result.finding)
+        self.assertTrue(result.coverage)
+        self.assertIn("supplied item(s) shrunk or dropped", result.reports[0])
+
+    def test_kept_supplied_item_is_answered_without_model_pairs(self) -> None:
+        self.record_supplied_item(
+            source_quote="They bounce until they bounce off the cliff.",
+            verdict="kept whole",
+            draft_quote="They bounce until they bounce off the cliff.",
+        )
+        model_without_pairs = MODEL.replace("### Discriminating pairs", "### Other")
+        self.model.write_text(model_without_pairs, encoding="utf-8")
+        self.resolved = repo_root.VoiceModelResolution(
+            path=self.model, sha256=digest(model_without_pairs), exists=True
+        )
+        identity = json.loads(
+            (self.run / voice_model_identity.RECORD_NAME).read_text(encoding="utf-8")
+        )
+        identity["sha256"] = digest(model_without_pairs)
+        (self.run / voice_model_identity.RECORD_NAME).write_text(
+            json.dumps(identity) + "\n", encoding="utf-8"
+        )
+
+        result = self.grade()
+
+        self.assertFalse(result.finding)
+        self.assertTrue(result.coverage)
+        self.assertIn("supplied items 1; unanswered 0", result.reports[0])
+
+    def test_unreadable_model_does_not_bypass_a_missing_capture(self) -> None:
+        self.capture_path.unlink()
+        self.resolved = repo_root.VoiceModelResolution(
+            path=self.root / "missing-model.md", sha256="a" * 64, exists=True
+        )
+
+        result = self.grade()
+
+        self.assertTrue(result.finding)
+        self.assertTrue(result.coverage)
+        self.assertIn("supplied voice capture is missing", result.reports[0])
+        self.assertIn("canonical voice model is unreadable", result.reports[0])
+
 
 class PublicCompletionCommand(unittest.TestCase):
     """Every #1400 refusal is observable through a real completion command."""

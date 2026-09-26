@@ -30,9 +30,10 @@ paraphrasing it, in `supplied-voice.json`:
 }
 ```
 
-`kind` is `image` or `reasoning-ground`. The latter records a principle supplied as the ground for
-this artifact's argument; it does not create or revise the corpus-level **Stated principle** in
-`CONTEXT.md`. Each `id` is unique within this submission. When he supplied
+`kind` is `image` or `reasoning-ground`. The latter records every principle supplied in the run
+input, whether or not the draft ultimately argues from it; its run-local name distinguishes the
+capture from the corpus-level **Stated principle** in `CONTEXT.md`, which it does not create or
+revise. Each `id` is unique within this submission. When he supplied
 neither, write exactly `{"status":"none"}`. An empty complete list is not the same record. The
 capture belongs to the submission-key directory before its draft begins; a later reader does not
 reconstruct it from the finished prose.
@@ -64,6 +65,8 @@ one sentence toward one pair's generic half without copying that half verbatim. 
 
 Keep this record from the Voice reader. The grader reconstructs the planted copy from the real
 surface and these two sentence strings; any other byte change fails.
+The planter does not change a sentence quoted for a supplied item; the supplied-item verdict must
+bind to the real draft as well as the planted copy.
 
 ## 3. The Voice reader
 
