@@ -1,9 +1,12 @@
 """Cover ``case_study_scan``'s parser and rows against synthetic drafts.
 
-Every draft here is written in this file and a temp directory. **There is no
-committed case study and there will not be one** -- a finished draft lives under
-``output/`` and is written about a patient, which is ``test_reference_scan``'s
-position exactly, and ``test_differential_scan``'s before it.
+Every durable draft here is written in this file and a temp directory. **There is
+no committed case study and there will not be one** -- a finished draft lives
+under ``output/`` and is written about a patient, which is
+``test_reference_scan``'s position exactly, and ``test_differential_scan``'s
+before it. #1425 adds one conditional local measurement over that private
+population. It retains no prose and asserts counts only; where the population is
+unavailable, that measurement skips rather than replacing it with a fixture.
 
 Three classes read committed files, and each is here for a different reason.
 ``TheSkeletonIsTheSkillsOwn`` derives the section vocabulary from ``SKILL.md``
@@ -168,6 +171,12 @@ ROW_PHRASES = {
     scan.PROPOSED_HEADING: "no `PROPOSED (verify before use)` heading in the submission",
     scan.UNMARKED_BLOCK_QUOTATION: (
         "a source quotation of 40 words or more carrying authored `> ` block markup"
+    ),
+    scan.TEMPERATURE_DEGREES_WORD_ROW: (
+        "Fahrenheit temperatures using the degree symbol rather than the word `degrees`"
+    ),
+    scan.EXPANDED_CLINICAL_LABEL: (
+        "HEENT and the vital-sign labels `T`, `HR`, `RR`, `BP`, and `SpO2` using the standard clinical abbreviations"
     ),
 }
 
@@ -490,6 +499,212 @@ class TheScaffoldingRow(unittest.TestCase):
     def test_a_phrase_inside_a_table_cell_fires(self):
         text = CLEAN + "\n## Assessment:\n\n| a | b |\n| --- | --- |\n| Using OLDCARTS | x |\n"
         self.assertIn(scan.SCAFFOLDING_PHRASE, kinds(text))
+
+
+class TemperatureUsesTheDegreeSymbol(unittest.TestCase):
+    def test_a_numeric_fahrenheit_temperature_written_with_degrees_fires(self):
+        planted = CLEAN.replace(
+            "General: + fatigue and fever, - chills and weight loss.",
+            "General: + fatigue and fever of 102.2 degrees Fahrenheit, - chills and weight loss.",
+        )
+        self.assertEqual(kinds(planted).count("temperature-degrees-word"), 1)
+
+    def test_every_authored_numeric_degrees_word_form_fires(self):
+        for temperature in ("102.2 degrees", "39 degrees Celsius"):
+            with self.subTest(temperature=temperature):
+                planted = CLEAN.replace(
+                    "General: + fatigue and fever, - chills and weight loss.",
+                    "General: + fatigue and fever of {temperature}, - chills and weight loss.".format(
+                        temperature=temperature
+                    ),
+                )
+                self.assertEqual(kinds(planted).count("temperature-degrees-word"), 1)
+
+    def test_a_quoted_source_threshold_keeps_the_sources_unit(self):
+        quoted = CLEAN.replace(
+            "## References",
+            "> The source defines fever as 100.4 degrees Fahrenheit (Ross, 2025).\n\n"
+            "## References",
+        )
+        self.assertEqual(kinds(quoted).count("temperature-degrees-word"), 0)
+
+    def test_an_inline_source_quotation_keeps_the_sources_unit(self):
+        quoted = CLEAN.replace(
+            "## References",
+            'The source states, "Fever begins at 100.4 degrees Fahrenheit" (Ross, 2025).\n\n'
+            "## References",
+        )
+        self.assertEqual(kinds(quoted).count("temperature-degrees-word"), 0)
+
+    def test_a_narrative_citation_before_a_source_quotation_keeps_the_unit(self):
+        quoted = CLEAN.replace(
+            "## References",
+            'Ross (2025) states, "Fever begins at 100.4 degrees Fahrenheit."\n\n'
+            "## References",
+        )
+        self.assertEqual(kinds(quoted).count("temperature-degrees-word"), 0)
+
+    def test_the_finished_prose_with_the_degree_symbol_is_the_negative_control(self):
+        accepted = CLEAN.replace(
+            "General: + fatigue and fever, - chills and weight loss.",
+            "General: + fatigue and fever of 102.2°F, - chills and weight loss.",
+        )
+        self.assertEqual(kinds(accepted).count("temperature-degrees-word"), 0)
+
+    def test_a_non_temperature_angular_measurement_is_not_this_row(self):
+        correct = CLEAN.replace(
+            "General: Alert, in no acute distress.",
+            "General: Alert, in no acute distress.\n\n"
+            "Musculoskeletal: Knee flexion is 120 degrees.",
+        )
+        self.assertEqual(kinds(correct).count("temperature-degrees-word"), 0)
+
+    def test_a_resolved_fever_does_not_turn_a_later_joint_angle_into_temperature(self):
+        correct = CLEAN.replace(
+            "General: Alert, in no acute distress.",
+            "General: Fever resolved; knee flexion is 120 degrees.",
+        )
+        self.assertEqual(kinds(correct).count("temperature-degrees-word"), 0)
+
+    def test_a_degrees_word_value_beside_t_in_a_result_table_fires(self):
+        table = """\
+| Vital sign | Value |
+| --- | --- |
+| T | 102.2 degrees |
+"""
+        planted = CLEAN.replace(
+            "## Physical Examination",
+            table + "\n## Physical Examination",
+        )
+        self.assertEqual(kinds(planted).count("temperature-degrees-word"), 1)
+
+
+class StandardClinicalLabelsUseAbbreviations(unittest.TestCase):
+    def test_a_spelled_out_heent_label_fires(self):
+        planted = CLEAN.replace(
+            "General: Alert, in no acute distress.",
+            "General: Alert, in no acute distress.\n\n"
+            "Head, eyes, ears, nose, and throat: No acute findings.",
+        )
+        self.assertEqual(kinds(planted).count("expanded-clinical-label"), 1)
+
+    def test_each_spelled_out_vital_label_fires(self):
+        for label, value in (
+            ("Temperature", "102.2°F"),
+            ("Heart rate", "112 beats/min"),
+            ("Respiratory rate", "22 breaths/min"),
+            ("Blood pressure", "118/72 mm Hg"),
+            ("Oxygen saturation", "97% on room air"),
+        ):
+            with self.subTest(label=label):
+                planted = CLEAN.replace(
+                    "General: Alert, in no acute distress.",
+                    "General: Alert, in no acute distress.\n\n{label}: {value}.".format(
+                        label=label, value=value
+                    ),
+                )
+                self.assertEqual(kinds(planted).count("expanded-clinical-label"), 1)
+
+    def test_a_later_expanded_label_in_a_vital_sign_set_fires(self):
+        planted = CLEAN.replace(
+            "General: Alert, in no acute distress.",
+            "General: Alert, in no acute distress.\n\n"
+            "T: 102.2°F. Heart rate: 112 beats/min. RR: 22 breaths/min.",
+        )
+        self.assertEqual(kinds(planted).count("expanded-clinical-label"), 1)
+
+    def test_an_expanded_vital_label_in_a_result_table_fires(self):
+        table = """\
+| Vital sign | Value |
+| --- | --- |
+| Blood pressure | 118/72 mm Hg |
+"""
+        planted = CLEAN.replace(
+            "## Physical Examination",
+            table + "\n## Physical Examination",
+        )
+        self.assertEqual(kinds(planted).count("expanded-clinical-label"), 1)
+
+    def test_an_expanded_label_and_value_in_one_table_cell_fires(self):
+        table = """\
+| Vital signs |
+| --- |
+| Temperature: 102.2°F |
+"""
+        planted = CLEAN.replace(
+            "## Physical Examination",
+            table + "\n## Physical Examination",
+        )
+        self.assertEqual(kinds(planted).count("expanded-clinical-label"), 1)
+
+    def test_finished_prose_with_standard_abbreviations_is_the_negative_control(self):
+        accepted = CLEAN.replace(
+            "General: Alert, in no acute distress.",
+            "General: Alert, in no acute distress.\n\n"
+            "HEENT: No acute findings.\n\n"
+            "T: 102.2°F. HR: 112 beats/min. RR: 22 breaths/min. "
+            "BP: 118/72 mm Hg. SpO2: 97% on room air.",
+        )
+        self.assertEqual(kinds(accepted).count("expanded-clinical-label"), 0)
+
+    def test_expanded_terms_in_ordinary_clinical_prose_are_not_labels(self):
+        prose = CLEAN.replace(
+            "## References",
+            "The blood pressure improved while the heart rate remained elevated.\n\n"
+            "## References",
+        )
+        self.assertEqual(kinds(prose).count("expanded-clinical-label"), 0)
+
+
+class FinishedCaseStudiesAreTheMeasuredControls(unittest.TestCase):
+    """Run #1425's planted and negative controls without printing draft prose."""
+
+    @classmethod
+    def setUpClass(cls):
+        paths = sorted((coursework_run.output_root() / "case-studies").glob("*.md"))
+        if not paths:
+            raise unittest.SkipTest("private finished case-study population unavailable")
+        cls.finished = [path.read_text(encoding="utf-8") for path in paths]
+        cls.skill = SKILL.read_text(encoding="utf-8")
+
+    @classmethod
+    def count(cls, text: str, row: str) -> int:
+        return sum(finding.kind == row for finding in scan.survey(text, cls.skill).findings)
+
+    def test_each_row_fires_once_per_planted_finished_case(self):
+        plants = {
+            scan.TEMPERATURE_DEGREES_WORD_ROW: "Temperature: 102.2 degrees Fahrenheit.",
+            scan.EXPANDED_CLINICAL_LABEL: "Temperature: 102.2°F.",
+        }
+        for row, plant in plants.items():
+            with self.subTest(row=row):
+                baseline = sum(self.count(text, row) for text in self.finished)
+                planted = sum(self.count(text + "\n\n" + plant, row) for text in self.finished)
+                self.assertEqual(planted - baseline, len(self.finished))
+
+    def test_real_finished_correct_prose_is_the_negative_control(self):
+        controls = {
+            scan.TEMPERATURE_DEGREES_WORD_ROW: re.compile(
+                r"\b\d{1,3}(?:\.\d+)?°F\b", re.I
+            ),
+            scan.EXPANDED_CLINICAL_LABEL: re.compile(
+                r"\b(?:HEENT|T|HR|RR|BP|SpO2)\s*:", re.I
+            ),
+        }
+        for row, pattern in controls.items():
+            with self.subTest(row=row):
+                prose = [
+                    scan.block_text(block)
+                    for text in self.finished
+                    for block in docx_write.blocks(text)
+                    if pattern.search(scan.block_text(block))
+                ]
+                self.assertGreater(len(prose), 0)
+                control = CLEAN.replace(
+                    "## References",
+                    "\n\n".join(prose) + "\n\n## References",
+                )
+                self.assertEqual(self.count(control, row), 0)
 
 
 class TheBoldRow(unittest.TestCase):

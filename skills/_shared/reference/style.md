@@ -71,6 +71,14 @@ Growth measurements stay a running line:
 
 > Weight: [weight]. Height: [height]. BMI: [BMI].
 
+### Temperatures and standard clinical abbreviations
+
+Write a temperature in Fahrenheit with the degree symbol, as in `102.2°F`, never with the word
+`degrees`. A threshold quoted from a source keeps the source's own unit.
+
+Use the standard clinical abbreviations the clinician uses: `HEENT` rather than spelling out head,
+eyes, ears, nose, and throat, and `T`, `HR`, `RR`, `BP`, and `SpO2` for vital-sign labels.
+
 A growth-and-development examination or assessment stays prose rather than taking the
 Developmental History domain shape.
 
