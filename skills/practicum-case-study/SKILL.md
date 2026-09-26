@@ -899,6 +899,10 @@ register unmodeled, that section is written in the §11 mechanics and the gap is
 clinician and his samples, it is [setup-clinical-skills](../setup-clinical-skills/SKILL.md) step 8,
 and a case study is usually being written against a deadline. Declare it and name the skill.
 
+Reuse a recorded image whole where it fits. Where none fits, follow
+[imagery-proposals.md](../_shared/reference/imagery-proposals.md); only a new image from a recorded
+domain may be proposed, and one that works never licenses a second instance.
+
 Two things every MDM entry carries: **the discriminator** — what in this case puts the diagnosis in
 or out, not a textbook summary of the disease — and **a citation**. Ruled-out entries end on the
 verdict, and the strongest form in the corpus promotes the verdict to the entry's own header line
@@ -1612,7 +1616,16 @@ The `the rendered document` reader is what turns those pixels into a visually ch
 its substantiated verdict is required before submission.
 
 After every check above is clean, show the clinician the finished artifact and selected submission
-route and wait for the explicit go-ahead. Post through the branch recorded in `bar.md`. The
+route. If the run proposed imagery, also show this table from `imagery-proposals.json`:
+
+| Proposed image | Recorded domain | Real behavior it spends | Approve this image? |
+| --- | --- | --- | --- |
+| `<exact image>` | `<domain>` | `<behavior>` | yes / no |
+
+Ask the proposed-image question separately from whether the artifact's substance is right. Apply
+each ruling under [imagery-proposals.md](../_shared/reference/imagery-proposals.md), rerun the
+checks grader, and then wait for the explicit go-ahead. Post through the branch recorded in
+`bar.md`. The
 `file-upload` branch posts the `.docx`. On `canvas-composer`, build the `.html` from the checked
 Markdown with `python tools/post_html.py <output Markdown> <same-stem .html>`, load it by the
 declared route, and compare the serialized Composer HTML with that build under the shared sheet.

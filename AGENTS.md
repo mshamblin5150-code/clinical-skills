@@ -76,6 +76,14 @@ gate reads the model-owned profanity list and is enabled by each completion grad
 `--submission`. With no subagent tool, the run records `not run` and the grader reports incomplete
 coverage rather than clean. The complete ceiling belongs to `voice_read.DECLARED_LIMITS`.
 
+**The same coursework completion graders enforce `tools/imagery_proposals.py`.** When no recorded
+image fits, a run may propose one only from a domain evidenced in the canonical model. The private
+run record binds its exact text, complete model domain entry, behavior, artifact, and terminal ruling. An
+unresolved proposal, unrecorded domain, approved image missing from the artifact, or removed image
+still present is a finding. Approved proposal text remains co-written evidence and is excluded from
+later voice-model attestation. The complete ceiling belongs to
+`imagery_proposals.DECLARED_LIMITS`.
+
 **`practicum-case-study` requires its committed readers, graders, and producers.**
 `tools/research_ledger.py`, `tools/reference_scan.py`, `tools/checks_ledger.py`, and
 `tools/case_study_scan.py` grade required stages of the run. After an install has been tried, a

@@ -194,8 +194,9 @@ before prose resumes.
 Read only the canonical path the identity command reports, especially the confirmed reflective and argumentative register. Use
 its discriminating pairs and confirmed constructions. Do not reproduce chat typos or lowercase
 message openings. Where the model says invoked sources intensify in citation-bearing writing,
-preserve that option; it licenses adding none and never licenses adding a second instance because
-the first sounded good.
+preserve that option. Reuse a recorded image whole where it fits. Where none fits, follow
+[imagery-proposals.md](../_shared/reference/imagery-proposals.md); only a new image from a recorded
+domain may be proposed, and one that works never licenses a second instance.
 
 Exit 0 is required to draft against the model. Exit 1 refuses the draft until the model's shape is
 repaired. Exit 2 refuses drafting unless the banner explicitly says `voice model: NOT RUN -- no
@@ -292,9 +293,18 @@ Its heading-read rows are `missing-heading-read`, `duplicate-heading-read`, `unr
 `heading-read-context-verdict-shape`, and `heading-read-context-defect`.
 
 Show the clean reply and an invoked-source table to the clinician. For every retained invoked
-source, the table shows the invoked source, its domain, and the property it spends. Ask separately whether the substance is
-right and whether each invoked source sounds like the clinician; this is one approval with two named
-questions, not two gates. Before showing that gate, inspect the threaded Canvas Composer and read
+source, the table shows the invoked source, its domain, and the property it spends. If the run
+proposed imagery, also show this table from `imagery-proposals.json`:
+
+| Proposed image | Recorded domain | Real behavior it spends | Approve this image? |
+| --- | --- | --- | --- |
+| `<exact image>` | `<domain>` | `<behavior>` | yes / no |
+
+Ask separately whether the substance is right, whether each invoked source sounds like the
+clinician, and whether each proposed image is approved; the image ruling is not inferred from the
+substance answer. This remains one approval with three named questions, not three gates. Apply the approved-or-removed record and draft changes in
+[imagery-proposals.md](../_shared/reference/imagery-proposals.md), then rerun the grader. Before
+showing that gate, inspect the threaded Canvas Composer and read
 [canvas-editor.md](../_shared/reference/canvas-editor.md). Choose its first supported **Load route**
 before loading, and tell the clinician which route will be used and what that route costs as part of
 the same approval. When `voice-status.md` exists, show its unmodeled-voice declaration alongside the

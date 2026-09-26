@@ -19,6 +19,7 @@ import aar_scan
 import run_grader
 import voice_model_identity
 import voice_read
+import imagery_proposals
 import project_context
 from console_codec import require_python_floor, use_utf8
 
@@ -28,6 +29,7 @@ EXPECTED_COMPLETION_CHECKS = (
     voice_model_identity.EXPECTED_ROW,
     voice_read.EXPECTED_ROW,
     voice_read.PROFANITY_EXPECTED_ROW,
+    imagery_proposals.EXPECTED_ROW,
     project_context.EXPECTED_ROW,
 )
 

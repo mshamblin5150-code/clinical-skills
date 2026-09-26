@@ -51,6 +51,7 @@ from research_ledger import REFUTATION_EVIDENCE_COMPLEMENT
 import aar_scan
 import voice_model_identity
 import voice_read
+import imagery_proposals
 import project_context
 import heading_read
 import research_ledger
@@ -60,6 +61,7 @@ EXPECTED_COMPLETION_CHECKS = (
     voice_model_identity.EXPECTED_ROW,
     voice_read.EXPECTED_ROW,
     voice_read.PROFANITY_EXPECTED_ROW,
+    imagery_proposals.EXPECTED_ROW,
     project_context.EXPECTED_ROW,
 )
 
@@ -645,6 +647,12 @@ def grade(source: RunSource, parsed: run_grader.Parsed) -> run_grader.Grade[Scan
         voice_read.draft_surface(
             ((source.path / "critique.md", source.critique),)
         ),
+    )
+    submission = parsed.value("--submission")
+    grade = imagery_proposals.apply_completion_gate(
+        grade,
+        source.path,
+        {submission: source.critique} if submission is not None else None,
     )
     return project_context.apply_completion_gate(
         grade,

@@ -1110,6 +1110,22 @@ The complete ceiling belongs to `voice_read.DECLARED_LIMITS`; this section copie
 
 Covered by `tools/test_voice_read.py`.
 
+### Coursework imagery proposals
+
+When none of the clinician's recorded images fits, the five coursework skills may propose one new
+image from a domain evidenced in the canonical model. The working draft marks it, the go-ahead
+shows its exact text, domain, and real behavior separately from the substance question, and the
+private `imagery-proposals.json` records `proposed`, `proposed-and-approved`, or
+`proposed-and-removed`.
+
+The same completion graders report proposed, approved, and unresolved counts with `--submission`.
+They refuse an unresolved proposal, a domain without exact model evidence, an approved image absent
+from the artifact, and a removed image still present. Approved text is returned by
+`imagery_proposals.harvest_exclusions` and cannot become later voice-model attestation. The complete
+ceiling belongs to `imagery_proposals.DECLARED_LIMITS`; this section copies no row from it.
+
+Covered by `tools/test_imagery_proposals.py`.
+
 ### Coursework project context
 
 Before first prose, the five coursework skills write and confirm the purpose-named

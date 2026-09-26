@@ -38,6 +38,7 @@ import research_ledger
 import run_grader
 import voice_model_identity
 import voice_read
+import imagery_proposals
 import project_context
 from run_grader import NOT_GRADED
 
@@ -81,6 +82,7 @@ EXPECTED_COMPLETION_CHECKS = (
     voice_model_identity.EXPECTED_ROW,
     voice_read.EXPECTED_ROW,
     voice_read.PROFANITY_EXPECTED_ROW,
+    imagery_proposals.EXPECTED_ROW,
     project_context.EXPECTED_ROW,
 )
 
@@ -563,6 +565,13 @@ def grade(source: Source, parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
         voice_read.draft_surface(
             ((source.docx, "\n".join(paragraph.text for paragraph in source.paragraphs)),)
         ),
+    )
+    grade = imagery_proposals.apply_completion_gate(
+        grade,
+        source.root,
+        {submission: "\n".join(paragraph.text for paragraph in source.paragraphs)}
+        if submission is not None
+        else None,
     )
     return project_context.apply_completion_gate(grade, source.root, submission)
 

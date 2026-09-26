@@ -181,6 +181,7 @@ from run_grader import NOT_GRADED
 import aar_scan
 import voice_model_identity
 import voice_read
+import imagery_proposals
 import project_context
 import heading_read
 import research_ledger
@@ -193,6 +194,7 @@ EXPECTED_COMPLETION_CHECKS = (
     voice_model_identity.EXPECTED_ROW,
     voice_read.EXPECTED_ROW,
     voice_read.PROFANITY_EXPECTED_ROW,
+    imagery_proposals.EXPECTED_ROW,
     project_context.EXPECTED_ROW,
 )
 from run_grader import EvidenceDisposition
@@ -1120,6 +1122,13 @@ def _grade(
         voice_read.draft_surface(
             ((source.document, source.document_bytes.decode("utf-8", errors="replace")),)
         ),
+    )
+    grade = imagery_proposals.apply_completion_gate(
+        grade,
+        source.path.parent,
+        {submission: source.document_bytes.decode("utf-8", errors="replace")}
+        if submission is not None
+        else None,
     )
     return project_context.apply_completion_gate(
         grade, source.path.parent, submission
