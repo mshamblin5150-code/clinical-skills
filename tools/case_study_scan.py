@@ -246,9 +246,16 @@ QUOTED_WORD = re.compile(r"\b[\w’'-]+\b", re.UNICODE)
 # Source quotations are excluded by the row below because house style does not
 # rewrite the source's own unit.
 DEGREES_VALUE = r"\d{1,3}(?:\.\d+)?\s+degrees?\b"
+DEGREES_VALUE_PATTERN = re.compile(DEGREES_VALUE, re.I)
+TEMPERATURE_TABLE_LABEL = re.compile(
+    r"^\s*(?:\*\*)?(?:T|Temperature|Temp)(?:\*\*)?\s*:?\s*$",
+    re.I,
+)
 TEMPERATURE_DEGREES_WORD = re.compile(
     r"(?:"
-    r"\b(?:temperature|temp|fever|febrile)\b[^.\n]{0,80}?\b" + DEGREES_VALUE
+    r"\b(?:temperature|temp|fever|febrile)\b\s*"
+    r"(?:(?:was|is|of|at|to|reached|measured|recorded|peaked)\s*(?:at|to)?\s*)?"
+    r"[:=]?\s*" + DEGREES_VALUE
     + r"|\bT\s*:\s*" + DEGREES_VALUE
     + r"|\b" + DEGREES_VALUE + r"\s*(?:F(?:ahrenheit)?|C(?:elsius)?)\b"
     r")",
@@ -1045,7 +1052,12 @@ def _temperature_unit_findings(sections: list[Section], every: list) -> list[Fin
             not any(first <= match.start() and match.end() <= last for first, last in quoted_ranges)
             for match in TEMPERATURE_DEGREES_WORD.finditer(text)
         )
-        if unquoted:
+        table_temperature = block.kind == "table" and any(
+            any(TEMPERATURE_TABLE_LABEL.fullmatch(cell) for cell in row)
+            and any(DEGREES_VALUE_PATTERN.search(cell) for cell in row)
+            for row in block.rows
+        )
+        if unquoted or table_temperature:
             found.append(
                 Finding(
                     TEMPERATURE_DEGREES_WORD_ROW,

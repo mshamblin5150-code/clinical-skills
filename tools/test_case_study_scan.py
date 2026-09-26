@@ -559,6 +559,25 @@ class TemperatureUsesTheDegreeSymbol(unittest.TestCase):
         )
         self.assertEqual(kinds(correct).count("temperature-degrees-word"), 0)
 
+    def test_a_resolved_fever_does_not_turn_a_later_joint_angle_into_temperature(self):
+        correct = CLEAN.replace(
+            "General: Alert, in no acute distress.",
+            "General: Fever resolved; knee flexion is 120 degrees.",
+        )
+        self.assertEqual(kinds(correct).count("temperature-degrees-word"), 0)
+
+    def test_a_degrees_word_value_beside_t_in_a_result_table_fires(self):
+        table = """\
+| Vital sign | Value |
+| --- | --- |
+| T | 102.2 degrees |
+"""
+        planted = CLEAN.replace(
+            "## Physical Examination",
+            table + "\n## Physical Examination",
+        )
+        self.assertEqual(kinds(planted).count("temperature-degrees-word"), 1)
+
 
 class StandardClinicalLabelsUseAbbreviations(unittest.TestCase):
     def test_a_spelled_out_heent_label_fires(self):
