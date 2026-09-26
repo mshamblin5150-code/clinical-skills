@@ -394,13 +394,17 @@ _Avoid_: final, output, deliverable
 The record of a graded contribution as it stands where it was posted after submission — a course Board, a clinical portal, or a Peer-review comment — carrying that surface's own locator, its timestamp, and a verdict on whether what the surface stores is what the artifact says. Read off the posted surface and never off the artifact, so a run that did not go back has none rather than acquiring one. It is also the hand-off an **After-action review** must follow, and its heading names the submission it belongs to. It also carries a fingerprint of the source its verdict describes, so an edit to that source after the reading voids the verdict rather than leaving it standing over a document nobody reread. For a clinical shift, one reading covers every visit entered under the shift's one go-ahead, each visit with its own portal locator and time, because the shift is what was approved. Distinct from a **Submission**, which is the document a course marks: a Reply has no submission. For a Peer critique, ADR 0204 makes the reviewed submission's page the locator because its dated observation exposed no deep link for the comment itself.
 _Avoid_: reread, confirmation, post-check, board diff
 
-**Clinician upload**:
-A **Submission** the clinician puts on the course surface himself, after he has looked at it and approved it. It is one of two routes to the same place — the other is the run uploading the approved files — and it reaches completion the same way, through a **Posted reading** that proves the posted file is the approved one. What it gives up is timing: a wrong file is found only after a submission the course surface cannot take back.
-_Avoid_: manual submission, self-upload, out-of-band upload
+**Clinician posting**:
+A graded contribution the clinician puts on its surface himself — a course assignment, a Board post, a Peer-review comment or a clinical portal entry — after he has looked at it and approved it. It is one of two routes to the same place — the other is the run posting the approved content — and it reaches completion the same way, through a **Posted reading** that proves what the surface stores is what he approved. What it gives up is timing: a wrong posting is found only after the surface has it, and a surface that cannot take it back keeps it.
+_Avoid_: clinician upload, manual submission, self-upload, out-of-band upload
 
 **Run status**:
-The one line that ends every reply about a graded run once its approval is recorded, naming where the run stands: awaiting upload, awaiting posted reading, awaiting after-action review, stopped with a reason, or complete. It is how a run says it is finished, so *complete* is a claim held to the run's terminal grade rather than a sentence, and *stopped* hands the run back to the clinician without pretending it is progressing.
+The one line per graded run that ends every reply touching that run once its **Approval record** exists, naming its run key and where it stands: awaiting posting, awaiting posted reading, awaiting after-action review, stopped with a reason, or complete. A run holding several approved contributions reports the one furthest behind. It is how a run says it is finished, so *complete* is a claim held to the run's terminal grade rather than a sentence, and *stopped* hands the run back to the clinician without pretending it is progressing.
 _Avoid_: progress line, done marker, completion claim
+
+**Approval record**:
+The durable record written at the clinician's go-ahead on a graded contribution's content, carrying a fingerprint of exactly what its **Posted reading** will later fingerprint, so what was posted can be shown to be what he approved. It opens the run's **Run status**, one per contribution posted, and a conversational go-ahead that wrote none opens nothing. For a clinical shift it fingerprints the finished notes that are entered, not the review document he reads.
+_Avoid_: go-ahead record, sign-off, gate record, approval
 
 **Evidence dump**:
 One handover of complete tertiary-source topic bodies, supplied wholesale for a module rather than found by searching. It is the unit of provenance and no longer the unit of entitlement: dumps accumulate into the **Evidence store**, so a later paper may cite a topic an earlier dump carried.
