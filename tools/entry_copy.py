@@ -26,6 +26,11 @@ PLAN_EXCEPTIONS = frozenset({"Sig", "Dispense", "Refills"})
 PLAN_ENDS = frozenset({"Coding worksheet"})
 ABBREVIATIONS = frozenset({"dr", "mr", "mrs", "ms", "st", "vs", "etc"})
 PORTAL_VERDICTS = {"∴": ";"}  # Measured in the saved Medatrax note form.
+CLINICIAN_INSTRUCTIONS = (
+    ("before entry", re.compile(r"\bbefore\s+(?:portal\s+)?entry\b", re.IGNORECASE)),
+    ("before submitting", re.compile(r"\bbefore\s+(?:submitting|submission)\b", re.IGNORECASE)),
+    ("before posting", re.compile(r"\bbefore\s+posting\b", re.IGNORECASE)),
+)
 
 
 def _plain(line: str) -> str:
@@ -118,6 +123,11 @@ def _portal_characters(copy: str) -> str:
     result = [parsed.buckets["preamble"]]
     for label in "SOAP":
         heading, body = parsed.buckets[label].split("\n", 1)
+        for vocabulary, pattern in CLINICIAN_INSTRUCTIONS:
+            if pattern.search(body):
+                raise ValueError(
+                    f"clinician-directed instruction '{vocabulary}' in section {label}"
+                )
         for char in body:
             if not char.isascii() and char not in PORTAL_VERDICTS:
                 raise ValueError(f"unmeasured portal character U+{ord(char):04X}")
