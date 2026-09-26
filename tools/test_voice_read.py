@@ -6,6 +6,7 @@ import hashlib
 import importlib
 import io
 import json
+import shutil
 import tempfile
 import unittest
 from pathlib import Path
@@ -147,8 +148,8 @@ class CompletionGate(unittest.TestCase):
         self.assertEqual(
             result.reports,
             (
-                f"{voice_read.EXPECTED_ROW}: clean",
-                f"{voice_read.PROFANITY_EXPECTED_ROW}: clean",
+                f"{voice_read.EXPECTED_ROW}: clean; pair candidates 2; unread remainder 0",
+                f"{voice_read.PROFANITY_EXPECTED_ROW}: clean; profanity rows 1; unread remainder 0",
             ),
         )
 
@@ -171,6 +172,18 @@ class CompletionGate(unittest.TestCase):
         result = self.grade()
         self.assertTrue(result.finding)
         self.assertIn("quote is not present", result.reports[0])
+
+    def test_a_quote_fragment_is_not_accepted_as_a_verbatim_sentence(self) -> None:
+        reader = self.payload(voice_read.READER_RECORD_NAME)
+        reader["answers"][1] = {  # type: ignore[index]
+            "pair_id": "1b",
+            "quote": "sentence remains.",
+            "resemblance": "his",
+        }
+        self.write_payload(voice_read.READER_RECORD_NAME, reader)
+        result = self.grade()
+        self.assertTrue(result.finding)
+        self.assertIn("not a verbatim sentence", result.reports[0])
 
     def test_a_model_digest_unequal_to_the_identity_record_is_a_finding(self) -> None:
         reader = self.payload(voice_read.READER_RECORD_NAME)
@@ -242,6 +255,107 @@ class CompletionGate(unittest.TestCase):
         self.assertTrue(result.finding)
         self.assertIn("model-owned term", result.reports[1])
 
+    def test_an_unread_discriminating_pair_candidate_is_incomplete_coverage(self) -> None:
+        malformed = MODEL.replace(
+            '- *His*: "Another sentence I would write."',
+            '- *Personal*: "Another sentence I would write."',
+        )
+        self.model.write_text(malformed, encoding="utf-8")
+        self.resolved = repo_root.VoiceModelResolution(
+            path=self.model, sha256=digest(malformed), exists=True
+        )
+        identity = json.loads(
+            (self.run / voice_model_identity.RECORD_NAME).read_text(encoding="utf-8")
+        )
+        identity["sha256"] = digest(malformed)
+        (self.run / voice_model_identity.RECORD_NAME).write_text(
+            json.dumps(identity) + "\n", encoding="utf-8"
+        )
+        result = self.grade()
+        self.assertTrue(result.coverage)
+        self.assertIn("pair candidates 2; unread remainder 1", result.reports[0])
+
+    def test_a_malformed_pair_heading_remains_in_the_unread_denominator(self) -> None:
+        malformed = MODEL.replace("**1b.** Another sentence.", "**1b** Another sentence.")
+        population = voice_read.read_pairs(malformed)
+        self.assertEqual(2, population.candidates)
+        self.assertEqual(1, population.unread)
+
+    def test_duplicate_pair_halves_are_unread_not_collapsed(self) -> None:
+        malformed = MODEL.replace(
+            '- *His*: "Another sentence I would write."',
+            '- *Generic*: "Another sentence I would write."',
+        )
+        population = voice_read.read_pairs(malformed)
+        self.assertEqual(2, population.candidates)
+        self.assertEqual(1, population.unread)
+
+    def test_pair_population_joins_every_discriminating_pair_section(self) -> None:
+        second = MODEL.replace("1a", "2a").replace("1b", "2b")
+        combined = MODEL + "\n" + second
+        population = voice_read.read_pairs(combined)
+        self.assertEqual(4, population.candidates)
+        self.assertEqual(4, len(population.items))
+        self.assertEqual(0, population.unread)
+
+    def test_clean_multiple_submissions_report_the_pair_denominator(self) -> None:
+        shutil.copytree(self.records, self.run / voice_read.RECORDS_DIRECTORY / "second")
+        surface = voice_read.DraftSurface(
+            sha256=digest(self.draft), text=self.draft, plantable_text=self.draft
+        )
+        with mock.patch.object(
+            repo_root, "canonical_voice_model", return_value=self.resolved
+        ):
+            result = voice_read.completion_gate(
+                self.run,
+                "submission,second",
+                {"submission": surface, "second": surface},
+            )
+        self.assertFalse(result.finding)
+        self.assertFalse(result.coverage)
+        self.assertIn("2 submissions; pair candidates 2; unread remainder 0", result.reports[0])
+
+    def test_an_unread_profanity_list_row_is_incomplete_coverage(self) -> None:
+        malformed = MODEL.replace(
+            "- `fuck` and every form and infix of it (`fucking`, `motherfucker`)",
+            "- every form and infix of the forbidden term",
+        )
+        self.model.write_text(malformed, encoding="utf-8")
+        self.resolved = repo_root.VoiceModelResolution(
+            path=self.model, sha256=digest(malformed), exists=True
+        )
+        identity = json.loads(
+            (self.run / voice_model_identity.RECORD_NAME).read_text(encoding="utf-8")
+        )
+        identity["sha256"] = digest(malformed)
+        (self.run / voice_model_identity.RECORD_NAME).write_text(
+            json.dumps(identity) + "\n", encoding="utf-8"
+        )
+        result = self.grade()
+        self.assertTrue(result.coverage)
+        self.assertIn("profanity rows 1; unread remainder 1", result.reports[1])
+
+    def test_sentence_boundaries_reject_abbreviation_fragments(self) -> None:
+        text = "Dr. Smith arrived. Another sentence follows."
+        self.assertTrue(voice_read._verbatim_sentence(text, "Dr. Smith arrived."))
+        self.assertFalse(voice_read._verbatim_sentence(text, "Smith arrived."))
+
+    def test_sentence_boundaries_accept_a_complete_quoted_sentence(self) -> None:
+        text = '“This works.” Another sentence follows.'
+        self.assertTrue(voice_read._verbatim_sentence(text, '“This works.”'))
+        self.assertTrue(
+            voice_read._verbatim_sentence(text, "Another sentence follows.")
+        )
+
+    def test_missing_model_sections_preserve_the_population_invariant(self) -> None:
+        pairs = voice_read.read_pairs("# No pair section\n")
+        profanity = voice_read.read_profanity_terms("# No profanity section\n")
+        self.assertEqual((0, 0, True), (pairs.candidates, pairs.unread, pairs.missing))
+        self.assertEqual(
+            (0, 0, True),
+            (profanity.candidates, profanity.unread, profanity.missing),
+        )
+
 
 class PublicCompletionCommand(unittest.TestCase):
     """Every #1400 refusal is observable through a real completion command."""
@@ -251,7 +365,8 @@ class PublicCompletionCommand(unittest.TestCase):
         self.addCleanup(self._temporary.cleanup)
         self.root = Path(self._temporary.name)
         self.run = test_peer_critique_scan.build_run(
-            root=self.root / "run", extra="\n\nA unique closing sentence."
+            root=self.root / "run",
+            extra="\n\nA unique closing sentence. A real generic control sentence.",
         )
         self.model = self.root / "voice-model.md"
         self.model.write_text(MODEL, encoding="utf-8")
@@ -402,7 +517,7 @@ class PublicCompletionCommand(unittest.TestCase):
         reader = self.payload(voice_read.READER_RECORD_NAME)
         reader["answers"][1] = {  # type: ignore[index]
             "pair_id": "1b",
-            "quote": "word word word",
+            "quote": "A real generic control sentence.",
             "resemblance": "generic",
         }
         self.write_payload(voice_read.READER_RECORD_NAME, reader)
@@ -448,9 +563,13 @@ class ScopedCompletionGraders(unittest.TestCase):
             text = path.read_text(encoding="utf-8")
             with self.subTest(path=path.name):
                 self.assertIn("voice_read.DECLARED_LIMITS", text)
-                for key, reason in voice_read.DECLARED_LIMITS:
-                    self.assertNotIn(key, text)
-                    self.assertNotIn(reason, text)
+                for row in voice_read.DECLARED_LIMITS:
+                    self.assertNotIn(row.key, text)
+                    self.assertNotIn(row.limit, text)
+
+    def test_every_declared_limit_carries_an_evidence_disposition(self) -> None:
+        for row in voice_read.DECLARED_LIMITS:
+            self.assertIsInstance(row.evidence, voice_read.run_grader.EvidenceDisposition)
 
 
 if __name__ == "__main__":

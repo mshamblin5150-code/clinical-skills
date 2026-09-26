@@ -68,7 +68,7 @@ writes its path, digest, and existence state into the run directory; their compl
 enable the shared identity row with `--submission`. Without a clean required write, the coursework
 draft is not identified against the canonical model.
 
-**The five coursework skills also depend on the planted voice read graded by `tools/voice_read.py`.**
+**The scoped coursework skills also depend on the planted voice read graded by `tools/voice_read.py`.**
 After the draft is final and before the go-ahead, a nonauthoring Planter writes one changed copy and
 a separate fresh Voice reader compares it with the canonical model. Their keyed run records bind the
 real draft, planted copy, model digest, complete pair population, and hidden plant. The same shared
