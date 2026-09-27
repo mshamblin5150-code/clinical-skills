@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import json
 import tempfile
 import unittest
 from hashlib import sha256
@@ -59,6 +60,31 @@ class BatchNotePopulation(unittest.TestCase):
 
 
 class StandaloneNotePopulation(unittest.TestCase):
+    def test_approval_record_points_to_the_only_finished_output_note(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            run = root / "scratch" / "runs" / "encounter-clinical-note"
+            run.mkdir(parents=True)
+            note = root / "output" / "notes" / "encounter.md"
+            note.parent.mkdir(parents=True)
+            note.write_text("the finished note", encoding="utf-8")
+            (run / "posting-approvals.json").write_text(
+                json.dumps(
+                    {
+                        "items": [
+                            {
+                                "skill": "clinical-note",
+                                "submission": "encounter",
+                                "sources": [str(note)],
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            self.assertEqual((note,), posting.note_paths(run, batch=False))
+
     def test_readme_and_reread_are_excluded_from_the_one_note_population(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             run = Path(temporary)

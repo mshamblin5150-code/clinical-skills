@@ -158,11 +158,11 @@ class TheCourseAssignmentWorkflow(unittest.TestCase):
                 self.assertIn("Run status:", surface)
                 self.assertIn("run directory", surface)
         for line in (
-            "Run status: awaiting upload",
-            "Run status: awaiting posted reading",
-            "Run status: awaiting AAR",
-            "Run status: stopped - <reason>",
-            "Run status: complete",
+            "Run status: <run-key> — awaiting posting",
+            "Run status: <run-key> — awaiting posted reading",
+            "Run status: <run-key> — awaiting AAR",
+            "Run status: <run-key> — stopped - <reason>",
+            "Run status: <run-key> — complete",
         ):
             self.assertIn(line, self.run_status)
 

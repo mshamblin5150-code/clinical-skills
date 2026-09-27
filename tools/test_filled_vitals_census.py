@@ -268,6 +268,10 @@ class CommandSurface(unittest.TestCase):
             fvc.aar_scan,
             "completion_gate",
             return_value=(False, "the after-action review: clean"),
+        ), patch.object(
+            fvc.approval_record,
+            "completion_gate",
+            return_value=(False, "the approval record: clean"),
         ):
             status, stdout, stderr = invoke_main(
                 [str(self.run), "--submission", "shift-2026-08-17"]

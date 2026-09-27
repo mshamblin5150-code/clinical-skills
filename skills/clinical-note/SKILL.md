@@ -1410,7 +1410,11 @@ A failing row is written as a **FLAG** in the tier block, never quietly repaired
 
 Close with `N given, N derived, N filled` and stop.
 
-**A standalone run is a one-encounter batch.** Before its one explicit go-ahead, open Patient Detail
+**A standalone run is a one-encounter batch.** Its private run directory is
+`scratch/runs/<encounter-key>-<date>-clinical-note/`. The finished note remains only in
+`output/notes/`; its approval record names that path and fingerprints those bytes without copying
+the finished patient record into the run directory.
+Before its one explicit go-ahead, open Patient Detail
 read-only for a matched returning patient and compare its displayed age and sex with the encounter
 opener. Put any age or sex disagreement, and any unresolved multiple-row match from step 5, in a
 `PRE-APPROVAL PATIENT QUESTIONS` block and obtain the clinician's ruling. Do not enter the portal
@@ -1418,6 +1422,14 @@ data-entry route or approve the note while that block has an unresolved item. Th
 clinician the complete note, the settled patient match or `NEW PATIENT`, the resolved preceptor,
 and the finalized E/M line. One explicit go-ahead authorizes this batch. Ask for the shift start and
 use the Time Log duration as the window, or ask for start and hours together when there is no row.
+At the go-ahead call `approval_record.approve(run, skill="clinical-note",
+submission=submission_key, sources=(output_note,),
+grader_args=(str(run), "--note", str(output_note)), content_approved=True)`. Show its
+`pregrade_report`; incomplete coverage
+does not block, while a finding refuses the record. From this record onward every reply touching
+the run ends with `Run status: <run-key> — <awaiting posting|awaiting posted reading|awaiting
+AAR|complete|stopped - reason>`. Several touched runs each get their own keyed line, and no patient
+name enters it.
 Once the finished note is final, run `python tools/entry_copy.py <finished note path>` and require
 exit 0. It accepts a finished note returned to an existing run after the Plan has been relabeled.
 It refuses any clinician-directed instruction declared by `entry_copy.CLINICIAN_INSTRUCTIONS`
@@ -1434,7 +1446,12 @@ Follow [the Medatrax entry procedure](../../reference/medatrax-fields.md#enterin
 
 After an interruption, sign back in, read what saved, and search the Patient Visit List for a record created during the interruption. Resume only when none exists. If a partial record exists, stop for the clinician; never delete it.
 
-Write `reread.md` before invoking `/AAR`:
+After the run enters the approved note, call `approval_record.record_agent_posting(run,
+skill="clinical-note", submission=submission_key)`. If the clinician says he entered the approved
+note himself, call `approval_record.record_clinician_posting(...)` instead. That clinician-posting
+route skips the per-save Medatrax reread and correction; a wrong entry is found only after the visit
+is saved and must be corrected rather than deleted. The saved-form posted reading remains required.
+Then write `reread.md` before invoking `/AAR`:
 
 ```text
 ## REREAD: <encounter-key>-<date>

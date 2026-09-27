@@ -183,6 +183,7 @@ import voice_model_identity
 import voice_read
 import imagery_proposals
 import project_context
+import approval_record
 import heading_read
 import research_ledger
 from discussion_artifact import PostedReading, read_posted_readings
@@ -1130,8 +1131,11 @@ def _grade(
         if submission is not None
         else None,
     )
-    return project_context.apply_completion_gate(
+    grade = project_context.apply_completion_gate(
         grade, source.path.parent, submission
+    )
+    return approval_record.apply_completion_gate(
+        grade, source.path.parent, "practicum-case-study", submission
     )
 
 

@@ -149,12 +149,15 @@ commands can walk the selected branch's rows and the documented research-record 
 [course-assignment](skills/course-assignment/SKILL.md), but cannot call the run mechanically
 verified.
 
-**Approved `course-assignment` runs depend on the shared status guard.**
+**Approved posting runs depend on the shared status guard.** `course-assignment` keeps its
+artifact-specific gate; `discussion-post`, `discussion-reply`, `peer-critique`,
+`practicum-case-study`, `clinical-note`, and `batch-shift` write per-item records through
+`tools/approval_record.py`. `icd10-cpt` opens no run of its own.
 `.claude/settings.json` registers `tools/run_status_stop_hook.py` for Claude Code, and
 `python tools/install_run_status_guard.py` installs the same Stop hook for Codex after the tracked
 files reach the owning checkout. The hook reads its open and close rules from one per-skill table,
-requires exactly one terminal `Run status:` line after recorded approval, and holds `complete` to
-the artifact-aware `--submission` grade. Its complete ceiling belongs to
+requires one keyed terminal `Run status:` line per touched approved run, and holds `complete` to
+every approved item's artifact-aware `--submission` grade. Its complete ceiling belongs to
 `run_status_stop_hook.DECLARED_LIMITS`.
 
 **The five coursework skills depend on `tools/project_context.py`.** `course-assignment`,

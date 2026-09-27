@@ -321,6 +321,13 @@ unchanged normalized content does not.
 patient marked with its matched Patient Reference or `NEW PATIENT`, the resolved preceptor, and
 every finalized E/M line. One explicit approval authorizes the entire listed shift and nothing
 outside it.
+At that approval call `approval_record.approve(run, skill="batch-shift",
+submission=shift_key, sources=medatrax_posting.note_paths(run, batch=True),
+grader_args=(str(run),), content_approved=True)`. Show its `pregrade_report`; incomplete coverage
+does not block, while a finding refuses the record. From this record onward every reply touching
+the run ends with `Run status: <run-key> — <awaiting posting|awaiting posted reading|awaiting
+AAR|complete|stopped - reason>`. Several touched runs each get their own keyed line, and no patient
+name enters it.
 
 Ask the shift start once. Read that date's hours from the Time Log and bind every visit start and end
 inside the window from start through start plus those hours. If the Time Log has no row, ask for the
@@ -340,6 +347,11 @@ After an interruption, sign back in, read what saved, and search the Patient Vis
 created during the interruption. Resume only when none exists. A partial record stops the shift for
 the clinician; never delete it.
 
+After the run enters the approved shift, call `approval_record.record_agent_posting(run,
+skill="batch-shift", submission=shift_key)`. If the clinician says he entered the approved shift
+himself, call `approval_record.record_clinician_posting(...)` instead. That clinician-posting route
+skips the per-save Medatrax reread and correction; a wrong entry is found only after the visit is
+saved and must be corrected rather than deleted. The posted reading remains required.
 After all visits and forms read back, write one `reread.md` record. `POST-URL` is the copied Patient
 Visit List address; `POSTED` is the last entered visit's displayed `Created`; `READ` is `N of N
 read`; and `SUBMISSION-SHA256` is the SHA-256 of the raw `note-N.md` bytes concatenated in ascending

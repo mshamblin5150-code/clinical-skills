@@ -63,6 +63,7 @@ import voice_model_identity
 import voice_read
 import imagery_proposals
 import project_context
+import approval_record
 import coursework_style
 import heading_read
 import research_ledger
@@ -1094,28 +1095,34 @@ def grade(source: RunSource, _parsed: run_grader.Parsed) -> run_grader.Grade[Sca
     selected_replies = tuple(
         reply
         for reply in source.replies
-        if not submissions or reply.path.stem in submissions
+        if not submissions or reply.path.name in submissions
     )
     grade = voice_read.apply_completion_gate(
         grade,
         source.path,
         submission if submissions else None,
         {
-            reply.path.stem: voice_read.draft_surface(((reply.path, reply.text),))
+            reply.path.name: voice_read.draft_surface(((reply.path, reply.text),))
             for reply in selected_replies
         },
     )
     grade = imagery_proposals.apply_completion_gate(
         grade,
         source.path,
-        {reply.path.stem: reply.text for reply in selected_replies}
+        {reply.path.name: reply.text for reply in selected_replies}
         if submissions
         else None,
         partial=True,
-        known_artifacts={reply.path.stem for reply in source.replies},
+        known_artifacts={reply.path.name for reply in source.replies},
     )
-    return project_context.apply_completion_gate(
+    grade = project_context.apply_completion_gate(
         grade, source.path, submission if submissions else None
+    )
+    return approval_record.apply_completion_gate(
+        grade,
+        source.path,
+        "discussion-reply",
+        submission if submissions else None,
     )
 
 

@@ -736,6 +736,11 @@ class PublicCompletionCommand(unittest.TestCase):
                 "apply_completion_gate",
                 side_effect=lambda grade, *_args, **_kwargs: grade,
             ),
+            mock.patch.object(
+                peer_critique_scan.approval_record,
+                "completion_gate",
+                return_value=(False, "the approval record: clean"),
+            ),
             redirect_stdout(stdout),
             redirect_stderr(stderr),
         ):

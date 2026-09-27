@@ -223,6 +223,7 @@ from pathlib import Path
 import run_grader
 import aar_scan
 import medatrax_posting
+import approval_record
 
 EXPECTED_COMPLETION_CHECKS = (aar_scan.EXPECTED_ROW,)
 import threshold_coverage
@@ -1523,11 +1524,19 @@ def _load(parsed: run_grader.Parsed) -> Source:
         raise run_grader.SourceError(
             f"no directory named {directory.name}", exit_2_limb=NO_DIRECTORY
         )
-    posting_paths = (
-        medatrax_posting.note_paths(directory, batch=False)
-        if parsed.value("--submission")
-        else ()
-    )
+    named_note = parsed.value("--note")
+    if named_note:
+        note_path = Path(named_note).resolve()
+        if not note_path.is_file():
+            raise run_grader.SourceError(
+                f"named note is not a readable file: {note_path.name}",
+                exit_2_limb=run_grader.UNREADABLE_RUN_ARTIFACT,
+            )
+        posting_paths = (note_path,)
+    elif parsed.value("--submission"):
+        posting_paths = medatrax_posting.note_paths(directory, batch=False)
+    else:
+        posting_paths = ()
     texts = tuple(
         path.read_text(encoding="utf-8", errors="replace")
         for path in posting_paths
@@ -1627,7 +1636,7 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
     )
     if posting_failed:
         diagnostics.append("\n" + posting_report)
-    return run_grader.Grade(
+    grade = run_grader.Grade(
         scan=scan,
         source=source.directory.name,
         findings_failed=has_findings or aar_failed or posting_failed,
@@ -1636,12 +1645,16 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
         diagnostics=tuple(diagnostics),
         reports=(aar_report, posting_report),
     )
+    return approval_record.apply_completion_gate(
+        grade, source.directory, "clinical-note", _parsed.value("--submission")
+    )
 
 
 GRADER = run_grader.Grader(
-    usage="usage: differential_scan.py <a run directory> [--show] [--submission <key>]",
+    usage="usage: differential_scan.py <a run directory> [--show] [--note <path>] [--submission <key>]",
     options=(
         run_grader.Option("--show"),
+        run_grader.Option("--note", takes_value=True, missing_value="--note needs a path", repeatable=False),
         run_grader.Option("--submission", takes_value=True, missing_value="--submission needs a key", repeatable=False),
     ),
     load=_load,
