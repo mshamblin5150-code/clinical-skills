@@ -633,6 +633,22 @@ class TheCommandExitsOnWhatItFound(unittest.TestCase):
             (directory / "README.md").write_text("prose about the run\n", encoding="utf-8")
             self.assertEqual(scan.main([str(directory)]), 2)
 
+    def test_an_empty_brief_exits_two_without_writing_a_brief(self):
+        with tempfile.TemporaryDirectory() as temp:
+            directory = Path(temp)
+            (directory / "note-01.md").write_text(
+                "S\nA patient-reported history with no coding worksheet entries.\n",
+                encoding="utf-8",
+            )
+            stdout, stderr = io.StringIO(), io.StringIO()
+            with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+                status = scan.main([str(directory), "--brief"])
+
+        self.assertEqual(2, status)
+        self.assertEqual("", stdout.getvalue())
+        self.assertIn(directory.name, stderr.getvalue())
+        self.assertIn("worksheets", stderr.getvalue())
+
 
 class TheIndependentReadBriefCarriesNoAnswer(unittest.TestCase):
     """The reader gets locators, never the worksheet's answer or its prose."""
