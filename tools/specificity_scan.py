@@ -726,6 +726,14 @@ def _grade(
     per_worksheet = [list(flags) for flags in source.per_worksheet]
     per_worksheet_entries = [list(entries) for entries in source.per_worksheet_entries]
     if parsed.enabled("--brief"):
+        if not for_entry_icd10(per_worksheet_entries):
+            return run_grader.EarlyExit(
+                status=2,
+                stderr=(
+                    f"no for-entry ICD-10-CM codes were read from {source.directory}; "
+                    "coding worksheets may be in a worksheets subdirectory",
+                ),
+            )
         return run_grader.EarlyExit(
             status=0,
             stdout=(brief(per_worksheet_entries, source=source.directory.name),),
