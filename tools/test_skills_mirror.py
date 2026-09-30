@@ -691,6 +691,50 @@ class CliTests(TempCheckout):
         self.assertEqual(code, 0)
         self.assertEqual(out, "")
 
+    def test_a_tracked_skill_missing_from_disk_is_named_and_fails(self):
+        self.make_git_checkout()
+        (self.root / "skills" / "clinical-note" / "SKILL.md").unlink()
+
+        code, out = self.run_main()
+
+        self.assertNotEqual(code, 0)
+        self.assertIn("clinical-note", out)
+        self.assertIn(sm.TRACKED_SKILL_MISSING, out)
+
+    def test_session_start_names_a_tracked_skill_missing_from_disk(self):
+        self.make_git_checkout()
+        (self.root / "skills" / "clinical-note" / "SKILL.md").unlink()
+
+        _, context = self.session_context(
+            datetime.datetime(2026, 9, 12, 19, 0, tzinfo=datetime.timezone.utc)
+        )
+
+        self.assertIn("clinical-note", context)
+        self.assertIn(sm.TRACKED_SKILL_MISSING, context)
+
+    def test_a_failed_index_read_is_not_a_clean_disk_only_result(self):
+        self.make_git_checkout()
+
+        with patch.object(
+            sm.git_paths,
+            "read_path_records",
+            side_effect=sm.git_paths.GitPathError("git ls-files: failed"),
+        ):
+            code, out = self.run_main("--quiet")
+
+        self.assertEqual(code, 2)
+        self.assertEqual(out, f"{sm.POPULATION_NOT_READ}\n")
+
+    def test_a_malformed_checkout_marker_is_not_a_disk_only_result(self):
+        self.make_git_checkout()
+        (self.root / ".git").rename(self.root / ".git-real")
+        (self.root / ".git").write_text("not a gitdir pointer\n", encoding="utf-8")
+
+        code, out = self.run_main("--quiet")
+
+        self.assertEqual(code, 2)
+        self.assertEqual(out, f"{sm.POPULATION_NOT_READ}\n")
+
     def test_empty_population_is_exit_two_and_loud_even_when_quiet(self):
         for arguments in ((), ("--quiet",)):
             with self.subTest(arguments=arguments):

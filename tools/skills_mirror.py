@@ -74,11 +74,12 @@ import shutil
 import stat
 import subprocess
 import sys
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Iterable, NamedTuple
 
+import git_paths
 from console_codec import require_python_floor, use_utf8
-from repo_root import checkout_git_dir
+from repo_root import checkout_git_dir, enclosing_checkout
 
 MIRROR = Path(".claude") / "skills"
 CANONICAL = Path("skills")
@@ -96,6 +97,7 @@ IDENTICAL = "copy-identical"
 STALE = "copy-stale"
 FOREIGN = "linked-elsewhere"
 NOT_A_DIR = "not-a-directory"
+TRACKED_SKILL_MISSING = "tracked-skill-missing"
 
 # Everything except LINKED is a finding. MISSING is the mildest -- the skill simply
 # does not load -- and STALE is the one that answers questions wrongly.
@@ -108,8 +110,12 @@ LINE_ENDINGS = "line endings only"
 REPORTS = Path(".claude") / "skills-mirror-reports"
 ORPHANS = Path(".claude") / "skills-orphaned"
 NO_SKILLS = "no skills found under skills/"
+POPULATION_NOT_READ = (
+    "skills mirror: DID NOT INSPECT -- tracked skill population read failed"
+)
 UNSUPPRESSED_LINES = (
     "empty-population",
+    "population-not-read",
     "broken-mirror",
     "repair-failure",
     "session-start-artifact",
@@ -456,18 +462,53 @@ def base_context(root: Path) -> str:
         return context
 
 
-def skill_names(root: Path) -> list[str]:
+def tracked_skill_names(root: Path) -> set[str]:
+    """Skill directories whose ``SKILL.md`` is present in the index.
+
+    A non-checkout keeps the disk-only behavior used by isolated consumers and
+    tests. In a checkout, the index is the independent population that lets a
+    missing working-tree file remain visible to the report. A clean result means
+    no tracked ``SKILL.md`` is missing; an untracked skill is outside that claim.
+    """
+    if enclosing_checkout(root) is None:
+        return set()
+    paths = git_paths.read_path_records(
+        root,
+        "ls-files",
+        "--cached",
+        "-z",
+        "--",
+        "skills/*/SKILL.md",
+    )
+    return {
+        parts[1]
+        for path in paths
+        if len(parts := PurePosixPath(path).parts) == 3
+        and parts[0] == "skills"
+        and parts[2] == SKILL_FILE
+    }
+
+
+def disk_skill_names(root: Path) -> set[str]:
     canonical = root / CANONICAL
-    if not canonical.is_dir():
-        return []
-    return sorted(
+    return {
         p.name for p in canonical.iterdir()
         if p.is_dir()
         and (
             (p / SKILL_FILE).is_file()
             or p.name in SHARED_INSTRUCTION_DIRECTORIES
         )
-    )
+    } if canonical.is_dir() else set()
+
+
+def skill_population(root: Path) -> tuple[list[str], set[str]]:
+    tracked = tracked_skill_names(root)
+    return sorted(disk_skill_names(root) | tracked), tracked
+
+
+def skill_names(root: Path) -> list[str]:
+    names, _ = skill_population(root)
+    return names
 
 
 def _differing_files(
@@ -542,9 +583,14 @@ class Entry:
 
 def inspect(root: Path) -> list[Entry]:
     entries = []
-    for name in skill_names(root):
+    names, tracked = skill_population(root)
+    for name in names:
         canonical = (root / CANONICAL / name).resolve()
         mirror = root / MIRROR / name
+
+        if name in tracked and not (canonical / SKILL_FILE).is_file():
+            entries.append(Entry(name, TRACKED_SKILL_MISSING))
+            continue
 
         if not mirror.exists():
             entries.append(Entry(name, MISSING))
@@ -627,6 +673,11 @@ def repair(
 
     for entry in entries:
         if entry.ok:
+            continue
+        if entry.status == TRACKED_SKILL_MISSING:
+            failures.append(
+                f"{entry.name}: tracked {SKILL_FILE} is missing from disk"
+            )
             continue
         canonical = (root / CANONICAL / entry.name).resolve()
         mirror_entry = root / MIRROR / entry.name
@@ -776,9 +827,22 @@ def main(argv=None) -> int:
 
     root = args.root.resolve() if args.root else repo_root()
 
+    try:
+        entries = inspect(root)
+    except git_paths.GitPathError:
+        if args.session_start:
+            stamp = _utc_stamp()
+            record_report(root, [POPULATION_NOT_READ], stamp=stamp)
+            context = f"{POPULATION_NOT_READ}\n\n{base_context(root)}"
+            if _quiet_keeps("session-start-artifact"):
+                print(json.dumps(hook_response(context)))
+            return 0
+        if _quiet_keeps("population-not-read"):
+            print(POPULATION_NOT_READ, file=sys.stderr)
+        return 2
+
     if args.session_start:
         stamp = _utc_stamp()
-        entries = inspect(root)
         report = render(entries, root, verbose=True)
         record_report(root, report, stamp=stamp)
         broken = [entry for entry in entries if not entry.ok]
@@ -804,7 +868,6 @@ def main(argv=None) -> int:
         # hook back into silence.
         return 0
 
-    entries = inspect(root)
     if not entries:
         if _quiet_keeps("empty-population"):
             print(NO_SKILLS)
@@ -812,7 +875,12 @@ def main(argv=None) -> int:
 
     if args.repair:
         repaired, drained, failures = repair(root, entries)
-        entries = inspect(root)
+        try:
+            entries = inspect(root)
+        except git_paths.GitPathError:
+            if _quiet_keeps("population-not-read"):
+                print(POPULATION_NOT_READ, file=sys.stderr)
+            return 2
         broken = [entry for entry in entries if not entry.ok]
         if (broken and _quiet_keeps("broken-mirror")) or not args.quiet:
             for line in render(entries, root, args.verbose):
