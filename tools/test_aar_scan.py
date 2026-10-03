@@ -99,12 +99,20 @@ UnreadRemainderConformance = grader_conformance.unread_remainder_conformance(aar
 
 class DeclaredLimitsAreBound(unittest.TestCase):
     def test_transcript_derived_committed_types_have_no_unread_remainder(self):
-        path = Path(__file__).resolve().parents[1] / "fixtures" / "aar-row-types" / "claude.jsonl"
-        rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
-        self.assertTrue(rows)
-        self.assertTrue(all(set(row) == {"type"} for row in rows))
-        diagnostics = aar_scan.extract_diagnostics((path,), ())
-        self.assertEqual(diagnostics.unread_remainder, 0)
+        root = Path(__file__).resolve().parents[1] / "fixtures" / "aar-row-types"
+        for name in ("claude.jsonl", "codex.jsonl"):
+            with self.subTest(name=name):
+                path = root / name
+                rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+                self.assertTrue(rows)
+                for row in rows:
+                    if row["type"] == "response_item":
+                        self.assertEqual(set(row), {"type", "payload"})
+                        self.assertEqual(set(row["payload"]), {"type"})
+                    else:
+                        self.assertEqual(set(row), {"type"})
+                diagnostics = aar_scan.extract_diagnostics((path,), ())
+                self.assertEqual(diagnostics.unread_remainder, 0)
 
     def test_the_test_suite_names_the_declared_limits_object(self):
         self.assertTrue(aar_scan.DECLARED_LIMITS)

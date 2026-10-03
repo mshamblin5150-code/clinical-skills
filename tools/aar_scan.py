@@ -215,6 +215,10 @@ NAMED_UNREAD_TYPES: Mapping[str, str] = MappingProxyType(
         "token_usage_record": "Harness usage state.",
         "world_state": "Session and harness state.",
         "session_meta": "Session metadata.",
+        "web_search_call": "Native web-search operation metadata; ordinary result bodies are outside the review.",
+        "tool_search_call": "Harness tool-discovery operation metadata.",
+        "tool_search_output": "Harness tool definitions; ordinary tool-result bodies are outside the review.",
+        "image_generation_call": "Native image-generation metadata; image content is outside the text review.",
         "reasoning": "Reasoning is outside the population (ADR 0285 ruling 3).",
         "thinking": "Reasoning is outside the population (ADR 0285 ruling 3).",
     }
