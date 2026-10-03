@@ -385,7 +385,7 @@ class Run:
                 final_confirmation=True,
             )
         scan.voice_model_identity.write_record(self.root)
-        canonical_root = self.root.parent / "canonical-output"
+        canonical_root = self.root / "canonical-output"
         canonical = canonical_root / "course-assignments" / self.deck.name
         canonical.parent.mkdir(parents=True, exist_ok=True)
         canonical.write_bytes(self.deck.read_bytes())

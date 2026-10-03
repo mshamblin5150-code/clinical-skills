@@ -230,3 +230,14 @@ These bind every skill in this repo.
    **Authors do not check or tune their own generated artifacts.** A writing pass returns its output without running a scanner over it. After every writer has finished, the orchestrating context gathers the results and a non-authoring context runs the per-file and whole-set checks over that completed state. If a check fails, the orchestrator records the original finding before asking the author to correct it; a fresh non-authoring context checks the correction again. An author's self-report is never substituted for either read.
 
    **A run-unique path is temporary, not a growing archive.** Never reuse it. After the final artifacts have been written and the independent checks have completed, the orchestrator removes every private path. An aborted run cleans its private paths before it exits. If cleanup fails, the exact remaining path is reported; silence means no temporary artifact was left behind. This rule binds paths under `scratch/` and `output/` and paths outside every checkout alike. Fixture generation applies the concrete sequence in [fixtures/README.md](fixtures/README.md). Issue #206.
+
+7. **After a compaction, re-observe command results before stating them.** This binds every
+   command result stated to the clinician, in any skill and in maintainer work. State a result
+   only from an observation made after the latest compaction: rerun a read-only command, or
+   read back what a command that changed something left behind, such as the posted page, record
+   file, or tracker comment. Where neither is possible, say plainly that the result predates a
+   compaction and has not been re-checked. That label is the last resort, never the default.
+   A summary holds no command result that may be stated, even when it retains an exit status.
+   A rerun whose exit status is hidden behind a pipe or a `;` chain is not an observation.
+   [ADR 0281](docs/adr/0281-a-command-result-stated-after-a-compaction-is-re-observed-or-labeled-and-a-compaction-hook-says-so.md)
+   records the ruling.

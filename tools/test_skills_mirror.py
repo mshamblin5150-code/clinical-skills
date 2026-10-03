@@ -1187,7 +1187,11 @@ class SessionStartRegistration(unittest.TestCase):
         settings = json.loads(
             (root / ".claude" / "settings.json").read_text(encoding="utf-8")
         )
-        registered = settings["hooks"]["SessionStart"]
+        command = 'python "$CLAUDE_PROJECT_DIR/tools/skills_mirror.py" --session-start'
+        registered = [
+            row for row in settings["hooks"]["SessionStart"]
+            if any(hook.get("command") == command for hook in row["hooks"])
+        ]
 
         self.assertEqual(len(registered), 1)
         self.assertEqual(len(registered[0]["hooks"]), 1)
