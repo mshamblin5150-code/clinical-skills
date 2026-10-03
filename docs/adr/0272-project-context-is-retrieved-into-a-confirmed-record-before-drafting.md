@@ -1,6 +1,12 @@
 # Project context is retrieved into a confirmed record before drafting
 
-**Measured at:** 9c70aa19551c6c0303d37a2a2530e8e18a03da9b
+**Measured at:** b73661b6b7f75e26ed95095c965c1ac322d6217b
+
+*Re-declared from `9c70aa1` on 2026-10-03, for ADR 0290's supersession marker beneath ruling 8 alone;
+nothing was re-measured. Since `9c70aa1` the five bound skills' `SKILL.md` files,
+`skills/_shared/reference/sourcing.md` and `tools/aar_scan.py` changed, chiefly through this
+record's own build. The measured sentences "No bound skill reads project context before drafting"
+and the quoted heading-read exemption no longer describe `main`.*
 
 [#1395](https://github.com/mshamblin5150-code/clinical-skills/issues/1395) was filed from the
 after-action review of a course-assignment run, 2026-09-22: a talk narrowed the founder's motivation
@@ -150,6 +156,13 @@ File modification times were refused as an instrument a copy or a touch rewrites
 from the session transcript at the after-action review is real evidence and is **filed separately**:
 it lands after submission and makes that review a second grader of each skill, which is a decision
 of its own.
+
+*Superseded 2026-10-03.* **The holding that the ordering "is a declared limit, not a graded claim" is
+superseded by [ADR 0290](0290-the-pre-draft-gates-observe-that-the-draft-does-not-yet-exist-and-a-late-gate-is-a-finding-the-clinician-clears.md)
+ruling 1 and is left as written.** Each pre-draft gate now records whether the draft already exists
+at its mapped location, and a late gate is a finding the clinician clears. The gate this ruling
+places before the first prose stands; transcript grading stays declined, and the limit that remains
+is narrowed by ADR 0290 ruling 7.
 
 ## Ruling 9 — each completion grader declares the same row, and drift is a coverage state
 
