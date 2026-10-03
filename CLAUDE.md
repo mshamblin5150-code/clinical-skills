@@ -2202,6 +2202,13 @@ reader then opens the rendered destination in the corresponding authenticated
 VitalSource book. The normalized licensed CSV is a rebuild input, not a second
 committed copy of the code set.
 
+The build refuses the stacked, `;;`, and colon-terminated descriptor shapes in any
+CPT import and writes `meta.cpt_descriptors = verified` only from a two-reader
+agreement record whose digest matches ([ADR 0269](docs/adr/0269-the-cpt-descriptor-set-is-rebuilt-by-two-readers-and-a-verified-flag-gates-it.md)).
+`reference/procedure-codes-2026.md` owns the record contract; the boundary of a
+clean or verified build is `procedure_codes_build.DECLARED_LIMITS`, and this
+section copies none of its rows.
+
 ### CPT E/M MDM sheet
 
 `tools/cpt_mdm_sheet.py` compares two independent rendered-book transcripts,
