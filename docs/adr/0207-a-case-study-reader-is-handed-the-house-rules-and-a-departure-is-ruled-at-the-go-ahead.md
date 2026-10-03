@@ -134,3 +134,6 @@ it. **Every change was refused as the scope** because it would ask for confirmat
 - **Whether a leftover is mechanically detectable.** That is #1019's.
 - **Whether other skills' Second readers need the same settled context.** Their readers were not
   measured here, and the ruling is scoped to `practicum-case-study` step 9.
+  *Settled 2026-10-03 by
+  [ADR 0282](0282-other-skills-second-readers-keep-their-context-and-the-review-sees-the-case-study-s-go-ahead.md):
+  the readers were measured, and this ruling stays scoped to step 9.*
