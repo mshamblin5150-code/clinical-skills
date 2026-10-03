@@ -29,7 +29,8 @@ class HookCommand(unittest.TestCase):
                           ensure_ascii=False).encode("utf-8")
 
     def test_compact_delivers_context_even_in_a_subagent_session(self) -> None:
-        result = self.run_hook(self.payload("compact", agent_id="reader", cwd="≥"))
+        # UTF-8 includes 0x9D, undefined in cp1252: locale decoding would fail.
+        result = self.run_hook(self.payload("compact", agent_id="reader", cwd="ĝ"))
         self.assertEqual(0, result.returncode, result.stderr)
         output = json.loads(result.stdout)
         context = output["hookSpecificOutput"]
