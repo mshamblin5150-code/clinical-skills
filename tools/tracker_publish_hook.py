@@ -67,7 +67,7 @@ import command_reader
 import shell_reader
 from command_reader import (
     COMMAND_TOOLS, MODELED_SHELL, PUBLISH_ROUTES, Publication, Extraction,
-    Unreadable, extract,
+    UnclassifiedApiCall, Unreadable, extract,
 )
 from tracker_publish_marker import record_run
 from console_codec import require_python_floor, use_utf8
