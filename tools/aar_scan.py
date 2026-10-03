@@ -97,7 +97,7 @@ CORRECTORS = frozenset({"clinician", "agent-or-tool", "orchestrator"})
 PRIVATE_TEXT_SUFFIXES = frozenset({".md", ".txt", ".json"})
 SUBAGENT_TOOLS = frozenset({"Agent", "Task", "Monitor", "TaskStop"})
 EXTRACTOR_WRITTEN_ENTRY_KINDS = frozenset(
-    {"tool-call", "subagent-launch", "inter-agent-metadata"}
+    {"tool-call", "subagent-launch", "inter-agent-metadata", "departure-list"}
 )
 
 ENTRY_KIND_DESCRIPTIONS: Mapping[str, str] = MappingProxyType(
@@ -121,6 +121,7 @@ ENTRY_KIND_DESCRIPTIONS: Mapping[str, str] = MappingProxyType(
         "codex-delegation": "Codex delegation envelope",
         "environment-context": "environment-context envelope",
         "prior-review": "a prior classifier return identified by its review record",
+        "departure-list": "recorded departures and their go-ahead from a dated proposal file",
     }
 )
 ENTRY_KINDS = tuple(ENTRY_KIND_DESCRIPTIONS)
@@ -260,6 +261,10 @@ DECLARED_LIMITS = (
     (
         "correction kind misplacement",
         "A correction misplaced onto a tool-status or skill-prompt entry is shown in the kind table and is not refused.",
+    ),
+    (
+        "departure list shape",
+        "Only direct proposed-YYYY-MM-DD.md files and their first literal ## Departures section through the next level-1/2 heading are read; differently named or headed material is outside this population.",
     ),
     (
         "browser tab ownership",
@@ -1207,6 +1212,33 @@ def extract_diagnostics(
     )
 
 
+def _departure_population(run: Path) -> list[Candidate]:
+    """Carry the only scoped departure-list surface, including its ruling. #1217."""
+    population: list[Candidate] = []
+    for source in sorted(run.glob("proposed-*.md")):
+        if not source.is_file() or not re.fullmatch(
+            r"proposed-\d{4}-\d{2}-\d{2}\.md", source.name
+        ):
+            continue
+        text = source.read_bytes().decode("utf-8")
+        section = re.search(
+            r"(?m)^## Departures[ \t]*\r?$(?:\n|\Z)", text
+        )
+        if section is None:
+            continue
+        following = re.search(r"(?m)^#{1,2} ", text[section.end():])
+        end = section.end() + following.start() if following else len(text)
+        population.append(
+            Candidate(
+                f"departure:{source.name}",
+                f"departure:{source.name}",
+                "departure-list",
+                text[section.start():end],
+            )
+        )
+    return population
+
+
 def write_extract(
     run: Path,
     transcript: Path | None,
@@ -1218,13 +1250,15 @@ def write_extract(
     population, transcripts, discovery = _collect_population(run, transcript)
     if not population:
         raise ValueError("candidate population is empty")
+    population = _departure_population(run) + population
     round_number = _next_review_round(run, submission)
     destination = extract_path(run, submission, round_number)
     destination.parent.mkdir(parents=True, exist_ok=True)
     diagnostics = extract_diagnostics(transcripts, population)
     transcript_watermarks: dict[str, str] = {}
     for candidate in population:
-        transcript_watermarks[candidate.transcript_id] = candidate.identifier
+        if candidate.kind != "departure-list":
+            transcript_watermarks[candidate.transcript_id] = candidate.identifier
     lines = [
         "# PRIVATE AAR EXTRACT",
         "FORMAT: 2",
@@ -1269,7 +1303,8 @@ def write_extract(
         lines.extend(_extract_entry_lines(row))
     extract_text = "\n".join(lines)
     _extract_document_text(extract_text)
-    destination.write_text(extract_text, encoding="utf-8")
+    with destination.open("w", encoding="utf-8", newline="") as stream:
+        stream.write(extract_text)
     baseline_path(run, submission, round_number).write_text(
         json.dumps(snapshot(memory_index), sort_keys=True) + "\n",
         encoding="utf-8",
@@ -1308,13 +1343,15 @@ def _rebuild_population(
         raise ValueError("refused extract has no transcript paths")
     recorded_entry_counts: dict[str, int] = {}
     for entry in refused_entries:
+        if entry.kind == "departure-list":
+            continue
         recorded_entry_counts[entry.transcript_id] = (
             recorded_entry_counts.get(entry.transcript_id, 0) + 1
         )
     if set(recorded_entry_counts) != {path.stem for path in transcript_paths}:
         raise ValueError("refused extract transcript paths do not match its entries")
     cursors = _review_cursors_before_round(run, submission, round_number)
-    rebuilt: list[Candidate] = []
+    rebuilt = _departure_population(run)
     for transcript_path in transcript_paths:
         rows = reduce_transcript(transcript_path)
         selected = _furthest_cursor(rows, cursors.get(transcript_path.stem, ()))
@@ -1345,7 +1382,11 @@ def _render_rebuilt_extract(header: str, population: Iterable[Candidate]) -> str
 
 
 def _extract_entry_lines(candidate: Candidate) -> list[str]:
-    text_lines = candidate.text.splitlines() or [""]
+    text_lines = (
+        candidate.text.split("\n")
+        if candidate.kind == "departure-list"
+        else candidate.text.splitlines() or [""]
+    )
     return [
         f"## ENTRY: {candidate.identifier}",
         f"TRANSCRIPT: {candidate.transcript_id}",
@@ -1358,6 +1399,8 @@ def _extract_entry_lines(candidate: Candidate) -> list[str]:
 
 
 def _rendered_candidate_text(candidate: Candidate) -> str:
+    if candidate.kind == "departure-list":
+        return candidate.text.replace("\r\n", "\n")
     return "\n".join(candidate.text.splitlines() or [""])
 
 
@@ -1404,7 +1447,8 @@ def rebuild_extract(
         archived = refused_root / f"{destination.stem}.{suffix}{destination.suffix}"
         suffix += 1
     destination.replace(archived)
-    destination.write_text(rebuilt_text, encoding="utf-8")
+    with destination.open("w", encoding="utf-8", newline="") as stream:
+        stream.write(rebuilt_text)
     return destination, len(population), archived
 
 

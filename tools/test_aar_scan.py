@@ -276,6 +276,7 @@ class CommandModes(unittest.TestCase):
             "    run-key discovery\n"
             "    subagent launch-result drift\n"
             "    correction kind misplacement\n"
+            "    departure list shape\n"
             "    browser tab ownership\n",
         )
 
@@ -748,7 +749,7 @@ class EntryKindsAreBound(unittest.TestCase):
     def test_the_extractor_written_kind_backstop_is_one_exact_set(self) -> None:
         self.assertEqual(
             aar_scan.EXTRACTOR_WRITTEN_ENTRY_KINDS,
-            {"tool-call", "subagent-launch", "inter-agent-metadata"},
+            {"tool-call", "subagent-launch", "inter-agent-metadata", "departure-list"},
         )
 
     def test_every_candidate_kind_is_literal_or_passes_the_declared_kind_guard(self) -> None:
@@ -1034,6 +1035,164 @@ class SubmissionRecord(unittest.TestCase):
     def extract(self) -> tuple[dict[str, str], set[str]]:
         aar_scan.write_extract(self.run, self.transcript, self.submission, self.memory)
         return aar_scan._extract_metadata(aar_scan.extract_path(self.run, self.submission))
+
+    def extract_cli(self, *extra: str) -> Path:
+        status, stdout, stderr = invoke_main(
+            [str(self.run), "--submission", self.submission,
+             "--transcript", str(self.transcript),
+             "--memory-index", str(self.memory), "--extract", *extra]
+        )
+        self.assertEqual((status, stderr), (0, ""), stdout)
+        return aar_scan.extract_path(self.run, self.submission)
+
+    def test_departure_and_go_ahead_are_copied_byte_for_byte(self) -> None:
+        section = (
+            "## Departures\r\n\r\n"
+            "### DEPARTURE: observation\r\n"
+            "INSTRUCTED: a few days\r\n"
+            "DRAFT: 48 hours  \r\n"
+            "WHY: reassess before discharge\r\n\r\n"
+            "### DEPARTURE: follow-up\n"
+            "INSTRUCTED: next week\nDRAFT: Monday\nWHY: office schedule\n\n"
+            "GO-AHEAD: 2026-10-03\r\n\r\n"
+        )
+        (self.run / "proposed-2026-10-03.md").write_bytes(
+            ("# Proposals\nPrivate preamble\n\n" + section +
+             "## Other decisions\nUnrelated text\n").encode("utf-8")
+        )
+
+        destination = self.extract_cli()
+
+        self.assertIn(section.encode("utf-8"), destination.read_bytes())
+        fields, entries = aar_scan._extract_entries_text(destination.read_text(encoding="utf-8"))
+        departures = [entry for entry in entries if entry.kind == "departure-list"]
+        self.assertEqual(len(departures), 1)
+        self.assertNotIn("Unrelated text", departures[0].text)
+        self.assertNotIn("Private preamble", departures[0].text)
+        self.assertIn("departure-list = ", fields["ENTRY-KINDS"])
+
+    def test_rebuild_round_reproduces_departure_bytes(self) -> None:
+        section = (
+            "## Departures\r\n### DEPARTURE: follow-up\r\n"
+            "INSTRUCTED: next week\r\nDRAFT: Monday\r\n"
+            "WHY: office schedule\r\nGO-AHEAD: 2026-10-03\r\n"
+        )
+        (self.run / "proposed-2026-10-03.md").write_bytes(section.encode("utf-8"))
+        destination = self.extract_cli()
+        self.write_clean(extract=False)
+        original = destination.read_bytes()
+
+        self.extract_cli("--rebuild-round", "1")
+
+        self.assertEqual(destination.read_bytes(), original)
+        self.assertEqual(
+            (self.run / "aar" / "refused" / destination.name).read_bytes(), original
+        )
+
+    def test_departure_without_go_ahead_stays_unapproved(self) -> None:
+        section = (
+            "## Departures\n\n### DEPARTURE: follow-up\n"
+            "INSTRUCTED: next week\nDRAFT: Monday\nWHY: office schedule"
+        )
+        (self.run / "proposed-2026-10-03.md").write_bytes(section.encode("utf-8"))
+
+        destination = self.extract_cli()
+
+        self.assertIn(section.encode("utf-8"), destination.read_bytes())
+        _fields, entries = aar_scan._extract_entries_text(destination.read_text(encoding="utf-8"))
+        departures = [entry for entry in entries if entry.kind == "departure-list"]
+        self.assertEqual([entry.text for entry in departures], [section])
+        self.assertNotIn("GO-AHEAD:", departures[0].text)
+
+    def test_missing_departure_section_writes_no_entry(self) -> None:
+        for source_name, source_text in (
+            (None, ""),
+            ("proposed-2026-10-03.md", "# Proposals\nGO-AHEAD: 2026-10-03\n"),
+            ("proposed-not-dated.md", "## Departures\n"),
+            ("proposed-2026-10-03.md", "## Departures:\n### DEPARTURE: follow-up\n"),
+        ):
+            with self.subTest(source=source_name), tempfile.TemporaryDirectory() as directory:
+                run = Path(directory)
+                (run / "reread.md").write_bytes((self.run / "reread.md").read_bytes())
+                if source_name:
+                    (run / source_name).write_text(
+                        source_text,
+                        encoding="utf-8",
+                    )
+                nested = run / "nested"
+                nested.mkdir()
+                (nested / "proposed-2026-10-03.md").write_text(
+                    "## Departures\n", encoding="utf-8"
+                )
+                status, stdout, stderr = invoke_main(
+                    [str(run), "--submission", self.submission,
+                     "--transcript", str(self.transcript),
+                     "--memory-index", str(self.memory), "--extract"]
+                )
+                self.assertEqual((status, stderr), (0, ""), stdout)
+                _fields, entries = aar_scan._extract_entries_text(
+                    aar_scan.extract_path(run, self.submission).read_text(encoding="utf-8")
+                )
+                self.assertFalse(any(entry.kind == "departure-list" for entry in entries))
+
+    def test_two_dated_lists_are_carried_in_every_round(self) -> None:
+        for date in ("2026-10-02", "2026-10-03"):
+            (self.run / f"proposed-{date}.md").write_text(
+                f"## Departures\n### DEPARTURE: {date}\nGO-AHEAD: {date}\n",
+                encoding="utf-8",
+            )
+        first = self.extract_cli()
+        self.write_clean(extract=False)
+        with self.transcript.open("a", encoding="utf-8") as stream:
+            stream.write(json.dumps(row("user", "later", {"content": "Next sitting."})) + "\n")
+
+        self.extract_cli()
+
+        for round_number in (1, 2):
+            destination = aar_scan.extract_path(self.run, self.submission, round_number)
+            fields, entries = aar_scan._extract_entries_text(destination.read_text(encoding="utf-8"))
+            departures = [entry for entry in entries if entry.kind == "departure-list"]
+            self.assertEqual(
+                [entry.identifier for entry in departures],
+                ["departure:proposed-2026-10-02.md", "departure:proposed-2026-10-03.md"],
+            )
+            self.assertEqual(fields["TRANSCRIPTS"], "session-1")
+            self.assertNotIn("departure:", fields["TRANSCRIPT-WATERMARKS"])
+        self.assertTrue(first.is_file())
+
+    def test_departure_sustain_is_accepted_but_correction_is_a_finding(self) -> None:
+        (self.run / "proposed-2026-10-03.md").write_text(
+            "## Departures\n### DEPARTURE: follow-up\nGO-AHEAD: 2026-10-03\n",
+            encoding="utf-8",
+        )
+        destination = self.extract_cli()
+        fields, entries = aar_scan._extract_entries_text(destination.read_text(encoding="utf-8"))
+        event = next(entry.identifier for entry in entries if entry.kind == "departure-list")
+        self.write_clean(extract=False)
+        review = aar_scan.review_path(self.run, self.submission)
+        review.write_text(
+            review.read_text(encoding="utf-8").replace("SUSTAINS: none\n", "") +
+            f"\n## SUSTAIN: {event}\nSUMMARY: The clinician ruled on the departure.\n",
+            encoding="utf-8",
+        )
+
+        status, stdout, stderr = invoke_main([str(self.run), "--submission", self.submission])
+
+        self.assertEqual((status, stderr), (0, ""), stdout)
+        self.assertIn("sustain records                 1", stdout)
+        self.memory.write_text("# Index\n- correction landed\n", encoding="utf-8")
+        self.write_correction_record(
+            self.run, self.submission, fields, self.memory,
+            (CorrectionRecord(event=event, disposition=CorrectionDisposition.MEMORY_WRITE,
+                              target=self.memory, landing="the correction was added to memory"),),
+        )
+
+        status, stdout, stderr = invoke_main(
+            [str(self.run), "--submission", self.submission, "--show"]
+        )
+
+        self.assertEqual((status, stderr), (1, ""), stdout)
+        self.assertIn("correction-on-extractor-written-entry", stdout)
 
     def test_repeated_task_notification_rows_form_one_readable_extract(self) -> None:
         notification = (

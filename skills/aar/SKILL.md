@@ -42,6 +42,8 @@ index, and returns:
 
 Name every correction and sustain by one entry, using the identifier exactly as it follows `## ENTRY:`, including any `#` suffix. A correction names the entry holding the contradiction; a sustain names the entry where the right thing was settled. An extract line number or a shortened prefix is never an identifier.
 
+A departure listed under a `GO-AHEAD:` line is the clinician's ruling on it, never an unruled departure.
+
 A preference stated for the first time is not a correction. A correction whose corrector was wrong is supported; identify who was actually in error. The classifier reads the memory index so it can distinguish missing knowledge from knowledge that already existed and went unread.
 
 An entry labeled `prior-review` is a previous classifier's return, not fresh evidence. Re-derive every verdict it contains from the other entries in this extract; do not adopt or exclude it. Retain the task id the classifier's return will carry for `CLASSIFIER-ENTRY` in the record.
