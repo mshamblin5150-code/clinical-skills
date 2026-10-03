@@ -6,6 +6,8 @@ The complete boundary of this helper's clean result is declared in
 
 from __future__ import annotations
 
+from discussion_artifact import check_posted_reading
+
 import json
 import re
 from hashlib import sha256
@@ -16,8 +18,6 @@ from run_grader import EvidenceDisposition
 
 
 NOTE_NUMBER = re.compile(r"note-(?P<number>\d+)\.md", re.IGNORECASE)
-READ_COUNT = re.compile(r"(?P<count>\d+)\s+of\s+(?P<total>\d+)\s+read", re.IGNORECASE)
-VISIT_NUMBER = re.compile(r"(?P<number>\d+)\s*\|")
 DECLARED_LIMITS = (
     (
         "batch note filename grammar",
@@ -103,32 +103,11 @@ def portal_record_problem(
 ) -> str | None:
     """Return why a clinical posted reading cannot establish a complete readback."""
 
-    if record.missing_fields:
-        return f"{record.missing_fields[0]} is missing"
-    read = READ_COUNT.fullmatch(record.read)
-    if read is None or read.group("count") != read.group("total"):
-        return "READ must state N of N read"
-    expected = int(read.group("total"))
-    if expected != expected_visits:
-        return f"READ names {expected} visit(s) but the fingerprint covers {expected_visits} note(s)"
-    if len(record.visits) != expected:
-        return f"READ names {expected} visit(s) but {len(record.visits)} VISIT line(s) were found"
-    if record.verdict != "matches" or not record.verdict_has_substance:
-        return "VERDICT must be matches with readback detail"
-    for number, visit in enumerate(record.visits, start=1):
-        visit_number = VISIT_NUMBER.match(visit)
-        required = (
-            visit_number is not None and int(visit_number.group("number")) == number,
-            re.search(r"(?:^|\|)\s*patient\s+\S+", visit, re.IGNORECASE) is not None,
-            re.search(r"(?:^|\|)\s*reference\s+(?:matched|new)\s+\S+", visit, re.IGNORECASE) is not None,
-            re.search(r"(?:^|\|)\s*patient-detail=\S+", visit, re.IGNORECASE) is not None,
-            re.search(r"(?:^|\|)\s*note-view=\S*resultid=\S+", visit, re.IGNORECASE) is not None,
-            re.search(r"(?:^|\|)\s*(?:created|visit-date)=\S+", visit, re.IGNORECASE) is not None,
-            re.search(r"(?:^|\|)\s*matches(?:\s|$)", visit, re.IGNORECASE) is not None,
-        )
-        if not all(required):
-            return f"VISIT {number} is missing a required copied locator, date, reference, patient number, or verdict"
-    return None
+    outcomes = check_posted_reading(
+        record, record.submission_sha256,
+        expected_visits=expected_visits, matches_only=True,
+    )
+    return outcomes[0].message if outcomes else None
 
 
 def completion_gate(
@@ -139,23 +118,17 @@ def completion_gate(
     if submission is None:
         return False, "the Medatrax posted reading: NOT GRADED - --submission was not supplied"
     record = posted_reading(run, submission)
-    if record is None:
-        return True, f"the Medatrax posted reading: finding - no readable REREAD record for {submission}"
-    if not record.submission_sha256:
-        return True, "the Medatrax posted reading: finding - SUBMISSION-SHA256 is missing"
-    if not record.submission_sha256_is_valid:
-        return True, "the Medatrax posted reading: finding - SUBMISSION-SHA256 is malformed"
     paths = note_paths(run, batch=batch)
     if not paths:
         unit = "numbered note files" if batch else "one standalone note file"
         return True, f"the Medatrax posted reading: finding - could not identify {unit}"
-    record_problem = portal_record_problem(record, expected_visits=len(paths))
-    if record_problem is not None:
-        return True, f"the Medatrax posted reading: finding - {record_problem}"
     try:
         current = source_sha256(paths)
     except OSError:
         return True, "the Medatrax posted reading: finding - could not read the note bytes"
-    if current != record.submission_sha256:
-        return True, "the Medatrax posted reading: finding - SUBMISSION-SHA256 does not match the current note bytes"
+    outcomes = check_posted_reading(
+        record, current, expected_visits=len(paths), matches_only=True,
+    )
+    if outcomes:
+        return True, f"the Medatrax posted reading: finding - {outcomes[0].message}"
     return False, "the Medatrax posted reading: clean"

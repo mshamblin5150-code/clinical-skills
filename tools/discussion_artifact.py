@@ -17,6 +17,7 @@ from datetime import date
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
+import file_digest
 from run_grader import EvidenceDisposition
 
 
@@ -252,6 +253,7 @@ REREAD_BLOCK = re.compile(
 )
 REREAD_REQUIRED_FIELDS = ("POST-URL", "POSTED", "READ", "SUBMISSION-SHA256", "VERDICT")
 REREAD_FIELDS = REREAD_REQUIRED_FIELDS + (
+    "LEGACY-DISPLAY",
     "COMPOSER-OUTCOME",
     "HTML-BYTES",
     "REFUSAL",
@@ -346,6 +348,7 @@ class PostedReading:
     attachment: str = ""
     attachment_count: str = ""
     submitted_files: tuple[str, ...] = ()
+    legacy_display: str = ""
 
     @property
     def missing_record_fields(self) -> tuple[str, ...]:
@@ -457,9 +460,130 @@ def read_posted_readings(text: str) -> tuple[PostedReading, ...]:
                 attachment=fields.get("ATTACHMENT", ""),
                 attachment_count=fields.get("ATTACHMENT-COUNT", ""),
                 submitted_files=tuple(submitted_files),
+                legacy_display=fields.get("LEGACY-DISPLAY", ""),
             )
         )
     return tuple(records)
+
+
+POSTED_READING_MESSAGES = {
+    "missing-record": "no REREAD record for the submission",
+    "fingerprint": "SUBMISSION-SHA256 is missing, malformed, or stale",
+    "posted-fields": "POSTED or READ is missing",
+    "unknown-verdict": "verdict is outside the vocabulary",
+    "bare-verdict": "verdict carries no reading substance",
+    "completion-verdict": "VERDICT must be matches with readback detail",
+    "unlocated": "POST-URL has no entry_id",
+    "borrowed": "entry_id belongs to a roster post or another reading",
+    "composer-outcome": "COMPOSER-OUTCOME must be inline or attachment",
+    "html-bytes": "HTML-BYTES is missing or differs from the built HTML",
+    "refusal": "REFUSAL needs its date and observed wording",
+    "attachment-field": "ATTACHMENT is missing",
+    "attachment-copy": "ATTACHMENT must name an existing posted/ Word copy and a local Word document is required",
+    "attachment-digest": "posted attachment filename or SHA-256 differs from the local Word document",
+    "portal-fields": "a required Medatrax posted-reading field is missing",
+    "read-count": "READ must state N of N read matching the note population",
+    "visit-count": "VISIT line count differs from the note population",
+    "visit-fields": "VISIT is missing a required copied locator, date, reference, patient number, or verdict",
+    "legacy-display": "LEGACY-DISPLAY must open with expected, differs, or unreadable followed by a reason",
+}
+
+
+@dataclass(frozen=True)
+class PostedReadingOutcome:
+    code: str
+
+    @property
+    def message(self) -> str:
+        return POSTED_READING_MESSAGES[self.code]
+
+
+def check_posted_reading(
+    reading: PostedReading | None,
+    digest: str,
+    *,
+    posted_fields: bool = False,
+    verdict: bool = False,
+    matches_only: bool = False,
+    entry_link: bool = False,
+    roster_ids: Collection[str] = (),
+    duplicate_ids: Collection[str] = (),
+    composer: bool = False,
+    html_bytes: int | None = None,
+    run: Path | None = None,
+    docx: Path | None = None,
+    expected_visits: int | None = None,
+    legacy_display: bool = False,
+) -> tuple[PostedReadingOutcome, ...]:
+    """Check a parsed record against caller-owned bytes, independent of a grade.
+
+    Presence and fingerprint always run; each other piece is explicitly enabled.
+    Outcome codes and messages belong here; finding names belong to the caller.
+    """
+    if reading is None:
+        return (PostedReadingOutcome("missing-record"),)
+    codes: list[str] = []
+    if not reading.submission_sha256_is_valid or reading.submission_sha256 != digest:
+        codes.append("fingerprint")
+    if posted_fields and (not reading.posted or not reading.read):
+        codes.append("posted-fields")
+    if verdict or matches_only:
+        if not reading.verdict_is_known:
+            codes.append("unknown-verdict")
+        elif not reading.verdict_has_substance:
+            codes.append("bare-verdict")
+        elif matches_only and reading.verdict != "matches":
+            codes.append("completion-verdict")
+    if entry_link:
+        if reading.entry_id is None:
+            codes.append("unlocated")
+        elif reading.entry_id in roster_ids or reading.entry_id in duplicate_ids:
+            codes.append("borrowed")
+    if composer:
+        if reading.composer_outcome not in {"inline", "attachment"}:
+            codes.append("composer-outcome")
+        if not reading.html_bytes.isdigit() or (
+            html_bytes is not None and int(reading.html_bytes) != html_bytes
+        ):
+            codes.append("html-bytes")
+        if reading.composer_outcome == "attachment":
+            if not reading.refusal_is_dated:
+                codes.append("refusal")
+            if not reading.attachment:
+                codes.append("attachment-field")
+            retained = reading.posted_attachment(run) if run is not None else None
+            if docx is None or not docx.is_file() or retained is None or not retained.is_file():
+                codes.append("attachment-copy")
+            elif retained.name != docx.name or file_digest.sha256(retained) != file_digest.sha256(docx):
+                codes.append("attachment-digest")
+    if expected_visits is not None:
+        if reading.missing_fields:
+            codes.append("portal-fields")
+        count = re.fullmatch(r"(\d+)\s+of\s+(\d+)\s+read", reading.read, re.IGNORECASE)
+        if count is None or int(count[1]) != expected_visits or int(count[2]) != expected_visits:
+            codes.append("read-count")
+        if len(reading.visits) != expected_visits:
+            codes.append("visit-count")
+        for number, visit in enumerate(reading.visits, start=1):
+            locator = re.match(r"(\d+)\s*\|", visit)
+            patterns = (
+                r"(?:^|\|)\s*patient\s+\S+",
+                r"(?:^|\|)\s*reference\s+(?:matched|new)\s+\S+",
+                r"(?:^|\|)\s*patient-detail=\S+",
+                r"(?:^|\|)\s*note-view=\S*resultid=\S+",
+                r"(?:^|\|)\s*(?:created|visit-date)=\S+",
+                r"(?:^|\|)\s*matches(?:\s|$)",
+            )
+            if locator is None or int(locator[1]) != number or not all(
+                re.search(pattern, visit, re.IGNORECASE) for pattern in patterns
+            ):
+                codes.append("visit-fields")
+                break
+    if legacy_display and re.fullmatch(
+        r"(?:expected|differs|unreadable)\s*(?:-|—|:)\s*\S.*", reading.legacy_display
+    ) is None:
+        codes.append("legacy-display")
+    return tuple(PostedReadingOutcome(code) for code in codes)
 
 
 def discussion_entry_id(url: str) -> str | None:

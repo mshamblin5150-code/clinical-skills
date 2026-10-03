@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from discussion_artifact import check_posted_reading
+
 from dataclasses import dataclass, replace
 from enum import Enum
 from hashlib import sha256
@@ -290,12 +292,9 @@ def completion_gate(
         if current != expected:
             return True, f"{label}: finding - {key}'s approved source fingerprint changed"
         reading = by_submission.get(key)
-        if reading is None:
-            return True, f"{label}: finding - {key} has no posted reading"
-        if not reading.submission_sha256_is_valid:
-            return True, f"{label}: finding - {key}'s posted-reading fingerprint is missing or malformed"
-        if reading.submission_sha256 != expected:
-            return True, f"{label}: finding - {key}'s approval and posted-reading fingerprints differ"
+        outcomes = check_posted_reading(reading, expected)
+        if outcomes:
+            return True, f"{label}: finding - {outcomes[0].message}"
     return False, f"{label}: clean"
 
 

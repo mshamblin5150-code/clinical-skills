@@ -2391,7 +2391,7 @@ class MedatraxSubmissionFingerprint(unittest.TestCase):
             note.write("\nPlan: changed after the posted reading.\n")
         status, _stdout, stderr = self.invoke()
         self.assertEqual(1, status)
-        self.assertIn("SUBMISSION-SHA256 does not match", stderr)
+        self.assertIn("SUBMISSION-SHA256 is missing, malformed, or stale", stderr)
 
 
 if __name__ == "__main__":

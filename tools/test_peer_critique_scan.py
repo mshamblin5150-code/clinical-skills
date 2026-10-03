@@ -54,6 +54,7 @@ REREAD = (
     "READ: 2026-09-09\n"
     "SUBMISSION-SHA256: {submission_sha256}\n"
     "VERDICT: matches - the board text equals the artifact\n"
+    "LEGACY-DISPLAY: expected - visible text recorded\n"
 )
 
 
@@ -179,6 +180,25 @@ def kinds(directory: Path) -> list[str]:
 
 
 class TheCleanRunPasses(unittest.TestCase):
+    def test_template_record_and_defects_through_command(self):
+        directory = build_run()
+        record = directory / "reread.md"
+        clean = record.read_text(encoding="utf-8")
+        for text, status, detail in (
+            (clean, 0, None),
+            (re.sub(r"^POSTED:.*\n", "", clean, flags=re.MULTILINE), 1, "missing-posted-reading"),
+            (re.sub(r"^READ:.*\n", "", clean, flags=re.MULTILINE), 1, "missing-posted-reading"),
+            (clean.replace("LEGACY-DISPLAY: expected - visible text recorded", "LEGACY-DISPLAY: maybe"), 1, "LEGACY-DISPLAY"),
+            (clean + "UNKNOWN: field\n", 2, "unreadable"),
+        ):
+            with self.subTest(status=status, detail=detail):
+                record.write_text(text, encoding="utf-8")
+                result = subprocess.run([sys.executable, str(REPO_ROOT / "tools" / "peer_critique_scan.py"), str(directory), "--show"], capture_output=True, text=True, encoding="utf-8", errors="replace")
+                self.assertEqual(status, result.returncode, result.stdout + result.stderr)
+                if detail:
+                    self.assertIn(detail, result.stdout + result.stderr)
+                self.assertNotIn("Traceback", result.stderr)
+
     def test_a_compliant_critique_reports_no_finding(self):
         self.assertEqual([], kinds(build_run()))
 

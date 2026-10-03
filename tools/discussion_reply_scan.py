@@ -18,6 +18,8 @@ The shared completion rows' ceilings belong to
 
 from __future__ import annotations
 
+from discussion_artifact import check_posted_reading
+
 import re
 import sys
 from collections import Counter
@@ -755,72 +757,34 @@ def load(parsed: run_grader.Parsed) -> RunSource:
     )
 
 
+POSTED_READING_KINDS = {
+    "missing-record": MISSING_POSTED_READING,
+    "fingerprint": SUBMISSION_FINGERPRINT,
+    "posted-fields": MISSING_POSTED_READING,
+    "unknown-verdict": UNKNOWN_VERDICT,
+    "bare-verdict": BARE_VERDICT,
+    "unlocated": UNLOCATED_READING,
+    "borrowed": BORROWED_LOCATOR,
+}
+
+
 def _posted_reading_findings(source: RunSource) -> tuple[Finding, ...]:
     by_artifact = {reading.artifact: reading for reading in source.readings}
-    reading_ids = tuple(reading.entry_id for reading in source.readings)
-    id_counts = Counter(value for value in reading_ids if value is not None)
-    roster_ids = {
-        value
-        for url in source.roster_urls
-        for value in (discussion_entry_id(url),)
-        if value is not None
-    }
-    initial_post_id = (
-        discussion_entry_id(source.initial_post_url) if source.initial_post_url else None
-    )
+    id_counts = Counter(reading.entry_id for reading in source.readings if reading.entry_id is not None)
+    roster_ids = {value for url in source.roster_urls for value in (discussion_entry_id(url),) if value is not None}
+    initial_post_id = discussion_entry_id(source.initial_post_url) if source.initial_post_url else None
     if initial_post_id is not None:
         roster_ids.add(initial_post_id)
-    findings: list[Finding] = []
-    for reply in source.replies:
-        reading = by_artifact.get(reply.path.name)
-        if reading is None:
-            findings.append(
-                Finding(
-                    MISSING_POSTED_READING,
-                    reply.path.name,
-                    "no REREAD record for this posted reply",
-                )
-            )
-            continue
-        if reading.missing_record_fields:
-            findings.append(
-                Finding(
-                    MISSING_POSTED_READING,
-                    reply.path.name,
-                    "missing " + ", ".join(reading.missing_record_fields),
-                )
-            )
-        digest = file_digest.sha256(reply.path)
-        if not reading.submission_sha256_is_valid or reading.submission_sha256 != digest:
-            findings.append(
-                Finding(
-                    SUBMISSION_FINGERPRINT,
-                    reply.path.name,
-                    f"{reply.path.name} SUBMISSION-SHA256 is missing, malformed, or stale",
-                )
-            )
-        if not reading.verdict_is_known:
-            findings.append(
-                Finding(UNKNOWN_VERDICT, reply.path.name, "verdict is outside the vocabulary")
-            )
-        elif not reading.verdict_has_substance:
-            findings.append(
-                Finding(BARE_VERDICT, reply.path.name, "verdict carries no reading substance")
-            )
-        entry_id = reading.entry_id
-        if entry_id is None:
-            findings.append(
-                Finding(UNLOCATED_READING, reply.path.name, "POST-URL has no entry_id")
-            )
-        elif entry_id in roster_ids or id_counts[entry_id] > 1:
-            findings.append(
-                Finding(
-                    BORROWED_LOCATOR,
-                    reply.path.name,
-                    "entry_id belongs to a roster post or another reading",
-                )
-            )
-    return tuple(findings)
+    duplicates = {value for value, count in id_counts.items() if count > 1}
+    return tuple(
+        Finding(POSTED_READING_KINDS[item.code], reply.path.name, item.message)
+        for reply in source.replies
+        for item in check_posted_reading(
+            by_artifact.get(reply.path.name), file_digest.sha256(reply.path),
+            posted_fields=True, verdict=True, entry_link=True,
+            roster_ids=roster_ids, duplicate_ids=duplicates,
+        )
+    )
 
 
 def survey(source: RunSource) -> Scan:

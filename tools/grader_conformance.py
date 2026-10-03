@@ -331,11 +331,11 @@ def unread_remainder_conformance(module: Any) -> type[unittest.TestCase]:
 
 
 def constructed_kinds(module: Any, function: str | None = None) -> set[str]:
-    """Return kinds proved by literals or lexically enclosing mapping loops.
+    """Return kinds proved by literals, mapping lookups, or enclosing mapping loops.
 
     This walk deliberately stops short of general data-flow analysis: a name is
-    credited only inside the body of the exact ``for`` or comprehension that
-    binds it from a module-level dictionary. Assignments, helper returns, and
+    credited by a direct module-level dictionary lookup or inside the body of the
+    exact ``for`` or comprehension that binds it from that dictionary. Assignments, helper returns, and
     same-spelled names in another lexical scope prove nothing.
     """
 
@@ -395,6 +395,10 @@ def constructed_kinds(module: Any, function: str | None = None) -> set[str]:
                         kinds.add(value)
                     else:
                         kinds.update(self.bound(expression.id))
+                elif isinstance(expression, ast.Subscript) and isinstance(expression.value, ast.Name):
+                    mapping = getattr(module, expression.value.id, None)
+                    if isinstance(mapping, dict):
+                        kinds.update(value for value in mapping.values() if isinstance(value, str))
             self.generic_visit(node)
 
         def visit_For(self, node: ast.For) -> None:

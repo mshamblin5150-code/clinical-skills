@@ -572,6 +572,15 @@ class TheMembershipClaimIsDerivedFromTheTree(unittest.TestCase):
 
 
 class TheSharedFindingWalkStatesAndTestsItsCeiling(unittest.TestCase):
+    def test_a_direct_outcome_mapping_lookup_proves_its_values(self):
+        directory, module = self.module_for(
+            "def findings(outcome):\n"
+            "    return Finding(OUTCOME_KINDS[outcome.code], 'detail')\n"
+        )
+        module.OUTCOME_KINDS = {"missing": "row-a", "stale": "row-b"}
+        with directory:
+            self.assertEqual({"row-a", "row-b"}, constructed_kinds(module))
+
     def module_for(self, source: str):
         directory = tempfile.TemporaryDirectory()
         path = Path(directory.name) / "grader.py"

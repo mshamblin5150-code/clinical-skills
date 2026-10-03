@@ -167,6 +167,8 @@ the coverage failure inspectable under the shared report-before-tier-2 rule.
 
 from __future__ import annotations
 
+from discussion_artifact import check_posted_reading
+
 import re
 import sys
 from dataclasses import dataclass, field, replace
@@ -924,6 +926,18 @@ def _add_findings(scan: Scan, extra: list[Finding]) -> Scan:
     )
 
 
+POSTED_READING_KINDS = {
+    "missing-record": SUBMISSION_FINGERPRINT,
+    "fingerprint": SUBMISSION_FINGERPRINT,
+    "composer-outcome": POSTED_ATTACHMENT,
+    "html-bytes": INLINE_HTML,
+    "refusal": POSTED_ATTACHMENT,
+    "attachment-field": POSTED_ATTACHMENT,
+    "attachment-copy": POSTED_ATTACHMENT,
+    "attachment-digest": POSTED_ATTACHMENT,
+}
+
+
 def _grade(
     source: BoundChecksSource, _parsed: run_grader.Parsed
 ) -> run_grader.Grade[Scan]:
@@ -1012,36 +1026,18 @@ def _grade(
             reading = next(
                 (item for item in source.readings if item.artifact == submission), None
             )
-            if reading is None:
-                extra.append(
-                    Finding(
-                        SUBMISSION_FINGERPRINT,
-                        "the posted reading",
-                        f"reread.md has no REREAD record for {submission}",
-                    )
-                )
-            elif (
-                not reading.submission_sha256_is_valid
-                or reading.submission_sha256 != source.document_digest
-            ):
-                extra.append(
-                    Finding(
-                        SUBMISSION_FINGERPRINT,
-                        "the posted reading",
-                        f"{source.document.name} SUBMISSION-SHA256 is missing, malformed, or stale",
-                    )
-                )
+            html = source.document.with_suffix(".html")
+            local_docx = source.document.with_suffix(".docx")
+            outcomes = check_posted_reading(
+                reading, source.document_digest, composer=source.composer_run,
+                html_bytes=html.stat().st_size if html.is_file() else -1,
+                run=source.path.parent, docx=local_docx,
+            )
+            extra.extend(
+                Finding(POSTED_READING_KINDS[item.code], "the posted reading", item.message)
+                for item in outcomes
+            )
             if source.composer_run and reading is not None:
-                html = source.document.with_suffix(".html")
-                if (
-                    not html.is_file()
-                    or not reading.html_bytes.isdigit()
-                    or int(reading.html_bytes) != html.stat().st_size
-                ):
-                    extra.append(Finding(
-                        INLINE_HTML, "the posted reading",
-                        "HTML-BYTES is missing or differs from the built HTML",
-                    ))
                 if reading.composer_outcome == "inline":
                     if (
                         not html.is_file()
@@ -1055,25 +1051,6 @@ def _grade(
                         ))
                 else:
                     local_docx = source.document.with_suffix(".docx")
-                    posted = reading.posted_attachment(source.path.parent)
-                    if not reading.refusal_is_dated:
-                        extra.append(Finding(
-                            POSTED_ATTACHMENT, "the posted reading",
-                            "REFUSAL needs its date and observed wording",
-                        ))
-                    if not local_docx.is_file() or posted is None or not posted.is_file():
-                        extra.append(Finding(
-                            POSTED_ATTACHMENT, "the posted reading",
-                            "ATTACHMENT must name an existing posted/ Word copy",
-                        ))
-                    elif (
-                        posted.name != local_docx.name
-                        or file_digest.sha256(posted) != file_digest.sha256(local_docx)
-                    ):
-                        extra.append(Finding(
-                            POSTED_ATTACHMENT, "the posted reading",
-                            "posted attachment filename or SHA-256 differs from the local Word document",
-                        ))
                     if local_docx.is_file():
                         try:
                             _markdown, checked_digest = case_study_render.matching_markdown(

@@ -1228,6 +1228,11 @@ another post layout is unread and the command says so. Its rows, their vocabular
 coverage boundary are `peer_critique_scan.ROWS`, `KINDS` and `DECLARED_LIMITS`. **This section
 points at all three and copies no row.**
 
+The posted-reading check requires `POSTED`, `READ`, the current critique fingerprint, and a
+recognized verdict with substantive detail. It checks that `LEGACY-DISPLAY` opens with `expected`,
+`differs`, or `unreadable` followed by a reason; the observed display remains outside grading.
+An unreadable record reports did-not-scan with exit 2.
+
 **The word ceiling is reported and never graded, and that is the house rule rather than a
 concession.** The course spec states a range; a floor is a finding because a critique under it has
 not answered eight headings, and a ceiling is a count because no stated maximum is honored. The

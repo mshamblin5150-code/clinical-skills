@@ -153,7 +153,7 @@ class ApprovalRecordContract(unittest.TestCase):
         )
 
         self.assertTrue(failed)
-        self.assertIn("fingerprints differ", report)
+        self.assertIn("SUBMISSION-SHA256 is missing, malformed, or stale", report)
 
     def test_clinician_posting_without_approval_is_refused(self) -> None:
         with self.assertRaisesRegex(approval_record.ApprovalRecordError, "approval"):
