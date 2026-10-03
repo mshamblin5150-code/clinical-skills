@@ -219,9 +219,9 @@ class ProjectRegistration(unittest.TestCase):
                     {
                         row["matcher"]
                         for row in settings["hooks"][event]
-                        if row["matcher"] in roster.tracker_publish_hook.COMMAND_TOOLS
+                        if row["matcher"] in roster.command_reader.COMMAND_TOOLS
                     },
-                    set(roster.tracker_publish_hook.COMMAND_TOOLS),
+                    set(roster.command_reader.COMMAND_TOOLS),
                 )
 
     def test_roster_detection_is_the_only_session_end_module(self) -> None:

@@ -1663,20 +1663,20 @@ The pre-publication `PreToolUse` hook is registered in
 `tools/tracker_publish_stub.py` and `tools/tracker_publish_hook.py`. The stub
 decodes each Bash payload and returns an empty response only when its command
 text contains no `gh` substring; an undecodable payload fails closed into the
-full hook. The full hook extracts publishable title and body fields from one
-`gh` command and reads current cited-record metadata in one request. Both
+full hook. The full hook uses `command_reader.extract` to read publishable title and body
+fields from one `gh` command and reads current cited-record metadata in one request. Both
 fields receive PHI shape, coordinate accompaniment, and branch-path grading; a
 title receives only the two title-scoped integrity rows, while a body receives
 every integrity row, measurement grading, and the applicable Filed-from rule.
 For an issue body edit, Filed-from compares the proposal with the current body text from readback;
 when that read fails it reports the rule `NOT GRADED` and does not refuse on it.
-`PUBLISH_ROUTES` owns command classification; the stub is only a cost guard.
+`command_reader.PUBLISH_ROUTES` owns command classification; the stub is only a cost guard.
 `fetch_readback` passes the batched GraphQL stdout through
 `github_graphql.read_response` and declares `NOT_FOUND` only at each requested
 `issueOrPullRequest` alias; every other complaint becomes that context-blind
 read failure.
 
-`tracker_publish_hook.COMMAND_TOOLS` is the shared roster of command-bearing
+`command_reader.COMMAND_TOOLS` is the shared roster of command-bearing
 tools and the shell each carries. `Bash` and `Monitor` carry the modeled bash
 grammar and use the precise reader; `PowerShell` is unmodeled. One anchor-free
 loose classifier finds a literal `gh` route with a publication flag, including
@@ -1720,8 +1720,8 @@ scanned. The manual mode never writes the hook marker. PHI findings remain
 advisory; the branch-scope posture follows
 [ADR 0083](docs/adr/0083-the-pre-publish-hook-grades-the-record-rather-than-the-body-and-the-branch-scope-rule-refuses-per-trigger.md).
 A clean response establishes only the verdicts reported for that run. The
-complete boundary belongs to `tracker_publish_hook.NOT_REACHED`; this section
-points to the object and copies none of its rows.
+complete boundary belongs to `tracker_publish_hook.NOT_REACHED` and
+`command_reader.NOT_REACHED`; this section points to those objects and copies none of its rows.
 
 The hook writes one counts-free, date-only record per checkout under
 `scratch/runs/tracker-publish-hook/`, with the filename derived from the resolved

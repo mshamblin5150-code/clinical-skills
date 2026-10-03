@@ -1,8 +1,8 @@
 """Add non-blocking context after acts that incur implementation-map work.
 
 Precise command tokenization is owned by
-``tracker_publish_hook.gh_command_tokens``; its anchor-free companion is
-``tracker_publish_hook.loose_command_calls``. This hook classifies only the
+``command_reader.gh_command_tokens``; its anchor-free companion is
+``command_reader.loose_command_calls``. This hook classifies only the
 ruled label, merge, and default-branch push routes. It reads no tracker record,
 never refuses the completed command, and emits no response for any other
 command. The complete boundary is ``DECLARED_LIMITS``.
@@ -18,7 +18,8 @@ import sys
 
 from console_codec import require_python_floor, use_utf8
 import git_paths
-import tracker_publish_hook
+import command_reader
+import shell_reader
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -27,19 +28,15 @@ ROUTES = (("issue", "edit"), ("issue", "create"), ("pr", "merge"))
 
 DECLARED_LIMITS = (
     "A ready flip made in the GitHub web UI bypasses this repository hook.",
-    "A session that runs no repository hook, including Codex, receives no context.",
+    "A session that runs no repository hook, including Codex, receives no "
+    "context.",
     "A merge made outside the session receives no context.",
-    "A session may read the additional context and still decline to act on it.",
-    "A PR selected by number or URL cannot be tied to the session branch without "
-    "a tracker read, so only an omitted selector or the current branch name is classified.",
-    "A command assembled at run time, such as `G=gh; $G ...`, carries no literal "
-    "route for this static classifier.",
-    "A command built by string formatting in a program carries no literal route "
-    "for this static classifier.",
-    "An argv list assembled in pieces is outside the literal-list form this "
-    "static classifier reaches.",
-    "An alias or function standing in for gh carries no gh word for this static "
-    "classifier.",
+    "A session may read the additional context and still decline to act on "
+    "it.",
+    "A PR selected by number or URL cannot be tied to the session branch "
+    "without a tracker read, so only an omitted selector or the current "
+    "branch name is classified.",
+    "The shared reading boundary belongs to command_reader.NOT_REACHED.",
 )
 
 
@@ -53,7 +50,7 @@ def _specific(context: str) -> dict:
 
 
 def _arguments(command: str, route: tuple[str, ...]) -> list[str] | None:
-    parsed = tracker_publish_hook.gh_command_tokens(command, ROUTES)
+    parsed = command_reader.gh_command_tokens(command, ROUTES)
     if parsed is None:
         return None
     tokens, index = parsed
@@ -227,7 +224,7 @@ def _push_source(token: str) -> str:
 def _lands_default_branch(command: str) -> bool:
     if _arguments(command, ("pr", "merge")) is not None:
         return _pr_lands_session_branch(command)
-    for tokens, index in tracker_publish_hook.command_tokens(command, "git"):
+    for tokens, index in shell_reader.executable_calls(command, "git"):
         tail = tokens[index + 1 :]
         if not tail or tail[0] != "push":
             continue
@@ -269,7 +266,7 @@ def _loose_push_lands_default(arguments: str) -> bool:
     )
 
 
-def _is_loose_ready(call: tracker_publish_hook.LooseCommand) -> bool:
+def _is_loose_ready(call: command_reader.LooseCommand) -> bool:
     if call.route not in (("issue", "edit"), ("issue", "create")):
         return False
     long_flag = "--add-label" if call.route == ("issue", "edit") else "--label"
@@ -284,18 +281,18 @@ def _is_loose_ready(call: tracker_publish_hook.LooseCommand) -> bool:
 
 def _loose_map_actions(
     command: str,
-) -> tuple[tracker_publish_hook.LooseCommand, ...]:
-    actions: list[tracker_publish_hook.LooseCommand] = []
+) -> tuple[command_reader.LooseCommand, ...]:
+    actions: list[command_reader.LooseCommand] = []
     ready_routes = (("issue", "edit"), ("issue", "create"))
-    for call in tracker_publish_hook.loose_command_calls(command, "gh", ready_routes):
+    for call in command_reader.loose_command_calls(command, "gh", ready_routes):
         if _is_loose_ready(call):
             actions.append(call)
     actions.extend(
-        tracker_publish_hook.loose_command_calls(command, "gh", (("pr", "merge"),))
+        command_reader.loose_command_calls(command, "gh", (("pr", "merge"),))
     )
     actions.extend(
         call
-        for call in tracker_publish_hook.loose_command_calls(
+        for call in command_reader.loose_command_calls(
             command, "git", (("push",),)
         )
         if _loose_push_lands_default(call.arguments)
@@ -305,24 +302,24 @@ def _loose_map_actions(
 
 def _precise_map_actions(
     command: str,
-) -> tuple[tracker_publish_hook.LooseCommand, ...]:
-    actions: list[tracker_publish_hook.LooseCommand] = []
-    parsed = tracker_publish_hook.gh_command_tokens(command, ROUTES)
+) -> tuple[command_reader.LooseCommand, ...]:
+    actions: list[command_reader.LooseCommand] = []
+    parsed = command_reader.gh_command_tokens(command, ROUTES)
     if parsed is not None:
         tokens, index = parsed
         tail = tokens[index + 1 :]
         route = tuple(tail[:2])
-        call = tracker_publish_hook.LooseCommand(
+        call = command_reader.LooseCommand(
             "gh", route, " ".join(tail[2:]), False
         )
         if route == ("pr", "merge") or _is_loose_ready(call):
             actions.append(call)
-    git_calls = tracker_publish_hook.command_tokens(command, "git")
+    git_calls = tuple(shell_reader.executable_calls(command, "git"))
     if git_calls:
         tokens, index = git_calls[0]
         tail = tokens[index + 1 :]
         if tail[:1] == ["push"]:
-            call = tracker_publish_hook.LooseCommand(
+            call = command_reader.LooseCommand(
                 "git", ("push",), " ".join(tail[1:]), False
             )
             if _loose_push_lands_default(call.arguments):
@@ -350,7 +347,7 @@ def _response_text(response: object) -> str:
 def _pre_push_base(command: str, response: object) -> str:
     is_push = any(
         tokens[index + 1 : index + 2] == ["push"]
-        for tokens, index in tracker_publish_hook.command_tokens(command, "git")
+        for tokens, index in shell_reader.executable_calls(command, "git")
     )
     if not is_push:
         return "origin/main"
@@ -372,8 +369,8 @@ def handle(payload: dict) -> dict:
         if not isinstance(tool_name, str) or not isinstance(command, str):
             return {}
         modeled = (
-            tracker_publish_hook.COMMAND_TOOLS.get(tool_name)
-            == tracker_publish_hook.MODELED_SHELL
+            command_reader.COMMAND_TOOLS.get(tool_name)
+            == command_reader.MODELED_SHELL
         )
         if not modeled:
             if not _loose_map_actions(command):

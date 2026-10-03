@@ -4,7 +4,7 @@ The SessionEnd command reads the transcript supplied by Claude Code, including
 when that payload belongs to a subagent. A tool enters the population only when
 its ``tool_use`` input carries a text ``command`` field, which is the field the
 two repository command hooks consume. The roster is
-``tracker_publish_hook.COMMAND_TOOLS`` rather than a second hand-kept list.
+``command_reader.COMMAND_TOOLS`` rather than a second hand-kept list.
 
 A complete read exits 0. Every completed transcript read reports the
 independently counted command-field denominator, the readable member count,
@@ -23,7 +23,7 @@ from pathlib import Path
 import sys
 
 from console_codec import require_python_floor, use_utf8
-import tracker_publish_hook
+import command_reader
 
 
 DECLARED_LIMITS = (
@@ -98,7 +98,7 @@ def scan_transcript(path: Path) -> Scan:
         unread=unread,
         command_tools=ordered,
         unregistered=tuple(
-            name for name in ordered if name not in tracker_publish_hook.COMMAND_TOOLS
+            name for name in ordered if name not in command_reader.COMMAND_TOOLS
         ),
     )
 
