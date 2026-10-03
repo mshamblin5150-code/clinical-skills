@@ -2667,8 +2667,8 @@ python tools/threshold_sheet.py --all
 
 The pre-commit hook grades each staged clinical sheet, excluding `README.md`, `coverage.md`,
 and `subjects.md`. Staging `reference/guidelines-catalog.md` runs every sheet once instead,
-even when sheets are staged too. Both invocations pass `--allow-stale-build`: an untrusted
-recommendation record alone keeps its `NOT RUN` lines but does not refuse the commit.
+even when sheets are staged too. Both invocations pass `--allow-stale-build`: untrusted recommendation or
+extraction provenance alone keeps its `NOT RUN` lines but does not refuse the commit.
 Unreadable sheets, catalog or scope failures, unreadable records, invalid second reads, and
 findings still refuse. The ordinary command and CI retain their exit status. A completed
 `guidelines_build.py` build prints the full gate report against its published aliases without

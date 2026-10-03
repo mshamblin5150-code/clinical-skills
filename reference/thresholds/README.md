@@ -149,11 +149,11 @@ python tools/threshold_sheet.py --all
 The pre-commit hook grades only staged clinical sheets. `README.md`, `coverage.md`, and
 `subjects.md` are excluded. A staged `reference/guidelines-catalog.md` runs `--all` once,
 including when clinical sheets are also staged. Both hook routes pass `--allow-stale-build`:
-a run whose only blocking incompleteness is an untrusted recommendation record returns 0
+a run whose only blocking incompleteness is untrusted recommendation or extraction provenance returns 0
 and keeps every `NOT RUN` line. Findings still return 1; an unreadable sheet, no declared
 source, an unreadable catalog, unreconciled scope pages, an unreadable or explicitly missing
 record, and an invalid supplied second read still refuse. Without the flag, status is
-unchanged. CI does not pass it. A completed `tools/guidelines_build.py` build runs and prints
+unchanged. Other fatal extraction-manifest failures remain refusing. CI does not pass it. A completed `tools/guidelines_build.py` build runs and prints
 the full gate against the published aliases without changing the build status.
 
 The extraction manifest and identical producer questions are read once per run. Reuse stays

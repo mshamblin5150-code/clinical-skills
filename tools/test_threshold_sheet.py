@@ -6420,6 +6420,49 @@ class StaleBuildFlag(unittest.TestCase):
                     self.assertEqual(gate.main(args), 2)
 
 
+    def test_untrusted_extraction_is_build_state_and_findings_still_win(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            path = root / 'sheet.md'
+            text_root = root / 'text'
+            text_root.mkdir()
+            (text_root / 'manifest.json').write_text('{"documents": []}', encoding='utf-8')
+            args = [str(path), '--quiet', '--recs-root', str(root),
+                    '--recs-alias', str(root / 'alias'), '--pdf-root', str(root / 'pdf'),
+                    '--text-root', str(text_root)]
+            for text, expected in [(TheExitStatusSaysWhichKindOfNotGraded.CLEAN, 0),
+                                   (TheExitStatusSaysWhichKindOfNotGraded.CLEAN.replace('<130 mm Hg', '<99999 mm Hg'), 1)]:
+                path.write_text(text, encoding='utf-8')
+                reports = []
+                for flags, status in [([], 2), (['--allow-stale-build'], expected)]:
+                    out, err = io.StringIO(), io.StringIO()
+                    with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err), mock.patch.object(
+                        gate, 'load_catalog_facts', return_value=gate.CatalogFacts((), {'Society/doc': 60}, {}, (), ())
+                    ):
+                        self.assertEqual(gate.main(args + flags), status)
+                    reports.append((out.getvalue(), err.getvalue()))
+                self.assertEqual(*reports)
+
+
+    def test_other_fatal_manifest_failures_are_not_assumed_stale_builds(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            path = root / 'sheet.md'
+            path.write_text(TheExitStatusSaysWhichKindOfNotGraded.CLEAN, encoding='utf-8')
+            text_root = root / 'text'
+            text_root.mkdir()
+            args = [str(path), '--quiet', '--allow-stale-build', '--recs-root', str(root),
+                    '--recs-alias', str(root / 'alias'), '--pdf-root', str(root / 'pdf'),
+                    '--text-root', str(text_root)]
+            for content in [None, '{bad json']:
+                if content is not None:
+                    (text_root / 'manifest.json').write_text(content, encoding='utf-8')
+                with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()), mock.patch.object(
+                    gate, 'load_catalog_facts', return_value=gate.CatalogFacts((), {'Society/doc': 60}, {}, (), ())
+                ):
+                    self.assertEqual(gate.main(args), 2)
+
+
 class StagedThresholdHook(unittest.TestCase):
     def run_hook(self, paths, gate_status=0):
         shell = shutil.which('sh')

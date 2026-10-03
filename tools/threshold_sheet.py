@@ -15,13 +15,16 @@ producing fluent, plausible, confident text from a source only it has read. Noth
 here checks that a guideline was *understood*. Each gate eliminates one way a sheet
 can be confidently wrong.
 
-``--allow-stale-build`` converts only untrusted-record-only status 2 to 0 and
+``--allow-stale-build`` converts only untrusted build provenance status 2 to 0 and
 suppresses no report line. All other routes to status 2 remain refusals: a missing
 or unparseable sheet, no selected sheets, catalog/page-count reconciliation,
 explicit recommendation argument errors, unreadable records, and invalid supplied
 second reads. Findings still win over stale records. Missing automatically resolved
-records, extraction identity and watermark incompleteness, and missing PDFs already
-report without forcing status 2; the flag changes none of those paths.
+records, extraction identity incompleteness, and missing PDFs already report without
+forcing status 2; the flag changes none of those paths. A present extraction with
+untrusted producer provenance is rebuildable machine state; other fatal manifest
+failures remain refusing. A finding alongside either stale artifact returns 1 under
+the flag, including when the ordinary fatal-manifest ordering would return 2.
 
 The gates, and what each one can and cannot see
 ------------------------------------------------
@@ -697,6 +700,7 @@ class CitationTier2Result(GateResult):
 class WatermarkResult(GateResult):
     tier2_skip_diagnostics: tuple[str, ...] = ()
     manifest_problem_count: int = 0
+    stale_build_only: bool = False
 
 
 @dataclass(frozen=True)
@@ -1810,13 +1814,19 @@ def gate_watermark(
             or f"no {guidelines_manifest.MANIFEST_NAME} under {text_root}"
         )
         fatal = text_root.is_dir()
-        return _watermark_not_run(
+        result = _watermark_not_run(
             reason,
             diagnostics=(manifest_diagnostic,),
             tier2_skip_diagnostics=(f"  WATERMARK       NOT RUN -- {reason}",),
             manifest_problem_count=len(handoff.problems),
             fatal=fatal,
         )
+        # Ownership failure of the external extraction is rebuildable machine
+        # state. Other manifest failures remain unclassified and refuse.
+        return replace(result, stale_build_only=bool(handoff.problems) and all(
+            isinstance(problem.cause, artifact_provenance.UntrustedProvenance)
+            for problem in handoff.problems
+        ))
 
     probes_for: dict[str, dict[str, str]] = {}
     unprobed: list[str] = []
@@ -3203,12 +3213,20 @@ def survey(
         status = 2
     else:
         status = 0
-    stale_build_only = coverage.stale_build_only and all(
-        result is coverage or not (result.not_graded or result.fatal)
-        for result in results
+    incomplete = [result for result in results if result.not_graded or result.fatal]
+    stale_build_only = bool(incomplete) and all(
+        (result is coverage and coverage.stale_build_only)
+        or (result is watermark and watermark.stale_build_only)
+        for result in incomplete
     )
     return Scan(sheet, results, status, tuple(diagnostics),
                 stale_build_only=stale_build_only)
+
+
+def _allow_stale_build_status(scan: Scan) -> int:
+    if scan.status == 2 and scan.stale_build_only:
+        return 1 if any(result.findings for result in scan.results) else 0
+    return scan.status
 
 
 def _emit_scan(scan: Scan, *, quiet: bool) -> int:
@@ -3365,7 +3383,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--allow-stale-build", action="store_true",
-        help="allow only untrusted-record build state; keep all NOT RUN lines",
+        help="allow only untrusted build provenance; keep all NOT RUN lines",
     )
     parser.add_argument(
         "--allow-untrusted-provenance",
@@ -3505,8 +3523,7 @@ def _main(argv: list[str]) -> int:
             scans.append(scan)
         worst = _emit_all(scans, quiet=args.quiet)
         if args.allow_stale_build:
-            return max((0 if scan.status == 2 and scan.stale_build_only
-                        else scan.status for scan in scans), default=0)
+            return max((_allow_stale_build_status(scan) for scan in scans), default=0)
         return worst
 
     if not args.sheet:
@@ -3528,7 +3545,7 @@ def _main(argv: list[str]) -> int:
         ),
     )
     status = _emit_scan(scan, quiet=args.quiet)
-    return 0 if args.allow_stale_build and status == 2 and scan.stale_build_only else status
+    return _allow_stale_build_status(scan) if args.allow_stale_build else status
 
 
 if __name__ == "__main__":
