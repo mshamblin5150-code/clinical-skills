@@ -24,15 +24,18 @@ import argparse
 import csv
 import hashlib
 import io
+import json
 import re
 import sqlite3
 import sys
 import zipfile
+from contextlib import closing
 from dataclasses import dataclass, replace
 from datetime import date
 from pathlib import Path
 
 from console_codec import require_python_floor, use_utf8
+from repo_root import scratch_root
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_OUT = REPO_ROOT / "reference" / "procedure-codes-2026.sqlite"
@@ -55,6 +58,15 @@ HCPCS_BOOK = {
     "isbn": "9781640163317",
     "publisher": "Elsevier",
     "url": "https://bookshelf.vitalsource.com/reader/books/9781640163317",
+}
+
+# Exact normalized 2026 book controls. Keep licensed descriptor text in the
+# private extraction files, not another tracked copy in this public repository.
+CPT_CONTROL_SHA256 = {
+    "87804": "026ff07a631b2cfe059a7d739aa20ee85de410fe947cbf84df50bc0e3d410f38",
+    "86486": "ac9a083b7c3feca4c9c5a94d0752777d7d3242a2f8dccf1caad33e9d7dd988fe",
+    "97169": "9f341305b07468be6bdb653eb6ec92e9b63f8a9fc403851977127c3d1ed1d1a3",
+    "45825": "4c3a6a49ebcd5ecabd6078af56fd98ac9b79ac187c144cf6e5768ce8a42c6337",
 }
 
 
@@ -179,7 +191,7 @@ def read_hcpcs(path: Path) -> list[Entry]:
     return entries
 
 
-def read_cpt_text(text: str, label: str) -> list[Entry]:
+def read_cpt_text(text: str, label: str, *, validate_descriptors: bool = True) -> list[Entry]:
     entries: list[Entry] = []
     with io.StringIO(text, newline="") as stream:
         reader = csv.DictReader(stream)
@@ -209,11 +221,87 @@ def read_cpt_text(text: str, label: str) -> list[Entry]:
                     source_id="ama-cpt-2026-licensed",
                 )
             )
+    descriptions = {entry.description for entry in entries}
+    bad = {
+        entry.code
+        for entry in entries
+        if ";;" in entry.description
+        or entry.description.endswith(":")
+        or (
+            "; " in entry.description
+            and entry.description.rsplit("; ", 1)[0] in descriptions
+        )
+    }
+    if bad and validate_descriptors:
+        raise ValueError(f"{label}: defective CPT descriptors: {', '.join(sorted(bad))}")
     return entries
 
 
-def read_cpt(path: Path) -> list[Entry]:
-    return read_cpt_text(path.read_text(encoding="utf-8-sig"), path.name)
+def read_cpt(path: Path, *, validate_descriptors: bool = True) -> list[Entry]:
+    return read_cpt_text(path.read_text(encoding="utf-8-sig"), path.name, validate_descriptors=validate_descriptors)
+
+
+def verify_cpt_controls(descriptions: dict[str, str]) -> None:
+    """Refuse the four defects checked on printed 2026 CPT pages."""
+    bad = {
+        code
+        for code, expected in CPT_CONTROL_SHA256.items()
+        if _text_sha256(descriptions.get(code)) != expected
+    }
+    if bad:
+        raise ValueError(f"CPT 2026 controls disagree with rendered pages: {', '.join(sorted(bad))}")
+
+
+def verify_cpt_agreement(root: Path, agreed_path: Path, record_path: Path) -> list[Path]:
+    """Check the two complete readings against the agreed CSV and page resolutions."""
+    root = root.resolve()
+    record_path = record_path.resolve()
+    agreed_path = agreed_path.resolve()
+    for path in (record_path, agreed_path):
+        if path.parent != root or not path.is_file():
+            raise ValueError(f"CPT agreement input must exist in {root}: {path}")
+    record = json.loads(record_path.read_text(encoding="utf-8"))
+    paths: list[Path] = []
+    readings: list[dict[str, str]] = []
+    for key, method in (("reader_1", "page_structure"), ("reader_2", "rendered_screenshots"), ("agreed", None)):
+        item = record[key]
+        path = (root / item["file"]).resolve()
+        if path.parent != root or not path.is_file():
+            raise ValueError(f"recorded CPT input absent or outside {root}: {item['file']}")
+        if _sha256(path) != item["sha256"]:
+            raise ValueError(f"recorded CPT input digest disagrees: {item['file']}")
+        if method and item["method"] != method:
+            raise ValueError(f"{key} must use {method}")
+        entries = read_cpt(path, validate_descriptors=key == "agreed")
+        codes = {entry.code: entry.description for entry in entries}
+        if len(codes) != len(entries):
+            raise ValueError(f"duplicate CPT codes in {item['file']}")
+        if method and item["codes_read"] != len(entries):
+            raise ValueError(f"{key} codes_read disagrees with {item['file']}")
+        readings.append(codes)
+        paths.append(path)
+    if paths[2] != agreed_path:
+        raise ValueError("agreement record names a different agreed CSV")
+    if len(set(paths)) != 3:
+        raise ValueError("CPT readers and agreed CSV must be distinct files")
+    first, second, agreed = readings
+    if first.keys() != second.keys() or first.keys() != agreed.keys():
+        raise ValueError("CPT reader code populations differ")
+    if record["unread_remainder"]:
+        raise ValueError(f"CPT unread remainder: {record['unread_remainder']}")
+    conflicts = {code for code in first if first[code] != second[code]}
+    resolutions = record["resolutions"]
+    resolved = {row["code"]: row for row in resolutions}
+    if len(resolved) != len(resolutions) or conflicts != resolved.keys() or record["disagreement_count"] != len(conflicts):
+        raise ValueError(f"unsettled CPT disagreements: {', '.join(sorted(conflicts ^ resolved.keys())) or ', '.join(sorted(conflicts))}")
+    for code in first:
+        if code in conflicts:
+            row = resolved[code]
+            if not row.get("printed_page") or agreed[code] != row["description"]:
+                raise ValueError(f"CPT {code} has no matching rendered-page resolution")
+        elif agreed[code] != first[code]:
+            raise ValueError(f"CPT {code} differs from both agreeing readers")
+    return paths
 
 
 SCHEMA = """
@@ -271,6 +359,17 @@ def _text_sha256(text: str | None) -> str | None:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
+def reference_cpt_codes(path: Path) -> set[str]:
+    """Read the previously shipped code population before replacing its database."""
+    if not path.is_file():
+        raise ValueError(f"CPT reference database absent: {path}")
+    with closing(sqlite3.connect(path)) as connection:
+        codes = {row[0] for row in connection.execute("SELECT code FROM code WHERE system='CPT'")}
+    if not codes:
+        raise ValueError(f"CPT reference database has no codes: {path}")
+    return codes
+
+
 def write_database(
     path: Path,
     entries: list[Entry],
@@ -279,10 +378,33 @@ def write_database(
     cpt_machine_source: str | Path | None,
     cpt_sha256: str | None = None,
     cpt_complete: bool = False,
+    cpt_evidence: list[Path] | None = None,
+    cpt_agreement_sha256: str | None = None,
 ) -> None:
+    if cpt_evidence is not None:
+        if not cpt_complete:
+            raise ValueError("verified CPT descriptors require --cpt-complete")
+        if len(cpt_evidence) != 4 or not cpt_agreement_sha256:
+            raise ValueError("verified CPT build requires two readings, agreed CSV, and agreement digest")
+        if _sha256(cpt_evidence[3]) != cpt_agreement_sha256:
+            raise ValueError("CPT agreement digest disagrees")
+        checked = verify_cpt_agreement(cpt_evidence[3].parent, cpt_evidence[2], cpt_evidence[3])
+        if checked != cpt_evidence[:3]:
+            raise ValueError("CPT evidence paths disagree with agreement record")
+        accepted = {(entry.code, entry.description) for entry in read_cpt(cpt_evidence[2])}
+        supplied = {(entry.code, entry.description) for entry in entries if entry.system == "CPT"}
+        if accepted != supplied:
+            raise ValueError("CPT database rows disagree with agreed CSV")
+        verify_cpt_controls(dict(accepted))
+        missing = reference_cpt_codes(DEFAULT_OUT) - {code for code, _ in accepted}
+        if missing:
+            raise ValueError(f"agreed CPT CSV omits previously shipped codes: {', '.join(sorted(missing))}")
     if isinstance(cpt_machine_source, Path):
         cpt_sha256 = cpt_sha256 or _sha256(cpt_machine_source)
         cpt_machine_source = cpt_machine_source.name
+    for evidence in cpt_evidence or []:
+        if not evidence.is_file():
+            raise ValueError(f"recorded CPT input absent: {evidence}")
     path.parent.mkdir(parents=True, exist_ok=True)
     connection = sqlite3.connect(path)
     try:
@@ -315,6 +437,16 @@ def write_database(
                 "Internal repository storage under the maintainer's written AMA permission",
             ),
         ]
+        for source_id, evidence in zip(
+            ("ama-cpt-2026-reader-1", "ama-cpt-2026-reader-2", "ama-cpt-2026-agreement"),
+            [cpt_evidence[0], cpt_evidence[1], cpt_evidence[3]] if cpt_evidence else [],
+        ):
+            sources.append((
+                source_id, "CPT", CPT_BOOK["title"], CPT_BOOK["edition"],
+                CPT_BOOK["isbn"], CPT_BOOK["publisher"], CPT_BOOK["url"],
+                evidence.name, _sha256(evidence), "2026-01-01",
+                "Internal repository storage under the maintainer's written AMA permission",
+            ))
         connection.executemany("INSERT INTO source VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", sources)
         connection.executemany(
             "INSERT INTO code VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -342,7 +474,7 @@ def write_database(
             "cpt_codes": str(sum(e.system == "CPT" for e in entries)),
             "hcpcs_complete": "yes",
             "cpt_complete": "yes" if cpt_complete else "no",
-            "cpt_descriptors": "unverified",
+            "cpt_descriptors": "verified" if cpt_evidence else "unverified",
         }
         connection.executemany("INSERT INTO meta VALUES (?, ?)", counts.items())
         connection.commit()
@@ -365,6 +497,8 @@ def main(argv: list[str]) -> int:
         help="assert that --cpt contains the complete licensed 2026 CPT code set",
     )
     parser.add_argument("--out", type=Path, default=DEFAULT_OUT)
+    parser.add_argument("--cpt-agreement", type=Path, help="agreement JSON in the owning checkout's scratch/cpt-2026")
+    parser.add_argument("--cpt-agreement-sha256", help="expected SHA-256 of the agreement JSON")
     args = parser.parse_args(argv)
 
     hcpcs_effective = _date(args.hcpcs_effective, "--hcpcs-effective")
@@ -376,6 +510,8 @@ def main(argv: list[str]) -> int:
         raise SystemExit(f"not a file: {cpt_path}")
     if args.cpt_complete and args.cpt is None:
         parser.error("--cpt-complete requires --cpt")
+    if args.cpt_agreement and (cpt_path is None or not args.cpt_agreement_sha256):
+        parser.error("--cpt-agreement requires a CPT CSV and --cpt-agreement-sha256")
 
     try:
         entries = read_hcpcs(args.hcpcs)
@@ -389,16 +525,28 @@ def main(argv: list[str]) -> int:
             cpt_text = cpt_path.read_text(encoding="utf-8-sig")
             cpt_machine_source = cpt_path.name
             entries.extend(read_cpt_text(cpt_text, cpt_path.name))
+        cpt_evidence = None
+        if args.cpt_agreement:
+            root = scratch_root() / "cpt-2026"
+            if not args.cpt_agreement.is_file():
+                raise ValueError(f"recorded CPT agreement absent: {args.cpt_agreement}")
+            if args.cpt_agreement.resolve().parent != root.resolve():
+                raise ValueError(f"CPT agreement must be under {root}")
+            if args.cpt_complete and _sha256(args.cpt_agreement) == args.cpt_agreement_sha256:
+                cpt_evidence = verify_cpt_agreement(root, cpt_path, args.cpt_agreement)
+                cpt_evidence.append(args.cpt_agreement.resolve())
         write_database(
             args.out,
             entries,
             args.hcpcs,
             hcpcs_effective,
             cpt_machine_source,
-            _text_sha256(cpt_text),
+            _sha256(cpt_path) if cpt_path is not None else _text_sha256(cpt_text),
             args.cpt_complete,
+            cpt_evidence,
+            args.cpt_agreement_sha256 if cpt_evidence else None,
         )
-    except (OSError, UnicodeError, ValueError, sqlite3.Error, zipfile.BadZipFile) as error:
+    except (KeyError, TypeError, OSError, UnicodeError, ValueError, sqlite3.Error, zipfile.BadZipFile) as error:
         raise SystemExit(str(error)) from error
 
     print(f"HCPCS codes      {sum(e.system == 'HCPCS' and e.kind == 'code' for e in entries):,}")

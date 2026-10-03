@@ -30,7 +30,9 @@ is separate from this database and does not carry other CPT instructions.
 python tools/procedure_codes_build.py \
   --hcpcs october-2026-alpha-numeric-hcpcs-file.zip \
   --hcpcs-effective 2026-10-01 \
-  --cpt licensed-cpt-2026.csv \
+  --cpt /owning-checkout/scratch/cpt-2026/agreed.csv \
+  --cpt-agreement /owning-checkout/scratch/cpt-2026/agreement.json \
+  --cpt-agreement-sha256 EXPECTED_AGREEMENT_SHA256 \
   --cpt-complete
 ```
 
@@ -38,6 +40,20 @@ The normalized licensed CPT CSV requires `code` and `description`. It may also
 carry `short_description`, `effective_date`, `termination_date`, `category`, and
 `locator`. Omit `--cpt-complete` for an excerpt or incremental transcription;
 the lookup will then refuse to treat a miss as evidence that no CPT code exists.
+
+Descriptor verification is separate from completeness. Without a matching
+agreement record, the build writes `meta.cpt_descriptors = unverified`. A matching
+record can set `verified` only with `--cpt-complete` and an agreed code set
+containing every code in the previously shipped database. It must name both
+full-code readings and the agreed CSV under the owning
+checkout's `scratch/cpt-2026/`, with their SHA-256 digests. The two methods are
+`page_structure` and `rendered_screenshots`. The record reports each reader's
+`codes_read`, `disagreement_count`, every disagreement's agreed `description`
+and `printed_page` in `resolutions`, and an empty `unread_remainder`. The build
+compares every code and descriptor across the three CSVs and records all four
+input digests in `source`. A mismatched agreement digest leaves descriptors
+unverified; a missing or changed recorded input refuses the build. Bulleted
+descriptors use each printed `•` in the single description field.
 
 ## Lookup
 

@@ -3,13 +3,17 @@
 from __future__ import annotations
 
 import csv
+from contextlib import closing
+import hashlib
 import io
+import json
 import sqlite3
 import tempfile
 import unittest
 import zipfile
 from contextlib import redirect_stdout
 from pathlib import Path
+from unittest import mock
 
 import procedure_codes_build as build
 import procedure_codes_lookup as lookup
@@ -109,6 +113,152 @@ class CptParser(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "invalid CPT"):
             build.read_cpt(path)
 
+    def test_rejects_all_three_broken_descriptor_shapes_with_codes(self):
+        cases = (
+            ("12345,Stem; First\n12346,Stem; First; Second\n", "12346"),
+            ("12345,Stem;; Child\n", "12345"),
+            ("12345,Elements:\n", "12345"),
+        )
+        for rows, code in cases:
+            with self.subTest(code=code, rows=rows):
+                with self.assertRaisesRegex(ValueError, code):
+                    build.read_cpt_text("code,description\n" + rows, "synthetic.csv")
+
+    def test_bulleted_descriptor_is_valid(self):
+        entries = build.read_cpt_text(
+            'code,description\n12345,"Elements: • One • Two"\n', "synthetic.csv"
+        )
+        self.assertEqual("Elements: • One • Two", entries[0].description)
+
+    def test_named_2026_controls_refuse_known_defects(self):
+        correct = {
+            "87804": "Example test; influenza",
+            "86486": "Example skin test; unlisted antigen",
+            "97169": "Example evaluation: • First • Second • Third",
+            "45825": "Example closure; with colostomy",
+        }
+        hashes = {code: hashlib.sha256(text.encode("utf-8")).hexdigest() for code, text in correct.items()}
+        wrong = {
+            "87804": correct["87804"].replace("; influenza", "; group B strep; influenza"),
+            "86486": "Example hematology test; unlisted antigen",
+            "97169": correct["97169"].replace("Second", "Different"),
+            "45825": "Example closure;; with colostomy",
+        }
+        with mock.patch.object(build, "CPT_CONTROL_SHA256", hashes):
+            build.verify_cpt_controls(correct)
+            for code, description in wrong.items():
+                with self.subTest(code=code):
+                    candidates = correct | {code: description}
+                    with self.assertRaisesRegex(ValueError, code):
+                        build.verify_cpt_controls(candidates)
+
+    def test_agreement_requires_both_complete_readings_and_page_resolutions(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            first = root / "reader-1.csv"
+            second = root / "reader-2.csv"
+            agreed = root / "agreed.csv"
+            first.write_text("code,description\n12345,First reading\n", encoding="utf-8")
+            second.write_text("code,description\n12345,Second reading\n", encoding="utf-8")
+            agreed.write_text("code,description\n12345,Resolved reading\n", encoding="utf-8")
+            record = {
+                "reader_1": {"file": first.name, "sha256": build._sha256(first), "codes_read": 1, "method": "page_structure"},
+                "reader_2": {"file": second.name, "sha256": build._sha256(second), "codes_read": 1, "method": "rendered_screenshots"},
+                "agreed": {"file": agreed.name, "sha256": build._sha256(agreed)},
+                "disagreement_count": 1,
+                "resolutions": [{"code": "12345", "description": "Resolved reading", "printed_page": "42"}],
+                "unread_remainder": [],
+            }
+            record_path = root / "agreement.json"
+            record_path.write_text(json.dumps(record), encoding="utf-8")
+            self.assertEqual([first, second, agreed], build.verify_cpt_agreement(root, agreed, record_path))
+            record["resolutions"] = []
+            record_path.write_text(json.dumps(record), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "12345"):
+                build.verify_cpt_agreement(root, agreed, record_path)
+
+    def test_agreement_refuses_changed_or_missing_recorded_inputs(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            agreed = root / "agreed.csv"
+            agreed.write_text("code,description\n12345,Procedure\n", encoding="utf-8")
+            record = {
+                "reader_1": {"file": "missing.csv", "sha256": "0" * 64, "codes_read": 1, "method": "page_structure"},
+                "reader_2": {"file": "other.csv", "sha256": "0" * 64, "codes_read": 1, "method": "rendered_screenshots"},
+                "agreed": {"file": "agreed.csv", "sha256": build._sha256(agreed)},
+                "disagreement_count": 0,
+                "resolutions": [],
+                "unread_remainder": [],
+            }
+            record_path = root / "agreement.json"
+            record_path.write_text(json.dumps(record), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "missing.csv"):
+                build.verify_cpt_agreement(root, agreed, record_path)
+            (root / "missing.csv").write_text("code,description\n12345,Changed\n", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "digest disagrees: missing.csv"):
+                build.verify_cpt_agreement(root, agreed, record_path)
+
+    def test_build_marks_only_matching_agreement_verified_and_records_inputs(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            root = base / "scratch" / "cpt-2026"
+            root.mkdir(parents=True)
+            hcpcs = base / "hcpcs.zip"
+            with zipfile.ZipFile(hcpcs, "w") as archive:
+                archive.writestr("HCPC2026_OCT_ANWEB.txt", hcpcs_line("J1100", "Example", "Example"))
+            cpt_rows = {
+                "12345": "Synthetic procedure",
+                "87804": "Example test; influenza",
+                "86486": "Example skin test; unlisted antigen",
+                "97169": "Example evaluation: • First • Second • Third",
+                "45825": "Example closure; with colostomy",
+            }
+            control_hashes = {
+                code: hashlib.sha256(description.encode("utf-8")).hexdigest()
+                for code, description in cpt_rows.items() if code != "12345"
+            }
+            buffer = io.StringIO(newline="")
+            writer = csv.writer(buffer)
+            writer.writerow(("code", "description"))
+            writer.writerows(cpt_rows.items())
+            for name in ("reader-1.csv", "reader-2.csv", "agreed.csv"):
+                (root / name).write_text(buffer.getvalue(), encoding="utf-8")
+            record = {
+                "reader_1": {"file": "reader-1.csv", "sha256": build._sha256(root / "reader-1.csv"), "codes_read": len(cpt_rows), "method": "page_structure"},
+                "reader_2": {"file": "reader-2.csv", "sha256": build._sha256(root / "reader-2.csv"), "codes_read": len(cpt_rows), "method": "rendered_screenshots"},
+                "agreed": {"file": "agreed.csv", "sha256": build._sha256(root / "agreed.csv")},
+                "disagreement_count": 0, "resolutions": [], "unread_remainder": [],
+            }
+            agreement = root / "agreement.json"
+            agreement.write_text(json.dumps(record), encoding="utf-8")
+            output = base / "codes.sqlite"
+            args = ["--hcpcs", str(hcpcs), "--hcpcs-effective", "2026-10-01", "--cpt", str(root / "agreed.csv"), "--cpt-agreement", str(agreement), "--cpt-agreement-sha256", build._sha256(agreement), "--out", str(output)]
+            with mock.patch.object(build, "scratch_root", return_value=base / "scratch"):
+                self.assertEqual(0, build.main(args))
+                with closing(sqlite3.connect(output)) as connection:
+                    self.assertEqual("unverified", connection.execute("SELECT value FROM meta WHERE key='cpt_descriptors'").fetchone()[0])
+                    self.assertEqual(build._sha256(root / "agreed.csv"), connection.execute("SELECT sha256 FROM source WHERE id='ama-cpt-2026-licensed'").fetchone()[0])
+                baseline = base / "baseline.sqlite"
+                with closing(sqlite3.connect(baseline)) as connection:
+                    connection.execute("CREATE TABLE code (system TEXT, code TEXT)")
+                    connection.executemany("INSERT INTO code VALUES ('CPT', ?)", ((code,) for code in cpt_rows))
+                    connection.commit()
+                with mock.patch.object(build, "DEFAULT_OUT", baseline), mock.patch.object(build, "CPT_CONTROL_SHA256", control_hashes):
+                    self.assertEqual(0, build.main(args + ["--cpt-complete"]))
+                with closing(sqlite3.connect(output)) as connection:
+                    self.assertEqual("verified", connection.execute("SELECT value FROM meta WHERE key='cpt_descriptors'").fetchone()[0])
+                    self.assertEqual(5, connection.execute("SELECT COUNT(*) FROM source").fetchone()[0])
+                with closing(sqlite3.connect(baseline)) as connection:
+                    connection.execute("INSERT INTO code VALUES ('CPT', '12346')")
+                    connection.commit()
+                with mock.patch.object(build, "DEFAULT_OUT", baseline), mock.patch.object(build, "CPT_CONTROL_SHA256", control_hashes):
+                    with self.assertRaisesRegex(SystemExit, "12346"):
+                        build.main(args + ["--cpt-complete"])
+                args[args.index(build._sha256(agreement))] = "0" * 64
+                self.assertEqual(0, build.main(args + ["--cpt-complete"]))
+                with closing(sqlite3.connect(output)) as connection:
+                    self.assertEqual("unverified", connection.execute("SELECT value FROM meta WHERE key='cpt_descriptors'").fetchone()[0])
+
 
 def database() -> Path:
     directory = Path(tempfile.mkdtemp())
@@ -196,6 +346,10 @@ class Lookup(unittest.TestCase):
     def test_records_both_book_authorities(self):
         rows = self.connection.execute("SELECT system, isbn FROM source ORDER BY system").fetchall()
         self.assertEqual(rows, [("CPT", "9781640163232"), ("HCPCS", "9781640163317")])
+
+    def test_unagreed_import_is_marked_unverified(self):
+        value = self.connection.execute("SELECT value FROM meta WHERE key='cpt_descriptors'").fetchone()
+        self.assertEqual(("unverified",), value)
 
 
 if __name__ == "__main__":
