@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from discussion_artifact import check_posted_reading
+
 import json
 import os
 import subprocess
@@ -334,16 +336,17 @@ def completion_gate(
             reading = next(
                 (item for item in readings if item.artifact == submission), None
             )
+            outcomes = check_posted_reading(reading, file_digest.sha256(path), matches_only=True)
+            if outcomes:
+                canonical_failure = outcomes[0].message
             clean = bool(
-                reading is not None
+                not outcomes
+                and reading is not None
                 and reading.attachment_count.isascii()
                 and reading.attachment_count.isdecimal()
                 and int(reading.attachment_count) == len(filenames)
                 and reading.submitted_files == filenames
-                and reading.submission_sha256_is_valid
-                and reading.submission_sha256 == file_digest.sha256(path)
-                and reading.verdict == "matches"
-                and reading.verdict_has_substance
+
             )
     except (GateError, OSError, UnicodeError, ValueError):
         clean = False

@@ -374,7 +374,9 @@ LEGACY-DISPLAY: expected - <visible &amp; count> | differs - <what the page show
 deep link for the comment itself.
 Replace `matches` with `diverges` when the stored comment and plain-text build differ; both verdicts
 require substantive text after the keyword. Rerun `peer_critique_scan.py` after writing the record;
-its exit must now be 0.
+its exit must now be 0. The grader requires `POSTED`, `READ`, the current fingerprint, and a
+recognized verdict with substantive detail. It checks the `LEGACY-DISPLAY` keyword and reason,
+while the display observation remains outside grading. An unreadable record exits 2.
 
 Compute the fingerprint with `python -c "from pathlib import Path; from tools.file_digest import sha256; print(sha256(Path(r'<critique.md>')))"` and write it before `/AAR`
 extracts the record; adding or changing the line afterwards makes that review stale because

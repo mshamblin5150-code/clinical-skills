@@ -26,6 +26,9 @@ The shared completion rows' ceilings belong to
 
 from __future__ import annotations
 
+from discussion_artifact import check_posted_reading
+from discussion_artifact import PostedReading, read_posted_readings
+
 import re
 import sys
 from dataclasses import dataclass
@@ -144,7 +147,6 @@ AUTHOR_FIELD = re.compile(r"(?mi)^AUTHOR\s*:\s*(?P<value>[^\n]+)$")
 #: typed into an LMS box that has no renderer, so the bold form is what a posted
 #: critique carries; the heading form is what its rendered sibling carries.
 SECTION_HEADING = re.compile(r"(?m)^[ \t]*(?:#{1,6}[ \t]+|\*\*)(?P<name>[^\n*#]+?)(?:\*\*)?[ \t]*$")
-RECOGNIZED_VERDICTS = ("matches", "diverges")
 
 NO_RUN_DIRECTORY = "no run directory"
 NO_CRITIQUE = "no critique in the run"
@@ -249,7 +251,7 @@ class RunSource:
     roster: tuple[str, ...]
     posts_total: int
     claims: str
-    reread: str
+    readings: tuple[PostedReading, ...]
     heading_read_text: str
 
 
@@ -395,31 +397,25 @@ def _citation_findings(source: RunSource) -> tuple[Finding, ...]:
     )
 
 
-def _reread_findings(source: RunSource) -> tuple[Finding, ...]:
-    from discussion_artifact import read_posted_readings
+POSTED_READING_KINDS = {
+    "missing-record": MISSING_POSTED_READING,
+    "fingerprint": SUBMISSION_FINGERPRINT,
+    "posted-fields": MISSING_POSTED_READING,
+    "unknown-verdict": UNKNOWN_VERDICT,
+    "bare-verdict": BARE_VERDICT,
+    "legacy-display": MISSING_POSTED_READING,
+}
 
-    readings = read_posted_readings(source.reread)
-    reading = next(
-        (item for item in readings if item.artifact == "critique.md"), None
-    )
-    if reading is None:
-        return (Finding(MISSING_POSTED_READING, "critique.md", "no posted reading recorded"),)
-    findings = []
-    verdict = (reading.verdict or "").strip().casefold()
-    if verdict not in RECOGNIZED_VERDICTS:
-        findings.append(Finding(UNKNOWN_VERDICT, reading.artifact, verdict or "absent"))
-    elif not (reading.verdict_detail or "").strip():
-        findings.append(Finding(BARE_VERDICT, reading.artifact, verdict))
-    digest = file_digest.sha256(source.path / "critique.md")
-    if not reading.submission_sha256_is_valid or reading.submission_sha256 != digest:
-        findings.append(
-            Finding(
-                SUBMISSION_FINGERPRINT,
-                reading.artifact,
-                "critique.md SUBMISSION-SHA256 is missing, malformed, or stale",
-            )
+
+def _reread_findings(source: RunSource) -> tuple[Finding, ...]:
+    reading = next((item for item in source.readings if item.artifact == "critique.md"), None)
+    return tuple(
+        Finding(POSTED_READING_KINDS[item.code], "critique.md", item.message)
+        for item in check_posted_reading(
+            reading, file_digest.sha256(source.path / "critique.md"),
+            posted_fields=True, verdict=True, legacy_display=True,
         )
-    return tuple(findings)
+    )
 
 
 def survey(source: RunSource) -> Scan:
@@ -582,6 +578,7 @@ def load(parsed: run_grader.Parsed) -> RunSource:
         claims = claims_path.read_text(encoding="utf-8") if claims_path.is_file() else ""
         reread_path = directory / "reread.md"
         reread = reread_path.read_text(encoding="utf-8") if reread_path.is_file() else ""
+        readings = read_posted_readings(reread)
         heading_read_path = directory / "heading-read.md"
         heading_read_text = (
             heading_read_path.read_text(encoding="utf-8")
@@ -607,7 +604,7 @@ def load(parsed: run_grader.Parsed) -> RunSource:
         roster=tuple(roster),
         posts_total=len(posts),
         claims=claims,
-        reread=reread,
+        readings=readings,
         heading_read_text=heading_read_text,
     )
 

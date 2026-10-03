@@ -122,7 +122,7 @@ class FingerprintRefusals(unittest.TestCase):
         )
 
         self.assertTrue(failed)
-        self.assertIn("SUBMISSION-SHA256 is malformed", report)
+        self.assertIn("SUBMISSION-SHA256 is missing, malformed, or stale", report)
 
     def test_unreadable_note_bytes_are_refused(self) -> None:
         digest = sha256(self.note.read_bytes()).hexdigest()
@@ -149,7 +149,7 @@ class FingerprintRefusals(unittest.TestCase):
         )
 
         self.assertTrue(failed)
-        self.assertIn("no readable REREAD record", report)
+        self.assertIn("no REREAD record for the submission", report)
 
     def test_missing_visit_line_is_refused(self) -> None:
         digest = sha256(self.note.read_bytes()).hexdigest()
@@ -164,7 +164,7 @@ class FingerprintRefusals(unittest.TestCase):
         failed, report = posting.completion_gate(self.run, SUBMISSION, batch=True)
 
         self.assertTrue(failed)
-        self.assertIn("0 VISIT line(s)", report)
+        self.assertIn("VISIT line count differs", report)
 
     def test_read_count_and_visit_count_must_agree(self) -> None:
         (self.run / "note-2.md").write_bytes(b"second note")
@@ -177,7 +177,7 @@ class FingerprintRefusals(unittest.TestCase):
         failed, report = posting.completion_gate(self.run, SUBMISSION, batch=True)
 
         self.assertTrue(failed)
-        self.assertIn("2 visit(s) but 1 VISIT line(s)", report)
+        self.assertIn("VISIT line count differs", report)
 
     def test_zero_read_cannot_cover_one_fingerprinted_note(self) -> None:
         digest = sha256(self.note.read_bytes()).hexdigest()
@@ -188,7 +188,7 @@ class FingerprintRefusals(unittest.TestCase):
         failed, report = posting.completion_gate(self.run, SUBMISSION, batch=True)
 
         self.assertTrue(failed)
-        self.assertIn("0 visit(s) but the fingerprint covers 1 note(s)", report)
+        self.assertIn("READ must state N of N read matching the note population", report)
 
     def test_one_read_cannot_cover_two_fingerprinted_notes(self) -> None:
         (self.run / "note-2.md").write_bytes(b"second note")
@@ -198,7 +198,7 @@ class FingerprintRefusals(unittest.TestCase):
         failed, report = posting.completion_gate(self.run, SUBMISSION, batch=True)
 
         self.assertTrue(failed)
-        self.assertIn("1 visit(s) but the fingerprint covers 2 note(s)", report)
+        self.assertIn("READ must state N of N read matching the note population", report)
 
     def test_each_visit_token_is_required(self) -> None:
         digest = sha256(self.note.read_bytes()).hexdigest()
@@ -221,7 +221,7 @@ class FingerprintRefusals(unittest.TestCase):
                     self.run, SUBMISSION, batch=True
                 )
                 self.assertTrue(failed)
-                self.assertIn("VISIT 1 is missing", report)
+                self.assertIn("VISIT is missing", report)
 
     def test_verdict_requires_matches_and_detail(self) -> None:
         digest = sha256(self.note.read_bytes()).hexdigest()
@@ -238,7 +238,7 @@ class FingerprintRefusals(unittest.TestCase):
                     self.run, SUBMISSION, batch=True
                 )
                 self.assertTrue(failed)
-                self.assertIn("VERDICT must be matches", report)
+                self.assertIn("VERDICT must be matches" if "diverges" in verdict else "verdict carries no reading substance", report)
 
 
 if __name__ == "__main__":

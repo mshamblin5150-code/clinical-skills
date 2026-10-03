@@ -25,6 +25,8 @@ The shared completion rows' ceilings belong to
 
 from __future__ import annotations
 
+from discussion_artifact import check_posted_reading
+
 import re
 import sys
 import zipfile
@@ -978,90 +980,46 @@ def load(parsed: run_grader.Parsed) -> RunSource:
     )
 
 
+POSTED_READING_KINDS = {
+    "missing-record": MISSING_POSTED_READING,
+    "fingerprint": SUBMISSION_FINGERPRINT,
+    "posted-fields": MISSING_POSTED_READING,
+    "unknown-verdict": UNKNOWN_VERDICT,
+    "bare-verdict": BARE_VERDICT,
+    "unlocated": UNLOCATED_READING,
+    "borrowed": BORROWED_LOCATOR,
+    "composer-outcome": MISSING_POSTED_READING,
+    "html-bytes": MISSING_POSTED_READING,
+    "refusal": MISSING_POSTED_READING,
+    "attachment-field": MISSING_POSTED_READING,
+    "attachment-copy": POSTED_ATTACHMENT,
+    "attachment-digest": POSTED_ATTACHMENT,
+}
+
+
 def _posted_reading_findings(source: RunSource) -> tuple[Finding, ...]:
     submission = source.draft.stem
-    reading = next(
-        (item for item in source.readings if item.artifact == submission), None
-    )
+    reading = next((item for item in source.readings if item.artifact == submission), None)
     posting_absent = source.post_url is None and source.post_posted is None
     if posting_absent and reading is None:
         return ()
-    if reading is None:
-        return (
-            Finding(
-                MISSING_POSTED_READING,
-                submission,
-                "no REREAD record for the posted initial entry",
-            ),
-        )
-    findings: list[Finding] = []
-    missing = list(reading.missing_record_fields)
-    if (
-        not reading.html_bytes.isdigit()
-        or (source.html is not None and int(reading.html_bytes) != source.html.stat().st_size)
-    ):
-        missing.append("HTML-BYTES matching the built HTML")
-    if reading.composer_outcome == "attachment":
-        if not reading.refusal_is_dated:
-            missing.append("REFUSAL with date and observed wording")
-        if not reading.attachment:
-            missing.append("ATTACHMENT")
-    if not posting_absent and not source.post_url:
-        missing.append(f"{submission} POST-URL")
-    if not posting_absent and not source.post_posted:
-        missing.append(f"{submission} POSTED")
-    if missing:
-        findings.append(
-            Finding(
-                MISSING_POSTED_READING,
-                submission,
-                "missing " + ", ".join(missing),
-            )
-        )
-    if not reading.verdict_is_known:
-        findings.append(
-            Finding(UNKNOWN_VERDICT, submission, "verdict is outside the vocabulary")
-        )
-    elif not reading.verdict_has_substance:
-        findings.append(
-            Finding(BARE_VERDICT, submission, "verdict carries no reading substance")
-        )
-    if reading.entry_id is None:
-        findings.append(
-            Finding(UNLOCATED_READING, submission, "POST-URL has no entry_id")
-        )
-    elif not posting_absent and reading.post_url != source.post_url:
-        findings.append(
-            Finding(
-                BORROWED_LOCATOR,
-                submission,
-                f"POST-URL does not match {submission}",
-            )
-        )
-    digest = file_digest.sha256(source.draft)
-    if not reading.submission_sha256_is_valid or reading.submission_sha256 != digest:
-        findings.append(
-            Finding(
-                SUBMISSION_FINGERPRINT,
-                submission,
-                f"{source.draft.name} SUBMISSION-SHA256 is missing, malformed, or stale",
-            )
-        )
-    if reading.composer_outcome == "attachment":
-        retained = reading.posted_attachment(source.path)
-        if source.docx is None or retained is None or not retained.is_file():
-            findings.append(Finding(
-                POSTED_ATTACHMENT, submission,
-                "ATTACHMENT must name an existing posted/ Word copy and --docx is required",
-            ))
-        elif (
-            retained.name != source.docx.name
-            or file_digest.sha256(retained) != file_digest.sha256(source.docx)
-        ):
-            findings.append(Finding(
-                POSTED_ATTACHMENT, submission,
-                "posted attachment filename or SHA-256 differs from the local Word document",
-            ))
+    outcomes = check_posted_reading(
+        reading, file_digest.sha256(source.draft), posted_fields=True,
+        verdict=True, entry_link=True, composer=True,
+        html_bytes=source.html.stat().st_size if source.html is not None else None,
+        run=source.path, docx=source.docx,
+    )
+    findings = [Finding(POSTED_READING_KINDS[item.code], submission, item.message) for item in outcomes]
+    if reading is not None and not posting_absent:
+        missing = []
+        if not source.post_url:
+            missing.append(f"{submission} POST-URL")
+        if not source.post_posted:
+            missing.append(f"{submission} POSTED")
+        if missing:
+            findings.append(Finding(MISSING_POSTED_READING, submission, "missing " + ", ".join(missing)))
+        if reading.entry_id is not None and reading.post_url != source.post_url:
+            findings.append(Finding(BORROWED_LOCATOR, submission, f"POST-URL does not match {submission}"))
     return tuple(findings)
 
 

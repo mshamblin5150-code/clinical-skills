@@ -15,6 +15,8 @@ module copies no row.
 
 from __future__ import annotations
 
+from discussion_artifact import check_posted_reading
+
 import re
 import sys
 import zipfile
@@ -797,31 +799,19 @@ def load(
     )
 
 
-def _submission_fingerprint_findings(
-    source: Source, submission: str | None
-) -> tuple[Finding, ...]:
+POSTED_READING_KINDS = {
+    "missing-record": SUBMISSION_FINGERPRINT,
+    "fingerprint": SUBMISSION_FINGERPRINT,
+}
+
+
+def _submission_fingerprint_findings(source: Source, submission: str | None) -> tuple[Finding, ...]:
     if submission is None:
         return ()
-    reading = next(
-        (item for item in source.readings if item.artifact == submission), None
-    )
-    if reading is None:
-        return (
-            Finding(
-                SUBMISSION_FINGERPRINT,
-                None,
-                f"reread.md has no REREAD record for {submission}",
-            ),
-        )
-    digest = file_digest.sha256(source.deck)
-    if reading.submission_sha256_is_valid and reading.submission_sha256 == digest:
-        return ()
-    return (
-        Finding(
-            SUBMISSION_FINGERPRINT,
-            None,
-            f"{source.deck.name} SUBMISSION-SHA256 is missing, malformed, or stale",
-        ),
+    reading = next((item for item in source.readings if item.artifact == submission), None)
+    return tuple(
+        Finding(POSTED_READING_KINDS[item.code], None, item.message)
+        for item in check_posted_reading(reading, file_digest.sha256(source.deck))
     )
 
 
