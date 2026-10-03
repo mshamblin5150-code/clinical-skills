@@ -15,6 +15,14 @@ producing fluent, plausible, confident text from a source only it has read. Noth
 here checks that a guideline was *understood*. Each gate eliminates one way a sheet
 can be confidently wrong.
 
+``--allow-stale-build`` converts only untrusted-record-only status 2 to 0 and
+suppresses no report line. All other routes to status 2 remain refusals: a missing
+or unparseable sheet, no selected sheets, catalog/page-count reconciliation,
+explicit recommendation argument errors, unreadable records, and invalid supplied
+second reads. Findings still win over stale records. Missing automatically resolved
+records, extraction identity and watermark incompleteness, and missing PDFs already
+report without forcing status 2; the flag changes none of those paths.
+
 The gates, and what each one can and cannot see
 ------------------------------------------------
 
@@ -206,6 +214,7 @@ failing, which is the same hole -- named here rather than discovered later.
 from __future__ import annotations
 
 import argparse
+from functools import cached_property
 import json
 import os
 import re
@@ -700,6 +709,8 @@ class SecondReadResult(GateResult):
 class CoverageResult(GateResult):
     """Recommendation-coverage gate outcome."""
 
+    stale_build_only: bool = False
+
 
 @dataclass(frozen=True)
 class EditionCurrencyResult(GateResult):
@@ -729,6 +740,7 @@ class Scan:
     status: int = 0
     diagnostics: tuple[Line, ...] = ()
     reportable: bool = True
+    stale_build_only: bool = False
 
 
 def format_report(scan: Scan) -> str:
@@ -1224,6 +1236,13 @@ class SurveyInputs:
     catalog_facts: CatalogFacts | None
     currency_registry: guidelines_currency.Registry | None
     expected_commit: str
+
+    @cached_property
+    def extraction_handoff(self) -> guidelines_manifest.Manifest:
+        return guidelines_manifest.read(
+            self.roots.text_root, expected_commit=self.expected_commit,
+            allow_untrusted_provenance=self.allow_untrusted_provenance,
+        )
 
 
 def load_catalog_facts(path: Path = DEFAULT_CATALOG) -> CatalogFacts:
@@ -2900,6 +2919,9 @@ def gate_coverage(
         ),
         diagnostics=tuple(diagnostics),
         not_graded=bool(blocking_ungraded or recs_errors or not sheet.sources),
+        stale_build_only=bool(untrusted_blocking) and not (
+            other_blocking or recs_errors or not sheet.sources
+        ),
     )
 
 
@@ -3054,11 +3076,7 @@ def survey(
             )
     edition_currency = gate_edition_currency(sheet, currency_registry)
     null_span = gate_null_span(sheet)
-    extraction_handoff = guidelines_manifest.read(
-        roots.text_root,
-        expected_commit=inputs.expected_commit,
-        allow_untrusted_provenance=inputs.allow_untrusted_provenance,
-    )
+    extraction_handoff = inputs.extraction_handoff
     current_extraction, identity_problems = extraction_identity_from_handoff(
         extraction_handoff
     )
@@ -3185,7 +3203,12 @@ def survey(
         status = 2
     else:
         status = 0
-    return Scan(sheet, results, status, tuple(diagnostics))
+    stale_build_only = coverage.stale_build_only and all(
+        result is coverage or not (result.not_graded or result.fatal)
+        for result in results
+    )
+    return Scan(sheet, results, status, tuple(diagnostics),
+                stale_build_only=stale_build_only)
 
 
 def _emit_scan(scan: Scan, *, quiet: bool) -> int:
@@ -3341,6 +3364,10 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--allow-stale-build", action="store_true",
+        help="allow only untrusted-record build state; keep all NOT RUN lines",
+    )
+    parser.add_argument(
         "--allow-untrusted-provenance",
         action="store_true",
         help=(
@@ -3382,6 +3409,11 @@ def text_root_for(args: argparse.Namespace) -> Path:
 
 
 def main(argv: list[str]) -> int:
+    with artifact_provenance.reuse_producer_checks():
+        return _main(argv)
+
+
+def _main(argv: list[str]) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     expected_commit = artifact_provenance.checkout_commit(REPO_ROOT)
@@ -3472,6 +3504,9 @@ def main(argv: list[str]) -> int:
             scan = survey(path, inputs)
             scans.append(scan)
         worst = _emit_all(scans, quiet=args.quiet)
+        if args.allow_stale_build:
+            return max((0 if scan.status == 2 and scan.stale_build_only
+                        else scan.status for scan in scans), default=0)
         return worst
 
     if not args.sheet:
@@ -3480,21 +3515,20 @@ def main(argv: list[str]) -> int:
     # record and a named sheet did not, so the same sheet graded differently depending
     # on which way it was reached. One rule, and the root stays outside the repo --
     # see `bind_recs` for why there is no fallback beside the sheet.
-    return _emit_scan(
-        survey(
-            args.sheet,
-            SurveyInputs(
-                roots=Roots(args.pdf_root, args.recs_root, text_root, args.recs_alias),
-                recs_arguments=args.recs,
-                second_read_path=args.second_read,
-                allow_untrusted_provenance=args.allow_untrusted_provenance,
-                catalog_facts=None,
-                currency_registry=None,
-                expected_commit=expected_commit,
-            ),
+    scan = survey(
+        args.sheet,
+        SurveyInputs(
+            roots=Roots(args.pdf_root, args.recs_root, text_root, args.recs_alias),
+            recs_arguments=args.recs,
+            second_read_path=args.second_read,
+            allow_untrusted_provenance=args.allow_untrusted_provenance,
+            catalog_facts=None,
+            currency_registry=None,
+            expected_commit=expected_commit,
         ),
-        quiet=args.quiet,
     )
+    status = _emit_scan(scan, quiet=args.quiet)
+    return 0 if args.allow_stale_build and status == 2 and scan.stale_build_only else status
 
 
 if __name__ == "__main__":

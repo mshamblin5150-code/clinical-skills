@@ -19,6 +19,9 @@ and docs/adr/0019. What none of those mechanisms reaches is ``NOT_GUARDED``.
 from __future__ import annotations
 
 import hashlib
+import json
+from contextlib import contextmanager
+from contextvars import ContextVar
 import re
 import subprocess
 import sys
@@ -420,12 +423,10 @@ def _content_inputs(
     return True, normalized
 
 
-def check_producer(
+def _producer_check(
     producer: object,
-    artifact: Path | str,
     *,
     expected_commit: str,
-    allow_untrusted: bool = False,
     repo_root: Path = REPO_ROOT,
     unchanged_paths: tuple[str, ...] = (),
 ) -> ProvenanceCheck:
@@ -480,6 +481,48 @@ def check_producer(
                 normalized["inputs"] = inputs
 
     check = ProvenanceCheck(normalized, tuple(reasons))
+    return check
+
+
+_run_checks: ContextVar[dict | None] = ContextVar("producer_checks", default=None)
+
+
+@contextmanager
+def reuse_producer_checks():
+    """Reuse producer verdicts within one run; retain each artifact's trace."""
+    token = _run_checks.set({})
+    try:
+        yield
+    finally:
+        _run_checks.reset(token)
+
+
+def check_producer(
+    producer: object,
+    artifact: Path | str,
+    *,
+    expected_commit: str,
+    allow_untrusted: bool = False,
+    repo_root: Path = REPO_ROOT,
+    unchanged_paths: tuple[str, ...] = (),
+) -> ProvenanceCheck:
+    """Check ownership, reusing only identical producer questions in a run."""
+    checks = _run_checks.get()
+    key = None
+    if checks is not None:
+        try:
+            key = (json.dumps(producer, sort_keys=True), expected_commit,
+                   str(repo_root), unchanged_paths)
+        except (TypeError, ValueError):
+            pass
+    check = checks.get(key) if checks is not None and key is not None else None
+    if check is None:
+        check = _producer_check(
+            producer, expected_commit=expected_commit,
+            repo_root=repo_root, unchanged_paths=unchanged_paths,
+        )
+        if checks is not None and key is not None:
+            checks[key] = check
     if check.reasons:
         message = f"untrusted artifact {artifact}: " + "; ".join(check.reasons)
         if not allow_untrusted:

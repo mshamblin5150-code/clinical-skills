@@ -840,6 +840,16 @@ def main(argv: list[str]) -> int:
     print(f"index alias {index_alias}")
     if recs is not None:
         print(f"recs alias  {recs_alias}")
+    # A corpus refresh can invalidate any sheet's citation. Report the full gate
+    # against the aliases just published without changing the build's status.
+    try:
+        subprocess.run([
+            sys.executable, str(Path(__file__).with_name("threshold_sheet.py")),
+            "--all", "--pdf-root", str(source), "--text-root", str(text_alias),
+            "--recs-alias", str(recs_alias),
+        ], check=False)
+    except OSError as failure:
+        print(f"threshold gate NOT RUN -- {failure}", file=sys.stderr)
     return 0
 
 

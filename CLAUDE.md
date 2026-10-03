@@ -2665,6 +2665,16 @@ The distilled artifact the whole #80 series is for, and the gates that keep it h
 python tools/threshold_sheet.py --all
 ```
 
+The pre-commit hook grades each staged clinical sheet, excluding `README.md`, `coverage.md`,
+and `subjects.md`. Staging `reference/guidelines-catalog.md` runs every sheet once instead,
+even when sheets are staged too. Both invocations pass `--allow-stale-build`: an untrusted
+recommendation record alone keeps its `NOT RUN` lines but does not refuse the commit.
+Unreadable sheets, catalog or scope failures, unreadable records, invalid second reads, and
+findings still refuse. The ordinary command and CI retain their exit status. A completed
+`guidelines_build.py` build prints the full gate report against its published aliases without
+changing the build's exit status. Producer verdicts and the extraction manifest are reused
+within the gate run; no disk or build cache is involved.
+
 **`reference/thresholds/hypertension.md` was the first, and the directory now records its corpus denominator in `reference/thresholds/coverage.md`.** The sheet has 74 rows from the AHA/ACC 2025 hypertension guideline, citing 53 of its 103 recommendations, with the other 50 scoped out by identifier — 103 accounted for exactly. A registry row in state `unread` is not a negative finding about a guideline.
 
 **The population column is load-bearing and it came from the clinician rather than from the corpus.** A draft of this called KDIGO's `SBP <120` and AHA/ACC's `<130/80` a cross-society contradiction; they are not, because KDIGO's is CKD-only. So a conflict is keyed on **quantity and population together**, the key is drawn from a fixed vocabulary the sheet declares, and the guideline's own wording sits beside it — a machine can only compare strings, and a mis-keyed row is a wrong *word* a reader can see rather than a silent miss. Checking ADA 2026 afterwards found it **agrees** with AHA/ACC at `<130/80`: once population is respected the contradiction the ticket predicted mostly evaporates.
@@ -2918,7 +2928,9 @@ git config core.hooksPath tools/hooks
 
 After that, `tools/hooks/pre-commit` runs `tools/phi_scan.py`, `tools/scratch_census.py`, and the
 staged spelling check on every commit in that clone. The hook records its staged-conditional graders
-beside their triggering paths instead of copying that inventory here. `tools/hooks/commit-msg`
+beside their triggering paths instead of copying that inventory here. The threshold check
+selects staged clinical sheets, or every sheet once when the catalog is staged, and passes
+`--allow-stale-build` on both routes; the threshold-sheet section explains that flag's cost. `tools/hooks/commit-msg`
 checks the proposed message for spelling and GitHub closing keywords. Both spelling checks and the
 closing-keyword check are advisory.
 
