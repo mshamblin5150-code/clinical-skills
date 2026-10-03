@@ -98,6 +98,14 @@ UnreadRemainderConformance = grader_conformance.unread_remainder_conformance(aar
 
 
 class DeclaredLimitsAreBound(unittest.TestCase):
+    def test_transcript_derived_committed_types_have_no_unread_remainder(self):
+        path = Path(__file__).resolve().parents[1] / "fixtures" / "aar-row-types" / "claude.jsonl"
+        rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+        self.assertTrue(rows)
+        self.assertTrue(all(set(row) == {"type"} for row in rows))
+        diagnostics = aar_scan.extract_diagnostics((path,), ())
+        self.assertEqual(diagnostics.unread_remainder, 0)
+
     def test_the_test_suite_names_the_declared_limits_object(self):
         self.assertTrue(aar_scan.DECLARED_LIMITS)
         self.assertTrue(aar_scan.NAMED_UNREAD_TYPES)
