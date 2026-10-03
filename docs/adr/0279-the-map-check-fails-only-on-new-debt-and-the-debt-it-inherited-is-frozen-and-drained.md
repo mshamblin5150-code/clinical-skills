@@ -1,6 +1,10 @@
 # The map check fails only on new debt and the debt it inherited is frozen and drained
 
-**Measured at:** 36d6029b25913c4ec8590e568aa38197a0dc3313
+**Measured at:** 2030e75d4e7c1341dbfe4470480ecbafbcdd70f2
+
+The run figures below were read at `36d6029b25913c4ec8590e568aa38197a0dc3313`; the declaration moved
+to this record's own parent when ruling 2 was amended in the same session, and no figure was
+re-read.
 
 [#1199](https://github.com/mshamblin5150-code/clinical-skills/issues/1199) found the
 `Implementation map disagreement` step in `.github/workflows/checks.yml` red on most pushes to
@@ -60,9 +64,18 @@ often.
 
 ## Ruling 2 — the grandfathered set is a declared list that can only shrink
 
-The set is a declared constant in `tools/map_scan.py` naming each ADR path and ticket number. A
-test fails when an entry has been discharged, so the list shrinks as reconciliations land, and
-adding an entry needs a visible diff. It names its members rather than counting them, unlike
+The set is a declared constant in `tools/map_scan.py` naming each ADR path and ticket number,
+together with the commit at which it was frozen. An ADR entry covers only an obligation arising at
+or before that commit, so a later change to a grandfathered ADR is new debt. Adding an entry needs a
+visible diff.
+
+An entry that is no longer owed is printed as discharged and due for removal, and refuses
+nothing. The drain ticket removes entries as it discharges them. Failing the push on a discharged
+entry was refused because the red would land on whichever session pushed next, about work it did
+not touch. Whether an entry was discharged is recorded on the tracker, so only the step that reads
+the tracker can see it; no offline test can.
+
+The list names its members rather than counting them, unlike
 [ADR 0033](0033-the-scratch-baseline-is-a-count-because-the-set-is-phi-and-the-repo-is-public.md)'s
 scratch baseline, because ADR paths and ticket numbers are not PHI.
 
@@ -84,10 +97,10 @@ before the merge, so it gets none and refuses on the next push as it does today.
 `mapped-not-ready` and `missing-limits-pointer`, refuse when they arise; this records the posture
 build `57724777` adopted without a ruling naming them.
 
-## Ruling 4 — the report states the three populations
+## Ruling 4 — the report states the populations
 
-The step's report prints the grandfathered count, the count owed by this merge, and the refusing
-count on every run, so a green result reads as nothing new owed and never as nothing owed. Exit
+The step's report prints the grandfathered count, the count owed by this merge, the refusing
+count and the discharged count on every run, so a green result reads as nothing new owed and never as nothing owed. Exit
 status precedence is unchanged: a refusing finding wins over did-not-scan, and a did-not-scan run
 still exits 2 under ADR 0202.
 
