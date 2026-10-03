@@ -8,6 +8,7 @@ import json
 import subprocess
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 import artifact_lock_test_support  # noqa: F401
@@ -212,6 +213,86 @@ class ReadinessDisagreement(ScannerCase):
 
 
 class ReconciliationObligation(ScannerCase):
+    def head(self):
+        return subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], cwd=self.root, text=True,
+            encoding="utf-8", errors="replace",
+        ).strip()
+
+    def test_grandfathered_adr_is_visible_but_a_later_change_refuses(self):
+        self.add_adr_commit()
+        freeze = self.head()
+        with patch.multiple(
+            map_scan, GRANDFATHERED_FREEZE_COMMIT=freeze,
+            GRANDFATHERED_ADRS=("docs/adr/0001-decision.md",),
+            GRANDFATHERED_TICKETS=(),
+        ):
+            rows = [self.map_issue(state(self.anchor))]
+            code, stdout, _ = self.run_scan(rows)
+            self.assertEqual(code, map_scan.CLEAN, stdout)
+            self.assertIn("grandfathered: 1", stdout)
+            self.assertIn("ADR 0001", stdout)
+            (self.root / "docs/adr/0001-decision.md").write_text("# Changed\n")
+            subprocess.run(["git", "commit", "-qam", "change ADR"], cwd=self.root, check=True)
+            code, stdout, _ = self.run_scan(rows)
+            self.assertEqual(code, map_scan.FOUND, stdout)
+            self.assertIn("refusing: 1", stdout)
+
+    def test_landing_grace_applies_only_to_the_push_that_lands_the_adr(self):
+        self.add_adr_commit()
+        rows = [self.map_issue(state(self.anchor))]
+        code, stdout, _ = self.run_scan(rows, "--pushed-range", f"{self.anchor}..{self.head()}")
+        self.assertEqual(code, map_scan.CLEAN, stdout)
+        self.assertIn("owed by this merge: 1", stdout)
+        code, stdout, _ = self.run_scan(rows)
+        self.assertEqual(code, map_scan.FOUND, stdout)
+        code, stdout, _ = self.run_scan(rows, "--pushed-range", "HEAD..HEAD")
+        self.assertEqual(code, map_scan.FOUND, stdout)
+
+    def test_an_unresolvable_range_is_not_scanned_but_a_refusing_ticket_wins(self):
+        rows = [self.map_issue(state(self.anchor))]
+        for invalid in ("missing..HEAD", "HEAD..missing", "HEAD...HEAD", "HEAD"):
+            with self.subTest(invalid=invalid):
+                code, stdout, stderr = self.run_scan(rows, "--pushed-range", invalid)
+                self.assertEqual(code, map_scan.NOT_SCANNED, stdout)
+                self.assertIn("pushed range", stderr)
+                self.assertIn("refusing: 0", stdout)
+                code, stdout, _ = self.run_scan(
+                    [*rows, issue(42, labels=["ready-for-agent"])], "--pushed-range", invalid
+                )
+                self.assertEqual(code, map_scan.FOUND, stdout)
+
+    def test_new_ready_tickets_get_no_landing_grace(self):
+        code, stdout, _ = self.run_scan(
+            [self.map_issue(state(self.anchor)), issue(42, labels=["ready-for-agent"])],
+            "--pushed-range", f"{self.anchor}..HEAD",
+        )
+        self.assertEqual(code, map_scan.FOUND, stdout)
+        self.assertIn("owed by this merge: 0", stdout)
+
+    def test_a_grandfathered_ticket_prints_and_a_discharged_entry_is_due_for_removal(self):
+        with patch.multiple(map_scan, GRANDFATHERED_ADRS=(), GRANDFATHERED_TICKETS=(42,)):
+            rows = [self.map_issue(state(self.anchor))]
+            code, stdout, _ = self.run_scan([*rows, issue(42, labels=["ready-for-agent"])])
+            self.assertEqual(code, map_scan.CLEAN, stdout)
+            self.assertIn("grandfathered: 1", stdout)
+            self.assertIn("ticket #42", stdout)
+            code, stdout, _ = self.run_scan([*rows, issue(42, state="closed")])
+            self.assertEqual(code, map_scan.CLEAN, stdout)
+            self.assertIn("discharged: ticket #42; due for removal", stdout)
+            self.assertIn("discharged: 1", stdout)
+
+    def test_a_reviewed_grandfathered_adr_prints_as_discharged(self):
+        self.add_adr_commit()
+        with patch.multiple(
+            map_scan, GRANDFATHERED_FREEZE_COMMIT=self.head(),
+            GRANDFATHERED_ADRS=("docs/adr/0001-decision.md",), GRANDFATHERED_TICKETS=(),
+        ):
+            code, stdout, _ = self.run_scan([self.map_issue(state(self.head()))])
+            self.assertEqual(code, map_scan.CLEAN, stdout)
+            self.assertIn("discharged: docs/adr/0001-decision.md; due for removal", stdout)
+            self.assertIn("discharged: 1", stdout)
+
     def add_adr_commit(self):
         path = self.root / "docs" / "adr" / "0001-decision.md"
         path.write_text("# Decision\n", encoding="utf-8")

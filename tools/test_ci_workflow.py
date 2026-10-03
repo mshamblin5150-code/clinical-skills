@@ -283,6 +283,19 @@ class ImplementationMapGateRunsWhereReconciliationIsOwed(unittest.TestCase):
     def test_the_report_reaches_the_step_summary(self):
         self.assertIn("GITHUB_STEP_SUMMARY", self.map_step())
 
+    def test_only_push_supplies_the_landing_range(self):
+        step = self.map_step()
+        self.assertIn("BEFORE_SHA: ${{ github.event.before }}", step)
+        self.assertIn("$rangeArgs = @()", step)
+        self.assertIn("if ($env:GITHUB_EVENT_NAME -eq 'push')", step)
+        self.assertIn("@('--pushed-range', \"$env:BEFORE_SHA..$env:GITHUB_SHA\")", step)
+        self.assertIn("--population $population @rangeArgs 2>&1", step)
+
+    def test_suite_and_phi_disclosure_run_after_a_map_failure(self):
+        for name in ("Test suite", "What this job can and cannot check for PHI"):
+            step = workflow_text().partition(f"- name: {name}\n")[2].partition("\n      - ")[0]
+            self.assertIn("if: always()", step)
+
     def test_did_not_scan_heading_is_derived_from_the_scanner_status(self):
         step = self.map_step()
 

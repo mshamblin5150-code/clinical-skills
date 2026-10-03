@@ -1402,8 +1402,10 @@ MAINTENANCE_RULE = """\
    implementation work, changes an existing ticket's readiness, introduces,
    removes, or reverses a dependency, or invalidates an artifact another
    ticket would build, the ADR/grilling closeout performs an incremental map
-   reconciliation. After merge, `tools/map_scan.py` mechanically grades that
-   the reconciliation obligation was discharged.
+   reconciliation. After merge, `tools/map_scan.py` reports grandfathered
+   debt and ADRs owed by the landing push without refusing, and refuses other
+   readiness and obligation findings under ADR 0279. A later change to a
+   grandfathered ADR is new debt. Its declared list can only shrink.
 4. An incremental reconciliation reads: the merged ADR from the current
    default branch; every ticket created by it; every existing ticket changed
    or commented on by its exhaustive sweep; and the current native dependency

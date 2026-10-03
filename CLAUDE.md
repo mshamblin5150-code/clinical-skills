@@ -1774,12 +1774,22 @@ gh api --paginate 'repos/OWNER/REPO/issues?state=all&per_page=100' |
 python tools/map_scan.py $harvest --population $population
 ```
 
-Readiness and obligation findings and did-not-scan results fail after a merge;
-the producer-stamp row remains visible but advisory in this whole-harvest
+Under ADR 0279, grandfathered debt in `map_scan.GRANDFATHERED_ADRS` and
+`map_scan.GRANDFATHERED_TICKETS` prints without refusing. ADR obligations qualify
+only when their triggering first-parent commit is the freeze commit or an
+ancestor; a later change is new debt. On push, pass
+`--pushed-range before..sha` to report ADRs landed by that range as owed by this
+merge without refusing. Manual runs pass no range. Every other readiness or
+obligation finding refuses; unresolved ranges and other did-not-scan results
+exit 2, with refusing findings taking precedence. The report always states
+grandfathered, owed-by-this-merge, refusing, and discharged populations;
+discharged entries print as due for removal and refuse nothing. The PHI
+disclosure and Test suite steps run even after a map failure.
+The producer-stamp row remains visible but advisory in this whole-harvest
 route. The edited-#596 workflow is the refusing stamp route. The full boundary
 is `map_scan.DECLARED_LIMITS`; this section points to that object and copies
-none of its rows. A clean scan is a clean readiness and obligation gate plus an
-advisory stamp result, not a checked implementation map.
+none of its rows. Exit 0 establishes no refusing debt plus an advisory stamp
+result; reported debt may remain. It does not establish a checked implementation map.
 
 Covered by `tools/test_map_scan.py`, which builds synthetic issue harvests and
 throwaway checkouts in a temp directory. **The real tracker is deliberately not
