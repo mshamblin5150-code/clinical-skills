@@ -63,6 +63,19 @@ has text before its final `; ` equal to another code's complete descriptor; the
 refusal names the codes. What a build or a verified build does not establish is
 `procedure_codes_build.DECLARED_LIMITS`.
 
+The two readings, `reader-1.csv` and `reader-2.csv`, and the page resolutions,
+`resolutions.csv` (`code`, `description`, `printed_page`), become the agreed CSV
+and the record through:
+
+```bash
+python tools/cpt_descriptor_agreement.py           # report and settlement work list
+python tools/cpt_descriptor_agreement.py --write   # agreed.csv, agreement.json, its SHA-256
+```
+
+`disagreements.csv` names every code the readers read differently. Each is read on
+its rendered destination page and entered in `resolutions.csv` before `--write`
+will write anything.
+
 ## Lookup
 
 ```bash

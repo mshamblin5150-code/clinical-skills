@@ -258,20 +258,29 @@ def read_cpt_text(text: str, label: str, *, validate_descriptors: bool = True) -
                     source_id="ama-cpt-2026-licensed",
                 )
             )
-    descriptions = {entry.description for entry in entries}
-    bad = {
-        entry.code
-        for entry in entries
-        if ";;" in entry.description
-        or entry.description.endswith(":")
-        or (
-            "; " in entry.description
-            and entry.description.rsplit("; ", 1)[0] in descriptions
-        )
-    }
-    if bad and validate_descriptors:
-        raise ValueError(f"{label}: defective CPT descriptors: {', '.join(sorted(bad))}")
+    if validate_descriptors:
+        bad = {code for codes in descriptor_defects(entries).values() for code in codes}
+        if bad:
+            raise ValueError(f"{label}: defective CPT descriptors: {', '.join(sorted(bad))}")
     return entries
+
+
+DESCRIPTOR_DEFECTS = ("stacked", "double semicolon", "colon-terminated")
+
+
+def descriptor_defects(entries: list[Entry]) -> dict[str, set[str]]:
+    """Codes carrying each refused descriptor shape, keyed by ``DESCRIPTOR_DEFECTS``."""
+    descriptions = {entry.description for entry in entries}
+    found: dict[str, set[str]] = {shape: set() for shape in DESCRIPTOR_DEFECTS}
+    for entry in entries:
+        text = entry.description
+        if "; " in text and text.rsplit("; ", 1)[0] in descriptions:
+            found["stacked"].add(entry.code)
+        if ";;" in text:
+            found["double semicolon"].add(entry.code)
+        if text.endswith(":"):
+            found["colon-terminated"].add(entry.code)
+    return found
 
 
 def read_cpt(path: Path, *, validate_descriptors: bool = True) -> list[Entry]:

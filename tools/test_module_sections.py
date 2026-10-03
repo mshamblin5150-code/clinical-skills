@@ -66,6 +66,7 @@ DECLARED_SECTIONS = {
     "claim_ledger_census": "Claim ledger census",
     "closing_keyword_scan": "Closing keyword scan",
     "coding_freshness": "Coding freshness",
+    "cpt_descriptor_agreement": "Procedure-code database",
     "cpt_mdm_sheet": "CPT E/M MDM sheet",
     "code_set_database_reader_check": "Code-set database reader pins",
     "command_tool_roster": "Tracker publish hook",
