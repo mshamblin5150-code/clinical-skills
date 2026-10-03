@@ -664,7 +664,7 @@ class FetchBoundary(unittest.TestCase):
                     completed = subprocess.run(
                         [sys.executable, str(COMMAND), "--catalog", str(catalog),
                          "--registry", str(registry_path), "--coverage", str(coverage), "--audit", str(audit)],
-                        capture_output=True, text=True, encoding="utf-8",
+                        capture_output=True, text=True, encoding="utf-8", errors="replace",
                     )
                     self.assertEqual(completed.returncode, 1 if registry_failure else 2, completed.stderr)
                     self.assertIn("NOT GRADED: supersession check", completed.stderr)

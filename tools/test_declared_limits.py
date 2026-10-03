@@ -43,6 +43,7 @@ NO_LIMITS = {
     "console_codec": "a narrow console-encoding adapter with no asserted population walk",
     "code_set_database_test_support": "test support for Code-set database digest pins, not a public checker",
     "corpus_census": "a corpus counter whose reported population is named by its command output",
+    "coverage_registry": "shared coverage parsing and rewriting with no independent coverage conclusion",
     "coursework_run": "shared run-directory naming and validation helpers, not an independent grader",
     "course_assignment_scan": "a shallow artifact dispatcher with no independent coverage claim",
     "deck_render": "the renderer produces retained evidence and does not grade its coverage",
