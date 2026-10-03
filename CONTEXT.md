@@ -954,6 +954,10 @@ _Avoid_: pointer, item citation, back-reference, item reference
 A reader kept deliberately weaker than a shared reader of the same form, whose gap is written down as a **declared limit** of the check that uses it. It is chosen where converging would change what that check decides and no recorded defect asks for the change. Distinct from a **refusal**, which is a verdict about what a shared runner can express rather than a choice between two readers.
 _Avoid_: weak reader, legacy parser, duplicate parser
 
+**Owning reader**:
+The one reader of a committed record file's format; every other module that reads the file calls it. A second module parsing that format with its own rule is a defect rather than a check, because the two can disagree about which rows the file holds while each reads as complete. A module reading its own file with its own splitter is not this defect. Distinct from a **Second reader**, whose independence of judgment over content is the deliverable, and from a **Declared narrower reader**, which is a recorded, deliberate exception with its gap written down.
+_Avoid_: canonical parser, main parser, source of truth
+
 **Disclosure class**:
 What a tool's `--show` output may do once it leaves the process. Declared by that tool's own module docstring and by nothing else, so a roster of classes kept anywhere but the modules is a second copy rather than a record. Four are in use: *patient data*, read and never pasted; *private working material*, which names real people who are not patients and is equally unpasteable, though the PHI firewall will never flag it; *copyright-restrained*, a third party's expression where a line may be quoted into a ticket and a table may not; and *pasteable*, which is only ever a ruling and never an inference from silence. Where a module declares nothing the class is unpasteable, so forgetting refuses an output rather than clearing one. It is a property of an **output** and not of the data behind it, which is why it stopped tracking patient-data-or-not the moment a tool began naming people the firewall does not know.
 _Avoid_: PHI, sensitivity, redaction, safe to paste, output policy
