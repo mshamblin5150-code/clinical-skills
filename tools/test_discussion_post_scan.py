@@ -2037,6 +2037,15 @@ class TheSignedBarIsTheScannerInput(unittest.TestCase):
 
 
 class TheMechanicalBarRowsAreGraded(unittest.TestCase):
+    def test_a_parenthesized_schedule_year_remains_an_untraced_citation(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            run.draft.write_text(BODY.replace("(Quill, 2024, p. 6)", "Opening (2027)"), encoding="utf-8")
+            status, stdout, _ = run.grade()
+        self.assertEqual(1, status)
+        self.assertIn("untraced-citation: 1", stdout)
+
+
     def test_a_republished_original_year_is_not_joined_to_the_claim_record(self):
         with tempfile.TemporaryDirectory() as temp:
             run = Run(Path(temp))
