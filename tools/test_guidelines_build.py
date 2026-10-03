@@ -55,6 +55,9 @@ class BuildCommandCase(unittest.TestCase):
 
     def produce(self, command: list[str], **_: object) -> mock.Mock:
         script = Path(command[1]).name
+        if script == "threshold_sheet.py":
+            self.gate_commands = getattr(self, "gate_commands", []) + [command]
+            return mock.Mock(returncode=2)
         self.launches.append(script)
         if script == "guidelines_extract.py":
             out = Path(command[command.index("--out") + 1])
@@ -128,6 +131,19 @@ class BuildCommandCase(unittest.TestCase):
             contextlib.redirect_stdout(self.stdout),
         ):
             return guidelines_build.main(self.arguments)
+
+
+class FullGateAfterBuild(BuildCommandCase):
+    def test_completed_build_reports_every_sheet_without_changing_success(self):
+        self.assertEqual(self.run_command(), 0)
+        self.assertEqual(len(self.gate_commands), 1)
+        command = self.gate_commands[0]
+        self.assertIn('--all', command)
+        self.assertNotIn('--quiet', command)
+        self.assertNotIn('--allow-stale-build', command)
+        self.assertEqual(command[command.index('--pdf-root') + 1], str(self.source.resolve()))
+        self.assertEqual(command[command.index('--text-root') + 1], str(self.text_alias.resolve()))
+        self.assertEqual(command[command.index('--recs-alias') + 1], str(self.recs_alias.resolve()))
 
 
 class ReusingAnIdenticalBuild(BuildCommandCase):

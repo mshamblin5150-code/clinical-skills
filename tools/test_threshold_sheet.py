@@ -6363,5 +6363,174 @@ class AReadThatCoversNothingIsNotAGradedSheet(unittest.TestCase):
         self.assertIn(gate.SECOND_READ_IS_A_SMOKE_TEST, printed)
 
 
+class StaleBuildFlag(unittest.TestCase):
+    def test_untrusted_record_passes_only_with_flag_and_keeps_report(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            path = root / 'sheet.md'
+            path.write_text(TheExitStatusSaysWhichKindOfNotGraded.CLEAN, encoding='utf-8')
+            (root / 'recs-src.json').write_text(json.dumps({'producer': {'commit': 'old', 'dirty': False}, 'recommendations': []}), encoding='utf-8')
+            args = [str(path), '--quiet', '--recs-root', str(root), '--recs-alias', str(root / 'alias'), '--pdf-root', str(root / 'pdf')]
+            reports = []
+            for flag, expected in [([], 2), (['--allow-stale-build'], 0)]:
+                out, err = io.StringIO(), io.StringIO()
+                with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err), mock.patch.object(gate, 'load_catalog_facts', return_value=gate.CatalogFacts((), {'Society/doc': 60}, {}, (), ())):
+                    status = gate.main(args + flag)
+                self.assertEqual(status, expected)
+                self.assertIn('NOT RUN', err.getvalue())
+                reports.append((out.getvalue(), err.getvalue()))
+            self.assertEqual(*reports)
+
+
+    def test_flag_keeps_committed_input_and_explicit_read_failures_refusing(self):
+        clean = TheExitStatusSaysWhichKindOfNotGraded.CLEAN
+        cases = [
+            ('unparseable', 'not a sheet', {'Society/doc': 60}, [], 2),
+            ('sourceless', clean.replace('| src | AHA/ACC | Society/doc | guideline | 2025 | 2025 | https://example.invalid | stated | exact |', ''), {'Society/doc': 60}, [], 1),
+            ('unreconciled scope', clean, {}, [], 2),
+            ('explicit missing record', clean, {'Society/doc': 60}, ['--recs', 'src=missing.json'], 2),
+            ('argument key typo', clean, {'Society/doc': 60}, ['--recs', 'other=missing.json'], 2),
+            ('invalid second read', clean, {'Society/doc': 60}, ['--second-read', 'missing.json'], 2),
+            ('finding plus stale build', clean.replace('<130 mm Hg', '<99999 mm Hg'), {'Society/doc': 60}, [], 1),
+        ]
+        for name, text, counts, extra, expected in cases:
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                path = root / 'sheet.md'
+                path.write_text(text, encoding='utf-8')
+                (root / 'recs-src.json').write_text(json.dumps({'recommendations': []}), encoding='utf-8')
+                args = [str(path), '--quiet', '--allow-stale-build', '--recs-root', str(root),
+                        '--recs-alias', str(root / 'alias'), '--pdf-root', str(root / 'pdf')]
+                with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()), mock.patch.object(
+                    gate, 'load_catalog_facts', return_value=gate.CatalogFacts((), counts, {}, (), ())
+                ):
+                    self.assertEqual(gate.main(args + extra), expected)
+
+    def test_unreadable_catalog_and_record_keep_refusing(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            path = root / 'sheet.md'
+            path.write_text(TheExitStatusSaysWhichKindOfNotGraded.CLEAN, encoding='utf-8')
+            args = [str(path), '--quiet', '--allow-stale-build', '--recs-root', str(root),
+                    '--recs-alias', str(root / 'alias'), '--pdf-root', str(root / 'pdf')]
+            for content, facts in [('{bad json', gate.CatalogFacts((), {'Society/doc': 60}, {}, (), ())),
+                                   ('{"recommendations": []}', gate.CatalogFacts((), {'Society/doc': 60}, {}, ('unreadable catalog',), ()))]:
+                (root / 'recs-src.json').write_text(content, encoding='utf-8')
+                with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()), mock.patch.object(gate, 'load_catalog_facts', return_value=facts):
+                    self.assertEqual(gate.main(args), 2)
+
+
+    def test_untrusted_extraction_is_build_state_and_findings_still_win(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            path = root / 'sheet.md'
+            text_root = root / 'text'
+            text_root.mkdir()
+            (text_root / 'manifest.json').write_text('{"documents": []}', encoding='utf-8')
+            args = [str(path), '--quiet', '--recs-root', str(root),
+                    '--recs-alias', str(root / 'alias'), '--pdf-root', str(root / 'pdf'),
+                    '--text-root', str(text_root)]
+            for text, expected in [(TheExitStatusSaysWhichKindOfNotGraded.CLEAN, 0),
+                                   (TheExitStatusSaysWhichKindOfNotGraded.CLEAN.replace('<130 mm Hg', '<99999 mm Hg'), 1)]:
+                path.write_text(text, encoding='utf-8')
+                reports = []
+                for flags, status in [([], 2), (['--allow-stale-build'], expected)]:
+                    out, err = io.StringIO(), io.StringIO()
+                    with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err), mock.patch.object(
+                        gate, 'load_catalog_facts', return_value=gate.CatalogFacts((), {'Society/doc': 60}, {}, (), ())
+                    ):
+                        self.assertEqual(gate.main(args + flags), status)
+                    reports.append((out.getvalue(), err.getvalue()))
+                self.assertEqual(*reports)
+
+
+    def test_other_fatal_manifest_failures_are_not_assumed_stale_builds(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            path = root / 'sheet.md'
+            path.write_text(TheExitStatusSaysWhichKindOfNotGraded.CLEAN, encoding='utf-8')
+            text_root = root / 'text'
+            text_root.mkdir()
+            args = [str(path), '--quiet', '--allow-stale-build', '--recs-root', str(root),
+                    '--recs-alias', str(root / 'alias'), '--pdf-root', str(root / 'pdf'),
+                    '--text-root', str(text_root)]
+            for content in [None, '{bad json']:
+                if content is not None:
+                    (text_root / 'manifest.json').write_text(content, encoding='utf-8')
+                with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()), mock.patch.object(
+                    gate, 'load_catalog_facts', return_value=gate.CatalogFacts((), {'Society/doc': 60}, {}, (), ())
+                ):
+                    self.assertEqual(gate.main(args), 2)
+
+
+    def test_manifest_reuse_keeps_each_sheets_accepted_distrust_trace(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            sheets = root / 'sheets'
+            sheets.mkdir()
+            for name in ('one.md', 'two.md'):
+                (sheets / name).write_text(TheExitStatusSaysWhichKindOfNotGraded.CLEAN, encoding='utf-8')
+            text_root = root / 'text'
+            text_root.mkdir()
+            (text_root / 'manifest.json').write_text('{"documents": []}', encoding='utf-8')
+            out, err = io.StringIO(), io.StringIO()
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err), mock.patch.object(gate, 'SHEET_ROOT', sheets), mock.patch.object(
+                gate, 'load_catalog_facts', return_value=gate.CatalogFacts((), {'Society/doc': 60}, {}, (), ())
+            ), mock.patch('warnings.warn'):
+                gate.main(['--all', '--quiet', '--allow-untrusted-provenance', '--text-root', str(text_root),
+                           '--pdf-root', str(root / 'pdf'), '--recs-root', str(root / 'recs'),
+                           '--recs-alias', str(root / 'alias')])
+            trace = f'untrusted artifact {text_root.resolve() / "manifest.json"}:'
+            self.assertEqual(err.getvalue().count(trace), 2)
+
+
+class StagedThresholdHook(unittest.TestCase):
+    def run_hook(self, paths, gate_status=0):
+        shell = shutil.which('sh')
+        if not shell:
+            self.skipTest('hook needs sh')
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            tools = root / 'tools'
+            tools.mkdir()
+            for name in ('skills_mirror', 'spelling_scan', 'guidelines_catalog',
+                         'guidelines_currency', 'scratch_census', 'phi_scan',
+                         'threshold_coverage', 'subject_ledger'):
+                (tools / (name + '.py')).write_text('raise SystemExit(0)\n', encoding='utf-8')
+            marker = root / 'calls.jsonl'
+            (tools / 'threshold_sheet.py').write_text(
+                "import json, pathlib, sys\n"
+                f"with pathlib.Path({str(marker)!r}).open('a') as output: output.write(json.dumps(sys.argv[1:]) + '\\n')\n"
+                f"raise SystemExit({gate_status})\n", encoding='utf-8')
+            subprocess.run(['git', 'init', '--quiet'], cwd=root, check=True)
+            for path in paths:
+                target = root / path
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text('synthetic', encoding='utf-8')
+            subprocess.run(['git', 'add', '--', *paths], cwd=root, check=True)
+            result = subprocess.run([shell, str(gate.REPO_ROOT / 'tools/hooks/pre-commit')],
+                                    cwd=root, capture_output=True, text=True, encoding='utf-8', errors='replace')
+            self.assertEqual(result.returncode, bool(gate_status), result.stderr)
+            calls = [json.loads(line) for line in marker.read_text().splitlines()] if marker.exists() else []
+            return [[Path(arg).name if arg.endswith('.md') else arg for arg in call] for call in calls]
+
+    def test_only_staged_clinical_sheets_run(self):
+        self.assertEqual(self.run_hook(['reference/thresholds/one.md', 'reference/thresholds/README.md',
+                                       'reference/thresholds/coverage.md', 'reference/thresholds/subjects.md']),
+                         [['one.md', '--quiet', '--allow-stale-build']])
+
+    def test_catalog_alone_runs_every_sheet(self):
+        self.assertEqual(self.run_hook(['reference/guidelines-catalog.md']),
+                         [['--all', '--quiet', '--allow-stale-build']])
+
+    def test_catalog_and_sheet_run_full_gate_once(self):
+        self.assertEqual(self.run_hook(['reference/guidelines-catalog.md', 'reference/thresholds/one.md']),
+                         [['--all', '--quiet', '--allow-stale-build']])
+
+    def test_failed_sheet_refuses_but_other_staged_sheet_still_runs(self):
+        self.assertEqual(self.run_hook(['reference/thresholds/one.md', 'reference/thresholds/two.md'], 1),
+                         [['one.md', '--quiet', '--allow-stale-build'], ['two.md', '--quiet', '--allow-stale-build']])
+
+
 if __name__ == "__main__":
     unittest.main()
