@@ -128,11 +128,6 @@ Immediately before each refutation dispatch, run `python tools/research_ledger.p
 scratch/runs/<course>-<module>-course-assignment/claims.md --heading-digests`, name that claim's
 printed digest in the brief, and write it as `TESTED-HEADING` with the returned verdict and route.
 
-If the clinician's profile says an available research agent has an authenticated route, that agent
-must try it before giving up on retrieval. An authenticated-route failure is evidence, not a
-substitution for the required record; when no source can be recovered, preserve `STATUS: unsourced`
-and remove the unsupported claim from the deck.
-
 After those two passes, this **Grader handoff** under [standing rule 6](../../AGENTS.md) runs:
 
 ```bash

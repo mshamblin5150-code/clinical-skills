@@ -119,17 +119,10 @@ It tries to prove the reference, locator, year, bibliographic details, heading, 
 `stands`, `refuted`, `paywalled`, or `unreadable` with a substantive reason. A refuted record is repaired or made
 honestly unsourced before drafting; it is never cited. The refuter also returns
 `SECOND-ROUTE: <research route> -> <refutation route>` with substantive halves that differ after
-normalization. Before `paywalled`, it attempts the clinician's authenticated Chrome route through
-`mcp__claude-in-chrome__*`, not the separate in-app Browser pane. Refuter independence remains
-orchestrator-owned; see `research_ledger.DECLARED_LIMITS`. A source is `paywalled` only when its
-body remains inaccessible through that **Authenticated route**; an anonymous or in-app login wall
-does not establish the disposition.
+normalization. Refuter independence remains orchestrator-owned; see `research_ledger.DECLARED_LIMITS`.
 Immediately before each refutation dispatch, run `python tools/research_ledger.py
 scratch/runs/<run-key>/claims.md --heading-digests`, name that claim's printed digest in the brief,
 and write it as `TESTED-HEADING` with the returned verdict and route.
-If the profile records the **Authenticated route** as available, a research agent must attempt it
-before giving up on the sought source, choosing an open substitute, or returning
-`STATUS: unsourced` because of the wall.
 
 Each record uses the full research-ledger shape:
 
