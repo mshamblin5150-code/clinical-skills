@@ -1457,13 +1457,16 @@ class DidNotScan(unittest.TestCase):
         self._saved = {
             name: getattr(ps, name)
             for name in ("corpus_identifiers", "_git", "scan_staged", "scan_all",
-                         "missing_corpus_sources")
+                         "missing_corpus_sources", "corpus_coverage")
         }
         self.addCleanup(self.restore)
         # Nothing staged and nothing tracked, so a run's status is about the
         # corpus and never about a finding -- except where a test says otherwise.
         ps.scan_staged = lambda index: []
         ps.scan_all = lambda index, paths=None: []
+        # This class injects corpus presence; an actual private index must not
+        # add its shortfall notice to the synthetic passing-commit assertion.
+        ps.corpus_coverage = lambda: None
         self.set_config("")
 
     def restore(self):
