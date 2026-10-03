@@ -4774,6 +4774,7 @@ class TheHookGradesSheetsAndNotTheDirectoryReadme(unittest.TestCase):
                 "spelling_scan.py",
                 "guidelines_catalog.py",
                 "guidelines_currency.py",
+                "coverage_registry.py",
                 "scratch_census.py",
                 "phi_scan.py",
             ):
@@ -4876,6 +4877,7 @@ class TheHookGradesSheetsAndNotTheDirectoryReadme(unittest.TestCase):
                 "guidelines_extract.py",
                 "guidelines_catalog.py",
                 "guidelines_currency.py",
+                "coverage_registry.py",
                 "guidelines_manifest.py",
                 "guidelines_recs.py",
                 "page_text.py",

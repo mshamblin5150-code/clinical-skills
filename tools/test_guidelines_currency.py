@@ -118,6 +118,30 @@ class RegistryBind(unittest.TestCase):
         self.assertTrue(any("ADA" in item and "publication cycle" in item for item in due.findings))
 
 
+class OwningSheetSources(unittest.TestCase):
+    def test_draft_ignores_a_sources_table_without_a_sheet_marker(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            path = root / "sheet.md"
+            source = (
+                "## Sources\n\n"
+                "| key | society | document | source class | version | published | url | basis | mode |\n"
+                "| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n"
+                "| topic | KDIGO | KDIGO/topic | guideline | 2024 | 2024 | https://example.invalid | chosen | exact |\n"
+            )
+            path.write_text(source, encoding="utf-8")
+            self.assertEqual(currency._source_metadata(root), {})
+            path.write_text("<!-- schema: threshold-sheet/2 -->\n\n" + source, encoding="utf-8")
+            self.assertEqual(currency._source_metadata(root)["topic.pdf"]["society"], "KDIGO")
+
+    def test_registry_preserves_query_parameters_and_literal_entities(self):
+        url = "https://example.invalid/?a=1&not=2&sect=3&copy=4&amp;x=5"
+        text = registry()
+        text = text.replace(currency.SOCIETY_INDEXES["ADA"][0], url)
+        parsed = currency.parse_registry(text)
+        self.assertEqual(parsed.societies[0].index, url)
+
+
 class ReaderCoverage(unittest.TestCase):
     def test_declared_limits_name_the_unreachable_claims(self):
         self.assertEqual(
@@ -555,6 +579,7 @@ class FetchBoundary(unittest.TestCase):
             encoding="utf-8",
         )
         coverage.write_text(
+            "<!-- schema: threshold-coverage/3 -->\n\n"
             "| topic | subject | state | artifact | record |\n"
             "| --- | --- | --- | --- | --- |\n"
             "| lipids | lipids | sheet | topic.md | prior |\n",
@@ -563,10 +588,88 @@ class FetchBoundary(unittest.TestCase):
         audit.write_text(
             "## Documents\n\n"
             "| society | filename | sha256 | bytes | audited |\n"
-            "| --- | --- | --- | --- | --- |\n",
+            "| --- | --- | --- | --- | --- |\n\n"
+            "## Independent readings\n\n"
+            "| society | filename | column | value | page | evidence |\n"
+            "| --- | --- | --- | --- | --- | --- |\n\n"
+            "## Clinician rulings\n\n"
+            "| society | filename | column | confirmed_value | confirmed_date | rationale |\n"
+            "| --- | --- | --- | --- | --- | --- |\n",
             encoding="utf-8",
         )
         return catalog, registry_path, coverage, audit
+
+    def test_fetch_refuses_broken_or_duplicated_coverage_before_download(self):
+        for damage in ("marker", "header", "duplicate", "width"):
+            with self.subTest(damage=damage), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                catalog, registry_path, coverage, audit = self.handoff_files(root)
+                text = coverage.read_text(encoding="utf-8")
+                if damage == "marker":
+                    text = text.replace("<!-- schema: threshold-coverage/3 -->", "")
+                elif damage == "header":
+                    text = text.replace("| topic | subject | state | artifact | record |", "")
+                elif damage == "duplicate":
+                    text += "| lipids | lipids | sheet | topic.md | duplicate |\n"
+                else:
+                    text += "| broken | row |\n"
+                coverage.write_text(text, encoding="utf-8")
+                with mock.patch.object(currency, "download_bytes") as download:
+                    with self.assertRaises(ValueError):
+                        currency.fetch_replacement(
+                            "https://example.invalid/new.pdf", "KDIGO/new.pdf", root / "corpus",
+                            coverage, "lipids", "old.pdf", audit, catalog, registry_path,
+                        )
+                download.assert_not_called()
+                self.assertFalse((root / "corpus" / "KDIGO" / "new.pdf").exists())
+                self.assertEqual(coverage.read_text(encoding="utf-8"), text)
+
+    def test_handoff_ignores_five_cell_tables_outside_the_owned_tables(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            catalog, registry_path, coverage, audit = self.handoff_files(root)
+            currency._upsert_audit_digest(audit, "KDIGO", "new.pdf", "a" * 64, 123, "2026-09-05")
+            coverage_text = coverage.read_text(encoding="utf-8") + (
+                "\n## Unrelated\n\n| lipids | lipids | unread | topic.md | "
+                "superseded old.pdf by KDIGO/new.pdf; |\n"
+            )
+            rows = currency.guidelines_catalog.parse_catalog(catalog.read_text(encoding="utf-8"))[0]
+            result = currency.audit(
+                rows, currency.parse_registry(registry_path.read_text(encoding="utf-8")),
+                audit_text=audit.read_text(encoding="utf-8"), coverage_text=coverage_text,
+            )
+            self.assertEqual(result.not_graded, ())
+            self.assertTrue(any("half-finished" in message for message in result.failures))
+            # A stray ledger binding likewise cannot trigger a handoff check.
+            audit_text = audit.read_text(encoding="utf-8").replace(
+                "| KDIGO | new.pdf | " + "a" * 64 + " | 123 | 2026-09-05 |", ""
+            ) + "\n## Unrelated\n\n| KDIGO | new.pdf | stray | 123 | date |\n"
+            result = currency.audit(
+                rows, currency.parse_registry(registry_path.read_text(encoding="utf-8")),
+                audit_text=audit_text, coverage_text=coverage_text,
+            )
+            self.assertEqual(result.failures, ())
+
+    def test_malformed_owned_files_are_not_graded_with_failure_precedence(self):
+        for broken in ("coverage", "audit"):
+            for registry_failure in (False, True):
+                with self.subTest(broken=broken, failure=registry_failure), tempfile.TemporaryDirectory() as tmp:
+                    root = Path(tmp)
+                    catalog, registry_path, coverage, audit = self.handoff_files(root)
+                    target = coverage if broken == "coverage" else audit
+                    target.write_text("broken", encoding="utf-8")
+                    if registry_failure:
+                        text = registry_path.read_text(encoding="utf-8").replace("| current |", "| invalid |")
+                        registry_path.write_text(text, encoding="utf-8")
+                    completed = subprocess.run(
+                        [sys.executable, str(COMMAND), "--catalog", str(catalog),
+                         "--registry", str(registry_path), "--coverage", str(coverage), "--audit", str(audit)],
+                        capture_output=True, text=True, encoding="utf-8", errors="replace",
+                    )
+                    self.assertEqual(completed.returncode, 1 if registry_failure else 2, completed.stderr)
+                    self.assertIn("NOT GRADED: supersession check", completed.stderr)
+                    self.assertIn("threshold_coverage.py" if broken == "coverage" else "guidelines_catalog.py", completed.stderr)
+                    self.assertIn("currency findings", completed.stdout)
 
     def test_html_response_is_not_accepted_as_a_guideline_pdf(self):
         with self.assertRaisesRegex(currency.ReadError, "not a PDF"):

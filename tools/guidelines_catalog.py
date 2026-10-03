@@ -329,6 +329,31 @@ def parse_audit(
     return documents, readings, rulings, problems
 
 
+def upsert_audit_document(text: str, document: AuditDocument) -> str:
+    """Return a ledger with one Documents row added or replaced."""
+    _, _, _, problems = parse_audit(text)
+    if problems:
+        raise ValueError("audit ledger: " + "; ".join(problems))
+    lines = text.splitlines()
+    heading = next(i for i, line in enumerate(lines) if line.strip() == "## Documents")
+    header = next(
+        i for i in range(heading + 1, len(lines))
+        if lines[i].lstrip().startswith("|")
+    )
+    columns = AUDIT_TABLES["## Documents"]
+    cells = [getattr(document, column) for column in columns]
+    row = "| " + " | ".join(cell.replace("|", r"\|") for cell in cells) + " |"
+    insertion = header + 1
+    while insertion < len(lines) and lines[insertion].lstrip().startswith("|"):
+        prior = split_table_row(lines[insertion])
+        if not is_separator_row(prior) and prior[:2] == cells[:2]:
+            lines[insertion] = row
+            return "\n".join(lines) + "\n"
+        insertion += 1
+    lines.insert(insertion, row)
+    return "\n".join(lines) + "\n"
+
+
 # --------------------------------------------------------------------------
 # Parsing the committed catalog
 # --------------------------------------------------------------------------

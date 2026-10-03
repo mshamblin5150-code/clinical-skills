@@ -605,6 +605,27 @@ class CheckTheIndependentAudit(unittest.TestCase):
         self.assertTrue(any("missing from the corpus digest scan" in f for f in failures))
 
 
+class WritingTheIndependentAudit(unittest.TestCase):
+    def test_upsert_round_trips_a_document_and_preserves_other_tables(self):
+        before = gc.parse_audit(AUDIT)
+        target = before[0][0]
+        replacement = dataclasses.replace(target, sha256="b" * 64, bytes="123")
+        written = gc.upsert_audit_document(AUDIT, replacement)
+        documents, readings, rulings, problems = gc.parse_audit(written)
+        self.assertEqual(problems, [])
+        self.assertEqual(documents[0], replacement)
+        self.assertEqual(readings, before[1])
+        self.assertEqual(rulings, before[2])
+        added = dataclasses.replace(replacement, filename="extra.pdf")
+        documents = gc.parse_audit(gc.upsert_audit_document(written, added))[0]
+        self.assertEqual(documents, [replacement, *before[0][1:], added])
+
+    def test_writer_refuses_a_malformed_ledger(self):
+        target = gc.parse_audit(AUDIT)[0][0]
+        with self.assertRaisesRegex(ValueError, "audit ledger"):
+            gc.upsert_audit_document(AUDIT.replace("## Independent readings", "## Other"), target)
+
+
 class ParsingTheIndependentAudit(unittest.TestCase):
     def test_the_three_named_tables_are_parsed(self):
         documents, readings, rulings, problems = gc.parse_audit(AUDIT)

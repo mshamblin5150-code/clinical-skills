@@ -29,6 +29,7 @@ import guidelines_extract
 import guidelines_manifest
 import threshold_grammar
 import threshold_coverage
+import coverage_registry
 from artifact_provenance import checkout_commit
 from console_codec import require_python_floor, use_utf8
 from guidelines_recs import (
@@ -90,7 +91,7 @@ def _normalized_topic(value: str) -> str:
 
 
 def _registry_topic(
-    value: str, entries: list[threshold_coverage.Entry]
+    value: str, entries: list[coverage_registry.Entry]
 ) -> str:
     """Resolve a typed catalog topic or its one registered sheet filename."""
     normalized = _normalized_topic(value)
@@ -105,7 +106,7 @@ def _registry_topic(
 
 
 def _subject_report_names(
-    topic: str, entries: list[threshold_coverage.Entry]
+    topic: str, entries: list[coverage_registry.Entry]
 ) -> tuple[frozenset[str], bool]:
     entry = next(
         (item for item in entries if _normalized_topic(item.topic) == topic), None
@@ -215,7 +216,7 @@ def resolve_sources(
     recs_root: Path,
     seeded_sheet: threshold_grammar.Sheet | None,
     recs_alias: Path | None = None,
-    registry_entries: list[threshold_coverage.Entry] | None = None,
+    registry_entries: list[coverage_registry.Entry] | None = None,
     *,
     expected_commit: str,
 ) -> tuple[list[Source], list[str], list[str], int, int, bool]:
@@ -551,7 +552,7 @@ def main(argv: list[str] | None = None) -> int:
         print("threshold-sheet section interface is incomplete", file=sys.stderr)
         return 2
     try:
-        registry_entries, registry_problems = threshold_coverage.parse_registry(
+        registry_entries, registry_problems = coverage_registry.parse_registry(
             args.coverage.read_text(encoding="utf-8")
         )
     except (OSError, UnicodeError) as error:

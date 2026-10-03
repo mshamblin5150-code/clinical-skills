@@ -10,10 +10,10 @@ import argparse
 import re
 import sys
 from collections import Counter
-from dataclasses import dataclass
 from pathlib import Path
 
 import guidelines_catalog
+from coverage_registry import Entry, SCHEMA_MARKER, parse_registry
 import threshold_grammar
 import threshold_sheet
 from console_codec import require_python_floor, use_utf8
@@ -23,22 +23,11 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_CATALOG = REPO_ROOT / "reference" / "guidelines-catalog.md"
 DEFAULT_COVERAGE = REPO_ROOT / "reference" / "thresholds" / "coverage.md"
 DEFAULT_SHEET_ROOT = REPO_ROOT / "reference" / "thresholds"
-SCHEMA_MARKER = "<!-- schema: threshold-coverage/3 -->"
 STATES = ("sheet", "none", "non-source", "unread")
 SUPERSESSION_HANDOFF = re.compile(
     r"^superseded (?P<old>[^|/]+\.pdf) by (?P<new>[^|]+\.pdf); "
     r"fetched (?P<date>\d{4}-\d{2}-\d{2}); sha256 (?P<sha256>[0-9a-f]{64})$"
 )
-
-
-@dataclass(frozen=True)
-class Entry:
-    topic: str
-    subject: str
-    state: str
-    artifact: str
-    record: str
-    line: int
 
 
 def catalog_topics(rows: list[guidelines_catalog.Row]) -> list[str]:
@@ -85,31 +74,6 @@ def render_source_class_topics(
     return "source class\ttopic\n" + "".join(
         f"{source_class}\t{topic}\n" for source_class, topic in matches
     )
-
-
-def parse_registry(text: str) -> tuple[list[Entry], list[str]]:
-    problems: list[str] = []
-    if SCHEMA_MARKER not in text:
-        problems.append(f"coverage registry has no {SCHEMA_MARKER} marker")
-    entries: list[Entry] = []
-    in_table = False
-    for number, line in enumerate(text.splitlines(), start=1):
-        if re.match(
-            r"^\|\s*topic\s*\|\s*subject\s*\|\s*state\s*\|\s*artifact\s*\|\s*record\s*\|\s*$",
-            line,
-            re.I,
-        ):
-            in_table = True
-            continue
-        if not in_table or not line.startswith("|"):
-            continue
-        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
-        if len(cells) != 5 or all(set(cell) <= set("-: ") and cell for cell in cells):
-            continue
-        entries.append(
-            Entry(cells[0], cells[1], cells[2].casefold(), cells[3], cells[4], number)
-        )
-    return entries, problems
 
 
 def render_draft(topics: list[str]) -> str:
