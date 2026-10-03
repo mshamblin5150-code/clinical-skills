@@ -4,7 +4,12 @@ Out of [#979](https://github.com/mshamblin5150-code/clinical-skills/issues/979),
 2026-09-12 to an empty frontier. **Six rulings, by the clinician, on that date.** Nothing is built
 here; this is the record the build reads.
 
-**Measured at:** 1b279edddbe761419691d874a9b3c75255aea624
+**Measured at:** c936892b8b668ba9c6022e6d050986c0b685fb61
+
+*Re-declared from `1b279ed` on 2026-10-03, for the ruling 4 correction alone. The checkout
+distances, commit-window shares and `origin/main` movement figures below are dated observations of
+the 2026-09-12 base and were not re-derived at this one; a distance reading at any later base
+differs by construction.*
 
 [ADR 0152](0152-the-skills-mirror-is-repaired-at-session-start-and-its-orphans-are-drained.md)
 ruling 7 put branch currency out of the mirror's scope and stated the boundary it left behind: **a
@@ -144,6 +149,17 @@ Against that, a second seam costs another hook and another matcher roster —
 **whether the `Skill` tool fires `PreToolUse` at all is unmeasured.** The shipped harness carries
 `tool_name` as a free string, so it is plausible; nothing in this repository has ever matched a
 non-shell tool. That is filed rather than assumed.
+
+Correction, 2026-10-03: the seam is now measured, on
+[#1184](https://github.com/mshamblin5150-code/clinical-skills/issues/1184) against Claude Code 2.1.284,
+and it exists for half of the invocations this ruling is about. A `PreToolUse` hook matching
+`Skill` fires when the model calls the Skill tool, its payload names the skill in
+`tool_input.skill`, and a deny decision stops the skill loading. A skill the clinician starts by
+typing its slash command never calls the Skill tool; only `UserPromptSubmit` sees it, as raw prompt
+text. "Nothing in this repository has ever matched a non-shell tool" stopped being true when
+#1120 registered the browser-tab hook, two days after this record merged. The ruling is unchanged: its first ground,
+that the served tree does not move during a session, never depended on the seam, and a report hung
+on the measured seam would be silent for every slash-command invocation.
 
 ## Ruling 5 — the reported axis is both directions, and a checkout carrying unmerged work may not print the clean line
 
