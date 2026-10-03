@@ -136,7 +136,7 @@ ROWS = {
     BARE_VERDICT: "the posted reading says what it found",
     UNLOCATED_READING: "the posted reading carries its board entry id",
     BORROWED_LOCATOR: "the posted reading locator belongs to the initial post",
-    SUBMISSION_FINGERPRINT: "the posted reading is bound to the current submission files",
+    SUBMISSION_FINGERPRINT: "carriers match the Markdown rebuild and any posted reading binds the current submission",
     POSTED_ATTACHMENT: "the posted entry carries the checked Word document's bytes",
     **{kind: "the heading read agrees with the final draft and current claim headings" for kind in heading_read.KINDS},
 }
@@ -148,11 +148,11 @@ POSTED_READING_ROWS = (
     BARE_VERDICT,
     UNLOCATED_READING,
     BORROWED_LOCATOR,
-    SUBMISSION_FINGERPRINT,
     POSTED_ATTACHMENT,
 )
 
 GATED_ROW_SETS = {
+    "submission_fingerprint_graded": ((SUBMISSION_FINGERPRINT,), ()),
     "posted_reading_graded": (POSTED_READING_ROWS, ()),
     "html_graded": (
         (BOLD_HEADINGS, RENDERED_COMMENTS, SUBMISSION_TEXT, RENDERED_PAGES),
@@ -291,6 +291,11 @@ DECLARED_LIMITS = (
     (
         "whether the learning platform stored the fingerprinted bytes",
         "The digest identifies a local source and generated carriers but does not prove which bytes the learning platform retained.",
+        EvidenceDisposition.DECLARED_READING,
+    ),
+    (
+        "whether an earlier Canvas-box export was ever produced by its Markdown",
+        "Earlier passes retain historical exports whose bytes are compared with nothing; only the highest retained pass is bound to the submitted HTML.",
         EvidenceDisposition.DECLARED_READING,
     ),
     (
@@ -440,6 +445,7 @@ class Scan:
     docx_graded: bool
     reference_boundary_graded: bool
     posted_reading_graded: bool
+    submission_fingerprint_graded: bool
     heading_reads: int
     heading_read_unread: int
     posted_reading_unread: int
@@ -1041,26 +1047,6 @@ def _posted_reading_findings(source: RunSource) -> tuple[Finding, ...]:
                 f"{source.draft.name} SUBMISSION-SHA256 is missing, malformed, or stale",
             )
         )
-    if (
-        reading.composer_outcome == "inline"
-        and source.html is not None
-        and not source.html_matches_rebuild
-    ):
-        findings.append(
-            Finding(
-                SUBMISSION_FINGERPRINT,
-                submission,
-                f"{source.html.name} differs from post_html's rebuild of {source.draft.name}",
-            )
-        )
-    if source.docx is not None and not source.docx_matches_rebuild:
-        findings.append(
-            Finding(
-                SUBMISSION_FINGERPRINT,
-                submission,
-                f"{source.docx.name} parts differ from docx_write.parts() for {source.draft.name}",
-            )
-        )
     if reading.composer_outcome == "attachment":
         retained = reading.posted_attachment(source.path)
         if source.docx is None or retained is None or not retained.is_file():
@@ -1079,6 +1065,28 @@ def _posted_reading_findings(source: RunSource) -> tuple[Finding, ...]:
     return tuple(findings)
 
 
+def _carrier_rebuild_findings(source: RunSource) -> tuple[Finding, ...]:
+    findings: list[Finding] = []
+    submission = source.draft.stem
+    if source.html is not None and not source.html_matches_rebuild:
+        findings.append(
+            Finding(
+                SUBMISSION_FINGERPRINT,
+                submission,
+                f"{source.html.name} differs from post_html's rebuild of {source.draft.name}",
+            )
+        )
+    if source.docx is not None and not source.docx_matches_rebuild:
+        findings.append(
+            Finding(
+                SUBMISSION_FINGERPRINT,
+                submission,
+                f"{source.docx.name} parts differ from docx_write.parts() for {source.draft.name}",
+            )
+        )
+    return tuple(findings)
+
+
 def _rendered_comment_findings(source: RunSource) -> tuple[Finding, ...]:
     if not source.submission_comment_count:
         return ()
@@ -1094,13 +1102,14 @@ def _rendered_comment_findings(source: RunSource) -> tuple[Finding, ...]:
 
 
 def _submission_findings(source: RunSource) -> tuple[Finding, ...]:
+    rebuild = _carrier_rebuild_findings(source)
     reading = next(
         (item for item in source.readings if item.artifact == source.draft.stem), None
     )
     if reading is not None and reading.composer_outcome == "attachment":
-        return ()
+        return rebuild
     if source.html is None:
-        return ()
+        return rebuild
     headings = tuple(
         Finding(BOLD_HEADINGS, source.html.name, "heading is not a fully bold paragraph")
         for _ in range(source.submission_heading_failures)
@@ -1116,7 +1125,7 @@ def _submission_findings(source: RunSource) -> tuple[Finding, ...]:
         if source.submission_text_mismatches
         else ()
     )
-    return headings + _rendered_comment_findings(source) + text
+    return rebuild + headings + _rendered_comment_findings(source) + text
 
 
 @dataclass(frozen=True)
@@ -1214,7 +1223,7 @@ def _rendered_page_findings(source: RunSource) -> RenderedPageSurvey:
                     except OSError as failure:
                         detail.append(f"could not read {export.name}: {failure}")
                     else:
-                        if retained_bytes != submitted_bytes:
+                        if pass_number == highest_pass_number and retained_bytes != submitted_bytes:
                             detail.append("retained HTML differs from the submitted HTML")
         if (
             is_last
@@ -1358,6 +1367,7 @@ def survey(source: RunSource) -> Scan:
             docx_graded=source.docx is not None,
             reference_boundary_graded=False,
             posted_reading_graded=posted_reading_graded,
+            submission_fingerprint_graded=(posted_reading_graded or source.html is not None or source.docx is not None),
             heading_reads=heading.records_read,
             heading_read_unread=heading.unread,
             posted_reading_unread=posted_reading_unread,
@@ -1503,6 +1513,7 @@ def survey(source: RunSource) -> Scan:
         docx_graded=source.docx is not None,
         reference_boundary_graded=True,
         posted_reading_graded=posted_reading_graded,
+        submission_fingerprint_graded=(posted_reading_graded or source.html is not None or source.docx is not None),
         heading_reads=heading.records_read,
         heading_read_unread=heading.unread,
         posted_reading_unread=posted_reading_unread,
@@ -1584,7 +1595,9 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         f"findings: {len(scan.findings)}",
     ]
     for kind in ROWS:
-        if kind in POSTED_READING_ROWS and not scan.posted_reading_graded:
+        if kind == SUBMISSION_FINGERPRINT and not scan.submission_fingerprint_graded:
+            lines.append(f"{kind}: {NOT_GRADED}")
+        elif kind in POSTED_READING_ROWS and not scan.posted_reading_graded:
             lines.append(f"{kind}: {NOT_GRADED}")
         elif kind not in {
             BOLD_HEADINGS,
