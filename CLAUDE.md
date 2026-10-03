@@ -1130,7 +1130,7 @@ Covered by `tools/test_imagery_proposals.py`.
 
 Before first prose, the five coursework skills write and confirm the purpose-named
 `project-context.md`, retrieve every place owed by the account registry at
-`repo_root.project_registry()`, and run
+`repo_root.project_registry()` (`scratch/project-registry.md`), and run
 `python tools/project_context.py <run-directory> --write`. The gate hashes opened file bytes and
 supplied service text, stores only service identifiers and hashes, and writes one context digest.
 Missing or duplicate owed places, incomplete search evidence, and unwaived unreadable or absent
