@@ -2,7 +2,7 @@
 
 This command-maintained ledger records only attributed breaks in the retained implementation-map revision chain.
 
-- high-water revision: `UCE_lAHOTzZY2M8AAAABOl1Hv875fmUS`
+- high-water revision: `UCE_lAHOTzZY2M8AAAABOl1Hv878Nuvx`
 - unread remainder: at least one revision precedes the retained window
 
 | Earlier revision | Earlier writer | Later revision | Later writer | Declared predecessor | Actual predecessor | Later edited at |
@@ -13,3 +13,5 @@ This command-maintained ledger records only attributed breaks in the retained im
 | UCE_lAHOTzZY2M8AAAABOl1Hv87jeryN | unattributed | UCE_lAHOTzZY2M8AAAABOl1Hv87s9BG6 | run-1d9a7a61760b4343b178e387c2a3c5fe | 40a2030d286a0253ca3a66e0ca6a879e3682de14e0fa07b2cf7aa27fb437c6aa | ad8bc52981284ee9f89d87758c90ada32e1f016b0d78920dba988a85dc384d86 | 2026-09-13T02:03:39Z |
 | UCE_lAHOTzZY2M8AAAABOl1Hv87jeryN | unattributed | UCE_lAHOTzZY2M8AAAABOl1Hv87tHN5_ | run-6ab9c99681a844f98691c6973d42648c | 6f9e5f625e0916f6cd845b70a2cf0bc78f759e7d1fbfadcf76f6a56fa86bb22e | ad8bc52981284ee9f89d87758c90ada32e1f016b0d78920dba988a85dc384d86 | 2026-09-13T13:19:55Z |
 | UCE_lAHOTzZY2M8AAAABOl1Hv87jeryN | unattributed | UCE_lAHOTzZY2M8AAAABOl1Hv87tIA0Z | run-c96f2e8609b34daaa73abc4f2e4b70a5 | 312a3078ceff6b66968c80c037f9f8d87161e990ebe1f279c41b15657b062e84 | ad8bc52981284ee9f89d87758c90ada32e1f016b0d78920dba988a85dc384d86 | 2026-09-13T14:06:36Z |
+| UCE_lAHOTzZY2M8AAAABOl1Hv87jeryN | unattributed | UCE_lAHOTzZY2M8AAAABOl1Hv87tIgkL | run-b292bab7842d453196d082b1ade68712 | 63c8f52195cacf6fe205f3cff13235b2daf498464be1398bb8ab45de80a24b4a | ad8bc52981284ee9f89d87758c90ada32e1f016b0d78920dba988a85dc384d86 | 2026-09-13T14:33:51Z |
+| UCE_lAHOTzZY2M8AAAABOl1Hv87jeryN | unattributed | UCE_lAHOTzZY2M8AAAABOl1Hv87tJQCN | run-3faf5c7a62b44afa8aa4ef4636822a64 | f6d07419e9a010c8b7c334a187660333b5770958ab12ca2df2f736c5013ccc7c | ad8bc52981284ee9f89d87758c90ada32e1f016b0d78920dba988a85dc384d86 | 2026-09-13T15:15:15Z |
