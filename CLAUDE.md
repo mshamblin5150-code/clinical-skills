@@ -129,6 +129,15 @@ The command reads `git worktree list --porcelain`, then reads every registered w
 
 Also not required to use the clinical skills, and deliberately not cited from [AGENTS.md](AGENTS.md) — a consumer needs the Markdown and nothing else.
 
+### ADR supersession binding
+
+`tools/test_adr_supersession.py` owns the `## Supersedes` and dated marker
+grammars and binds declarations to markers in both directions under
+`python tools/suite.py`. Its committed cutoff starts at ADR 0280; it refuses
+no commit and has no hook. The complete boundary belongs to the module's
+`DECLARED_LIMITS`. [ADR 0280](docs/adr/0280-an-overturned-ruling-carries-a-dated-supersession-marker-written-by-the-record-that-overturns-it.md)
+records the rule; #1518 owns the historical repair and cutoff lowering.
+
 ### Claim ledger census
 
 `tools/claim_ledger_census.py` counts the claim ledgers the run certifiers actually load:

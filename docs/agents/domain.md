@@ -19,6 +19,16 @@ python tools/adr_next.py "short title of the decision"
 
 Do not choose a number by eyeballing `docs/adr/`; the command reads every registered worktree's on-disk claims. A ratified record's facts may be corrected in place, with a dated correction line at the bottom recording what changed and why. Its ruling may not be rewritten. A filename is an index and may be corrected only with `git mv`, preserving `git log --follow`. Stage a new or corrected record before running the suite so the index-backed relative-link check can see it. [ADR 0016](../adr/0016-an-adr-number-is-claimed-when-it-is-handed-out-and-a-ratified-records-facts-may-be-corrected-in-place.md). [ADR 0022](../adr/0022-an-adr-carries-no-status-field-because-no-record-waits-on-main-for-a-decision.md).
 
+A later ADR that overturns a ruling or falsifies its stated ground adds a dated
+`*Superseded YYYY-MM-DD.*` marker directly beneath the overturned words in the
+same merge. It quotes those words, links the overturning record and its ruling,
+and states what still stands; the overturning record declares the target in
+`## Supersedes`. This sits beside the fact-correction rule above and preserves
+the ratified words. [ADR 0280](../adr/0280-an-overturned-ruling-carries-a-dated-supersession-marker-written-by-the-record-that-overturns-it.md)
+owns the obligation. The suite binds both directions from the cutoff in
+`tools/test_adr_supersession.py`; its boundary belongs to that module's
+`DECLARED_LIMITS`.
+
 ## File structure
 
 Single-context repo:
