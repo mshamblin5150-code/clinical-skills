@@ -221,6 +221,21 @@ calls `use_utf8` and `require_python_floor` from that path. The preceding order 
 **Correction, 2026-10-03:** `cpt_descriptor_agreement.py` is now the most recent direct command and
 calls `use_utf8` and `require_python_floor` from that path. The preceding order remains historical.
 
+**Correction, 2026-10-03:** `compaction_reminder.py` and `install_compaction_reminder.py` are the
+new direct commands for #1206; both call `use_utf8` and `require_python_floor` from that path.
+
+### Compaction reminder
+
+`tools/compaction_reminder.py` runs at Claude Code's `SessionStart` boundary and emits
+`hookSpecificOutput.additionalContext` only for the `compact` source, including subagent sessions.
+It points to [AGENTS.md standing rule 7](AGENTS.md), the canonical instruction. Its complete
+boundary belongs to `compaction_reminder.DECLARED_LIMITS`.
+
+`python tools/install_compaction_reminder.py` installs that rule from the owning checkout into
+a marked block in the user-level Codex `AGENTS.md`, preserving every other line. The installer
+records the dated live Codex admission attempt; delivery was not established, so it writes the
+rule only and registers no Codex hook. Repeating it refreshes only its own block.
+
 ### Suite run
 
 `tools/suite.py` is the one complete-suite interface. It discovers the `test*.py` population under
