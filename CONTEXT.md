@@ -1235,8 +1235,12 @@ The reviewed judgment that places changed work into the map — written as a del
 _Avoid_: update, refresh, sync, rebuild
 
 **Unreconciled ADR**:
-An ADR added or changed on the default branch that no **reconciliation** has recorded as reviewed for the work it creates, splits, resequences or invalidates. The obligation is held per ADR and belongs to whoever merged it, so ADRs are discharged in any order and one session's review never vouches for another's; recording, with its reason, that an ADR creates no work discharges it as fully as placing a packet. Distinct from a **ready ticket** in no packet, which belongs to whoever made the ticket ready: the two arise together at the end of a grilling, and neither waits on the other.
+An ADR added or changed on the default branch that no **reconciliation** has recorded as reviewed for the work it creates, splits, resequences or invalidates. The obligation is held per ADR and belongs to whoever merged it, so ADRs are discharged in any order and one session's review never vouches for another's; recording, with its reason, that an ADR creates no work discharges it as fully as placing a packet. Distinct from a **ready ticket** in no packet, which belongs to whoever made the ticket ready: the two arise together at the end of a grilling, and neither waits on the other. It is owed from the push after the one that landed it, because the review can be recorded only once the merge commit exists; on its own landing push it is reported and refuses nothing. A **grandfathered** one is owed and never refuses.
 _Avoid_: anchor lag, unreconciled commit
+
+**Grandfathered map debt**:
+The **unreconciled ADRs** and ready tickets in no packet carried from before the map check graded only new debt. It is reported on every push and refuses none, it shrinks only when a **reconciliation** discharges an entry, and it cannot grow. It is real work still owed, excused from refusing only by when it arose, so a clean map check means nothing new is owed and never that nothing is owed. Distinct from the scratch **Ratchet**, whose baseline is a count because its members may be PHI; these members are not, so they are named.
+_Avoid_: amnesty, waiver, exemption, baseline, backlog
 
 **Map disagreement**:
 A disagreement between the implementation map and the tracker. It has directions and they are named separately, because each was found by a different instrument and one was invisible to the check built for the other: a **ready ticket** in no packet, and a packeted ticket that has stopped being ready. A gate that grades one direction certifies nothing about the others, and the `blocked` label carries a third disagreement that is held by the sweep in prose rather than by any gate.
