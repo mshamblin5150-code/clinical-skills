@@ -167,7 +167,7 @@ class CptParser(unittest.TestCase):
 
     def test_agreement_requires_both_complete_readings_and_page_resolutions(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = Path(temporary).resolve()  # the record resolves; a runner temp path may be 8.3
             first = root / "reader-1.csv"
             second = root / "reader-2.csv"
             agreed = root / "agreed.csv"
