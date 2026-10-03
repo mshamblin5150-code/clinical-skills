@@ -467,6 +467,10 @@ A ratified ADR decision identified by its record and its ordinal. The words arou
 spelling, not part of the ruling's identity.
 _Avoid_: point, rule, decision
 
+**Supersession marker**:
+A dated note beneath a **ruling**, or beneath the ground stated for it, that a later ADR overturned in whole or in part, owed in every such case and leaving the overturned words exactly as written. Where only the ground fell, the marker says the ruling stands. It exists for the reader who arrives at the earlier record by an old link and would otherwise carry away an overturned ruling or a falsified ground as standing. A later record that completes or extends a ruling and withdraws nothing owes none. Distinct from a ratified record's corrected fact, which replaces words that were false on the day: a superseded ruling was the true record of what was decided on its date, so the marker adds and replaces nothing.
+_Avoid_: footnote, annotation, correction, errata, retirement notice
+
 **Ruling cohort**:
 The assertions across one or more fixtures that express one clinician ruling and share one promotion boundary. Its members move together or not at all.
 _Avoid_: batch, group, wave
