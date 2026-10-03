@@ -1,6 +1,10 @@
 # The pre-draft gates observe that the draft does not yet exist and a late gate is a finding the clinician clears
 
-**Measured at:** b73661b6b7f75e26ed95095c965c1ac322d6217b
+**Measured at:** ef8b5c80d56aa87fc449c3ce0d5597afbce87988
+
+*Re-declared from `b73661b` on 2026-10-03, for the two fact corrections dated at the foot of this record;
+between the two commits only this record, its ADR 0272 marker, ADR 0291 and `CONTEXT.md` changed, and
+no measured sentence here cites any of them.*
 
 [#1404](https://github.com/mshamblin5150-code/clinical-skills/issues/1404) was filed from the
 grilling of [#1395](https://github.com/mshamblin5150-code/clinical-skills/issues/1395), where
@@ -13,10 +17,12 @@ build reads.**
 ## Measured before ruling
 
 **The instrument the ticket named cannot see a file write.** `aar_scan --extract` records a
-tool-call entry as the tool's name alone, `Write` or `Bash`, never its path or command. Tool inputs
-are read only during discovery, to decide whether a transcript names the run key. So *the record was
-written before the draft* is not in the extract today, and grading it there needs a new reader of
-tool inputs across both harnesses and every writing tool.
+tool-call entry as the tool's name alone, `Write` or `Bash`, never its path or command. The extract
+reads tool inputs only during discovery, to decide whether a transcript names the run key; the
+`--submission` grade's `_successful_gh_call` also reads Bash and Codex command strings, to find a
+successful `gh` call, and reads no file-write path. So *the record was written before the draft* is
+not in the extract today, and grading it there needs a new reader of file-write paths across both
+harnesses and every writing tool.
 
 **Three records are required before the first prose, and one of them admits its order is
 unproven.** Each of the five bound coursework skills writes:
@@ -37,7 +43,8 @@ unproven.** Each of the five bound coursework skills writes:
 | discussion-reply | `response-<name>.md` in the run directory, one per reply | that response filename |
 | practicum-case-study | the dated output Markdown under `output/case-studies/` | that file's stem |
 | discussion-post | `post.md` in the run directory | the output Markdown stem |
-| course-assignment | a `.pptx` built in a run-unique private writer path anywhere | the output deck stem |
+| course-assignment, deck branch | a `.pptx` built in a run-unique private writer path anywhere | the output deck stem |
+| course-assignment, DOCX branch | a run-unique private JSON specification for `tools/assignment_docx.py`, anywhere | the output document stem |
 
 **The gates take no submission key today**, while `supplied-voice.json` already lives under one.
 
@@ -164,3 +171,15 @@ see, and `voice_model_identity.DECLARED_LIMITS` gains the matching row:
   ruling 8, its holding that the ordering *"is a declared limit, not a graded claim."* The gate
   itself stands; the ordering is now observed by it under ruling 1, and the limit is narrowed under
   ruling 7.
+
+*Corrected 2026-10-03.* The measured paragraph on the transcript instrument formerly said *"Tool inputs
+are read only during discovery"* and that grading the order needs *"a new reader of tool inputs"*. The
+`--submission` grade already reads Bash and Codex command strings in `_successful_gh_call`, so the
+missing reader is narrower: file-write paths. Ruling 7's decline stands on its other grounds, that
+the grade lands after submission, makes the review a second grader, and has no recorded instance; its
+cost clause is overstated by the same width. The table formerly gave course-assignment one row, the
+deck branch, and omitted the DOCX branch, whose first prose lands in a run-unique private JSON
+specification read by `tools/assignment_docx.py`. Ruling 3's reason, that a writer path left anywhere
+lets a careless run pass every gate, applies to that specification unchanged, so #1404's build maps
+it inside the run directory too. Both omissions were found by the tracker sweep after this record
+merged.
