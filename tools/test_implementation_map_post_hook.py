@@ -339,7 +339,7 @@ class ProjectRegistration(unittest.TestCase):
         )
         registrations = settings["hooks"]["PostToolUse"]
         by_tool = {row["matcher"]: row["hooks"] for row in registrations}
-        self.assertEqual(set(by_tool), set(hook.tracker_publish_hook.COMMAND_TOOLS))
+        self.assertEqual(set(by_tool), set(hook.command_reader.COMMAND_TOOLS))
         for tool, handlers in by_tool.items():
             with self.subTest(tool=tool):
                 self.assertEqual(len(handlers), 1)
@@ -349,8 +349,9 @@ class ProjectRegistration(unittest.TestCase):
                 )
 
     def test_declared_limits_are_owned_here(self):
-        self.assertEqual(len(hook.DECLARED_LIMITS), 9)
+        self.assertEqual(len(hook.DECLARED_LIMITS), 6)
         self.assertTrue(any("number or URL" in row for row in hook.DECLARED_LIMITS))
+        self.assertTrue(any("command_reader.NOT_REACHED" in row for row in hook.DECLARED_LIMITS))
         for phrase in (
             "G=gh",
             "string formatting",
@@ -358,7 +359,10 @@ class ProjectRegistration(unittest.TestCase):
             "alias or function",
         ):
             with self.subTest(phrase=phrase):
-                self.assertTrue(any(phrase in row for row in hook.DECLARED_LIMITS))
+                self.assertTrue(any(
+                    phrase in subject or phrase in reason
+                    for subject, reason in hook.command_reader.NOT_REACHED
+                ))
 
 
 if __name__ == "__main__":

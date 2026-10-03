@@ -873,6 +873,7 @@ class EveryLimitsDeclarationIsClassified(unittest.TestCase):
 
     def test_the_candidacy_derivation_reads_every_declared_name(self):
         population = declarers()
+        self.assertIn("command_reader", population)
         self.assertIn("case_study_scan", population)
         self.assertIn("differential_scan", population)
         self.assertIn("reference_scan", population)
