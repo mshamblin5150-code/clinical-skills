@@ -6463,6 +6463,27 @@ class StaleBuildFlag(unittest.TestCase):
                     self.assertEqual(gate.main(args), 2)
 
 
+    def test_manifest_reuse_keeps_each_sheets_accepted_distrust_trace(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            sheets = root / 'sheets'
+            sheets.mkdir()
+            for name in ('one.md', 'two.md'):
+                (sheets / name).write_text(TheExitStatusSaysWhichKindOfNotGraded.CLEAN, encoding='utf-8')
+            text_root = root / 'text'
+            text_root.mkdir()
+            (text_root / 'manifest.json').write_text('{"documents": []}', encoding='utf-8')
+            out, err = io.StringIO(), io.StringIO()
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err), mock.patch.object(gate, 'SHEET_ROOT', sheets), mock.patch.object(
+                gate, 'load_catalog_facts', return_value=gate.CatalogFacts((), {'Society/doc': 60}, {}, (), ())
+            ), mock.patch('warnings.warn'):
+                gate.main(['--all', '--quiet', '--allow-untrusted-provenance', '--text-root', str(text_root),
+                           '--pdf-root', str(root / 'pdf'), '--recs-root', str(root / 'recs'),
+                           '--recs-alias', str(root / 'alias')])
+            trace = f'untrusted artifact {text_root / "manifest.json"}:'
+            self.assertEqual(err.getvalue().count(trace), 2)
+
+
 class StagedThresholdHook(unittest.TestCase):
     def run_hook(self, paths, gate_status=0):
         shell = shutil.which('sh')

@@ -1242,11 +1242,23 @@ class SurveyInputs:
     expected_commit: str
 
     @cached_property
-    def extraction_handoff(self) -> guidelines_manifest.Manifest:
+    def _extraction_handoff(self) -> guidelines_manifest.Manifest:
         return guidelines_manifest.read(
             self.roots.text_root, expected_commit=self.expected_commit,
             allow_untrusted_provenance=self.allow_untrusted_provenance,
         )
+
+    @property
+    def extraction_handoff(self) -> guidelines_manifest.Manifest:
+        reused = "_extraction_handoff" in self.__dict__
+        handoff = self._extraction_handoff
+        if reused and self.allow_untrusted_provenance and handoff.provenance is not None:
+            artifact_provenance.enforce_producer_check(
+                handoff.provenance,
+                handoff.root / guidelines_manifest.MANIFEST_NAME,
+                allow_untrusted=True,
+            )
+        return handoff
 
 
 def load_catalog_facts(path: Path = DEFAULT_CATALOG) -> CatalogFacts:

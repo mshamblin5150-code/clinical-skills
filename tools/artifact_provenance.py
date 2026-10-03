@@ -523,6 +523,13 @@ def check_producer(
         )
         if checks is not None and key is not None:
             checks[key] = check
+    return enforce_producer_check(check, artifact, allow_untrusted=allow_untrusted)
+
+
+def enforce_producer_check(
+    check: ProvenanceCheck, artifact: Path | str, *, allow_untrusted: bool,
+) -> ProvenanceCheck:
+    """Enforce or trace a known verdict without repeating the ownership read."""
     if check.reasons:
         message = f"untrusted artifact {artifact}: " + "; ".join(check.reasons)
         if not allow_untrusted:

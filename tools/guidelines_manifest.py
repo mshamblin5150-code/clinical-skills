@@ -148,8 +148,9 @@ def _problem(
     message: str,
     doc_id: str | None = None,
     cause: ValueError | None = None,
+    provenance: artifact_provenance.ProvenanceCheck | None = None,
 ) -> Manifest:
-    return Manifest(root, {}, {}, {}, (Problem(message, doc_id, cause),))
+    return Manifest(root, {}, {}, {}, (Problem(message, doc_id, cause),), provenance)
 
 
 def _record(entry: dict[str, Any], doc_id: str) -> Record:
@@ -247,6 +248,7 @@ def _read_locked(
         return _problem(
             root,
             f'{path} is not a list of entries or a {{"documents": [...]}} object',
+            provenance=provenance,
         )
 
     documents: dict[str, Record] = {}
