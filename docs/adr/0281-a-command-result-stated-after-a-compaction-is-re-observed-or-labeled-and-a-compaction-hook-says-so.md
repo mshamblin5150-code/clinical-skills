@@ -1,6 +1,6 @@
 # A command result stated after a compaction is re-observed or labeled and a compaction hook says so
 
-**Measured at:** 7624d5b8901fa9dd56e1a4e06b3d26149de8e071
+**Measured at:** 632819dfb89991da40ca6363bf20760cded9e86f
 
 [#1206](https://github.com/mshamblin5150-code/clinical-skills/issues/1206) recorded an orchestrator
 telling the clinician an after-action review was clean after a context compaction, when the command
@@ -44,11 +44,24 @@ the transcript does not show. Retention has pruned older Claude Code sessions, i
 
 ### The decisions that matter already recompute their own result
 
-`run_status_stop_hook.RUN_KINDS` covers all seven posting skills, not only `course-assignment` as
-#1206's latest comment records. An approved run's `Run status: complete` is accepted only after the
-hook re-grades it from durable state. A tracker publication is graded by the publish hook as it goes
-out, and a merge to `main` by CI. Each recomputes its result rather than trusting the sentence that
-reported it.
+`run_status_stop_hook.RUN_KINDS` names all seven posting skills, not only `course-assignment` as
+#1206's latest comment records. The hook writes `complete` into a run's durable state only after it
+re-grades the run. A tracker publication is graded by the publish hook as it goes out, and a merge to
+`main` by CI. Each recomputes its result rather than trusting the sentence that reported it.
+
+**The reply the clinician reads is not yet covered as fully as the durable state**, and the
+tracker sweep of this grilling found why before merge:
+
+- `handle()` returns early when `stop_hook_active` is set, so a replacement reply written after a
+  refusal is never graded ([#1519](https://github.com/mshamblin5150-code/clinical-skills/issues/1519)).
+- The hook reads stdin with the locale codec, so on Windows a well-formed status line can be refused
+  as malformed, which forces that ungraded replacement
+  ([#1456](https://github.com/mshamblin5150-code/clinical-skills/issues/1456)).
+- `discussion-reply` and `peer-critique` cannot write the approval record the hook reads, so it never
+  sees their runs as open ([#1495](https://github.com/mshamblin5150-code/clinical-skills/issues/1495)).
+
+So an ungraded `complete` can reach the clinician today, while the run stays open in durable state
+and the next ordinary reply is graded again.
 
 ### Both harnesses expose a hook at the compaction boundary
 
@@ -102,9 +115,16 @@ from a fail reliably; its false alarms would fall on routine conversation to gua
 that occurred in none of the 72 retained Claude Code cases.
 
 **This includes the go-ahead.** The one unguarded spot is a result reported before the clinician's
-go-ahead, and a stale pass there cannot finish a run, because the run-status hook re-grades it before
-`complete` is accepted. A recognizer for go-ahead requests across seven differently worded skills
-would be the fuzziest check in the repository, guarding a spot a later gate already stands behind.
+go-ahead. A stale pass there cannot be recorded as a finished run, because the run-status hook writes
+`complete` into durable state only after a re-grade. A recognizer for go-ahead requests across seven
+differently worded skills would be the fuzziest check in the repository, guarding a spot a later gate
+already stands behind.
+
+**That later gate is partial until #1519, #1456 and #1495 land**, as measured above: until then an
+ungraded `complete` can reach the clinician's reply, and two posting skills are outside it. The
+clinician ruled this ruling stands with that stated rather than blocking this ticket on those three
+or adding a go-ahead check. The reminder and the written rule do not depend on the gate, and each gap
+is already an open defect with its own repair.
 
 ## Ruling 6 — Codex is covered, and a live test decides how
 
@@ -134,8 +154,8 @@ in force between compactions or wherever the hook does not fire.
 **A written rule only.** Nothing reminds at the moment the memory becomes untrustworthy, and a
 written instruction cannot fail.
 
-**Re-injecting each command's last status from the transcript at the boundary.** Most retained runs
-have no readable status because of piping, and the rest are results from before the compaction,
+**Re-injecting each command's last status from the transcript at the boundary.** Most last runs
+before a compaction have no readable status because of piping or chaining, and the rest are results from before the compaction,
 which would look authoritative and invite the same mistake in a new form.
 
 **A reply-blocking check, wide or narrowed to deciding results.** Ruling 5.
@@ -169,3 +189,6 @@ check; ruling 5 declines the check deliberately.
 the answer unnecessary.
 
 **A piped or chained status in ordinary work.** That is #1457.
+
+**An ungraded `complete` in a replacement reply, or a run in a skill the run-status hook cannot see.**
+Those are #1519, #1456 and #1495, and ruling 5's reliance on that hook is partial until they land.
