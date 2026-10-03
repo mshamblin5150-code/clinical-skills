@@ -165,6 +165,8 @@ Re-derived against the artifact:
 
 The earlier record is not edited. That is this repository's practice — ADR 0100 ruling 3 and [ADR 0134](0134-the-guideline-currency-check-is-per-society-reads-what-its-publisher-lists-and-refuses-to-repoint-a-sheet.md) both supersede prose rather than rewriting the record they correct, and editing a ratified ADR would make its merge receipt point at text that no longer exists.
 
+*Superseded 2026-10-03.* **The practice *"The earlier record is not edited. That is this repository's practice"* is superseded by [ADR 0280](0280-an-overturned-ruling-carries-a-dated-supersession-marker-written-by-the-record-that-overturns-it.md) ruling 1 and is left as written.** A ruling a later record overturns now carries a dated marker beneath its words; the marker adds text and replaces none, so the merge receipt still points at every word it ratified, which answers the objection this paragraph states. Ruling 8's verdict stands: ADR 0100 ruling 6's verdict holds and its table is superseded.
+
 ## What none of this reaches
 
 **Whether an in-text year must equal its entry's year.** Ruling 1 hands that to #816, with two roots and two symptom rows attached. Nothing here changes `_citation_findings`, and the M2 artifact still reports both findings after every ruling above.
