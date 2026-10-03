@@ -48,6 +48,7 @@ import browser_tab_hook
 NOT_GRADED = run_grader.NOT_GRADED
 REVIEW_CLASSIFIER_ENTRY_CUTOFF = datetime(2026, 9, 12, tzinfo=timezone.utc)
 POSTED_READING_FINGERPRINT_CUTOFF = datetime(2026, 9, 13, tzinfo=timezone.utc)
+UNREAD_REMAINDER_CUTOFF = datetime(2026, 10, 3, 17, 57, tzinfo=timezone.utc)
 
 
 SCOPED_SKILLS = frozenset(
@@ -175,7 +176,6 @@ CODEX_RESPONSE_TYPES = frozenset(
         "function_call",
         "function_call_output",
         "message",
-        "reasoning",
     }
 )
 CLAUDE_ROW_TYPES = frozenset(
@@ -187,6 +187,36 @@ CLAUDE_ROW_TYPES = frozenset(
         "queue-operation",
         "system",
         "user",
+    }
+)
+
+# Top-level rows, Codex payloads, and Claude blocks deliberately left unread.
+NAMED_UNREAD_TYPES: Mapping[str, str] = MappingProxyType(
+    {
+        "last-prompt": "A 200-character echo of a turn the review already reads (ADR 0285 ruling 4).",
+        "bridge-session": "Session and harness state.",
+        "atis-latch": "Session and harness state.",
+        "mode": "Session and harness state.",
+        "permission-mode": "Session and harness state.",
+        "cost-state": "Session and harness state.",
+        "custom-title": "Session names, mostly generated.",
+        "ai-title": "Session names, mostly generated.",
+        "agent-name": "Session names, mostly generated.",
+        "pr-link": "A link to a pull request.",
+        "frame-link": "A link to an artifact.",
+        "file-history-delta": "File bookkeeping.",
+        "artifact-autoreact-ledger": "Artifact bookkeeping.",
+        "artifact-comment-monitor": "Artifact bookkeeping.",
+        "file-history-snapshot": "File bookkeeping.",
+        "progress": "Harness progress.",
+        "system": "System rows remain outside reduction; #1535 owns the population ruling.",
+        "event_msg": "Harness event state; tool success is read separately for landing evidence.",
+        "turn_context": "Session and harness state.",
+        "token_usage_record": "Harness usage state.",
+        "world_state": "Session and harness state.",
+        "session_meta": "Session metadata.",
+        "reasoning": "Reasoning is outside the population (ADR 0285 ruling 3).",
+        "thinking": "Reasoning is outside the population (ADR 0285 ruling 3).",
     }
 )
 
@@ -226,6 +256,22 @@ ROWS: Mapping[str, str] = MappingProxyType(
 KINDS = tuple(ROWS)
 
 DECLARED_LIMITS = (
+    (
+        "reasoning-only correction",
+        "A correction that appears only in Codex reasoning or Claude thinking is outside the population by ADR 0285 ruling 3.",
+    ),
+    (
+        "last-prompt-only text",
+        "Text that appears only in last-prompt is not reachable.",
+    ),
+    (
+        "wrong unread reason",
+        "A type named for the wrong reason stays unread until its reason is revisited.",
+    ),
+    (
+        "nested named content",
+        "Nested content inside a named type is not walked by the remainder count.",
+    ),
     (
         "semantic classification",
         "The command fixes the candidate population and cannot decide whether a candidate is a correction or whether the classifier's disposition is right.",
@@ -363,13 +409,17 @@ class BrowserDiagnostics:
 class ExtractDiagnostics:
     harness_versions: tuple[str, ...]
     undeclared_envelopes: int
-    undeclared_codex_row_types: int
+    undeclared_row_types: int
     undeclared_codex_payload_types: int
     subagent_launches: int
     joined_results: int
     unjoined_launches: int
     notifications_without_join_key: int
     browser: BrowserDiagnostics
+
+    @property
+    def unread_remainder(self) -> int:
+        return self.undeclared_row_types + self.undeclared_codex_payload_types
 
 
 @dataclass(frozen=True)
@@ -406,6 +456,8 @@ class Scan:
     transcripts_skipped_by_byte_search: int = 0
     transcripts_read: int = 0
     browser: BrowserDiagnostics = BrowserDiagnostics()
+    unread_remainder: int | None = None
+    unmeasured_rounds: int = 0
 
 
 @dataclass(frozen=True)
@@ -1158,21 +1210,17 @@ def extract_diagnostics(
     transcript_rows = [read_transcript(path) for path in transcripts]
     rows = [row for source_rows in transcript_rows for row in source_rows]
     versions = tuple(sorted({_text(row.get("version")) for row in rows if _text(row.get("version"))}))
-    codex = any(row.get("type") in CODEX_ROW_TYPES for row in rows)
-    undeclared_rows = (
-        sum(
-            1
-            for row in rows
-            if _text(row.get("type")) not in CODEX_ROW_TYPES | CLAUDE_ROW_TYPES
-        )
-        if codex
-        else 0
+    undeclared_rows = sum(
+        1
+        for row in rows
+        if _text(row.get("type"))
+        not in CODEX_ROW_TYPES | CLAUDE_ROW_TYPES | NAMED_UNREAD_TYPES.keys()
     )
     undeclared_payloads = sum(
         1
         for row in rows
         if row.get("type") == "response_item"
-        and _text(_codex_payload(row).get("type")) not in CODEX_RESPONSE_TYPES
+        and _text(_codex_payload(row).get("type")) not in CODEX_RESPONSE_TYPES | NAMED_UNREAD_TYPES.keys()
     )
     undeclared_envelopes = sum(
         1
@@ -1200,7 +1248,7 @@ def extract_diagnostics(
     return ExtractDiagnostics(
         harness_versions=versions,
         undeclared_envelopes=undeclared_envelopes,
-        undeclared_codex_row_types=undeclared_rows,
+        undeclared_row_types=undeclared_rows,
         undeclared_codex_payload_types=undeclared_payloads,
         subagent_launches=len(launches),
         joined_results=joined,
@@ -1281,7 +1329,8 @@ def write_extract(
         f"MEMORY-INDEX: {memory_index.resolve()}",
         "HARNESS-VERSIONS: " + (", ".join(diagnostics.harness_versions) or "none observed"),
         f"UNDECLARED-ENVELOPES: {diagnostics.undeclared_envelopes}",
-        f"UNDECLARED-CODEX-ROW-TYPES: {diagnostics.undeclared_codex_row_types}",
+        f"UNREAD-REMAINDER: {diagnostics.unread_remainder}",
+        f"UNDECLARED-ROW-TYPES: {diagnostics.undeclared_row_types}",
         f"UNDECLARED-CODEX-PAYLOAD-TYPES: {diagnostics.undeclared_codex_payload_types}",
         f"SUBAGENT-LAUNCHES: {diagnostics.subagent_launches}",
         f"SUBAGENT-JOINED-RESULTS: {diagnostics.joined_results}",
@@ -1740,6 +1789,18 @@ def _survey_round(run: Path, submission: str, round_number: int) -> Scan:
         _utc_timestamp(extracted_at, "EXTRACTED-AT")
         >= POSTED_READING_FINGERPRINT_CUTOFF
     )
+    unread_remainder = None
+    remainder_cutoff = bool(extracted_at) and (
+        _utc_timestamp(extracted_at, "EXTRACTED-AT") >= UNREAD_REMAINDER_CUTOFF
+    )
+    if remainder_cutoff:
+        try:
+            count = int(extract_fields["UNREAD-REMAINDER"])
+            if count < 0:
+                raise ValueError("negative remainder")
+            unread_remainder = count
+        except (KeyError, ValueError):
+            findings.append(Finding("non-numeric-coverage", "UNREAD-REMAINDER"))
     if fingerprint_cutoff:
         recorded_fingerprint = extract_fields.get("POSTED-READING-FINGERPRINT", "")
         try:
@@ -1882,6 +1943,8 @@ def _survey_round(run: Path, submission: str, round_number: int) -> Scan:
         kind_counts=kind_counts,
         later_sittings=later_sittings,
         browser=browser,
+        unread_remainder=unread_remainder,
+        unmeasured_rounds=int(not remainder_cutoff),
         **diagnostic_counts,
     )
 
@@ -1938,6 +2001,12 @@ def survey(run: Path, submission: str) -> Scan:
         ),
         transcripts_read=sum(scan.transcripts_read for scan in scans),
         browser=_sum_browser_diagnostics(scan.browser for scan in scans),
+        unread_remainder=(
+            sum(scan.unread_remainder or 0 for scan in scans)
+            if any(scan.unread_remainder is not None for scan in scans)
+            else None
+        ),
+        unmeasured_rounds=sum(scan.unmeasured_rounds for scan in scans),
     )
 
 
@@ -1961,6 +2030,12 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         f"  tab creation parses: navigate no tab  {scan.browser.creation_parses_navigate_without_tab}",
         f"  findings                        {len(scan.findings)}",
     ]
+    if scan.unread_remainder is not None:
+        lines.append(run_grader.format_unread_remainder(scan.unread_remainder))
+    if scan.unmeasured_rounds:
+        lines.append("unread remainder: not measured (extract predates the count)")
+    elif scan.unread_remainder is None:
+        lines.append("unread remainder: not measured (extract unavailable or invalid)")
     lines.extend(
         f"  round {round.number} corrections {round.corrections}; "
         f"unlanded {round.unlanded}"
@@ -1984,7 +2059,7 @@ def completion_finding(run: Path, submissions: Iterable[str]) -> str | None:
     """The expected row shared by ``COMPLETION_GRADERS``."""
     for submission in submissions:
         scan = survey(run, submission)
-        if scan.findings or scan.unread:
+        if scan.findings or scan.unread or scan.unread_remainder:
             return f"{EXPECTED_ROW} is incomplete for {submission}"
     return None
 
@@ -2252,13 +2327,18 @@ def grade(run: Path, parsed: run_grader.Parsed) -> run_grader.Grade[Scan] | run_
                     else ()
                 ),
                 f"  private extract written         {destination.name}",
+                run_grader.format_unread_remainder(int(extract_fields["UNREAD-REMAINDER"])),
         )
+        remainder = int(extract_fields["UNREAD-REMAINDER"])
         if rebuilt_scan is not None:
             stdout = (*stdout, "", format_report(rebuilt_scan, run.name))
-        return run_grader.EarlyExit(
-            1 if rebuilt_scan is not None and rebuilt_scan.findings else 0,
-            stdout=stdout,
-        )
+        if rebuilt_scan is not None and rebuilt_scan.findings:
+            status = 1
+        elif remainder or (rebuilt_scan is not None and rebuilt_scan.unread_remainder):
+            status = 2
+        else:
+            status = 0
+        return run_grader.EarlyExit(status, stdout=stdout)
 
     try:
         scan = survey(run, submission)
@@ -2271,6 +2351,7 @@ def grade(run: Path, parsed: run_grader.Parsed) -> run_grader.Grade[Scan] | run_
         scan=scan,
         source=run.name,
         findings_failed=bool(scan.findings),
+        coverage_failed=bool(scan.unread_remainder),
     )
 
 
