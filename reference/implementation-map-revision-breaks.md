@@ -2,7 +2,7 @@
 
 This command-maintained ledger records only attributed breaks in the retained implementation-map revision chain.
 
-- high-water revision: `UCE_lAHOTzZY2M8AAAABOl1Hv878TDoR`
+- high-water revision: `UCE_lAHOTzZY2M8AAAABOl1Hv878VCiC`
 - unread remainder: at least one revision precedes the retained window
 
 | Earlier revision | Earlier writer | Later revision | Later writer | Declared predecessor | Actual predecessor | Later edited at |
@@ -17,3 +17,6 @@ This command-maintained ledger records only attributed breaks in the retained im
 | UCE_lAHOTzZY2M8AAAABOl1Hv87jeryN | unattributed | UCE_lAHOTzZY2M8AAAABOl1Hv87tJQCN | run-3faf5c7a62b44afa8aa4ef4636822a64 | f6d07419e9a010c8b7c334a187660333b5770958ab12ca2df2f736c5013ccc7c | ad8bc52981284ee9f89d87758c90ada32e1f016b0d78920dba988a85dc384d86 | 2026-09-13T15:15:15Z |
 | UCE_lAHOTzZY2M8AAAABOl1Hv87jeryN | unattributed | UCE_lAHOTzZY2M8AAAABOl1Hv87tMNBG | run-14ecd5d44a38434a8f52ab6670349350 | 3f411b1ba0cc553381a0b5d77e73108347334d5d79e75272d094b7cb4e89d325 | ad8bc52981284ee9f89d87758c90ada32e1f016b0d78920dba988a85dc384d86 | 2026-09-13T17:55:59Z |
 | UCE_lAHOTzZY2M8AAAABOl1Hv87jeryN | unattributed | UCE_lAHOTzZY2M8AAAABOl1Hv87tM7vb | run-9645edab577e4ff38162c2a1f702dad0 | 65e8b7f8ab4922c1454771fc46f885d66ba5eabe373c3fcb4365939f44a98f17 | ad8bc52981284ee9f89d87758c90ada32e1f016b0d78920dba988a85dc384d86 | 2026-09-13T18:34:20Z |
+| UCE_lAHOTzZY2M8AAAABOl1Hv87jeryN | unattributed | UCE_lAHOTzZY2M8AAAABOl1Hv87uDCdq | run-91e8f77e65674537af28a76734f99e52 | 45040ea2f8044a45a054c7d7caa09ea9d5d3b4832d471dbbfaeeb8dbe71e68c4 | ad8bc52981284ee9f89d87758c90ada32e1f016b0d78920dba988a85dc384d86 | 2026-09-14T22:56:02Z |
+| UCE_lAHOTzZY2M8AAAABOl1Hv878Tc5Q | run-6fffe9aa9e164e2086ec2cfbbd2e76e4 | UCE_lAHOTzZY2M8AAAABOl1Hv878TsJ8 | run-20c1aa12cae14c19a37895cbcb403d78 | caaba28aecf6c7d41879968495573add3d35ffb323a6836c92810d669741334b | 1e1d985383e44d95b5ecc13fe9dbf81f49dba91d6fec4c93ac6afe611a2a2ff0 | 2026-10-03T17:13:52Z |
+| UCE_lAHOTzZY2M8AAAABOl1Hv878TsJ8 | run-20c1aa12cae14c19a37895cbcb403d78 | UCE_lAHOTzZY2M8AAAABOl1Hv878U06h | run-3b548199409f4ce6ab17a25a5daf4156 | caaba28aecf6c7d41879968495573add3d35ffb323a6836c92810d669741334b | 17dfcbfc65a066cc1e081346890aee2b602476a420874fea8c177e4f011f4a03 | 2026-10-03T17:54:21Z |
