@@ -405,36 +405,6 @@ def ledger_publishing_skills(read_text=None) -> tuple[Path, ...]:
     )
 
 
-def authenticated_research_route_blocks(path: Path, read_text=None) -> tuple[str, ...]:
-    """Normalized prose blocks carrying the research-side route obligation.
-
-    This recognizes only one blank-line-delimited block carrying the literal
-    concept vocabulary below. A paraphrase outside those regex forms is beyond
-    its ceiling and is not evidence that the obligation is absent.
-    """
-
-    required = (
-        r"\bprofile\b",
-        r"\bavailable\b",
-        r"\bresearch(?:er| agent| context)\b",
-        r"\bauthenticated route\b",
-        r"\bmust\b",
-        r"\bbefore\b.*\bgiv(?:e|ing) up\b",
-        r"\bsubstitut(?:e|ion)\b",
-        r"\bstatus\s*:\s*unsourced\b",
-    )
-    reader = read_text or (lambda source: source.read_text(encoding="utf-8"))
-    blocks = (
-        normalized_prose(block)
-        for block in re.split(r"\n\s*\n", reader(path))
-    )
-    return tuple(
-        block
-        for block in blocks
-        if all(re.search(pattern, block, re.IGNORECASE) for pattern in required)
-    )
-
-
 def claim_blocks(path: Path) -> tuple[str, ...]:
     """Fenced templates and examples that actually publish claim records."""
     blocks: list[str] = []
@@ -507,29 +477,6 @@ class EveryLedgerPublishingSkillCarriesTheRecordContract(unittest.TestCase):
         mutated = ledger_publishing_skills(without_target_marker)
         self.assertNotIn(target, mutated)
         self.assertEqual(set(mutated), set(baseline) - {target})
-
-
-class EveryLedgerPublishingSkillCarriesTheAuthenticatedResearchRoute(unittest.TestCase):
-    """ADR 0055 rulings 2, 5, and 6, over the derived skill population."""
-
-    def test_each_research_brief_carries_the_conditional_route_obligation(self):
-        for path in ledger_publishing_skills():
-            with self.subTest(skill=path.parent.name):
-                self.assertTrue(authenticated_research_route_blocks(path), path)
-
-    def test_removing_one_required_concept_makes_a_real_skill_unrecognized(self):
-        target = ledger_publishing_skills()[0]
-
-        def without_giving_up(path: Path) -> str:
-            prose = path.read_text(encoding="utf-8")
-            if path == target:
-                prose = re.sub(r"\bgiv(?:e|ing) up\b", "stopping", prose, count=1)
-            return prose
-
-        self.assertTrue(authenticated_research_route_blocks(target))
-        self.assertFalse(
-            authenticated_research_route_blocks(target, without_giving_up)
-        )
 
 
 class DeclaredLimitProsePointsWithoutCopying(ProseBind, unittest.TestCase):
@@ -1879,6 +1826,12 @@ class EveryRuledFanOutReadsTheSharedSourcingRules(unittest.TestCase):
     LOCAL_OMIT_RULE = re.compile(
         r"omit\w* (?:(?:the other|every) source fields?|the other fields)"
     )
+    # Declared limit: a restatement in other words passes.
+    LOCAL_AUTHENTICATED_ROUTE_RULE = re.compile(
+        r"in-app browser pane|must (?:attempt|try) it before giving up|"
+        r"before (?:writing )?`paywalled`",
+        re.IGNORECASE,
+    )
 
     def test_the_shared_file_contains_exactly_the_declared_rules(self):
         text = SOURCING.read_text(encoding="utf-8")
@@ -1893,6 +1846,7 @@ class EveryRuledFanOutReadsTheSharedSourcingRules(unittest.TestCase):
                 "A pointer is not a source",
                 "A resolving locator is not verification",
                 "A failed read is not a negative",
+                "A wall counts only after the Authenticated route is tried",
                 "Authenticated VitalSource chapters use one reading standard",
                 "An absence-based refutation reads and quotes the passage",
                 "A sourceless record makes no claim about a source",
@@ -1916,6 +1870,53 @@ class EveryRuledFanOutReadsTheSharedSourcingRules(unittest.TestCase):
         self.assertIn(
             "A sourced claim record may certify a value only when REFUTATION, TESTED-HEADING, and SECOND-ROUTE carry substance",
             flat.replace("`", ""),
+        )
+
+    def test_the_shared_authenticated_route_section_carries_every_obligation(self):
+        text = SOURCING.read_text(encoding="utf-8")
+        title = "## A wall counts only after the Authenticated route is tried\n"
+        self.assertIn(title, text)
+        section = " ".join(text.split(title, 1)[1].split("\n## ", 1)[0].split())
+        for sentence in (
+            "The **Authenticated route** is the clinician's signed-in Chrome through `mcp__claude-in-chrome__*`.",
+            "The in-app Browser pane is not that route.",
+            "A research agent must try it before giving up on the sought source, choosing an open substitute, or writing `STATUS: unsourced` because of a wall.",
+            "A refuter writes `paywalled` only when the source body remains inaccessible through the Authenticated route; an anonymous or in-app login wall does not establish the disposition.",
+            "Where the route cannot be reached in the run, the attempt is a failed read: `STATUS: unreadable` or `REFUTATION: unreadable`, with `INSTRUMENTS` naming the attempts.",
+            "An unreachable route never yields `paywalled` and never yields `STATUS: unsourced` on the ground of a wall.",
+        ):
+            with self.subTest(sentence=sentence):
+                self.assertIn(sentence, section)
+        self.assertIn(
+            "../../../docs/adr/0042-a-refutation-declares-a-second-route-and-independence-stays-unreachable.md",
+            section,
+        )
+
+    def test_the_authenticated_route_rule_has_no_local_copy(self):
+        for path in sorted((REPO_ROOT / "skills").rglob("*.md")):
+            if path == SOURCING:
+                continue
+            with self.subTest(path=path.relative_to(REPO_ROOT)):
+                text = " ".join(path.read_text(encoding="utf-8").split())
+                self.assertIsNone(self.LOCAL_AUTHENTICATED_ROUTE_RULE.search(text))
+
+    def test_the_local_copy_ratchet_refuses_a_planted_authenticated_route_copy(self):
+        for phrase in (
+            "in-app Browser\n pane",
+            "A research agent must attempt it\n before giving up",
+            "A research context MUST TRY IT BEFORE GIVING UP",
+            "Before `paywalled`, attempt the route",
+            "before writing\n `paywalled`, try the route",
+        ):
+            with self.subTest(phrase=phrase):
+                planted = "# Synthetic skill\n\n" + phrase
+                self.assertIsNotNone(
+                    self.LOCAL_AUTHENTICATED_ROUTE_RULE.search(" ".join(planted.split()))
+                )
+        self.assertIsNone(
+            self.LOCAL_AUTHENTICATED_ROUTE_RULE.search(
+                "REFUTATION: stands | refuted | paywalled | unreadable"
+            )
         )
 
     def test_the_claim_heading_rule_and_refutation_briefs_agree(self):
