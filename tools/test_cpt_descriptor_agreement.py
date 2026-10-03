@@ -180,6 +180,63 @@ class DefectShapes(Run):
         for shape in build.DESCRIPTOR_DEFECTS:
             self.assertRegex(out, re.compile(rf"^  agreed descriptors {shape} +0$", re.M))
 
+    def test_a_wrong_control_is_a_finding(self):
+        rows = {"87804": "Example test; group B; influenza", "12345": "Other"}
+        write_reading(self.root / "reader-1.csv", rows)
+        write_reading(self.root / "reader-2.csv", rows)
+        status, out, _ = self.run_command("--write")
+        self.assertEqual(1, status)
+        self.assertRegex(out, re.compile(r"^  control disagrees with its digest +1$", re.M))
+        self.assertFalse((self.root / "agreement.json").exists())
+
+
+class ReviewFindings(Run):
+    def test_a_line_break_inside_a_resolution_reaches_a_record_the_build_accepts(self):
+        write_reading(self.root / "reader-1.csv", {"12345": "A"})
+        write_reading(self.root / "reader-2.csv", {"12345": "B"})
+        (self.root / "resolutions.csv").write_bytes(
+            b'code,description,printed_page\r\n12345,"Lead-in\r\n\xe2\x80\xa2 one",p1\r\n'
+        )
+        status, out, err = self.run_command("--write")
+        self.assertEqual(0, status, out + err)
+        build.verify_cpt_agreement(self.root, self.root / "agreed.csv", self.root / "agreement.json")
+
+    def test_two_empty_readings_do_not_scan(self):
+        write_reading(self.root / "reader-1.csv", {})
+        write_reading(self.root / "reader-2.csv", {})
+        status, _, err = self.run_command("--write")
+        self.assertEqual(2, status)
+        self.assertIn("no code was read by both readers", err)
+        self.assertFalse((self.root / "agreement.json").exists())
+
+    def test_a_finding_wins_over_the_unread_remainder(self):
+        write_reading(self.root / "reader-1.csv", READING)
+        write_reading(self.root / "reader-2.csv", {"12345": READING["12345"], "12346": "Stem procedure; secnd"})
+        write_resolutions(self.root / "resolutions.csv", [("12345", READING["12345"], "41")])
+        status, out, _ = self.run_command()
+        self.assertEqual(1, status)
+        self.assertIn(format_unread_remainder(2), out)
+
+    def test_a_refused_write_removes_an_earlier_record(self):
+        write_reading(self.root / "reader-1.csv", READING)
+        write_reading(self.root / "reader-2.csv", READING)
+        self.assertEqual(0, self.run_command("--write")[0])
+        write_reading(self.root / "reader-2.csv", READING | {"12346": "Stem procedure; secnd"})
+        self.assertEqual(2, self.run_command("--write")[0])
+        self.assertFalse((self.root / "agreement.json").exists())
+        self.assertFalse((self.root / "agreed.csv").exists())
+
+    def test_a_root_inside_a_checkout_outside_scratch_does_not_scan(self):
+        status, _, err = self.run_command_at(Path(agreement.__file__).resolve().parent)
+        self.assertEqual(2, status)
+        self.assertIn("DID NOT SCAN", err)
+
+    def run_command_at(self, root: Path) -> tuple[int, str, str]:
+        stdout, stderr = io.StringIO(), io.StringIO()
+        with redirect_stdout(stdout), redirect_stderr(stderr):
+            status = agreement.main(["--root", str(root)])
+        return status, stdout.getvalue(), stderr.getvalue()
+
 
 class TheBuildConsumesTheRecord(Run):
     def test_a_written_record_builds_verified_end_to_end(self):
@@ -192,7 +249,9 @@ class TheBuildConsumesTheRecord(Run):
         }
         write_reading(self.root / "reader-1.csv", rows)
         write_reading(self.root / "reader-2.csv", rows)
-        status, out, err = self.run_command("--write")
+        controls = {code: hashlib.sha256(text.encode("utf-8")).hexdigest() for code, text in rows.items() if code != "12345"}
+        with mock.patch.object(build, "CPT_CONTROL_SHA256", controls):
+            status, out, err = self.run_command("--write")
         self.assertEqual(0, status, out + err)
         digest = hashlib.sha256((self.root / "agreement.json").read_bytes()).hexdigest()
         base = self.root.parent / f"{self.root.name}-build"
@@ -205,7 +264,6 @@ class TheBuildConsumesTheRecord(Run):
             connection.execute("CREATE TABLE code (system TEXT, code TEXT)")
             connection.executemany("INSERT INTO code VALUES ('CPT', ?)", ((code,) for code in rows))
             connection.commit()
-        controls = {code: hashlib.sha256(text.encode("utf-8")).hexdigest() for code, text in rows.items() if code != "12345"}
         output = base / "out.sqlite"
         args = [
             "--hcpcs", str(hcpcs), "--hcpcs-effective", "2026-10-01",

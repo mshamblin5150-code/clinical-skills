@@ -39,12 +39,20 @@ import io
 import json
 import os
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
+import procedure_codes_build
 from console_codec import require_python_floor, use_utf8
-from procedure_codes_build import AGREEMENT_METHODS, DESCRIPTOR_DEFECTS, Entry, descriptor_defects, read_cpt
-from repo_root import scratch_root
+from procedure_codes_build import (
+    AGREEMENT_METHODS,
+    DESCRIPTOR_DEFECTS,
+    Entry,
+    _text_sha256,
+    descriptor_defects,
+    read_cpt,
+)
+from repo_root import InsideCheckout, ensure_outside_checkout, scratch_root
 from run_grader import format_unread_remainder
 
 READINGS = {"reader_1": "reader-1.csv", "reader_2": "reader-2.csv"}
@@ -77,13 +85,26 @@ DECLARED_LIMITS = (
         "is invisible here; the build's comparison with the database it replaces is the check "
         "for that.",
     ),
+    (
+        "reader-1 columns",
+        "Only the descriptor is compared. The agreed CSV takes every other column from reader 1 "
+        "alone, and derives a blank category from the code's shape.",
+    ),
+    (
+        "controls",
+        "A control is graded only when the agreed set carries its code. An absent control is a "
+        "population question, which the build settles against the database it replaces.",
+    ),
 )
 
 FINDINGS = (
     "resolution without a printed page",
     "resolution for a code the readers agree on",
     "resolution for a code no reader read",
+    "control disagrees with its digest",
 )
+
+WRITTEN = (AGREED, RECORD)
 
 
 class NotRead(Exception):
@@ -140,7 +161,9 @@ def read_resolutions(path: Path) -> dict[str, dict[str, str]]:
     if not path.is_file():
         return {}
     try:
-        with path.open(encoding="utf-8-sig", newline="") as stream:
+        # Read as the build reads its CSVs, so a line break inside a quoted resolution
+        # reaches the record exactly as the build will read the agreed CSV back.
+        with io.StringIO(path.read_text(encoding="utf-8-sig"), newline="") as stream:
             reader = csv.DictReader(stream)
             if not reader.fieldnames or not {"code", "description", "printed_page"} <= set(reader.fieldnames):
                 raise NotRead(f"{path.name} requires code, description, printed_page")
@@ -172,8 +195,11 @@ def agree(reader_1: dict[str, Entry], reader_2: dict[str, Entry], resolutions: d
     for code in resolutions.keys() - result.conflicts:
         name = "resolution for a code the readers agree on" if code in both else "resolution for a code no reader read"
         result.findings[name].add(code)
-    agreed_entries = [Entry("CPT", code, "code", text, None, None, None, None, None, None, "") for code, text in result.agreed.items()]
+    agreed_entries = [replace(reader_1[code], description=text) for code, text in result.agreed.items()]
     result.defects = descriptor_defects(agreed_entries)
+    for code, expected in procedure_codes_build.CPT_CONTROL_SHA256.items():
+        if code in result.agreed and _text_sha256(result.agreed[code]) != expected:
+            result.findings["control disagrees with its digest"].add(code)
     return result
 
 
@@ -263,21 +289,33 @@ def main(argv: list[str]) -> int:
     args = parser.parse_args(argv)
     root = (args.root or scratch_root() / "cpt-2026").resolve()
     try:
+        # The readings are licensed text: inside a checkout they belong only under scratch/.
+        ensure_outside_checkout(root, permitted=(scratch_root(),), detail="CPT readings are licensed text.")
         reader_1 = read_reading(root / READINGS["reader_1"])
         reader_2 = read_reading(root / READINGS["reader_2"])
         resolutions = read_resolutions(root / RESOLUTIONS)
-    except NotRead as error:
+    except (NotRead, InsideCheckout) as error:
         print(f"cpt-descriptor-agreement: DID NOT SCAN: {error}", file=sys.stderr)
         return 2
     result = agree(reader_1, reader_2, resolutions)
     write_work_list(root, result)
     print(format_report(result))
+    status = 0
     if result.finding_count:
         print("cpt-descriptor-agreement: FINDING; nothing written", file=sys.stderr)
-        return 1
-    if result.unread:
+        status = 1
+    elif not (reader_1.keys() & reader_2.keys()):
+        print("cpt-descriptor-agreement: DID NOT SCAN: no code was read by both readers", file=sys.stderr)
+        status = 2
+    elif result.unread:
         print("cpt-descriptor-agreement: unread remainder is not zero; nothing written", file=sys.stderr)
-        return 2
+        status = 2
+    if status:
+        if args.write:
+            # A refused write leaves no earlier record standing beside inputs it no longer matches.
+            for name in WRITTEN:
+                (root / name).unlink(missing_ok=True)
+        return status
     if args.write:
         record = write_agreement(root, result)
         print(f"  agreement sha256 {_sha256(record)}")
