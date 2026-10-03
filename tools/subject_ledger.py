@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import threshold_coverage
+import coverage_registry
 from console_codec import require_python_floor, use_utf8
 from prose_bind import section
 
@@ -81,7 +82,7 @@ def parse_ledger(text: str) -> tuple[list[Record], list[str]]:
 
 
 def audit(
-    entries: list[threshold_coverage.Entry], records: list[Record]
+    entries: list[coverage_registry.Entry], records: list[Record]
 ) -> list[str]:
     findings: list[str] = []
     groups: dict[str, set[str]] = {}
@@ -146,7 +147,7 @@ def main(argv: list[str] | None = None) -> int:
     except (OSError, UnicodeError) as error:
         print(error, file=sys.stderr)
         return 2
-    entries, coverage_problems = threshold_coverage.parse_registry(coverage_text)
+    entries, coverage_problems = coverage_registry.parse_registry(coverage_text)
     records, ledger_problems = parse_ledger(ledger_text)
     findings = coverage_problems + ledger_problems + audit(entries, records)
     ruled_cells = sum(entry.subject != "?" for entry in entries)

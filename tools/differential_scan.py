@@ -226,7 +226,7 @@ import medatrax_posting
 import approval_record
 
 EXPECTED_COMPLETION_CHECKS = (aar_scan.EXPECTED_ROW,)
-import threshold_coverage
+import coverage_registry
 import threshold_grammar
 import threshold_sheet
 from worksheet_grammar import REFUSAL_HEADING
@@ -869,7 +869,7 @@ def _uspstf_subject_topics(item: str) -> list[tuple[str, str, str]]:
 
 def _threshold_artifact_topics() -> tuple[tuple[str, str], ...]:
     """Registry topic and artifact pairs, whatever the row's sweep state."""
-    entries, problems = threshold_coverage.parse_registry(
+    entries, problems = coverage_registry.parse_registry(
         THRESHOLD_COVERAGE.read_text(encoding="utf-8")
     )
     if problems:

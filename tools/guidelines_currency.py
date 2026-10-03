@@ -20,7 +20,6 @@ from __future__ import annotations
 
 import argparse
 import hashlib
-import html
 import json
 import os
 import re
@@ -40,6 +39,8 @@ from urllib.parse import urljoin, urlparse
 
 import artifact_lock
 import guidelines_catalog
+import coverage_registry
+import threshold_grammar
 from console_codec import require_python_floor, use_utf8
 from repo_root import ensure_outside_checkout
 
@@ -176,6 +177,7 @@ class AuditResult:
     document_count: int
     never_checked: int
     oldest_observation: date | None
+    not_graded: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -262,7 +264,7 @@ def _replace_file(
 def _cells(line: str) -> list[str] | None:
     if not line.strip().startswith("|") or not line.strip().endswith("|"):
         return None
-    return [html.unescape(cell.strip()) for cell in line.strip().strip("|").split("|")]
+    return [cell.strip() for cell in line.strip().strip("|").split("|")]
 
 
 def _is_rule(cells: list[str]) -> bool:
@@ -530,23 +532,22 @@ def audit(
                 f"annual publication cycle due {next_cycle.isoformat()}"
             )
 
+    not_graded: list[str] = []
     if audit_text is not None and coverage_text is not None:
-        audit_bindings = {
-            (cells[0], cells[1])
-            for line in audit_text.splitlines()
-            if (cells := _cells(line)) is not None
-            and len(cells) == 5
-            and not _is_rule(cells)
-        }
-        coverage_rows = [
-            cells
-            for line in coverage_text.splitlines()
-            if (cells := _cells(line)) is not None
-            and len(cells) == 5
-            and not _is_rule(cells)
-        ]
+        documents, _, _, audit_problems = guidelines_catalog.parse_audit(audit_text)
+        coverage_rows, coverage_problems = coverage_registry.parse_registry(coverage_text)
+        for filename, problems, command in (
+            ("guidelines-catalog-audit.md", audit_problems, "guidelines_catalog"),
+            ("coverage.md", coverage_problems, "threshold_coverage"),
+        ):
+            if problems:
+                not_graded.append(
+                    f"supersession check: {filename}: {'; '.join(problems)}; "
+                    f"run python tools/{command}.py"
+                )
+        audit_bindings = {(doc.society, doc.filename) for doc in documents}
         for entry in registry.documents:
-            if entry.verdict != "superseded" or not entry.superseded_by:
+            if not_graded or entry.verdict != "superseded" or not entry.superseded_by:
                 continue
             replacement = document_rows.get(entry.superseded_by)
             retired = catalog_by_filename.get(entry.filename)
@@ -561,8 +562,8 @@ def audit(
             )
             topic = retired.topic.casefold()
             handed_off = any(
-                cells[0].casefold() == topic and expected in cells[4]
-                for cells in coverage_rows
+                row.topic.casefold() == topic and expected in row.record
+                for row in coverage_rows
             )
             if handed_off:
                 continue
@@ -578,6 +579,7 @@ def audit(
         len(catalog_rows),
         never_checked,
         min(observation_dates) if observation_dates else None,
+        tuple(not_graded),
     )
 
 
@@ -862,24 +864,13 @@ def _mark_topic_unread(
     digest: str,
     observed: str,
 ) -> None:
+    record = (
+        f"superseded {old_filename} by {replacement}; fetched {observed}; "
+        f"sha256 {digest}"
+    )
+
     def render(text: str) -> str:
-        lines = text.splitlines()
-        found = False
-        for index, line in enumerate(lines):
-            cells = _cells(line)
-            if cells is None or len(cells) != 5 or cells[0].casefold() != topic.casefold():
-                continue
-            found = True
-            cells[2] = "unread"
-            cells[4] = (
-                f"superseded {old_filename} by {replacement}; fetched {observed}; "
-                f"sha256 {digest}"
-            )
-            lines[index] = "| " + " | ".join(cells) + " |"
-            break
-        if not found:
-            raise ValueError(f"coverage registry has no topic {topic!r}")
-        return "\n".join(lines) + "\n"
+        return coverage_registry.mark_topic_unread(text, topic, record)
 
     _replace_file(
         coverage_path,
@@ -899,41 +890,11 @@ def _upsert_audit_digest(
     """Bind the received bytes into the audit ledger's Documents table."""
 
     def render(text: str) -> str:
-        lines = text.splitlines()
-        heading = next(
-            (index for index, line in enumerate(lines) if line.strip() == "## Documents"),
-            None,
+        return guidelines_catalog.upsert_audit_document(
+            text, guidelines_catalog.AuditDocument(
+                society, filename, digest, str(byte_count), observed
+            )
         )
-        if heading is None:
-            raise ValueError("audit ledger has no '## Documents' table")
-        table_header = next(
-            (
-                index
-                for index in range(heading + 1, len(lines))
-                if _cells(lines[index])
-                == ["society", "filename", "sha256", "bytes", "audited"]
-            ),
-            None,
-        )
-        if table_header is None:
-            raise ValueError("audit ledger has no readable Documents header")
-        row = f"| {society} | {filename} | {digest} | {byte_count} | {observed} |"
-        insertion = len(lines)
-        replaced = False
-        for index in range(table_header + 2, len(lines)):
-            if lines[index].startswith("## "):
-                insertion = index
-                break
-            cells = _cells(lines[index])
-            if cells and len(cells) == 5 and cells[0] == society and cells[1] == filename:
-                lines[index] = row
-                replaced = True
-                break
-        if not replaced:
-            while insertion > table_header + 2 and not lines[insertion - 1].strip():
-                insertion -= 1
-            lines.insert(insertion, row)
-        return "\n".join(lines) + "\n"
 
     _replace_file(
         audit_path,
@@ -1033,6 +994,8 @@ def fetch_replacement(
         preflight_failures = [
             failure for failure in preflight_failures if failure != own_handoff
         ]
+    if preflight.not_graded:
+        raise ValueError("currency handoff is not graded: " + "; ".join(preflight.not_graded))
     if preflight_failures:
         raise ValueError(
             "currency handoff is not ready: " + "; ".join(preflight_failures)
@@ -1050,17 +1013,7 @@ def fetch_replacement(
         raise ValueError(
             "currency registry must bind the retired document to the cataloged replacement"
         )
-    audit_lines = audit_text.splitlines()
-    if "## Documents" not in audit_lines or not any(
-        _cells(line) == ["society", "filename", "sha256", "bytes", "audited"]
-        for line in audit_lines
-    ):
-        raise ValueError("audit ledger has no readable '## Documents' table")
-    if not any(
-        cells is not None and len(cells) == 5 and cells[0].casefold() == topic.casefold()
-        for cells in (_cells(line) for line in coverage_text.splitlines())
-    ):
-        raise ValueError(f"coverage registry has no topic {topic!r}")
+    coverage_registry.topic_entry(coverage_text, topic)
     if resume is None:
         payload = download_bytes(url)
         validate_pdf_bytes(payload)
@@ -1113,30 +1066,13 @@ def fetch_replacement(
 
 
 def _source_metadata(sheet_root: Path) -> dict[str, dict[str, str]]:
-    """Read only the governed Sources tables; importing the sheet grader would cycle."""
-
+    """Read sheet Sources through their owning grammar."""
     found: dict[str, dict[str, str]] = {}
-    columns = ("key", "society", "document", "source class", "version", "published", "url", "basis", "mode")
     for path in sorted(sheet_root.glob("*.md")):
-        section = ""
-        active = False
-        for line in path.read_text(encoding="utf-8").splitlines():
-            heading = re.match(r"^##\s+(.+?)\s*$", line)
-            if heading:
-                section = heading.group(1).casefold()
-                active = False
-                continue
-            cells = _cells(line)
-            if section != "sources" or cells is None or _is_rule(cells):
-                continue
-            if not active:
-                active = tuple(cell.casefold() for cell in cells) == columns
-                continue
-            if len(cells) != len(columns):
-                continue
-            named = dict(zip(columns, cells, strict=True))
-            filename = Path(named["document"]).name + ".pdf"
-            found[filename] = named
+        sheet = threshold_grammar.parse(path.read_text(encoding="utf-8"), path)
+        for source in sheet.sources.values():
+            filename = Path(source["document"]).name + ".pdf"
+            found[filename] = source
     return found
 
 
@@ -1402,7 +1338,9 @@ def main(argv: list[str] | None = None) -> int:
             f"guideline currency: oldest observation {oldest}; never checked "
             f"{result.never_checked}. Remedy: run guidelines_currency.py --read SOCIETY."
         )
-        return 0
+        for message in result.not_graded:
+            print(f"NOT GRADED: {message}", file=sys.stderr)
+        return 1 if result.failures else (2 if result.not_graded else 0)
     print(
         f"societies {result.society_count} catalog; society index rows "
         f"{len(parsed.societies)}; unread societies "
@@ -1417,7 +1355,9 @@ def main(argv: list[str] | None = None) -> int:
             print(f"FINDING: {message}")
     for message in result.failures:
         print(f"FAIL: {message}", file=sys.stderr)
-    return 1 if result.failures else 0
+    for message in result.not_graded:
+        print(f"NOT GRADED: {message}", file=sys.stderr)
+    return 1 if result.failures else (2 if result.not_graded else 0)
 
 
 if __name__ == "__main__":

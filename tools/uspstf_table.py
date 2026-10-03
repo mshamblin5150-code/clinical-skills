@@ -51,7 +51,7 @@ from pathlib import Path
 
 import artifact_provenance
 import guidelines_catalog
-import threshold_coverage
+import coverage_registry
 from console_codec import require_python_floor, use_utf8
 from guidelines_manifest import read_or_raise
 from repo_root import InsideCheckout
@@ -886,7 +886,7 @@ def mark_superseded(rows: list[Row]) -> tuple[list[Row], list[str]]:
 def threshold_sheets_by_filename(catalog: str, coverage_registry: str) -> dict[str, str]:
     """USPSTF source filename to threshold artifact, joined through catalog topic."""
     catalog_rows, _, catalog_problems = guidelines_catalog.parse_catalog(catalog)
-    registry_rows, registry_problems = threshold_coverage.parse_registry(coverage_registry)
+    registry_rows, registry_problems = coverage_registry.parse_registry(coverage_registry)
     problems = catalog_problems + registry_problems
     if problems:
         raise ValueError("; ".join(problems))
