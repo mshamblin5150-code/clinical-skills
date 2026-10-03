@@ -6480,7 +6480,7 @@ class StaleBuildFlag(unittest.TestCase):
                 gate.main(['--all', '--quiet', '--allow-untrusted-provenance', '--text-root', str(text_root),
                            '--pdf-root', str(root / 'pdf'), '--recs-root', str(root / 'recs'),
                            '--recs-alias', str(root / 'alias')])
-            trace = f'untrusted artifact {text_root / "manifest.json"}:'
+            trace = f'untrusted artifact {text_root.resolve() / "manifest.json"}:'
             self.assertEqual(err.getvalue().count(trace), 2)
 
 
