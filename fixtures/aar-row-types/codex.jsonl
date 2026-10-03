@@ -1,0 +1,18 @@
+{"type": "compacted"}
+{"type": "event_msg"}
+{"type": "inter_agent_communication_metadata"}
+{"type": "session_meta"}
+{"type": "token_usage_record"}
+{"type": "turn_context"}
+{"type": "world_state"}
+{"type": "response_item", "payload": {"type": "agent_message"}}
+{"type": "response_item", "payload": {"type": "custom_tool_call"}}
+{"type": "response_item", "payload": {"type": "custom_tool_call_output"}}
+{"type": "response_item", "payload": {"type": "function_call"}}
+{"type": "response_item", "payload": {"type": "function_call_output"}}
+{"type": "response_item", "payload": {"type": "image_generation_call"}}
+{"type": "response_item", "payload": {"type": "message"}}
+{"type": "response_item", "payload": {"type": "reasoning"}}
+{"type": "response_item", "payload": {"type": "tool_search_call"}}
+{"type": "response_item", "payload": {"type": "tool_search_output"}}
+{"type": "response_item", "payload": {"type": "web_search_call"}}

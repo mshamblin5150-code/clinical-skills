@@ -67,9 +67,57 @@ def empty_population_input(root: Path) -> grader_conformance.EmptyPopulationInpu
     )
 
 
+def unread_remainder_input(root: Path) -> grader_conformance.UnreadRemainderInput:
+    paths = []
+    for name, kind in (("unread", "planted-new-type"), ("twin", "mode")):
+        run = root / name
+        run.mkdir()
+        transcript = root / f"{name}.jsonl"
+        write_transcript(transcript)
+        with transcript.open("a", encoding="utf-8") as stream:
+            stream.write(json.dumps({"type": kind}) + "\n")
+        memory = root / f"{name}-memory.md"
+        memory.write_text("# Index\n", encoding="utf-8")
+        (run / "reread.md").write_text(
+            "## REREAD: synthetic-submission\n"
+            "POST-URL: https://example.org/submissions/1\n"
+            "POSTED: 2026-09-13T12:00:00Z\nREAD: 2026-09-13\n"
+            "VERDICT: matches - the posted artifact was read back\n", encoding="utf-8"
+        )
+        case = SubmissionRecord()
+        case.run, case.transcript, case.memory = run, transcript, memory
+        case.submission = "synthetic-submission"
+        case.write_clean()
+        paths.append((str(run), "--submission", case.submission))
+    return grader_conformance.UnreadRemainderInput(
+        paths[0], paths[1], unread_remainder=lambda scan: scan.unread_remainder
+    )
+
+
+UnreadRemainderConformance = grader_conformance.unread_remainder_conformance(aar_scan)
+
+
 class DeclaredLimitsAreBound(unittest.TestCase):
+    def test_transcript_derived_committed_types_have_no_unread_remainder(self):
+        root = Path(__file__).resolve().parents[1] / "fixtures" / "aar-row-types"
+        for name in ("claude.jsonl", "codex.jsonl"):
+            with self.subTest(name=name):
+                path = root / name
+                rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+                self.assertTrue(rows)
+                for row in rows:
+                    if row["type"] == "response_item":
+                        self.assertEqual(set(row), {"type", "payload"})
+                        self.assertEqual(set(row["payload"]), {"type"})
+                    else:
+                        self.assertEqual(set(row), {"type"})
+                diagnostics = aar_scan.extract_diagnostics((path,), ())
+                self.assertEqual(diagnostics.unread_remainder, 0)
+
     def test_the_test_suite_names_the_declared_limits_object(self):
         self.assertTrue(aar_scan.DECLARED_LIMITS)
+        self.assertTrue(aar_scan.NAMED_UNREAD_TYPES)
+        self.assertTrue(all(reason.strip() for reason in aar_scan.NAMED_UNREAD_TYPES.values()))
         self.assertEqual(
             tuple(reason for _subject, reason in aar_scan.DECLARED_LIMITS),
             aar_scan.NOT_REACHED,
@@ -265,8 +313,13 @@ class CommandModes(unittest.TestCase):
             "  tab creation parses: tabs_create_mcp  0\n"
             "  tab creation parses: tabs_context_mcp 0\n"
             "  tab creation parses: navigate no tab  0\n"
-            "  findings                        1\n\n"
+            "  findings                        1\n"
+            "unread remainder: not measured (extract unavailable or invalid)\n\n"
             "  declared limits:\n"
+            "    reasoning-only correction\n"
+            "    last-prompt-only text\n"
+            "    wrong unread reason\n"
+            "    nested named content\n"
             "    semantic classification\n"
             "    tool-result-only correction\n"
             "    uncorrected error\n"
@@ -320,7 +373,8 @@ class CommandModes(unittest.TestCase):
             "  transcripts skipped by time     0\n"
             "  transcripts skipped by bytes    0\n"
             "  transcripts read                1\n"
-            "  private extract written         post-1.extract.md\n",
+            "  private extract written         post-1.extract.md\n"
+            "unread remainder 0\n",
         )
 
     def test_a_refused_review_open_is_a_finding_without_a_traceback(self) -> None:
@@ -1045,6 +1099,87 @@ class SubmissionRecord(unittest.TestCase):
         self.assertEqual((status, stderr), (0, ""), stdout)
         return aar_scan.extract_path(self.run, self.submission)
 
+    def test_unnamed_claude_row_is_unread_and_named_twin_is_clean(self) -> None:
+        with self.transcript.open("a", encoding="utf-8") as stream:
+            stream.write(json.dumps({"type": "planted-new-type"}) + "\n")
+        argv = [str(self.run), "--submission", self.submission,
+                "--transcript", str(self.transcript),
+                "--memory-index", str(self.memory), "--extract"]
+        status, stdout, stderr = invoke_main(argv)
+        self.assertEqual((status, stderr), (2, ""), stdout)
+        self.assertIn("unread remainder 1", stdout.splitlines())
+        fields, _ = aar_scan._extract_metadata(aar_scan.extract_path(self.run, self.submission))
+        self.assertEqual(fields["UNDECLARED-ROW-TYPES"], "1")
+        self.assertEqual(fields["UNREAD-REMAINDER"], "1")
+        with mock.patch.object(aar_scan, "NAMED_UNREAD_TYPES", {**aar_scan.NAMED_UNREAD_TYPES, "planted-new-type": "test bookkeeping"}):
+            status, stdout, stderr = invoke_main(argv)
+        self.assertEqual((status, stderr), (0, ""), stdout)
+        self.assertIn("unread remainder 0", stdout.splitlines())
+
+    def test_unknown_codex_payload_is_unread_and_named_twin_is_clean(self) -> None:
+        write_codex_transcript(self.transcript)
+        with self.transcript.open("a", encoding="utf-8") as stream:
+            stream.write(json.dumps(codex_row({"type": "planted-payload"})) + "\n")
+        argv = [str(self.run), "--submission", self.submission,
+                "--transcript", str(self.transcript),
+                "--memory-index", str(self.memory), "--extract"]
+        status, stdout, stderr = invoke_main(argv)
+        self.assertEqual((status, stderr), (2, ""), stdout)
+        self.assertIn("unread remainder 1", stdout.splitlines())
+        fields, _ = aar_scan._extract_metadata(aar_scan.extract_path(self.run, self.submission))
+        self.assertEqual(fields["UNDECLARED-CODEX-PAYLOAD-TYPES"], "1")
+        with mock.patch.object(aar_scan, "NAMED_UNREAD_TYPES", {**aar_scan.NAMED_UNREAD_TYPES, "planted-payload": "test bookkeeping"}):
+            status, stdout, stderr = invoke_main(argv)
+        self.assertEqual((status, stderr), (0, ""), stdout)
+        self.assertIn("unread remainder 0", stdout.splitlines())
+
+    def test_a_real_finding_outranks_an_unread_remainder_and_blocks_completion(self) -> None:
+        with self.transcript.open("a", encoding="utf-8") as stream:
+            stream.write(json.dumps({"type": "planted-new-type"}) + "\n")
+        self.write_clean()
+        self.assertIsNotNone(aar_scan.completion_finding(self.run, (self.submission,)))
+        review = aar_scan.review_path(self.run, self.submission)
+        review.write_text(review.read_text(encoding="utf-8").replace("UNREAD: 0", "UNREAD: 1"), encoding="utf-8")
+        status, stdout, stderr = invoke_main([str(self.run), "--submission", self.submission])
+        self.assertEqual((status, stderr), (1, ""), stdout)
+        self.assertIn("unread remainder 1", stdout.splitlines())
+
+    def test_a_pre_cutoff_extract_never_claims_a_measured_zero(self) -> None:
+        self.write_clean()
+        path = aar_scan.extract_path(self.run, self.submission)
+        text = path.read_text(encoding="utf-8")
+        text = "\n".join(
+            "EXTRACTED-AT: 2026-10-02T23:59:59Z" if line.startswith("EXTRACTED-AT:") else line
+            for line in text.splitlines() if not line.startswith("UNREAD-REMAINDER:")
+        )
+        path.write_text(text, encoding="utf-8")
+        status, stdout, stderr = invoke_main([str(self.run), "--submission", self.submission])
+        self.assertEqual((status, stderr), (0, ""), stdout)
+        self.assertIn("unread remainder: not measured (extract predates the count)", stdout)
+        self.assertNotIn("unread remainder 0", stdout)
+
+    def test_a_current_extract_cannot_drop_or_corrupt_the_count(self) -> None:
+        self.write_clean()
+        path = aar_scan.extract_path(self.run, self.submission)
+        original = path.read_text(encoding="utf-8")
+        for replacement in ("", "UNREAD-REMAINDER: -1", "UNREAD-REMAINDER: unknown"):
+            with self.subTest(replacement=replacement):
+                path.write_text(original.replace("UNREAD-REMAINDER: 0", replacement), encoding="utf-8")
+                status, stdout, stderr = invoke_main([str(self.run), "--submission", self.submission])
+                self.assertEqual((status, stderr), (1, ""), stdout)
+
+    def test_named_hidden_text_never_becomes_a_candidate(self) -> None:
+        with self.transcript.open("a", encoding="utf-8") as stream:
+            for item in (
+                {"type": "last-prompt", "lastPrompt": "hidden-only correction"},
+                row("assistant", "hidden", {"content": [{"type": "thinking", "thinking": "hidden-only correction"}]}),
+                codex_row({"type": "reasoning", "summary": [{"type": "summary_text", "text": "hidden-only correction"}]}),
+                {"type": "mode", "nested": {"type": "unknown-nested", "text": "hidden-only correction"}},
+            ):
+                stream.write(json.dumps(item) + "\n")
+        path = self.extract_cli()
+        self.assertNotIn("hidden-only correction", path.read_text(encoding="utf-8"))
+
     def test_departure_and_go_ahead_are_copied_byte_for_byte(self) -> None:
         section = (
             "## Departures\r\n\r\n"
@@ -1560,7 +1695,7 @@ class SubmissionRecord(unittest.TestCase):
 
         self.assertEqual(fields["HARNESS-VERSIONS"], "2.1.266")
         self.assertEqual(fields["UNDECLARED-ENVELOPES"], "2")
-        self.assertEqual(fields["UNDECLARED-CODEX-ROW-TYPES"], "1")
+        self.assertEqual(fields["UNDECLARED-ROW-TYPES"], "1")
         self.assertEqual(fields["UNDECLARED-CODEX-PAYLOAD-TYPES"], "1")
         self.assertEqual(fields["SUBAGENT-LAUNCHES"], "1")
         self.assertEqual(fields["SUBAGENT-JOINED-RESULTS"], "1")
