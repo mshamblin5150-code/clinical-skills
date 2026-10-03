@@ -193,7 +193,7 @@ class TheCleanRunPasses(unittest.TestCase):
         ):
             with self.subTest(status=status, detail=detail):
                 record.write_text(text, encoding="utf-8")
-                result = subprocess.run([sys.executable, str(REPO_ROOT / "tools" / "peer_critique_scan.py"), str(directory), "--show"], capture_output=True, text=True)
+                result = subprocess.run([sys.executable, str(REPO_ROOT / "tools" / "peer_critique_scan.py"), str(directory), "--show"], capture_output=True, text=True, encoding="utf-8", errors="replace")
                 self.assertEqual(status, result.returncode, result.stdout + result.stderr)
                 if detail:
                     self.assertIn(detail, result.stdout + result.stderr)

@@ -303,7 +303,7 @@ class CommandSurface(unittest.TestCase):
         )
 
         self.assertEqual(1, status)
-        self.assertIn("SUBMISSION-SHA256 does not match", stderr)
+        self.assertIn("SUBMISSION-SHA256 is missing, malformed, or stale", stderr)
 
 
 class FilledBlock(unittest.TestCase):

@@ -90,7 +90,7 @@ class PostedReadingCheck(unittest.TestCase):
                    'assignment_submission', 'approval_record')
         for member in members:
             with self.subTest(member=member):
-                tree = ast.parse((Path(__file__).parent / (member + '.py')).read_text())
+                tree = ast.parse((Path(__file__).parent / (member + '.py')).read_text(encoding='utf-8'))
                 for node in ast.walk(tree):
                     if isinstance(node, ast.Compare):
                         self.assertFalse(any(isinstance(child, ast.Attribute) and child.attr == 'submission_sha256'
