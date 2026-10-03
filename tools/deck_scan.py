@@ -40,7 +40,10 @@ import project_context
 from discussion_artifact import (
     CLAIM_BLOCK,
     PostedReading,
+    ReferenceKeySet,
+    citation_occurrence_keys,
     claim_record_can_certify_values,
+    read_citations,
     read_posted_readings,
 )
 from discussion_post_scan import traceable_numeric_values
@@ -163,6 +166,10 @@ DECLARED_LIMITS = (
     DeclaredLimit(
         "record-slide-agreement-unverified",
         "No mechanical row checks that a believed record agrees with the slide it sources; the adversarial agreement read protects the deck the reader was given.",
+    ),
+    DeclaredLimit(
+        "label-citation-coincidence",
+        "A label whose words and year coincide with a cited author and year in the run's claim references is still stripped.",
     ),
     SOURCED_FIELD_COMPLETENESS_LIMIT,
     DeclaredLimit(
@@ -1182,7 +1189,23 @@ def survey(source: Source) -> Scan:
                 font_failures.append(detail)
         if font_failures:
             findings.append(Finding(FONT_POINTS, slide.number, font_failures[0]))
-    artifact_figures = _figures("\n".join([*(slide.text for slide in source.slides), *source.notes]))
+    artifact_text = "\n".join([*(slide.text for slide in source.slides), *source.notes])
+    reference_keys = ReferenceKeySet.from_references(
+        tuple(
+            record.fields.get("REFERENCE", "")
+            for record in research_ledger.read_records(source.claims)
+        )
+    )
+    cited = read_citations(artifact_text, reference_keys)
+    claim_key_set = ReferenceKeySet.exact(reference_keys.keys)
+    supported_citations = tuple(
+        citation
+        for citation, candidates in zip(
+            cited, citation_occurrence_keys(cited, artifact_text, reference_keys), strict=True
+        )
+        if any(claim_key_set.resolves(candidate) for candidate in candidates)
+    )
+    artifact_figures = set(traceable_numeric_values(artifact_text, citations=supported_citations))
     recorded_figures, mentioned_figures = _claim_figures(source.claims)
     for figure in sorted(artifact_figures - recorded_figures):
         detail = (

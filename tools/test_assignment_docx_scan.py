@@ -318,6 +318,24 @@ class WordRangeTest(unittest.TestCase):
 
 
 class CitationClaimTraceTest(unittest.TestCase):
+    def test_a_parenthesized_schedule_year_remains_an_untraced_citation(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            inputs = empty_population_input(Path(directory))
+            run = Path(inputs.argv[0])
+            artifact = Path(inputs.argv[2])
+            spec = replace(
+                assignment_docx.fixture_spec(),
+                sections=(assignment_docx.Section("Purpose and Scope", ("Opening (2027)",)),),
+            )
+            assignment_docx.build(spec, artifact, force=True)
+            parsed = run_grader.Parsed(source=str(run), values={"--docx": str(artifact)})
+            result = scan.survey(scan.load(parsed))
+        self.assertTrue(any(
+            item.kind == scan.UNTRACED_CITATION and "Opening 2027" in item.detail
+            for item in result.findings
+        ), result.findings)
+
+
     def test_first_name_citation_traces_only_the_matching_first_initial(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             inputs = empty_population_input(Path(directory))

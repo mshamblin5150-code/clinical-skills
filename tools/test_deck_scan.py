@@ -1174,6 +1174,92 @@ class FiguresReadSlidesAndSpeakerNotes(unittest.TestCase):
         self.assertEqual(1, notes_status)
         self.assertIn(f"{scan.UNTRACED_FIGURE}: 1", stdout)
 
+    def test_parenthesized_schedule_years_on_slide_faces_are_traced(self):
+        for label in ("Opening (2027)", "Phase II (2027)"):
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as temp:
+                run = Run(Path(temp))
+                (run.root / "claims.md").write_text("DATE: 2026-09-02\n", encoding="utf-8")
+                run.write_deck((slide_xml(label),))
+                status, stdout, _ = run.grade("--show")
+                self.assertEqual(1, status)
+                self.assertIn("untraced-figure: 1", stdout)
+                self.assertIn("2027 has no claim record", stdout)
+
+    def test_parenthesized_schedule_years_in_objects_are_traced(self):
+        for label in ("Opening (2027)", "Phase II (2027)"):
+            for surface in ("smartart", "chart"):
+                with self.subTest(label=label, surface=surface), tempfile.TemporaryDirectory() as temp:
+                    run = Run(Path(temp))
+                    (run.root / "claims.md").write_text("DATE: 2026-09-02\n", encoding="utf-8")
+                    if surface == "smartart":
+                        slide = object_slide_xml(diagram="rId1")
+                        target = "../diagrams/data1.xml"
+                        kind = "diagramData"
+                        part = "ppt/diagrams/data1.xml"
+                        xml = diagram_data_xml("node", label)
+                    else:
+                        slide = object_slide_xml(chart="rId1")
+                        target = "../charts/chart1.xml"
+                        kind = "chart"
+                        part = "ppt/charts/chart1.xml"
+                        xml = (
+                            f'<c:chartSpace xmlns:c="{C}" xmlns:a="{A}"><c:chart>'
+                            f'<c:title><c:tx><c:rich>{paragraph(label)}</c:rich></c:tx></c:title>'
+                            '</c:chart></c:chartSpace>'
+                        )
+                    relationships = [(
+                        "rId1",
+                        f"http://schemas.openxmlformats.org/officeDocument/2006/relationships/{kind}",
+                        target,
+                    )]
+                    parts = {part: xml}
+                    if surface == "smartart":
+                        relationships.append((
+                            "rId2",
+                            "http://schemas.microsoft.com/office/2007/relationships/diagramDrawing",
+                            "../diagrams/drawing1.xml",
+                        ))
+                        parts["ppt/diagrams/drawing1.xml"] = diagram_drawing_xml("node", label)
+                    parts["ppt/slides/_rels/slide1.xml.rels"] = relationships_xml(*relationships)
+                    run.write_deck((slide,), parts=parts)
+                    status, stdout, _ = run.grade("--show")
+                    self.assertEqual(1, status)
+                    self.assertIn("untraced-figure: 1", stdout)
+                    self.assertIn("2027 has no claim record", stdout)
+
+    def test_citation_year_stripping_uses_references_even_in_disbelieved_records(self):
+        for status_field in ("sourced", "disbelieved", None):
+            with self.subTest(status=status_field), tempfile.TemporaryDirectory() as temp:
+                run = Run(Path(temp))
+                claims = "DATE: 2026-09-02\n"
+                if status_field:
+                    claims += (
+                        "\n## CLAIM: The source describes the program.\n"
+                        f"STATUS: {status_field}\n"
+                        "REFERENCE: Smith, J. (2020). A study. Journal of Care.\n"
+                    )
+                (run.root / "claims.md").write_text(claims, encoding="utf-8")
+                run.write_deck((slide_xml("Plan", "(Smith, 2020)"),))
+                status, stdout, _ = run.grade("--show")
+                self.assertEqual(0 if status_field else 1, status)
+                self.assertIn(f"untraced-figure: {0 if status_field else 1}", stdout)
+                if not status_field:
+                    self.assertIn("2020 has no claim record", stdout)
+
+    def test_a_label_coinciding_with_a_recorded_author_year_is_still_stripped(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            (run.root / "claims.md").write_text(
+                "DATE: 2026-09-02\n\n## CLAIM: The source describes the program.\n"
+                "REFERENCE: Opening, J. (2027). A study. Journal of Care.\n",
+                encoding="utf-8",
+            )
+            run.write_deck((slide_xml("Opening (2027)"),))
+            status, stdout, _ = run.grade()
+        self.assertEqual(0, status)
+        self.assertIn("untraced-figure: 0", stdout)
+        self.assertIn("label-citation-coincidence", {row.key for row in scan.DECLARED_LIMITS})
+
     def test_an_unrecorded_non_dollar_number_is_a_finding(self):
         with tempfile.TemporaryDirectory() as temp:
             run = Run(Path(temp))
@@ -1219,6 +1305,10 @@ class FiguresReadSlidesAndSpeakerNotes(unittest.TestCase):
     def test_citation_year_page_locator_and_statute_number_do_not_fire(self):
         with tempfile.TemporaryDirectory() as temp:
             run = Run(Path(temp))
+            (run.root / "claims.md").write_text(
+                "DATE: 2026-09-02\n\n## CLAIM: The agency supplies authority.\n"
+                "REFERENCE: Agency. (2024). Authority.\n", encoding="utf-8",
+            )
             run.write_deck(
                 (slide_xml("Authority (Agency, 2024)", "p. 12", "42 U.S.C. section 300"),)
             )
