@@ -1,6 +1,6 @@
 # One posted-reading check serves every grader in layers and each grader keeps its own finding names
 
-**Measured at:** 4cb3818a65326472252ef6084b91530a06fcc34a
+**Measured at:** aac9865729668a047d34a0aff20c4946cabb2e2c
 
 [#1330](https://github.com/mshamblin5150-code/clinical-skills/issues/1330) was filed from an
 architecture review on 2026-09-16. It found that `discussion_artifact.read_posted_readings` parses
@@ -51,7 +51,9 @@ The skill's template also requires `LEGACY-DISPLAY:`, which records what Canvas'
 peer-review page showed under ADR 0204 ruling 3. `read_posted_readings` refuses that field. Driven
 on a synthetic run with one roster post, a `critique.md` and a template-shaped record, the command
 printed a `ValueError` traceback and exited 1, which is the grader's finding status. Without the
-line, the same record parsed.
+line, the same record parsed. `approval_record.completion_gate`, which the critique's terminal grade
+applies, parses the same file and turns that `ValueError` into a finding, so the terminal
+`the approval record` row also fails on every template-shaped critique record.
 
 ## Ruling 1. One shared check serves all eight graders, in layers
 
@@ -133,7 +135,8 @@ check is built, while its other two decisions would stay open there.
 
 **Two changes are visible as grading changes**, both on the critique. A record missing `POSTED`,
 `READ` or a well-formed `LEGACY-DISPLAY` now fails. A record following the skill's template is
-unaffected, and is graded for the first time instead of crashing.
+unaffected, and is graded for the first time instead of crashing. Because ruling 3 widens the
+shared reader, the approval gate's terminal row stops failing on that record too.
 
 **A parse failure in the critique grader reports did-not-scan with exit 2**, like its siblings,
 instead of a traceback with exit 1. This is a defect repaired, not a ruling.
