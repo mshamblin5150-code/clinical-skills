@@ -575,7 +575,7 @@ class CanvasSubmissionRows(unittest.TestCase):
             self.assertIn("submission-text: 0", stdout)
             statuses.append(status)
 
-        self.assertEqual(statuses[0], statuses[1])
+        self.assertEqual([0, 1], statuses)
 
     def test_docx_is_archival_and_does_not_grade_submission_rows(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -722,11 +722,40 @@ class CanvasSubmissionRows(unittest.TestCase):
                 verdict="defect - final reference block was below the capture",
                 render_pass=1,
             )
+            retained = run.root / "render" / "pass-1" / "post.html"
+            retained.write_text(
+                post_html.render(BODY.replace("nearby", "nearby incorrectly")),
+                encoding="utf-8", newline="",
+            )
             run.record_canvas_render(html, render_pass=2)
             status, stdout, _ = run.grade("--html", str(html))
 
         self.assertEqual(status, 0)
         self.assertIn("rendered-pages: 0", stdout)
+
+    def test_a_formatting_only_stale_html_is_refused_before_posting(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            html, _ = self.rendered(run)
+            run.record_canvas_render(html)
+            run.draft.write_text(BODY.replace("nearby", "*nearby*"), encoding="utf-8")
+            status, stdout, _ = run.grade("--html", str(html), "--show")
+
+        self.assertEqual(1, status)
+        self.assertIn("submission-text: 0", stdout)
+        self.assertIn("submission-fingerprint: 1", stdout)
+        self.assertIn("post.html differs from post_html's rebuild", stdout)
+
+    def test_a_stale_word_archive_is_refused_before_posting(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            _, document = self.rendered(run)
+            run.draft.write_text(BODY.replace("nearby", "*nearby*"), encoding="utf-8")
+            status, stdout, _ = run.grade("--docx", str(document), "--show")
+
+        self.assertEqual(1, status)
+        self.assertIn("submission-fingerprint: 1", stdout)
+        self.assertIn("post.docx parts differ from docx_write.parts()", stdout)
 
 
 class ACompletePostPasses(unittest.TestCase):
@@ -1584,6 +1613,18 @@ class APostedInitialEntryHasItsOwnReading(unittest.TestCase):
         self.assertIn("rendered-pages: 0", out)
         self.assertIn("bold-headings: not graded", out)
 
+    def test_attachment_ignores_the_refused_canvas_pass(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run, html, document = self.attachment_run(Path(temp))
+            retained = run.root / "render" / "pass-1"
+            (retained / "post.html").write_text("<p>old attempt</p>", encoding="utf-8")
+            for pixel in retained.glob("*.png"):
+                pixel.write_bytes(b"unreadable old capture")
+            status, out, error = run.grade("--html", str(html), "--docx", str(document))
+
+        self.assertEqual((0, ""), (status, error))
+        self.assertIn("rendered-pages: 0", out)
+
     def test_the_attachment_route_refuses_a_missing_or_changed_posted_copy(self):
         for mutation in ("missing", "changed"):
             with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as temp:
@@ -1713,7 +1754,7 @@ class APostedInitialEntryHasItsOwnReading(unittest.TestCase):
 
         self.assertEqual(1, status)
         self.assertEqual("", stderr)
-        self.assertIn("submission-fingerprint", stdout)
+        self.assertIn("submission-fingerprint: 1\n", stdout)
         self.assertIn("post.html", stdout)
 
     def test_the_posted_reading_refuses_an_edited_docx_part(self):

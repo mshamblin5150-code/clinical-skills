@@ -420,7 +420,9 @@ also show this table from `imagery-proposals.json`:
 
 Ask the proposed-image question separately from whether the post's substance is right. Apply each
 yes or no under [imagery-proposals.md](../_shared/reference/imagery-proposals.md) and rerun the
-grader before loading. **Gate 1** is the clinician's explicit approval of the post and authorizes
+carrier producers `post_html.py` and `docx_write.py` after every ruling. Before loading, regenerate
+both `.html` and `.docx` from the checked Markdown and rerun the grader with both carriers.
+**Gate 1** is the clinician's explicit approval of the post and authorizes
 loading it into the box, not submission. That approval
 also confirms that every edit implicated by a destination-guard refusal was recovered into the
 authoritative Markdown and, where it changes a factual claim, the claim ledger.
@@ -460,7 +462,8 @@ VERDICT: clean - all 13 blocks compared; headings bold, paragraphs and reference
 
 Replace `13` with the derived block count. Re-renders append: never replace an earlier record or
 overwrite its evidence. Every record must parse, each pass must keep exactly one `.html` export
-whose bytes equal the submitted HTML and at least one readable PNG capture, and the expected block
+and at least one readable PNG capture. Only the newest retained pass's export must equal the
+submitted HTML byte for byte, and the expected block
 count must equal the export's count. An earlier pass may stop after a defect; only the last pass
 must account for every block, name `UNSEEN: none`, and carry a clean verdict with substantive
 reading detail.
@@ -474,7 +477,11 @@ python tools/discussion_post_scan.py scratch/runs/<course>-<module>-discussion -
 On an inline post the HTML owns the graded `bold-headings`, `rendered-comments`,
 `submission-text`, and `rendered-pages` rows; Word owns only the reported `rendered-text`
 count. On an attachment post the final Word render owns `rendered-pages`, and the posted copy
-must match the local `.docx` by SHA-256. A missing or malformed record, an unreadable capture, a nonidentical retained HTML export, a
+must match the local `.docx` by SHA-256; Canvas-box passes from the refused inline attempt stay
+ungraded. Whenever `--html` or `--docx` is supplied, even before loading or a posted reading,
+`submission-fingerprint` compares that carrier with the current Markdown's rebuild from
+`post_html.py` or `docx_write.parts`. A difference makes the scan exit 1 and names the file.
+A missing or malformed record, an unreadable capture, a nonidentical newest retained HTML export, a
 false block denominator, an incomplete final reading, or a non-clean final verdict makes the scan
 exit 1.
 
