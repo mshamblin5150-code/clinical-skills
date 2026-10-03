@@ -157,10 +157,6 @@ STATED-EXPIRY: none stated | <ISO date> - <where the document states it> | <ISO 
 `INSTRUMENTS` is required for `REFUTATION: unreadable` and forbidden elsewhere. Transcribe only an
 expiry the document states; do not infer one from a publication cadence.
 
-If the profile records the **Authenticated route** as available, a research agent must attempt it
-before giving up on the sought source, choosing an open substitute, or returning
-`STATUS: unsourced` because of the wall.
-
 **A citation the critique leans on is opened, not recalled.** A guideline quoted against the
 classmate is quoted from the page, and the record names the URL opened and the read date. Where the
 claim is that the classmate's own source contradicts them, the refuting agent opens that source

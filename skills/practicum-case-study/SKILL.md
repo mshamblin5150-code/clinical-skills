@@ -642,14 +642,8 @@ separator and both substantive halves are required, and the two normalized halve
 Immediately before dispatch, the parent runs `python tools/research_ledger.py <claims-ledger>
 --heading-digests`, names that claim's printed digest in the brief, and writes it as
 `TESTED-HEADING` with the returned verdict and route.
-Before writing `paywalled`, try the clinician's authenticated Chrome route through
-`mcp__claude-in-chrome__*`; the in-app Browser pane is not that signed-in route. Refuter
-independence remains orchestrator-owned; see `research_ledger.DECLARED_LIMITS` for the mechanical
-boundary. A source is `paywalled` only when its body remains inaccessible through that
-**Authenticated route**; an anonymous or in-app login wall does not establish the disposition.
-Where the profile says the **Authenticated route** is available, the researcher must try it before
-giving up on the intended source, settling for a reachable substitute, or writing
-`STATUS: unsourced` because the body was inaccessible.
+Refuter independence remains orchestrator-owned; see `research_ledger.DECLARED_LIMITS` for the
+mechanical boundary.
 
 It comes back `stands`, `refuted`, `paywalled`, or `unreadable`, with the reason after a hyphen.
 An `unreadable` refutation carries the two failed instruments and passes without deleting the
@@ -660,8 +654,7 @@ step and comes out either with a sound record or as `unsourced`. It is never dra
 
 **`paywalled` is a passing word because a wall is not the same thing as an absence.**
 A locator that 404s, or that names a document a search cannot find, is `refuted` — the citation may
-be invented, which is the whole failure this pass is for. A live page whose title and authors match
-the entry, with the body behind a subscription, is `paywalled` and **passes**: the URL resolving to
+be invented, which is the whole failure this pass is for. A `paywalled` record **passes**: the URL resolving to
 the right document is itself evidence the document exists, and that is most of what a fabricated
 citation cannot do. **Say what did match** — the title, the authors, the date the page shows.
 
@@ -670,7 +663,7 @@ counts `paywalled` records on their own line, because a set of citations all beh
 checked far less than a clean exit suggests. It passes because a resolving locator whose title and
 authors match the entry is evidence that the document exists, while the separate count preserves
 that the source body did not verify the claim. No tool here opens a socket; access belongs to the
-research and refutation passes, including the required Authenticated route attempt above.
+research and refutation passes under [sourcing.md](../_shared/reference/sourcing.md).
 
 **The independence is an instruction and not a check.** Nothing in a record shows which agent wrote
 it, so the grader cannot tell a real second reading from the first agent answering itself — that is

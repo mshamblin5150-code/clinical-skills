@@ -225,14 +225,8 @@ the codification year is provenance, and the annual reissue schedule is not a st
 `stands`, `refuted`, or `paywalled` with a substantive reason. There is no carve-out for legal
 primary sources: a refuter checks whether the cited section says what the draft claims. It also
 returns `SECOND-ROUTE: <research route> -> <refutation route>`; both halves must have substance and
-must differ after normalization. Before `paywalled`, it attempts the clinician's authenticated
-Chrome route through `mcp__claude-in-chrome__*`, not the separate in-app Browser pane. Refuter
-independence remains orchestrator-owned; see `research_ledger.DECLARED_LIMITS`. A source is
-`paywalled` only when its body remains inaccessible through that **Authenticated route**; an
-anonymous or in-app login wall does not establish the disposition.
-When the account profile records that the **Authenticated route** is available, the research
-context must try it before giving up on a preferred source, settling for a reachable substitute,
-or writing `STATUS: unsourced` because an access wall stopped the search.
+must differ after normalization. Refuter independence remains orchestrator-owned; see
+`research_ledger.DECLARED_LIMITS`.
 
 Immediately before each refutation dispatch, run `python tools/research_ledger.py
 scratch/runs/<course>-<module>-discussion/claims.md --heading-digests`, name that claim's printed

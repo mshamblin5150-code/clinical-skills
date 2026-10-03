@@ -21,6 +21,22 @@ that did not run is not a negative. When an instrument refuses the read, retry w
 independent instrument. If that also fails, report the source as unreadable rather than reporting
 that the sought material is absent.
 
+## A wall counts only after the Authenticated route is tried
+
+The **Authenticated route** is the clinician's signed-in Chrome through
+`mcp__claude-in-chrome__*`. The in-app Browser pane is not that route. A research agent must try it
+before giving up on the sought source, choosing an open substitute, or writing `STATUS: unsourced`
+because of a wall.
+
+A refuter writes `paywalled` only when the source body remains inaccessible through the
+Authenticated route; an anonymous or in-app login wall does not establish the disposition.
+[ADR 0042](../../../docs/adr/0042-a-refutation-declares-a-second-route-and-independence-stays-unreachable.md)
+ruled the refuter's required attempt.
+
+Where the route cannot be reached in the run, the attempt is a failed read: `STATUS: unreadable`
+or `REFUTATION: unreadable`, with `INSTRUMENTS` naming the attempts. An unreachable route never
+yields `paywalled` and never yields `STATUS: unsourced` on the ground of a wall.
+
 ## Authenticated VitalSource chapters use one reading standard
 
 When a source is an authenticated VitalSource Bookshelf chapter, every browser agent reads and
