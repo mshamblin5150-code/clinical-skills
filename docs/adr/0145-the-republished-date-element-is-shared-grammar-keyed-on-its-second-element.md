@@ -97,6 +97,8 @@ That record states *"The row's live precision is 0 of 2."* The Bible finding is 
 
 The earlier record is not edited, on the practice ADR 0135 ruling 8 states for itself: its verdict that the limb *does not cure the symptom* holds, and only the precision sentence is corrected here.
 
+*Superseded 2026-10-03.* **The ground *"The earlier record is not edited, on the practice ADR 0135 ruling 8 states for itself"* is superseded by [ADR 0280](0280-an-overturned-ruling-carries-a-dated-supersession-marker-written-by-the-record-that-overturns-it.md) ruling 1 and is left as written.** An overturned ruling now carries a dated marker beneath its words, which adds text and replaces none, so the practice this sentence rests on is retired. Ruling 5's separation of the statute root and its correction of ADR 0135's precision figure stand unchanged.
+
 
 *Corrected 2026-09-12.* **The statements *"APA publishes no legal reference examples"* and *"There is no rule to check the scanner against"* are superseded by [ADR 0201](0201-a-grounding-claim-names-what-was-read-and-a-falsified-record-is-marked.md) ruling 5 and are left as written.** *Publication Manual* §11.5 — `read-root` in `apa7-coverage.md`, checked 2026-09-08 — supplies the rule; [#941](https://github.com/mshamblin5150-code/clinical-skills/issues/941) read it and closed on it at 2026-09-08T21:52:41Z, so the earlier revival of ADR 0039's guide caveat falls with that premise. The ruling's separation of the statute root from this ticket survives unchanged.
 
