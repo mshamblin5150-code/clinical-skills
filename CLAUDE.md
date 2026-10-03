@@ -218,6 +218,9 @@ from that path. The preceding order remains historical.
 **Correction after the 2026-09-17 entry:** `claim_ledger_census.py` is now the most recent direct command and
 calls `use_utf8` and `require_python_floor` from that path. The preceding order remains historical.
 
+**Correction, 2026-10-03:** `cpt_descriptor_agreement.py` is now the most recent direct command and
+calls `use_utf8` and `require_python_floor` from that path. The preceding order remains historical.
+
 ### Suite run
 
 `tools/suite.py` is the one complete-suite interface. It discovers the `test*.py` population under
@@ -2217,6 +2220,12 @@ agreement record whose digest matches ([ADR 0269](docs/adr/0269-the-cpt-descript
 `reference/procedure-codes-2026.md` owns the record contract; the boundary of a
 clean or verified build is `procedure_codes_build.DECLARED_LIMITS`, and this
 section copies none of its rows.
+
+`python tools/cpt_descriptor_agreement.py [--write]` joins the two readings in the
+owning checkout's `scratch/cpt-2026/` and writes the agreed CSV and that record. It
+rewrites the settlement work list on every run, prints counts only, writes nothing
+while its shared unread remainder is nonzero, and exits 0, 1 for a finding, or 2.
+Its boundary is `cpt_descriptor_agreement.DECLARED_LIMITS`.
 
 ### CPT E/M MDM sheet
 
