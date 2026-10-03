@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import csv
-from contextlib import closing
 import hashlib
 import io
 import json
@@ -11,7 +10,7 @@ import sqlite3
 import tempfile
 import unittest
 import zipfile
-from contextlib import redirect_stdout
+from contextlib import closing, redirect_stdout
 from pathlib import Path
 from unittest import mock
 
@@ -124,6 +123,20 @@ class CptParser(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, code):
                     build.read_cpt_text("code,description\n" + rows, "synthetic.csv")
 
+    def test_a_clean_import_builds_and_says_it_is_unverified(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            hcpcs = base / "hcpcs.zip"
+            with zipfile.ZipFile(hcpcs, "w") as archive:
+                archive.writestr("HCPC2026_OCT_ANWEB.txt", hcpcs_line("J1100", "Example", "Example"))
+            cpt = base / "cpt.csv"
+            cpt.write_text("code,description\n12345,Stem; First\n12346,Stem; Second\n", encoding="utf-8")
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                status = build.main(["--hcpcs", str(hcpcs), "--hcpcs-effective", "2026-10-01", "--cpt", str(cpt), "--out", str(base / "out.sqlite")])
+            self.assertEqual(0, status)
+            self.assertIn("CPT descriptors  unverified (no agreement record supplied)", stdout.getvalue())
+
     def test_bulleted_descriptor_is_valid(self):
         entries = build.read_cpt_text(
             'code,description\n12345,"Elements: • One • Two"\n', "synthetic.csv"
@@ -171,7 +184,20 @@ class CptParser(unittest.TestCase):
             }
             record_path = root / "agreement.json"
             record_path.write_text(json.dumps(record), encoding="utf-8")
-            self.assertEqual([first, second, agreed], build.verify_cpt_agreement(root, agreed, record_path))
+            self.assertEqual(
+                build.CptEvidence(first, second, agreed, record_path),
+                build.verify_cpt_agreement(root, agreed, record_path),
+            )
+            record["disagreement_count"] = 2
+            record_path.write_text(json.dumps(record), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "counts 2 disagreements; the readers disagree on 1"):
+                build.verify_cpt_agreement(root, agreed, record_path)
+            record["disagreement_count"] = 1
+            del record["unread_remainder"]
+            record_path.write_text(json.dumps(record), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "missing field 'unread_remainder'"):
+                build.verify_cpt_agreement(root, agreed, record_path)
+            record["unread_remainder"] = []
             record["resolutions"] = []
             record_path.write_text(json.dumps(record), encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "12345"):
@@ -233,8 +259,14 @@ class CptParser(unittest.TestCase):
             agreement.write_text(json.dumps(record), encoding="utf-8")
             output = base / "codes.sqlite"
             args = ["--hcpcs", str(hcpcs), "--hcpcs-effective", "2026-10-01", "--cpt", str(root / "agreed.csv"), "--cpt-agreement", str(agreement), "--cpt-agreement-sha256", build._sha256(agreement), "--out", str(output)]
+            def run(extra: list[str]) -> str:
+                stdout = io.StringIO()
+                with redirect_stdout(stdout):
+                    self.assertEqual(0, build.main(args + extra))
+                return stdout.getvalue()
+
             with mock.patch.object(build, "scratch_root", return_value=base / "scratch"):
-                self.assertEqual(0, build.main(args))
+                self.assertIn("CPT descriptors  unverified (--cpt-complete not asserted)", run([]))
                 with closing(sqlite3.connect(output)) as connection:
                     self.assertEqual("unverified", connection.execute("SELECT value FROM meta WHERE key='cpt_descriptors'").fetchone()[0])
                     self.assertEqual(build._sha256(root / "agreed.csv"), connection.execute("SELECT sha256 FROM source WHERE id='ama-cpt-2026-licensed'").fetchone()[0])
@@ -244,10 +276,18 @@ class CptParser(unittest.TestCase):
                     connection.executemany("INSERT INTO code VALUES ('CPT', ?)", ((code,) for code in cpt_rows))
                     connection.commit()
                 with mock.patch.object(build, "DEFAULT_OUT", baseline), mock.patch.object(build, "CPT_CONTROL_SHA256", control_hashes):
-                    self.assertEqual(0, build.main(args + ["--cpt-complete"]))
+                    self.assertIn("CPT descriptors  verified", run(["--cpt-complete"]))
                 with closing(sqlite3.connect(output)) as connection:
                     self.assertEqual("verified", connection.execute("SELECT value FROM meta WHERE key='cpt_descriptors'").fetchone()[0])
                     self.assertEqual(5, connection.execute("SELECT COUNT(*) FROM source").fetchone()[0])
+                    self.assertEqual(
+                        [("ama-cpt-2026-licensed",)],
+                        connection.execute("SELECT id FROM source WHERE system = 'CPT'").fetchall(),
+                    )
+                    self.assertEqual(
+                        set(build.CPT_EVIDENCE_SOURCE_IDS.values()),
+                        {row[0] for row in connection.execute("SELECT id FROM source WHERE system = ?", (build.CPT_EVIDENCE_SYSTEM,))},
+                    )
                 with closing(sqlite3.connect(baseline)) as connection:
                     connection.execute("INSERT INTO code VALUES ('CPT', '12346')")
                     connection.commit()
@@ -255,9 +295,13 @@ class CptParser(unittest.TestCase):
                     with self.assertRaisesRegex(SystemExit, "12346"):
                         build.main(args + ["--cpt-complete"])
                 args[args.index(build._sha256(agreement))] = "0" * 64
-                self.assertEqual(0, build.main(args + ["--cpt-complete"]))
+                self.assertIn("agreement record digest disagrees", run(["--cpt-complete"]))
                 with closing(sqlite3.connect(output)) as connection:
                     self.assertEqual("unverified", connection.execute("SELECT value FROM meta WHERE key='cpt_descriptors'").fetchone()[0])
+                (root / "reader-2.csv").unlink()
+                for extra in ([], ["--cpt-complete"]):
+                    with self.subTest(extra=extra), self.assertRaisesRegex(SystemExit, "reader-2.csv"):
+                        build.main(args + extra)
 
 
 def database() -> Path:

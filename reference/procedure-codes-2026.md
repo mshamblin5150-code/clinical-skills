@@ -51,9 +51,17 @@ checkout's `scratch/cpt-2026/`, with their SHA-256 digests. The two methods are
 `codes_read`, `disagreement_count`, every disagreement's agreed `description`
 and `printed_page` in `resolutions`, and an empty `unread_remainder`. The build
 compares every code and descriptor across the three CSVs and records all four
-input digests in `source`. A mismatched agreement digest leaves descriptors
-unverified; a missing or changed recorded input refuses the build. Bulleted
-descriptors use each printed `•` in the single description field.
+input digests in `source`; the three evidence rows carry `system = 'CPT rebuild
+evidence'`, so the CPT machine-source row stays the only `system = 'CPT'` row. A
+supplied agreement record's inputs are checked on every build: a missing or
+changed recorded input refuses, while a mismatched agreement digest or an absent
+`--cpt-complete` leaves descriptors unverified and the build prints which.
+Bulleted descriptors use each printed `•` in the single description field.
+
+Every CPT import is refused when a descriptor carries `;;`, ends at a colon, or
+has text before its final `; ` equal to another code's complete descriptor; the
+refusal names the codes. What a build or a verified build does not establish is
+`procedure_codes_build.DECLARED_LIMITS`.
 
 ## Lookup
 
