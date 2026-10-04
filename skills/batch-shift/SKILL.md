@@ -188,7 +188,7 @@ subdirectory keeps worksheets out of note-only graders. This is `clinical-note`'
 agreement path inherited per encounter, not a second generated worksheet.
 
 The pass brief carries nothing that contradicts `clinical-note`: it never asks for a visit time
-to be recorded as missing, because [clinical-note's visit-time rule](../clinical-note/SKILL.md)
+to be recorded as missing, because [clinical-note's visit-time rule](../clinical-note/SKILL.md#times)
 estimates every start and end time.
 
 ### 6. Roll up the shift

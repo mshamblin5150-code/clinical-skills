@@ -25,11 +25,13 @@ DECLARED_LIMITS = (
 )
 
 
-def _private_target(source: str, cwd: Path) -> bool | None:
+def _private_target(source: str, cwd: Path | None) -> bool | None:
     if any(character in source for character in "$`~*?"):
         return None
     target = Path(shell_reader.candidate_paths(source)[-1])
     if not target.is_absolute():
+        if cwd is None:
+            return None
         target = cwd / target
     target = target.resolve()
     checkout = repo_root.enclosing_checkout(target)
@@ -43,6 +45,7 @@ def _headers(command: str):
     lines = command.splitlines()
     index = 0
     while index < len(lines):
+        header_index = index
         header = lines[index]
         index += 1
         if "<<" not in header:
@@ -67,15 +70,15 @@ def _headers(command: str):
             bodies.append("\n".join(lines[start:index]))
             index += 1
         if delimiters:
-            yield header, tokens, bodies
+            yield header, tokens, bodies, "\n".join(lines[:header_index + 1])
 
 
-def _python_targets(body: str) -> list[str]:
+def _python_targets(body: str) -> tuple[list[str], bool]:
     """Read literal paths, including a simple assignment to a Path object."""
     try:
         tree = ast.parse(body)
     except SyntaxError:
-        return []
+        return [], True
     paths: dict[str, str] = {}
 
     def literal(node):
@@ -91,6 +94,7 @@ def _python_targets(body: str) -> list[str]:
         return None
 
     targets = []
+    unread = False
     for statement in tree.body:
         if isinstance(statement, ast.Assign):
             path = literal(statement.value)
@@ -111,21 +115,27 @@ def _python_targets(body: str) -> list[str]:
                 )
                 mode = literal(mode_node) if mode_node is not None else "r"
                 path = literal(path_node)
+                if path is None or mode is None:
+                    unread = True
                 if path is not None and mode is not None and any(flag in mode for flag in "wax+"):
                     targets.append(path)
             elif isinstance(node.func, ast.Attribute) and node.func.attr in {
                 "write_text", "write_bytes", "open", "touch"
             }:
                 path = literal(node.func.value)
+                if path is None:
+                    unread = True
                 if path is not None:
                     if node.func.attr == "open":
                         mode = literal(node.args[0]) if node.args else next(
                             (literal(keyword.value) for keyword in node.keywords if keyword.arg == "mode"), "r"
                         )
+                        if mode is None:
+                            unread = True
                         if mode is None or not any(flag in mode for flag in "wax+"):
                             continue
                     targets.append(path)
-    return targets
+    return targets, unread
 
 
 def _unread(reason: str) -> dict:
@@ -147,10 +157,12 @@ def handle(payload: dict) -> dict:
         return _unread("PowerShell here-string") if "@'" in command or '@"' in command else {}
     cwd = Path(payload.get("cwd") or Path.cwd())
     unread = False
-    for header, tokens, bodies in _headers(command):
+    for header, tokens, bodies, prefix in _headers(command):
         folder = shell_reader.literal_command_folder(
-            command, lambda piece: "<<" in piece
-        ) or cwd
+            prefix, lambda piece: "<<" in piece
+        )
+        if folder is None and not shell_reader.has_executable(prefix, "cd"):
+            folder = cwd
         targets = [tokens[index + 1] for index, token in enumerate(tokens[:-1])
                    if token in {">", ">>"}]
         for arguments, executable_index in command_reader.shell_reader.executable_calls(header, "tee"):
@@ -161,7 +173,9 @@ def handle(payload: dict) -> dict:
         if any(command_reader.shell_reader.has_executable(header, executable)
                for executable in ("python", "python3")):
             for body in bodies:
-                targets.extend(_python_targets(body))
+                python_targets, python_unread = _python_targets(body)
+                targets.extend(python_targets)
+                unread = unread or python_unread
         resolutions = [_private_target(target, folder) for target in targets]
         unread = unread or None in resolutions
         if True in resolutions:
