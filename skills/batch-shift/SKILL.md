@@ -176,7 +176,9 @@ unresolved multiple-row match for step 7's pre-approval questions. **Only when n
 run request a portal lookup; a rejected first row does not establish that the map has no match.
 
 Write each pass's complete working note — body and tier blocks together — into the owning
-checkout's `scratch/runs/shift-<date>/` as `note-N.md`. These Markdown files are the run evidence
+checkout's `scratch/runs/shift-<date>/` by [standing rule 6's write route](../../AGENTS.md#standing-rules):
+copy it under a temporary name and rename it to `note-N.md`. Its private coding worksheet enters
+the same run by that route, renamed to `worksheets/note-N.md`. These Markdown files are the run evidence
 read by the roll-up and terminal graders, not the finished document handed to the course. Keep them
 at the run-directory top level; `filled_vitals_census.py` reads that non-recursive population.
 
@@ -185,7 +187,16 @@ Save each note pass's complete private coding worksheet as
 subdirectory keeps worksheets out of note-only graders. This is `clinical-note`'s descriptor-
 agreement path inherited per encounter, not a second generated worksheet.
 
+The pass brief carries nothing that contradicts `clinical-note`: it never asks for a visit time
+to be recorded as missing, because [clinical-note's visit-time rule](../clinical-note/SKILL.md#times)
+estimates every start and end time.
+
 ### 6. Roll up the shift
+
+Apply [standing rule 6](../../AGENTS.md#standing-rules): checks run after every writer has finished.
+Begin the roll-up only when the run holds `note-1.md` through `note-N.md` for every encounter the
+clinician confirmed at step 4. A missing number means a pass is still writing. A correction after a
+failed check repeats the same copy and rename.
 
 First the **schedule table** — the Medatrax entry view, one row per encounter in visit order:
 

@@ -129,6 +129,13 @@ The command reads `git worktree list --porcelain`, then reads every registered w
 
 Also not required to use the clinical skills, and deliberately not cited from [AGENTS.md](AGENTS.md) — a consumer needs the Markdown and nothing else.
 
+### Heredoc write guard
+
+`tools/heredoc_write_hook.py` is a `PreToolUse` hook for the tools modeled by
+`command_reader.COMMAND_TOOLS`. It refuses Bash heredoc writes into a checkout's `scratch/`
+or `output/` and points the writer to standing rule 6. Its complete reading boundary belongs
+to `heredoc_write_hook.DECLARED_LIMITS`.
+
 ### ADR supersession binding
 
 `tools/test_adr_supersession.py` owns the `## Supersedes` and dated marker
