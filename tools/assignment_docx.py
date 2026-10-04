@@ -51,9 +51,14 @@ class AssignmentSpec:
     title_page: TitlePage
     sections: tuple[Section, ...]
     command_rows: tuple[CommandRow, ...]
-    relationship_labels: tuple[str, str, str]
+    relationship_labels: tuple[str, ...]
     references: tuple[str, ...]
     figure_alt_text: str
+
+    @property
+    def has_figure(self) -> bool:
+        """The relationship figure is optional; a spec either carries all of it or none."""
+        return bool(self.relationship_labels)
 
 
 def fixture_spec() -> AssignmentSpec:
@@ -238,22 +243,27 @@ def _body(spec: AssignmentSpec) -> str:
             )
         )
         out.extend(_xml_paragraph(text, first_line=True) for text in section.paragraphs)
-    out.extend(
-        (
-            _xml_paragraph("Command Matrix", style="Heading1"),
-            *(_xml_paragraph(text, first_line=True) for text in _command_narrative(spec.command_rows)),
-            _xml_paragraph("System Relationships", style="Heading1"),
-            _xml_paragraph(
-                "Figure 1 " + " to ".join(spec.relationship_labels), style="Caption"
-            ),
-            _drawing(spec.figure_alt_text),
-            _xml_paragraph(
-                "The figure connects " + ", ".join(spec.relationship_labels) + ".",
-                first_line=True,
-            ),
-            _xml_paragraph("References", style="Heading1", page_break_before=True),
+    if spec.command_rows:
+        out.append(_xml_paragraph("Command Matrix", style="Heading1"))
+        out.extend(
+            _xml_paragraph(text, first_line=True)
+            for text in _command_narrative(spec.command_rows)
         )
-    )
+    if spec.has_figure:
+        out.extend(
+            (
+                _xml_paragraph("System Relationships", style="Heading1"),
+                _xml_paragraph(
+                    "Figure 1 " + " to ".join(spec.relationship_labels), style="Caption"
+                ),
+                _drawing(spec.figure_alt_text),
+                _xml_paragraph(
+                    "The figure connects " + ", ".join(spec.relationship_labels) + ".",
+                    first_line=True,
+                ),
+            )
+        )
+    out.append(_xml_paragraph("References", style="Heading1", page_break_before=True))
     out.extend(_xml_paragraph(reference, style="Reference") for reference in spec.references)
     return "".join(out)
 
@@ -285,11 +295,13 @@ def parts(spec: AssignmentSpec) -> dict[str, str | bytes]:
         '<Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml"/>'
         "</Relationships>",
     )
-    doc_rels = docx_write.DOC_RELS.replace(
-        "</Relationships>",
-        '<Relationship Id="rId4" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/relationship.png"/>'
-        "</Relationships>",
-    )
+    doc_rels = docx_write.DOC_RELS
+    if spec.has_figure:
+        doc_rels = doc_rels.replace(
+            "</Relationships>",
+            '<Relationship Id="rId4" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/relationship.png"/>'
+            "</Relationships>",
+        )
     core = (
         '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
         '<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" '
@@ -304,7 +316,7 @@ def parts(spec: AssignmentSpec) -> dict[str, str | bytes]:
         '<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties">'
         '<Application>Clinical Skills Course Assignment</Application></Properties>'
     )
-    return {
+    package: dict[str, str | bytes] = {
         "[Content_Types].xml": content_types,
         "_rels/.rels": root_rels,
         "docProps/core.xml": core,
@@ -314,8 +326,10 @@ def parts(spec: AssignmentSpec) -> dict[str, str | bytes]:
         "word/numbering.xml": docx_write.numbering_xml(0),
         "word/header1.xml": docx_write.HEADER,
         "word/document.xml": document,
-        "word/media/relationship.png": _relationship_png(),
     }
+    if spec.has_figure:
+        package["word/media/relationship.png"] = _relationship_png()
+    return package
 
 
 def build(spec: AssignmentSpec, destination: Path, *, force: bool = False) -> Path:
@@ -359,13 +373,17 @@ def from_mapping(value: object) -> AssignmentSpec:
             Section(item["heading"], tuple(item["paragraphs"]))
             for item in value["sections"]
         )
-        command_rows = tuple(CommandRow(**item) for item in value["command_rows"])
-        relationship_labels = tuple(value["relationship_labels"])
+        command_rows = tuple(CommandRow(**item) for item in value.get("command_rows", ()))
+        relationship_labels = tuple(value.get("relationship_labels", ()))
         references = tuple(value["references"])
-        figure_alt_text = value["figure_alt_text"]
+        figure_alt_text = value.get("figure_alt_text", "")
     except (KeyError, TypeError) as failure:
         raise ValueError(f"invalid assignment specification: {failure}") from failure
-    if len(relationship_labels) != 3:
+    if bool(relationship_labels) != ("figure_alt_text" in value):
+        raise ValueError(
+            "relationship_labels and figure_alt_text are supplied together or not at all"
+        )
+    if relationship_labels and len(relationship_labels) != 3:
         raise ValueError("relationship_labels must contain exactly three labels")
     string_values = (
         *title.__dict__.values(),
@@ -374,12 +392,12 @@ def from_mapping(value: object) -> AssignmentSpec:
         *(field for row in command_rows for field in row.__dict__.values()),
         *relationship_labels,
         *references,
-        figure_alt_text,
+        *((figure_alt_text,) if relationship_labels else ()),
     )
     if not all(isinstance(item, str) and item.strip() for item in string_values):
         raise ValueError("every assignment specification text value must be nonempty")
-    if not sections or not command_rows or not references:
-        raise ValueError("sections, command_rows, and references must be nonempty")
+    if not sections or not references:
+        raise ValueError("sections and references must be nonempty")
     return AssignmentSpec(
         title,
         sections,

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import contextlib
+import io
 import json
 import tempfile
 import unittest
@@ -26,6 +28,30 @@ REFERENCE-MIN: 1
 SOURCE-CLASSES: peer-reviewed | government
 RECENCY-WINDOW-YEARS: 5
 """
+
+
+def _payload(spec: assignment_docx.AssignmentSpec) -> dict:
+    return {
+        "title_page": {
+            field: getattr(spec.title_page, field)
+            for field in spec.title_page.__dataclass_fields__
+        },
+        "sections": [
+            {"heading": section.heading, "paragraphs": list(section.paragraphs)}
+            for section in spec.sections
+        ],
+        "command_rows": [
+            {
+                "role": row.role,
+                "responsibility": row.responsibility,
+                "decision_right": row.decision_right,
+            }
+            for row in spec.command_rows
+        ],
+        "relationship_labels": list(spec.relationship_labels),
+        "references": list(spec.references),
+        "figure_alt_text": spec.figure_alt_text,
+    }
 
 
 class RichPackage(unittest.TestCase):
@@ -82,6 +108,54 @@ class RichPackage(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "output/course-assignments"):
             assignment_docx.build(assignment_docx.fixture_spec(), path)
 
+    def test_a_spec_without_a_matrix_or_figure_writes_neither(self):
+        payload = _payload(assignment_docx.fixture_spec())
+        for key in ("command_rows", "relationship_labels", "figure_alt_text"):
+            del payload[key]
+        spec = assignment_docx.from_mapping(payload)
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "plain-assignment.docx"
+            assignment_docx.build(spec, path)
+
+            with zipfile.ZipFile(path) as archive:
+                names = set(archive.namelist())
+                document = archive.read("word/document.xml").decode("utf-8")
+                rels = archive.read("word/_rels/document.xml.rels").decode("utf-8")
+                types = archive.read("[Content_Types].xml").decode("utf-8")
+
+        self.assertNotIn("word/media/relationship.png", names)
+        self.assertNotIn("media/relationship.png", rels)
+        self.assertNotIn("<w:drawing>", document)
+        self.assertNotIn("Command Matrix", document)
+        self.assertNotIn("System Relationships", document)
+        self.assertIn("References", document)
+        self.assertIn('Extension="xml"', types)
+
+    def test_a_matrix_may_stand_without_a_figure(self):
+        payload = _payload(assignment_docx.fixture_spec())
+        del payload["relationship_labels"]
+        del payload["figure_alt_text"]
+        spec = assignment_docx.from_mapping(payload)
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "matrix-only.docx"
+            assignment_docx.build(spec, path)
+            with zipfile.ZipFile(path) as archive:
+                names = set(archive.namelist())
+                document = archive.read("word/document.xml").decode("utf-8")
+
+        self.assertIn("Command Matrix", document)
+        self.assertNotIn("System Relationships", document)
+        self.assertNotIn("word/media/relationship.png", names)
+
+    def test_a_half_specified_figure_is_refused(self):
+        for missing in ("relationship_labels", "figure_alt_text"):
+            payload = _payload(assignment_docx.fixture_spec())
+            del payload[missing]
+            with self.subTest(missing=missing), self.assertRaisesRegex(
+                ValueError, "relationship_labels and figure_alt_text"
+            ):
+                assignment_docx.from_mapping(payload)
+
     def test_the_command_builds_from_configurable_title_and_content_metadata(self):
         spec = assignment_docx.fixture_spec()
         payload = {
@@ -135,6 +209,54 @@ class DocxGrader(unittest.TestCase):
             )
 
         self.assertEqual(1, status)
+
+    def test_a_document_without_a_figure_owes_no_figure_alt_text_or_caption(self):
+        payload = _payload(assignment_docx.fixture_spec())
+        for key in ("command_rows", "relationship_labels", "figure_alt_text"):
+            del payload[key]
+        with tempfile.TemporaryDirectory() as directory:
+            run = Path(directory) / "generic-course-assignment"
+            run.mkdir()
+            artifact = Path(directory) / "generic-course-assignment-2026-09-13.docx"
+            assignment_docx.build(assignment_docx.from_mapping(payload), artifact)
+            (run / "bar.md").write_text(DOCX_BAR, encoding="utf-8")
+            (run / "claims.md").write_text(
+                "DATE: 2026-09-13\n\n"
+                "## CLAIM: Authority, coordination, and feedback are connected.\n",
+                encoding="utf-8",
+            )
+            report = io.StringIO()
+            with contextlib.redirect_stdout(report):
+                assignment_docx_scan.main([str(run), "--docx", str(artifact)])
+
+        self.assertIn("package-structure: 0", report.getvalue())
+
+    def test_a_drawing_without_alt_text_is_still_a_package_finding(self):
+        with tempfile.TemporaryDirectory() as directory:
+            run = Path(directory) / "generic-course-assignment"
+            run.mkdir()
+            artifact = Path(directory) / "generic-course-assignment-2026-09-13.docx"
+            assignment_docx.build(assignment_docx.fixture_spec(), artifact)
+            stripped = Path(directory) / "stripped.docx"
+            with zipfile.ZipFile(artifact) as source, zipfile.ZipFile(stripped, "w") as target:
+                for item in source.infolist():
+                    payload = source.read(item.filename)
+                    if item.filename == "word/document.xml":
+                        payload = payload.replace(
+                            b'descr="Generic system relationship diagram"', b'descr=""'
+                        )
+                    target.writestr(item, payload)
+            (run / "bar.md").write_text(DOCX_BAR, encoding="utf-8")
+            (run / "claims.md").write_text(
+                "DATE: 2026-09-13\n\n"
+                "## CLAIM: Authority, coordination, and feedback are connected.\n",
+                encoding="utf-8",
+            )
+            report = io.StringIO()
+            with contextlib.redirect_stdout(report):
+                assignment_docx_scan.main([str(run), "--docx", str(stripped)])
+
+        self.assertIn("package-structure: 1", report.getvalue())
 
     def test_a_complete_docx_run_grades_clean(self):
         with tempfile.TemporaryDirectory() as directory:

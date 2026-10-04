@@ -264,9 +264,7 @@ def _package(
     document = document_bytes.decode("utf-8")
     document_root = ElementTree.fromstring(document_bytes)
     drawings = tuple(document_root.iter(WP + "docPr"))
-    if not drawings:
-        defects.append("no figure carries alt text")
-    elif any(not (node.get("descr") or "").strip() for node in drawings):
+    if any(not (node.get("descr") or "").strip() for node in drawings):
         defects.append("every figure must carry alt text")
     if "word/_rels/document.xml.rels" in names:
         rels_root = ElementTree.fromstring(
@@ -282,7 +280,7 @@ def _package(
             if not target or package_target not in names:
                 defects.append("a figure relationship has no readable media target")
     captions = [paragraph.text for paragraph in paragraphs if paragraph.style == "Caption"]
-    if not any(text.casefold().startswith("figure ") for text in captions):
+    if drawings and not any(text.casefold().startswith("figure ") for text in captions):
         defects.append("no figure caption was found")
     if "word/header1.xml" in names and 'w:instr="PAGE"' not in archive.read("word/header1.xml").decode("utf-8"):
         defects.append("the running page-number field is missing")

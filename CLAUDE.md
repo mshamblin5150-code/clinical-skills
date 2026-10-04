@@ -1296,8 +1296,8 @@ every page is readable. If PowerPoint export is unavailable, `--clinician-export
 clinician's export through the same raster and retention checks. The complete route, escalation,
 and visual comparison obligations live in `skills/course-assignment/SKILL.md`.
 
-The DOCX producer owns configurable title-page metadata, native styles, a command matrix, and an
-accessible system-relationship figure. Its grader owns `assignment_docx_scan.ROWS`; its renderer
+The DOCX producer owns configurable title-page metadata, native styles, and an optional command
+matrix and accessible system-relationship figure, each written only when the spec supplies it. Its grader owns `assignment_docx_scan.ROWS`; its renderer
 asks a newly owned Word process for PDF and then XPS, retains the page-faithful export and page
 pixels, and binds the highest pass to the canonical raw `.docx` through its SHA-256. The complete
 DOCX production, visual-reading, two-gate Canvas, and by-eye limits live in
