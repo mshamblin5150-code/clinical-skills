@@ -1,6 +1,9 @@
 # The pre-draft gates observe that the draft does not yet exist and a late gate is a finding the clinician clears
 
-**Measured at:** ef8b5c80d56aa87fc449c3ce0d5597afbce87988
+**Measured at:** 85d078e4e8c057d2363bec57f71bf7bcd8b27bda
+
+*Re-declared from `ef8b5c8` on 2026-10-03, for the addendum adding rulings 8 and 9; between the two
+commits only this record's two fact corrections landed. The earlier re-declaration below is kept.*
 
 *Re-declared from `b73661b` on 2026-10-03, for the two fact corrections dated at the foot of this record;
 between the two commits only this record, its ADR 0272 marker, ADR 0291 and `CONTEXT.md` changed, and
@@ -164,6 +167,45 @@ see, and `voice_model_identity.DECLARED_LIMITS` gains the matching row:
 - a draft deleted or moved out of its mapped location before the gate ran;
 - prose written at any other location;
 - prose composed in the conversation and saved only after the gates.
+
+## Ruling 8 — a staged coursework draft is watched in the staging folder named by its submission key
+
+*Addendum, ruled 2026-10-03 after the post-merge sweep.* [ADR 0291](0291-a-writing-pass-stages-patient-text-in-a-scratch-root-and-a-hook-refuses-heredoc-writes-there.md)
+ruling 2 binds every pass that writes a file, and the orchestrator's own writes, to stage each file
+in `scratch/sessions/<key>/<pass-label>/` before copying it into the run. Under that route a
+coursework draft sits outside every location ruling 3 maps until it is finished, so a late gate would
+observe nothing and ruling 7's declared limit would become the normal path. The two records merged
+one change apart and neither cited the other.
+
+**When a coursework run stages its draft, the staging folder's pass label is the sitting's
+submission key, and each gate also checks `scratch/sessions/*/<submission-key>/`** in both the
+committing checkout's scratch root and the owning checkout's. Naming the folder by the key keeps one
+sitting's staging from firing another's gate. This extends ADR 0291's pass-label naming for
+coursework and withdraws nothing from it.
+
+Exempting coursework first prose from the staging route was refused: from a worktree the Write tool
+refuses the owning checkout's `scratch/`, where coursework run directories live, so a direct write
+to the mapped location fails there. Declaring staged prose a blind spot was refused because a run
+following ADR 0291 would then draft where no gate looks, which leaves rulings 1 through 4 inert.
+
+## Ruling 9 — the first observation for a submission key is kept across reruns
+
+*Addendum, ruled 2026-10-03 after the post-merge sweep.* Honest runs rerun a gate after drafting has
+begun. Each bound skill amends and re-confirms the project context record when the clinician gives a
+direction mid-draft, which reruns `tools/project_context.py --write`, and
+[#1496](https://github.com/mshamblin5150-code/clinical-skills/issues/1496) records a recovery that
+reran the gate after submission. Had a rerun replaced the observation, either would turn a clean
+first observation into a late gate.
+
+**The first gate run for a submission key records whether the draft existed, and that observation is
+never replaced.** Later reruns refresh the header, hashes and digest and leave the observation as
+first written. A run whose first gate was late keeps its finding whatever it does afterwards, so a
+rerun cannot launder a late gate. Each record's limits state that the observation is historical.
+
+Observing afresh on every rerun was refused because every honest mid-draft direction and every
+recovery would cost the clinician a waiver, which teaches approving waivers unread. Keeping the first
+observation only for reruns that follow a header amendment was refused because the gate cannot tell
+why it is being rerun, and a drift recovery would still read as late.
 
 ## Supersedes
 
