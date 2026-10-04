@@ -95,6 +95,7 @@ DECLARED_SECTIONS = {
     "guidelines_search": "Guideline full-text index",
     "grilling_stop_hook": "Grilling guard",
     "harvest_review": "PHI pre-commit hook",
+    "heredoc_write_hook": "Heredoc write guard",
     "icd10_build": "ICD-10-CM code set",
     "icd10_lookup": "ICD-10-CM code set",
     "implementation_map": "Implementation map helper",

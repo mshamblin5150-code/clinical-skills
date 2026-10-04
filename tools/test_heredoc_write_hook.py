@@ -24,7 +24,7 @@ class HeredocWrites(unittest.TestCase):
             [sys.executable, str(HOOK)],
             input=json.dumps({"tool_name": tool, "cwd": str(cwd or self.checkout),
                              "tool_input": {"command": command}}),
-            text=True, capture_output=True, encoding="utf-8",
+            text=True, capture_output=True, encoding="utf-8", errors="replace",
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         return json.loads(result.stdout)
