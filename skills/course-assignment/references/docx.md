@@ -45,8 +45,10 @@ canonical path that command records under the main skill's voice rule. Build the
 from the signed run rather than source-code constants. The title page supports a long credential
 line as one fitted line and instructor credentials without embedding personal data in a fixture.
 The document uses native Word `Title`, heading, caption, and reference styles; running page numbers;
-restrained graphite and blue accents; narrative command relationships; and inline figures with
-captions and alt text. The graded body follows the shared `narrative-body` rule in
+restrained graphite and blue accents; and, only where the assignment warrants them, narrative
+command relationships and an inline figure with a caption and alt text. A spec that omits
+`command_rows`, or both `relationship_labels` and `figure_alt_text`, writes no Command Matrix or no
+System Relationships figure; supplying one figure field without the other is refused. The graded body follows the shared `narrative-body` rule in
 [style.md](../../_shared/reference/style.md). The visual direction is APA-dominant: no trademarked insignia, brochure
 treatment, or invented organizational identity.
 
@@ -76,7 +78,8 @@ python tools/assignment_docx_scan.py <run-directory> --docx <docx>
 The grader reads these rows:
 
 - `package-structure`: every required package part, native style, title metadata, running page
-  field, caption class, and figure alt text is present.
+  field, and caption class is present, and every figure the document carries has alt text and a
+  figure caption.
 - `word-range`: the prose body reaches the signed minimum. A numeric `WORD-MAX` is recorded but
   never graded.
 - `reference-minimum`: the References section reaches the signed entry floor.
