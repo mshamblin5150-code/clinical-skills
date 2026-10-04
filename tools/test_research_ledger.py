@@ -552,6 +552,7 @@ class EveryBehaviorLimitHasALiveHandler(unittest.TestCase):
         "evidence-without-draft-skips-references": ("DeclaredLimitBehaviorControls.test_evidence_without_draft_supplies_no_reference_entries", "DeclaredLimitBehaviorControls.test_evidence_with_draft_reads_reference_entries"),
         "uptodate-initials-uncompared": ("StoredUpToDateMastheadsGradeThePublishedEntry.test_different_initials_pass", "StoredUpToDateMastheadsGradeThePublishedEntry.test_an_invented_surname_is_a_finding"),
         "uptodate-trailing-surname-accepted": ("StoredUpToDateMastheadsGradeThePublishedEntry.test_a_trailing_part_of_a_real_surname_passes", "StoredUpToDateMastheadsGradeThePublishedEntry.test_an_invented_surname_is_a_finding"),
+        "uptodate-degree-shaped-name-absorbed": ("StoredUpToDateMastheadsGradeThePublishedEntry.test_an_all_capital_name_after_a_degree_is_read_as_degrees", "StoredUpToDateMastheadsGradeThePublishedEntry.test_a_two_capital_name_after_a_degree_is_a_name_and_not_a_degree"),
         "reply-reference-label-unchecked": ("DeclaredLimitBehaviorControls.test_the_reply_path_accepts_a_misspelled_reference_label", "DeclaredLimitBehaviorControls.test_reference_scan_rejects_the_same_label"),
     }
 
@@ -4506,11 +4507,13 @@ class StoredUpToDateMastheadsGradeThePublishedEntry(unittest.TestCase):
         )
         write_bar(self.root)
 
-    def run_entry(self, entry: str, evidence_text: str | None = None) -> tuple[int, str]:
+    def run_entry(
+        self, entry: str, evidence_text: str | None = None, name: str = "custom"
+    ) -> tuple[int, str]:
         store, evidence = self.store, self.evidence
         if evidence_text is not None:
-            store = self.root / "custom-store"
-            evidence = self.root / "custom-evidence.txt"
+            store = self.root / f"{name}-store"
+            evidence = self.root / f"{name}-evidence.txt"
             evidence.write_text(evidence_text, encoding="utf-8")
             uptodate_store.ingest_dump(
                 evidence,
@@ -4717,6 +4720,142 @@ class StoredUpToDateMastheadsGradeThePublishedEntry(unittest.TestCase):
         scan = ledger.uptodate_masthead_findings(records, (), details)
 
         self.assertEqual(scan.findings, ())
+
+    # Real stored masthead strings from the NUR 5144 Module 4 run of 2026-10-04,
+    # with the APA author element a correct entry carries. UpToDate writes middle
+    # initials without a period and the store joins masthead lines with one
+    # space, so these are the shapes the parser actually receives. The first
+    # fourteen were falsely flagged before the boundary rule was keyed on the
+    # degree; the last five were already read and are kept as controls.
+    REAL_MASTHEADS = (
+        ("Jack D Sobel, MD", "Sobel, J. D.", ("sobel",)),
+        ("Charles J Lockwood, MD, MHCM", "Lockwood, C. J.", ("lockwood",)),
+        ("Camille E Powe, MD", "Powe, C. E.", ("powe",)),
+        ("Richard H Sterns, MD", "Sterns, R. H.", ("sterns",)),
+        ("Khalil G Ghanem, MD, PhD", "Ghanem, K. G.", ("ghanem",)),
+        ("Katherine T Chen, MD, MPH", "Chen, K. T.", ("chen",)),
+        ("Linda D Bradley, MD", "Bradley, L. D.", ("bradley",)),
+        (
+            "Jack D Sobel, MD Caroline Mitchell, MD, MPH",
+            "Sobel, J. D., & Mitchell, C.",
+            ("sobel", "mitchell"),
+        ),
+        (
+            "Julian N Robinson, MD, MBA Errol R Norwitz, MD, PhD, MBA",
+            "Robinson, J. N., & Norwitz, E. R.",
+            ("robinson", "norwitz"),
+        ),
+        (
+            "Charlie C Kilpatrick, MD Amir A Shamshirsaz, MD",
+            "Kilpatrick, C. C., & Shamshirsaz, A. A.",
+            ("kilpatrick", "shamshirsaz"),
+        ),
+        (
+            "Anna Maya Powell, MD MSc Paul Nyirjesy, MD",
+            "Powell, A. M., & Nyirjesy, P.",
+            ("powell", "nyirjesy"),
+        ),
+        (
+            "Hyagriv N Simhan, MD, MS Steve Caritis, MD",
+            "Simhan, H. N., & Caritis, S.",
+            ("simhan", "caritis"),
+        ),
+        (
+            "Chloe Zera, MD, MPH Florence M Brown, MD",
+            "Zera, C., & Brown, F. M.",
+            ("zera", "brown"),
+        ),
+        (
+            "Ankit Mehta, MD Michael Emmett, MD",
+            "Mehta, A., & Emmett, M.",
+            ("mehta", "emmett"),
+        ),
+        ("Vincenzo Berghella, MD", "Berghella, V.", ("berghella",)),
+        ("Katherine Hsu, MD, MPH, FAAP", "Hsu, K.", ("hsu",)),
+        ("Thomas McElrath, MD, PhD", "McElrath, T.", ("mcelrath",)),
+        ("Raul Artal, MD, FACOG, FACSM", "Artal, R.", ("artal",)),
+        ("Jerry Vockley, MD, PhD", "Vockley, J.", ("vockley",)),
+    )
+
+    def run_masthead(self, masthead: str, apa_authors: str) -> tuple[int, str]:
+        evidence = topic("A carried topic").replace(
+            "Authors: A Author, MD, B Author, MD",
+            f"Authors: {masthead}",
+        )
+        entry = uptodate_entry("A carried topic").replace(
+            "Author, A., & Author, B.",
+            apa_authors,
+        )
+        self.masthead_runs = getattr(self, "masthead_runs", 0) + 1
+        return self.run_entry(entry, evidence, name=f"masthead-{self.masthead_runs}")
+
+    def test_real_mastheads_read_every_author_completely(self):
+        for masthead, _apa, surnames in self.REAL_MASTHEADS:
+            with self.subTest(masthead=masthead):
+                names, complete = ledger._masthead_names(masthead)
+                self.assertTrue(complete, names)
+                self.assertEqual(tuple(name.split()[-1] for name in names), surnames)
+
+    def test_an_unperioded_middle_initial_stays_inside_its_name(self):
+        self.assertEqual(
+            ledger._masthead_names("Jack D Sobel, MD"),
+            (("jack d sobel",), True),
+        )
+
+    def test_real_mastheads_pass_a_matching_apa_entry(self):
+        for masthead, apa, _surnames in self.REAL_MASTHEADS:
+            with self.subTest(masthead=masthead):
+                status, report = self.run_masthead(masthead, apa)
+                self.assertEqual(status, 0, report)
+                self.assertRegex(report, r"UpToDate author mastheads read\s+1 of 1; unread 0")
+
+    def test_a_real_masthead_swapped_order_is_a_finding(self):
+        status, _ = self.run_masthead(
+            "Jack D Sobel, MD Caroline Mitchell, MD, MPH",
+            "Mitchell, C., & Sobel, J. D.",
+        )
+
+        self.assertEqual(status, 1)
+
+    def test_an_invented_surname_against_a_real_masthead_is_a_finding(self):
+        status, _ = self.run_masthead("Jack D Sobel, MD", "Invented, J. D.")
+
+        self.assertEqual(status, 1)
+
+    def test_a_real_masthead_missing_its_second_author_is_a_finding(self):
+        status, _ = self.run_masthead(
+            "Anna Maya Powell, MD MSc Paul Nyirjesy, MD",
+            "Powell, A. M.",
+        )
+
+        self.assertEqual(status, 1)
+
+    def test_a_trailing_name_with_no_degree_stays_unread(self):
+        status, report = self.run_masthead(
+            "Jack D Sobel, MD Caroline Mitchell",
+            "Sobel, J. D., & Mitchell, C.",
+        )
+
+        self.assertEqual(status, 1)
+        self.assertRegex(report, r"UpToDate author mastheads read\s+0 of 1; unread 1")
+
+    def test_a_two_capital_name_after_a_degree_is_a_name_and_not_a_degree(self):
+        masthead = "Jack D Sobel, MD DeAnn McElrath, MD"
+        names, complete = ledger._masthead_names(masthead)
+        self.assertTrue(complete)
+        self.assertEqual(names, ("jack d sobel", "deann mcelrath"))
+
+        omitted, _ = self.run_masthead(masthead, "Sobel, J. D.")
+        both, report = self.run_masthead(masthead, "Sobel, J. D., & McElrath, D.")
+
+        self.assertEqual(omitted, 1)
+        self.assertEqual(both, 0, report)
+
+    def test_an_all_capital_name_after_a_degree_is_read_as_degrees(self):
+        """``uptodate-degree-shaped-name-absorbed``'s blind spot, stated as a pass."""
+        status, report = self.run_masthead("Jack D Sobel, MD JO NG, MD", "Sobel, J. D.")
+
+        self.assertEqual(status, 0, report)
 
     def test_the_three_declared_limits_name_the_unchecked_boundaries(self):
         limits = {row.key for row in ledger.DECLARED_LIMITS}
