@@ -37,7 +37,7 @@ class FirstObservation(unittest.TestCase):
 
 
 
-class CourseworkCommands(unittest.TestCase):
+class CourseworkFixture(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
@@ -83,6 +83,9 @@ class CourseworkCommands(unittest.TestCase):
         text = record.read_text(encoding="utf-8")
         record.write_text("ORDER-WAIVE: " + str(path) + " - opening paragraph drafted; proceed, per the clinician\n" + text, encoding="utf-8")
 
+
+
+class CourseworkCommands(CourseworkFixture):
     def test_every_skill_observes_absent_then_late_then_path_matched_waiver(self):
         cases = (
             ("critique.md", self.run / "critique.md"),
@@ -187,6 +190,94 @@ class CourseworkCommands(unittest.TestCase):
             result = module.completion_gate(self.run, "response-maren.md,response-rowan.md")
             self.assertFalse(result.finding)
             self.assertIn("waived observations: 1", result.report)
+
+
+
+
+class CompletionCommands(CourseworkFixture):
+    """Each scoped command reads its owning rows without adding an expected row."""
+
+    def test_each_completion_command_reports_late_and_waived_observations(self):
+        import peer_critique_scan
+        import discussion_reply_scan
+        import test_peer_critique_scan
+        import test_discussion_reply_scan
+        import test_discussion_post_scan
+        import test_deck_scan
+        import test_checks_ledger
+        import course_assignment_scan
+        import voice_read
+
+        # The independent voice reader is not this ordering test's subject.
+        patch = mock.patch.object(voice_read, "apply_completion_gate", side_effect=lambda grade, *_args, **_kwargs: grade)
+        patch.start()
+        self.addCleanup(patch.stop)
+        patch = mock.patch.object(repo_root, "output_root", return_value=self.owner / "output")
+        patch.start()
+        self.addCleanup(patch.stop)
+
+        for skill in coursework_run.FIRST_PROSE:
+            with self.subTest(skill=skill):
+                self.run = self.owner / "scratch" / "runs" / ("atlas-" + skill)
+                self.run.mkdir()
+                if skill == "peer-critique":
+                    test_peer_critique_scan.build_run(root=self.run)
+                    key = "critique.md"
+                    command = lambda: peer_critique_scan.main([str(self.run), "--submission", key])
+                elif skill == "discussion-reply":
+                    test_discussion_reply_scan.Run(self.run)
+                    key = "response-maren.md"
+                    command = lambda: discussion_reply_scan.main([str(self.run), "--submission", key])
+                elif skill == "discussion-post":
+                    fixture = test_discussion_post_scan.Run(self.run)
+                    key = "atlas-discussion-2026-10-03"
+                    command = lambda: fixture.grade("--submission", key)[0]
+                elif skill == "course-assignment":
+                    fixture = test_deck_scan.Run(self.run)
+                    fixture.write_deck((test_deck_scan.slide_xml("Title", "Two words"),))
+                    key = "atlas-course-assignment-2026-10-03"
+                    fixture.grade()
+                    command = lambda: course_assignment_scan.main([
+                        str(self.run), "--artifact", str(fixture.deck), "--submission", key,
+                    ])
+                else:
+                    key = "atlas-case-study-2026-10-03"
+                    checks = self.run / "checks.md"
+                    checks.write_text(test_checks_ledger.whole_file(), encoding="utf-8")
+                    test_checks_ledger.run([str(checks), "--submission", key])
+                    command = lambda: test_checks_ledger.checks.main([str(checks), "--submission", key])
+                self.supplied(key)
+                # This explicit mapped-file control makes the reader live for every branch.
+                if skill == "practicum-case-study":
+                    draft = self.owner / "output" / "case-studies" / (key + ".md")
+                elif skill == "course-assignment":
+                    draft = self.run / "writer" / key / "assignment.json"
+                else:
+                    draft = self.run / ("post.md" if skill == "discussion-post" else key)
+                self.plant(draft)
+                self.reset()
+                for module in (project_context, voice_model_identity):
+                    self.assertEqual(self.command(module, key), 1)
+                # Some fixtures have unrelated terminal findings; isolate the two order rows.
+                for waived in (False, True):
+                    if waived:
+                        self.waive(draft)
+                    output = io.StringIO()
+                    with contextlib.redirect_stdout(output), contextlib.redirect_stderr(output):
+                        status = command()
+                    report = output.getvalue()
+                    # Discussion-post's fixture captures its own streams.
+                    if skill == "discussion-post":
+                        status, stdout, stderr = fixture.grade("--submission", key)
+                        report = stdout + stderr
+                    for row in (project_context.EXPECTED_ROW, voice_model_identity.EXPECTED_ROW):
+                        line = next(line for line in report.splitlines() if line.startswith(row + ":"))
+                        self.assertIn("waived observations: " + str(int(waived)), line)
+                        if waived:
+                            self.assertNotIn("draft present", line)
+                        else:
+                            self.assertEqual(status, 1)
+                            self.assertIn("draft present", line)
 
 
 if __name__ == "__main__":

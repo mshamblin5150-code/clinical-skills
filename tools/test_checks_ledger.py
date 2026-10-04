@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import contextlib
 import io
+import json
 import hashlib
 import re
 import tempfile
@@ -189,6 +190,12 @@ def run(argv: list[str], *, bind: bool = True) -> tuple[int, str, str]:
         if "--submission" in arguments:
             submission = arguments[arguments.index("--submission") + 1]
             checks.voice_model_identity.write_record(checks_path.parent)
+            identity_path = checks_path.parent / checks.voice_model_identity.RECORD_NAME
+            identity = json.loads(identity_path.read_text(encoding="utf-8"))
+            identity["observations"] = {submission: {"paths": []}}
+            identity_path.write_text(json.dumps(identity), encoding="utf-8")
+            with (checks_path.parent / "project-context.md").open("a", encoding="utf-8") as record:
+                record.write("ORDER-OBSERVATION: " + json.dumps({submission: {"paths": []}}) + "\n")
             output = checks_path.parent / "output"
             output.mkdir(exist_ok=True)
             document = output / f"{submission}.md"

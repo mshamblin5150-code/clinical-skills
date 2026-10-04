@@ -129,16 +129,28 @@ established, including an unavailable registry or unregistered project. The comp
 rehashes file items; drift is exit-2 coverage, while a finding still wins. It does not retrieve
 service items again.
 
-The gates preserve their first draft observation per submission key. A late observation is a
-finding that the clinician can clear in the confirmed project-context header:
+### Draft order
+
+Capture `voice-reads/<submission-key>/supplied-voice.json` before the gates. The identity gate
+requires that file before writing its record. Use the terminal submission key for both commands;
+when staging coursework under standing rule 6, use that key as the pass folder's name.
+The gates retain their first observation for each key across reruns. Keep their machine-written
+observations when amending and re-confirming the project-context header; reruns refresh retrieval
+and model identity without replacing the historical observation.
+
+A draft present before the first gate is a finding even though the gate writes its record and
+hashes. Stop for the clinician's ruling. If cleared, add a line to the confirmed header and rerun
+with the same key:
 
 ```text
 ORDER-WAIVE: <absolute draft path> - <what was drafted before the gate>; proceed, per the clinician
 ```
 
-The path must match the retained observation. Each observed path needs its own waiver; a different
-path clears nothing. Waived observations are counted in both records' existing completion rows.
-The identity gate requires that key's `supplied-voice.json` before it writes, so capture it first.
+Each observed path needs its own matching waiver; a different path clears nothing. Before the
+go-ahead, read `project_context.completion_gate(run, submission)` and
+`voice_model_identity.completion_gate(run, submission)`. Present and unwaived blocks approval.
+Show any late observation and its waiver to the clinician, including the waived-observation count
+reported by both records' existing completion rows.
 
 Before any go-ahead, a fresh context receives only the final draft, `claims.md`, and the headings
 with digests printed by `research_ledger.py --heading-digests`, plus every item pointer recorded in

@@ -197,15 +197,9 @@ python tools/voice_model_scan.py
 ```
 
 Use the terminal submission key: `critique.md`.
-When staging coursework under standing rule 6, name the pass folder `<submission-key>`.
-Both gates keep their first observation for that key across reruns; retain the machine-written
-observations when amending and re-confirming the header. A draft found before the first gate
-is a finding even though the gate writes its record and hashes. Stop for the clinician's ruling;
-if cleared, add the confirmed `ORDER-WAIVE:` line from
-[sourcing.md](../_shared/reference/sourcing.md) and rerun with the same key.
-Before the go-ahead, read both owning modules' `completion_gate(run, submission)` reports and show
-any late observation and its waiver to the clinician. Present and unwaived blocks approval;
-report the waived-observation count when cleared.
+Use the [shared draft-order procedure](../_shared/reference/sourcing.md#draft-order)
+for keyed staging, retained observations, clinician waivers, and the pre-approval reading.
+At the go-ahead, show any late gate and its waived-observation count.
 
 Read only the canonical path the identity command reports.
 
