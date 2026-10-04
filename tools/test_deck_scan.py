@@ -8,6 +8,7 @@ phi-scan: synthetic
 from __future__ import annotations
 
 import io
+import json
 import hashlib
 import re
 import tempfile
@@ -385,6 +386,19 @@ class Run:
                 final_confirmation=True,
             )
         scan.voice_model_identity.write_record(self.root)
+        identity_path = self.root / scan.voice_model_identity.RECORD_NAME
+        identity = json.loads(identity_path.read_text(encoding="utf-8"))
+        identity["observations"] = {self.deck.stem: {"paths": []}}
+        identity_path.write_text(json.dumps(identity), encoding="utf-8")
+        context_path = self.root / "project-context.md"
+        context_text = context_path.read_text(encoding="utf-8")
+        context_text = "\n".join(
+            line for line in context_text.splitlines() if not line.startswith("ORDER-OBSERVATION:")
+        )
+        context_path.write_text(
+            context_text + "\nORDER-OBSERVATION: "
+            + json.dumps({self.deck.stem: {"paths": []}}) + "\n", encoding="utf-8",
+        )
         canonical_root = self.root / "canonical-output"
         canonical = canonical_root / "course-assignments" / self.deck.name
         canonical.parent.mkdir(parents=True, exist_ok=True)

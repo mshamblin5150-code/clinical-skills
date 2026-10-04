@@ -120,7 +120,7 @@ Every owed place has exactly one entry. A searched path carries `ROOT`, `TERMS`,
 opened identifiers only. `OPENED: none` records a bounded miss, never a settled negative.
 `unreadable` or `absent` blocks unless the confirmed header waives that exact place.
 
-Run `python tools/project_context.py <run-directory> --write` after retrieval and before drafting.
+Run `python tools/project_context.py <run-directory> --write --submission <submission-key>` after retrieval and before drafting.
 When service items were opened, pass a `place -> item identifier -> returned text` JSON object on
 standard input with `--service-payloads -`; the command hashes the returned text without storing it.
 The command hashes opened file bytes, writes every item hash and the sorted-triple context digest,
@@ -128,6 +128,29 @@ and exits 0 only when the gate passes. Exit 1 is a finding. Exit 2 means the owe
 established, including an unavailable registry or unregistered project. The completion grader
 rehashes file items; drift is exit-2 coverage, while a finding still wins. It does not retrieve
 service items again.
+
+### Draft order
+
+Capture `voice-reads/<submission-key>/supplied-voice.json` before the gates. The identity gate
+requires that file before writing its record. Use the terminal submission key for both commands;
+when staging a coursework draft under standing rule 6, use that key as the pass folder's name.
+The gates retain their first observation for each key across reruns. Keep their machine-written
+observations when amending and re-confirming the project-context header; reruns refresh retrieval
+and model identity without replacing the historical observation.
+
+A draft present before the first gate is a finding even though the gate writes its record and
+hashes. Stop for the clinician's ruling. If cleared, add a line to the confirmed header and rerun
+with the same key:
+
+```text
+ORDER-WAIVE: <absolute draft path> - <what was drafted before the gate>; proceed, per the clinician
+```
+
+Each observed path needs its own matching waiver; a different path clears nothing. Before the
+go-ahead, read `project_context.completion_gate(run, submission)` and
+`voice_model_identity.completion_gate(run, submission)`. Present and unwaived blocks approval.
+Show any late observation and its waiver to the clinician, including the waived-observation count
+reported by both records' existing completion rows.
 
 Before any go-ahead, a fresh context receives only the final draft, `claims.md`, and the headings
 with digests printed by `research_ledger.py --heading-digests`, plus every item pointer recorded in

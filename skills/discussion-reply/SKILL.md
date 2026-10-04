@@ -170,15 +170,7 @@ command.
 
 ## 3. Draft reply one
 
-Immediately before drafting the first prose, run:
-
-```bash
-python tools/project_context.py scratch/runs/<run-key> --write
-python tools/voice_model_identity.py scratch/runs/<run-key> --write
-python tools/voice_model_scan.py
-```
-
-Also before each reply's first prose, write that reply's
+Before each reply's first prose, write that reply's
 `voice-reads/<submission-key>/supplied-voice.json` by
 [voice-read.md](../_shared/reference/voice-read.md) step 1: quote every image or reasoning ground the
 clinician authored in that reply's run input, exclude faculty, classmate, and source language, or
@@ -189,6 +181,19 @@ First write and confirm `project-context.md`, then retrieve every place owed by
 unregistered project stops for the clinician's answer; an unreachable place stops until it is
 readable or the clinician confirms its waiver. A later direction amends and re-confirms the record
 before prose resumes.
+
+Immediately before drafting the first prose, run:
+
+```bash
+python tools/project_context.py scratch/runs/<run-key> --write --submission <submission-key>
+python tools/voice_model_identity.py scratch/runs/<run-key> --write --submission <submission-key>
+python tools/voice_model_scan.py
+```
+
+Use the terminal submission key: that reply's `response-<name>.md` filename; run both gates separately before each reply.
+Use the [shared draft-order procedure](../_shared/reference/sourcing.md#draft-order)
+for keyed staging, retained observations, clinician waivers, and the pre-approval reading.
+At the go-ahead, show any late gate and its waived-observation count.
 
 Read only the canonical path the identity command reports, especially the confirmed reflective and argumentative register. Use
 its discriminating pairs and confirmed constructions. Do not reproduce chat typos or lowercase

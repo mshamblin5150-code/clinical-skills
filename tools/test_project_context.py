@@ -24,7 +24,7 @@ class ProjectContextFixture(unittest.TestCase):
         self._temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self._temporary.cleanup)
         self.root = Path(self._temporary.name).resolve()
-        self.run = self.root / "run"
+        self.run = self.root / "atlas-discussion"
         self.run.mkdir()
         self.memory = self.root / "memory-index.md"
         self.location = self.root / "atlas"
@@ -104,6 +104,7 @@ class ProjectContextFixture(unittest.TestCase):
             return context.write_record(
                 self.run,
                 service_payloads=self.service_payloads if payloads is None else payloads,
+                submission="submission",
             )
 
     def complete(self, submission: str | None = "submission") -> context.CompletionGate:

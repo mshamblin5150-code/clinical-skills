@@ -17,6 +17,7 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Mapping, TypeVar
 
+import coursework_run
 import aar_scan
 import repo_root
 import run_grader
@@ -40,7 +41,9 @@ COMPLETION_GRADERS = MappingProxyType(
 DECLARED_LIMITS = (
     (
         "retrieval-before-draft-unobservable",
-        "The record cannot prove that retrieval finished before the first draft prose was written.",
+        "The historical first observation cannot see a draft deleted or moved before the gate, "
+        "prose at other locations, or conversation prose saved only after the gates. "
+        "Order waivers depend on this confirmed header across both records.",
     ),
     (
         "agreement-is-a-reading",
@@ -81,7 +84,7 @@ _OPENED = re.compile(
     re.IGNORECASE,
 )
 _HEADER_FIELDS = frozenset(
-    {"PROJECT-CONTEXT", "PROJECT-SEARCH", "PROJECT-WAIVE", "CONFIRMED", "CONTEXT-DIGEST"}
+    {"PROJECT-CONTEXT", "PROJECT-SEARCH", "PROJECT-WAIVE", "CONFIRMED", "CONTEXT-DIGEST", "ORDER-WAIVE", "ORDER-OBSERVATION"}
 )
 _ENTRY_FIELDS = frozenset(
     {
@@ -96,7 +99,7 @@ _ENTRY_FIELDS = frozenset(
         "DETAIL",
     }
 )
-_REPEATABLE_HEADER = frozenset({"PROJECT-SEARCH", "PROJECT-WAIVE"})
+_REPEATABLE_HEADER = frozenset({"PROJECT-SEARCH", "PROJECT-WAIVE", "ORDER-WAIVE", "ORDER-OBSERVATION"})
 _REPEATABLE_ENTRY = frozenset({"QUERY", "OPENED"})
 TScan = TypeVar("TScan")
 
@@ -507,6 +510,8 @@ def _render(
     lines = [f"PROJECT-CONTEXT: {record.value('PROJECT-CONTEXT')}"]
     lines.extend(f"PROJECT-SEARCH: {value}" for value in record.values("PROJECT-SEARCH"))
     lines.extend(f"PROJECT-WAIVE: {value}" for value in record.values("PROJECT-WAIVE"))
+    lines.extend(f"ORDER-WAIVE: {value}" for value in record.values("ORDER-WAIVE"))
+    lines.extend(f"ORDER-OBSERVATION: {value}" for value in record.values("ORDER-OBSERVATION"))
     lines.append(f"CONFIRMED: {record.value('CONFIRMED')}")
     lines.append(f"CONTEXT-DIGEST: {digest}")
     field_order = (
@@ -531,7 +536,7 @@ def _render(
     return "\n".join(lines) + "\n"
 
 
-def write_record(
+def _write_context_record(
     run: Path,
     *,
     service_payloads: Mapping[str, Mapping[str, str | bytes]] | None = None,
@@ -650,6 +655,66 @@ def write_record(
     )
 
 
+def order_observations(run: Path) -> dict:
+    """Read only the project record's machine observations."""
+    record = read_record((run / RECORD_NAME).read_text(encoding="utf-8"))
+    observations = {}
+    for value in record.values("ORDER-OBSERVATION"):
+        row = json.loads(value)
+        coursework_run.validate_observations(row)
+        if observations.keys() & row.keys():
+            raise ValueError("duplicate draft observation")
+        observations.update(row)
+    return observations
+
+
+def order_waived(run: Path, submission: str, draft_path: str) -> bool:
+    """Answer the cross-record waiver question without exposing record parsing."""
+    try:
+        record = read_record((run / RECORD_NAME).read_text(encoding="utf-8"))
+        if _duplicates(record) or len(record.values("CONFIRMED")) != 1 or _confirmation_error(record.value("CONFIRMED")):
+            return False
+        coursework_run.submission_keys(submission)
+        for value in record.values("ORDER-WAIVE"):
+            match = re.fullmatch(r"(.+?) - (.+?); proceed, per the clinician", value)
+            if match and match[2].strip() and Path(match[1]).is_absolute() and Path(match[1]).resolve() == Path(draft_path).resolve():
+                return True
+    except (OSError, UnicodeError, ValueError):
+        pass
+    return False
+
+
+def write_record(run: Path, *, service_payloads=None, submission: str | None = None) -> GateResult:
+    """Refresh retrieval and retain each sitting's first draft observation."""
+    if submission is not None:
+        keys = coursework_run.submission_keys(submission)
+        if len(keys) != 1:
+            raise ValueError("write one submission observation at a time")
+        observations = coursework_run.observe_draft(run, keys[0], order_observations(run))
+        path = run / RECORD_NAME
+        text = path.read_text(encoding="utf-8")
+        lines = [line for line in text.splitlines() if not line.startswith("ORDER-OBSERVATION:")]
+        lines.insert(0, "ORDER-OBSERVATION: " + json.dumps(observations))
+        path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    result = _write_context_record(run, service_payloads=service_payloads)
+    if submission is None:
+        return result
+    order = coursework_run.grade_order(order_observations(run), submission, lambda key, path: order_waived(run, key, path))
+    return replace(result, exit_code=1 if order.finding else result.exit_code, report=result.report + "; " + order.report)
+
+
+def completion_gate(run: Path, submission: str | None) -> CompletionGate:
+    result = _context_completion_gate(run, submission)
+    if submission is None:
+        return result
+    try:
+        observations = order_observations(run)
+    except (OSError, UnicodeError, ValueError):
+        observations = None
+    order = coursework_run.grade_order(observations, submission, lambda key, path: order_waived(run, key, path))
+    return replace(result, finding=result.finding or order.finding, report=result.report + "; " + order.report)
+
+
 def recorded_digest(run: Path) -> str:
     """Return the machine-written digest for the shared heading-read binding."""
     try:
@@ -660,7 +725,7 @@ def recorded_digest(run: Path) -> str:
         return ""
 
 
-def completion_gate(run: Path, submission: str | None) -> CompletionGate:
+def _context_completion_gate(run: Path, submission: str | None) -> CompletionGate:
     """Grade record shape, fingerprint integrity, and current file identities."""
     if submission is None:
         return CompletionGate(
@@ -835,7 +900,7 @@ def main(argv: list[str]) -> int:
     if len(argv) < 2 or argv[1] != "--write":
         print(
             "usage: python tools/project_context.py <run-directory> --write "
-            "[--service-payloads -]",
+            "--submission <key> [--service-payloads -]",
             file=sys.stderr,
         )
         return 2
@@ -844,10 +909,14 @@ def main(argv: list[str]) -> int:
         print(f"project context NOT WRITTEN - no run directory at {run}", file=sys.stderr)
         return 2
     try:
-        payloads = _service_payloads(argv[2:])
-        result = write_record(run, service_payloads=payloads)
+        arguments = argv[2:]
+        if len(arguments) < 2 or arguments[0] != "--submission":
+            raise ValueError("--submission is required")
+        submission = arguments[1]
+        payloads = _service_payloads(arguments[2:])
+        result = write_record(run, service_payloads=payloads, submission=submission)
     except (OSError, UnicodeError, ValueError, json.JSONDecodeError):
-        print("project context NOT WRITTEN - service input is unreadable", file=sys.stderr)
+        print("project context NOT WRITTEN - submission or record input is unreadable", file=sys.stderr)
         return 2
     stream = sys.stdout if result.exit_code == 0 else sys.stderr
     print(result.report, file=stream)

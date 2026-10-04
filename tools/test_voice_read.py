@@ -78,7 +78,8 @@ class CompletionGate(unittest.TestCase):
         )
         (self.run / "voice-model-identity.json").write_text(
             json.dumps(
-                {"path": str(self.model), "sha256": digest(MODEL), "exists": True}
+                {"path": str(self.model), "sha256": digest(MODEL), "exists": True,
+                 "observations": {"critique": {"paths": []}}}
             )
             + "\n",
             encoding="utf-8",
@@ -708,7 +709,8 @@ class PublicCompletionCommand(unittest.TestCase):
         )
         (self.run / voice_model_identity.RECORD_NAME).write_text(
             json.dumps(
-                {"path": str(self.model), "sha256": digest(MODEL), "exists": True}
+                {"path": str(self.model), "sha256": digest(MODEL), "exists": True,
+                 "observations": {"critique": {"paths": []}}}
             )
             + "\n",
             encoding="utf-8",

@@ -871,14 +871,7 @@ In skeleton order, in his voice — [../_shared/reference/style.md](../_shared/r
 part that matters most is that the voice is **first person and decisive**. `I would`, `I will`,
 `I'm going to stop`. Never *the provider should consider*.
 
-Immediately before drafting the first prose, run:
-
-```bash
-python tools/project_context.py scratch/runs/<run-key> --write
-python tools/voice_model_identity.py scratch/runs/<run-key> --write
-```
-
-Also before that first prose, write `voice-reads/<submission-key>/supplied-voice.json` by
+Before that first prose, write `voice-reads/<submission-key>/supplied-voice.json` by
 [voice-read.md](../_shared/reference/voice-read.md) step 1: quote every image or reasoning ground the
 clinician authored in this run's input, exclude faculty and source language, or record explicit
 `none`.
@@ -888,6 +881,18 @@ First write and confirm `project-context.md`, then retrieve every place owed by
 unregistered project stops for the clinician's answer; an unreachable place stops until it is
 readable or the clinician confirms its waiver. A later direction amends and re-confirms the record
 before prose resumes.
+
+Immediately before drafting the first prose, run:
+
+```bash
+python tools/project_context.py scratch/runs/<run-key> --write --submission <submission-key>
+python tools/voice_model_identity.py scratch/runs/<run-key> --write --submission <submission-key>
+```
+
+Use the terminal submission key: the dated output Markdown stem.
+Use the [shared draft-order procedure](../_shared/reference/sourcing.md#draft-order)
+for keyed staging, retained observations, clinician waivers, and the pre-approval reading.
+At the go-ahead, show any late gate and its waived-observation count.
 
 **Read only the canonical path the identity command reports**, and write each section in the register that
 section takes — the MDM, the patient education and the reflective prose are three different voices
