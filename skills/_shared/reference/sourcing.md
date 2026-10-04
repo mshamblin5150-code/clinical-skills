@@ -133,7 +133,7 @@ service items again.
 
 Capture `voice-reads/<submission-key>/supplied-voice.json` before the gates. The identity gate
 requires that file before writing its record. Use the terminal submission key for both commands;
-when staging coursework under standing rule 6, use that key as the pass folder's name.
+when staging a coursework draft under standing rule 6, use that key as the pass folder's name.
 The gates retain their first observation for each key across reruns. Keep their machine-written
 observations when amending and re-confirming the project-context header; reruns refresh retrieval
 and model identity without replacing the historical observation.
