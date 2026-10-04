@@ -15,6 +15,8 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import TypeVar
 
+import coursework_run
+import project_context
 import aar_scan
 import repo_root
 import run_grader
@@ -38,6 +40,12 @@ COMPLETION_GRADERS = MappingProxyType(
 )
 DECLARED_LIMITS = (
     (
+        "retrieval-before-draft-unobservable",
+        "The historical first observation cannot see a draft deleted or moved before the gate, "
+        "prose at other locations, or conversation prose saved only after the gates. "
+        "Order waivers depend on the confirmed project-context header through its public reader.",
+    ),
+    (
         "resolution-is-not-use",
         "a true canonical resolution record does not establish which source the draft used",
     ),
@@ -58,14 +66,30 @@ class CompletionGate:
     report: str
 
 
-def write_record(run: Path) -> str:
+def write_record(run: Path, submission: str | None = None) -> str:
     """Resolve once and write that resolution into ``run`` at draft time."""
+    observations = {}
+    if submission is not None:
+        keys = coursework_run.submission_keys(submission)
+        if len(keys) != 1:
+            raise ValueError("write one submission observation at a time")
+        if not (run / "voice-reads" / submission / "supplied-voice.json").is_file():
+            raise ValueError("supplied-voice.json is required before the identity gate")
+        record = run / RECORD_NAME
+        if record.is_file():
+            previous = json.loads(record.read_text(encoding="utf-8"))
+            if not _valid_record(previous):
+                raise ValueError("existing voice identity record is invalid")
+            observations = previous.get("observations", {})
+        observations = coursework_run.observe_draft(run, submission, observations)
     resolved = repo_root.canonical_voice_model()
     payload = {
         "path": str(resolved.path),
         "sha256": resolved.sha256,
         "exists": resolved.exists,
     }
+    if submission is not None:
+        payload["observations"] = observations
     (run / RECORD_NAME).write_text(
         json.dumps(payload, indent=2) + "\n",
         encoding="utf-8",
@@ -76,7 +100,11 @@ def write_record(run: Path) -> str:
 
 
 def _valid_record(payload: object) -> bool:
-    if not isinstance(payload, dict) or frozenset(payload) != _RECORD_KEYS:
+    if not isinstance(payload, dict) or frozenset(payload) not in {_RECORD_KEYS, _RECORD_KEYS | {"observations"}}:
+        return False
+    try:
+        coursework_run.validate_observations(payload.get("observations", {}))
+    except ValueError:
         return False
     path = payload.get("path")
     digest = payload.get("sha256")
@@ -88,7 +116,7 @@ def _valid_record(payload: object) -> bool:
     return digest is None
 
 
-def completion_gate(run: Path, submission: str | None) -> CompletionGate:
+def _identity_completion_gate(run: Path, submission: str | None) -> CompletionGate:
     """Grade the draft-time identity record when a terminal submission is named."""
     if submission is None:
         return CompletionGate(
@@ -130,6 +158,19 @@ def completion_gate(run: Path, submission: str | None) -> CompletionGate:
     )
 
 
+def completion_gate(run: Path, submission: str | None) -> CompletionGate:
+    result = _identity_completion_gate(run, submission)
+    if submission is None:
+        return result
+    try:
+        payload = json.loads((run / RECORD_NAME).read_text(encoding="utf-8"))
+        observations = payload.get("observations") if isinstance(payload, dict) else None
+    except (OSError, UnicodeError, ValueError):
+        observations = None
+    order = coursework_run.grade_order(observations, submission, lambda key, path: project_context.order_waived(run, key, path))
+    return replace(result, finding=result.finding or order.finding, report=result.report + "; " + order.report)
+
+
 def apply_completion_gate(
     grade: run_grader.Grade[TScan],
     run: Path,
@@ -152,9 +193,9 @@ def apply_completion_gate(
 
 
 def main(argv: list[str]) -> int:
-    if len(argv) != 2 or argv[1] != "--write":
+    if len(argv) != 4 or argv[1] != "--write" or argv[2] != "--submission":
         print(
-            "usage: python tools/voice_model_identity.py <run-directory> --write",
+            "usage: python tools/voice_model_identity.py <run-directory> --write --submission <key>",
             file=sys.stderr,
         )
         return 2
@@ -163,10 +204,18 @@ def main(argv: list[str]) -> int:
         print(f"voice model identity NOT WRITTEN -- no run directory at {run}", file=sys.stderr)
         return 2
     try:
-        print(write_record(run))
-    except (OSError, UnicodeError) as failure:
+        submission = argv[3]
+        print(write_record(run, submission))
+        order = coursework_run.grade_order(
+            json.loads((run / RECORD_NAME).read_text(encoding="utf-8"))["observations"],
+            submission, lambda key, path: project_context.order_waived(run, key, path),
+        )
+        print(order.report)
+        if order.finding:
+            return 1
+    except (OSError, UnicodeError, ValueError) as failure:
         print(f"voice model identity NOT WRITTEN -- {failure}", file=sys.stderr)
-        return 2
+        return 1 if isinstance(failure, ValueError) else 2
     return 0
 
 

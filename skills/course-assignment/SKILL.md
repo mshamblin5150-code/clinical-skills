@@ -42,7 +42,8 @@ goes only to `output/course-assignments/<course>-<module>-course-assignment-<dat
 stem ending in `.docx`, according to the signed branch. When the run is launched from a worktree,
 resolve that directory from `repo_root.output_root()` so it belongs to the owning checkout; never
 derive it from the worktree's module root. The reviewed artifact may be built in a run-unique
-private writer path, but before approval its canonical copy must exist at that resolved path and
+private writer path under `scratch/runs/<run-key>/writer/<submission-key>/`, for both the
+deck and DOCX branches, but before approval its canonical copy must exist at that resolved path and
 have the same raw-byte SHA-256. Images used
 to author it stay in the run directory unless they are already durable public assets. Parallel
 research, refutation, adversarial, and checking contexts each receive a new run-unique private
@@ -141,18 +142,30 @@ reader's work.
 
 ## 3. Produce the deck
 
+Before that first prose, write `voice-reads/<submission-key>/supplied-voice.json` by
+[voice-read.md](../_shared/reference/voice-read.md) step 1: quote every image or reasoning ground the
+clinician authored in this run's input, exclude faculty and source language, or record explicit
+`none`.
+
 Immediately before drafting the first prose, write and confirm the project declaration, retrieve
 every place owed by [sourcing.md](../_shared/reference/sourcing.md), then run both gates:
 
 ```bash
-python tools/project_context.py scratch/runs/<course>-<module>-course-assignment --write
-python tools/voice_model_identity.py scratch/runs/<course>-<module>-course-assignment --write
+python tools/project_context.py scratch/runs/<course>-<module>-course-assignment --write --submission <submission-key>
+python tools/voice_model_identity.py scratch/runs/<course>-<module>-course-assignment --write --submission <submission-key>
 ```
 
-Also before that first prose, write `voice-reads/<submission-key>/supplied-voice.json` by
-[voice-read.md](../_shared/reference/voice-read.md) step 1: quote every image or reasoning ground the
-clinician authored in this run's input, exclude faculty and source language, or record explicit
-`none`.
+Use the terminal submission key: the dated output deck or document stem.
+When staging coursework under standing rule 6, name the pass folder `<submission-key>`.
+Both gates keep their first observation for that key across reruns; retain the machine-written
+observations when amending and re-confirming the header. A draft found before the first gate
+is a finding even though the gate writes its record and hashes. Stop for the clinician's ruling;
+if cleared, add the confirmed `ORDER-WAIVE:` line from
+[sourcing.md](../_shared/reference/sourcing.md) and rerun with the same key.
+Before the go-ahead, read both owning modules' `completion_gate(run, submission)` reports and show
+any late observation and its waiver to the clinician. Present and unwaived blocks approval;
+report the waived-observation count when cleared.
+
 
 The project-context command must exit 0. An unregistered project stops for the clinician's answer;
 an unreachable place stops until it is readable or the clinician confirms its waiver. A later

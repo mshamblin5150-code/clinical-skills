@@ -80,6 +80,7 @@ class CompletionGate(unittest.TestCase):
             "sha256": "a" * 64,
             "exists": True,
         }
+        payload["observations"] = {"submission": {"paths": []}}
         payload.update(changes)
         (self.run / identity.RECORD_NAME).write_text(
             json.dumps(payload) + "\n", encoding="utf-8"
@@ -99,7 +100,7 @@ class CompletionGate(unittest.TestCase):
             identity.CompletionGate(
                 finding=False,
                 coverage=False,
-                report=f"{identity.EXPECTED_ROW}: clean",
+                report=f"{identity.EXPECTED_ROW}: clean; draft order clean; waived observations: 0",
             ),
         )
 

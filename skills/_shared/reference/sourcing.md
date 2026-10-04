@@ -120,7 +120,7 @@ Every owed place has exactly one entry. A searched path carries `ROOT`, `TERMS`,
 opened identifiers only. `OPENED: none` records a bounded miss, never a settled negative.
 `unreadable` or `absent` blocks unless the confirmed header waives that exact place.
 
-Run `python tools/project_context.py <run-directory> --write` after retrieval and before drafting.
+Run `python tools/project_context.py <run-directory> --write --submission <submission-key>` after retrieval and before drafting.
 When service items were opened, pass a `place -> item identifier -> returned text` JSON object on
 standard input with `--service-payloads -`; the command hashes the returned text without storing it.
 The command hashes opened file bytes, writes every item hash and the sorted-triple context digest,
@@ -128,6 +128,17 @@ and exits 0 only when the gate passes. Exit 1 is a finding. Exit 2 means the owe
 established, including an unavailable registry or unregistered project. The completion grader
 rehashes file items; drift is exit-2 coverage, while a finding still wins. It does not retrieve
 service items again.
+
+The gates preserve their first draft observation per submission key. A late observation is a
+finding that the clinician can clear in the confirmed project-context header:
+
+```text
+ORDER-WAIVE: <absolute draft path> - <what was drafted before the gate>; proceed, per the clinician
+```
+
+The path must match the retained observation. Each observed path needs its own waiver; a different
+path clears nothing. Waived observations are counted in both records' existing completion rows.
+The identity gate requires that key's `supplied-voice.json` before it writes, so capture it first.
 
 Before any go-ahead, a fresh context receives only the final draft, `claims.md`, and the headings
 with digests printed by `research_ledger.py --heading-digests`, plus every item pointer recorded in

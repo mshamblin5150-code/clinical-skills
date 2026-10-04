@@ -177,15 +177,7 @@ inventoried in `research_ledger.DECLARED_LIMITS`; this skill points there withou
 
 ## 4. Draft the critique
 
-Immediately before drafting the first prose, run:
-
-```bash
-python tools/project_context.py scratch/runs/<run-key> --write
-python tools/voice_model_identity.py scratch/runs/<run-key> --write
-python tools/voice_model_scan.py
-```
-
-Also before that first prose, write `voice-reads/<submission-key>/supplied-voice.json` by
+Before that first prose, write `voice-reads/<submission-key>/supplied-voice.json` by
 [voice-read.md](../_shared/reference/voice-read.md) step 1: quote every image or reasoning ground the
 clinician authored in this run's input, exclude faculty, classmate, and source language, or record
 explicit `none`.
@@ -195,6 +187,25 @@ First write and confirm `project-context.md`, then retrieve every place owed by
 unregistered project stops for the clinician's answer; an unreachable place stops until it is
 readable or the clinician confirms its waiver. A later direction amends and re-confirms the record
 before prose resumes.
+
+Immediately before drafting the first prose, run:
+
+```bash
+python tools/project_context.py scratch/runs/<run-key> --write --submission <submission-key>
+python tools/voice_model_identity.py scratch/runs/<run-key> --write --submission <submission-key>
+python tools/voice_model_scan.py
+```
+
+Use the terminal submission key: `critique.md`.
+When staging coursework under standing rule 6, name the pass folder `<submission-key>`.
+Both gates keep their first observation for that key across reruns; retain the machine-written
+observations when amending and re-confirming the header. A draft found before the first gate
+is a finding even though the gate writes its record and hashes. Stop for the clinician's ruling;
+if cleared, add the confirmed `ORDER-WAIVE:` line from
+[sourcing.md](../_shared/reference/sourcing.md) and rerun with the same key.
+Before the go-ahead, read both owning modules' `completion_gate(run, submission)` reports and show
+any late observation and its waiver to the clinician. Present and unwaived blocks approval;
+report the waived-observation count when cleared.
 
 Read only the canonical path the identity command reports.
 
