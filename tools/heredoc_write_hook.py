@@ -55,6 +55,14 @@ def _headers(command: str):
         try:
             tokens = list(lexer)
         except ValueError:
+            # A multiline quoted argument (including a commit-message
+            # substitution) is data, not a heredoc header.
+            try:
+                words = shlex.split(command)
+            except ValueError:
+                words = []
+            if not any("\n" in word and "<<" in word for word in words):
+                yield header, None, [], "\n".join(lines[:header_index + 1])
             continue
         delimiters = [
             (tokens[position + 1], token == "<<-")
@@ -158,6 +166,9 @@ def handle(payload: dict) -> dict:
     cwd = Path(payload.get("cwd") or Path.cwd())
     unread = False
     for header, tokens, bodies, prefix in _headers(command):
+        if tokens is None:
+            unread = True
+            continue
         folder = shell_reader.literal_command_folder(
             prefix, lambda piece: "<<" in piece
         )

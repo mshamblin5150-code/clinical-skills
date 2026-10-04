@@ -77,6 +77,7 @@ class HeredocWrites(unittest.TestCase):
 
     def test_unresolved_path_and_powershell_are_reported_unread(self):
         for command, tool in (("cat > \"$DEST\" <<'EOF'\nfixture\nEOF", "Bash"),
+                              ("cat > scratch/note.md <<'EOF\nfixture\nEOF", "Bash"),
                               ("cd $DEST && cat > scratch/note.md <<'EOF'\nfixture\nEOF", "Bash"),
                               ("python - <<'PY'\nopen(\nPY", "Bash"),
                               ("python - <<'PY'\nopen(target, 'w')\nPY", "Bash"),
