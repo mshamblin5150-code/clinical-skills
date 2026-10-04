@@ -26,7 +26,7 @@ DECLARED_LIMITS = (
 
 
 def _private_target(source: str, cwd: Path | None) -> bool | None:
-    if any(character in source for character in "$`~*?"):
+    if source.startswith("~") or any(character in source for character in "$`*?"):
         return None
     target = Path(shell_reader.candidate_paths(source)[-1])
     if not target.is_absolute():

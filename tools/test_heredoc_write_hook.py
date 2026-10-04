@@ -75,6 +75,16 @@ class HeredocWrites(unittest.TestCase):
         response = self.response(command, cwd=Path(self.folder.name))
         self.assertEqual(response["hookSpecificOutput"]["permissionDecision"], "deny")
 
+    def test_literal_tilde_inside_a_path_is_not_shell_expansion(self):
+        checkout = Path(self.folder.name) / "literal~1" / "checkout"
+        checkout.mkdir(parents=True)
+        (checkout / ".git").mkdir()
+        path = (checkout / "scratch" / "note.md").as_posix()
+        response = self.response(f"cat > '{path}' <<'EOF'\nfixture\nEOF", cwd=checkout)
+        self.assertEqual(response["hookSpecificOutput"]["permissionDecision"], "deny")
+        unread = self.response("cat > ~/scratch/note.md <<'EOF'\nfixture\nEOF")
+        self.assertIn("unread", unread["hookSpecificOutput"]["additionalContext"])
+
     def test_unresolved_path_and_powershell_are_reported_unread(self):
         for command, tool in (("cat > \"$DEST\" <<'EOF'\nfixture\nEOF", "Bash"),
                               ("cat > scratch/note.md <<'EOF\nfixture\nEOF", "Bash"),
