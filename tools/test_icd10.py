@@ -256,6 +256,90 @@ class ReleaseProvenance(unittest.TestCase):
         self.assertIn("2026", release)
         self.assertIn("april-1-2026", release)
 
+    def test_an_annual_release_names_the_october_date_it_takes_effect(self):
+        # The FY2027 zips carry no date in their names. An annual release takes
+        # effect on October 1 of the prior calendar year, and the freshness gate
+        # reads that date out of this string.
+        import coding_freshness
+
+        release = build.release_string("2027", Path("icd10cm-code-descriptions-2027.zip"))
+        self.assertIn("october-1-2026", release)
+        connection = sqlite3.connect(":memory:")
+        connection.execute("CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+        connection.execute("INSERT INTO meta VALUES ('release', ?)", (release,))
+        self.assertEqual(
+            coding_freshness.icd_release_token(connection),
+            "October 1, 2026, ICD-10-CM release",
+        )
+
+    def test_an_unreadable_version_never_invents_an_effective_date(self):
+        release = build.release_string(None, Path("icd10cm-code-descriptions-2027.zip"))
+        self.assertNotIn("october-1", release)
+
+
+class ReleasePackaging(unittest.TestCase):
+    """CMS renamed every member between the FY2026 and FY2027 packages."""
+
+    FY2026 = (
+        "Table and Index/icd10cm_tabular_2026.xml",
+        "Table and Index/icd10cm_index_2026.xml",
+        "Table and Index/icd10cm_eindex_2026.xml",
+        "Table and Index/icd10cm_neoplasm_2026.xml",
+        "Table and Index/icd10cm_drug_2026.xml",
+    )
+    FY2027 = (
+        "icd10cm-table-and-index-2027/icd10cm-tabular_-2027.xml",
+        "icd10cm-table-and-index-2027/icd10cm-tabular.xsd",
+        "icd10cm-table-and-index-2027/icd10cm-index-2027.xml",
+        "icd10cm-table-and-index-2027/icd10cm-index.xsd",
+        "icd10cm-table-and-index-2027/icd10cm-eindex-2027.xml",
+        "icd10cm-table-and-index-2027/icd10cm-neoplasm-2027.xml",
+        "icd10cm-table-and-index-2027/icd10cm-drug-2027.xml",
+        "icd10cm-code-descriptions-2027/icd10cm-order-2027.txt",
+        "icd10cm-code-descriptions-2027/icd10cm-order-addenda-2027.txt",
+        "icd10cm-code-descriptions-2027/icd10cm-codes-2027.txt",
+    )
+
+    def zip_holding(self, names: tuple[str, ...]) -> Path:
+        import zipfile
+
+        path = Path(tempfile.mkdtemp()) / "release.zip"
+        with zipfile.ZipFile(path, "w") as archive:
+            for name in names:
+                archive.writestr(name, name)
+        return path
+
+    def test_finds_each_member_in_both_packagings(self):
+        old, new = self.zip_holding(self.FY2026), self.zip_holding(self.FY2027)
+        for kind in ("tabular", "index", "eindex", "neoplasm", "drug"):
+            with self.subTest(kind=kind):
+                self.assertTrue(build.find_member(old, kind).endswith(f"_{kind}_2026.xml"))
+                self.assertIn(f"-{kind}", build.find_member(new, kind))
+        self.assertEqual(
+            build.find_member(new, "order"),
+            "icd10cm-code-descriptions-2027/icd10cm-order-2027.txt",
+        )
+
+    def test_the_index_is_never_the_external_cause_index_and_an_addendum_never_the_order_file(self):
+        new = self.zip_holding(self.FY2027)
+        self.assertNotIn("eindex", build.find_member(new, "index"))
+        self.assertNotIn("addenda", build.find_member(new, "order"))
+
+    def test_a_missing_member_stops_the_build(self):
+        with self.assertRaises(SystemExit):
+            build.find_member(self.zip_holding(self.FY2026), "order")
+
+    def test_finds_the_tables_zip_under_either_name(self):
+        for name in (
+            "april-1-2026-code-tables-tabular-and-index.zip",
+            "icd10cm-table-and-index-2027.zip",
+        ):
+            with self.subTest(name=name):
+                directory = Path(tempfile.mkdtemp())
+                (directory / name).write_bytes(b"")
+                (directory / "icd10cm-addenda-2027.zip").write_bytes(b"")
+                self.assertEqual(build.find_zip(directory, "tables").name, name)
+
 
 def build_excerpt_database(release: str = "test release") -> Path:
     """A throwaway database built from the excerpts, for one test class."""

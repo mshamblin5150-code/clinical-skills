@@ -2211,10 +2211,12 @@ copying its row.
 Rebuild it from the CMS release zips — downloaded, left unextracted — when a new fiscal year lands:
 
 ```bash
-python tools/icd10_build.py "C:/codeing/david_2/icd-10-cm"
+python tools/icd10_build.py "C:/codeing/david_2/icd-10-cm-2027"
 ```
 
-98,186 codes and 22,988 tabular notes from the FY2026 April 1 2026 revision. `meta.release` inside the database names the zip it was built from, because the tabular's own `<version>` reads `2026` and is equally true of two revisions that code differently.
+The path keeps its `2026` name because preserved run records cite it; `meta.release` says which release it holds. The builder prints the code and note counts on every run, so they are not restated here. `meta.release` names the zip the build read, because the tabular's own `<version>` is equally true of two revisions that code differently. An update zip names its date (`april-1-2026-...`); the FY2027 annual zips name none, so the builder writes the annual release's effective date, October 1 of the prior year, which `coding_freshness.py` reads back.
+
+**`coding_freshness.py` is the staleness trigger.** It compares that release with the one CDC's files page lists for the service date and blocks a batch whose committed release is not the applicable one. CMS renamed every member between the FY2026 and FY2027 packages, so the builder finds members by kind with separators removed rather than by path. A rebuild moves `code_set_database_test_support.ICD10_DATABASE_SHA256`, and the modules that pin it are re-run against the new bytes before the constant moves.
 
 **It holds the tabular, not the index.** So it verifies a code and never finds one: `tools/icd10_lookup.py --find` is a substring match over descriptors, which is a weaker thing than the alphabetic index and must not be read as one. The index, the neoplasm table and the drug table are all deliberately out — see the module docstring for what that costs.
 
