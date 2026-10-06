@@ -101,6 +101,7 @@ DECLARED_LIMITS = (
     DeclaredLimit("evidence-without-draft-skips-references", "Evidence grading without a draft cannot inspect citations in the draft reference list.", EvidenceDisposition.BEHAVIOR),
     DeclaredLimit("uptodate-initials-uncompared", "The stored UpToDate masthead check does not compare author initials.", EvidenceDisposition.BEHAVIOR),
     DeclaredLimit("uptodate-trailing-surname-accepted", "An UpToDate entry that shortens a real surname to its trailing words passes.", EvidenceDisposition.BEHAVIOR),
+    DeclaredLimit("uptodate-degree-shaped-name-absorbed", "A stored masthead author whose every name word is degree-shaped, such as an all-capital name following another author's degree, is read as that author's degrees.", EvidenceDisposition.BEHAVIOR),
     DeclaredLimit("non-uptodate-author-year-unchecked", "Authors and years of sources other than a stored UpToDate topic are not checked by this command; the refutation agent verifies them.", EvidenceDisposition.DECLARED_READING),
     DeclaredLimit("reply-reference-label-unchecked", "The discussion-reply path omits draft grading and cannot reject a misspelled references label.", EvidenceDisposition.BEHAVIOR),
 )
@@ -738,9 +739,43 @@ MASTHEAD_AUTHOR = re.compile(
     r"(?P<degree>[A-Z][A-Za-z.]*)(?=,|$)"
     r"(?:,\s*[A-Z][A-Za-z.]*(?=,|$))*)"
 )
-MASTHEAD_LINE_BOUNDARY = re.compile(
-    r"(?<=[A-Za-z.])\s+(?=[A-Z](?:\.?\s+)[A-Z][^,]*,\s*[A-Z])"
-)
+# A degree token: two or more capitals, and at most one lowercase letter after
+# the last capital (MD, PhD, MSc, MPH, FACOG). A name word fails it: a single
+# initial has one capital, and McElrath or DeAnn runs two or more lowercase
+# letters after its last capital.
+MASTHEAD_DEGREE = re.compile(r"^(?=(?:[^A-Z]*[A-Z]){2})[A-Z][A-Za-z.]*?[A-Z]\.?[a-z]?\.?$")
+
+
+def _masthead_is_degree(token: str) -> bool:
+    return bool(MASTHEAD_DEGREE.match(token))
+
+
+def _split_masthead_after_degrees(authors: str) -> str:
+    """Restore the commas a joined masthead lost between authors and degrees.
+
+    The store joins masthead lines with one space and UpToDate writes middle
+    initials without a period, so a line boundary is visible only after a
+    degree: ``Jack D Sobel, MD Caroline Mitchell, MD`` and
+    ``Anna Maya Powell, MD MSc Paul Nyirjesy, MD``. In every comma segment after
+    the first, leading degree tokens are separated by commas, and whatever
+    follows them opens a new author. A segment that does not open on a degree is
+    left untouched, so a name is never split after a name word.
+    """
+    segments = authors.split(",")
+    rebuilt = [segments[0]]
+    for segment in segments[1:]:
+        tokens = segment.split()
+        degrees = 0
+        while degrees < len(tokens) and _masthead_is_degree(tokens[degrees]):
+            degrees += 1
+        if degrees == 0:
+            rebuilt.append(segment)
+            continue
+        pieces = tokens[:degrees]
+        if degrees < len(tokens):
+            pieces.append(" ".join(tokens[degrees:]))
+        rebuilt.append(" " + ", ".join(pieces))
+    return ",".join(rebuilt)
 
 
 def _unmatched_author_text(text: str, matches: list[re.Match[str]]) -> str:
@@ -764,7 +799,7 @@ def _apa_surnames(entry: str) -> tuple[tuple[str, ...], bool]:
 
 
 def _masthead_names(authors: str) -> tuple[tuple[str, ...], bool]:
-    authors = MASTHEAD_LINE_BOUNDARY.sub(", ", authors)
+    authors = _split_masthead_after_degrees(authors)
     matches = list(MASTHEAD_AUTHOR.finditer(authors))
     names = tuple(
         _normalize_name(match.group("surname") or match.group("name"))
