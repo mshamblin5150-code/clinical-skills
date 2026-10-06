@@ -100,7 +100,7 @@ It returns the extended percentile, percent of the 95th percentile, the exact `Z
 
 **Use the age the encounter can support.** A date of birth and encounter date produce completed months. Where the shorthand gives only whole years, use `--age-years`: the tool fills the midpoint month deterministically and says so. That filled month joins height and weight on `SOURCE: filled` and in step 4's `CODED, ANCHOR WAS FILLED` block; a guessed month never becomes a documented birth date. The clinician submitting the encounter confirms it during the ordinary filled-content review; nobody is an implementation-time approval gate.
 
-The confidence line names both checks: `verified against ICD-10-CM FY2026 and CDC 2022 Extended BMI-for-Age`. A filled height, weight or age month still carries its provenance disclosure, but the band itself is computed rather than recalled.
+The confidence line names both checks: `verified against ICD-10-CM FY2027 and CDC 2022 Extended BMI-for-Age`, naming the fiscal year of the committed release. A filled height, weight or age month still carries its provenance disclosure, but the band itself is computed rather than recalled.
 
 ## Steps
 
@@ -150,7 +150,7 @@ ICD-10  <code>  <official descriptor>
   ANCHOR: "<verbatim note text>"
   SOURCE: filled — <which inputs were filled>; confirm before submitting
   SPECIFICITY: <complete — why nothing further applies | needs: laterality / episode / site / severity / a billable child>
-  CONFIDENCE: <verified against ICD-10-CM FY2026 | verify this number>
+  CONFIDENCE: <verified against ICD-10-CM FY2027 | verify this number>
 ```
 
 **Every field value owns one physical line.** `SOURCE:` and `SPECIFICITY:` are
@@ -510,7 +510,7 @@ They get their own section, with a descriptor, anchor, and confidence line:
 <the diagnosis, why it was considered, and — when the code is proposed above — why it repeats here>
 ICD-10  J20.9  Acute bronchitis, unspecified   NOT FOR ENTRY
   ANCHOR: "<verbatim note text>"
-  CONFIDENCE: verified against ICD-10-CM FY2026
+  CONFIDENCE: verified against ICD-10-CM FY2027
 ```
 
 **`NOT FOR ENTRY` is on the code's own line, and the heading is not enough by itself.** That is step 4's reasoning applied to a second block, for the same reason: a block heading does not survive being copied one line at a time. A note runs its differential five to seven deep, so this is five to seven code numbers sitting above the ones the clinician is actually there to enter.
@@ -667,7 +667,7 @@ encounter's account-backed patient status must all pass. The rendered worksheet 
 
 **Every specificity flag carries substance beyond its keyword — a bare `complete` and a bare `needs:` both fail.** Present-but-bare is the one way a part can be there and still fail, which is why it is said here as well as in step 3. A descriptor saying `unspecified` or `not specified` may read `complete` only when the reason explains why nothing the bedside can supply would move the code; `python tools/specificity_scan.py <run directory>` enforces the reason and reports that shape as advisory for a reader.
 
-**Every for-entry ICD-10 code has a separated read whose reader did not see the worksheet.** Every subject code is covered; every source fact agrees with the committed FY2026 release; and the original reason has been read beside the independent `"about"` account. A missing or partial read is not completion. Agreement is a smoke test and never proof.
+**Every for-entry ICD-10 code has a separated read whose reader did not see the worksheet.** Every subject code is covered; every source fact agrees with the committed ICD-10-CM release; and the original reason has been read beside the independent `"about"` account. A missing or partial read is not completion. Agreement is a smoke test and never proof.
 
 **A differential code is a distinct shape.** It carries number, descriptor, anchor, confidence, and `NOT FOR ENTRY` on the code line. An entry proposal also carries specificity and, where filled, source. The `NOT FOR ENTRY` marker, not a part count, identifies the reasoning code.
 

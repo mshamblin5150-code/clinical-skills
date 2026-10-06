@@ -19,8 +19,9 @@ and that sentence is the whole of what this scans.
 - **A pediatric band names the CDC computation.** [#123] retired the old test
   forbidding an ICD-only verification claim. Its replacement checks the evidence
   the new rule requires: every for-entry ``Z68.5-`` carries the affirmative line
-  ``verified against ICD-10-CM FY2026 and CDC 2022 Extended BMI-for-Age`` in
-  ``CONFIDENCE``. A bare ``verify this number`` -- or a sentence merely naming an
+  ``verified against ICD-10-CM FY<year> and CDC 2022 Extended BMI-for-Age`` in
+  ``CONFIDENCE``, where the year is the committed release's fiscal year when the
+  worksheet was written (preserved records keep the year they were verified against). A bare ``verify this number`` -- or a sentence merely naming an
   unavailable table -- proves the calculator was skipped.
 
 The complete boundary of a clean result is declared in
@@ -81,7 +82,7 @@ SOURCE = re.compile(r"(?mi)^[ \t]*SOURCE[ \t]*:[ \t]*(.*?)[ \t]*$")
 CONFIDENCE = re.compile(r"(?mi)^[ \t]*CONFIDENCE[ \t]*:[ \t]*(.*?)[ \t]*$")
 FILLED = re.compile(r"(?i)^filled\b")
 CDC_COMPUTED = re.compile(
-    r"(?i)^verified against ICD-10-CM FY2026 and "
+    r"(?i)^verified against ICD-10-CM FY20\d{2} and "
     r"CDC 2022 Extended BMI-for-Age\.?$"
 )
 

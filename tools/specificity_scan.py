@@ -450,15 +450,15 @@ def _fact_refusals(
     code = normalize(str(fact["code"]))
     official = describe(connection, code)
     if official is None:
-        return [f"{label} {fact['code']} is not in ICD-10-CM FY2026"]
+        return [f"{label} {fact['code']} is not in ICD-10-CM, the committed release"]
     refusals: list[str] = []
     if fact["descriptor"] != official.long:
-        refusals.append(f"{label} {fact['code']} descriptor disagrees with FY2026")
+        refusals.append(f"{label} {fact['code']} descriptor disagrees with the committed release")
     if fact["billable"] is not official.billable:
-        refusals.append(f"{label} {fact['code']} billable disagrees with FY2026")
+        refusals.append(f"{label} {fact['code']} billable disagrees with the committed release")
     official_notes = sorted((note.code, note.kind, note.text) for note in notes_for(connection, code))
     if _note_tuples(fact) != official_notes:
-        refusals.append(f"{label} {fact['code']} notes disagree with FY2026")
+        refusals.append(f"{label} {fact['code']} notes disagree with the committed release")
     return refusals
 
 
@@ -475,9 +475,9 @@ def _family_refusals(record: dict, connection: sqlite3.Connection, label: str) -
     recorded_codes = {normalize(str(fact["code"])) for fact in record["family"]}
     refusals: list[str] = []
     if subject not in official_codes:
-        refusals.append(f"{label} {record['code']} is not in ICD-10-CM FY2026")
+        refusals.append(f"{label} {record['code']} is not in ICD-10-CM, the committed release")
     if recorded_codes != official_codes:
-        refusals.append(f"{label} {record['code']} family coverage disagrees with FY2026")
+        refusals.append(f"{label} {record['code']} family coverage disagrees with the committed release")
     for fact in record["family"]:
         refusals.extend(_fact_refusals(fact, connection, f"{label} {record['code']} family"))
     return refusals

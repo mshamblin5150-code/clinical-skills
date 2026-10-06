@@ -14,7 +14,7 @@ insufficient on its own.
 
 **What is not in here, and what that costs.**
 
-- **Anything above the tabular's own text.** Coding *guidelines* — the FY2026
+- **Anything above the tabular's own text.** Coding *guidelines* — each fiscal year's
   official guidelines PDF — are not machine-readable here and are not shipped.
   This database answers "does this code exist, what does it mean, is it billable,
   and what notes govern it". It does not answer "is this the right code".
@@ -26,6 +26,7 @@ Stdlib only, like everything in ``tools/``. Its parsers are covered by
 from __future__ import annotations
 
 import argparse
+import re
 import sqlite3
 import sys
 import xml.etree.ElementTree as ET
@@ -38,15 +39,29 @@ from console_codec import require_python_floor, use_utf8
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_OUT = REPO_ROOT / "reference" / "icd10cm-2026.sqlite"
 
-# Members inside the release zips. CMS has kept these names stable across recent
-# fiscal years; a rename shows up as a clean KeyError from ``read_member`` rather
-# than as a silently empty table.
-ORDER_MEMBER = "Code Descriptions/icd10cm_order_2026.txt"
-TABULAR_MEMBER = "Table and Index/icd10cm_tabular_2026.xml"
-INDEX_MEMBER = "Table and Index/icd10cm_index_2026.xml"
-EXTERNAL_CAUSE_INDEX_MEMBER = "Table and Index/icd10cm_eindex_2026.xml"
-NEOPLASM_MEMBER = "Table and Index/icd10cm_neoplasm_2026.xml"
-DRUG_MEMBER = "Table and Index/icd10cm_drug_2026.xml"
+# Members inside the release zips are found by kind rather than by path. FY2026
+# shipped ``Table and Index/icd10cm_tabular_2026.xml``; FY2027 renamed every
+# folder and file, and shipped ``icd10cm-tabular_-2027.xml``. So a member's file
+# name is compared with separators removed, against ``icd10cm<kind><year>``.
+# Exactly one match is required: an addendum or a schema never stands in for a
+# member, and a missing member stops the build rather than leaving a table empty.
+MEMBER_SUFFIX = {
+    "order": "txt",
+    "tabular": "xml",
+    "index": "xml",
+    "eindex": "xml",
+    "neoplasm": "xml",
+    "drug": "xml",
+}
+
+# The zips themselves, found by kind with separators removed from the name.
+ZIP_MARKERS = {
+    "descriptions": ("codedescriptions",),
+    "tables": ("codetables", "tableandindex"),
+}
+
+# A revision date written into a zip's name, as in ``april-1-2026-...``.
+REVISION_IN_NAME = re.compile(r"(april|october)[-_ ]1[-_ ](20\d{2})", re.I)
 
 # The order file is fixed-width, and the columns are positional rather than
 # delimited: five-digit order number, then the code, then the billable flag, then
@@ -235,10 +250,18 @@ def release_string(version: str | None, source: Path) -> str:
     The tabular's own ``<version>`` reads ``2026``, which is equally true of the
     October 2025 and the April 2026 revisions — and codes changed between them.
     So the zip that was actually read is named alongside it.
+
+    An update zip names its revision date (``april-1-2026-...``). The FY2027
+    annual zips name none, so for a zip without a date the annual release's
+    effective date is written: fiscal year N takes effect October 1 of N - 1.
+    ``coding_freshness`` reads that date back out of this string.
     """
     # Plain ASCII: this string is printed to a Windows console, where a dash
     # outside cp1252 comes back as a question mark and reads like corruption.
-    return f"ICD-10-CM FY{version or 'unknown'}, built from {source.name}"
+    built = f"ICD-10-CM FY{version or 'unknown'}, built from {source.name}"
+    if REVISION_IN_NAME.search(source.name) or not (version and version.isdigit()):
+        return built
+    return f"ICD-10-CM FY{version}, october-1-{int(version) - 1} annual release, built from {source.name}"
 
 
 SCHEMA = """
@@ -322,11 +345,33 @@ def read_member(zip_path: Path, member: str) -> str:
         return archive.read(member).decode("utf-8", errors="replace")
 
 
-def find_zip(directory: Path, marker: str) -> Path:
-    matches = sorted(p for p in directory.glob("*.zip") if marker in p.name.lower())
+def _squash(name: str) -> str:
+    return re.sub(r"[^a-z0-9.]", "", name.lower())
+
+
+def find_member(zip_path: Path, kind: str) -> str:
+    pattern = re.compile(rf"icd10cm{kind}20\d{{2}}\.{MEMBER_SUFFIX[kind]}")
+    with zipfile.ZipFile(zip_path) as archive:
+        matches = [
+            name
+            for name in archive.namelist()
+            if pattern.fullmatch(_squash(name.rsplit("/", 1)[-1]))
+        ]
+    if len(matches) != 1:
+        raise SystemExit(
+            f"expected one {kind} member in {zip_path.name}, found {len(matches)}"
+        )
+    return matches[0]
+
+
+def find_zip(directory: Path, kind: str) -> Path:
+    markers = ZIP_MARKERS[kind]
+    matches = sorted(
+        p for p in directory.glob("*.zip") if any(m in _squash(p.name) for m in markers)
+    )
     if not matches:
         raise SystemExit(
-            f"no zip matching {marker!r} in {directory}. "
+            f"no {kind} zip in {directory}. "
             "Expected the CMS release zips, downloaded and left unextracted."
         )
     return matches[-1]
@@ -340,17 +385,15 @@ def main(argv: list[str]) -> int:
     if not args.release.is_dir():
         raise SystemExit(f"not a directory: {args.release}")
 
-    descriptions = find_zip(args.release, "code-descriptions")
-    tables = find_zip(args.release, "code-tables")
+    descriptions = find_zip(args.release, "descriptions")
+    tables = find_zip(args.release, "tables")
 
-    tabular = read_member(tables, TABULAR_MEMBER)
-    codes = parse_order_file(read_member(descriptions, ORDER_MEMBER))
+    tabular = read_member(tables, find_member(tables, "tabular"))
+    codes = parse_order_file(read_member(descriptions, find_member(descriptions, "order")))
     notes = parse_tabular(tabular)
-    indexes = (
-        parse_index(read_member(tables, INDEX_MEMBER)),
-        parse_index(read_member(tables, EXTERNAL_CAUSE_INDEX_MEMBER)),
-        parse_index(read_member(tables, NEOPLASM_MEMBER)),
-        parse_index(read_member(tables, DRUG_MEMBER)),
+    indexes = tuple(
+        parse_index(read_member(tables, find_member(tables, kind)))
+        for kind in ("index", "eindex", "neoplasm", "drug")
     )
     index = [entry for source in indexes for entry in source]
     index_sources = dict(

@@ -36,9 +36,9 @@ import cpt_mdm_sheet
 
 
 ICD_PAGE = """
-April 1, 2026, ICD-10-CM release
-FY26 ICD-10-CM codes should be used for healthcare services provided from
-April 1, 2026, through September 30, 2026.
+October 1, 2026, ICD-10-CM release
+FY27 ICD-10-CM codes should be used for healthcare services provided from
+October 1, 2026, through September 30, 2027.
 """
 
 HCPCS_PAGE = """
@@ -57,7 +57,7 @@ class CodingFreshnessMain(unittest.TestCase):
             json.dumps(
                 {
                     "schema": 1,
-                    "service_date": "2026-08-17",
+                    "service_date": "2026-10-02",
                     "encounters": [
                         {
                             "id": "note-1",
@@ -127,7 +127,7 @@ class CodingFreshnessMain(unittest.TestCase):
         stdout = io.StringIO()
         with (
             patch.object(gate, "read_url", side_effect=pages),
-            patch.object(gate, "today", return_value=gate.date(2026, 9, 15)),
+            patch.object(gate, "today", return_value=gate.date(2026, 10, 6)),
             patch.object(gate, "ROOT", self.directory),
             patch.object(gate, "committed_sheet_sha256", return_value="c" * 64,
                          side_effect=ValueError("not committed") if committed_error else None),
@@ -173,7 +173,7 @@ class CodingFreshnessMain(unittest.TestCase):
         value["service_date"] = "2026-12-20"
         self.save_manifest(value)
         stdout = io.StringIO()
-        extended_icd_page = ICD_PAGE.replace("September 30, 2026", "December 31, 2026")
+        extended_icd_page = ICD_PAGE
         with (
             patch.object(gate, "read_url", side_effect=(extended_icd_page, HCPCS_PAGE)),
             patch.object(gate, "today", return_value=gate.date(2027, 1, 4)),
@@ -241,8 +241,8 @@ class CodingFreshnessMain(unittest.TestCase):
 
     def test_stale_icd_release_still_listed_beside_the_applicable_one_blocks(self):
         page = ICD_PAGE.replace(
+            "October 1, 2026, ICD-10-CM release",
             "April 1, 2026, ICD-10-CM release",
-            "April 1, 2025, ICD-10-CM release",
         )
         status, output = self.run_gate((page, HCPCS_PAGE))
         self.assertEqual(1, status)
@@ -325,11 +325,11 @@ class CodingFreshnessMain(unittest.TestCase):
 
     def test_inactive_code_blocks(self):
         value = self.load_manifest()
-        value["encounters"][0]["codes"]["hcpcs"] = ["A2046"]
+        value["encounters"][0]["codes"]["hcpcs"] = ["C9046"]
         self.save_manifest(value)
         status, output = self.run_gate()
         self.assertEqual(1, status)
-        self.assertIn("HCPCS A2046 is not active on 2026-08-17", output)
+        self.assertIn("HCPCS C9046 is not active on 2026-10-02", output)
 
     def test_blocked_rerun_removes_an_old_pass_receipt(self):
         self.output.write_text('{"verdict":"PASS"}\n', encoding="utf-8")
