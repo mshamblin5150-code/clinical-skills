@@ -264,8 +264,13 @@ descriptor-agreement-negative-control/notes/case-01.md""".splitlines()
                 for line in path.read_text(encoding="utf-8").splitlines()
             )
         }
-        self.assertEqual(expected, set(notes))
+        valid = {"descriptor-agreement-code-label-control/notes/note-1.md"}
+        self.assertEqual(expected | valid, set(notes))
+        for name in valid:
+            entry_copy.derive(notes[name].read_text(encoding="utf-8"))
         for name, path in notes.items():
+            if name in valid:
+                continue
             with self.subTest(note=name):
                 with self.assertRaisesRegex(ValueError, "Plan labels invalid"):
                     entry_copy.derive(path.read_text(encoding="utf-8"))

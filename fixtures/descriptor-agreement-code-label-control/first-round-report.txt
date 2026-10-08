@@ -1,0 +1,24 @@
+descriptor agreement read
+
+  paired notes and worksheets          1
+  codes read                           14
+  E/M lines excluded                  3
+  agreement findings                 0
+    codes with no agreeing words      0
+    agreeing words absent from note   0
+    agreeing words from wrong place  0
+    non-verbatim anchors              0
+    author code-label findings         0
+    open-status evidence absent from note  0
+    open-status evidence from filled home medication  0
+    codes with no route               0
+    codes with no encounter evidence  0
+    descriptors waiting on results    0
+    note/worksheet bind findings      0
+unread remainder 0
+  CPT subjects missing rendered pages  0
+  other unread evidence                 0
+
+  informational
+    code-shaped tokens excluded from the bind  0
+  self-pass / blind-fail subjects (report only)  not measured

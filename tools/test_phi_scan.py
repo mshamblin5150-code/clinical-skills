@@ -663,6 +663,9 @@ class KeptNames(unittest.TestCase):
 
 
 class NameHarvesting(unittest.TestCase):
+    def test_chest_pain_is_vocabulary_while_real_name_candidates_remain(self):
+        self.assertEqual({"Jordan Vance"}, ps.kept_names({"chest pain", "Chest Pain", "Jordan Vance"}))
+
     def test_accepts_a_two_part_name(self):
         self.assertTrue(ps._looks_like_a_name("Jordan Vance"))
 

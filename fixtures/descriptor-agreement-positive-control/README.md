@@ -12,3 +12,5 @@ byte-for-byte as produced.
 
 The note and worksheet are paired by the `case-01` stem. `generation-record.md`
 records the generating pass. These files are fixtures, not patient records.
+
+This is a pre-convention record under ADR 0301; its original files are preserved.

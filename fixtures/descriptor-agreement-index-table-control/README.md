@@ -14,3 +14,5 @@ non-authoring review grades the record through `--agreement-read`. The tests
 also plant left-thumb, sequela, uncertain-behavior, and malignant-code
 mutations after copying this clean control. These files are fixtures, not
 patient records.
+
+This is a pre-convention record under ADR 0301; its original files are preserved.

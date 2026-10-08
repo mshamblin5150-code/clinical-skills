@@ -1,0 +1,177 @@
+{
+  "pairs": [
+    {
+      "stem": "note-1",
+      "codes": [
+        {
+          "subject_id": "ICD-10:M79.675:entry:1",
+          "system": "ICD-10",
+          "code": "M79.675",
+          "role": "entry",
+          "agreeing_words": "Pain in left toe(s)",
+          "route": "descriptor words",
+          "encounter_evidence": "Severity - 8/10 left great-toe pain, barely able to walk.",
+          "open_status_evidence": "none",
+          "threshold": "none",
+          "waits_on_result": "none"
+        },
+        {
+          "subject_id": "ICD-10:R22.42:entry:1",
+          "system": "ICD-10",
+          "code": "R22.42",
+          "role": "entry",
+          "agreeing_words": "Localized swelling, mass and lump, left lower limb",
+          "route": "descriptor words",
+          "encounter_evidence": "Swelling of the plantar left great toe, tender to touch and blanched, with an appearance suggesting something beneath the surface.",
+          "open_status_evidence": "none",
+          "threshold": "none",
+          "waits_on_result": "none"
+        },
+        {
+          "subject_id": "ICD-10:R23.8:entry:1",
+          "system": "ICD-10",
+          "code": "R23.8",
+          "role": "entry",
+          "agreeing_words": "Other skin changes",
+          "route": "descriptor words",
+          "encounter_evidence": "Swelling of the plantar left great toe, tender to touch and blanched, with an appearance suggesting something beneath the surface.",
+          "open_status_evidence": "none",
+          "threshold": "none",
+          "waits_on_result": "none"
+        },
+        {
+          "subject_id": "ICD-10:R09.89:entry:1",
+          "system": "ICD-10",
+          "code": "R09.89",
+          "role": "entry",
+          "agreeing_words": "Other specified symptoms and signs involving the circulatory and respiratory systems",
+          "route": "descriptor words",
+          "encounter_evidence": "Respiratory: Breath sounds diminished in all four fields.",
+          "open_status_evidence": "none",
+          "threshold": "none",
+          "waits_on_result": "none"
+        },
+        {
+          "subject_id": "ICD-10:F17.210:entry:1",
+          "system": "ICD-10",
+          "code": "F17.210",
+          "role": "entry",
+          "agreeing_words": "Cigarette smoker",
+          "route": "Smoker -> see Dependence, drug, nicotine | Dependence (on) (syndrome) > drug NEC > nicotine > cigarettes -> code F17.210",
+          "encounter_evidence": "Current cigarette smoking, 1 pack/day for 24 years, affects respiratory evaluation and prompts cessation treatment discussion.",
+          "open_status_evidence": "Current cigarette smoking, 1 pack/day for 24 years, affects respiratory evaluation and prompts cessation treatment discussion.",
+          "threshold": "none",
+          "waits_on_result": "none"
+        },
+        {
+          "subject_id": "ICD-10:R12:entry:1",
+          "system": "ICD-10",
+          "code": "R12",
+          "role": "entry",
+          "agreeing_words": "Heartburn",
+          "route": "descriptor words",
+          "encounter_evidence": "Occasional heartburn affects analgesic selection; prefer acetaminophen to an NSAID for this episode.",
+          "open_status_evidence": "Occasional heartburn affects analgesic selection; prefer acetaminophen to an NSAID for this episode.",
+          "threshold": "none",
+          "waits_on_result": "none"
+        },
+        {
+          "subject_id": "ICD-10:M79.675:differential:1",
+          "system": "ICD-10",
+          "code": "M79.675",
+          "role": "differential",
+          "agreeing_words": "Pain in left toe(s)",
+          "route": "descriptor words",
+          "encounter_evidence": "Severity - 8/10 left great-toe pain, barely able to walk.",
+          "open_status_evidence": "none",
+          "threshold": "none",
+          "waits_on_result": "none"
+        },
+        {
+          "subject_id": "ICD-10:R22.42:differential:1",
+          "system": "ICD-10",
+          "code": "R22.42",
+          "role": "differential",
+          "agreeing_words": "Localized swelling, mass and lump, left lower limb",
+          "route": "descriptor words",
+          "encounter_evidence": "Swelling of the plantar left great toe, tender to touch and blanched, with an appearance suggesting something beneath the surface.",
+          "open_status_evidence": "none",
+          "threshold": "none",
+          "waits_on_result": "none"
+        },
+        {
+          "subject_id": "ICD-10:R23.8:differential:1",
+          "system": "ICD-10",
+          "code": "R23.8",
+          "role": "differential",
+          "agreeing_words": "Other skin changes",
+          "route": "descriptor words",
+          "encounter_evidence": "Swelling of the plantar left great toe, tender to touch and blanched, with an appearance suggesting something beneath the surface.",
+          "open_status_evidence": "none",
+          "threshold": "none",
+          "waits_on_result": "none"
+        },
+        {
+          "subject_id": "ICD-10:R09.89:differential:1",
+          "system": "ICD-10",
+          "code": "R09.89",
+          "role": "differential",
+          "agreeing_words": "Other specified symptoms and signs involving the circulatory and respiratory systems",
+          "route": "descriptor words",
+          "encounter_evidence": "Respiratory: Breath sounds diminished in all four fields.",
+          "open_status_evidence": "none",
+          "threshold": "none",
+          "waits_on_result": "none"
+        },
+        {
+          "subject_id": "ICD-10:F17.210:differential:1",
+          "system": "ICD-10",
+          "code": "F17.210",
+          "role": "differential",
+          "agreeing_words": "Cigarette smoker",
+          "route": "Smoker -> see Dependence, drug, nicotine | Dependence (on) (syndrome) > drug NEC > nicotine > cigarettes -> code F17.210",
+          "encounter_evidence": "Current cigarette smoking, 1 pack/day for 24 years, affects respiratory evaluation and prompts cessation treatment discussion.",
+          "open_status_evidence": "Current cigarette smoking, 1 pack/day for 24 years, affects respiratory evaluation and prompts cessation treatment discussion.",
+          "threshold": "none",
+          "waits_on_result": "none"
+        },
+        {
+          "subject_id": "ICD-10:R12:differential:1",
+          "system": "ICD-10",
+          "code": "R12",
+          "role": "differential",
+          "agreeing_words": "Heartburn",
+          "route": "descriptor words",
+          "encounter_evidence": "Occasional heartburn affects analgesic selection; prefer acetaminophen to an NSAID for this episode.",
+          "open_status_evidence": "Occasional heartburn affects analgesic selection; prefer acetaminophen to an NSAID for this episode.",
+          "threshold": "none",
+          "waits_on_result": "none"
+        },
+        {
+          "subject_id": "ICD-10:S90.852A:refused:1",
+          "system": "ICD-10",
+          "code": "S90.852A",
+          "role": "refused",
+          "agreeing_words": "Superficial foreign body, left foot, initial encounter",
+          "route": "descriptor words",
+          "encounter_evidence": "an occult superficial foreign body is favored because the lesion appears to have something beneath its surface, but an object and a skin entry have not been established.",
+          "open_status_evidence": "none",
+          "threshold": "none",
+          "waits_on_result": "direct visualization or imaging must establish a foreign body"
+        },
+        {
+          "subject_id": "ICD-10:L02.612:refused:1",
+          "system": "ICD-10",
+          "code": "L02.612",
+          "role": "refused",
+          "agreeing_words": "Cutaneous abscess of left foot",
+          "route": "descriptor words",
+          "encounter_evidence": "The blanched surface supports a focal lesion, but no purulence or collection is documented.",
+          "open_status_evidence": "none",
+          "threshold": "none",
+          "waits_on_result": "a demonstrable purulent collection would establish the abscess"
+        }
+      ]
+    }
+  ]
+}

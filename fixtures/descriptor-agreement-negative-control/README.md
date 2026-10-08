@@ -18,3 +18,5 @@ ADR 0258 requires authored anchors on differential and refusal rows. This
 retained worksheet predates that rule, so its read now exits 2 with an unread
 remainder alongside its original findings. The note, worksheet, and reader
 record remain byte-for-byte as produced.
+
+This is a pre-convention record under ADR 0301; its original files are preserved.

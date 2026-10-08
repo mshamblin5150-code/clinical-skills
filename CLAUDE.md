@@ -455,6 +455,11 @@ python tools/anchor_scan.py <worksheets directory> --notes <notes directory> --a
 python tools/anchor_scan.py <worksheets directory> --notes <notes directory> --agreement-read <record.json>
 ```
 
+The reader rules come solely from `anchor_scan.AGREEMENT_READER_INSTRUCTIONS`, carried in the
+first brief. An author code-label finding refuses an ICD-10 entry, differential, or refusal anchor
+that differs from the whole code label in its prescribed note location; procedure placement stays
+a declared reading.
+
 The two agreement modes pair notes and worksheets by filename stem. The brief carries complete
 notes and official descriptors but no worksheet quotations; the read grades a separate reader's
 verbatim agreeing words and the bidirectional note/worksheet code bind. E/M lines are reported and

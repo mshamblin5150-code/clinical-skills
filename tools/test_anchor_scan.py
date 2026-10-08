@@ -76,9 +76,9 @@ class TheDeclaredLimitsObjectOwnsBothProseSurfaces(unittest.TestCase):
                 self.assertEqual(1, surface.count(self.POINTER))
                 self.assertEqual((), bind(scan.DECLARED_LIMITS, surface, mode=NAMING))
 
-    def test_the_partition_is_four_declared_readings_and_ten_behaviors(self):
+    def test_the_partition_is_five_declared_readings_and_ten_behaviors(self):
         dispositions = [row[2] for row in scan.DECLARED_LIMITS]
-        self.assertEqual(4, dispositions.count(run_grader.EvidenceDisposition.DECLARED_READING))
+        self.assertEqual(5, dispositions.count(run_grader.EvidenceDisposition.DECLARED_READING))
         self.assertEqual(10, dispositions.count(run_grader.EvidenceDisposition.BEHAVIOR))
         self.assertTrue(all(subject and reason for subject, reason, _ in scan.DECLARED_LIMITS))
 
@@ -785,7 +785,7 @@ Occasional heartburn.
 1. Plantar wart - B07.0: focal plantar lesion. Less likely.
 
 **Preexisting diagnoses (ICD10):**
-Heartburn **R12**
+Occasional heartburn - **R12**
 
 **Final diagnosis:**
 Pain in left toe(s) - **M79.675**
@@ -827,7 +827,7 @@ ICD-10  B07.0  Plantar wart  NOT FOR ENTRY
 
 Osteomyelitis was considered but no imaging established bone infection.
   NOT CODED: M86.9  Osteomyelitis, unspecified
-  ANCHOR: "Osteomyelitis, unspecified"
+  ANCHOR: "M86.9 Osteomyelitis, unspecified"
   needs: imaging establishing bone infection
   proposed instead: M79.675  Pain in left toe(s)
 """
@@ -860,6 +860,66 @@ class AgreementModes(unittest.TestCase):
             )
         self.assertEqual(status, 0)
         return json.loads(output.getvalue())
+
+    def test_author_gate_requires_the_whole_code_label_in_its_note_location(self):
+        for old, new in (
+            ('ANCHOR: "Occasional heartburn"', 'ANCHOR: "heartburn"'),
+            ('ANCHOR: "Occasional heartburn"', 'ANCHOR: "Occasional heartburn."'),
+            ('ANCHOR: "Plantar wart"', 'ANCHOR: "focal plantar lesion"'),
+            ('ANCHOR: "M86.9 Osteomyelitis, unspecified"',
+             'ANCHOR: "no imaging established bone infection"'),
+        ):
+            with self.subTest(anchor=new):
+                (self.worksheets / "case-01.md").write_text(
+                    AGREEMENT_WORKSHEET.replace(old, new), encoding="utf-8")
+                output = io.StringIO()
+                with redirect_stdout(output):
+                    status = scan.main([str(self.worksheets), "--notes", str(self.notes),
+                                        "--agreement-brief"])
+                self.assertEqual(1, status)
+                self.assertEqual(1, json.loads(output.getvalue())["agreement findings"])
+
+    def test_history_anchor_is_an_author_finding_even_when_verbatim(self):
+        note = AGREEMENT_NOTE.replace("Occasional heartburn - **R12**", "Heartburn - **R12**")
+        (self.notes / "case-01.md").write_text(note, encoding="utf-8")
+        output = io.StringIO()
+        with redirect_stdout(output):
+            status = scan.main([str(self.worksheets), "--notes", str(self.notes), "--agreement-brief"])
+        self.assertEqual(1, status)
+        self.assertEqual(1, json.loads(output.getvalue())["agreement findings"])
+
+    def test_multi_code_line_has_distinct_labels_with_hedges_and_joining_words(self):
+        note = "Final diagnosis: Possible Obesity, class 3 - E66.813 with Body mass index [BMI] 40.0-44.9, adult - Z68.41"
+        worksheet = '''ICD-10 E66.813 Obesity, class 3
+  ANCHOR: "Possible Obesity, class 3"
+ICD-10 Z68.41 Body mass index [BMI] 40.0-44.9, adult
+  ANCHOR: "with Body mass index [BMI] 40.0-44.9, adult"
+'''
+        (self.notes / "case-01.md").write_text(note, encoding="utf-8")
+        (self.worksheets / "case-01.md").write_text(worksheet, encoding="utf-8")
+        self.assertEqual(0, self.brief()["agreement findings"])
+        (self.worksheets / "case-01.md").write_text(
+            worksheet.replace('ANCHOR: "Possible Obesity, class 3"',
+                              'ANCHOR: "with Body mass index [BMI] 40.0-44.9, adult"'), encoding="utf-8")
+        output = io.StringIO()
+        with redirect_stdout(output):
+            status = scan.main([str(self.worksheets), "--notes", str(self.notes), "--agreement-brief"])
+        self.assertEqual(1, status)
+
+    def test_reader_rules_have_one_source_and_all_new_rules_in_first_brief(self):
+        instructions = self.brief()["instructions"]
+        self.assertEqual(scan.AGREEMENT_READER_INSTRUCTIONS, instructions)
+        skill = (REPO_ROOT / "skills/icd10-cpt/SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("anchor_scan.AGREEMENT_READER_INSTRUCTIONS", skill)
+        for sentence in re.split(r"(?<=[.]) +", instructions):
+            self.assertNotIn(sentence.strip(), " ".join(skill.split()))
+        for phrase in ("Final diagnosis or Preexisting diagnoses", "numbered Differential entry",
+                       "code-and-descriptor half", "act done in this encounter",
+                       "even when other note text agrees", "Hedge words document the diagnosis",
+                       "tier block's filled values", "estimated measurement is not a pending",
+                       "coexists at this encounter", "continue of one, never earns"):
+            self.assertIn(phrase, instructions)
+        self.assertNotIn("section", instructions)
 
     def test_brief_output_is_bom_free_and_replaces_existing_file(self):
         args = [str(self.worksheets), "--notes", str(self.notes), "--agreement-brief"]
@@ -1344,7 +1404,7 @@ class AgreementModes(unittest.TestCase):
             )
         brief = json.loads(output.getvalue())
         self.assertEqual(1, status)
-        self.assertEqual(1, brief["agreement findings"])
+        self.assertEqual(2, brief["agreement findings"])
         self.assertNotIn("anchor", json.dumps(brief).lower())
         self.assertIn("ICD-10:R12:entry:1 anchor is not verbatim note text", diagnostics.getvalue())
 
@@ -1418,12 +1478,13 @@ class AgreementModes(unittest.TestCase):
         self.assertEqual(0, self.grade(self.clean_record())[0])
 
     def test_show_gates_row_keys_and_bind_details(self):
+        record = self.clean_record()
         (self.notes / "case-01.md").write_text(
             AGREEMENT_NOTE.replace("Pain in left toe(s) - **M79.675**", "Pain in left toe(s) - **M25.572**"),
             encoding="utf-8",
         )
-        status, plain = self.grade(self.clean_record())
-        shown_status, shown = self.grade(self.clean_record(), show=True)
+        status, plain = self.grade(record)
+        shown_status, shown = self.grade(record, show=True)
         self.assertEqual((1, 1), (status, shown_status))
         self.assertNotIn("M25.572", plain)
         self.assertNotIn("ICD-10:R12:entry:1", plain)
@@ -1879,12 +1940,13 @@ class AgreementModes(unittest.TestCase):
         self.assertRegex(report, r"codes with no encounter evidence\s+1")
 
     def test_a_final_code_absent_from_the_worksheet_fails_the_bind(self):
+        record = self.clean_record()
         (self.notes / "case-01.md").write_text(
             AGREEMENT_NOTE.replace("Pain in left toe(s) - **M79.675**", "Pain in left toe(s) - **M25.572**"),
             encoding="utf-8",
         )
 
-        self.assertEqual(1, self.grade(self.clean_record())[0])
+        self.assertEqual(1, self.grade(record)[0])
 
 
     def test_a_refusal_dropped_from_the_note_fails_the_bind(self):
@@ -2115,14 +2177,31 @@ class CommittedAgreementControls(unittest.TestCase):
             )
         return status, output.getvalue()
 
+    def test_first_round_code_label_control_is_clean_and_recorded_counts_stay_bound(self):
+        control = "descriptor-agreement-code-label-control"
+        status, report = self.grade(control)
+        self.assertEqual(0, status)
+        self.assertIn("agreement findings                 0", report)
+        base = self.ROOT / control
+        readme = (base / "README.md").read_text(encoding="utf-8")
+        saved = (base / "first-round-report.txt").read_text(encoding="utf-8")
+        for prose, counter in (("First-round wrong-place count", "agreeing words from wrong place"),
+                               ("First-round code-label finding count", "author code-label findings")):
+            expected = int(re.search(re.escape(prose) + r": (\d+)", readme).group(1))
+            actual = int(re.search(re.escape(counter) + r"\s+(\d+)", report).group(1))
+            retained = int(re.search(re.escape(counter) + r"\s+(\d+)", saved).group(1))
+            self.assertEqual(0, actual)
+            self.assertEqual(actual, expected)
+            self.assertEqual(actual, retained)
+
     def test_retained_controls_are_unread_under_the_authored_anchor_rule(self):
         for control, reasons in (
-            ("descriptor-agreement-positive-control", {"agreeing words are from the wrong place"}),
-            ("descriptor-agreement-note-path-control", {"agreeing words are from the wrong place"}),
+            ("descriptor-agreement-positive-control", {"agreeing words are from the wrong place", "author anchor differs from whole code label"}),
+            ("descriptor-agreement-note-path-control", {"agreeing words are from the wrong place", "author anchor differs from whole code label"}),
             ("descriptor-agreement-negative-control", {
                 "has no agreeing words", "agreeing words are from the wrong place",
                 "has no descriptor or index route", "has no encounter evidence",
-                "entry waits on", "bind differs",
+                "entry waits on", "bind differs", "author anchor differs from whole code label",
             }),
         ):
             with self.subTest(control=control):
@@ -2133,7 +2212,7 @@ class CommittedAgreementControls(unittest.TestCase):
                         "has no agreeing words", "agreeing words are from the wrong place",
                         "agreeing words are not note text", "anchor is not verbatim note text",
                         "has no descriptor or index route", "has no encounter evidence",
-                        "entry waits on", "bind differs",
+                        "entry waits on", "bind differs", "author anchor differs from whole code label",
                     ) if any(reason in line for line in report.splitlines() if "finding:" in line)
                 }
                 self.assertEqual(reasons, observed)
@@ -2141,11 +2220,11 @@ class CommittedAgreementControls(unittest.TestCase):
     def test_index_table_record_has_nonverbatim_open_status_evidence(self):
         status, report = self.grade("descriptor-agreement-index-table-control")
         self.assertEqual(1, status)
-        self.assertIn("agreement findings                 1", report)
+        self.assertRegex(report, r"author code-label findings\s+[1-9]")
         self.assertRegex(report, r"open-status evidence absent from note\s+1")
         self.assertIn("unread remainder 0", report)
 
-    def test_authored_anchor_blind_control_is_clean_in_both_modes(self):
+    def test_authored_anchor_control_is_a_pre_convention_negative_in_both_modes(self):
         base = self.ROOT / "descriptor-agreement-authored-anchor-control"
         output = io.StringIO()
         with redirect_stdout(output):
@@ -2153,11 +2232,11 @@ class CommittedAgreementControls(unittest.TestCase):
                 [str(base / "worksheets"), "--notes", str(base / "notes"), "--agreement-brief"]
             )
         brief = json.loads(output.getvalue())
-        self.assertEqual(0, brief_status)
+        self.assertEqual(1, brief_status)
         self.assertNotIn("anchor", json.dumps(brief).lower())
         status, report = self.grade("descriptor-agreement-authored-anchor-control")
-        self.assertEqual(0, status)
-        self.assertIn("agreement findings                 0", report)
+        self.assertEqual(1, status)
+        self.assertRegex(report, r"author code-label findings\s+[1-9]")
         self.assertIn("unread remainder 0", report)
 
     def mutated_index_table_control(
