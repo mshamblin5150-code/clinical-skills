@@ -447,7 +447,7 @@ FILLED·asserted   SEVERITY 0/10 tick bite filled. Read the complaint and the ex
 **Every filled vital, every filled measurement and every filled OLDCARTS element is listed in the FILLED block carrying its value, written exactly as it appears in the note body.** Not `blood pressure filled` — `BP 142/88 filled`. Not `aggravating factors filled` — `AGGRAVATING bending forward, lying flat filled`, and `SEVERITY 6/10 facial pressure filled`. Two reasons, and the second is the load-bearing one:
 
 - The clinician confirms a value, not a category, and cannot confirm what the block does not state. **The value is the floor and not the whole line** — *Which value was chosen is the instruction* below is what says the line names the reasoning too.
-- The note body is written so given and filled content read identically. **The FILLED block is therefore the only thing in the whole document that can tell them apart**, and [icd10-cpt](../icd10-cpt/SKILL.md) reads it to decide which codes carry a `SOURCE: filled` mark. It matches on the value. A block naming the field without its value says a pressure was filled but not which one, and the mark fails open in silence.
+- The note body is written so given and filled clinical values read identically. **The FILLED block distinguishes those values**, and [icd10-cpt](../icd10-cpt/SKILL.md) reads it to decide which codes carry a `SOURCE: filled` mark. The separate E/M data-dependency mark discloses level support, not a vital or measurement. The coder matches on the value. A block naming the field without its value says a pressure was filled but not which one, and the mark fails open in silence.
 
 **A derived value with a filled input is listed in the FILLED block too**, naming which inputs were filled — and it stays on the `DERIVED` line as well, with its arithmetic. A BMI is the case that matters: derived is a true statement about it, since the arithmetic has one right answer, but the answer is only ever as real as the height that went in. A BMI appearing under `DERIVED` alone reads as computed from measurements, which is exactly the impression it must not give.
 
@@ -624,6 +624,15 @@ Inference is the job. What the shorthand omits should be **grounded** in what it
 
 **Current-visit observations and actions begin after the HPI.** Physical-examination findings belong in Objective; current laboratory, imaging, and point-of-care results belong under tests; medication administered today belongs under tests and Plan; orders, referral, transfer, and disposition belong in Plan. They may be interpreted later in Assessment and MDM, but they are not repeated in the HPI narrative. After writing the HPI, classify every sentence by owner and move any sentence whose owner is Objective, Assessment, or Plan. A compact encounter synopsis that duplicates later sections fails even when every fact is true.
 
+**Dose every directed over-the-counter agent.** Each such agent the clinician's
+shorthand directs is written in the Plan as its prescription: agent, dose, route,
+frequency, and duration where one applies. A missing dose or sig is filled from
+the patient and indication and disclosed under the existing filled-content rules;
+the Plan carries the complete directions as ordinary clinical text. A medication
+history that reports an unknown dose remains history, not a directed Plan agent.
+See **Directed agent** in [CONTEXT.md](../../CONTEXT.md) and the risk reading in
+[icd10-cpt](../icd10-cpt/SKILL.md) step 5.
+
 Grounded, and expected:
 
 - Route, frequency, and duration for a drug the shorthand names — `zithromax 200/5ml 3/4 t x 3 days` becomes azithromycin 3.75 mL PO **daily** for 3 days.
@@ -679,10 +688,13 @@ Separate two acts in the tier block, because they carry different weight:
 
 ### The tier language stays out of the note
 
-The tiers govern how the note is written. **They are never written into it.**
+The tiers govern how the note is written. **They stay outside it except for the
+E/M data-dependency mark required by [icd10-cpt](../icd10-cpt/SKILL.md) step 5.**
+Carry that mark unchanged on the note's E/M paragraph and the visible worksheet;
+it names the skill-proposed Plan orders on which the selected level rests.
 
-- **No tier word appears in the note body** — not *given*, *filled*, *inferred*, *derived*, *asserted* or *proposed*. Not as a parenthetical, not as a suffix, not as an aside. In `Levothyroxine 88 mcg PO daily (hypothyroidism) (inferred)` the first parenthetical is the reason for taking and belongs there; the second is the defect in its shortest form.
-- **No commentary about this skill's own process appears in the note body.** Whether a medication reconciliation was done, what needs confirming before entry, which condition an inference rests on, why a duration was chosen: all of that is the FILLED block's job and only the FILLED block's job.
+- **Apart from the required E/M data-dependency mark, no tier word appears in the note body** — not *given*, *filled*, *inferred*, *derived*, *asserted* or *proposed*. Not as a parenthetical, not as a suffix, not as an aside. In `Levothyroxine 88 mcg PO daily (hypothyroidism) (inferred)` the first parenthetical is the reason for taking and belongs there; the second is the defect in its shortest form.
+- **Apart from the required E/M data-dependency mark, no commentary about this skill's own process appears in the note body.** Whether a medication reconciliation was done, what needs confirming before entry, which condition an inference rests on, why a duration was chosen: all of that is the FILLED block's job and only the FILLED block's job.
 - **A parenthetical in the Plan holds the trade name and nothing else** — `Amoxicillin-clavulanate (Augmentin) 875/125 mg PO twice daily x 10 days`. Reason for taking stays in the medication history, where both templates put it; rationale goes in the Assessment.
 
 **This is not a style preference — it is the property the whole tier design rests on.** Charted normals and filled normals are written to read identically precisely so that the FILLED block can be the one thing in the document that tells them apart, which is the same reason a filled vital is listed carrying its value. Annotating tiers inline makes the note body a second tier record: partial, informal, and not the one [icd10-cpt](../icd10-cpt/SKILL.md) reads. Two records that disagree are worse than one.
@@ -725,7 +737,7 @@ Guideline artifacts ship in this repo, and where one covers what a Plan item ass
 
 **A qualitative recommendation scoped out of a threshold sheet is a route, not a dead end.** When the sheet's `## Coverage` names the applicable recommendation and says it was excluded only because it carries no numeric decision point, open that recommendation at the source and page named by the sheet or the local guideline index. Record the guideline, status, recommendation or practice-point identifier, population, and page in the item's tier-block tail. If the source is a draft, say `draft`; never present it as an in-force guideline. If the source page cannot be read, the tail says `recalled, source page unread` and the decision remains for clinician verification.
 
-**Ordinary symptom relief and generic return precautions need no guideline route.** `Ibuprofen 400 mg PO q6h PRN for sore throat` and `return for worsening symptoms` may stand on drug labeling and ordinary safety reasoning. Diagnosis-directed decisions do not become ordinary merely because they contain no number.
+**Ordinary symptom relief and generic return precautions need no guideline route.** `Ibuprofen 400 mg PO q6h PRN for sore throat x 3 days` and `return for worsening symptoms` may stand on drug labeling and ordinary safety reasoning. Diagnosis-directed decisions do not become ordinary merely because they contain no number.
 
 **Gating this on a stated number was the live alternative and it was rejected.** `Colorectal cancer screening discussed` names no band and rests on one exactly as hard as `colorectal cancer screening from 45` does — the age decided whether to write the line at all. A number-gated rule would consult the sheet for the second and not the first, **which lets a line escape by being vague**, and that is the direction this repo refuses everywhere else: an unnumbered screening item is the *harder* one to check, not the exempt one.
 
@@ -756,7 +768,7 @@ The class is the sheet's `class` cell verbatim, including any commas. An empty c
 
 ```
 FILLED·proposed   Colorectal cancer screening discussed [uspstf: grade A, adults 50 to 75, 2021]
-FILLED·proposed   Continue lisinopril 20 mg daily, recheck 4 weeks [thresholds/hypertension: aha-2025 Class 1, adults-htn, SBP >=140]
+FILLED·proposed   Continue lisinopril 20 mg PO daily, ongoing; recheck 4 weeks [thresholds/hypertension: aha-2025 Class 1, adults-htn, SBP >=140]
 FILLED·proposed   Confirm acute babesiosis with peripheral blood smear or PCR [thresholds/babesiosis: idsa-2020 Class strong recommendation, moderate-quality evidence, suspected-acute-babesiosis, confirm with peripheral blood smear or PCR rather than antibody testing]
 FILLED·proposed   Select empiric therapy with K. kingae activity [thresholds/acute-bacterial-arthritis: idsa-2023, suspected-aba-age-6-to-48-months, age 6-48 months: select empiric therapy that includes K. kingae activity rather than only S. aureus activity]
 FILLED·proposed   Zoster vaccination discussed [uspstf: no row]
@@ -1222,7 +1234,7 @@ Walk every row. **Emit a verdict for each one by name** — a summary line invit
 | 9 | **Arithmetic** | Every derived value shows its working and recomputes correctly |
 | 10 | **Entry** | Every Medatrax field holds a given, a derived value, a declared value, or a GAPS entry |
 | 11 | **Conflict** | A conflict between givens — a drug against a documented condition, or a drug against a drug — is named in the Assessment or the Plan. No inferred medication resolves one, and no given medication is dropped to dissolve one |
-| 12 | **Leakage** | No tier word in the note body names where a line came from — *given*, *filled*, *inferred*, *derived*, *asserted*, *proposed* — no sentence describes this skill's own process, and every Plan parenthetical holds a trade name alone. The ordinary clinical senses pass: *given in clinic*, *given her hyperlipidemia*, *prescription filled* |
+| 12 | **Leakage** | Except for the E/M data-dependency mark required by icd10-cpt step 5, no tier word in the note body names where a line came from — *given*, *filled*, *inferred*, *derived*, *asserted*, *proposed* — no sentence describes this skill's own process, and every Plan parenthetical holds a trade name alone. The ordinary clinical senses pass: *given in clinic*, *given her hyperlipidemia*, *prescription filled* |
 | 13 | **Differential** | Every differential entry carries an ICD-10-CM code, and **no diagnosis the encounter did not establish** — differential entry, favored entry or final — carries a code whose descriptor names a confirmed organism or disease. **Every refusal resting on a pending test names what that result would establish**: a pending culture never refuses a code that names no organism, and a pending test is never substituted for a documented finding that rejects the diagnosis. **An entry is one numbered item, and the count is not bounded by the `Differential:` heading**: a diagnosis-shaped line anywhere in the Assessment — under `Also addressed this visit`, `Reasoning carried forward` or any heading a run invents — is an entry and owes a code. **A measurement of the patient's own body is a diagnosis here** and takes its code; **a line of reasoning is not**, and belongs in the rationale of the entry it concerns rather than on a line of its own |
 | 14 | **Control** | A **filled** value that is a documented condition's own diagnostic measure and lands **normal** is accounted for **in the Assessment**. Hypertension: called *controlled*, *treated*, *on therapy*, or with the medication named. Obesity: called resolved, improved or post-surgical, or with the weight-loss intervention named. A code in a pre-existing or problem list is not an account, and neither is a monitoring instruction. A **given** value never fails this row, and neither does a filled abnormal — row 4 already holds that one |
 | 15 | **Filled reassurance** | No decision to withhold, defer or narrow the workup of a documented finding rests on a filled vital, body measurement or pain score, and any cause a filled abnormal is attributed to is a **given finding**. **A reassuring clause that changes no action is not a discharge** — a filled normal named inside a differential ranking passes where the workup is ordered anyway. A filled 0/10 is not a discharge — row 4 owns that direction. **And a test the encounter itself ordered is not a workup this note withheld**: removing a given order and then citing its absence here is row 18's defect being scored as this row's pass |
