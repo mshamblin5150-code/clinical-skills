@@ -1128,6 +1128,10 @@ _Avoid_: check, independent check, grading pass, review step
 What a **Briefing surface** states that the shared rule does not contain — a blinding whitelist, a capability requirement, an ordering gate. It is the only thing a surface writes for itself, because anything else it states about delegation is a copy of a rule that already binds it. Distinct from a **Hatch**, which excuses a finding rather than adding an obligation.
 _Avoid_: exception, override, local rule, carve-out
 
+**Repair pass**:
+A context sent to change an artifact that another context wrote, bounded to the fields its brief names. It may not change a verdict, an entry status, a code population or clinical content outside those fields, and it reports a change it believes is needed there instead of making it. It is not a **Briefing surface**: no skill file spawns one, so the bound travels in the orchestrator's brief rather than in a passage that could be graded. Distinct from a **Second reader**, which reads without changing anything.
+_Avoid_: fix agent, fix pass, cleanup pass, correction pass
+
 ### Tracker
 
 **Binding**:
