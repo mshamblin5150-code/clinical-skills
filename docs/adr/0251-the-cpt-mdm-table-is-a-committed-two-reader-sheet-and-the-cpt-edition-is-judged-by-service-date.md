@@ -47,6 +47,14 @@ without it the line stays pending rather than being finalized from recall, in ex
 Step 5's statement that the MDM phrasing is recalled and unverified is removed. The `clinical-note`
 coding-worksheet requirement reads the applicable committed MDM sheet or rendered CPT instructions.
 
+*Superseded 2026-10-08.* **The listing of "modifier 25 on a same-day procedure" among the guidance
+the sheet does not hold is superseded by
+[ADR 0292](0292-directed-otc-agents-are-drug-management-and-modifier-25-joins-the-committed-cpt-sheet.md)
+ruling 3 and is left as written.** The Appendix A modifier-25 entry joins the committed sheet by this
+record's ruling 5 procedure, and a worksheet applies `-25` from it once that entry merges; until then
+a pending line waits for the read and never drops the modifier. The out-of-edition case, total time,
+critical care and prolonged services stay book-only.
+
 ## Ruling 4 — the family follows the stated place of service, and only ED and office are supported
 
 The E/M family follows the place of service the note states. An emergency department encounter takes
