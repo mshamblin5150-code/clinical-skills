@@ -394,7 +394,7 @@ Covered by `tools/test_specificity_scan.py`, which builds synthetic worksheets i
 
 ### Medatrax Entry copy
 
-`python tools/entry_copy.py --check <finished note paths>` writes nothing and also requires the four-section split; `approval_record.approve` runs the same check for `batch-shift` and `clinical-note`.
+`python tools/entry_copy.py --check <finished note paths>` checks derivation and the four-section split without creating a copy; `approval_record.approve` runs the same check for `batch-shift` and `clinical-note`. A refused-code grammar failure removes any prior derived copy in both command routes, as ruled by [ADR 0307](docs/adr/0307-a-refused-code-clause-opens-its-own-sentence-and-its-semicolon-only-joins-two-clauses.md). Other `--check` failures preserve it.
 
 `python tools/entry_copy.py <finished note path>` writes `entry-copies/<note filename>` beneath the finished note's directory, including for a finished note returned to an existing run. It removes each welded `NOT CODED:` clause through its semicolon or sentence-ending period while keeping surrounding prose. It requires each of the four Plan labels named in [ADR 0254](docs/adr/0254-the-note-entered-in-medatrax-is-a-derived-entry-copy-and-its-plan-takes-four-labels.md) exactly once. Within the Plan, any line whose text before its first colon is four words or fewer must be one of those labels or `Sig`, `Dispense`, or `Refills`. A failed label check or surviving `NOT CODED` mark exits nonzero and removes any prior derived copy at that path. The source note remains the submission fingerprint population; the derived file is one directory below it. `tools/test_entry_copy.py` exercises the command and names the committed fixture notes whose preserved Plans it refuses.
 
