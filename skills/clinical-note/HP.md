@@ -69,10 +69,8 @@ BP / HR / Temp / O2 Sat / Height / Weight / BMI
 Physical Exam (pertinent to the differential)
 Use short succinct statements, do not use sentences
 <system: fragment; fragment>
-Cardiovascular: Regular rate and rhythm; no murmurs, gallops, or friction rubs; radial pulses 2+ bilaterally; posterior tibial pulses 2+ bilaterally
-Respiratory: Clear to auscultation bilaterally
-GI: Bowel sounds are positive in all quadrants; no tenderness, guarding, masses, or organomegaly noted
-Neurologic: Alert and oriented x 4
+<normal-exam lines from scratch/medatrax-profile.md; write systems without a saved line
+ for this encounter; given abnormalities replace conflicting normal clauses; label GI>
 
 Lab, x-ray, other tests
 <given results; given orders carrying no result, marked as ordered;

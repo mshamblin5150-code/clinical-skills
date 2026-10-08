@@ -77,6 +77,7 @@ DECLARED_SECTIONS = {
     "corpus_census": "Corpus census",
     "day_file_text": "Day-file text",
     "entry_copy": "Medatrax Entry copy",
+    "exam_scheme": "Examination scheme",
     "differential_scan": "Differential scan",
     "discussion_post_scan": "Discussion post grading",
     "discussion_post_render": "Discussion post grading",

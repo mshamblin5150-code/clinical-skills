@@ -251,6 +251,17 @@ a marked block in the user-level Codex `AGENTS.md`, preserving every other line.
 records the dated live Codex admission attempt; delivery was not established, so it writes the
 rule only and registers no Codex hook. Repeating it refreshes only its own block.
 
+### Examination scheme
+
+`python tools/exam_scheme.py <every final note.md>` is the Required physical-examination check
+beside the note graders. It resolves the owning checkout's profile (or accepts `--profile`), checks
+quadrant wording only in examinations for a saved `nine regions` scheme, and has no mirror rule
+for `four quadrants`. Run it before a batch Review sheet is built and before a standalone note's
+go-ahead. It prints notes supplied/read, examination sections found, and
+`run_grader.format_unread_remainder`'s line; findings exit 1, unread input exits 2, and a complete
+clean read exits 0. Its module docstring declares the recognized section boundaries and clinical
+limit; `tools/test_exam_scheme.py` exercises the public command.
+
 ### Suite run
 
 `tools/suite.py` is the one complete-suite interface. It discovers the `test*.py` population under

@@ -131,7 +131,7 @@ This said **548 encounters** until 2026-08-15, which was three short: the pages 
 | `tms` | tympanic membranes — the plural of `TM` |
 | `heent` | head, eyes, ears, nose and throat |
 | `sob` | shortness of breath |
-| `llq`, `rll`, `rle`, `ble` | left lower quadrant · right lower lobe · right lower extremity · bilateral lower extremities |
+| `llq`, `rll`, `rle`, `ble` | abdominal location expanded under the clinician's saved scheme (see SKILL.md step 2) · right lower lobe · right lower extremity · bilateral lower extremities |
 | `preop` | preoperative |
 
 ### Obstetric
