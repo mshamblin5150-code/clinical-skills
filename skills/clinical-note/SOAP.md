@@ -67,7 +67,7 @@ Health Promotion/Patient Education: <technique, precautions, health promotion, w
 Referral/Follow-up: <referrals, interval, and what would bring them back sooner>
 
 Coding worksheet
-Patient status: <new|established> — <identity map|Medatrax>
+Patient status: <new|established> — <identity map|Medatrax|clinician's recorded answer>
 ICD-10-CM: <final for-entry code - descriptor; one line per code>
 E/M: <final code - descriptor>
 Problems: <level and concise patient-specific support>

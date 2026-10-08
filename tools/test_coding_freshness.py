@@ -299,6 +299,16 @@ class CodingFreshnessMain(unittest.TestCase):
         self.assertEqual(1, status)
         self.assertIn("patient status is not account-backed", output)
 
+    def test_recorded_clinician_answer_backs_office_status_with_fingerprint(self):
+        value = self.load_manifest()
+        value["encounters"][0]["patient_status"]["evidence"] = "clinician-answer"
+        self.save_manifest(value)
+        status, output = self.run_gate()
+        self.assertEqual(0, status, output)
+        receipt = json.loads(self.output.read_text(encoding="utf-8"))
+        self.assertEqual(value["encounters"][0]["patient_status"],
+                         receipt["encounters"][0]["patient_status"])
+
     def test_a_bare_evidence_label_does_not_back_patient_status(self):
         value = self.load_manifest()
         del value["encounters"][0]["patient_status"]["evidence_sha256"]
@@ -306,6 +316,47 @@ class CodingFreshnessMain(unittest.TestCase):
         status, output = self.run_gate()
         self.assertEqual(1, status)
         self.assertIn("patient status is not account-backed", output)
+
+    def test_clinician_answer_requires_a_valid_evidence_fingerprint(self):
+        for fingerprint in (None, "", "recorded", "g" * 64, "a" * 63):
+            with self.subTest(fingerprint=fingerprint):
+                value = self.load_manifest()
+                evidence = value["encounters"][0]["patient_status"]
+                evidence["evidence"] = "clinician-answer"
+                if fingerprint is None:
+                    evidence.pop("evidence_sha256", None)
+                else:
+                    evidence["evidence_sha256"] = fingerprint
+                self.save_manifest(value)
+                status, output = self.run_gate()
+                self.assertEqual(1, status, output)
+                self.assertIn("patient status is not account-backed", output)
+                self.assertFalse(self.output.exists())
+
+    def test_office_em_must_agree_with_the_clinician_answer_status(self):
+        for patient_status, code, expected in (
+            ("new", "99204", 0),
+            ("established", "99214", 0),
+            ("new", "99214", 1),
+            ("established", "99204", 1),
+        ):
+            with self.subTest(patient_status=patient_status, code=code):
+                value = self.load_manifest()
+                value["encounters"][0]["patient_status"].update(
+                    value=patient_status, evidence="clinician-answer",
+                )
+                value["encounters"][0]["codes"]["em"] = code
+                self.save_manifest(value)
+                status, output = self.run_gate()
+                self.assertEqual(expected, status, output)
+                if expected:
+                    self.assertIn("E/M code disagrees with patient status", output)
+                    self.assertFalse(self.output.exists())
+
+    def test_clinical_note_never_reads_patient_status_from_shorthand(self):
+        skill = (ROOT / "skills" / "clinical-note" / "SKILL.md").read_text(encoding="utf-8")
+        self.assertNotIn("Read status from the shorthand", skill)
+        self.assertNotIn("new/established assumed from Medatrax", skill)
 
     def test_cpt_receipt_cannot_extend_its_derived_edition_boundary(self):
         receipt = json.loads(self.cpt_receipt.read_text(encoding="utf-8"))

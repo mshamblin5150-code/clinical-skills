@@ -122,7 +122,7 @@ significance of any genetic or chronic condition that is not driving the acute
 illness but matters for counseling and future care>
 
 Coding worksheet
-Patient status: <new|established> — <identity map|Medatrax>
+Patient status: <new|established> — <identity map|Medatrax|clinician's recorded answer>
 ICD-10-CM: <final for-entry code - descriptor; one line per code>
 E/M: <final code - descriptor>
 Problems: <level and concise patient-specific support>

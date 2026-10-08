@@ -669,7 +669,7 @@ overlying pain; tib/fib film ordered, no result
 
 ### 5. Select the E/M level when the note path asks
 
-A direct coding consultation offers the supporting elements unless the user asks for a level. A `clinical-note` call is the request: select the final supported E/M code, state new-or-established status from the private identity map or Medatrax, and render the problems, data, and risk elements with concise patient-specific support. Unknown status blocks selection; never infer it from other encounters in the shift.
+A direct coding consultation offers the supporting elements unless the user asks for a level. A `clinical-note` call is the request: select the final supported E/M code, state new-or-established status only from the private identity map, Medatrax, or the clinician's recorded answer to the earlier-visit conflict question in `clinical-note` or `batch-shift`, and render the problems, data, and risk elements with concise patient-specific support. No patient record means new; an unresolved identity match is not a finding of no record. Unknown status blocks selection; never infer it from other encounters in the shift.
 
 **The differential is where the first element is documented, and that is the job those codes do.** A differential entry with its rationale is a problem addressed. A suspected diagnosis that drove an order — a swab sent, a film taken — is what *data reviewed* is reviewing. And an entry the encounter could not exclude is the one that carries the most weight in that column, because an undiagnosed new problem with an uncertain prognosis is not a low-complexity problem however ordinary the visit felt.
 
@@ -686,7 +686,7 @@ locator, agreeing two-reader date, and per-entry digest. The 2026 sheet is
 The note's **stated place of service** decides the family. Emergency department
 uses 99281–99285 by MDM alone, without a new/established distinction. Office or
 clinic uses 99202–99215 by MDM, with new/established status backed by the private
-identity map or Medatrax. An unstated or other setting, including urgent care,
+identity map, Medatrax, or the clinician's recorded answer to that conflict question. An unstated or other setting, including urgent care,
 observation, or inpatient, blocks selection; do not infer an office family.
 
 Read the rendered CPT Professional book through `vitalsource-chrome` when the

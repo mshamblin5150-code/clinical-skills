@@ -34,7 +34,7 @@ HCPCS_RELEASE_URL = (
     "healthcare-common-procedure-system/quarterly-update"
 )
 STATUS_VALUES = frozenset({"new", "established"})
-STATUS_EVIDENCE = frozenset({"identity-map", "medatrax"})
+STATUS_EVIDENCE = frozenset({"identity-map", "medatrax", "clinician-answer"})
 SHA256 = re.compile(r"[0-9a-f]{64}")
 OFFICE_EM = frozenset(f"992{number:02d}" for number in range(2, 16))
 ED_EM = frozenset(f"992{number}" for number in range(81, 86))
