@@ -104,7 +104,7 @@ class CodingFreshnessMain(unittest.TestCase):
         read = (
             "# CPT E/M MDM 2026\n\n" +
             "".join(
-                f"## Entry: {name}\nLocator: CPT Professional 2026, p. 10\n"
+                f"## Entry: {name}\nLocator: CPT Professional 2026, p. {969 if name == 'modifier-25' else 10}\n"
                 f"```text\n{'Moderate decisions.' if name == 'table-moderate' else name}\n```\n\n"
                 for name in sorted(cpt_mdm_sheet.REQUIRED_ENTRIES)
             )

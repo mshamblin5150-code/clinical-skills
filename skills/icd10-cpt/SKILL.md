@@ -185,6 +185,54 @@ Rules:
 - **A hedged diagnosis is coded, and the documented symptoms are coded with it** — with one limit, on the code rather than the hedge. Below.
 - **Every differential entry carries a code, and none of those codes is for entry.** Below.
 
+#### Linked conditions take the `with` combination code
+
+Read the Official Guidelines edition applicable to the service date. The committed
+[FY2027 source reading](../../reference/icd10cm-guidelines-fy2027-coding-read.md)
+covers Section I.A.15 for services from October 1, 2026; earlier services need their
+own applicable edition. Where a code-set entry links two documented conditions by
+`with`, presume the relationship and use the combination code unless the note
+states they are unrelated. Follow any guideline that specifically requires an
+explicit documented linkage. Conditions absent from the note are never supplied
+by an index path.
+
+Trace each documented condition with `python tools/icd10_lookup.py --index <term>`
+and `--find <descriptor words>`, then look up the candidate code and its inherited
+tabular instructions. Record the complete applicable index path in the private
+worksheet's specificity reason. `--index` traces an exact final term, not a synonym
+or an arbitrary phrase: a miss means try the index's wording and referrals, never
+that no combination code exists.
+
+- Documented type 2 diabetes and polyneuropathy take `E11.42` through
+  `Diabetes, diabetic (mellitus) (sugar) > type 2 > with > polyneuropathy`, rather
+  than `E11.9` plus `G62.9`, unless the note explicitly states they are unrelated.
+- Hypertension and linked heart disease take the supported `I11.-` child;
+  hypertension and chronic kidney disease take the supported `I12.-` child.
+  Trace the actual documented heart condition or kidney stage and obey the
+  tabular's additional-code requests. Both heart and kidney disease require
+  checking `I13.-`; these examples never authorize an unspecified child by default.
+
+#### Long-term medications take their specific `Z79` codes
+
+Walk every medication line, including the Plan. A drug in a `Z79` class with its
+own specific code gets that code, anchored to the medication line: anticoagulants
+take `Z79.01`, and other named classes take their verified specific codes. Follow
+the diabetes tabular control requests for `Z79.4`, `Z79.84`, and `Z79.85` where
+applicable. Look up each selected code and its inherited instructions. Never
+propose the catch-all `Z79.899` under this workflow.
+
+This reaches a drug the patient arrived on and a drug begun at this visit for
+ongoing use (a chronic condition or no stated end). Short courses never count,
+including a fixed antibiotic course, a steroid burst, or an as-needed drug for
+an acute problem. If intended duration remains unclear, propose the specific
+code with `SPECIFICITY: needs: intended long-term duration of <agent>` and a
+matching step-4 documentation request. A filled medication line retains the
+ordinary `SOURCE: filled` disclosure. The
+[FY2027 source reading](../../reference/icd10cm-guidelines-fy2027-coding-read.md)
+records Section I.C.21.c.3's long-term-use rule and its exclusions; read the
+applicable edition for earlier service dates. The refusal of `Z79.899` is this
+workflow's ruling, not a claim that the Official Guidelines forbid that code.
+
 #### External causes follow the documented encounter
 
 Apply the April 1, 2026 Official Guidelines Section I.C.20. When an injury's mechanism is documented,
@@ -617,13 +665,48 @@ observation, or inpatient, blocks selection; do not infer an office family.
 
 Read the rendered CPT Professional book through `vitalsource-chrome` when the
 service date falls outside every committed sheet's edition, or when the level
-depends on guidance absent from the sheet—total time, modifier 25 on a same-day
-procedure, critical care, or prolonged services. If that live reading cannot be
+depends on guidance absent from the sheet—total time, critical care, or prolonged
+services. If that live reading cannot be
 completed, the E/M line stays pending. The database and this prose never
 substitute for the sheet or required rendered page.
 
 The freshness gate still requires a committed sheet covering the service date;
 a live reading cannot carry the 2026 sheet into a later edition.
+
+**Same-day procedure.** When a same-day procedure is reported with an E/M,
+apply `-25` from the passing sheet's `modifier-25` entry when the note supports
+it. Whether the E/M work is significant and separately identifiable remains
+a reading of the note; reporting the procedure alone does not settle that reading.
+
+**Directed agents.** Apply the risk entry `table-moderate` to a **Directed agent**
+as defined in [CONTEXT.md](../../CONTEXT.md). An over-the-counter agent the
+clinician directs in the Plan with a dose and directions is prescription drug
+management under [ADR 0292](../../docs/adr/0292-directed-otc-agents-are-drug-management-and-modifier-25-joins-the-committed-cpt-sheet.md).
+General advice naming an option without a dose and directions counts toward
+nothing. This ruling does not settle the risk contribution of a drug the skill
+itself proposes.
+
+**Orders and provenance.** Apply `definition-data-analyzed`, `definition-data-test`,
+`definition-data-unique`, the applicable grid entry, and `mdm-two-of-three`.
+The clinician's own ordered, resulted, or reviewed tests count, and so do
+skill-proposed tests written as actual Plan orders. A recommendation left for
+the preceptor never counts. Use those named entries to judge eligibility and
+avoid counting the same test twice.
+
+Remove the skill-proposed orders and re-derive the elements and supported level.
+If the level becomes lower, append this exact inline mark to the E/M line:
+`[SOURCE: filled - data: <names of the skill-proposed Plan tests supporting the level>]`.
+Keep the mark on the private worksheet, the visible `Coding worksheet` E/M line,
+and the note's matching E/M paragraph. This is the narrow provenance exception
+to the note body's tier-language rule; all other fill disclosures stay outside
+the body. If removing the orders leaves the level unchanged, no mark is owed.
+
+The reader checks the counterfactual level and named tests. No existing grader
+or coding-freshness gate can derive this clinical judgment: `anchor_scan.py`
+excludes E/M lines, and `coding_freshness.py` verifies code identity, edition,
+and date status rather than level support. The inline mark therefore stays a
+required reading, with no new gate claim. The freshness manifest's `em` value
+remains the code alone; provenance is carried by the rendered E/M line.
 
 The first authenticated 2026 reader confirms the ebook identifier and edition
 against the procedure database's CPT `source` row, then derives the private

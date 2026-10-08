@@ -48,8 +48,10 @@ REQUIRED_ENTRIES = frozenset({
     "definition-risk", "definition-morbidity", "definition-social-determinants",
     "definition-surgery-minor-major", "definition-surgery-elective-emergency",
     "definition-surgery-risk-factors", "definition-intensive-monitoring",
-    "definition-parenteral-controlled",
+    "definition-parenteral-controlled", "modifier-25",
 })
+LEGACY_PERMISSION = "Permission: Internal repository storage of the MDM grid and dependent E/M guideline definitions under the maintainer's AMA permission; no other CPT text is licensed by this sheet."
+PERMISSION = "Permission: Internal repository storage of the MDM grid, dependent E/M guideline definitions, and Appendix A modifier-25 entry under the maintainer's AMA permission; no other CPT text is licensed by this sheet."
 
 
 @dataclass(frozen=True)
@@ -86,6 +88,9 @@ def read_entries(content: str, *, graded: bool = False) -> dict[str, Entry]:
             raise ValueError(f"duplicate entry: {identifier}")
         if not normalized(body):
             raise ValueError(f"empty entry: {identifier}")
+        if identifier == "modifier-25":
+            if int(page) < 1 or (int(edition) == 2026 and int(page) != 969):
+                raise ValueError("modifier-25: CPT Professional 2026 requires printed page 969; other editions require their own printed page")
         if graded:
             if not agreed or not expected:
                 raise ValueError(f"{identifier}: missing agreement date or digest")
@@ -112,16 +117,19 @@ def source_metadata(database: Path) -> dict[str, str]:
 
 
 def compare(first: Path, second: Path, output: Path, agreement_date: str,
-            database: Path = DEFAULT_DATABASE) -> None:
+            database: Path = DEFAULT_DATABASE, *, append_to: Path | None = None) -> None:
     date.fromisoformat(agreement_date)
     if first.resolve() == second.resolve():
         raise ValueError("two independent transcript paths are required")
     left, right = read_entries(first.read_text(encoding="utf-8")), read_entries(second.read_text(encoding="utf-8"))
     if left.keys() != right.keys():
         raise ValueError("entry populations disagree: " + ", ".join(sorted(left.keys() ^ right.keys())))
-    missing = REQUIRED_ENTRIES - left.keys()
+    required = frozenset({"modifier-25"}) if append_to else REQUIRED_ENTRIES
+    missing = required - left.keys()
     if missing:
         raise ValueError("MDM source coverage is incomplete: " + ", ".join(sorted(missing)))
+    if append_to and left.keys() != required:
+        raise ValueError("append comparison requires modifier-25 only")
     for identifier, entry in left.items():
         other = right[identifier]
         if entry.locator != other.locator or normalized(entry.text) != normalized(other.text):
@@ -133,15 +141,32 @@ def compare(first: Path, second: Path, output: Path, agreement_date: str,
     source = source_metadata(database)
     if date.fromisoformat(source["effective_date"]).year != year:
         raise ValueError("transcribed edition differs from CPT source row")
-    lines = [
+    if append_to:
+        if output.resolve() in {first.resolve(), second.resolve(), append_to.resolve()}:
+            raise ValueError("append output must differ from the base and transcript paths")
+        base = append_to.read_text(encoding="utf-8")
+        existing = _grade_content(base, database, REQUIRED_ENTRIES - {"modifier-25"})
+        if left.keys() & existing.keys():
+            raise ValueError("append cannot replace an existing entry: " + ", ".join(sorted(left.keys() & existing.keys())))
+        if {entry.edition for entry in existing.values()} != {year}:
+            raise ValueError("append and base contain mixed CPT editions")
+        header, separator, rest = base.partition("## Entry:")
+        if header.splitlines().count(LEGACY_PERMISSION) == 1:
+            header = header.replace(LEGACY_PERMISSION, PERMISSION, 1)
+        elif header.splitlines().count(PERMISSION) != 1:
+            raise ValueError("append base permission scope is not a reviewed state")
+        base = header + separator + rest
+        lines = []
+    else:
+        lines = [
         f"# CPT E/M MDM {year}", "",
         f"Book: {source['title']}",
         f"Edition: {source['edition']}",
         f"ISBN (VitalSource ebook): {source['isbn']}",
-        "Permission: Internal repository storage of the MDM grid and dependent E/M guideline definitions under the maintainer's AMA permission; no other CPT text is licensed by this sheet.",
+        PERMISSION,
         "",
-    ]
-    if year == 2026:
+        ]
+    if year == 2026 and not append_to:
         lines.insert(5, "Print ISBN on copyright page: 978-1-64016-322-5")
     for entry in left.values():
         lines.extend((
@@ -151,13 +176,21 @@ def compare(first: Path, second: Path, output: Path, agreement_date: str,
             f"SHA-256: {digest(entry.text)}",
             "```text", entry.text.strip(), "```", "",
         ))
+    rendered = "\n".join(lines).rstrip() + "\n"
+    if append_to:
+        rendered = base + ("" if base.endswith("\n\n") else "\n" if base.endswith("\n") else "\n\n") + rendered
+    grade_content(rendered, database)
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+    output.write_text(rendered, encoding="utf-8", newline="")
 
 
 def grade_content(content: str, database: Path = DEFAULT_DATABASE) -> dict[str, Entry]:
+    return _grade_content(content, database, REQUIRED_ENTRIES)
+
+
+def _grade_content(content: str, database: Path, required: frozenset[str]) -> dict[str, Entry]:
     entries = read_entries(content, graded=True)
-    missing = REQUIRED_ENTRIES - entries.keys()
+    missing = required - entries.keys()
     if missing:
         raise ValueError("MDM source coverage is incomplete: " + ", ".join(sorted(missing)))
     editions = {entry.edition for entry in entries.values()}
@@ -210,6 +243,7 @@ def main(argv: list[str]) -> int:
     parser.add_argument("sheet", nargs="?", type=Path)
     parser.add_argument("--compare", nargs=2, type=Path, metavar=("FIRST", "SECOND"))
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--append-to", type=Path, help="Append agreeing modifier-25 reads to a previously graded edition sheet")
     parser.add_argument("--agreement-date")
     parser.add_argument("--write-receipt", type=Path)
     parser.add_argument("--staged", action="store_true")
@@ -217,16 +251,16 @@ def main(argv: list[str]) -> int:
     args = parser.parse_args(argv)
     try:
         if args.staged:
-            if args.sheet or args.compare or args.output or args.write_receipt:
+            if args.sheet or args.compare or args.output or args.write_receipt or args.append_to:
                 raise ValueError("--staged takes no other mode")
             grade_staged(args.database)
         elif args.compare:
             if not args.output or not args.agreement_date or args.sheet or args.write_receipt:
                 raise ValueError("comparison requires --output and --agreement-date only")
-            compare(*args.compare, args.output, args.agreement_date, args.database)
+            compare(*args.compare, args.output, args.agreement_date, args.database, append_to=args.append_to)
             grade(args.output, args.database)
         elif args.write_receipt:
-            if args.sheet or args.output or args.agreement_date:
+            if args.sheet or args.output or args.agreement_date or args.append_to:
                 raise ValueError("receipt mode takes only --write-receipt and --database")
             destination = args.write_receipt.resolve()
             sessions = (ROOT / "scratch" / "sessions").resolve()
@@ -238,6 +272,8 @@ def main(argv: list[str]) -> int:
             destination.parent.mkdir(parents=True, exist_ok=True)
             destination.write_text(json.dumps(fields, indent=2) + "\n", encoding="utf-8")
         elif args.sheet:
+            if args.append_to:
+                raise ValueError("--append-to requires --compare")
             grade(args.sheet, args.database)
         else:
             raise ValueError("provide a sheet, --compare, or --write-receipt")
