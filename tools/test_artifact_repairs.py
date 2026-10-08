@@ -99,6 +99,22 @@ class RepairChain(unittest.TestCase):
         self.assertEqual(1, repairs.main(["compare", str(self.run), "--before", str(self.before), "--after", str(self.note), "--scope", str(scope)]))
         self.assertTrue(repairs.completion_gate(self.run, "shift", (self.note,))[0])
 
+    def test_worksheet_verdict_in_legacy_prose_is_protected(self):
+        fixture = Path(__file__).resolve().parents[1] / "fixtures/filled-anchor/run-2/case-01.md"
+        text = fixture.read_text(encoding="utf-8")
+        self.assertIn("Favored, and the only differential", text)
+        self.before.write_text(text, encoding="utf-8")
+        self.note.write_text(text.replace("Favored, and the only differential", "Ruled out, and the only differential"), encoding="utf-8")
+        self.assertIn("differential-verdicts", repairs.compare(self.before, self.note, SCOPE, "worksheet")["violations"])
+
+    def test_anchor_repair_does_not_authorize_a_note_field_verdict_change(self):
+        text = "--- DIFFERENTIAL, DOCUMENTS MDM, NOT FOR ENTRY ---\nICD-10 R05.9 Cough NOT FOR ENTRY\n  ANCHOR: cough\n  SOURCE: given\n  NOTE: less likely\n"
+        self.before.write_text(text, encoding="utf-8")
+        self.note.write_text(text.replace("ANCHOR: cough", "ANCHOR: documented cough"), encoding="utf-8")
+        self.assertEqual("pass", repairs.compare(self.before, self.note, SCOPE, "worksheet")["verdict"])
+        self.note.write_text(text.replace("NOTE: less likely", "NOTE: favored"), encoding="utf-8")
+        self.assertIn("differential-verdicts", repairs.compare(self.before, self.note, SCOPE, "worksheet")["violations"])
+
     def test_outside_scope_section_is_disclosed_without_blocking(self):
         repairs.place(self.run, self.note, "note")
         self.note.write_text(NOTE.replace("Care.", "Changed care."), encoding="utf-8")

@@ -31,6 +31,17 @@ def reading(digest: str) -> str:
 
 
 class BatchNotePopulation(unittest.TestCase):
+    def test_patient_number_binds_to_source_notes_when_filenames_skip(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            run = Path(temporary)
+            (run / "note-3.md").write_bytes(b"note")
+            record = reading(sha256(b"note").hexdigest())
+            reread = run / "reread.md"
+            reread.write_text(record.replace("patient 1 |", "patient 3 |"), encoding="utf-8")
+            self.assertFalse(posting.completion_gate(run, SUBMISSION, batch=True)[0])
+            reread.write_text(record, encoding="utf-8")
+            self.assertTrue(posting.completion_gate(run, SUBMISSION, batch=True)[0])
+
     def test_current_finished_reading_is_clean_and_missing_finished_is_refused(self):
         with tempfile.TemporaryDirectory() as temporary:
             run = Path(temporary)

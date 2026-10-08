@@ -77,6 +77,7 @@ def populations(text: str, kind: str) -> dict:
                                     worksheet.entry_is_for_entry(text, entries, i))
                                    for i, m in enumerate(entries)) + sorted((system, code, False) for system, code in refused),
             "differential-items": differential_entries,
+            "differential-verdicts": worksheet.differential_prose(text),
         }
     parsed = differential_scan.read_note(text)
     # Slots are read note-wide, including MDM; a verdict cannot escape by moving

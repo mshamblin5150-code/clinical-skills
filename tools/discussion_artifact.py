@@ -513,6 +513,7 @@ def check_posted_reading(
     run: Path | None = None,
     docx: Path | None = None,
     expected_visits: int | None = None,
+    expected_patients: tuple[str, ...] | None = None,
     legacy_display: bool = False,
 ) -> tuple[PostedReadingOutcome, ...]:
     """Check a parsed record against caller-owned bytes, independent of a grade.
@@ -566,6 +567,7 @@ def check_posted_reading(
             codes.append("visit-count")
         for number, visit in enumerate(reading.visits, start=1):
             locator = re.match(r"(\d+)\s*\|", visit)
+            patient = re.search(r"(?:^|\|)\s*patient\s+(\d+)\s*(?:\||$)", visit, re.I)
             patterns = (
                 r"(?:^|\|)\s*patient\s+\d+\s*(?:\||$)",
                 r"(?:^|\|)\s*reference\s+(?:matched|new)\s+\S+",
@@ -575,7 +577,11 @@ def check_posted_reading(
                 r"(?:^|\|)\s*finished=\s*[^\s|][^|]*(?:\||$)",
                 r"(?:^|\|)\s*matches(?:\s|$)",
             )
-            if locator is None or int(locator[1]) != number or not all(
+            patient_mismatch = expected_patients is not None and (
+                patient is None or number > len(expected_patients)
+                or patient[1] != expected_patients[number - 1]
+            )
+            if patient_mismatch or locator is None or int(locator[1]) != number or not all(
                 re.search(pattern, visit, re.IGNORECASE) for pattern in patterns
             ):
                 codes.append("visit-fields")

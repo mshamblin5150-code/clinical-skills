@@ -128,6 +128,7 @@ def completion_gate(
         return True, "the Medatrax posted reading: finding - could not read the note bytes"
     outcomes = check_posted_reading(
         record, current, expected_visits=len(paths), matches_only=True,
+        expected_patients=tuple(NOTE_NUMBER.fullmatch(path.name)["number"] for path in paths) if batch else None,
     )
     if outcomes:
         return True, f"the Medatrax posted reading: finding - {outcomes[0].message}"
