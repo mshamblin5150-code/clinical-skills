@@ -121,6 +121,8 @@ Read the note and list what is documented — not what is implied. For each, cap
 - **Diagnoses** — from the Assessment. A symptom is codable as a symptom; it does not become a disease.
 - **Procedures** — from the Plan and Objective: laceration repair, splinting, incision and drainage, ECG interpretation, foreign body removal, and so on.
 
+**When selecting allergy status codes, read the Drug row in [clinical-note's allergy table](../clinical-note/SKILL.md#the-reaction-beside-a-given-allergen).** It owns the combination-product rule. For an unknown culprit, also apply [the combination-product question and proposal rules](../clinical-note/SKILL.md#a-combination-product-allergy-with-an-unknown-culprit); obtain the clinician's answer before the owning note's approval and update the note and worksheet together.
+
 **Every occurrence of spirometry in the worksheet identifies which intervention it means.**
 `Office spirometry`, `diagnostic spirometry`, `spirometry with bronchodilator response` and
 `incentive spirometry` are qualified; the bare term is not. A qualifier on the source note's Plan

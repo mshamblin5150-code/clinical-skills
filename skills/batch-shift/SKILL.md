@@ -281,7 +281,8 @@ walkthrough for each shift.
 
 **Before building the Review sheet**, use that route to open Patient Detail read-only for every
 matched returning patient. Compare its displayed age and sex with the encounter opener. Collect
-every age or sex disagreement together with every unresolved multiple-row match in one
+every age or sex disagreement together with every unresolved multiple-row match and each
+culprit-ingredient question required by [clinical-note](../clinical-note/SKILL.md#a-combination-product-allergy-with-an-unknown-culprit) in one
 `PRE-APPROVAL PATIENT QUESTIONS` block beside the Review-sheet go-ahead. Show that block to the
 clinician and obtain a ruling before approval; none of these questions is deferred to portal entry.
 Do not build or render the Review sheet while the block has an unresolved item. This read happens
