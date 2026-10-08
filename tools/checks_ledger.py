@@ -167,7 +167,7 @@ the coverage failure inspectable under the shared report-before-tier-2 rule.
 
 from __future__ import annotations
 
-from discussion_artifact import check_posted_reading
+from discussion_artifact import check_posted_reading, PostedReadingOutcome
 
 import re
 import sys
@@ -843,6 +843,33 @@ def _submission_document(submission: str) -> Path:
     return matches[0]
 
 
+def posted_reading_check(
+    run: Path, submission: str, grader_args: tuple[str, ...] = ()
+) -> tuple[PostedReadingOutcome, ...]:
+    document = _submission_document(submission)
+    bar = run / 'bar.md'
+    composer = bar.is_file() and re.search(
+        r'(?m)^SUBMISSION-TYPE:\s*canvas-composer\s*$',
+        bar.read_text(encoding='utf-8'),
+    ) is not None
+    reread = run / 'reread.md'
+    readings = read_posted_readings(reread.read_text(encoding='utf-8')) if reread.is_file() else ()
+    return _posted_reading_outcomes(run, submission, document, composer, readings)
+
+
+def _posted_reading_outcomes(
+    run: Path, submission: str, document: Path, composer: bool,
+    readings: tuple[PostedReading, ...],
+) -> tuple[PostedReadingOutcome, ...]:
+    html = document.with_suffix('.html')
+    return check_posted_reading(
+        next((item for item in readings if item.artifact == submission), None),
+        file_digest.sha256(document), composer=composer,
+        html_bytes=html.stat().st_size if html.is_file() else -1,
+        run=run, docx=document.with_suffix('.docx'),
+    )
+
+
 def _load(parsed: run_grader.Parsed) -> BoundChecksSource:
     path = Path(parsed.source)
     if not path.is_file():
@@ -1028,10 +1055,9 @@ def _grade(
             )
             html = source.document.with_suffix(".html")
             local_docx = source.document.with_suffix(".docx")
-            outcomes = check_posted_reading(
-                reading, source.document_digest, composer=source.composer_run,
-                html_bytes=html.stat().st_size if html.is_file() else -1,
-                run=source.path.parent, docx=local_docx,
+            outcomes = _posted_reading_outcomes(
+                source.path.parent, submission, source.document,
+                source.composer_run, source.readings,
             )
             extra.extend(
                 Finding(POSTED_READING_KINDS[item.code], "the posted reading", item.message)

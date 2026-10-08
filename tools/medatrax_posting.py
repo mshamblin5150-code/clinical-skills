@@ -6,7 +6,7 @@ The complete boundary of this helper's clean result is declared in
 
 from __future__ import annotations
 
-from discussion_artifact import check_posted_reading
+from discussion_artifact import check_posted_reading, PostedReadingOutcome
 
 import json
 import re
@@ -110,6 +110,21 @@ def portal_record_problem(
     return outcomes[0].message if outcomes else None
 
 
+def posted_reading_check(
+    run: Path, submission: str, *, batch: bool
+) -> tuple[PostedReadingOutcome, ...]:
+    """Apply the terminal portal grammar to the current note population."""
+    paths = note_paths(run, batch=batch)
+    if not paths:
+        unit = "numbered note files" if batch else "one standalone note file"
+        raise ValueError(f"could not identify {unit}")
+    return check_posted_reading(
+        posted_reading(run, submission), source_sha256(paths),
+        expected_visits=len(paths), matches_only=True,
+        expected_patients=tuple(NOTE_NUMBER.fullmatch(path.name)["number"] for path in paths) if batch else None,
+    )
+
+
 def completion_gate(
     run: Path, submission: str | None, *, batch: bool
 ) -> tuple[bool, str]:
@@ -117,19 +132,12 @@ def completion_gate(
 
     if submission is None:
         return False, "the Medatrax posted reading: NOT GRADED - --submission was not supplied"
-    record = posted_reading(run, submission)
-    paths = note_paths(run, batch=batch)
-    if not paths:
-        unit = "numbered note files" if batch else "one standalone note file"
-        return True, f"the Medatrax posted reading: finding - could not identify {unit}"
     try:
-        current = source_sha256(paths)
+        outcomes = posted_reading_check(run, submission, batch=batch)
+    except ValueError as failure:
+        return True, f"the Medatrax posted reading: finding - {failure}"
     except OSError:
         return True, "the Medatrax posted reading: finding - could not read the note bytes"
-    outcomes = check_posted_reading(
-        record, current, expected_visits=len(paths), matches_only=True,
-        expected_patients=tuple(NOTE_NUMBER.fullmatch(path.name)["number"] for path in paths) if batch else None,
-    )
     if outcomes:
         return True, f"the Medatrax posted reading: finding - {outcomes[0].message}"
     return False, "the Medatrax posted reading: clean"

@@ -26,7 +26,7 @@ The shared completion rows' ceilings belong to
 
 from __future__ import annotations
 
-from discussion_artifact import check_posted_reading
+from discussion_artifact import check_posted_reading, PostedReadingOutcome
 from discussion_artifact import PostedReading, read_posted_readings
 
 import re
@@ -407,14 +407,27 @@ POSTED_READING_KINDS = {
 }
 
 
-def _reread_findings(source: RunSource) -> tuple[Finding, ...]:
-    reading = next((item for item in source.readings if item.artifact == "critique.md"), None)
-    return tuple(
-        Finding(POSTED_READING_KINDS[item.code], "critique.md", item.message)
-        for item in check_posted_reading(
-            reading, file_digest.sha256(source.path / "critique.md"),
+def posted_reading_check(
+    run: Path, submission: str, grader_args: tuple[str, ...] = ()
+) -> tuple[PostedReadingOutcome, ...]:
+    try:
+        if submission != 'critique.md':
+            raise run_grader.SourceError('posted reading names another critique')
+        reread = run / 'reread.md'
+        readings = read_posted_readings(reread.read_text(encoding='utf-8')) if reread.is_file() else ()
+        reading = next((item for item in readings if item.artifact == submission), None)
+        return check_posted_reading(
+            reading, file_digest.sha256(run / 'critique.md'),
             posted_fields=True, verdict=True, legacy_display=True,
         )
+    except (OSError, UnicodeError, ValueError) as failure:
+        raise run_grader.SourceError(f"could not read the posted record: {failure}") from failure
+
+
+def _reread_findings(source: RunSource) -> tuple[Finding, ...]:
+    return tuple(
+        Finding(POSTED_READING_KINDS[item.code], "critique.md", item.message)
+        for item in posted_reading_check(source.path, "critique.md")
     )
 
 

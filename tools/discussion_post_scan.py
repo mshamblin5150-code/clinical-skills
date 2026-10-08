@@ -25,7 +25,7 @@ The shared completion rows' ceilings belong to
 
 from __future__ import annotations
 
-from discussion_artifact import check_posted_reading
+from discussion_artifact import check_posted_reading, PostedReadingOutcome
 
 import re
 import sys
@@ -994,7 +994,41 @@ POSTED_READING_KINDS = {
     "attachment-field": MISSING_POSTED_READING,
     "attachment-copy": POSTED_ATTACHMENT,
     "attachment-digest": POSTED_ATTACHMENT,
+    "post-metadata": MISSING_POSTED_READING,
+    "post-link": BORROWED_LOCATOR,
 }
+
+
+def posted_reading_check(
+    run: Path, submission: str, grader_args: tuple[str, ...] = ()
+) -> tuple[PostedReadingOutcome, ...]:
+    try:
+        parsed = run_grader.parse(GRADER, list(grader_args))
+        draft_value = parsed.value('--draft')
+        if draft_value is None:
+            raise run_grader.SourceError('--draft needs a Markdown file')
+        draft = Path(draft_value)
+        if draft.stem != submission:
+            raise run_grader.SourceError('posted reading names another draft')
+        html = Path(value) if (value := parsed.value('--html')) is not None else None
+        docx = Path(value) if (value := parsed.value('--docx')) is not None else None
+        reread = run / 'reread.md'
+        readings = read_posted_readings(reread.read_text(encoding='utf-8')) if reread.is_file() else ()
+        reading = next((item for item in readings if item.artifact == submission), None)
+        post_path = run / 'post.md'
+        fields = {
+            match.group('name'): match.group('value').strip()
+            for match in FIELD.finditer(post_path.read_text(encoding='utf-8'))
+        } if post_path.is_file() else {}
+        return check_posted_reading(
+            reading, file_digest.sha256(draft), posted_fields=True,
+            verdict=True, entry_link=True, composer=True,
+            html_bytes=html.stat().st_size if html is not None else None,
+            run=run, docx=docx,
+            saved_post_url=fields.get('POST-URL'), saved_posted=fields.get('POSTED'),
+        )
+    except (OSError, UnicodeError, ValueError) as failure:
+        raise run_grader.SourceError(f"could not read the posted record: {failure}") from failure
 
 
 def _posted_reading_findings(source: RunSource) -> tuple[Finding, ...]:
@@ -1003,23 +1037,12 @@ def _posted_reading_findings(source: RunSource) -> tuple[Finding, ...]:
     posting_absent = source.post_url is None and source.post_posted is None
     if posting_absent and reading is None:
         return ()
-    outcomes = check_posted_reading(
-        reading, file_digest.sha256(source.draft), posted_fields=True,
-        verdict=True, entry_link=True, composer=True,
-        html_bytes=source.html.stat().st_size if source.html is not None else None,
-        run=source.path, docx=source.docx,
-    )
+    outcomes = posted_reading_check(source.path, submission, (
+        str(source.path), "--draft", str(source.draft),
+        *(('--html', str(source.html)) if source.html is not None else ()),
+        *(('--docx', str(source.docx)) if source.docx is not None else ()),
+    ))
     findings = [Finding(POSTED_READING_KINDS[item.code], submission, item.message) for item in outcomes]
-    if reading is not None and not posting_absent:
-        missing = []
-        if not source.post_url:
-            missing.append(f"{submission} POST-URL")
-        if not source.post_posted:
-            missing.append(f"{submission} POSTED")
-        if missing:
-            findings.append(Finding(MISSING_POSTED_READING, submission, "missing " + ", ".join(missing)))
-        if reading.entry_id is not None and reading.post_url != source.post_url:
-            findings.append(Finding(BORROWED_LOCATOR, submission, f"POST-URL does not match {submission}"))
     return tuple(findings)
 
 

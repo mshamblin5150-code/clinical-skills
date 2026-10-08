@@ -20,9 +20,12 @@ python tools/aar_scan.py <run-directory> --submission <submission-key> --memory-
 ```
 
 Before running the command, require the run's `reread.md` to contain exactly one
-`## REREAD: <submission-key>` Posted reading. The extractor fingerprints that exact block.
-It refuses a missing or duplicate record, and the final grade fails if the block changes after the
-snapshot. Records for other submissions may be appended without changing this round's fingerprint.
+`## REREAD: <submission-key>` Posted reading. The extractor resolves the skill from the approval
+record and runs its completion grader's posted-reading check before fingerprinting that exact
+block. A refused check, an undetermined skill, or a missing entry point writes no extract or
+baseline. The final grade compares only the newest round's fingerprint with the current block;
+earlier rounds keep their own correction grades. Records for other submissions may be appended
+without changing this round's fingerprint.
 
 Pass `--transcript <path>` only when the harness exposed the exact current transcript path. The command also reads every other main Claude or Codex transcript that names this run directory and has entries past its own watermark, so an abandoned sitting's corrections enter this round. A drone's transcript is never read as a sitting; its results reach the extract through the main transcript that launched it.
 
@@ -94,7 +97,7 @@ CLASSIFIER: tracker-ticket - <substantive reason>
 ORCHESTRATOR: agree - <substantive reason>
 DISPOSITION: tracker-ticket
 TARGET: <absolute path for memory-write or check; ticket subject for tracker-ticket or skill-file>
-LANDING: <GitHub issue URL for tracker-ticket or skill-file; one line on what changed for memory-write or check>
+LANDING: <GitHub issue URL or issue-comment URL ending #issuecomment-N printed by the successful gh command for tracker-ticket or skill-file; one line on what changed for memory-write or check>
 
 ## SUSTAIN: <extract entry identifier>
 SUMMARY: <what was settled correctly and must not be undone>
@@ -103,6 +106,11 @@ SUMMARY: <what was settled correctly and must not be undone>
 Remove `CORRECTIONS: none` when a correction record exists, and remove `SUSTAINS: none` when a sustain record exists. One correction record may name only one disposition. A summary describes the agent's conduct and never quotes the material it handled.
 
 Several corrections or sustains may rest on one extract entry: repeat the heading with the same identifier, one record per disposition, and never alter an identifier to make records look distinct. For a `memory-write` or a `check`, `TARGET` is the bare absolute path the grader resolves, with nothing after it; put any description in `LANDING` or in a reason.
+
+For `tracker-ticket` and `skill-file`, copy the exact address the successful `gh` command printed.
+That output must appear in this round's transcripts at or after its `EXTRACTED-AT`; a different
+address, earlier output, failed command, or pull-request address supplies no landing evidence.
+Rounds before `aar_scan.LANDING_OUTPUT_CUTOFF` keep their historical evidence rule.
 
 The grader refuses a correction resting on an entry whose text the extractor wrote rather than copied, and it counts every record's corrector against the kind of entry it names without grading that count.
 
@@ -113,7 +121,7 @@ python tools/aar_scan.py <run-directory> --submission <submission-key>
 ```
 
 Exit 0 means every round's population is drained, every correction has a closed disposition against
-its own baseline, and the fingerprints of its Posted readings remain current.
+its own baseline, and the newest round's Posted-reading fingerprint remains current.
 Exit 1 is a finding in any round. Exit 2 means the population was not scanned. The report prints
 each round's correction and unlanded counts on every run. `--show` names private findings and must
 not be pasted.

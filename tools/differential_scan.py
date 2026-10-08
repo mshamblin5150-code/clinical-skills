@@ -223,6 +223,7 @@ from pathlib import Path
 import run_grader
 import aar_scan
 import medatrax_posting
+from discussion_artifact import PostedReadingOutcome
 import approval_record
 import artifact_repairs
 
@@ -1671,6 +1672,12 @@ GRADER = run_grader.Grader(
     exit_2_limbs=EXIT_2_LIMBS,
     invalid_invocation_limb=INVALID_INVOCATION,
 )
+
+
+def posted_reading_check(
+    run: Path, submission: str, grader_args: tuple[str, ...] = ()
+) -> tuple[PostedReadingOutcome, ...]:
+    return medatrax_posting.posted_reading_check(run, submission, batch=False)
 
 
 def main(argv: list[str]) -> int:

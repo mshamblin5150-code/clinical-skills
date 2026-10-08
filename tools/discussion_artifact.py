@@ -490,6 +490,10 @@ POSTED_READING_MESSAGES = {
     "visit-fields": "VISIT is missing a required copied locator, date, reference, patient number, or verdict",
     "time-log": "TIME-LOG must state not requested or a date, duration in hours and minutes, and entered or matched",
     "legacy-display": "LEGACY-DISPLAY must open with expected, differs, or unreadable followed by a reason",
+    "attachment-count": "ATTACHMENT-COUNT differs from the approved carrier population",
+    "submitted-files": "SUBMITTED-FILE entries differ from the approved carrier filenames",
+    "post-metadata": "POST-URL or POSTED is missing from the saved posting record",
+    "post-link": "POST-URL differs from the saved posting record",
 }
 
 
@@ -519,6 +523,9 @@ def check_posted_reading(
     expected_visits: int | None = None,
     expected_patients: tuple[str, ...] | None = None,
     legacy_display: bool = False,
+    expected_submitted_files: tuple[str, ...] | None = None,
+    saved_post_url: str | None = None,
+    saved_posted: str | None = None,
 ) -> tuple[PostedReadingOutcome, ...]:
     """Check a parsed record against caller-owned bytes, independent of a grade.
 
@@ -601,6 +608,17 @@ def check_posted_reading(
         r"(?:expected|differs|unreadable)\s*(?:-|—|:)\s*\S.*", reading.legacy_display
     ) is None:
         codes.append("legacy-display")
+    if expected_submitted_files is not None:
+        if not (reading.attachment_count.isascii() and reading.attachment_count.isdecimal()
+                and int(reading.attachment_count) == len(expected_submitted_files)):
+            codes.append('attachment-count')
+        if reading.submitted_files != expected_submitted_files:
+            codes.append('submitted-files')
+    if saved_post_url is not None or saved_posted is not None:
+        if not saved_post_url or not saved_posted:
+            codes.append('post-metadata')
+        if reading.entry_id is not None and reading.post_url != saved_post_url:
+            codes.append('post-link')
     return tuple(PostedReadingOutcome(code) for code in codes)
 
 

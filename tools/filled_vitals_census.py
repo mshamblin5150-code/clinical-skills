@@ -79,6 +79,7 @@ import run_grader
 from corpus_census import Reading, is_normal_bp
 import aar_scan
 import medatrax_posting
+from discussion_artifact import PostedReadingOutcome
 import approval_record
 import artifact_repairs
 import shift_summary
@@ -808,6 +809,12 @@ GRADER = run_grader.Grader(
     ),
     source_error_to_stdout=False,
 )
+
+
+def posted_reading_check(
+    run: Path, submission: str, grader_args: tuple[str, ...] = ()
+) -> tuple[PostedReadingOutcome, ...]:
+    return medatrax_posting.posted_reading_check(run, submission, batch=True)
 
 
 def main(argv: list[str]) -> int:
