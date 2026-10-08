@@ -2866,6 +2866,24 @@ class PublishedAarStretchesAreExempt(unittest.TestCase):
         self.assertEqual([row.rule for row in analysis.findings], ["aar-quotation"])
         self.assertIn("exempted as already on main", analysis.report)
 
+    def test_committed_soap_template_line_is_exempt_but_run_values_are_not(self) -> None:
+        template = Path(__file__).resolve().parent.parent / "skills" / "clinical-note" / "SOAP.md"
+        line = next(
+            row for row in template.read_text(encoding="utf-8").splitlines()
+            if row.startswith("E/M: <supported complexity>")
+        )
+        self.assertGreater(len(line), hook.AAR_QUOTE_SPAN_CHARS)
+        (self.repo / "reference.py").write_text(line, encoding="utf-8")
+        self.git("add", "reference.py")
+        self.git("commit", "-m", "Publish committed SOAP template")
+        self.git("update-ref", "refs/remotes/origin/main", "HEAD")
+
+        published = self.analysis("-" + line + "\n+Replacement line.", source=line)
+        self.assertEqual(published.findings, ())
+        self.assertNotIn("; 0 matched stretch(es) exempted", published.report)
+        filled = self.analysis(line.replace("<supported complexity>", "synthetic run-specific complexity"))
+        self.assertEqual([row.posture for row in filled.findings], ["deny"])
+
     def test_public_matches_do_not_hide_later_private_matches_in_another_file(self) -> None:
         run = self.repo / "run"
         run.mkdir()
@@ -2874,7 +2892,7 @@ class PublishedAarStretchesAreExempt(unittest.TestCase):
         analysis = self.analysis(self.TEMPLATE + "\n" + private, source=self.TEMPLATE)
 
         self.assertEqual([row.posture for row in analysis.findings], ["deny"])
-        self.assertNotIn("0 matched stretch(es) exempted", analysis.report)
+        self.assertNotIn("; 0 matched stretch(es) exempted", analysis.report)
 
     def test_whitespace_and_case_are_normalized_and_duplicate_matches_count_once(self) -> None:
         changed = self.TEMPLATE.upper().replace(" ", "\n\t")
