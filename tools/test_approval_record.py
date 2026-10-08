@@ -12,6 +12,13 @@ from unittest import mock
 import approval_record
 
 
+NOTE = (
+    "S:\nSubjective.\nO:\nObjective.\nA:\nAssessment.\nP:\n"
+    "Non-pharmacologic:\nPharmacologic:\nHealth Promotion/Patient Education:\n"
+    "Referral/Follow-up:\nCoding worksheet\n"
+)
+
+
 class ApprovalRecordContract(unittest.TestCase):
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory()
@@ -107,6 +114,7 @@ class ApprovalRecordContract(unittest.TestCase):
         self.assertIn("clean", report)
 
     def test_incomplete_pre_post_coverage_is_recorded_and_does_not_block(self) -> None:
+        self.artifact.write_text(NOTE, encoding="utf-8")
         completed = subprocess.CompletedProcess([], 2, "unread remainder 1\n", "")
         with mock.patch.object(approval_record.subprocess, "run", return_value=completed):
             approved = approval_record.approve(
@@ -123,6 +131,43 @@ class ApprovalRecordContract(unittest.TestCase):
         )
         self.assertIn("unread remainder", approved.pregrade_report)
         self.assertEqual("incomplete", record["items"][0]["pregrade_status"])
+
+    def test_note_approval_checks_every_source_before_recording(self) -> None:
+        for skill in ("batch-shift", "clinical-note"):
+            with self.subTest(skill=skill):
+                record = self.run / approval_record.RECORD
+                record.unlink(missing_ok=True)
+                self.artifact.write_text(NOTE, encoding="utf-8")
+                other = self.root / "other.md"
+                other.write_text(NOTE.replace("Assessment.", "Confirm medication before entry."), encoding="utf-8")
+                with mock.patch.object(approval_record, "_pre_post_grade", return_value=(0, "clean")):
+                    with self.assertRaises(approval_record.ApprovalRecordError) as refused:
+                        approval_record.approve(
+                            self.run, skill=skill, submission="note-key",
+                            sources=(self.artifact, other), grader_args=(str(self.run),),
+                            content_approved=True,
+                        )
+                    self.assertIn(str(other.resolve()), str(refused.exception))
+                    self.assertIn("before entry", str(refused.exception))
+                    self.assertFalse(record.exists())
+                    other.write_text(NOTE, encoding="utf-8")
+                    approval_record.approve(
+                        self.run, skill=skill, submission="note-key",
+                        sources=(self.artifact, other), grader_args=(str(self.run),),
+                        content_approved=True,
+                    )
+                self.assertTrue(record.exists())
+                self.assertFalse((self.root / "entry-copies").exists())
+
+    def test_coursework_approval_does_not_check_note_grammar(self) -> None:
+        self.artifact.write_text("Confirm medication before entry.\n", encoding="utf-8")
+        with mock.patch.object(approval_record, "_pre_post_grade", return_value=(0, "clean")):
+            approval_record.approve(
+                self.run, skill="discussion-post", submission="post-key",
+                sources=(self.artifact,), grader_args=(str(self.run),),
+                content_approved=True,
+            )
+        self.assertTrue((self.run / approval_record.RECORD).exists())
 
     def test_approval_and_posted_reading_fingerprint_mismatch_is_a_finding(self) -> None:
         completed = subprocess.CompletedProcess([], 0, "clean\n", "")

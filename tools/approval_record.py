@@ -16,6 +16,7 @@ import sys
 from typing import Iterable
 
 import aar_scan
+import entry_copy
 from discussion_artifact import read_posted_readings
 import run_grader
 
@@ -155,6 +156,14 @@ def approve(
     resolved_sources = tuple(Path(path).resolve() for path in sources)
     if not resolved_sources or any(not path.is_file() for path in resolved_sources):
         raise ApprovalRecordError("approval record needs a nonempty readable source population")
+    if skill in {"batch-shift", "clinical-note"}:
+        for source in resolved_sources:
+            try:
+                entry_copy.check(source.read_text(encoding="utf-8"))
+            except (OSError, UnicodeError, ValueError) as failure:
+                raise ApprovalRecordError(
+                    f"Entry copy refused: {source}: {failure}"
+                ) from failure
     grade_status, grade_report = _pre_post_grade(skill, grader_args)
     if grade_status not in {0, 2}:
         raise ApprovalRecordError(f"the pre-post grade has a finding: {grade_report}")

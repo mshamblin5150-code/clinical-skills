@@ -146,24 +146,46 @@ def derive(note: str) -> str:
     return _portal_characters(copy)
 
 
+def check(note: str) -> None:
+    """Refuse an Entry copy that cannot be derived and split, without writing it."""
+    try:
+        copy = derive(note)
+    except ValueError as error:
+        if str(error).startswith("Plan labels invalid:"):
+            # An unrecognized label can contain patient text; keep it out of diagnostics.
+            raise ValueError("Plan labels invalid") from None
+        raise
+    parse(copy)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("note", type=Path, help="finished note from a new or existing run")
+    parser.add_argument("--check", action="store_true", help="check derivation and four-section split without writing")
+    parser.add_argument("note", type=Path, nargs="+", help="finished note from a new or existing run")
     args = parser.parse_args(argv)
-    source = args.note
-    destination = source.parent / "entry-copies" / source.name
-    try:
-        if source.parent.name == "entry-copies":
-            raise ValueError("input must be the finished note, not an Entry copy")
-        copy = derive(source.read_text(encoding="utf-8"))
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        destination.write_text(copy, encoding="utf-8", newline="")
-    except (OSError, UnicodeError, ValueError) as error:
-        destination.unlink(missing_ok=True)
-        print(f"Entry copy refused: {error}", file=sys.stderr)
-        return 1
-    print(destination)
-    return 0
+    status = 0
+    for source in args.note:
+        destination = source.parent / "entry-copies" / source.name
+        try:
+            if source.parent.name == "entry-copies":
+                raise ValueError("input must be the finished note, not an Entry copy")
+            note = source.read_text(encoding="utf-8")
+            if args.check:
+                check(note)
+            else:
+                copy = derive(note)
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                destination.write_text(copy, encoding="utf-8", newline="")
+        except (OSError, UnicodeError, ValueError) as error:
+            if not args.check:
+                destination.unlink(missing_ok=True)
+            location = f"{source}: " if args.check or len(args.note) > 1 else ""
+            print(f"Entry copy refused: {location}{error}", file=sys.stderr)
+            status = 1
+            continue
+        if not args.check:
+            print(destination)
+    return status
 
 
 if __name__ == "__main__":
