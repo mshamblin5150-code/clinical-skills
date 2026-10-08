@@ -257,6 +257,7 @@ class CommandSurface(unittest.TestCase):
             "POSTED: 08/17/2026 21:14\n"
             "READ: 1 of 1 read\n"
             "VERDICT: matches - The saved visit and note form matched.\n"
+            "TIME-LOG: not requested\n"
             + fingerprint
             + "VISIT: 1 | patient 1 | reference matched P-17 | patient-detail=/patients/17 | "
             "note-view=/forms/view?resultid=31 | visit-date=08/17/2026 | finished=08/17/2026 21:14 | matches\n",
