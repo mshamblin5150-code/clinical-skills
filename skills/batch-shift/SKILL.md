@@ -312,18 +312,29 @@ walkthrough for each shift.
 
 **Before building the Review sheet**, use that route to open Patient Detail read-only for every
 matched returning patient. Compare its displayed age and sex with the encounter opener. Collect
-every age or sex disagreement together with every unresolved multiple-row match and each
-culprit-ingredient question required by [clinical-note](../clinical-note/SKILL.md#a-combination-product-allergy-with-an-unknown-culprit) in one
+every age or sex disagreement together with every unresolved multiple-row match, each
+culprit-ingredient question required by [clinical-note](../clinical-note/SKILL.md#a-combination-product-allergy-with-an-unknown-culprit), and every
+earlier-visit status conflict in one
 `PRE-APPROVAL PATIENT QUESTIONS` block beside the Review-sheet go-ahead. Show that block to the
 clinician and obtain a ruling before approval; none of these questions is deferred to portal entry.
 Do not build or render the Review sheet while the block has an unresolved item. This read happens
 before the approval artifact exists, so an age or sex disagreement cannot first appear during
 entry on a run that followed this skill.
 
+The status question fires only when the shorthand mentions an earlier visit and neither the
+identity map nor Medatrax records the patient. State that the shorthand mentions an earlier visit
+and the records show none, then ask whether it was the clinician's practice within three years.
+Retain the clinician's answer as private status evidence. A delegate never answers this question.
+When the clinician has delegated pre-approval questions, settle this item from the account evidence
+(no record means new) and name that patient in the go-ahead message: coded new, the shorthand
+mentions an earlier visit, and saying `established` changes it. A change re-renders the affected
+note and follows the existing approval rules.
+
 It is batch-atomic. Before rendering, create one private manifest naming every encounter in exact
 order. Each record carries its stable id, one-based order, final ICD-10-CM, E/M, CPT, and HCPCS
-populations, one patient-status record whose evidence is `identity-map` or `medatrax` plus a SHA-256
-fingerprint of that private evidence, and the
+populations, one patient-status record whose evidence is `identity-map`, `medatrax`, or
+`clinician-answer` for the clinician's recorded answer to the earlier-visit conflict question,
+plus an `evidence_sha256` fingerprint of that private evidence, and the
 normalized SHA-256 of that clinical note plus visible worksheet. Normalize as UTF-8 with LF line
 endings, remove trailing whitespace from every line, and end with exactly one newline; exclude tier
 blocks, Medatrax fields, and technical receipts. Then run:
