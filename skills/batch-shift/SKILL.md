@@ -187,6 +187,13 @@ Save each note pass's complete private coding worksheet as
 subdirectory keeps worksheets out of note-only graders. This is `clinical-note`'s descriptor-
 agreement path inherited per encounter, not a second generated worksheet.
 
+Every pass brief points to [icd10-cpt's Writer self-grade](../icd10-cpt/SKILL.md#descriptor-agreement-is-a-separate-blind-read)
+and names its grading command, using its own note stem:
+
+```bash
+python tools/anchor_scan.py <run>/worksheets --notes <run> --agreement-read <run>/agreement-self/note-N.json --stem note-N
+```
+
 The pass brief carries nothing that contradicts `clinical-note`: it never asks for a visit time
 to be recorded as missing, because [clinical-note's visit-time rule](../clinical-note/SKILL.md#times)
 estimates every start and end time.
@@ -239,6 +246,21 @@ When `cpt_descriptors` is `unverified`, first save the shift's rendered CPT
 page reads in `<run>/agreement/cpt-rendered-pages.json` using the record shape
 in [icd10-cpt](../icd10-cpt/SKILL.md). Supply it to both commands; omit
 `--rendered-descriptors` when the set is verified and no record exists.
+
+**Before building the blind brief**, grade every note's retained
+[Writer self-grade record](../icd10-cpt/SKILL.md#descriptor-agreement-is-a-separate-blind-read)
+together with that page record. Expand the path list below to every confirmed note; require exit 0:
+
+```bash
+python tools/anchor_scan.py <run>/worksheets --notes <run> --rendered-descriptors <run>/agreement/cpt-rendered-pages.json --agreement-read <run>/agreement-self/note-1.json <run>/agreement-self/note-2.json
+```
+
+A missing self-record blocks the brief. A note sent back is a **Repair pass** under
+[ADR 0294](../../docs/adr/0294-an-orchestrator-s-per-note-claims-and-every-repair-pass-are-derived-from-the-record.md):
+retain its brief, bounded scope record, and passing placement/repair hash chain before grading again.
+Give the blind reader only the brief, with the self-record separation instruction in icd10-cpt;
+self-record text never enters a retry hint. On the blind grade below, append `--self-record` with
+the same complete path list for the report-only self-pass/blind-fail count.
 
 ```bash
 python tools/anchor_scan.py <run>/worksheets --notes <run> --rendered-descriptors <run>/agreement/cpt-rendered-pages.json --agreement-brief --output <run>/agreement/brief.json
