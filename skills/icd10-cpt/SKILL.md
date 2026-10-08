@@ -649,6 +649,13 @@ the worksheet explains why that otherwise repeated code belongs in the MDM.
   proposed instead: <the code the encounter does document>
 ```
 
+Every code the `proposed instead` field names must be proposed for entry above,
+whether on its own line or an indented continuation line, and whether ICD-10-CM,
+CPT, or HCPCS. A code named only to set it aside belongs on the refusal's `note:`
+line. A concern the encounter leaves nothing codable for takes no refusal record
+([ADR 0243, ruling 4](../../docs/adr/0243-descriptor-agreement-is-read-blind-against-the-note-and-the-index.md)),
+so `proposed instead` always names a code.
+
 A `CODED, ANCHOR WAS FILLED` listing is exactly one unadorned line: the bare code,
 a dash, and its value. It carries no code-system token, bullet, or bold markers.
 A `NOT CODED` record may carry the one-line `CONFIDENCE` field shown above.

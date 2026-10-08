@@ -77,7 +77,8 @@ from repo_root import InsideCheckout, ensure_outside_checkout, scratch_root
 from console_codec import require_python_floor, use_utf8
 from worksheet_grammar import (
     BLOCK_HEADING, CODE, DIFFERENTIAL_HEADING, ENTRY, ENTRY_CANDIDATE, FIELD,
-    REFUSAL_HEADING, STEP_FOUR_START, entry_is_for_entry, heading_counts, paired_entry,
+    REFUSAL_HEADING, STEP_FOUR_START, detail_belongs_to_entry, entry_is_for_entry,
+    heading_counts, paired_entry,
 )
 
 SOURCE = re.compile(r"(?mi)^[ \t]*SOURCE[ \t]*:[ \t]*(.*?)[ \t]*$")
@@ -478,7 +479,10 @@ GRADER = run_grader.Grader(
 AGREEMENT_ANCHOR = re.compile(r'(?mi)^[ \t]*ANCHOR[ \t]*:[ \t]*"(.*)"[ \t]*$')
 REFUSAL_MARK = re.compile(rf"(?mi)^[ \t]*NOT CODED:[ \t]*(?P<code>{CODE})\b[ \t]+(?P<descriptor>\S.*)$")
 NOTE_REFUSAL = re.compile(rf"(?i)\bNOT CODED:[ \t]*(?P<code>{CODE})\b")
-PROPOSED_INSTEAD = re.compile(rf"(?mi)^[ \t]*proposed instead:[ \t]*(?P<code>{CODE})\b", re.IGNORECASE)
+PROPOSED_INSTEAD = re.compile(r"(?mi)^[ \t]*proposed instead:[ \t]*(?P<value>[^\r\n]*)$")
+SUBSTITUTE_CODE = re.compile(rf"\b{CODE}\b", re.IGNORECASE)
+SUBSTITUTE_CONTINUATION = re.compile(r"(?m)^[ \t]+\S[^\r\n]*$")
+REFUSAL_FIELD = re.compile(r"(?i)^[ \t]*(?:needs|proposed instead):")
 ICD_TOKEN = re.compile(r"\b[A-Z][0-9][0-9A-Z](?:\.[0-9A-Z]{1,4})?\b")
 RENDERED_PROCEDURE = re.compile(rf"(?mi)^[ \t]*(?P<system>CPT|HCPCS)[ \t]*:[ \t]*(?P<code>{CODE})\b")
 RENDERED_EM = EM_LINE
@@ -1280,6 +1284,7 @@ def _section_codes(note: str, heading: str) -> tuple[set[str], list[str]]:
 
 def _binding_findings(pair: AgreementPair) -> tuple[list[str], list[str]]:
     proposed_icd = {s.code for s in pair.subjects if s.role == "entry" and s.system == "ICD-10"}
+    proposed_codes = {s.code for s in pair.subjects if s.role in {"entry", "procedure"}}
     differential_icd = {s.code for s in pair.subjects if s.role == "differential"}
     refused_icd = {s.code for s in pair.subjects if s.role == "refused"}
     procedure = {
@@ -1308,13 +1313,23 @@ def _binding_findings(pair: AgreementPair) -> tuple[list[str], list[str]]:
         for label, note_side, worksheet_side in comparisons
         if note_side != worksheet_side
     ]
-    substitutes = {
-        match.group("code").upper() for match in PROPOSED_INSTEAD.finditer(pair.worksheet)
-    }
-    if not substitutes <= proposed_icd:
+    substitutes: set[str] = set()
+    for field in PROPOSED_INSTEAD.finditer(pair.worksheet):
+        value = field["value"]
+        for line in SUBSTITUTE_CONTINUATION.finditer(pair.worksheet, field.end()):
+            if (not detail_belongs_to_entry(pair.worksheet, field, line)
+                    or FIELD.match(line.group()) or REFUSAL_FIELD.match(line.group())
+                    or OTHER_HEADING.match(line.group())):
+                break
+            value += "\n" + line.group()
+        codes = {match.group().upper() for match in SUBSTITUTE_CODE.finditer(value)}
+        if not codes:
+            findings.append(f"{pair.stem}: proposed-instead field names no code")
+        substitutes.update(codes)
+    if not substitutes <= proposed_codes:
         findings.append(
             f"{pair.stem}: proposed-instead code is absent from for-entry proposals: "
-            f"worksheet only {sorted(substitutes - proposed_icd)}"
+            f"worksheet only {sorted(substitutes - proposed_codes)}"
         )
     excluded = [
         f"{pair.stem}: {token}"

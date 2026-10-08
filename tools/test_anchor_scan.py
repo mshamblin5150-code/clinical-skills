@@ -1907,6 +1907,78 @@ class AgreementModes(unittest.TestCase):
         self.assertEqual(1, self.grade(self.clean_record())[0])
 
 
+    def test_a_proposed_procedure_is_a_valid_refusal_substitute(self):
+        (self.worksheets / "case-01.md").write_text(
+            AGREEMENT_WORKSHEET.replace(
+                "proposed instead: M79.675  Pain in left toe(s)",
+                "proposed instead: 10060  Incision and drainage of abscess",
+            ),
+            encoding="utf-8",
+        )
+        self.assertEqual(0, self.grade(self.clean_record())[0])
+
+
+    def test_a_refusal_substitute_without_a_code_has_its_own_finding(self):
+        (self.worksheets / "case-01.md").write_text(
+            AGREEMENT_WORKSHEET.replace(
+                "proposed instead: M79.675  Pain in left toe(s)",
+                "proposed instead: nothing - no supported code",
+            ),
+            encoding="utf-8",
+        )
+        status, report = self.grade(self.clean_record(), show=True)
+        self.assertEqual(1, status)
+        self.assertIn("proposed-instead field names no code", report)
+        self.assertNotIn("proposed-instead code is absent", report)
+
+
+    def test_every_code_in_a_wrapped_refusal_substitute_must_be_proposed(self):
+        (self.worksheets / "case-01.md").write_text(
+            AGREEMENT_WORKSHEET.replace(
+                "proposed instead: M79.675  Pain in left toe(s)",
+                "proposed instead: M79.675  Pain in left toe(s)\n"
+                "    with B07.0 set aside as a differential",
+            ),
+            encoding="utf-8",
+        )
+        status, report = self.grade(self.clean_record(), show=True)
+        self.assertEqual(1, status)
+        self.assertIn("proposed-instead code is absent from for-entry proposals", report)
+        self.assertIn("worksheet only ['B07.0']", report)
+
+
+    def test_refusal_substitute_code_population_and_field_boundaries(self):
+        cases = (
+            ("M79.675  Pain in left toe(s)", 0, ""),
+            ("B07.0  Plantar wart", 1, "worksheet only ['B07.0']"),
+            ("M79.675  Pain in left toe(s), with B07.0 set aside", 1,
+             "worksheet only ['B07.0']"),
+            ("B07.0 set aside, with M79.675 Pain in left toe(s)", 1,
+             "worksheet only ['B07.0']"),
+            ("M79.675  Pain in left toe(s), with 10060 Incision and drainage", 0, ""),
+            ("\n    M79.675  Pain in left toe(s)", 0, ""),
+            ("", 1, "proposed-instead field names no code"),
+            ("M79.675  Pain in left toe(s)\n  note: B07.0 set aside\n"
+             "    B07.0 remains a differential", 0, ""),
+            ("M79.675  Pain in left toe(s)\n\n    B07.0 outside the field", 0, ""),
+            ("M79.675  Pain in left toe(s)\nB07.0 outside the field\n"
+             "    B07.0 still outside", 0, ""),
+        )
+        for value, expected_status, finding in cases:
+            with self.subTest(value=value):
+                (self.worksheets / "case-01.md").write_text(
+                    AGREEMENT_WORKSHEET.replace(
+                        "proposed instead: M79.675  Pain in left toe(s)",
+                        f"proposed instead: {value}",
+                    ),
+                    encoding="utf-8",
+                )
+                status, report = self.grade(self.clean_record(), show=True)
+                self.assertEqual(expected_status, status, report)
+                if finding:
+                    self.assertIn(finding, report)
+
+
 class CptRenderedDescriptorBrief(unittest.TestCase):
     def test_committed_descriptor_set_is_unverified(self):
         import procedure_codes_lookup
