@@ -2849,7 +2849,7 @@ class PublishedAarStretchesAreExempt(unittest.TestCase):
         (run / "note.md").write_text(source or text, encoding="utf-8")
         body.write_text(text, encoding="utf-8")
         return hook.aar_quotation_analysis((
-            hook.Publication("body", text, "body-file", body),
+            hook.Publication("body", text, "body-file", body.resolve()),
         ))
 
     def test_an_exact_template_diff_passes_and_reports_exempted_stretches(self) -> None:
