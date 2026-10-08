@@ -695,7 +695,7 @@ def _drug_column_agrees(column: str, agreeing_words: str) -> bool:
         and re.search(r"\b(?:adverse effect|reaction|side effect)\b", words)
     )
     self_harm = bool(re.search(r"\b(?:self[- ]harm|suicid(?:e|al))\b", words))
-    intentional = "intentional" in words
+    intentional = bool(re.search(r"(?<!\bnon-)\bintentional\b", words))
     assault = bool(re.search(r"\b(?:assault(?:ed)?|assailant)\b", words))
     hedged_intent = bool(
         re.search(r"\b(?:possible|possibly|suspected|perhaps|may have been)\b", words)

@@ -1782,6 +1782,26 @@ ICD-10 Z68.41 Body mass index [BMI] 40.0-44.9, adult
                     )
                 )
 
+    def test_drug_columns_distinguish_intent_from_negated_word_forms(self):
+        cases = (
+            ("accidental carbon monoxide poisoning", "Poisoning Accidental (unintentional)"),
+            ("accidental (unintentional) carbon monoxide poisoning", "Poisoning Accidental (unintentional)"),
+            ("intentional carbon monoxide poisoning", "Poisoning Intentional self-harm"),
+            ("intentional self-harm carbon monoxide poisoning", "Poisoning Intentional self-harm"),
+            ("possibly unintentional ibuprofen ingestion", "Poisoning Accidental (unintentional)"),
+            ("non-intentional ibuprofen ingestion", "Poisoning Accidental (unintentional)"),
+            ("nonintentional ibuprofen ingestion", "Poisoning Accidental (unintentional)"),
+        )
+
+        for words, expected in cases:
+            for variant in (words, words.upper(), words.title()):
+                for column in scan.DRUG_COLUMNS:
+                    with self.subTest(words=variant, column=column):
+                        self.assertEqual(
+                            column == expected,
+                            scan._drug_column_agrees(column, variant),
+                        )
+
     def test_hedged_self_harm_agrees_only_with_undetermined(self):
         words = "acetaminophen ingestion, possibly intentional self-harm; patient denies"
 
