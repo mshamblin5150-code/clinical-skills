@@ -1358,6 +1358,10 @@ _Avoid_: E/M table, MDM grid, cheat sheet, level chart
 An over-the-counter drug the clinician's Plan directs with a dose and directions. It is prescription drug management for the E/M risk element because he writes a prescription for every agent he directs. Distinct from general advice that names an over-the-counter option without a dose and directions, which counts toward no element, and from a **Proposed** drug the skill itself adds.
 _Avoid_: OTC recommendation, self-care drug, nonprescription agent
 
+**Problem addressed**:
+A condition the clinician's shorthand, or his recorded answer, shows he evaluated or treated at this visit. Only such a condition counts toward the E/M problems element. A **Proposed** Plan line never makes a condition one, because the pass that wrote the management would then be taking credit for it; a proposed line on a condition he did address leaves it counted. Distinct from a **Coexisting condition**, which decides whether a history condition is coded at all and which filled content can show by changing something concrete in the visit.
+_Avoid_: managed problem, problem counted, dealt-with condition
+
 ### Review
 
 **Correction**:
