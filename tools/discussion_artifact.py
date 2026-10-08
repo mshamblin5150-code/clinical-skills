@@ -565,9 +565,15 @@ def check_posted_reading(
             codes.append("read-count")
         if len(reading.visits) != expected_visits:
             codes.append("visit-count")
+        if expected_patients is not None:
+            patients = [
+                match[1] for visit in reading.visits
+                if (match := re.search(r"(?:^|\|)\s*patient\s+(\d+)\s*(?:\||$)", visit, re.I))
+            ]
+            if sorted(patients) != sorted(expected_patients):
+                codes.append("visit-fields")
         for number, visit in enumerate(reading.visits, start=1):
             locator = re.match(r"(\d+)\s*\|", visit)
-            patient = re.search(r"(?:^|\|)\s*patient\s+(\d+)\s*(?:\||$)", visit, re.I)
             patterns = (
                 r"(?:^|\|)\s*patient\s+\d+\s*(?:\||$)",
                 r"(?:^|\|)\s*reference\s+(?:matched|new)\s+\S+",
@@ -577,11 +583,7 @@ def check_posted_reading(
                 r"(?:^|\|)\s*finished=\s*[^\s|][^|]*(?:\||$)",
                 r"(?:^|\|)\s*matches(?:\s|$)",
             )
-            patient_mismatch = expected_patients is not None and (
-                patient is None or number > len(expected_patients)
-                or patient[1] != expected_patients[number - 1]
-            )
-            if patient_mismatch or locator is None or int(locator[1]) != number or not all(
+            if locator is None or int(locator[1]) != number or not all(
                 re.search(pattern, visit, re.IGNORECASE) for pattern in patterns
             ):
                 codes.append("visit-fields")

@@ -31,6 +31,20 @@ def reading(digest: str) -> str:
 
 
 class BatchNotePopulation(unittest.TestCase):
+    def test_actual_entry_order_and_note_membership_are_separate(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            run = Path(temporary)
+            (run / "note-1.md").write_bytes(b"one")
+            (run / "note-3.md").write_bytes(b"three")
+            record = reading(sha256(b"onethree").hexdigest()).replace("READ: 1 of 1 read", "READ: 2 of 2 read")
+            visit = record.splitlines()[-1]
+            record = record.replace(visit, visit.replace("patient 1 |", "patient 3 |") + "\n" + visit.replace("VISIT: 1 |", "VISIT: 2 |"))
+            reread = run / "reread.md"
+            reread.write_text(record, encoding="utf-8")
+            self.assertFalse(posting.completion_gate(run, SUBMISSION, batch=True)[0])
+            reread.write_text(record.replace("patient 3 |", "patient 1 |"), encoding="utf-8")
+            self.assertTrue(posting.completion_gate(run, SUBMISSION, batch=True)[0])
+
     def test_patient_number_binds_to_source_notes_when_filenames_skip(self):
         with tempfile.TemporaryDirectory() as temporary:
             run = Path(temporary)
