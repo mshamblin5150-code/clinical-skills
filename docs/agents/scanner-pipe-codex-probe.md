@@ -25,6 +25,12 @@ The temporary user hook file was restored byte for byte in a `finally` block
 after each probe. The bypass flag admitted only the deliberately authored probe
 hooks for those invocations; the installer does not enable bypass or modify trust.
 
+A final integration probe registered `tools/scanner_pipe_hook.py` itself with
+matcher `Bash|Monitor`, requested `python tools/spelling_scan.py | tail -5` from
+the checkout, and received `Scanner pipe refused` before command execution.
+It stopped without retrying or rewriting the command. This tested the actual
+guard and matcher, in addition to the generic deny response above.
+
 **Selected branch: mechanical PreToolUse hook.**
 `tools/install_scanner_pipe_guard.py` registers the guard beside existing
 user-level hooks and refreshes only its own handler on a repeat run. Codex

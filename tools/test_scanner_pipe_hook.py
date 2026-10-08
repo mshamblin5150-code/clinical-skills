@@ -37,6 +37,9 @@ class ScannerPipeHookTests(unittest.TestCase):
             'python tools/tracker_freshness.py | head -1 && gh issue list',
             'python tools/spelling_scan.py | tail -5 || echo failed',
             'if python tools/spelling_scan.py | grep -q y; then echo yes; fi',
+            'if python tools/spelling_scan.py | tail; then echo "${PIPESTATUS[0]}"; fi',
+            'while python tools/spelling_scan.py | tail; do echo "${PIPESTATUS[0]}"; done',
+            'for s in a; do if python tools/spelling_scan.py | tail; then echo "${PIPESTATUS[0]}"; fi; done',
             'while python tools/spelling_scan.py | grep -q y; do echo yes; done',
             'until python tools/spelling_scan.py | grep -q y; do echo yes; done',
             'python tools/spelling_scan.py | tail -5; true; echo "${PIPESTATUS[0]}"',
@@ -52,6 +55,7 @@ class ScannerPipeHookTests(unittest.TestCase):
         for command in (
             'python tools/spelling_scan.py > result.txt 2>&1; echo "exit=$?"',
             'python tools/spelling_scan.py | tail -5; echo "exit=${PIPESTATUS[0]}"',
+            'python tools/spelling_scan.py | tail -5;\n\necho "exit=${PIPESTATUS[0]}"',
             'git log | head',
             'gh api repos/example | python -c "print(1)"',
             'python tools/spelling_scan.py; python tools/block_scan.py',

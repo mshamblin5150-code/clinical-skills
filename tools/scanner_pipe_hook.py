@@ -111,17 +111,26 @@ def handle(payload: dict) -> dict:
             end += 2
             stages.append(pieces[end])
         separator = pieces[end + 1] if end + 1 < len(pieces) else ''
-        following = pieces[end + 2] if end + 2 < len(pieces) else ''
+        next_index = end + 2
+        while next_index < len(pieces) and not pieces[next_index].strip():
+            # Blank lines and a newline after a semicolon execute no command.
+            if next_index + 1 < len(pieces) and pieces[next_index + 1] not in {';', '\n'}:
+                break
+            next_index += 2
+        following = pieces[next_index] if next_index < len(pieces) else ''
+        conditional = bool(re.match(
+            r'\s*(?:(?:do|then|else)\s+)*(?:if|while|until)\b', stages[0]
+        ))
         for stage, fragment in enumerate(stages[:-1]):
             script = _scanner(fragment, cwd)
             if script is None:
                 continue
             expansions = _expansions(following)
             own = '${PIPESTATUS[' + str(stage) + ']}'
-            immediate = separator in {';', '\n'} and own in expansions and '$?' not in expansions
+            immediate = (not conditional and separator in {';', '\n'}
+                         and own in expansions and '$?' not in expansions)
             if immediate:
                 continue
-            conditional = bool(re.match(r'\s*(?:if|while|until)\b', stages[0]))
             later = any(_expansions(piece) for piece in pieces[end + 2:])
             terminal = not separator or (separator in {';', '\n'} and
                        (not following.strip() or following.strip() in {'done', 'fi', '}', ')'}))
