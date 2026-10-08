@@ -21,7 +21,7 @@ class ScannerPipeHookTests(unittest.TestCase):
             [sys.executable, str(Path(__file__).with_name('scanner_pipe_hook.py'))],
             input=json.dumps({'cwd': str(self.root), 'tool_name': tool,
                               'tool_input': {'command': command}}),
-            text=True, capture_output=True, encoding='utf-8',
+            text=True, capture_output=True, encoding='utf-8', errors='replace',
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         return json.loads(result.stdout)
