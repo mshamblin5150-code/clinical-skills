@@ -53,7 +53,7 @@ Differential:
 2. <Diagnosis - CODE: the specific findings that argue against it. Less likely.>
 3. <Diagnosis - CODE: same. Less likely.>
 
-Preexisting diagnoses (ICD10): <condition - CODE; condition - CODE>
+Preexisting diagnoses (ICD10): <qualifying condition - CODE; or None affecting this visit>
 Final diagnosis: <condition - CODE>
 E/M: <supported complexity> complexity — <concise patient-specific problems/data/risk reason>; <code>, <new|established> patient.
 Age-appropriate screening to consider: <list keyed to age, sex and risk factors>
@@ -89,7 +89,9 @@ Coding freshness: PASS
 
 **`Allergies (reaction)` and every `SH:` clause are boxes too, and none of them is ever a hedge.** `Allergies (reaction): Not documented this visit` is a sentence defending the note rather than reporting on the patient, which drift row 12 has forbidden since issue #28. Same for `tobacco status not documented`, and same for a blank clause. Which value each box takes is [SKILL.md](SKILL.md)'s business under *Which way a social or allergy slot reads*: the drug-allergy and tobacco defaults are settled by corpus counts, while #168 supplies the silent Food and Environmental values. Drift row 17 checks them. Do not restate those rules here; do apply them, and declare every filled box in `FILLED·asserted` carrying its value. Issues #29 and #168.
 
-**Home meds are never deferred.** A PMH condition that ordinarily receives maintenance pharmacotherapy gets a compatible plausible regimen when the shorthand is silent. A named drug with an incomplete sig gets its dose, route, frequency, and ongoing status or duration completed. Every generated component is declared in `FILLED·asserted`; `unavailable`, `reconcile`, and missing-sig placeholders do not reach the finished note.
+**Preexisting diagnoses (ICD10)** carries only qualifying codes under [icd10-cpt's coexisting-condition test](../icd10-cpt/SKILL.md#descriptor-agreement-is-a-separate-blind-read). Every other history condition stays in the past-medical-history narrative, uncoded. With none, write `None affecting this visit`.
+
+**Home meds are never deferred.** A PMH condition that ordinarily receives maintenance pharmacotherapy gets a compatible plausible regimen when the shorthand is silent. A named drug with an incomplete sig gets its dose, route, frequency, and ongoing status or duration completed. Every generated component is declared in `FILLED·asserted`; `unavailable`, `reconcile`, and missing-sig placeholders do not reach the finished note. A filled home medication earns no code by itself; apply [icd10-cpt's coexisting-condition test](../icd10-cpt/SKILL.md#descriptor-agreement-is-a-separate-blind-read).
 
 **Medication completeness follows PMH coverage, not a minimum count.** In the private `FILLED·asserted` accounting, map every PMH condition to its medication, a shared medication, or no routine maintenance pharmacotherapy on the available facts. Keep that accounting out of the finished note and do not pad the list for appearance.
 

@@ -1009,6 +1009,81 @@ class AgreementModes(unittest.TestCase):
             )
         return status, output.getvalue()
 
+    def test_filled_home_medication_cannot_vouch_for_open_status(self):
+        medication = "omeprazole 20 mg PO daily"
+        note = AGREEMENT_NOTE + (
+            f"\nHome meds: {medication}\n"
+            f"FILLED·asserted   HOME MEDS {medication} inferred from history\n"
+        )
+        (self.notes / "case-01.md").write_text(note, encoding="utf-8")
+        record = self.clean_record()
+        record["pairs"][0]["codes"][0]["open_status_evidence"] = medication
+        status, report = self.grade(record, show=True)
+        self.assertEqual(1, status)
+        self.assertIn("open-status evidence rests only on a filled home medication", report)
+
+    def test_given_home_medication_evidence_passes(self):
+        medication = "omeprazole 20 mg PO daily"
+        (self.notes / "case-01.md").write_text(
+            AGREEMENT_NOTE + f"\nHome meds: {medication}\n", encoding="utf-8"
+        )
+        record = self.clean_record()
+        record["pairs"][0]["codes"][0]["open_status_evidence"] = medication
+        self.assertEqual(0, self.grade(record)[0])
+
+    def test_open_status_evidence_must_be_verbatim_note_text(self):
+        record = self.clean_record()
+        record["pairs"][0]["codes"][0]["open_status_evidence"] = "Condition remains active"
+        status, report = self.grade(record, show=True)
+        self.assertEqual(1, status)
+        self.assertIn("open-status evidence is not note text", report)
+
+    def test_continuing_a_filled_medication_is_not_open_status_evidence(self):
+        for continuation in (
+            "Continue omeprazole 20 mg PO daily.",
+            "Continue home omeprazole 20 mg PO daily.",
+            "Continue home medications.",
+        ):
+            with self.subTest(continuation=continuation):
+                note = AGREEMENT_NOTE + (
+                    f"\n{continuation}\n"
+                    "FILLED·asserted\n"
+                    "  - HOME MEDS omeprazole 20 mg\n"
+                    "    PO daily inferred from history\n"
+                )
+                (self.notes / "case-01.md").write_text(note, encoding="utf-8")
+                record = self.clean_record()
+                record["pairs"][0]["codes"][0]["open_status_evidence"] = continuation
+                self.assertEqual(1, self.grade(record)[0])
+
+    def test_concrete_management_outside_the_filled_medication_passes(self):
+        evidence = "Avoid ibuprofen because of heartburn; monitor symptoms."
+        note = AGREEMENT_NOTE + (
+            f"\n{evidence}\n"
+            "FILLED·asserted   HOME MEDS omeprazole 20 mg PO daily inferred from history\n"
+        )
+        (self.notes / "case-01.md").write_text(note, encoding="utf-8")
+        record = self.clean_record()
+        record["pairs"][0]["codes"][0]["open_status_evidence"] = evidence
+        self.assertEqual(0, self.grade(record)[0])
+
+    def test_unrelated_filled_item_does_not_refuse_open_status_evidence(self):
+        note = AGREEMENT_NOTE + "\nFILLED·asserted   Pain in left toe(s) severity 3/10\n"
+        (self.notes / "case-01.md").write_text(note, encoding="utf-8")
+        record = self.clean_record()
+        record["pairs"][0]["codes"][1]["open_status_evidence"] = "Pain in left toe(s)"
+        self.assertEqual(0, self.grade(record)[0])
+
+    def test_brief_requires_verbatim_open_status_evidence(self):
+        self.assertIn("quote open_status_evidence verbatim", self.brief()["instructions"])
+
+    def test_empty_preexisting_template_names_the_visit_boundary(self):
+        for branch in ("SOAP.md", "HP.md"):
+            with self.subTest(branch=branch):
+                text = (REPO_ROOT / "skills" / "clinical-note" / branch).read_text(encoding="utf-8")
+                self.assertIn("None affecting this visit", text)
+                self.assertIn("../icd10-cpt/SKILL.md#descriptor-agreement-is-a-separate-blind-read", text)
+
     def test_the_brief_contains_the_note_and_official_descriptors_but_no_anchors(self):
         brief = self.brief()
 
@@ -1944,10 +2019,11 @@ class CommittedAgreementControls(unittest.TestCase):
                 }
                 self.assertEqual(reasons, observed)
 
-    def test_index_table_control_remains_clean(self):
+    def test_index_table_record_has_nonverbatim_open_status_evidence(self):
         status, report = self.grade("descriptor-agreement-index-table-control")
-        self.assertEqual(0, status)
-        self.assertIn("agreement findings                 0", report)
+        self.assertEqual(1, status)
+        self.assertIn("agreement findings                 1", report)
+        self.assertIn("open-status evidence is not note text", report)
         self.assertIn("unread remainder 0", report)
 
     def test_authored_anchor_blind_control_is_clean_in_both_modes(self):

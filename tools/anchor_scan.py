@@ -72,6 +72,7 @@ from functools import cache
 from pathlib import Path
 
 import run_grader
+from block_scan import ASSERTED, read_block
 from repo_root import InsideCheckout, ensure_outside_checkout, scratch_root
 from console_codec import require_python_floor, use_utf8
 from worksheet_grammar import (
@@ -1142,6 +1143,25 @@ def _anchor_findings(pairs: list[AgreementPair]) -> list[str]:
     ]
 
 
+HOME_MEDICATION = re.compile(
+    r"(?i)^(?:home\s+(?:meds|medications)|historical\s+medications|medications)\b"
+)
+CONTINUE_MEDICATION = re.compile(r"(?i)^continue\s+(?:home\s+)?")
+
+
+def _filled_home_medication_evidence(evidence: str, items: list[str]) -> bool:
+    """Read containment; concrete management outside the item stays a reading."""
+    if any(evidence in item for item in items):
+        return True
+    continuation = CONTINUE_MEDICATION.match(evidence)
+    if continuation is None:
+        return False
+    continued = evidence[continuation.end():].rstrip(" .;")
+    if continued.lower() in {"meds", "medications", "home meds", "home medications"}:
+        return bool(items)
+    return bool(continued) and any(continued in item for item in items)
+
+
 def _brief_payload(
     pairs: list[AgreementPair], unread: int, full_pair_count: int,
     requested: list[str] | None, finding_count: int = 0,
@@ -1152,6 +1172,7 @@ def _brief_payload(
             "Writer self-records exist privately; do not read them or request their text as a retry hint. "
             "For every code, record agreeing_words, route, encounter_evidence, "
             "open_status_evidence, threshold, and waits_on_result; use 'none' when absent. "
+            "Writers and blind readers quote open_status_evidence verbatim from the note. "
             "Copy subject_id, system, code, and role exactly. Every evidence value is a nonempty "
             "string. Route is the literal 'descriptor words' or exact index output; join a "
             "referral chain with ' | ', beginning at a term in agreeing_words and ending at the "
@@ -1172,8 +1193,9 @@ def _brief_payload(
             "and underdosing; unstated poisoning intent defaults to accidental, while hedged "
             "self-harm or assault agrees only with undetermined. A differential "
             "code is read against the diagnosis considered by its entry. A present descriptor "
-            "resting on history needs note evidence that the finding remains unresolved and is "
-            "addressed today. An encounter or procedure descriptor needs evidence that its purpose "
+            "resting on history follows the coexisting-condition test in icd10-cpt's "
+            "descriptor-agreement section, including its filled-home-medication rule. "
+            "An encounter or procedure descriptor needs evidence that its purpose "
             "or act belongs to this encounter, not a later recommendation. A bare value reaches an "
             "abnormality descriptor only through a threshold stated by the note or a committed "
             "source. For every entry or differential code, name any result the descriptor still "
@@ -1312,6 +1334,11 @@ def _agreement_report(
     anchors = sum("anchor is not verbatim note text" in finding for finding in findings)
     route = sum("has no descriptor or index route" in finding for finding in findings)
     encounter = sum("has no encounter evidence" in finding for finding in findings)
+    open_not_note = sum("open-status evidence is not note text" in finding for finding in findings)
+    filled_medication = sum(
+        "open-status evidence rests only on a filled home medication" in finding
+        for finding in findings
+    )
     binds = sum(
         "bind differs" in finding or "proposed-instead" in finding for finding in findings
     )
@@ -1326,6 +1353,8 @@ def _agreement_report(
             f"    agreeing words absent from note   {not_note}",
             f"    agreeing words from wrong place  {wrong_place}",
             f"    non-verbatim anchors              {anchors}",
+            f"    open-status evidence absent from note  {open_not_note}",
+            f"    open-status evidence from filled home medication  {filled_medication}",
             f"    codes with no route               {route}",
             f"    codes with no encounter evidence  {encounter}",
             f"    descriptors waiting on results    {waits}",
@@ -1461,6 +1490,10 @@ def _grade_agreement(pairs: list[AgreementPair], unread: int,
     failed: set[tuple[str, str]] = set()
     for pair in pairs:
         findings.extend(_anchor_findings([pair]))
+        filled_home_medications = [
+            entry.text for entry in read_block(pair.note).get(ASSERTED, [])
+            if HOME_MEDICATION.match(entry.subject)
+        ]
         record_pair = record_pairs.get(pair.stem)
         if record_pair is None:
             unread += len(pair.subjects) or 1
@@ -1499,6 +1532,16 @@ def _grade_agreement(pairs: list[AgreementPair], unread: int,
             ) != (subject.system, subject.code, subject.role):
                 unread += 1
                 continue
+            open_status = record["open_status_evidence"]
+            if open_status != "none":
+                if open_status not in pair.note:
+                    findings.append(
+                        f"{pair.stem}: {subject.key} open-status evidence is not note text"
+                    )
+                elif _filled_home_medication_evidence(open_status, filled_home_medications):
+                    findings.append(
+                        f"{pair.stem}: {subject.key} open-status evidence rests only on a filled home medication"
+                    )
             if subject.system == "CPT" and not subject.descriptor:
                 # Keep the subject and its bind, but never grade against an
                 # unverified database descriptor. The page is counted above.
