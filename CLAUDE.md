@@ -2296,7 +2296,7 @@ boundary is `cpt_mdm_sheet.DECLARED_LIMITS`; this section does not copy it.
 coding worksheet or Review sheet is rendered. The manifest names every encounter in exact order,
 binds its normalized clinical-and-coding content by SHA-256, and carries its stated ED or office
 setting and account-backed office status (ED status is not applicable)
-with a SHA-256 fingerprint of the private identity-map or Medatrax evidence for office encounters
+with a SHA-256 fingerprint of the private identity-map, Medatrax, or recorded clinician-answer evidence for office encounters
 and final code populations. On every batch the command derives the service-date-applicable release
 from the live CDC page and the most recently published update from the live CMS page; its production
 CLI takes no URL or as-of override. It binds the private CPT receipt to the committed source edition,
