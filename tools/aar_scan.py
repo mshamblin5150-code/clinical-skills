@@ -29,6 +29,7 @@ from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from hashlib import sha256
 import json
+import importlib
 from pathlib import Path
 import re
 import subprocess
@@ -49,6 +50,7 @@ NOT_GRADED = run_grader.NOT_GRADED
 REVIEW_CLASSIFIER_ENTRY_CUTOFF = datetime(2026, 9, 12, tzinfo=timezone.utc)
 POSTED_READING_FINGERPRINT_CUTOFF = datetime(2026, 9, 13, tzinfo=timezone.utc)
 UNREAD_REMAINDER_CUTOFF = datetime(2026, 10, 3, 17, 57, tzinfo=timezone.utc)
+LANDING_OUTPUT_CUTOFF = datetime(2026, 10, 8, tzinfo=timezone.utc)
 
 
 SCOPED_SKILLS = frozenset(
@@ -350,7 +352,7 @@ SUSTAIN_HEADING = re.compile(r"^## SUSTAIN:\s*(?P<event>\S+)\s*$")
 RUN_REFERENCE = re.compile(
     r"(?i)(?:[A-Za-z]:)?[^\s\"'<>|]*scratch[\\/]runs[\\/](?P<key>[^\\/\s\"'<>|]+)"
 )
-GH_ISSUE = re.compile(r"https://github\.com/[^/]+/[^/]+/issues/[0-9]+\Z")
+GH_ISSUE = re.compile(r"https://github\.com/[^/]+/[^/]+/issues/[0-9]+(?:#issuecomment-[0-9]+)?\Z")
 
 
 @dataclass(frozen=True)
@@ -1291,6 +1293,48 @@ def _departure_population(run: Path) -> list[Candidate]:
     return population
 
 
+def _check_snapshot_posted_reading(run: Path, submission: str) -> None:
+    """Resolve the approved skill; its grader owns every posted-reading rule."""
+    import approval_record
+    import assignment_submission
+
+    approvals = run / approval_record.RECORD
+    items = approval_record._read(run).get("items", []) if approvals.exists() else []
+    matching = [
+        item for item in items
+        if isinstance(item, dict) and item.get("submission") == submission
+    ]
+    if len(matching) > 1:
+        raise ValueError("submission has ambiguous skill approval records")
+    if matching:
+        skill = matching[0].get("skill")
+        args = matching[0].get("grader_args")
+    elif (run / assignment_submission.RECORD).exists():
+        gate = assignment_submission._read(run)
+        skill = "course-assignment"
+        artifact = gate.get("artifact_path")
+        args = [str(run), "--artifact", artifact] if isinstance(artifact, str) and artifact else None
+    else:
+        raise ValueError("cannot determine the submission's skill from its approval record")
+    if not isinstance(skill, str) or skill not in COMPLETION_GRADERS:
+        raise ValueError("approval record has no supported skill")
+    if not isinstance(args, list) or not args or not all(isinstance(arg, str) for arg in args):
+        raise ValueError("approval record has no readable completion grader arguments")
+    try:
+        grader = importlib.import_module(COMPLETION_GRADERS[skill])
+    except ImportError as failure:
+        raise ValueError(f"{skill} posted-reading checker could not be loaded") from failure
+    check = getattr(grader, "posted_reading_check", None)
+    if not callable(check):
+        raise ValueError(f"{skill} has no posted-reading-only entry point")
+    try:
+        outcomes = check(run, submission, tuple(args))
+    except run_grader.SourceError as failure:
+        raise ValueError(str(failure)) from failure
+    if outcomes:
+        raise ValueError("; ".join(outcome.message for outcome in outcomes))
+
+
 def write_extract(
     run: Path,
     transcript: Path | None,
@@ -1298,6 +1342,7 @@ def write_extract(
     memory_index: Path,
 ) -> tuple[Path, int]:
     retire_orphan_pointers(run)
+    _check_snapshot_posted_reading(run, submission)
     posted_reading_fingerprint = _posted_reading_fingerprint(run, submission)
     population, transcripts, discovery = _collect_population(run, transcript)
     if not population:
@@ -1709,7 +1754,22 @@ def _target_changed(target: str, baseline: Mapping[str, str | None]) -> bool:
     return _hash(path) is not None and _hash(path) != baseline.get(str(path))
 
 
-def _successful_gh_call(transcripts: Iterable[Path]) -> bool:
+def _successful_gh_call(
+    transcripts: Iterable[Path], landing: str | None = None,
+    extracted_at: datetime | None = None,
+) -> bool:
+    def proves_landing(row: dict[str, Any], output: object) -> bool:
+        if landing is None:
+            return True  # Historical rounds retain the any-successful-gh rule.
+        try:
+            timestamp = _utc_timestamp(_text(row.get("timestamp")), "command timestamp")
+        except ValueError:
+            return False
+        # Tokenize addresses so a different comment ID or an anchor cannot prove
+        # the bare issue address merely by containing its prefix.
+        printed_urls = re.findall(r"https://[^\s<>\"']+", _text(output))
+        return extracted_at is not None and timestamp >= extracted_at and landing in printed_urls
+
     for transcript in transcripts:
         rows = read_transcript(transcript)
         for row in rows:
@@ -1730,6 +1790,11 @@ def _successful_gh_call(transcripts: Iterable[Path]) -> bool:
                     isinstance(value, str) and shell_reader.has_executable(value, "gh")
                     for value in commands
                 )
+                and proves_landing(
+                    row, "\n".join(
+                        _text(item.get(field)) for field in ("stdout", "aggregated_output")
+                    )
+                )
             ):
                 return True
         tools = _tool_index(rows)
@@ -1745,7 +1810,19 @@ def _successful_gh_call(transcripts: Iterable[Path]) -> bool:
             if row.get("type") != "user":
                 continue
             for block in _content_blocks(row.get("message")):
-                if block.get("type") == "tool_result" and block.get("tool_use_id") in gh_ids and block.get("is_error") is not True:
+                if (
+                    block.get("type") == "tool_result"
+                    and block.get("tool_use_id") in gh_ids
+                    and block.get("is_error") is not True
+                    and proves_landing(
+                        row,
+                        block.get("content") if isinstance(block.get("content"), str)
+                        else "\n".join(
+                            _text(part.get("text")) for part in (block.get("content") or [])
+                            if isinstance(part, dict) and part.get("type") == "text"
+                        ),
+                    )
+                ):
                     return True
         if any(tool == "Bash" for tool in tools.values()) and gh_ids:
             # Older transcript rows omit ``is_error`` on a successful result.
@@ -1753,7 +1830,9 @@ def _successful_gh_call(transcripts: Iterable[Path]) -> bool:
     return False
 
 
-def _survey_round(run: Path, submission: str, round_number: int) -> Scan:
+def _survey_round(
+    run: Path, submission: str, round_number: int, *, newest_round: bool = True
+) -> Scan:
     findings: list[Finding] = []
     record_path = review_path(run, submission, round_number)
     records = int(record_path.is_file())
@@ -1805,7 +1884,7 @@ def _survey_round(run: Path, submission: str, round_number: int) -> Scan:
             unread_remainder = count
         except (KeyError, ValueError):
             findings.append(Finding("non-numeric-coverage", "UNREAD-REMAINDER"))
-    if fingerprint_cutoff:
+    if fingerprint_cutoff and newest_round:
         recorded_fingerprint = extract_fields.get("POSTED-READING-FINGERPRINT", "")
         try:
             current_fingerprint = _posted_reading_fingerprint(run, submission)
@@ -1883,6 +1962,14 @@ def _survey_round(run: Path, submission: str, round_number: int) -> Scan:
         if disposition in {"skill-file", "tracker-ticket"}:
             if not GH_ISSUE.fullmatch(landing):
                 findings.append(Finding("unlanded-ticket", correction.event))
+            elif (
+                _utc_timestamp(extracted_at, "EXTRACTED-AT") >= LANDING_OUTPUT_CUTOFF
+                if extracted_at else False
+            ):
+                if not _successful_gh_call(
+                    transcript_paths, landing, _utc_timestamp(extracted_at, "EXTRACTED-AT")
+                ):
+                    findings.append(Finding("missing-gh-call", correction.event))
             elif transcript_paths and not _successful_gh_call(transcript_paths):
                 findings.append(Finding("missing-gh-call", correction.event))
         elif disposition == "memory-write":
@@ -1963,7 +2050,7 @@ def _optional_count(fields: Mapping[str, str], name: str) -> int:
 def survey(run: Path, submission: str) -> Scan:
     round_numbers = _review_round_numbers(run, submission) or (1,)
     scans = tuple(
-        _survey_round(run, submission, round_number)
+        _survey_round(run, submission, round_number, newest_round=round_number == max(round_numbers))
         for round_number in round_numbers
     )
     rounds = tuple(

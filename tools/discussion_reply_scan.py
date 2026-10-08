@@ -18,7 +18,7 @@ The shared completion rows' ceilings belong to
 
 from __future__ import annotations
 
-from discussion_artifact import check_posted_reading
+from discussion_artifact import check_posted_reading, PostedReadingOutcome
 
 import re
 import sys
@@ -768,22 +768,37 @@ POSTED_READING_KINDS = {
 }
 
 
+def posted_reading_check(
+    run: Path, submission: str, grader_args: tuple[str, ...] = ()
+) -> tuple[PostedReadingOutcome, ...]:
+    if Path(submission).name != submission or not submission.startswith('response-') or not submission.endswith('.md'):
+        raise run_grader.SourceError('posted reading names another reply')
+    reread = run / 'reread.md'
+    readings = read_posted_readings(reread.read_text(encoding='utf-8')) if reread.is_file() else ()
+    id_counts = Counter(item.entry_id for item in readings if item.entry_id is not None)
+    post_paths = tuple(sorted((run / 'posts').glob('*.md')))
+    initial = run / 'post.md'
+    texts = [path.read_text(encoding='utf-8') for path in post_paths]
+    if initial.is_file():
+        texts.append(initial.read_text(encoding='utf-8'))
+    roster_ids = {
+        value for text in texts
+        if (match := POST_URL.search(text)) is not None
+        if (value := discussion_entry_id(match.group('url').strip())) is not None
+    }
+    return check_posted_reading(
+        next((item for item in readings if item.artifact == submission), None),
+        file_digest.sha256(run / submission), posted_fields=True,
+        verdict=True, entry_link=True, roster_ids=roster_ids,
+        duplicate_ids={value for value, count in id_counts.items() if count > 1},
+    )
+
+
 def _posted_reading_findings(source: RunSource) -> tuple[Finding, ...]:
-    by_artifact = {reading.artifact: reading for reading in source.readings}
-    id_counts = Counter(reading.entry_id for reading in source.readings if reading.entry_id is not None)
-    roster_ids = {value for url in source.roster_urls for value in (discussion_entry_id(url),) if value is not None}
-    initial_post_id = discussion_entry_id(source.initial_post_url) if source.initial_post_url else None
-    if initial_post_id is not None:
-        roster_ids.add(initial_post_id)
-    duplicates = {value for value, count in id_counts.items() if count > 1}
     return tuple(
         Finding(POSTED_READING_KINDS[item.code], reply.path.name, item.message)
         for reply in source.replies
-        for item in check_posted_reading(
-            by_artifact.get(reply.path.name), file_digest.sha256(reply.path),
-            posted_fields=True, verdict=True, entry_link=True,
-            roster_ids=roster_ids, duplicate_ids=duplicates,
-        )
+        for item in posted_reading_check(source.path, reply.path.name)
     )
 
 

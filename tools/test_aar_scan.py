@@ -7,6 +7,7 @@ from __future__ import annotations
 import io
 import importlib
 import ast
+from hashlib import sha256
 from dataclasses import dataclass
 from enum import Enum
 import json
@@ -35,6 +36,37 @@ import project_context
 
 
 GraderConformance = grader_conformance.for_module(aar_scan)
+
+
+_snapshot_check = aar_scan._check_snapshot_posted_reading
+
+
+def check_synthetic_snapshot(run: Path, submission: str) -> None:
+    """Give transcript/review tests a real approved, fingerprinted source.
+
+    Portal-specific refusal twins live in test_aar_posted_entrypoints. These
+    tests use the practicum checker and replace only its output-file locator.
+    """
+    source = run / "synthetic-source.md"
+    source.write_text("Synthetic academic artifact.\n", encoding="utf-8")
+    (run / "posting-approvals.json").write_text(json.dumps({"items": [{
+        "skill": "practicum-case-study", "submission": submission,
+        "grader_args": [str(run / "checks.md"), "--document", str(source)],
+    }]}), encoding="utf-8")
+    reread = run / "reread.md"
+    if reread.is_file():
+        text = reread.read_text(encoding="utf-8")
+        if "SUBMISSION-SHA256:" not in text:
+            reread.write_text(text + f"SUBMISSION-SHA256: {sha256(source.read_bytes()).hexdigest()}\n", encoding="utf-8")
+    with mock.patch.object(checks_ledger, "_submission_document", return_value=source):
+        _snapshot_check(run, submission)
+
+
+class SyntheticSnapshotCase(unittest.TestCase):
+    def setUp(self) -> None:
+        patcher = mock.patch.object(aar_scan, "_check_snapshot_posted_reading", check_synthetic_snapshot)
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
 
 class CheckTargetGitState(Enum):
@@ -87,7 +119,8 @@ def unread_remainder_input(root: Path) -> grader_conformance.UnreadRemainderInpu
         case = SubmissionRecord()
         case.run, case.transcript, case.memory = run, transcript, memory
         case.submission = "synthetic-submission"
-        case.write_clean()
+        with mock.patch.object(aar_scan, "_check_snapshot_posted_reading", check_synthetic_snapshot):
+            case.write_clean()
         paths.append((str(run), "--submission", case.submission))
     return grader_conformance.UnreadRemainderInput(
         paths[0], paths[1], unread_remainder=lambda scan: scan.unread_remainder
@@ -248,6 +281,47 @@ def write_codex_transcript(path: Path, run: Path | None = None) -> None:
 
 
 class GithubPublicationEvidence(unittest.TestCase):
+    def test_exact_printed_address_is_required_after_the_extract_in_both_harnesses(self):
+        from datetime import datetime, timezone
+        cutoff = datetime(2026, 10, 9, 12, tzinfo=timezone.utc)
+        landing = "https://github.com/example/repo/issues/42#issuecomment-123"
+        for harness in ("claude", "codex"):
+            for timestamp, output, failed, expected in (
+                ("2026-10-09T12:00:00Z", landing, False, True),
+                ("2026-10-09T12:01:00Z", landing, False, True),
+                ("2026-10-09T11:59:59Z", landing, False, False),
+                ("2026-10-09T12:01:00Z", landing, True, False),
+                ("2026-10-09T12:01:00Z", landing + "4", False, False),
+                ("2026-10-09T12:01:00Z", "https://github.com/example/repo/pull/42", False, False),
+                ("", landing, False, False),
+            ):
+                with self.subTest(harness=harness, timestamp=timestamp, output=output, failed=failed):
+                    with tempfile.TemporaryDirectory() as temp:
+                        path = Path(temp) / "session.jsonl"
+                        if harness == "codex":
+                            rows = [{"type": "event_msg", "timestamp": timestamp, "payload": {
+                                "type": "item_completed", "item": {
+                                    "type": "CommandExecution", "command": "gh issue comment 42",
+                                    "status": "completed", "exit_code": 1 if failed else 0,
+                                    "aggregated_output": output + "\n",
+                                },
+                            }}]
+                        else:
+                            rows = [row("assistant", "a", {"content": [{
+                                "type": "tool_use", "id": "gh1", "name": "Bash",
+                                "input": {"command": "gh issue comment 42"},
+                            }]}), row("user", "b", {"content": [{
+                                "type": "tool_result", "tool_use_id": "gh1", "is_error": failed,
+                                "content": [{"type": "text", "text": output + "\n"}],
+                            }]}, timestamp=timestamp)]
+                        path.write_text("\n".join(json.dumps(item) for item in rows) + "\n", encoding="utf-8")
+                        self.assertEqual(aar_scan._successful_gh_call((path,), landing, cutoff), expected)
+
+    def test_issue_and_comment_addresses_are_accepted_but_pull_requests_are_not(self):
+        for address in ("https://github.com/example/repo/issues/42", "https://github.com/example/repo/issues/42#issuecomment-123"):
+            self.assertIsNotNone(aar_scan.GH_ISSUE.fullmatch(address))
+        self.assertIsNone(aar_scan.GH_ISSUE.fullmatch("https://github.com/example/repo/pull/42"))
+
     def test_a_successful_codex_command_execution_proves_the_gh_call(self):
         with tempfile.TemporaryDirectory() as temp:
             transcript = Path(temp) / "codex.jsonl"
@@ -268,6 +342,26 @@ class GithubPublicationEvidence(unittest.TestCase):
             self.assertTrue(aar_scan._successful_gh_call((transcript,)))
 
 
+class SnapshotResolver(unittest.TestCase):
+    def test_unknown_skill_missing_entrypoint_and_unreadable_source_are_not_scanned(self):
+        for defect in ("no-approval", "unknown-skill", "no-entrypoint", "unreadable-source"):
+            with self.subTest(defect=defect), tempfile.TemporaryDirectory() as temp:
+                run = Path(temp)
+                if defect != "no-approval":
+                    (run / "posting-approvals.json").write_text(json.dumps({"items": [{
+                        "submission": "synthetic", "skill": "unrecognized" if defect == "unknown-skill" else "batch-shift",
+                        "grader_args": [str(run)],
+                    }]}), encoding="utf-8")
+                with mock.patch.object(filled_vitals_census, "posted_reading_check", None) if defect == "no-entrypoint" else mock.patch.object(aar_scan, "_tracked_files", return_value=()):
+                    status, _stdout, stderr = invoke_main([
+                        str(run), "--submission", "synthetic", "--memory-index", str(run / "memory.md"), "--extract",
+                    ])
+                self.assertEqual(status, 2)
+                self.assertIn("NOT SCANNED", stderr)
+                self.assertFalse(aar_scan.extract_path(run, "synthetic").exists())
+                self.assertFalse(aar_scan.baseline_path(run, "synthetic").exists())
+
+
 def invoke_main(arguments: list[str], stdin: str | None = None) -> tuple[int, str, str]:
     stdout = io.StringIO()
     stderr = io.StringIO()
@@ -282,7 +376,7 @@ def invoke_main(arguments: list[str], stdin: str | None = None) -> tuple[int, st
     return status, stdout.getvalue(), stderr.getvalue()
 
 
-class CommandModes(unittest.TestCase):
+class CommandModes(SyntheticSnapshotCase):
     """The three command modes whose routing #840 migrated."""
 
     def test_the_graded_mode_prints_the_report_and_returns_its_finding(self) -> None:
@@ -857,7 +951,7 @@ class EntryKindsAreBound(unittest.TestCase):
         )
 
 
-class ScanBasedSittingDiscovery(unittest.TestCase):
+class ScanBasedSittingDiscovery(SyntheticSnapshotCase):
     def test_two_identifierless_codex_rollouts_form_one_readable_extract(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -1062,8 +1156,9 @@ class ScanBasedSittingDiscovery(unittest.TestCase):
             self.assertEqual(count, 1)
 
 
-class SubmissionRecord(unittest.TestCase):
+class SubmissionRecord(SyntheticSnapshotCase):
     def setUp(self) -> None:
+        super().setUp()
         self.temporary = tempfile.TemporaryDirectory()
         self.root = Path(self.temporary.name)
         self.run = self.root / "course-module-discussion"
@@ -2405,6 +2500,67 @@ class SubmissionRecord(unittest.TestCase):
             "posted-reading-mismatch",
             [finding.kind for finding in aar_scan.survey(self.run, self.submission).findings],
         )
+
+    def test_only_the_newest_round_fingerprint_is_compared(self) -> None:
+        self.write_clean()
+        reread = self.run / "reread.md"
+        reread.write_text(reread.read_text(encoding="utf-8").replace(
+            "the posted artifact was read back", "the corrected artifact was read back"
+        ), encoding="utf-8")
+        with self.transcript.open("a", encoding="utf-8") as stream:
+            stream.write(json.dumps(row("user", "round-2", {"content": "Review the corrected record."})) + "\n")
+        aar_scan.write_extract(self.run, self.transcript, self.submission, self.memory)
+        self.write_clean(2, extract=False)
+        self.assertNotIn("posted-reading-mismatch", {finding.kind for finding in aar_scan.survey(self.run, self.submission).findings})
+        # Earlier corrections still use their own round: removing its verdict
+        # remains a finding even though its old fingerprint is exempt.
+        first = aar_scan.review_path(self.run, self.submission)
+        first.write_text(first.read_text(encoding="utf-8").replace("CORRECTIONS: none\n", ""), encoding="utf-8")
+        self.assertIn("missing-correction-verdict", {finding.kind for finding in aar_scan.survey(self.run, self.submission).findings})
+        reread.write_text(reread.read_text(encoding="utf-8").replace(
+            "the corrected artifact was read back", "the artifact changed again"
+        ), encoding="utf-8")
+        self.assertIn("posted-reading-mismatch", {finding.kind for finding in aar_scan.survey(self.run, self.submission).findings})
+
+    def test_final_grade_binds_landing_output_and_keeps_the_old_round_rule(self):
+        from datetime import datetime, timezone, timedelta
+        self.write_clean()
+        landing = "https://github.com/example/repo/issues/42#issuecomment-123"
+        record = aar_scan.review_path(self.run, self.submission)
+        record.write_text(record.read_text(encoding="utf-8").replace("CORRECTIONS: none\n", "") + (
+            "\n## CORRECTION: u1\nCORRECTOR: clinician\nIN-ERROR: orchestrator\n"
+            "SUMMARY: the workflow needs a durable correction\n"
+            "CLASSIFIER: tracker-ticket - the defect needs a recorded correction\n"
+            "ORCHESTRATOR: agree - the recorded issue comment carries the correction\n"
+            f"DISPOSITION: tracker-ticket\nTARGET: workflow correction\nLANDING: {landing}\n"
+        ), encoding="utf-8")
+        extract = aar_scan.extract_path(self.run, self.submission)
+        original = extract.read_text(encoding="utf-8")
+        fields, _ = aar_scan._extract_metadata(extract)
+        when = datetime.fromisoformat(fields["EXTRACTED-AT"].replace("Z", "+00:00"))
+        for offset, output, exit_code, expected in (
+            (0, landing, 0, False), (-1, landing, 0, True),
+            (1, landing + "4", 0, True), (1, landing, 1, True),
+        ):
+            with self.subTest(offset=offset, output=output, exit_code=exit_code):
+                write_transcript(self.transcript)
+                with self.transcript.open("a", encoding="utf-8") as stream:
+                    stream.write(json.dumps({"type": "event_msg", "timestamp": (when + timedelta(seconds=offset)).isoformat(), "payload": {
+                        "type": "item_completed", "item": {
+                            "type": "CommandExecution", "command": "gh issue comment 42", "status": "completed",
+                            "exit_code": exit_code, "stdout": output + "\n",
+                        },
+                    }}) + "\n")
+                self.assertEqual("missing-gh-call" in {finding.kind for finding in aar_scan.survey(self.run, self.submission).findings}, expected)
+        # Earlier extracts keep their any-successful-gh proof without an output/time bind.
+        old = (aar_scan.LANDING_OUTPUT_CUTOFF - timedelta(seconds=1)).isoformat()
+        extract.write_text(original.replace(fields["EXTRACTED-AT"], old), encoding="utf-8")
+        write_transcript(self.transcript)
+        with self.transcript.open("a", encoding="utf-8") as stream:
+            stream.write(json.dumps({"type": "event_msg", "payload": {"type": "item_completed", "item": {
+                "type": "CommandExecution", "command": "gh issue list", "status": "completed", "exit_code": 0,
+            }}}) + "\n")
+        self.assertNotIn("missing-gh-call", {finding.kind for finding in aar_scan.survey(self.run, self.submission).findings})
 
     def test_a_changed_visit_locator_moves_with_the_posted_reading_block(self) -> None:
         reread = self.run / "reread.md"

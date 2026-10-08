@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from discussion_artifact import check_posted_reading
+from discussion_artifact import check_posted_reading, PostedReadingOutcome
 
 import json
 import os
@@ -291,6 +291,28 @@ def submit_is_authorized(staged: StagedUpload) -> bool:
         return False
 
 
+def posted_reading_check(
+    run: Path, submission: str, artifact: Path
+) -> tuple[PostedReadingOutcome, ...]:
+    """Check the posted artifact and the complete approved carrier population."""
+    payload = _read(run)
+    approved = payload.get("approved_carriers")
+    if not isinstance(approved, list) or not all(isinstance(item, dict) for item in approved):
+        raise GateError("approved carrier population cannot be read")
+    filenames = tuple(item.get("filename", "") for item in approved)
+    reread = run / "reread.md"
+    readings = read_posted_readings(reread.read_text(encoding="utf-8")) if reread.is_file() else ()
+    reading = next((item for item in readings if item.artifact == submission), None)
+    outcomes = list(check_posted_reading(reading, file_digest.sha256(artifact), matches_only=True))
+    if reading is not None:
+        if not (reading.attachment_count.isascii() and reading.attachment_count.isdecimal()
+                and int(reading.attachment_count) == len(filenames)):
+            outcomes.append(PostedReadingOutcome("attachment-count"))
+        if reading.submitted_files != filenames:
+            outcomes.append(PostedReadingOutcome("submitted-files"))
+    return tuple(outcomes)
+
+
 def completion_gate(
     run: Path, artifact: Path, submission: str | None = None
 ) -> tuple[bool, str]:
@@ -330,24 +352,10 @@ def completion_gate(
                 )
                 clean = False
         if clean and submission is not None:
-            readings = read_posted_readings(
-                (root / "reread.md").read_text(encoding="utf-8")
-            )
-            reading = next(
-                (item for item in readings if item.artifact == submission), None
-            )
-            outcomes = check_posted_reading(reading, file_digest.sha256(path), matches_only=True)
+            outcomes = posted_reading_check(root, submission, path)
             if outcomes:
                 canonical_failure = outcomes[0].message
-            clean = bool(
-                not outcomes
-                and reading is not None
-                and reading.attachment_count.isascii()
-                and reading.attachment_count.isdecimal()
-                and int(reading.attachment_count) == len(filenames)
-                and reading.submitted_files == filenames
-
-            )
+            clean = not outcomes
     except (GateError, OSError, UnicodeError, ValueError):
         clean = False
     if clean and submission is not None:

@@ -15,6 +15,8 @@ from pathlib import Path
 from types import ModuleType
 
 import assignment_bar
+import assignment_submission
+from discussion_artifact import PostedReadingOutcome
 import aar_scan
 import run_grader
 import voice_model_identity
@@ -46,6 +48,19 @@ def _adapter_arguments(argv: list[str], artifact: str) -> list[str]:
         raise run_grader.SourceError("--artifact needs the assignment artifact file")
     option = "--pptx" if artifact == "deck" else "--docx"
     return [*argv[:index], option, argv[index + 1], *argv[index + 2 :]]
+
+
+def posted_reading_check(
+    run: Path, submission: str, grader_args: tuple[str, ...] = ()
+) -> tuple[PostedReadingOutcome, ...]:
+    """Use the terminal assignment gate's posted artifact and carrier checks."""
+    args = list(grader_args)
+    if "--artifact" not in args:
+        raise run_grader.SourceError("--artifact needs the assignment artifact file")
+    index = args.index("--artifact")
+    if index + 1 >= len(args) or args[index + 1].startswith("--"):
+        raise run_grader.SourceError("--artifact needs the assignment artifact file")
+    return assignment_submission.posted_reading_check(run, submission, Path(args[index + 1]))
 
 
 def main(argv: list[str]) -> int:

@@ -490,6 +490,10 @@ POSTED_READING_MESSAGES = {
     "visit-fields": "VISIT is missing a required copied locator, date, reference, patient number, or verdict",
     "time-log": "TIME-LOG must state not requested or a date, duration in hours and minutes, and entered or matched",
     "legacy-display": "LEGACY-DISPLAY must open with expected, differs, or unreadable followed by a reason",
+    "attachment-count": "ATTACHMENT-COUNT differs from the approved carrier population",
+    "submitted-files": "SUBMITTED-FILE entries differ from the approved carrier filenames",
+    "post-metadata": "POST-URL or POSTED is missing from the saved posting record",
+    "post-link": "POST-URL differs from the saved posting record",
 }
 
 

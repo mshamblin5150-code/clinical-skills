@@ -46,6 +46,7 @@ import sqlite3
 import sys
 from dataclasses import dataclass, field, replace
 from pathlib import Path
+from discussion_artifact import PostedReadingOutcome
 
 import run_grader
 import artifact_repairs
@@ -688,6 +689,17 @@ class Source:
     off_template_headings: int
     heading_candidates: int
     generic_differential_headings: int
+
+
+def posted_reading_check(
+    run: Path, submission: str, grader_args: tuple[str, ...] = ()
+) -> tuple[PostedReadingOutcome, ...]:
+    """Coding inherits the owning note's posted reading and source population."""
+    import medatrax_posting
+    root = run.parent if run.name == "worksheets" else run
+    return medatrax_posting.posted_reading_check(
+        root, submission, batch=bool(medatrax_posting.note_paths(root, batch=True))
+    )
 
 
 def _load(parsed: run_grader.Parsed) -> Source:
