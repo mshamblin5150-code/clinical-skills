@@ -118,6 +118,20 @@ class RunStatusContract(unittest.TestCase):
                 self.assertEqual(b"", result.stdout)
                 self.assertEqual(b"", result.stderr)
 
+    def test_malformed_line_identifies_the_failed_grammar_element(self) -> None:
+        for line, element in (
+            (f"Run status:{self.run.name} — awaiting posting", "prefix"),
+            (f"Run status: {self.run.name} - awaiting posting", "separator"),
+            ("Run status: invalid key — awaiting posting", "run key"),
+            (f"Run status: {self.run.name} — ready", "status must be"),
+            (f"Run status: {self.run.name} — stopped -", "reason after the hyphen"),
+        ):
+            with self.subTest(line=line):
+                response = self.grade(line)
+                self.assertEqual("block", response["decision"])
+                self.assertIn(line, response["reason"])
+                self.assertIn(element, response["reason"])
+
     def test_every_refusal_names_expected_keys_and_the_touch_rule(self) -> None:
         other = self.root / "scratch" / "runs" / "second-approved-run"
         other.mkdir(parents=True)
@@ -152,6 +166,9 @@ class RunStatusContract(unittest.TestCase):
                     self.assertIn("path appears in the session transcript", response["reason"])
         self.assertIn(malformed, self.grade(f"{malformed}\n{other_line}")["reason"])
         self.assertIn(stopped, self.grade(f"{stopped}\n{other_line}")["reason"])
+        mixed = self.grade(f"{stopped}\n{malformed}")["reason"]
+        self.assertIn(f"{stopped!r}: Run status: stopped needs", mixed)
+        self.assertIn(f"{malformed!r}: The separator must", mixed)
         self.assertEqual({}, self.grade(
             f"Run status: {self.run.name} — stopped - waiting for correction\n{other_line}"
         ))

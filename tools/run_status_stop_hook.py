@@ -311,6 +311,27 @@ def _blocked(reason: str, expected_keys: set[str]) -> dict[str, object]:
     }
 
 
+def _malformed_line_reason(line: str) -> str:
+    prefix = "Run status: "
+    if not line.startswith(prefix):
+        return "The prefix needs a space after 'Run status:'."
+    key, separator, status = line[len(prefix):].partition(" — ")
+    if not separator:
+        return "The separator must be an em dash with a space on each side (' — ')."
+    # Ask the existing grammar about the key with a known-valid status.
+    if STATUS_LINE.fullmatch(f"{prefix}{key} — awaiting posting") is None:
+        return (
+            "The run key must start with an ASCII letter or digit and contain only "
+            "ASCII letters, digits, '.', '_' or '-'."
+        )
+    if status.rstrip() == "stopped -":
+        return "Run status: stopped needs a substantive reason after the hyphen."
+    return (
+        "The status must be 'awaiting posting', 'awaiting posted reading', 'awaiting AAR', "
+        "'complete', 'stopped', or 'stopped - <reason>' with a nonblank reason."
+    )
+
+
 def handle(payload: Mapping[str, Any]) -> dict[str, object]:
     """Return one Codex/Claude Stop-hook decision for an approved run."""
 
@@ -354,15 +375,11 @@ def handle(payload: Mapping[str, Any]) -> dict[str, object]:
         if any(line.group(0).rstrip().endswith("stopped -") for line in lines):
             reason = "Run status: stopped needs a substantive reason after the hyphen."
         else:
-            reason = (
-                "A Run status: line is malformed. Expected 'Run status: <run key> — <status>' "
-                "with the spaced em dash; the key starts with an ASCII letter or digit and "
-                "contains only ASCII letters, digits, '.', '_' or '-'. The status must be "
-                "'awaiting posting', 'awaiting posted reading', 'awaiting AAR', 'complete', "
-                "'stopped', or 'stopped - <reason>' with a nonblank reason."
-            )
+            reason = "A Run status: line is malformed."
         return _blocked(
-            reason + " Failing lines: " + "; ".join(repr(line) for line in malformed),
+            reason + " Failing lines: " + "; ".join(
+                f"{line!r}: {_malformed_line_reason(line)}" for line in malformed
+            ),
             expected_keys,
         )
     first = lines[0].start()
