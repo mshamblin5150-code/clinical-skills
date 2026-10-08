@@ -522,7 +522,7 @@ When `cpt_descriptors` is `unverified`, first save the rendered CPT page reads i
 omit `--rendered-descriptors` when the set is verified and no record exists.
 
 ```bash
-python tools/anchor_scan.py <run>/worksheets --notes <run> --rendered-descriptors <run>/agreement/cpt-rendered-pages.json --agreement-brief > <run>/agreement/brief.json
+python tools/anchor_scan.py <run>/worksheets --notes <run> --rendered-descriptors <run>/agreement/cpt-rendered-pages.json --agreement-brief --output <run>/agreement/brief.json
 python tools/anchor_scan.py <run>/worksheets --notes <run> --rendered-descriptors <run>/agreement/cpt-rendered-pages.json --agreement-read <run>/agreement-reader/read.json
 ```
 

@@ -344,7 +344,7 @@ shared four-source index catalog. Topical relation is not agreement. Run the sep
 worksheet and note have been saved with matching filename stems in separate directories:
 
 ```bash
-python tools/anchor_scan.py <run>/worksheets --notes <run>/notes --rendered-descriptors <run>/agreement/cpt-rendered-pages.json --agreement-brief > <run>/agreement/brief.json
+python tools/anchor_scan.py <run>/worksheets --notes <run>/notes --rendered-descriptors <run>/agreement/cpt-rendered-pages.json --agreement-brief --output <run>/agreement/brief.json
 python tools/anchor_scan.py <run>/worksheets --notes <run>/notes --rendered-descriptors <run>/agreement/cpt-rendered-pages.json --agreement-read <run>/agreement-reader/read.json
 ```
 
