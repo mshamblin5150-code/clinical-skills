@@ -57,6 +57,7 @@ import sys
 from typing import NamedTuple
 
 import phi_scan
+import git_paths
 from github_graphql import DeclaredAbsence, GraphQLResponseError, read_response
 import tracker_bodies
 import tracker_coordinates
@@ -400,20 +401,18 @@ def _published_span_texts() -> tuple[str, ...]:
     binary; other blobs use the run reader's UTF-8 replacement decoding.
     Any failed read discards the whole exemption rather than a partial corpus.
     """
-    tree = subprocess.run(
-        ["git", "ls-tree", "-r", "-z", "origin/main"],
-        cwd=AAR_REPO_ROOT, capture_output=True, check=True,
-    )
+    repo = AAR_REPO_ROOT
+    tree = git_paths.read_path_records(repo, "ls-tree", "-r", "-z", "origin/main")
     objects = sorted({
-        record.split(b"\t", 1)[0].split()[2]
-        for record in tree.stdout.split(b"\0") if record
-        if record.split(b"\t", 1)[0].split()[1] == b"blob"
+        record.split("\t", 1)[0].split()[2].encode("ascii")
+        for record in tree
+        if record.split("\t", 1)[0].split()[1] == "blob"
     })
     if not objects:
         return ()
     batch = subprocess.run(
         ["git", "cat-file", "--batch"], input=b"\n".join(objects) + b"\n",
-        cwd=AAR_REPO_ROOT, capture_output=True, check=True,
+        cwd=repo, capture_output=True, check=True,
     )
     stream = io.BytesIO(batch.stdout)
     texts = []
@@ -468,8 +467,10 @@ def _quotes_run_material(publication: Publication) -> RunQuotation:
         return RunQuotation(0, 0)
     try:
         published = _published_span_texts()
-    except (OSError, subprocess.CalledProcessError, ValueError) as failure:
-        if isinstance(failure, subprocess.CalledProcessError):
+    except (OSError, subprocess.CalledProcessError, ValueError, git_paths.GitPathError) as failure:
+        if isinstance(failure, git_paths.GitPathError):
+            reason = "git ls-tree failed; local origin/main could not be read"
+        elif isinstance(failure, subprocess.CalledProcessError):
             reason = f"git {failure.cmd[1]} failed (exit {failure.returncode})"
         elif isinstance(failure, OSError):
             reason = "git could not run or repository could not be opened"
