@@ -83,7 +83,7 @@ class EntryCopyCommand(unittest.TestCase):
         other.write_text("P:\n" + LABELS, encoding="utf-8")
         result = subprocess.run(
             [sys.executable, str(COMMAND), "--check", str(self.note), str(other)],
-            capture_output=True, text=True, encoding="utf-8", check=False,
+            capture_output=True, text=True, encoding="utf-8", errors="replace", check=False,
         )
         self.assertEqual(1, result.returncode, result.stderr)
         self.assertIn(str(self.note), result.stderr)

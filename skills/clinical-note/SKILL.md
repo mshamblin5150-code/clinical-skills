@@ -1461,8 +1461,9 @@ the finished patient record into the run directory.
 Before showing the final note for its go-ahead, run
 `python tools/entry_copy.py --check <finished note path>` and require exit 0. This check writes
 nothing and requires the derived copy to split into all four note sections. Record a refusal as
-a finding and correct it through standing rule 6's staging and repair-chain route; a
-non-authoring context checks the correction again before the note is shown.
+a finding and correct it through [standing rule 6](../../AGENTS.md)'s staging and repair-chain
+route; a non-authoring context runs this **Grader handoff** on the correction again before the
+note is shown.
 Before its one explicit go-ahead, open Patient Detail
 read-only for a matched returning patient and compare its displayed age and sex with the encounter
 opener. Put any age or sex disagreement, any unresolved multiple-row match from step 5, and each

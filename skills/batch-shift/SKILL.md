@@ -298,8 +298,8 @@ After every note and worksheet is final and before building the Review sheet, th
 context runs `python tools/entry_copy.py --check <every note-N.md>` and requires exit 0. This
 check writes nothing and requires the derived copy to split into all four note sections. A
 writing pass never runs it on its own output. Record any refusal as a finding, correct it through
-standing rule 6's staging and repair-chain route, and have a non-authoring context check the
-correction again before building the Review sheet.
+[standing rule 6](../../AGENTS.md)'s staging and repair-chain route, and have a non-authoring
+context run this **Grader handoff** on the correction again before building the Review sheet.
 
 The **Review sheet** is the shift's approval artifact: one `.docx` containing every finished note
 and its finalized `Coding worksheet`, numbered in source order. A single encounter is never handed
