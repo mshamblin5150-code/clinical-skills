@@ -1056,6 +1056,18 @@ class AgreementModes(unittest.TestCase):
                 record["pairs"][0]["codes"][0]["open_status_evidence"] = continuation
                 self.assertEqual(1, self.grade(record)[0])
 
+    def test_verbatim_wrapped_filled_medication_evidence_is_refused(self):
+        evidence = "omeprazole 20 mg\n    PO daily"
+        note = AGREEMENT_NOTE + (
+            "\nFILLED·asserted\n  - HOME MEDS " + evidence + " inferred from history\n"
+        )
+        (self.notes / "case-01.md").write_text(note, encoding="utf-8")
+        record = self.clean_record()
+        record["pairs"][0]["codes"][0]["open_status_evidence"] = evidence
+        status, report = self.grade(record, show=True)
+        self.assertEqual(1, status)
+        self.assertIn("open-status evidence rests only on a filled home medication", report)
+
     def test_concrete_management_outside_the_filled_medication_passes(self):
         evidence = "Avoid ibuprofen because of heartburn; monitor symptoms."
         note = AGREEMENT_NOTE + (
@@ -2023,7 +2035,7 @@ class CommittedAgreementControls(unittest.TestCase):
         status, report = self.grade("descriptor-agreement-index-table-control")
         self.assertEqual(1, status)
         self.assertIn("agreement findings                 1", report)
-        self.assertIn("open-status evidence is not note text", report)
+        self.assertRegex(report, r"open-status evidence absent from note\s+1")
         self.assertIn("unread remainder 0", report)
 
     def test_authored_anchor_blind_control_is_clean_in_both_modes(self):

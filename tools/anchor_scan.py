@@ -1151,6 +1151,10 @@ CONTINUE_MEDICATION = re.compile(r"(?i)^continue\s+(?:home\s+)?")
 
 def _filled_home_medication_evidence(evidence: str, items: list[str]) -> bool:
     """Read containment; concrete management outside the item stays a reading."""
+    # Entry.text unwraps continuation lines; do the same only after the caller
+    # has required the original evidence verbatim in the note.
+    evidence = " ".join(evidence.split())
+    items = [" ".join(item.split()) for item in items]
     if any(evidence in item for item in items):
         return True
     continuation = CONTINUE_MEDICATION.match(evidence)
