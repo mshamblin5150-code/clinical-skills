@@ -956,7 +956,9 @@ class AgreementModes(unittest.TestCase):
                             and "--agreement-brief" in line]
                 self.assertTrue(commands)
                 for command in commands:
-                    self.assertIn("--output <run>/agreement/brief.json", command)
+                    expected = ("--output <run>/agreement-self/<stem>-brief.json"
+                                if "--stem" in command else "--output <run>/agreement/brief.json")
+                    self.assertIn(expected, command)
                     self.assertNotIn(" > ", command)
 
     def clean_record(self) -> dict:
@@ -1042,6 +1044,71 @@ class AgreementModes(unittest.TestCase):
             duplicate = scan.main([str(self.worksheets), "--notes", str(self.notes),
                                    "--agreement-read", str(first), str(first)])
         self.assertEqual(2, duplicate)
+
+    def test_writer_read_grades_only_requested_stem_and_counts_absence(self):
+        record = Path(self.raw.name) / "self.json"
+        record.write_text(json.dumps(self.clean_record()), encoding="utf-8")
+        (self.worksheets / "case-02.md").write_text("unread worksheet", encoding="utf-8")
+        args = [str(self.worksheets), "--notes", str(self.notes),
+                "--agreement-read", str(record), "--stem", "case-01"]
+        with redirect_stdout(io.StringIO()):
+            self.assertEqual(0, scan.main(args))
+            self.assertEqual(2, scan.main([*args, "--stem", "absent"]))
+
+    def test_batch_writer_can_defer_only_missing_cpt_pages(self):
+        record = self.clean_record()
+        with patch("procedure_codes_lookup.cpt_descriptors_verified", return_value=False):
+            status, report = self.grade(record)
+        self.assertEqual(2, status)
+        self.assertIn("CPT subjects missing rendered pages  1", report)
+        self.assertIn("other unread evidence                 0", report)
+        self.assertIn("agreement findings                 0", report)
+        record["pairs"][0]["codes"][0].pop("route")
+        with patch("procedure_codes_lookup.cpt_descriptors_verified", return_value=False):
+            status, report = self.grade(record)
+        self.assertEqual(2, status)
+        self.assertIn("other unread evidence                 1", report)
+
+    def test_writer_self_grade_refuses_a_code_without_a_route(self):
+        record = self.clean_record()
+        record["pairs"][0]["codes"][0]["route"] = "none"
+        status, report = self.grade(record, show=True)
+        self.assertEqual(1, status)
+        self.assertIn("has no descriptor or index route", report)
+
+    def test_pre_brief_self_grade_refuses_a_missing_note_record(self):
+        record = self.clean_record()
+        (self.worksheets / "case-02.md").write_text(AGREEMENT_WORKSHEET, encoding="utf-8")
+        (self.notes / "case-02.md").write_text(AGREEMENT_NOTE, encoding="utf-8")
+        self.assertEqual(2, self.grade(record)[0])
+
+    def test_blind_read_counts_self_passes_that_fail_without_grading_the_count(self):
+        self_record = Path(self.raw.name) / "self.json"
+        record = self.clean_record()
+        self_record.write_text(json.dumps(record), encoding="utf-8")
+        record["pairs"][0]["codes"][0]["route"] = "none"
+        blind_record = Path(self.raw.name) / "blind.json"
+        blind_record.write_text(json.dumps(record), encoding="utf-8")
+        args = [str(self.worksheets), "--notes", str(self.notes),
+                "--agreement-read", str(blind_record)]
+        output = io.StringIO()
+        with redirect_stdout(output):
+            without_count = scan.main(args)
+            with_count = scan.main([*args, "--self-record", str(self_record)])
+        self.assertEqual(1, without_count)
+        self.assertEqual(without_count, with_count)
+        self.assertIn("self-pass / blind-fail subjects (report only)  1", output.getvalue())
+        self_record.write_text("unread metric record", encoding="utf-8")
+        with redirect_stdout(io.StringIO()):
+            self.assertEqual(without_count, scan.main([*args, "--self-record", str(self_record)]))
+
+    def test_blind_brief_never_reads_self_records(self):
+        secret = "PRIVATE SELF-GRADE REASON"
+        (Path(self.raw.name) / "self.json").write_text(secret, encoding="utf-8")
+        self.assertNotIn(secret, json.dumps(self.brief()))
+        with redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            scan.main([str(self.worksheets), "--notes", str(self.notes),
+                       "--agreement-brief", "--self-record", "must-not-open.json"])
 
     def test_the_brief_carries_the_stem_table_and_cross_reference_rules(self):
         instructions = self.brief()["instructions"]
@@ -1787,7 +1854,7 @@ class CptRenderedDescriptorBrief(unittest.TestCase):
         status, brief = self.brief()
         self.assertEqual(2, status)
         self.assertGreater(brief["unread remainder"], 0)
-        self.assertEqual([], brief["pairs"][0]["codes"])
+        self.assertEqual("", brief["pairs"][0]["codes"][0]["descriptor"])
 
     def test_unverified_cpt_briefs_only_rendered_page_text(self):
         self.record.write_text(json.dumps({"codes": [{
@@ -1808,7 +1875,7 @@ class CptRenderedDescriptorBrief(unittest.TestCase):
         }]}), encoding="utf-8")
         status, brief = self.brief("--rendered-descriptors", str(self.record))
         self.assertEqual(2, status)
-        self.assertEqual([], brief["pairs"][0]["codes"])
+        self.assertEqual("", brief["pairs"][0]["codes"][0]["descriptor"])
 
     def test_verified_test_database_uses_its_descriptor(self):
         import procedure_codes_lookup

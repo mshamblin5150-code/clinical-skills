@@ -391,6 +391,38 @@ A quotation agrees when its words state the official descriptor or reach the cod
 shared four-source index catalog. Topical relation is not agreement. Run the separate agreement reader after the
 worksheet and note have been saved with matching filename stems in separate directories:
 
+**Writer self-grade — before every worksheet handoff.** Every pass that writes a worksheet,
+including a revision pass, generates its own subjects and saves its private record under
+`<run>/agreement-self/<stem>.json`. Fill the same six fields and subject identities specified below
+for the blind reader, then grade that file before reporting done:
+
+```bash
+python tools/anchor_scan.py <run>/worksheets --notes <run>/notes --agreement-brief --stem <stem> --output <run>/agreement-self/<stem>-brief.json
+python tools/anchor_scan.py <run>/worksheets --notes <run>/notes --agreement-read <run>/agreement-self/<stem>.json --stem <stem>
+```
+
+Use the actual note directory and create the private `agreement-self/` directory first. Supply
+`--rendered-descriptors <run>/agreement/cpt-rendered-pages.json` to both commands when that record
+exists. A requested stem absent from the paired files is unread, never a clean self-grade.
+Exit 1 is never handed off: select a code the note's words reach, or write a welded `NOT CODED:`
+refusal with a supported `proposed instead` code, and grade again. An exit 2 with findings also
+requires correction. While `cpt_descriptors` is `unverified`, a batch pass may hand off at exit 2
+only with zero agreement findings and zero `other unread evidence`: every unread subject must be
+a `CPT subjects missing rendered pages` subject. Keep those CPT subjects in the self-record with
+all six fields; their empty brief descriptor awaits the shift's page read. A standalone
+clinical-note saves the rendered-page record first and requires exit 0. Keep every self-record
+in the run; the coordinator grades the complete set with the CPT page record before the blind brief.
+
+**Shared-reader blindness is the ceiling.** `descriptor words` always passes mechanically; a
+writer can misjudge what its own words reach. The blind read remains the independent check.
+Self-records never enter the blind brief or any retry hint. Tell the blind reader that they exist
+and are not to be read; that separation is declared, not enforced. For the blind grade, supply the
+complete self-record path list with `--self-record` to print the report-only count of subjects that
+passed a self-grade and failed the blind read. The count never changes the grade; unread metric
+records report that limitation. The brief command refuses `--self-record`.
+
+After the writer gate, build and grade the independent blind read:
+
 ```bash
 python tools/anchor_scan.py <run>/worksheets --notes <run>/notes --rendered-descriptors <run>/agreement/cpt-rendered-pages.json --agreement-brief --output <run>/agreement/brief.json
 python tools/anchor_scan.py <run>/worksheets --notes <run>/notes --rendered-descriptors <run>/agreement/cpt-rendered-pages.json --agreement-read <run>/agreement-reader/read.json
@@ -403,8 +435,8 @@ While `cpt_descriptors` is `unverified`, write the private rendered-page record
 before either command. Its JSON shape is
 `{"codes":[{"code":"87804","descriptor":"<transcribed rendered-page text>","book":"CPT Professional 2026","edition":"Professional Edition 2026","printed_page":"<printed page>"}]}`.
 One entry per distinct CPT code suffices across the run. A CPT code without a
-complete record joins the shared unread remainder; the database descriptor never
-enters its brief. With `verified`, the record is optional and the brief uses the
+complete record joins the separately reported CPT unread population with an empty brief
+descriptor; the database descriptor never enters its brief. With `verified`, the record is optional and the brief uses the
 database descriptor; omit `--rendered-descriptors` when no record exists.
 
 This **Second reader** applies [standing rule 6](../../AGENTS.md), first reads

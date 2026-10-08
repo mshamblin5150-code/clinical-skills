@@ -182,6 +182,11 @@ DECLARED_LIMITS = (
         "No committed real note carries a T36-T65 poisoning code; drug-column behavior has synthetic controls only.",
         run_grader.EvidenceDisposition.DECLARED_READING,
     ),
+    (
+        "writer self-grade independence and comparison",
+        "Descriptor-words agreement is a reading; separation from private self-records is declared, not enforced. The report-only comparison regrades supplied records against the current paired files, not a historical saved grade.",
+        run_grader.EvidenceDisposition.DECLARED_READING,
+    ),
 )
 
 
@@ -569,6 +574,16 @@ def _official_descriptor(
                     return page["descriptor"]
                 return None
     return _database_descriptor(system, code)
+
+
+def _cpt_page_missing(system: str, code: str, official: str | None) -> bool:
+    if system != "CPT" or official is not None:
+        return False
+    import procedure_codes_lookup
+
+    with closing(procedure_codes_lookup.open_database()) as connection:
+        return (procedure_codes_lookup.describe(connection, code) is not None
+                and not procedure_codes_lookup.cpt_descriptors_verified(connection))
 
 
 def _route_tokens(value: str) -> list[str]:
@@ -1043,6 +1058,8 @@ def _agreement_subjects(
             subjects.append(AgreementSubject(system, code, official, role, support))
         else:
             unread += 1
+            if _cpt_page_missing(system, code, official):
+                subjects.append(AgreementSubject(system, code, "", role, support))
 
     if refusal >= 0:
         refusals = list(REFUSAL_MARK.finditer(text, refusal))
@@ -1064,6 +1081,8 @@ def _agreement_subjects(
                 )
             else:
                 unread += 1
+                if _cpt_page_missing(system, code, official):
+                    subjects.append(AgreementSubject(system, code, "", "refused", support))
     occurrences: defaultdict[tuple[str, str, str], int] = defaultdict(int)
     identified: list[AgreementSubject] = []
     for subject in subjects:
@@ -1130,6 +1149,7 @@ def _brief_payload(
     payload = {
         "mode": "descriptor agreement blind brief",
         "instructions": (
+            "Writer self-records exist privately; do not read them or request their text as a retry hint. "
             "For every code, record agreeing_words, route, encounter_evidence, "
             "open_status_evidence, threshold, and waits_on_result; use 'none' when absent. "
             "Copy subject_id, system, code, and role exactly. Every evidence value is a nonempty "
@@ -1313,6 +1333,12 @@ def _agreement_report(
             f"    code-shaped tokens not in the code set  {len(excluded_code_tokens or ())}",
             run_grader.format_unread_remainder(unread),
     ]
+    missing_cpt = sum(subject.system == "CPT" and not subject.descriptor
+                      for pair in pairs for subject in pair.subjects)
+    lines.extend([
+        f"  CPT subjects missing rendered pages  {missing_cpt}",
+        f"  other unread evidence                 {unread - missing_cpt}",
+    ])
     if show:
         lines.extend(f"    finding: {finding}" for finding in findings)
         lines.extend(f"    unread cross-reference: {route}" for route in unread_routes or ())
@@ -1333,10 +1359,12 @@ def _run_agreement(argv: list[str]) -> int:
     mode.add_argument("--agreement-brief", action="store_true")
     mode.add_argument("--agreement-read", type=Path, nargs="+")
     parser.add_argument("--stem", action="append", default=None)
+    parser.add_argument("--self-record", type=Path, nargs="+",
+                        help="writer records for report-only blind-read comparison")
     parser.add_argument("--output", type=Path, help="write the agreement brief as BOM-free UTF-8")
     args = parser.parse_args(argv)
-    if args.stem and not args.agreement_brief:
-        parser.error("--stem requires --agreement-brief")
+    if args.self_record is not None and not args.agreement_read:
+        parser.error("--self-record requires --agreement-read; self-records never enter a brief")
     if args.output is not None and not args.agreement_brief:
         parser.error("--output requires --agreement-brief")
     try:
@@ -1376,30 +1404,60 @@ def _run_agreement(argv: list[str]) -> int:
 
     assert args.agreement_read is not None
     try:
-        record_pairs: dict[str, dict] = {}
-        for path in args.agreement_read:
-            payload = json.loads(path.read_text(encoding="utf-8"))
-            supplied_pairs = payload["pairs"]
-            if not isinstance(supplied_pairs, list):
-                raise TypeError("pairs is not a list")
-            for row in supplied_pairs:
-                if not isinstance(row, dict) or "stem" not in row:
-                    unread += 1
-                    continue
-                stem = row["stem"]
-                if stem in record_pairs or not isinstance(row.get("codes"), list):
-                    unread += 1
-                    continue
-                record_pairs[stem] = row
-        expected_stems = {pair.stem for pair in pairs}
-        unread += len(set(record_pairs) - expected_stems)
+        result = _grade_agreement(pairs, unread, args.agreement_read)
     except (OSError, ValueError, KeyError, TypeError) as error:
         print(f"descriptor agreement read: unread record ({error})")
         return 2
+    print(_agreement_report(pairs, result.findings, result.unread,
+                            result.unread_routes, result.excluded_code_tokens, args.show))
+    metric: int | str = "not measured"
+    if args.self_record is not None:
+        try:
+            self_result = _grade_agreement(pairs, unread, args.self_record)
+            metric = len(self_result.passed & result.failed)
+        except (OSError, ValueError, KeyError, TypeError):
+            metric = "unread self-record"
+    print(f"  self-pass / blind-fail subjects (report only)  {metric}")
+    if result.unread:
+        return 2
+    return 1 if result.findings else 0
+
+
+@dataclass
+class AgreementRead:
+    findings: list[str]
+    unread: int
+    unread_routes: list[str]
+    excluded_code_tokens: list[str]
+    passed: set[tuple[str, str]]
+    failed: set[tuple[str, str]]
+
+
+def _grade_agreement(pairs: list[AgreementPair], unread: int,
+                     paths: list[Path]) -> AgreementRead:
+    record_pairs: dict[str, dict] = {}
+    for path in paths:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        supplied_pairs = payload["pairs"]
+        if not isinstance(supplied_pairs, list):
+            raise TypeError("pairs is not a list")
+        for row in supplied_pairs:
+            if not isinstance(row, dict) or not isinstance(row.get("stem"), str):
+                unread += 1
+                continue
+            stem = row["stem"]
+            if stem in record_pairs or not isinstance(row.get("codes"), list):
+                unread += 1
+                continue
+            record_pairs[stem] = row
+    expected_stems = {pair.stem for pair in pairs}
+    unread += len(set(record_pairs) - expected_stems)
 
     findings: list[str] = []
     unread_routes: list[str] = []
     excluded_code_tokens: list[str] = []
+    passed: set[tuple[str, str]] = set()
+    failed: set[tuple[str, str]] = set()
     for pair in pairs:
         findings.extend(_anchor_findings([pair]))
         record_pair = record_pairs.get(pair.stem)
@@ -1416,6 +1474,7 @@ def _run_agreement(argv: list[str]) -> int:
         for key in set(expected) & set(records):
             subject = expected[key]
             record = records[key]
+            before = (len(findings), unread)
             required = (
                 "agreeing_words",
                 "route",
@@ -1438,6 +1497,10 @@ def _run_agreement(argv: list[str]) -> int:
                 record.get("role"),
             ) != (subject.system, subject.code, subject.role):
                 unread += 1
+                continue
+            if subject.system == "CPT" and not subject.descriptor:
+                # Keep the subject and its bind, but never grade against an
+                # unverified database descriptor. The page is counted above.
                 continue
             words = record["agreeing_words"]
             route = record["route"]
@@ -1475,23 +1538,15 @@ def _run_agreement(argv: list[str]) -> int:
             waits = record["waits_on_result"]
             if subject.role in {"entry", "differential"} and isinstance(waits, str) and waits != "none":
                 findings.append(f"{pair.stem}: {subject.key} entry waits on {waits}")
+            if len(findings) > before[0] or (subject.support and subject.support not in pair.note):
+                failed.add((pair.stem, key))
+            elif unread == before[1]:
+                passed.add((pair.stem, key))
         binding_findings, pair_excluded_tokens = _binding_findings(pair)
         findings.extend(binding_findings)
         excluded_code_tokens.extend(pair_excluded_tokens)
 
-    print(
-        _agreement_report(
-            pairs,
-            findings,
-            unread,
-            unread_routes,
-            excluded_code_tokens,
-            args.show,
-        )
-    )
-    if unread:
-        return 2
-    return 1 if findings else 0
+    return AgreementRead(findings, unread, unread_routes, excluded_code_tokens, passed, failed)
 
 
 def main(argv: list[str]) -> int:

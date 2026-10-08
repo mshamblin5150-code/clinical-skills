@@ -512,7 +512,16 @@ subdirectory with the same filename stem as the note. The saved worksheet is run
 never rendered into the finished note. Keeping it apart from the notes is required: run graders
 read every top-level Markdown file as one artifact type.
 
-After saving both files, create the blind agreement brief. This **Second reader** applies
+After saving both files, apply [icd10-cpt's Writer self-grade](../icd10-cpt/SKILL.md#descriptor-agreement-is-a-separate-blind-read).
+For a standalone run, first save the rendered CPT page record that section requires, then run:
+
+```bash
+python tools/anchor_scan.py <run>/worksheets --notes <run> --rendered-descriptors <run>/agreement/cpt-rendered-pages.json --agreement-read <run>/agreement-self/<stem>.json --stem <stem>
+```
+
+For this standalone run, exit 0 gates creation of the blind agreement brief. A batch encounter
+follows that section's batch handoff rule and [batch-shift's roll-up](../batch-shift/SKILL.md#6-roll-up-the-shift).
+For the standalone run, then create the blind agreement brief. This **Second reader** applies
 [standing rule 6](../../AGENTS.md), first reads [sourcing.md](../_shared/reference/sourcing.md), and
 returns the separate record that is graded:
 
