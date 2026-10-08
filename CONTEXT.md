@@ -42,6 +42,18 @@ _Avoid_: boxes, form fields, section copy, paste copy
 One of the four headings a note's Plan is organized under, identical on both **Branches**: `Non-pharmacologic:`, `Pharmacologic:`, `Health Promotion/Patient Education:`, and `Referral/Follow-up:`. Every Plan item sits under one of them and no fifth heading is added; content that looks like its own category, such as oxygen or a lab order, is placed under the nearest of the four. A short phrase before a colon inside a Plan is read as a label and must be one of these or a declared exception such as a sig line.
 _Avoid_: plan subheading, plan section, plan category
 
+**Normal-exam lines**:
+The clinician's own wording for an examined system found normal, saved once per clinician and written whenever a **Note** fills that system as normal. They belong to one clinician: another clinician is offered them as suggestions and never given them as a default. A system with no saved line is written for the **Encounter**.
+_Avoid_: fixed language, default exam, normal template, canned exam
+
+**Abdominal scheme**:
+How a clinician divides the abdomen when describing it — four quadrants or nine regions — recorded as that clinician's own answer rather than read off their wording. It decides how the **Shorthand**'s location words are expanded and which wording a **Note**'s examination may not carry.
+_Avoid_: quadrant setting, abdomen map, region mode
+
+**Interpreted location**:
+An abdominal location the **Shorthand** gave loosely — a quadrant word or a roundabout description from a nine-region clinician — that a **Note** names in that clinician's **Abdominal scheme** by reasoning from the **Encounter**. Every one is shown to the clinician, with what decided it, before the go-ahead, because the reasoning can be wrong in a way the finished note does not show.
+_Avoid_: mapped region, expanded quadrant, location guess
+
 ### Coursework
 
 **Board**:
