@@ -26,11 +26,56 @@ def reading(digest: str) -> str:
         "VERDICT: matches - The saved visit and note form matched.\n"
         f"SUBMISSION-SHA256: {digest}\n"
         "VISIT: 1 | patient 1 | reference matched P-17 | patient-detail=/patients/17 | "
-        "note-view=/forms/view?resultid=31 | visit-date=08/17/2026 | matches\n"
+        "note-view=/forms/view?resultid=31 | visit-date=08/17/2026 | finished=08/17/2026 21:14 | matches\n"
     )
 
 
 class BatchNotePopulation(unittest.TestCase):
+    def test_actual_entry_order_and_note_membership_are_separate(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            run = Path(temporary)
+            (run / "note-1.md").write_bytes(b"one")
+            (run / "note-3.md").write_bytes(b"three")
+            record = reading(sha256(b"onethree").hexdigest()).replace("READ: 1 of 1 read", "READ: 2 of 2 read")
+            visit = record.splitlines()[-1]
+            record = record.replace(visit, visit.replace("patient 1 |", "patient 3 |") + "\n" + visit.replace("VISIT: 1 |", "VISIT: 2 |"))
+            reread = run / "reread.md"
+            reread.write_text(record, encoding="utf-8")
+            self.assertFalse(posting.completion_gate(run, SUBMISSION, batch=True)[0])
+            reread.write_text(record.replace("patient 3 |", "patient 1 |"), encoding="utf-8")
+            self.assertTrue(posting.completion_gate(run, SUBMISSION, batch=True)[0])
+
+    def test_patient_number_binds_to_source_notes_when_filenames_skip(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            run = Path(temporary)
+            (run / "note-3.md").write_bytes(b"note")
+            record = reading(sha256(b"note").hexdigest())
+            reread = run / "reread.md"
+            reread.write_text(record.replace("patient 1 |", "patient 3 |"), encoding="utf-8")
+            self.assertFalse(posting.completion_gate(run, SUBMISSION, batch=True)[0])
+            reread.write_text(record, encoding="utf-8")
+            self.assertTrue(posting.completion_gate(run, SUBMISSION, batch=True)[0])
+
+    def test_current_finished_reading_is_clean_and_missing_finished_is_refused(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            run = Path(temporary)
+            (run / "note-1.md").write_bytes(b"note")
+            reread = run / "reread.md"
+            value = reading(sha256(b"note").hexdigest())
+            reread.write_text(value, encoding="utf-8")
+            self.assertFalse(posting.completion_gate(run, SUBMISSION, batch=True)[0])
+            for replacement in ("", "finished= | "):
+                reread.write_text(value.replace("finished=08/17/2026 21:14 | ", replacement), encoding="utf-8")
+                self.assertTrue(posting.completion_gate(run, SUBMISSION, batch=True)[0])
+
+    def test_batch_template_example_passes_shared_check_with_gap_in_note_numbers(self):
+        skill = Path(__file__).resolve().parents[1] / "skills/batch-shift/SKILL.md"
+        example = next(line for line in skill.read_text(encoding="utf-8").splitlines() if line.startswith("VISIT: 1 | patient 3 |"))
+        record = posting.read_posted_readings(reading("a" * 64).replace(
+            reading("a" * 64).splitlines()[-1], example
+        ))[0]
+        self.assertIsNone(posting.portal_record_problem(record, expected_visits=1))
+
     def test_numbered_notes_are_ordered_numerically(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             run = Path(temporary)
@@ -155,7 +200,7 @@ class FingerprintRefusals(unittest.TestCase):
         digest = sha256(self.note.read_bytes()).hexdigest()
         (self.run / "reread.md").write_text(
             reading(digest).replace(
-                "VISIT: 1 | patient 1 | reference matched P-17 | patient-detail=/patients/17 | note-view=/forms/view?resultid=31 | visit-date=08/17/2026 | matches\n",
+                "VISIT: 1 | patient 1 | reference matched P-17 | patient-detail=/patients/17 | note-view=/forms/view?resultid=31 | visit-date=08/17/2026 | finished=08/17/2026 21:14 | matches\n",
                 "",
             ),
             encoding="utf-8",

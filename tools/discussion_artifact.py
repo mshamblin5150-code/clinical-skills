@@ -513,6 +513,7 @@ def check_posted_reading(
     run: Path | None = None,
     docx: Path | None = None,
     expected_visits: int | None = None,
+    expected_patients: tuple[str, ...] | None = None,
     legacy_display: bool = False,
 ) -> tuple[PostedReadingOutcome, ...]:
     """Check a parsed record against caller-owned bytes, independent of a grade.
@@ -564,14 +565,22 @@ def check_posted_reading(
             codes.append("read-count")
         if len(reading.visits) != expected_visits:
             codes.append("visit-count")
+        if expected_patients is not None:
+            patients = [
+                match[1] for visit in reading.visits
+                if (match := re.search(r"(?:^|\|)\s*patient\s+(\d+)\s*(?:\||$)", visit, re.I))
+            ]
+            if sorted(patients) != sorted(expected_patients):
+                codes.append("visit-fields")
         for number, visit in enumerate(reading.visits, start=1):
             locator = re.match(r"(\d+)\s*\|", visit)
             patterns = (
-                r"(?:^|\|)\s*patient\s+\S+",
+                r"(?:^|\|)\s*patient\s+\d+\s*(?:\||$)",
                 r"(?:^|\|)\s*reference\s+(?:matched|new)\s+\S+",
                 r"(?:^|\|)\s*patient-detail=\S+",
                 r"(?:^|\|)\s*note-view=\S*resultid=\S+",
                 r"(?:^|\|)\s*(?:created|visit-date)=\S+",
+                r"(?:^|\|)\s*finished=\s*[^\s|][^|]*(?:\||$)",
                 r"(?:^|\|)\s*matches(?:\s|$)",
             )
             if locator is None or int(locator[1]) != number or not all(

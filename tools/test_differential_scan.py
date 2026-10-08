@@ -2360,7 +2360,7 @@ class MedatraxSubmissionFingerprint(unittest.TestCase):
             "VERDICT: matches - The saved visit and note form matched.\n"
             + fingerprint
             + "VISIT: 1 | patient 1 | reference matched P-17 | patient-detail=/patients/17 | "
-            "note-view=/forms/view?resultid=31 | visit-date=08/17/2026 | matches\n",
+            "note-view=/forms/view?resultid=31 | visit-date=08/17/2026 | finished=08/17/2026 21:14 | matches\n",
             encoding="utf-8",
         )
 

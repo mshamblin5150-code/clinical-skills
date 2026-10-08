@@ -322,6 +322,8 @@ Its output contains counts and paths, never extracted or transcribed text.
 
 The complete boundary of a clean result is declared in `filled_vitals_census.DECLARED_LIMITS`.
 
+The census prints each note's `GENERATION:` line and compares those lines with the run's `shift-summary.md`. Missing or mismatched lines are findings; an absent summary at `--submission` is incomplete coverage, with findings taking precedence. Proposed names require private `--show` output. The tier-item parser's boundary belongs to `shift_summary.DECLARED_LIMITS`.
+
 Its ADR 0230 candidate walk counts height and weight labels followed by numbers per class per note inside the asserted block. Strict-reader misses enter the shared unread remainder; this is why `fixtures/slot-form-run` exits 2 on `peds-bp-case-05`'s decimal-inch height while the fixture remains untouched.
 
 The corpus census reads the clinician's shorthand. This one reads **a run's finished notes**, and it exists because [#67](https://github.com/mshamblin5150-code/clinical-skills/issues/67) is a defect no single note contains: nine notes each filling a plausible vital set, and one patient described nine times.
@@ -376,6 +378,10 @@ Covered by `tools/test_specificity_scan.py`, which builds synthetic worksheets i
 `python tools/entry_copy.py <finished note path>` writes `entry-copies/<note filename>` beneath the finished note's directory, including for a finished note returned to an existing run. It removes each welded `NOT CODED:` clause through its semicolon or sentence-ending period while keeping surrounding prose. It requires each of the four Plan labels named in [ADR 0254](docs/adr/0254-the-note-entered-in-medatrax-is-a-derived-entry-copy-and-its-plan-takes-four-labels.md) exactly once. Within the Plan, any line whose text before its first colon is four words or fewer must be one of those labels or `Sig`, `Dispense`, or `Refills`. A failed label check or surviving `NOT CODED` mark exits nonzero and removes any prior derived copy at that path. The source note remains the submission fingerprint population; the derived file is one directory below it. `tools/test_entry_copy.py` exercises the command and names the committed fixture notes whose preserved Plans it refuses.
 
 The Entry copy applies portal-character substitutions supported by a measured verdict and refuses unmeasured non-ASCII characters in pasted sections. Its complete boundary is `entry_copy.PORTAL_VERDICTS`; this section does not duplicate the table.
+
+### Artifact repair chain
+
+`python tools/artifact_repairs.py place <run> <file> --kind <note|worksheet>` records a placement digest once. Its `compare` route takes retained `--before`, current `--after`, and a JSON `--scope` with `fields` and `sections` from the command's closed vocabularies. It retains both copies, records hashes, compares protected populations, and exits 1 on an unnamed change; unreadable evidence or an invalid invocation exits 2. Default output is counts; `--show` and `report <run>` are private. The latter derives the `REPAIRS` block for the go-ahead. Clinical completion graders require every final note and worksheet to end an unbroken chain of placement and passing, rechecked comparisons. Standing rule 6 owns the briefing and write obligations; `artifact_repairs.DECLARED_LIMITS` owns the comparison's boundary.
 
 ### Medatrax form sections
 

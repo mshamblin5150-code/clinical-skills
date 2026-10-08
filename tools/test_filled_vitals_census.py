@@ -26,6 +26,7 @@ import hashlib
 import tempfile
 import textwrap
 import unittest
+import artifact_lock_test_support
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
@@ -205,6 +206,10 @@ class CommandSurface(unittest.TestCase):
         run.mkdir()
         self.run = written(run, one=self.BODY)
         (self.run / "one.md").rename(self.run / "note-1.md")
+        fvc.artifact_repairs.place(self.run, self.run / "note-1.md", "note")
+        (self.run / "shift-summary.md").write_text(
+            "GENERATION: note-1.md | FILLED·asserted=1 | FILLED·proposed=0\n", encoding="utf-8"
+        )
 
     def tearDown(self) -> None:
         self.temporary.cleanup()
@@ -254,7 +259,7 @@ class CommandSurface(unittest.TestCase):
             "VERDICT: matches - The saved visit and note form matched.\n"
             + fingerprint
             + "VISIT: 1 | patient 1 | reference matched P-17 | patient-detail=/patients/17 | "
-            "note-view=/forms/view?resultid=31 | visit-date=08/17/2026 | matches\n",
+            "note-view=/forms/view?resultid=31 | visit-date=08/17/2026 | finished=08/17/2026 21:14 | matches\n",
             encoding="utf-8",
         )
 
@@ -282,6 +287,29 @@ class CommandSurface(unittest.TestCase):
         self.assertIn("the Medatrax posted reading: clean", stdout)
         self.assertIn("notes read                      1", stdout)
         self.assertNotIn("SUBMISSION-SHA256", stderr)
+
+    def test_terminal_summary_absence_is_incomplete_and_bad_line_is_finding(self):
+        self.write_posted_reading(self.note_digest())
+        summary = self.run / "shift-summary.md"
+        for content, expected in ((None, 2), ("", 1), ("GENERATION: note-1.md | FILLED·asserted=0 | FILLED·proposed=0\n", 1)):
+            if content is None:
+                summary.unlink()
+            else:
+                summary.write_text(content, encoding="utf-8")
+            with patch.object(fvc.aar_scan, "completion_gate", return_value=(False, "the after-action review: clean")), patch.object(fvc.approval_record, "completion_gate", return_value=(False, "the approval record: clean")):
+                status, stdout, _stderr = invoke_main([str(self.run), "--submission", "shift-2026-08-17"])
+            self.assertEqual(expected, status)
+            self.assertIn("GENERATION: note-1.md | FILLED·asserted=1 | FILLED·proposed=0", stdout)
+
+    def test_broken_chain_wins_over_absent_summary(self):
+        (self.run / "shift-summary.md").unlink()
+        (self.run / "note-1.md").write_text(self.BODY + "changed\n", encoding="utf-8")
+        self.write_posted_reading(self.note_digest())
+        with patch.object(fvc.aar_scan, "completion_gate", return_value=(False, "the after-action review: clean")), patch.object(fvc.approval_record, "completion_gate", return_value=(False, "the approval record: clean")):
+            status, stdout, _stderr = invoke_main([str(self.run), "--submission", "shift-2026-08-17"])
+        self.assertEqual(1, status)
+        self.assertIn("the repair hash chain: finding", stdout)
+        self.assertIn("the shift summary: incomplete coverage", stdout)
 
     def test_submission_refuses_a_missing_note_fingerprint(self) -> None:
         self.write_posted_reading(None)

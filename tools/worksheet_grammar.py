@@ -127,6 +127,33 @@ def entry_is_for_entry(
     return NOT_FOR_ENTRY.search(header) is None
 
 
+def differential_prose(text: str) -> tuple[str, ...]:
+    """Retain clinical prose in the differential region, including legacy lists.
+
+    Entry headers are compared separately. ANCHOR, SOURCE, SPECIFICITY and
+    CONFIDENCE fields are provenance; NOTE fields and surrounding prose carry
+    clinical verdicts and remain protected without guessing their vocabulary.
+    """
+    start = DIFFERENTIAL_HEADING.search(text)
+    if start is None:
+        return ()
+    stop = STEP_FOUR_START.search(text, start.end())
+    region = text[start.end():stop.start() if stop else len(text)]
+    result: list[str] = []
+    metadata = False
+    for line in region.splitlines():
+        field = FIELD.match(line)
+        if field:
+            metadata = field["field"].upper() != "NOTE"
+        elif not line.strip() or not line.startswith((" ", "\t")):
+            metadata = False
+        if metadata or ENTRY.fullmatch(line) or line.strip().startswith(("```", "~~~")):
+            continue
+        if line.strip():
+            result.append(line.strip())
+    return tuple(result)
+
+
 def detail_belongs_to_entry(text: str, entry: re.Match[str], detail: re.Match[str]) -> bool:
     """Whether ``detail`` is in ``entry``'s contiguous indented body.
 
