@@ -17,6 +17,7 @@ from uuid import uuid4
 import note_grammar
 import worksheet_grammar as worksheet
 from run_grader import EvidenceDisposition
+from console_codec import use_utf8, require_python_floor
 
 POPULATIONS = ("worksheet-codes", "entry-status", "differential-items",
                "differential-verdicts", "note-codes")
@@ -251,4 +252,6 @@ def main(argv: list[str]) -> int:
 
 
 if __name__ == "__main__":
+    use_utf8()
+    require_python_floor()
     raise SystemExit(main(sys.argv[1:]))

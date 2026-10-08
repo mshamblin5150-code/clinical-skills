@@ -7,9 +7,14 @@ import unittest
 from pathlib import Path
 
 import shift_summary
+from prose_bind import NAMING, bind
 
 
 class GenerationSummary(unittest.TestCase):
+    def test_limits_are_named_without_copying(self):
+        surface = (Path(__file__).resolve().parents[1] / "CLAUDE.md").read_text(encoding="utf-8")
+        self.assertEqual((), bind(shift_summary.DECLARED_LIMITS, surface, mode=NAMING))
+
     def test_numbered_items_wrap_and_empty_blocks(self):
         counts = shift_summary.generation("FILLED·asserted  1. History\n  wrapped.\nFILLED·asserted  2. Vitals\nFILLED·proposed  1. Antibiotic\n  continuation.\nFILLED·proposed  2. Recheck\nFLAG  issue\n")
         self.assertEqual((2, 2), (len(counts["asserted"]), len(counts["proposed"])))

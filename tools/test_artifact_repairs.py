@@ -8,6 +8,15 @@ import unittest
 from pathlib import Path
 
 import artifact_repairs as repairs
+import artifact_lock_test_support
+from code_set_database_test_support import ICD10_DATABASE_SHA256, assert_code_set_database_digest
+from prose_bind import NAMING, bind
+
+assert_code_set_database_digest(
+    Path(__file__).resolve().parents[1] / "reference/icd10cm-2026.sqlite",
+    ICD10_DATABASE_SHA256,
+    "ICD-10-CM Code-set database",
+)
 
 NOTE = """S
 History.
@@ -28,6 +37,10 @@ SCOPE = {"fields": [], "sections": ["worksheet"]}
 
 
 class RepairChain(unittest.TestCase):
+    def test_limit_pointer_names_the_object_without_copying_it(self):
+        surface = (Path(__file__).resolve().parents[1] / "AGENTS.md").read_text(encoding="utf-8")
+        self.assertEqual((), bind(repairs.DECLARED_LIMITS, surface, mode=NAMING))
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)

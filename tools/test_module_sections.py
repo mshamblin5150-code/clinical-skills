@@ -52,6 +52,7 @@ DECLARED_SECTIONS = {
     "adr_next": "ADR number allocation",
     "aar_scan": "After-action review",
     "anchor_scan": "Anchor scan",
+    "artifact_repairs": "Artifact repair chain",
     "assignment_docx": "Course assignment artifact grading",
     "assignment_docx_render": "Course assignment artifact grading",
     "assignment_docx_scan": "Course assignment artifact grading",

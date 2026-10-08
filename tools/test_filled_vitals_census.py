@@ -26,6 +26,7 @@ import hashlib
 import tempfile
 import textwrap
 import unittest
+import artifact_lock_test_support
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
