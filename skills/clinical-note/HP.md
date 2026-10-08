@@ -33,7 +33,7 @@ prior treatment and testing>
 
 Past Medical History including Medications (with reason for taking)
 PMH:
-<condition - ICD-10 code where the rubric's examples carry one>
+<past-medical-history narrative; codes only where the coexisting-condition test qualifies them>
 
 Surgical history:
 
@@ -85,7 +85,7 @@ diagnosis/diagnoses with ICD-9 codes, Screenings appropriate for age, list them
 even if you did not do any.
 
 Pre-existing diagnoses with ICD-10 codes:
-<condition - code>
+<qualifying condition - code; or None affecting this visit>
 
 Differential diagnoses:
 1. <diagnosis - code>
@@ -216,6 +216,8 @@ Medical Decision Making:
 
 **Started cetirizine becomes a daily ongoing medication.** Unless the shorthand supplies a different regimen, write `cetirizine 10 mg PO daily, ongoing`; do not turn a new Zyrtec instruction into a short nightly course. A clinic-administered dose does not by itself complete the outpatient pharmacologic plan when the diagnosed condition still needs treatment after discharge.
 
-**Historical medications are complete too.** The Medications list never defers with `unavailable` or `reconcile`. Infer a compatible regimen for PMH conditions that ordinarily receive maintenance pharmacotherapy, and complete any named drug's dose, route, frequency, and ongoing status or duration. Declare every generated component in `FILLED·asserted`.
+**Pre-existing diagnoses with ICD-10 codes** carries only qualifying codes under [icd10-cpt's coexisting-condition test](../icd10-cpt/SKILL.md#descriptor-agreement-is-a-separate-blind-read). Every other history condition stays in the past-medical-history narrative, uncoded. With none, write `None affecting this visit`.
+
+**Historical medications are complete too.** The Medications list never defers with `unavailable` or `reconcile`. Infer a compatible regimen for PMH conditions that ordinarily receive maintenance pharmacotherapy, and complete any named drug's dose, route, frequency, and ongoing status or duration. Declare every generated component in `FILLED·asserted`. A filled home medication earns no code by itself; apply [icd10-cpt's coexisting-condition test](../icd10-cpt/SKILL.md#descriptor-agreement-is-a-separate-blind-read).
 
 **Completeness is PMH coverage, not a minimum count.** In the private `FILLED·asserted` accounting, map every PMH condition to its medication, a shared medication, or no routine maintenance pharmacotherapy on the available facts. Keep the mapping out of the finished note and do not pad a short list merely to make it look substantial.

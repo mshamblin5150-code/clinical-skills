@@ -188,6 +188,7 @@ subdirectory keeps worksheets out of note-only graders. This is `clinical-note`'
 agreement path inherited per encounter, not a second generated worksheet.
 
 Every pass brief points to [icd10-cpt's Writer self-grade](../icd10-cpt/SKILL.md#descriptor-agreement-is-a-separate-blind-read)
+and its coexisting-condition test for history and filled home medications,
 and names its grading command, using its own note stem:
 
 ```bash

@@ -226,8 +226,10 @@ ongoing use (a chronic condition or no stated end). Short courses never count,
 including a fixed antibiotic course, a steroid burst, or an as-needed drug for
 an acute problem. If intended duration remains unclear, propose the specific
 code with `SPECIFICITY: needs: intended long-term duration of <agent>` and a
-matching step-4 documentation request. A filled medication line retains the
-ordinary `SOURCE: filled` disclosure. The
+matching step-4 documentation request. A shorthand-named long-term drug keeps its
+specific code. A filled drug earns one only through the concrete-change test in
+[Descriptor agreement](#descriptor-agreement-is-a-separate-blind-read), with
+`SOURCE: filled`; for example, an anticoagulant held before a procedure. The
 [FY2027 source reading](../../reference/icd10cm-guidelines-fy2027-coding-read.md)
 records Section I.C.21.c.3's long-term-use rule and its exclusions; read the
 applicable edition for earlier service dates. The refusal of `Z79.899` is this
@@ -391,6 +393,20 @@ A quotation agrees when its words state the official descriptor or reach the cod
 shared four-source index catalog. Topical relation is not agreement. Run the separate agreement reader after the
 worksheet and note have been saved with matching filename stems in separate directories:
 
+**Coexisting conditions — apply at the writer self-grade and the blind read.** A history
+condition takes a present-tense code only where the note shows it coexists at this encounter
+and required or affected this visit's care, treatment, or management (Official Guidelines IV.J).
+Personal-history and status codes require the history or status to affect current care.
+
+Where only filled reasoning shows that effect, it earns a code only by changing something
+concrete in this visit: a drug chosen or avoided because of the condition, a dose adjusted,
+or a test or monitoring ordered for it. That code carries `SOURCE: filled`. A filled home
+medication, or a "continue" of one, never earns its condition a code. Whether other filled
+reasoning is concrete rather than token, and whether given evidence shows an effect on care,
+remain readings. `open_status_evidence` is the note's exact words, or `none`. The grader
+refuses nonverbatim evidence and evidence wholly inside a `FILLED·asserted` home-medication
+item or a "continue" of such an item. [ADR 0297](../../docs/adr/0297-a-history-condition-is-coded-only-where-it-affected-this-visit-and-a-filled-medication-never-vouches-for-it.md).
+
 **Writer self-grade — before every worksheet handoff.** Every pass that writes a worksheet,
 including a revision pass, generates its own subjects and saves its private record under
 `<run>/agreement-self/<stem>.json`. Fill the same six fields and subject identities specified below
@@ -464,8 +480,8 @@ not permission to infer facts absent from the note.
 Read each claim by the descriptor it makes. A differential code agrees with the diagnosis its
 entry considers. An entry descriptor that waits on an absent or pending result fails even when the
 diagnosis is hedged. A refusal's code agrees with the considered diagnosis; its `proposed instead`
-code takes the ordinary entry check and already appears above. A history agrees with a present
-descriptor only while the note shows it unresolved and addressed in this encounter. A bare value
+code takes the ordinary entry check and already appears above. Apply the coexisting-condition
+test above to a history. A bare value
 agrees with an abnormality descriptor only through a threshold the note or a committed source
 states. Where the quotation appears is immaterial; `agreeing_words` names the exact words.
 
@@ -476,7 +492,8 @@ the unread remainder. E/M lines are counted and excluded because their descripto
 place of service, patient status, and decision-making level.
 
 `--agreement-read` requires each anchor verbatim in its paired note and the reader's agreeing words
-verbatim in both that note and the row's anchor. If a reader's span fails, the reader retries. If it
+verbatim in both that note and the row's anchor. Open-status evidence must also be verbatim
+note text unless it is `none`, and clears the filled-home-medication check above. If a reader's span fails, the reader retries. If it
 still fails, the author widens only that anchor to the sentence it sits in. If it still fails, log
 that subject's ID and the retry and widening history in the run's unread record, then omit that
 subject from the reader's `codes` array. The grader counts the missing subject in its unread
