@@ -240,7 +240,7 @@ in [icd10-cpt](../icd10-cpt/SKILL.md). Supply it to both commands; omit
 `--rendered-descriptors` when the set is verified and no record exists.
 
 ```bash
-python tools/anchor_scan.py <run>/worksheets --notes <run> --rendered-descriptors <run>/agreement/cpt-rendered-pages.json --agreement-brief > <run>/agreement/brief.json
+python tools/anchor_scan.py <run>/worksheets --notes <run> --rendered-descriptors <run>/agreement/cpt-rendered-pages.json --agreement-brief --output <run>/agreement/brief.json
 python tools/anchor_scan.py <run>/worksheets --notes <run> --rendered-descriptors <run>/agreement/cpt-rendered-pages.json --agreement-read <run>/agreement-reader/read.json
 ```
 
