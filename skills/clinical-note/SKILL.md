@@ -1127,16 +1127,29 @@ The remaining rows are the same families, listed to be caught before they are wr
 
 ### Times
 
-Ask up front, once per batch, and reuse for every encounter in it. A standalone note is a one-encounter batch:
+Resolve the **Shift window** up front, once per batch, and reuse it for every encounter.
+A standalone note is a one-encounter batch. The duration is hours and minutes:
 
-- **What time did the shift start?** Note 1 is the first patient; each subsequent note follows in order.
-- Read that date's duration from the Medatrax Time Log. The shift ends at start plus that duration. If no Time Log row exists, ask for the start and hours together.
+- start and duration both stated: they bind without a Time Log read or confirmation;
+- start only: read that date's duration from the Time Log; ask for the duration when no row exists;
+- duration only: ask the start once; the stated duration binds without a Time Log read;
+- neither stated: ask the start once, then follow the start-only branch.
+
+When the clinician states either value in any sitting, write it at once into `shift-values.json`
+in this shift's run directory. Its two fields are `start` (HHMM) and `duration` (an object with
+`hours` and `minutes`); an unstated field is `null`. Preserve the other stated value when updating.
+Every later step, sitting and subagent reads this file before asking. Every subagent brief that
+sets visit times names the file's path. The Shift window ends at start plus duration.
+Note 1 is the first patient; each subsequent note follows in order.
 
 Then assign each visit **15 to 40 minutes, in 5-minute steps**, by complexity — a brief recheck or simple sprain at 15–20, a routine acute visit at 25–30, a multi-problem or procedural visit at 35–40. Space the encounters across the shift rather than stacking them back to back, keep every start and end inside the computed window, and report every start and end as estimated.
 
 ## Steps
 
 ### 1. Intake and de-identify
+
+At intake and on resumption, apply *Times*: persist any stated start or duration immediately
+in the shift's run-directory `shift-values.json`, and read an existing record before asking about times.
 
 Before writing any note, read the owning checkout's `scratch/medatrax-profile.md`.
 If its `Normal examination` block is missing, stop and collect it once through
@@ -1507,8 +1520,21 @@ Then show the clinician the complete note, the settled patient match or `NEW PAT
 and the finalized E/M line. Beside the note, list every interpreted abdominal location from step 2:
 shorthand, region written, and deciding encounter evidence or corner-fallback reason. Show `none`
 when none were interpreted and incorporate any correction before approval.
-One explicit go-ahead authorizes this batch. Ask for the shift start and
-use the Time Log duration as the window, or ask for start and hours together when there is no row.
+One explicit go-ahead authorizes this batch. Resolve the **Shift window** in hours and minutes:
+
+- start and duration both stated: they bind without a Time Log read or confirmation;
+- start only: read that date's duration from the Time Log; ask for the duration when no row exists;
+- duration only: ask the start once; the stated duration binds without a Time Log read;
+- neither stated: ask the start once, then follow the start-only branch.
+
+When the clinician states either value in any sitting, write it at once into `shift-values.json`
+in this shift's run directory, with the two fields `start` (HHMM) and `duration` (hours and minutes
+as defined under *Times*). Every later step, sitting and subagent reads it before asking; a subagent
+brief that sets visit times names the file's path. Keep every visit start and end inside that span.
+Enter a Time Log row only on the clinician's explicit instruction in this run, following
+[batch-shift's Time Log entry route](../batch-shift/SKILL.md#time-log-entry), including its existing-row
+branch, live-form reading, saved-row readback and correction rules. The shift's go-ahead does not
+authorize that write. Record its outcome in the posted reading as that route specifies.
 At the go-ahead call `approval_record.approve(run, skill="clinical-note",
 submission=submission_key, sources=(output_note,),
 grader_args=(str(run), "--note", str(output_note)), content_approved=True)`. Show its
@@ -1550,6 +1576,7 @@ POSTED: <last entered visit's Created value as displayed>
 READ: 1 of 1 read
 VERDICT: matches - <field block and saved note compared with the derived Entry copy>
 SUBMISSION-SHA256: <SHA-256 of the standalone note output file's bytes>
+TIME-LOG: not requested
 VISIT: 1 | patient <number> | reference <matched|new> <Patient Reference> | patient-detail=<copied address> | note-view=<copied View address including resultid> | <created=<displayed Created>|visit-date=<returning visit date>> | finished=<Date Finished as displayed> | matches
 ```
 

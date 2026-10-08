@@ -15,6 +15,10 @@ A **day file** is many **encounters** run together in one document — one shift
 
 ### 1. Read the day header
 
+At intake and on resumption, apply step 7's **Shift window** record rule: persist any stated start
+or duration immediately in the shift's run-directory `shift-values.json`, and read an existing
+record before asking about times.
+
 A day's file carries the date and the **preceptor**, in the filename, in a header at the top of the file, or both:
 
 The convention is `<date> <preceptor>_<scan timestamp>.pdf`, and it varies:
@@ -404,9 +408,43 @@ the run ends with `Run status: <run-key> — <awaiting posting|awaiting posted r
 AAR|complete|stopped - reason>`. Several touched runs each get their own keyed line, and no patient
 name enters it.
 
-Ask the shift start once. Read that date's hours from the Time Log and bind every visit start and end
-inside the window from start through start plus those hours. If the Time Log has no row, ask for the
-start and hours together.
+**Shift window** — resolve the shift's start and duration in hours and minutes:
+
+- start and duration both stated: they bind without a Time Log read or confirmation;
+- start only: read that date's duration from the Time Log; ask for the duration when no row exists;
+- duration only: ask the start once; the stated duration binds without a Time Log read;
+- neither stated: ask the start once, then follow the start-only branch.
+
+When the clinician states either value in any sitting, write it at once into `shift-values.json`
+in this shift's run directory. Its two fields are `start` (HHMM) and `duration` (an object with
+`hours` and `minutes`); an unstated field is `null`. Preserve the other stated value when updating.
+Every later step, sitting and subagent reads this file before asking. Every subagent brief that
+sets visit times names the file's path. Bind every visit start and end inside the Shift window,
+from the start through start plus the duration.
+
+### Time Log entry
+
+Enter a Time Log row only when the clinician tells the agent in this run to enter it; the
+shift's go-ahead does not authorize this write. Read `shift-values.json` first and obtain any
+missing stated duration in hours and minutes. Under that explicit instruction, read the date's
+existing rows first, even when both shift values were stated:
+
+- A row that matches the stated duration, comparing both hours and minutes, is the entry;
+  nothing is written. Record `matched`.
+- A row whose duration differs stops the agent, which shows both durations to the clinician.
+  Never add a second row for a date or edit an existing one.
+- With no row, read the live form view only before writing the first row and record what it
+  requires beyond date and duration. Use the [Time Log entry page](../../reference/medatrax-fields.md#getting-in),
+  `/login/timesheetentry.aspx`, enter the date and stated duration, save, and read the saved row back.
+  Compare the date and both hours and minutes; correct a mismatch in the newly created row to the
+  stated values and read again. Stop on any other discrepancy. Record `entered` only after a
+  matching readback. This correction route applies only to the row this run just created.
+
+The posted reading records one line: `TIME-LOG: date=<date as read back> | duration=<hours> hours <minutes> minutes | entered`
+or the same line ending in `matched`. When no entry was requested, write `TIME-LOG: not requested`
+without opening the Time Log for this route. The line records the duration as read back, not an
+unverified entry. A mismatch or other discrepancy leaves the run stopped rather than reporting a
+clean posted reading.
 
 For every final `note-N.md`, run `python tools/entry_copy.py <path to note-N.md>` and require exit 0 before portal entry. The derived files live in that run's `entry-copies/` subdirectory and can be regenerated from a finished note returned to an existing run after its Plan is relabeled. Then run `python tools/form_sections.py <entry-copies/note-N.md>` for each copy and require exit 0. It reports six line counts and lengths, creates a missing `private/form-sections/note-N.json`, and reports a difference from an existing record without blocking or replacing it. Use `--replace` only when deliberately discarding that record. Either refusal blocks the shift's entry until the input is corrected and both commands succeed. Enter each derived Entry copy's four sections, while `SUBMISSION-SHA256` continues to use the finished `note-N.md` bytes.
 
@@ -440,6 +478,7 @@ POSTED: <last entered visit's Created value as displayed>
 READ: N of N read
 VERDICT: matches - <field blocks and saved notes compared with the derived Entry copies>
 SUBMISSION-SHA256: <SHA-256 of note-1.md through note-N.md bytes>
+TIME-LOG: not requested
 VISIT: <entry order> | patient <note-file number> | reference <matched|new> <Patient Reference> | patient-detail=<copied address> | note-view=<copied View address including resultid> | <created=<displayed Created>|visit-date=<returning visit date>> | finished=<Date Finished as displayed> | matches
 ```
 

@@ -25,6 +25,7 @@ def reading(digest: str) -> str:
         "READ: 1 of 1 read\n"
         "VERDICT: matches - The saved visit and note form matched.\n"
         f"SUBMISSION-SHA256: {digest}\n"
+        "TIME-LOG: not requested\n"
         "VISIT: 1 | patient 1 | reference matched P-17 | patient-detail=/patients/17 | "
         "note-view=/forms/view?resultid=31 | visit-date=08/17/2026 | finished=08/17/2026 21:14 | matches\n"
     )
@@ -149,6 +150,47 @@ class StandaloneNotePopulation(unittest.TestCase):
             self.assertEqual((), posting.note_paths(run, batch=False))
 
 
+class ShiftWindowSkillContract(unittest.TestCase):
+    def test_each_timing_site_preserves_stated_values_and_completes_only_the_missing_value(self):
+        root = Path(__file__).resolve().parents[1]
+        batch = (root / "skills/batch-shift/SKILL.md").read_text(encoding="utf-8")
+        note = (root / "skills/clinical-note/SKILL.md").read_text(encoding="utf-8")
+        sites = {
+            "batch entry": batch.split("**Shift window**", 1)[1].split("For every final", 1)[0],
+            "note Times": note.split("### Times", 1)[1].split("## Steps", 1)[0],
+            "note approval": note.split("One explicit go-ahead authorizes this batch.", 1)[1].split("At the go-ahead", 1)[0],
+        }
+        for site, text in sites.items():
+            with self.subTest(site=site):
+                text = " ".join(text.split())
+                for rule in (
+                    "start and duration both stated: they bind",
+                    "without a Time Log read or confirmation",
+                    "start only: read that date's duration from the Time Log; ask for the duration when no row exists",
+                    "duration only: ask the start once; the stated duration binds without a Time Log read",
+                    "hours and minutes", "shift-values.json", "`start`", "`duration`",
+                    "at once", "any sitting", "every later step, sitting and subagent reads",
+                ):
+                    self.assertIn(rule.casefold(), text.casefold())
+
+    def test_time_log_entry_is_explicit_and_preserves_existing_rows(self):
+        root = Path(__file__).resolve().parents[1]
+        batch = (root / "skills/batch-shift/SKILL.md").read_text(encoding="utf-8")
+        route = " ".join(batch.split("### Time Log entry", 1)[1].split("For every final", 1)[0].split())
+        for rule in (
+            "only when the clinician tells the agent in this run",
+            "shift's go-ahead does not authorize", "read the date's existing rows first",
+            "matches the stated duration", "nothing is written", "shows both durations",
+            "Never add a second row for a date or edit an existing one",
+            "live form view only", "record what it requires", "save", "read the saved row back",
+            "correct", "read again", "stop on any other discrepancy",
+            "timesheetentry.aspx", "TIME-LOG: not requested",
+        ):
+            self.assertIn(rule.casefold(), route.casefold())
+        note = (root / "skills/clinical-note/SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("../batch-shift/SKILL.md#time-log-entry", note)
+
+
 class FingerprintRefusals(unittest.TestCase):
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory()
@@ -158,6 +200,26 @@ class FingerprintRefusals(unittest.TestCase):
 
     def tearDown(self) -> None:
         self.temporary.cleanup()
+
+    def test_time_log_line_is_required_for_batch_and_standalone_readings(self) -> None:
+        digest = sha256(self.note.read_bytes()).hexdigest()
+        for batch in (True, False):
+            for line, failed in (
+                ("", True),
+                ("TIME-LOG: not requested\n", False),
+                ("TIME-LOG: date=08/17/2026 | duration=8 hours 30 minutes | entered\n", False),
+                ("TIME-LOG: date=08/17/2026 | duration=8 hours 30 minutes | matched\n", False),
+                ("TIME-LOG: entered\n", True),
+                ("TIME-LOG: date=08/17/2026 | duration=8 hours | matched\n", True),
+                ("TIME-LOG: date=08/17/2026 | duration=8 hours 60 minutes | entered\n", True),
+                ("TIME-LOG: date=08/17/2026 | duration=8 hours 30 minutes | checked\n", True),
+            ):
+                with self.subTest(batch=batch, line=line):
+                    value = reading(digest).replace("TIME-LOG: not requested\n", "") + line
+                    (self.run / "reread.md").write_text(value, encoding="utf-8")
+                    result, report = posting.completion_gate(self.run, SUBMISSION, batch=batch)
+                    self.assertEqual(failed, result, report)
+                    self.assertIn("TIME-LOG" if failed else "clean", report)
 
     def test_malformed_hash_is_refused(self) -> None:
         (self.run / "reread.md").write_text(reading("not-a-digest"), encoding="utf-8")

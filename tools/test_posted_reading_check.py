@@ -41,6 +41,7 @@ class PostedReadingCheck(unittest.TestCase):
                 'POSTED: today\nREAD: 1 of 1 read\n'
                 'SUBMISSION-SHA256: ' + 'a' * 64 + '\n'
                 'VERDICT: matches - copied text matches\n'
+                'TIME-LOG: not requested\n'
                 'LEGACY-DISPLAY: expected - observed display\n'
                 'COMPOSER-OUTCOME: attachment\nHTML-BYTES: 42\n'
                 'REFUSAL: 2026-10-03 - observed refusal\nATTACHMENT: posted/example.docx\n'
@@ -65,6 +66,7 @@ class PostedReadingCheck(unittest.TestCase):
                 'portal-fields': dict(missing_fields=('POST-URL',)),
                 'read-count': dict(read='1 of 2 read'),
                 'visit-count': dict(visits=()),
+                'time-log': dict(time_log=''),
                 'visit-fields': dict(visits=('2 | missing locators',)),
                 'legacy-display': dict(legacy_display='maybe'),
             }
