@@ -48,6 +48,7 @@ from __future__ import annotations
 
 from collections import Counter
 from dataclasses import replace
+import io
 import json
 from pathlib import Path
 import re
@@ -84,6 +85,7 @@ AAR_QUOTE_SPAN_CHARS = 80
 AAR_PUBLICATION_PARTS = ("aar", "publications")
 AAR_QUOTATION_RULE = "aar-quotation"
 AAR_RULES = (AAR_QUOTATION_RULE,)
+AAR_REPO_ROOT = Path(__file__).resolve().parent.parent
 
 NOT_REACHED = (
     (
@@ -165,6 +167,16 @@ NOT_REACHED = (
         "an AAR paraphrase passes the quotation gate",
         "The AAR gate refuses copied spans and cannot recognize a "
         "paraphrase of private working material.",
+    ),
+    (
+        "a run stretch coincidentally equal to published text is exempt",
+        "The AAR gate cannot distinguish independent run text from a copy "
+        "when its normalized stretch also occurs on origin/main.",
+    ),
+    (
+        "a template merged but not yet fetched does not match",
+        "The AAR exemption reads the local origin/main reference; published "
+        "text absent from that reference remains unexempted.",
     ),
     (
         "a stock discriminator clause can satisfy the verdict form check",
@@ -375,7 +387,50 @@ def _normalized_span_text(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip().casefold()
 
 
-def _quotes_run_material(publication: Publication) -> bool:
+class RunQuotation(NamedTuple):
+    unexempted: int
+    exempted: int
+    exemption_failure: str | None = None
+
+
+def _published_span_texts() -> tuple[str, ...]:
+    """Read every blob on local origin/main, with no checkout or fetch.
+
+    Batch object reads avoid one git process per file. NUL-bearing blobs are
+    binary; other blobs use the run reader's UTF-8 replacement decoding.
+    Any failed read discards the whole exemption rather than a partial corpus.
+    """
+    tree = subprocess.run(
+        ["git", "ls-tree", "-r", "-z", "origin/main"],
+        cwd=AAR_REPO_ROOT, capture_output=True, check=True,
+    )
+    objects = sorted({
+        record.split(b"\t", 1)[0].split()[2]
+        for record in tree.stdout.split(b"\0") if record
+        if record.split(b"\t", 1)[0].split()[1] == b"blob"
+    })
+    if not objects:
+        return ()
+    batch = subprocess.run(
+        ["git", "cat-file", "--batch"], input=b"\n".join(objects) + b"\n",
+        cwd=AAR_REPO_ROOT, capture_output=True, check=True,
+    )
+    stream = io.BytesIO(batch.stdout)
+    texts = []
+    for object_id in objects:
+        header = stream.readline().split()
+        if len(header) != 3 or header[:2] != [object_id, b"blob"]:
+            raise ValueError("origin/main blob read failed")
+        size = int(header[2])
+        content = stream.read(size)
+        if size < 0 or len(content) != size or stream.read(1) != b"\n":
+            raise ValueError("origin/main blob read incomplete")
+        if b"\0" not in content:
+            texts.append(_normalized_span_text(content.decode("utf-8", errors="replace")))
+    return tuple(texts)
+
+
+def _quotes_run_material(publication: Publication) -> RunQuotation:
     """Whether one AAR body repeats a measured-length span from its run.
 
     ``aar/`` is excluded because its extract necessarily contains the complete
@@ -385,11 +440,12 @@ def _quotes_run_material(publication: Publication) -> bool:
     run = _aar_run_directory(publication.path)
     body = _normalized_span_text(publication.text)
     if run is None or len(body) < AAR_QUOTE_SPAN_CHARS:
-        return False
+        return RunQuotation(0, 0)
     spans = {
         body[index : index + AAR_QUOTE_SPAN_CHARS]
         for index in range(len(body) - AAR_QUOTE_SPAN_CHARS + 1)
     }
+    matched = set()
     for path in run.rglob("*"):
         if not path.is_file() or path.suffix.casefold() not in {".md", ".txt", ".json"}:
             continue
@@ -403,12 +459,25 @@ def _quotes_run_material(publication: Publication) -> bool:
             source = _normalized_span_text(path.read_text(encoding="utf-8", errors="replace"))
         except OSError:
             continue
-        if any(
-            source[index : index + AAR_QUOTE_SPAN_CHARS] in spans
+        matched.update(
+            source[index : index + AAR_QUOTE_SPAN_CHARS]
             for index in range(len(source) - AAR_QUOTE_SPAN_CHARS + 1)
-        ):
-            return True
-    return False
+            if source[index : index + AAR_QUOTE_SPAN_CHARS] in spans
+        )
+    if not matched:
+        return RunQuotation(0, 0)
+    try:
+        published = _published_span_texts()
+    except (OSError, subprocess.CalledProcessError, ValueError) as failure:
+        if isinstance(failure, subprocess.CalledProcessError):
+            reason = f"git {failure.cmd[1]} failed (exit {failure.returncode})"
+        elif isinstance(failure, OSError):
+            reason = "git could not run or repository could not be opened"
+        else:
+            reason = "origin/main blob read failed or incomplete"
+        return RunQuotation(len(matched), 0, reason)
+    exempted = sum(any(span in text for text in published) for span in matched)
+    return RunQuotation(len(matched) - exempted, exempted)
 
 
 def aar_quotation_analysis(publications: tuple[Publication, ...]) -> Analysis:
@@ -417,16 +486,21 @@ def aar_quotation_analysis(publications: tuple[Publication, ...]) -> Analysis:
         for publication in publications
         if _aar_run_directory(publication.path) is not None
     )
+    quotations = tuple(_quotes_run_material(publication) for publication in aar_publications)
     findings = tuple(
         Finding(AAR_QUOTATION_RULE, 1, publication.field, "deny")
-        for publication in aar_publications
-        if _quotes_run_material(publication)
+        for publication, quotation in zip(aar_publications, quotations)
+        if quotation.unexempted
     )
     if aar_publications:
         report = (
             f"AAR quotation gate: {len(findings)} copied private-run span(s) "
-            f"across {len(aar_publications)} AAR publication(s)"
+            f"across {len(aar_publications)} AAR publication(s); "
+            f"{sum(quote.exempted for quote in quotations)} matched stretch(es) "
+            "exempted as already on main"
         )
+        for reason in sorted({quote.exemption_failure for quote in quotations if quote.exemption_failure}):
+            report += f"; origin/main exemption not applied: {reason}"
     else:
         report = (
             "AAR quotation gate: not applicable -- no publication under "
