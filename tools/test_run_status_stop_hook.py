@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
+import subprocess
+import sys
 import tempfile
 import unittest
 from unittest import mock
@@ -76,6 +79,87 @@ class RunStatusContract(unittest.TestCase):
 
         self.assertEqual("block", result["decision"])
         self.assertIn("Run status:", result["reason"])
+
+    def command_grade(self, raw: bytes) -> subprocess.CompletedProcess:
+        return subprocess.run(
+            [sys.executable, str(Path(hook.__file__).resolve())],
+            input=raw,
+            capture_output=True,
+            env={**os.environ, "PYTHONUTF8": "0", "PYTHONIOENCODING": "cp1252"},
+            timeout=10,
+            check=False,
+        )
+
+    def test_command_decodes_raw_utf8_even_with_cp1252_stdin(self) -> None:
+        for separator, allowed in ((" — ", True), (" - ", False)):
+            with self.subTest(separator=separator):
+                line = f"Run status: {self.run.name}{separator}awaiting posting"
+                payload = {
+                    "transcript_path": str(self.transcript),
+                    "last_assistant_message": f"Ready.\n\n{line}",
+                    "stop_hook_active": False,
+                }
+                result = self.command_grade(json.dumps(payload, ensure_ascii=False).encode("utf-8"))
+                self.assertEqual(0, result.returncode, result.stderr)
+                self.assertEqual(b"", result.stderr)
+                if allowed:
+                    self.assertEqual(b"", result.stdout)
+                else:
+                    response = json.loads(result.stdout.decode("utf-8"))
+                    self.assertEqual("block", response["decision"])
+                    self.assertIn("malformed", response["reason"])
+                    self.assertIn(line, response["reason"])
+
+    def test_invalid_command_input_keeps_the_existing_allow_posture(self) -> None:
+        for raw in (b"\xff", b"{", b"[]"):
+            with self.subTest(raw=raw):
+                result = self.command_grade(raw)
+                self.assertEqual(0, result.returncode, result.stderr)
+                self.assertEqual(b"", result.stdout)
+                self.assertEqual(b"", result.stderr)
+
+    def test_every_refusal_names_expected_keys_and_the_touch_rule(self) -> None:
+        other = self.root / "scratch" / "runs" / "second-approved-run"
+        other.mkdir(parents=True)
+        (other / "submission-gates.json").write_bytes(
+            (self.run / "submission-gates.json").read_bytes()
+        )
+        self.transcript.write_text(
+            "\n".join(json.dumps(command_record(run)) for run in (self.run, other)),
+            encoding="utf-8",
+        )
+        line = f"Run status: {self.run.name} — awaiting posting"
+        other_line = f"Run status: {other.name} — awaiting posting"
+        stopped = f"Run status: {self.run.name} — stopped -"
+        malformed = f"Run status: {self.run.name} - awaiting posting"
+        messages = (
+            "Missing lines.",
+            f"{line}\nRun status: wrong-key — awaiting posting",
+            f"{line}\n{line}",
+            f"{malformed}\n{other_line}",
+            f"{stopped}\n{other_line}",
+            f"{line}\nInterruption.\n{other_line}",
+            f"{line}\n{other_line}\nTrailing prose.",
+            f"Run status: {self.run.name} — complete\n{other_line}",
+        )
+        with mock.patch.object(hook, "completion_is_clean", return_value=False):
+            for message in messages:
+                with self.subTest(message=message):
+                    response = self.grade(message)
+                    self.assertEqual("block", response["decision"])
+                    for run in (self.run, other):
+                        self.assertIn(run.name, response["reason"])
+                    self.assertIn("path appears in the session transcript", response["reason"])
+        self.assertIn(malformed, self.grade(f"{malformed}\n{other_line}")["reason"])
+        self.assertIn(stopped, self.grade(f"{stopped}\n{other_line}")["reason"])
+        self.assertEqual({}, self.grade(
+            f"Run status: {self.run.name} — stopped - waiting for correction\n{other_line}"
+        ))
+        response = self.grade(f"{line}\n{other_line}")
+        self.assertEqual("block", response["decision"])
+        self.assertIn("stays stopped", response["reason"])
+        self.assertIn(other.name, response["reason"])
+        self.assertIn("path appears in the session transcript", response["reason"])
 
     def test_awaiting_posting_is_accepted_after_approval(self) -> None:
         self.assertEqual(
