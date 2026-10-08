@@ -18,6 +18,10 @@ _Avoid_: visit, case, patient
 One shift's shorthand in a single document, holding many encounters under a header naming the date and preceptor.
 _Avoid_: shift file, batch, dump
 
+**Shift window**:
+The span from the shift start the clinician states through that start plus the shift's duration in hours and minutes, inside which every visit's start and end fall. What he states binds; the Medatrax Time Log supplies a duration he did not state and never supplies a start.
+_Avoid_: shift hours, time window, shift times
+
 **Note**:
 The finished document produced from one encounter's shorthand.
 _Avoid_: writeup, report
