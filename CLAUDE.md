@@ -984,7 +984,7 @@ Each scoped completion grader declares the same expected row, `the after-action 
 
 Discovery is bounded before parsing: transcripts older than the run directory's platform creation time by more than 24 hours are skipped where that time exists, and the remaining files are parsed only when their raw bytes contain the run key. The extract reports the found, time-skipped, byte-skipped, and read counts. A grading run re-scans and reports later sittings without changing status. Legacy `orphaned-*.json` pointers are moved aside under the run's `aar/` directory on first contact and are never deleted.
 
-An AAR-sourced tracker body is written under `<run>/aar/publications/`. `tracker_publish_hook.py` then refuses a normalized copied span at its measured floor while ordinary tracker bodies remain unchanged. The gate checks quotation, not identity or PHI, and its ceiling belongs to `tracker_publish_hook.NOT_REACHED`.
+An AAR-sourced tracker body is written under `<run>/aar/publications/`. `tracker_publish_hook.py` then refuses a normalized copied span at its measured floor, except for a stretch already published on the local `origin/main` reference, while ordinary tracker bodies remain unchanged. The gate checks quotation, not identity or PHI, and its ceiling belongs to `tracker_publish_hook.NOT_REACHED`.
 
 The complete scanner boundary belongs to `aar_scan.DECLARED_LIMITS`, and the extract-entry vocabulary belongs to `aar_scan.ENTRY_KINDS`; this section copies neither object's rows.
 

@@ -2710,6 +2710,8 @@ class DeclaredLimitsHaveOneOwner(unittest.TestCase):
                 'a failed tracker readback leaves the publication context-blind',
                 'a stock discriminator clause can satisfy the verdict form check',
                 'an AAR paraphrase passes the quotation gate',
+                'a run stretch coincidentally equal to published text is exempt',
+                'a template merged but not yet fetched does not match',
                 'disabled or overridden hooks bypass the check',
                 'disabled or overridden hooks leave the record aging',
                 'moving or renaming a checkout changes its identity',
@@ -2812,6 +2814,146 @@ class AnAarPublicationCannotQuoteItsRun(unittest.TestCase):
 
     def test_the_paraphrase_ceiling_is_declared(self) -> None:
         self.assertTrue(any("paraphrase" in subject for subject, _reason in hook.NOT_REACHED))
+
+
+class PublishedAarStretchesAreExempt(unittest.TestCase):
+    TEMPLATE = (
+        "A published template sentence with deliberately distinctive wording that "
+        "continues beyond the quotation floor and ends with a placeholder [VALUE]."
+    )
+
+    def setUp(self) -> None:
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.repo = Path(self.temporary.name)
+        self.git("init")
+        self.git("config", "user.email", "fixture@example.invalid")
+        self.git("config", "user.name", "Synthetic fixture")
+        (self.repo / "reference.py").write_text(self.TEMPLATE, encoding="utf-8")
+        self.git("add", "reference.py")
+        self.git("commit", "-m", "Publish synthetic template")
+        self.git("update-ref", "refs/remotes/origin/main", "HEAD")
+        self.root_patch = mock.patch.object(hook, "AAR_REPO_ROOT", self.repo)
+        self.root_patch.start()
+        self.addCleanup(self.root_patch.stop)
+
+    def git(self, *args: str) -> None:
+        subprocess.run(
+            ["git", *args], cwd=self.repo, check=True, capture_output=True,
+        )
+
+    def analysis(self, text: str, *, source: str | None = None) -> hook.Analysis:
+        run = self.repo / "run"
+        body = run / "aar" / "publications" / "ticket.md"
+        body.parent.mkdir(parents=True, exist_ok=True)
+        (run / "note.md").write_text(source or text, encoding="utf-8")
+        body.write_text(text, encoding="utf-8")
+        return hook.aar_quotation_analysis((
+            hook.Publication("body", text, "body-file", body.resolve()),
+        ))
+
+    def test_an_exact_template_diff_passes_and_reports_exempted_stretches(self) -> None:
+        analysis = self.analysis("-" + self.TEMPLATE + "\n+Replacement template.", source=self.TEMPLATE)
+
+        self.assertEqual(analysis.findings, ())
+        # This synthetic sentence has no repeated windows.
+        expected = len(self.TEMPLATE.casefold()) - hook.AAR_QUOTE_SPAN_CHARS + 1
+        self.assertIn(f"{expected} matched stretch(es) exempted as already on main", analysis.report)
+
+    def test_run_values_in_the_template_are_still_refused(self) -> None:
+        analysis = self.analysis(self.TEMPLATE.replace("[VALUE]", "run-specific finding"))
+
+        self.assertEqual([row.rule for row in analysis.findings], ["aar-quotation"])
+        self.assertIn("exempted as already on main", analysis.report)
+
+    def test_committed_soap_template_line_is_exempt_but_run_values_are_not(self) -> None:
+        template = Path(__file__).resolve().parent.parent / "skills" / "clinical-note" / "SOAP.md"
+        line = next(
+            row for row in template.read_text(encoding="utf-8").splitlines()
+            if row.startswith("E/M: <supported complexity>")
+        )
+        self.assertGreater(len(line), hook.AAR_QUOTE_SPAN_CHARS)
+        (self.repo / "reference.py").write_text(line, encoding="utf-8")
+        self.git("add", "reference.py")
+        self.git("commit", "-m", "Publish committed SOAP template")
+        self.git("update-ref", "refs/remotes/origin/main", "HEAD")
+
+        published = self.analysis("-" + line + "\n+Replacement line.", source=line)
+        self.assertEqual(published.findings, ())
+        self.assertNotIn("; 0 matched stretch(es) exempted", published.report)
+        filled = self.analysis(line.replace("<supported complexity>", "synthetic run-specific complexity"))
+        self.assertEqual([row.posture for row in filled.findings], ["deny"])
+
+    def test_public_matches_do_not_hide_later_private_matches_in_another_file(self) -> None:
+        run = self.repo / "run"
+        run.mkdir()
+        private = "Run-specific material with different wording that is never published in any template."
+        (run / "other.txt").write_text(private, encoding="utf-8")
+        analysis = self.analysis(self.TEMPLATE + "\n" + private, source=self.TEMPLATE)
+
+        self.assertEqual([row.posture for row in analysis.findings], ["deny"])
+        self.assertNotIn("; 0 matched stretch(es) exempted", analysis.report)
+
+    def test_whitespace_and_case_are_normalized_and_duplicate_matches_count_once(self) -> None:
+        changed = self.TEMPLATE.upper().replace(" ", "\n\t")
+        run = self.repo / "run"
+        run.mkdir()
+        (run / "duplicate.json").write_text(changed, encoding="utf-8")
+        analysis = self.analysis(changed)
+
+        self.assertEqual(analysis.findings, ())
+        expected = len(self.TEMPLATE.casefold()) - hook.AAR_QUOTE_SPAN_CHARS + 1
+        self.assertIn(f"{expected} matched stretch(es) exempted", analysis.report)
+
+    def test_missing_origin_main_refuses_and_explains_the_unapplied_exemption(self) -> None:
+        self.git("update-ref", "-d", "refs/remotes/origin/main")
+        analysis = self.analysis(self.TEMPLATE)
+
+        self.assertEqual([row.posture for row in analysis.findings], ["deny"])
+        self.assertIn("0 matched stretch(es) exempted as already on main", analysis.report)
+        self.assertIn("origin/main exemption not applied: git ls-tree failed", analysis.report)
+
+    def test_blob_read_failure_discards_all_exemptions_and_reports_the_reason(self) -> None:
+        real_run = subprocess.run
+
+        def fail_blob_read(command, **kwargs):
+            if command[:2] == ["git", "cat-file"]:
+                raise subprocess.CalledProcessError(1, command)
+            return real_run(command, **kwargs)
+
+        with mock.patch.object(hook.subprocess, "run", side_effect=fail_blob_read):
+            analysis = self.analysis(self.TEMPLATE)
+
+        self.assertEqual([row.posture for row in analysis.findings], ["deny"])
+        self.assertIn("origin/main exemption not applied: git cat-file failed", analysis.report)
+        self.assertIn("0 matched stretch(es) exempted", analysis.report)
+
+    def test_a_body_without_run_matches_never_reads_origin_main(self) -> None:
+        with mock.patch.object(hook.subprocess, "run", side_effect=AssertionError("unexpected git read")):
+            analysis = self.analysis(self.TEMPLATE, source="Distinct short run material.")
+
+        self.assertEqual(analysis.findings, ())
+        self.assertIn("0 matched stretch(es) exempted as already on main", analysis.report)
+
+    def test_unpublished_checkout_and_commit_text_are_not_exempt(self) -> None:
+        changed = self.TEMPLATE.replace("[VALUE]", "unpublished run value")
+        (self.repo / "reference.py").write_text(changed, encoding="utf-8")
+        self.git("add", "reference.py")
+        self.git("commit", "-m", "Unpublished synthetic change")
+        analysis = self.analysis(changed)
+
+        self.assertEqual([row.posture for row in analysis.findings], ["deny"])
+
+    def test_binary_blobs_do_not_supply_a_text_exemption(self) -> None:
+        binary_text = "A distinctive synthetic binary payload that continues beyond the measured quotation floor."
+        (self.repo / "binary.dat").write_bytes(b"\0" + binary_text.encode())
+        self.git("add", "binary.dat")
+        self.git("commit", "-m", "Publish binary fixture")
+        self.git("update-ref", "refs/remotes/origin/main", "HEAD")
+        analysis = self.analysis(binary_text)
+
+        self.assertEqual([row.posture for row in analysis.findings], ["deny"])
+        self.assertIn("0 matched stretch(es) exempted", analysis.report)
 
 
 class ACommandFilePregradeMatchesTheHook(unittest.TestCase):
