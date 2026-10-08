@@ -31,7 +31,7 @@ DECLARED_LIMITS = (
     ),
     (
         "portal readback grammar",
-        "A clean record binds a complete READ count to the note population and ordered VISIT lines carrying each required locator, reference, patient number, date, and verdict token.",
+        "A clean record binds a complete READ count to the note population, ordered VISIT lines carrying each required locator, reference, patient number, date, and verdict token, and one TIME-LOG line stating not requested or a date, hours and minutes, and entered or matched. The Time Log line does not establish instruction, a portal action, or agreement with the stated shift values.",
         EvidenceDisposition.BEHAVIOR,
     ),
 )

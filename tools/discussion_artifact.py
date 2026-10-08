@@ -253,6 +253,7 @@ REREAD_BLOCK = re.compile(
 )
 REREAD_REQUIRED_FIELDS = ("POST-URL", "POSTED", "READ", "SUBMISSION-SHA256", "VERDICT")
 REREAD_FIELDS = REREAD_REQUIRED_FIELDS + (
+    "TIME-LOG",
     "LEGACY-DISPLAY",
     "COMPOSER-OUTCOME",
     "HTML-BYTES",
@@ -349,6 +350,7 @@ class PostedReading:
     attachment_count: str = ""
     submitted_files: tuple[str, ...] = ()
     legacy_display: str = ""
+    time_log: str = ""
 
     @property
     def missing_record_fields(self) -> tuple[str, ...]:
@@ -461,6 +463,7 @@ def read_posted_readings(text: str) -> tuple[PostedReading, ...]:
                 attachment_count=fields.get("ATTACHMENT-COUNT", ""),
                 submitted_files=tuple(submitted_files),
                 legacy_display=fields.get("LEGACY-DISPLAY", ""),
+                time_log=fields.get("TIME-LOG", ""),
             )
         )
     return tuple(records)
@@ -485,6 +488,7 @@ POSTED_READING_MESSAGES = {
     "read-count": "READ must state N of N read matching the note population",
     "visit-count": "VISIT line count differs from the note population",
     "visit-fields": "VISIT is missing a required copied locator, date, reference, patient number, or verdict",
+    "time-log": "TIME-LOG must state not requested or a date, duration in hours and minutes, and entered or matched",
     "legacy-display": "LEGACY-DISPLAY must open with expected, differs, or unreadable followed by a reason",
 }
 
@@ -558,6 +562,11 @@ def check_posted_reading(
             elif retained.name != docx.name or file_digest.sha256(retained) != file_digest.sha256(docx):
                 codes.append("attachment-digest")
     if expected_visits is not None:
+        if reading.time_log != "not requested" and re.fullmatch(
+            r"date=[^\s|]+\s*\|\s*duration=\d+ hours [0-5]?\d minutes\s*\|\s*(?:entered|matched)",
+            reading.time_log,
+        ) is None:
+            codes.append("time-log")
         if reading.missing_fields:
             codes.append("portal-fields")
         count = re.fullmatch(r"(\d+)\s+of\s+(\d+)\s+read", reading.read, re.IGNORECASE)
