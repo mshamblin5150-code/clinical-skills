@@ -27,7 +27,7 @@ class ExaminationSchemeCommand(unittest.TestCase):
                 paths.append(str(path))
             return subprocess.run(
                 [sys.executable, str(TOOL), "--profile", str(profile), *paths],
-                capture_output=True, text=True, encoding="utf-8",
+                capture_output=True, text=True, encoding="utf-8", errors="replace",
             )
 
     def test_quadrant_exam_is_refused_without_disclosing_note_text(self):

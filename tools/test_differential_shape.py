@@ -354,7 +354,7 @@ class BothTemplatesRenderTheRule(unittest.TestCase):
             "**Normal filled examinations", 1
         )[1].split("\n\n", 1)[0]
         self.assertIn("scratch/medatrax-profile.md", rule)
-        self.assertNotIn("Bowel sounds are positive", rule)
+        self.assertNotRegex(rule, r"Cardiovascular:|Respiratory:|GI:|Neurologic:")
 
     def test_both_templates_make_started_cetirizine_daily(self):
         for path in (SOAP, HP):
