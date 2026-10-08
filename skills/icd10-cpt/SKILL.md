@@ -163,8 +163,13 @@ sentence run to end of line with no tail after them.
 Every for-entry, procedure, differential, and refusal row carries `ANCHOR: "<verbatim note text>"`
 immediately after the last physical line of its code header, before any other field. If a descriptor
 wraps, finish its header before the anchor. The anchor is one contiguous, exact run from the paired
-note, with the original spacing and case. For a refusal, quote the note text naming the considered
-diagnosis, not the awaited study. The differential's own authored entry is not its anchor.
+note, with the original spacing and case. For entry ICD-10 codes, quote the whole code label on
+its Final diagnosis or Preexisting diagnoses line; for differential codes, quote the whole code
+label in its numbered Differential entry. The label runs from the line start, or the end of the
+preceding code token on that line, to the hyphen pinning its code. Keep hedge and joining words;
+exclude the rationale after the colon. For a refusal, quote the whole code-and-descriptor half of
+its welded `NOT CODED:` clause, never the reason. Procedure anchors quote the line documenting
+the act done in this encounter. The differential worksheet's own authored entry is not its anchor.
 
 **`SOURCE` appears only where the anchor was filled**, so an ordinary code keeps its five parts and a filled-anchored one carries six. It is a line on the code itself and not only a step-4 heading, for the reason step 4 gives about `NOT CODED`: **a block heading does not survive being copied one line at a time**, and the proposed-code list is exactly the block a clinician scans for things to enter.
 
@@ -393,24 +398,14 @@ A quotation agrees when its words state the official descriptor or reach the cod
 shared four-source index catalog. Topical relation is not agreement. Run the separate agreement reader after the
 worksheet and note have been saved with matching filename stems in separate directories:
 
-**Coexisting conditions — apply at the writer self-grade and the blind read.** A history
-condition takes a present-tense code only where the note shows it coexists at this encounter
-and required or affected this visit's care, treatment, or management (Official Guidelines IV.J).
-Personal-history and status codes require the history or status to affect current care.
-
-Where only filled reasoning shows that effect, it earns a code only by changing something
-concrete in this visit: a drug chosen or avoided because of the condition, a dose adjusted,
-or a test or monitoring ordered for it. That code carries `SOURCE: filled`. A filled home
-medication, or a "continue" of one, never earns its condition a code. Whether other filled
-reasoning is concrete rather than token, and whether given evidence shows an effect on care,
-remain readings. `open_status_evidence` is the note's exact words, or `none`. The grader
-refuses nonverbatim evidence and evidence wholly inside a `FILLED·asserted` home-medication
-item or a "continue" of such an item. [ADR 0297](../../docs/adr/0297-a-history-condition-is-coded-only-where-it-affected-this-visit-and-a-filled-medication-never-vouches-for-it.md).
+**Coexisting-condition authoring.** Apply the coexisting-condition test in the writer brief before
+proposing a history or status code. When its effect on current care is filled reasoning, mark
+that worksheet row `SOURCE: filled`.
 
 **Writer self-grade — before every worksheet handoff.** Every pass that writes a worksheet,
 including a revision pass, generates its own subjects and saves its private record under
-`<run>/agreement-self/<stem>.json`. Fill the same six fields and subject identities specified below
-for the blind reader, then grade that file before reporting done:
+`<run>/agreement-self/<stem>.json`. Follow `anchor_scan.AGREEMENT_READER_INSTRUCTIONS` from that
+brief, then grade that file before reporting done:
 
 ```bash
 python tools/anchor_scan.py <run>/worksheets --notes <run>/notes --agreement-brief --stem <stem> --output <run>/agreement-self/<stem>-brief.json
@@ -457,44 +452,19 @@ database descriptor; omit `--rendered-descriptors` when no record exists.
 
 This **Second reader** applies [standing rule 6](../../AGENTS.md), first reads
 [sourcing.md](../_shared/reference/sourcing.md), and
-receives only that brief. For every code the reader records `agreeing_words`, `route`, `encounter_evidence`,
-`open_status_evidence`, `threshold`, and `waits_on_result`; each absent value is the literal
-`none`, and every field is a nonempty string. Copy the brief's stable `subject_id` into each record;
-it distinguishes repeated occurrences of the same system, code, and role. The route is the exact
-literal `descriptor words` or a complete alphabetic-index route returned by
-`python tools/icd10_lookup.py --index <term>`. A referral chain joins its exact printed steps with
-` | `, begins with a term present in `agreeing_words`, and ends at the subject code or its stem. An
-index stem carries no unstated detail: every character the tabular adds needs note evidence for
-laterality, site, placeholders, and encounter character. Within a cross-reference, word order does
-not matter; fill *by site*, *by type*, and *by substance* from the next step, and satisfy character
-or code-range instructions with the subject code. If a still-unmatched reference leads through a
-real next path to the subject code, record the route: the scanner names that reference in the unread
-remainder rather than calling the code wrong. The record is
-saved as JSON with one `pairs` entry per filename stem and one `codes` entry per brief subject.
-
-For a Neoplasm Table route, apply the sign-versus-neoplasm, uncertain-pathology, stated-behavior, and
-benign-morphology rules above. For a drug-table route, apply the poisoning, adverse-effect,
-underdosing, accidental-default, and hedged-intent rules above. These are descriptor-agreement rules,
-not permission to infer facts absent from the note.
-
-Read each claim by the descriptor it makes. A differential code agrees with the diagnosis its
-entry considers. An entry descriptor that waits on an absent or pending result fails even when the
-diagnosis is hedged. A refusal's code agrees with the considered diagnosis; its `proposed instead`
-code takes the ordinary entry check and already appears above. Apply the coexisting-condition
-test above to a history. A bare value
-agrees with an abnormality descriptor only through a threshold the note or a committed source
-states. Where the quotation appears is immaterial; `agreeing_words` names the exact words.
-
-An encounter or procedure descriptor agrees only with an act or purpose documented for this
-encounter. A later recommendation earns no code and no refusal. CPT and HCPCS use descriptor words
-because their database carries no index; a procedure the words cannot settle is `none` and enters
-the unread remainder. E/M lines are counted and excluded because their descriptors cannot settle
+receives only that brief. Its rules have one source, the named module constant
+`anchor_scan.AGREEMENT_READER_INSTRUCTIONS`, which is the brief's `instructions` value.
+Save the record as JSON with one `pairs` entry per filename stem and one `codes` entry per
+brief subject. E/M lines are counted and excluded because their descriptors cannot settle
 place of service, patient status, and decision-making level.
 
 `--agreement-read` requires each anchor verbatim in its paired note and the reader's agreeing words
 verbatim in both that note and the row's anchor. Open-status evidence must also be verbatim
-note text unless it is `none`, and clears the filled-home-medication check above. If a reader's span fails, the reader retries. If it
-still fails, the author widens only that anchor to the sentence it sits in. If it still fails, log
+note text unless it is `none`, and clears the filled-home-medication check. A code-label mismatch
+is an author finding before the blind brief. If a reader's span fails, the reader retries.
+For procedure anchors only, if it still fails, the author widens that anchor to the sentence it
+sits in. Log every procedure widening in the run's agreement record so the after-action review
+can count it. If it still fails, log
 that subject's ID and the retry and widening history in the run's unread record, then omit that
 subject from the reader's `codes` array. The grader counts the missing subject in its unread
 remainder and exits 2. Use `--show` on either agreement mode to inspect
@@ -621,7 +591,7 @@ the worksheet explains why that otherwise repeated code belongs in the MDM.
 
 **Specificity and source drop; the anchor remains a quotation.**
 
-- **Anchor** quotes one contiguous run of the differential entry in the note, immediately below the code header.
+- **Anchor** quotes the whole code label of the numbered Differential entry in the note, immediately below the code header.
 - **Specificity** drops. A differential is coded at the unspecified level on purpose, so `needs: laterality` on a diagnosis the note is arguing against is noise in a block that already runs long.
 - **Descriptor and confidence stay.** They are the two defenses against a fluent, plausible, wrong code number, and a differential code is exactly as easy to invent as any other. Look each one up.
 

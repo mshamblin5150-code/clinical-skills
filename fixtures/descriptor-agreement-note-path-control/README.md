@@ -24,3 +24,5 @@ and a `recalled` wording outside the documented set. Run
 `python tools/differential_scan.py fixtures/descriptor-agreement-note-path-control/notes`;
 its exit 1 is correct for this divergent row-24 record. The descriptor-agreement
 reading above remains the purpose of the original path control.
+
+This is a pre-convention record under ADR 0301; its original files are preserved.

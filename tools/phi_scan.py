@@ -271,6 +271,8 @@ WRITTEN_CORPUS_DATE = re.compile(
 # own and are kept verbatim: the harvester indexes the literal line, so a
 # corrected spelling would exempt nothing.
 NOT_NAMES = {
+    # Reviewed 2026-10-08 while retaining #1459's blind control: a symptom, not a name.
+    "chest pain",
     "african american",
     "sore throat",
     "vaccs utd",

@@ -120,6 +120,11 @@ KINDS = tuple(ROWS)
 
 DECLARED_LIMITS = (
     (
+        "CPT or HCPCS anchor placement on the line documenting today's act",
+        "Whether the quoted line documents an act done in this encounter is a reading.",
+        run_grader.EvidenceDisposition.DECLARED_READING,
+    ),
+    (
         "whether the right codes were marked from filled note inputs",
         "Questions outside the worksheet compare it with a note that is not in the run directory.",
         run_grader.EvidenceDisposition.DECLARED_READING,
@@ -1138,13 +1143,56 @@ def _pair_agreement_sources(
     return pairs, unread, full_pair_count
 
 
+def _code_labels(note: str, subject: AgreementSubject) -> set[str]:
+    """Read the document unit pinning this subject, preserving its wording."""
+    if subject.role == "refused":
+        pattern = re.compile(
+            rf"\bNOT CODED:[ \t]*({re.escape(subject.code)}[ \t]+"
+            rf"{re.escape(subject.descriptor)})(?=,|;|\.?$)", re.MULTILINE
+        )
+        return {match.group(1) for match in pattern.finditer(note)}
+    headings = {"entry": ("final diagnosis", "preexisting diagnoses"),
+                "differential": ("differential",)}
+    labels: set[str] = set()
+    section = ""
+    for line in note.splitlines():
+        clean = line.lstrip(" #*\t")
+        if re.match(r"(?i)^(?:final diagnosis|preexisting diagnoses|differential)\b", clean):
+            section = clean.split(":", 1)[0].lower()
+            section = next((h for h in headings[subject.role] if section.startswith(h)), "")
+            line = line.split(":", 1)[1].lstrip(" *") if ":" in line else ""
+        elif line.lstrip().startswith("#") or re.match(
+                r"(?i)^(?:[A-Z]:|Age-appropriate screening|Coding worksheet|Proposed coding worksheet|Tier block)", clean):
+            section = ""
+        if not section:
+            continue
+        if subject.role == "differential" and not re.match(r"^\s*\d+\.\s", line):
+            continue
+        # A rationale cannot supply a label, including another code it mentions.
+        line = line.split(":", 1)[0]
+        previous_end = 0
+        for token in ICD_TOKEN.finditer(line):
+            if token.group().upper() == subject.code:
+                before = line[previous_end:token.start()]
+                pin = re.search(r"[ \t]+-[ \t]+[*_]*$", before)
+                if pin:
+                    label = before[:pin.start()].strip(" \t;*")
+                    label = re.sub(r"^\d+\.[ \t]+|^[-+][ \t]+", "", label)
+                    labels.add(label)
+            previous_end = token.end()
+    return labels
+
+
 def _anchor_findings(pairs: list[AgreementPair]) -> list[str]:
-    return [
-        f"{pair.stem}: {subject.key} anchor is not verbatim note text"
-        for pair in pairs
-        for subject in pair.subjects
-        if subject.support and subject.support not in pair.note
-    ]
+    findings = []
+    for pair in pairs:
+        for subject in pair.subjects:
+            if subject.support and subject.support not in pair.note:
+                findings.append(f"{pair.stem}: {subject.key} anchor is not verbatim note text")
+            if (subject.support and subject.system == "ICD-10" and subject.role in {"entry", "differential", "refused"}
+                    and subject.support not in _code_labels(pair.note, subject)):
+                findings.append(f"{pair.stem}: {subject.key} author anchor differs from whole code label")
+    return findings
 
 
 HOME_MEDICATION = re.compile(
@@ -1170,45 +1218,66 @@ def _filled_home_medication_evidence(evidence: str, items: list[str]) -> bool:
     return bool(continued) and any(continued in item for item in items)
 
 
+AGREEMENT_READER_INSTRUCTIONS = (
+    "Writer self-records exist privately; do not read them or request their text as a retry hint. "
+    "For every code, record agreeing_words, route, encounter_evidence, "
+    "open_status_evidence, threshold, and waits_on_result; use 'none' when absent. "
+    "Writers and blind readers quote open_status_evidence verbatim from the note. "
+    "Copy subject_id, system, code, and role exactly. Every evidence value is a nonempty "
+    "string. Route is the literal 'descriptor words' or exact index output; join a "
+    "referral chain with ' | ', beginning at a term in agreeing_words and ending at the "
+    "subject code. "
+    "Agreement requires note words that state the descriptor or reach it through an "
+    "official four-source index path; topical relation is insufficient. An index code "
+    "may be the subject code's stem, but every tabular-added character still needs note "
+    "evidence for laterality, site detail, placeholders, and encounter character. Ignore "
+    "word order within a cross-reference; fill by-site, by-type, and by-substance "
+    "placeholders from the next path; and satisfy character or code-range instructions "
+    "with the subject code. Keep a real route with a still-unmatched cross-reference so "
+    "the scanner can place it in the named unread remainder. For Neoplasm Table routes, "
+    "a mass, lump, or nodule takes its sign code; tumor, growth, or neoplasm without "
+    "behavior takes unspecified behavior; uncertain behavior needs indeterminate "
+    "pathology; malignant, secondary, in-situ, and benign columns need stated behavior "
+    "or a morphology routed there; and a named benign morphology does not wait for "
+    "tissue. For drug-table routes, distinguish poisoning, proper-use adverse effect, "
+    "and underdosing; unstated poisoning intent defaults to accidental, while hedged "
+    "self-harm or assault agrees only with undetermined. A differential "
+    "code is read against the diagnosis considered by its entry. A history condition takes a present-tense code only when it coexists at this encounter "
+    "and required or affected this visit's care, treatment, or management. Personal-history "
+    "and status codes require an effect on current care. Filled reasoning earns a code only "
+    "by changing something concrete in this visit: a drug chosen or avoided, a dose adjusted, "
+    "or a test or monitoring ordered because of the condition. A filled home medication, "
+    "or a continue of one, never earns its condition a code. "
+    "An encounter or procedure descriptor needs evidence that its purpose "
+    "or act belongs to this encounter, not a later recommendation. A bare value reaches an "
+    "abnormality descriptor only through a threshold stated by the note or a committed "
+    "source. For every entry or differential code, name any result the descriptor still "
+    "waits on. CPT and HCPCS have no index route and use descriptor words only."
+    " Quote agreeing_words from the Final diagnosis or Preexisting diagnoses line pinning an "
+    "entry ICD-10 code, the numbered Differential entry pinning a differential code, or the "
+    "code-and-descriptor half of the welded NOT CODED: clause naming a refused code, never "
+    "its reason. For entry and differential codes, stay within that code's complete label: "
+    "from the beginning of the line (after a heading or list marker), or after the preceding "
+    "code token, up to the hyphen pinning this code. Retain hedges and joining words and "
+    "leave out the rationale following the colon. For CPT or HCPCS, quote the line documenting "
+    "the act done in this encounter. "
+    "Record agreeing_words as 'none' when the code's label does not state or reach its "
+    "descriptor, even when other note text agrees. A refused code agrees with the diagnosis "
+    "its clause considers. Hedge words document the diagnosis in general. An entry descriptor "
+    "that still waits on an absent or pending result fails even when the diagnosis is hedged. "
+    "A code may rest "
+    "on the tier block's filled values. A disclosed estimated measurement is not a pending "
+    "result for waits_on_result."
+)
+
+
 def _brief_payload(
     pairs: list[AgreementPair], unread: int, full_pair_count: int,
     requested: list[str] | None, finding_count: int = 0,
 ) -> dict:
     payload = {
         "mode": "descriptor agreement blind brief",
-        "instructions": (
-            "Writer self-records exist privately; do not read them or request their text as a retry hint. "
-            "For every code, record agreeing_words, route, encounter_evidence, "
-            "open_status_evidence, threshold, and waits_on_result; use 'none' when absent. "
-            "Writers and blind readers quote open_status_evidence verbatim from the note. "
-            "Copy subject_id, system, code, and role exactly. Every evidence value is a nonempty "
-            "string. Route is the literal 'descriptor words' or exact index output; join a "
-            "referral chain with ' | ', beginning at a term in agreeing_words and ending at the "
-            "subject code. "
-            "Agreement requires note words that state the descriptor or reach it through an "
-            "official four-source index path; topical relation is insufficient. An index code "
-            "may be the subject code's stem, but every tabular-added character still needs note "
-            "evidence for laterality, site detail, placeholders, and encounter character. Ignore "
-            "word order within a cross-reference; fill by-site, by-type, and by-substance "
-            "placeholders from the next path; and satisfy character or code-range instructions "
-            "with the subject code. Keep a real route with a still-unmatched cross-reference so "
-            "the scanner can place it in the named unread remainder. For Neoplasm Table routes, "
-            "a mass, lump, or nodule takes its sign code; tumor, growth, or neoplasm without "
-            "behavior takes unspecified behavior; uncertain behavior needs indeterminate "
-            "pathology; malignant, secondary, in-situ, and benign columns need stated behavior "
-            "or a morphology routed there; and a named benign morphology does not wait for "
-            "tissue. For drug-table routes, distinguish poisoning, proper-use adverse effect, "
-            "and underdosing; unstated poisoning intent defaults to accidental, while hedged "
-            "self-harm or assault agrees only with undetermined. A differential "
-            "code is read against the diagnosis considered by its entry. A present descriptor "
-            "resting on history follows the coexisting-condition test in icd10-cpt's "
-            "descriptor-agreement section, including its filled-home-medication rule. "
-            "An encounter or procedure descriptor needs evidence that its purpose "
-            "or act belongs to this encounter, not a later recommendation. A bare value reaches an "
-            "abnormality descriptor only through a threshold stated by the note or a committed "
-            "source. For every entry or differential code, name any result the descriptor still "
-            "waits on. CPT and HCPCS have no index route and use descriptor words only."
-        ),
+        "instructions": AGREEMENT_READER_INSTRUCTIONS,
         "pairs": [
             {
                 "stem": pair.stem,
@@ -1350,6 +1419,7 @@ def _agreement_report(
     missing = sum("has no agreeing words" in finding for finding in findings)
     not_note = sum("agreeing words are not note text" in finding for finding in findings)
     wrong_place = sum("agreeing words are from the wrong place" in finding for finding in findings)
+    labels = sum("author anchor differs from whole code label" in finding for finding in findings)
     anchors = sum("anchor is not verbatim note text" in finding for finding in findings)
     route = sum("has no descriptor or index route" in finding for finding in findings)
     encounter = sum("has no encounter evidence" in finding for finding in findings)
@@ -1372,6 +1442,7 @@ def _agreement_report(
             f"    agreeing words absent from note   {not_note}",
             f"    agreeing words from wrong place  {wrong_place}",
             f"    non-verbatim anchors              {anchors}",
+            f"    author code-label findings         {labels}",
             f"    open-status evidence absent from note  {open_not_note}",
             f"    open-status evidence from filled home medication  {filled_medication}",
             f"    codes with no route               {route}",

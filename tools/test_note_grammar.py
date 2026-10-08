@@ -22,7 +22,7 @@ class NoteGrammar(unittest.TestCase):
             if any(entry_copy._plain(line) in {"P:", "Plan", "Plan:"}
                    for line in path.read_text(encoding="utf-8").splitlines())
         ]
-        self.assertEqual(28, len(notes))
+        self.assertEqual(29, len(notes))
         for path in notes:
             with self.subTest(note=str(path.relative_to(fixtures))):
                 source = path.read_text(encoding="utf-8")

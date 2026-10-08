@@ -7,3 +7,5 @@ answer-free brief, retried after the first grader's finding categories, and
 produced `agreement-read.json`. A fresh non-authoring check of that revision
 exited 0. The rejected first record and both graders' reports were run-private,
 not added to this control.
+
+This is a pre-convention record under ADR 0301; its original files are preserved.
