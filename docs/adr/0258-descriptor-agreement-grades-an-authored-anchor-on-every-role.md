@@ -1,6 +1,11 @@
 # Descriptor agreement grades an authored anchor on every role
 
-**Measured at:** 87dacf50461d08e2480616148d8ff69829ac82ab
+**Measured at:** 5245d5a7f3630a75218a2c1eac219811a75b096c
+
+*Re-declared from `87dacf5` on 2026-10-08, for the supersession markers beneath rulings 4 and 6
+alone.* Nothing below was re-derived. Since `87dacf5`, `tools/anchor_scan.py`,
+`skills/icd10-cpt/SKILL.md` and the `fixtures/descriptor-agreement-*` controls have changed, so the
+measured section describes the tree before #1355's build rather than `main`.
 
 [#1355](https://github.com/mshamblin5150-code/clinical-skills/issues/1355) was filed from the
 2026-09-17 repair of six unsubmitted NUR 5144 shifts, where five blind descriptor-agreement reads
@@ -178,6 +183,13 @@ in, and bounding it needs a cut point nobody can ground.
 The split's benefit is unmeasured. It is ruled on its shape, being the one information gain drawn
 from nothing but the reader's own submitted string.
 
+*Superseded 2026-10-08.* **The deferral of the echo proposal — *"The ticket's echo proposal is
+deferred rather than refused."* — is superseded by
+[ADR 0301](0301-the-agreement-read-quotes-a-code-label-by-one-convention-stated-in-the-first-brief.md)
+ruling 1 and is left as written.** A per-code hint drawn from an anchor is declined and a quoting
+convention stated in the first brief replaces it. The split finding and the rule that no figure
+derived from the support is echoed stand.
+
 ## Ruling 5 — the unconditional descriptor-words route stands and is declared
 
 `anchor_scan.DECLARED_LIMITS` gains a row: on a `descriptor words` route a clean result establishes
@@ -204,6 +216,12 @@ objection even though two readers converged on three attempts independently. A m
 was declined on the 25% median: widening every anchor buys the easy rows nothing and cheapens all of
 them, and it is the mirror of the minimum-span rule ADR 0243 ruling 7 already declined. How often the
 third step is reached is unmeasured, because it depends on rulings 1 and 3 being in the tree.
+
+*Superseded 2026-10-08.* **The loop — *"Still failing, the author widens that one anchor to the
+sentence it sits in."* — is superseded for entry, differential and refused codes by
+[ADR 0301](0301-the-agreement-read-quotes-a-code-label-by-one-convention-stated-in-the-first-brief.md)
+ruling 4 and is left as written.** Those anchors are the whole code label, so nothing is left to
+widen. CPT and HCPCS codes keep this loop under that record's ruling 5.
 
 ## Ruling 7 — the retained controls are divergent runs and one new control is generated
 

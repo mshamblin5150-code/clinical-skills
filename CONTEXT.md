@@ -1066,6 +1066,10 @@ _Avoid_: semantic agreement, topical support, anchor match, related anchor
 A condition from the patient's history that the note shows required or affected this visit's care, treatment or management. Only such a condition is coded as present, and only it reaches the note's preexisting-diagnoses line. Filled content shows the effect only by changing something concrete in this visit; a filled home medication never shows it, because the medication was filled on account of the condition it would vouch for. Distinct from the past medical history, which records every condition the patient carries whether or not this visit touched it.
 _Avoid_: active problem, addressed condition, comorbidity, chronic condition
 
+**Code label**:
+The words a note uses to name a code where the clinician submits it: on a final or preexisting diagnosis line, in a numbered differential entry, or as the code-and-descriptor half of a welded refusal. It runs from the start of its line, or the end of the code before it on that line, to the hyphen that pins its code, hedge included, and never takes in the reasoning after it. **Descriptor agreement** for a diagnosis, a differential or a refusal must show inside it; words elsewhere in the note that agree do not vouch for a label that does not. A procedure code has none, because which line documents an act done today is a reading. Distinct from a coding worksheet's quotation, which quotes it.
+_Avoid_: diagnosis line, slot, entry name, anchor line, label line
+
 **Code-set database**:
 The committed ICD-10-CM or procedure-code database a code lookup opens. A test may take it as the reference for any claim except that its builder read the official release correctly — that comparison has **Shared-reader blindness**, so it belongs to tests over committed release excerpts.
 _Avoid_: shipped database, which collides with **Shipped artifact**; reference database, code database

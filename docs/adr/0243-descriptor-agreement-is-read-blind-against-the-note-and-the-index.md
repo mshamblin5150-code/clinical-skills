@@ -11,7 +11,10 @@ carries every shape #1139 describes.
 Grilled 2026-09-15. **Twenty rulings, by the clinician, on that date.** Nothing is built here; this is
 the record the build reads.
 
-**Measured at:** 5e7a622a55683ece10199e2b3fe34e40db9c8487
+**Measured at:** 5245d5a7f3630a75218a2c1eac219811a75b096c
+
+*Re-declared from `5e7a622` on 2026-10-08, for the supersession marker beneath ruling 7 alone.*
+Nothing below was re-derived; the paragraphs beneath describe the tree as their own dates state.
 
 *Re-declared from `5314d90` on 2026-10-08, for the supersession marker beneath ruling 6 alone.*
 Nothing below was re-derived. Since `5314d90`, `reference/icd10cm-2026.sqlite`,
@@ -129,6 +132,14 @@ Any verbatim quotation containing agreeing words passes wherever it sits in the 
 records exactly which words agree. `Z68.26` and `R12` pass. A location table was declined because
 which section is the record is itself a reading; a minimum-span rule was declined as a shape rule
 #1139 leaves unchanged.
+
+*Superseded 2026-10-08.* **The first sentence above — *"Any verbatim quotation containing
+agreeing words passes wherever it sits in the note"* — is superseded for authors by
+[ADR 0301](0301-the-agreement-read-quotes-a-code-label-by-one-convention-stated-in-the-first-brief.md)
+ruling 1 and is left as written.** An anchor sits on the code's label in the place that record's
+convention names, and that convention is the location table this ruling declined. That the reader
+names the exact agreeing words stands, and so does the decline of a minimum-span rule outside the
+code label.
 
 ## Ruling 8 — a bare value agrees with an abnormality only through a stated threshold
 
