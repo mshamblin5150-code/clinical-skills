@@ -1318,6 +1318,10 @@ _Avoid_: proposed coding worksheet, coding proposal, terse code list
 The committed, per-edition verbatim copy of the CPT medical decision making grid and the E/M guideline definitions needed to apply it, each entry located by book, edition and printed page. An E/M level for a supported family is selected from the sheet covering the encounter's service date, and a sheet serves only while every entry still matches the text two independent readers agreed on. Distinct from the rendered book, which remains the authority for guidance the sheet does not hold, and from a **Page transcription**, which is a reader's faithful reassembly with no verbatim test: every entry here is verbatim and compared exactly.
 _Avoid_: E/M table, MDM grid, cheat sheet, level chart
 
+**Directed agent**:
+An over-the-counter drug the clinician's Plan directs with a dose and directions. It is prescription drug management for the E/M risk element because he writes a prescription for every agent he directs. Distinct from general advice that names an over-the-counter option without a dose and directions, which counts toward no element, and from a **Proposed** drug the skill itself adds.
+_Avoid_: OTC recommendation, self-care drug, nonprescription agent
+
 ### Review
 
 **Correction**:
