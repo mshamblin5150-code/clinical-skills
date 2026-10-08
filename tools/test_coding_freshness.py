@@ -13,6 +13,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from prose_bind import ProseBind
 from code_set_database_test_support import (
     ICD10_DATABASE_SHA256,
     PROCEDURE_CODES_DATABASE_SHA256,
@@ -47,7 +48,7 @@ July 2026 Alpha-Numeric HCPCS File (ZIP) - Updated 06/17/2026
 """
 
 
-class CodingFreshnessMain(unittest.TestCase):
+class CodingFreshnessMain(ProseBind, unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.directory = Path(self.temporary.name)
@@ -355,8 +356,8 @@ class CodingFreshnessMain(unittest.TestCase):
 
     def test_clinical_note_never_reads_patient_status_from_shorthand(self):
         skill = (ROOT / "skills" / "clinical-note" / "SKILL.md").read_text(encoding="utf-8")
-        self.assertNotIn("Read status from the shorthand", skill)
-        self.assertNotIn("new/established assumed from Medatrax", skill)
+        self.assertProseNotIn("Read status from the shorthand", skill)
+        self.assertProseNotIn("new/established assumed from Medatrax", skill)
 
     def test_cpt_receipt_cannot_extend_its_derived_edition_boundary(self):
         receipt = json.loads(self.cpt_receipt.read_text(encoding="utf-8"))
