@@ -681,7 +681,7 @@ Grounded, and expected:
 - **Every social and allergy slot the branch template enumerates** — never blank and never hedged. *Which way a social or allergy slot reads* says which value each takes. The Allergies field fills `Drug - NKDA`, `Food - none reported`, and `Environmental - none reported`; the tobacco slot fills the negative. Every remaining slot is governed by the paragraph above this list, and it is the whole of their rule — `at work` grounds `Employed` and does not ground `Works manual labor`.
 - **Every OLDCARTS element the shorthand does not supply** — aggravating and relieving factors, timing, character — reasoned from the presenting complaint. Bending forward and lying flat aggravate a sinus complaint; asserting that is the same act as the line above it, and the eight elements are mandatory. Severity is the one that is not ordinary filled content: it follows *Filled vitals, body measurements and the pain score*. Onset and duration are usually supplied, and often more than once: reading them is *A duration belongs to what it is written next to*, not this bullet.
 
-**Normal filled examinations use the clinician's fixed language.** For an unmentioned, clinically normal system, write `Cardiovascular: Regular rate and rhythm; no murmurs, gallops, or friction rubs; radial pulses 2+ bilaterally; posterior tibial pulses 2+ bilaterally`, `Respiratory: Clear to auscultation bilaterally`, `GI: Bowel sounds are positive in all quadrants; no tenderness, guarding, masses, or organomegaly noted`, and `Neurologic: Alert and oriented x 4`. Use `GI`, never `Abdomen`, as the examination label. A given abnormality replaces the conflicting normal clause for that system; never append `clear to auscultation bilaterally` to diminished or adventitious breath sounds, or `alert and oriented x 4` to altered mentation.
+**Normal filled examinations use the clinician's saved language.** For an unmentioned, clinically normal system, write that system's saved normal-exam line from `scratch/medatrax-profile.md` under `Normal examination`. A system with no saved line is written for this encounter. Use `GI`, never `Abdomen`, as the examination label. A given abnormality replaces the conflicting normal clause for that system; never append a normal respiratory clause to diminished or adventitious breath sounds, or a normal orientation clause to altered mentation.
 
 **A new cetirizine instruction is daily and ongoing.** When the shorthand starts Zyrtec or cetirizine without a complete sig, write `cetirizine 10 mg PO daily, ongoing`; do not convert it to a short nightly course. Every active final diagnosis maps to an outpatient pharmacologic action or an explicit nonpharmacologic or no-medication decision. A dose administered in clinic is not by itself a complete outpatient pharmacologic plan when the diagnosed condition still needs treatment after discharge.
 
@@ -1138,6 +1138,12 @@ Then assign each visit **15 to 40 minutes, in 5-minute steps**, by complexity �
 
 ### 1. Intake and de-identify
 
+Before writing any note, read the owning checkout's `scratch/medatrax-profile.md`.
+If its `Normal examination` block is missing, stop and collect it once through
+[setup's normal-examination step](../setup-clinical-skills/SKILL.md#normal-examination).
+Show that step's suggestions, save the clinician's answers and explicit abdominal scheme in the
+profile, then continue. Existing lines are confirmed rather than silently replaced by suggestions.
+
 Collect the shorthand and, if supplied, the Medatrax entry — it carries demographics and some vitals, and those are **givens** the note must match exactly.
 
 **Derive the age before you redact the date of birth.** A date of birth in place of an age is not an edge case: it is the dominant form in whole day files, and this catalog holds day files in which **not one encounter states an age** — `tools/corpus_census.py` counts them. Redacting `[DOB]` on the way past destroys the only thing age can be computed from, and age sets the `Patient Time` band. So: compute the age from the date of birth and the visit date, write it down as a derived value showing the arithmetic, and redact afterwards.
@@ -1151,6 +1157,14 @@ Then replace identifiers as you read: `[PT]` for name, `[DOB]`, `[MRN]`, `[SITE]
 **About 7% of encounters carry neither an age nor a date of birth** — roughly one in fourteen, measured 2026-08-11 across 551 notes, of which 513 carry one or the other. Not a freak case, and not a stop: see *What may be inferred* for how the age is inferred and flagged.
 
 ### 2. Expand the shorthand
+
+For a clinician whose saved abdominal scheme is `nine regions`, reason a quadrant abbreviation
+or roundabout abdominal location description into the nine-region name or names from this encounter.
+Use the corner mapping only when nothing in the encounter distinguishes: `ruq` → right
+hypochondriac, `luq` → left hypochondriac, `rlq` → right iliac, `llq` → left iliac.
+A `four quadrants` clinician keeps quadrant expansions. Retain every interpreted location for
+the go-ahead: the original shorthand, the region written, and the encounter evidence that decided
+it, or the explicit statement that nothing distinguished and the corner fallback was used.
 
 **Read `scratch/shorthand.md` first if it exists**, then [GLOSSARY.md](GLOSSARY.md). Two glossaries: this clinician's own forms and the field's, and **where they disagree the per-account file wins**. [GLOSSARY.md](GLOSSARY.md)'s *Two glossaries* section is the rule, and [setup-clinical-skills](../setup-clinical-skills/SKILL.md) step 9 is where the per-account one gets collected.
 
@@ -1464,6 +1478,11 @@ Close with `N given, N derived, N filled` and stop.
 `output/notes/`; its approval record names that path and fingerprints those bytes without copying
 the finished patient record into the run directory.
 Before showing the final note for its go-ahead, run
+`python tools/exam_scheme.py <finished note path>` and require exit 0. This Required command reads
+only the physical examination and refuses quadrant wording for a nine-region clinician; an
+unlocated examination is unread, never clean. Its report names notes read, examination sections
+found, and the unread remainder. Without a clean run the go-ahead stops.
+Then run
 `python tools/entry_copy.py --check <finished note path>` and require exit 0. This check writes
 nothing and requires the derived copy to split into all four note sections. Record a refusal as
 a finding and correct it through [standing rule 6](../../AGENTS.md)'s staging and repair-chain
@@ -1485,7 +1504,10 @@ When the clinician has delegated pre-approval questions, settle this item from t
 mentions an earlier visit, and saying `established` changes it. A change re-renders the affected
 note and follows the existing approval rules.
 Then show the clinician the complete note, the settled patient match or `NEW PATIENT`, the resolved preceptor,
-and the finalized E/M line. One explicit go-ahead authorizes this batch. Ask for the shift start and
+and the finalized E/M line. Beside the note, list every interpreted abdominal location from step 2:
+shorthand, region written, and deciding encounter evidence or corner-fallback reason. Show `none`
+when none were interpreted and incorporate any correction before approval.
+One explicit go-ahead authorizes this batch. Ask for the shift start and
 use the Time Log duration as the window, or ask for start and hours together when there is no row.
 At the go-ahead call `approval_record.approve(run, skill="clinical-note",
 submission=submission_key, sources=(output_note,),

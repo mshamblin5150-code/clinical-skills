@@ -164,6 +164,11 @@ Resume only on the clinician's confirmation or correction.
 
 ### 5. Process each encounter
 
+Before the first note pass, read the profile's `Normal examination` block. If it is missing,
+stop and collect it once through [setup's normal-examination step](../setup-clinical-skills/SKILL.md#normal-examination),
+showing its suggestions and saving the clinician's answers and explicit abdominal scheme into the
+owning checkout's profile before continuing. Each pass reads those saved lines and scheme.
+
 Run [clinical-note](../clinical-note/SKILL.md) against each confirmed encounter independently, **on the branch step 4 settled** — the whole shift takes the same branch unless the clinician says otherwise. State it to every pass rather than letting each derive its own: a pass given no branch routes on the program's first-six rule with no course context to check it against, and a shift is not scoreable against a row that names one branch's fields. Independently means **no carry-over**: a glossary expansion resolved in encounter 2 applies to encounter 5, but a clinical finding never crosses an encounter boundary. If encounter 4's shorthand omits vitals, encounter 4 fills its own from its own age — it never borrows encounter 3's.
 
 Number the output and keep the source order.
@@ -293,6 +298,17 @@ It counts declared-filled values only, prints no value unless `--show` asks, and
 The glossary candidates are the compounding part. Tokens that appeared more than once are the ones worth adding — offer to add them, and the next shift needs less input than this one. **They go to `scratch/shorthand.md`, not to [GLOSSARY.md](../clinical-note/GLOSSARY.md)**, unless the token is one the whole field writes: a form harvested from one clinician's day file is that clinician's until something says otherwise. [GLOSSARY.md](../clinical-note/GLOSSARY.md)'s *Two glossaries* section is the rule, and this roll-up is the instrument [setup-clinical-skills](../setup-clinical-skills/SKILL.md) step 9 points back at for growing the per-account file.
 
 ### 7. Build the Review sheet
+
+Before building the Review sheet, run `python tools/exam_scheme.py <every final note-N.md>` and
+require exit 0. This Required command checks only the physical examinations against the profile's
+abdominal scheme, reports notes read, examination sections found, and the unread remainder, and
+refuses quadrant wording for nine-region clinicians. An unlocated examination is unread; without
+a clean run the Review sheet is not built.
+
+At the go-ahead, beside each note list every abdominal location interpreted under `clinical-note`
+step 2: the shorthand, the region written, and what in that encounter decided it, or why the corner
+fallback was needed. Show `none` for a note with no interpreted locations. Incorporate the
+clinician's corrections before approval.
 
 After every note and worksheet is final and before building the Review sheet, the orchestrating
 context runs `python tools/entry_copy.py --check <every note-N.md>` and requires exit 0. This

@@ -39,10 +39,8 @@ O:
 VS: BP, HR, T, RR, SpO2, Ht, Wt ∴ BMI
 Gen: <appearance, work of breathing>
 <then each system examined; state normal for the ones filled>
-Cardiovascular: Regular rate and rhythm; no murmurs, gallops, or friction rubs; radial pulses 2+ bilaterally; posterior tibial pulses 2+ bilaterally
-Respiratory: Clear to auscultation bilaterally
-GI: Bowel sounds are positive in all quadrants; no tenderness, guarding, masses, or organomegaly noted
-Neurologic: Alert and oriented x 4
+<normal-exam lines from scratch/medatrax-profile.md; write systems without a saved line
+ for this encounter; given abnormalities replace conflicting normal clauses; label GI>
 Labs/Tests today: <given results; given orders carrying no result, marked as ordered;
                   treatments administered in clinic>
 

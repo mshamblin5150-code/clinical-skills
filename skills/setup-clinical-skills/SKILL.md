@@ -246,6 +246,39 @@ file current* note in [GLOSSARY.md](../clinical-note/GLOSSARY.md) has always sai
 got to rather than treating it as finished**, and where `scratch/shorthand.md` already exists, a
 re-run reads and extends it.
 
+### Normal examination
+
+Ask for the clinician's normal-exam lines for cardiovascular, respiratory, GI, and neurologic.
+Show these suggestions for the clinician to accept or replace; they are never silent defaults:
+
+- `Cardiovascular: Regular rate and rhythm; no murmurs, gallops, or friction rubs; radial pulses 2+ bilaterally; posterior tibial pulses 2+ bilaterally`
+- `Respiratory: Clear to auscultation bilaterally`
+- `GI: Bowel sounds are positive; no tenderness, guarding, masses, or organomegaly noted in any of the nine regions`
+- `Neurologic: Alert and oriented x 4`
+
+Then ask once whether any other system is always described the same way when normal and save
+whatever is given. Ask explicitly whether the abdomen is described in **four quadrants or nine
+regions**. Save that answer separately from the GI line; a line naming neither scheme establishes
+no scheme. If the answer and the GI line disagree, re-ask and settle the disagreement before
+saving. On a re-run, confirm existing answers rather than re-collecting them.
+
+Write the chosen lines and any extra systems beside the scheme in this profile block, and include
+it in the profile draft shown at confirmation:
+
+```markdown
+## Normal examination
+Abdominal scheme: <four quadrants|nine regions>
+Cardiovascular: <chosen normal line>
+Respiratory: <chosen normal line>
+GI: <chosen normal line consistent with the scheme>
+Neurologic: <chosen normal line>
+<any additional system: chosen normal line>
+```
+
+When a note skill reaches this step because the block is missing, collect and save these answers
+once before any note is drafted, then resume that skill. A system for which the clinician supplies
+no fixed line is written for each encounter.
+
 ### 10. Confirm, then write
 
 **Other files cite these steps by number, so inserting one silently redirects every citation.**

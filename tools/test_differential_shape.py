@@ -344,18 +344,17 @@ class BothTemplatesRenderTheRule(unittest.TestCase):
                 self.assertIn(field, worksheet)
             self.assertNotIn("Proposed coding worksheet", template)
 
-    def test_both_templates_carry_the_clinicians_normal_exam_language(self):
-        expected = (
-            "Cardiovascular: Regular rate and rhythm; no murmurs, gallops, or friction rubs; "
-            "radial pulses 2+ bilaterally; posterior tibial pulses 2+ bilaterally\n"
-            "Respiratory: Clear to auscultation bilaterally\n"
-            "GI: Bowel sounds are positive in all quadrants; no tenderness, guarding, masses, or "
-            "organomegaly noted\n"
-            "Neurologic: Alert and oriented x 4"
-        )
+    def test_both_templates_read_normal_exam_language_from_the_profile(self):
         for path in (SOAP, HP):
             template = path.read_text(encoding="utf-8").split("```", 2)[1]
-            self.assertIn(expected, template)
+            self.assertIn("normal-exam lines from scratch/medatrax-profile.md", template)
+            for system in ("Cardiovascular", "Respiratory", "GI", "Neurologic"):
+                self.assertNotRegex(template, rf"(?m)^{system}:\s*[^<\n]")
+        rule = SKILL.read_text(encoding="utf-8").split(
+            "**Normal filled examinations", 1
+        )[1].split("\n\n", 1)[0]
+        self.assertIn("scratch/medatrax-profile.md", rule)
+        self.assertNotIn("Bowel sounds are positive", rule)
 
     def test_both_templates_make_started_cetirizine_daily(self):
         for path in (SOAP, HP):
