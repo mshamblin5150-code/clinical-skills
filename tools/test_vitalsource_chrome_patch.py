@@ -30,6 +30,8 @@ from patch_codex_chrome import (
     PATCHED_NAVIGATION_START,
     PATCHED_PARAM_GATE,
     PATCH_LIFECYCLE_SEAMS,
+    UPDATED_COMMAND_DISPATCHES,
+    UPDATED_NAVIGATION_STARTS,
     VITALSOURCE_NAVIGATION_PREFLIGHT,
     PatchError,
     installed_bundles,
@@ -39,6 +41,83 @@ from patch_codex_chrome import (
 
 
 class PatchSourceTests(unittest.TestCase):
+    def updated_bundle(self, index: int = 0) -> str:
+        # Independent transcription of the observed navigation prefix: do not
+        # build this fixture from the production matcher being tested.
+        name, responses = (("qB", "jk"), ("jO", "qR"))[index]
+        navigation = (
+            f'var {name}=N("navigate_tab_url",async(t,e)=>{{let r=Number(t.tab_id);'
+            'if(typeof t.url!="string"||!t.url)throw new Error("navigate_tab_url requires a url");'
+            'if(!Number.isInteger(r)||r<=0)throw new Error("navigate_tab_url requires a positive integer tab_id");'
+            f'await e.followSessionTab(r),await {responses}(e.documentResponses,r);'
+            'let n=t.url,o=typeof t.timeout_ms=="number"?t.timeout_ms:1e4,'
+            'i=new AbortController,s=e.credentialObservationGate?.epoch,a=e.getCurrentSessionId()'
+        )
+        return (
+            'function jY(t,e){let r=GY(t),n=jO.get(t);'
+            'if(r==null||!NY.has(r)||FY.has(r)||LY.has(t)||n==="block"||qY(t,e))'
+            'throw new Error(Af(t))}'
+            'case"Tracing.start":return zY(e);default:return!1'
+            + UPDATED_COMMAND_DISPATCHES[index]
+            + navigation
+            + 'Page.navigate",{url:n}'
+            + 'e.credentialObservationGate.permitNavigatedDocument(r,b.loaderId,s)'
+            + ORIGINAL_ENABLE_OOPIF_START
+            + ORIGINAL_ATTACH_HANDLER
+            + 'function KZ(t){return t==="text/html"||g0(t)}'
+        )
+
+    def test_updated_cache_and_runtime_change_only_attachment_and_mime(self) -> None:
+        for index in range(len(UPDATED_NAVIGATION_STARTS)):
+            with self.subTest(layout=index):
+                source = self.updated_bundle(index)
+                patched = patch_source(source)
+                expected = source.replace(ORIGINAL_ATTACH_HANDLER, PATCHED_ATTACH_HANDLER).replace(
+                    't==="text/html"||', 't==="text/html"||t==="application/xhtml+xml"||'
+                )
+                self.assertEqual(expected, patched)
+                self.assertEqual(patched, patch_source(patched))
+
+    def test_updated_bundle_refuses_changed_navigation_or_dispatch_gate(self) -> None:
+        source = self.updated_bundle()
+        changes = (
+            ('e.followSessionTab(r)', 'e.followSessionTab(0)'),
+            ('e.credentialObservationGate?.epoch', 'void 0'),
+            ('permitNavigatedDocument(r,b.loaderId,s)', 'permitNavigatedDocument(r,b.loaderId,0)'),
+            ('if(V?.superseded)', 'if(!1)'),
+            ('PC(te,L,(Ye,Qe)', 'PC(te,L,(Qe,Ye)'),
+            ('case"Tracing.start":return zY(e);default:return!1', 'default:return!1'),
+            ('!NY.has(r)', 'NY.has(r)'),
+        )
+        for before, after in changes:
+            with self.subTest(seam=before):
+                self.assertIn(before, source)
+                with self.assertRaises(PatchError):
+                    patch_source(source.replace(before, after))
+
+    def test_updated_bundle_refuses_mixed_or_duplicate_reviewed_variants(self) -> None:
+        source = self.updated_bundle()
+        malformed = (
+            source.replace(UPDATED_COMMAND_DISPATCHES[0], UPDATED_COMMAND_DISPATCHES[1]),
+            source + UPDATED_COMMAND_DISPATCHES[0],
+            source + UPDATED_NAVIGATION_STARTS[0],
+            source + UPDATED_COMMAND_DISPATCHES[1],
+            source + UPDATED_NAVIGATION_STARTS[1],
+        )
+        for candidate in malformed:
+            with self.assertRaises(PatchError):
+                patch_source(candidate)
+
+    def test_updated_bundle_refuses_partial_patch(self) -> None:
+        source = self.updated_bundle()
+        candidates = (
+            source.replace(ORIGINAL_ATTACH_HANDLER, PATCHED_ATTACH_HANDLER),
+            source.replace('t==="text/html"||', 't==="text/html"||t==="application/xhtml+xml"||'),
+        )
+        for candidate in candidates:
+            with self.assertRaises(PatchError):
+                patch_source(candidate)
+
     def test_current_browser_bundle_keeps_security_gate_and_disables_oopif_attach(self) -> None:
         source = (
             'function ZK(t,e){let r=iX(t),n=SD.get(t);if(r==null||!KK.has(r)||XK.has(r)||JK.has(t)||n==="block"||QK(t,e))throw Error()}'
