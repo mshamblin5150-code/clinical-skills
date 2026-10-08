@@ -147,7 +147,7 @@ class ApprovalRecordContract(unittest.TestCase):
                             sources=(self.artifact, other), grader_args=(str(self.run),),
                             content_approved=True,
                         )
-                    self.assertIn(str(other), str(refused.exception))
+                    self.assertIn(str(other.resolve()), str(refused.exception))
                     self.assertIn("before entry", str(refused.exception))
                     self.assertFalse(record.exists())
                     other.write_text(NOTE, encoding="utf-8")
