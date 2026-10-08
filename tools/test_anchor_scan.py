@@ -76,9 +76,9 @@ class TheDeclaredLimitsObjectOwnsBothProseSurfaces(unittest.TestCase):
                 self.assertEqual(1, surface.count(self.POINTER))
                 self.assertEqual((), bind(scan.DECLARED_LIMITS, surface, mode=NAMING))
 
-    def test_the_partition_is_three_declared_readings_and_ten_behaviors(self):
+    def test_the_partition_is_four_declared_readings_and_ten_behaviors(self):
         dispositions = [row[2] for row in scan.DECLARED_LIMITS]
-        self.assertEqual(3, dispositions.count(run_grader.EvidenceDisposition.DECLARED_READING))
+        self.assertEqual(4, dispositions.count(run_grader.EvidenceDisposition.DECLARED_READING))
         self.assertEqual(10, dispositions.count(run_grader.EvidenceDisposition.BEHAVIOR))
         self.assertTrue(all(subject and reason for subject, reason, _ in scan.DECLARED_LIMITS))
 
@@ -1101,6 +1101,14 @@ class AgreementModes(unittest.TestCase):
         self_record.write_text("unread metric record", encoding="utf-8")
         with redirect_stdout(io.StringIO()):
             self.assertEqual(without_count, scan.main([*args, "--self-record", str(self_record)]))
+
+        for incomplete in ({"pairs": []}, {"pairs": [{"stem": "case-01", "codes": []}]}):
+            with self.subTest(record=incomplete):
+                self_record.write_text(json.dumps(incomplete), encoding="utf-8")
+                output = io.StringIO()
+                with redirect_stdout(output):
+                    self.assertEqual(without_count, scan.main([*args, "--self-record", str(self_record)]))
+                self.assertIn("unread self-record coverage", output.getvalue())
 
     def test_blind_brief_never_reads_self_records(self):
         secret = "PRIVATE SELF-GRADE REASON"

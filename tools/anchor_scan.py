@@ -1414,7 +1414,8 @@ def _run_agreement(argv: list[str]) -> int:
     if args.self_record is not None:
         try:
             self_result = _grade_agreement(pairs, unread, args.self_record)
-            metric = len(self_result.passed & result.failed)
+            metric = ("unread self-record coverage" if self_result.unread
+                      else len(self_result.passed & result.failed))
         except (OSError, ValueError, KeyError, TypeError):
             metric = "unread self-record"
     print(f"  self-pass / blind-fail subjects (report only)  {metric}")
