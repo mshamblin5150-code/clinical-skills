@@ -59,8 +59,10 @@ DECLARED_LIMITS = (
     ),
     (
         "whether the proposed substitute is the right code for the encounter",
-        "The row tests that a substitute is named, and an unrelated code in that "
-        "position is a clinical reading rather than a shape a pattern can settle.",
+        "The row tests that a substitute is named. anchor_scan --agreement-read "
+        "checks every substitute code's presence among for-entry codes in the "
+        "writer self-grade and the blind read; whether that substitute is "
+        "clinically right remains a reading.",
         EvidenceDisposition.DECLARED_READING,
     ),
     (
