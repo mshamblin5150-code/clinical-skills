@@ -4,7 +4,8 @@ Grammar: an optional exact ``## Supersedes`` section contains hyphen bullets,
 each beginning with a relative ``[ADR NNNN](NNNN-slug.md)`` link followed by
 ``ruling N,`` and explanatory prose. Indented continuation lines are joined.
 A marker is a paragraph beginning ``*Superseded YYYY-MM-DD.*`` beneath a
-``## Ruling N`` heading. It contains a quoted span, the same relative ADR link
+``## Ruling N`` heading, or beneath a ``### N.`` heading inside a ``## Ruled``
+section of an older record. It contains a quoted span, the same relative ADR link
 followed by ``ruling N``, and an account of what survives. The account's truth
 is read at review, not inferred from supersession verbs.
 """
@@ -16,7 +17,7 @@ import unittest
 from datetime import date
 from pathlib import Path
 
-from adr_read import ruling_ordinals
+from adr_read import RULING_SECTION, ruling_ordinals
 from markdown_read import unfenced_lines
 from prose_bind import NAMING, bind
 
@@ -27,13 +28,14 @@ DECLARED_LIMITS = (
     "Whether a marker's account of what survives is true is a review reading.",
     "Markers linked to overturning records below the cutoff are not bound until #1518 lowers it; target records below the cutoff are read for in-scope declarations.",
     "The unsure-pair remainder has not been derived; #1518 fills it in.",
-    "Only the documented relative-link, bullet, paragraph, and Ruling-heading grammar is read; alternative Markdown forms are not certified.",
+    "Only the documented relative-link, bullet, paragraph, Ruling-heading, and numbered ruling-subheading grammar is read; alternative Markdown forms are not certified.",
 )
 LINK = r"\[ADR (\d{4})\]\((\d{4}-[^()\s]+\.md)\)"
 DECLARATION = re.compile(r"^- " + LINK + r"\s+ruling (\d+),\s+(.+)$")
 MARKER_LINK = re.compile(LINK + r"\s+ruling (\d+)\b")
 OPENING = re.compile(r"^\*Superseded (\d{4}-\d{2}-\d{2})\.\*\s+(.+)$")
 RULING = re.compile(r"^## Ruling (\d+)\b")
+NUMBERED_RULING = re.compile(r"^#{3,4}\s+(\d+)\.\s")
 
 
 def supersession_findings(records: dict[str, str]) -> tuple[str, ...]:
@@ -64,12 +66,18 @@ def supersession_findings(records: dict[str, str]) -> tuple[str, ...]:
     for name, text in sorted(records.items()):
         text = "\n".join(unfenced_lines(text))
         ruling = None
+        in_ruling_section = False
         for paragraph in re.split(r"\n\s*\n", text):
             heading = RULING.match(paragraph)
+            numbered = NUMBERED_RULING.match(paragraph)
             if heading:
                 ruling = int(heading.group(1))
+                in_ruling_section = False
             elif paragraph.startswith("## "):
                 ruling = None
+                in_ruling_section = bool(RULING_SECTION.match(paragraph[3:].strip()))
+            elif in_ruling_section and numbered:
+                ruling = int(numbered.group(1))
             if not paragraph.startswith("*Superseded"):
                 continue
             links = list(MARKER_LINK.finditer(paragraph))
@@ -155,6 +163,22 @@ class SupersessionBindingTests(unittest.TestCase):
     def test_the_cutoff_excludes_old_overturnings_but_not_old_targets(self) -> None:
         records = {name.replace("0280", "0279"): text.replace("0280", "0279") for name, text in self.paired_records().items()}
         self.assertEqual(supersession_findings(records), ())
+
+    def test_a_numbered_subheading_in_a_ruled_section_carries_a_marker(self) -> None:
+        records = self.paired_records()
+        records["0135-old.md"] = records["0135-old.md"].replace(
+            "## Ruling 8 — practice", "## Ruled 2026-09-12\n\n### 8. Practice"
+        )
+        self.assertEqual(supersession_findings(records), ())
+
+    def test_a_numbered_subheading_outside_a_ruled_section_carries_no_marker(self) -> None:
+        records = self.paired_records()
+        records["0135-old.md"] = records["0135-old.md"].replace(
+            "## Ruling 8 — practice", "## Measured before ruling\n\n### 8. Practice"
+        )
+        self.assertTrue(
+            any("unread supersession marker" in row for row in supersession_findings(records))
+        )
 
     def test_an_unread_declaration_is_a_finding(self) -> None:
         records = self.paired_records()

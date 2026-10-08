@@ -90,6 +90,12 @@ whole-file fingerprint would refuse a review that was correct.
 Medatrax, a timezone, and a timestamp on every extract entry, and it would first refuse the Module 2
 review at the final grade rather than at the moment the review began.
 
+*Superseded 2026-10-08.* **The refusal when "the record no longer matches it" is superseded by
+[ADR 0306](0306-the-review-snapshot-refuses-a-posted-record-its-skill-would-refuse-and-only-the-newest-round-s-fingerprint-governs.md)
+ruling 2 for every round but the newest, and is left as written.** Only the newest round's
+fingerprint must equal the current record. The snapshot refusal and the single-record fingerprint
+stand.
+
 ### 6. A posted record's heading is the review key, in every skill
 
 Every scoped skill writes `## REREAD: <submission key>` in the run's `reread.md`. `discussion-post`
@@ -116,6 +122,13 @@ snapshot can no longer flip a landing that already happened, and no round borrow
 baseline. **Carrying unlanded corrections forward into the newest record was refused**, because it has
 the orchestrator retype verdicts it did not make. **One record with appended sections was refused**,
 because rewriting the file each round is the overwrite this ticket is about.
+
+*Superseded 2026-10-08.* **The requirement that every round be "clean against its own extract"
+is superseded by
+[ADR 0306](0306-the-review-snapshot-refuses-a-posted-record-its-skill-would-refuse-and-only-the-newest-round-s-fingerprint-governs.md)
+ruling 2 for the posted-record fingerprint only, and is left as written.** An earlier round's
+fingerprint is history once a later round fingerprints the current record. Each round's own
+record, extract, baseline and correction landings stand.
 
 ### 8. Reporting a status from memory after a compaction is its own ticket
 

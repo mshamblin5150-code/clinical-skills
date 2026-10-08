@@ -1373,7 +1373,7 @@ The pass a skill makes over its own **sitting** once it has produced that sittin
 _Avoid_: retrospective, postmortem, reflection, debrief, self-review
 
 **Review round**:
-One extract, classification, landing and record over a single **submission**. A submission can take more than one, and each keeps its own record, extract and baseline, so a later round can neither overwrite an earlier one nor re-rule the corrections it recorded; the review is finished only when every round is. Distinct from a **Sitting**, which is an occasion of working on the artifact and produces at most one submission: rounds repeat inside one submission, sittings do not.
+One extract, classification, landing and record over a single **submission**. A submission can take more than one, and each keeps its own record, extract and baseline, so a later round can neither overwrite an earlier one nor re-rule the corrections it recorded; the review is finished only when every round is. A round's snapshot of the **Posted reading** is checked against the posted record's own rules before it is taken, and only the newest round's snapshot must still match the record, because a record corrected after a review is read by the round that follows the correction. Distinct from a **Sitting**, which is an occasion of working on the artifact and produces at most one submission: rounds repeat inside one submission, sittings do not.
 _Avoid_: pass, rerun, second review, attempt
 
 **Envelope**:
