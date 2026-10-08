@@ -410,15 +410,18 @@ POSTED_READING_KINDS = {
 def posted_reading_check(
     run: Path, submission: str, grader_args: tuple[str, ...] = ()
 ) -> tuple[PostedReadingOutcome, ...]:
-    if submission != 'critique.md':
-        raise run_grader.SourceError('posted reading names another critique')
-    reread = run / 'reread.md'
-    readings = read_posted_readings(reread.read_text(encoding='utf-8')) if reread.is_file() else ()
-    reading = next((item for item in readings if item.artifact == submission), None)
-    return check_posted_reading(
-        reading, file_digest.sha256(run / 'critique.md'),
-        posted_fields=True, verdict=True, legacy_display=True,
-    )
+    try:
+        if submission != 'critique.md':
+            raise run_grader.SourceError('posted reading names another critique')
+        reread = run / 'reread.md'
+        readings = read_posted_readings(reread.read_text(encoding='utf-8')) if reread.is_file() else ()
+        reading = next((item for item in readings if item.artifact == submission), None)
+        return check_posted_reading(
+            reading, file_digest.sha256(run / 'critique.md'),
+            posted_fields=True, verdict=True, legacy_display=True,
+        )
+    except (OSError, UnicodeError, ValueError) as failure:
+        raise run_grader.SourceError(f"could not read the posted record: {failure}") from failure
 
 
 def _reread_findings(source: RunSource) -> tuple[Finding, ...]:

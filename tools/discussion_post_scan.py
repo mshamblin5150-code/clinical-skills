@@ -1002,36 +1002,33 @@ POSTED_READING_KINDS = {
 def posted_reading_check(
     run: Path, submission: str, grader_args: tuple[str, ...] = ()
 ) -> tuple[PostedReadingOutcome, ...]:
-    parsed = run_grader.parse(GRADER, list(grader_args))
-    draft_value = parsed.value('--draft')
-    if draft_value is None:
-        raise run_grader.SourceError('--draft needs a Markdown file')
-    draft = Path(draft_value)
-    if draft.stem != submission:
-        raise run_grader.SourceError('posted reading names another draft')
-    html = Path(value) if (value := parsed.value('--html')) is not None else None
-    docx = Path(value) if (value := parsed.value('--docx')) is not None else None
-    reread = run / 'reread.md'
-    readings = read_posted_readings(reread.read_text(encoding='utf-8')) if reread.is_file() else ()
-    reading = next((item for item in readings if item.artifact == submission), None)
-    outcomes = list(check_posted_reading(
-        reading, file_digest.sha256(draft), posted_fields=True,
-        verdict=True, entry_link=True, composer=True,
-        html_bytes=html.stat().st_size if html is not None else None,
-        run=run, docx=docx,
-    ))
-    post_path = run / 'post.md'
-    fields = {
-        match.group('name'): match.group('value').strip()
-        for match in FIELD.finditer(post_path.read_text(encoding='utf-8'))
-    } if post_path.is_file() else {}
-    post_url, post_posted = fields.get('POST-URL'), fields.get('POSTED')
-    if reading is not None and (post_url is not None or post_posted is not None):
-        if not post_url or not post_posted:
-            outcomes.append(PostedReadingOutcome('post-metadata'))
-        if reading.entry_id is not None and reading.post_url != post_url:
-            outcomes.append(PostedReadingOutcome('post-link'))
-    return tuple(outcomes)
+    try:
+        parsed = run_grader.parse(GRADER, list(grader_args))
+        draft_value = parsed.value('--draft')
+        if draft_value is None:
+            raise run_grader.SourceError('--draft needs a Markdown file')
+        draft = Path(draft_value)
+        if draft.stem != submission:
+            raise run_grader.SourceError('posted reading names another draft')
+        html = Path(value) if (value := parsed.value('--html')) is not None else None
+        docx = Path(value) if (value := parsed.value('--docx')) is not None else None
+        reread = run / 'reread.md'
+        readings = read_posted_readings(reread.read_text(encoding='utf-8')) if reread.is_file() else ()
+        reading = next((item for item in readings if item.artifact == submission), None)
+        post_path = run / 'post.md'
+        fields = {
+            match.group('name'): match.group('value').strip()
+            for match in FIELD.finditer(post_path.read_text(encoding='utf-8'))
+        } if post_path.is_file() else {}
+        return check_posted_reading(
+            reading, file_digest.sha256(draft), posted_fields=True,
+            verdict=True, entry_link=True, composer=True,
+            html_bytes=html.stat().st_size if html is not None else None,
+            run=run, docx=docx,
+            saved_post_url=fields.get('POST-URL'), saved_posted=fields.get('POSTED'),
+        )
+    except (OSError, UnicodeError, ValueError) as failure:
+        raise run_grader.SourceError(f"could not read the posted record: {failure}") from failure
 
 
 def _posted_reading_findings(source: RunSource) -> tuple[Finding, ...]:

@@ -303,14 +303,10 @@ def posted_reading_check(
     reread = run / "reread.md"
     readings = read_posted_readings(reread.read_text(encoding="utf-8")) if reread.is_file() else ()
     reading = next((item for item in readings if item.artifact == submission), None)
-    outcomes = list(check_posted_reading(reading, file_digest.sha256(artifact), matches_only=True))
-    if reading is not None:
-        if not (reading.attachment_count.isascii() and reading.attachment_count.isdecimal()
-                and int(reading.attachment_count) == len(filenames)):
-            outcomes.append(PostedReadingOutcome("attachment-count"))
-        if reading.submitted_files != filenames:
-            outcomes.append(PostedReadingOutcome("submitted-files"))
-    return tuple(outcomes)
+    return check_posted_reading(
+        reading, file_digest.sha256(artifact), matches_only=True,
+        expected_submitted_files=filenames,
+    )
 
 
 def completion_gate(

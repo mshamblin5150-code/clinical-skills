@@ -44,13 +44,16 @@ class PostedReadingCheck(unittest.TestCase):
                 'TIME-LOG: not requested\n'
                 'LEGACY-DISPLAY: expected - observed display\n'
                 'COMPOSER-OUTCOME: attachment\nHTML-BYTES: 42\n'
+                'ATTACHMENT-COUNT: 1\nSUBMITTED-FILE: example.docx\n'
                 'REFUSAL: 2026-10-03 - observed refusal\nATTACHMENT: posted/example.docx\n'
                 'VISIT: 1 | patient 1 | reference matched P-1 | patient-detail=/1 | '
                 'note-view=/view?resultid=1 | visit-date=today | finished=today | matches\n'
             )[0]
             options = dict(posted_fields=True, verdict=True, matches_only=True,
                            entry_link=True, composer=True, html_bytes=42,
-                           run=run, docx=docx, expected_visits=1, legacy_display=True)
+                           run=run, docx=docx, expected_visits=1, legacy_display=True,
+                           expected_submitted_files=('example.docx',),
+                           saved_post_url=reading.post_url, saved_posted='today')
             self.assertEqual((), artifact.check_posted_reading(reading, 'a' * 64, **options))
             cases = {
                 'posted-fields': dict(posted=''),
@@ -69,6 +72,9 @@ class PostedReadingCheck(unittest.TestCase):
                 'time-log': dict(time_log=''),
                 'visit-fields': dict(visits=('2 | missing locators',)),
                 'legacy-display': dict(legacy_display='maybe'),
+                'attachment-count': dict(attachment_count='2'),
+                'submitted-files': dict(submitted_files=('other.docx',)),
+                'post-link': dict(post_url='https://example.org/?entry_id=8'),
             }
             observed = {'missing-record', 'fingerprint'}
             for code, changes in cases.items():
@@ -77,6 +83,11 @@ class PostedReadingCheck(unittest.TestCase):
                     self.assertIn(code, [item.code for item in results])
                     observed.update(item.code for item in results)
                     self.assertTrue(all(item.message for item in results))
+            metadata_options = dict(options, saved_posted='')
+            results = artifact.check_posted_reading(reading, 'a' * 64, **metadata_options)
+            self.assertEqual(['post-metadata'], [item.code for item in results])
+            observed.update(item.code for item in results)
+            self.assertEqual((), artifact.check_posted_reading(reading, 'a' * 64, **options))
             for option in ('roster_ids', 'duplicate_ids'):
                 results = artifact.check_posted_reading(reading, 'a' * 64, **options, **{option: {'9'}})
                 self.assertEqual(['borrowed'], [item.code for item in results])
