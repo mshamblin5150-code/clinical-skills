@@ -91,6 +91,13 @@ antiplatelets, aspirin, insulin, oral hypoglycemics, inhaled and systemic steroi
 analgesics, NSAIDs and the other named classes, and it covers the diabetes control codes the tabular
 already requests. The catch-all `Z79.899` is never proposed.
 
+*Superseded 2026-10-08.* **The reach of "A medication the patient takes long term" to a medication
+the writer filled is superseded by
+[ADR 0297](0297-a-history-condition-is-coded-only-where-it-affected-this-visit-and-a-filled-medication-never-vouches-for-it.md)
+ruling 3 and is left as written.** A filled drug earns its long-term-use code only where filled
+reasoning changes something concrete in this visit. A drug named in the shorthand is unchanged, as
+are the classes, the diabetes control codes and the refusal of `Z79.899`.
+
 ## Ruling 6 — a drug started at this visit for ongoing use counts, and a short course never does
 
 Ruling 5 reaches a drug the patient arrived on and a drug started at this visit for ongoing use,

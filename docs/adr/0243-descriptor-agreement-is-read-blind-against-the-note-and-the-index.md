@@ -11,7 +11,13 @@ carries every shape #1139 describes.
 Grilled 2026-09-15. **Twenty rulings, by the clinician, on that date.** Nothing is built here; this is
 the record the build reads.
 
-**Measured at:** 5314d90a1a02dfa0ca59f78f06af13fef2c4a0ba
+**Measured at:** 5e7a622a55683ece10199e2b3fe34e40db9c8487
+
+*Re-declared from `5314d90` on 2026-10-08, for the supersession marker beneath ruling 6 alone.*
+Nothing below was re-derived. Since `5314d90`, `reference/icd10cm-2026.sqlite`,
+`skills/clinical-note/SKILL.md`, `skills/icd10-cpt/SKILL.md`, `tools/anchor_scan.py` and
+`tools/icd10_build.py` have changed, so the measured section and the paragraph beneath describe the
+tree before #1139's build rather than `main`.
 
 *Re-declared from `fc7c6e3` on 2026-09-15, for the correction beneath ruling 2 alone.* The measured
 section below is the record of the tree before #1139's build and is not re-derived here. That build
@@ -108,6 +114,14 @@ because today's Plan works up the troponin. A closed history agrees only with a 
 the index reaches, or with nothing. Refusing every history against a present descriptor was declined
 because an actively worked-up problem would leave the worksheet; ignoring the modifier was declined
 because *history of myocardial infarction* would agree with an acute infarction code.
+
+*Superseded 2026-10-08.* **The test "unresolved and addressed", and the sentence that a closed
+history agrees with any personal-history code the index reaches, are superseded by
+[ADR 0297](0297-a-history-condition-is-coded-only-where-it-affected-this-visit-and-a-filled-medication-never-vouches-for-it.md)
+ruling 1 and are left as written.** A history now agrees with a present descriptor where the note
+shows it coexists and required or affected this visit's care, ADR 0297 ruling 2 bounds what filled
+content may show that, and a personal-history code also needs the history to affect current care.
+The guard against agreeing a history with an acute code stands.
 
 ## Ruling 7 — where the quotation sits does not matter, and the reader names the words
 
