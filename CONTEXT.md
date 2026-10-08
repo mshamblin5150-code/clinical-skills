@@ -507,6 +507,10 @@ _Avoid_: patient list, roster, lookup table
 A second Patient Reference for a person who already had one, created because the encounter reached the portal without a name to match on. Indistinguishable from a new patient afterwards.
 _Avoid_: dupe, repeat, double entry
 
+**Patient status**:
+Whether an office encounter's patient is new or established. Settled only by the clinician's own records, the **Identity map** or the portal, or, where the shorthand mentions an earlier visit those records lack, by the clinician's recorded answer. Never inferred from the shorthand, from another encounter, or by a delegate. Not an axis of an emergency department visit.
+_Avoid_: visit type, patient type, returning patient
+
 **Writing sample**:
 One piece of the clinician's existing prose, chosen by them and handed over on its own, from which a register is read. Selection is the consent — they know what each one contains.
 _Avoid_: writing example, submission, document
