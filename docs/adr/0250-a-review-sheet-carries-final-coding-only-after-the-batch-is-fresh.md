@@ -39,6 +39,13 @@ New or established comes from the private identity map or Medatrax evidence. A s
 inference is not evidence. An unknown status blocks finalization and therefore blocks the whole
 Review sheet. This narrows ADR 0223 ruling 12: shorthand alone no longer settles the status.
 
+*Superseded 2026-10-08.* **The sentence "New or established comes from the private identity map or
+Medatrax evidence" is superseded by
+[ADR 0302](0302-patient-status-is-never-guessed-and-an-unsupplied-earlier-visit-is-never-written-as-given.md)
+ruling 2 and is left as written.** Where the shorthand mentions an earlier visit the records lack,
+the clinician's recorded answer is also evidence. A shift-relative inference is still not evidence,
+and an unknown status still blocks the whole Review sheet.
+
 ## Ruling 5 — coding freshness has two independent limbs
 
 Final coding requires both current authoritative sources and validity on the encounter's service
