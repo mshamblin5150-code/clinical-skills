@@ -44,16 +44,82 @@ class EntryCopyCommand(unittest.TestCase):
     def tearDown(self) -> None:
         self.temporary.cleanup()
 
-    def invoke(self, content: str) -> subprocess.CompletedProcess[str]:
+    def invoke(self, content: str, *flags: str) -> subprocess.CompletedProcess[str]:
         self.note.write_text(content, encoding="utf-8")
         return subprocess.run(
-            [sys.executable, str(COMMAND), str(self.note)],
+            [sys.executable, str(COMMAND), *flags, str(self.note)],
             capture_output=True,
             text=True,
             encoding="utf-8",
             errors="replace",
             check=False,
         )
+
+    def test_check_refusals_write_nothing(self) -> None:
+        clean = "S:\nSubjective.\nO:\nObjective.\nA:\nAssessment.\nP:\n" + LABELS + "Coding worksheet\n"
+        cases = (
+            (clean.replace("Referral/Follow-up:", "Diagnostics:"), "Plan labels invalid"),
+            (clean.replace("Assessment.", "NOT CODED remains."), "NOT CODED"),
+            (clean.replace("Assessment.", "Confirm medication before entry."), "before entry"),
+            (clean.replace("Subjective.", "Subjective – text."), "unmeasured portal character"),
+            ("A:\nAssessment.\nP:\n" + LABELS + "Coding worksheet\n", "note section"),
+        )
+        for note, reason in cases:
+            with self.subTest(reason=reason):
+                result = self.invoke(note, "--check")
+                self.assertEqual(1, result.returncode, result.stderr)
+                self.assertIn("Entry copy refused:", result.stderr)
+                self.assertIn(reason, result.stderr)
+                self.assertFalse(self.copy.parent.exists())
+        result = self.invoke(clean, "--check")
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertFalse(self.copy.parent.exists())
+
+    def test_check_preserves_existing_copy_and_reports_every_refused_path(self) -> None:
+        self.copy.parent.mkdir()
+        self.copy.write_bytes(b"unchanged copy")
+        self.note.write_text("P:\n" + LABELS, encoding="utf-8")
+        other = self.run / "other.md"
+        other.write_text("P:\n" + LABELS, encoding="utf-8")
+        result = subprocess.run(
+            [sys.executable, str(COMMAND), "--check", str(self.note), str(other)],
+            capture_output=True, text=True, encoding="utf-8", check=False,
+        )
+        self.assertEqual(1, result.returncode, result.stderr)
+        self.assertIn(str(self.note), result.stderr)
+        self.assertIn(str(other), result.stderr)
+        self.assertEqual(b"unchanged copy", self.copy.read_bytes())
+        clean = "S:\nSubjective.\nO:\nObjective.\nA:\nAssessment.\nP:\n" + LABELS + "Coding worksheet\n"
+        self.assertEqual(0, self.invoke(clean, "--check").returncode)
+        self.assertEqual(b"unchanged copy", self.copy.read_bytes())
+
+    def test_check_does_not_quote_an_unrecognized_label(self) -> None:
+        note = (
+            "S:\nSubjective.\nO:\nObjective.\nA:\nAssessment.\nP:\n"
+            + LABELS + "PrivateExample: value\nCoding worksheet\n"
+        )
+        result = self.invoke(note, "--check")
+        self.assertEqual(1, result.returncode)
+        self.assertIn("Plan labels invalid", result.stderr)
+        self.assertNotIn("PrivateExample", result.stderr)
+        self.assertFalse(self.copy.parent.exists())
+
+    def test_note_skills_check_before_approval_and_require_new_explicit_word(self) -> None:
+        for skill, target in (("batch-shift", "<every note-N.md>"), ("clinical-note", "<finished note path>")):
+            with self.subTest(skill=skill):
+                text = (ROOT / "skills" / skill / "SKILL.md").read_text(encoding="utf-8")
+                check_command = f"python tools/entry_copy.py --check {target}"
+                approval = f'approval_record.approve(run, skill="{skill}"'
+                self.assertLess(text.index(check_command), text.index(approval))
+                self.assertIn("show the clinician the exact change for any change to its text", text)
+                self.assertIn("re-approve only on the clinician's new explicit word", text)
+                self.assertIn("The standing go-ahead never covers a\nre-approval.", text)
+                if skill == "batch-shift":
+                    step = text[text.index("### 7. Build the Review sheet"):]
+                    self.assertIn(check_command, step)
+                    self.assertIn("before building the Review sheet", step)
+                    self.assertIn("writing pass never runs it on its own output", step)
+                self.assertLess(text.index(approval), text.index("python tools/entry_copy.py <", text.index(approval)))
 
     def test_soap_worked_example_removes_clause_and_keeps_sentence(self) -> None:
         self.assertIn(SOAP_REFUSAL, (ROOT / "skills/clinical-note/SOAP.md").read_text(encoding="utf-8"))

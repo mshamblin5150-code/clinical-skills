@@ -1458,6 +1458,11 @@ Close with `N given, N derived, N filled` and stop.
 `scratch/runs/<encounter-key>-<date>-clinical-note/`. The finished note remains only in
 `output/notes/`; its approval record names that path and fingerprints those bytes without copying
 the finished patient record into the run directory.
+Before showing the final note for its go-ahead, run
+`python tools/entry_copy.py --check <finished note path>` and require exit 0. This check writes
+nothing and requires the derived copy to split into all four note sections. Record a refusal as
+a finding and correct it through standing rule 6's staging and repair-chain route; a
+non-authoring context checks the correction again before the note is shown.
 Before its one explicit go-ahead, open Patient Detail
 read-only for a matched returning patient and compare its displayed age and sex with the encounter
 opener. Put any age or sex disagreement, any unresolved multiple-row match from step 5, and each
@@ -1475,6 +1480,9 @@ does not block, while a finding refuses the record. From this record onward ever
 the run ends with `Run status: <run-key> — <awaiting posting|awaiting posted reading|awaiting
 AAR|complete|stopped - reason>`. Several touched runs each get their own keyed line, and no patient
 name enters it.
+Once a note is approved, show the clinician the exact change for any change to its text and
+re-approve only on the clinician's new explicit word. The standing go-ahead never covers a
+re-approval.
 Once the finished note is final, run `python tools/entry_copy.py <finished note path>` and require
 exit 0. It accepts a finished note returned to an existing run after the Plan has been relabeled.
 It refuses any clinician-directed instruction declared by `entry_copy.CLINICIAN_INSTRUCTIONS`
