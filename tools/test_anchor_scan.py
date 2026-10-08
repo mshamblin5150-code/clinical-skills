@@ -1248,6 +1248,41 @@ class AgreementModes(unittest.TestCase):
         self.assertEqual(0, status)
         self.assertIn("agreement findings                 0", report)
         self.assertIn("E/M lines excluded                  1", report)
+        self.assertIn("  informational\n    code-shaped tokens excluded from the bind  0", report)
+
+    def test_excluded_tokens_are_informational_even_with_a_real_finding(self):
+        note = AGREEMENT_NOTE.replace(
+            "Pain in left toe(s) - **M79.675**",
+            "Pain in left toe(s) - **M79.675**; vitamin B12 deficiency",
+        ).replace(
+            "Plantar wart - B07.0: focal plantar lesion.",
+            "Plantar wart - B07.0: focal plantar lesion; A1C pending.",
+        )
+        (self.notes / "case-01.md").write_text(note, encoding="utf-8")
+        record = self.clean_record()
+        record["pairs"][0]["codes"][0]["route"] = "none"
+
+        for show in (False, True):
+            with self.subTest(show=show):
+                status, report = self.grade(record, show=show)
+                self.assertEqual(1, status)
+                self.assertIn("agreement findings                 1", report)
+                lines = report.splitlines()
+                heading = lines.index("  informational")
+                count = lines.index("    code-shaped tokens excluded from the bind  2")
+                last_subcount = lines.index("    note/worksheet bind findings      0")
+                self.assertGreater(heading, last_subcount)
+                self.assertEqual(heading + 1, count)
+                self.assertNotIn("code-shaped", "\n".join(lines[:heading]))
+                details = [line for line in lines if "not a finding:" in line]
+                self.assertEqual(2 if show else 0, len(details))
+                if show:
+                    for token in ("B12", "A1C"):
+                        detail = f"    excluded from bind, not a finding: case-01: {token}"
+                        self.assertIn(detail, lines)
+                        self.assertGreater(lines.index(detail), count)
+                        self.assertFalse(detail.strip().startswith("finding:"))
+                    self.assertEqual(1, sum(line.strip().startswith("finding:") for line in lines))
 
     def test_vitamin_b12_in_final_diagnosis_is_counted_but_not_bound(self):
         note = AGREEMENT_NOTE.replace(
@@ -1259,7 +1294,7 @@ class AgreementModes(unittest.TestCase):
         status, report = self.grade(self.clean_record())
 
         self.assertEqual(0, status)
-        self.assertIn("code-shaped tokens not in the code set  1", report)
+        self.assertIn("  informational\n    code-shaped tokens excluded from the bind  1", report)
 
     def test_a1c_in_differential_is_counted_but_not_bound(self):
         note = AGREEMENT_NOTE.replace(
@@ -1271,7 +1306,7 @@ class AgreementModes(unittest.TestCase):
         status, report = self.grade(self.clean_record())
 
         self.assertEqual(0, status)
-        self.assertIn("code-shaped tokens not in the code set  1", report)
+        self.assertIn("  informational\n    code-shaped tokens excluded from the bind  1", report)
 
     def test_words_absent_from_the_worksheet_support_fail(self):
         record = self.clean_record()

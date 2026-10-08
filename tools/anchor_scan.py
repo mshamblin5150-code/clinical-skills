@@ -1363,7 +1363,6 @@ def _agreement_report(
             f"    codes with no encounter evidence  {encounter}",
             f"    descriptors waiting on results    {waits}",
             f"    note/worksheet bind findings      {binds}",
-            f"    code-shaped tokens not in the code set  {len(excluded_code_tokens or ())}",
             run_grader.format_unread_remainder(unread),
     ]
     missing_cpt = sum(subject.system == "CPT" and not subject.descriptor
@@ -1375,8 +1374,14 @@ def _agreement_report(
     if show:
         lines.extend(f"    finding: {finding}" for finding in findings)
         lines.extend(f"    unread cross-reference: {route}" for route in unread_routes or ())
+    lines.extend([
+        "",
+        "  informational",
+        f"    code-shaped tokens excluded from the bind  {len(excluded_code_tokens or ())}",
+    ])
+    if show:
         lines.extend(
-            f"    code-shaped token not in the code set: {token}"
+            f"    excluded from bind, not a finding: {token}"
             for token in excluded_code_tokens or ()
         )
     return "\n".join(lines)
