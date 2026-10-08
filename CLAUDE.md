@@ -136,6 +136,14 @@ Also not required to use the clinical skills, and deliberately not cited from [A
 or `output/` and points the writer to standing rule 6. Its complete reading boundary belongs
 to `heredoc_write_hook.DECLARED_LIMITS`.
 
+### Scanner pipe guard
+
+`tools/scanner_pipe_hook.py` refuses a piped scanner status before Claude Code's
+Bash or Monitor command runs. ADR 0299 records the contract. Its complete reading
+boundary belongs to `scanner_pipe_hook.DECLARED_LIMITS`.
+`python tools/install_scanner_pipe_guard.py` installs the Codex branch established
+by the live probe recorded in `docs/agents/scanner-pipe-codex-probe.md`.
+
 ### ADR supersession binding
 
 `tools/test_adr_supersession.py` owns the `## Supersedes` and dated marker

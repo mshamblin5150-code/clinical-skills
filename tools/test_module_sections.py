@@ -49,6 +49,8 @@ SECTION = re.compile(r"(?m)^### (.+)$")
 # A module described inside a section that also documents its artifact keeps that
 # section's name; the row is the ruling that the arrangement is deliberate.
 DECLARED_SECTIONS = {
+    "scanner_pipe_hook": "Scanner pipe guard",
+    "install_scanner_pipe_guard": "Scanner pipe guard",
     "adr_next": "ADR number allocation",
     "aar_scan": "After-action review",
     "anchor_scan": "Anchor scan",

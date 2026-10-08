@@ -63,6 +63,7 @@ NO_LIMITS = {
     "guidelines_search": "a bounded query command whose result limit is separately classified",
     "install_grilling_guard": "a deterministic installer whose explicitly named user files define its targets",
     "install_run_status_guard": "a deterministic installer whose explicitly named user file defines its target",
+    "install_scanner_pipe_guard": "a deterministic installer whose named user hook file defines its target; scanner reading limits belong to scanner_pipe_hook",
     "install_compaction_reminder": "a deterministic written-rule installer whose marked user-file block defines its target",
     "harvest_review": "an interactive review helper that makes no exhaustive population claim",
     "icd10_build": "a database builder whose input and schema checks define its work",
