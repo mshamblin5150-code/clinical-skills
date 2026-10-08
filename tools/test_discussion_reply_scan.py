@@ -195,7 +195,7 @@ class FinishedDiscussionRepliesAreTheMeasuredControls(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         paths = sorted(coursework_run.runs_root().rglob("response-*.md"))
-        paths = [path for path in paths if "aar" not in path.parts]
+        paths = [path for path in paths if path.is_file() and "aar" not in path.parts]
         if not paths:
             raise unittest.SkipTest("private finished discussion-reply population unavailable")
         cls.finished = [path.read_text(encoding="utf-8") for path in paths]

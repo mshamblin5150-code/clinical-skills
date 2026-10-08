@@ -146,19 +146,64 @@ CURRENT_DISPATCH = re.compile(
     r':await p\.withCommandTelemetry\(U,H,async\(\)=>await ae\.executeUnhandledCommand'
     r'\(\{type:U,\.\.\.H\}\)\)'
 )
+UPDATED_NAVIGATION_STARTS = (
+    'var qB=N("navigate_tab_url",async(t,e)=>{let r=Number(t.tab_id);'
+    'if(typeof t.url!="string"||!t.url)throw new Error("navigate_tab_url requires a url");'
+    'if(!Number.isInteger(r)||r<=0)throw new Error("navigate_tab_url requires a positive integer tab_id");'
+    'await e.followSessionTab(r),await jk(e.documentResponses,r);'
+    'let n=t.url,o=typeof t.timeout_ms=="number"?t.timeout_ms:1e4,'
+    'i=new AbortController,s=e.credentialObservationGate?.epoch,a=e.getCurrentSessionId()',
+    'var jO=N("navigate_tab_url",async(t,e)=>{let r=Number(t.tab_id);'
+    'if(typeof t.url!="string"||!t.url)throw new Error("navigate_tab_url requires a url");'
+    'if(!Number.isInteger(r)||r<=0)throw new Error("navigate_tab_url requires a positive integer tab_id");'
+    'await e.followSessionTab(r),await qR(e.documentResponses,r);'
+    'let n=t.url,o=typeof t.timeout_ms=="number"?t.timeout_ms:1e4,'
+    'i=new AbortController,s=e.credentialObservationGate?.epoch,a=e.getCurrentSessionId()',
+)
+UPDATED_COMMAND_DISPATCHES = (
+    'fe?await d.withCommandTelemetry(X,L,async()=>await PC(te,L,(Ye,Qe)=>{'
+    'if(V?.superseded)throw new Error("The download is no longer active.");'
+    'return fe(Qe,Ye)})):await d.withCommandTelemetry(X,L,async()=>await '
+    'te.executeUnhandledCommand({type:X,...L}))',
+    'fe?await d.withCommandTelemetry(X,F,async()=>await PC(te,F,(Ye,Qe)=>{'
+    'if(z?.superseded)throw new Error("The download is no longer active.");'
+    'return fe(Qe,Ye)})):await d.withCommandTelemetry(X,F,async()=>await '
+    'te.executeUnhandledCommand({type:X,...F}))',
+)
+
+
+def reviewed_updated_dispatch(source: str) -> bool:
+    """Recognize the inspected 26.1002 cache/runtime pair without editing its gates."""
+    if sum(source.count(marker) for marker in UPDATED_NAVIGATION_STARTS) != 1:
+        return False
+    if sum(source.count(marker) for marker in UPDATED_COMMAND_DISPATCHES) != 1:
+        return False
+    pairs = zip(UPDATED_NAVIGATION_STARTS, UPDATED_COMMAND_DISPATCHES)
+    return sum(
+        source.count(navigation) == 1 and source.count(dispatch) == 1
+        for navigation, dispatch in pairs
+    ) == 1
 
 
 def patch_current_bundle(source: str) -> str | None:
-    """Handle the reviewed 26.915 browser-service layout without changing its CDP gate."""
+    """Handle reviewed browser-service layouts without changing their security gates."""
     markers = (
         CURRENT_SECURITY_GATE,
         CURRENT_PARAM_GATE,
-        CURRENT_DISPATCH,
     )
     if not all(len(pattern.findall(source)) == 1 for pattern in markers):
         return None
-    if source.count('Page.navigate",{url:o}') != 1:
+    old_dispatch = len(CURRENT_DISPATCH.findall(source)) == 1
+    updated_dispatch = reviewed_updated_dispatch(source)
+    if old_dispatch == updated_dispatch:
+        return None
+    navigation_call = 'Page.navigate",{url:n}' if updated_dispatch else 'Page.navigate",{url:o}'
+    if source.count(navigation_call) != 1:
         raise PatchError("Codex Chrome's current navigation seam drifted")
+    if updated_dispatch and source.count(
+        'e.credentialObservationGate.permitNavigatedDocument(r,b.loaderId,s)'
+    ) != 1:
+        raise PatchError("Codex Chrome's current credential observation gate drifted")
     if source.count(ORIGINAL_ENABLE_OOPIF_START) != 1 or DISABLE_OOPIF_METHOD in source:
         raise PatchError("Codex Chrome's current OOPIF methods drifted")
     original_attach = source.count(ORIGINAL_ATTACH_HANDLER)
