@@ -298,12 +298,38 @@ def _last_assistant_message(records: tuple[dict[str, object], ...]) -> str:
     )
 
 
-def _blocked(reason: str) -> dict[str, object]:
+def _blocked(reason: str, expected_keys: set[str]) -> dict[str, object]:
     return {
         "decision": "block",
         "reason": "Retract the reply and end its replacement with the required keyed Run status: line block. "
-        + reason,
+        + reason
+        + " Expected run keys: "
+        + ", ".join(sorted(expected_keys))
+        + ". "
+        + "A run is touched once its path appears in the session transcript; "
+        + "a readable approval record opens it, and a completed approval revision stays closed.",
     }
+
+
+def _malformed_line_reason(line: str) -> str:
+    prefix = "Run status: "
+    if not line.startswith(prefix):
+        return "The prefix needs a space after 'Run status:'."
+    key, separator, status = line[len(prefix):].partition(" — ")
+    if not separator:
+        return "The separator must be an em dash with a space on each side (' — ')."
+    # Ask the existing grammar about the key with a known-valid status.
+    if STATUS_LINE.fullmatch(f"{prefix}{key} — awaiting posting") is None:
+        return (
+            "The run key must start with an ASCII letter or digit and contain only "
+            "ASCII letters, digits, '.', '_' or '-'."
+        )
+    if status.rstrip() == "stopped -":
+        return "Run status: stopped needs a substantive reason after the hyphen."
+    return (
+        "The status must be 'awaiting posting', 'awaiting posted reading', 'awaiting AAR', "
+        "'complete', 'stopped', or 'stopped - <reason>' with a nonblank reason."
+    )
 
 
 def handle(payload: Mapping[str, Any]) -> dict[str, object]:
@@ -334,22 +360,41 @@ def handle(payload: Mapping[str, Any]) -> dict[str, object]:
         open_runs.append((run, approved, revision))
     if not open_runs:
         return {}
+    expected_keys = {run.name for run, _approved, _revision in open_runs}
     lines = tuple(ANY_STATUS_LINE.finditer(message))
     if len(lines) != len(open_runs):
-        return _blocked("Each touched approved run needs exactly one keyed Run status: line.")
+        return _blocked(
+            "Each touched approved run needs exactly one keyed Run status: line.",
+            expected_keys,
+        )
     matches = tuple(STATUS_LINE.fullmatch(match.group(0)) for match in lines)
     if any(match is None for match in matches):
+        malformed = [
+            line.group(0) for line, match in zip(lines, matches) if match is None
+        ]
         if any(line.group(0).rstrip().endswith("stopped -") for line in lines):
-            return _blocked("Run status: stopped needs a substantive reason after the hyphen.")
-        return _blocked("A Run status: line is malformed.")
+            reason = "Run status: stopped needs a substantive reason after the hyphen."
+        else:
+            reason = "A Run status: line is malformed."
+        return _blocked(
+            reason + " Failing lines: " + "; ".join(
+                f"{line!r}: {_malformed_line_reason(line)}" for line in malformed
+            ),
+            expected_keys,
+        )
     first = lines[0].start()
     tail = message[first:].splitlines()
     if len(tail) != len(lines) or not all(STATUS_LINE.fullmatch(line) for line in tail):
-        return _blocked("The keyed Run status: lines must be the reply's final contiguous block.")
+        return _blocked(
+            "The keyed Run status: lines must be the reply's final contiguous block.",
+            expected_keys,
+        )
     by_key = {match.group("run_key"): match for match in matches if match is not None}
-    expected_keys = {run.name for run, _approved, _revision in open_runs}
     if len(by_key) != len(matches) or set(by_key) != expected_keys:
-        return _blocked("The keyed Run status: lines must name every touched run key once.")
+        return _blocked(
+            "The keyed Run status: lines must name every touched run key once.",
+            expected_keys,
+        )
     for run, approved, revision in open_runs:
         match = by_key[run.name]
         status = match.group("status")
@@ -360,13 +405,15 @@ def handle(payload: Mapping[str, Any]) -> dict[str, object]:
         )
         if stopped_here and not status.startswith("stopped") and status != "complete":
             return _blocked(
-                f"Run {run.name} stays stopped until it completes or another approval is recorded."
+                f"Run {run.name} stays stopped until it completes or another approval is recorded.",
+                expected_keys,
             )
         if status == "complete" and not all(
             completion_is_clean(run, spec, approval) for spec, approval in approved
         ):
             return _blocked(
-                f"Run status: {run.name} — complete requires a clean terminal grade for every approved item."
+                f"Run status: {run.name} — complete requires a clean terminal grade for every approved item.",
+                expected_keys,
             )
     for run, _approved, revision in open_runs:
         match = by_key[run.name]
@@ -390,8 +437,8 @@ def handle(payload: Mapping[str, Any]) -> dict[str, object]:
 
 def main() -> int:
     try:
-        payload = json.load(sys.stdin)
-    except (json.JSONDecodeError, OSError):
+        payload = json.loads(sys.stdin.buffer.read().decode("utf-8"))
+    except (UnicodeError, json.JSONDecodeError, OSError):
         payload = {}
     response = handle(payload if isinstance(payload, dict) else {})
     if response:
