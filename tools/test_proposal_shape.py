@@ -135,10 +135,13 @@ class TheRuleNamesOneUnitEverywhere(unittest.TestCase):
         self.assertIn(phrase, self.peds_bp)
 
     def test_an_assessment_recommendation_is_a_named_landing(self) -> None:
-        phrase = "a self-contained Assessment recommendation for the preceptor to rule on"
-        self.assertIn(phrase, self.skill)
-        self.assertIn(phrase, self.day_b)
-        self.assertIn(phrase, self.peds_bp)
+        self.assertIn(
+            "a self-contained Assessment suggestion written in the note's own voice",
+            self.skill,
+        )
+        historical_phrase = "a self-contained Assessment recommendation for the preceptor to rule on"
+        self.assertIn(historical_phrase, self.day_b)
+        self.assertIn(historical_phrase, self.peds_bp)
 
 
 if __name__ == "__main__":
