@@ -663,13 +663,18 @@ observation, or inpatient, blocks selection; do not infer an office family.
 
 Read the rendered CPT Professional book through `vitalsource-chrome` when the
 service date falls outside every committed sheet's edition, or when the level
-depends on guidance absent from the sheet—total time, modifier 25 on a same-day
-procedure, critical care, or prolonged services. If that live reading cannot be
+depends on guidance absent from the sheet—total time, critical care, or prolonged
+services. If that live reading cannot be
 completed, the E/M line stays pending. The database and this prose never
 substitute for the sheet or required rendered page.
 
 The freshness gate still requires a committed sheet covering the service date;
 a live reading cannot carry the 2026 sheet into a later edition.
+
+**Same-day procedure.** When a same-day procedure is reported with an E/M,
+apply `-25` from the passing sheet's `modifier-25` entry when the note supports
+it. Whether the E/M work is significant and separately identifiable remains
+a reading of the note; reporting the procedure alone does not settle that reading.
 
 **Directed agents.** Apply the risk entry `table-moderate` to a **Directed agent**
 as defined in [CONTEXT.md](../../CONTEXT.md). An over-the-counter agent the

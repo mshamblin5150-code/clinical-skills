@@ -511,12 +511,16 @@ Completion requires exit 0. That read also binds, in both directions, the note's
 final codes, differential codes, welded `NOT CODED:` codes, and rendered procedure lines to their
 private worksheet populations. E/M selection additionally requires the passing committed MDM sheet
 for the service-date edition, or the rendered CPT instructions when the sheet does not cover the date
-or the selection turns on guidance it lacks (time, same-day modifier 25, critical care, prolonged
+or the selection turns on guidance it lacks (time, critical care, prolonged
 services), and the patient-specific problems, data, and risk analysis. ED uses 99281–99285 by MDM
 without patient status; office or clinic uses 99202–99215 by MDM with account-backed status. An
 unstated or other setting blocks selection. The code database verifies identity and service-date
 status but never substitutes for the sheet or needed rendered reading. A batch
 run performs the same paired read once over the shift rather than weakening it per note.
+
+When reporting a same-day procedure with an E/M, apply `-25` from the passing sheet's
+`modifier-25` entry when the note supports it. Whether the E/M work is significant and
+separately identifiable remains a reading of the note.
 
 Before the worksheet can say `PASS`, write one private batch manifest naming every encounter in
 Review-sheet order. Each encounter record carries its stable id, one-based order, stated

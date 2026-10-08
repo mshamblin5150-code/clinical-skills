@@ -4,7 +4,7 @@ Book: CPT Professional 2026
 Edition: Professional Edition 2026
 ISBN (VitalSource ebook): 9781640163232
 Print ISBN on copyright page: 978-1-64016-322-5
-Permission: Internal repository storage of the MDM grid and dependent E/M guideline definitions under the maintainer's AMA permission; no other CPT text is licensed by this sheet.
+Permission: Internal repository storage of the MDM grid, dependent E/M guideline definitions, and Appendix A modifier-25 entry under the maintainer's AMA permission; no other CPT text is licensed by this sheet.
 
 ## Entry: mdm-selection
 Locator: CPT Professional 2026, p. 8
@@ -400,4 +400,12 @@ Agreement date: 2026-09-16
 SHA-256: a0be0c5b1a5e293b18b75d5ff9177062aa57be03e4f496675c4ca21b965f7509
 ```text
 Social determinants of health: Economic and social conditions that influence the health of people and communities. Examples may include food or housing insecurity.
+```
+
+## Entry: modifier-25
+Locator: CPT Professional 2026, p. 969
+Agreement date: 2026-10-08
+SHA-256: ead8b67e7267f45fdbb5296a972426f07cf2099ea3539f6a0f19268914fc5770
+```text
+25 Significant, Separately Identifiable Evaluation and Management Service by the Same Physician or Other Qualified Health Care Professional on the Same Day of the Procedure or Other Service: It may be necessary to indicate that on the day a procedure or service identified by a CPT code was performed, the patient’s condition required a significant, separately identifiable E/M service above and beyond the other service provided or beyond the usual preoperative and postoperative care associated with the procedure that was performed. A significant, separately identifiable E/M service is defined or substantiated by documentation that satisfies the relevant criteria for the respective E/M service to be reported (see Evaluation and Management Services Guidelines for instructions on determining level of E/M service). The E/M service may be prompted by the symptom or condition for which the procedure and/or service was provided. As such, different diagnoses are not required for reporting of the E/M services on the same date. This circumstance may be reported by adding modifier 25 to the appropriate level of E/M service. Note: This modifier is not used to report an E/M service that resulted in a decision to perform surgery. See modifier 57. For significant, separately identifiable non-E/M services, see modifier 59.
 ```
