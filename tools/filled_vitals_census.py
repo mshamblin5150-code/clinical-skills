@@ -80,6 +80,8 @@ from corpus_census import Reading, is_normal_bp
 import aar_scan
 import medatrax_posting
 import approval_record
+import artifact_repairs
+import shift_summary
 
 
 NOT_GRADED = run_grader.NOT_GRADED
@@ -679,7 +681,7 @@ def load(parsed: run_grader.Parsed) -> tuple[Path, list[str]]:
         raise run_grader.SourceError(f"no directory named {directory.name}")
     posting_paths = (
         medatrax_posting.note_paths(directory, batch=True)
-        if parsed.value("--submission")
+        if medatrax_posting.note_paths(directory, batch=True)
         else ()
     )
     notes = (
@@ -697,6 +699,16 @@ def grade(
 ) -> run_grader.Grade[Scan]:
     directory, notes = loaded
     scan = survey(notes)
+    paths = medatrax_posting.note_paths(directory, batch=True) or tuple(
+        path for path in sorted(directory.glob("*.md"))
+        if path.name.casefold() not in {"readme.md", "reread.md", "shift-summary.md"}
+    )
+    summary_failed, summary_incomplete, summary_report = shift_summary.check(
+        directory, paths, bool(parsed.value("--submission")), parsed.show
+    )
+    chain_failed, chain_report = artifact_repairs.completion_gate(
+        directory, parsed.value("--submission"), paths + tuple(sorted((directory / "worksheets").glob("*.md")))
+    )
     aar_failed, aar_report = aar_scan.completion_gate(
         directory, parsed.value("--submission")
     )
@@ -732,8 +744,8 @@ def grade(
         if scan.asserted_keys_unread
         else ""
     )
-    findings_failed = bool(scan.findings or aar_failed or posting_failed)
-    coverage_failed = bool(scan.asserted_keys_unread or scan.unread_remainder)
+    findings_failed = bool(scan.findings or aar_failed or posting_failed or summary_failed or chain_failed)
+    coverage_failed = bool(scan.asserted_keys_unread or scan.unread_remainder or summary_incomplete)
     diagnostics: tuple[str, ...] = ()
     if findings_failed:
         # 1 outranks 2 deliberately: returning 2 where something was graded and
@@ -774,7 +786,7 @@ def grade(
         findings_failed=findings_failed,
         coverage_failed=coverage_failed,
         diagnostics=diagnostics,
-        reports=(aar_report, posting_report),
+        reports=(summary_report, chain_report, aar_report, posting_report),
     )
     return approval_record.apply_completion_gate(
         result, directory, "batch-shift", parsed.value("--submission")

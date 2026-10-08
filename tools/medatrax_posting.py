@@ -43,7 +43,7 @@ def note_paths(run: Path, *, batch: bool) -> tuple[Path, ...]:
     candidates = tuple(
         path
         for path in run.glob("*.md")
-        if path.is_file() and path.name.casefold() not in {"readme.md", "reread.md"}
+        if path.is_file() and path.name.casefold() not in {"readme.md", "reread.md", "shift-summary.md"}
     )
     if batch:
         numbered = tuple(

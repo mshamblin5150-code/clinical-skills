@@ -73,14 +73,32 @@ the same `Created` value. For a returning patient's posted reading, record the v
 1. From Patient Detail, click **New Form**. In the upper *Open New Form* panel, select the approved
    form and course, then click **Open New Form**. Do not use the lower existing-form search panel.
 2. The form selects the Patient Reference, but its date, location, and preceptor can open with
-   unrelated defaults. Replace all three with the approved visit values before pasting the note.
-3. Paste each note section into its matching box. Enter the separate vital-sign boxes exactly as the
-   note states them. Click **Finish**; a completed save returns to the Forms page.
-4. In the lower existing-form panel, search by form, visit date, Patient Reference, location, and
-   course. Open **View** and read every rendered field against the approved note. Copy `resultid`
+   unrelated defaults. Replace all three with the approved visit values before filling the note.
+3. Read the four section strings from `private/form-sections/note-N.json`. By page script, set each
+   matching box's value and dispatch its `input` and `change` events. Read each value back and
+   compare its length and UTF-8 SHA-256 with the stored string. Proceed to **Finish** only when
+   all four match; any mismatch stops for the clinician. Enter separate vital-sign boxes exactly
+   as the note states them. **Paste is the fallback only when no page-script tool is available**;
+   that route has no readback before **Finish**. Both routes still require the post-save View read.
+4. Immediately before committing, in this form's own tab only, cancel the autosave timer with
+   `clearTimeout(timeOut)` and replace `autoSave` with a no-op. Replace `window.confirm` with a
+   recorder that stores the message and returns false, rather than answering it; any recorded
+   message stops the run for the clinician. Do not alter any request content or server state.
+   If `timeOut` or `autoSave` is absent, read the form page's own script, re-derive the current
+   timer and autosave names, adjust the override, and proceed. Land each re-derivation through
+   the after-action review as a reference correction. If the names cannot be re-derived, stop
+   for the clinician; never commit without this override.
+5. Find the **Finish** button element by its visible label and invoke its scripted `click()`.
+   Wait for the page's own redirect to the Forms page before any navigation. A redirect alone
+   does not prove finished state.
+6. In the lower existing-form panel, search by form, visit date, Patient Reference, location, and
+   course. Require a **Date Finished** value for every posted form and copy it as displayed into
+   `finished=` on that form's `VISIT:` line. An empty cell stops for the clinician.
+   Open **View** and read every rendered field against the derived Entry copy. Copy `resultid`
    from that View link; never guess it.
-5. Return to Patient Detail and confirm the saved form appears under the same visit. Leave **Add
-   Visit Data** empty.
+7. Return to Patient Detail and confirm the saved form appears under the same visit. Its **Finished**
+   checkmark may be reported and decides nothing; the lower Forms panel's **Date Finished** is the
+   completion readback. Leave **Add Visit Data** empty.
 
 ## Hour requirements and deadlines
 

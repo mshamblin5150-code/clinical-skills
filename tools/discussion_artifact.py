@@ -567,11 +567,12 @@ def check_posted_reading(
         for number, visit in enumerate(reading.visits, start=1):
             locator = re.match(r"(\d+)\s*\|", visit)
             patterns = (
-                r"(?:^|\|)\s*patient\s+\S+",
+                r"(?:^|\|)\s*patient\s+\d+\s*(?:\||$)",
                 r"(?:^|\|)\s*reference\s+(?:matched|new)\s+\S+",
                 r"(?:^|\|)\s*patient-detail=\S+",
                 r"(?:^|\|)\s*note-view=\S*resultid=\S+",
                 r"(?:^|\|)\s*(?:created|visit-date)=\S+",
+                r"(?:^|\|)\s*finished=\s*[^\s|][^|]*(?:\||$)",
                 r"(?:^|\|)\s*matches(?:\s|$)",
             )
             if locator is None or int(locator[1]) != number or not all(

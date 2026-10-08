@@ -224,6 +224,7 @@ import run_grader
 import aar_scan
 import medatrax_posting
 import approval_record
+import artifact_repairs
 
 EXPECTED_COMPLETION_CHECKS = (aar_scan.EXPECTED_ROW,)
 import coverage_registry
@@ -1636,14 +1637,21 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
     )
     if posting_failed:
         diagnostics.append("\n" + posting_report)
+    chain_paths = medatrax_posting.note_paths(source.directory, batch=False)
+    if _parsed.value("--note"):
+        chain_paths = (Path(_parsed.value("--note")),)
+    chain_failed, chain_report = artifact_repairs.completion_gate(
+        source.directory, _parsed.value("--submission"),
+        chain_paths + tuple(sorted((source.directory / "worksheets").glob("*.md")))
+    )
     grade = run_grader.Grade(
         scan=scan,
         source=source.directory.name,
-        findings_failed=has_findings or aar_failed or posting_failed,
+        findings_failed=has_findings or aar_failed or posting_failed or chain_failed,
         coverage_failed=coverage_failed,
         coverage_limbs=tuple(coverage_limbs),
         diagnostics=tuple(diagnostics),
-        reports=(aar_report, posting_report),
+        reports=(aar_report, posting_report, chain_report),
     )
     return approval_record.apply_completion_gate(
         grade, source.directory, "clinical-note", _parsed.value("--submission")

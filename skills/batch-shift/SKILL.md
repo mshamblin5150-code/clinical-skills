@@ -215,6 +215,7 @@ Then consolidate:
 Encounters: N
 Notes clean (no flags, no gaps): <numbers>
 Notes needing attention: <number — the flag or the gap, one line each>
+GENERATION: note-<number>.md | FILLED·asserted=<count> | FILLED·proposed=<count>
 
 --- FLAGS ACROSS THE SHIFT ---
 <note number — the finding, and what was not done with it>
@@ -227,7 +228,7 @@ Repeats: <any value two notes share, and whether the encounters gave a reason to
 NEW GLOSSARY CANDIDATES: <unknown tokens seen across the shift, with frequency>
 ```
 
-Completion: every encounter appears in exactly one of the two note lists.
+Write `shift-summary.md` into the run directory through standing rule 6's write route and show that file in chat. Copy one `GENERATION:` line per note from `filled_vitals_census.py`, using its tier-derived counts; write no free-form generation claim. Proposed item names appear only in the command's private `--show` output. Completion: every encounter appears in exactly one of the two note lists and has one matching generation line. A missing or mismatched line is a finding; an absent summary at the terminal invocation is incomplete coverage, with a finding winning over it.
 
 Run descriptor agreement once across the paired shift after every note and worksheet exists. This
 **Second reader** applies [standing rule 6](../../AGENTS.md), first reads
@@ -315,7 +316,8 @@ What stays out, and this is the whole point of the step:
 | --- | --- |
 | The tier blocks — `DERIVED`, `FILLED`, `FLAG`, `GAPS`, `UNKNOWN` | Working output. A FLAG says *this note failed to act on what it documented*; traveling inside the file it describes, it is a defect report stapled to the work |
 | The per-encounter Medatrax field blocks | Portal data entry. They are tabbed into a form, not read |
-| The schedule table and the shift summary | The tabbing and triage views of the day, for the chat |
+| The schedule table | The tabbing view of the day, for the chat |
+| The shift summary | The graded run-directory triage file shown in chat |
 | Private anchored worksheets and freshness receipts | Evidence for the gates, not clinician-facing coding content |
 
 **The document carries exactly what the notes carry.** Writing it is not a second pass at de-identification and it is not the moment to restore anything: `[PT]`, `[DOB]`, `[MRN]`, `[SITE]` stay as placeholders. It is, though, the last point at which a leaked identifier is still cheap to catch and the first at which it becomes a file that gets opened somewhere else — so read the notes for real names before writing, not after.
@@ -333,6 +335,7 @@ unchanged normalized content does not.
 patient marked with its matched Patient Reference or `NEW PATIENT`, the resolved preceptor, and
 every finalized E/M line. One explicit approval authorizes the entire listed shift and nothing
 outside it.
+Beside `PRE-APPROVAL PATIENT QUESTIONS`, show the `REPAIRS` block produced by standing rule 6's command, including `none` when there were no repairs. Keep it outside the Review sheet. The clinician reads any marked changed sections outside the named scope; those section marks alone do not block approval.
 At that approval call `approval_record.approve(run, skill="batch-shift",
 submission=shift_key, sources=medatrax_posting.note_paths(run, batch=True),
 grader_args=(str(run),), content_approved=True)`. Show its `pregrade_report`; incomplete coverage
@@ -377,11 +380,16 @@ POSTED: <last entered visit's Created value as displayed>
 READ: N of N read
 VERDICT: matches - <field blocks and saved notes compared with the derived Entry copies>
 SUBMISSION-SHA256: <SHA-256 of note-1.md through note-N.md bytes>
-VISIT: <N> | patient <number> | reference <matched|new> <Patient Reference> | patient-detail=<copied address> | note-view=<copied View address including resultid> | <created=<displayed Created>|visit-date=<returning visit date>> | matches
+VISIT: <entry order> | patient <note-file number> | reference <matched|new> <Patient Reference> | patient-detail=<copied address> | note-view=<copied View address including resultid> | <created=<displayed Created>|visit-date=<returning visit date>> | finished=<Date Finished as displayed> | matches
 ```
 
 Copy every locator and time from Medatrax; never construct a `resultid`. Because `Created` is the
 patient's first creation time, use the visit date on a returning patient's `VISIT:` line.
+Entry order runs from 1 through the entered population without gaps; `patient` is the source note-file number, even when those filenames skip a number. For example:
+
+```text
+VISIT: 1 | patient 3 | reference matched P-3 | patient-detail=/patients/3 | note-view=/forms/view?resultid=31 | visit-date=<displayed-date> | finished=<displayed-finished-date-and-time> | matches
+```
 
 **Then invoke `/AAR`; the shift is not complete without it.** Use `shift-<date>` as the submission key and this shift's run directory. After `/AAR` exits clean, rerun the completion grader with its expected review and posting rows enabled:
 

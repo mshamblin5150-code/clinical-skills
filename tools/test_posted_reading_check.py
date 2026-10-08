@@ -45,7 +45,7 @@ class PostedReadingCheck(unittest.TestCase):
                 'COMPOSER-OUTCOME: attachment\nHTML-BYTES: 42\n'
                 'REFUSAL: 2026-10-03 - observed refusal\nATTACHMENT: posted/example.docx\n'
                 'VISIT: 1 | patient 1 | reference matched P-1 | patient-detail=/1 | '
-                'note-view=/view?resultid=1 | visit-date=today | matches\n'
+                'note-view=/view?resultid=1 | visit-date=today | finished=today | matches\n'
             )[0]
             options = dict(posted_fields=True, verdict=True, matches_only=True,
                            entry_link=True, composer=True, html_bytes=42,

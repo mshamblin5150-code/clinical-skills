@@ -1480,7 +1480,7 @@ POSTED: <last entered visit's Created value as displayed>
 READ: 1 of 1 read
 VERDICT: matches - <field block and saved note compared with the derived Entry copy>
 SUBMISSION-SHA256: <SHA-256 of the standalone note output file's bytes>
-VISIT: 1 | patient <number> | reference <matched|new> <Patient Reference> | patient-detail=<copied address> | note-view=<copied View address including resultid> | <created=<displayed Created>|visit-date=<returning visit date>> | matches
+VISIT: 1 | patient <number> | reference <matched|new> <Patient Reference> | patient-detail=<copied address> | note-view=<copied View address including resultid> | <created=<displayed Created>|visit-date=<returning visit date>> | finished=<Date Finished as displayed> | matches
 ```
 
 Copy every locator and time from Medatrax; never construct a `resultid`. `Created` is the patient's first creation time, so a returning patient uses the visit date on `VISIT:`. Compute the SHA-256 from the final output file before `/AAR` extracts this block.

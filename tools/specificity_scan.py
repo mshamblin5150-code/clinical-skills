@@ -48,6 +48,7 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 import run_grader
+import artifact_repairs
 from run_grader import NOT_GRADED
 import aar_scan
 from worksheet_grammar import (
@@ -817,13 +818,18 @@ def _grade(
     aar_failed, aar_report = aar_scan.completion_gate(
         source.directory, parsed.value("--submission")
     )
+    chain_failed, chain_report = artifact_repairs.completion_gate(
+        source.directory.parent if source.directory.name == "worksheets" else source.directory,
+        parsed.value("--submission"),
+        tuple(path for path in sorted(source.directory.glob("*.md")) if path.name.casefold() != "readme.md")
+    )
     return run_grader.Grade(
         scan=scan,
         source=source.directory.name,
-        findings_failed=findings_failed or aar_failed,
+        findings_failed=findings_failed or aar_failed or chain_failed,
         coverage_failed=coverage_failed,
         diagnostics=tuple(diagnostics),
-        reports=tuple(reports) + (aar_report,),
+        reports=tuple(reports) + (aar_report, chain_report),
     )
 
 
