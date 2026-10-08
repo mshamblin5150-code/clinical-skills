@@ -33,6 +33,10 @@ CLINICIAN_INSTRUCTIONS = (
 )
 
 
+class RefusalGrammarError(ValueError):
+    """A refused-code clause would leave sentence residue in an Entry copy."""
+
+
 def _plain(line: str) -> str:
     return line.strip().strip("#*_ ").strip()
 
@@ -68,30 +72,31 @@ def _plan_labels(note: str) -> tuple[set[str], list[str]]:
     return found, invalid
 
 
+def _sentence_period(note: str, position: int) -> bool:
+    if note[position] != "." or (
+        position + 1 < len(note) and not note[position + 1].isspace()
+    ):
+        return False
+    preceding = re.search(r"([A-Za-z]+)$", note[:position])
+    next_word = note[position + 1 :].lstrip()[:1]
+    return not (preceding and (
+        preceding.group(1).lower() in ABBREVIATIONS
+        or (
+            len(preceding.group(1)) == 1
+            and (
+                next_word.islower()
+                or (preceding.start(1) > 0 and note[preceding.start(1) - 1] == ".")
+            )
+        )
+    ))
+
+
 def _clause_end(note: str, start: int) -> int | None:
     for position in range(start, len(note)):
         char = note[position]
         if char == ";":
             return position + 1
-        if char == "." and (
-            position + 1 == len(note) or note[position + 1].isspace()
-        ):
-            preceding = re.search(r"([A-Za-z]+)$", note[:position])
-            next_word = note[position + 1 :].lstrip()[:1]
-            if preceding and (
-                preceding.group(1).lower() in ABBREVIATIONS
-                or (
-                    len(preceding.group(1)) == 1
-                    and (
-                        next_word.islower()
-                        or (
-                            preceding.start(1) > 0
-                            and note[preceding.start(1) - 1] == "."
-                        )
-                    )
-                )
-            ):
-                continue
+        if char == "." and _sentence_period(note, position):
             return position + 1
         if char == "\n":
             return None
@@ -99,6 +104,29 @@ def _clause_end(note: str, start: int) -> int | None:
 
 
 def _without_refusals(note: str) -> str:
+    previous_end = None
+    for match in REFUSAL.finditer(note):
+        line_start = note.rfind("\n", 0, match.start()) + 1
+        line_prefix = note[line_start:match.start()]
+        prefix = line_prefix.rstrip(" \t\r")
+        at_line_start = re.fullmatch(
+            r"[ \t]*(?:>[ \t]*)*(?:(?:[-+*]|[0-9]+[.)])[ \t]+)?", line_prefix
+        )
+        after_period = bool(prefix) and _sentence_period(note, line_start + len(prefix) - 1)
+        after_clause = (
+            previous_end is not None
+            and note[previous_end - 1] == ";"
+            and not note[previous_end:match.start()].strip()
+        )
+        if not (at_line_start or after_period or after_clause):
+            raise RefusalGrammarError("NOT CODED clause must open its own sentence")
+        previous_end = _clause_end(note, match.end())
+        if (
+            previous_end is not None
+            and note[previous_end - 1] == ";"
+            and not REFUSAL.match(note[previous_end:].lstrip())
+        ):
+            raise RefusalGrammarError("NOT CODED clause semicolon must join another welded clause")
     while match := REFUSAL.search(note):
         end = _clause_end(note, match.end())
         if end is None:
@@ -177,7 +205,7 @@ def main(argv: list[str] | None = None) -> int:
                 destination.parent.mkdir(parents=True, exist_ok=True)
                 destination.write_text(copy, encoding="utf-8", newline="")
         except (OSError, UnicodeError, ValueError) as error:
-            if not args.check:
+            if not args.check or isinstance(error, RefusalGrammarError):
                 destination.unlink(missing_ok=True)
             location = f"{source}: " if args.check or len(args.note) > 1 else ""
             print(f"Entry copy refused: {location}{error}", file=sys.stderr)

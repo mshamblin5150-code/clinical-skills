@@ -75,6 +75,27 @@ class EntryCopyCommand(unittest.TestCase):
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertFalse(self.copy.parent.exists())
 
+    def test_internal_semicolon_refuses_without_leaking_text_or_keeping_copy(self) -> None:
+        text = (
+            "Finding. NOT CODED: J18.9 Pneumonia, unspecified organism, no infiltrate; "
+            "NOT CODED: J20.9 Acute bronchitis, unspecified, cough under three days; "
+            "PrivateExample would establish it."
+        )
+        note = "S:\nSubjective.\nO:\nObjective.\nA:\n" + text + "\nP:\n" + LABELS + "Coding worksheet\n"
+        for operation in (entry_copy.derive, entry_copy.check):
+            with self.subTest(operation=operation.__name__):
+                with self.assertRaisesRegex(ValueError, "semicolon must join"):
+                    operation(note)
+        for flags in ((), ("--check",)):
+            with self.subTest(flags=flags):
+                self.copy.parent.mkdir(exist_ok=True)
+                self.copy.write_text("stale", encoding="utf-8")
+                result = self.invoke(note, *flags)
+                self.assertEqual(1, result.returncode, result.stderr)
+                self.assertIn("semicolon must join", result.stderr)
+                self.assertNotIn("PrivateExample", result.stderr)
+                self.assertFalse(self.copy.exists())
+
     def test_check_preserves_existing_copy_and_reports_every_refused_path(self) -> None:
         self.copy.parent.mkdir()
         self.copy.write_bytes(b"unchanged copy")
@@ -92,6 +113,58 @@ class EntryCopyCommand(unittest.TestCase):
         clean = "S:\nSubjective.\nO:\nObjective.\nA:\nAssessment.\nP:\n" + LABELS + "Coding worksheet\n"
         self.assertEqual(0, self.invoke(clean, "--check").returncode)
         self.assertEqual(b"unchanged copy", self.copy.read_bytes())
+
+    def test_clause_lead_ins_refuse_in_both_routes(self) -> None:
+        cases = (
+            "No sampling and no imaging this visit, so NOT CODED: N85.00 Endometrial "
+            "hyperplasia, unspecified, a biopsy would earn it; NOT CODED: J13 Pneumonia "
+            "due to Streptococcus pneumoniae, organism unconfirmed.",
+            "Nothing tested for the organism, so NOT CODED: J13 Pneumonia due to "
+            "Streptococcus pneumoniae; an organism-specific result would earn it.",
+            "Final diagnosis: Pneumonia - J18.9; NOT CODED: J13 Pneumonia due to "
+            "Streptococcus pneumoniae, organism unconfirmed.",
+            "No result, therefore NOT CODED: J13 Pneumonia due to Streptococcus "
+            "pneumoniae, organism unconfirmed.",
+            "See Dr. NOT CODED: J13 Pneumonia due to Streptococcus pneumoniae, "
+            "organism unconfirmed.",
+        )
+        for text in cases:
+            note = "S:\nSubjective.\nO:\nObjective.\nA:\n" + text + "\nP:\n" + LABELS + "Coding worksheet\n"
+            for operation in (entry_copy.derive, entry_copy.check):
+                with self.subTest(text=text, operation=operation.__name__):
+                    with self.assertRaisesRegex(ValueError, "must open its own sentence"):
+                        operation(note)
+            for flags in ((), ("--check",)):
+                with self.subTest(text=text, flags=flags):
+                    self.copy.parent.mkdir(exist_ok=True)
+                    self.copy.write_text("stale", encoding="utf-8")
+                    result = self.invoke(note, *flags)
+                    self.assertEqual(1, result.returncode, result.stderr)
+                    self.assertIn("must open its own sentence", result.stderr)
+                    self.assertNotIn("organism", result.stderr)
+                    self.assertFalse(self.copy.exists())
+    def test_sentence_openings_and_joined_clauses_derive_cleanly(self) -> None:
+        clause = "NOT CODED: J13 Pneumonia due to Streptococcus pneumoniae, organism unconfirmed."
+        cases = (
+            (clause, ""),
+            ("  " + clause, ""),
+            ("> " + clause, ">"),
+            ("> > - " + clause, "> > -"),
+            ("- " + clause, "-"),
+            ("1. " + clause, "1."),
+            ("2) " + clause, "2)"),
+            ("Finding. " + clause + " Treatment proceeds.", "Finding. Treatment proceeds."),
+            ("Finding. " + clause[:-1] + "; " + clause + " Less likely.", "Finding. Less likely."),
+        )
+        for text, expected in cases:
+            with self.subTest(text=text):
+                note = "S:\nSubjective.\nO:\nObjective.\nA:\nAssessment.\n" + text + "\nP:\n" + LABELS + "Coding worksheet\n"
+                output = entry_copy.derive(note)
+                self.assertIn("Assessment.\n" + expected + "\nP:\n", output)
+                entry_copy.check(note)
+                for flags in ((), ("--check",)):
+                    result = self.invoke(note, *flags)
+                    self.assertEqual(0, result.returncode, result.stderr)
 
     def test_check_does_not_quote_an_unrecognized_label(self) -> None:
         note = (
@@ -136,7 +209,7 @@ class EntryCopyCommand(unittest.TestCase):
             "Medical Decision Making:\n"
             "The film has no result. NOT CODED: J13 Pneumonia due to Streptococcus "
             "pneumoniae, nothing tested for the organism. Treatment proceeds.\n"
-            "Final diagnosis: Pneumonia - J18.9; NOT CODED: J13 Pneumonia due to "
+            "Final diagnosis: Pneumonia - J18.9. NOT CODED: J13 Pneumonia due to "
             "Streptococcus pneumoniae, organism unconfirmed.\n"
             "Plan\n" + LABELS + "\nDiscussion\nFinished.\n"
         )
@@ -144,7 +217,7 @@ class EntryCopyCommand(unittest.TestCase):
         self.assertEqual(0, result.returncode, result.stderr)
         output = self.copy.read_text(encoding="utf-8")
         self.assertIn("The film has no result. Treatment proceeds.", output)
-        self.assertIn("Final diagnosis: Pneumonia - J18.9;", output)
+        self.assertIn("Final diagnosis: Pneumonia - J18.9.", output)
         self.assertNotIn("NOT CODED", output)
 
     def test_skill_worked_examples_keep_surrounding_prose(self) -> None:
@@ -152,15 +225,15 @@ class EntryCopyCommand(unittest.TestCase):
         chest = next(line for line in skill.splitlines() if line.startswith("3. Chest pain, unspecified - R07.9:"))
         conclusion = (
             "Final diagnosis: Community-acquired pneumonia, pneumococcal organism suspected - J18.9\n"
-            "Pneumonia, unspecified organism. Nothing tested for the organism, so NOT CODED: "
-            "J13 Pneumonia due to Streptococcus pneumoniae; an organism-specific result would earn it."
+            "Pneumonia, unspecified organism. Nothing tested for the organism. NOT CODED: "
+            "J13 Pneumonia due to Streptococcus pneumoniae, an organism-specific result would earn it."
         )
         self.assertIn(conclusion, skill)
         result = self.invoke(chest + "\n" + conclusion + "\nP:\n" + LABELS)
         self.assertEqual(0, result.returncode, result.stderr)
         output = self.copy.read_text(encoding="utf-8")
         self.assertIn("CT angiography pending. Less likely.", output)
-        self.assertIn("so an organism-specific result would earn it.", output)
+        self.assertIn("Pneumonia, unspecified organism. Nothing tested for the organism.", output)
         self.assertNotIn("NOT CODED", output)
 
     def test_period_inside_refusal_does_not_leave_descriptor_or_reason(self) -> None:
