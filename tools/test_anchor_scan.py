@@ -861,6 +861,104 @@ class AgreementModes(unittest.TestCase):
         self.assertEqual(status, 0)
         return json.loads(output.getvalue())
 
+    def test_brief_output_is_bom_free_and_replaces_existing_file(self):
+        args = [str(self.worksheets), "--notes", str(self.notes), "--agreement-brief"]
+        stdout = io.StringIO()
+        with redirect_stdout(stdout):
+            expected_status = scan.main(args)
+        target = Path(self.raw.name) / "brief.json"
+        target.write_text("old brief", encoding="utf-8")
+        output = io.StringIO()
+        with redirect_stdout(output):
+            status = scan.main([*args, "--output", str(target)])
+        self.assertEqual(status, expected_status)
+        self.assertEqual(output.getvalue(), "")
+        self.assertEqual(target.read_bytes()[:1], b"{")
+        self.assertEqual(target.read_bytes(), stdout.getvalue().encode("utf-8"))
+        self.assertEqual(json.loads(target.read_text(encoding="utf-8")),
+                         json.loads(stdout.getvalue()))
+
+    def test_brief_output_refuses_checkout_target_without_writing(self):
+        checkout = Path(self.raw.name) / "checkout"
+        checkout.mkdir()
+        (checkout / ".git").mkdir()
+        target = checkout / "brief.json"
+        errors = io.StringIO()
+        with redirect_stderr(errors):
+            status = scan.main([
+                str(self.worksheets), "--notes", str(self.notes),
+                "--agreement-brief", "--output", str(target),
+            ])
+        self.assertEqual(status, 2)
+        self.assertFalse(target.exists())
+        self.assertIn("scratch/", errors.getvalue())
+        self.assertIn("complete notes", errors.getvalue())
+
+    def test_brief_output_allows_owning_scratch_only(self):
+        checkout = Path(self.raw.name) / "checkout"
+        scratch = checkout / "scratch"
+        scratch.mkdir(parents=True)
+        (checkout / ".git").mkdir()
+        target = scratch / "brief.json"
+        with patch("anchor_scan.scratch_root", return_value=scratch):
+            status = scan.main([
+                str(self.worksheets), "--notes", str(self.notes),
+                "--agreement-brief", "--output", str(target),
+            ])
+        self.assertEqual(status, 0)
+        self.assertEqual(target.read_bytes()[:1], b"{")
+        errors = io.StringIO()
+        with redirect_stderr(errors):
+            status = scan.main([
+                str(self.worksheets), "--notes", str(self.notes),
+                "--agreement-brief", "--output", str(target),
+            ])
+        self.assertEqual(status, 2)
+        self.assertEqual(target.read_bytes()[:1], b"{")
+
+    def test_output_without_brief_is_usage_error(self):
+        target = Path(self.raw.name) / "brief.json"
+        for mode in ([], ["--agreement-read", "reader.json"]):
+            with self.subTest(mode=mode), redirect_stderr(io.StringIO()):
+                with self.assertRaises(SystemExit) as raised:
+                    scan.main([
+                        str(self.worksheets), "--notes", str(self.notes),
+                        *mode, "--output", str(target),
+                    ])
+                self.assertEqual(raised.exception.code, 2)
+                self.assertFalse(target.exists())
+
+    def test_brief_output_preserves_finding_and_unread_statuses(self):
+        target = Path(self.raw.name) / "brief.json"
+        args = [str(self.worksheets), "--notes", str(self.notes), "--agreement-brief"]
+        for note, expected_status in ((AGREEMENT_NOTE.replace("Occasional heartburn", "No reflux"), 1),
+                                      (None, 2)):
+            with self.subTest(status=expected_status):
+                note_path = self.notes / "case-01.md"
+                if note is None:
+                    note_path.unlink()
+                else:
+                    note_path.write_text(note, encoding="utf-8")
+                stdout = io.StringIO()
+                with redirect_stdout(stdout):
+                    status = scan.main(args)
+                    file_status = scan.main([*args, "--output", str(target)])
+                self.assertEqual(status, expected_status)
+                self.assertEqual(file_status, expected_status)
+                self.assertEqual(target.read_bytes(), stdout.getvalue().encode("utf-8"))
+
+    def test_skills_write_agreement_briefs_directly(self):
+        for skill in ("icd10-cpt", "clinical-note", "batch-shift"):
+            with self.subTest(skill=skill):
+                text = (REPO_ROOT / "skills" / skill / "SKILL.md").read_text(encoding="utf-8")
+                commands = [line for line in text.splitlines()
+                            if line.startswith("python tools/anchor_scan.py ")
+                            and "--agreement-brief" in line]
+                self.assertTrue(commands)
+                for command in commands:
+                    self.assertIn("--output <run>/agreement/brief.json", command)
+                    self.assertNotIn(" > ", command)
+
     def clean_record(self) -> dict:
         brief = self.brief()
         records = []

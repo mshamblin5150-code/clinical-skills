@@ -72,6 +72,7 @@ from functools import cache
 from pathlib import Path
 
 import run_grader
+from repo_root import InsideCheckout, ensure_outside_checkout, scratch_root
 from console_codec import require_python_floor, use_utf8
 from worksheet_grammar import (
     BLOCK_HEADING, CODE, DIFFERENTIAL_HEADING, ENTRY, ENTRY_CANDIDATE, FIELD,
@@ -1332,9 +1333,12 @@ def _run_agreement(argv: list[str]) -> int:
     mode.add_argument("--agreement-brief", action="store_true")
     mode.add_argument("--agreement-read", type=Path, nargs="+")
     parser.add_argument("--stem", action="append", default=None)
+    parser.add_argument("--output", type=Path, help="write the agreement brief as BOM-free UTF-8")
     args = parser.parse_args(argv)
     if args.stem and not args.agreement_brief:
         parser.error("--stem requires --agreement-brief")
+    if args.output is not None and not args.agreement_brief:
+        parser.error("--output requires --agreement-brief")
     try:
         rendered_descriptors = _rendered_descriptors(args.rendered_descriptors)
     except (OSError, ValueError, KeyError, TypeError) as error:
@@ -1349,10 +1353,22 @@ def _run_agreement(argv: list[str]) -> int:
 
     if args.agreement_brief:
         anchor_findings = _anchor_findings(pairs)
-        print(json.dumps(
+        brief = json.dumps(
             _brief_payload(pairs, unread, full_pair_count, args.stem, len(anchor_findings)),
             indent=2, ensure_ascii=True,
-        ))
+        )
+        if args.output is None:
+            print(brief)
+        else:
+            try:
+                target = ensure_outside_checkout(
+                    args.output, permitted=[scratch_root()],
+                    detail="Agreement briefs contain complete notes and belong under the owning checkout's scratch/ or outside every checkout.",
+                )
+                target.write_text(brief + "\n", encoding="utf-8", newline="\n")
+            except (InsideCheckout, OSError) as error:
+                print(f"descriptor agreement brief: {error}", file=sys.stderr)
+                return 2
         if args.show:
             for finding in anchor_findings:
                 print(f"finding: {finding}", file=sys.stderr)
@@ -1480,7 +1496,8 @@ def _run_agreement(argv: list[str]) -> int:
 
 def main(argv: list[str]) -> int:
     """``argv`` is the argument list without the program name."""
-    if any(arg in {"--agreement-brief", "--agreement-read"} for arg in argv):
+    if any(arg in {"--agreement-brief", "--agreement-read", "--output"}
+           or arg.startswith("--output=") for arg in argv):
         use_utf8()
         require_python_floor()
         return _run_agreement(argv)
