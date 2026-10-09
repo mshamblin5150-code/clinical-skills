@@ -26,10 +26,6 @@ _Avoid_: shift hours, time window, shift times
 The finished document produced from one encounter's shorthand.
 _Avoid_: writeup, report
 
-**Problem addressed**:
-A condition the clinician's **Shorthand** or recorded answer shows he evaluated or treated at the **Encounter**. Its contribution to the E/M problems element follows [icd10-cpt step 5](skills/icd10-cpt/SKILL.md#5-select-the-em-level-when-the-note-path-asks).
-_Avoid_: assessed diagnosis, generated management
-
 **Branch**:
 Which template a note is written against — FNP H&P or comprehensive SOAP.
 _Avoid_: format, type, form
