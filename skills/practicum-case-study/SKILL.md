@@ -1632,9 +1632,10 @@ Ask the proposed-image question separately from whether the artifact's substance
 each ruling under [imagery-proposals.md](../_shared/reference/imagery-proposals.md), rerun the
 checks grader, and then wait for the explicit go-ahead. Post through the branch recorded in
 `bar.md`. The
-go-ahead calls `approval_record.approve(run, skill="practicum-case-study",
+go-ahead sets `clinician_reply` to the clinician's whole approval message, including any
+conditions, and calls `approval_record.approve(run, skill="practicum-case-study",
 submission=output_markdown.stem, sources=(output_markdown,), grader_args=(str(checks_ledger),
-"--document", str(output_markdown)), content_approved=True)`. Show its `pregrade_report`;
+"--document", str(output_markdown)), content_approved=True, clinician_reply=clinician_reply)`. Show its `pregrade_report`;
 incomplete coverage does not block, while a finding refuses the record. From this record onward
 every reply touching the run ends with `Run status: <run-key> — <awaiting posting|awaiting posted
 reading|awaiting AAR|complete|stopped - reason>`. Several touched runs each get their own keyed

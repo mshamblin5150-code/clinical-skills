@@ -157,6 +157,9 @@ whose differential was written in some shape this parser does not read, or whose
 refusals are written in the form row 22 retired, would otherwise report zero
 violations and look like a pass.
 
+Submission grading also declares **approval reply transcript unreadable** when the
+shared approval re-check cannot read the clinician's message evidence.
+
 **Where a violation and an incomplete scan both hold, 1 wins, and that ordering
 is a decision.** A run carrying a real row-22 failure *and* a bare mark is
 definitely not clean, so returning 2 would file the strongest thing known about
@@ -1517,6 +1520,7 @@ EXIT_2_LIMBS = (
     BARE_NOT_CODED,
     UNREADABLE_THRESHOLD_SHEET,
     run_grader.UNREADABLE_RUN_ARTIFACT,
+    approval_record.REPLY_UNREADABLE,
 )
 
 

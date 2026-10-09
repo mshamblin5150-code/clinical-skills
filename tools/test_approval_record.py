@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 import subprocess
 import tempfile
@@ -10,6 +11,7 @@ import unittest
 from unittest import mock
 
 import approval_record
+import aar_scan
 
 
 NOTE = (
@@ -27,6 +29,16 @@ class ApprovalRecordContract(unittest.TestCase):
         self.run.mkdir(parents=True)
         self.artifact = self.root / "post.md"
         self.artifact.write_text("approved post\n", encoding="utf-8")
+        os.utime(self.artifact, (1, 1))
+        self.transcript = self.root / "session.jsonl"
+        self.transcript.write_text(json.dumps({
+            "type": "user", "timestamp": "2100-10-09T12:00:00Z",
+            "message": {"content": "Approve this entire post."},
+        }) + "\n", encoding="utf-8")
+        discovery = mock.patch.object(aar_scan, "discover_transcripts", return_value=
+            aar_scan.TranscriptDiscovery((self.transcript,), 1, 0, 0, 1))
+        discovery.start()
+        self.addCleanup(discovery.stop)
         self.preflight = mock.patch.object(
             approval_record, "_preflight_grader", return_value=None
         )
@@ -54,6 +66,7 @@ class ApprovalRecordContract(unittest.TestCase):
                 sources=(self.artifact,),
                 grader_args=(str(self.run), "--draft", str(self.artifact)),
                 content_approved=True,
+                clinician_reply="Approve this entire post.",
             )
 
         record = json.loads(
@@ -78,6 +91,7 @@ class ApprovalRecordContract(unittest.TestCase):
                     sources=(self.artifact,),
                     grader_args=(str(self.run), "--draft", str(self.artifact)),
                     content_approved=True,
+                    clinician_reply="Approve this entire post.",
                 )
 
         self.assertFalse((self.run / approval_record.RECORD).exists())
@@ -92,6 +106,7 @@ class ApprovalRecordContract(unittest.TestCase):
                 sources=(self.artifact,),
                 grader_args=(str(self.run), "--draft", str(self.artifact)),
                 content_approved=True,
+                clinician_reply="Approve this entire post.",
             )
         approval_record.record_clinician_posting(
             self.run, skill="discussion-post", submission="post-key"
@@ -124,6 +139,7 @@ class ApprovalRecordContract(unittest.TestCase):
                 sources=(self.artifact,),
                 grader_args=(str(self.run),),
                 content_approved=True,
+                clinician_reply="Approve this entire post.",
             )
 
         record = json.loads(
@@ -146,6 +162,7 @@ class ApprovalRecordContract(unittest.TestCase):
                             self.run, skill=skill, submission="note-key",
                             sources=(self.artifact, other), grader_args=(str(self.run),),
                             content_approved=True,
+                            clinician_reply="Approve this entire post.",
                         )
                     self.assertIn(str(other.resolve()), str(refused.exception))
                     self.assertIn("before entry", str(refused.exception))
@@ -155,6 +172,7 @@ class ApprovalRecordContract(unittest.TestCase):
                         self.run, skill=skill, submission="note-key",
                         sources=(self.artifact, other), grader_args=(str(self.run),),
                         content_approved=True,
+                        clinician_reply="Approve this entire post.",
                     )
                 self.assertTrue(record.exists())
                 self.assertFalse((self.root / "entry-copies").exists())
@@ -166,6 +184,7 @@ class ApprovalRecordContract(unittest.TestCase):
                 self.run, skill="discussion-post", submission="post-key",
                 sources=(self.artifact,), grader_args=(str(self.run),),
                 content_approved=True,
+                clinician_reply="Approve this entire post.",
             )
         self.assertTrue((self.run / approval_record.RECORD).exists())
 
@@ -179,6 +198,7 @@ class ApprovalRecordContract(unittest.TestCase):
                 sources=(self.artifact,),
                 grader_args=(str(self.run),),
                 content_approved=True,
+                clinician_reply="Approve this entire post.",
             )
         approval_record.record_agent_posting(
             self.run, skill="peer-critique", submission="critique.md"

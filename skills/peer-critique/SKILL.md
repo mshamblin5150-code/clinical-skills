@@ -316,9 +316,10 @@ Ask whether the substance is right, whether the register is his, and, separately
 proposed image is approved. Apply the record and draft changes in
 [imagery-proposals.md](../_shared/reference/imagery-proposals.md) and rerun the grader. Only an
 explicit go-ahead authorizes posting.
+Set `clinician_reply` to the clinician's whole approval message, including any conditions.
 At that go-ahead call `approval_record.approve(run, skill="peer-critique",
 submission="critique.md", sources=(run / "critique.md",), grader_args=(str(run),),
-content_approved=True)`. Show its `pregrade_report`; incomplete coverage does not block, while a
+content_approved=True, clinician_reply=clinician_reply)`. Show its `pregrade_report`; incomplete coverage does not block, while a
 finding refuses the record. From this record onward every reply touching the run ends with
 `Run status: <run-key> — <awaiting posting|awaiting posted reading|awaiting AAR|complete|stopped -
 reason>`. Several touched runs each receive their own keyed line, and no classmate name enters it.

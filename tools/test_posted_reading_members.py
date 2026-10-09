@@ -98,11 +98,14 @@ class PostedReadingMembers(unittest.TestCase):
             self.assert_gate_controls(record, lambda: medatrax_posting.completion_gate(run, portal.SUBMISSION, batch=True))
 
     def test_approval_gate_results(self):
-        with tempfile.TemporaryDirectory() as temporary, mock.patch.object(approval_record, '_preflight_grader', return_value=None):
+        with tempfile.TemporaryDirectory() as temporary, mock.patch.object(approval_record, '_preflight_grader', return_value=None), mock.patch.object(
+            approval_record, 'verify_clinician_reply',
+            return_value=approval_record.ReplyVerification('verified', 'synthetic whole reply matched', 4102444800),
+        ):
             run = Path(temporary)
             note = run / 'post.md'
             note.write_bytes(b'approved post')
-            approval_record.approve(run, skill='discussion-post', submission='post', sources=(note,), grader_args=(str(run),), content_approved=True)
+            approval_record.approve(run, skill='discussion-post', submission='post', sources=(note,), grader_args=(str(run),), content_approved=True, clinician_reply='Approve the synthetic post.')
             approval_record.record_agent_posting(run, skill='discussion-post', submission='post')
             record = run / 'reread.md'
             record.write_text('## REREAD: post\nSUBMISSION-SHA256: ' + file_digest.sha256(note) + '\n', encoding='utf-8')

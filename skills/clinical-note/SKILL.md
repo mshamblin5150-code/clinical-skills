@@ -1545,9 +1545,10 @@ Enter a Time Log row only on the clinician's explicit instruction in this run, f
 [batch-shift's Time Log entry route](../batch-shift/SKILL.md#time-log-entry), including its existing-row
 branch, live-form reading, saved-row readback and correction rules. The shift's go-ahead does not
 authorize that write. Record its outcome in the posted reading as that route specifies.
+Set `clinician_reply` to the clinician's whole approval message, including any conditions.
 At the go-ahead call `approval_record.approve(run, skill="clinical-note",
 submission=submission_key, sources=(output_note,),
-grader_args=(str(run), "--note", str(output_note)), content_approved=True)`. Show its
+grader_args=(str(run), "--note", str(output_note)), content_approved=True, clinician_reply=clinician_reply)`. Show its
 `pregrade_report`; incomplete coverage
 does not block, while a finding refuses the record. From this record onward every reply touching
 the run ends with `Run status: <run-key> — <awaiting posting|awaiting posted reading|awaiting
@@ -1556,6 +1557,8 @@ name enters it.
 Once a note is approved, show the clinician the exact change for any change to its text and
 re-approve only on the clinician's new explicit word. The standing go-ahead never covers a
 re-approval.
+Record that re-approval through `approval_record.approve` with `clinician_reply` quoting the new
+reply whole.
 Once the finished note is final, run `python tools/entry_copy.py <finished note path>` and require
 exit 0. It accepts a finished note returned to an existing run after the Plan has been relabeled.
 It refuses any clinician-directed instruction declared by `entry_copy.CLINICIAN_INSTRUCTIONS`

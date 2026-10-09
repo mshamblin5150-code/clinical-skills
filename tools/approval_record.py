@@ -6,10 +6,12 @@ from discussion_artifact import check_posted_reading
 
 from dataclasses import dataclass, replace
 from enum import Enum
+from datetime import datetime, timezone
 from hashlib import sha256
 import importlib
 import json
 import os
+import re
 from pathlib import Path
 import subprocess
 import sys
@@ -37,6 +39,109 @@ SKILLS = frozenset(
         "practicum-case-study",
     }
 )
+
+REPLY_UNREADABLE = "approval reply transcript unreadable"
+
+
+@dataclass(frozen=True)
+class ReplyVerification:
+    state: str
+    reason: str
+    matched_at: float | None = None
+
+
+def verify_clinician_reply(
+    run: Path, reply: str, sources: tuple[Path, ...], *, after: float | None = None,
+    source_modified_at: float | None = None,
+) -> ReplyVerification:
+    """Match a whole human message after the sources and the preceding approval."""
+
+    normalized = " ".join(reply.split())
+    if not normalized:
+        return ReplyVerification("not found", "the whole clinician reply is missing")
+    try:
+        boundary = (max(path.stat().st_mtime for path in sources)
+                    if source_modified_at is None else source_modified_at)
+        if after is not None:
+            boundary = max(boundary, after)
+        discovery = aar_scan.discover_transcripts(run)
+    except (OSError, ValueError):
+        return ReplyVerification("unreadable", "transcript discovery or source time unavailable")
+    unread = bool(discovery.unread)
+    matches: list[float] = []
+    for path in discovery.paths:
+        if "subagents" in {part.casefold() for part in path.parts}:
+            continue
+        try:
+            rows = aar_scan.read_transcript(path)
+        except (OSError, ValueError):
+            unread = True
+            continue
+        if aar_scan._is_codex_subagent(rows):
+            continue
+        for row in rows:
+            value = aar_scan.clinician_text(row)
+            if " ".join(value.split()) != normalized:
+                continue
+            try:
+                timestamp = datetime.fromisoformat(str(row.get("timestamp", "")).replace("Z", "+00:00"))
+                if timestamp.tzinfo is None:
+                    raise ValueError("timestamp has no timezone")
+                written_at = timestamp.astimezone(timezone.utc).timestamp()
+            except (ValueError, OverflowError):
+                unread = True
+                continue
+            if written_at > boundary:
+                matches.append(written_at)
+    if matches:
+        return ReplyVerification("verified", "whole clinician message matched", min(matches))
+    if unread or not discovery.paths:
+        return ReplyVerification("unreadable", "no complete readable transcript population")
+    return ReplyVerification("not found", "no later whole clinician message matches")
+
+
+def _without_reply(report: str, reply: str) -> str:
+    pattern = r"\s+".join(re.escape(part) for part in reply.split())
+    return re.sub(pattern, "[clinician reply withheld]", report) if pattern else report
+
+
+@dataclass(frozen=True)
+class CompletionResult:
+    finding: bool
+    report: str
+    coverage: bool = False
+
+    def __iter__(self):
+        # Preserve the established two-value completion-gate interface.
+        yield self.finding
+        yield self.report
+
+
+def _recheck_replies(
+    run: Path, approvals: list[dict[str, object]], sources: tuple[Path, ...],
+) -> ReplyVerification:
+    after = None
+    unread = False
+    for approval in approvals:
+        matched_at = approval.get("reply_matched_at")
+        if approval.get("reply_verification") == "not verified":
+            reply = approval.get("clinician_reply")
+            if not isinstance(reply, str) or not reply.strip():
+                return ReplyVerification("not found", "recorded whole reply is missing")
+            result = verify_clinician_reply(
+                run, reply, sources, after=after,
+                source_modified_at=approval.get("source_modified_at"),
+            )
+            if result.state == "not found":
+                return result
+            if result.state == "unreadable":
+                unread = True
+            matched_at = result.matched_at
+        if isinstance(matched_at, (float, int)):
+            after = max(after or matched_at, matched_at)
+    if unread:
+        return ReplyVerification("unreadable", "a preceding approval transcript is unreadable")
+    return ReplyVerification("verified", "approval replies checked", after)
 
 
 class PostingRoute(str, Enum):
@@ -141,12 +246,15 @@ def approve(
     sources: tuple[Path, ...],
     grader_args: tuple[str, ...],
     content_approved: bool,
+    clinician_reply: str,
 ) -> ApprovalRecord:
     """Record one content go-ahead after its paired pre-post grader finds nothing."""
 
     root = Path(run).resolve()
     if not content_approved:
         raise ApprovalRecordError("content approval is required")
+    if not isinstance(clinician_reply, str) or not clinician_reply.strip():
+        raise ApprovalRecordError("approval needs the whole clinician reply")
     if not root.is_dir():
         raise ApprovalRecordError("approval record needs an existing run directory")
     if not submission.strip():
@@ -161,14 +269,34 @@ def approve(
             try:
                 entry_copy.check(source.read_text(encoding="utf-8"))
             except (OSError, UnicodeError, ValueError) as failure:
-                raise ApprovalRecordError(
-                    f"Entry copy refused: {source}: {failure}"
-                ) from failure
+                raise ApprovalRecordError(_without_reply(
+                    f"Entry copy refused: {source}: {failure}", clinician_reply,
+                )) from failure
+    payload = _read(root, missing_ok=True)
+    previous = _matching_item(payload, skill, submission)
+    history = list(previous.get("approvals", [])) if previous else []
+    if previous and "clinician_reply" in previous and not history:
+        history.append({name: previous[name] for name in (
+            "clinician_reply", "reply_verification", "reply_reason", "reply_matched_at",
+            "reply_after", "approval_revision", "source_modified_at",
+        ) if name in previous})
+    # Resolve pending earlier gates before accepting a later reply. Otherwise an
+    # unreadable Gate 1 could be matched to Gate 2's message at completion.
+    preceding = _recheck_replies(root, history, resolved_sources)
+    if preceding.state == "not found":
+        raise ApprovalRecordError("a preceding approval reply was not found")
+    after = preceding.matched_at
+    verification = verify_clinician_reply(root, clinician_reply, resolved_sources, after=after)
+    if verification.state == "not found":
+        raise ApprovalRecordError("the clinician approval reply was not found: " + verification.reason)
+    if preceding.state == "unreadable":
+        verification = preceding
     grade_status, grade_report = _pre_post_grade(skill, grader_args)
+    for reply in (clinician_reply, *(row["clinician_reply"] for row in history)):
+        grade_report = _without_reply(grade_report, reply)
     if grade_status not in {0, 2}:
         raise ApprovalRecordError(f"the pre-post grade has a finding: {grade_report}")
 
-    payload = _read(root, missing_ok=True)
     previous_revision = payload.get("approval_revision", 0)
     revision = previous_revision + 1 if isinstance(previous_revision, int) else 1
     digest = source_sha256(resolved_sources)
@@ -181,7 +309,18 @@ def approve(
         "posting_route": PostingRoute.AWAITING.value,
         "approval_revision": revision,
         "pregrade_status": "clean" if grade_status == 0 else "incomplete",
+        "clinician_reply": clinician_reply,
+        "reply_verification": "verified" if verification.state == "verified" else "not verified",
+        "reply_reason": verification.reason,
+        "reply_matched_at": verification.matched_at,
+        "reply_after": after,
+        "source_modified_at": max(path.stat().st_mtime for path in resolved_sources),
     }
+    history.append({name: item[name] for name in (
+        "clinician_reply", "reply_verification", "reply_reason", "reply_matched_at",
+        "reply_after", "approval_revision", "source_modified_at",
+    )})
+    item["approvals"] = history
     current_items = payload.get("items", [])
     items = [
         current
@@ -261,7 +400,7 @@ def record_clinician_posting(run: Path, *, skill: str, submission: str) -> None:
 
 def completion_gate(
     run: Path, skill: str, submission: str | None
-) -> tuple[bool, str]:
+) -> tuple[bool, str] | CompletionResult:
     """Join approved bytes to the posted reading for every requested item."""
 
     label = "the approval record"
@@ -277,6 +416,7 @@ def completion_gate(
     except (ApprovalRecordError, OSError, UnicodeError, ValueError) as failure:
         return True, f"{label}: finding - could not read approval and posted-reading evidence: {failure}"
     by_submission = {reading.artifact: reading for reading in readings}
+    incomplete = False
     for key in keys:
         item = _matching_item(payload, skill, key)
         if item is None:
@@ -300,10 +440,20 @@ def completion_gate(
             return True, f"{label}: finding - {key}'s approved source population is unreadable"
         if current != expected:
             return True, f"{label}: finding - {key}'s approved source fingerprint changed"
+        if "reply_verification" in item:
+            approvals = item.get("approvals", [item])
+            if not isinstance(approvals, list) or not all(isinstance(row, dict) for row in approvals):
+                return True, f"{label}: finding - unreadable approval reply history"
+            result = _recheck_replies(root, approvals, tuple(Path(path) for path in sources))
+            if result.state == "not found":
+                return True, f"{label}: finding - a whole clinician reply was not found"
+            incomplete = incomplete or result.state == "unreadable"
         reading = by_submission.get(key)
         outcomes = check_posted_reading(reading, expected)
         if outcomes:
             return True, f"{label}: finding - {outcomes[0].message}"
+    if incomplete:
+        return CompletionResult(False, f"{label}: incomplete coverage - {REPLY_UNREADABLE}", True)
     return False, f"{label}: clean"
 
 
@@ -315,9 +465,13 @@ def apply_completion_gate(
 ) -> run_grader.Grade[object]:
     """Add the approval-to-posted-reading join to one skill's terminal grade."""
 
-    failed, report = completion_gate(run, skill, submission)
+    result = completion_gate(run, skill, submission)
+    failed, report = result
+    incomplete = getattr(result, "coverage", False)
     return replace(
         grade,
         findings_failed=grade.findings_failed or failed,
+        coverage_failed=grade.coverage_failed or incomplete,
+        coverage_limbs=grade.coverage_limbs + ((REPLY_UNREADABLE,) if incomplete else ()),
         reports=(*grade.reports, report),
     )
