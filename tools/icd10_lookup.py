@@ -49,6 +49,7 @@ and ``test_procedure_codes.py`` own that claim over committed excerpts.
 from __future__ import annotations
 
 import argparse
+from contextlib import closing
 import sqlite3
 import sys
 from pathlib import Path
@@ -90,6 +91,15 @@ def describe(connection: sqlite3.Connection, code: str) -> Code | None:
         f"{SELECT_CODE} WHERE code = ?", (normalize(code),)
     ).fetchone()
     return None if row is None else _code(row)
+
+
+def refusal_descriptor_matches(code: str, text: str) -> bool:
+    """A refusal begins with the official long descriptor, collapsing whitespace."""
+    with closing(open_database()) as connection:
+        descriptor = describe(connection, code)
+    return descriptor is not None and " ".join(text.split()).startswith(
+        " ".join(descriptor.long.split())
+    )
 
 
 def ancestors(code: str) -> list[str]:

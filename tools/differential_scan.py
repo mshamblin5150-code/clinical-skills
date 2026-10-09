@@ -230,6 +230,7 @@ import medatrax_posting
 from discussion_artifact import PostedReadingOutcome
 import approval_record
 import artifact_repairs
+import icd10_lookup
 
 EXPECTED_COMPLETION_CHECKS = (aar_scan.EXPECTED_ROW,)
 import coverage_registry
@@ -382,25 +383,6 @@ DRAFT_SOURCE_CLASSES = {"draft"}
 # second place for it to go stale.
 NOT_VALIDATED_AGAINST = (
     (
-        "the exit-1 path on committed input",
-        "**The branch has still never fired on output nobody edited**, and that is "
-        "now the whole of this row rather than half of it. What used to be the "
-        "other half was that the path could not be reached at all: every committed "
-        "directory was turned away before a single entry was parsed, so an empty "
-        "``findings`` there said nothing was read rather than nothing violates. "
-        "``fixtures/slot-form-run`` retired that -- each of its notes parses slot "
-        "entries **and** welded refusals, so one displaced code in any of them "
-        "trips the branch, and the merge reads the directory. **What is missing is "
-        "a committed run that genuinely violates, and it should stay missing**: a "
-        "record edited until the checker complains is material authored to make a "
-        "check pass its own examination, and #162's CI comment names the trap. So "
-        "the branch is driven by **mutating** that run inside the suite, where the "
-        "planted defect is legible in the test instead of baked into the record. "
-        "``research_ledger.py`` and ``reference_scan.py`` keep the harder version "
-        "of the old claim -- what they read is an assertion and an essay composed "
-        "about a person, and neither has a redacted shape anyone could commit.",
-    ),
-    (
         "the aggregate of the exit-2 limbs",
         "Each way of not having scanned is separately correct and "
         "separately documented above, and none of them says what they come to "
@@ -409,15 +391,9 @@ NOT_VALIDATED_AGAINST = (
         "and still worth declaring: most of the committed directories a reader "
         "would try are turned away, so checking one limb at a time still yields a "
         "coverage figure this tool has not earned. "
-        "``fixtures/filled-anchor/run-2`` remains the sharp case -- a committed "
-        "artifact composed in the required welded shape that belongs to "
-        "``icd10-cpt``, so this scanner is aimed elsewhere deliberately. **It was "
-        "*the* one until ``slot-form-run`` landed, and the first rewrite of this "
-        "row kept the exclusivity while the same commit falsified it** -- the "
-        "declared-limits object overclaiming about the tree it ships in, which is "
-        "the defect #162 already records this rule committing once. Caught by the "
-        "spec axis; the reason-bind cannot see it, because a word like *sole* is "
-        "one the prose surfaces never copy.",
+        "``fixtures/filled-anchor/notes`` still has no readable differential. "
+        "The worksheet run-2 has descriptor findings despite its unread slot "
+        "population; the finding takes precedence over exit 2.",
     ),
     (
         "partial coverage inside a run",
@@ -562,10 +538,15 @@ class Note:
     source_classes_read: int = 0
     source_class_tails: int = 0
     threshold_sheet_failures: tuple[ThresholdSheetFailure, ...] = ()
+    refusal_findings: tuple[Finding, ...] = ()
 
 
 REFUSED_CODE = "refused-code-in-differential-slot"
-ROWS = {REFUSED_CODE: "clinical-note drift row 22 - refused code in slot"}
+UNOFFICIAL_DESCRIPTOR = "unofficial-refusal-descriptor"
+ROWS = {
+    REFUSED_CODE: "clinical-note drift row 22 - refused code in slot",
+    UNOFFICIAL_DESCRIPTOR: "clinical-note drift row 22 - official refusal descriptor",
+}
 KINDS = tuple(ROWS)
 
 
@@ -1252,6 +1233,16 @@ def read_note(text: str) -> Note:
     proposed_items = _read_proposed_items(guideline_lines)
     guideline = _guideline_floor(proposed_items)
     refused, spans = _refusals(lines)
+    refusal_findings: list[Finding] = []
+    for index, clauses in spans.items():
+        for clause in clauses:
+            code = CODE_TOKEN.search(lines[index], clause.start, clause.end)
+            if code is not None:
+                descriptor = lines[index][code.end():clause.end].strip()
+                if not icd10_lookup.refusal_descriptor_matches(code.group(0), descriptor):
+                    refusal_findings.append(
+                        Finding(UNOFFICIAL_DESCRIPTOR, code.group(0), descriptor, index + 1)
+                    )
     conclusion = _conclusion_lines(lines)
     unwelded = sum(
         len(BARE_MARK.findall(REFUSAL_HEADING.sub("", line))) for line in lines
@@ -1305,12 +1296,13 @@ def read_note(text: str) -> Note:
         source_classes_read=guideline.source_classes_read,
         source_class_tails=guideline.source_class_tails,
         threshold_sheet_failures=guideline.parse_failures,
+        refusal_findings=tuple(refusal_findings),
     )
 
 
 def note_findings(note: Note) -> list[Finding]:
     """Row 22's slot limb, applied to one note."""
-    return [
+    return list(note.refusal_findings) + [
         Finding(kind=REFUSED_CODE, code=entry.code, label=entry.label, line=entry.line)
         for entry in note.entries
         if entry.code in note.refused
@@ -1406,7 +1398,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
     # A zero is earned only where the limb had a population to inspect. Another
     # limb's finding must not turn absence here into a plausible clean count.
     row_22 = (
-        str(len(scan.findings))
+        str(sum(finding.kind == REFUSED_CODE for finding in scan.findings))
         if scan.differential_entries or scan.conclusion_entries
         else "NOT RUN"
     )
@@ -1441,6 +1433,8 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         "  the wide Assessment count still needs a reader.",
         "",
         f"  row 22 - refused code in a slot  {row_22}",
+        "  row 22 - unofficial refusal descriptor  "
+        + str(sum(finding.kind == UNOFFICIAL_DESCRIPTOR for finding in scan.findings)),
         f"  row 13 floor - numbered item without a code  {row_13}",
         f"  row 23 floor - ranking shape violations  {row_23}",
         "  declared floor: clinical likelihood order still needs a reader.",
@@ -1569,7 +1563,7 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
         messages = []
         if scan.findings:
             messages.append(
-                f"{len(scan.findings)} entry/entries hold a code the note refused,"
+                f"{len(scan.findings)} refusal descriptor or refused-code slot finding(s),"
                 " failing clinical-note drift row 22."
             )
         if scan.missing_code_items:

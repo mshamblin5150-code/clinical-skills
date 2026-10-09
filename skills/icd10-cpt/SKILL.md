@@ -410,8 +410,11 @@ brief, then grade that file before reporting done:
 ```bash
 python tools/anchor_scan.py <run>/worksheets --notes <run>/notes --agreement-brief --stem <stem> --output <run>/agreement-self/<stem>-brief.json
 python tools/anchor_scan.py <run>/worksheets --notes <run>/notes --agreement-read <run>/agreement-self/<stem>.json --stem <stem>
+python tools/refusal_scan.py <run>/worksheets --stem <stem>
 ```
 
+Run the refusal command when the pass's worksheet carries refusal records and require exit 0
+before handoff. With none, record that this check has no subjects. It reads only that stem.
 Use the actual note directory and create the private `agreement-self/` directory first. Supply
 `--rendered-descriptors <run>/agreement/cpt-rendered-pages.json` to both commands when that record
 exists. A requested stem absent from the paired files is unread, never a clean self-grade.

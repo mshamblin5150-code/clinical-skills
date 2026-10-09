@@ -4,7 +4,7 @@
 The scanner reads the icd10-cpt step-4 refusal heading in all three supported forms. A refusal
 inside that block must weld ``NOT CODED`` to its code and nonempty descriptor,
 state what would establish the code, and name what the encounter supports instead.
-It cannot judge whether descriptor text is official. Codes in the differential are
+The descriptor must begin with the official ICD-10-CM long text. Codes in the differential are
 outside the block and do not inflate the refusal count.
 
 Default output is counts only. ``--show`` prints code-level findings and is PHI on
@@ -21,6 +21,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import run_grader
+import icd10_lookup
 from run_grader import EvidenceDisposition
 from worksheet_grammar import ANY_HEADING, DIFFERENTIAL_HEADING, REFUSAL_HEADING, heading_counts
 
@@ -41,6 +42,7 @@ MISSING_SUBSTITUTE = "missing proposed instead"
 MISSING_BLOCK = "missing refusal block"
 PROPOSED_AND_REFUSED = "proposed and refused"
 MALFORMED_MARK = "malformed NOT CODED mark"
+UNOFFICIAL_DESCRIPTOR = "unofficial refusal descriptor"
 
 DECLARED_LIMITS = (
     (
@@ -66,12 +68,6 @@ DECLARED_LIMITS = (
         EvidenceDisposition.DECLARED_READING,
     ),
     (
-        "whether the refused descriptor is the official tabular text",
-        "Comparing a descriptor to the tabular belongs to icd10_lookup; the row "
-        "here is that a refusal says something rather than that what it says is right.",
-        EvidenceDisposition.DECLARED_READING,
-    ),
-    (
         "whether the refusal itself is correct",
         "A refusal whose own needs clause concedes the encounter documents the "
         "finding still parses, so a code wrongly withheld is invisible to every row.",
@@ -87,6 +83,7 @@ ROWS = {
     MISSING_BLOCK: "icd10-cpt step 4 - refusal block",
     PROPOSED_AND_REFUSED: "icd10-cpt step 4 - proposal/refusal separation",
     MALFORMED_MARK: "icd10-cpt step 4 - NOT CODED record",
+    UNOFFICIAL_DESCRIPTOR: "icd10-cpt step 4 - official refusal descriptor",
 }
 KINDS = tuple(ROWS)
 
@@ -243,6 +240,8 @@ def worksheet_findings(sheet: Worksheet) -> list[Finding]:
         findings.append(Finding(MISSING_BLOCK))
     findings.extend(Finding(MALFORMED_MARK) for _ in range(sheet.malformed_marks))
     for refusal in sheet.refusals:
+        if not icd10_lookup.refusal_descriptor_matches(refusal.code, refusal.descriptor):
+            findings.append(Finding(UNOFFICIAL_DESCRIPTOR, refusal.code))
         if not refusal.has_needs:
             findings.append(Finding(MISSING_NEEDS, refusal.code))
         if not refusal.has_substitute:
@@ -301,7 +300,20 @@ def _load(parsed: run_grader.Parsed) -> Source:
     directory = Path(parsed.source)
     if not directory.is_dir():
         raise run_grader.SourceError(f"no directory named {directory.name}")
-    texts = tuple(run_grader.read_run_directory(directory))
+    stem = parsed.value("--stem")
+    if stem is None:
+        texts = tuple(run_grader.read_run_directory(directory))
+    else:
+        paths = [
+            path for path in directory.glob("*.md")
+            if path.is_file() and path.stem == stem and path.stem.lower() != "readme"
+        ]
+        try:
+            texts = tuple(
+                path.read_text(encoding="utf-8", errors="replace") for path in paths
+            )
+        except OSError as failure:
+            raise run_grader.SourceError("could not read the requested worksheet") from failure
     if not texts:
         raise run_grader.SourceError(f"no worksheets found in {directory.name}")
     return Source(directory, texts)
@@ -324,8 +336,8 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
 
 
 GRADER = run_grader.Grader(
-    usage="usage: python tools/refusal_scan.py <worksheet-directory> [--show]",
-    options=(run_grader.Option("--show"),),
+    usage="usage: python tools/refusal_scan.py <worksheet-directory> [--stem <stem>] [--show]",
+    options=(run_grader.Option("--show"), run_grader.Option("--stem", takes_value=True)),
     load=_load,
     grade=_grade,
     format_report=format_report,

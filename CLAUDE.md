@@ -536,16 +536,16 @@ code, and name what the encounter supports instead. **Codes in the differential 
 and do not inflate the count**, which is the narrowing that keeps the denominator honest: a note that
 proposes ten codes and refuses one is not a note with eleven refusals.
 
-**What it cannot reach is whether the descriptor text is official.** Checking that wording against
-the tabular belongs to `icd10_lookup.py`; this command requires a substantive refusal but cannot
-judge its clinical or coding accuracy. `refusal_scan.ROWS` owns the row vocabulary and
+**The refusal text begins with the official descriptor.** The shared comparison reads the
+ICD-10-CM long descriptor through `icd10_lookup.py` and collapses whitespace before comparing.
+The command still cannot judge the refusal's clinical or coding accuracy. `refusal_scan.ROWS` owns the row vocabulary and
 `refusal_scan.DECLARED_LIMITS` owns the complete coverage boundary; this section copies no row from
 either.
 
 **Corrected 2026-09-01, hours after this section was written.** It read *"The module carries no
 declared-limits object, so unlike its siblings the sentence above is the whole of what a clean run
 does not establish."* **That was false, and it was measured rather than argued.** Five distinct
-shapes come back clean, and only one of them is the descriptor sentence:
+shapes came back clean at that time, and one was the descriptor sentence:
 
 ```
 one refusal, four coded with nothing establishing them   findings 0
