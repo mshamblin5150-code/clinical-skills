@@ -523,9 +523,12 @@ For a standalone run, first save the rendered CPT page record that section requi
 
 ```bash
 python tools/anchor_scan.py <run>/worksheets --notes <run> --rendered-descriptors <run>/agreement/cpt-rendered-pages.json --agreement-read <run>/agreement-self/<stem>.json --stem <stem>
+python tools/refusal_scan.py <run>/worksheets --stem <stem>
 ```
 
-For this standalone run, exit 0 gates creation of the blind agreement brief. A batch encounter
+For this standalone run, exit 0 gates creation of the blind agreement brief. Run the refusal
+command when the worksheet carries refusal records and require exit 0 before handoff; with none,
+record that the check has no subjects. A batch encounter
 follows that section's batch handoff rule and [batch-shift's roll-up](../batch-shift/SKILL.md#6-roll-up-the-shift).
 For the standalone run, then create the blind agreement brief. This **Second reader** applies
 [standing rule 6](../../AGENTS.md), first reads [sourcing.md](../_shared/reference/sourcing.md), and
@@ -970,6 +973,8 @@ It binds both branches, which is why it lives here rather than in either templat
 ### The shape of the differential
 
 **The differential is a numbered list, ranked most likely first, and `1.` is the favored entry.** The numerals are written rather than implied. A grader reading the school's *"3 differential diagnoses"* counts items, and a ranking nobody can see is a ranking that was not made. `Favored.` and `Less likely.` stay on the entries as well — drift row 22 exempts the favored entry from its naming limb, and something has to say which entry that is on a branch where position alone would have to carry it.
+
+**A code label states the official descriptor or reaches its code through the alphabetic index.** Before saving a label, check an index route with `python tools/icd10_lookup.py --index "<final index term>"`, naming the path's last term rather than the label's main word. When index words are needed, put them first and keep the clinician's words after a comma: `Seasonal allergic rhinitis, seasonal allergies - J30.2`. A brand-only allergy-status label gains the drug-class words with his wording beside them. Index words only narrow his diagnosis by site, trimester, season, or drug class; they never name a different condition. Where no wording of his diagnosis reaches the chosen code, select a code it reaches.
 
 **The code pin is required on both branches and the rationale position is branch-specific.** SOAP writes `Name - CODE: rationale` on one line. H&P writes the clean `Name - CODE` pair in the Differential and moves the rationale to the matching MDM item. The hyphen pinning a code to its label is the *Punctuation* rule above; parentheses or a colon in that slot fail row 23. Issue [#162](https://github.com/mshamblin5150-code/clinical-skills/issues/162); evidence and counts remain in withheld run records.
 

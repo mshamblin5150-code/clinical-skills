@@ -1952,59 +1952,13 @@ class TheValidationSetsLimitsAreDeclared(unittest.TestCase):
         self.assertTrue(found, "the instrument is dead: no committed directory was read")
         return found
 
-    def test_no_committed_input_reaches_the_failure_path(self):
-        """The first row, and it says less than it used to on purpose.
-
-        **Two earlier versions of this were each wrong in the direction the row was
-        wrong in.** The first asserted ``scan.findings == ()`` over every committed
-        directory, which passed because **not one of them parsed a differential
-        entry** -- ``findings`` was empty for want of input rather than for want of
-        a violation, a check that cannot fail for the reason it names. The second
-        repaired that by asserting no committed directory holds an entry *and* a
-        refusal at once, with the message telling the next reader to re-examine the
-        row when one did. ``fixtures/slot-form-run`` is that day, and the tripwire
-        fired as written.
-
-        **So what is asserted now is the pair the row rests on.** Reachability:
-        some committed directory parses both halves, so the branch has real
-        material to fire on and CI carries it. Silence: no committed directory
-        produces a finding, so the branch has still never fired on a record nobody
-        edited. The second half is the surviving limit; the first is what retired
-        the other half of it.
-
-        The liveness guards count what was **parsed**, never what was read -- files
-        read is exactly the exit-0/exit-2 distinction this module exists to draw,
-        and measuring that instead is how the first version went quiet.
-        """
-        self.assertIn("the exit-1 path on committed input", self.keys())
-        reachable = []
-        entries = refusals = 0
-        for directory in self.committed_directories():
-            notes = [ds.read_note(t) for t in run_grader.read_run_directory(directory)]
-            here_entries = sum(len(note.entries) for note in notes)
-            here_refusals = sum(len(note.refused) for note in notes)
-            entries += here_entries
-            refusals += here_refusals
-            if here_entries and here_refusals:
-                reachable.append(directory.name)
-            with self.subTest(directory=directory.name):
-                self.assertEqual(
-                    ds.survey(notes).findings,
-                    (),
-                    f"{directory.name} now violates row 22, so the exit-1 branch has"
-                    " fired on committed output -- the first row of"
-                    " NOT_VALIDATED_AGAINST is retired rather than narrowed",
-                )
-        # Neither half is zero across the walk, so the silence above is a statement
-        # about material that was actually parsed.
-        self.assertTrue(entries, "no committed directory parsed an entry")
-        self.assertTrue(refusals, "no committed directory parsed a refusal")
-        self.assertTrue(
-            reachable,
-            "no committed directory holds both an entry and a refusal, so the"
-            " failure path is unreachable on committed input again -- the first row"
-            " of NOT_VALIDATED_AGAINST claims more than the tree supports",
-        )
+    def test_descriptor_findings_retire_the_committed_failure_path_limit(self):
+        self.assertNotIn("the exit-1 path on committed input", self.keys())
+        directory = self.FIXTURES / "filled-anchor" / "run-2"
+        notes = [ds.read_note(t) for t in run_grader.read_run_directory(directory)]
+        findings = ds.survey(notes).findings
+        self.assertEqual(["C49.11", "J11.1", "S60.451A", "J11.1", "J11.1", "J11.1", "J11.1"], [f.code for f in findings])
+        self.assertTrue(all(f.kind == ds.UNOFFICIAL_DESCRIPTOR for f in findings))
 
     def test_the_filled_anchor_sets_are_both_still_refused(self):
         """The second row -- the aggregate the docstring's four limbs never state.
@@ -2035,7 +1989,7 @@ class TheValidationSetsLimitsAreDeclared(unittest.TestCase):
         for name in ("notes", "run-2"):
             with self.subTest(name=name):
                 self.assertEqual(
-                    ds.main([str(self.FIXTURES / "filled-anchor" / name)]), 2
+                    ds.main([str(self.FIXTURES / "filled-anchor" / name)]), 1 if name == "run-2" else 2
                 )
 
     def test_a_committed_sheet_exercises_the_draft_backed_firing_path(self):

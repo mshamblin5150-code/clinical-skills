@@ -10,6 +10,8 @@ from pathlib import Path
 
 import refusal_scan as scan
 import run_grader
+import icd10_lookup
+from code_set_database_test_support import ICD10_DATABASE_SHA256, assert_code_set_database_digest
 from grader_conformance import (
     EmptyPopulationInput,
     UnreadRemainderInput,
@@ -323,6 +325,56 @@ class TheCommandReportsWhetherItScanned(unittest.TestCase):
         self.assertIn("no worksheets found", output.getvalue())
 
 
+class OfficialRefusalDescriptors(unittest.TestCase):
+    def test_both_scanners_grade_a_mutated_real_refusal(self):
+        import differential_scan
+
+        assert_code_set_database_digest(icd10_lookup.DEFAULT_DATABASE, ICD10_DATABASE_SHA256, "ICD-10-CM")
+        path = REPO_ROOT / "fixtures" / "filled-anchor" / "run-2" / "case-01.md"
+        sheet = scan.read_worksheet(path.read_text(encoding="utf-8"))
+        original = sheet.refusals[0]
+        database = icd10_lookup.open_database()
+        try:
+            descriptor = icd10_lookup.describe(database, original.code).long
+        finally:
+            database.close()
+        for text, expected in ((descriptor, 0), ("A paraphrased diagnosis", 1), ("  ".join(descriptor.split()), 0)):
+            with self.subTest(text=text):
+                body = f"NOT CODED: {original.code} {text}, nothing established it."
+                note = differential_scan.read_note("Differential:\n1. Pain in right leg - M79.604: favored.\n" + body)
+                findings = differential_scan.note_findings(note)
+                self.assertEqual(expected, len(findings))
+                refused = refusal(code=original.code, descriptor=text)
+                findings = scan.worksheet_findings(scan.read_worksheet(worksheet(refused)))
+                self.assertEqual(expected, len(findings))
+
+    def test_paraphrased_descriptor_exits_one(self):
+        runner = TheCommandReportsWhetherItScanned()
+        self.assertEqual(1, runner.run_over({"case-01.md": worksheet(refusal(descriptor="Bone infection"))})[0])
+
+    def test_stem_filter_excludes_a_siblings_unfinished_worksheet(self):
+        runner = TheCommandReportsWhetherItScanned()
+        files = {
+            "case-01.md": worksheet(refusal()),
+            "case-02.md": worksheet(refusal(descriptor="Bone infection")),
+        }
+        self.assertEqual(0, runner.run_over(files, "--stem", "case-01")[0])
+        self.assertEqual(1, runner.run_over(files, "--stem", "case-02")[0])
+        self.assertEqual(2, runner.run_over(files, "--stem", "absent")[0])
+
+    def test_synthetic_refusals_and_mentions(self):
+        import differential_scan as ds
+
+        for descriptor, expected in (("Osteomyelitis, unspecified", 0), ("Bone infection", 1), ("Osteomyelitis,\t unspecified, reason", 0)):
+            body = f"NOT CODED: M86.9 {descriptor}"
+            with self.subTest(descriptor=descriptor):
+                self.assertEqual(expected, len(ds.note_findings(ds.read_note(body))))
+                self.assertEqual(expected, len(scan.worksheet_findings(scan.read_worksheet(worksheet(refusal(descriptor=descriptor))))))
+                self.assertEqual([], ds.note_findings(ds.read_note(f"The form is `{body}`.")))
+        body = "NOT CODED: M86.9 Bone infection; NOT CODED: J02.0 Streptococcal pharyngitis, reason"
+        self.assertEqual(["M86.9"], [f.code for f in ds.note_findings(ds.read_note(body))])
+
+
 class TheCommittedRunPinsTheWalkedRow(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -339,8 +391,12 @@ class TheCommittedRunPinsTheWalkedRow(unittest.TestCase):
         self.assertEqual(self.scan.per_worksheet, (6, 1, 1, 3, 3, 1, 9, 8, 3, 8, 2, 7))
         self.assertEqual(self.scan.refusals, 52)
 
-    def test_the_walked_row_is_clean(self):
-        self.assertEqual(self.scan.findings, ())
+    def test_the_preserved_run_has_seven_descriptor_findings(self):
+        self.assertEqual(
+            [finding.code for finding in self.scan.findings],
+            ["10120", "90715", "C49.11", "J11.1", "J11.1", "J11.1", "J11.1"],
+        )
+        self.assertTrue(all(finding.kind == scan.UNOFFICIAL_DESCRIPTOR for finding in self.scan.findings))
         self.assertEqual(self.scan.off_template_headings, 10)
         self.assertEqual(self.scan.unread_remainder, 0)
 
@@ -389,8 +445,6 @@ class EveryDeclaredLimitIsMeasuredAndBound(unittest.TestCase):
             BLOCK.replace("a documented wheeze or a prior diagnosis", "more"),
         "whether the proposed substitute is the right code for the encounter":
             BLOCK.replace("J06.9, which the encounter supports", "S72.001A, a femur fracture"),
-        "whether the refused descriptor is the official tabular text":
-            BLOCK.replace("Unspecified asthma, uncomplicated", "A completely made up descriptor"),
         "whether the refusal itself is correct":
             BLOCK.replace("a documented wheeze or a prior diagnosis",
                           "nothing, the note documents expiratory wheeze"),
