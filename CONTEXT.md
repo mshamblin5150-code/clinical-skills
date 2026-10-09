@@ -307,8 +307,12 @@ A working copy of a [[Claim ledger]] kept beside it in its run directory — tak
 _Avoid_: working ledger, staged ledger, backup ledger, draft ledger
 
 **Claim heading**:
-The first line of a [[Claim record]]: the claim the graded document will make, including any number it will state. It is a working statement before research, corrected wherever its source does not support it, and a heading changed after its refutation is a new claim.
+The first line of a [[Claim record]]: the claim the graded document will make, including any number it will state. Before research it states the question the research must answer; once the record returns it is rewritten as the claim in the source's own words, and only that form is refuted, cited or drafted from. A heading changed after its refutation is a new claim.
 _Avoid_: claim question, claim title, prompt
+
+**Broadening**:
+A [[Claim heading]] or restatement that claims more than its source states: a dropped qualifier on the subject, a wider population, an added exception, link or equivalence, or a stronger modality. A broadening is refuted; a claim narrower than its source is still true and stands. It compares a record with its source, where a drifted sentence in a [[Heading read]] compares a draft with its heading.
+_Avoid_: overstatement, slight narrowing, loose restatement
 
 **Tested heading**:
 The digest of a [[Claim heading]] as it stood when its refutation was taken, kept in the refutation so that the refutation expires the moment the heading changes. Only whitespace is ignored; a change of case or punctuation is a change of claim. It says the refutation was taken against the heading now standing, never that the refuter actually tested it.
