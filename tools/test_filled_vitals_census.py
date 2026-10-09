@@ -55,9 +55,9 @@ class TheDeclaredLimitsObjectOwnsBothProseSurfaces(unittest.TestCase):
                 self.assertEqual(1, surface.count(self.POINTER))
                 self.assertEqual((), bind(fvc.DECLARED_LIMITS, surface, mode=NAMING))
 
-    def test_the_partition_is_one_declared_reading_and_seven_behaviors(self):
+    def test_the_partition_is_two_declared_readings_and_seven_behaviors(self):
         dispositions = [row[2] for row in fvc.DECLARED_LIMITS]
-        self.assertEqual(1, dispositions.count(run_grader.EvidenceDisposition.DECLARED_READING))
+        self.assertEqual(2, dispositions.count(run_grader.EvidenceDisposition.DECLARED_READING))
         self.assertEqual(7, dispositions.count(run_grader.EvidenceDisposition.BEHAVIOR))
         self.assertTrue(all(subject and reason for subject, reason, _ in fvc.DECLARED_LIMITS))
 
@@ -1178,13 +1178,50 @@ class TheSlotFormRunCarriesTheMeasuredPartialRead(unittest.TestCase):
         )
         self.assertEqual(1, census.unread_remainder)
 
-    def test_the_run_exits_not_scanned(self):
-        self.assertEqual(2, fvc.main([str(self.RUN)]))
+    def test_the_run_exits_one_on_a_measured_bmi_finding(self):
+        """``hedged-dx-case-03`` predates the committed CDC calculator (#123).
+
+        Its unread decimal height would exit 2 alone; the BMI row's finding
+        outranks it on ``differential_scan.py``'s ordering, and the record is
+        not edited to make either go away.
+        """
+        census = fvc.survey(run_grader.read_run_directory(self.RUN))
+        self.assertEqual((2, 1), (census.bmi_graded, census.bmi_missing))
+        self.assertEqual(1, fvc.main([str(self.RUN)]))
 
     def test_its_pressures_clear_the_tilt_bar(self):
-        """So the exit status above is the heights and nothing else."""
+        """So the tilt bar contributes nothing to the exit status above."""
         census = fvc.survey(run_grader.read_run_directory(self.RUN))
         self.assertFalse(fvc.tilt_beyond_chance(census.abnormal_pressures, census.pressures))
+
+
+class TheBmiRowReadsGivenAndFilledValuesAlike(unittest.TestCase):
+    """ADR 0309 ruling 2, driven through ``survey`` and ``main``."""
+
+    OWED = "# Note 1, 45-year-old male\n\nVS: Ht 70 in, Wt 185 lb\n\n1. Bronchitis - J20.9\n"
+    CODED = OWED + "2. Overweight - E66.3 with BMI 26.0-26.9, adult - Z68.26\n"
+    NORMAL = "# Note 2, 32-year-old male\n\nVS: Ht 69 in, Wt 160 lb\n"
+
+    def test_a_missing_code_is_a_bmi_finding_and_a_coded_note_is_not(self):
+        census = fvc.survey([self.OWED, self.CODED, self.NORMAL])
+        self.assertEqual((3, 2, 1), (census.bmi_read, census.bmi_graded, census.bmi_missing))
+        self.assertEqual(["BMI"], [finding.kind for finding in census.findings])
+
+    def test_a_graded_bmi_makes_a_set_with_nothing_filled_gradeable(self):
+        census = fvc.survey([self.CODED])
+        self.assertTrue(census.gradeable)
+        self.assertEqual((), census.findings)
+
+    def test_the_command_exits_one_and_the_report_carries_counts_only(self):
+        with tempfile.TemporaryDirectory() as directory:
+            run = Path(directory)
+            (run / "note-1.md").write_text(self.OWED, encoding="utf-8")
+            stdout, stderr = io.StringIO(), io.StringIO()
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                status = fvc.main([str(run)])
+        self.assertEqual(1, status)
+        self.assertIn("lacking a code that band owes        1", stdout.getvalue())
+        self.assertNotIn("Z68.26", stdout.getvalue() + stderr.getvalue())
 
 
 if __name__ == "__main__":

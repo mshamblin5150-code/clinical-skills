@@ -297,7 +297,7 @@ shift.
 python tools/filled_vitals_census.py <the run directory>
 ```
 
-It counts declared-filled values only, prints no value unless `--show` asks, and exits non-zero when two notes share a filled body. **Its output is for you, not for the Review sheet** — the roll-up is working output, and [step 7](#7-build-the-review-sheet) already says which half of that leaves the machine.
+Its vital rows count declared-filled values only. Its BMI row computes every note's BMI from the height and weight it states and fails a note missing the `Z68` band and `E66` code that BMI owes (ADR 0309). It prints no value unless `--show` asks, and exits non-zero when two notes share a filled body or a BMI code is missing. **Its output is for you, not for the Review sheet** — the roll-up is working output, and [step 7](#7-build-the-review-sheet) already says which half of that leaves the machine.
 
 The glossary candidates are the compounding part. Tokens that appeared more than once are the ones worth adding — offer to add them, and the next shift needs less input than this one. **They go to `scratch/shorthand.md`, not to [GLOSSARY.md](../clinical-note/GLOSSARY.md)**, unless the token is one the whole field writes: a form harvested from one clinician's day file is that clinician's until something says otherwise. [GLOSSARY.md](../clinical-note/GLOSSARY.md)'s *Two glossaries* section is the rule, and this roll-up is the instrument [setup-clinical-skills](../setup-clinical-skills/SKILL.md) step 9 points back at for growing the per-account file.
 
@@ -350,6 +350,16 @@ When the clinician has delegated pre-approval questions, settle this item from t
 (no record means new) and name that patient in the go-ahead message: coded new, the shorthand
 mentions an earlier visit, and saying `established` changes it. A change re-renders the affected
 note and follows the existing approval rules.
+
+**A delegated answer never decides what a written rule already settles** (ADR 0309). When the
+clinician delegates open questions, a delegate answers only the question kinds this block lists,
+less the status question above. Settle every other question by the written rule that governs it,
+quoted from this repository; an answer that contradicts a quoted rule is not applied. Where no
+written rule governs, the delegate may answer, and the go-ahead message names that answer. Record
+each such question in the run's `delegated-answers.md`: one `## QUESTION:` record with
+`RULE: <repository path>: "<the governing sentence, verbatim>"` or `RULE: none found`, and
+`ANSWER:` stating what the run did. The completion grader refuses a quoted rule the cited file
+does not contain.
 
 It is batch-atomic. Before rendering, create one private manifest naming every encounter in exact
 order. Each record carries its stable id, one-based order, final ICD-10-CM, E/M, CPT, and HCPCS

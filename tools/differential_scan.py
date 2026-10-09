@@ -222,6 +222,7 @@ from pathlib import Path
 
 import run_grader
 import aar_scan
+import delegated_answers
 import medatrax_posting
 from discussion_artifact import PostedReadingOutcome
 import approval_record
@@ -1645,14 +1646,19 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
         source.directory, _parsed.value("--submission"),
         chain_paths + tuple(sorted((source.directory / "worksheets").glob("*.md")))
     )
+    delegated_failed, delegated_report = delegated_answers.completion_gate(
+        source.directory, _parsed.value("--submission")
+    )
     grade = run_grader.Grade(
         scan=scan,
         source=source.directory.name,
-        findings_failed=has_findings or aar_failed or posting_failed or chain_failed,
+        findings_failed=(
+            has_findings or aar_failed or posting_failed or chain_failed or delegated_failed
+        ),
         coverage_failed=coverage_failed,
         coverage_limbs=tuple(coverage_limbs),
         diagnostics=tuple(diagnostics),
-        reports=(aar_report, posting_report, chain_report),
+        reports=(aar_report, posting_report, chain_report, delegated_report),
     )
     return approval_record.apply_completion_gate(
         grade, source.directory, "clinical-note", _parsed.value("--submission")
