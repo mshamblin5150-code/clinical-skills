@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import grader_conformance as attribution_kit
 import io
 import tempfile
 import unittest
@@ -227,7 +228,7 @@ class TheCommandReportsWhetherItScanned(unittest.TestCase):
         )
         status, report = self.run_over({"case-01.md": second})
         self.assertEqual(2, status)
-        self.assertIn("unread remainder 2", report.splitlines())
+        self.assertIn("unread remainder 2 (file 1 of 1 x2)", report.splitlines())
 
     def test_a_heading_inside_the_block_exposes_the_mark_after_it(self):
         hidden = worksheet(
@@ -237,7 +238,7 @@ class TheCommandReportsWhetherItScanned(unittest.TestCase):
         )
         status, report = self.run_over({"case-01.md": hidden})
         self.assertEqual(2, status)
-        self.assertIn("unread remainder 1", report.splitlines())
+        self.assertIn("unread remainder 1 (file 1 of 1)", report.splitlines())
 
     def test_no_refusals_is_unscanned(self):
         stderr = io.StringIO()
@@ -415,6 +416,18 @@ class TheSkillStillStatesTheRow(unittest.TestCase):
         self.assertIn("NOT CODED: <code and official descriptor>", text)
         self.assertIn("needs: <the result that would establish it>", text)
         self.assertIn("proposed instead: <the code the encounter does document>", text)
+
+
+
+def artifact_attribution_input() -> attribution_kit.ArtifactAttributionInput:
+    return attribution_kit.ArtifactAttributionInput(
+        worksheet(refusal(needs=None)),
+        "findings",
+        worksheets=True,
+    )
+
+
+ArtifactAttributionConformance = attribution_kit.artifact_attribution_conformance(scan)
 
 
 if __name__ == "__main__":

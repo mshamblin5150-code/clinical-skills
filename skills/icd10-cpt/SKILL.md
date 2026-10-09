@@ -342,7 +342,6 @@ worksheet**, its descriptor, its anchor, or its `SPECIFICITY` line.
 For each subject code, open `reference/icd10cm-2026.sqlite`; inspect whatever parents, children,
 siblings, and inherited tabular notes bear on specificity; and return the following record. The
 record has this shape:
-
 ```json
 {
   "read_on": "YYYY-MM-DD",
@@ -374,6 +373,12 @@ record has this shape:
 `"family"` is every code whose normalized number begins with the subject's three-character category — `I10` for `I10`, all of `Z90...` for `Z90.49` — each with its exact descriptor, billability, and **complete inherited note set**. The scanner recomputes that set from SQLite, so an omitted sibling, invented sibling, or empty family refuses rather than reading as a completed lookup. `"about"` states what the whole category means for the subject's specificity without copying the worksheet's reason.
 
 The committed scanner creates the answer-free brief and grades the record:
+
+Run-grader findings, reader candidates, and unread remainders name their files
+beside the row counts. The shared `run_grader.artifact_label` checks a batch
+filename before printing its stem; other files use reader-order positions.
+`--show` finding lines print real filenames and remain private. Zero and ungraded
+rows keep their existing output.
 
 ```bash
 python tools/specificity_scan.py <run directory> --brief > scratch/specificity-brief.txt

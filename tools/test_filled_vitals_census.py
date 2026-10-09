@@ -21,6 +21,7 @@ body values and must keep reading as given.
 
 # phi-scan: synthetic
 
+import grader_conformance as attribution_kit
 import io
 import hashlib
 import tempfile
@@ -1222,6 +1223,56 @@ class TheBmiRowReadsGivenAndFilledValuesAlike(unittest.TestCase):
         self.assertEqual(1, status)
         self.assertIn("lacking a code that band owes        1", stdout.getvalue())
         self.assertNotIn("Z68.26", stdout.getvalue() + stderr.getvalue())
+
+
+
+class SetFindingsKeepTheirSubjects(unittest.TestCase):
+    def test_numbered_batch_selection_and_its_clean_report_are_unchanged(self):
+        clean = 'FILLED·asserted   HEIGHT 5\'10" (70 in) filled for a 40-year-old man.\n'
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "note-1.md").write_text(clean, encoding="utf-8")
+            (root / "Review.md").write_text("FILLED·asserted   HEIGHT 5'8\" filled.\n", encoding="utf-8")
+            loaded = fvc.load(run_grader.parse(fvc.GRADER, [str(root)]))
+            self.assertEqual(["note-1.md"], [artifact.path.name for artifact in loaded[1]])
+            base = fvc.survey([clean])
+            located = fvc.replace(base, attribution=fvc.locate(tuple(loaded[1])))
+            self.assertEqual(fvc.format_report(base, "run"), fvc.format_report(located, "run"))
+
+    def report(self, texts):
+        artifacts = tuple(run_grader.RunArtifact(Path(name), text) for name, text in texts)
+        scan = fvc.survey([artifact.text for artifact in artifacts])
+        return fvc.format_report(fvc.replace(scan, attribution=fvc.locate(artifacts)), "run")
+
+    def test_shared_bodies_name_each_sharing_group(self):
+        first = 'FILLED·asserted   HEIGHT 5\'10" (70 in) filled for a 40-year-old man. WT 170 lb filled.\n'
+        second = 'FILLED·asserted   HEIGHT 5\'8" (68 in) filled for a 40-year-old man. WT 160 lb filled.\n'
+        report = self.report([
+            ("note-1.md", first), ("note-2.md", second),
+            ("note-3.md", first), ("sensitive.md", second),
+        ])
+        row = next(line for line in report.splitlines() if "sharing a body" in line)
+        self.assertEqual("    sharing a body with another note     2 (note-1, note-3; note-2, file 4 of 4)", row)
+        self.assertNotIn("sensitive", report)
+
+    def test_pressure_tilt_is_set_level_and_names_no_note(self):
+        count = next(n for n in range(1, 100) if fvc.tilt_beyond_chance(n, n))
+        report = self.report([(f"note-{n}.md", "FILLED·asserted   BP 140/90 filled.\n") for n in range(count)])
+        row = next(line for line in report.splitlines() if "beyond a fair split" in line)
+        self.assertIn("YES (set-level finding)", row)
+        self.assertNotIn("note-", row)
+
+
+def artifact_attribution_input() -> attribution_kit.ArtifactAttributionInput:
+    return attribution_kit.ArtifactAttributionInput(
+        "FILLED·asserted   HEIGHT 5'10\" (70 in) filled.\n",
+        "naming no age and sex",
+        worksheets=False,
+        numbered_selection=True,
+    )
+
+
+ArtifactAttributionConformance = attribution_kit.artifact_attribution_conformance(fvc)
 
 
 if __name__ == "__main__":

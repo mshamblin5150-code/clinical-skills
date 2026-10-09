@@ -20,6 +20,7 @@ This module reads a Code-set database on [ADR 0249]'s terms.
 
 from __future__ import annotations
 
+import grader_conformance as attribution_kit
 import contextlib
 import io
 import json
@@ -1102,6 +1103,18 @@ class TheWorksheetUsesTheNoteSubmissionKey(unittest.TestCase):
                 scan.main([str(run), "--submission", "encounter-17-2026-08-17"])
 
         gate.assert_called_once_with(run, "encounter-17-2026-08-17")
+
+
+
+def artifact_attribution_input() -> attribution_kit.ArtifactAttributionInput:
+    return attribution_kit.ArtifactAttributionInput(
+        worksheet(entry("I10", "Hypertension", "complete")),
+        "C5 - flag carries no reason",
+        worksheets=True,
+    )
+
+
+ArtifactAttributionConformance = attribution_kit.artifact_attribution_conformance(scan)
 
 
 if __name__ == "__main__":

@@ -261,7 +261,7 @@ class TheRunDirectoryReaderOwnsTheSetPolicy(unittest.TestCase):
                     and isinstance(node.func, ast.Attribute)
                     and isinstance(node.func.value, ast.Name)
                     and node.func.value.id == "run_grader"
-                    and node.func.attr == "read_run_directory"
+                    and node.func.attr == "read_run_artifacts"
                     for node in ast.walk(tree)
                 )
 
@@ -285,7 +285,7 @@ class TheRunDirectoryReaderOwnsTheSetPolicy(unittest.TestCase):
                     with (
                         mock.patch.object(
                             run_grader,
-                            "read_run_directory",
+                            "read_run_artifacts",
                             side_effect=failure,
                         ),
                         contextlib.redirect_stdout(stdout),
@@ -298,6 +298,71 @@ class TheRunDirectoryReaderOwnsTheSetPolicy(unittest.TestCase):
                     quiet = stderr.getvalue() if name == "refusal_scan" else stdout.getvalue()
                     self.assertEqual("", quiet)
                     self.assertIn("could not read a run artifact", emitted)
+
+
+class ArtifactAttributionIsOwnedAndInherited(unittest.TestCase):
+    def test_multiplicity_and_position_are_shared_and_zero_has_no_suffix(self):
+        artifacts = (
+            run_grader.RunArtifact(Path("note-3.md"), ""),
+            run_grader.RunArtifact(Path("sensitive-name.md"), ""),
+            run_grader.RunArtifact(Path("note-7.md"), ""),
+        )
+        scans = [SimpleNamespace(count=count) for count in (1, 0, 2)]
+        attribution = run_grader.attribute_scans(artifacts, scans, {"row": lambda scan: scan.count})
+        self.assertEqual(" (note-3, note-7 x2)", attribution.suffix("row"))
+        self.assertEqual("", attribution.suffix("not-run"))
+        zeros = run_grader.attribute_scans(artifacts, [SimpleNamespace(count=0)] * 3, {"row": lambda scan: scan.count})
+        self.assertEqual("", zeros.suffix("row"))
+
+    def test_only_the_full_decimal_batch_shape_can_enter_pasteable_output(self):
+        for name in ("note-7.md", "NOTE-007.MD"):
+            self.assertEqual(Path(name).stem, run_grader.artifact_label(Path(name), 2, 3))
+        for name in ("patient.md", "note-7-extra.md", "note-7.md.bak", "note-7.txt", "note-٧.md"):
+            self.assertEqual("file 2 of 3", run_grader.artifact_label(Path(name), 2, 3))
+
+    def test_the_reader_keeps_paths_beside_the_compatibility_text_population(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name, text in (("b.md", "second"), ("a.md", "first"), ("README.md", "excluded")):
+                (root / name).write_text(text, encoding="utf-8")
+            artifacts = run_grader.read_run_artifacts(root)
+            self.assertEqual([root / "a.md", root / "b.md"], [item.path for item in artifacts])
+            self.assertEqual(run_grader.read_run_directory(root), [item.text for item in artifacts])
+
+    def test_every_path_reader_consumer_opts_in_to_the_real_command_case(self):
+        tools = Path(__file__).parent
+        consumers = set()
+        for path in tools.glob("*.py"):
+            if path.name.startswith("test") or path.stem == "run_grader":
+                continue
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            if any(isinstance(node, ast.Call) and (
+                isinstance(node.func, ast.Attribute) and node.func.attr == "read_run_artifacts"
+                or isinstance(node.func, ast.Name) and node.func.id == "read_run_artifacts"
+            ) for node in ast.walk(tree)):
+                consumers.add(path.stem)
+        adopters = set()
+        for path in tools.glob("test*.py"):
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            imports = {
+                alias.asname or alias.name: alias.name
+                for node in tree.body if isinstance(node, ast.Import)
+                for alias in node.names
+            }
+            for statement in tree.body:
+                if not isinstance(statement, ast.Assign) or not any(
+                    isinstance(target, ast.Name) and target.id == "ArtifactAttributionConformance"
+                    for target in statement.targets
+                ):
+                    continue
+                node = statement.value
+                if isinstance(node, ast.Call) and node.args and isinstance(node.args[0], ast.Name) and (
+                    isinstance(node.func, ast.Name) and node.func.id == "artifact_attribution_conformance"
+                    or isinstance(node.func, ast.Attribute) and node.func.attr == "artifact_attribution_conformance"
+                ):
+                    adopters.add(imports[node.args[0].id])
+        self.assertTrue(consumers)
+        self.assertEqual(consumers, adopters)
 
 
 class TheUndecodableBytePostureIsDeclaredForTheFamily(unittest.TestCase):

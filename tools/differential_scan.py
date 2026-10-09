@@ -140,10 +140,10 @@ therefore prints both zero populations before stderr says the QA floor was NOT
 RUN. A missing-code finding still exits 1 first, so incomplete coverage cannot
 suppress the defect it was meant to qualify.
 
-**Counts only by default, and that is load-bearing rather than conventional.** A
+**Counts with checked file labels by default.** A
 run directory lives under ``scratch/`` or ``output/`` and is a patient record; an
-entry label is a diagnosis attached to an encounter. Nothing but integers is
-printed unless ``--show`` asks, and **``--show`` output is PHI** on
+entry label is a diagnosis attached to an encounter. Clinical text is
+printed only when ``--show`` asks, and **``--show`` output is PHI** on
 ``harvest_review.py``'s terms -- read it, do not paste it.
 
 **Exit status distinguishes not having scanned from having found nothing**, on
@@ -214,13 +214,16 @@ Extractor limits worth knowing before quoting a number:
   one; it fails nothing unless it sits in a slot and carries the mark. Inside a
   conclusion region it would read as a slot, which is the one place the positional
   rule costs something.
+
+File attribution uses ``run_grader.artifact_label`` for pasteable output; private
+``--show`` finding lines carry real filenames. See ADR 0314.
 """
 
 from __future__ import annotations
 
 import re
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 import run_grader
@@ -585,6 +588,7 @@ class Scan:
     source_class_tails: int = 0
     threshold_sheet_failures: tuple[ThresholdSheetFailure, ...] = ()
     findings: tuple[Finding, ...] = ()
+    attribution: run_grader.ReportAttribution = run_grader.ReportAttribution()
 
 
 def _clause_end(line: str, start: int) -> int:
@@ -1310,8 +1314,7 @@ def note_findings(note: Note) -> list[Finding]:
 
 
 def survey(notes: list[Note]) -> Scan:
-    """Count across a run. Takes parsed notes rather than paths, so a ``Scan``
-    never learns a filename -- a run directory's paths name the shift.
+    """Count across parsed notes. Command loading separately binds file attribution.
 
     **Differential and conclusion entries are counted apart**, because the
     exit-2 limb hangs on the differential alone. Every note in
@@ -1386,8 +1389,24 @@ def survey(notes: list[Note]) -> Scan:
     )
 
 
+def locate(artifacts: tuple[run_grader.RunArtifact, ...]) -> run_grader.ReportAttribution:
+    """Retain each row's subjects without changing the grading population."""
+    scans = [survey([read_note(artifact.text)]) for artifact in artifacts]
+    return run_grader.attribute_scans(artifacts, scans, {
+        "row_22": lambda scan: sum(f.kind == REFUSED_CODE for f in scan.findings),
+        "unofficial": lambda scan: sum(f.kind == UNOFFICIAL_DESCRIPTOR for f in scan.findings),
+        "missing_code_items": lambda scan: len(scan.missing_code_items),
+        "ranking_findings": lambda scan: len(scan.ranking_findings),
+        "guideline_findings": lambda scan: len(scan.guideline_findings),
+        "guideline_candidates": lambda scan: len(scan.guideline_candidates),
+        "draft_backed_citations": lambda scan: len(scan.draft_backed_citations),
+        "unwelded_marks": lambda scan: scan.unwelded_marks,
+        "malformed_pins": lambda scan: scan.malformed_pins,
+    }, ('findings', 'missing_code_items', 'ranking_findings', 'guideline_findings', 'guideline_candidates'))
+
+
 def format_report(scan: Scan, source: str, show: bool = False) -> str:
-    """The report, as one string. Carries no code and no label unless ``show``.
+    """The report, as one string. Carries no code or clinical label unless ``show``.
 
     **The coverage row prints on every run and not only on a short one**, which is
     [#258]'s ruling on ``phi_scan`` and ``spelling_scan`` borrowed whole: a reader
@@ -1421,8 +1440,8 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         f"  differential entries             {scan.differential_entries}",
         f"  conclusion entries               {scan.conclusion_entries}",
         f"  codes marked NOT CODED           {scan.refused_codes}",
-        f"  unwelded NOT CODED marks         {scan.unwelded_marks}",
-        f"  malformed slot pins              {scan.malformed_pins}",
+        f"  unwelded NOT CODED marks         {scan.unwelded_marks}{scan.attribution.suffix('unwelded_marks')}",
+        f"  malformed slot pins              {scan.malformed_pins}{scan.attribution.suffix('malformed_pins')}",
         "",
         f"  labeled Differential blocks read      {scan.labeled_differential_blocks}"
         f" in {scan.notes_with_labeled_differential} of {scan.notes} notes",
@@ -1432,24 +1451,25 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         "  declared floor: these counts cover labeled Differential blocks only;",
         "  the wide Assessment count still needs a reader.",
         "",
-        f"  row 22 - refused code in a slot  {row_22}",
+        f"  row 22 - refused code in a slot  {row_22}{scan.attribution.suffix('row_22')}",
         "  row 22 - unofficial refusal descriptor  "
-        + str(sum(finding.kind == UNOFFICIAL_DESCRIPTOR for finding in scan.findings)),
-        f"  row 13 floor - numbered item without a code  {row_13}",
-        f"  row 23 floor - ranking shape violations  {row_23}",
+        + str(sum(finding.kind == UNOFFICIAL_DESCRIPTOR for finding in scan.findings))
+        + scan.attribution.suffix("unofficial"),
+        f"  row 13 floor - numbered item without a code  {row_13}{scan.attribution.suffix('missing_code_items')}",
+        f"  row 23 floor - ranking shape violations  {row_23}{scan.attribution.suffix('ranking_findings')}",
         "  declared floor: clinical likelihood order still needs a reader.",
         "",
         f"  FILLED proposed items read                 {scan.proposed_items}",
         "  guideline tails checked against shipped sheets  "
         f"{scan.guideline_tails_checked}",
-        f"  row 24 - guideline tail violations  {row_24}",
+        f"  row 24 - guideline tail violations  {row_24}{scan.attribution.suffix('guideline_findings')}",
         "  row 24 candidates - dependency needs a reader  "
-        f"{len(scan.guideline_candidates)}",
+        f"{len(scan.guideline_candidates)}{scan.attribution.suffix('guideline_candidates')}",
         "  declared floor: whether a recommendation applies to the patient still"
         " needs a reader.",
         "",
         "  row 24 - draft-backed citations  "
-        f"{len(scan.draft_backed_citations)}",
+        f"{len(scan.draft_backed_citations)}{scan.attribution.suffix('draft_backed_citations')}",
         "  source class read for  "
         f"{scan.source_classes_read} of {scan.source_class_tails} cited tails",
         "  declared floor: a tail whose sheet carries no source class cell is unread,"
@@ -1474,21 +1494,21 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         ]
     if show:
         lines += ["", "  findings (PHI - read, do not paste):"]
-        for finding in scan.findings:
-            lines.append(f"    line {finding.line:<5} {finding.code:<9} {finding.label}")
-        for item in scan.missing_code_items:
-            lines.append(f"    line {item.line:<5} NO CODE   {item.label}")
-        for finding in scan.ranking_findings:
+        for index, finding in enumerate(scan.findings):
+            lines.append(f"{scan.attribution.filename('findings', index)}    line {finding.line:<5} {finding.code:<9} {finding.label}")
+        for index, item in enumerate(scan.missing_code_items):
+            lines.append(f"{scan.attribution.filename('missing_code_items', index)}    line {item.line:<5} NO CODE   {item.label}")
+        for index, finding in enumerate(scan.ranking_findings):
             lines.append(
-                f"    line {finding.line:<5} ROW 23    {finding.reason} {finding.label}".rstrip()
+                f"{scan.attribution.filename('ranking_findings', index)}    line {finding.line:<5} ROW 23    {finding.reason} {finding.label}".rstrip()
             )
-        for finding in scan.guideline_findings:
+        for index, finding in enumerate(scan.guideline_findings):
             lines.append(
-                f"    line {finding.line:<5} ROW 24    {finding.reason} {finding.label}".rstrip()
+                f"{scan.attribution.filename('guideline_findings', index)}    line {finding.line:<5} ROW 24    {finding.reason} {finding.label}".rstrip()
             )
-        for candidate in scan.guideline_candidates:
+        for index, candidate in enumerate(scan.guideline_candidates):
             lines.append(
-                f"    line {candidate.line:<5} CANDIDATE {candidate.label}".rstrip()
+                f"{scan.attribution.filename('guideline_candidates', index)}    line {candidate.line:<5} CANDIDATE {candidate.label}".rstrip()
             )
     return "\n".join(lines)
 
@@ -1497,6 +1517,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
 class Source:
     directory: Path
     texts: tuple[str, ...]
+    artifacts: tuple[run_grader.RunArtifact, ...] = ()
 
 
 INVALID_INVOCATION = "invalid invocation"
@@ -1538,19 +1559,21 @@ def _load(parsed: run_grader.Parsed) -> Source:
         posting_paths = medatrax_posting.note_paths(directory, batch=False)
     else:
         posting_paths = ()
-    texts = tuple(
-        path.read_text(encoding="utf-8", errors="replace")
+    artifacts = tuple(
+        run_grader.RunArtifact(path, path.read_text(encoding="utf-8", errors="replace"))
         for path in posting_paths
-    ) or tuple(run_grader.read_run_directory(directory))
+    ) or tuple(run_grader.read_run_artifacts(directory))
+    texts = tuple(artifact.text for artifact in artifacts)
     if not texts:
         raise run_grader.SourceError(
             f"no notes found in {directory.name}", exit_2_limb=NO_NOTES
         )
-    return Source(directory, texts)
+    return Source(directory, texts, artifacts)
 
 
 def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
     scan = survey([read_note(text) for text in source.texts])
+    scan = replace(scan, attribution=locate(source.artifacts))
     has_findings = bool(
         scan.findings
         or scan.missing_code_items

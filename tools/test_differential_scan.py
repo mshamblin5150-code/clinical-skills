@@ -37,6 +37,7 @@ as agreement.
 
 from __future__ import annotations
 
+import grader_conformance as attribution_kit
 import icd10_lookup
 from code_set_database_test_support import (
     ICD10_DATABASE_SHA256,
@@ -2358,6 +2359,18 @@ class MedatraxSubmissionFingerprint(unittest.TestCase):
         status, _stdout, stderr = self.invoke()
         self.assertEqual(1, status)
         self.assertIn("SUBMISSION-SHA256 is missing, malformed, or stale", stderr)
+
+
+
+def artifact_attribution_input() -> attribution_kit.ArtifactAttributionInput:
+    return attribution_kit.ArtifactAttributionInput(
+        "A:\n\nDifferential:\n1. Viral upper respiratory infection - J06.9: favored.\n\nFILLED·proposed   1. HIV screening [uspstf: grade D, adolescents and adults aged 15 to 65 years, 2019]\nFLAG              none\n",
+        "row 24 - guideline tail violations",
+        worksheets=False,
+    )
+
+
+ArtifactAttributionConformance = attribution_kit.artifact_attribution_conformance(ds)
 
 
 if __name__ == "__main__":

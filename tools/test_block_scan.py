@@ -18,6 +18,7 @@ because it reads as agreement.
 
 from __future__ import annotations
 
+import grader_conformance as attribution_kit
 import io
 import tempfile
 import unittest
@@ -623,6 +624,18 @@ class TheSkillStillSaysWhatThisChecks(unittest.TestCase):
     def test_the_block_labels_are_still_the_six_this_parses(self) -> None:
         for label in block_scan.LABELS:
             self.assertIn(label, self.skill)
+
+
+
+def artifact_attribution_input() -> attribution_kit.ArtifactAttributionInput:
+    return attribution_kit.ArtifactAttributionInput(
+        TIMES_UNDER_GAPS,
+        "F2 -",
+        worksheets=False,
+    )
+
+
+ArtifactAttributionConformance = attribution_kit.artifact_attribution_conformance(block_scan)
 
 
 if __name__ == "__main__":

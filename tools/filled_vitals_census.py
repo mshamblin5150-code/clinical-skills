@@ -19,7 +19,7 @@ numbers. The discriminator is ``clinical-note``'s own mandated form, *not "blood
 pressure filled" -- "BP 142/88 filled"*, so a run that stops writing the value into
 the block reads here as having filled nothing rather than as having passed.
 
-**It prints counts only by default and never a measured value**, so its output is
+**It prints counts and checked file labels by default and never a measured value**, so its output is
 safe to paste into a ticket. A run directory lives under ``scratch/`` or
 ``output/`` and is a patient record; a height is not an identifier and a weight in
 a small county is closer to one than this script can judge, so neither is printed
@@ -71,6 +71,9 @@ evidence.
 
 The complete boundary of a clean result is declared in
 ``filled_vitals_census.DECLARED_LIMITS``.
+
+File attribution uses ``run_grader.artifact_label`` for pasteable output; private
+``--show`` finding lines carry real filenames. See ADR 0314.
 """
 
 from __future__ import annotations
@@ -407,7 +410,7 @@ class Finding(run_grader.Finding):
 
 @dataclass(frozen=True)
 class Scan:
-    """Counts over a set of notes. Holds no note text and no filename."""
+    """Counts over a set of notes. Holds counts and report attribution; clinical detail remains private."""
 
     notes: int
     heights: int
@@ -445,6 +448,8 @@ class Scan:
     bmi_missing: int = 0
     findings: tuple[Finding, ...] = ()
     unread_remainder: int = 0
+
+    attribution: run_grader.ReportAttribution = run_grader.ReportAttribution()
 
     def count_of(self, key: str) -> int:
         """How many notes declared one counted class, by its ``COUNTED_CLASSES`` key."""
@@ -570,9 +575,8 @@ def read_fill(text: str) -> Fill:
 def survey(texts: list[str]) -> Scan:
     """Count the filled bodies across a set of note texts.
 
-    Takes texts rather than files: a ``Scan`` never learns a filename, so it
-    cannot put a patient record's path into output this script promises is safe
-    to paste.
+    Takes texts rather than files. The command separately binds file attribution
+    through the shared checked-label rule.
     """
     fills = [read_fill(text) for text in texts]
     bmis = [bmi_codes.read_note(text) for text in texts]
@@ -661,6 +665,29 @@ def _tilt_verdict(scan: Scan) -> str:
     return "YES" if scan.tilted else "no"
 
 
+def locate(artifacts: tuple[run_grader.RunArtifact, ...]) -> run_grader.ReportAttribution:
+    """Retain each row's subjects without changing the grading population."""
+    scans = [survey([artifact.text]) for artifact in artifacts]
+    locations = run_grader.attribute_scans(artifacts, scans, {
+        "heights_missing_person": lambda scan: scan.heights_missing_person,
+        "bmi_missing": lambda scan: scan.bmi_missing,
+        "unread_remainder": lambda scan: scan.unread_remainder,
+        "asserted_keys_unread": lambda scan: scan.asserted_keys_unread,
+    }, ())
+    bodies = [read_fill(artifact.text).body for artifact in artifacts]
+    groups = tuple(
+        tuple(index for index, body in enumerate(bodies) if body == shared)
+        for shared, count in Counter(body for body in bodies if body is not None).items()
+        if count > 1
+    )
+    members = {index for group in groups for index in group}
+    return replace(
+        locations,
+        rows=locations.rows + (("repeated_bodies", tuple(int(index in members) for index in range(len(bodies)))),),
+        groups=(("repeated_bodies", groups),),
+    )
+
+
 def format_report(scan: Scan, source: str, show: bool = False) -> str:
     """The report, as one string. Carries no measured value unless ``show``."""
     lines = [
@@ -671,25 +698,26 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         # read as the verdict, and a caveat printed only when it fires teaches
         # a reader that its absence is a stronger claim than it is.
         f"  {'scanned':<32}{scan.asserted_keys_read} of"
-        f" {scan.asserted_keys} {KEY_NOUN}",
+        f" {scan.asserted_keys} {KEY_NOUN}{scan.attribution.suffix('asserted_keys_unread')}",
         f"  notes read                      {scan.notes}",
-        run_grader.format_unread_remainder(scan.unread_remainder),
+        run_grader.format_unread_remainder(scan.unread_remainder) + scan.attribution.suffix("unread_remainder"),
         f"  declaring a filled height       {scan.heights}",
         f"    distinct values               {scan.distinct_heights}",
         f"    largest group at one value    {scan.largest_height_group}",
-        f"    naming no age and sex         {scan.heights_missing_person}",
+        f"    naming no age and sex         {scan.heights_missing_person}{scan.attribution.suffix('heights_missing_person')}",
         f"  declaring a filled weight       {scan.weights}",
         f"    distinct values               {scan.distinct_weights}",
         f"  declaring a filled pressure     {scan.pressures}",
         f"    distinct values               {scan.distinct_pressures}",
         f"    largest group at one value    {scan.largest_pressure_group}",
         f"    not normal (130+ or 80+)      {scan.abnormal_pressures}",
-        f"    {f'beyond a fair split at {CHANCE_FLOOR:.0%}?':<30}{_tilt_verdict(scan)}",
+        f"    {f'beyond a fair split at {CHANCE_FLOOR:.0%}?':<30}{_tilt_verdict(scan)}"
+        + (" (set-level finding)" if scan.tilted else ""),
         f"  declaring a filled height and weight   {scan.bodies}",
-        f"    sharing a body with another note     {scan.repeated_bodies}",
+        f"    sharing a body with another note     {scan.repeated_bodies}{scan.attribution.suffix('repeated_bodies')}",
         f"  BMI from the note's height and weight  {scan.bmi_read}",
         f"    in a band that owes codes            {scan.bmi_graded}",
-        f"    lacking a code that band owes        {scan.bmi_missing}",
+        f"    lacking a code that band owes        {scan.bmi_missing}{scan.attribution.suffix('bmi_missing')}",
         "",
         f"  counted, {NOT_GRADED} — no corpus split grounds a bar on these:",
     ]
@@ -703,7 +731,12 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         # without repeating the default report's counts (ADR 0118).
         if scan.findings:
             lines += ["", "  findings (private - read, do not paste):"]
-            lines += [f"    {finding.kind}: {finding.detail}" for finding in scan.findings]
+            rows = {"B13": "repeated_bodies", "B18": "heights_missing_person", "BMI": "bmi_missing"}
+            lines += [
+                f"    {scan.attribution.filenames(rows[finding.kind]) if finding.kind in rows else 'set-level: '}"
+                f"{finding.kind}: {finding.detail}"
+                for finding in scan.findings
+            ]
         lines += ["", "  heights, most repeated first:"]
         for value, count in sorted(scan.height_counts, key=lambda p: -p[1]):
             lines.append(f"    {_inches(value):>8}  x{count}")
@@ -715,7 +748,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
     return "\n".join(lines)
 
 
-def load(parsed: run_grader.Parsed) -> tuple[Path, list[str]]:
+def load(parsed: run_grader.Parsed) -> tuple[Path, list[run_grader.RunArtifact]]:
     directory = Path(parsed.source)
     # The directory name, never the path: a run directory sits under ``scratch/``
     # or ``output/``, and its path names the shift and often the site.
@@ -727,9 +760,9 @@ def load(parsed: run_grader.Parsed) -> tuple[Path, list[str]]:
         else ()
     )
     notes = (
-        [path.read_text(encoding="utf-8", errors="replace") for path in posting_paths]
+        [run_grader.RunArtifact(path, path.read_text(encoding="utf-8", errors="replace")) for path in posting_paths]
         if posting_paths
-        else run_grader.read_run_directory(directory)
+        else run_grader.read_run_artifacts(directory)
     )
     if not notes:
         raise run_grader.SourceError(f"no notes found in {directory.name}")
@@ -737,10 +770,12 @@ def load(parsed: run_grader.Parsed) -> tuple[Path, list[str]]:
 
 
 def grade(
-    loaded: tuple[Path, list[str]], parsed: run_grader.Parsed
+    loaded: tuple[Path, list[run_grader.RunArtifact]], parsed: run_grader.Parsed
 ) -> run_grader.Grade[Scan]:
-    directory, notes = loaded
+    directory, artifacts = loaded
+    notes = [artifact.text for artifact in artifacts]
     scan = survey(notes)
+    scan = replace(scan, attribution=locate(tuple(artifacts)))
     paths = medatrax_posting.note_paths(directory, batch=True) or tuple(
         path for path in sorted(directory.glob("*.md"))
         if path.name.casefold() not in {"readme.md", "reread.md", "shift-summary.md"}

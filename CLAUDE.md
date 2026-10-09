@@ -339,6 +339,12 @@ Its output contains counts and paths, never extracted or transcribed text.
 
 ### Filled-vitals census
 
+**File attribution:** findings, reader candidates, and unread remainders carry
+checked file labels beside their row counts. `run_grader.artifact_label` owns the
+pasteable naming rule; `--show` finding lines carry real filenames. Zero and
+ungraded rows keep their existing output. [ADR 0314](docs/adr/0314-a-run-grader-names-a-note-in-pasteable-output-only-when-the-code-has-checked-the-name-s-shape.md)
+records the boundary.
+
 The complete boundary of a clean result is declared in `filled_vitals_census.DECLARED_LIMITS`.
 
 The census prints each note's `GENERATION:` line and compares those lines with the run's `shift-summary.md`. Missing or mismatched lines are findings; an absent summary at `--submission` is incomplete coverage, with findings taking precedence. Proposed names require private `--show` output. The tier-item parser's boundary belongs to `shift_summary.DECLARED_LIMITS`.
@@ -376,6 +382,12 @@ Covered by `tools/test_filled_vitals_census.py`, which runs against the twelve c
 
 ### Specificity scan
 
+**File attribution:** findings, reader candidates, and unread remainders carry
+checked file labels beside their row counts. `run_grader.artifact_label` owns the
+pasteable naming rule; `--show` finding lines carry real filenames. Zero and
+ungraded rows keep their existing output. [ADR 0314](docs/adr/0314-a-run-grader-names-a-note-in-pasteable-output-only-when-the-code-has-checked-the-name-s-shape.md)
+records the boundary.
+
 The complete boundary of a clean result is declared in `specificity_scan.DECLARED_LIMITS`.
 
 Before the `icd10-cpt` step-4 boundary, relaxed-prefix code-entry and `SPECIFICITY`-field candidates are counted independently of the strict worksheet grammar. Their unmatched forms and step-4 heading near misses enter the shared unread remainder; listing-shaped strict entries after `icd10-cpt` step 4 remain the declared coverage floor beyond that candidate population. The report also counts readable non-template block headings without grading them.
@@ -388,7 +400,7 @@ python tools/specificity_scan.py <a run directory>
 
 **One enforced test and one advisory surface.** A `SPECIFICITY` flag must carry substance beyond its keyword — a bare `complete` and a bare `needs:` both fail. A code whose **official descriptor** says `unspecified` or `not specified` may read `complete` only with a substantive reason explaining why nothing the bedside can supply would move it; the scanner counts that shape for a reader and does not fail it automatically. The enforced test is there because *the reason is the evidence the check happened*: nobody writes `Z98.51 has no further axis` without having looked at `Z98.51`'s axes, and anybody can write `complete`.
 
-**Counts only by default**, on `filled_vitals_census.py`'s terms and for its reason — a run directory under `scratch/` or `output/` is a patient record, and a code with its descriptor is a diagnosis attached to an encounter. **`--show` output is PHI**: read it, do not paste it.
+**Counts and checked file labels by default**, on `filled_vitals_census.py`'s terms and for its reason — a run directory under `scratch/` or `output/` is a patient record, and a code with its descriptor is a diagnosis attached to an encounter. **`--show` output is PHI**: read it, do not paste it.
 
 **Exit status distinguishes not having scanned from having found nothing** — 0 clean, 1 for a C5 failure, **2 for every way of not having scanned**: no directory, no worksheets in it, no argument, no recognized for-entry flag, or recognized for-entry codes with an unread remainder. That is `guidelines_search.py`'s arrangement rather than `filled_vitals_census.py`'s, because a run whose output landed elsewhere would otherwise report a clean set of flags.
 
@@ -412,6 +424,12 @@ The Entry copy applies portal-character substitutions supported by a measured ve
 
 ### Differential scan
 
+**File attribution:** findings, reader candidates, and unread remainders carry
+checked file labels beside their row counts. `run_grader.artifact_label` owns the
+pasteable naming rule; `--show` finding lines carry real filenames. Zero and
+ungraded rows keep their existing output. [ADR 0314](docs/adr/0314-a-run-grader-names-a-note-in-pasteable-output-only-when-the-code-has-checked-the-name-s-shape.md)
+records the boundary.
+
 The specificity scan reads an `icd10-cpt` run. This one reads a **`clinical-note`** run. It makes drift row 22's mechanical limb runnable — [#68](https://github.com/mshamblin5150-code/clinical-skills/issues/68), rebuilt on [#153](https://github.com/mshamblin5150-code/clinical-skills/issues/153) — adds [#164](https://github.com/mshamblin5150-code/clinical-skills/issues/164)'s declared QA floor for row 13, and supplies [#192](https://github.com/mshamblin5150-code/clinical-skills/issues/192)'s mechanical floors for rows 23 and 24.
 
 ```bash
@@ -434,7 +452,7 @@ python tools/differential_scan.py <a run directory>
 
 **It no longer grades `fixtures/hedged-dx` run 1's case 2, and that is a reclassification rather than a lost finding.** That note is the shape #68 was filed over and the scanner used to catch it; its refusal is in the retired form, so the run now reads as unscanned. **N1 is still failed by that run**, by a reader, and `fixtures/hedged-dx/assertions.md` records which.
 
-**Counts only by default**, on `filled_vitals_census.py`'s and `specificity_scan.py`'s terms and for their reason: a run directory under `scratch/` or `output/` is a patient record, and an entry label is a diagnosis attached to an encounter. **`--show` output is PHI**: read it, do not paste it.
+**Counts and checked file labels by default**, on `filled_vitals_census.py`'s and `specificity_scan.py`'s terms and for their reason: a run directory under `scratch/` or `output/` is a patient record, and an entry label is a diagnosis attached to an encounter. **`--show` output is PHI**: read it, do not paste it.
 
 **Exit status distinguishes not having scanned from having found nothing** — 0 clean, 1 for a definite row 13, 22, 23 or 24 violation, **2 for every way of not having scanned**, including **no differential entry, no numbered item in a labeled block, and any bare `NOT CODED` mark**. Row-24 candidates never change it. Those limbs matter because an unread shape would otherwise report zero and look like a pass. **Where a violation and an incomplete scan both hold, 1 wins** — returning 2 would file the strongest thing known about the run under the weakest heading — and the report retains the incomplete counts so the finding reads as a floor rather than the whole. That ordering is deliberate and it is the one limb here that departs from `block_scan.py`, where 2 is reserved for total absence.
 
@@ -457,6 +475,12 @@ python tools/differential_scan.py <a run directory>
 Covered by `tools/test_differential_scan.py`, which builds synthetic notes in that file and a temp directory. **That used to be because there was no committed `clinical-note` run whose differential this could be tested against, and since [#162](https://github.com/mshamblin5150-code/clinical-skills/issues/162) there is** — [fixtures/slot-form-run](fixtures/slot-form-run/README.md), whose size is that set's own to state. The synthetic tests stay anyway, on `test_icd10.py`'s reasoning and `specificity_scan.py`'s precedent one section up: a test reading the run its own row graded would pass for two reasons, one of them being that the run and the scanner are wrong together. **What the committed run buys is that the scanner's own figures are re-derivable rather than cited** — one command over a directory a reader can open — and that the merge grades real output at all. **What it also read from the tree before that was `clinical-note`'s own worked examples**, which it runs the scanner over on `test_research_ledger.py`'s reasoning: a documented entry shape the scanner would refuse teaches the next run to write a note that fails, and every substring test beside it would still be green. **It exercises the clean path only** — a worked example is compliant by construction — so it is the first row of the object above narrowing rather than closing. Two shapes are pinned deliberately. A compliant entry carries its own slot code and its refusals on a single line, so anything treating every code on a `NOT CODED` line as refused flags the slot and fails the skill's own worked example. And **a refusal clause stops at the end of its line**, because a clause running to the end of the paragraph would swallow the entry written below it and hide a violation on that one — the mirror of the bug the clause exists to fix.
 
 ### Anchor scan
+
+**File attribution:** findings, reader candidates, and unread remainders carry
+checked file labels beside their row counts. `run_grader.artifact_label` owns the
+pasteable naming rule; `--show` finding lines carry real filenames. Zero and
+ungraded rows keep their existing output. [ADR 0314](docs/adr/0314-a-run-grader-names-a-note-in-pasteable-output-only-when-the-code-has-checked-the-name-s-shape.md)
+records the boundary.
 
 The complete boundary of a clean result is declared in `anchor_scan.DECLARED_LIMITS`.
 
@@ -484,7 +508,7 @@ excluded. Unpaired artifacts and incomplete reader coverage enter the shared unr
 
 **The pre-#46 heading is a different phrase.** Run 1 refused every filled anchor and wrote them under `NOT CODED, ANCHOR WAS FILLED`. A scanner reading that as the new block would report a clean pass for the exact behavior #46 reversed; the shared phrase grammar keeps it outside the filled-anchor block.
 
-**Counts only by default**, on `specificity_scan.py`'s and `differential_scan.py`'s terms and for their reason: a run directory under `scratch/` or `output/` is a patient record, and a code with the value it rests on is a measurement attached to an encounter. **`--show` output is PHI**: read it, do not paste it.
+**Counts and checked file labels by default**, on `specificity_scan.py`'s and `differential_scan.py`'s terms and for their reason: a run directory under `scratch/` or `output/` is a patient record, and a code with the value it rests on is a measurement attached to an encounter. **`--show` output is PHI**: read it, do not paste it.
 
 **Exit status distinguishes not having scanned from having found nothing** — 0 clean, 1 for an ANCHOR violation, **2 for every way of not having scanned**, including **no marked code, listed code or pediatric band in any worksheet read**.
 
@@ -495,6 +519,12 @@ seam, use records written by a separate reader, and plant mutations only after p
 bidirectional control. That distinction keeps synthetic grammar checks independent without calling
 the real-note requirement synthetic.
 ### Block scan
+
+**File attribution:** findings, reader candidates, and unread remainders carry
+checked file labels beside their row counts. `run_grader.artifact_label` owns the
+pasteable naming rule; `--show` finding lines carry real filenames. Zero and
+ungraded rows keep their existing output. [ADR 0314](docs/adr/0314-a-run-grader-names-a-note-in-pasteable-output-only-when-the-code-has-checked-the-name-s-shape.md)
+records the boundary.
 
 The complete boundary of a clean result is declared in `block_scan.DECLARED_LIMITS`.
 
@@ -510,7 +540,7 @@ python tools/block_scan.py <a run directory>
 
 **A row fires on what opens an entry, never on a mention inside one, and that is what makes it safe to run unattended.** A GAPS entry reading *"Site and preceptor. Not in the source. The site also decides the payment method above."* is **compliant** — its subject is the site, and the sentence explains a dependency. The first version of this scanner matched any mention and called three such sentences failures on day-a run 2; every one was prose about the rule. **Every violation these rows describe opens an entry, and nothing that opens an entry is prose about the rule.**
 
-**Counts only by default**, on `filled_vitals_census.py`'s and `specificity_scan.py`'s terms and for their reason: a run directory under `scratch/` or `output/` is a patient record, and a GAPS entry names what an encounter did not supply about a person. **`--show` output is PHI**: read it, do not paste it.
+**Counts and checked file labels by default**, on `filled_vitals_census.py`'s and `specificity_scan.py`'s terms and for their reason: a run directory under `scratch/` or `output/` is a patient record, and a GAPS entry names what an encounter did not supply about a person. **`--show` output is PHI**: read it, do not paste it.
 
 **Exit status distinguishes not having scanned from having found nothing** — 0 clean, 1 for an F1 to F3 violation, **2 for every way of not having scanned**, including **no tier block in any note read**. That last limb is the one that matters, and it is the limb `differential_scan.py` was given for the same reason.
 
@@ -519,6 +549,12 @@ python tools/block_scan.py <a run directory>
 Covered by `tools/test_block_scan.py`, which builds synthetic blocks in that file and a temp directory — **there is no committed `clinical-note` *run* whose tier block this could be tested against, and there will not be one**, so `fixtures/filled-anchor/notes` is the one real set it is pointed at. Two shapes are pinned deliberately, because the whole reading rests on telling them apart: an entry that **opens** with a field name, and a wrapped line that merely mentions one. One class reads `skills/clinical-note/SKILL.md` and asserts the rules it checks are still written there, on `test_spelling_scan.py`'s reasoning.
 
 ### Refusal scan
+
+**File attribution:** findings, reader candidates, and unread remainders carry
+checked file labels beside their row counts. `run_grader.artifact_label` owns the
+pasteable naming rule; `--show` finding lines carry real filenames. Zero and
+ungraded rows keep their existing output. [ADR 0314](docs/adr/0314-a-run-grader-names-a-note-in-pasteable-output-only-when-the-code-has-checked-the-name-s-shape.md)
+records the boundary.
 
 The block scan reads a `clinical-note` run's tier block. This one reads an **`icd10-cpt` run's
 refusal record**, and it is the mechanical half of the rule that a refused code has to say what it

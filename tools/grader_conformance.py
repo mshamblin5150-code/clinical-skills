@@ -1,7 +1,7 @@
 """Reusable public-seam conformance tests for ``run_grader`` members.
 
 Test modules bind generated classes as ``GraderConformance``,
-``GateConformance``, or ``UnreadRemainderConformance`` so every discovered test
+``GateConformance``, ``UnreadRemainderConformance``, or ``ArtifactAttributionConformance`` so every discovered test
 id resolves through that binding.
 The kit's measured boundary is ``grader_conformance.DECLARED_LIMITS``.
 """
@@ -13,6 +13,7 @@ import contextlib
 import dataclasses
 import io
 import inspect
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -25,6 +26,62 @@ import run_grader
 
 
 MARKER = "conformance-salted-marker"
+
+
+@dataclass(frozen=True)
+class ArtifactAttributionInput:
+    """A member's planted finding and the report row that must locate it."""
+
+    text: str
+    row: str
+    worksheets: bool = False
+    numbered_selection: bool = False
+
+
+def artifact_attribution_conformance(module: Any) -> type[unittest.TestCase]:
+    """Opt in to checked labels through the member's real executable command."""
+    caller_globals = sys._getframe(1).f_globals
+
+    class ArtifactAttributionConformance(unittest.TestCase):
+        def test_the_real_command_locates_findings_and_keeps_unchecked_names_private(self):
+            provider = caller_globals.get("artifact_attribution_input")
+            self.assertIsNotNone(provider, "the member supplies no attribution input")
+            case = provider()
+            self.assertIsInstance(case, ArtifactAttributionInput)
+            with tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                if case.worksheets:
+                    root = root / "worksheets"
+                    root.mkdir()
+                (root / "note-7.md").write_text(case.text, encoding="utf-8")
+                (root / f"{MARKER}.md").write_text(case.text, encoding="utf-8")
+                command = [sys.executable, module.__file__, str(root)]
+                default = subprocess.run(command, capture_output=True, encoding="utf-8", errors="replace")
+                shown = subprocess.run([*command, "--show"], capture_output=True, encoding="utf-8", errors="replace")
+                # Some members first select numbered batch notes. Exercise their
+                # existing standalone fallback too, without widening what they grade.
+                (root / "note-7.md").unlink()
+                standalone = subprocess.run(command, capture_output=True, encoding="utf-8", errors="replace")
+                standalone_shown = subprocess.run([*command, "--show"], capture_output=True, encoding="utf-8", errors="replace")
+            self.assertEqual(1, default.returncode, default.stdout + default.stderr)
+            self.assertEqual(default.returncode, shown.returncode, shown.stdout + shown.stderr)
+            row = next(line for line in default.stdout.splitlines() if case.row in line)
+            self.assertIn("note-7", row)
+            if not case.numbered_selection:
+                self.assertIn("file 1 of 2", row)
+                self.assertIn(f"{MARKER}.md", shown.stdout)
+            self.assertNotIn(MARKER, default.stdout + default.stderr)
+            self.assertIn("note-7.md", shown.stdout)
+            self.assertEqual(1, standalone.returncode, standalone.stdout + standalone.stderr)
+            standalone_row = next(line for line in standalone.stdout.splitlines() if case.row in line)
+            self.assertIn("file 1 of 1", standalone_row)
+            self.assertNotIn(MARKER, standalone_row)
+            self.assertIn(f"{MARKER}.md", standalone_shown.stdout)
+
+    _set_discoverable_identity(
+        ArtifactAttributionConformance, caller_globals["__name__"], "ArtifactAttributionConformance"
+    )
+    return ArtifactAttributionConformance
 
 
 @dataclass(frozen=True)
@@ -292,7 +349,11 @@ def unread_remainder_conformance(module: Any) -> type[unittest.TestCase]:
                     )
 
             self.assertEqual(2, status)
-            self.assertIn(run_grader.format_unread_remainder(remainder), stdout.splitlines())
+            self.assertTrue(any(
+                line == run_grader.format_unread_remainder(remainder)
+                or line.startswith(run_grader.format_unread_remainder(remainder) + " (")
+                for line in stdout.splitlines()
+            ))
             self.assertEqual(0, twin_status)
             self.assertIn(run_grader.format_unread_remainder(0), twin_stdout.splitlines())
 
