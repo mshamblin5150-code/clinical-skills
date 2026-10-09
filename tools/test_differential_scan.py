@@ -37,6 +37,16 @@ as agreement.
 
 from __future__ import annotations
 
+import icd10_lookup
+from code_set_database_test_support import (
+    ICD10_DATABASE_SHA256,
+    assert_code_set_database_digest,
+)
+
+assert_code_set_database_digest(
+    icd10_lookup.DEFAULT_DATABASE, ICD10_DATABASE_SHA256, "ICD-10-CM"
+)
+
 import io
 import hashlib
 import re

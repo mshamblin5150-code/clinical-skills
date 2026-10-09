@@ -29,6 +29,9 @@ SKILL = REPO_ROOT / "skills" / "icd10-cpt" / "SKILL.md"
 ASSERTIONS = REPO_ROOT / "fixtures" / "filled-anchor" / "assertions.md"
 RUN_README = REPO_ROOT / "fixtures" / "filled-anchor" / "run-2" / "README.md"
 POSITIVE_RUN = REPO_ROOT / "fixtures" / "worksheet-grammar-positive-control"
+assert_code_set_database_digest(
+    icd10_lookup.DEFAULT_DATABASE, ICD10_DATABASE_SHA256, "ICD-10-CM"
+)
 EXPECTED_VECTOR = "6, 1, 1, 3, 3, 1, 9, 8, 3, 8, 2, 7"
 
 
@@ -329,7 +332,6 @@ class OfficialRefusalDescriptors(unittest.TestCase):
     def test_both_scanners_grade_a_mutated_real_refusal(self):
         import differential_scan
 
-        assert_code_set_database_digest(icd10_lookup.DEFAULT_DATABASE, ICD10_DATABASE_SHA256, "ICD-10-CM")
         path = REPO_ROOT / "fixtures" / "filled-anchor" / "run-2" / "case-01.md"
         sheet = scan.read_worksheet(path.read_text(encoding="utf-8"))
         original = sheet.refusals[0]
