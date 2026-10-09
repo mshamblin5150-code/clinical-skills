@@ -334,7 +334,8 @@ walkthrough for each shift.
 matched returning patient. Compare its displayed age and sex with the encounter opener. Collect
 every age or sex disagreement together with every unresolved multiple-row match, each
 culprit-ingredient question required by [clinical-note](../clinical-note/SKILL.md#a-combination-product-allergy-with-an-unknown-culprit), and every
-earlier-visit status conflict in one
+earlier-visit status conflict, and any level-changing E/M question required by
+[icd10-cpt step 5](../icd10-cpt/SKILL.md#5-select-the-em-level-when-the-note-path-asks) in one
 `PRE-APPROVAL PATIENT QUESTIONS` block beside the Review-sheet go-ahead. Show that block to the
 clinician and obtain a ruling before approval; none of these questions is deferred to portal entry.
 Do not build or render the Review sheet while the block has an unresolved item. This read happens

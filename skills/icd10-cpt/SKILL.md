@@ -671,9 +671,35 @@ overlying pain; tib/fib film ordered, no result
 
 A direct coding consultation offers the supporting elements unless the user asks for a level. A `clinical-note` call is the request: select the final supported E/M code, state new-or-established status only from the private identity map, Medatrax, or the clinician's recorded answer to the earlier-visit conflict question in `clinical-note` or `batch-shift`, and render the problems, data, and risk elements with concise patient-specific support. No patient record means new; an unresolved identity match is not a finding of no record. Unknown status blocks selection; never infer it from other encounters in the shift.
 
-**The differential is where the first element is documented, and that is the job those codes do.** A differential entry with its rationale is a problem addressed. A suspected diagnosis that drove an order — a swab sent, a film taken — is what *data reviewed* is reviewing. And an entry the encounter could not exclude is the one that carries the most weight in that column, because an undiagnosed new problem with an uncertain prognosis is not a low-complexity problem however ordinary the visit felt.
+**Problems addressed.** Apply `definition-problem-addressed` from the passing
+sheet. Count a condition only where the clinician's shorthand or recorded answer
+shows he evaluated or treated it this visit. A skill-proposed Plan line for a
+condition the shorthand records nothing about does not make it count; a proposed
+line on a problem he addressed leaves it counted. Differential codes remain
+required and not for entry, but the pass's differential and rationale cannot
+supply the clinician's decision. These rules follow
+[ADR 0308](../../docs/adr/0308-the-e-m-level-rests-on-what-the-clinician-did.md).
 
-So the codes on the differential are required, and none of them is for entry. They are not a claim in miniature; they are the written form of the reasoning, and the reasoning is the element.
+**A level-changing question.** When leaving a condition out lowers the supported
+level, select the lower level and put one question in the run's existing
+pre-approval questions: whether the clinician addressed that condition this
+visit, naming both levels. Record a yes as his answer and count it. A no removes
+nothing from the note, including the proposed Plan line; the coding worksheet
+and note's E/M paragraph list only the problems that counted. Keep the answer
+with the run's private pre-approval answers. Ask no question when the condition
+would not change the level. Where pre-approval questions are delegated, the
+lower level stands; a delegate cannot supply the clinician's answer.
+
+**Threat to life or bodily function.** Apply `definition-threat-life-function`.
+Read the clinician's own evaluation and treatment — what the shorthand orders,
+gives, or decides about disposition — for consistency with that severity. The
+pass's reasoning and proposed workup cannot supply it. When the shorthand
+already establishes that consistency, count the supported severity without a
+question. Otherwise grade the problem at the level his documented evaluation
+supports; only if the unsupported threat-to-life reading would raise the level,
+use the level-changing question above to ask whether his evaluation and
+treatment supported that severity, naming both levels. The lower level then
+stands until his recorded answer supports the higher reading.
 
 **The procedure database verifies code identity, not the MDM elements.** For an
 MDM-based E/M level, read the passing `reference/cpt-em-mdm-<edition>.md` sheet
@@ -692,8 +718,11 @@ observation, or inpatient, blocks selection; do not infer an office family.
 Read the rendered CPT Professional book through `vitalsource-chrome` when the
 service date falls outside every committed sheet's edition, or when the level
 depends on guidance absent from the sheet—total time, critical care, or prolonged
-services. If that live reading cannot be
-completed, the E/M line stays pending. The database and this prose never
+services. Read each book-only page live each time; never reuse a rendered
+reading from an earlier shift. A page needed a second time joins the committed
+sheet through [ADR 0251 ruling 5](../../docs/adr/0251-the-cpt-mdm-table-is-a-committed-two-reader-sheet-and-the-cpt-edition-is-judged-by-service-date.md#ruling-5--agents-transcribe-and-a-blind-second-reader-must-agree-exactly)'s
+two-reader procedure. If that live reading cannot be completed, the E/M line
+stays pending. The database and this prose never
 substitute for the sheet or required rendered page.
 
 The freshness gate still requires a committed sheet covering the service date;
@@ -709,15 +738,33 @@ as defined in [CONTEXT.md](../../CONTEXT.md). An over-the-counter agent the
 clinician directs in the Plan with a dose and directions is prescription drug
 management under [ADR 0292](../../docs/adr/0292-directed-otc-agents-are-drug-management-and-modifier-25-joins-the-committed-cpt-sheet.md).
 General advice naming an option without a dose and directions counts toward
-nothing. This ruling does not settle the risk contribution of a drug the skill
-itself proposes.
+nothing. A skill-proposed drug counts as prescription drug management where it
+treats a problem the clinician addressed. A proposed drug for a condition left
+out under *Problems addressed* counts for nothing.
+
+Re-derive two of three elements without the skill-proposed drugs. If the
+supported level becomes lower, append this exact inline mark to the E/M line:
+`[SOURCE: filled - risk: <the skill-proposed drugs supporting the level>]`.
+Keep it on the private worksheet, the visible `Coding worksheet` E/M line,
+and the note's matching E/M paragraph, beside the data form below when both
+are owed. If removing the drugs leaves the level unchanged, no risk mark is owed.
 
 **Orders and provenance.** Apply `definition-data-analyzed`, `definition-data-test`,
 `definition-data-unique`, the applicable grid entry, and `mdm-two-of-three`.
 The clinician's own ordered, resulted, or reviewed tests count, and so do
 skill-proposed tests written as actual Plan orders. A recommendation left for
 the preceptor never counts. Use those named entries to judge eligibility and
-avoid counting the same test twice.
+avoid duplicate counts within a category; apply the ECG rule below when a test
+is both ordered and independently interpreted.
+
+**The clinician's own ECG read.** Apply `definition-independent-interpretation`
+and `definition-data-analyzed`. Where the shorthand records his own ECG read,
+count the ECG as a test ordered and an independent interpretation, and bill
+neither 93000 nor 93010. In an office or clinic encounter add 93005 for the
+tracing unless the note says the tracing came from elsewhere. In an emergency
+department encounter bill no ECG code. Verify the selected procedure through
+the existing lookup and rendered-descriptor route; these rules do not supply
+a CPT descriptor.
 
 Remove the skill-proposed orders and re-derive the elements and supported level.
 If the level becomes lower, append this exact inline mark to the E/M line:
@@ -727,12 +774,42 @@ and the note's matching E/M paragraph. This is the narrow provenance exception
 to the note body's tier-language rule; all other fill disclosures stay outside
 the body. If removing the orders leaves the level unchanged, no mark is owed.
 
-The reader checks the counterfactual level and named tests. No existing grader
+The reader checks both counterfactual levels, the named tests and drugs, whose
+decision made each problem addressed, and whose evaluation supports any
+threat-to-life reading. No existing grader
 or coding-freshness gate can derive this clinical judgment: `anchor_scan.py`
 excludes E/M lines, and `coding_freshness.py` verifies code identity, edition,
 and date status rather than level support. The inline mark therefore stays a
-required reading, with no new gate claim. The freshness manifest's `em` value
+required reading for both data and risk, with no new gate claim. The freshness manifest's `em` value
 remains the code alone; provenance is carried by the rendered E/M line.
+
+**Synthetic worked case — a history condition.** A new office patient has
+stable diabetes that the clinician evaluates and continues on metformin.
+Hypertension appears only in the history; the shorthand records no evaluation
+or treatment for it, and the note pass proposes losartan in the Plan. There is
+no separately countable data. Apply `table-low`, `table-moderate`, and
+`mdm-two-of-three`: diabetes alone supports low problems, data is minimal, and
+the clinician's metformin management supports moderate risk. Select 99203.
+Counting hypertension as a second stable chronic illness would give moderate
+problems and, with moderate risk, 99204. Before approval ask: "Did you evaluate
+or treat the hypertension this visit? The selected level is 99203; if you
+addressed it as a second stable chronic illness, the level becomes 99204."
+A recorded yes supports that count. A no leaves 99203 and the proposed
+losartan line in the note; the worksheet and E/M paragraph list diabetes alone
+as the counted problem. Delegated questions leave 99203. Losartan contributes
+no risk while hypertension is left out.
+
+**Synthetic worked case — an office ECG.** A new office patient's chest pain
+is evaluated by the clinician as an undiagnosed new problem with uncertain
+prognosis. The shorthand records his own read of an ECG traced at that office;
+it records no treatment or disposition consistent with a threat to life. Apply
+`table-moderate`, `definition-independent-interpretation`,
+`definition-data-analyzed`, and `mdm-two-of-three`: count the ECG as a test
+ordered and as an independent interpretation. Moderate problems and moderate
+data support 99204 even with low risk. Add 93005 for the office tracing;
+bill neither 93000 nor 93010. If the tracing came from elsewhere, omit 93005;
+in an emergency department encounter, bill no ECG code and select from the
+ED E/M family. The pass's own proposed workup supplies no threat-to-life count.
 
 The first authenticated 2026 reader confirms the ebook identifier and edition
 against the procedure database's CPT `source` row, then derives the private
