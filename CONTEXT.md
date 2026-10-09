@@ -1164,6 +1164,10 @@ _Avoid_: fix agent, fix pass, cleanup pass, correction pass
 A coding writer's own record of **Descriptor agreement** for every code it wrote, graded by the same check the blind reader's record is graded by, before the writer reports done. It moves the author's agreement step earlier and is kept so a skipped one is visible. It is **Shared-reader blindness** by construction: it catches a missing route or a field left unanswered, never the writer's own sincere misjudgment, so it cannot stand in for the **Second reader** and never reaches one.
 _Avoid_: self-check, author read, pre-read, self-review
 
+**Delegated answer**:
+An orchestrator's answer to an open question the clinician handed it, given on his behalf. It reaches only the question kinds a skill lists as his; a question a written rule already settles is not open, and the run follows the rule it quotes. Where no written rule governs, the answer is recorded as having none and named at the go-ahead. Distinct from a **Ruling**, which only the clinician makes and an ADR ratifies, so a delegated answer never overrides one or a written rule.
+_Avoid_: ruling, delegated ruling, coordinator ruling, decision
+
 ### Tracker
 
 **Binding**:

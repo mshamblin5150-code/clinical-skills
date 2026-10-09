@@ -45,11 +45,18 @@ three graded rows:
   time. See ``tilt_beyond_chance`` for why that number is not an invented one.
 - **The person rule** -- every filled height's own clause names an age and a sex.
 
+**A fourth row reads given and filled values alike, and it is ADR 0309's.** The
+**BMI** row computes each note's BMI from the height and weight it states,
+through ``bmi_codes``, and fails a note lacking the ``Z68`` band and ``E66`` code
+that BMI owes. A delegated answer removed those codes from six posted notes
+(#1461) and every row here passed, because none of them read a given value.
+
 **Run it against ``fixtures/filled-anchor/notes`` and it exits 1**, which is
 correct and worth knowing before reading it as breakage. **5 of its 9 heights
 name no age and sex; the other 4 already write the compliant form**, two of them
-with a percentile. Its pressures clear the tilt bar, so the exit status is the
-heights and nothing else. Measured 2026-08-17 and pinned by a test.
+with a percentile. Its pressures clear the tilt bar. Measured 2026-08-17 and
+pinned by a test. **Since ADR 0309 its case 5 also fails the BMI row**: that
+record predates the *not withheld* ruling (#46) and is not edited for it.
 
 **The obvious explanation for that result is wrong and was published wrong first.**
 Those twelve notes are day-b **run 1** byte for byte apart from two redacted
@@ -78,6 +85,8 @@ from pathlib import Path
 import run_grader
 from corpus_census import Reading, is_normal_bp
 import aar_scan
+import bmi_codes
+import delegated_answers
 import medatrax_posting
 from discussion_artifact import PostedReadingOutcome
 import approval_record
@@ -92,6 +101,7 @@ ROWS = {
     "B13": "no two notes share an identical filled height-and-weight pair",
     "B17": "filled pressures do not exceed the ruled false-alarm rate",
     "B18": "every filled height names an age and a sex",
+    "BMI": "every graded-range BMI from the note's own height and weight carries its codes",
 }
 KINDS = tuple(ROWS)
 
@@ -130,6 +140,11 @@ DECLARED_LIMITS = (
         "shared declaration grammar and loose pain-score shape",
         "Counted classes use labeled-value-then-filled grammar, while pain is recognized by its N/10 shape alone.",
         run_grader.EvidenceDisposition.BEHAVIOR,
+    ),
+    (
+        "the BMI code row",
+        "The BMI row reads given and filled values alike through bmi_codes, whose own limits object bounds that reading.",
+        run_grader.EvidenceDisposition.DECLARED_READING,
     ),
     (
         "age-unit vocabulary",
@@ -422,6 +437,12 @@ class Scan:
     # Kept for ``--show`` alone, and never read by ``format_report`` without it.
     height_counts: tuple[tuple[int, int], ...] = ()
     body_counts: tuple[tuple[tuple[int, int], int], ...] = ()
+    # ADR 0309 ruling 3. Over every note, given and filled values alike: the
+    # notes whose height and weight were read into a BMI, those in a graded
+    # band, and those lacking a code that band owes.
+    bmi_read: int = 0
+    bmi_graded: int = 0
+    bmi_missing: int = 0
     findings: tuple[Finding, ...] = ()
     unread_remainder: int = 0
 
@@ -451,7 +472,7 @@ class Scan:
         A set declaring no filled height and no filled pressure has not passed
         them; it has not been measured by them, and the exit status says which.
         """
-        return bool(self.heights or self.pressures)
+        return bool(self.heights or self.pressures or self.bmi_graded)
 
 
 def _block_span(text: str) -> tuple[int, int] | None:
@@ -554,6 +575,7 @@ def survey(texts: list[str]) -> Scan:
     to paste.
     """
     fills = [read_fill(text) for text in texts]
+    bmis = [bmi_codes.read_note(text) for text in texts]
     coverage = [key_coverage(text) for text in texts]
     heights = Counter(f.height_in for f in fills if f.height_in is not None)
     weights = Counter(f.weight_lb for f in fills if f.weight_lb is not None)
@@ -581,11 +603,15 @@ def survey(texts: list[str]) -> Scan:
         ),
         height_counts=tuple(sorted(heights.items())),
         body_counts=tuple(sorted(bodies.items())),
+        bmi_read=sum(1 for reading in bmis if reading.read),
+        bmi_graded=sum(1 for reading in bmis if reading.graded),
+        bmi_missing=sum(1 for reading in bmis if reading.missing),
         unread_remainder=sum(
             int(fill.height_candidate and fill.height_in is None)
             + int(fill.weight_candidate and fill.weight_lb is None)
             for fill in fills
-        ),
+        )
+        + sum(1 for reading in bmis if reading.unread),
     )
     findings: list[Finding] = []
     if scan.repeated_bodies:
@@ -607,6 +633,18 @@ def survey(texts: list[str]) -> Scan:
             Finding(
                 "B18",
                 f"{scan.heights_missing_person} of {scan.heights} filled heights name no age and sex",
+            )
+        )
+    if scan.bmi_missing:
+        findings.append(
+            Finding(
+                "BMI",
+                f"{scan.bmi_missing} of {scan.bmi_graded} graded-range BMIs lack a code: "
+                + "; ".join(
+                    f"BMI {reading.bmi} owes {', '.join(reading.missing)}"
+                    for reading in bmis
+                    if reading.missing
+                ),
             )
         )
     return replace(scan, findings=tuple(findings))
@@ -649,6 +687,9 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         f"    {f'beyond a fair split at {CHANCE_FLOOR:.0%}?':<30}{_tilt_verdict(scan)}",
         f"  declaring a filled height and weight   {scan.bodies}",
         f"    sharing a body with another note     {scan.repeated_bodies}",
+        f"  BMI from the note's height and weight  {scan.bmi_read}",
+        f"    in a band that owes codes            {scan.bmi_graded}",
+        f"    lacking a code that band owes        {scan.bmi_missing}",
         "",
         f"  counted, {NOT_GRADED} — no corpus split grounds a bar on these:",
     ]
@@ -716,6 +757,9 @@ def grade(
     posting_failed, posting_report = medatrax_posting.completion_gate(
         directory, parsed.value("--submission"), batch=True
     )
+    delegated_failed, delegated_report = delegated_answers.completion_gate(
+        directory, parsed.value("--submission")
+    )
 
     diagnostic_by_kind = {
         "B13": (
@@ -734,6 +778,12 @@ def grade(
             " always has two anchors already in the encounter."
             " fixtures/day-b B18 fails."
         ),
+        "BMI": (
+            f"{scan.bmi_missing} of {scan.bmi_graded} note(s) whose own height and"
+            " weight give a BMI in a band that owes codes lack its Z68 band or E66"
+            " code. clinical-note does not withhold them (#46, #70);"
+            " ADR 0309 ruling 3."
+        ),
     }
     findings = [diagnostic_by_kind[finding.kind] for finding in scan.findings]
     # #204. Every figure above is a fraction whose denominator is whatever the
@@ -745,7 +795,10 @@ def grade(
         if scan.asserted_keys_unread
         else ""
     )
-    findings_failed = bool(scan.findings or aar_failed or posting_failed or summary_failed or chain_failed)
+    findings_failed = bool(
+        scan.findings or aar_failed or posting_failed or summary_failed or chain_failed
+        or delegated_failed
+    )
     coverage_failed = bool(scan.asserted_keys_unread or scan.unread_remainder or summary_incomplete)
     diagnostics: tuple[str, ...] = ()
     if findings_failed:
@@ -763,7 +816,7 @@ def grade(
         )
     elif unread or scan.unread_remainder:
         candidate_note = (
-            f"{scan.unread_remainder} height or weight candidate(s) were unread."
+            f"{scan.unread_remainder} height, weight or BMI candidate(s) were unread."
             if scan.unread_remainder
             else ""
         )
@@ -787,7 +840,7 @@ def grade(
         findings_failed=findings_failed,
         coverage_failed=coverage_failed,
         diagnostics=diagnostics,
-        reports=(summary_report, chain_report, aar_report, posting_report),
+        reports=(summary_report, chain_report, aar_report, posting_report, delegated_report),
     )
     return approval_record.apply_completion_gate(
         result, directory, "batch-shift", parsed.value("--submission")
