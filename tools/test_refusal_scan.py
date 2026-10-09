@@ -11,6 +11,7 @@ from pathlib import Path
 import refusal_scan as scan
 import run_grader
 import icd10_lookup
+import artifact_lock_test_support
 from code_set_database_test_support import ICD10_DATABASE_SHA256, assert_code_set_database_digest
 from grader_conformance import (
     EmptyPopulationInput,
