@@ -496,6 +496,8 @@ from the two.
 
 **And withholding was never a rule this file stated**, so refusing the family, remaining silent, and writing it as though the measurements were observed were all compliant with a file that did not speak. This paragraph is what it now says. Issue [#46](https://github.com/mshamblin5150-code/clinical-skills/issues/46).
 
+**The codes are checked rather than trusted.** `python tools/filled_vitals_census.py <the run directory>` computes each note's BMI from the height and weight it states, given or filled. It refuses an adult BMI of 25.0 or above without its exact `Z68` band and an `E66` code of the matching family, and a pediatric band that pairs with an `E66` code without both. Run it before the go-ahead; a BMI finding blocks approval until the note carries the codes. A delegated answer cannot remove these codes: [ADR 0309](../../docs/adr/0309-a-delegated-answer-never-decides-what-a-written-rule-already-settles-and-a-missing-bmi-code-is-refused.md), issue [#1461](https://github.com/mshamblin5150-code/clinical-skills/issues/1461).
+
 **Two limits, and neither is about provenance.**
 
 - **No code family is refused for resting on a filled value, and none is silently coded as if measured.** Both halves fail row 20.
@@ -1526,6 +1528,16 @@ When the clinician has delegated pre-approval questions, settle this item from t
 (no record means new) and name that patient in the go-ahead message: coded new, the shorthand
 mentions an earlier visit, and saying `established` changes it. A change re-renders the affected
 note and follows the existing approval rules.
+
+**A delegated answer never decides what a written rule already settles** (ADR 0309). When the
+clinician delegates open questions, a delegate answers only the question kinds this block lists,
+less the status question above. Settle every other question by the written rule that governs it,
+quoted from this repository; an answer that contradicts a quoted rule is not applied. Where no
+written rule governs, the delegate may answer, and the go-ahead message names that answer. Record
+each such question in the run's `delegated-answers.md`: one `## QUESTION:` record with
+`RULE: <repository path>: "<the governing sentence, verbatim>"` or `RULE: none found`, and
+`ANSWER:` stating what the run did. The completion grader refuses a quoted rule the cited file
+does not contain.
 Then show the clinician the complete note, the settled patient match or `NEW PATIENT`, the resolved preceptor,
 and the finalized E/M line. Beside the note, list every interpreted abdominal location from step 2:
 shorthand, region written, and deciding encounter evidence or corner-fallback reason. Show `none`
