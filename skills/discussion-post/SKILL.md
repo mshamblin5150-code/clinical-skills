@@ -36,6 +36,7 @@ scratch/runs/<course>-<module>-discussion/
     posts/
     bar.md
     claims.md
+    outline.md
     post.md
     differentiation.md
     reread.md
@@ -59,7 +60,7 @@ submission. `output/` holds the submission and its renders;
 provenance stays in the run directory.
 
 For this skill, the canonical artifacts governed by [standing rule 6](../../AGENTS.md) are
-`board-<date>.md`, `bar.md`, `claims.md`, `post.md`, `differentiation.md`, `reread.md`, and
+`board-<date>.md`, `bar.md`, `claims.md`, `outline.md`, `post.md`, `differentiation.md`, `reread.md`, and
 `voice-status.md`; each worker's temporary path is separate and run-unique.
 
 ## 1. Route from the prompt, then snapshot the nonpatient board
@@ -123,7 +124,7 @@ point you are keeping. The artifact governed by that rule in this skill is the i
 Every prose bar element remains a reader's check; `discussion_post_scan.NOT_REACHED` is the single
 inventory of what that command cannot decide.
 
-## 3. Draft blind, then derive the claim set from the document
+## 3. Outline blind, research the questions, then draft from records
 
 Before that first prose, write `voice-reads/<submission-key>/supplied-voice.json` by
 [voice-read.md](../_shared/reference/voice-read.md) step 1: quote every image or reasoning ground the
@@ -136,7 +137,7 @@ unregistered project stops for the clinician's answer; an unreachable place stop
 readable or the clinician confirms its waiver. A later search direction amends and re-confirms the
 record before prose resumes.
 
-Immediately before drafting the first prose, run:
+Immediately before drafting the first prose, which is the blind argument outline, run:
 
 ```bash
 python tools/project_context.py scratch/runs/<course>-<module>-discussion --write --submission <submission-key>
@@ -177,19 +178,12 @@ every retained invoked source here is the clinician's. It still strips and separ
 `AMPLIFICATION` marker as a pre-#496 marker that is not graded. Keep these own-line comments in the
 Markdown; `docx_write.py` drops own-line HTML comments when it renders the Word document.
 
-Write the prompt-shaped working draft to `post.md`, including its in-text citations and reference
-list. This is not the finished artifact. Now derive the required claim set from the document
-rather than from the run's account of what it intended to claim:
-
-1. every in-text citation; and
-2. every Arabic numeral in the body that is not a citation year, page locator, or statute section
-   number.
-
-A factual claim without a citation still receives a record when it is new rather than the
-clinician's own reasoning. The mechanical `untraced-number` row is a floor, not permission to leave
-uncited prose unresearched.
-
-Create `claims.md` with a `DATE:` header and one `## CLAIM:` heading per derived claim. Write each
+Write a prompt-shaped blind argument outline to `outline.md`, in the clinician's voice and
+reasoning, carrying no citation, number or source fact. Derive research questions from its factual
+points. Create `claims.md` with a `DATE:` header and one question-form `## CLAIM:` heading per
+question. Research answers those questions; when each record returns, rewrite its heading as the
+source-backed claim under [sourcing.md](../_shared/reference/sourcing.md), before refutation
+dispatch. Only the rewritten heading reaches refutation or drafting. Write each
 reference entry from the applicable form in
 [apa7.md](../_shared/reference/apa7.md), including its legal-entry form and declared
 `C.F.R.`-only limit; do not recall a form the sheet does not cover. Use the full record shape:
@@ -226,9 +220,12 @@ supporting language sits, opened URL or DOI and read date, the page's stated yea
 the source's stated expiry or `none stated`. Transcribe only an expiry the document states; do not
 infer one from a publication cadence. `42 C.F.R. § 414.56 (2025)` is the known case where `none stated` is correct:
 the codification year is provenance, and the annual reissue schedule is not a stated expiry. Each
-`sourced` record gets a refutation leg. It returns
-`stands`, `refuted`, or `paywalled` with a substantive reason. There is no carve-out for legal
-primary sources: a refuter checks whether the cited section says what the draft claims. It also
+`sourced` record gets a refutation leg. It attacks the reference, locator, year, bibliographic
+details, heading, and restatement under the shared width rule. It returns
+`stands`, `refuted`, `paywalled`, or `unreadable` with a substantive reason. An `unreadable`
+refutation carries the two failed instruments and passes without deleting the claim; the completion
+report counts it on its own line. There is no carve-out for legal primary sources: a refuter checks
+whether the cited section says what the heading and restatement claim. It also
 returns `SECOND-ROUTE: <research route> -> <refutation route>`; both halves must have substance and
 must differ after normalization. Refuter independence remains orchestrator-owned; see
 `research_ledger.DECLARED_LIMITS`.
@@ -256,6 +253,20 @@ The grader's coverage boundaries are inventoried in
 
 Exit 0 means the records are mechanically complete, 1 means a finding, and 2 means the ledger was
 not scanned. The refutation pass and the draft-to-ledger read own the source-support judgment.
+
+After research and refutation, write the prose from the returned records into `post.md`, including
+its in-text citations and reference list. This is the working draft, not the finished artifact.
+Check the final draft's claim set as a completeness backstop:
+
+1. every in-text citation; and
+2. every Arabic numeral in the body that is not a citation year, page locator, or statute section
+   number.
+
+A new factual claim without a citation still receives a record unless it is the clinician's own
+reasoning. Research and refute any factual point the outline did not anticipate through the same
+question-to-claim sequence before keeping it. The heading read's `unrecorded` finding and the
+mechanical `untraced-number` row remain the backstop, not permission to leave uncited prose
+unresearched.
 
 ## 4. Resolve dead claims before the draft is final
 
