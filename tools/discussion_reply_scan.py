@@ -120,6 +120,7 @@ ROWS = {
     SUBMISSION_FINGERPRINT: "every posted reading is bound to its current reply Markdown",
 }
 ROWS.update({kind: "the heading read agrees with each final reply and its scoped claim headings" for kind in heading_read.KINDS})
+ROWS[heading_read.VERDICT_SHAPE] = "a heading-read verdict line is malformed"
 KINDS = tuple(ROWS)
 HEADING_READ_ROWS = {kind: ROWS[kind] for kind in heading_read.KINDS}
 

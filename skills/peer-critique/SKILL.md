@@ -266,7 +266,8 @@ here so a reader who cannot run the command walks the same checks:
 The final-draft reading adds `missing-heading-read`, `duplicate-heading-read`,
 `unread-heading-read`, `unknown-heading-read-route`,
 `heading-read-sentence-count`, `heading-read-unknown-heading`, `heading-read-dropped-heading`,
-`heading-read-draft-mismatch`, `heading-read-defect`, `heading-read-finding`,
+`heading-read-draft-mismatch`, `heading-read-defect`, `heading-read-verdict-shape`
+(a malformed verdict line), `heading-read-finding`,
 `heading-read-context-digest`, `heading-read-context-verdict-shape`, and
 `heading-read-context-defect`.
 

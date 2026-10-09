@@ -1375,19 +1375,9 @@ FINDINGS: The differential's 1. is appendicitis, and the intake gives a patient 
     emergency is at 4 and has to be at 1 until the hCG is back.
 ```
 
-The heading-read row keeps its shared shape in this same checks file:
-
-```text
-## HEADING-READ: <output Markdown filename>
-DRAFT: <SHA-256 of the output Markdown's raw bytes>
-ROUTE: separate context | orchestrator walk
-SENTENCES: <n> factual, <n> clinician's own
-PAIR: <location> -> <first 8 hex of the heading digest>
-CONTEXT-DIGEST: <the project-context record's digest> | none
-CONTEXT-VERDICT: agrees | none | narrows | contradicts | sources-conflict - <location>, <what differs>
-VERDICT: clean | defect - <substance>
-FINDINGS: unrecorded | drifted - <location>, <what differs>
-```
+Use the shared heading-read template in
+[`skills/_shared/reference/sourcing.md`](../_shared/reference/sourcing.md#a-heading-read-binds-the-final-draft-to-the-ledger).
+For practicum, the draft is the output Markdown and the record is a row in `checks.md`.
 
 The rendered-document record also fixes the declared route and retained pass:
 
@@ -1456,9 +1446,10 @@ be several of them at once:
 | a heading-read-dropped-heading pair | the draft claims a record that says it was `DROPPED` |
 | a heading-read-draft-mismatch | `DRAFT` is absent or differs from the output Markdown bytes |
 | a heading-read-defect verdict | the reader reported a defect, which blocks the go-ahead |
+| a heading-read-verdict-shape finding | a verdict line is malformed rather than reporting a defect |
 | a heading-read-finding line | any `FINDINGS` line reports an `unrecorded` or `drifted` sentence and blocks the go-ahead |
 | a heading-read-context-digest mismatch | `CONTEXT-DIGEST` is absent or differs from the machine-written project-context digest |
-| a heading-read-context-verdict-shape defect | a nonagreeing verdict does not name its location and what differs |
+| a heading-read-context-verdict-shape finding | a context verdict line is malformed, including an agreement with a tail or a nonagreeing verdict without its required details |
 | a heading-read-context-defect verdict | the reader reported `narrows`, `contradicts`, or `sources-conflict`; revise the draft or obtain the clinician's ruling |
 
 **That last row was off the list entirely until

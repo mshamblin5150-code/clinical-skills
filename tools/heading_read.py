@@ -86,6 +86,7 @@ UNKNOWN_HEADING = "heading-read-unknown-heading"
 DROPPED_HEADING = "heading-read-dropped-heading"
 DRAFT_MISMATCH = "heading-read-draft-mismatch"
 DEFECT_VERDICT = "heading-read-defect"
+VERDICT_SHAPE = "heading-read-verdict-shape"
 REPORTED_FINDING = "heading-read-finding"
 CONTEXT_DIGEST_MISMATCH = "heading-read-context-digest"
 CONTEXT_VERDICT_SHAPE = "heading-read-context-verdict-shape"
@@ -99,6 +100,7 @@ KINDS = (
     DROPPED_HEADING,
     DRAFT_MISMATCH,
     DEFECT_VERDICT,
+    VERDICT_SHAPE,
     REPORTED_FINDING,
     CONTEXT_DIGEST_MISMATCH,
     CONTEXT_VERDICT_SHAPE,
@@ -229,11 +231,12 @@ def _record_findings(record: Record, binding: Binding) -> list[Finding]:
         )
 
     context_verdict = record.value("CONTEXT-VERDICT")
+    context_keyword = context_verdict.casefold().split(maxsplit=1)[0] if context_verdict else ""
     if expected_context == "none":
         if context_verdict.casefold() != "none":
             found.append(
                 Finding(
-                    CONTEXT_DEFECT_VERDICT,
+                    CONTEXT_VERDICT_SHAPE if context_keyword == "none" else CONTEXT_DEFECT_VERDICT,
                     artifact,
                     context_verdict or "CONTEXT-VERDICT is missing",
                 )
@@ -261,17 +264,22 @@ def _record_findings(record: Record, binding: Binding) -> list[Finding]:
                     context_verdict or "CONTEXT-VERDICT is missing",
                 )
             )
-        found.append(
-            Finding(
-                CONTEXT_DEFECT_VERDICT,
-                artifact,
-                context_verdict or "CONTEXT-VERDICT is missing",
+        if context_keyword in ("narrows", "contradicts", "sources-conflict"):
+            found.append(
+                Finding(
+                    CONTEXT_DEFECT_VERDICT,
+                    artifact,
+                    context_verdict,
+                )
             )
-        )
 
     verdict = record.value("VERDICT")
+    verdict_keyword = verdict.casefold().split(maxsplit=1)[0] if verdict else ""
+    if verdict_keyword == "defect":
+        found.append(Finding(DEFECT_VERDICT, artifact, verdict))
     if verdict.casefold() != "clean":
-        found.append(Finding(DEFECT_VERDICT, artifact, verdict or "VERDICT is missing"))
+        if re.fullmatch(r"(?i)defect[ \t]+-[ \t]+.+", verdict) is None:
+            found.append(Finding(VERDICT_SHAPE, artifact, verdict or "VERDICT is missing"))
     for detail in record.findings:
         found.append(Finding(REPORTED_FINDING, artifact, detail or "empty FINDINGS line"))
     return found
