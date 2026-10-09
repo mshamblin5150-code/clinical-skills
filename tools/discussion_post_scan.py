@@ -141,6 +141,7 @@ ROWS = {
     SUBMISSION_FINGERPRINT: "carriers match the Markdown rebuild and any posted reading binds the current submission",
     POSTED_ATTACHMENT: "the posted entry carries the checked Word document's bytes",
     **{kind: "the heading read agrees with the final draft and current claim headings" for kind in heading_read.KINDS},
+    heading_read.VERDICT_SHAPE: "a heading-read verdict line is malformed",
 }
 KINDS = tuple(ROWS)
 HEADING_READ_ROWS = {kind: ROWS[kind] for kind in heading_read.KINDS}

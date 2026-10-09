@@ -80,6 +80,7 @@ ROWS = (
 ) + heading_read.KINDS
 KINDS = ROWS
 HEADING_READ_ROWS = {kind: kind for kind in heading_read.KINDS}
+HEADING_READ_ROWS[heading_read.VERDICT_SHAPE] = "a heading-read verdict line is malformed"
 EXPECTED_COMPLETION_CHECKS = (
     aar_scan.EXPECTED_ROW,
     voice_model_identity.EXPECTED_ROW,

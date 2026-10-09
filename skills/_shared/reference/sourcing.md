@@ -169,10 +169,22 @@ ROUTE: separate context | orchestrator walk
 SENTENCES: <n> factual, <n> clinician's own
 PAIR: <location> -> <first 8 hex of the heading digest>
 CONTEXT-DIGEST: <the project-context record's digest> | none
-CONTEXT-VERDICT: agrees | none | narrows | contradicts | sources-conflict - <location>, <what differs>
-VERDICT: clean | defect - <substance>
-FINDINGS: unrecorded | drifted - <location>, <what differs>
+CONTEXT-VERDICT: agrees
+CONTEXT-VERDICT: none
+CONTEXT-VERDICT: narrows - <location>, <what differs>
+CONTEXT-VERDICT: contradicts - <location>, <what differs>
+CONTEXT-VERDICT: sources-conflict - <source A> and <source B>, <what differs>
+VERDICT: clean
+VERDICT: defect - <substance>
+FINDINGS: unrecorded - <location>, <what differs>
+FINDINGS: drifted - <location>, <what differs>
 ```
+
+Choose exactly one `CONTEXT-VERDICT` line and one `VERDICT` line from these forms.
+`agrees`, `none`, and `clean` take nothing after them. A `FINDINGS:` line appears once
+per sentence that failed and never on a clean record. This differs from the `## RENDERED:`
+record's `VERDICT: clean - <what was compared>` and from the practicum `## CHECK:` record,
+where a clean record's `FINDINGS:` supplies its substance.
 
 A clean record has one `PAIR` per factual sentence. Pairs plus findings equal the factual count;
 every prefix names a current, non-`DROPPED` heading; and `DRAFT` matches the final artifact. A

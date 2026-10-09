@@ -439,6 +439,7 @@ ROWS = {
     DRAFT_FINGERPRINT_MISMATCH: "#1020",
     RENDER_FINGERPRINT_MISMATCH: "#1020",
     **{kind: "#1032" for kind in heading_read.KINDS},
+    heading_read.VERDICT_SHAPE: "#1482 - a heading-read verdict line is malformed",
     SUBMISSION_FINGERPRINT: "#1035",
     INLINE_HTML: "#1154",
     POSTED_ATTACHMENT: "#1154",

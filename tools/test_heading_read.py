@@ -7,7 +7,10 @@ phi-scan: synthetic
 
 from __future__ import annotations
 
+import importlib
+import re
 import unittest
+from pathlib import Path
 
 import heading_read
 import research_ledger
@@ -63,6 +66,64 @@ def scan(text: str) -> heading_read.Scan:
 
 
 class AHeadingReadBindsTheDraftToCurrentClaimHeadings(unittest.TestCase):
+    def test_malformed_clean_and_unknown_verdicts_are_format_findings_only(self):
+        for verdict in ("clean - a reason", "cleaned", "clean-tail", "unknown", ""):
+            with self.subTest(verdict=verdict):
+                self.assertEqual(
+                    ["heading-read-verdict-shape"],
+                    [f.kind for f in scan(record(verdict=verdict)).findings],
+                )
+        self.assertEqual(
+            ["heading-read-verdict-shape"],
+            [f.kind for f in scan(record().replace("VERDICT: clean\n", "")).findings],
+        )
+
+    def test_a_defect_keyword_reports_the_defect_and_any_missing_tail(self):
+        for verdict in ("defect", "defect -", "defect - "):
+            with self.subTest(verdict=verdict):
+                self.assertEqual(
+                    {"heading-read-defect", "heading-read-verdict-shape"},
+                    {f.kind for f in scan(record(verdict=verdict)).findings},
+                )
+        self.assertEqual(
+            ["heading-read-defect"],
+            [f.kind for f in scan(record(verdict="defect - pairing differs")).findings],
+        )
+
+    def test_malformed_agreement_and_unknown_context_are_format_findings_only(self):
+        for verdict in ("agrees - a reason", "agreesmore", "agrees-tail", "unknown", ""):
+            with self.subTest(verdict=verdict):
+                self.assertEqual(
+                    ["heading-read-context-verdict-shape"],
+                    [f.kind for f in scan(record(context_verdict=verdict)).findings],
+                )
+        self.assertEqual(
+            ["heading-read-context-verdict-shape"],
+            [f.kind for f in scan(record().replace("CONTEXT-VERDICT: agrees\n", "")).findings],
+        )
+
+    def test_a_context_defect_keyword_reports_the_defect_and_any_missing_tail(self):
+        for verdict in ("narrows", "contradicts -", "sources-conflict - one source"):
+            with self.subTest(verdict=verdict):
+                self.assertEqual(
+                    {"heading-read-context-defect", "heading-read-context-verdict-shape"},
+                    {f.kind for f in scan(record(context_verdict=verdict)).findings},
+                )
+
+    def test_a_none_context_with_a_tail_reports_only_bad_format(self):
+        binding = heading_read.Binding("draft.md", DRAFT, (), "none")
+        for verdict, expected in (
+            ("none", []),
+            ("none - a reason", ["heading-read-context-verdict-shape"]),
+            ("nonetheless", ["heading-read-context-defect"]),
+            ("agrees", ["heading-read-context-defect"]),
+            ("", ["heading-read-context-defect"]),
+        ):
+            with self.subTest(verdict=verdict):
+                text = record(pairs=(), context_digest="none", context_verdict=verdict)
+                text = text.replace("1 factual", "0 factual")
+                self.assertEqual(expected, [f.kind for f in heading_read.scan(text, (binding,)).findings])
+
     def test_the_declared_limits_have_their_no_copy_bind(self):
         self.assertEqual((), bind(heading_read.DECLARED_LIMITS, heading_read.__doc__, mode=NAMING))
 
@@ -228,6 +289,58 @@ class AHeadingReadBindsTheDraftToCurrentClaimHeadings(unittest.TestCase):
         result = scan(text)
         self.assertEqual((result.records_read, result.unread), (0, 1))
         self.assertIn(heading_read.MISSING_RECORD, [f.kind for f in result.findings])
+
+
+class TheSharedTemplateUsesFormsTheGraderUnderstands(unittest.TestCase):
+    def test_every_documented_verdict_and_finding_has_its_intended_kind(self):
+        root = Path(__file__).resolve().parents[1]
+        sourcing = (root / "skills/_shared/reference/sourcing.md").read_text(encoding="utf-8")
+        block = re.search(r"```text\n(## HEADING-READ: .*?)\n```", sourcing, re.DOTALL)
+        self.assertIsNotNone(block)
+        population = set()
+        for line in block.group(1).splitlines():
+            field, _, value = line.partition(": ")
+            if field not in ("CONTEXT-VERDICT", "VERDICT", "FINDINGS"):
+                continue
+            keyword = value.split()[0]
+            with self.subTest(line=line):
+                if field == "CONTEXT-VERDICT":
+                    population.add(keyword)
+                    digest = "none" if keyword == "none" else CONTEXT_DIGEST
+                    text = record(context_digest=digest, context_verdict=value)
+                    binding = heading_read.Binding("draft.md", DRAFT, tuple(research_ledger.read_records(CLAIMS)), digest)
+                    result = heading_read.scan(text, (binding,))
+                    expected = [] if keyword in ("agrees", "none") else ["heading-read-context-defect"]
+                elif field == "VERDICT":
+                    population.add(keyword)
+                    result = scan(record(verdict=value))
+                    expected = [] if keyword == "clean" else ["heading-read-defect"]
+                else:
+                    population.add(keyword)
+                    result = scan(record(pairs=(), findings=(value,)))
+                    expected = ["heading-read-finding"]
+                self.assertEqual(expected, [f.kind for f in result.findings])
+        self.assertEqual(
+            {"agrees", "none", "narrows", "contradicts", "sources-conflict", "clean", "defect", "unrecorded", "drifted"},
+            population,
+        )
+
+    def test_practicum_points_to_the_shared_template_without_copying_it(self):
+        root = Path(__file__).resolve().parents[1]
+        skill = (root / "skills/practicum-case-study/SKILL.md").read_text(encoding="utf-8")
+        self.assertFalse("CONTEXT-VERDICT:" in skill, "practicum copies the shared verdict template")
+        self.assertIn("skills/_shared/reference/sourcing.md", skill)
+
+    def test_each_consumer_carries_the_format_kind_with_a_format_row(self):
+        for name in (
+            "discussion_post_scan", "discussion_reply_scan", "peer_critique_scan",
+            "deck_scan", "assignment_docx_scan", "checks_ledger",
+        ):
+            with self.subTest(consumer=name):
+                consumer = importlib.import_module(name)
+                self.assertEqual(set(heading_read.KINDS), set(consumer.HEADING_READ_ROWS))
+                self.assertIn("heading-read-verdict-shape", consumer.ROWS)
+                self.assertIn("malformed", consumer.HEADING_READ_ROWS["heading-read-verdict-shape"])
 
 
 if __name__ == "__main__":
