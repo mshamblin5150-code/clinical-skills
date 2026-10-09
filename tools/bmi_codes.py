@@ -4,7 +4,7 @@
 code (#70) and that a BMI from the note's own values is *not withheld* (#46).
 Issue #1461 is the run where a delegated answer removed those codes from six
 posted notes and every gate still passed, because none of them computed a BMI.
-ADR 0309 ruling 2 is this module: the arithmetic on two numbers already in the
+ADR 0309 ruling 3 is this module: the arithmetic on two numbers already in the
 note, joined to the code set the skill already names.
 
 ``filled_vitals_census`` consumes ``read_note`` and owns the report, the row and
@@ -15,10 +15,7 @@ call.
 exact ``Z68`` band and an ``E66`` code from the matching family: ``E66.3`` for
 25.0-29.9, and any obesity code other than ``E66.3`` at 30.0 or above. A patient
 aged 2 through 19 is read through ``cdc_percentile``; where its band pairs with an
-``E66`` code the note owes that ``Z68.5-`` band and the same ``E66`` family. A
-normal or low BMI, and any age under 2, is reported and never graded, because
-whether a ``Z68`` belongs at a normal BMI with no condition under it is the
-coding-guidelines question ``clinical-note`` deliberately leaves open.
+``E66`` code the note owes that ``Z68.5-`` band and the same ``E66`` family.
 
 **Where it reads.** Height and weight are the first labeled values in the note
 outside its tier block; the codes are read from the same region with every welded
@@ -47,8 +44,8 @@ DECLARED_LIMITS = (
         run_grader.EvidenceDisposition.BEHAVIOR,
     ),
     (
-        "first age and sex mention",
-        "Age and sex come from the first mention in the note, so a relative named before the patient can be read as the patient.",
+        "most stated age and sex",
+        "Age and sex are the values a note states most often, the earliest winning a tie, so a relative named as often as the patient and before them is read as the patient.",
         run_grader.EvidenceDisposition.BEHAVIOR,
     ),
     (
@@ -63,7 +60,7 @@ DECLARED_LIMITS = (
     ),
     (
         "normal and low BMI",
-        "A BMI under 25.0, a pediatric band with no paired E66 code, and any age under 2 are reported and never graded.",
+        "A BMI under 25.0, a pediatric band with no paired E66 code, and any age under 2 are reported and never graded, because whether a Z68 belongs at a normal BMI with no condition under it is the coding-guidelines question clinical-note leaves open.",
         run_grader.EvidenceDisposition.DECLARED_READING,
     ),
 )

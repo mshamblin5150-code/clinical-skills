@@ -1,6 +1,6 @@
 # A delegated answer never decides what a written rule already settles and a missing BMI code is refused
 
-**Measured at:** b4f3f9e3eb85d846ec3dde586ffbc19d7c6ba84c
+**Measured at:** 73811a50679e6c2454828cf05ce0f6910cf3e71e
 
 [#1461](https://github.com/mshamblin5150-code/clinical-skills/issues/1461) was filed from the
 after-action review of a NUR5144 `batch-shift` run. The clinician
@@ -69,8 +69,8 @@ disagree, the failure the *not withheld* rule was written to prevent.
 
 ## Ruling 5 — an orchestrator's answer for the clinician is a delegated answer
 
-`CONTEXT.md` defines **Delegated answer**, with *ruling*, *delegated ruling* and *coordinator
-ruling* on its avoid row. A **Ruling** remains a ratified ADR decision only. *Delegated decision*
+`CONTEXT.md` defines **Delegated answer**, with *ruling*, *delegated ruling*, *coordinator ruling*
+and *decision* on its avoid row. A **Ruling** remains a ratified ADR decision only. *Delegated decision*
 was declined because *decision* is already on **Ruling**'s avoid row.
 
 ## What this does not reach

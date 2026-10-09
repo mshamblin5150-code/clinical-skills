@@ -1,9 +1,9 @@
 """Grade a run's record of delegated answers against the written rules they cite.
 
 When the clinician delegates a run's open questions, ADR 0309 ruling 1 limits a
-delegated answer to the question kinds the skills name as his, and ruling 2
-requires every other question to be settled by the written rule the run quotes or
-recorded as having none. A delegated answer is the orchestrator's answer to a
+delegated answer to the question kinds the skills name as his and settles every
+other question by the written rule the run quotes; ruling 2 records each such
+question, with that rule or ``none found``. A delegated answer is the orchestrator's answer to a
 question the clinician delegated; it is never a ruling, which is an ADR's.
 
 The record is ``<run>/delegated-answers.md``, one record per question::
@@ -13,9 +13,9 @@ The record is ``<run>/delegated-answers.md``, one record per question::
     ANSWER: <what the run did>
 
 ``RULE: none found`` declares that no written rule governs the question; such an
-answer is named to the clinician at the go-ahead. A quoted rule must appear,
-whitespace-normalized, in the cited tracked file of the checkout running this
-grade, so a run cannot cite a rule that is not written.
+answer is named to the clinician at the go-ahead. A quoted rule must be at least
+``MIN_QUOTE_WORDS`` words and appear, whitespace-normalized, in the cited file of
+the checkout running this grade, so a run cannot cite a rule that is not written.
 
 ``completion_gate`` grades only at an explicit ``--submission``, beside the
 after-action review row, and prints counts only: a question names a patient's
@@ -41,6 +41,8 @@ NONE_FOUND = "none found"
 # Where a governing rule may be written. A rule anywhere else is not one a run
 # was bound by.
 RULE_ROOTS = ("skills/", "reference/", "docs/adr/", "AGENTS.md")
+# A governing sentence, not a word: a one-word fragment appears in any file.
+MIN_QUOTE_WORDS = 6
 
 DECLARED_LIMITS = (
     (
@@ -56,6 +58,11 @@ DECLARED_LIMITS = (
     (
         "whether the answer follows the quoted rule",
         "The grader proves a quoted rule is written, not that the answer obeys it; that comparison is the clinician's at the go-ahead.",
+        run_grader.EvidenceDisposition.DECLARED_READING,
+    ),
+    (
+        "naming at the go-ahead",
+        "A none-found answer is named in the go-ahead message, which no file records, so the grader counts those answers and cannot see whether they were named.",
         run_grader.EvidenceDisposition.DECLARED_READING,
     ),
 )
@@ -83,12 +90,15 @@ def rule_finding(rule: str, root: Path) -> str | None:
     if match is None:
         return 'RULE is neither "none found" nor a path and a quoted sentence'
     path, quote = match.group(1), match.group(2)
+    if len(quote.split()) < MIN_QUOTE_WORDS:
+        return f"RULE quotes fewer than {MIN_QUOTE_WORDS} words, not a governing sentence"
     if not path.startswith(RULE_ROOTS) or ".." in Path(path).parts:
         return "RULE cites a file outside skills/, reference/, docs/adr/ or AGENTS.md"
     source = root / path
     if not source.is_file():
         return "RULE cites a file that does not exist"
-    if _normalized(quote) not in _normalized(source.read_text(encoding="utf-8")):
+    written = source.read_text(encoding="utf-8", errors="replace")
+    if _normalized(quote) not in _normalized(written):
         return "RULE quotes a sentence the cited file does not contain"
     return None
 

@@ -496,7 +496,7 @@ measurements before entry.
 
 **And withholding was never a rule this file stated**, so refusing the family, remaining silent, and writing it as though the measurements were observed were all compliant with a file that did not speak. This paragraph is what it now says. Issue [#46](https://github.com/mshamblin5150-code/clinical-skills/issues/46).
 
-**The codes are checked rather than trusted.** `python tools/filled_vitals_census.py <the run directory>` computes each note's BMI from the height and weight it states, given or filled. It refuses an adult BMI of 25.0 or above without its exact `Z68` band and an `E66` code of the matching family, and a pediatric band that pairs with an `E66` code without both. A normal or low BMI is reported and never graded. A delegated answer cannot remove these codes: [ADR 0309](../../docs/adr/0309-a-delegated-answer-never-decides-what-a-written-rule-already-settles-and-a-missing-bmi-code-is-refused.md), issue [#1461](https://github.com/mshamblin5150-code/clinical-skills/issues/1461).
+**The codes are checked rather than trusted.** `python tools/filled_vitals_census.py <the run directory>` computes each note's BMI from the height and weight it states, given or filled. It refuses an adult BMI of 25.0 or above without its exact `Z68` band and an `E66` code of the matching family, and a pediatric band that pairs with an `E66` code without both. Run it before the go-ahead; a BMI finding blocks approval until the note carries the codes. A delegated answer cannot remove these codes: [ADR 0309](../../docs/adr/0309-a-delegated-answer-never-decides-what-a-written-rule-already-settles-and-a-missing-bmi-code-is-refused.md), issue [#1461](https://github.com/mshamblin5150-code/clinical-skills/issues/1461).
 
 **Two limits, and neither is about provenance.**
 
@@ -1528,6 +1528,7 @@ When the clinician has delegated pre-approval questions, settle this item from t
 (no record means new) and name that patient in the go-ahead message: coded new, the shorthand
 mentions an earlier visit, and saying `established` changes it. A change re-renders the affected
 note and follows the existing approval rules.
+
 **A delegated answer never decides what a written rule already settles** (ADR 0309). When the
 clinician delegates open questions, a delegate answers only the question kinds this block lists,
 less the status question above. Settle every other question by the written rule that governs it,

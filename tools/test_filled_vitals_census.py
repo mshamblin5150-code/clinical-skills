@@ -1196,7 +1196,7 @@ class TheSlotFormRunCarriesTheMeasuredPartialRead(unittest.TestCase):
 
 
 class TheBmiRowReadsGivenAndFilledValuesAlike(unittest.TestCase):
-    """ADR 0309 ruling 2, driven through ``survey`` and ``main``."""
+    """ADR 0309 ruling 3, driven through ``survey`` and ``main``."""
 
     OWED = "# Note 1, 45-year-old male\n\nVS: Ht 70 in, Wt 185 lb\n\n1. Bronchitis - J20.9\n"
     CODED = OWED + "2. Overweight - E66.3 with BMI 26.0-26.9, adult - Z68.26\n"

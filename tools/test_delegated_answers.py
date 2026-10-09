@@ -85,6 +85,15 @@ class TheGate(unittest.TestCase):
         self.assertTrue(failed)
         self.assertIn("does not contain", report)
 
+    def test_a_fragment_the_file_contains_is_not_a_governing_sentence(self):
+        fragment = SETTLED.replace(
+            '"A BMI of 26.5 from a filled height and weight produces `E66.3` and `Z68.26`, and the note carries both."',
+            '"withheld"',
+        )
+        failed, report = gate(fragment)
+        self.assertTrue(failed)
+        self.assertIn("not a governing sentence", report)
+
     def test_a_rule_outside_the_written_rules_is_a_finding(self):
         failed, report = gate(SETTLED.replace("skills/clinical-note/SKILL.md", "scratch/notes.md"))
         self.assertTrue(failed)

@@ -437,7 +437,7 @@ class Scan:
     # Kept for ``--show`` alone, and never read by ``format_report`` without it.
     height_counts: tuple[tuple[int, int], ...] = ()
     body_counts: tuple[tuple[tuple[int, int], int], ...] = ()
-    # ADR 0309 ruling 2. Over every note, given and filled values alike: the
+    # ADR 0309 ruling 3. Over every note, given and filled values alike: the
     # notes whose height and weight were read into a BMI, those in a graded
     # band, and those lacking a code that band owes.
     bmi_read: int = 0
@@ -779,10 +779,10 @@ def grade(
             " fixtures/day-b B18 fails."
         ),
         "BMI": (
-            f"{scan.bmi_missing} of {scan.bmi_graded} note(s) compute a BMI from their"
-            " own height and weight that owes a Z68 band and an E66 code the note"
-            " does not carry. clinical-note does not withhold them (#46, #70);"
-            " ADR 0309 ruling 2."
+            f"{scan.bmi_missing} of {scan.bmi_graded} note(s) whose own height and"
+            " weight give a BMI in a band that owes codes lack its Z68 band or E66"
+            " code. clinical-note does not withhold them (#46, #70);"
+            " ADR 0309 ruling 3."
         ),
     }
     findings = [diagnostic_by_kind[finding.kind] for finding in scan.findings]

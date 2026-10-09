@@ -4,7 +4,7 @@ phi-scan: synthetic
 
 Every note here is written in this file. The committed run records are read only
 to pin the two findings they carry, which were measured before the row was
-believed (ADR 0309 ruling 2).
+believed (ADR 0309 ruling 3).
 """
 
 from __future__ import annotations
