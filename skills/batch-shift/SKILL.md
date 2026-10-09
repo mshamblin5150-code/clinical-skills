@@ -390,8 +390,8 @@ Completion: every confirmed encounter from step 4 appears exactly once; every no
 followed by its final worksheet; and no tier block, Medatrax block, schedule row, summary line,
 private anchored worksheet, or technical receipt appears. The approval identity covers normalized
 note and worksheet content, status evidence, encounter membership and order, and the freshness
-receipt. A substantive change invalidates the entire approval; layout-only regeneration from
-unchanged normalized content does not.
+receipt. Any change to that content invalidates the entire approval; regenerating the Review
+sheet's layout from unchanged normalized content does not.
 
 **The Review sheet is the one shift-level go-ahead.** Before any entry, show every note, every
 patient marked with its matched Patient Reference or `NEW PATIENT`, the resolved preceptor, and

@@ -423,7 +423,7 @@ The one line per graded run that ends every reply touching that run once its **A
 _Avoid_: progress line, done marker, completion claim
 
 **Approval record**:
-The durable record written at the clinician's go-ahead on a graded contribution's content, carrying a fingerprint of exactly what its **Posted reading** will later fingerprint, so what was posted can be shown to be what he approved. It opens the run's **Run status**, one per contribution posted, and a conversational go-ahead that wrote none opens nothing. For a clinical shift it fingerprints the finished notes that are entered, not the review document he reads.
+The durable record written at the clinician's go-ahead on a graded contribution's content, carrying a fingerprint of exactly what its **Posted reading** will later fingerprint, so what was posted can be shown to be what he approved. It is evidence of his word rather than an agent's report of it, so it is to carry his reply whole. It opens the run's **Run status**, one per contribution posted, and a conversational go-ahead that wrote none opens nothing. For a clinical shift it fingerprints the finished notes that are entered, not the review document he reads.
 _Avoid_: go-ahead record, sign-off, gate record, approval
 
 **Evidence dump**:
