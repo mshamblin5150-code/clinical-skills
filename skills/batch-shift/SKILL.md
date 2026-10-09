@@ -196,13 +196,19 @@ Save each note pass's complete private coding worksheet as
 subdirectory keeps worksheets out of note-only graders. This is `clinical-note`'s descriptor-
 agreement path inherited per encounter, not a second generated worksheet.
 
-Every pass brief points to [icd10-cpt's Writer self-grade](../icd10-cpt/SKILL.md#descriptor-agreement-is-a-separate-blind-read)
+Every pass brief points to [clinical-note's code-label rule](../clinical-note/SKILL.md#the-shape-of-the-differential)
+and [icd10-cpt's Writer self-grade](../icd10-cpt/SKILL.md#descriptor-agreement-is-a-separate-blind-read)
 and its coexisting-condition test for history and filled home medications,
 and names its grading command, using its own note stem:
 
 ```bash
 python tools/anchor_scan.py <run>/worksheets --notes <run> --agreement-read <run>/agreement-self/note-N.json --stem note-N
+python tools/refusal_scan.py <run>/worksheets --stem note-N
 ```
+
+Run the refusal command when that worksheet carries refusal records; exit 0 is required before
+handoff. It reads only the pass's own worksheet. With no refusal records, record that this check
+has no subjects and apply the self-grade gate above.
 
 The pass brief carries nothing that contradicts `clinical-note`: it never asks for a visit time
 to be recorded as missing, because [clinical-note's visit-time rule](../clinical-note/SKILL.md#times)

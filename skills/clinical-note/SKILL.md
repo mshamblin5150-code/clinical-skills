@@ -523,9 +523,12 @@ For a standalone run, first save the rendered CPT page record that section requi
 
 ```bash
 python tools/anchor_scan.py <run>/worksheets --notes <run> --rendered-descriptors <run>/agreement/cpt-rendered-pages.json --agreement-read <run>/agreement-self/<stem>.json --stem <stem>
+python tools/refusal_scan.py <run>/worksheets --stem <stem>
 ```
 
-For this standalone run, exit 0 gates creation of the blind agreement brief. A batch encounter
+For this standalone run, exit 0 gates creation of the blind agreement brief. Run the refusal
+command when the worksheet carries refusal records and require exit 0 before handoff; with none,
+record that the check has no subjects. A batch encounter
 follows that section's batch handoff rule and [batch-shift's roll-up](../batch-shift/SKILL.md#6-roll-up-the-shift).
 For the standalone run, then create the blind agreement brief. This **Second reader** applies
 [standing rule 6](../../AGENTS.md), first reads [sourcing.md](../_shared/reference/sourcing.md), and
@@ -971,6 +974,8 @@ It binds both branches, which is why it lives here rather than in either templat
 
 **The differential is a numbered list, ranked most likely first, and `1.` is the favored entry.** The numerals are written rather than implied. A grader reading the school's *"3 differential diagnoses"* counts items, and a ranking nobody can see is a ranking that was not made. `Favored.` and `Less likely.` stay on the entries as well — drift row 22 exempts the favored entry from its naming limb, and something has to say which entry that is on a branch where position alone would have to carry it.
 
+**A code label states the official descriptor or reaches its code through the alphabetic index.** Before saving a label, check an index route with `python tools/icd10_lookup.py --index "<final index term>"`, naming the path's last term rather than the label's main word. When index words are needed, put them first and keep the clinician's words after a comma: `Seasonal allergic rhinitis, seasonal allergies - J30.2`. A brand-only allergy-status label gains the drug-class words with his wording beside them. Index words only narrow his diagnosis by site, trimester, season, or drug class; they never name a different condition. Where no wording of his diagnosis reaches the chosen code, select a code it reaches.
+
 **The code pin is required on both branches and the rationale position is branch-specific.** SOAP writes `Name - CODE: rationale` on one line. H&P writes the clean `Name - CODE` pair in the Differential and moves the rationale to the matching MDM item. The hyphen pinning a code to its label is the *Punctuation* rule above; parentheses or a colon in that slot fail row 23. Issue [#162](https://github.com/mshamblin5150-code/clinical-skills/issues/162); evidence and counts remain in withheld run records.
 
 **The conclusion is closed over the differential.** Every diagnosis-and-code pair asserted under `Final diagnosis` also appears as a numbered differential entry with the same diagnosis and code. The differential may contain additional considered diagnoses, but the final block may introduce none. Multiple final diagnoses expand the list beyond the rubric's three-item floor; three is a minimum, never a ceiling.
@@ -1068,7 +1073,7 @@ Pneumonia, unspecified organism. Nothing tested for the organism. NOT CODED: J13
 
 The code is still only what the encounter supports, and **the refusal goes on the line beneath rather than into the label** — the second line above is what that looks like, and a conclusion line carrying a hedge and no refusal beneath it has dropped half the rule. **So one note calls one thing two names three lines apart** — the hedge on the favored entry and on the final, the strict code-name form on every entry argued against. That was put to the clinician as an inconsistency and kept deliberately: the entries argued against are this skill's contribution and take the discipline, the conclusion is his and keeps his wording.
 
-It binds both branches, which is why it lives here rather than in either template — [SOAP.md](SOAP.md) and [HP.md](HP.md) carry only the rendering, which differs between them. Drift row 22 walks it, and `python tools/differential_scan.py <a run directory>` checks the one limb that is mechanical: **no code marked `NOT CODED` anywhere in a note may appear in any entry's code slot.** Issues #68 and [#153](https://github.com/mshamblin5150-code/clinical-skills/issues/153).
+It binds both branches, which is why it lives here rather than in either template — [SOAP.md](SOAP.md) and [HP.md](HP.md) carry only the rendering, which differs between them. Drift row 22 walks it, and `python tools/differential_scan.py <a run directory>` checks two mechanical limbs: **no code marked `NOT CODED` anywhere in a note may appear in any entry's code slot**, and each welded refusal's text after the code begins with its official ICD-10-CM long descriptor after whitespace is collapsed. Issues #68, [#153](https://github.com/mshamblin5150-code/clinical-skills/issues/153), and [#1475](https://github.com/mshamblin5150-code/clinical-skills/issues/1475).
 
 **A run written in the retired form never exits 0.** Its row-22 slot limb exits 2 when that is all the scanner knows; a definite row-23 or row-24 violation makes exit 1 win while the unwelded count still says what was not read. It reads only the welded pair, so a note writing `S52.125A Nondisplaced fracture of head of left radius NOT CODED, …` has refusals it cannot pair with a code — and *nothing refused* is the same output as *row 22 satisfied by construction*. **One bare mark anywhere in a run is enough**, because a run part-written in each form is the worst of the two: the welded refusals are graded, the bare ones are invisible, and the clean verdict line covers both. Rewriting a run into the welded form is what makes it gradable, and the `unwelded NOT CODED marks` count printed above the verdict says how much is owed.
 
