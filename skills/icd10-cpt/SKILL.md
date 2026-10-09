@@ -693,12 +693,13 @@ lower level stands; a delegate cannot supply the clinician's answer.
 **Threat to life or bodily function.** Apply `definition-threat-life-function`.
 Read the clinician's own evaluation and treatment — what the shorthand orders,
 gives, or decides about disposition — for consistency with that severity. The
-pass's reasoning and proposed workup cannot supply it. Otherwise grade the
-problem at the level his documented evaluation supports. Where that
-threat-to-life reading would raise the level, use the level-changing question
-above to ask whether his evaluation and treatment supported that severity,
-naming both levels; the lower level stands until his recorded answer supports
-the higher reading.
+pass's reasoning and proposed workup cannot supply it. When the shorthand
+already establishes that consistency, count the supported severity without a
+question. Otherwise grade the problem at the level his documented evaluation
+supports; only if the unsupported threat-to-life reading would raise the level,
+use the level-changing question above to ask whether his evaluation and
+treatment supported that severity, naming both levels. The lower level then
+stands until his recorded answer supports the higher reading.
 
 **The procedure database verifies code identity, not the MDM elements.** For an
 MDM-based E/M level, read the passing `reference/cpt-em-mdm-<edition>.md` sheet
