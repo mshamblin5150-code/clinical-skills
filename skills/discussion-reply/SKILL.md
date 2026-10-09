@@ -318,9 +318,10 @@ showing that gate, inspect the threaded Canvas Composer and read
 before loading, and tell the clinician which route will be used and what that route costs as part of
 the same approval. When `voice-status.md` exists, show its unmodeled-voice declaration alongside the
 reply. Only an explicit go-ahead for this reply authorizes posting.
+Set `clinician_reply` to the clinician's whole approval message, including any conditions.
 At that go-ahead call `approval_record.approve(run, skill="discussion-reply",
 submission=response_path.name, sources=(response_path,), grader_args=(str(run),),
-content_approved=True)`. Show its `pregrade_report`; incomplete coverage does not block, while a
+content_approved=True, clinician_reply=clinician_reply)`. Show its `pregrade_report`; incomplete coverage does not block, while a
 finding refuses the record. Each reply gets its own item. From this record onward every reply
 touching the run ends with `Run status: <run-key> — <awaiting posting|awaiting posted
 reading|awaiting AAR|complete|stopped - reason>`. The run reports the approved reply furthest

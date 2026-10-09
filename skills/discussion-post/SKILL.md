@@ -426,10 +426,11 @@ loading it into the box, not submission. That approval
 also confirms that every edit implicated by a destination-guard refusal was recovered into the
 authoritative Markdown and, where it changes a factual claim, the claim ledger.
 
+Set `clinician_reply` to the clinician's whole Gate 1 reply, including any conditions.
 At Gate 1 call `approval_record.approve(run, skill="discussion-post",
 submission=output_markdown.stem, sources=(output_markdown,), grader_args=(str(run), "--draft",
 str(output_markdown), "--html", str(output_html), "--docx", str(output_docx)),
-content_approved=True)`. Show its `pregrade_report`; exit 2 is disclosed as incomplete coverage and
+content_approved=True, clinician_reply=clinician_reply)`. Show its `pregrade_report`; exit 2 is disclosed as incomplete coverage and
 does not block, while a finding refuses the record. This durable item opens the status contract:
 every later reply touching the run ends with `Run status: <run-key> — <awaiting posting|awaiting
 posted reading|awaiting AAR|complete|stopped - reason>`. Several touched runs each get their own
@@ -489,8 +490,12 @@ A non-clean reading stops here and returns to the clinician; the agent does not
 adjudicate its own load, switch routes, or retry. **Gate 2** is the clinician's explicit
 authorization to submit. Gate 2 authorizes submit and nothing else does. After Gate 2, submit and reread
 the posted board version.
-Gate 2 calls the same `approval_record.approve(...)` again for the same item, updating its approval
-revision and fingerprint before the click.
+Set `clinician_reply` to the clinician's whole Gate 2 reply, including any conditions. Gate 2 calls
+`approval_record.approve(run, skill="discussion-post", submission=output_markdown.stem,
+sources=(output_markdown,), grader_args=(str(run), "--draft", str(output_markdown), "--html",
+str(output_html), "--docx", str(output_docx)),
+content_approved=True, clinician_reply=clinician_reply)` again for the same item, retaining both
+gates' replies and updating its approval revision and fingerprint before the click.
 
 Click Reply on the full body after Gate 2 and follow the shared sheet's observed outcome procedure.
 Record the output HTML's byte count, which never chooses a route. Only a visible message-size

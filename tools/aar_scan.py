@@ -435,6 +435,7 @@ class TranscriptDiscovery:
     skipped_by_time: int
     skipped_by_byte_search: int
     read: int
+    unread: int = 0
 
 
 @dataclass(frozen=True)
@@ -599,6 +600,46 @@ def _human_kind(row: Mapping[str, Any], value: str) -> str:
     if row.get("isMeta") is True:
         return "skill-prompt" if value.startswith(SKILL_PROMPT_PREFIX) else "harness-meta"
     return "clinician"
+
+
+def clinician_text(row: Mapping[str, Any]) -> str:
+    """Read the human remainder of a main-session user row for approval evidence.
+
+    Keep the AAR's whole-row classification unchanged: its envelope entries are
+    still part of the correction population. Approval reads only the human text.
+    """
+
+    if row.get("isSidechain") or row.get("isMeta") or row.get("isCompactSummary"):
+        return ""
+    if row.get("type") == "user":
+        value = _human_text(row)
+    elif row.get("type") == "response_item":
+        payload = _codex_payload(row)
+        if payload.get("type") != "message" or payload.get("role") != "user":
+            return ""
+        value = _codex_content_text(payload, "input_text")
+    else:
+        return ""
+    # These wrappers contain a prompt from a machine or another context, never
+    # a clinician reply. They are excluded even if a trailer follows the wrapper.
+    nonhuman_tags = (
+        "task-notification", "codex_delegation", "scheduled-trigger",
+        "automation-trigger", "hook-context", "local-command-stdout",
+        "command-message", "local-command-caveat",
+    )
+    if any(re.search(r"<" + re.escape(tag) + r"(?:\s|>)", value) for tag in nonhuman_tags):
+        return ""
+    if value.startswith("Message Type:") or value.startswith("[Message from "):
+        return ""
+    for tag in ENVELOPE_KINDS:
+        value = re.sub(
+            r"<" + re.escape(tag) + r"\b[^>]*>.*?</" + re.escape(tag) + r"\s*>",
+            "", value, flags=re.DOTALL,
+        )
+    value = value.strip()
+    if value.startswith("Message Type:") or value.startswith("[Message from "):
+        return ""
+    return value if value and _human_kind(row, value) == "clinician" else ""
 
 
 def _human_aliases(kind: str, value: str) -> tuple[str, ...]:
@@ -2282,6 +2323,7 @@ def discover_transcripts(run: Path, explicit: Path | None = None) -> TranscriptD
     selected: list[Path] = []
     skipped_by_time = 0
     skipped_by_byte_search = 0
+    unread = 0
     for path in ordered:
         if "subagents" in {part.casefold() for part in path.parts}:
             continue
@@ -2298,6 +2340,7 @@ def discover_transcripts(run: Path, explicit: Path | None = None) -> TranscriptD
                 continue
             rows = read_transcript(path)
         except (OSError, ValueError):
+            unread += 1
             continue
         if _is_codex_subagent(rows):
             continue
@@ -2311,6 +2354,7 @@ def discover_transcripts(run: Path, explicit: Path | None = None) -> TranscriptD
         skipped_by_time=skipped_by_time,
         skipped_by_byte_search=skipped_by_byte_search,
         read=len(selected),
+        unread=unread,
     )
 
 

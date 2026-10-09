@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 import unittest
 
 
@@ -18,6 +19,21 @@ SKILLS = (
 
 
 class PostingSkillContract(unittest.TestCase):
+    def test_every_approval_call_including_both_discussion_post_gates_carries_the_reply(self):
+        for skill in SKILLS:
+            with self.subTest(skill=skill):
+                text = (ROOT / "skills" / skill / "SKILL.md").read_text(encoding="utf-8")
+                calls = re.findall(r"`(approval_record\.approve\(.*?)`", text, re.DOTALL)
+                self.assertEqual(2 if skill == "discussion-post" else 1, len(calls))
+                for call in calls:
+                    self.assertIn("clinician_reply=clinician_reply", call)
+                self.assertIn("whole", text)
+                if skill in {"clinical-note", "batch-shift"}:
+                    self.assertIn("clinician_reply` quoting the new\nreply whole", text)
+                if skill == "discussion-post":
+                    self.assertIn("whole Gate 1 reply", text)
+                    self.assertIn("whole Gate 2 reply", text)
+
     def test_each_posting_skill_records_approval_route_and_keyed_status(self) -> None:
         for skill in SKILLS:
             with self.subTest(skill=skill):
