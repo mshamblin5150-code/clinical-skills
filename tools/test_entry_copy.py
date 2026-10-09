@@ -35,6 +35,70 @@ SOAP_EXPECTED = (
 
 
 class EntryCopyCommand(unittest.TestCase):
+    def test_refusal_mark_mentions_outside_entered_sections_derive(self) -> None:
+        note = (
+            "Preamble mentions `NOT CODED`.\n"
+            "S:\nSubjective.\nO:\nObjective.\nA:\nAssessment.\nP:\n"
+            + LABELS
+            + "## Drift matrix\n| 22 | no code marked `NOT CODED` sits in a slot |\n"
+            "## Tier block\nGAPS: not coded is a mention here.\n"
+        )
+        for flags in ((), ("--check",)):
+            with self.subTest(flags=flags):
+                result = self.invoke(note, *flags)
+                self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(note, self.copy.read_text(encoding="utf-8"))
+
+    def test_surviving_mark_names_entered_section_without_quoting_text(self) -> None:
+        clean = (
+            "S:\nSubjective.\nO:\nObjective.\nA:\nAssessment.\nP:\n"
+            + LABELS + "Plan content.\nCoding worksheet\n"
+        )
+        mention = "PrivateExample mentions `NOT CODED`."
+        for label, content in zip("SOAP", ("Subjective.", "Objective.", "Assessment.", "Plan content.")):
+            for flags in ((), ("--check",)):
+                with self.subTest(label=label, flags=flags):
+                    self.copy.unlink(missing_ok=True)
+                    note = clean.replace(content, mention)
+                    result = self.invoke(note, *flags)
+                    self.assertEqual(1, result.returncode, result.stderr)
+                    self.assertIn(f"section {label}", result.stderr)
+                    self.assertNotIn(mention, result.stderr)
+                    self.assertNotIn("PrivateExample", result.stderr)
+                    self.assertFalse(self.copy.exists())
+                    self.copy.parent.mkdir(exist_ok=True)
+                    self.copy.write_text("stale", encoding="utf-8")
+                    result = self.invoke(note, *flags)
+                    self.assertEqual(1, result.returncode, result.stderr)
+                    if flags:
+                        self.assertEqual("stale", self.copy.read_text(encoding="utf-8"))
+                    else:
+                        self.assertFalse(self.copy.exists())
+
+    def test_unread_sections_keep_whole_copy_mark_refusal(self) -> None:
+        for note in (
+            "P:\n" + LABELS + "Coding worksheet\nGAPS: not coded remains.\n",
+            "S:\nSubjective.\nO:\nObjective.\nA:\nAssessment.\nP:\n"
+            + LABELS + "No recognized closer; `NOT CODED` remains.\n",
+        ):
+            for flags in ((), ("--check",)):
+                with self.subTest(note=note, flags=flags):
+                    self.copy.unlink(missing_ok=True)
+                    result = self.invoke(note, *flags)
+                    self.assertEqual(1, result.returncode, result.stderr)
+                    self.assertIn("NOT CODED mark survived Entry copy derivation", result.stderr)
+                    self.assertNotIn("in section", result.stderr)
+                    self.assertNotIn("GAPS", result.stderr)
+                    self.assertFalse(self.copy.exists())
+                    self.copy.parent.mkdir(exist_ok=True)
+                    self.copy.write_text("stale", encoding="utf-8")
+                    result = self.invoke(note, *flags)
+                    self.assertEqual(1, result.returncode, result.stderr)
+                    if flags:
+                        self.assertEqual("stale", self.copy.read_text(encoding="utf-8"))
+                    else:
+                        self.assertFalse(self.copy.exists())
+
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory()
         self.run = Path(self.temporary.name)

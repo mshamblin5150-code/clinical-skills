@@ -169,8 +169,15 @@ def derive(note: str) -> str:
     if invalid:
         raise ValueError("Plan labels invalid: " + ", ".join(invalid))
     copy = _without_refusals(note)
-    if MARK.search(copy):
-        raise ValueError("NOT CODED mark survived Entry copy derivation")
+    try:
+        parsed = parse(copy)
+    except ValueError:
+        if MARK.search(copy):
+            raise ValueError("NOT CODED mark survived Entry copy derivation") from None
+    else:
+        for label in "SOAP":
+            if MARK.search(parsed.buckets[label]):
+                raise ValueError(f"NOT CODED mark survived Entry copy derivation in section {label}")
     return _portal_characters(copy)
 
 
