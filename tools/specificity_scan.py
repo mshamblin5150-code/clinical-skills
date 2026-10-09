@@ -606,18 +606,29 @@ def candidate_unread_remainder(text: str) -> int:
     )
 
 
-def locate(artifacts: tuple[run_grader.RunArtifact, ...]) -> run_grader.ReportAttribution:
+def read_worksheet_scan(text: str) -> tuple[tuple[Flag, ...], Scan]:
+    """Read coverage and findings once for both the count and its attribution."""
+    flags, orphans = read_flags_with_orphans(text)
+    coverage = entry_flag_coverage(text)
+    headings = heading_counts(text)
+    scan = replace(
+        survey([flags]),
+        for_entry_codes=coverage[0],
+        for_entry_codes_without_flag=coverage[1],
+        orphaned_details=orphans,
+        unread_remainder=candidate_unread_remainder(text) + headings.unread,
+        off_template_headings=headings.off_template,
+        heading_candidates=headings.candidates,
+        generic_differential_headings=headings.generic_differential,
+    )
+    return tuple(flags), scan
+
+
+def locate(
+    artifacts: tuple[run_grader.RunArtifact, ...], scans: tuple[Scan, ...]
+) -> run_grader.ReportAttribution:
     """Retain each row's subjects without changing the grading population."""
-    scans = [replace(
-            survey([read_flags(artifact.text)]),
-            for_entry_codes_without_flag=entry_flag_coverage(artifact.text)[1],
-            orphaned_details=read_flags_with_orphans(artifact.text)[1],
-            unread_remainder=candidate_unread_remainder(artifact.text) + heading_counts(artifact.text).unread,
-            off_template_headings=heading_counts(artifact.text).off_template,
-            heading_candidates=heading_counts(artifact.text).candidates,
-            generic_differential_headings=heading_counts(artifact.text).generic_differential,
-        ) for artifact in artifacts]
-    return run_grader.attribute_scans(artifacts, scans, {
+    return run_grader.attribute_scans(artifacts, list(scans), {
         "for_entry_codes_without_flag": lambda scan: scan.for_entry_codes_without_flag,
         "unrecognized_flags": lambda scan: scan.unrecognized_flags,
         "not_for_entry_flags": lambda scan: scan.not_for_entry_flags,
@@ -720,6 +731,7 @@ class Source:
     heading_candidates: int
     generic_differential_headings: int
     artifacts: tuple[run_grader.RunArtifact, ...] = ()
+    artifact_scans: tuple[Scan, ...] = ()
 
 
 def posted_reading_check(
@@ -741,22 +753,21 @@ def _load(parsed: run_grader.Parsed) -> Source:
     worksheets = [artifact.text for artifact in artifacts]
     if not worksheets:
         raise run_grader.SourceError(f"no worksheets found in {directory.name}")
-    coverage = tuple(entry_flag_coverage(text) for text in worksheets)
-    flag_records = tuple(read_flags_with_orphans(text) for text in worksheets)
-    heading_populations = tuple(heading_counts(text) for text in worksheets)
+    readings = tuple(read_worksheet_scan(text) for text in worksheets)
+    scans = tuple(scan for _flags, scan in readings)
     return Source(
         directory,
-        tuple(tuple(flags) for flags, _orphans in flag_records),
+        tuple(flags for flags, _scan in readings),
         tuple(tuple(read_entries(text)) for text in worksheets),
-        sum(item[0] for item in coverage),
-        sum(item[1] for item in coverage),
-        sum(orphans for _flags, orphans in flag_records),
-        sum(candidate_unread_remainder(text) for text in worksheets)
-        + sum(headings.unread for headings in heading_populations),
-        sum(headings.off_template for headings in heading_populations),
-        sum(headings.candidates for headings in heading_populations),
-        sum(headings.generic_differential for headings in heading_populations),
+        sum(scan.for_entry_codes for scan in scans),
+        sum(scan.for_entry_codes_without_flag for scan in scans),
+        sum(scan.orphaned_details for scan in scans),
+        sum(scan.unread_remainder for scan in scans),
+        sum(scan.off_template_headings for scan in scans),
+        sum(scan.heading_candidates for scan in scans),
+        sum(scan.generic_differential_headings for scan in scans),
         artifacts,
+        scans,
     )
 
 
@@ -800,7 +811,7 @@ def _grade(
         heading_candidates=source.heading_candidates,
         generic_differential_headings=source.generic_differential_headings,
     )
-    scan = replace(scan, attribution=locate(source.artifacts))
+    scan = replace(scan, attribution=locate(source.artifacts, source.artifact_scans))
     diagnostics: list[str] = []
     reports: list[str] = []
     second_gate: SecondReadGate | None = None

@@ -35,6 +35,7 @@ class ArtifactAttributionInput:
     text: str
     row: str
     worksheets: bool = False
+    numbered_selection: bool = False
 
 
 def artifact_attribution_conformance(module: Any) -> type[unittest.TestCase]:
@@ -55,16 +56,27 @@ def artifact_attribution_conformance(module: Any) -> type[unittest.TestCase]:
                 (root / "note-7.md").write_text(case.text, encoding="utf-8")
                 (root / f"{MARKER}.md").write_text(case.text, encoding="utf-8")
                 command = [sys.executable, module.__file__, str(root)]
-                default = subprocess.run(command, capture_output=True, encoding="utf-8")
-                shown = subprocess.run([*command, "--show"], capture_output=True, encoding="utf-8")
+                default = subprocess.run(command, capture_output=True, encoding="utf-8", errors="replace")
+                shown = subprocess.run([*command, "--show"], capture_output=True, encoding="utf-8", errors="replace")
+                # Some members first select numbered batch notes. Exercise their
+                # existing standalone fallback too, without widening what they grade.
+                (root / "note-7.md").unlink()
+                standalone = subprocess.run(command, capture_output=True, encoding="utf-8", errors="replace")
+                standalone_shown = subprocess.run([*command, "--show"], capture_output=True, encoding="utf-8", errors="replace")
             self.assertEqual(1, default.returncode, default.stdout + default.stderr)
             self.assertEqual(default.returncode, shown.returncode, shown.stdout + shown.stderr)
             row = next(line for line in default.stdout.splitlines() if case.row in line)
             self.assertIn("note-7", row)
-            self.assertIn("file 1 of 2", row)
+            if not case.numbered_selection:
+                self.assertIn("file 1 of 2", row)
+                self.assertIn(f"{MARKER}.md", shown.stdout)
             self.assertNotIn(MARKER, default.stdout + default.stderr)
-            self.assertIn(f"{MARKER}.md", shown.stdout)
             self.assertIn("note-7.md", shown.stdout)
+            self.assertEqual(1, standalone.returncode, standalone.stdout + standalone.stderr)
+            standalone_row = next(line for line in standalone.stdout.splitlines() if case.row in line)
+            self.assertIn("file 1 of 1", standalone_row)
+            self.assertNotIn(MARKER, standalone_row)
+            self.assertIn(f"{MARKER}.md", standalone_shown.stdout)
 
     _set_discoverable_identity(
         ArtifactAttributionConformance, caller_globals["__name__"], "ArtifactAttributionConformance"

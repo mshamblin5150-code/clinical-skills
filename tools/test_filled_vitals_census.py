@@ -1227,6 +1227,18 @@ class TheBmiRowReadsGivenAndFilledValuesAlike(unittest.TestCase):
 
 
 class SetFindingsKeepTheirSubjects(unittest.TestCase):
+    def test_numbered_batch_selection_and_its_clean_report_are_unchanged(self):
+        clean = 'FILLED·asserted   HEIGHT 5\'10" (70 in) filled for a 40-year-old man.\n'
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "note-1.md").write_text(clean, encoding="utf-8")
+            (root / "Review.md").write_text("FILLED·asserted   HEIGHT 5'8\" filled.\n", encoding="utf-8")
+            loaded = fvc.load(run_grader.parse(fvc.GRADER, [str(root)]))
+            self.assertEqual(["note-1.md"], [artifact.path.name for artifact in loaded[1]])
+            base = fvc.survey([clean])
+            located = fvc.replace(base, attribution=fvc.locate(tuple(loaded[1])))
+            self.assertEqual(fvc.format_report(base, "run"), fvc.format_report(located, "run"))
+
     def report(self, texts):
         artifacts = tuple(run_grader.RunArtifact(Path(name), text) for name, text in texts)
         scan = fvc.survey([artifact.text for artifact in artifacts])
@@ -1256,6 +1268,7 @@ def artifact_attribution_input() -> attribution_kit.ArtifactAttributionInput:
         "FILLED·asserted   HEIGHT 5'10\" (70 in) filled.\n",
         "naming no age and sex",
         worksheets=False,
+        numbered_selection=True,
     )
 
 

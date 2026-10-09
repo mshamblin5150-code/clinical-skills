@@ -343,18 +343,24 @@ class ArtifactAttributionIsOwnedAndInherited(unittest.TestCase):
                 consumers.add(path.stem)
         adopters = set()
         for path in tools.glob("test*.py"):
-            module = importlib.import_module(path.stem)
-            case = getattr(module, "ArtifactAttributionConformance", None)
-            if case is not None:
-                # The provider belongs to the module, while the factory closes over
-                # the consumer. Resolve adoption from its factory call argument.
-                tree = ast.parse(path.read_text(encoding="utf-8"))
-                for node in ast.walk(tree):
-                    if isinstance(node, ast.Call) and node.args and (
-                        isinstance(node.func, ast.Name) and node.func.id == "artifact_attribution_conformance"
-                        or isinstance(node.func, ast.Attribute) and node.func.attr == "artifact_attribution_conformance"
-                    ):
-                        adopters.add(getattr(module, node.args[0].id).__name__)
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            imports = {
+                alias.asname or alias.name: alias.name
+                for node in tree.body if isinstance(node, ast.Import)
+                for alias in node.names
+            }
+            for statement in tree.body:
+                if not isinstance(statement, ast.Assign) or not any(
+                    isinstance(target, ast.Name) and target.id == "ArtifactAttributionConformance"
+                    for target in statement.targets
+                ):
+                    continue
+                node = statement.value
+                if isinstance(node, ast.Call) and node.args and isinstance(node.args[0], ast.Name) and (
+                    isinstance(node.func, ast.Name) and node.func.id == "artifact_attribution_conformance"
+                    or isinstance(node.func, ast.Attribute) and node.func.attr == "artifact_attribution_conformance"
+                ):
+                    adopters.add(imports[node.args[0].id])
         self.assertTrue(consumers)
         self.assertEqual(consumers, adopters)
 

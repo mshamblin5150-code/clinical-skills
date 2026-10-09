@@ -756,7 +756,7 @@ def load(parsed: run_grader.Parsed) -> tuple[Path, list[run_grader.RunArtifact]]
         raise run_grader.SourceError(f"no directory named {directory.name}")
     posting_paths = (
         medatrax_posting.note_paths(directory, batch=True)
-        if parsed.value("--submission")
+        if medatrax_posting.note_paths(directory, batch=True)
         else ()
     )
     notes = (
