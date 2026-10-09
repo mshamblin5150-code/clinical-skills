@@ -1,6 +1,12 @@
 # A claim heading is the claim the document makes and the refuter tests it
 
-**Measured at:** 6158340faf780dec495af594248023503648e002
+**Measured at:** 6017d522c512525d59aab7a2da633ee3b54f9375
+
+*Re-declared from `6158340f` on 2026-10-09, for ADR 0315's supersession marker under ruling 1 alone.
+Nothing below was re-derived. Every file the measured section cites has changed since:
+`tools/discussion_post_scan.py`, `tools/deck_scan.py`, `tools/discussion_reply_scan.py`,
+`tools/peer_critique_scan.py`, and the five coursework `SKILL.md` files. So the measured section's
+tables and its quotations of the refutation legs describe `main` at `6158340f`, not the current tree.*
 
 [#1018](https://github.com/mshamblin5150-code/clinical-skills/issues/1018) was filed by the
 after-action review of one `practicum-case-study` run. Four claim headings on that run asserted a
@@ -69,6 +75,8 @@ including any number the document will state. Where the source does not support 
 the heading before drafting. The glossary already defines a claim ledger as the record of every
 factual claim a graded document makes, and the four sibling templates already describe the heading as
 the drafted claim, so this makes one grammar out of five.
+
+*Superseded 2026-10-09.* **The sentence "Before research the heading is a working statement, including any number the document will state." is superseded by [ADR 0315](0315-a-claim-heading-starts-as-a-question-and-a-record-is-read-at-the-source-s-width.md) ruling 2 and is left as written.** Before research a heading now states the question the research must answer, and it is rewritten as the claim in the source's words before refutation, so no question-form heading is ever believed by a certifier. This record's *A question heading* rejected option is answered there for that form. The rest of ruling 1 and rulings 2 through 6 stand.
 
 ### 2. The refuter tests the heading
 
