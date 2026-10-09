@@ -47,7 +47,8 @@ class WholeReplyApproval(unittest.TestCase):
         self.sessions = self.root / "sessions"
         self.sessions.mkdir()
         self.transcript = self.sessions / "main.jsonl"
-        stack = self.enterContext(ExitStack())
+        stack = ExitStack()
+        self.addCleanup(stack.close)
         stack.enter_context(mock.patch.object(aar_scan, "transcript_roots", return_value=(self.sessions,)))
         stack.enter_context(mock.patch.object(aar_scan, "is_live_run", return_value=True))
         stack.enter_context(mock.patch.object(aar_scan.repo_root, "scratch_root", return_value=self.root / "scratch"))
@@ -249,7 +250,8 @@ class WholeReplyApproval(unittest.TestCase):
         self.transcript.unlink()
         self.approve(skill="clinical-note")
         self.posted(skill="clinical-note")
-        stack = self.enterContext(ExitStack())
+        stack = ExitStack()
+        self.addCleanup(stack.close)
         for module in (differential_scan.aar_scan, differential_scan.medatrax_posting, differential_scan.artifact_repairs):
             stack.enter_context(mock.patch.object(module, "completion_gate", return_value=(False, "other row clean")))
         out, error = io.StringIO(), io.StringIO()
