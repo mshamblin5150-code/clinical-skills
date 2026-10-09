@@ -1,6 +1,6 @@
 # An approval carries the clinician's whole reply and is refused when his messages do not hold it
 
-**Measured at:** b4f3f9e3eb85d846ec3dde586ffbc19d7c6ba84c
+**Measured at:** cc66a8df5e8f34f8f8daf19c99d202d384f857d4
 
 [#1474](https://github.com/mshamblin5150-code/clinical-skills/issues/1474) was filed from the
 after-action review of a `batch-shift` run. `skills/batch-shift/SKILL.md` step 7 said a
@@ -57,6 +57,13 @@ them, so an approval in one skill would be evidence of his word and in another w
 `course-assignment` does not record through this step and is outside this ruling; whether its gates
 take the same check is a separate question for the clinician.
 
+A reply is a gate's own only when no earlier approval of the same item matched that message.
+Measured: `approve` replaces the stored item for a skill and submission, and `discussion-post`'s
+Gate 2 approves the same sources Gate 1 did, so without this a Gate 1 reply would satisfy Gate 2
+and would then be overwritten. Each approval's reply is kept beside the item rather than replaced,
+and a later approval of the item must match a message written after the one the previous approval
+matched.
+
 ## Ruling 3 — the check runs at approval and again at completion
 
 When the session transcript is readable, `approve` refuses to record an approval whose reply does
@@ -66,6 +73,11 @@ skill's completion grader re-checks every approval so marked. One shared functio
 Checking only at completion was declined because a Medatrax entry and a Canvas post cannot be
 withdrawn, so detection after posting is detection after the harm. Refusing whenever the transcript
 is unreadable was declined because a tool failure would then block a legitimate posting.
+
+An approval recorded before this check exists carries no verification state and is not marked not
+verified, so the completion re-check does not reach it and it is graded as it was. The general
+question of a gate added after a run was graded belongs to
+[#1558](https://github.com/mshamblin5150-code/clinical-skills/issues/1558).
 
 ## Ruling 4 — the reply is his whole message, compared with spacing ignored
 
@@ -89,15 +101,26 @@ parameter does not exist yet.
 
 ## Definition
 
-The clinician's message is a message he typed into a session: the `clinician` entry kind or its
+The clinician's message is the text he typed into a session: the `clinician` entry kind or its
 successor. A tool result, hook context, a scheduled-trigger prompt, another session's relayed
 message, and a subagent transcript never count. The build verifies that each of those arrives in a
 form the predicate excludes, rather than assuming it.
+
+The opposite failure is also excluded. `aar_scan` joins every text block of a user row and labels
+the whole row by any envelope tag it finds, so a row carrying both a harness reminder and his reply
+reads as a reminder; a synthetic row of that shape was driven to that label, and #1495 records the
+shape observed. His message is therefore the row's text with the harness envelopes removed, and a
+row with no text left is not his message.
 
 ## What this does not reach
 
 A whole-message match shows that he answered after the approved sources last changed. It does not
 show which change he meant: a bare "Agree" after two pending changes approves whichever one the
 agent records. Ordering rests on source modification times and transcript timestamps, which a
-process able to rewrite either can defeat. Whether the approved content is clinically right remains
+process able to rewrite either can defeat. It does not show that what he was shown before
+answering was accurate or complete; that is
+[#1501](https://github.com/mshamblin5150-code/clinical-skills/issues/1501)'s subject. An approval
+marked not verified whose transcript is later rotated or removed stays incomplete coverage at
+every later completion grade. Agent-recorded clinician evidence outside `approve`, such as a
+recorded status answer, is not reached. Whether the approved content is clinically right remains
 his reading at the go-ahead.
