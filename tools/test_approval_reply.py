@@ -11,6 +11,7 @@ import tempfile
 import unittest
 from unittest import mock
 
+import artifact_lock_test_support
 import aar_scan
 import approval_record as approvals
 import differential_scan
