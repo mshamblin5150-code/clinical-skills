@@ -540,15 +540,16 @@ never inferred**, so a drug row that says nothing is graded, and that is the dir
 fail in. A `Delayed order:` is graded too: a dose that has not started yet is still a dose the run
 chose. The declaration lives in [style.md](../_shared/reference/style.md) §8 with the table it is written in.
 
-**The claim heading is what names the drug**, not the restatement buried under it — a record whose
-`## CLAIM:` line says *ceftriaxone* is a claim about ceftriaxone, and one that reaches the drug only
-in its `RESTATEMENT` is a record about something else that happened to mention it. Where the order
-states a dose, **the heading states a number too**: that is what puts the record in front of
+**The claim heading is what names the drug.** Before research, the question names the drug and
+indication. When the record returns, the rewritten claim names the drug and states the dose, under
+[sourcing.md](../_shared/reference/sourcing.md). A drug mentioned only in `RESTATEMENT` does not
+name the heading's subject. Where the order states a dose, **the rewritten heading states a number
+too**: that is what puts the record in front of
 `NUMERIC_CLAIM_UNQUANTIFIED` above, so the restatement has to answer with a number and the chain
 runs from the table's dose to a source.
 
 For this surface, the prewritten destination is `<claims-ledger>` with its `DATE` header, one
-`## CLAIM:` heading per claim, and nothing under them yet. A heading whose record never arrived has
+question-form `## CLAIM:` heading per factual point to research, and nothing under them yet. A heading whose record never arrived has
 no `STATUS`, and the grader refuses a record with no `STATUS`.
 
 This **Fan-out brief** applies [standing rule 6](../../AGENTS.md). Every research and refutation
@@ -567,7 +568,8 @@ the grader refuses: they are what turns *"I found a source"* into something the 
 in one click. See the paragraphs under the record shape below; the refutation leg supplies its
 return afterwards.
 
-Fill each prewritten heading as its returned answer arrives. Where the harness returns nothing
+As each answer arrives, rewrite its heading as the source-backed claim under the shared sourcing
+rules before refutation dispatch, then fill its record. Where the harness returns nothing
 usable, collect one returned record per claim before the orchestrator composes the ledger.
 
 **One record per claim**, filled in under its heading:
@@ -698,6 +700,7 @@ can be several of them at once:
 | a locator read after the paper was written | a record describing a reading that had not happened yet |
 | a `PAGE-YEAR` stating no year, against an entry that states one | the entry claims a year the page did not give |
 | a `PAGE-YEAR` that is a year and nothing else | a year alone is an assertion; where it was found is a place a reader can go and look |
+| a `PAGE-YEAR` outside its field form | a year in 1900–2099 must open the field with no second, different year; locators after `p.`, `pp.` or `page` are exempt, and a field stating none carries no year |
 | a `PAGE-YEAR` that is not the year in `REFERENCE` | the row a fabricated citation has to get past |
 | a `REFUTATION` outside the four | it gates the row below, so a fifth word is a record the refutation never read |
 | a `REFUTATION` with no reason after it | *the run must have looked, and must say so*, arriving at the second pass |

@@ -14,6 +14,26 @@ response status is not verification: a near-miss address and a login form can bo
 sourced claim record's `RESOLVED` field therefore names the address confirmed as the work's own,
 never a bare status.
 
+## A record is read at the source's width
+
+- **Every field is copied from the work as a reader sees it rendered.** A web title is the rendered
+  page heading, never the browser tab text or a backing dataset's record. A year or date comes from
+  visible text, never an HTML comment. An online reference entry is dated by the publisher's citation
+  form or its last content revision, never by a link-only history row. `PAGE-YEAR` holds only the
+  page's own year or says the page states none. A year in 1900–2099 opens the field; no second,
+  different year in that range appears, except a locator after `p.`, `pp.` or `page`. A field saying
+  the page states none carries no year. A redirect or login-wall claim records the final address
+  observed. A book or report accession must open the work the entry names: a chapter does not verify
+  a whole-book entry, and a report verifies only values it assessed.
+- **A locator lets a refuter land on the sentence in one read.** `PASSAGE` names the paragraph by
+  its own opening words, then its page, section or table, and quotes from the start of the supporting
+  sentence with its qualifiers. A heading joining several outcomes gives a locator for each.
+- **A record states what the source states, in its words and at its width.** `STATUS` and
+  `RESTATEMENT` use the source's descriptors. A record adds no purpose link, equivalence or exception
+  the page does not state. A heading keeps the population, comparator, setting, adjustment, device,
+  eligibility and tense its passage carries; a recommendation is cited for its own population, in
+  the source's words; a finding is credited to the body that made it, in the section where it sits.
+
 ## A failed read is not a negative
 
 A search that ran and found nothing reports the corpus it read and what it did not open. A search
@@ -75,8 +95,21 @@ the claim, so the record cannot support a figure the document still states.
 ## A claim heading is the claim the document will make
 
 The heading is the claim the finished document will make, including any number the document will
-state. Before research it is a working statement. A heading the source does not support is corrected
-before drafting, or marked `refuted` by the refuter.
+state. Before research it states the question the research must answer. Recall may choose what to
+look up but never supplies the heading's words. When the record returns, the orchestrator rewrites
+the heading as the claim in the source's own words, carrying every limiting qualifier the `PASSAGE`
+carries. Only the rewritten heading is refuted, has its `TESTED-HEADING` printed, is cited or is
+drafted from. For a drug-dose heading, the question names the drug and indication, and the rewritten
+claim states the dose. A heading the source does not support is corrected before drafting, or marked
+`refuted` by the refuter.
+
+### Refutation checks the heading and restatement at the source's width
+
+A heading or restatement broader than its source is `refuted`. Broadening includes a dropped
+qualifier on the subject, a wider population, an added exception, purpose link or equivalence, or a
+stronger modality. A narrower claim `stands`. The refuter checks the restatement as well as the
+heading. A proposed correction quotes the source's conditions; an adopted correction is a changed
+heading that needs a fresh refutation.
 
 A heading changed after its refutation is a new claim. `TESTED-HEADING` is the lowercase SHA-256 of
 the `## CLAIM:` heading text after runs of whitespace collapse to one space and the ends are

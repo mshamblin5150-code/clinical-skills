@@ -80,7 +80,6 @@ DECLARED_LIMITS = (
     DeclaredLimit("read-date-lower-bound-absent", "A source read arbitrarily long before the writing date can still pass.", EvidenceDisposition.BEHAVIOR),
     DeclaredLimit("keyword-parser-copy-uncompared", "Parity with checks_ledger's intentionally copied keyword parser is not asserted.", EvidenceDisposition.DECLARED_READING),
     DeclaredLimit("paywall-body-unread", "The passing paywalled disposition verifies no claim against the source body.", EvidenceDisposition.BEHAVIOR),
-    DeclaredLimit("page-year-first-plausible-token", "PAGE-YEAR uses the first plausible year even when that token is a page number.", EvidenceDisposition.BEHAVIOR),
     DeclaredLimit("prescription-number-correctness-unchecked", "Prescription grading establishes sourcing but never whether a dose is clinically correct.", EvidenceDisposition.BEHAVIOR),
     DeclaredLimit("dose-claim-accepts-any-number", "A dosed drug's claim may contain an unrelated number and satisfy the row.", EvidenceDisposition.BEHAVIOR),
     DeclaredLimit("welded-drug-hidden", "A second medication welded into one order is invisible to prescription grading.", EvidenceDisposition.BEHAVIOR),
@@ -174,6 +173,7 @@ READ_DATE = re.compile(
 # year 1327 and reported a false disagreement against a correct record. A page
 # number is not in 1900-2099. The documented form puts the asserted year first.
 BARE_YEAR = re.compile(r"\b((?:19|20)\d{2})\b")
+PAGE_YEAR_LOCATOR = re.compile(r"\b(?:p\.|pp\.|page)\s*$", re.IGNORECASE)
 
 # #231's refutation dispositions, widened by ADR 0149. The brief is to *refute*, so ``stands`` is the outcome
 # of a failed attempt rather than the default.
@@ -239,6 +239,7 @@ READ_AFTER_DATE = "read-after-date"
 PAGE_YEAR_UNSTATED = "page-year-unstated"
 BARE_PAGE_YEAR = "bare-page-year"
 PAGE_YEAR_DISAGREES = "page-year-disagrees"
+PAGE_YEAR_FORM = "page-year-form"
 UNKNOWN_REFUTATION = "unknown-refutation"
 BARE_REFUTATION = "bare-refutation"
 REFUTED_CITATION = "refuted-citation"
@@ -302,6 +303,7 @@ ROWS = {
     PAGE_YEAR_UNSTATED: "#231",
     BARE_PAGE_YEAR: "#231",
     PAGE_YEAR_DISAGREES: "#231",
+    PAGE_YEAR_FORM: "#1480",
     UNKNOWN_REFUTATION: "#231",
     BARE_REFUTATION: "#231",
     REFUTED_CITATION: "#231",
@@ -562,10 +564,11 @@ class Record:
     def page_year(self) -> int | None:
         """The year the page itself states, per #231's ``PAGE-YEAR``.
 
-        Bare rather than parenthesized: this is what a reader copied off a cover
-        page, not an APA date element.
+        The field opens with the bare year, rather than a parenthesized APA date
+        element. Citation findings separately refuse different nonlocator years
+        later in the field.
         """
-        match = BARE_YEAR.search(self.value("PAGE-YEAR"))
+        match = BARE_YEAR.match(self.value("PAGE-YEAR").strip())
         return int(match.group(1)) if match else None
 
     @property
@@ -1086,7 +1089,17 @@ def _citation_findings(record: Record, as_of: date | None) -> list[Finding]:
         page_year = record.page_year
         entry_year = record.reference_year
         cited = bool(SUBSTANCE.search(record.value("REFERENCE")))
-        if page_year is None:
+        years = [
+            int(match.group(1))
+            for match in BARE_YEAR.finditer(stated)
+            if not PAGE_YEAR_LOCATOR.search(stated[:match.start()])
+        ]
+        # ADR 0315: a stated year opens the field and no different year follows.
+        # Locator years do not date the page. Malformed fields never establish a
+        # disagreement with the reference entry.
+        if years and (page_year is None or any(year != page_year for year in years)):
+            found.append(Finding(PAGE_YEAR_FORM, claim, stated))
+        elif page_year is None:
             if cited and entry_year is not None:
                 found.append(Finding(PAGE_YEAR_UNSTATED, claim, stated))
         else:

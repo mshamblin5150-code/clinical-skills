@@ -102,15 +102,19 @@ reply against reply and never compares a reply file with `post.md`, so a course-
 source does not become unavailable to every reply.
 
 This **Fan-out brief** applies [standing rule 6](../../AGENTS.md). Create `claims.md` with a `DATE:`
-header and one prewritten claim heading per claim. Start each heading with the response filename's
+header and one question-form claim heading per factual point to research. Start each heading with the response filename's
 target slug, for example
-`## CLAIM: [REPLY: maren] The combined program reported a 12% improvement.` This is the join that
+`## CLAIM: [REPLY: maren] What improvement did the combined program report?` This is the join that
 keeps the same number in another reply's record from tracing the wrong assertion. Each research
 worker takes one claim and returns a reputable source from one of
 four classes, `society guideline`, `peer-reviewed`, `government`, or `tertiary reference`, plus a
 full APA 7 reference, a restatement in the source's own terms, the URL or DOI actually opened and
 the read date, where in the source the supporting language sits, the page's stated year and where
 it appears, and the source's stated expiry or `none stated`.
+
+When each record returns, rewrite its heading as the source-backed claim under
+[sourcing.md](../_shared/reference/sourcing.md), retaining the `[REPLY: <slug>]` prefix, before
+refutation dispatch.
 
 The refutation leg of this **Fan-out brief** applies [standing rule 6](../../AGENTS.md) and first
 reads the rules in

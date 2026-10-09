@@ -532,7 +532,6 @@ class EveryBehaviorLimitHasALiveHandler(unittest.TestCase):
         "doi-shape-overmatches": ("TheDoiBranchOfTheLocatorMatchesAPageRange.test_a_page_range_shaped_like_a_doi_matches", "TheDoiBranchOfTheLocatorMatchesAPageRange.test_prose_with_no_locator_shape_still_fails_the_row"),
         "read-date-lower-bound-absent": ("DeclaredLimitBehaviorControls.test_a_read_date_long_before_the_ledger_passes", "DeclaredLimitBehaviorControls.test_a_read_date_after_the_ledger_fires"),
         "paywall-body-unread": ("TheRefutationPassIsASecondAgentTryingToProveTheCitationWrong.test_a_paywall_passes_because_the_wall_is_not_an_absence", "TheRefutationPassIsASecondAgentTryingToProveTheCitationWrong.test_a_refuted_citation_is_a_failure_and_not_an_outcome"),
-        "page-year-first-plausible-token": ("ThePageYearIsCheckedAgainstTheEntry.test_a_page_number_that_is_itself_a_plausible_year_still_wins", "ThePageYearIsCheckedAgainstTheEntry.test_a_page_number_before_the_year_is_not_read_as_the_year"),
         "prescription-number-correctness-unchecked": ("AClaimForADosedDrugCarriesTheNumber.test_the_row_never_compares_the_numbers", "AClaimForADosedDrugCarriesTheNumber.test_a_dosed_row_answered_by_a_claim_with_no_number"),
         "dose-claim-accepts-any-number": ("TheDoseRowAsksForANumberAndNotForTheNumber.test_a_year_in_the_heading_satisfies_the_row", "AClaimForADosedDrugCarriesTheNumber.test_a_dosed_row_answered_by_a_claim_with_no_number"),
         "welded-drug-hidden": ("OneDrugRowIsOneDrugAndNothingHereMakesThatTrue.test_the_second_drugs_dose_is_graded_by_nothing", "EveryPrescribedDrugHasAClaimRecord.test_a_drug_no_record_names_is_the_ticket_itself"),
@@ -1444,20 +1443,62 @@ class ThePageYearIsCheckedAgainstTheEntry(unittest.TestCase):
         record = replace_field(CLEAN, "PAGE-YEAR", "2009")
         self.assertNotIn(ledger.PAGE_YEAR_DISAGREES, kinds(ledger_text(record)))
 
-    def test_a_page_number_before_the_year_is_not_read_as_the_year(self):
-        """**A four-digit page number is the shape that broke this**, and the
-        field's own documented form invites it -- it asks for the year *and where
-        the page says so*, and nothing requires the year first. ``on page 1327,
-        dated 2009`` read as the year 1327 and failed a correct record. Found by
-        review, reproduced, then narrowed to plausible years."""
-        record = replace_field(CLEAN, "PAGE-YEAR", "on page 1327, dated 2009")
+    def test_the_historical_year_measured_in_adr_0315_is_a_form_finding(self):
+        record = with_reference(CLEAN, "Someone, A. (n.d.). A topic. UpToDate.")
+        record = replace_field(
+            record, "PAGE-YEAR", "the page states no year; it discusses the 1918 pandemic"
+        )
+        self.assertEqual(kinds(ledger_text(record)), [ledger.PAGE_YEAR_FORM])
+
+    def test_the_measured_no_year_field_stays_clean(self):
+        record = with_reference(CLEAN, "Someone, A. (n.d.). A topic. UpToDate.")
+        record = replace_field(record, "PAGE-YEAR", "none stated on the page")
         self.assertEqual(kinds(ledger_text(record)), [])
 
-    def test_a_page_number_that_is_itself_a_plausible_year_still_wins(self):
-        """The limit that remains, pinned rather than claimed away: 1900-2099
-        narrows the shape, it does not order the field."""
-        record = replace_field(CLEAN, "PAGE-YEAR", "on page 2019, dated 2009")
-        self.assertIn(ledger.PAGE_YEAR_DISAGREES, kinds(ledger_text(record)))
+    def test_the_measured_masthead_year_is_a_real_disagreement(self):
+        record = with_reference(CLEAN, "Someone, A. (n.d.). A topic. UpToDate.")
+        record = replace_field(record, "PAGE-YEAR", "2009 - stated on the masthead")
+        self.assertEqual(kinds(ledger_text(record)), [ledger.PAGE_YEAR_DISAGREES])
+
+    def test_a_year_must_open_the_field_even_after_a_page_locator(self):
+        for locator in ("1327", "2019"):
+            with self.subTest(locator=locator):
+                record = replace_field(CLEAN, "PAGE-YEAR", f"on page {locator}, dated 2009")
+                self.assertEqual(kinds(ledger_text(record)), [ledger.PAGE_YEAR_FORM])
+
+    def test_page_locator_years_do_not_disagree_with_the_opening_year(self):
+        for marker in ("p.", "pp.", "page", "PAGE"):
+            with self.subTest(marker=marker):
+                record = replace_field(CLEAN, "PAGE-YEAR", f"2009 - masthead, {marker} 2001")
+                self.assertEqual(kinds(ledger_text(record)), [])
+
+    def test_two_distinct_years_are_malformed_even_if_one_matches_the_entry(self):
+        for stated in ("2009 - masthead, revised 2011", "2011 - masthead, first printed 2009"):
+            with self.subTest(stated=stated):
+                record = replace_field(CLEAN, "PAGE-YEAR", stated)
+                self.assertEqual(kinds(ledger_text(record)), [ledger.PAGE_YEAR_FORM])
+
+    def test_repeating_the_same_year_is_well_formed(self):
+        record = replace_field(CLEAN, "PAGE-YEAR", "2009 - masthead and copyright 2009")
+        self.assertEqual(kinds(ledger_text(record)), [])
+
+    def test_only_years_in_the_declared_range_have_to_open_the_field(self):
+        for stated in ("1899", "2100"):
+            with self.subTest(stated=stated):
+                record = with_reference(CLEAN, "Someone, A. (n.d.). A topic. UpToDate.")
+                record = replace_field(record, "PAGE-YEAR", f"none stated; discusses {stated}")
+                self.assertEqual(kinds(ledger_text(record)), [])
+
+    def test_the_ends_of_the_year_range_have_to_open_the_field(self):
+        for year in ("1900", "2099"):
+            with self.subTest(year=year):
+                record = replace_field(CLEAN, "PAGE-YEAR", f"the masthead states {year}")
+                self.assertEqual(kinds(ledger_text(record)), [ledger.PAGE_YEAR_FORM])
+
+    def test_a_no_year_field_can_carry_a_page_locator(self):
+        record = with_reference(CLEAN, "Someone, A. (n.d.). A topic. UpToDate.")
+        record = replace_field(record, "PAGE-YEAR", "none stated, page 2001")
+        self.assertEqual(kinds(ledger_text(record)), [])
 
     def test_a_missing_page_year_reports_the_missing_field_and_not_a_disagreement(self):
         record = replace_field(CLEAN, "PAGE-YEAR", None)
@@ -1846,6 +1887,7 @@ class EveryRuledFanOutReadsTheSharedSourcingRules(unittest.TestCase):
             [
                 "A pointer is not a source",
                 "A resolving locator is not verification",
+                "A record is read at the source's width",
                 "A failed read is not a negative",
                 "A wall counts only after the Authenticated route is tried",
                 "Authenticated VitalSource chapters use one reading standard",
@@ -1923,12 +1965,27 @@ class EveryRuledFanOutReadsTheSharedSourcingRules(unittest.TestCase):
     def test_the_claim_heading_rule_and_refutation_briefs_agree(self):
         shared = " ".join(SOURCING.read_text(encoding="utf-8").split()).replace("`", "")
         self.assertIn("heading is the claim the finished document will make", shared)
-        self.assertIn("including any number the document will state", shared)
+        self.assertIn("Before research it states the question the research must answer", shared)
+        self.assertIn("source's own words", shared)
+        self.assertIn("every limiting qualifier", shared)
         self.assertIn("heading the source does not support", shared)
         self.assertIn("corrected", shared)
         self.assertIn("refuted", shared)
         self.assertIn("heading changed after its refutation is a new claim", shared)
         self.assertIn("fresh refutation and a newly printed TESTED-HEADING", shared)
+        self.assertIn("A heading or restatement broader than its source is refuted", shared)
+        self.assertIn("A narrower claim stands", shared)
+        self.assertIn("restatement as well as the heading", shared)
+        for broadening in (
+            "dropped qualifier on the subject",
+            "wider population",
+            "added exception",
+            "purpose link",
+            "equivalence",
+            "stronger modality",
+        ):
+            self.assertIn(broadening, shared)
+        self.assertIn("quotes the source's", shared)
 
         enumerations = {
             "practicum-case-study": "source says what the heading and restatement say it says",
@@ -1937,6 +1994,9 @@ class EveryRuledFanOutReadsTheSharedSourcingRules(unittest.TestCase):
             ),
             "discussion-reply": (
                 "prove the reference, locator, year, bibliographic details, heading, or restatement wrong"
+            ),
+            "discussion-post": (
+                "attacks the reference, locator, year, bibliographic details, heading, and restatement"
             ),
         }
         for skill, enumeration in enumerations.items():
@@ -2297,6 +2357,7 @@ class TheSkillSaysWhatThisChecks(ProseBind, unittest.TestCase):
         ledger.PAGE_YEAR_UNSTATED: "a `PAGE-YEAR` stating no year",
         ledger.BARE_PAGE_YEAR: "a `PAGE-YEAR` that is a year and nothing else",
         ledger.PAGE_YEAR_DISAGREES: "a `PAGE-YEAR` that is not the year in `REFERENCE`",
+        ledger.PAGE_YEAR_FORM: "a `PAGE-YEAR` outside its field form",
         ledger.UNKNOWN_REFUTATION: "a `REFUTATION` outside the four",
         ledger.BARE_REFUTATION: "a `REFUTATION` with no reason after it",
         ledger.REFUTED_CITATION: "a `REFUTATION` reading `refuted`",
@@ -2448,8 +2509,11 @@ class TheRowsSitInHelpersAndTheBranchingSitsInRecordFindings(unittest.TestCase):
     def _rows_for(self, ticket: str) -> set[str]:
         return {kind for kind, owner in ledger.ROWS.items() if owner == ticket}
 
-    def test_the_citation_helper_holds_every_231_row_and_nothing_else(self):
-        self.assertEqual(self._kinds_constructed_in("_citation_findings"), self._rows_for("#231"))
+    def test_the_citation_helper_holds_every_231_and_1480_row_and_nothing_else(self):
+        self.assertEqual(
+            self._kinds_constructed_in("_citation_findings"),
+            self._rows_for("#231") | self._rows_for("#1480"),
+        )
 
     def test_the_recency_helper_holds_every_215_row_and_nothing_else(self):
         self.assertEqual(self._kinds_constructed_in("_recency_findings"), self._rows_for("#215"))

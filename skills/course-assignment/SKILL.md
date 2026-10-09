@@ -96,9 +96,11 @@ the grader does not decide whether that reading was correct.
 
 ## 2. Research before production
 
-Derive the claim set from the assignment and planned deck. Include every factual assertion and
-every figure that may appear on a slide or in speaker notes. Create `claims.md` with a
-`DATE:` header and one `## CLAIM:` record per claim:
+Derive the research questions from the assignment and planned deck, covering every factual point
+and figure a slide or speaker note will need. Create `claims.md` with a `DATE:` header and one
+question-form `## CLAIM:` heading per question. When each record returns, rewrite its heading as
+the source-backed claim under [sourcing.md](../_shared/reference/sourcing.md), before refutation
+dispatch. The completed record has this form:
 
 ```text
 ## CLAIM: <claim, including the exact numeric token when it is numeric>
