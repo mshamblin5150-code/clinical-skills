@@ -1218,6 +1218,11 @@ def _filled_home_medication_evidence(evidence: str, items: list[str]) -> bool:
     return bool(continued) and any(continued in item for item in items)
 
 
+AGREEMENT_RETRY_INSTRUCTIONS = (
+    "Redo only the listed subjects under the brief's instructions and leave every other record unchanged."
+)
+
+
 AGREEMENT_READER_INSTRUCTIONS = (
     "Writer self-records exist privately; do not read them or request their text as a retry hint. "
     "For every code, record agreeing_words, route, encounter_evidence, "
@@ -1225,8 +1230,14 @@ AGREEMENT_READER_INSTRUCTIONS = (
     "Writers and blind readers quote open_status_evidence verbatim from the note. "
     "Copy subject_id, system, code, and role exactly. Every evidence value is a nonempty "
     "string. Route is the literal 'descriptor words' or exact index output; join a "
-    "referral chain with ' | ', beginning at a term in agreeing_words and ending at the "
-    "subject code. "
+    "referral chain with ' | ' and end at the subject code. The route's first index entry's "
+    "main term, the part before its first '>', or one of its comma-separated spellings, "
+    "must appear in agreeing_words: every word in the same order, not necessarily side by side. "
+    "Words in parentheses and the word NEC are ignored on both sides. For a code beginning "
+    "V, W, X or Y, a route whose first entry runs through 'sharp object' also starts in "
+    "words saying cut, edge, edged, laceration or sharp. The start is the only step the "
+    "scanner checks against the note. Every later step on the path, such as a site, still "
+    "needs note words that reach it, and that judgment is the reader's. "
     "Agreement requires note words that state the descriptor or reach it through an "
     "official four-source index path; topical relation is insufficient. An index code "
     "may be the subject code's stem, but every tabular-added character still needs note "
@@ -1459,6 +1470,8 @@ def _agreement_report(
     ])
     if show:
         lines.extend(f"    finding: {finding}" for finding in findings)
+        if findings:
+            lines.append(AGREEMENT_RETRY_INSTRUCTIONS)
         lines.extend(f"    unread cross-reference: {route}" for route in unread_routes or ())
     lines.extend([
         "",

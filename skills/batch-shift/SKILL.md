@@ -275,7 +275,8 @@ A missing self-record blocks the brief. A note sent back is a **Repair pass** un
 [ADR 0294](../../docs/adr/0294-an-orchestrator-s-per-note-claims-and-every-repair-pass-are-derived-from-the-record.md):
 retain its brief, bounded scope record, and passing placement/repair hash chain before grading again.
 Give the blind reader only the brief, with the self-record separation instruction in icd10-cpt;
-self-record text never enters a retry hint. On the blind grade below, append `--self-record` with
+Follow [icd10-cpt's retry rule](../icd10-cpt/SKILL.md#descriptor-agreement-is-a-separate-blind-read).
+On the blind grade below, append `--self-record` with
 the same complete path list for the report-only self-pass/blind-fail count.
 
 ```bash

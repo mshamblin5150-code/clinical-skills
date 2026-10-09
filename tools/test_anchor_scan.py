@@ -911,8 +911,12 @@ ICD-10 Z68.41 Body mass index [BMI] 40.0-44.9, adult
         self.assertEqual(scan.AGREEMENT_READER_INSTRUCTIONS, instructions)
         skill = (REPO_ROOT / "skills/icd10-cpt/SKILL.md").read_text(encoding="utf-8")
         self.assertIn("anchor_scan.AGREEMENT_READER_INSTRUCTIONS", skill)
-        for sentence in re.split(r"(?<=[.]) +", instructions):
-            self.assertNotIn(sentence.strip(), " ".join(skill.split()))
+        self.assertIn("anchor_scan.AGREEMENT_RETRY_INSTRUCTIONS", skill)
+        batch = (REPO_ROOT / "skills/batch-shift/SKILL.md").read_text(encoding="utf-8")
+        for rules in (instructions, scan.AGREEMENT_RETRY_INSTRUCTIONS):
+            for sentence in re.split(r"(?<=[.]) +", rules):
+                for text in (skill, batch):
+                    self.assertNotIn(sentence.strip(), " ".join(text.split()))
         for phrase in ("Final diagnosis or Preexisting diagnoses", "numbered Differential entry",
                        "code-and-descriptor half", "act done in this encounter",
                        "even when other note text agrees", "Hedge words document the diagnosis",
@@ -920,6 +924,50 @@ ICD-10 Z68.41 Body mass index [BMI] 40.0-44.9, adult
                        "coexists at this encounter", "continue of one, never earns"):
             self.assertIn(phrase, instructions)
         self.assertNotIn("section", instructions)
+
+    def test_route_start_words_match_the_briefs_declared_conditions(self):
+        instructions = self.brief()["instructions"]
+        cases = (
+            ("same order, not necessarily side by side", "Abdominal mass > site", "R19.00",
+             "Abdominal palpable mass", "Mass abdominal"),
+            ("comma-separated spellings", "Mass, Lump > site", "R19.00", "Lump", "Bulge"),
+            ("before its first '>'", "Mass > abdominal", "R19.00", "Mass", "Abdominal"),
+            ("Words in parentheses and the word NEC are ignored", "Mass (localized) NEC > site",
+             "R19.00", "Mass", "Localized NEC"),
+        )
+        for phrase, path, code, passing, failing in cases:
+            with self.subTest(condition=phrase):
+                route = f"{path} -> code {code}"
+                catalog = {route: (path, code.replace(".", ""), None, None)}
+                subject = scan.AgreementSubject("ICD-10", code, "", "entry", passing)
+                with patch.object(scan, "_index_route_catalog", return_value=catalog):
+                    self.assertEqual(scan.RouteStatus.VALID, scan._route_status(subject, route, passing))
+                    self.assertEqual(scan.RouteStatus.INVALID, scan._route_status(subject, route, failing))
+                self.assertIn(phrase, instructions)
+
+    def test_external_cause_route_start_allowance_is_declared_and_code_bounded(self):
+        instructions = self.brief()["instructions"]
+        for phrase in ("code beginning V, W, X or Y", "sharp object", "cut, edge, edged, laceration or sharp"):
+            self.assertIn(phrase, instructions)
+        path = "Contact > sharp object NEC"
+        for code, expected in (("W26", scan.RouteStatus.VALID), ("R19.00", scan.RouteStatus.INVALID)):
+            with self.subTest(code=code):
+                route = f"{path} -> code {code}"
+                subject = scan.AgreementSubject("ICD-10", code, "", "entry", "cut")
+                with patch.object(scan, "_index_route_catalog", return_value={
+                    route: (path, code.replace(".", ""), None, None),
+                }):
+                    self.assertEqual(expected, scan._route_status(subject, route, "cut"))
+
+    def test_later_route_steps_remain_the_readers_judgment(self):
+        subject = scan.AgreementSubject("ICD-10", "R19.00", "", "entry", "Reducible groin mass")
+        route = "Mass > abdominal -> code R19.00"
+        self.assertEqual(scan.RouteStatus.VALID, scan._route_status(subject, route, "Reducible groin mass"))
+        self.assertEqual(scan.RouteStatus.INVALID, scan._route_status(subject, route, "Reducible groin bulge"))
+        instructions = self.brief()["instructions"]
+        for phrase in ("start is the only step the scanner checks against the note",
+                       "Every later step", "note words that reach it", "judgment is the reader's"):
+            self.assertIn(phrase, instructions)
 
     def test_brief_output_is_bom_free_and_replaces_existing_file(self):
         args = [str(self.worksheets), "--notes", str(self.notes), "--agreement-brief"]
@@ -1489,6 +1537,24 @@ ICD-10 Z68.41 Body mass index [BMI] 40.0-44.9, adult
         self.assertNotIn("M25.572", plain)
         self.assertNotIn("ICD-10:R12:entry:1", plain)
         self.assertIn("note only ['M25.572'], worksheet only ['M79.675']", shown)
+
+    def test_retry_sentence_follows_findings_only_on_a_shown_failed_read(self):
+        retry = scan.AGREEMENT_RETRY_INSTRUCTIONS
+        self.assertEqual(
+            "Redo only the listed subjects under the brief's instructions and leave every other record unchanged.",
+            retry,
+        )
+        record = self.clean_record()
+        self.assertNotIn(retry, self.grade(record, show=True)[1])
+        record["pairs"][0]["codes"][0]["agreeing_words"] = "none"
+        status, plain = self.grade(record)
+        shown_status, shown = self.grade(record, show=True)
+        self.assertEqual((1, 1), (status, shown_status))
+        self.assertNotIn(retry, plain)
+        lines = shown.splitlines()
+        last_finding = max(index for index, line in enumerate(lines) if line.startswith("    finding:"))
+        self.assertEqual(retry, lines[last_finding + 1])
+        self.assertEqual(1, shown.count(retry))
 
     def test_a_fabricated_index_route_fails(self):
         record = self.clean_record()
