@@ -314,6 +314,14 @@ _Avoid_: claim question, claim title, prompt
 A [[Claim heading]] or restatement that claims more than its source states: a dropped qualifier on the subject, a wider population, an added exception, link or equivalence, or a stronger modality. A broadening is refuted; a claim narrower than its source is still true and stands. It compares a record with its source, where a drifted sentence in a [[Heading read]] compares a draft with its heading.
 _Avoid_: overstatement, slight narrowing, loose restatement
 
+**Refuted record**:
+A [[Claim record]] whose refutation verdict is `refuted`. It refutes the citation, not the claim: the claim goes back through research once, to a source other than the refuted one, and comes out with a sound record or unsourced. The verdict never removes a sentence by itself.
+_Avoid_: false claim, disproved claim, failed claim, refuted claim
+
+**Clinician-supplied claim**:
+A claim that came from the clinician rather than from the run's research: an [[Invoked source]] in the clinician's reasoning, the brief or notes handed over, a paper the clinician already approved, or a domain the voice model records as the clinician's. One that ends unsourced is asked about before it is cut; a claim the run introduced is cut and reported.
+_Avoid_: own material, invoked material, clinician's claim, held fact
+
 **Tested heading**:
 The digest of a [[Claim heading]] as it stood when its refutation was taken, kept in the refutation so that the refutation expires the moment the heading changes. Only whitespace is ignored; a change of case or punctuation is a change of claim. It says the refutation was taken against the heading now standing, never that the refuter actually tested it.
 _Avoid_: heading digest, heading hash, refuted heading, claim fingerprint
