@@ -10,6 +10,7 @@ what this instrument can see; membership here is never proof that none exists.
 from __future__ import annotations
 
 import ast
+import re
 import sys
 from dataclasses import dataclass, field
 from enum import Enum
@@ -54,8 +55,8 @@ DECLARED_LIMITS = (
         EvidenceDisposition.DECLARED_READING,
     ),
     (
-        "run artifacts read through read_run_directory",
-        "Members that call read_run_directory open only top-level files matching "
+        "run artifacts read through read_run_directory or read_run_artifacts",
+        "Members that call either shared run reader open only top-level files matching "
         "*.md (case-insensitively on Windows) whose stem is not README; artifacts "
         "in subdirectories and files with other extensions are not read.",
         EvidenceDisposition.BEHAVIOR,
@@ -498,12 +499,87 @@ class SourceError(Exception):
         self.exit_2_limb = exit_2_limb
 
 
-def read_run_directory(directory: Path) -> list[str]:
+@dataclass(frozen=True)
+class RunArtifact:
+    """A run reader's artifact, retaining its source for report attribution."""
+
+    path: Path
+    text: str
+
+
+def artifact_label(path: Path, position: int, total: int) -> str:
+    """Only a checked batch filename may enter pasteable output."""
+    if re.fullmatch(r"note-[0-9]+\.md", path.name, re.IGNORECASE):
+        return path.stem
+    return f"file {position} of {total}"
+
+
+@dataclass(frozen=True)
+class ReportAttribution:
+    """Row subjects and private detail sources, in reader order."""
+
+    artifacts: tuple[RunArtifact, ...] = ()
+    rows: tuple[tuple[str, tuple[int, ...]], ...] = ()
+    details: tuple[tuple[str, tuple[Path, ...]], ...] = ()
+    groups: tuple[tuple[str, tuple[tuple[int, ...], ...]], ...] = ()
+
+    def suffix(self, row: str) -> str:
+        groups = dict(self.groups).get(row, ())
+        if groups:
+            return " (" + "; ".join(
+                ", ".join(artifact_label(self.artifacts[index].path, index + 1, len(self.artifacts))
+                          for index in group)
+                for group in groups
+            ) + ")"
+        counts = dict(self.rows).get(row, ())
+        subjects = [
+            artifact_label(artifact.path, index, len(self.artifacts))
+            + (f" x{count}" if count > 1 else "")
+            for index, (artifact, count) in enumerate(zip(self.artifacts, counts), 1)
+            if count
+        ]
+        return f" ({', '.join(subjects)})" if subjects else ""
+
+    def filenames(self, row: str) -> str:
+        """Real names for an aggregate finding, confined to the private report."""
+        counts = dict(self.rows).get(row, ())
+        names = [artifact.path.name for artifact, count in zip(self.artifacts, counts) if count]
+        return ", ".join(names) + ": " if names else ""
+
+    def filename(self, collection: str, index: int) -> str:
+        paths = dict(self.details).get(collection, ())
+        return f"{paths[index].name}: " if paths else ""
+
+
+def attribute_scans(
+    artifacts: tuple[RunArtifact, ...],
+    scans: list[Any],
+    rows: Mapping[str, Callable[[Any], int]],
+    details: tuple[str, ...] = (),
+) -> ReportAttribution:
+    """Bind member-owned row counts and flattened detail lists to their files."""
+    if len(artifacts) != len(scans):
+        raise ValueError("one scan is required per run artifact")
+    return ReportAttribution(
+        artifacts,
+        tuple((row, tuple(count(scan) for scan in scans)) for row, count in rows.items()),
+        tuple(
+            (name, tuple(
+                artifact.path
+                for artifact, scan in zip(artifacts, scans)
+                for _item in getattr(scan, name)
+            ))
+            for name in details
+        ),
+    )
+
+
+def read_run_artifacts(directory: Path) -> list[RunArtifact]:
     """Read a run directory's Markdown artifacts in name order, excluding README."""
 
     try:
         return [
-            path.read_text(encoding="utf-8", errors="replace")
+            RunArtifact(path, path.read_text(encoding="utf-8", errors="replace"))
             for path in sorted(directory.glob("*.md"))
             if path.is_file() and path.stem.lower() != "readme"
         ]
@@ -512,6 +588,11 @@ def read_run_directory(directory: Path) -> list[str]:
             f"could not read a run artifact in {directory.name}",
             exit_2_limb=UNREADABLE_RUN_ARTIFACT,
         ) from failure
+
+
+def read_run_directory(directory: Path) -> list[str]:
+    """Compatibility text reader over the same population and error posture."""
+    return [artifact.text for artifact in read_run_artifacts(directory)]
 
 
 class ParseError(SourceError):

@@ -16,6 +16,7 @@ This module reads Code-set databases on [ADR 0249]'s terms.
 
 from __future__ import annotations
 
+import grader_conformance as attribution_kit
 import io
 import json
 import re
@@ -2559,6 +2560,18 @@ class CommittedIndexAndTableControls(unittest.TestCase):
                 "uterine mass concerning for malignancy; no pathology result",
             )
         )
+
+
+
+def artifact_attribution_input() -> attribution_kit.ArtifactAttributionInput:
+    return attribution_kit.ArtifactAttributionInput(
+        worksheet(entry("I10", "Hypertension", source="filled - generated history"), block="nothing"),
+        "marked, not listed",
+        worksheets=True,
+    )
+
+
+ArtifactAttributionConformance = attribution_kit.artifact_attribution_conformance(scan)
 
 
 if __name__ == "__main__":

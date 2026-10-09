@@ -35,10 +35,10 @@ describe opens an entry; nothing that opens an entry is prose about the rule.
 The complete boundary of a clean result is declared in
 ``block_scan.DECLARED_LIMITS``.
 
-**Counts only by default, and that is load-bearing rather than conventional.** A
+**Counts with checked file labels by default.** A
 run directory lives under ``scratch/`` or ``output/`` and is a patient record. A
-GAPS entry names what an encounter did not supply about a person, so nothing but
-integers is printed unless ``--show`` asks; **``--show`` output is PHI** on
+GAPS entry names what an encounter did not supply about a person, so clinical text
+is printed only when ``--show`` asks; **``--show`` output is PHI** on
 ``harvest_review.py``'s terms -- read it, do not paste it.
 
 **Exit status distinguishes not having scanned from having found nothing**, on
@@ -50,13 +50,16 @@ this parser does not read would otherwise report zero violations and look like a
 pass, which is exactly what ``differential_scan.py`` found when it met the twelve
 committed ``day-b`` notes.
 
+
+File attribution uses ``run_grader.artifact_label`` for pasteable output; private
+``--show`` finding lines carry real filenames. See ADR 0314.
 """
 
 from __future__ import annotations
 
 import re
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 import run_grader
@@ -249,6 +252,8 @@ class Scan:
     label_candidates: tuple[str, ...] = field(default=())
     notes_f3_absence_not_graded: int = 0
 
+    attribution: run_grader.ReportAttribution = run_grader.ReportAttribution()
+
     @property
     def unread_remainder(self) -> int:
         """Notes for which the tier-block reader found no readable block."""
@@ -355,8 +360,7 @@ def survey(
     label_candidates: tuple[str, ...] = (),
     f3_absence_not_graded: tuple[bool, ...] = (),
 ) -> Scan:
-    """Count across a run. Takes parsed blocks rather than paths, so a ``Scan``
-    never learns a filename -- a run directory's paths name the shift."""
+    """Count across parsed blocks. Command loading separately binds file attribution."""
     if not f3_absence_not_graded:
         f3_absence_not_graded = tuple(False for _ in blocks)
     if len(f3_absence_not_graded) != len(blocks):
@@ -386,6 +390,24 @@ def survey(
     )
 
 
+def locate(artifacts: tuple[run_grader.RunArtifact, ...]) -> run_grader.ReportAttribution:
+    """Retain each row's subjects without changing the grading population."""
+    scans = [survey(
+            [read_block(artifact.text)],
+            label_candidates=tuple(label_candidates(artifact.text)),
+            f3_absence_not_graded=(has_unrecognized_asserted_key(artifact.text),),
+        ) for artifact in artifacts]
+    return run_grader.attribute_scans(artifacts, scans, {
+        "f1_failures": lambda scan: scan.f1_failures,
+        "f2_failures": lambda scan: scan.f2_failures,
+        "f3_failures": lambda scan: scan.f3_failures,
+        "failing_notes": lambda scan: scan.failing_notes,
+        "candidates": lambda scan: len(scan.candidates),
+        "label_candidates": lambda scan: len(scan.label_candidates),
+        "unread_remainder": lambda scan: scan.unread_remainder,
+    }, ('findings', 'candidates', 'label_candidates'))
+
+
 def format_report(scan: Scan, source: str, show: bool = False) -> str:
     """The report, as one string. Carries no note text unless ``show``."""
     # Plain ASCII throughout, on ``specificity_scan.py``'s reasoning: this prints
@@ -396,30 +418,30 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         "",
         f"  notes read                       {scan.notes_read}",
         f"  notes carrying a tier block      {scan.notes_with_block}",
-        run_grader.format_unread_remainder(scan.unread_remainder),
+        run_grader.format_unread_remainder(scan.unread_remainder) + scan.attribution.suffix("unread_remainder"),
         f"  notes carrying a GAPS section    {scan.notes_with_gaps}",
         f"  GAPS entries                     {scan.gaps_entries}",
         f"  GAPS wrapped lines               {scan.gaps_wrapped_lines}",
         "",
-        f"  F1 - {WHY[F1]:<28}{scan.f1_failures}",
-        f"  F2 - {WHY[F2]:<28}{scan.f2_failures}",
-        f"  F3 - {WHY[F3]:<28}{scan.f3_failures}",
-        f"  notes at fault                   {scan.failing_notes}",
-        f"  wrapped-line candidates          {len(scan.candidates)}",
-        f"  label-line candidates            {len(scan.label_candidates)}",
+        f"  F1 - {WHY[F1]:<28}{scan.f1_failures}{scan.attribution.suffix('f1_failures')}",
+        f"  F2 - {WHY[F2]:<28}{scan.f2_failures}{scan.attribution.suffix('f2_failures')}",
+        f"  F3 - {WHY[F3]:<28}{scan.f3_failures}{scan.attribution.suffix('f3_failures')}",
+        f"  notes at fault                   {scan.failing_notes}{scan.attribution.suffix('failing_notes')}",
+        f"  wrapped-line candidates          {len(scan.candidates)}{scan.attribution.suffix('candidates')}",
+        f"  label-line candidates            {len(scan.label_candidates)}{scan.attribution.suffix('label_candidates')}",
         f"  F3 absence limb {run_grader.NOT_GRADED:<16}{scan.notes_f3_absence_not_graded}",
     ]
     if show:
         lines += ["", "  findings (PHI - read, do not paste):"]
-        for finding in scan.findings:
+        for index, finding in enumerate(scan.findings):
             label = finding.label.replace("·", "-")
-            lines.append(f"    {finding.row}  {label:<16} {finding.line}")
+            lines.append(f"{scan.attribution.filename('findings', index)}    {finding.row}  {label:<16} {finding.line}")
         lines += ["", "  candidates - wrapped lines, not scored:"]
-        for candidate in scan.candidates:
-            lines.append(f"    {candidate.row}  {'wrap':<16} {candidate.line}")
+        for index, candidate in enumerate(scan.candidates):
+            lines.append(f"{scan.attribution.filename('candidates', index)}    {candidate.row}  {'wrap':<16} {candidate.line}")
         lines += ["", "  candidates - label-like lines, not section starts:"]
-        for candidate in scan.label_candidates:
-            lines.append(f"    {candidate}")
+        for index, candidate in enumerate(scan.label_candidates):
+            lines.append(f"{scan.attribution.filename('label_candidates', index)}    {candidate}")
     return "\n".join(lines)
 
 
@@ -427,16 +449,18 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
 class Source:
     directory: Path
     notes: tuple[str, ...]
+    artifacts: tuple[run_grader.RunArtifact, ...] = ()
 
 
 def _load(parsed: run_grader.Parsed) -> Source:
     directory = Path(parsed.source)
     if not directory.is_dir():
         raise run_grader.SourceError(f"no directory named {directory.name}")
-    notes = tuple(run_grader.read_run_directory(directory))
+    artifacts = tuple(run_grader.read_run_artifacts(directory))
+    notes = tuple(artifact.text for artifact in artifacts)
     if not notes:
         raise run_grader.SourceError(f"no notes found in {directory.name}")
-    return Source(directory, notes)
+    return Source(directory, notes, artifacts)
 
 
 def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
@@ -451,6 +475,7 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
             has_unrecognized_asserted_key(text) for text in source.notes
         ),
     )
+    scan = replace(scan, attribution=locate(source.artifacts))
     diagnostics: list[str] = []
     if not scan.notes_with_block:
         diagnostics.append(

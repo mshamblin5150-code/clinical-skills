@@ -22,10 +22,10 @@ the whole ``filled-anchor`` set exists for.
 The complete boundary of a clean result is declared in
 ``specificity_scan.DECLARED_LIMITS``.
 
-**Counts only by default, and that is load-bearing rather than conventional.** A
+**Counts with checked file labels by default.** A
 run directory lives under ``scratch/`` or ``output/`` and is a patient record. A
-code with its descriptor is a diagnosis attached to an encounter, so nothing but
-integers is printed unless ``--show`` asks; **``--show`` output is PHI** on
+code with its descriptor is a diagnosis attached to an encounter, so clinical text
+is printed only when ``--show`` asks; **``--show`` output is PHI** on
 ``harvest_review.py``'s terms -- read it, do not paste it.
 
 **Exit status distinguishes not having scanned from having found nothing**, which
@@ -35,6 +35,9 @@ worksheets in it, no argument at all, no recognized for-entry flag, or recognize
 for-entry codes with an unread remainder. A run whose output landed somewhere
 else would otherwise report a clean set of flags and look like a pass.
 
+
+File attribution uses ``run_grader.artifact_label`` for pasteable output; private
+``--show`` finding lines carry real filenames. See ADR 0314.
 """
 
 from __future__ import annotations
@@ -211,6 +214,7 @@ class Scan:
     off_template_headings: int = 0
     heading_candidates: int = 0
     generic_differential_headings: int = 0
+    attribution: run_grader.ReportAttribution = run_grader.ReportAttribution()
 
 
 @dataclass
@@ -558,8 +562,7 @@ def advisory_findings(flags: list[Flag]) -> list[Finding]:
 
 
 def survey(per_worksheet: list[list[Flag]]) -> Scan:
-    """Count across a run. Takes parsed flags rather than paths, so a ``Scan``
-    never learns a filename -- a run directory's paths name the shift."""
+    """Count across parsed flags. Command loading separately binds file attribution."""
     flags = [flag for sheet in per_worksheet for flag in sheet]
     found = findings(flags)
     advisories = advisory_findings(flags)
@@ -603,6 +606,33 @@ def candidate_unread_remainder(text: str) -> int:
     )
 
 
+def locate(artifacts: tuple[run_grader.RunArtifact, ...]) -> run_grader.ReportAttribution:
+    """Retain each row's subjects without changing the grading population."""
+    scans = [replace(
+            survey([read_flags(artifact.text)]),
+            for_entry_codes_without_flag=entry_flag_coverage(artifact.text)[1],
+            orphaned_details=read_flags_with_orphans(artifact.text)[1],
+            unread_remainder=candidate_unread_remainder(artifact.text) + heading_counts(artifact.text).unread,
+            off_template_headings=heading_counts(artifact.text).off_template,
+            heading_candidates=heading_counts(artifact.text).candidates,
+            generic_differential_headings=heading_counts(artifact.text).generic_differential,
+        ) for artifact in artifacts]
+    return run_grader.attribute_scans(artifacts, scans, {
+        "for_entry_codes_without_flag": lambda scan: scan.for_entry_codes_without_flag,
+        "unrecognized_flags": lambda scan: scan.unrecognized_flags,
+        "not_for_entry_flags": lambda scan: scan.not_for_entry_flags,
+        "orphaned_details": lambda scan: scan.orphaned_details,
+        "heading_candidates": lambda scan: scan.heading_candidates,
+        "generic_differential_headings": lambda scan: scan.generic_differential_headings,
+        "off_template_headings": lambda scan: scan.off_template_headings,
+        "bare_flags": lambda scan: scan.bare_flags,
+        "welded_keywords": lambda scan: scan.welded_keywords,
+        "unspecified_complete": lambda scan: scan.unspecified_complete,
+        "failing_flags": lambda scan: scan.failing_flags,
+        "unread_remainder": lambda scan: scan.unread_remainder,
+    }, ('findings', 'advisories'))
+
+
 def format_report(scan: Scan, source: str, show: bool = False) -> str:
     """The report, as one string. Carries no code and no descriptor unless ``show``."""
     # Plain ASCII throughout, on ``icd10_lookup.py``'s reasoning: this prints to a
@@ -614,21 +644,21 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         f"  worksheets read                  {scan.worksheets}",
         f"  SPECIFICITY flags                {scan.flags}",
         f"  for-entry codes read             {scan.for_entry_codes}",
-        f"    without a paired flag          {scan.for_entry_codes_without_flag}",
+        f"    without a paired flag          {scan.for_entry_codes_without_flag}{scan.attribution.suffix('for_entry_codes_without_flag')}",
         f"    complete                       {scan.complete_flags}",
         f"    needs                          {scan.needs_flags}",
-        f"    neither keyword                {scan.unrecognized_flags}",
-        f"    on a NOT FOR ENTRY line        {scan.not_for_entry_flags}",
-        f"  orphaned detail lines           {scan.orphaned_details}",
-        f"  keyword heading candidates     {scan.heading_candidates}",
-        f"  generic Differential headings  {scan.generic_differential_headings}",
-        f"  off-template block headings     {scan.off_template_headings}",
+        f"    neither keyword                {scan.unrecognized_flags}{scan.attribution.suffix('unrecognized_flags')}",
+        f"    on a NOT FOR ENTRY line        {scan.not_for_entry_flags}{scan.attribution.suffix('not_for_entry_flags')}",
+        f"  orphaned detail lines           {scan.orphaned_details}{scan.attribution.suffix('orphaned_details')}",
+        f"  keyword heading candidates     {scan.heading_candidates}{scan.attribution.suffix('heading_candidates')}",
+        f"  generic Differential headings  {scan.generic_differential_headings}{scan.attribution.suffix('generic_differential_headings')}",
+        f"  off-template block headings     {scan.off_template_headings}{scan.attribution.suffix('off_template_headings')}",
         "",
-        f"  C5 - flag carries no reason      {scan.bare_flags}",
-        f"  C5 - welded keyword              {scan.welded_keywords}",
-        f"  advisory - complete on unspecified {scan.unspecified_complete}",
-        f"  C5 - flags at fault              {scan.failing_flags}",
-        run_grader.format_unread_remainder(scan.unread_remainder),
+        f"  C5 - flag carries no reason      {scan.bare_flags}{scan.attribution.suffix('bare_flags')}",
+        f"  C5 - welded keyword              {scan.welded_keywords}{scan.attribution.suffix('welded_keywords')}",
+        f"  advisory - complete on unspecified {scan.unspecified_complete}{scan.attribution.suffix('unspecified_complete')}",
+        f"  C5 - flags at fault              {scan.failing_flags}{scan.attribution.suffix('failing_flags')}",
+        run_grader.format_unread_remainder(scan.unread_remainder) + scan.attribution.suffix("unread_remainder"),
     ]
     if show:
         for heading, details in (
@@ -637,9 +667,9 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         ):
             if details:
                 lines += ["", f"  {heading} (PHI - read, do not paste):"]
-                for finding in details:
+                for index, finding in enumerate(details):
                     lines.append(
-                        f"    {finding.kind:<22} {finding.code:<9} "
+                        f"    {scan.attribution.filename(heading, index)}{finding.kind:<22} {finding.code:<9} "
                         f"SPECIFICITY: {finding.value}  [{finding.descriptor}]"
                     )
     return "\n".join(lines)
@@ -689,6 +719,7 @@ class Source:
     off_template_headings: int
     heading_candidates: int
     generic_differential_headings: int
+    artifacts: tuple[run_grader.RunArtifact, ...] = ()
 
 
 def posted_reading_check(
@@ -706,7 +737,8 @@ def _load(parsed: run_grader.Parsed) -> Source:
     directory = Path(parsed.source)
     if not directory.is_dir():
         raise run_grader.SourceError(f"no directory named {directory.name}")
-    worksheets = run_grader.read_run_directory(directory)
+    artifacts = tuple(run_grader.read_run_artifacts(directory))
+    worksheets = [artifact.text for artifact in artifacts]
     if not worksheets:
         raise run_grader.SourceError(f"no worksheets found in {directory.name}")
     coverage = tuple(entry_flag_coverage(text) for text in worksheets)
@@ -724,6 +756,7 @@ def _load(parsed: run_grader.Parsed) -> Source:
         sum(headings.off_template for headings in heading_populations),
         sum(headings.candidates for headings in heading_populations),
         sum(headings.generic_differential for headings in heading_populations),
+        artifacts,
     )
 
 
@@ -767,6 +800,7 @@ def _grade(
         heading_candidates=source.heading_candidates,
         generic_differential_headings=source.generic_differential_headings,
     )
+    scan = replace(scan, attribution=locate(source.artifacts))
     diagnostics: list[str] = []
     reports: list[str] = []
     second_gate: SecondReadGate | None = None

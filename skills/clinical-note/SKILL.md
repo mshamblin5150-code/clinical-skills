@@ -622,6 +622,12 @@ Two reasons, and the second is the one that bites:
 
 Ruled by the clinician on **2026-08-17**, [#97](https://github.com/mshamblin5150-code/clinical-skills/issues/97). That ticket asked what rate of repeated or not-normal filled vitals is wrong and objected to its own answer: *a row saying no more than N needs an N that nothing grounds.* **One of the two rules needs no N, and the other's N is not invented.** Both are settled by one command over a finished run:
 
+Run-grader findings, reader candidates, and unread remainders name their files
+beside the row counts. The shared `run_grader.artifact_label` checks a batch
+filename before printing its stem; other files use reader-order positions.
+`--show` finding lines print real filenames and remain private. Zero and ungraded
+rows keep their existing output.
+
 ```bash
 python tools/filled_vitals_census.py <the run directory>
 ```
@@ -995,7 +1001,6 @@ It binds both branches, which is why it lives here rather than in either templat
 **One entry per numbered item, and the item is the unit rather than the line.** [SOAP.md](SOAP.md) writes code and rationale together. [HP.md](HP.md) writes the Differential's code pair alone and gives the same ordinal its reasoned MDM entry. **A wrapped line belongs to the item that opened it and never opens one** — the numeral is what opens an item, which is `tools/block_scan.py`'s entry-versus-wrap distinction reused here for its reason. A long descriptor can wrap; counting physical lines then returns the wrong unit. Issue [#124](https://github.com/mshamblin5150-code/clinical-skills/issues/124); corrected figures remain in the withheld run record.
 
 **A diagnosis argued down inside a paragraph is a defect, not an entry.** This synthetic example argues three diagnoses down inside prose carrying no code:
-
 ```
 Genital ulcer disease is the frame. Herpes simplex is the usual cause at this age, but there are no vesicles and no prodrome; a primary syphilitic chancre would be painless and this one is tender; molluscum contagiosum is umbilicated and this is not. None is favored.
 ```

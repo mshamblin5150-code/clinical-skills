@@ -39,10 +39,10 @@ separate from the filled-anchor block, so a run reproducing run 1 reads as
 having marked nothing and exits 2. A scanner that scored it clean would report a
 pass for the exact behavior #46 reversed.
 
-**Counts only by default, and that is load-bearing rather than conventional.** A
+**Counts with checked file labels by default.** A
 run directory lives under ``scratch/`` or ``output/`` and is a patient record; a
-code with the value it rests on is a measurement attached to an encounter. Nothing
-but integers is printed unless ``--show`` asks, and **``--show`` output is PHI** on
+code with the value it rests on is a measurement attached to an encounter. Clinical text
+is printed only when ``--show`` asks, and **``--show`` output is PHI** on
 ``harvest_review.py``'s terms -- read it, do not paste it.
 
 **Exit status distinguishes not having scanned from having found nothing**, on
@@ -56,6 +56,9 @@ the not-scanned diagnostic and exit 2. Earlier versions returned first and print
 no report; the moved stdout makes the coverage failure inspectable and puts this
 grader on the shared finding-over-coverage ordering.
 
+
+File attribution uses ``run_grader.artifact_label`` for pasteable output; private
+``--show`` finding lines carry real filenames. See ADR 0314.
 """
 
 from __future__ import annotations
@@ -66,7 +69,7 @@ import re
 import sys
 from collections import Counter, defaultdict
 from contextlib import closing
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum
 from functools import cache
 from pathlib import Path
@@ -244,6 +247,8 @@ class Scan:
     heading_candidates: int = 0
     generic_differential_headings: int = 0
 
+    attribution: run_grader.ReportAttribution = run_grader.ReportAttribution()
+
     @property
     def subjects(self) -> int:
         """How much there was to grade. Zero means nothing was scanned."""
@@ -378,8 +383,7 @@ def worksheet_findings(sheet: Worksheet) -> list[Finding]:
 
 
 def survey(sheets: list[Worksheet]) -> Scan:
-    """Count across a run. Takes parsed worksheets rather than paths, so a ``Scan``
-    never learns a filename -- a run directory's paths name the shift."""
+    """Count across parsed worksheets. Command loading separately binds file attribution."""
     found = [finding for sheet in sheets for finding in worksheet_findings(sheet)]
     return Scan(
         worksheets=len(sheets),
@@ -401,6 +405,21 @@ def survey(sheets: list[Worksheet]) -> Scan:
     )
 
 
+def locate(artifacts: tuple[run_grader.RunArtifact, ...]) -> run_grader.ReportAttribution:
+    """Retain each row's subjects without changing the grading population."""
+    scans = [survey([read_worksheet(artifact.text)]) for artifact in artifacts]
+    return run_grader.attribute_scans(artifacts, scans, {
+        "unlisted_marks": lambda scan: scan.unlisted_marks,
+        "unmarked_listings": lambda scan: scan.unmarked_listings,
+        "pediatric_not_computed": lambda scan: scan.pediatric_not_computed,
+        "orphaned_details": lambda scan: scan.orphaned_details,
+        "heading_candidates": lambda scan: scan.heading_candidates,
+        "generic_differential_headings": lambda scan: scan.generic_differential_headings,
+        "off_template_headings": lambda scan: scan.off_template_headings,
+        "unread_remainder": lambda scan: scan.unread_remainder,
+    }, ('findings',))
+
+
 def format_report(scan: Scan, source: str, show: bool = False) -> str:
     """The report, as one string. Carries no code unless ``show``."""
     # Plain ASCII throughout, on ``specificity_scan.py``'s reasoning: this prints
@@ -416,20 +435,20 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         f"  codes listed in the block          {scan.listed}",
         f"  pediatric Z68.5- bands             {scan.pediatric_bands}",
         f"  E/M lines excluded                  {scan.excluded_em}",
-        f"  orphaned detail lines               {scan.orphaned_details}",
-        f"  keyword heading candidates         {scan.heading_candidates}",
-        f"  generic Differential headings      {scan.generic_differential_headings}",
-        f"  off-template block headings        {scan.off_template_headings}",
-        run_grader.format_unread_remainder(scan.unread_remainder),
+        f"  orphaned detail lines               {scan.orphaned_details}{scan.attribution.suffix('orphaned_details')}",
+        f"  keyword heading candidates         {scan.heading_candidates}{scan.attribution.suffix('heading_candidates')}",
+        f"  generic Differential headings      {scan.generic_differential_headings}{scan.attribution.suffix('generic_differential_headings')}",
+        f"  off-template block headings        {scan.off_template_headings}{scan.attribution.suffix('off_template_headings')}",
+        run_grader.format_unread_remainder(scan.unread_remainder) + scan.attribution.suffix("unread_remainder"),
         "",
-        f"  A1/A2/A5 - marked, not listed      {scan.unlisted_marks}",
-        f"  A1/A2/A5 - listed, not marked      {scan.unmarked_listings}",
-        f"  A1 - pediatric not computed        {scan.pediatric_not_computed}",
+        f"  A1/A2/A5 - marked, not listed      {scan.unlisted_marks}{scan.attribution.suffix('unlisted_marks')}",
+        f"  A1/A2/A5 - listed, not marked      {scan.unmarked_listings}{scan.attribution.suffix('unmarked_listings')}",
+        f"  A1 - pediatric not computed        {scan.pediatric_not_computed}{scan.attribution.suffix('pediatric_not_computed')}",
     ]
     if show:
         lines += ["", "  findings (PHI - read, do not paste):"]
-        for finding in scan.findings:
-            lines.append(f"    {finding.kind:<24} {finding.code:<9} {finding.detail}")
+        for index, finding in enumerate(scan.findings):
+            lines.append(f"{scan.attribution.filename('findings', index)}    {finding.kind:<24} {finding.code:<9} {finding.detail}")
     return "\n".join(lines)
 
 
@@ -437,20 +456,23 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
 class Source:
     directory: Path
     texts: tuple[str, ...]
+    artifacts: tuple[run_grader.RunArtifact, ...] = ()
 
 
 def _load(parsed: run_grader.Parsed) -> Source:
     directory = Path(parsed.source)
     if not directory.is_dir():
         raise run_grader.SourceError(f"no directory named {directory.name}")
-    texts = tuple(run_grader.read_run_directory(directory))
+    artifacts = tuple(run_grader.read_run_artifacts(directory))
+    texts = tuple(artifact.text for artifact in artifacts)
     if not texts:
         raise run_grader.SourceError(f"no worksheets found in {directory.name}")
-    return Source(directory, texts)
+    return Source(directory, texts, artifacts)
 
 
 def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
     scan = survey([read_worksheet(text) for text in source.texts])
+    scan = replace(scan, attribution=locate(source.artifacts))
     diagnostics: list[str] = []
     if not scan.subjects:
         diagnostics.append(

@@ -7,17 +7,20 @@ state what would establish the code, and name what the encounter supports instea
 The descriptor must begin with the official ICD-10-CM long text. Codes in the differential are
 outside the block and do not inflate the refusal count.
 
-Default output is counts only. ``--show`` prints code-level findings and is PHI on
+Default output is counts with checked file labels. ``--show`` prints code-level findings and is PHI on
 the same terms as the repo's other scanners. Exit 0 means the scanned records are
 complete, 1 means at least one finding, and 2 means no worksheet refusal was
 scanned or the input could not be read.
+
+File attribution uses ``run_grader.artifact_label`` for pasteable output; private
+``--show`` finding lines carry real filenames. See ADR 0314.
 """
 
 from __future__ import annotations
 
 import re
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 import run_grader
@@ -128,6 +131,8 @@ class Scan:
     heading_candidates: int = 0
     generic_differential_headings: int = 0
     findings: tuple[Finding, ...] = ()
+
+    attribution: run_grader.ReportAttribution = run_grader.ReportAttribution()
 
     @property
     def subjects(self) -> int:
@@ -268,25 +273,43 @@ def survey(sheets: list[Worksheet]) -> Scan:
     )
 
 
+def locate(artifacts: tuple[run_grader.RunArtifact, ...]) -> run_grader.ReportAttribution:
+    """Retain each row's subjects without changing the grading population."""
+    scans = [survey([read_worksheet(artifact.text)]) for artifact in artifacts]
+    return run_grader.attribute_scans(artifacts, scans, {
+        "malformed_marks": lambda scan: scan.malformed_marks,
+        "unread_headings": lambda scan: scan.unread_headings,
+        "unread_marks": lambda scan: scan.unread_marks,
+        "heading_candidates": lambda scan: scan.heading_candidates,
+        "generic_differential_headings": lambda scan: scan.generic_differential_headings,
+        "off_template_headings": lambda scan: scan.off_template_headings,
+        "unread_remainder": lambda scan: scan.unread_remainder,
+        "findings": lambda scan: len(scan.findings),
+    }, ('findings',))
+
+
 def format_report(result: Scan, source: str, show: bool = False) -> str:
     lines = [
         f"refusal scan: {source}",
         f"worksheets                       {result.worksheets}",
         f"worksheets carrying block        {result.with_block}",
         f"refusal records                  {result.refusals}",
-        f"malformed NOT CODED lines        {result.malformed_marks}",
+        f"malformed NOT CODED lines        {result.malformed_marks}{result.attribution.suffix('malformed_marks')}",
         "records per worksheet             "
         + ",".join(str(count) for count in result.per_worksheet),
-        f"unread refusal headings           {result.unread_headings}",
-        f"unread refusal marks              {result.unread_marks}",
-        f"keyword heading candidates       {result.heading_candidates}",
-        f"generic Differential headings    {result.generic_differential_headings}",
-        f"off-template block headings       {result.off_template_headings}",
-        run_grader.format_unread_remainder(result.unread_remainder),
-        f"findings                         {len(result.findings)}",
+        f"unread refusal headings           {result.unread_headings}{result.attribution.suffix('unread_headings')}",
+        f"unread refusal marks              {result.unread_marks}{result.attribution.suffix('unread_marks')}",
+        f"keyword heading candidates       {result.heading_candidates}{result.attribution.suffix('heading_candidates')}",
+        f"generic Differential headings    {result.generic_differential_headings}{result.attribution.suffix('generic_differential_headings')}",
+        f"off-template block headings       {result.off_template_headings}{result.attribution.suffix('off_template_headings')}",
+        run_grader.format_unread_remainder(result.unread_remainder) + result.attribution.suffix("unread_remainder"),
+        f"findings                         {len(result.findings)}{result.attribution.suffix('findings')}",
     ]
     if show:
-        lines.extend(f"{finding.kind}: {finding.code}" for finding in result.findings)
+        lines.extend(
+            f"{result.attribution.filename('findings', index)}{finding.kind}: {finding.code}"
+            for index, finding in enumerate(result.findings)
+        )
     return "\n".join(lines)
 
 
@@ -294,6 +317,7 @@ def format_report(result: Scan, source: str, show: bool = False) -> str:
 class Source:
     directory: Path
     texts: tuple[str, ...]
+    artifacts: tuple[run_grader.RunArtifact, ...] = ()
 
 
 def _load(parsed: run_grader.Parsed) -> Source:
@@ -302,25 +326,28 @@ def _load(parsed: run_grader.Parsed) -> Source:
         raise run_grader.SourceError(f"no directory named {directory.name}")
     stem = parsed.value("--stem")
     if stem is None:
-        texts = tuple(run_grader.read_run_directory(directory))
+        artifacts = tuple(run_grader.read_run_artifacts(directory))
     else:
         paths = [
             path for path in directory.glob("*.md")
             if path.is_file() and path.stem == stem and path.stem.lower() != "readme"
         ]
         try:
-            texts = tuple(
-                path.read_text(encoding="utf-8", errors="replace") for path in paths
+            artifacts = tuple(
+                run_grader.RunArtifact(path, path.read_text(encoding="utf-8", errors="replace"))
+                for path in sorted(paths)
             )
         except OSError as failure:
             raise run_grader.SourceError("could not read the requested worksheet") from failure
+    texts = tuple(artifact.text for artifact in artifacts)
     if not texts:
         raise run_grader.SourceError(f"no worksheets found in {directory.name}")
-    return Source(directory, texts)
+    return Source(directory, texts, artifacts)
 
 
 def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
     result = survey([read_worksheet(text) for text in source.texts])
+    result = replace(result, attribution=locate(source.artifacts))
     diagnostics = (
         ("no NOT CODED line was read from any refusal block",)
         if result.subjects == 0

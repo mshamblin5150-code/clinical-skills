@@ -200,7 +200,6 @@ Every pass brief points to [clinical-note's code-label rule](../clinical-note/SK
 and [icd10-cpt's Writer self-grade](../icd10-cpt/SKILL.md#descriptor-agreement-is-a-separate-blind-read)
 and its coexisting-condition test for history and filled home medications,
 and names its grading command, using its own note stem:
-
 ```bash
 python tools/anchor_scan.py <run>/worksheets --notes <run> --agreement-read <run>/agreement-self/note-N.json --stem note-N
 python tools/refusal_scan.py <run>/worksheets --stem note-N
@@ -299,6 +298,12 @@ shift.
 **This is a check across the shift, not a carry-over between notes.** Step 5's *no carry-over* holds unchanged: encounter 4 still fills its own vitals from its own age, and nothing here lets encounter 3's numbers reach it. The roll-up reads what twelve independent passes produced; it does not coordinate them, and a note is never rewritten to make this block tidier.
 
 **Where the notes are on disk, the counting half is a command rather than a reading:**
+
+Run-grader findings, reader candidates, and unread remainders name their files
+beside the row counts. The shared `run_grader.artifact_label` checks a batch
+filename before printing its stem; other files use reader-order positions.
+`--show` finding lines print real filenames and remain private. Zero and ungraded
+rows keep their existing output.
 
 ```bash
 python tools/filled_vitals_census.py <the run directory>
