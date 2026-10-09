@@ -465,6 +465,10 @@ place of service, patient status, and decision-making level.
 verbatim in both that note and the row's anchor. Open-status evidence must also be verbatim
 note text unless it is `none`, and clears the filled-home-medication check. A code-label mismatch
 is an author finding before the blind brief. If a reader's span fails, the reader retries.
+Send the retry in the message only, never as a file: copy the `--agreement-read --show`
+finding lines for the failing subjects and the fixed sentence printed after them from
+`anchor_scan.AGREEMENT_RETRY_INSTRUCTIONS`. The coordinator composes nothing else.
+A retry needing a rule absent from the brief goes to the tracker as a brief defect.
 For procedure anchors only, if it still fails, the author widens that anchor to the sentence it
 sits in. Log every procedure widening in the run's agreement record so the after-action review
 can count it. If it still fails, log
