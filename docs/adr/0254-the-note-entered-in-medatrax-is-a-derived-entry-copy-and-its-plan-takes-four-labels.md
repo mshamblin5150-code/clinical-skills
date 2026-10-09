@@ -41,6 +41,14 @@ bounds, which the welded form and its semicolon separator already fix. If any `N
 survives in the output, the command writes no copy and exits non-zero. The portal readback in
 `skills/clinical-note/SKILL.md` compares the saved note against the Entry copy.
 
+*Superseded 2026-10-09.* **The refusal "If any `NOT CODED` mark survives in the output" is
+superseded by
+[ADR 0313](0313-a-leftover-refusal-mark-is-refused-only-in-the-entered-sections-and-an-estimated-input-is-disclosed-in-plain-words.md)
+ruling 1 for text outside the four Note sections, and is left as written.** A surviving mark is
+refused only inside the sections entered in Medatrax, or in the whole copy where those sections
+cannot be read. The committed command, its clause bounds, the no-copy refusal and the portal
+readback stand.
+
 ## Ruling 4 — both branches use the H&P's four Plan labels and nothing else
 
 Every Plan, SOAP and H&P alike, is organized under exactly these **Plan labels**:
