@@ -272,13 +272,13 @@ unresearched.
 
 Apply every ledger disposition before promoting `post.md` to the finished artifact:
 
-- `refuted`: the sentence is cut, not softened or hedged;
+- `refuted`: apply the [shared refuted-record disposition](../_shared/reference/sourcing.md#a-refuted-record-fails-the-citation-not-the-claim);
 - `unsourced`: the sentence may survive only as clearly uncited clinician reasoning, and the
-  unearned reference is removed; and
+  unearned reference is removed; apply the same shared rule before cutting a clinician-supplied claim; and
 - `paywalled`: the claim may ship on the recorded terms, and it is counted in the completion report on
   its own line.
 
-Report every cut to the clinician before the draft is final because removing a sentence changes
+Report every cut of a claim the run introduced to the clinician before the draft is final because removing a sentence changes
 the argument. Repair the reference list after the cuts. A source supporting no surviving sentence
 is deleted rather than left as decoration.
 

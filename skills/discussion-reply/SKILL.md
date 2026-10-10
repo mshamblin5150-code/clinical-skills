@@ -120,8 +120,10 @@ The refutation leg of this **Fan-out brief** applies [standing rule 6](../../AGE
 reads the rules in
 [sourcing.md](../_shared/reference/sourcing.md) and applies them to every returned claim or negative.
 It tries to prove the reference, locator, year, bibliographic details, heading, or restatement wrong and returns
-`stands`, `refuted`, `paywalled`, or `unreadable` with a substantive reason. A refuted record is repaired or made
-honestly unsourced before drafting; it is never cited. The refuter also returns
+`stands`, `refuted`, `paywalled`, or `unreadable` with a substantive reason. For `refuted` records
+and clinician-supplied `unsourced` claims, apply the
+[shared refuted-record disposition](../_shared/reference/sourcing.md#a-refuted-record-fails-the-citation-not-the-claim)
+before drafting. The refuter also returns
 `SECOND-ROUTE: <research route> -> <refutation route>` with substantive halves that differ after
 normalization. Refuter independence remains orchestrator-owned; see `research_ledger.DECLARED_LIMITS`.
 Immediately before each refutation dispatch, run `python tools/research_ledger.py

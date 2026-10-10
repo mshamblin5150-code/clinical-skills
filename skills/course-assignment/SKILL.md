@@ -127,6 +127,8 @@ brief first reads and applies
 Each refutation leg attacks the reference, locator, year, bibliographic details, heading, and restatement. It returns
 `stands`, `refuted`, `paywalled`, or `unreadable` with a reason and a genuinely different second route. The
 route requirement is a local narrowing.
+For `refuted` records and clinician-supplied `unsourced` claims, apply the
+[shared refuted-record disposition](../_shared/reference/sourcing.md#a-refuted-record-fails-the-citation-not-the-claim).
 Immediately before each refutation dispatch, run `python tools/research_ledger.py
 scratch/runs/<course>-<module>-course-assignment/claims.md --heading-digests`, name that claim's
 printed digest in the brief, and write it as `TESTED-HEADING` with the returned verdict and route.
