@@ -331,7 +331,7 @@ A fresh reader's pairing of every factual sentence in a finished draft with the 
 _Avoid_: draft-to-ledger read, draft check, claim audit, faithfulness check
 
 **Voice read**:
-A fresh reader's comparison of a finished coursework draft with the canonical voice model's discriminating pairs, taken on a copy carrying one [[Planted sentence]] the reader is not told of. Every pair is answered with a quoted draft sentence and the half it resembles, or no counterpart. It establishes consistency with the model's samples, never that the draft sounds like its clinician; a missed plant voids it, and it expires when the draft changes.
+A fresh reader's comparison of a finished coursework draft with the canonical voice model's discriminating pairs, taken on a copy carrying one [[Planted sentence]] the reader is not told of. Every pair is answered with a quoted draft sentence and the half it resembles, or no counterpart. It establishes consistency with the model's samples, never that the draft sounds like its clinician. The plant is caught only when the reader both names it and places it on the generic side of whichever pair it most resembles; a missed plant voids the read, and the read expires when the draft changes.
 _Avoid_: voice check, voice audit, voice grade, sounds-like check
 
 **Planted sentence**:
