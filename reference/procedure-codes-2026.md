@@ -40,6 +40,9 @@ The normalized licensed CPT CSV requires `code` and `description`. It may also
 carry `short_description`, `effective_date`, `termination_date`, `category`, and
 `locator`. Omit `--cpt-complete` for an excerpt or incremental transcription;
 the lookup will then refuse to treat a miss as evidence that no CPT code exists.
+Accepted CPT identities include numeric Category I codes and the `F`, `M`, `T`,
+and `U` suffix families. MAAA administrative codes ending in `M` have their
+destination listings in Appendix O and belong in a complete two-reader rebuild.
 
 Descriptor verification is separate from completeness. Without a matching
 agreement record, the build writes `meta.cpt_descriptors = unverified`. A matching

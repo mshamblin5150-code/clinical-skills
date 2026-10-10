@@ -52,7 +52,7 @@ python tools/procedure_codes_lookup.py --modifier AB --on 2026-09-14
 python tools/procedure_codes_lookup.py 12001 --on 2026-09-14
 ```
 
-`tools/procedure_codes_lookup.py` recognizes five-digit numeric and `F`, `T`, or
+`tools/procedure_codes_lookup.py` recognizes five-digit numeric and `F`, `M`, `T`, or
 `U`-suffixed codes as CPT; other alphanumeric procedure codes are HCPCS. The
 service date is part of the lookup because the
 HCPCS quarterly file carries additions and terminations that may not be active

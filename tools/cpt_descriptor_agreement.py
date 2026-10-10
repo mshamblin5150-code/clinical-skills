@@ -140,8 +140,8 @@ class Agreement:
 
 
 def category(code: str) -> str:
-    """CPT category by code shape: F is II, T is III, U is PLA, five digits is I."""
-    return {"F": "II", "T": "III", "U": "PLA"}.get(code[-1], "I")
+    """CPT category by code shape, including MAAA administrative codes."""
+    return {"F": "II", "M": "MAAA", "T": "III", "U": "PLA"}.get(code[-1], "I")
 
 
 def read_reading(path: Path) -> dict[str, Entry]:

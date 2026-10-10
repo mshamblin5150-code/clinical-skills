@@ -11,6 +11,26 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class EntryLines(unittest.TestCase):
+    def test_cpt_suffix_families_open_complete_entries_and_candidates(self):
+        for code in ("0001F", "0002M", "0001T", "0001U"):
+            with self.subTest(code=code):
+                text = f"CPT  {code}  Synthetic procedure\n"
+                self.assertEqual(
+                    [code], [match.group("code") for match in grammar.ENTRY.finditer(text)]
+                )
+                decorated = f"- **CPT**  {code}  Synthetic procedure\n"
+                self.assertEqual(
+                    [code],
+                    [match.group("code") for match in grammar.ENTRY_CANDIDATE.finditer(decorated)],
+                )
+
+    def test_unsupported_or_extended_suffix_shapes_are_not_partial_entries(self):
+        for code in ("0001X", "00002M", "0002MM", "0002M1"):
+            with self.subTest(code=code):
+                text = f"CPT  {code}  Synthetic procedure\n"
+                self.assertEqual([], list(grammar.ENTRY.finditer(text)))
+                self.assertEqual([], list(grammar.ENTRY_CANDIDATE.finditer(text)))
+
     def test_each_supported_code_system_opens_an_entry(self):
         text = (
             "ICD-10  J02.9  Acute pharyngitis, unspecified\n"

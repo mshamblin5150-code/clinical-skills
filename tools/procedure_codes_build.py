@@ -238,7 +238,7 @@ def read_cpt_text(text: str, label: str, *, validate_descriptors: bool = True) -
         for number, row in enumerate(reader, start=2):
             code = (row.get("code") or "").strip()
             description = (row.get("description") or "").strip()
-            if not re.fullmatch(r"(?:\d{5}|\d{4}[FTU])", code):
+            if not re.fullmatch(r"(?:\d{5}|\d{4}[FMTU])", code):
                 raise ValueError(f"{label}:{number}: invalid CPT code {code!r}")
             if not description:
                 raise ValueError(f"{label}:{number}: CPT {code} has no description")

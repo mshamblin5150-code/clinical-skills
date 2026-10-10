@@ -107,6 +107,20 @@ def unread_remainder_input(root: Path) -> UnreadRemainderInput:
 
 
 class TheParserReadsOnlyTheStepFourBlock(unittest.TestCase):
+    def test_proposed_procedure_entries_use_the_supported_code_shapes(self):
+        for system, code in (
+            ("CPT", "0001F"), ("CPT", "0002M"), ("CPT", "0001T"),
+            ("CPT", "0001U"), ("HCPCS", "J1100"),
+        ):
+            with self.subTest(code=code):
+                text = worksheet(refusal()).replace(
+                    "--- PROPOSED CODES ---\n",
+                    f"--- PROPOSED CODES ---\n{system}  {code}  Synthetic procedure\n",
+                )
+                sheet = scan.read_worksheet(text)
+                self.assertIn(code, sheet.proposed)
+                self.assertEqual([], scan.worksheet_findings(sheet))
+
     def test_a_complete_refusal_is_clean(self):
         sheet = scan.read_worksheet(worksheet(refusal()))
         self.assertEqual(len(sheet.refusals), 1)

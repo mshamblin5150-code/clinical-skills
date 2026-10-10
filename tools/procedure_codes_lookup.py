@@ -62,7 +62,7 @@ def _match(row: tuple) -> Match:
 
 
 def infer_system(code: str) -> str:
-    return "CPT" if re.fullmatch(r"(?:\d{5}|\d{4}[FTU])", code) else "HCPCS"
+    return "CPT" if re.fullmatch(r"(?:\d{5}|\d{4}[FMTU])", code) else "HCPCS"
 
 
 def describe(connection: sqlite3.Connection, code: str, kind: str = "code") -> Match | None:

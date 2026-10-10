@@ -26,10 +26,11 @@ from pathlib import Path
 import run_grader
 import icd10_lookup
 from run_grader import EvidenceDisposition
-from worksheet_grammar import ANY_HEADING, DIFFERENTIAL_HEADING, REFUSAL_HEADING, heading_counts
+from worksheet_grammar import (
+    ANY_HEADING, CODE, DIFFERENTIAL_HEADING, REFUSAL_HEADING, heading_counts,
+)
 
 
-CODE = r"(?:[A-Z][0-9][0-9A-Z](?:\.[0-9A-Z]{1,4})?|[0-9]{5})"
 MARK = re.compile(rf"^[ \t]*NOT CODED:[ \t]*({CODE})\b[ \t]+(\S.*)$")
 NEEDS = re.compile(r"^[ \t]*needs:[ \t]*\S", re.IGNORECASE)
 SUBSTITUTE = re.compile(r"^[ \t]*proposed instead:[ \t]*\S", re.IGNORECASE)
