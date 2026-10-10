@@ -87,6 +87,47 @@ class TheInitialPostHasOneRoutingSurface(ProseBind, unittest.TestCase):
         self.assertIn("[discussion-post](../discussion-post/SKILL.md)", setup)
 
 
+class RefutedClaimsUseOneSharedDisposition(ProseBind, unittest.TestCase):
+    SHEET = ROOT / "skills" / "_shared" / "reference" / "sourcing.md"
+    HEADING = "A refuted record fails the citation, not the claim"
+    POINTER = "../_shared/reference/sourcing.md#a-refuted-record-fails-the-citation-not-the-claim"
+
+    def rule(self):
+        return read(self.SHEET).split("## " + self.HEADING + "\n", 1)[1].split("\n## ", 1)[0]
+
+    def test_every_coursework_skill_points_to_the_shared_disposition(self):
+        for skill in (POST, REPLY, PEER_CRITIQUE, CASE_STUDY, COURSE_ASSIGNMENT):
+            with self.subTest(skill=skill.parent.name):
+                self.assertIn(self.POINTER, read(skill))
+
+    def test_a_refutation_gets_one_fresh_round_then_an_unsourced_outcome(self):
+        rule = self.rule()
+        self.assertProseIn("exactly one fresh research round", rule)
+        self.assertProseIn("a source other than the refuted one", rule)
+        self.assertProseIn("a fresh refuter", rule)
+        self.assertProseIn("If that record also fails, the claim is `unsourced`", rule)
+        self.assertProseIn("A `refuted` verdict fails the citation", rule)
+
+    def test_the_ask_before_cut_question_names_failures_and_all_clinician_choices(self):
+        rule = self.rule()
+        self.assertProseIn("ask the clinician before cutting it", rule)
+        self.assertProseIn("Name each source tried and why it failed", rule)
+        self.assertProseIn("supply a source, rule that the claim stays, or agree to the cut", rule)
+        self.assertProseIn("A claim the run introduced is cut and reported", rule)
+
+    def test_provenance_reaches_beyond_the_invoked_source_marker(self):
+        rule = self.rule()
+        for provenance in (
+            "an invoked source in the clinician's reasoning",
+            "the brief or notes the clinician supplied",
+            "a paper the clinician already approved",
+            "a domain the canonical voice model records as the clinician's",
+            "State that provenance in the question",
+        ):
+            with self.subTest(provenance=provenance):
+                self.assertProseIn(provenance, rule)
+
+
 class OneBoardOwnsOneRun(unittest.TestCase):
     def test_both_discussion_skills_use_the_board_key_and_versioned_snapshot(self):
         for path in (POST, REPLY):
@@ -180,7 +221,7 @@ class TheWorkflowCarriesEveryRatifiedGate(unittest.TestCase):
     def test_dead_claim_dispositions_are_explicit(self):
         post = read(POST)
 
-        self.assertRegex(post, r"(?is)refuted.*sentence is cut")
+        self.assertNotRegex(post, r"(?is)`refuted`:.*?sentence is cut")
         self.assertRegex(post, r"(?is)unsourced.*own.*reasoning")
         self.assertRegex(post, r"(?is)paywalled.*counted")
 

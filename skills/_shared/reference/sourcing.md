@@ -77,6 +77,26 @@ A claim record whose `PASSAGE` does not hold the supporting language receives `R
 Correcting `PASSAGE` changes the claim record's evidence and requires a fresh `REFUTATION` and
 `SECOND-ROUTE` before the record can certify a value.
 
+## A refuted record fails the citation, not the claim
+
+A `refuted` verdict fails the citation; it establishes nothing about whether the claim is true.
+Give the claim exactly one fresh research round using a source other than the refuted one and
+a fresh refuter. The claim comes out with a sound record or as `unsourced`. If that record also
+fails, the claim is `unsourced`; apply its disposition rather than starting another round.
+The refuted record itself certifies no value and is never cited.
+
+When an `unsourced` claim would be cut, and it is a **Clinician-supplied claim**, ask the clinician
+before cutting it and before the draft is final. Name each source tried and why it failed.
+Ask whether the clinician will supply a source, rule that the claim stays, or agree to the cut.
+A claim the run introduced is cut and reported to the clinician.
+
+A claim is clinician-supplied by where it came from: an invoked source in the clinician's reasoning,
+the brief or notes the clinician supplied, a paper the clinician already approved, or a domain
+the canonical voice model records as the clinician's. State that provenance in the question;
+an invoked-source marker alone does not define the population.
+[ADR 0316](../../../docs/adr/0316-a-refuted-record-fails-the-citation-and-a-clinician-supplied-claim-is-asked-about-before-a-cut.md)
+records the ruling.
+
 ## A sourceless record makes no claim about a source
 
 An `unsourced` or `unreadable` record states its substantive search or failure on `STATUS` and

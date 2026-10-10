@@ -350,7 +350,9 @@ which was correct under the rule as written and wrong.
 research dispatch that applies it together, because a rule split from its enforcement is how the two drift
 apart. `tools/research_ledger.py` is where the two meet — see step 3.
 
-**A claim that survives all that and is still unsourced does not go in the body.** It goes in the
+**A claim that survives all that and is still unsourced follows the
+[shared refuted-record disposition](../_shared/reference/sourcing.md#a-refuted-record-fails-the-citation-not-the-claim)
+before it is excluded from the body.** Subject to the clinician's ruling, it goes in the
 `PROPOSED` block, and if it is a number the clinician would act on, it comes out of the document
 entirely. Fanning out replaces the deferral for claims that *can* be sourced; it is not a license to
 assert the ones that cannot.
@@ -649,10 +651,9 @@ mechanical boundary.
 
 It comes back `stands`, `refuted`, `paywalled`, or `unreadable`, with the reason after a hyphen.
 An `unreadable` refutation carries the two failed instruments and passes without deleting the
-claim; the completion report counts it on its own line. **A `refuted`
-record is a failure and not an outcome** — unlike `unsourced`, which is honest and goes to
-`PROPOSED`. It means a false citation is sitting in the ledger, so the claim goes back through this
-step and comes out either with a sound record or as `unsourced`. It is never drafted from.
+claim; the completion report counts it on its own line. For `refuted` records and
+clinician-supplied `unsourced` claims, apply the
+[shared refuted-record disposition](../_shared/reference/sourcing.md#a-refuted-record-fails-the-citation-not-the-claim).
 
 **`paywalled` is a passing word because a wall is not the same thing as an absence.**
 A locator that 404s, or that names a document a search cannot find, is `refuted` — the citation may
@@ -854,7 +855,8 @@ That is `icd10-cpt`'s arrangement with `tools/specificity_scan.py`, and
 
 **Where the harness cannot research at all** — no subagent, no search, nothing to read — the record
 is written `STATUS: unsourced` with that said plainly, and the
-deferral behavior is what is left: the claim goes to `PROPOSED` and, if it is a number, out of the
+deferral behavior follows the shared disposition above: subject to the clinician's ruling,
+the claim goes to `PROPOSED` and, if it is a number, out of the
 document. Deferral is the floor when research is impossible, never the choice when it is merely
 work.
 
@@ -1589,7 +1591,8 @@ Then walk this list, by eye — none of it is mechanical:
   it is the limb [#214](https://github.com/mshamblin5150-code/clinical-skills/issues/214) calls the
   one that matters most.
 - **Is every `unsourced` ledger record accounted for** — in `PROPOSED` if it is a claim, and out of
-  the document entirely if it is a number the clinician would act on?
+  the document entirely if it is a number the clinician would act on, subject to the clinician's
+  ruling under the shared disposition above for a clinician-supplied claim?
 - Is `<run-directory>/proposed-<date>.md` complete, and is no `PROPOSED (verify before use)`
   heading present in either submitted file?
 
