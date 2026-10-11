@@ -425,6 +425,13 @@ class CanvasSubmissionRows(unittest.TestCase):
             status, report, _ = run.grade(*args)
             self.assertEqual(2, status, report)
             self.assertIn("rendered-pages: not graded", report)
+            (run.root / "post.md").write_text(
+                BODY + "\n## RENDERED: post.md\nBLOCKS: 13 of 13 read\nSOURCE: canvas-box\n"
+                "READ: 2026-10-11\nUNSEEN: none\nVERDICT: clean - all blocks read\n", encoding="utf-8")
+            status, report, _ = run.grade(*args)
+            self.assertEqual(2, status, report)
+            self.assertIn("rendered-pages: not graded", report)
+            (run.root / "post.md").unlink()
             run.record_canvas_render(html)
             (run.root / "post.md").write_text(BODY, encoding="utf-8")
             status, report, _ = run.grade(*args)

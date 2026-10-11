@@ -1121,7 +1121,12 @@ class RenderedPageSurvey:
 def _rendered_page_findings(source: RunSource) -> RenderedPageSurvey:
     if source.html is None:
         return RenderedPageSurvey(())
-    if not source.render_passes and not (source.post_url or source.post_posted or source.readings) and not source.rendered_readings:
+    canvas_pass_exists = any(
+        any(export.suffix.lower() == ".html" for export in retained.exports)
+        or any(pixel.name.startswith("capture-") for pixel in retained.pixels)
+        for _, retained in source.render_passes
+    )
+    if not canvas_pass_exists and source.post_url is None and source.post_posted is None and not source.readings:
         return RenderedPageSurvey((), engine_available=False, waiting_for_load=True)
     if not source.rendered_readings:
         return RenderedPageSurvey(

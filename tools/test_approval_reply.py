@@ -217,6 +217,33 @@ class WholeReplyApproval(unittest.TestCase):
         self.assertIn("shown-text transcript unreadable", result.pregrade_report)
         self.assertEqual("incomplete", self.record()["items"][0]["pregrade_status"])
 
+    def test_committed_post_requires_its_full_reference_list(self):
+        from test_discussion_post_scan import BODY
+        self.source.write_text(BODY, encoding="utf-8")
+        os.utime(self.source, (100, 100))
+        self.write(human())
+        self.approve()
+        (self.run / approvals.RECORD).unlink()
+        self.write({"type": "assistant", "timestamp": "2100-10-09T11:59:59Z",
+                    "message": {"content": BODY.rsplit("\n", 2)[0]}}, human(), shown=False)
+        with self.assertRaisesRegex(approvals.ApprovalRecordError, "1 missing blocks"):
+            self.approve()
+
+    def test_shown_text_must_be_main_assistant_text_inside_the_window(self):
+        text = self.source.read_text(encoding="utf-8")
+        cases = (
+            {"type": "assistant", "timestamp": "1970-01-01T00:00:01Z", "message": {"content": text}},
+            {"type": "assistant", "timestamp": NEXT, "message": {"content": text}},
+            {"type": "assistant", "timestamp": "2100-10-09T11:59:59Z", "isSidechain": True, "message": {"content": text}},
+            {"type": "user", "timestamp": "2100-10-09T11:59:59Z", "message": {"content": text}},
+            {"type": "response_item", "timestamp": "2100-10-09T11:59:59Z", "payload": {"type": "function_call_output", "output": text}},
+        )
+        for row in cases:
+            with self.subTest(row=row):
+                self.write(row, human(), shown=False)
+                with self.assertRaisesRegex(approvals.ApprovalRecordError, "1 missing blocks"):
+                    self.approve()
+
     def test_unreadable_approval_is_rechecked_as_found_absent_or_incomplete(self):
         self.transcript.write_text("{unreadable\n", encoding="utf-8")
         self.approve()
