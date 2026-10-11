@@ -474,7 +474,7 @@ A graded contribution the clinician puts on its surface himself — a course ass
 _Avoid_: clinician upload, manual submission, self-upload, out-of-band upload
 
 **Run status**:
-The one line per graded run that ends every reply touching that run once its **Approval record** exists, naming its run key and where it stands: awaiting posting, awaiting posted reading, awaiting after-action review, stopped with a reason, or complete. A run holding several approved contributions reports the one furthest behind. It is how a run says it is finished, so *complete* is a claim held to the run's terminal grade rather than a sentence, and *stopped* hands the run back to the clinician without pretending it is progressing.
+The one line per graded run that ends every reply touching that run once its **Approval record** exists — a run is touched when the session has worked on it by writing into it, never when it was only read for reference — naming its run key and where it stands: awaiting posting, awaiting posted reading, awaiting after-action review, stopped with a reason, or complete. A run holding several approved contributions reports the one furthest behind. It is how a run says it is finished, so *complete* is a claim held to the run's terminal grade rather than a sentence, and *stopped* hands the run back to the clinician without pretending it is progressing.
 _Avoid_: progress line, done marker, completion claim
 
 **Approval record**:
