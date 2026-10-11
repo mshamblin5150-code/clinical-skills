@@ -32,6 +32,7 @@ class ObjectRef(NamedTuple):
 
 # An absence here is a decision, not proof that the module has no limitation.
 NO_LIMITS = {
+    "cpt_identity": "shared CPT identity shape with no independent coverage conclusion",
     "assignment_bar": "a narrow envelope parser whose artifact adapters own branch completeness",
     "assignment_docx": "a deterministic producer whose supplied specification defines its output",
     "assignment_docx_render": "the renderer produces retained evidence and does not grade its coverage",

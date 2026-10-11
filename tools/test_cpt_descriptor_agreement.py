@@ -60,6 +60,15 @@ class Run(unittest.TestCase):
 
 
 class AgreeingReaders(Run):
+    def test_maaa_category_survives_agreement_without_reader_metadata(self):
+        reading = {"0002M": "Synthetic algorithmic assay"}
+        write_reading(self.root / "reader-1.csv", reading, locators=True)
+        write_reading(self.root / "reader-2.csv", reading)
+        status, out, err = self.run_command("--write")
+        self.assertEqual(0, status, out + err)
+        entry = build.read_cpt(self.root / "agreed.csv")[0]
+        self.assertEqual("MAAA", entry.category)
+
     def test_agreeing_readers_write_a_record_the_build_verifies(self):
         write_reading(self.root / "reader-1.csv", READING, locators=True)
         write_reading(self.root / "reader-2.csv", READING)

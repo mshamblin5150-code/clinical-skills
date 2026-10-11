@@ -2164,7 +2164,7 @@ ICD-10 Z68.41 Body mass index [BMI] 40.0-44.9, adult
 
 
 class CptRenderedDescriptorBrief(unittest.TestCase):
-    def test_committed_descriptor_set_is_unverified(self):
+    def test_unverified_fixture_set_is_complete(self):
         import procedure_codes_lookup
 
         with closing(procedure_codes_lookup.open_database()) as connection:
@@ -2175,6 +2175,27 @@ class CptRenderedDescriptorBrief(unittest.TestCase):
         self.raw = tempfile.TemporaryDirectory()
         self.addCleanup(self.raw.cleanup)
         root = Path(self.raw.name)
+        import procedure_codes_lookup
+
+        self.original_open = procedure_codes_lookup.open_database
+        self.database = root / "unverified.sqlite"
+        self.fixture_descriptor = "Synthetic database descriptor"
+        shutil.copyfile(procedure_codes_lookup.DEFAULT_DATABASE, self.database)
+        with closing(sqlite3.connect(self.database)) as connection:
+            connection.execute(
+                "UPDATE meta SET value = 'unverified' WHERE key = 'cpt_descriptors'"
+            )
+            connection.execute(
+                "UPDATE code SET description = ? WHERE system = 'CPT' AND code = '87804'",
+                (self.fixture_descriptor,),
+            )
+            connection.commit()
+        database_patch = patch.object(
+            procedure_codes_lookup, "open_database",
+            side_effect=lambda: self.original_open(self.database),
+        )
+        database_patch.start()
+        self.addCleanup(database_patch.stop)
         self.worksheets = root / "worksheets"
         self.notes = root / "notes"
         self.worksheets.mkdir()
@@ -2216,7 +2237,7 @@ class CptRenderedDescriptorBrief(unittest.TestCase):
         status, brief = self.brief("--rendered-descriptors", str(self.record))
         self.assertEqual(0, status)
         self.assertEqual("Influenza antigen visual assay", brief["pairs"][0]["codes"][0]["descriptor"])
-        self.assertNotIn("Streptococcus, group B", json.dumps(brief))
+        self.assertNotIn(self.fixture_descriptor, json.dumps(brief))
 
     def test_wrong_book_record_leaves_cpt_unread(self):
         self.record.write_text(json.dumps({"codes": [{
@@ -2232,17 +2253,44 @@ class CptRenderedDescriptorBrief(unittest.TestCase):
         import procedure_codes_lookup
 
         database = Path(self.raw.name) / "verified.sqlite"
-        shutil.copyfile(procedure_codes_lookup.DEFAULT_DATABASE, database)
+        shutil.copyfile(self.database, database)
         with closing(sqlite3.connect(database)) as connection:
             connection.execute(
                 "UPDATE meta SET value = 'verified' WHERE key = 'cpt_descriptors'"
             )
             connection.commit()
-        original_open = procedure_codes_lookup.open_database
-        with patch.object(procedure_codes_lookup, "open_database", side_effect=lambda: original_open(database)):
+        with patch.object(procedure_codes_lookup, "open_database", side_effect=lambda: self.original_open(database)):
             status, brief = self.brief()
         self.assertEqual(0, status)
-        self.assertIn("Streptococcus, group B", brief["pairs"][0]["codes"][0]["descriptor"])
+        self.assertEqual(self.fixture_descriptor, brief["pairs"][0]["codes"][0]["descriptor"])
+
+
+class CommittedCptDescriptorRebuild(unittest.TestCase):
+    def test_committed_lookup_serves_the_complete_verified_rebuild(self):
+        import hashlib
+        import procedure_codes_build
+        import procedure_codes_lookup
+
+        with closing(procedure_codes_lookup.open_database()) as connection:
+            with self.subTest(property="descriptor verification"):
+                self.assertTrue(procedure_codes_lookup.cpt_descriptors_verified(connection))
+            with self.subTest(property="completeness"):
+                self.assertTrue(procedure_codes_lookup.complete(connection, "CPT"))
+            for code, expected in procedure_codes_build.CPT_CONTROL_SHA256.items():
+                with self.subTest(code=code):
+                    match = procedure_codes_lookup.describe(connection, code)
+                    self.assertIsNotNone(match)
+                    actual = hashlib.sha256(match.description.encode("utf-8")).hexdigest()
+                    self.assertEqual(expected, actual)
+            with self.subTest(code="0002M"):
+                match = procedure_codes_lookup.describe(connection, "0002M")
+                self.assertIsNotNone(match)
+                self.assertEqual(("CPT", "MAAA"), (match.system, match.category))
+            for code in ("36415", "51702", "52000"):
+                with self.subTest(code=code):
+                    match = procedure_codes_lookup.describe(connection, code)
+                    self.assertIsNotNone(match)
+                    self.assertEqual(("CPT", "I"), (match.system, match.category))
 
 
 class CommittedAgreementControls(unittest.TestCase):

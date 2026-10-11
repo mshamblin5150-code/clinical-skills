@@ -93,6 +93,13 @@ class HcpcsParser(unittest.TestCase):
 
 
 class CptParser(unittest.TestCase):
+    def test_reads_maaa_administrative_codes_from_the_normalized_csv(self):
+        entry = build.read_cpt_text(
+            "code,description,category\n0002M,Synthetic algorithmic assay,MAAA\n",
+            "synthetic.csv",
+        )[0]
+        self.assertEqual((entry.system, entry.code, entry.category), ("CPT", "0002M", "MAAA"))
+
     def test_reads_the_normalized_licensed_csv(self):
         directory = Path(tempfile.mkdtemp())
         path = directory / "cpt.csv"
@@ -330,6 +337,7 @@ def database() -> Path:
         writer.writeheader()
         writer.writerow({"code": "12345", "description": "Synthetic CPT procedure"})
         writer.writerow({"code": "0001F", "description": "Synthetic Category II procedure"})
+        writer.writerow({"code": "0002M", "description": "Synthetic MAAA administrative assay"})
         writer.writerow({"code": "0001T", "description": "Synthetic Category III procedure"})
         writer.writerow({"code": "0001U", "description": "Synthetic PLA procedure"})
     output = directory / "codes.sqlite"
@@ -353,7 +361,7 @@ class Lookup(unittest.TestCase):
         self.assertEqual(lookup.describe(self.connection, "12345").system, "CPT")
 
     def test_infers_all_alphanumeric_cpt_categories(self):
-        for code in ("0001F", "0001T", "0001U"):
+        for code in ("0001F", "0002M", "0001T", "0001U"):
             with self.subTest(code=code):
                 self.assertEqual(lookup.describe(self.connection, code).system, "CPT")
 

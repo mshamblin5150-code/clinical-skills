@@ -90,7 +90,7 @@ class CodingFreshnessMain(ProseBind, unittest.TestCase):
                     "source_id": "ama-cpt-2026-licensed",
                     "source_edition": "Professional Edition 2026",
                     "source_sha256": (
-                        "95e657dee044bf8f24683063ee09dbab12274dd09a3558eac1c498c37d60f8ce"
+                        "891b46d16c2ff1ada06a4e570bddfb6a1efc4c8983685fdb1011fe37394d2d35"
                     ),
                     "valid_through": "2026-12-31",
                 }

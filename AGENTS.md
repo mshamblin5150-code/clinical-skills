@@ -34,8 +34,9 @@ VitalSource editions as its book authorities and records completeness by code
 system. An incomplete-system miss establishes nothing and routes the reader to
 the rendered book page under `vitalsource-chrome`; the database never turns a
 partial import into a false refusal. The separate `cpt_descriptors` flag is
-`unverified` until the two-reader rebuild; while unverified, every CPT descriptor
-comes from a rendered book page and the lookup text is only a locator. The
+`verified` for the committed two-reader rebuild. A build without matching agreement
+evidence remains `unverified`; in that state every CPT descriptor comes from a
+rendered book page and the lookup text is only a locator. The
 database verifies identity, modifier identity, and date status, not book
 instructions or whether the encounter earns the code.
 

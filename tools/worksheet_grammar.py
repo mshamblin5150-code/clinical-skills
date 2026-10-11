@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from cpt_identity import CPT_CODE
 
 
 # icd10-cpt step 4 has one set of phrases. The optional confirmation tail is part of the
@@ -77,7 +78,7 @@ def heading_counts(text: str) -> HeadingCounts:
     return HeadingCounts(candidates, unread, off_template, generic_differential)
 
 
-CODE = r"(?:[A-Z][0-9][0-9A-Z](?:\.[0-9A-Z]{1,4})?|[0-9]{5}|[A-Z][0-9]{4})"
+CODE = rf"(?:[A-Z][0-9][0-9A-Z](?:\.[0-9A-Z]{{1,4}})?|{CPT_CODE}|[A-Z][0-9]{{4}})"
 
 ENTRY = re.compile(
     rf"(?mi)^[ \t]*(?P<system>ICD-?10(?:-CM)?|CPT|HCPCS)[ \t]+"
