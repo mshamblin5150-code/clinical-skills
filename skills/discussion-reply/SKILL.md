@@ -37,6 +37,7 @@ module names elsewhere. Write only under the gitignored working directory:
 ```text
 scratch/runs/<course>-<module>-discussion/
     board-<date>.md
+    bar.md
     posts/
     claims.md
     post.md
@@ -64,7 +65,7 @@ name, or full name when first names collide: `response-maren.md` or
 detection layer, count, or report. They remain gitignored working material.
 
 For this skill, the canonical artifacts governed by [standing rule 6](../../AGENTS.md) are
-`board-<date>.md`, `claims.md`, `reread.md`, each reply file, and `voice-status.md`. They live in
+`board-<date>.md`, `bar.md`, `claims.md`, `reread.md`, each reply file, and `voice-status.md`. They live in
 `scratch/runs/<run-key>/`; each worker's temporary path is separate and run-unique.
 
 ## 1. Read and rank the whole board
@@ -91,6 +92,21 @@ Rank for the strongest opportunity to add useful substance, not randomly and not
 shortest post. Ask the clinician to answer with two ranking numbers. Do not draft until the two
 targets are chosen.
 
+At this ranking stop, before researching any claim, use the initial post's signed `bar.md`
+when the run directory already holds it; write no second bar. Otherwise write `bar.md` with
+these lines, taking the source classes and recency window from the live board where it states
+them and using these defaults otherwise:
+
+```text
+SIGNED: <leave blank until the clinician answers>
+SOURCE-CLASSES: society guideline | peer-reviewed | government | tertiary reference
+RECENCY-WINDOW-YEARS: 5
+```
+
+Show these lines beside the ranking, including when reusing the signed bar. The clinician's
+answer choosing the targets signs the new bar; only then replace the blank `SIGNED:` value
+with the ISO date and begin research.
+
 Where a classmate's claim contradicts a reputable source, flag the contradiction every time. Do
 not draft an admonition or switch to an adversarial register unless the clinician asks for it; that
 is a social judgment about a named classmate.
@@ -116,8 +132,7 @@ header and one question-form claim heading per factual point to research. Start 
 target slug, for example
 `## CLAIM: [REPLY: maren] What improvement did the combined program report?` This is the join that
 keeps the same number in another reply's record from tracing the wrong assertion. Each research
-worker takes one claim and returns a source admitted by the signed bar, or otherwise one of
-four classes, `society guideline`, `peer-reviewed`, `government`, or `tertiary reference`, plus a
+worker takes one claim and returns a source admitted by the signed bar, plus a
 full APA 7 reference, a restatement in the source's own terms, the URL or DOI actually opened and
 the read date, where in the source the supporting language sits, the page's stated year and where
 it appears, and the source's stated expiry or `none stated`.
@@ -287,10 +302,16 @@ The `narrative-body` row applies the shared house-style rule in
 [style.md](../_shared/reference/style.md) to each reply body through the renderer's block parser.
 
 Exit 0 means every scanned reply and posted reading passes, 1 means a finding, and 2 means the run
-was not completely scannable. Before a new reply is posted, its one expected finding is
-`missing-posted-reading`; every other row must be clean. Fix any other finding through the original
+was not completely scannable. Before a new reply is posted, its posted-reading rows are
+not graded and the go-ahead grade is expected to pass. Fix any finding through the original
 drafting context, preserve the first checker result, and repeat the declared grading surface for the
-correction. After posting, the board-side record below must clear that final finding.
+correction. Once its approval record carries an `agent` or `clinician` posting route, a missing
+or failing posted reading is a finding. A reading without recorded posting is incomplete coverage.
+Each reply is graded separately, so a posted earlier reply still needs its reading before the next
+reply's approval.
+
+Leave the historical runs filed in #1495 as they stand. When touching one that posted without
+an approval record, report `stopped - posted before the approval recorder could record it (#1495)`.
 
 The `editor-readback` row has no candidate before a posting HTML file exists. Once
 `response-<name>.html` exists, the row requires its `response-<name>-readback.html` pair and grades

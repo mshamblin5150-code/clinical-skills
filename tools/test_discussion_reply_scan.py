@@ -8,6 +8,7 @@ phi-scan: synthetic
 from __future__ import annotations
 
 import io
+import json
 import hashlib
 import re
 import tempfile
@@ -83,7 +84,7 @@ VERDICT: matches - The paragraphs, references, and bold label are present.
 
 
 class Run:
-    def __init__(self, root: Path):
+    def __init__(self, root: Path, *, posted: bool = True):
         self.root = root
         (root / "project-context.md").write_text(
             "PROJECT-CONTEXT: none - synthetic reply\nOWN-SUBMISSION: none - no earlier synthetic submission\n"
@@ -107,6 +108,12 @@ class Run:
             REREAD.format(submission_sha256=file_digest.sha256(response)),
             encoding="utf-8",
         )
+        if posted:
+            (root / "posting-approvals.json").write_text(
+                json.dumps({"items": [{"skill": "discussion-reply",
+                    "submission": response.name, "posting_route": "agent"}]}),
+                encoding="utf-8",
+            )
         self.write_heading_read()
 
     def write_heading_read(self) -> None:
@@ -681,6 +688,34 @@ class EveryPostedReplyHasALocatedReading(unittest.TestCase):
         with redirect_stdout(stdout), redirect_stderr(stderr):
             status = scan.main([str(run.root)])
         return status, stdout.getvalue(), stderr.getvalue()
+
+    def test_an_unposted_reply_without_a_reading_passes_without_a_coverage_gap(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp), posted=False)
+            (run.root / "reread.md").unlink()
+            status, stdout, stderr = self.grade(run)
+
+        self.assertEqual(0, status, stdout + stderr)
+        self.assertIn("missing-posted-reading: not graded", stdout)
+        self.assertIn("findings: 0", stdout)
+
+    def test_a_reading_without_recorded_posting_is_incomplete(self):
+        with tempfile.TemporaryDirectory() as temp:
+            status, stdout, stderr = self.grade(Run(Path(temp), posted=False))
+
+        self.assertEqual(2, status, stdout + stderr)
+        self.assertIn("findings: 0", stdout)
+
+    def test_a_clinician_posting_requires_a_reading_too(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            record = run.root / "posting-approvals.json"
+            record.write_text(record.read_text(encoding="utf-8").replace('"agent"', '"clinician"'), encoding="utf-8")
+            (run.root / "reread.md").unlink()
+            status, stdout, stderr = self.grade(run)
+
+        self.assertEqual(1, status, stdout + stderr)
+        self.assertIn("missing-posted-reading: 1", stdout)
 
     def test_a_matching_reply_fingerprint_passes(self):
         with tempfile.TemporaryDirectory() as temp:

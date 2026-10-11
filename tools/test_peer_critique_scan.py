@@ -9,6 +9,7 @@ material, never a real roster, and no run under ``scratch/`` is read.
 from __future__ import annotations
 
 import io
+import json
 import hashlib
 import re
 import subprocess
@@ -97,6 +98,7 @@ def empty_population_input(root: Path) -> EmptyPopulationInput:
         REREAD.format(submission_sha256=file_digest.sha256(critique)),
         encoding="utf-8",
     )
+    write_posting(root)
     digest = hashlib.sha256((root / "critique.md").read_bytes()).hexdigest()
     (root / "heading-read.md").write_text(
         f"## HEADING-READ: critique.md\nDRAFT: {digest}\n"
@@ -120,6 +122,7 @@ def build_run(
     extra="",
     claims="DATE: 2026-09-09\n\n## CLAIM: a claim\nRESTATEMENT: says the thing\n",
     root: Path | None = None,
+    posted: bool = True,
 ) -> Path:
     """Write one synthetic run directory and return its path."""
 
@@ -152,7 +155,17 @@ def build_run(
             ),
             encoding="utf-8",
         )
+    if posted:
+        write_posting(directory)
     return directory
+
+
+def write_posting(directory: Path) -> None:
+    (directory / "posting-approvals.json").write_text(
+        json.dumps({"items": [{"skill": "peer-critique",
+            "submission": "critique.md", "posting_route": "agent"}]}),
+        encoding="utf-8",
+    )
 
 
 def unread_remainder_input(root: Path) -> UnreadRemainderInput:
@@ -180,6 +193,25 @@ def kinds(directory: Path) -> list[str]:
 
 
 class TheCleanRunPasses(unittest.TestCase):
+    def test_an_unposted_critique_without_a_reading_passes(self):
+        with tempfile.TemporaryDirectory() as temp:
+            directory = build_run(root=Path(temp) / "run", reread=None, posted=False)
+            stdout, stderr = io.StringIO(), io.StringIO()
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                status = scan.main([str(directory)])
+        self.assertEqual(0, status, stdout.getvalue() + stderr.getvalue())
+        self.assertIn("missing-posted-reading: not graded", stdout.getvalue())
+        self.assertIn("findings: 0", stdout.getvalue())
+
+    def test_a_reading_without_recorded_posting_is_incomplete(self):
+        with tempfile.TemporaryDirectory() as temp:
+            directory = build_run(root=Path(temp) / "run", posted=False)
+            stdout, stderr = io.StringIO(), io.StringIO()
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                status = scan.main([str(directory)])
+        self.assertEqual(2, status, stdout.getvalue() + stderr.getvalue())
+        self.assertIn("findings: 0", stdout.getvalue())
+
     def test_template_record_and_defects_through_command(self):
         directory = build_run()
         record = directory / "reread.md"

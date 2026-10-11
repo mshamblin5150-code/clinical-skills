@@ -249,7 +249,7 @@ DECLARED_LIMITS = (
     ),
     (
         "whether a run with no posting evidence was ever submitted",
-        "The command cannot infer that a missing reply record represents a live submission rather than an artifact that was never posted.",
+        "The posting population comes from each item's approval route. An unrecorded live posting remains not graded during the run and is refused by the completion route check.",
         EvidenceDisposition.DECLARED_READING,
     ),
     (
@@ -327,6 +327,7 @@ class Scan:
     reference_unread: int
     findings: tuple[Finding, ...] = ()
     citation_coverage: CitationCoverage = CitationCoverage()
+    posted_reading_states: tuple[approval_record.PostedReadingState, ...] = ()
 
 
 def _split_reply(path: Path) -> Reply:
@@ -800,15 +801,35 @@ def posted_reading_check(
         raise run_grader.SourceError(f"could not read the posted record: {failure}") from failure
 
 
-def _posted_reading_findings(source: RunSource) -> tuple[Finding, ...]:
+def _posted_reading_states(source: RunSource) -> tuple[approval_record.PostedReadingState, ...]:
+    try:
+        return tuple(
+            approval_record.PostedReadingState(
+                submission=reply.path.name,
+                posted=approval_record.posting_route(
+                    source.path, skill="discussion-reply", submission=reply.path.name
+                ) in {"agent", "clinician"},
+                has_reading=any(reading.artifact == reply.path.name for reading in source.readings),
+            )
+            for reply in source.replies
+        )
+    except approval_record.ApprovalRecordError as failure:
+        raise run_grader.SourceError(str(failure)) from failure
+
+
+def _posted_reading_findings(
+    source: RunSource, states: tuple[approval_record.PostedReadingState, ...]
+) -> tuple[Finding, ...]:
     return tuple(
-        Finding(POSTED_READING_KINDS[item.code], reply.path.name, item.message)
-        for reply in source.replies
-        for item in posted_reading_check(source.path, reply.path.name)
+        Finding(POSTED_READING_KINDS[item.code], state.submission, item.message)
+        for state in states
+        if state.posted
+        for item in posted_reading_check(source.path, state.submission)
     )
 
 
 def survey(source: RunSource) -> Scan:
+    posted_reading_states = _posted_reading_states(source)
     claim_records = tuple(research_ledger.read_records(source.claims))
     bindings = tuple(
         heading_read.Binding(
@@ -874,9 +895,10 @@ def survey(source: RunSource) -> Scan:
             findings=(
                 address_findings
                 + editor_findings
-                + _posted_reading_findings(source)
+                + _posted_reading_findings(source, posted_reading_states)
                 + heading_findings
             ),
+            posted_reading_states=posted_reading_states,
         )
     reference_key_sets = tuple(_reference_keys(reply) for reply in source.replies)
     citations = tuple(
@@ -940,7 +962,7 @@ def survey(source: RunSource) -> Scan:
         )
         for reply in source.replies
         for block in coursework_style.narrative_blocks(reply.body)
-    ) + editor_findings + _posted_reading_findings(source) + heading_findings
+    ) + editor_findings + _posted_reading_findings(source, posted_reading_states) + heading_findings
     return Scan(
         responses=len(source.replies),
         posts_read=len(source.roster),
@@ -974,6 +996,7 @@ def survey(source: RunSource) -> Scan:
         ),
         findings=findings,
         citation_coverage=coverage,
+        posted_reading_states=posted_reading_states,
     )
 
 
@@ -1016,7 +1039,11 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         f"findings: {len(scan.findings)}",
     ]
     for kind in ROWS:
-        if kind not in {
+        if kind in POSTED_READING_KINDS.values() and scan.posted_reading_states and not any(
+            state.posted for state in scan.posted_reading_states
+        ):
+            lines.append(f"{kind}: {NOT_GRADED}")
+        elif kind not in {
             ADDRESSED_NAME,
             MISSING_POSTED_READING,
             UNKNOWN_VERDICT,
@@ -1030,6 +1057,12 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
             lines.append(f"{kind}: {NOT_GRADED}")
         else:
             lines.append(f"{kind}: {sum(finding.kind == kind for finding in scan.findings)}")
+    for state in scan.posted_reading_states:
+        for kind in dict.fromkeys(POSTED_READING_KINDS.values()):
+            count = sum(finding.kind == kind and finding.response == state.submission for finding in scan.findings)
+            lines.append(f"{kind}: {state.submission}: {count if state.posted else NOT_GRADED}")
+        if state.unrecorded_reading:
+            lines.append(f"posted reading: {state.submission}: incomplete coverage - posting is not recorded")
     if show:
         lines.extend(scan.citation_coverage.disagreement_lines())
         lines.extend(
@@ -1072,6 +1105,7 @@ def grade(source: RunSource, _parsed: run_grader.Parsed) -> run_grader.Grade[Sca
             or scanned.heading_read_unread > 0
             or scanned.reference_unread > 0
             or scanned.posts_read < scanned.posts_total
+            or any(state.unrecorded_reading for state in scanned.posted_reading_states)
         ),
         diagnostics=refused,
         reports=(heading_read.protocol_coverage(source.claims, source.heading_read_text), aar_report),
