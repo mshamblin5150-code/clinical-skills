@@ -24,6 +24,9 @@ class PrepostingApproval(unittest.TestCase):
         self.root = Path(self.temporary.name)
         # Only transcript recognition is synthetic. The paired preflight, grader
         # subprocess, durable records, and posting transition remain real.
+        remarks_check = mock.patch.object(approval_record.reader_remarks, "verify", return_value=[])
+        remarks_check.start()
+        self.addCleanup(remarks_check.stop)
         for name in ("verify_clinician_reply", "verify_shown_text"):
             patch = mock.patch.object(
                 approval_record, name,

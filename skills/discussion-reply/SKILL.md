@@ -175,6 +175,7 @@ TESTED-HEADING: <SHA-256 printed for this heading at refuter dispatch>
 SECOND-ROUTE: <research route> -> <refutation route>
 INSTRUMENTS: <first instrument> -> <second instrument>
 STATED-EXPIRY: none stated | <ISO date> - <where the document states it> | <ISO date>, superseded cited deliberately - <reason>
+REMARK: <problem outside the assigned question; repeat as needed>
 ```
 
 When the passage has no limiting qualifiers, write `QUALIFIERS: none` instead of the list.
@@ -365,6 +366,8 @@ showing that gate, inspect the threaded Canvas Composer and read
 before loading, and tell the clinician which route will be used and what that route costs as part of
 the same approval. When `voice-status.md` exists, show its unmodeled-voice declaration alongside the
 reply. Only an explicit go-ahead for this reply authorizes posting.
+Apply [Reader remarks at the go-ahead](../_shared/reference/sourcing.md#reader-remarks-at-the-go-ahead) before each approval question: prepare the paired grade, show its numbered remarks with proposed outcomes and every coverage line verbatim, then pass `remark_outcomes=outcomes` with the whole reply.
+
 Before asking for each reply's go-ahead, run `python tools/project_context.py <run-directory>
 --go-ahead <response-filename>`. Show its moved places and every added memory-index line. A moved
 item is incomplete coverage the clinician may approve over; a finding stops approval. Approval
@@ -373,7 +376,7 @@ notice the clinician saw. Completion carries that result forward after recorded 
 Set `clinician_reply` to the clinician's whole approval message, including any conditions.
 At that go-ahead call `approval_record.approve(run, skill="discussion-reply",
 submission=response_path.name, sources=(response_path,), grader_args=(str(run),),
-content_approved=True, clinician_reply=clinician_reply)`. Show its `pregrade_report`; incomplete coverage does not block, while a
+content_approved=True, clinician_reply=clinician_reply, remark_outcomes=outcomes)`. Compare its `pregrade_report` with the report shown before the ask; incomplete coverage does not block, while a
 finding refuses the record. Each reply gets its own item. From this record onward every reply
 touching the run ends with `Run status: <run-key> — <awaiting posting|awaiting posted
 reading|awaiting AAR|complete|stopped - reason>`. The run reports the approved reply furthest

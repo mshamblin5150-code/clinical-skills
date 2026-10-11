@@ -19,6 +19,7 @@ from pathlib import Path
 from unittest import mock
 
 import deck_scan as scan
+import approval_record
 import file_digest
 import render_pass
 import research_ledger
@@ -377,9 +378,10 @@ class Run:
                 "_pre_upload_grade",
                 return_value=(True, "pre-upload grade: clean"),
             ):
-                staged = scan.assignment_submission.stage(
-                    self.root, self.deck, artifact_approved=True
-                )
+                with mock.patch("approval_record.verify_clinician_reply", return_value=approval_record.ReplyVerification("verified", "synthetic reply", 4102444800)), mock.patch.object(scan.assignment_submission.reader_remarks, "verify", return_value=[]):
+                    staged = scan.assignment_submission.stage(
+                        self.root, self.deck, artifact_approved=True, clinician_reply="Approve the synthetic artifact."
+                    )
             scan.assignment_submission.confirm(
                 staged,
                 uploaded_carriers=(self.deck,),

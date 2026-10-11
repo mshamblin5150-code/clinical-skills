@@ -1899,6 +1899,7 @@ class EveryRuledFanOutReadsTheSharedSourcingRules(unittest.TestCase):
                 "A sourceless record makes no claim about a source",
                 "A claim heading is the claim the document will make",
                 "A heading read binds the final draft to the ledger",
+                "Reader remarks at the go-ahead",
             ],
         )
         self.assertIn("Derived material may carry a sentence", flat)

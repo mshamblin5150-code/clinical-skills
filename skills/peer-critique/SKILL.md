@@ -180,6 +180,7 @@ TESTED-HEADING: <SHA-256 printed for this heading at refuter dispatch>
 SECOND-ROUTE: <research route> -> <refutation route>
 INSTRUMENTS: <first instrument> -> <second instrument>
 STATED-EXPIRY: none stated | <ISO date> - <where the document states it> | <ISO date>, superseded cited deliberately - <reason>
+REMARK: <problem outside the assigned question; repeat as needed>
 ```
 
 When the passage has no limiting qualifiers, write `QUALIFIERS: none` instead of the list.
@@ -354,6 +355,8 @@ Ask whether the substance is right, whether the register is his, and, separately
 proposed image is approved. Apply the record and draft changes in
 [imagery-proposals.md](../_shared/reference/imagery-proposals.md) and rerun the grader. Only an
 explicit go-ahead authorizes posting.
+Apply [Reader remarks at the go-ahead](../_shared/reference/sourcing.md#reader-remarks-at-the-go-ahead) before each approval question: prepare the paired grade, show its numbered remarks with proposed outcomes and every coverage line verbatim, then pass `remark_outcomes=outcomes` with the whole reply.
+
 Before asking for the go-ahead, run `python tools/project_context.py <run-directory>
 --go-ahead critique.md`. Show its moved places and every added memory-index line. A moved item is
 incomplete coverage the clinician may approve over; a finding stops approval. Approval repeats
@@ -367,7 +370,7 @@ Leave the historical runs filed in #1495 as they stand. When touching one that p
 an approval record, report `stopped - posted before the approval recorder could record it (#1495)`.
 At that go-ahead call `approval_record.approve(run, skill="peer-critique",
 submission="critique.md", sources=(run / "critique.md",), grader_args=(str(run),),
-content_approved=True, clinician_reply=clinician_reply)`. Show its `pregrade_report`; incomplete coverage does not block, while a
+content_approved=True, clinician_reply=clinician_reply, remark_outcomes=outcomes)`. Compare its `pregrade_report` with the report shown before the ask; incomplete coverage does not block, while a
 finding refuses the record. From this record onward every reply touching the run ends with
 `Run status: <run-key> — <awaiting posting|awaiting posted reading|awaiting AAR|complete|stopped -
 reason>`. Several touched runs each receive their own keyed line, and no classmate name enters it.

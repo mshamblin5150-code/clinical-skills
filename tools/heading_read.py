@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 from datetime import date
 from typing import NamedTuple
 
+import reader_remarks
 import file_digest
 import research_ledger
 import run_grader
@@ -72,7 +73,7 @@ HEADER = re.compile(r"(?mi)^[ \t]*##[ \t]+HEADING-READ[ \t]*:[ \t]*(.*?)[ \t]*$"
 HEADING_CANDIDATE = re.compile(r"(?mi)^[ \t]*##[ \t]+HEADING-READ\b.*$")
 OTHER_HEADER = re.compile(r"^[ \t]*#{1,6}[ \t]+")
 FIELD = re.compile(
-    r"(?i)^[ \t]*(DRAFT|ROUTE|SENTENCES|PAIR|ITEM|CONTEXT-DIGEST|CONTEXT-VERDICT|VERDICT|FINDINGS)[ \t]*:[ \t]*(.*?)[ \t]*$"
+    r"(?i)^[ \t]*(DRAFT|ROUTE|SENTENCES|PAIR|ITEM|CONTEXT-DIGEST|CONTEXT-VERDICT|VERDICT|FINDINGS|REMARK)[ \t]*:[ \t]*(.*?)[ \t]*$"
 )
 SENTENCES = re.compile(
     r"(?i)^(?P<factual>[0-9]+)[ \t]+factual,[ \t]*(?P<own>[0-9]+)[ \t]+clinician's own(?:,[ \t]*(?P<item>[0-9]+)[ \t]+item)?$",
@@ -125,6 +126,8 @@ class Record:
     pairs: tuple[str, ...] = ()
     findings: tuple[str, ...] = ()
     items: tuple[str, ...] = ()
+    remarks: tuple[str, ...] = ()
+    unread: int = 0
 
     def value(self, name: str) -> str:
         return self.fields.get(name, "")
@@ -152,6 +155,8 @@ class Scan:
     records_read: int
     unread: int
     findings: tuple[Finding, ...]
+    remarks: tuple[reader_remarks.Remark, ...] = ()
+    unread_records: tuple[str, ...] = ()
 
 
 def read_records(text: str) -> tuple[Record, ...]:
@@ -161,29 +166,37 @@ def read_records(text: str) -> tuple[Record, ...]:
     pairs: list[str] = []
     findings: list[str] = []
     items: list[str] = []
+    remarks: list[str] = []
+    unread = 0
 
     def close() -> None:
         if artifact is not None:
-            records.append(Record(artifact, dict(fields), tuple(pairs), tuple(findings), tuple(items)))
+            records.append(Record(artifact, dict(fields), tuple(pairs), tuple(findings), tuple(items), tuple(remarks), unread))
 
     for line in text.splitlines():
         heading = HEADER.match(line)
         if heading:
             close()
             artifact = heading.group(1).strip()
-            fields, pairs, findings, items = {}, [], [], []
+            fields, pairs, findings, items, remarks, unread = {}, [], [], [], [], 0
             continue
         if artifact is not None and OTHER_HEADER.match(line):
             close()
-            artifact, fields, pairs, findings, items = None, {}, [], [], []
+            artifact, fields, pairs, findings, items, remarks, unread = None, {}, [], [], [], [], 0
             continue
         if artifact is None:
             continue
         named = FIELD.match(line)
         if not named:
+            unread += bool(line.strip())
             continue
         name, value = named.group(1).upper(), named.group(2).strip()
-        if name == "PAIR":
+        if name == "REMARK":
+            if value:
+                remarks.append(value)
+            else:
+                unread += 1
+        elif name == "PAIR":
             pairs.append(value)
         elif name == "ITEM":
             items.append(value)
@@ -343,7 +356,7 @@ def _record_findings(record: Record, binding: Binding) -> list[Finding]:
 def scan(text: str, bindings: tuple[Binding, ...]) -> Scan:
     """Grade records for the caller's expected drafts and claim scopes."""
     records = read_records(text)
-    population = len(HEADING_CANDIDATE.findall(text))
+    population = sum(1 for line in HEADING_CANDIDATE.findall(text) if ":" not in line or line.split(":", 1)[-1].strip() in {b.artifact for b in bindings})
     read = 0
     found: list[Finding] = []
     expected = {binding.artifact: binding for binding in bindings}
@@ -359,16 +372,20 @@ def scan(text: str, bindings: tuple[Binding, ...]) -> Scan:
             )
         for record in matches:
             found.extend(_record_findings(record, binding))
-    unread = max(0, population - read)
-    return Scan(read, unread, tuple(found))
+    bound_records = tuple(r for r in records if r.artifact in expected)
+    unread = max(0, population - read) + sum(r.unread for r in bound_records)
+    remarks = tuple(reader_remarks.Remark(f"HEADING-READ: {r.artifact}", text) for r in bound_records for text in r.remarks)
+    return Scan(read, unread, tuple(found), remarks, tuple(r.artifact for r in bound_records if r.unread))
 
 
 def format_coverage(result: Scan) -> str:
-    return "\n".join(
+    return "\n".join(line for line in
         (
             f"heading-read records: {result.records_read}",
             run_grader.format_unread_remainder(result.unread),
-        )
+            *(f"unread reader record: HEADING-READ: {name}" for name in result.unread_records),
+            reader_remarks.report(result.remarks),
+        ) if line
     )
 
 

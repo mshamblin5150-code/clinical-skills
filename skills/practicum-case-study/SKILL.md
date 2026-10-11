@@ -1395,6 +1395,7 @@ DRAFT: <SHA-256 named in the reader's dispatch brief>
 FINDINGS: The differential's 1. is appendicitis, and the intake gives a patient of
     childbearing age with pelvic pain and no documented hCG. The pregnancy-related
     emergency is at 4 and has to be at 1 until the hCG is back.
+REMARK: <problem outside the assigned question; repeat as needed>
 ```
 
 Use the shared heading-read template in
@@ -1411,6 +1412,7 @@ FINDINGS: Walked every retained page against the Markdown; no clipping, overlap,
     broken numbering, bad break, misplaced heading, or reference-layout defect.
 SOURCE: word-pdf
 PASS: 3
+REMARK: <problem outside the assigned question; repeat as needed>
 ```
 
 `VERDICT` is `clean` or `defect`, and a `defect` says what and where. **On the rows the table
@@ -1425,6 +1427,7 @@ DRAFT: <SHA-256 named in the reader's dispatch brief>
 FINDINGS: Walked all five MDM entries. Each names a discriminator from this case — the
     36-hour onset, the absent rebound, the prior appendectomy — and each carries a
     citation.
+REMARK: <problem outside the assigned question; repeat as needed>
 ```
 
 **A marked row whose reading spans two documents says which pair it put side by side**, because
@@ -1437,6 +1440,7 @@ DRAFT: <SHA-256 named in the reader's dispatch brief>
 FINDINGS: Four drug rows state a dose. Three match the record naming that drug. The
     ceftriaxone row orders 250 mg IM once and its record's restatement sources 1 g IV
     daily — a different dose, not a different unit for the same one.
+REMARK: <problem outside the assigned question; repeat as needed>
 ```
 
 **What makes a record bad, in full, so this can be walked without running anything.** A check can
@@ -1618,6 +1622,7 @@ Then walk this list, by eye — none of it is mechanical:
 
 **The command's declared limits, in `checks_ledger.NOT_REACHED` order:**
 
+- A folded continuation or substance-only reason cannot distinguish a hidden reader remark from ordinary text.
 - A well-formed verdict cannot prove that its reader opened or read the draft.
 - Alphanumeric substance cannot prove that a reader's findings reflect a substantive review.
 - A clean grader result does not establish that recorded defects were repaired in the draft.
@@ -1647,7 +1652,11 @@ route. If the run proposed imagery, also show this table from `imagery-proposals
 
 Ask the proposed-image question separately from whether the artifact's substance is right. Apply
 each ruling under [imagery-proposals.md](../_shared/reference/imagery-proposals.md), rerun the
-checks grader. Before asking for the go-ahead, run `python tools/project_context.py
+checks grader.
+
+Apply [Reader remarks at the go-ahead](../_shared/reference/sourcing.md#reader-remarks-at-the-go-ahead) before each approval question: prepare the paired grade, show its numbered remarks with proposed outcomes and every coverage line verbatim, then pass `remark_outcomes=outcomes` with the whole reply.
+
+Before asking for the go-ahead, run `python tools/project_context.py
 <run-directory> --go-ahead <output-Markdown-stem>`. Show its moved places and every added
 memory-index line. A moved item is incomplete coverage the clinician may approve over; a finding
 stops approval. Approval repeats and records the check; show any changed notice and renew approval
@@ -1657,7 +1666,7 @@ recorded posting. Then wait for the explicit go-ahead. Post through the branch r
 go-ahead sets `clinician_reply` to the clinician's whole approval message, including any
 conditions, and calls `approval_record.approve(run, skill="practicum-case-study",
 submission=output_markdown.stem, sources=(output_markdown,), grader_args=(str(checks_ledger),
-"--document", str(output_markdown)), content_approved=True, clinician_reply=clinician_reply)`. Show its `pregrade_report`;
+"--document", str(output_markdown)), content_approved=True, clinician_reply=clinician_reply, remark_outcomes=outcomes)`. Compare its `pregrade_report` with the report shown before the ask;
 incomplete coverage does not block, while a finding refuses the record. From this record onward
 every reply touching the run ends with `Run status: <run-key> — <awaiting posting|awaiting posted
 reading|awaiting AAR|complete|stopped - reason>`. Several touched runs each get their own keyed

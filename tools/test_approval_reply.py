@@ -55,6 +55,8 @@ class WholeReplyApproval(unittest.TestCase):
         stack.enter_context(mock.patch.object(aar_scan, "is_live_run", return_value=True))
         stack.enter_context(mock.patch.object(aar_scan.repo_root, "scratch_root", return_value=self.root / "scratch"))
         stack.enter_context(mock.patch.object(approvals, "_pre_post_grade", return_value=(0, "pregrade clean")))
+        # ADR 0318 tests isolate whole-reply binding; ADR 0330 is exercised in test_reader_remarks.
+        stack.enter_context(mock.patch.object(approvals.reader_remarks, "verify", return_value=[]))
         self.write(human())
 
     def write(self, *rows, path=None, shown=True):

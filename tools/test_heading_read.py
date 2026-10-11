@@ -284,10 +284,10 @@ class AHeadingReadBindsTheDraftToCurrentClaimHeadings(unittest.TestCase):
             [finding.kind for finding in wrong.findings],
         )
 
-    def test_records_for_another_draft_are_the_unread_remainder(self):
+    def test_records_for_another_draft_are_outside_the_bound_population(self):
         text = record().replace("draft.md", "other.md", 1)
         result = scan(text)
-        self.assertEqual((result.records_read, result.unread), (0, 1))
+        self.assertEqual((result.records_read, result.unread), (0, 0))
         self.assertIn(heading_read.MISSING_RECORD, [f.kind for f in result.findings])
 
 

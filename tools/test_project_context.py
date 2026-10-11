@@ -651,7 +651,7 @@ class GoAheadRechecks(ProjectContextFixture):
         self.plan.write_bytes(b"changed plan\n")
         with mock.patch.object(repo_root, "project_registry", return_value=self.registry), mock.patch.object(
             approval_record, "verify_clinician_reply", return_value=approval_record.ReplyVerification("verified", "synthetic transcript", 1.0)
-        ), mock.patch.object(approval_record, "verify_shown_text", return_value=approval_record.ReplyVerification("verified", "synthetic transcript", 1.0)):
+        ), mock.patch.object(approval_record, "verify_shown_text", return_value=approval_record.ReplyVerification("verified", "synthetic transcript", 1.0)), mock.patch.object(approval_record.reader_remarks, "verify", return_value=[]):
             approved = approval_record.approve(
                 self.run, skill="discussion-reply", submission="submission",
                 sources=(self.run / "response-maren.md",), grader_args=(str(self.run),),
@@ -672,7 +672,7 @@ class GoAheadRechecks(ProjectContextFixture):
         self.assertEqual(self.write().exit_code, 0)
         claims = self.run / "heading-read.md"
         claims.write_text(claims.read_text(encoding="utf-8").replace("67d55228f3d5d679eb597e38d220b591803ef13085d57f1176ec0b6302c5fc8f", context.recorded_digest(self.run)), encoding="utf-8")
-        with mock.patch.object(repo_root, "project_registry", return_value=self.registry), mock.patch.object(Path, "replace", side_effect=OSError("synthetic write failure")), mock.patch.object(approval_record, "verify_clinician_reply", return_value=approval_record.ReplyVerification("verified", "synthetic transcript", 1.0)), mock.patch.object(approval_record, "verify_shown_text", return_value=approval_record.ReplyVerification("verified", "synthetic transcript", 1.0)):
+        with mock.patch.object(repo_root, "project_registry", return_value=self.registry), mock.patch.object(Path, "replace", side_effect=OSError("synthetic write failure")), mock.patch.object(approval_record, "verify_clinician_reply", return_value=approval_record.ReplyVerification("verified", "synthetic transcript", 1.0)), mock.patch.object(approval_record, "verify_shown_text", return_value=approval_record.ReplyVerification("verified", "synthetic transcript", 1.0)), mock.patch.object(approval_record.reader_remarks, "verify", return_value=[]):
             with self.assertRaisesRegex(approval_record.ApprovalRecordError, "could not be written"):
                 approval_record.approve(self.run, skill="discussion-reply", submission="submission", sources=(self.run / "response-maren.md",), grader_args=(str(self.run),), content_approved=True, clinician_reply="Approve the synthetic reply.")
         self.assertFalse((self.run / approval_record.RECORD).exists())
@@ -681,8 +681,8 @@ class GoAheadRechecks(ProjectContextFixture):
         artifact = self.run / "submission.pptx"
         artifact.write_bytes(b"synthetic deck")
         self.plan.write_bytes(b"changed plan\n")
-        with mock.patch.object(repo_root, "project_registry", return_value=self.registry), mock.patch.object(assignment_submission, "_pre_upload_grade", return_value=(True, "clean")):
-            staged = assignment_submission.stage(self.run, artifact, artifact_approved=True)
+        with mock.patch.object(repo_root, "project_registry", return_value=self.registry), mock.patch.object(assignment_submission, "_pre_upload_grade", return_value=(True, "clean")), mock.patch.object(approval_record, "verify_clinician_reply", return_value=approval_record.ReplyVerification("verified", "synthetic transcript", 4102444800)), mock.patch.object(assignment_submission.reader_remarks, "verify", return_value=[]):
+            staged = assignment_submission.stage(self.run, artifact, artifact_approved=True, clinician_reply="Approve the synthetic artifact.")
         payload = json.loads((self.run / assignment_submission.RECORD).read_text(encoding="utf-8"))
         self.assertEqual(payload["pregrade_status"], "incomplete")
         assignment_submission.confirm(staged, uploaded_carriers=(artifact,), final_confirmation=True)

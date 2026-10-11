@@ -86,6 +86,7 @@ profanity for graded copy is not shrinkage. It writes `voice-read.json`, exactly
   "planted_sha256": "<SHA-256 of voice-read-planted.txt bytes>",
   "model_sha256": "<SHA-256 from voice-model-identity.json>",
   "supplied_voice_sha256": "<SHA-256 of supplied-voice.json bytes>",
+  "remarks": [],
   "suspected_plant_quote": "<the exact planted sentence the reader flags>",
   "answers": [
     {
@@ -103,6 +104,9 @@ profanity for graded copy is not shrinkage. It writes `voice-read.json`, exactly
   ]
 }
 ```
+
+A verdict answers only the voice question. Put outside problems in `remarks`, one nonempty string
+per problem, and follow [Reader remarks at the go-ahead](sourcing.md#reader-remarks-at-the-go-ahead).
 
 `resemblance` is `generic`, `his`, or `no counterpart`. `no counterpart` requires `quote: null`;
 the other two require a verbatim quote from the planted copy. A missed plant voids the read. A real
