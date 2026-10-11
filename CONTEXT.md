@@ -93,6 +93,21 @@ Discovered by the refusal and never predicted from the size. Distinct from a **L
 carries a contribution into the Composer without changing what is submitted.
 _Avoid_: upload route, attachment route, file fallback, size fallback
 
+**Faculty file**:
+A file the live assignment page links for a run to work from, one form of the faculty material. It is
+identified by the course site's own record of it, never by a filename on disk: a local copy stands
+for it only once it matches that record. Distinct from the document an **Attachment fallback**
+posts, which is the clinician's own **Submission** rather than something supplied to him, and from a
+**Classmate file**, which is matched the same way but is never cited as faculty material.
+_Avoid_: attachment, handout, source file, download
+
+**Classmate file**:
+A file a classmate's board entry links, which a run critiques or answers rather than works from. It is
+identified exactly as a **Faculty file** is, by the course site's own record of it, and the two are
+named apart because who supplied a file decides how the work may treat it: a classmate's paper is the
+thing being answered, never the assignment's material.
+_Avoid_: attachment, peer file, classmate attachment, submission
+
 **Peer critique**:
 The eight-heading scholarly response to one classmate's case study, carrying its own references. A
 separate graded artifact from the **Reply** the clinician leaves the same classmate on the **Board**:
