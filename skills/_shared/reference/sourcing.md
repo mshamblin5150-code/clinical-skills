@@ -196,6 +196,16 @@ clinician, naming both sources and what differs; his ruling lands as a memory wr
 read's context verdict re-checks this agreement and remains the backstop; nothing grades the
 drafting-time check.
 
+Read a document of the clinician's whole before writing any first-person factual sentence that
+rests on it, rather than reading only matching lines. Its self-description is not evidence of
+who wrote it, for whom, or what organization or program it covers. When a sentence states any of
+those facts, ask the clinician separately whether he wrote the document and for which organization
+or scope: ask one single question, wait for the answer, then ask the other. A compound question
+that one "yes" could answer is not asked. Use his answers immediately; write the memory recording
+the document's author and scope at the after-action review, not mid-draft, because a mid-run write
+moves the gate-hashed memory index. Nothing grades the whole read or these questions; see
+`project_context.DECLARED_LIMITS`, row `agreement-inherits-item-errors`.
+
 Capture `voice-reads/<submission-key>/supplied-voice.json` before the gates. The identity gate
 requires that file before writing its record. Use the terminal submission key for both commands;
 when staging a coursework draft under standing rule 6, use that key as the pass folder's name.
