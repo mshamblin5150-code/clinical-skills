@@ -193,6 +193,10 @@ if __name__ == "__main__":
     raise SystemExit(main(sys.argv[1:]))
 ```
 
+`file_digest.py` now has a direct command that calls both console helpers. It prints the
+raw-byte SHA-256, tries a Git Bash drive path in its Windows spelling, and refuses unreadable
+files with exit 2 and a plain message. Coursework skills use this command for fingerprints.
+
 **The defect it exists for is an exit status, not a mangled character** — [#150](https://github.com/mshamblin5150-code/clinical-skills/issues/150). On Windows the default stdout codec is cp1252, and guideline text is full of characters it has no code point for: the greater-or-equal sign a threshold is written with, an en dash, a typographic quote, a mu. The `print` raised `UnicodeEncodeError`, the traceback escaped `main`, and the process exited **1** — which `guidelines_search.py`'s own contract reads as *a genuine zero*. So the one failure those statuses exist to make visible was reachable by accident, and **the queries likeliest to hit it were the clinical-threshold ones**, because a cut point is written with exactly the character that dies. Output was partial and looked complete: the `== query` header printed, some hits printed, then it stopped mid-list.
 
 **`errors="replace"` carries as much of the fix as the encoding does.** A console that genuinely will not move off its codec still has to print a legible line with a `?` in it rather than raise, because the thing being protected is the exit status and not the glyph.

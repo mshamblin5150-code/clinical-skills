@@ -108,6 +108,9 @@ say so rather than charging it to the classmate alone.
 
 ## 2. Find what is clinically at stake before writing anything
 
+Read the classmate's orders under
+[Applicable orders](../_shared/reference/rubric.md#applicable-orders).
+
 Before the headings, answer one question in the run record: **is there a missed diagnosis that can
 kill, and is the evidence for it inside the classmate's own document?**
 
@@ -397,7 +400,7 @@ its exit must now be 0. The grader requires `POSTED`, `READ`, the current finger
 recognized verdict with substantive detail. It checks the `LEGACY-DISPLAY` keyword and reason,
 while the display observation remains outside grading. An unreadable record exits 2.
 
-Compute the fingerprint with `python -c "from pathlib import Path; from tools.file_digest import sha256; print(sha256(Path(r'<critique.md>')))"` and write it before `/AAR`
+Compute the fingerprint with `python tools/file_digest.py "<critique.md>"` and write it before `/AAR`
 extracts the record; adding or changing the line afterwards makes that review stale because
 `aar_scan` fingerprints the whole block. That posted
 critique is one submission. Invoke `/AAR` with `critique.md` as the submission key, then

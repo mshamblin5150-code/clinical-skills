@@ -53,8 +53,10 @@ class ProjectContextFixture(unittest.TestCase):
             "\n".join(
                 (
                     "PROJECT-CONTEXT: Atlas",
+                    *(("OWN-SUBMISSION: none - no earlier synthetic submission",)
+                      if not any(line.startswith("OWN-SUBMISSION:") for line in header) else ()),
                     *header,
-                    "CONFIRMED: 2026-09-23",
+                    "CONFIRMED: 2001-01-01",
                     "",
                     *entries,
                     "",
@@ -135,7 +137,7 @@ class AProjectContextGateWritesTheRetrievalFingerprint(ProjectContextFixture):
         self.assertRegex(digest, r"^[0-9a-f]{64}$")
         self.assertIn(f"CONTEXT-DIGEST: {digest}", written)
 
-    def test_the_context_digest_is_over_sorted_place_item_hash_triples(self) -> None:
+    def test_the_context_digest_binds_own_submission_and_sorted_place_item_hash_triples(self) -> None:
         self.complete_record()
         self.assertEqual(self.write().exit_code, 0)
         triples = sorted(
@@ -146,25 +148,26 @@ class AProjectContextGateWritesTheRetrievalFingerprint(ProjectContextFixture):
             )
         )
         expected = hashlib.sha256(
-            "".join("\0".join(triple) + "\n" for triple in triples).encode("utf-8")
+            ("OWN-SUBMISSION\0none - no earlier synthetic submission\n" +
+             "".join("\0".join(triple) + "\n" for triple in triples)).encode("utf-8")
         ).hexdigest()
         self.assertEqual(context.recorded_digest(self.run), expected)
 
     def test_a_none_declaration_needs_a_reason_and_writes_none(self) -> None:
         self.run.joinpath(context.RECORD_NAME).write_text(
-            "PROJECT-CONTEXT: none - critique concerns a classmate's case\n"
-            "CONFIRMED: 2026-09-23\n",
+            "PROJECT-CONTEXT: none - critique concerns a classmate's case\nOWN-SUBMISSION: none - no earlier synthetic submission\n"
+            "CONFIRMED: 2001-01-01\n",
             encoding="utf-8",
         )
 
         result = self.write(payloads={})
 
         self.assertEqual(result.exit_code, 0)
-        self.assertEqual(context.recorded_digest(self.run), "none")
+        self.assertEqual(context.recorded_digest(self.run), "67d55228f3d5d679eb597e38d220b591803ef13085d57f1176ec0b6302c5fc8f")
 
     def test_none_without_a_reason_is_a_finding(self) -> None:
         self.run.joinpath(context.RECORD_NAME).write_text(
-            "PROJECT-CONTEXT: none\nCONFIRMED: 2026-09-23\n", encoding="utf-8"
+            "PROJECT-CONTEXT: none\nOWN-SUBMISSION: none - no earlier synthetic submission\nCONFIRMED: 2001-01-01\n", encoding="utf-8"
         )
         self.assertEqual(self.write(payloads={}).exit_code, 1)
 
@@ -393,10 +396,10 @@ class CompletionRechecksFileItems(ProjectContextFixture):
         text = record.read_text(encoding="utf-8")
         marker = f"## PLACE: {self.location}\nSTATE: searched\n"
         text = text.replace(
-            "CONFIRMED: 2026-09-23\n",
+            "CONFIRMED: 2001-01-01\n",
             "PROJECT-WAIVE: "
             f"{self.location} - file unavailable on 2026-09-23; "
-            "proceed without, per the clinician\nCONFIRMED: 2026-09-23\n",
+            "proceed without, per the clinician\nCONFIRMED: 2001-01-01\n",
         ).replace(marker, f"## PLACE: {self.location}\nSTATE: unreadable\nDETAIL: moved\n")
         record.write_text(text, encoding="utf-8")
         self.plan.write_text("changed plan\n", encoding="utf-8")
@@ -409,10 +412,10 @@ class CompletionRechecksFileItems(ProjectContextFixture):
     def test_a_waiver_for_a_readable_place_is_a_finding_and_not_counted(self) -> None:
         record = self.run.joinpath(context.RECORD_NAME)
         text = record.read_text(encoding="utf-8").replace(
-            "CONFIRMED: 2026-09-23\n",
+            "CONFIRMED: 2001-01-01\n",
             "PROJECT-WAIVE: "
             f"{self.memory} - stale lead on 2026-09-23; "
-            "proceed without, per the clinician\nCONFIRMED: 2026-09-23\n",
+            "proceed without, per the clinician\nCONFIRMED: 2001-01-01\n",
         )
         record.write_text(text, encoding="utf-8")
 

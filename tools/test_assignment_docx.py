@@ -278,8 +278,8 @@ class DocxGrader(unittest.TestCase):
                 encoding="utf-8",
             )
             (run / "project-context.md").write_text(
-                "PROJECT-CONTEXT: none - synthetic assignment\n"
-                "CONFIRMED: 2026-09-23\nCONTEXT-DIGEST: none\n",
+                "PROJECT-CONTEXT: none - synthetic assignment\nOWN-SUBMISSION: none - no earlier synthetic submission\n"
+                "CONFIRMED: 2001-01-01\nCONTEXT-DIGEST: 67d55228f3d5d679eb597e38d220b591803ef13085d57f1176ec0b6302c5fc8f\n",
                 encoding="utf-8",
             )
             (run / "heading-read.md").write_text(
@@ -287,8 +287,8 @@ class DocxGrader(unittest.TestCase):
                 f"DRAFT: {file_digest.sha256(artifact)}\n"
                 "ROUTE: separate context\n"
                 "SENTENCES: 0 factual, 0 clinician's own\n"
-                "CONTEXT-DIGEST: none\n"
-                "CONTEXT-VERDICT: none\n"
+                "CONTEXT-DIGEST: 67d55228f3d5d679eb597e38d220b591803ef13085d57f1176ec0b6302c5fc8f\n"
+                "CONTEXT-VERDICT: agrees\n"
                 "VERDICT: clean\n",
                 encoding="utf-8",
             )

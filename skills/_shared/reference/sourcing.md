@@ -183,6 +183,7 @@ servers. Never write a service URL. An unregistered project stops for the clinic
 
 ```text
 PROJECT-CONTEXT: <project> | none - <reason>
+OWN-SUBMISSION: <path> | none - <reason>
 PROJECT-SEARCH: <location or service> - "<terms>"
 PROJECT-WAIVE: <location or service> - <what failed and when>; proceed without, per the clinician
 CONFIRMED: <ISO date>
@@ -199,6 +200,12 @@ DETAIL: <why an unreadable or absent place failed>
 OPENED: <file path or service item identifier> | none
 ```
 
+`OWN-SUBMISSION` declares the clinician's submission already handed in on the same board or
+case, or `none` with a reason. The absolute file path holds the handed-in text or the run's
+capture of the posted entry. Open it as an item in a `read` place; add its location through
+`PROJECT-SEARCH` if needed. Confirm this line with the rest of the header. The gate refuses
+a missing or duplicated line, reasonless `none`, or a path not opened in a read place.
+
 The memory index and every registered project place are owed. Each `PROJECT-SEARCH` adds or
 constrains one owed place; a direction given later amends and re-confirms the header before drafting.
 Every owed place has exactly one entry. A searched path carries `ROOT`, `TERMS`, `EXAMINED`,
@@ -209,7 +216,8 @@ opened identifiers only. `OPENED: none` records a bounded miss, never a settled 
 Run `python tools/project_context.py <run-directory> --write --submission <submission-key>` after retrieval and before drafting.
 When service items were opened, pass a `place -> item identifier -> returned text` JSON object on
 standard input with `--service-payloads -`; the command hashes the returned text without storing it.
-The command hashes opened file bytes, writes every item hash and the sorted-triple context digest,
+The command hashes opened file bytes, writes every item hash and a context digest binding the `OWN-SUBMISSION` header line
+and sorted place/item/hash triples,
 and exits 0 only when the gate passes. Exit 1 is a finding. Exit 2 means the owed population was not
 established, including an unavailable registry or unregistered project. The completion grader
 rehashes file items; drift is exit-2 coverage, while a finding still wins. It does not retrieve
@@ -272,7 +280,7 @@ DRAFT: <SHA-256 of the draft's raw bytes>
 ROUTE: separate context | orchestrator walk
 SENTENCES: <n> factual, <n> clinician's own
 PAIR: <location> -> <first 8 hex of the heading digest>
-CONTEXT-DIGEST: <the project-context record's digest> | none
+CONTEXT-DIGEST: <the project-context record's digest>
 CONTEXT-VERDICT: agrees
 CONTEXT-VERDICT: none
 CONTEXT-VERDICT: narrows - <location>, <what differs>
@@ -292,10 +300,13 @@ where a clean record's `FINDINGS:` supplies its substance.
 
 A clean record has one `PAIR` per factual sentence. Pairs plus findings equal the factual count;
 every prefix names a current, non-`DROPPED` heading; and `DRAFT` matches the final artifact. A
-non-`none` context digest matches the machine-written project-context digest and only `agrees` is
-clean. On a `none` run both context fields are `none`. `narrows`, `contradicts`, and
+context digest matches the machine-written project-context digest and only `agrees` is
+clean. Even a run declaring no project binds its `OWN-SUBMISSION` reason in that digest. `narrows`, `contradicts`, and
 `sources-conflict` are findings; the last names both sources and only the clinician resolves it,
 with that ruling written to memory. A finding blocks the go-ahead. Repair a drifted sentence toward the correct side: return it to its
 heading, or change and refute the heading again. Give an unrecorded sentence a full researched and
 refuted record or cut it. Every repair changes the draft, so a fresh heading read replaces the old
 one before the go-ahead.
+
+The `none` context verdict is retained for legacy records whose context digest is `none`;
+both fields must be `none` there. New runs use the bound digest and the `agrees` verdict.

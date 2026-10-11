@@ -574,7 +574,7 @@ Then walk `discussion_post_scan.NOT_REACHED`, whose posted-reading row declares 
 belong to the sibling grader.
 
 Compute `SUBMISSION-SHA256` before `/AAR` extracts the record with
-`python -c "from pathlib import Path; from tools.file_digest import sha256; print(sha256(Path(r'<output Markdown>')))"`;
+`python tools/file_digest.py "<output Markdown>"`;
 adding or changing the line after extraction makes the after-action review stale because `aar_scan`
 fingerprints the whole block. Now invoke `/AAR` with the output Markdown stem as the submission key. After it exits clean, rerun
 the same grader one final time with the same `--draft`, `--html`, and `--docx` plus
