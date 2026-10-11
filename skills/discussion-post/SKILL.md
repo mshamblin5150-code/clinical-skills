@@ -65,13 +65,13 @@ For this skill, the canonical artifacts governed by [standing rule 6](../../AGEN
 
 ## 1. Route from the prompt, then snapshot the nonpatient board
 
-Before searching for or reading a Faculty file or Classmate file, follow [LMS attachments](../_shared/reference/lms-attachments.md) and record the sitting's attachment appendix, including when no files are linked.
-
 Open the topic live and first read only its breadcrumbs and prompt. **If the prompt asks for a
 worked clinical case, stop this skill now.** Hand the board URL to `practicum-case-study`; do not
 create a discussion run directory, read the classmate contributions, write a snapshot, derive a
 bar, or accept any patient material here. The clinical skill derives the `case-study` run key and
 owns those patient-bearing reads and writes.
+
+Before searching for or reading a Faculty file or Classmate file for a nonpatient prompt, follow [LMS attachments](../_shared/reference/lms-attachments.md) and record the sitting's attachment appendix, including when no files are linked.
 
 For a nonpatient prompt, continue in this skill. Read the point value, due dates, the clinician's
 existing contribution if any, every classmate initial post, and every nested reply. The live board
