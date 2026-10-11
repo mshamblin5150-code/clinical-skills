@@ -823,6 +823,8 @@ def survey(source: RunSource) -> Scan:
                 == reply.path.stem.removeprefix("response-")
             ),
             project_context.recorded_digest(source.path),
+            as_of=research_ledger.ledger_date(source.claims),
+            opened_items=project_context.recorded_opened_items(source.path),
         )
         for reply in source.replies
     )
@@ -1072,7 +1074,7 @@ def grade(source: RunSource, _parsed: run_grader.Parsed) -> run_grader.Grade[Sca
             or scanned.posts_read < scanned.posts_total
         ),
         diagnostics=refused,
-        reports=(aar_report,),
+        reports=(heading_read.protocol_coverage(source.claims, source.heading_read_text), aar_report),
     )
     grade = voice_model_identity.apply_completion_gate(
         grade, source.path, submission if submissions else None

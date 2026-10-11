@@ -44,6 +44,18 @@ or digest that differs; `page-year-form` refuses an own-work year without one of
 
 ## A record is read at the source's width
 
+**QUALIFIERS** lists every limiting qualifier the `PASSAGE` carries: population, setting,
+comparator, condition, eligibility, device, adjustment and tense. Quote each word for word,
+using double-quoted strings separated by ` | `, or write `QUALIFIERS: none` when none exist.
+Escape an embedded double quote with `\"`. An absent field never means `none`.
+The researcher returns the field with the passage; the refuter checks the list is complete.
+The heading and restatement retain every named qualifier. Matching ignores case and runs
+of whitespace and otherwise keeps the exact words.
+
+Ledgers dated on or after 2026-10-11 require this field on sourced, non-`DROPPED` records.
+Earlier ledgers report the qualifier rows as `not graded` with the unread record count;
+they are not backfilled. Sourceless and `DROPPED` records owe no qualifier field.
+
 - **Every field is copied from the work as a reader sees it rendered.** A web title is the rendered
   page heading, never the browser tab text or a backing dataset's record. For the clinician's own
   unpublished work, use the ordered year sources above; for online works a year or date comes from
@@ -133,7 +145,7 @@ records the ruling.
 ## A sourceless record makes no claim about a source
 
 An `unsourced` or `unreadable` record states its substantive search or failure on `STATUS` and
-omits every field required of a sourced record: `SOURCE`, `REFERENCE`, `RESTATEMENT`, `PASSAGE`, `RECENCY`,
+omits every field required of a sourced record: `SOURCE`, `REFERENCE`, `RESTATEMENT`, `PASSAGE`, `QUALIFIERS`, `RECENCY`,
 `RESOLVED`, `PAGE-YEAR`, `REFUTATION`, `TESTED-HEADING`, `SECOND-ROUTE`, and `STATED-EXPIRY`. An unreadable record
 retains `INSTRUMENTS`, whose two substantive halves name the distinct failed routes. A clean
 sourceless record does not establish that a rejected source was named well enough to recheck.
@@ -163,6 +175,8 @@ qualifier on the subject, a wider population, an added exception, purpose link o
 stronger modality. A narrower claim `stands`. The refuter checks the restatement as well as the
 heading. A proposed correction quotes the source's conditions; an adopted correction is a changed
 heading that needs a fresh refutation.
+The refuter checks `QUALIFIERS` against the complete supporting passage and returns any missing
+limitation for correction before the heading is refuted again.
 
 A heading changed after its refutation is a new claim. `TESTED-HEADING` is the lowercase SHA-256 of
 the `## CLAIM:` heading text after runs of whitespace collapse to one space and the ends are
@@ -225,6 +239,13 @@ service items again.
 
 ### Draft order
 
+An **Item description** states what an item opened for `project-context.md` says, such as a
+classmate's plan or a prior submission. Compare that sentence with the opened item claim by
+claim while drafting and again before the heading reader writes `CONTEXT-VERDICT`.
+An omission is `narrows` only when the omitted part bears on the sentence's point. Stating
+something otherwise, dropping a qualifier the item carries, or asserting an absence the item
+does not state is `contradicts`. Both are findings and block the go-ahead.
+
 While drafting, every statement the draft makes about the clinician, his history, or his own
 projects agrees with the opened project-context items: it neither narrows nor contradicts them.
 Check each such sentence against those items as it is written, not after the draft is final.
@@ -271,15 +292,23 @@ with the first eight hex characters of the current heading digest and judges onl
 sentence claims more than that heading. A paraphrase claiming no more is a match; an absent claim is
 `unrecorded`, and a broader population or subject, changed number, added entity or condition, or
 dropped limitation is `drifted`. The clinician's own reasoning and experience are counted but need
-no claim-heading pair; they remain subject to the project-context verdict. A harness without a second context performs the same written walk and records `ROUTE:
+no claim-heading pair; they remain subject to the project-context verdict. Item descriptions form
+a third sentence class, each with an `ITEM` line naming the opened item identifier exactly as
+`project-context.md` records it. The reader opens and compares that item itself, claim by claim.
+For every pair whose claim carries `QUALIFIERS`, the reader counts the named qualifiers retained
+in the sentence as `qualifiers N of M`. The total equals the record's list length, including
+`0 of 0` for `none`. A shortfall has a `FINDINGS: drifted - <same location>, <difference>` line;
+that finding does not count as a second sentence. The count records coverage, not correctness.
+A harness without a second context performs the same written walk and records `ROUTE:
 orchestrator walk`.
 
 ```text
 ## HEADING-READ: <draft file>
 DRAFT: <SHA-256 of the draft's raw bytes>
 ROUTE: separate context | orchestrator walk
-SENTENCES: <n> factual, <n> clinician's own
-PAIR: <location> -> <first 8 hex of the heading digest>
+SENTENCES: <n> factual, <n> clinician's own, <n> item
+PAIR: <location> -> <first 8 hex of the heading digest> | qualifiers <n> of <total>
+ITEM: <location> -> <opened item identifier>
 CONTEXT-DIGEST: <the project-context record's digest>
 CONTEXT-VERDICT: agrees
 CONTEXT-VERDICT: none
@@ -298,7 +327,11 @@ per sentence that failed and never on a clean record. This differs from the `## 
 record's `VERDICT: clean - <what was compared>` and from the practicum `## CHECK:` record,
 where a clean record's `FINDINGS:` supplies its substance.
 
-A clean record has one `PAIR` per factual sentence. Pairs plus findings equal the factual count;
+A clean record has one `PAIR` per factual sentence and one `ITEM` per item-description sentence.
+The three-class sentence line is required for ledgers dated on or after 2026-10-11; earlier
+ledgers report item comparisons as `not graded` with unread heading-read records. A pair owes
+the qualifier suffix whenever its record carries the field, including on earlier ledgers.
+Pairs plus findings at unpaired locations equal the factual count;
 every prefix names a current, non-`DROPPED` heading; and `DRAFT` matches the final artifact. A
 context digest matches the machine-written project-context digest and only `agrees` is
 clean. Even a run declaring no project binds its `OWN-SUBMISSION` reason in that digest. `narrows`, `contradicts`, and

@@ -114,6 +114,7 @@ SOURCE: <one class signed in bar.md>
 REFERENCE: <full reference entry>
 RESTATEMENT: <what the source says, including a number for a numeric claim>
 PASSAGE: <where in the source the supporting language sits>
+QUALIFIERS: "<limiting qualifier quoted from PASSAGE>" | "<next qualifier>"
 RECENCY: current | within five | nothing newer - <reason> | guideline in force - <reason>
 RESOLVED: <URL or DOI> - read <ISO date>
 PAGE-YEAR: <year and where the page states it>
@@ -124,11 +125,15 @@ INSTRUMENTS: <first instrument> -> <second instrument>
 STATED-EXPIRY: none stated | <ISO date> - <where stated> | <ISO date>, superseded cited deliberately - <reason>
 ```
 
+When the passage has no limiting qualifiers, write `QUALIFIERS: none` instead of the list.
+
 Apply the shared sourcing rules below to `unsourced` and `unreadable` records. `INSTRUMENTS` is
 also required for `REFUTATION: unreadable` and forbidden elsewhere. Research produces claim records.
 This **Fan-out brief** applies [standing rule 6](../../AGENTS.md). Every research and refutation
 brief first reads and applies
 [sourcing.md](../_shared/reference/sourcing.md).
+The research return includes `QUALIFIERS`; the refutation brief checks its completeness
+under that shared rule.
 Each refutation leg attacks the reference, locator, year, bibliographic details, heading, and restatement. It returns
 `stands`, `refuted`, `paywalled`, or `unreadable` with a reason and a genuinely different second route. The
 route requirement is a local narrowing.
@@ -230,7 +235,8 @@ The rows are:
   `heading-read-draft-mismatch`, `heading-read-defect`, `heading-read-verdict-shape`
   (a malformed verdict line), `heading-read-finding`,
   `heading-read-context-digest`, `heading-read-context-verdict-shape`, and
-  `heading-read-context-defect`.
+  `heading-read-context-defect`, plus `heading-read-qualifier-count`,
+  `heading-read-item-count`, and `heading-read-unopened-item` under the shared sourcing rule.
 
 The default report prints counts only. `--show` exposes artifact text and remains private. Exit 0
 is clean, 1 means a finding, and 2 means the command did not completely scan the run, bar, or deck.

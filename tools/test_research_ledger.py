@@ -855,6 +855,7 @@ INSTRUMENTS: web fetch -> curl
             "TESTED-HEADING": "d0bccc42945d68a207d021b00bb028e7aeee53a89fd80ad27ab75abb1637a7d8",
             "SECOND-ROUTE": "first route -> second route",
             "STATED-EXPIRY": "none stated",
+            "QUALIFIERS": "none",
         }
         self.assertEqual(set(values), set(ledger.SOURCE_FIELDS))
         for name, value in values.items():
@@ -2062,6 +2063,7 @@ class ASourcelessRecordCarriesNoneOfTheSourceFields(unittest.TestCase):
     """ADR 0153's complete source-field population, derived from the sourced shape."""
 
     SOURCE_FIELD_VALUES = {
+        "QUALIFIERS": "none",
         "SOURCE": "peer-reviewed",
         "REFERENCE": "Someone, A. (2020). A study. Journal, 1(1), 1-9.",
         "RESTATEMENT": "The study reports the result.",
@@ -2088,7 +2090,7 @@ class ASourcelessRecordCarriesNoneOfTheSourceFields(unittest.TestCase):
 
     def test_each_source_field_contradicts_it_on_its_own(self):
         values = self.SOURCE_FIELD_VALUES
-        self.assertEqual(ledger.SOURCE_FIELDS, ledger.REQUIRED_WHEN_SOURCED)
+        self.assertEqual(ledger.SOURCE_FIELDS, (*ledger.REQUIRED_WHEN_SOURCED, "QUALIFIERS"))
         self.assertEqual(set(values), set(ledger.SOURCE_FIELDS))
         for name, value in values.items():
             with self.subTest(field=name):
@@ -2318,6 +2320,10 @@ class TheSkillSaysWhatThisChecks(ProseBind, unittest.TestCase):
     # the scanner knows. ``AGENTS.md`` classes this as a Required command because
     # the skill requires its clean exit before drafting.
     ROW_PHRASES = {
+        "qualifier-field": "a `QUALIFIERS` field missing or outside its quoted-list or `none` form",
+        "qualifier-passage-missing": "a named qualifier absent from `PASSAGE`",
+        "qualifier-heading-missing": "a named qualifier absent from the heading",
+        "qualifier-restatement-missing": "a named qualifier absent from `RESTATEMENT`",
         ledger.CITED_TOPIC_NOT_IN_EVIDENCE: (
             "an UpToDate topic cited here that no accumulated manifest carries"
         ),

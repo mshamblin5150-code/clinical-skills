@@ -155,6 +155,7 @@ SOURCE: society guideline | peer-reviewed | government | tertiary reference
 REFERENCE: <full APA 7 entry>
 RESTATEMENT: <what the source says, including the critique's exact numeric token where applicable>
 PASSAGE: <where in the source the supporting language sits>
+QUALIFIERS: "<limiting qualifier quoted from PASSAGE>" | "<next qualifier>"
 RECENCY: current | within five | nothing newer - <reason> | guideline in force - <reason>
 RESOLVED: <URL or DOI> - read <ISO date>
 PAGE-YEAR: <year and where the page states it>
@@ -164,6 +165,8 @@ SECOND-ROUTE: <research route> -> <refutation route>
 INSTRUMENTS: <first instrument> -> <second instrument>
 STATED-EXPIRY: none stated | <ISO date> - <where the document states it> | <ISO date>, superseded cited deliberately - <reason>
 ```
+
+When the passage has no limiting qualifiers, write `QUALIFIERS: none` instead of the list.
 
 `INSTRUMENTS` is required for `REFUTATION: unreadable` and forbidden elsewhere. Transcribe only an
 expiry the document states; do not infer one from a publication cadence.
@@ -196,7 +199,9 @@ clinician authored in this run's input, exclude faculty, classmate, and source l
 explicit `none`.
 
 First write and confirm `project-context.md`, then retrieve every place owed by
-[sourcing.md](../_shared/reference/sourcing.md). The project-context command must exit 0. An
+[sourcing.md](../_shared/reference/sourcing.md).
+The research return includes `QUALIFIERS`; the refutation brief checks its completeness
+under that shared rule. The project-context command must exit 0. An
 unregistered project stops for the clinician's answer; an unreachable place stops until it is
 readable or the clinician confirms its waiver. A later direction amends and re-confirms the record
 before prose resumes.
@@ -283,7 +288,8 @@ The final-draft reading adds `missing-heading-read`, `duplicate-heading-read`,
 `heading-read-draft-mismatch`, `heading-read-defect`, `heading-read-verdict-shape`
 (a malformed verdict line), `heading-read-finding`,
 `heading-read-context-digest`, `heading-read-context-verdict-shape`, and
-`heading-read-context-defect`.
+`heading-read-context-defect`, plus `heading-read-qualifier-count`,
+`heading-read-item-count`, and `heading-read-unopened-item` under the shared sourcing rule.
 
 The word count excludes the reference list. The 750-word expectation is **reported and never
 graded**, on the no-stated-maximum rule in step 4, and the count of literal ampersands is reported
