@@ -453,6 +453,13 @@ loading it into the box, not submission. That approval
 also confirms that every edit implicated by a destination-guard refusal was recovered into the
 authoritative Markdown and, where it changes a factual claim, the claim ledger.
 
+Before asking for each go-ahead (Gate 1 and Gate 2), run `python tools/project_context.py
+<run-directory> --go-ahead <output-Markdown-stem>`. Show its moved places and every added
+memory-index line. A moved item is incomplete coverage the clinician may approve over; a finding
+stops approval. Each approval repeats and replaces that key's check; show any changed notice and
+renew approval if it differs from the notice the clinician saw. Completion carries the last result
+forward after recorded posting.
+
 Set `clinician_reply` to the clinician's whole Gate 1 reply, including any conditions.
 At Gate 1 call `approval_record.approve(run, skill="discussion-post",
 submission=output_markdown.stem, sources=(output_markdown,), grader_args=(str(run), "--draft",

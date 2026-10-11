@@ -12,6 +12,7 @@ from unittest import mock
 
 import approval_record
 import aar_scan
+from project_context_test_support import write_none_context
 
 
 NOTE = (
@@ -27,6 +28,7 @@ class ApprovalRecordContract(unittest.TestCase):
         self.root = Path(self.temporary.name)
         self.run = self.root / "scratch" / "runs" / "nur-5042-module-5-discussion"
         self.run.mkdir(parents=True)
+        write_none_context(self.run)
         self.artifact = self.root / "post.md"
         self.artifact.write_text("approved post\n", encoding="utf-8")
         os.utime(self.artifact, (1, 1))

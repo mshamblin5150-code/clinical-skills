@@ -22,6 +22,7 @@ import docx_write
 import entry_copy
 from discussion_artifact import read_posted_readings
 import run_grader
+import project_context
 
 
 class ApprovalRecordError(ValueError):
@@ -379,6 +380,16 @@ def approve(
 
     previous_revision = payload.get("approval_revision", 0)
     revision = previous_revision + 1 if isinstance(previous_revision, int) else 1
+    if skill in project_context.SCOPED_SKILLS:
+        try:
+            context = project_context.go_ahead(root, submission, approval_revision=revision)
+        except (OSError, UnicodeError, ValueError) as failure:
+            raise ApprovalRecordError("project-context go-ahead result could not be written") from failure
+        if context.finding:
+            raise ApprovalRecordError("project-context go-ahead has a finding: " + context.report)
+        grade_report += "\n" + context.report
+        if context.coverage:
+            grade_status = 2
     item = {
         "skill": skill,
         "submission": submission,
@@ -388,6 +399,7 @@ def approve(
         "posting_route": PostingRoute.AWAITING.value,
         "approval_revision": revision,
         "pregrade_status": "clean" if grade_status == 0 else "incomplete",
+        "project_context_check": skill in project_context.SCOPED_SKILLS,
         "shown_text_verification": shown.state,
         "clinician_reply": clinician_reply,
         "reply_verification": "verified" if verification.state == "verified" else "not verified",
@@ -459,6 +471,31 @@ def posting_route(run: Path, *, skill: str, submission: str) -> str | None:
     item = _matching_item(_read(Path(run), missing_ok=True), skill, submission)
     route = item.get("posting_route") if item is not None else None
     return route if isinstance(route, str) else None
+
+
+@dataclass(frozen=True)
+class ProjectContextPosting:
+    posted: bool
+    check_required: bool = False
+    approval_revision: int | None = None
+
+
+def project_context_posting(run: Path, submission: str) -> ProjectContextPosting:
+    """Read keyed posting state for both coursework approval paths."""
+    payload = _read(Path(run), missing_ok=True)
+    matches = [item for item in payload["items"] if isinstance(item, dict)
+               and item.get("skill") in project_context.SCOPED_SKILLS
+               and item.get("submission") == submission]
+    if len(matches) > 1:
+        raise ApprovalRecordError("ambiguous coursework posting key")
+    if matches:
+        item = matches[0]
+        revision = item.get("approval_revision")
+        if revision is not None and (type(revision) is not int or revision < 1):
+            raise ApprovalRecordError("invalid coursework approval revision")
+        return ProjectContextPosting(item.get("posting_route") in {PostingRoute.AGENT.value, PostingRoute.CLINICIAN.value}, item.get("project_context_check") is True, revision)
+    import assignment_submission
+    return assignment_submission.project_context_posting(Path(run), submission)
 
 
 def _record_posting(

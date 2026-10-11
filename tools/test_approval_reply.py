@@ -16,6 +16,7 @@ import aar_scan
 import approval_record as approvals
 import differential_scan
 import run_grader
+from project_context_test_support import write_none_context
 
 
 REPLY = "Approved, provided the documented condition is kept."
@@ -41,6 +42,7 @@ class WholeReplyApproval(unittest.TestCase):
         self.root = Path(self.temp.name)
         self.run = self.root / "scratch" / "runs" / "synthetic-approval"
         self.run.mkdir(parents=True)
+        write_none_context(self.run)
         self.source = self.run / "post.md"
         self.source.write_text("Synthetic approved content.\n", encoding="utf-8")
         os.utime(self.source, (100, 100))

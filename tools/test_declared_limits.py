@@ -80,6 +80,7 @@ NO_LIMITS = {
     "post_html": "an HTML construction helper rather than a content-completeness grader",
     "approval_record": "an exact authorization adapter whose approved source population defines its fingerprint boundary",
     "procedure_codes_lookup": "an exact local database lookup rather than a coding-rules or documentation grader",
+    "project_context_test_support": "test support for synthetic project-context approval fixtures, not a public checker",
     "prose_bind": "the shared binding instrument; its exact name vocabulary is separately classified",
     "reference_class_census": "a source-class census whose counted inputs are stated by its report",
     "render_pass": "shared retained-pass data structures rather than an independent grader",

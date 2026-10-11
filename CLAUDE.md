@@ -1254,8 +1254,17 @@ Missing or duplicate owed places, incomplete search evidence, and unwaived unrea
 places are findings. An unavailable registry or unregistered project is incomplete coverage and
 stops for the clinician's answer.
 
-The same five completion graders enable the shared row with `--submission`. File items are hashed
-again; a moved item is incomplete coverage, service text is not retrieved again, and a finding wins.
+Before each go-ahead, `python tools/project_context.py <run-directory> --go-ahead <submission-key>`
+rechecks opened files for a read-only notice. Show every moved place and added memory-index
+line before asking for approval. The memory index compares a multiset of nonblank line fingerprints
+with trailing whitespace stripped; added lines are shown, while edits and removals are moves.
+Other files retain whole-file comparisons. Both coursework approval paths repeat the check and
+record a move as an incomplete pre-post grade. The saved result is bound to that approval revision;
+showing a later notice preserves the result the clinician approved.
+The same five completion graders enable the shared row with `--submission`. After recorded posting,
+they carry forward the go-ahead result and name moves approved over by the clinician. A posted
+approval predating the check is named, counted, and passes on this row. An unposted key keeps the
+whole-file completion recheck. Service text is not retrieved again, and a finding wins.
 Their shared heading read binds `CONTEXT-DIGEST` to the record and permits only `agrees`, or `none`
 on a confirmed `none` run. The complete ceiling belongs to `project_context.DECLARED_LIMITS`; this
 section copies no row from it.

@@ -1647,7 +1647,12 @@ route. If the run proposed imagery, also show this table from `imagery-proposals
 
 Ask the proposed-image question separately from whether the artifact's substance is right. Apply
 each ruling under [imagery-proposals.md](../_shared/reference/imagery-proposals.md), rerun the
-checks grader, and then wait for the explicit go-ahead. Post through the branch recorded in
+checks grader. Before asking for the go-ahead, run `python tools/project_context.py
+<run-directory> --go-ahead <output-Markdown-stem>`. Show its moved places and every added
+memory-index line. A moved item is incomplete coverage the clinician may approve over; a finding
+stops approval. Approval repeats and records the check; show any changed notice and renew approval
+if it differs from the notice the clinician saw. Completion carries that result forward after
+recorded posting. Then wait for the explicit go-ahead. Post through the branch recorded in
 `bar.md`. The
 go-ahead sets `clinician_reply` to the clinician's whole approval message, including any
 conditions, and calls `approval_record.approve(run, skill="practicum-case-study",

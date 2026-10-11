@@ -8,6 +8,7 @@ from unittest import mock
 
 import approval_record
 import assignment_submission
+from project_context_test_support import write_none_context
 import file_digest
 import medatrax_posting
 import test_checks_ledger as checks
@@ -105,6 +106,7 @@ class PostedReadingMembers(unittest.TestCase):
             run = Path(temporary)
             note = run / 'post.md'
             note.write_bytes(b'approved post')
+            write_none_context(run)
             approval_record.approve(run, skill='discussion-post', submission='post', sources=(note,), grader_args=(str(run),), content_approved=True, clinician_reply='Approve the synthetic post.')
             approval_record.record_agent_posting(run, skill='discussion-post', submission='post')
             record = run / 'reread.md'

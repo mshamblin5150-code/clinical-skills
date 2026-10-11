@@ -437,11 +437,18 @@ the run key. A per-context scratch path holds work in progress only and never su
 evidence. Run `python tools/course_assignment_scan.py <run-directory> --artifact <deck>` before
 approval and require its pre-upload grade to exit 0 against that run directory.
 
+Before asking for this go-ahead, run `python tools/project_context.py <run-directory>
+--go-ahead <artifact-stem>`. Show its moved places and every added memory-index line. A moved
+item is incomplete coverage the clinician may approve over; a finding stops approval. The stage
+call repeats and records the check; show any changed notice and renew approval if it differs from
+the notice the clinician saw. Completion carries that result forward after recorded upload.
+
 This is the existing submission gate; wait for the explicit go-ahead once. Then call
 `assignment_submission.stage(run, deck, artifact_approved=True, approved_carriers=(...))` with
 exactly the approved files and show `assignment_submission.approval_surface(staged)`. Any mismatch
 with the surface the clinician approved returns to the gate. `stage` reruns the same pre-upload
-grade and refuses to record approval unless it is clean. After approval is recorded, the
+grade and refuses to record approval unless it is clean; the separate project-context moved-item
+check records incomplete coverage when the clinician approves over a move. After approval is recorded, the
 per-context scratch paths may be removed; the run directory remains intact.
 
 From this approval onward, read and apply the shared

@@ -365,6 +365,11 @@ showing that gate, inspect the threaded Canvas Composer and read
 before loading, and tell the clinician which route will be used and what that route costs as part of
 the same approval. When `voice-status.md` exists, show its unmodeled-voice declaration alongside the
 reply. Only an explicit go-ahead for this reply authorizes posting.
+Before asking for each reply's go-ahead, run `python tools/project_context.py <run-directory>
+--go-ahead <response-filename>`. Show its moved places and every added memory-index line. A moved
+item is incomplete coverage the clinician may approve over; a finding stops approval. Approval
+repeats and records the check; show any changed notice and renew approval if it differs from the
+notice the clinician saw. Completion carries that result forward after recorded posting.
 Set `clinician_reply` to the clinician's whole approval message, including any conditions.
 At that go-ahead call `approval_record.approve(run, skill="discussion-reply",
 submission=response_path.name, sources=(response_path,), grader_args=(str(run),),
