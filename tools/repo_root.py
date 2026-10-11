@@ -149,6 +149,11 @@ def project_registry(start: Path | None = None) -> Path:
     return scratch_root(start) / PROJECT_REGISTRY_NAME
 
 
+def attribution_library(start: Path | None = None) -> Path:
+    """Resolve the account's ungraded pointer library, present or absent. #1497."""
+    return scratch_root(start) / "attributions.md"
+
+
 def output_root(start: Path | None = None) -> Path:
     """The finished-submission directory in the checkout that survives worktrees.
 

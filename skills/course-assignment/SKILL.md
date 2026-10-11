@@ -116,7 +116,9 @@ the grader does not decide whether that reading was correct.
 ## 2. Research before production
 
 Derive the research questions from the assignment and planned deck, covering every factual point
-and figure a slide or speaker note will need. Create `claims.md` with a `DATE:` header and one
+and figure a slide or speaker note will need; read the canonical voice model's stated principles and invoked sources
+for the [invoked-attribution look-ahead](../_shared/reference/sourcing.md#invoked-attributions).
+Create `claims.md` with a `DATE:` header and one
 question-form `## CLAIM:` heading per question. When each record returns, rewrite its heading as
 the source-backed claim under [sourcing.md](../_shared/reference/sourcing.md), before refutation
 dispatch. The completed record has this form:

@@ -142,6 +142,48 @@ an invoked-source marker alone does not define the population.
 [ADR 0316](../../../docs/adr/0316-a-refuted-record-fails-the-citation-and-a-clinician-supplied-claim-is-asked-about-before-a-cut.md)
 records the ruling.
 
+## Invoked attributions
+
+An **Invoked attribution** is a person, school, or work named in the canonical voice model's
+stated principles or invoked sources. The test is where the name came from, whether it names a
+philosopher, a school, a historical figure, or a fictional character. An attribution introduced
+by the run's own research keeps the ordinary research-or-cut choice.
+
+When deriving research questions, read those parts of the canonical model beside the planned
+outline or deck and open the **Attribution library**, `scratch/attributions.md`, first.
+`repo_root.attribution_library()` resolves it through the owning checkout, like the canonical model,
+so a worktree reads the same file. If it is absent, research directly and create it when an entry
+is ready. Put each attribution the piece is likely to use into the first research round as a
+claim question. The heading read remains the backstop for an attribution the look-ahead missed.
+
+The library is an **ungraded pointer**, saving the search rather than the check. Each paper
+reopens the source, confirms the passage, and runs its own refutation; an entry never carries a
+sentence. Keep one entry per attribution with:
+
+- the name and idea or line as the clinician uses it;
+- the source address and section;
+- the APA reference and source class;
+- the date last checked and the paper that checked it;
+- any dated ruling of the clinician's.
+
+Add or refresh an entry only after the paper's claim record passes `research_ledger.py` and
+refutation. Record a clinician ruling when he gives it. Retain a ruling about the same line for
+later papers so they do not ask it again; they still reopen and refute their own source.
+
+An unrecorded invoked attribution receives a full researched and refuted record; it is never cut
+unresearched or recast as the clinician's own principle to remove the name. If research fails,
+apply the [refuted-record disposition](#a-refuted-record-fails-the-citation-not-the-claim): one
+fresh round with a different source, then ask the clinician before any cut. If research succeeds
+and shows the attribution itself is wrong, stop before the draft is final and show what was
+attributed, what the sources say, and which sources say it. The clinician corrects it, supplies a
+source, or keeps it as written; record his ruling in the library.
+
+Use a reference work documenting the attribution first. The signed bar's source classes stay
+unchanged. When none of its admitted classes can carry the attribution, ask whether to amend and
+re-sign this paper's bar, supply a source, or drop the line; record the answer in the library.
+[ADR 0329](../../../docs/adr/0329-an-invoked-attribution-is-researched-before-drafting-and-never-cut-or-changed-without-asking.md)
+records the ruling.
+
 ## A sourceless record makes no claim about a source
 
 An `unsourced` or `unreadable` record states its substantive search or failure on `STATUS` and
@@ -338,7 +380,8 @@ clean. Even a run declaring no project binds its `OWN-SUBMISSION` reason in that
 `sources-conflict` are findings; the last names both sources and only the clinician resolves it,
 with that ruling written to memory. A finding blocks the go-ahead. Repair a drifted sentence toward the correct side: return it to its
 heading, or change and refute the heading again. Give an unrecorded sentence a full researched and
-refuted record or cut it. Every repair changes the draft, so a fresh heading read replaces the old
+refuted record or cut it, except an [invoked attribution](#invoked-attributions), which is
+researched and follows that section's clinician-decision route. Every repair changes the draft, so a fresh heading read replaces the old
 one before the go-ahead.
 
 The `none` context verdict is retained for legacy records whose context digest is `none`;
