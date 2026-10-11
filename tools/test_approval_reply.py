@@ -218,16 +218,19 @@ class WholeReplyApproval(unittest.TestCase):
         self.assertEqual("incomplete", self.record()["items"][0]["pregrade_status"])
 
     def test_committed_post_requires_its_full_reference_list(self):
-        from test_discussion_post_scan import BODY
-        self.source.write_text(BODY, encoding="utf-8")
-        os.utime(self.source, (100, 100))
-        self.write(human())
-        self.approve()
-        (self.run / approvals.RECORD).unlink()
-        self.write({"type": "assistant", "timestamp": "2100-10-09T11:59:59Z",
-                    "message": {"content": BODY.rsplit("\n", 2)[0]}}, human(), shown=False)
-        with self.assertRaisesRegex(approvals.ApprovalRecordError, "1 missing blocks"):
-            self.approve()
+        controls = Path(__file__).resolve().parents[1] / "fixtures" / "coursework-style"
+        for skill in approvals.SHOWN_TEXT_SKILLS:
+            with self.subTest(skill=skill):
+                text = (controls / f"{skill}.md").read_text(encoding="utf-8")
+                self.source.write_text(text, encoding="utf-8")
+                os.utime(self.source, (100, 100))
+                self.write(human())
+                self.approve(skill=skill)
+                (self.run / approvals.RECORD).unlink()
+                self.write({"type": "assistant", "timestamp": "2100-10-09T11:59:59Z",
+                            "message": {"content": text.rsplit("\n", 2)[0]}}, human(), shown=False)
+                with self.assertRaisesRegex(approvals.ApprovalRecordError, "1 missing blocks"):
+                    self.approve(skill=skill)
 
     def test_shown_text_must_be_main_assistant_text_inside_the_window(self):
         text = self.source.read_text(encoding="utf-8")
