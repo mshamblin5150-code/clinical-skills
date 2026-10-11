@@ -35,6 +35,7 @@ from datetime import date
 from pathlib import Path
 
 from console_codec import require_python_floor, use_utf8
+from cpt_identity import CPT_CODE
 from repo_root import scratch_root
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -238,7 +239,7 @@ def read_cpt_text(text: str, label: str, *, validate_descriptors: bool = True) -
         for number, row in enumerate(reader, start=2):
             code = (row.get("code") or "").strip()
             description = (row.get("description") or "").strip()
-            if not re.fullmatch(r"(?:\d{5}|\d{4}[FMTU])", code):
+            if not re.fullmatch(CPT_CODE, code):
                 raise ValueError(f"{label}:{number}: invalid CPT code {code!r}")
             if not description:
                 raise ValueError(f"{label}:{number}: CPT {code} has no description")

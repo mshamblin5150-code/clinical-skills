@@ -20,6 +20,7 @@ from datetime import date
 from pathlib import Path
 
 from console_codec import require_python_floor, use_utf8
+from cpt_identity import CPT_CODE
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_DATABASE = REPO_ROOT / "reference" / "procedure-codes-2026.sqlite"
@@ -62,7 +63,7 @@ def _match(row: tuple) -> Match:
 
 
 def infer_system(code: str) -> str:
-    return "CPT" if re.fullmatch(r"(?:\d{5}|\d{4}[FMTU])", code) else "HCPCS"
+    return "CPT" if re.fullmatch(CPT_CODE, code) else "HCPCS"
 
 
 def describe(connection: sqlite3.Connection, code: str, kind: str = "code") -> Match | None:
