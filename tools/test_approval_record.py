@@ -44,6 +44,9 @@ class ApprovalRecordContract(unittest.TestCase):
             aar_scan.TranscriptDiscovery((self.transcript,), 1, 0, 0, 1))
         discovery.start()
         self.addCleanup(discovery.stop)
+        remarks_check = mock.patch.object(approval_record.reader_remarks, "verify", return_value=[])
+        remarks_check.start()
+        self.addCleanup(remarks_check.stop)
         self.preflight = mock.patch.object(
             approval_record, "_preflight_grader", return_value=None
         )

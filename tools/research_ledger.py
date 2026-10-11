@@ -30,6 +30,7 @@ from datetime import date
 from pathlib import Path, PureWindowsPath
 from typing import NamedTuple
 
+import reader_remarks
 import run_grader
 from file_digest import sha256
 from run_grader import NOT_GRADED
@@ -58,6 +59,7 @@ class DeclaredLimit(NamedTuple):
 
 
 DECLARED_LIMITS = (
+    DeclaredLimit("reader-remark-free-text", "A claim's folded continuation or substance-only refutation reason cannot distinguish a concealed remark from source-reading text.", EvidenceDisposition.DECLARED_READING),
     DeclaredLimit("qualifier-completeness-unverified", "Presence checks cannot establish that the researcher and refuter listed every limiting qualifier.", EvidenceDisposition.DECLARED_READING),
     DeclaredLimit("added-condition-unverified", "Presence of named qualifiers cannot detect a condition added to the heading or restatement.", EvidenceDisposition.DECLARED_READING),
     DeclaredLimit("execution-order-unobservable", "The ledger cannot show whether claim research ran concurrently or serially.", EvidenceDisposition.DECLARED_READING),
@@ -115,7 +117,7 @@ NOT_REACHED = tuple(row.limit for row in DECLARED_LIMITS)
 CLAIM = re.compile(r"(?mi)^[ \t]*#+[ \t]*CLAIM[ \t]*:[ \t]*(.*?)[ \t]*$")
 FIELD = re.compile(
     r"(?mi)^[ \t]*(STATUS|SOURCE|REFERENCE|RESTATEMENT|PASSAGE|QUALIFIERS|RECENCY"
-    r"|RESOLVED|PAGE-YEAR|REFUTATION|TESTED-HEADING|SECOND-ROUTE|INSTRUMENTS|STATED-EXPIRY|DROPPED)"
+    r"|RESOLVED|PAGE-YEAR|REFUTATION|TESTED-HEADING|SECOND-ROUTE|INSTRUMENTS|STATED-EXPIRY|DROPPED|REMARK)"
     r"[ \t]*:[ \t]*(.*?)[ \t]*$"
 )
 BAR_FIELD = re.compile(
@@ -642,6 +644,8 @@ class Record:
 
     claim: str
     fields: dict[str, str] = field(default_factory=dict)
+    remarks: tuple[str, ...] = ()
+    unread: int = 0
 
     def value(self, name: str) -> str:
         return self.fields.get(name, "")
@@ -769,6 +773,9 @@ class Scan:
     findings: tuple[Finding, ...]
     local_documents_unread: int = 0
     qualifier_unread: int = 0
+    reader_unread: int = 0
+    reader_remarks: tuple[reader_remarks.Remark, ...] = ()
+    unread_records: tuple[str, ...] = ()
 
 
 def _qualifier_findings(record: Record, as_of: date | None) -> list[Finding]:
@@ -1018,18 +1025,29 @@ def read_records(text: str) -> list[Record]:
     claim: str | None = None
     fields: dict[str, str] = {}
     current: str | None = None
+    remarks: list[str] = []
+    unread = 0
 
     def close() -> None:
         if claim is not None:
-            records.append(Record(claim=claim, fields=dict(fields)))
+            records.append(Record(claim=claim, fields=dict(fields), remarks=tuple(remarks), unread=unread))
 
     for line in text.splitlines():
         heading = CLAIM.match(line)
         if heading:
             close()
+            remarks, unread = [], 0
             claim, fields, current = heading.group(1), {}, None
             continue
         if claim is None:
+            continue
+        remark = re.match(r"(?i)^[ \t]*REMARK[ \t]*:[ \t]*(.*)$", line)
+        if remark:
+            current = None
+            if remark.group(1).strip():
+                remarks.append(remark.group(1).strip())
+            else:
+                unread += 1
             continue
         named = FIELD.match(line)
         if named:
@@ -1038,6 +1056,8 @@ def read_records(text: str) -> list[Record]:
             continue
         if current and line.strip():
             fields[current] = f"{fields[current]} {line.strip()}".strip()
+        elif line.strip():
+            unread += 1
     close()
     return records
 
@@ -1990,6 +2010,9 @@ def survey(
         evidence_at_fault=len(on_the_evidence),
         findings=tuple(found),
         local_documents_unread=local_documents_unread(sourced),
+        reader_unread=sum(r.unread for r in records),
+        reader_remarks=tuple(reader_remarks.Remark(f"CLAIM: {r.claim}", text) for r in records for text in r.remarks),
+        unread_records=tuple(r.claim for r in records if r.unread),
         qualifier_unread=sum("DROPPED" not in record.fields for record in sourced) if not qualifiers_required(as_of) else 0,
     )
 
@@ -2104,6 +2127,8 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
             shown = NOT_GRADED
         lines.append(f"  {ROWS[kind]} - {kind:<31} {shown}")
     lines.append("")
+    lines.extend((run_grader.format_unread_remainder(scan.reader_unread), reader_remarks.report(scan.reader_remarks)))
+    lines.extend(f"unread reader record: CLAIM: {name}" for name in scan.unread_records)
     lines.append(f"  records at fault                 {scan.failing_records}")
     if scan.prescriptions is not None:
         lines.append(
@@ -2356,6 +2381,7 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
     )
     coverage_failed = bool(
         not source.records
+        or scan.reader_unread
         or scan.local_documents_unread
         or source.as_of is None
         or source.evidence_not_filed

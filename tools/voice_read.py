@@ -18,6 +18,7 @@ from types import MappingProxyType
 from collections.abc import Mapping
 from typing import Generic, NamedTuple, TypeVar
 
+import reader_remarks
 import repo_root
 import run_grader
 import voice_model_identity
@@ -130,6 +131,7 @@ _READER_KEYS = frozenset(
         "suspected_plant_quote",
         "answers",
         "supplied_voice_answers",
+        "remarks",
     }
 )
 _ANSWER_KEYS = frozenset({"pair_id", "quote", "resemblance"})
@@ -185,6 +187,7 @@ class CompletionGate:
     finding: bool
     coverage: bool
     reports: tuple[str, str]
+    remarks: tuple[reader_remarks.Remark, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -525,8 +528,12 @@ def _voice_result(
         return ReadResult(True, False, "finding - planter or reader record shape is invalid")
     if planter.get("status") != "complete" or reader.get("status") != "complete":
         return ReadResult(True, False, "finding - planter or reader status is invalid")
-    if frozenset(planter) != _PLANTER_KEYS or frozenset(reader) != _READER_KEYS:
+    if frozenset(planter) != _PLANTER_KEYS or frozenset(reader) not in {_READER_KEYS, _READER_KEYS - {"remarks"}}:
         return ReadResult(True, False, "finding - planter or reader record shape is invalid")
+
+    remarks = reader.get("remarks", [])
+    if not isinstance(remarks, list) or any(not isinstance(text, str) or not text.strip() for text in remarks):
+        return ReadResult(True, False, "finding - remarks must be a list of nonempty strings")
 
     planted_path = records / PLANTED_COPY_NAME
     try:
@@ -624,7 +631,7 @@ def _voice_result(
     return ReadResult(False, False, "clean")
 
 
-def completion_gate(
+def _completion_gate(
     run: Path,
     submission: str | None,
     surface: DraftSurface | Mapping[str, DraftSurface],
@@ -797,6 +804,14 @@ def completion_gate(
     )
 
 
+def completion_gate(
+    run: Path, submission: str | None, surface: DraftSurface | Mapping[str, DraftSurface],
+) -> CompletionGate:
+    gate = _completion_gate(run, submission, surface)
+    keys = tuple(surface) if isinstance(surface, Mapping) else tuple(submission.split(",")) if submission else ()
+    return replace(gate, remarks=reader_remarks.voice_remarks(run, keys))
+
+
 def apply_completion_gate(
     grade: run_grader.Grade[TScan],
     run: Path,
@@ -815,5 +830,5 @@ def apply_completion_gate(
         findings_failed=grade.findings_failed or gate.finding,
         coverage_failed=grade.coverage_failed or gate.coverage,
         coverage_limbs=limbs,
-        reports=grade.reports + gate.reports,
+        reports=grade.reports + gate.reports + (reader_remarks.report(gate.remarks),),
     )

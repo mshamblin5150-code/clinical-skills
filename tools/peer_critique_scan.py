@@ -47,6 +47,7 @@ from discussion_artifact import (
     read_reference_section,
     strip_discussion_markers,
 )
+import reader_remarks
 import run_grader
 import file_digest
 from run_grader import NOT_GRADED, EvidenceDisposition
@@ -721,6 +722,7 @@ def grade(source: RunSource, parsed: run_grader.Parsed) -> run_grader.Grade[Scan
         parsed.value("--submission"),
     )
     grade = lms_attachments.apply_completion_gate(grade, source.path, parsed.value("--submission"))
+    grade = reader_remarks.apply_readers(grade, research_ledger.read_records(source.claims), heading_read.read_records(source.heading_read_text), ("critique.md",), coverage_limb=UNREAD_REMAINDER)
     return approval_record.apply_completion_gate(
         grade, source.path, "peer-critique", parsed.value("--submission")
     )

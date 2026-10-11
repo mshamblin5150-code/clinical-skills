@@ -21,6 +21,7 @@ import aar_scan
 import docx_write
 import entry_copy
 from discussion_artifact import read_posted_readings
+import reader_remarks
 import run_grader
 import project_context
 
@@ -44,6 +45,36 @@ SKILLS = frozenset(
 
 REPLY_UNREADABLE = "approval reply transcript unreadable"
 SHOWN_TEXT_SKILLS = frozenset({"discussion-post", "discussion-reply", "peer-critique"})
+
+
+def assistant_text(run: Path, *, after: float, before: float) -> tuple[list[str], bool]:
+    """Read main-session assistant text in one strict timestamp window."""
+    shown = []
+    transcripts, unread = _main_transcripts(run)
+    for rows in transcripts:
+        for row in rows:
+            if row.get("isSidechain") or row.get("isMeta"):
+                continue
+            value = ""
+            if row.get("type") == "assistant":
+                content = row.get("message", {}).get("content", [])
+                value = content if isinstance(content, str) else "\n".join(
+                    block.get("text", "") for block in content
+                    if isinstance(block, dict) and block.get("type") == "text")
+            elif row.get("type") == "response_item":
+                payload = aar_scan._codex_payload(row)
+                if payload.get("type") == "message" and payload.get("role") == "assistant":
+                    value = aar_scan._codex_content_text(payload, "output_text")
+            if not value:
+                continue
+            try:
+                written_at = _message_time(row)
+            except (ValueError, OverflowError):
+                unread = True
+                continue
+            if after < written_at < before:
+                shown.append(value)
+    return shown, unread
 
 
 def verify_shown_text(run: Path, sources: tuple[Path, ...], reply_at: float | None) -> ReplyVerification:
@@ -306,6 +337,33 @@ def _preflight_grader(skill: str, grader_args: tuple[str, ...]) -> None:
         ) from failure
 
 
+def prepare(
+    run: Path, *, skill: str, submission: str, sources: tuple[Path, ...],
+    grader_args: tuple[str, ...],
+) -> reader_remarks.Prepared:
+    """Run and retain the paired grade before composing the go-ahead request."""
+    root = Path(run).resolve()
+    paths = tuple(Path(path).resolve() for path in sources)
+    if skill not in reader_remarks.SCOPED_SKILLS or not root.is_dir() or not paths or not submission.strip():
+        raise ApprovalRecordError("prepare needs a coursework skill, run, submission and source population")
+    if "--submission" in grader_args:
+        raise ApprovalRecordError("the pre-post grader must not receive --submission")
+    status, report = _pre_post_grade(skill, grader_args)
+    if status not in {0, 2}:
+        raise ApprovalRecordError("the pre-post grade has a finding: " + report)
+    payload = _read(root, missing_ok=True)
+    revision = payload.get("approval_revision", 0) + 1
+    context = project_context.go_ahead(root, submission, approval_revision=revision)
+    if context.finding:
+        raise ApprovalRecordError("project-context go-ahead has a finding: " + context.report)
+    report = reader_remarks.approval_report(report, context.report, root, tuple(path.name for path in paths))
+    return reader_remarks.prepare(root, skill, submission, paths, report)
+
+
+def approval_surface(prepared: reader_remarks.Prepared, outcomes: tuple[reader_remarks.Outcome, ...] = ()) -> str:
+    return reader_remarks.surface(prepared, outcomes)
+
+
 def approve(
     run: Path,
     *,
@@ -315,6 +373,7 @@ def approve(
     grader_args: tuple[str, ...],
     content_approved: bool,
     clinician_reply: str,
+    remark_outcomes: tuple[reader_remarks.Outcome, ...] = (),
 ) -> ApprovalRecord:
     """Record one content go-ahead after its paired pre-post grader finds nothing."""
 
@@ -360,10 +419,11 @@ def approve(
     if preceding.state == "unreadable":
         verification = preceding
     grade_status, grade_report = _pre_post_grade(skill, grader_args)
-    for reply in (clinician_reply, *(row["clinician_reply"] for row in history)):
-        grade_report = _without_reply(grade_report, reply)
     if grade_status not in {0, 2}:
-        raise ApprovalRecordError(f"the pre-post grade has a finding: {grade_report}")
+        safe_report = grade_report
+        for reply in (clinician_reply, *(row["clinician_reply"] for row in history)):
+            safe_report = _without_reply(safe_report, reply)
+        raise ApprovalRecordError(f"the pre-post grade has a finding: {safe_report}")
 
     digest = source_sha256(resolved_sources)
     shown = ReplyVerification("exempt", "unchanged fingerprint or other skill")
@@ -387,10 +447,22 @@ def approve(
             raise ApprovalRecordError("project-context go-ahead result could not be written") from failure
         if context.finding:
             raise ApprovalRecordError("project-context go-ahead has a finding: " + context.report)
-        grade_report += "\n" + context.report
+        grade_report = reader_remarks.approval_report(grade_report, context.report, root, tuple(path.name for path in resolved_sources))
         if context.coverage:
             grade_status = 2
+    remark_records = []
+    if skill in reader_remarks.SCOPED_SKILLS:
+        try:
+            remark_records = reader_remarks.verify(root, skill, submission, resolved_sources, grade_report,
+                clinician_reply, verification.matched_at, remark_outcomes)
+        except reader_remarks.RemarkError as failure:
+            raise ApprovalRecordError(str(failure)) from failure
+    for reply in (clinician_reply, *(row["clinician_reply"] for row in history)):
+        grade_report = _without_reply(grade_report, reply)
     item = {
+        "reader_remarks": remark_records,
+        "coverage_lines": list(reader_remarks.coverage_lines(grade_report)),
+        "pregrade_report": grade_report,
         "skill": skill,
         "submission": submission,
         "sha256": digest,

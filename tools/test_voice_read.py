@@ -142,6 +142,18 @@ class CompletionGate(unittest.TestCase):
         ):
             return voice_read.completion_gate(self.run, "submission", surface)
 
+    def test_a_reader_remark_survives_without_changing_the_voice_verdict(self):
+        payload = self.payload(voice_read.READER_RECORD_NAME)
+        payload["remarks"] = ["Check this synthetic transition."]
+        self.write_payload(voice_read.READER_RECORD_NAME, payload)
+        result = self.grade()
+        self.assertFalse(result.finding)
+        self.assertFalse(result.coverage)
+        self.assertEqual("Check this synthetic transition.", result.remarks[0].text)
+        payload["remarks"] = [""]
+        self.write_payload(voice_read.READER_RECORD_NAME, payload)
+        self.assertTrue(self.grade().finding)
+
     def payload(self, name: str) -> dict[str, object]:
         return json.loads((self.records / name).read_text(encoding="utf-8"))
 

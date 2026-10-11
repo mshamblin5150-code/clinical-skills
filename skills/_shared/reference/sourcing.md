@@ -361,6 +361,7 @@ VERDICT: clean
 VERDICT: defect - <substance>
 FINDINGS: unrecorded - <location>, <what differs>
 FINDINGS: drifted - <location>, <what differs>
+REMARK: <problem outside the assigned question; repeat as needed>
 ```
 
 Choose exactly one `CONTEXT-VERDICT` line and one `VERDICT` line from these forms.
@@ -386,3 +387,44 @@ one before the go-ahead.
 
 The `none` context verdict is retained for legacy records whose context digest is `none`;
 both fields must be `none` there. New runs use the bound digest and the `agrees` verdict.
+
+
+## Reader remarks at the go-ahead
+
+Refutation records use the same outside-problem line:
+
+```text
+REFUTATION: <the assigned verdict and its reason>
+TESTED-HEADING: <the current claim-heading SHA-256>
+REMARK: <problem outside the refutation question; repeat as needed>
+```
+
+Every coursework reader's verdict answers only its assigned question. Put a problem noticed
+outside that question on its own `REMARK: <problem>` line, repeated for each remark, and nowhere
+else. A remark preserves the verdict. This also applies to refutation records and visual reads.
+The voice reader writes a `remarks` list of nonempty strings in `voice-read.json`, empty when
+there are none. Retain remarks when replacing a record after a repair so they still reach the
+go-ahead. A skipped, unrecognized line inside a bound reader record counts as unread; folded
+prose and substance-only reasons have the declared limits in their reader modules.
+
+Before asking for approval, call `approval_record.prepare` with the same `run`, `skill`,
+`submission`, `sources`, and `grader_args` that the approval call will receive. For
+`course-assignment`, call `assignment_submission.prepare(run, artifact)` instead. A finding
+stops the ask. The returned `Prepared` holds the paired grader report, remarks, and coverage
+lines. Read the report; give each remark a `reader_remarks.Outcome("fixed", "<what changed>")`
+or `reader_remarks.Outcome("leave", "<proposal and reason>")`, in returned order. Show
+`reader_remarks.surface(prepared, outcomes)` in the chat before the question: it numbers every
+remark with its outcome and prints every coverage qualifier word for word. Coverage lines are
+shown for reading and carry no waiver. The complete draft and references still follow their
+skill's existing approval rule.
+
+Pass the same tuple as `remark_outcomes=outcomes` to `approve` or `stage`, along with the whole
+`clinician_reply`. Approval accepts the fixes; leaving one needs the clinician's explicit word
+by number (such as "leave 2") or covering all remarks (such as "leave all of them"). A bare
+"go", "fire", or "send it" accepts fixed outcomes but leaves leave proposals unanswered.
+The refusal names the open numbers. The transcript check requires the numbered list and exact
+coverage lines after preparation and the last artifact change, before the reply. Any changed
+artifact or grader report requires preparation and a new ask. The durable approval keeps each
+remark and its accepted outcome. `reader_remarks.DECLARED_LIMITS` owns this gate's ceiling.
+[ADR 0330](../../../docs/adr/0330-a-reader-remark-is-shown-at-the-go-ahead-and-waived-only-by-name.md)
+is the authority.

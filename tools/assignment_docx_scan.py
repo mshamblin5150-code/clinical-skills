@@ -35,6 +35,7 @@ import heading_read
 import reference_scan
 import render_pass
 import research_ledger
+import reader_remarks
 import run_grader
 import voice_model_identity
 import voice_read
@@ -100,6 +101,7 @@ class DeclaredLimit:
 
 
 DECLARED_LIMITS = (
+    DeclaredLimit("reader-remark-free-text", "A visual verdict reason cannot distinguish a concealed reader remark from ordinary text."),
     DeclaredLimit(
         "claim-support-unverified",
         "Token tracing does not establish that a believed record supports the paper's factual assertion.",
@@ -400,6 +402,12 @@ def _claim_keys(claims: str) -> tuple[set[tuple[str, str]], set[str], int]:
     return keys, numbers, records
 
 
+def _rendered_records(text: str):
+    # Use the same bounded line reader as the deck visual records.
+    from deck_scan import _read_records
+    return _read_records(text, RENDERED_HEADER, RENDERED_FIELD)
+
+
 def _rendered_findings(source: Source) -> tuple[tuple[Finding, ...], int, int]:
     fields: dict[str, str] = {}
     counts: dict[str, int] = {}
@@ -602,6 +610,7 @@ def grade(source: Source, parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
         else None,
     )
     grade = project_context.apply_completion_gate(grade, source.root, submission)
+    grade = reader_remarks.apply_readers(grade, research_ledger.read_records(source.claims), heading_read.read_records(source.heading_read_text), (source.docx.name,), _rendered_records(source.rendered))
     return lms_attachments.apply_completion_gate(grade, source.root, submission)
 
 
