@@ -44,6 +44,22 @@ Accepted CPT identities include numeric Category I codes and the `F`, `M`, `T`,
 and `U` suffix families. MAAA administrative codes ending in `M` have their
 destination listings in Appendix O and belong in a complete two-reader rebuild.
 
+`--cpt-complete` is a checked request. The build compares the candidate identities
+with [`cpt-population-2026.csv`](cpt-population-2026.csv), a fixed known-population
+list located in CPT Professional 2026 (ISBN 9781640163232). The list selects book
+identities across the CPT sections and suffix families, with extra controls for
+#1413's vascular, urinary, and molecular-pathology omissions. Its page and document
+locators come from the rendered-book readings retained for the #1348 rebuild;
+the list is committed separately and is never derived from the candidate import.
+It contains identities and locators, without another copy of licensed descriptors.
+
+The build reports the reference denominator and unread remainder, and refuses a
+complete request with missing reference codes before opening the output database.
+An excerpt without that request still builds with `cpt_complete = no`.
+The check uses actual listed codes, never empty numeric ranges. Its coverage
+ceiling is `cpt_population.DECLARED_LIMITS`; descriptor verification remains
+`procedure_codes_build.DECLARED_LIMITS` and the two-reader gate below.
+
 Descriptor verification is separate from completeness. Without a matching
 agreement record, the build writes `meta.cpt_descriptors = unverified`. A matching
 record can set `verified` only with `--cpt-complete` and an agreed code set
@@ -90,3 +106,10 @@ python tools/procedure_codes_lookup.py 12001 --on 2026-09-14
 When a code system is partial, the command says so. Verify that candidate on the
 rendered destination page in VitalSource; a search count or snippet is only a
 locator.
+
+Lookup rechecks the fixed CPT reference population before accepting an existing
+`cpt_complete = yes` flag. A missing or unreadable reference makes that flag
+unusable. Both lookup and coding freshness call an incomplete-system miss unread
+and point to the rendered VitalSource page; it is not a clinical refusal or a
+finding that no code exists. Freshness still withholds a finalized batch until
+its required completeness and identity evidence pass.

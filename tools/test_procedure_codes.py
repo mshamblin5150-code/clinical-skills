@@ -16,6 +16,96 @@ from unittest import mock
 
 import procedure_codes_build as build
 import procedure_codes_lookup as lookup
+import cpt_population
+from prose_bind import NAMING, bind
+from code_set_database_test_support import (
+    PROCEDURE_CODES_DATABASE_SHA256,
+    assert_code_set_database_digest,
+)
+
+
+class CptPopulation(unittest.TestCase):
+    def test_book_reference_covers_issue_omissions_and_all_code_families(self):
+        codes = cpt_population.reference_codes()
+        self.assertTrue({"36415", "51702", "52000", "34001", "36000", "81161"} <= codes)
+        self.assertTrue({"99202", "00100", "10030", "70010", "80047", "90281"} <= codes)
+        self.assertTrue({"0001F", "0002M", "0054T", "0001U"} <= codes)
+        assert_code_set_database_digest(
+            lookup.DEFAULT_DATABASE, PROCEDURE_CODES_DATABASE_SHA256, "procedure-code database"
+        )
+        with closing(lookup.open_database()) as connection:
+            for code in codes:
+                self.assertIsNotNone(lookup.describe(connection, code), code)
+            self.assertTrue(lookup.complete(connection, "CPT"))
+
+    def test_population_is_not_numeric_range_emptiness(self):
+        codes = cpt_population.reference_codes()
+        result = cpt_population.coverage(codes)
+        self.assertEqual((), result.missing)
+        self.assertEqual(len(codes), result.expected)
+        self.assertIn(f"{len(codes)}/{len(codes)}", result.report())
+        self.assertIn("unread remainder: 0", result.report())
+
+    def test_planted_urinary_section_omission_refuses_complete_before_replacing_output(self):
+        codes = cpt_population.reference_codes()
+        urinary = {"50010", "51702", "52000"}
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            hcpcs = directory / "hcpcs.zip"
+            with zipfile.ZipFile(hcpcs, "w") as archive:
+                archive.writestr("HCPC2026_OCT_ANWEB.txt", hcpcs_line("J1100", "Example", "Example"))
+            cpt = directory / "cpt.csv"
+            cpt.write_text(
+                "code,description\n" + "".join(f"{code},Synthetic procedure {code}\n" for code in sorted(codes)),
+                encoding="utf-8",
+            )
+            output = directory / "codes.sqlite"
+            args = ["--hcpcs", str(hcpcs), "--hcpcs-effective", "2026-10-01", "--cpt", str(cpt), "--out", str(output)]
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                self.assertEqual(0, build.main(args + ["--cpt-complete"]))
+            self.assertIn("unread remainder: 0", stdout.getvalue())
+            original = output.read_bytes()
+            cpt.write_text(
+                "code,description\n" + "".join(f"{code},Synthetic procedure {code}\n" for code in sorted(codes - urinary)),
+                encoding="utf-8",
+            )
+            with self.assertRaises(SystemExit) as refused:
+                build.main(args + ["--cpt-complete"])
+            self.assertIn(f"{len(codes) - 3}/{len(codes)}", str(refused.exception))
+            self.assertIn("unread remainder: 3; 50010, 51702, 52000", str(refused.exception))
+            self.assertEqual(original, output.read_bytes())
+            with redirect_stdout(io.StringIO()):
+                self.assertEqual(0, build.main(args))
+            with closing(lookup.open_database(output)) as connection:
+                self.assertFalse(lookup.complete(connection, "CPT"))
+                # A legacy operator assertion must not hide the planted omission.
+            with closing(sqlite3.connect(output)) as connection:
+                connection.execute("UPDATE meta SET value='yes' WHERE key='cpt_complete'")
+                connection.commit()
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                self.assertEqual(2, lookup.main(["51702", "--database", str(output)]))
+            self.assertIn("miss is unread", stdout.getvalue())
+            self.assertIn("rendered VitalSource page", stdout.getvalue())
+            self.assertNotIn("do not propose", stdout.getvalue())
+
+    def test_absent_or_malformed_reference_never_accepts_a_complete_flag(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            reference = Path(temporary) / "population.csv"
+            with mock.patch.object(cpt_population, "REFERENCE", reference):
+                with closing(lookup.open_database()) as connection:
+                    self.assertFalse(lookup.complete(connection, "CPT"))
+                reference.write_text("section,code,printed_page,document\n", encoding="utf-8")
+                with self.assertRaisesRegex(ValueError, "empty"):
+                    cpt_population.reference_codes()
+                reference.write_text("wrong columns\n", encoding="utf-8")
+                with self.assertRaisesRegex(ValueError, "invalid columns"):
+                    cpt_population.reference_codes()
+
+    def test_population_limits_are_named_at_the_reference(self):
+        reference = lookup.DEFAULT_DATABASE.with_suffix(".md").read_text(encoding="utf-8")
+        self.assertEqual((), bind(cpt_population.DECLARED_LIMITS, reference, mode=NAMING))
 
 
 def hcpcs_line(
@@ -246,9 +336,10 @@ class CptParser(unittest.TestCase):
                 "97169": "Example evaluation: • First • Second • Third",
                 "45825": "Example closure; with colostomy",
             }
+            cpt_rows.update({code: f"Synthetic procedure {code}" for code in cpt_population.reference_codes()})
             control_hashes = {
                 code: hashlib.sha256(description.encode("utf-8")).hexdigest()
-                for code, description in cpt_rows.items() if code != "12345"
+                for code, description in cpt_rows.items() if code in build.CPT_CONTROL_SHA256
             }
             buffer = io.StringIO(newline="")
             writer = csv.writer(buffer)
