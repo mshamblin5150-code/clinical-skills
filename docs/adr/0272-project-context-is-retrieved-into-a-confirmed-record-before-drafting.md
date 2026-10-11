@@ -1,6 +1,10 @@
 # Project context is retrieved into a confirmed record before drafting
 
-**Measured at:** b73661b6b7f75e26ed95095c965c1ac322d6217b
+**Measured at:** dd704cfe14f6408abdabfb96833efaf43b31d70a
+
+*Re-declared from `b73661b` on 2026-10-11, for ADR 0328's supersession marker beneath ruling 9 alone;
+nothing was re-measured. The measured sentences named in the earlier re-declaration below still do
+not describe `main`.*
 
 *Re-declared from `9c70aa1` on 2026-10-03, for ADR 0290's supersession marker beneath ruling 8 alone;
 nothing was re-measured. Since `9c70aa1` the five bound skills' `SKILL.md` files,
@@ -176,6 +180,12 @@ a written instruction, and an exit 2 already says *true about what was read, not
 now* without calling the run wrong. The clinician edits his planning material as a project moves, so
 an honest run can end in a 2; it never ends in a 1 for that alone. Thought items are not hashed again,
 because the grader opens no service; that is declared.
+
+*Superseded 2026-10-11.* **The placement "At completion the file items are hashed again." is
+superseded by [ADR 0328](0328-project-context-items-are-rechecked-at-the-go-ahead-and-an-appended-memory-line-is-not-a-move.md)
+ruling 1 and is left as written.** File items are re-hashed at each go-ahead, and the terminal grade
+carries that result forward once a posting is recorded. A moved item's coverage state, the
+finding-wins order and the exclusion of thought items stand.
 
 ## Ruling 10 — the heading read decides whether the draft used the context
 
