@@ -108,6 +108,30 @@ class RefutedClaimsUseOneSharedDisposition(ProseBind, unittest.TestCase):
         self.assertProseIn("If that record also fails, the claim is `unsourced`", rule)
         self.assertProseIn("A `refuted` verdict fails the citation", rule)
 
+    def test_the_fresh_round_rewrites_the_record_in_place_and_keeps_search_provenance(self):
+        rule = self.rule()
+        for obligation in (
+            "After its fresh round, rewrite the refuted record in place",
+            "as the sound record the round produced",
+            "an `unsourced` record whose search text names each source tried and why each failed",
+            "including the refuted source and the refuter's reason",
+            "The claim's provenance stays in `claims.md`, in the record later readers grade",
+            "`DROPPED` stays on a sourced record whose claim the draft no longer makes",
+            "A cut `unsourced` claim carries no `DROPPED`",
+        ):
+            with self.subTest(obligation=obligation):
+                self.assertProseIn(obligation, rule)
+
+    def test_the_refuted_citation_comment_points_to_the_shared_rule(self):
+        grader = read(ROOT / "tools" / "research_ledger.py")
+        branch = grader.split("if verdict == REFUTATION_REFUTED:", 1)[1].split(
+            "found.append(Finding(REFUTED_CITATION", 1
+        )[0]
+        self.assertIn(
+            "skills/_shared/reference/sourcing.md#a-refuted-record-fails-the-citation-not-the-claim",
+            branch,
+        )
+
     def test_the_ask_before_cut_question_names_failures_and_all_clinician_choices(self):
         rule = self.rule()
         self.assertProseIn("ask the clinician before cutting it", rule)

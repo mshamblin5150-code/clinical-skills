@@ -83,7 +83,11 @@ A `refuted` verdict fails the citation; it establishes nothing about whether the
 Give the claim exactly one fresh research round using a source other than the refuted one and
 a fresh refuter. The claim comes out with a sound record or as `unsourced`. If that record also
 fails, the claim is `unsourced`; apply its disposition rather than starting another round.
-The refuted record itself certifies no value and is never cited.
+After its fresh round, rewrite the refuted record in place as the sound record the round produced,
+or as an `unsourced` record whose search text names each source tried and why each failed,
+including the refuted source and the refuter's reason. The claim's provenance stays in `claims.md`,
+in the record later readers grade. `DROPPED` stays on a sourced record whose claim the draft no
+longer makes. A cut `unsourced` claim carries no `DROPPED`.
 
 When an `unsourced` claim would be cut, and it is a **Clinician-supplied claim**, ask the clinician
 before cutting it and before the draft is final. Name each source tried and why it failed.
