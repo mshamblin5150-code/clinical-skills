@@ -11,9 +11,15 @@ from unittest import mock
 
 import assignment_submission
 import file_digest
+from project_context_test_support import write_none_context
 
 
 class TwoGateUpload(unittest.TestCase):
+    def stage(self, run, artifact, **kwargs):
+        if not (run / "project-context.md").exists():
+            write_none_context(run)
+        return assignment_submission.stage(run, artifact, **kwargs)
+
     def setUp(self) -> None:
         self.pre_upload_grade = mock.patch.object(
             assignment_submission,
@@ -38,7 +44,7 @@ class TwoGateUpload(unittest.TestCase):
             yield canonical
 
     def _completed_submission(self, root: Path, artifact: Path) -> None:
-        staged = assignment_submission.stage(root, artifact, artifact_approved=True)
+        staged = self.stage(root, artifact, artifact_approved=True)
         assignment_submission.confirm(
             staged, uploaded_carriers=(artifact,), final_confirmation=True
         )
@@ -124,8 +130,8 @@ class TwoGateUpload(unittest.TestCase):
             with mock.patch.object(
                 assignment_submission.os, "replace", side_effect=OSError("busy")
             ):
-                with self.assertRaises(OSError):
-                    assignment_submission.stage(root, docx, artifact_approved=True)
+                with self.assertRaises(assignment_submission.GateError):
+                    self.stage(root, docx, artifact_approved=True)
 
             self.assertEqual((), tuple(root.glob("*.building")))
 
@@ -142,7 +148,7 @@ class TwoGateUpload(unittest.TestCase):
             with self.assertRaisesRegex(
                 assignment_submission.GateError, "review records are missing"
             ):
-                assignment_submission.stage(root, deck, artifact_approved=True)
+                self.stage(root, deck, artifact_approved=True)
 
             self.pre_upload_grade.assert_called_once_with(root.resolve(), deck.resolve())
             self.assertFalse((root / assignment_submission.RECORD).exists())
@@ -152,7 +158,7 @@ class TwoGateUpload(unittest.TestCase):
             docx = Path(directory) / "assignment.docx"
             docx.write_bytes(b"canonical Word artifact")
 
-            staged = assignment_submission.stage(
+            staged = self.stage(
                 Path(directory), docx, artifact_approved=True
             )
 
@@ -177,7 +183,7 @@ class TwoGateUpload(unittest.TestCase):
             deck.write_bytes(b"canonical PowerPoint artifact")
             companion.write_bytes(b"private review companion")
 
-            staged = assignment_submission.stage(
+            staged = self.stage(
                 root, deck, artifact_approved=True
             )
 
@@ -197,7 +203,7 @@ class TwoGateUpload(unittest.TestCase):
             deck.write_bytes(b"canonical PowerPoint artifact")
 
             with self.assertRaises(assignment_submission.GateError):
-                assignment_submission.stage(
+                self.stage(
                     root,
                     deck,
                     artifact_approved=True,
@@ -213,7 +219,7 @@ class TwoGateUpload(unittest.TestCase):
             for path in (deck, companion, extra):
                 path.write_bytes(path.name.encode("utf-8"))
 
-            staged = assignment_submission.stage(
+            staged = self.stage(
                 root,
                 deck,
                 artifact_approved=True,
@@ -240,7 +246,7 @@ class TwoGateUpload(unittest.TestCase):
             companion = root / "named-companion.pdf"
             deck.write_bytes(b"canonical PowerPoint artifact")
             companion.write_bytes(b"approved companion")
-            staged = assignment_submission.stage(
+            staged = self.stage(
                 root,
                 deck,
                 artifact_approved=True,
@@ -265,7 +271,7 @@ class TwoGateUpload(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             docx = Path(directory) / "assignment.docx"
             docx.write_bytes(b"canonical Word artifact")
-            staged = assignment_submission.stage(
+            staged = self.stage(
                 Path(directory), docx, artifact_approved=True
             )
 
@@ -288,7 +294,7 @@ class TwoGateUpload(unittest.TestCase):
             deck = root / "assignment.pptx"
             canonical_root = root / "canonical-output"
             deck.write_bytes(b"canonical PowerPoint artifact")
-            staged = assignment_submission.stage(root, deck, artifact_approved=True)
+            staged = self.stage(root, deck, artifact_approved=True)
             assignment_submission.confirm(
                 staged, uploaded_carriers=(deck,), final_confirmation=True
             )
@@ -334,7 +340,7 @@ class TwoGateUpload(unittest.TestCase):
             deck = root / "assignment.pptx"
             canonical_root = root / "canonical-output"
             deck.write_bytes(b"reviewed deck")
-            assignment_submission.stage(root, deck, artifact_approved=True)
+            self.stage(root, deck, artifact_approved=True)
             assignment_submission.record_clinician_upload(
                 root, deck, uploaded_carriers=(deck,)
             )
@@ -391,7 +397,7 @@ class TwoGateUpload(unittest.TestCase):
                 docx = root / "assignment.docx"
                 canonical_root = root / "canonical-output"
                 docx.write_bytes(b"canonical Word artifact")
-                staged = assignment_submission.stage(
+                staged = self.stage(
                     root, docx, artifact_approved=True
                 )
                 assignment_submission.confirm(

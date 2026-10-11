@@ -8,6 +8,7 @@ Scoped graders and ``CLAUDE.md`` name this object and copy no row.
 from __future__ import annotations
 
 import json
+from collections import Counter
 import re
 import sys
 from dataclasses import dataclass, field, replace
@@ -39,6 +40,9 @@ COMPLETION_GRADERS = MappingProxyType(
     {skill: aar_scan.COMPLETION_GRADERS[skill] for skill in SCOPED_SKILLS}
 )
 DECLARED_LIMITS = (
+    ("approval-notice-unverified", "Approval verifies the shown draft, not whether the clinician saw the moved-item notice."),
+    ("added-memory-lines-ungraded", "Added memory-index lines are shown for the clinician's reading; their bearing on the draft is not graded."),
+    ("pre-check-approvals", "Posted approvals predating the go-ahead check are named and counted, and pass without a recorded check."),
     (
         "retrieval-before-draft-unobservable",
         "The historical first observation cannot see a draft deleted or moved before the gate, "
@@ -89,7 +93,7 @@ _OPENED = re.compile(
     re.IGNORECASE,
 )
 _HEADER_FIELDS = frozenset(
-    {"PROJECT-CONTEXT", "OWN-SUBMISSION", "PROJECT-SEARCH", "PROJECT-WAIVE", "CONFIRMED", "CONTEXT-DIGEST", "ORDER-WAIVE", "ORDER-OBSERVATION"}
+    {"PROJECT-CONTEXT", "OWN-SUBMISSION", "PROJECT-SEARCH", "PROJECT-WAIVE", "CONFIRMED", "CONTEXT-DIGEST", "ORDER-WAIVE", "ORDER-OBSERVATION", "GO-AHEAD"}
 )
 _ENTRY_FIELDS = frozenset(
     {
@@ -102,9 +106,10 @@ _ENTRY_FIELDS = frozenset(
         "QUERY",
         "OPENED",
         "DETAIL",
+        "MEMORY-LINES",
     }
 )
-_REPEATABLE_HEADER = frozenset({"PROJECT-SEARCH", "PROJECT-WAIVE", "ORDER-WAIVE", "ORDER-OBSERVATION"})
+_REPEATABLE_HEADER = frozenset({"PROJECT-SEARCH", "PROJECT-WAIVE", "ORDER-WAIVE", "ORDER-OBSERVATION", "GO-AHEAD"})
 _REPEATABLE_ENTRY = frozenset({"QUERY", "OPENED"})
 TScan = TypeVar("TScan")
 
@@ -174,6 +179,8 @@ class CompletionGate:
     finding: bool
     coverage: bool
     report: str
+    moved_places: tuple[str, ...] = ()
+    added_lines: tuple[str, ...] = ()
 
 
 class RegistryCoverage(ValueError):
@@ -514,14 +521,18 @@ def _entry_errors(entry: Entry, owed: OwedPlace) -> list[str]:
     return errors
 
 
-def _hash_file(
-    entry: Entry, owed: OwedPlace, opened: Opened
-) -> tuple[str | None, str | None]:
+def _file_path(entry: Entry, opened: Opened) -> Path:
     item = Path(opened.item).expanduser()
     if not item.is_absolute():
         root = entry.value("ROOT") or entry.place
         item = Path(root).expanduser() / item
-    item = item.resolve()
+    return item.resolve()
+
+
+def _hash_file(
+    entry: Entry, owed: OwedPlace, opened: Opened
+) -> tuple[str | None, str | None]:
+    item = _file_path(entry, opened)
     owed_path = Path(owed.place).expanduser().resolve()
     within_owed = item.is_relative_to(owed_path) if owed_path.is_dir() else item == owed_path
     if not within_owed:
@@ -562,6 +573,7 @@ def _render(
     lines.extend(f"PROJECT-WAIVE: {value}" for value in record.values("PROJECT-WAIVE"))
     lines.extend(f"ORDER-WAIVE: {value}" for value in record.values("ORDER-WAIVE"))
     lines.extend(f"ORDER-OBSERVATION: {value}" for value in record.values("ORDER-OBSERVATION"))
+    lines.extend(f"GO-AHEAD: {value}" for value in record.values("GO-AHEAD"))
     lines.append(f"CONFIRMED: {record.value('CONFIRMED')}")
     lines.append(f"CONTEXT-DIGEST: {digest}")
     field_order = (
@@ -573,6 +585,7 @@ def _render(
         "CORPUS-SIZE",
         "QUERY",
         "DETAIL",
+        "MEMORY-LINES",
     )
     for entry in entries:
         lines.extend(("", f"## PLACE: {entry.place}"))
@@ -669,7 +682,7 @@ def _write_context_record(
     triples: list[tuple[str, str, str]] = []
     hashed: dict[str, tuple[Opened, ...]] = {}
     waived = 0
-    for item, entry in zip(owed, entries):
+    for entry_index, (item, entry) in enumerate(zip(owed, entries)):
         state = entry.value("STATE").casefold()
         if state in {"unreadable", "absent"}:
             if item.place not in waivers:
@@ -693,6 +706,17 @@ def _write_context_record(
                 errors.append(error)
                 continue
             assert digest is not None
+            if item.place == registry.memory_index:
+                try:
+                    hashes = [sha256(line.encode("utf-8")).hexdigest()
+                              for line in _memory_lines(entry, opened)]
+                except (OSError, UnicodeError):
+                    errors.append(f"{item.place}: memory index could not be read")
+                    continue
+                fields = dict(entry.fields)
+                fields["MEMORY-LINES"] = (json.dumps(hashes),)
+                entry = replace(entry, fields=fields)
+                entries[entry_index] = entry
             opened_rows.append(Opened(opened.item, digest))
             triples.append((item.place, opened.item, digest))
         hashed[item.place] = tuple(opened_rows)
@@ -757,7 +781,36 @@ def write_record(run: Path, *, service_payloads=None, submission: str | None = N
 
 
 def completion_gate(run: Path, submission: str | None) -> CompletionGate:
-    result = _context_completion_gate(run, submission)
+    if submission is None:
+        return _context_completion_gate(run, submission)
+    import approval_record
+    try:
+        rows = []
+        for key in coursework_run.submission_keys(submission):
+            state = approval_record.project_context_posting(run, key)
+            if not state.posted:
+                rows.append(_context_completion_gate(run, key))
+                continue
+            records = _go_ahead_records(run)
+            row = records.get(key)
+            if row is None:
+                if state.check_required:
+                    rows.append(CompletionGate(True, False, f"{EXPECTED_ROW}: finding - {key} go-ahead result is missing"))
+                else:
+                    rows.append(CompletionGate(False, False, f"{EXPECTED_ROW}: {key} not checked at the go-ahead because approval predates the check; pre-check approvals: 1"))
+                continue
+            integrity = _context_completion_gate(run, key, recheck_files=False)
+            if row["digest"] != recorded_digest(run):
+                rows.append(CompletionGate(True, False, f"{EXPECTED_ROW}: finding - go-ahead context digest changed"))
+                continue
+            rows.append(CompletionGate(
+                integrity.finding or row["finding"],
+                integrity.coverage or (row["coverage"] and not row["moved_places"]),
+                row["report"] + ("; clinician approved over moved places" if row["moved_places"] else "; carried forward from go-ahead") + "; " + integrity.report,
+            ))
+        result = CompletionGate(any(row.finding for row in rows), any(row.coverage for row in rows), "; ".join(row.report for row in rows))
+    except (OSError, UnicodeError, ValueError):
+        result = CompletionGate(True, False, f"{EXPECTED_ROW}: finding - go-ahead or posting record is unreadable")
     if submission is None:
         return result
     try:
@@ -778,7 +831,7 @@ def recorded_digest(run: Path) -> str:
         return ""
 
 
-def _context_completion_gate(run: Path, submission: str | None) -> CompletionGate:
+def _context_completion_gate(run: Path, submission: str | None, *, recheck_files: bool = True, compare_memory_lines: bool = False) -> CompletionGate:
     """Grade record shape, fingerprint integrity, and current file identities."""
     if submission is None:
         return CompletionGate(
@@ -879,6 +932,8 @@ def _context_completion_gate(run: Path, submission: str | None) -> CompletionGat
         shape_errors.append("PROJECT-WAIVE must name an unreadable or absent place")
     triples: list[tuple[str, str, str]] = []
     moved = False
+    moved_places: list[str] = []
+    added_lines: list[str] = []
     malformed = not bool(_SHA256.fullmatch(digest))
     for item, entry in owed_entries:
         for value in entry.values("OPENED"):
@@ -889,13 +944,30 @@ def _context_completion_gate(run: Path, submission: str | None) -> CompletionGat
                 malformed = True
                 continue
             triples.append((entry.place, opened.item, opened.digest))
-            if item.kind == "service":
+            if item.kind == "service" or not recheck_files:
                 continue
             current, file_error = _hash_file(entry, item, opened)
             if file_error and "outside owed PLACE" in file_error:
                 shape_errors.append(file_error)
-            if file_error or current != opened.digest:
+            changed = current != opened.digest
+            if compare_memory_lines and not file_error and item.place == registry.memory_index and entry.values("MEMORY-LINES"):
+                try:
+                    stored = json.loads(entry.value("MEMORY-LINES"))
+                    if not isinstance(stored, list) or any(not isinstance(value, str) or not _SHA256.fullmatch(value) for value in stored):
+                        raise ValueError("invalid memory line fingerprints")
+                    lines = _memory_lines(entry, opened)
+                    hashes = [sha256(line.encode("utf-8")).hexdigest() for line in lines]
+                    changed = bool(Counter(stored) - Counter(hashes))
+                    additions = Counter(hashes) - Counter(stored)
+                    for line, fingerprint in zip(lines, hashes):
+                        if additions[fingerprint]:
+                            added_lines.append(line)
+                            additions[fingerprint] -= 1
+                except (OSError, UnicodeError, ValueError):
+                    shape_errors.append("memory line fingerprints are unreadable")
+            if file_error or changed:
                 moved = True
+                moved_places.append(f"{entry.place}: {opened.item}")
     if not malformed and _context_digest(triples, record) != digest:
         malformed = True
     states: list[str] = []
@@ -904,14 +976,65 @@ def _context_completion_gate(run: Path, submission: str | None) -> CompletionGat
     if malformed:
         states.append("finding - record fingerprint is invalid")
     if moved:
-        states.append("not scanned - file item moved")
+        states.append("not scanned - file item moved: " + ", ".join(moved_places))
+    if added_lines:
+        states.append("added memory-index lines (not graded):\n" + "\n".join(added_lines))
     return CompletionGate(
         bool(shape_errors) or malformed,
         moved,
         f"{EXPECTED_ROW}: "
         + ("; ".join(states) if states else "clean")
         + f"; owed places: {len(owed)}; waived places: {len(waivers & failed_places)}",
+        tuple(moved_places),
+        tuple(added_lines),
     )
+
+
+def _memory_lines(entry: Entry, opened: Opened) -> list[str]:
+    return [line.rstrip() for line in _file_path(entry, opened).read_text(encoding="utf-8").splitlines() if line.strip()]
+
+
+def _go_ahead_records(run: Path) -> dict[str, dict]:
+    record = read_record((run / RECORD_NAME).read_text(encoding="utf-8"))
+    rows = {}
+    for value in record.values("GO-AHEAD"):
+        row = json.loads(value)
+        if not isinstance(row, dict):
+            raise ValueError("invalid go-ahead result")
+        key = row.get("submission")
+        if not isinstance(key, str) or len(coursework_run.submission_keys(key)) != 1 or key in rows:
+            raise ValueError("duplicate or invalid go-ahead key")
+        if (not isinstance(row.get("report"), str)
+                or not isinstance(row.get("digest"), str)
+                or any(type(row.get(name)) is not bool for name in ("finding", "coverage"))
+                or any(not isinstance(row.get(name), list) or any(not isinstance(value, str) for value in row[name]) for name in ("moved_places", "added_lines"))):
+            raise ValueError("invalid go-ahead result fields")
+        rows[key] = row
+    return rows
+
+
+def go_ahead(run: Path, submission: str) -> CompletionGate:
+    """Recheck opened files and replace this key's machine-written go-ahead result."""
+    keys = coursework_run.submission_keys(submission)
+    if len(keys) != 1:
+        raise ValueError("check one go-ahead at a time")
+    result = _context_completion_gate(run, submission, compare_memory_lines=True)
+    rows = _go_ahead_records(run)
+    rows[submission] = dict(submission=submission, digest=recorded_digest(run),
+                            finding=result.finding, coverage=result.coverage,
+                            report=result.report, moved_places=list(result.moved_places),
+                            added_lines=list(result.added_lines))
+    path = run / RECORD_NAME
+    lines = [line for line in path.read_text(encoding="utf-8").splitlines() if not line.startswith("GO-AHEAD:")]
+    position = next((index for index, line in enumerate(lines) if line.startswith("## PLACE:")), len(lines))
+    lines[position:position] = ["GO-AHEAD: " + json.dumps(row) for row in rows.values()]
+    partial = path.with_name(path.name + ".building")
+    try:
+        partial.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        partial.replace(path)
+    finally:
+        partial.unlink(missing_ok=True)
+    return result
 
 
 def apply_completion_gate(
@@ -952,6 +1075,14 @@ def _service_payloads(arguments: list[str]) -> Mapping[str, Mapping[str, str]]:
 
 
 def main(argv: list[str]) -> int:
+    if len(argv) == 3 and argv[1] == "--go-ahead":
+        try:
+            result = go_ahead(Path(argv[0]).expanduser().resolve(), argv[2])
+        except (OSError, UnicodeError, ValueError):
+            print("project context NOT WRITTEN - go-ahead result is unreadable", file=sys.stderr)
+            return 2
+        print(result.report)
+        return 1 if result.finding else 2 if result.coverage else 0
     if len(argv) < 2 or argv[1] != "--write":
         print(
             "usage: python tools/project_context.py <run-directory> --write "

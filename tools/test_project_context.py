@@ -9,6 +9,9 @@ from __future__ import annotations
 
 import hashlib
 import importlib
+import json
+import io
+from contextlib import redirect_stdout
 import tempfile
 import unittest
 from pathlib import Path
@@ -17,6 +20,9 @@ from unittest import mock
 import project_context as context
 import repo_root
 import run_grader
+import approval_record
+import assignment_submission
+from test_discussion_reply_scan import Run
 
 
 class ProjectContextFixture(unittest.TestCase):
@@ -496,6 +502,168 @@ class CompletionRechecksFileItems(ProjectContextFixture):
             result = context.apply_completion_gate(base, self.run, "submission")
         self.assertTrue(result.findings_failed)
         self.assertIn("record is missing", result.reports[-1])
+
+
+class GoAheadRechecks(ProjectContextFixture):
+    def setUp(self):
+        super().setUp()
+        self.complete_record()
+        self.assertEqual(self.write().exit_code, 0)
+
+    def check(self, key="submission"):
+        with mock.patch.object(repo_root, "project_registry", return_value=self.registry):
+            return context.go_ahead(self.run, key)
+
+    def record_posting(self, *, required=True):
+        # A pre-check durable record uses the historical public reader contract.
+        (self.run / approval_record.RECORD).write_text(json.dumps({
+            "items": [{"skill": "discussion-post", "submission": "submission",
+                       "posting_route": "agent", "project_context_check": required}]
+        }), encoding="utf-8")
+
+    def test_an_added_memory_line_is_shown_without_moving_the_index(self):
+        self.complete_record()
+        self.assertEqual(self.write().exit_code, 0)
+        original_digest = context.recorded_digest(self.run)
+        self.memory.write_text("memory index\nnew pointer\n", encoding="utf-8")
+        with mock.patch.object(repo_root, "project_registry", return_value=self.registry):
+            result = context.go_ahead(self.run, "submission")
+        self.assertFalse(result.coverage, result.report)
+        self.assertFalse(result.finding, result.report)
+        self.assertIn("new pointer", result.report)
+        self.assertEqual(original_digest, context.recorded_digest(self.run))
+
+    def test_edited_and_removed_memory_lines_each_move(self):
+        for text in ("edited pointer\n", ""):
+            with self.subTest(text=text):
+                self.memory.write_text(text, encoding="utf-8")
+                result = self.check()
+                self.assertTrue(result.coverage, result.report)
+                self.assertIn(str(self.memory), result.report)
+
+    def test_reordering_whitespace_and_blank_lines_do_not_move_but_duplicate_loss_does(self):
+        self.memory.write_text("first\nsecond\nfirst\n", encoding="utf-8")
+        self.assertEqual(self.write().exit_code, 0)
+        self.memory.write_text("second  \n\nfirst\nfirst\n", encoding="utf-8")
+        self.assertFalse(self.check().coverage)
+        self.memory.write_text("second\nfirst\n", encoding="utf-8")
+        self.assertTrue(self.check().coverage)
+
+    def test_a_moved_planning_file_is_named_and_reapproval_replaces_only_its_key(self):
+        self.check("another")
+        self.plan.write_text("changed plan\n", encoding="utf-8")
+        self.assertTrue(self.check().coverage)
+        self.plan.write_bytes(b"atlas plan\n")
+        self.assertFalse(self.check().coverage)
+        text = (self.run / context.RECORD_NAME).read_text(encoding="utf-8")
+        rows = [json.loads(line.split(": ", 1)[1]) for line in text.splitlines() if line.startswith("GO-AHEAD:")]
+        self.assertEqual({row["submission"] for row in rows}, {"submission", "another"})
+        self.assertEqual(len(rows), 2)
+
+    def test_posted_clean_result_is_carried_forward_without_reading_current_files(self):
+        self.assertFalse(self.check().coverage)
+        self.record_posting()
+        self.plan.unlink()
+        self.memory.unlink()
+        result = self.complete()
+        self.assertFalse(result.finding, result.report)
+        self.assertFalse(result.coverage, result.report)
+        self.assertIn("carried forward", result.report)
+
+    def test_posted_move_is_reported_as_approved_over_and_passes(self):
+        self.plan.write_text("changed plan\n", encoding="utf-8")
+        self.assertTrue(self.check().coverage)
+        self.record_posting()
+        result = self.complete()
+        self.assertFalse(result.finding, result.report)
+        self.assertFalse(result.coverage, result.report)
+        self.assertIn("clinician approved over moved places", result.report)
+        self.assertIn(str(self.plan), result.report)
+
+    def test_pre_check_posted_approval_is_named_counted_and_passes(self):
+        self.record_posting(required=False)
+        self.plan.unlink()
+        result = self.complete()
+        self.assertFalse(result.finding, result.report)
+        self.assertFalse(result.coverage, result.report)
+        self.assertIn("approval predates the check", result.report)
+        self.assertIn("pre-check approvals: 1", result.report)
+
+    def test_new_posted_approval_cannot_use_the_pre_check_exemption(self):
+        self.record_posting()
+        self.assertTrue(self.complete().finding)
+
+    def test_unposted_terminal_grade_keeps_whole_file_rechecking(self):
+        self.check()
+        self.memory.write_text("memory index\nnew pointer\n", encoding="utf-8")
+        self.assertTrue(self.complete().coverage)
+
+    def test_corrupt_saved_result_is_a_finding(self):
+        self.check()
+        path = self.run / context.RECORD_NAME
+        path.write_text(path.read_text(encoding="utf-8").replace('"finding": false', '"finding": "false"'), encoding="utf-8")
+        self.record_posting()
+        self.assertTrue(self.complete().finding)
+
+    def test_public_go_ahead_command_prints_every_added_line_and_exits_zero(self):
+        self.memory.write_text("memory index\nnew pointer\nsecond pointer\n", encoding="utf-8")
+        output = io.StringIO()
+        with mock.patch.object(repo_root, "project_registry", return_value=self.registry), redirect_stdout(output):
+            status = context.main([str(self.run), "--go-ahead", "submission"])
+        self.assertEqual(status, 0, output.getvalue())
+        self.assertIn("new pointer", output.getvalue())
+        self.assertIn("second pointer", output.getvalue())
+
+    def test_real_pre_post_grader_records_an_approved_move_as_incomplete(self):
+        Run(self.run, posted=False)
+        (self.run / "reread.md").unlink()
+        self.complete_record()
+        self.assertEqual(self.write().exit_code, 0)
+        claims = self.run / "heading-read.md"
+        claims.write_text(claims.read_text(encoding="utf-8").replace("67d55228f3d5d679eb597e38d220b591803ef13085d57f1176ec0b6302c5fc8f", context.recorded_digest(self.run)), encoding="utf-8")
+        self.plan.write_bytes(b"changed plan\n")
+        with mock.patch.object(repo_root, "project_registry", return_value=self.registry), mock.patch.object(
+            approval_record, "verify_clinician_reply", return_value=approval_record.ReplyVerification("verified", "synthetic transcript", 1.0)
+        ), mock.patch.object(approval_record, "verify_shown_text", return_value=approval_record.ReplyVerification("verified", "synthetic transcript", 1.0)):
+            approved = approval_record.approve(
+                self.run, skill="discussion-reply", submission="submission",
+                sources=(self.run / "response-maren.md",), grader_args=(str(self.run),),
+                content_approved=True, clinician_reply="Approve over the changed plan.",
+            )
+        payload = json.loads((self.run / approval_record.RECORD).read_text(encoding="utf-8"))
+        self.assertEqual(payload["items"][0]["pregrade_status"], "incomplete")
+        self.assertIn(str(self.plan), approved.pregrade_report)
+        approval_record.record_agent_posting(self.run, skill="discussion-reply", submission="submission")
+        self.memory.unlink()
+        self.assertFalse(self.complete().coverage)
+        self.assertFalse(self.complete().finding)
+
+    def test_approval_refuses_when_the_go_ahead_result_cannot_be_written(self):
+        Run(self.run, posted=False)
+        (self.run / "reread.md").unlink()
+        self.complete_record()
+        self.assertEqual(self.write().exit_code, 0)
+        claims = self.run / "heading-read.md"
+        claims.write_text(claims.read_text(encoding="utf-8").replace("67d55228f3d5d679eb597e38d220b591803ef13085d57f1176ec0b6302c5fc8f", context.recorded_digest(self.run)), encoding="utf-8")
+        with mock.patch.object(repo_root, "project_registry", return_value=self.registry), mock.patch.object(Path, "replace", side_effect=OSError("synthetic write failure")), mock.patch.object(approval_record, "verify_clinician_reply", return_value=approval_record.ReplyVerification("verified", "synthetic transcript", 1.0)), mock.patch.object(approval_record, "verify_shown_text", return_value=approval_record.ReplyVerification("verified", "synthetic transcript", 1.0)):
+            with self.assertRaisesRegex(approval_record.ApprovalRecordError, "could not be written"):
+                approval_record.approve(self.run, skill="discussion-reply", submission="submission", sources=(self.run / "response-maren.md",), grader_args=(str(self.run),), content_approved=True, clinician_reply="Approve the synthetic reply.")
+        self.assertFalse((self.run / approval_record.RECORD).exists())
+
+    def test_assignment_approval_and_upload_carry_forward_the_same_check(self):
+        artifact = self.run / "submission.pptx"
+        artifact.write_bytes(b"synthetic deck")
+        self.plan.write_bytes(b"changed plan\n")
+        with mock.patch.object(repo_root, "project_registry", return_value=self.registry), mock.patch.object(assignment_submission, "_pre_upload_grade", return_value=(True, "clean")):
+            staged = assignment_submission.stage(self.run, artifact, artifact_approved=True)
+        payload = json.loads((self.run / assignment_submission.RECORD).read_text(encoding="utf-8"))
+        self.assertEqual(payload["pregrade_status"], "incomplete")
+        assignment_submission.confirm(staged, uploaded_carriers=(artifact,), final_confirmation=True)
+        self.plan.unlink()
+        result = self.complete()
+        self.assertFalse(result.finding, result.report)
+        self.assertFalse(result.coverage, result.report)
+        self.assertIn("approved over", result.report)
 
 
 class ScopedCompletionGraders(unittest.TestCase):

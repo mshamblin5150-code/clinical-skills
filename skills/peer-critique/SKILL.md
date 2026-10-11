@@ -354,6 +354,11 @@ Ask whether the substance is right, whether the register is his, and, separately
 proposed image is approved. Apply the record and draft changes in
 [imagery-proposals.md](../_shared/reference/imagery-proposals.md) and rerun the grader. Only an
 explicit go-ahead authorizes posting.
+Before asking for the go-ahead, run `python tools/project_context.py <run-directory>
+--go-ahead critique.md`. Show its moved places and every added memory-index line. A moved item is
+incomplete coverage the clinician may approve over; a finding stops approval. Approval repeats
+and records the check; show any changed notice and renew approval if it differs from the notice
+the clinician saw. Completion carries that result forward after recorded posting.
 Set `clinician_reply` to the clinician's whole approval message, including any conditions.
 Before posting, the posted-reading rows are not graded and the go-ahead grade is expected to
 pass. Once the approval record carries an `agent` or `clinician` posting route, a missing or
