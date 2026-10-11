@@ -120,6 +120,10 @@ a **Peer critique** is posted to. Not a **Composer**: it takes plain text, is no
 is what the course counts as the review having been done.
 _Avoid_: submission comment box, comment box, reply box
 
+**Plain-text build**:
+The exact text a plain Canvas surface such as the **Peer-review comment** is given, built by one command from the contribution's Markdown source: what reads as text is kept, formatting markers are dropped, and a shape the command cannot read is refused rather than guessed at. It is derived and never authored, so a copy that differs from what the source rebuilds to is a defect, not an edit.
+_Avoid_: plain-text copy, stripped text, txt export, plain text
+
 **Applicable order**:
 An order in a classmate's plan that applies to the patient the case actually presents, including a conditional whose branches cover that patient. Only an applicable order is what the classmate decided, so only it can be agreed with. An order written for a hypothetical other patient, one put off until later, and a plan naming a treatment class with no drug, dose, or duration are not applicable orders; the missing treatment decision is itself a finding about the classmate's plan.
 _Avoid_: conditional order, agreement, ordered, deferred treatment
@@ -468,6 +472,10 @@ _Avoid_: progress line, done marker, completion claim
 **Approval record**:
 The durable record written at the clinician's go-ahead on a graded contribution's content, carrying a fingerprint of exactly what its **Posted reading** will later fingerprint, so what was posted can be shown to be what he approved. It is evidence of his word rather than an agent's report of it, so it is to carry his reply whole. It opens the run's **Run status**, one per contribution posted, and a conversational go-ahead that wrote none opens nothing. For a clinical shift it fingerprints the finished notes that are entered, not the review document he reads.
 _Avoid_: go-ahead record, sign-off, gate record, approval
+
+**Posting go-ahead**:
+The clinician's word, given after he has looked at a contribution loaded and unsubmitted on its Canvas surface, that authorizes the one click posting it. It is a second reply on the contribution's **Approval record**, after the go-ahead on its content, and the content go-ahead never stands in for it. A contribution the clinician posts himself owes none, because it exists for the run's own click.
+_Avoid_: Gate 2, submit gate, in-box approval, second approval, click approval
 
 **Evidence dump**:
 One handover of complete tertiary-source topic bodies, supplied wholesale for a module rather than found by searching. It is the unit of provenance and no longer the unit of entitlement: dumps accumulate into the **Evidence store**, so a later paper may cite a topic an earlier dump carried.
