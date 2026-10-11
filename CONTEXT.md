@@ -105,6 +105,10 @@ a **Peer critique** is posted to. Not a **Composer**: it takes plain text, is no
 is what the course counts as the review having been done.
 _Avoid_: submission comment box, comment box, reply box
 
+**Applicable order**:
+An order in a classmate's plan that applies to the patient the case actually presents, including a conditional whose branches cover that patient. Only an applicable order is what the classmate decided, so only it can be agreed with. An order written for a hypothetical other patient, one put off until later, and a plan naming a treatment class with no drug, dose, or duration are not applicable orders; the missing treatment decision is itself a finding about the classmate's plan.
+_Avoid_: conditional order, agreement, ordered, deferred treatment
+
 **Departure**:
 A place where a run's draft narrows or departs from something the clinician instructed — a stated duration shortened, an instruction applied in fewer places than it names. It is listed for his reading before the go-ahead, and the go-ahead after that reading is his ruling on it. Distinct from a claim the run contributed, which is proposed for verification rather than ruled on, and from a defect, which is repaired without asking.
 _Avoid_: deviation, override, change, narrowing
@@ -221,6 +225,10 @@ _Avoid_: minimum, word count, requirement
 **Project context record**:
 A bound coursework run's record, written before its first prose, of the clinician's confirmed declaration of which of his projects the work concerns — or that it concerns none — and of every place searched for what he has already said about it. A miss states where it looked and for what, so it is never a settled negative about the project. It establishes that the run looked and what it found, never that the draft used it; that is the **Heading read**'s verdict. Distinct from the **Bar**, which is transcribed from the course and never carries the clinician's own declarations.
 _Avoid_: context file, memory read, background, project notes
+
+**Own submission**:
+A **Submission** the clinician already handed in on the same board or the same case as the work being drafted — his initial post beneath a reply, his case study beneath a critique of a classmate's. A run declares it, or declares that none exists with a reason, in its **Project context record**, because a sentence describing his own plan can be checked only against the plan he actually wrote.
+_Avoid_: his post, prior work, own post, earlier submission
 
 **Project registry**:
 The account's standing statement of the clinician's projects and, for each, the places and services holding what he has said about it, plus the one memory index owed whatever the project. It changes only on his word; a run's one-off direction to search somewhere else belongs to that run's **Project context record**, not here.

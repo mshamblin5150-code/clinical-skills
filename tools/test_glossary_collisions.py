@@ -167,6 +167,12 @@ DECLARED_CANDIDATES = (
         "The bare term is one ratified ADR decision; a Ruling cohort groups the "
         "clinician's assertions that express one ruling.",
     ),
+    Candidate(
+        "Submission",
+        Verdict.NARROWING,
+        "An Own submission is a submission the clinician already handed in on the same "
+        "board or case as the work being drafted. Ruled with ADR 0325.",
+    ),
 )
 
 PROSE_CLAUSES = {
