@@ -137,7 +137,7 @@ Markdown fingerprint for the attachment fallback. Without its clean exit and a v
 page reading, the attached `.docx` cannot receive the fallback go-ahead or pass the terminal grader.
 
 **The shared UpToDate path depends on committed store and sheet tools.**
-`tools/uptodate_store.py` ingests one deliberately supplied dump into `scratch/uptodate/`, writes
+`tools/uptodate_store.py` ingests one deliberately filed dump into `scratch/uptodate/`, writes
 its per-dump manifest and FTS5 index, searches the accumulated store, and reports unfiled
 topic-shaped material without ingesting it. `tools/uptodate_sheet.py` grades staged
 `reference/uptodate/` topic sheets against that private source. A consumer without these commands

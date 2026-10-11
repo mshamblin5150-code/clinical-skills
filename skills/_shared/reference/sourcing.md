@@ -7,6 +7,10 @@ retained and gradeable against it, or when the primary material is resolvable an
 re-opened. This includes material recalled from a memory store, summary, index, or prior run.
 Anything else is a pointer: it may direct a search and may not carry a sentence.
 
+For all five coursework skills, research and refutation returns refer to the clinician's compilation
+as his **Case research** or to the **Evidence store**, and never state who wrote, compiled, or supplied
+a document unless their brief says so.
+
 ## Search the evidence store and guideline index first
 
 For every research claim in the five coursework skills, first search the **Evidence store** with
@@ -384,6 +388,9 @@ dropped limitation is `drifted`. The clinician's own reasoning and experience ar
 no claim-heading pair; they remain subject to the project-context verdict. Item descriptions form
 a third sentence class, each with an `ITEM` line naming the opened item identifier exactly as
 `project-context.md` records it. The reader opens and compares that item itself, claim by claim.
+A sentence stating who wrote, compiled, or supplied a document agrees only when a confirmed
+project-context header line, a memory entry, or the clinician's recorded answer states it, never on
+the document's own contents; where none does, write `CONTEXT-VERDICT: contradicts` and name the sentence.
 For every pair whose claim carries `QUALIFIERS`, the reader counts the named qualifiers retained
 in the sentence as `qualifiers N of M`. The total equals the record's list length, including
 `0 of 0` for `none`. A shortfall has a `FINDINGS: drifted - <same location>, <difference>` line;

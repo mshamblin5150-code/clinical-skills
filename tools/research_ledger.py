@@ -98,7 +98,7 @@ DECLARED_LIMITS = (
     DeclaredLimit("partial-prescription-table-nonfatal", "Partially anchored prescription tables are reported but do not fail the grade.", EvidenceDisposition.BEHAVIOR),
     DeclaredLimit("rx-reader-completion-unverified", "The grader cannot prove that the separate prescription reader completed its brief.", EvidenceDisposition.DECLARED_READING),
     DeclaredLimit("evidence-cross-references-ungraded", "Topics merely cross-referenced by an evidence dump are outside the filed set.", EvidenceDisposition.BEHAVIOR),
-    DeclaredLimit("titled-copy-titles-trusted", "Membership trusts a titled copy's declared titles and does not establish that the supplied dump carried them.", EvidenceDisposition.BEHAVIOR),
+    DeclaredLimit("titled-copy-titles-trusted", "Membership trusts a titled copy's declared titles and does not establish that the original Case research dump carried them.", EvidenceDisposition.BEHAVIOR),
     DeclaredLimit("non-uptodate-evidence-unjoined", "Evidence coverage is not joined for journal, society, or government citations.", EvidenceDisposition.BEHAVIOR),
     DeclaredLimit("unrecognizable-uptodate-entry-unseen", "An UpToDate citation lacking both database element and locator is invisible.", EvidenceDisposition.BEHAVIOR),
     DeclaredLimit("uncited-missing-topic-unseen", "A claim derived from missing evidence is invisible when no citation names it.", EvidenceDisposition.BEHAVIOR),
@@ -2367,7 +2367,7 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
         if missing:
             diagnostics.append(
                 f"{missing} UpToDate citation(s) do not resolve to the current dump or"
-                " accumulated evidence manifests. Deliberately ingest the supplied dump"
+                " accumulated Evidence store manifests. Deliberately file the Case research dump"
                 " or drop the citation. Re-run with --show to see which, and do not paste that output."
             )
         if reread:

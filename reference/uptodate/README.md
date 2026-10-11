@@ -1,11 +1,11 @@
 # UpToDate topic sheets
 
-These are publisher-keyed distillations of topic bodies the clinician deliberately supplied. Raw
+These are publisher-keyed distillations of topic bodies the clinician deliberately filed. Raw
 dumps, per-dump manifests, and the FTS5 index stay under `scratch/uptodate/`; a sheet contains only
 the bibliographic record and a short restatement. One topic has one file even when several dumps
 carry it.
 
-At intake, ask whether the supplied dump came with a separate reference list. Pass one with
+At intake, ask whether the filed dump came with a separate reference list. Pass one with
 `--references <file>` so its bytes and digest remain beside the dump for the future primary-source
 join; omitting it records no list and claims no join. Run `python tools/uptodate_store.py ingest ...`
 before authoring a sheet. Use the source's own

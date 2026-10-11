@@ -99,7 +99,7 @@ Four rules carry it, and **two of them the corpus does not currently follow**:
   it is *UpToDate*, not plain `UpToDate`. **Do not italicize it in running text.** The corpus
   italicizes it nowhere; this is the first of the two gaps.
 - **The date element is the year of the topic's last update.** Not the year it was read, and not
-  the year the reference list was assembled. The companion evidence document states each topic's
+  the year the reference list was assembled. The stored topic in the Evidence store states its
   own revision date, and that is where this comes from. This is the second gap, and it is the
   mechanism behind [style.md](style.md) §10's observation that one topic appears in the corpus
   under three different years — the topic really was revised three times, and the entries were
@@ -368,7 +368,7 @@ reaches` and `tools/checks_ledger.py` expects it, so a run that returns no verdi
 | An **author-shaped slash span** | Grammar alone recognizes a span such as `(Cohort A, 2013/2014)`, which can raise `unlisted-citation` even when the span is not a citation. The measured corpus supplied no such false positive |
 | An **unwarranted retrieval date** on a guideline, a statement or a textbook | §4 says those take none. The command refuses one only when a committed source classifier settles that the cited form is fixed. DOI presence alone is not the archive test, and an unresolved URL cannot distinguish a stable PDF from a page designed to change |
 | An **advance online publication without a label** | The command cannot tell that an unlabeled DOI-bearing entry is a journal article rather than a Cochrane review, book, chapter or report, each of which can correctly carry the same shape |
-| **The UpToDate last update year** | §2's date element is the topic's own last update year, not the year it was read, and the same topic appears in one corpus under three years. Which is which is in the companion evidence document, which the command never sees |
+| **The UpToDate last update year** | §2's date element is the topic's own last update year, not the year it was read, and the same topic appears in one corpus under three years. Which is which is in the Evidence store, which the command never sees |
 | **Whether the source exists and says so** | Whether an entry is a real source saying what the sentence citing it says. That is [#231](https://github.com/mshamblin5150-code/clinical-skills/issues/231), answered **before the draft exists**: `tools/research_ledger.py` grades a year an agent read off the page and a refutation a second agent returned |
 | **legal form and authority validity** | The command recognizes a narrow statute/regulation subset plus date-free constitutional locators and full-date treaty forms. It does not validate cases, legislative materials, proposed rules, executive orders, patents, parallel reporters, official-version choice, state-specific form, or current legal status |
 | A **combining mark without a precomposed form** | NFC leaves such a mark in place. It interrupts the name pattern, so a surname such as `Ą̃žuolas` still keys as `a` rather than its full folded name |

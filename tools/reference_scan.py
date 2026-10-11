@@ -761,7 +761,7 @@ NOT_REACHED = (
         "UpToDate last update year",
         "Section 2's date element is the topic's own last update year rather than the "
         "year it was read, and the same topic appears in one clinician's corpus under "
-        "three different years. Which is which is in the companion evidence document, "
+        "three different years. Which is which is in the Evidence store, "
         "which this command never sees.",
     ),
     (
