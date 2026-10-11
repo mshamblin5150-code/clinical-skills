@@ -22,6 +22,7 @@ import coursework_run
 import aar_scan
 import repo_root
 import run_grader
+import uptodate_store
 from console_codec import require_python_floor, use_utf8
 
 
@@ -93,7 +94,7 @@ _OPENED = re.compile(
     re.IGNORECASE,
 )
 _HEADER_FIELDS = frozenset(
-    {"PROJECT-CONTEXT", "OWN-SUBMISSION", "PROJECT-SEARCH", "PROJECT-WAIVE", "CONFIRMED", "CONTEXT-DIGEST", "ORDER-WAIVE", "ORDER-OBSERVATION", "GO-AHEAD"}
+    {"PROJECT-CONTEXT", "OWN-SUBMISSION", "CASE-MATERIAL", "CASE-RESEARCH", "PROJECT-SEARCH", "PROJECT-WAIVE", "CONFIRMED", "CONTEXT-DIGEST", "ORDER-WAIVE", "ORDER-OBSERVATION", "GO-AHEAD"}
 )
 _ENTRY_FIELDS = frozenset(
     {
@@ -333,19 +334,19 @@ def _declaration(record: Record) -> tuple[str | None, str | None]:
     return declaration, None
 
 
-def _own_submission_error(record: Record) -> str | None:
-    values = record.values("OWN-SUBMISSION")
+def _file_declaration_error(record: Record, name: str, value: str | None = None) -> str | None:
+    values = record.values(name)
     if len(values) != 1 or not values[0]:
-        return "OWN-SUBMISSION is missing or duplicated"
-    value = values[0]
+        return f"{name} is missing or duplicated"
+    value = values[0] if value is None else value
     if value.casefold().startswith("none"):
         prefix, separator, reason = value.partition(" - ")
         if prefix.casefold() != "none" or not separator or not reason.strip():
-            return "OWN-SUBMISSION none needs a reason"
+            return f"{name} none needs a reason"
         return None
     path = Path(value).expanduser()
     if not path.is_absolute():
-        return "OWN-SUBMISSION needs an absolute file path"
+        return f"{name} needs an absolute file path"
     for entry in record.entries:
         if entry.value("STATE").casefold() != "read":
             continue
@@ -358,7 +359,36 @@ def _own_submission_error(record: Record) -> str | None:
                 item = Path(entry.value("ROOT") or entry.place).expanduser() / item
             if item.resolve() == path.resolve():
                 return None
-    return "OWN-SUBMISSION path is not OPENED in a read PLACE"
+    return f"{name} path is not OPENED in a read PLACE"
+
+
+def _case_research_error(record: Record, *, recheck_files: bool) -> str | None:
+    values = record.values("CASE-RESEARCH")
+    if len(values) != 1 or not values[0]:
+        return "CASE-RESEARCH is missing or duplicated"
+    dump_id = values[0]
+    if dump_id.casefold().startswith("none"):
+        return _file_declaration_error(record, "CASE-RESEARCH")
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", dump_id):
+        return "CASE-RESEARCH needs a dump id"
+    store = uptodate_store.default_store().resolve()
+    source = store / "dumps" / dump_id / uptodate_store.SOURCE_NAME
+    if recheck_files:
+        try:
+            manifest = uptodate_store.manifest_for_dump(dump_id, store)
+            if manifest is None:
+                return "CASE-RESEARCH dump has no manifest"
+        except (OSError, UnicodeError, ValueError):
+            return "CASE-RESEARCH manifest or filed copy is unreadable or has a fingerprint mismatch"
+    return _file_declaration_error(record, "CASE-RESEARCH", str(source))
+
+
+def _context_declaration_errors(record: Record, *, recheck_files: bool = True) -> list[str]:
+    errors = [error for name in ("OWN-SUBMISSION", "CASE-MATERIAL")
+              if (error := _file_declaration_error(record, name))]
+    if error := _case_research_error(record, recheck_files=recheck_files):
+        errors.append(error)
+    return errors
 
 
 def _searches(record: Record) -> tuple[dict[str, str], list[str]]:
@@ -556,7 +586,8 @@ def _hash_service(
 
 
 def _context_digest(triples: list[tuple[str, str, str]], record: Record) -> str:
-    payload = "OWN-SUBMISSION\0" + record.value("OWN-SUBMISSION") + "\n"
+    payload = "".join(name + "\0" + record.value(name) + "\n"
+                      for name in ("OWN-SUBMISSION", "CASE-MATERIAL", "CASE-RESEARCH"))
     payload += "".join("\0".join(triple) + "\n" for triple in sorted(triples))
     return sha256(payload.encode("utf-8")).hexdigest()
 
@@ -568,7 +599,8 @@ def _render(
     digest: str,
 ) -> str:
     lines = [f"PROJECT-CONTEXT: {record.value('PROJECT-CONTEXT')}"]
-    lines.append(f"OWN-SUBMISSION: {record.value('OWN-SUBMISSION')}")
+    lines.extend(f"{name}: {record.value(name)}"
+                 for name in ("OWN-SUBMISSION", "CASE-MATERIAL", "CASE-RESEARCH"))
     lines.extend(f"PROJECT-SEARCH: {value}" for value in record.values("PROJECT-SEARCH"))
     lines.extend(f"PROJECT-WAIVE: {value}" for value in record.values("PROJECT-WAIVE"))
     lines.extend(f"ORDER-WAIVE: {value}" for value in record.values("ORDER-WAIVE"))
@@ -613,8 +645,7 @@ def _write_context_record(
     except (OSError, UnicodeError, ValueError):
         return GateResult(1, "project context: finding - record shape is invalid")
     errors = _duplicates(record)
-    if own_error := _own_submission_error(record):
-        errors.append(own_error)
+    errors.extend(_context_declaration_errors(record))
     project_name, declaration_error = _declaration(record)
     if declaration_error:
         errors.append(declaration_error)
@@ -852,8 +883,7 @@ def _context_completion_gate(run: Path, submission: str | None, *, recheck_files
     digest = record.value("CONTEXT-DIGEST")
     declaration, error = _declaration(record)
     shape_errors = _duplicates(record)
-    if own_error := _own_submission_error(record):
-        shape_errors.append(own_error)
+    shape_errors.extend(_context_declaration_errors(record, recheck_files=recheck_files))
     confirmed = record.values("CONFIRMED")
     if error:
         shape_errors.append(error)

@@ -7,6 +7,40 @@ retained and gradeable against it, or when the primary material is resolvable an
 re-opened. This includes material recalled from a memory store, summary, index, or prior run.
 Anything else is a pointer: it may direct a search and may not carry a sentence.
 
+## Search the evidence store and guideline index first
+
+For every research claim in the five coursework skills, first search the **Evidence store** with
+`python tools/uptodate_store.py search "<query>"` and the guideline index with
+`python tools/guidelines_search.py "<query>"`. Record the literal query and hit count for each,
+including zero:
+
+```text
+SEARCHED-FIRST: store "<query>" -> <hits>; guidelines "<query>" -> <hits>
+```
+
+Where neither covers the claim, search the clinician's UpToDate account through the
+[Authenticated route](#a-wall-counts-only-after-the-authenticated-route-is-tried), without asking.
+Use his one signed-in Chrome one pull at a time. File each topic used as a supplement dump with
+`uptodate_store.py ingest` before drafting, so later runs find it. Extend the same record:
+
+```text
+SEARCHED-FIRST: store "<query>" -> <hits>; guidelines "<query>" -> <hits>; account "<query>" -> <hits>; filed <dump id>
+```
+
+Outside sources follow those searches. An unavailable index or account is a failed read under
+[A failed read is not a negative](#a-failed-read-is-not-a-negative); report the failed attempt
+rather than writing a zero-hit search that never ran. A failed first-stop search records
+`store "<query>" -> unreadable - <failure>` or `guidelines "<query>" -> unreadable - <failure>`
+in its slot. That record remains a finding: restore retrieval and replace the failed slot with
+the actual hit count before drafting. An account failure follows the failed-read route above.
+`research_ledger.py` refuses a missing
+`SEARCHED-FIRST` or either missing first-stop query and hit count. Its shape-check ceiling belongs
+to `research_ledger.DECLARED_LIMITS`.
+
+The orchestrating context pastes each research return's `REFERENCE` and `RESTATEMENT` exactly as
+returned into the ledger. The refutation leg remains the backstop; no character comparison grades
+this copying rule.
+
 ## A resolving locator is not verification
 
 Verifying a locator means opening it and confirming that it is the work's own address. A successful
@@ -240,6 +274,8 @@ servers. Never write a service URL. An unregistered project stops for the clinic
 ```text
 PROJECT-CONTEXT: <project> | none - <reason>
 OWN-SUBMISSION: <path> | none - <reason>
+CASE-MATERIAL: <path> | none - <reason>
+CASE-RESEARCH: <dump id> | none - <reason>
 PROJECT-SEARCH: <location or service> - "<terms>"
 PROJECT-WAIVE: <location or service> - <what failed and when>; proceed without, per the clinician
 CONFIRMED: <ISO date>
@@ -262,6 +298,17 @@ capture of the posted entry. Open it as an item in a `read` place; add its locat
 `PROJECT-SEARCH` if needed. Confirm this line with the rest of the header. The gate refuses
 a missing or duplicated line, reasonless `none`, or a path not opened in a read place.
 
+`CASE-MATERIAL` declares the case-material file, or `none` with a reason. Open its absolute path
+as an item of a `read` place, adding its location through `PROJECT-SEARCH` when needed.
+`CASE-RESEARCH` declares the dump id of the clinician's case research in the Evidence store,
+or `none` with a reason. File an existing compilation with `python tools/uptodate_store.py ingest`
+before drafting; open the filed `source.txt` as an item of a `read` place. The declaration names the
+dump, rather than the original Word file. Confirm both lines with the rest of the header in all
+five coursework skills. The gate requires each line exactly once, refuses a reasonless `none` or
+an unopened declared item, and refuses a research dump without a manifest or with a filed-copy
+fingerprint that disagrees with its manifest. The go-ahead recheck covers both declared items,
+including the research manifest and filed-copy identity.
+
 The memory index and every registered project place are owed. Each `PROJECT-SEARCH` adds or
 constrains one owed place; a direction given later amends and re-confirms the header before drafting.
 Every owed place has exactly one entry. A searched path carries `ROOT`, `TERMS`, `EXAMINED`,
@@ -272,8 +319,8 @@ opened identifiers only. `OPENED: none` records a bounded miss, never a settled 
 Run `python tools/project_context.py <run-directory> --write --submission <submission-key>` after retrieval and before drafting.
 When service items were opened, pass a `place -> item identifier -> returned text` JSON object on
 standard input with `--service-payloads -`; the command hashes the returned text without storing it.
-The command hashes opened file bytes, writes every item hash and a context digest binding the `OWN-SUBMISSION` header line
-and sorted place/item/hash triples,
+The command hashes opened file bytes, writes every item hash and a context digest binding the
+`OWN-SUBMISSION`, `CASE-MATERIAL`, and `CASE-RESEARCH` header lines and sorted place/item/hash triples,
 and exits 0 only when the gate passes. Exit 1 is a finding. Exit 2 means the owed population was not
 established, including an unavailable registry or unregistered project. The completion grader
 rehashes file items; drift is exit-2 coverage, while a finding still wins. It does not retrieve
@@ -377,7 +424,7 @@ the qualifier suffix whenever its record carries the field, including on earlier
 Pairs plus findings at unpaired locations equal the factual count;
 every prefix names a current, non-`DROPPED` heading; and `DRAFT` matches the final artifact. A
 context digest matches the machine-written project-context digest and only `agrees` is
-clean. Even a run declaring no project binds its `OWN-SUBMISSION` reason in that digest. `narrows`, `contradicts`, and
+clean. Even a run declaring no project binds all three declaration reasons in that digest. `narrows`, `contradicts`, and
 `sources-conflict` are findings; the last names both sources and only the clinician resolves it,
 with that ruling written to memory. A finding blocks the go-ahead. Repair a drifted sentence toward the correct side: return it to its
 heading, or change and refute the heading again. Give an unrecorded sentence a full researched and

@@ -1,6 +1,6 @@
 # A bold References label is read off the Word path and an oversized memory index fails the review
 
-**Measured at:** 00c787da8796fb85e2fbc6d41e4944d82735432a
+**Measured at:** f20dd5b9718c6b0e6401a5fa3ceabeaa0c26d44d
 
 [#1504](https://github.com/mshamblin5150-code/clinical-skills/issues/1504) was filed from the
 after-action review of a `peer-critique` run (NUR 5144 Module 2) on 2026-10-01. It lists four tool
@@ -9,6 +9,9 @@ defects that run could not get past. Item 3, the shared posted-reading reader re
 other three. Grilled 2026-10-11 against `main` at `85a56763`, where the freshness gate read `FRESH`.
 `main` then advanced to `00c787da` with the #1502 and #1503 rulings, and every claim below was
 checked against that tree. The clinician ruled each point below in that session.
+The tracker sweep closing the session found that ruling 3, as first merged, would re-read the live
+index on every later re-grade; the clinician added ruling 7 the same day, and this record was
+re-measured against `main` at `f20dd5b9` when it was amended.
 **Nothing is built here; this is the record the build reads.**
 
 ## Measured before ruling
@@ -90,10 +93,10 @@ run behind two command entry points that could drift apart.
 
 ## Ruling 3 — the after-action review fails an oversized memory index
 
-The grading run of `tools/aar_scan.py` reads the memory index named by the extract's
-`MEMORY-INDEX:` line. It refuses, with exit 1, an index over either limit. The check sits there
-because the grading run comes after the sitting's memory writes and before any later session loads
-the index. So a failure arrives before anything has been cut off. A memory written outside a scoped
+The after-action review measures the memory index named by the extract's `MEMORY-INDEX:` line,
+and its grading run refuses, with exit 1, a measurement over either limit. Ruling 7 says when the
+measurement is taken and where it is kept. The check sits at the review because its step 4 comes
+after the sitting's memory writes and before any later session loads the index. So a failure arrives before anything has been cut off. A memory written outside a scoped
 skill's review is left to the harness's own warning in the next session.
 
 A hook on every write to `MEMORY.md` was declined. It is a second mechanism to register and
@@ -134,25 +137,50 @@ index. It is routed to its own grilling on
 Folding it into this record was declined so that rulings 1 to 5 can be built without waiting on a
 memory redesign.
 
+## Ruling 7 — a re-grade reads the sitting's recorded measurement, never the live index
+
+The after-action check runs twice for a scoped skill: once as the review's own grading run, and
+again inside every completion grader, through `aar_scan.completion_gate`, each time a finished run
+is graded. `MEMORY.md` is one account-level file that any later session can grow. So the
+measurement ruling 3 grades is taken once, in the review's step 4, after that sitting's memory
+writes have landed, and written into the run beside the review record: lines, characters, the
+limits and release it was compared with, and the verdict. Every grading run reads that recorded
+measurement and never the live index. A round extracted before the build lands has no record and
+reports the row as `not graded`.
+
+Reading the live index on every grade was declined because a finished, posted run would flip to
+failing over a later session's writes, with the failure pointing at a run that did nothing wrong.
+Leaving the question to #1558's general ruling on late gates was declined because it would hold
+this row's build behind that grilling for no gain: the recorded measurement settles this row
+whatever #1558 rules for the others.
+
 ## What the build changes
 
 - `tools/peer_critique_scan.py`: two limb constants, passed to the voice-read and project-context
   gates and listed in `EXIT_2_LIMBS`.
 - `tools/reference_scan.py`: the opt-in bold-label switch in `read_document` and the command line,
-  with its boundary stated in the module's declared limits.
+  with its boundary stated in the module's `NOT_REACHED` object.
 - `skills/peer-critique/SKILL.md` step 5: the `reference_scan` command carries the switch.
-- `tools/aar_scan.py`: the grading run reads the extract's `MEMORY-INDEX:` path, prints the
-  headroom, refuses an index over either limit, and prints the re-measure line on a release
-  mismatch. The limits and their measured release sit in one declared object.
-- `skills/aar/SKILL.md`: the grading step names the new row, its failure, and the remedy, which is
-  to compact the index and re-run the grade.
+- `tools/aar_scan.py`: a command, run in step 4 after the review's memory writes have landed,
+  measures the index at the extract's `MEMORY-INDEX:` path and writes the round's measurement
+  record beside the review record. The grading run reads that record and never the live index:
+  it prints the headroom, refuses a record over either limit, refuses a missing record for a round
+  extracted after the build lands, reports `not graded` for an earlier round, and prints the
+  re-measure line on a release mismatch. The limits and their measured release sit in one
+  declared object.
+- `skills/aar/SKILL.md`: step 4 runs the measuring command before the grade, and the grading step
+  names the new row, its failure, and the remedy, which is to compact the index, measure again, and
+  re-run the grade.
 - Tests that drive each change through the public command seams: both gate limbs through `main`
   with `--submission`, a bold-label draft with and without the switch, and an index over each limit,
-  at it, under it, and under a mismatched release.
+  at it, under it, and under a mismatched release. One test grows the live index past a limit after
+  the measurement is recorded and asserts that re-grading the finished run still passes.
 
 ## What this does not reach
 
 - **A memory written outside a scoped skill's review.** Ruling 3 grades the index at the review only.
+- **A later overflow, on a re-grade of a finished run.** Ruling 7 reads the recorded measurement, so
+  growth after a sitting is caught at the next sitting's review, not on the old run.
 - **A Claude Code update that changes the limits without changing the release string.** Ruling 4
   compares release names, not values.
 - **Codex's memory.** The figures are Claude Code's. Codex loads its own instructions by another

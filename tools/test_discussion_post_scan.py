@@ -115,6 +115,7 @@ DATE: 2026-08-22
 
 ## CLAIM: The combined program reported a 12% improvement.
 STATUS: sourced
+SEARCHED-FIRST: store "synthetic question" -> 0; guidelines "synthetic question" -> 0
 SOURCE: peer-reviewed
 REFERENCE: Quill, R. (2024). Measuring usable access. Journal of Care, 4(2), 10-18.
 RESTATEMENT: Completed visits improved by 12% when both supports were present.
@@ -127,6 +128,7 @@ SECOND-ROUTE: publisher HTML -> journal PDF rendered at 600 dpi
 
 ## CLAIM: The regulation supplies legal context.
 STATUS: sourced
+SEARCHED-FIRST: store "synthetic question" -> 0; guidelines "synthetic question" -> 0
 SOURCE: guideline in force
 REFERENCE: Patient rights, 42 C.F.R. § 482.13 (2024).
 RESTATEMENT: The cited regulation states the relevant legal context.
@@ -163,8 +165,8 @@ class Run:
         self.root = root
         self.draft = root / "nur0000-m2.md"
         (root / "project-context.md").write_text(
-            "PROJECT-CONTEXT: none - synthetic discussion\nOWN-SUBMISSION: none - no earlier synthetic submission\n"
-            "CONFIRMED: 2001-01-01\nCONTEXT-DIGEST: 67d55228f3d5d679eb597e38d220b591803ef13085d57f1176ec0b6302c5fc8f\n",
+            "PROJECT-CONTEXT: none - synthetic discussion\nOWN-SUBMISSION: none - no earlier synthetic submission\nCASE-MATERIAL: none - no synthetic case material\nCASE-RESEARCH: none - no synthetic case research\n"
+            "CONFIRMED: 2001-01-01\nCONTEXT-DIGEST: e9480117c1477001f65666233ed4ef160c1544873d6184ff730a83380429f1bf\n",
             encoding="utf-8",
         )
         (root / "bar.md").write_text(BAR, encoding="utf-8")
@@ -179,7 +181,7 @@ class Run:
             f"DRAFT: {digest}\n"
             "ROUTE: separate context\n"
             "SENTENCES: 0 factual, 0 clinician's own\n"
-            "CONTEXT-DIGEST: 67d55228f3d5d679eb597e38d220b591803ef13085d57f1176ec0b6302c5fc8f\n"
+            "CONTEXT-DIGEST: e9480117c1477001f65666233ed4ef160c1544873d6184ff730a83380429f1bf\n"
             "CONTEXT-VERDICT: agrees\n"
             "VERDICT: clean\n",
             encoding="utf-8",
@@ -1020,6 +1022,7 @@ class ACompletePostPasses(unittest.TestCase):
             second_record = """\
 ## CLAIM: The later section restates the organization source.
 STATUS: sourced
+SEARCHED-FIRST: store "synthetic question" -> 0; guidelines "synthetic question" -> 0
 SOURCE: government
 REFERENCE: Centers for Disease Control and Prevention. (2024). Measuring usable access.
 RESTATEMENT: The same source supports the later section.
@@ -2027,8 +2030,8 @@ class TheSubmissionJoinsItsRunDirectory(unittest.TestCase):
         (run / "bar.md").write_text(BAR, encoding="utf-8")
         (run / "claims.md").write_text(CLAIMS, encoding="utf-8")
         (run / "project-context.md").write_text(
-            "PROJECT-CONTEXT: none - synthetic discussion\nOWN-SUBMISSION: none - no earlier synthetic submission\n"
-            "CONFIRMED: 2001-01-01\nCONTEXT-DIGEST: 67d55228f3d5d679eb597e38d220b591803ef13085d57f1176ec0b6302c5fc8f\n",
+            "PROJECT-CONTEXT: none - synthetic discussion\nOWN-SUBMISSION: none - no earlier synthetic submission\nCASE-MATERIAL: none - no synthetic case material\nCASE-RESEARCH: none - no synthetic case research\n"
+            "CONFIRMED: 2001-01-01\nCONTEXT-DIGEST: e9480117c1477001f65666233ed4ef160c1544873d6184ff730a83380429f1bf\n",
             encoding="utf-8",
         )
         draft = root / "output" / "discussions" / f"{draft_key or run_key}-2026-08-22.md"
@@ -2038,7 +2041,7 @@ class TheSubmissionJoinsItsRunDirectory(unittest.TestCase):
         (run / "heading-read.md").write_text(
             f"## HEADING-READ: {draft.name}\nDRAFT: {digest}\n"
             "ROUTE: separate context\nSENTENCES: 0 factual, 0 clinician's own\n"
-            "CONTEXT-DIGEST: 67d55228f3d5d679eb597e38d220b591803ef13085d57f1176ec0b6302c5fc8f\nCONTEXT-VERDICT: agrees\n"
+            "CONTEXT-DIGEST: e9480117c1477001f65666233ed4ef160c1544873d6184ff730a83380429f1bf\nCONTEXT-VERDICT: agrees\n"
             "VERDICT: clean\n",
             encoding="utf-8",
         )
@@ -2437,6 +2440,7 @@ class TheMechanicalBarRowsAreGraded(unittest.TestCase):
         second_quill_record = """\
 ## CLAIM: Quill also supports the combined-program proposition.
 STATUS: sourced
+SEARCHED-FIRST: store "synthetic question" -> 0; guidelines "synthetic question" -> 0
 SOURCE: peer-reviewed
 REFERENCE: Quill, R. (2024). Measuring usable access. Journal of Care, 4(2), 10-18.
 RESTATEMENT: The source reports the same combined-program outcome.

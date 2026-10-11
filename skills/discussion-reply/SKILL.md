@@ -76,6 +76,9 @@ When the clinician asks to cite his own unpublished work, apply
 [sourcing.md's own-work bar admission](../_shared/reference/sourcing.md#the-clinicians-own-unpublished-work)
 at signing or by mid-run re-signing. `clinician's own work` is never a default template class.
 
+Read [The clinician's own position](../_shared/reference/rubric.md#the-clinicians-own-position)
+before deciding which points to fault; resolve a disagreement with his submission before drafting.
+
 Read all classmate posts before recommending any. Return one numbered ranking covering every
 classmate, with:
 
@@ -162,6 +165,7 @@ Each record uses the full research-ledger shape:
 ```text
 ## CLAIM: [REPLY: <response filename target>] <the claim, including any number the reply will state>
 STATUS: sourced | unsourced | unreadable - <what was searched or what prevented the read>
+SEARCHED-FIRST: store "<clinical question>" -> 0; guidelines "<clinical question>" -> 0
 SOURCE: society guideline | peer-reviewed | government | tertiary reference
 REFERENCE: <full APA 7 entry>
 RESTATEMENT: <what the source says, including the reply's exact numeric token where applicable>

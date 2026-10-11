@@ -62,6 +62,7 @@ DATE: 2026-08-22
 
 ## CLAIM: [REPLY: maren] The combined program reported a 12% improvement.
 STATUS: sourced
+SEARCHED-FIRST: store "synthetic question" -> 0; guidelines "synthetic question" -> 0
 SOURCE: peer-reviewed
 REFERENCE: Quill, R. (2024). Measuring usable access in community care. Journal of Care, 4(2), 10-18.
 RESTATEMENT: Completed visits improved by 12% when evening access and transit support were combined.
@@ -87,8 +88,8 @@ class Run:
     def __init__(self, root: Path, *, posted: bool = True):
         self.root = root
         (root / "project-context.md").write_text(
-            "PROJECT-CONTEXT: none - synthetic reply\nOWN-SUBMISSION: none - no earlier synthetic submission\n"
-            "CONFIRMED: 2001-01-01\nCONTEXT-DIGEST: 67d55228f3d5d679eb597e38d220b591803ef13085d57f1176ec0b6302c5fc8f\n",
+            "PROJECT-CONTEXT: none - synthetic reply\nOWN-SUBMISSION: none - no earlier synthetic submission\nCASE-MATERIAL: none - no synthetic case material\nCASE-RESEARCH: none - no synthetic case research\n"
+            "CONFIRMED: 2001-01-01\nCONTEXT-DIGEST: e9480117c1477001f65666233ed4ef160c1544873d6184ff730a83380429f1bf\n",
             encoding="utf-8",
         )
         (root / "posts").mkdir()
@@ -125,7 +126,7 @@ class Run:
                 f"DRAFT: {digest}\n"
                 "ROUTE: separate context\n"
                 "SENTENCES: 0 factual, 0 clinician's own\n"
-                "CONTEXT-DIGEST: 67d55228f3d5d679eb597e38d220b591803ef13085d57f1176ec0b6302c5fc8f\n"
+                "CONTEXT-DIGEST: e9480117c1477001f65666233ed4ef160c1544873d6184ff730a83380429f1bf\n"
                 "CONTEXT-VERDICT: agrees\n"
                 "VERDICT: clean\n"
             )
@@ -276,10 +277,10 @@ class CommittedDiscussionReplyControl(unittest.TestCase):
             (run.root / "heading-read.md").write_text(
                 f"## HEADING-READ: response-maren.md\nDRAFT: {maren_digest}\n"
                 "ROUTE: separate context\nSENTENCES: 0 factual, 0 clinician's own\n"
-                "CONTEXT-DIGEST: 67d55228f3d5d679eb597e38d220b591803ef13085d57f1176ec0b6302c5fc8f\nCONTEXT-VERDICT: agrees\nVERDICT: clean\n\n"
+                "CONTEXT-DIGEST: e9480117c1477001f65666233ed4ef160c1544873d6184ff730a83380429f1bf\nCONTEXT-VERDICT: agrees\nVERDICT: clean\n\n"
                 f"## HEADING-READ: response-noah.md\nDRAFT: {noah_digest}\n"
                 "ROUTE: separate context\nSENTENCES: 1 factual, 0 clinician's own\n"
-                f"PAIR: paragraph 1 -> {maren_prefix}\nCONTEXT-DIGEST: 67d55228f3d5d679eb597e38d220b591803ef13085d57f1176ec0b6302c5fc8f\n"
+                f"PAIR: paragraph 1 -> {maren_prefix}\nCONTEXT-DIGEST: e9480117c1477001f65666233ed4ef160c1544873d6184ff730a83380429f1bf\n"
                 "CONTEXT-VERDICT: agrees\nVERDICT: clean\n",
                 encoding="utf-8",
             )

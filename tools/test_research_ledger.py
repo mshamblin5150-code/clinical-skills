@@ -58,6 +58,7 @@ AS_OF = date(2026, 8, 19)
 CLEAN = """\
 ## CLAIM: A white count of 15,000 is within the third-trimester reference range for normal pregnancy.
 STATUS: sourced
+SEARCHED-FIRST: store "synthetic question" -> 0; guidelines "synthetic question" -> 0
 SOURCE: peer-reviewed
 REFERENCE: Abbassi-Ghanavati, M. (2009). Pregnancy and laboratory studies.
     Obstetrics and Gynecology, 114(6), 1326-1331.
@@ -609,6 +610,7 @@ class DeclaredLimitBehaviorControls(unittest.TestCase):
         record = """\
 ## CLAIM: A claim resting on an unrecognizable entry.
 STATUS: sourced
+SEARCHED-FIRST: store "synthetic question" -> 0; guidelines "synthetic question" -> 0
 REFERENCE: Author, A. (2026). Some topic. Retrieved August 20, 2026.
 """
         found, read = ledger.evidence_findings(
@@ -740,7 +742,7 @@ class AHeadingWhoseAnswerNeverArrivedIsAFinding(unittest.TestCase):
 
     def test_a_bare_heading_fails(self):
         text = ledger_text("## CLAIM: A claim whose agent never came back.\n")
-        self.assertEqual(kinds(text), [ledger.UNKNOWN_STATUS])
+        self.assertEqual(kinds(text), [ledger.MISSING_FIELD, ledger.UNKNOWN_STATUS])
 
     def test_a_short_ledger_is_only_visible_because_the_headings_were_written_first(self):
         """Three answered claims out of eight: clean if the five lost headings were
@@ -750,7 +752,7 @@ class AHeadingWhoseAnswerNeverArrivedIsAFinding(unittest.TestCase):
         with_headings = ledger_text(
             CLEAN, CLEAN, CLEAN, *[f"## CLAIM: Claim {n}.\n" for n in range(4, 9)]
         )
-        self.assertEqual(kinds(with_headings), [ledger.UNKNOWN_STATUS] * 5)
+        self.assertEqual(kinds(with_headings), [ledger.MISSING_FIELD, ledger.UNKNOWN_STATUS] * 5)
 
 
 class AnUnsourcedRecordSaysWhatWasSearched(unittest.TestCase):
@@ -758,7 +760,7 @@ class AnUnsourcedRecordSaysWhatWasSearched(unittest.TestCase):
     bare keyword is the assertion without the looking."""
 
     def _record(self, status: str, reference: str | None = None) -> str:
-        record = f"## CLAIM: Something nobody could source.\nSTATUS: {status}\n"
+        record = f'## CLAIM: Something nobody could source.\nSTATUS: {status}\nSEARCHED-FIRST: store "synthetic question" -> 0; guidelines "synthetic question" -> 0\n'
         if reference is not None:
             record += f"REFERENCE: {reference}\n"
         return record
@@ -790,6 +792,7 @@ class AnUnreadableStatusNamesTheFailedInstruments(unittest.TestCase):
         record = """\
 ## CLAIM: The sought guideline contains a recommendation on this question.
 STATUS: unreadable - both attempts failed before either read the source.
+SEARCHED-FIRST: store "synthetic question" -> 0; guidelines "synthetic question" -> 0
 INSTRUMENTS: web fetch -> curl with a browser user agent
 """
         parsed = ledger.read_records(ledger_text(record))[0]
@@ -800,6 +803,7 @@ INSTRUMENTS: web fetch -> curl with a browser user agent
         record = """\
 ## CLAIM: The sought guideline contains a recommendation on this question.
 STATUS: unreadable - both attempts failed before either read the source.
+SEARCHED-FIRST: store "synthetic question" -> 0; guidelines "synthetic question" -> 0
 """
         self.assertEqual(kinds(ledger_text(record)), [ledger.MISSING_FIELD])
 
@@ -807,6 +811,7 @@ STATUS: unreadable - both attempts failed before either read the source.
         record = """\
 ## CLAIM: The sought guideline contains a recommendation on this question.
 STATUS: unreadable
+SEARCHED-FIRST: store "synthetic question" -> 0; guidelines "synthetic question" -> 0
 INSTRUMENTS: web fetch -> curl
 """
         self.assertEqual(kinds(ledger_text(record)), [ledger.BARE_STATUS])
@@ -815,6 +820,7 @@ INSTRUMENTS: web fetch -> curl
         record = """\
 ## CLAIM: The sought guideline contains a recommendation on this question.
 STATUS: unreadable - both attempts failed before either read the source.
+SEARCHED-FIRST: store "synthetic question" -> 0; guidelines "synthetic question" -> 0
 INSTRUMENTS: web fetch and curl
 """
         self.assertEqual(kinds(ledger_text(record)), [ledger.UNSPLIT_INSTRUMENTS])
@@ -825,6 +831,7 @@ INSTRUMENTS: web fetch and curl
                 record = """\
 ## CLAIM: The sought guideline contains a recommendation on this question.
 STATUS: unreadable - both attempts failed before either read the source.
+SEARCHED-FIRST: store "synthetic question" -> 0; guidelines "synthetic question" -> 0
 INSTRUMENTS: <value>
 """.replace("<value>", value)
                 self.assertEqual(kinds(ledger_text(record)), [ledger.BARE_INSTRUMENTS])
@@ -833,6 +840,7 @@ INSTRUMENTS: <value>
         record = """\
 ## CLAIM: The sought guideline contains a recommendation on this question.
 STATUS: unreadable - both attempts failed before either read the source.
+SEARCHED-FIRST: store "synthetic question" -> 0; guidelines "synthetic question" -> 0
 INSTRUMENTS: Web Fetch -> web-fetch
 """
         self.assertEqual(kinds(ledger_text(record)), [ledger.INSTRUMENTS_UNCHANGED])
@@ -841,6 +849,7 @@ INSTRUMENTS: Web Fetch -> web-fetch
         base = """\
 ## CLAIM: The sought guideline contains a recommendation on this question.
 STATUS: unreadable - both attempts failed before either read the source.
+SEARCHED-FIRST: store "synthetic question" -> 0; guidelines "synthetic question" -> 0
 INSTRUMENTS: web fetch -> curl
 """
         values = {
@@ -869,11 +878,13 @@ INSTRUMENTS: web fetch -> curl
             """\
 ## CLAIM: No guideline addresses this question.
 STATUS: unsourced - searched the guideline corpus and found no statement.
+SEARCHED-FIRST: store "synthetic question" -> 0; guidelines "synthetic question" -> 0
 PASSAGE: Recommendation table on page 4.
 """,
             """\
 ## CLAIM: The sought guideline contains a recommendation on this question.
 STATUS: unreadable - both attempts failed before either read the source.
+SEARCHED-FIRST: store "synthetic question" -> 0; guidelines "synthetic question" -> 0
 INSTRUMENTS: web fetch -> curl
 PASSAGE: Recommendation table on page 4.
 """,
@@ -886,6 +897,7 @@ PASSAGE: Recommendation table on page 4.
         unsourced = """\
 ## CLAIM: No guideline addresses this question.
 STATUS: unsourced - searched the guideline corpus and found no statement.
+SEARCHED-FIRST: store "synthetic question" -> 0; guidelines "synthetic question" -> 0
 INSTRUMENTS: web search -> corpus index
 """
         for record in (unsourced, CLEAN + "INSTRUMENTS: web fetch -> curl\n"):
@@ -900,6 +912,7 @@ INSTRUMENTS: web search -> corpus index
         record = """\
 ## CLAIM: The sought guideline contains a recommendation on this question.
 STATUS: unreadable - both attempts failed before either read the source.
+SEARCHED-FIRST: store "synthetic question" -> 0; guidelines "synthetic question" -> 0
 INSTRUMENTS: web fetch -> curl
 """
         scan = ledger.survey(ledger.read_records(ledger_text(record)), AS_OF)
@@ -1887,6 +1900,7 @@ class EveryRuledFanOutReadsTheSharedSourcingRules(unittest.TestCase):
             ],
             [
                 "A pointer is not a source",
+                "Search the evidence store and guideline index first",
                 "A resolving locator is not verification",
                 "The clinician's own unpublished work",
                 "A record is read at the source's width",
@@ -3961,6 +3975,7 @@ def cited(title: str, claim: str = "A claim resting on a topic.") -> str:
     return f"""\
 ## CLAIM: {claim}
 STATUS: sourced
+SEARCHED-FIRST: store "synthetic question" -> 0; guidelines "synthetic question" -> 0
 SOURCE: tertiary reference
 REFERENCE: {uptodate_entry(title)}
 RESTATEMENT: The topic states the thing the claim says it states.
@@ -4071,6 +4086,7 @@ class ACitedTopicTheFiledSetDoesNotCarryIsRefused(unittest.TestCase):
         record = """\
 ## CLAIM: A claim resting on a journal article.
 STATUS: sourced
+SEARCHED-FIRST: store "synthetic question" -> 0; guidelines "synthetic question" -> 0
 SOURCE: peer-reviewed
 REFERENCE: Abbassi-Ghanavati, M. (2009). Pregnancy and laboratory studies.
     Obstetrics and Gynecology, 114(6), 1326-1331.
@@ -4089,6 +4105,7 @@ REFUTATION: stands - the volume and pages match.
         record = """\
 ## CLAIM: A claim nothing sourced.
 STATUS: unsourced - searched UpToDate, PubMed and the guideline corpus, nothing.
+SEARCHED-FIRST: store "synthetic question" -> 0; guidelines "synthetic question" -> 0
 """
         records = ledger.read_records(ledger_text(record))
         self.assertEqual(ledger.evidence_findings(records, (), self.carried)[0], [])
@@ -4143,6 +4160,7 @@ class AnUpToDateEntryThisCannotReadIsAFinding(unittest.TestCase):
         records = ledger.read_records(ledger_text(f"""\
 ## CLAIM: A claim resting on an entry this cannot read.
 STATUS: sourced
+SEARCHED-FIRST: store "synthetic question" -> 0; guidelines "synthetic question" -> 0
 SOURCE: tertiary reference
 REFERENCE: {self.entry()}
 """))
@@ -4155,6 +4173,7 @@ REFERENCE: {self.entry()}
         records = ledger.read_records(ledger_text(f"""\
 ## CLAIM: A claim resting on an entry this cannot read.
 STATUS: sourced
+SEARCHED-FIRST: store "synthetic question" -> 0; guidelines "synthetic question" -> 0
 REFERENCE: {self.entry()}
 """))
         _, read = ledger.evidence_findings(records, (), self.carried)
@@ -4166,6 +4185,7 @@ REFERENCE: {self.entry()}
         records = ledger.read_records(ledger_text(f"""\
 ## CLAIM: A claim resting on a journal article.
 STATUS: sourced
+SEARCHED-FIRST: store "synthetic question" -> 0; guidelines "synthetic question" -> 0
 REFERENCE: {self.entry("https://doi.org/10.1097/AOG.0b013e3181c2bde8")}
 """))
         found, read = ledger.evidence_findings(records, (), self.carried)
@@ -4195,6 +4215,7 @@ REFERENCE: {self.entry("https://doi.org/10.1097/AOG.0b013e3181c2bde8")}
         records = ledger.read_records(ledger_text("""\
 ## CLAIM: A claim about a paper discussing UpToDate as a database.
 STATUS: sourced
+SEARCHED-FIRST: store "synthetic question" -> 0; guidelines "synthetic question" -> 0
 REFERENCE: Author, A. (2026). How clinicians use UpToDate in practice. Journal of
     Medical Informatics, 14(2), 100-110.
 """))
@@ -4504,6 +4525,7 @@ class TheCommandReadsTheEvidenceFile(unittest.TestCase):
         broken = """\
 ## CLAIM: A record broken in ways that have nothing to do with the evidence.
 STATUS: sourced
+SEARCHED-FIRST: store "synthetic question" -> 0; guidelines "synthetic question" -> 0
 SOURCE: not-a-real-class
 REFERENCE: Author, A. Something with no year.
 RESTATEMENT: A record broken in ways that have nothing to do with the evidence.
@@ -4992,6 +5014,7 @@ class SourcedRecordsReachTheDraftReferenceListOrAreDropped(unittest.TestCase):
         unsourced = """\
 ## CLAIM: A claim no source supports.
 STATUS: unsourced - searched PubMed and the guideline corpus.
+SEARCHED-FIRST: store "synthetic question" -> 0; guidelines "synthetic question" -> 0
 DROPPED: the claim was cut.
 """
 

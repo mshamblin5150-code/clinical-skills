@@ -213,3 +213,14 @@ as something the clinician can agree with. An order for a hypothetical other pat
 order put off until later, or a treatment class with no drug, dose or duration is not an
 applicable order. The missing treatment decision is itself a finding about the plan. Whether
 an order applies remains a reading; no tool checks it.
+
+## The clinician's own position
+
+**This repository's reading rule, rather than the course's words.** Before drafting a critique or
+reply that would fault a classmate, compare the point with the clinician's **Own submission**.
+Where his submission took a different position, stop and ask him, naming both positions; he may
+rule that his own paper was wrong. Where his submission never reached the point, judge it against
+his **Case research** first, then the ordered searches in [sourcing.md](sourcing.md#search-the-evidence-store-and-guideline-index-first).
+A first-plan line in his copy of the **Case material** is his reasoning before research and does
+not establish his position. His own post supplies comparison: credit a classmate's stronger work
+early and name a shared gap as shared. It does not settle the standard by itself.

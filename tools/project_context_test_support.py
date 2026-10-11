@@ -10,6 +10,8 @@ def write_none_context(run: Path) -> None:
     path.write_text(
         "PROJECT-CONTEXT: none - synthetic approval has no project\n"
         "OWN-SUBMISSION: none - no earlier synthetic submission\n"
+        "CASE-MATERIAL: none - no synthetic case material\n"
+        "CASE-RESEARCH: none - no synthetic case research\n"
         "CONFIRMED: 2001-01-01\n", encoding="utf-8",
     )
     result = project_context.write_record(run)
