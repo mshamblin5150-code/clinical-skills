@@ -373,11 +373,13 @@ class DeclaredLimitsHaveDurableNames(unittest.TestCase):
         )
         self.assertIs(row.evidence, ledger.EvidenceDisposition.DECLARED_READING)
 
-    def test_declared_limits_do_not_print(self):
+    def test_other_declared_limits_do_not_print(self):
         report = ledger.format_report(
             ledger.survey(ledger.read_records(CLEAN), AS_OF), "claims.md"
         )
         for row in ledger.DECLARED_LIMITS:
+            if row is ledger.RESEARCHER_RETURN_UNCOMPARED:
+                continue
             with self.subTest(key=row.key):
                 self.assertNotIn(row.key, report)
                 self.assertNotIn(row.limit, report)

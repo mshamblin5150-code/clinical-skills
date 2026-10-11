@@ -83,7 +83,9 @@ or digest that differs; `page-year-form` refuses an own-work year without one of
 ## A record is read at the source's width
 
 **QUALIFIERS** lists every limiting qualifier the `PASSAGE` carries: population, setting,
-comparator, condition, eligibility, device, adjustment and tense. Quote each word for word,
+comparator, condition, eligibility, device, adjustment and tense; a requirement, a quantifier
+and an exclusivity the passage states (for example "all three are required", "most", "only").
+Quote each word for word,
 using double-quoted strings separated by ` | `, or write `QUALIFIERS: none` when none exist.
 Escape an embedded double quote with `\"`. An absent field never means `none`.
 The researcher returns the field with the passage; the refuter checks the list is complete.
@@ -153,8 +155,12 @@ return, not a verdict. The orchestrator does not write it to the ledger and re-b
 leg.
 
 A claim record whose `PASSAGE` does not hold the supporting language receives `REFUTATION: refuted`.
-Correcting `PASSAGE` changes the claim record's evidence and requires a fresh `REFUTATION` and
-`SECOND-ROUTE` before the record can certify a value.
+Correcting `PASSAGE` or `RESTATEMENT` changes the claim record's evidence and requires a fresh
+`REFUTATION` and `SECOND-ROUTE` before the record can certify a value.
+
+The orchestrator writes a researcher's returned `RESTATEMENT` and `PASSAGE` into the ledger verbatim.
+Wording the orchestrator adds is a change to the record's evidence and returns through refutation
+before the record can certify a value.
 
 ## A refuted record fails the citation, not the claim
 
@@ -404,7 +410,9 @@ with digests printed by `research_ledger.py --heading-digests`, plus every item 
 with the first eight hex characters of the current heading digest and judges only whether the
 sentence claims more than that heading. A paraphrase claiming no more is a match; an absent claim is
 `unrecorded`, and a broader population or subject, changed number, added entity or condition, or
-dropped limitation is `drifted`. The clinician's own reasoning and experience are counted but need
+dropped limitation is `drifted`. A requirement, quantifier, or exclusivity the draft attributes to
+the source is an added condition unless the heading itself states it, even when the record's
+restatement does. The clinician's own reasoning and experience are counted but need
 no claim-heading pair; they remain subject to the project-context verdict. Item descriptions form
 a third sentence class, each with an `ITEM` line naming the opened item identifier exactly as
 `project-context.md` records it. The reader opens and compares that item itself, claim by claim.
@@ -439,6 +447,7 @@ REMARK: <problem outside the assigned question; repeat as needed>
 ```
 
 Choose exactly one `CONTEXT-VERDICT` line and one `VERDICT` line from these forms.
+`VERDICT: clean` is legal only beside `CONTEXT-VERDICT: agrees`, or beside `none` on a legacy `none` run.
 `agrees`, `none`, and `clean` take nothing after them. A `FINDINGS:` line appears once
 per sentence that failed and never on a clean record. This differs from the `## RENDERED:`
 record's `VERDICT: clean - <what was compared>` and from the practicum `## CHECK:` record,
