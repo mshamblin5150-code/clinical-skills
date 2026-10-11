@@ -1895,6 +1895,7 @@ class EveryRuledFanOutReadsTheSharedSourcingRules(unittest.TestCase):
                 "Authenticated VitalSource chapters use one reading standard",
                 "An absence-based refutation reads and quotes the passage",
                 "A refuted record fails the citation, not the claim",
+                "Invoked attributions",
                 "A sourceless record makes no claim about a source",
                 "A claim heading is the claim the document will make",
                 "A heading read binds the final draft to the ledger",
