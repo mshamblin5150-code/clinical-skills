@@ -301,6 +301,10 @@ numeric decision point, `reference/guidelines-catalog.md` and `tools/guidelines_
 society corpus. **A missing row in a threshold sheet is not a negative finding**; a missing USPSTF
 row is one about the USPSTF, and never a statement that the item is unindicated.
 
+Where those searches leave a claim uncovered, follow [the shared search order](../_shared/reference/sourcing.md#search-the-evidence-store-and-guideline-index-first):
+search his UpToDate account through the Authenticated route without asking, file each topic used
+as a supplement dump, then consult outside sources.
+
 **What none of that reaches gets researched, not deferred.** This is a **Fan-out brief** under
 [standing rule 6](../../AGENTS.md): each claim with no source in hand goes to one research worker. It is
 **not** written into the `PROPOSED` block with `verify this` against it and handed back — that was
@@ -593,6 +597,7 @@ DATE: 2026-08-19
 
 ## CLAIM: A white count of 15,000 is within the third-trimester reference range for normal pregnancy.
 STATUS: sourced
+SEARCHED-FIRST: store "third-trimester white cell range" -> 0; guidelines "third-trimester white cell range" -> 0
 SOURCE: peer-reviewed
 REFERENCE: Abbassi-Ghanavati, M., Greer, L. G., & Cunningham, F. G. (2009). Pregnancy and
     laboratory studies. Obstetrics and Gynecology, 114(6), 1326-1331.
@@ -803,16 +808,16 @@ python tools/research_ledger.py <claims-ledger> --evidence <the evidence dump>
 
 | The citation | Why |
 | --- | --- |
-| an UpToDate topic cited here that no accumulated manifest carries | the deliberately supplied store is the required source set; an unfiled current dump or a topic opened through another route does not put it in that set |
+| an UpToDate topic cited here that no accumulated manifest carries | the filed store is the required source set; ingest a used account topic as a supplement dump before drafting; opening it alone does not put it in that set |
 | an UpToDate topic whose literature-review month has left the signed two-year window | re-read it while the profile says the clinician has an account; `UPTODATE-ACCOUNT: no` waives this row without pretending the old date became current |
 | an UpToDate entry whose author surnames, author order, author count, or year disagrees with the stored topic masthead and last-updated date | the accumulated manifest already holds the authoritative masthead fields; initials are not compared, and the entry's surname decides a multi-word trailing match |
 | an entry whose locator names an UpToDate topic and that states no database element | the row above reads a topic only from the database element, so without this one an entry missing it escapes the check and the coverage count together |
 
 **The grounding is companion-evidence membership, not whether some route can open the page.** The
-Authenticated route may reach an UpToDate topic outside the accumulated manifests; that does not add the topic to the
-faculty material the clinician supplied. The clinician hands dumps over wholesale, so their manifests
-accumulate across courses. This accumulated manifest population is the **required
-supplied-source set**. **A journal article, a society guideline or a government page the
+Authenticated route may reach an UpToDate topic outside the accumulated manifests. File each topic
+used as a supplement dump through `uptodate_store.py ingest` before drafting; opening it alone does
+not put it in the source set. Supplied compilations and these supplement dumps accumulate across
+courses. This accumulated manifest population is the **required supplied-source set**. **A journal article, a society guideline or a government page the
 dump lacks is left alone**, because that is this step's ordinary case: a claim record only exists
 because the evidence did *not* cover the claim, and a row firing on those would refuse the correct
 outcome.

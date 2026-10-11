@@ -84,8 +84,8 @@ def claim_record(
 
 def empty_population_input(root: Path) -> EmptyPopulationInput:
     (root / "project-context.md").write_text(
-        "PROJECT-CONTEXT: none - synthetic critique\nOWN-SUBMISSION: none - no earlier synthetic submission\n"
-        "CONFIRMED: 2001-01-01\nCONTEXT-DIGEST: 67d55228f3d5d679eb597e38d220b591803ef13085d57f1176ec0b6302c5fc8f\n",
+        "PROJECT-CONTEXT: none - synthetic critique\nOWN-SUBMISSION: none - no earlier synthetic submission\nCASE-MATERIAL: none - no synthetic case material\nCASE-RESEARCH: none - no synthetic case research\n"
+        "CONFIRMED: 2001-01-01\nCONTEXT-DIGEST: e9480117c1477001f65666233ed4ef160c1544873d6184ff730a83380429f1bf\n",
         encoding="utf-8",
     )
     (root / "posts").mkdir()
@@ -105,7 +105,7 @@ def empty_population_input(root: Path) -> EmptyPopulationInput:
     (root / "heading-read.md").write_text(
         f"## HEADING-READ: critique.md\nDRAFT: {digest}\n"
         "ROUTE: separate context\nSENTENCES: 0 factual, 0 clinician's own\n"
-        "CONTEXT-DIGEST: 67d55228f3d5d679eb597e38d220b591803ef13085d57f1176ec0b6302c5fc8f\nCONTEXT-VERDICT: agrees\nVERDICT: clean\n",
+        "CONTEXT-DIGEST: e9480117c1477001f65666233ed4ef160c1544873d6184ff730a83380429f1bf\nCONTEXT-VERDICT: agrees\nVERDICT: clean\n",
         encoding="utf-8",
     )
     return EmptyPopulationInput(
@@ -131,8 +131,8 @@ def build_run(
     directory = root or Path(tempfile.mkdtemp()) / "run"
     (directory / "posts").mkdir(parents=True)
     (directory / "project-context.md").write_text(
-        "PROJECT-CONTEXT: none - synthetic critique\nOWN-SUBMISSION: none - no earlier synthetic submission\n"
-        "CONFIRMED: 2001-01-01\nCONTEXT-DIGEST: 67d55228f3d5d679eb597e38d220b591803ef13085d57f1176ec0b6302c5fc8f\n",
+        "PROJECT-CONTEXT: none - synthetic critique\nOWN-SUBMISSION: none - no earlier synthetic submission\nCASE-MATERIAL: none - no synthetic case material\nCASE-RESEARCH: none - no synthetic case research\n"
+        "CONFIRMED: 2001-01-01\nCONTEXT-DIGEST: e9480117c1477001f65666233ed4ef160c1544873d6184ff730a83380429f1bf\n",
         encoding="utf-8",
     )
     (directory / "posts" / "k.md").write_text("AUTHOR: Maren Quill\n", encoding="utf-8")
@@ -154,7 +154,7 @@ def build_run(
     (directory / "heading-read.md").write_text(
         f"## HEADING-READ: critique.md\nDRAFT: {digest}\n"
         "ROUTE: separate context\nSENTENCES: 0 factual, 0 clinician's own\n"
-        "CONTEXT-DIGEST: 67d55228f3d5d679eb597e38d220b591803ef13085d57f1176ec0b6302c5fc8f\nCONTEXT-VERDICT: agrees\nVERDICT: clean\n",
+        "CONTEXT-DIGEST: e9480117c1477001f65666233ed4ef160c1544873d6184ff730a83380429f1bf\nCONTEXT-VERDICT: agrees\nVERDICT: clean\n",
         encoding="utf-8",
     )
     if reread is not None:
@@ -312,7 +312,7 @@ class FinishedPeerCritiquesAreTheMeasuredControls(unittest.TestCase):
             (directory / "heading-read.md").write_text(
                 f"## HEADING-READ: critique.md\nDRAFT: {digest}\n"
                 "ROUTE: separate context\nSENTENCES: 0 factual, 0 clinician's own\n"
-                "CONTEXT-DIGEST: 67d55228f3d5d679eb597e38d220b591803ef13085d57f1176ec0b6302c5fc8f\nCONTEXT-VERDICT: agrees\nVERDICT: clean\n",
+                "CONTEXT-DIGEST: e9480117c1477001f65666233ed4ef160c1544873d6184ff730a83380429f1bf\nCONTEXT-VERDICT: agrees\nVERDICT: clean\n",
                 encoding="utf-8",
             )
             (directory / "reread.md").write_text(

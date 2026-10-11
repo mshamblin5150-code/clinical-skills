@@ -202,6 +202,7 @@ reference entry from the applicable form in
 ```text
 ## CLAIM: <the drafted claim, including its exact numeric token where applicable>
 STATUS: sourced | unsourced | unreadable - <what was searched or what prevented the read>
+SEARCHED-FIRST: store "<clinical question>" -> 0; guidelines "<clinical question>" -> 0
 SOURCE: society guideline | peer-reviewed | government | tertiary reference
 REFERENCE: <full APA 7 entry>
 RESTATEMENT: <what the source says, including the draft's exact numeric token where applicable>

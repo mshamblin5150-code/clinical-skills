@@ -126,6 +126,7 @@ dispatch. The completed record has this form:
 ```text
 ## CLAIM: <claim, including the exact numeric token when it is numeric>
 STATUS: sourced | unsourced | unreadable - <what was searched or what prevented the read>
+SEARCHED-FIRST: store "<clinical question>" -> 0; guidelines "<clinical question>" -> 0
 SOURCE: <one class signed in bar.md>
 REFERENCE: <full reference entry>
 RESTATEMENT: <what the source says, including a number for a numeric claim>

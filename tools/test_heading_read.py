@@ -22,9 +22,11 @@ DATE: 2026-09-13
 
 ## CLAIM: Supported heading.
 STATUS: sourced
+SEARCHED-FIRST: store "synthetic question" -> 0; guidelines "synthetic question" -> 0
 
 ## CLAIM: Dropped heading.
 STATUS: sourced
+SEARCHED-FIRST: store "synthetic question" -> 0; guidelines "synthetic question" -> 0
 DROPPED: the draft no longer makes this claim
 """
 DRAFT = b"Draft sentence.\n"

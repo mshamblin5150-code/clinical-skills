@@ -80,7 +80,7 @@ class OwnSubmissionCommand(ProjectContextFixture):
     def test_none_has_a_bound_reason_even_without_a_project(self):
         path = self.run / context.RECORD_NAME
         path.write_text("PROJECT-CONTEXT: none - no project\n"
-                        "OWN-SUBMISSION: none - no earlier submission\n"
+                        "OWN-SUBMISSION: none - no earlier submission\nCASE-MATERIAL: none - no synthetic case material\nCASE-RESEARCH: none - no synthetic case research\n"
                         "CONFIRMED: 2026-10-11\n", encoding="utf-8")
         self.assertEqual(self.command()[0], 0)
         self.assertFalse(self.complete().finding)

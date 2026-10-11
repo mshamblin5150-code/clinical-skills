@@ -61,6 +61,10 @@ class ProjectContextFixture(unittest.TestCase):
                     "PROJECT-CONTEXT: Atlas",
                     *(("OWN-SUBMISSION: none - no earlier synthetic submission",)
                       if not any(line.startswith("OWN-SUBMISSION:") for line in header) else ()),
+                    *(("CASE-MATERIAL: none - no synthetic case material",)
+                      if not any(line.startswith("CASE-MATERIAL:") for line in header) else ()),
+                    *(("CASE-RESEARCH: none - no synthetic case research",)
+                      if not any(line.startswith("CASE-RESEARCH:") for line in header) else ()),
                     *header,
                     "CONFIRMED: 2001-01-01",
                     "",
@@ -155,13 +159,15 @@ class AProjectContextGateWritesTheRetrievalFingerprint(ProjectContextFixture):
         )
         expected = hashlib.sha256(
             ("OWN-SUBMISSION\0none - no earlier synthetic submission\n" +
+             "CASE-MATERIAL\0none - no synthetic case material\n" +
+             "CASE-RESEARCH\0none - no synthetic case research\n" +
              "".join("\0".join(triple) + "\n" for triple in triples)).encode("utf-8")
         ).hexdigest()
         self.assertEqual(context.recorded_digest(self.run), expected)
 
     def test_a_none_declaration_needs_a_reason_and_writes_none(self) -> None:
         self.run.joinpath(context.RECORD_NAME).write_text(
-            "PROJECT-CONTEXT: none - critique concerns a classmate's case\nOWN-SUBMISSION: none - no earlier synthetic submission\n"
+            "PROJECT-CONTEXT: none - critique concerns a classmate's case\nOWN-SUBMISSION: none - no earlier synthetic submission\nCASE-MATERIAL: none - no synthetic case material\nCASE-RESEARCH: none - no synthetic case research\n"
             "CONFIRMED: 2001-01-01\n",
             encoding="utf-8",
         )
@@ -169,11 +175,11 @@ class AProjectContextGateWritesTheRetrievalFingerprint(ProjectContextFixture):
         result = self.write(payloads={})
 
         self.assertEqual(result.exit_code, 0)
-        self.assertEqual(context.recorded_digest(self.run), "67d55228f3d5d679eb597e38d220b591803ef13085d57f1176ec0b6302c5fc8f")
+        self.assertEqual(context.recorded_digest(self.run), "e9480117c1477001f65666233ed4ef160c1544873d6184ff730a83380429f1bf")
 
     def test_none_without_a_reason_is_a_finding(self) -> None:
         self.run.joinpath(context.RECORD_NAME).write_text(
-            "PROJECT-CONTEXT: none\nOWN-SUBMISSION: none - no earlier synthetic submission\nCONFIRMED: 2001-01-01\n", encoding="utf-8"
+            "PROJECT-CONTEXT: none\nOWN-SUBMISSION: none - no earlier synthetic submission\nCASE-MATERIAL: none - no synthetic case material\nCASE-RESEARCH: none - no synthetic case research\nCONFIRMED: 2001-01-01\n", encoding="utf-8"
         )
         self.assertEqual(self.write(payloads={}).exit_code, 1)
 
@@ -647,7 +653,7 @@ class GoAheadRechecks(ProjectContextFixture):
         self.complete_record()
         self.assertEqual(self.write().exit_code, 0)
         claims = self.run / "heading-read.md"
-        claims.write_text(claims.read_text(encoding="utf-8").replace("67d55228f3d5d679eb597e38d220b591803ef13085d57f1176ec0b6302c5fc8f", context.recorded_digest(self.run)), encoding="utf-8")
+        claims.write_text(claims.read_text(encoding="utf-8").replace("e9480117c1477001f65666233ed4ef160c1544873d6184ff730a83380429f1bf", context.recorded_digest(self.run)), encoding="utf-8")
         self.plan.write_bytes(b"changed plan\n")
         with mock.patch.object(repo_root, "project_registry", return_value=self.registry), mock.patch.object(
             approval_record, "verify_clinician_reply", return_value=approval_record.ReplyVerification("verified", "synthetic transcript", 1.0)
@@ -671,7 +677,7 @@ class GoAheadRechecks(ProjectContextFixture):
         self.complete_record()
         self.assertEqual(self.write().exit_code, 0)
         claims = self.run / "heading-read.md"
-        claims.write_text(claims.read_text(encoding="utf-8").replace("67d55228f3d5d679eb597e38d220b591803ef13085d57f1176ec0b6302c5fc8f", context.recorded_digest(self.run)), encoding="utf-8")
+        claims.write_text(claims.read_text(encoding="utf-8").replace("e9480117c1477001f65666233ed4ef160c1544873d6184ff730a83380429f1bf", context.recorded_digest(self.run)), encoding="utf-8")
         with mock.patch.object(repo_root, "project_registry", return_value=self.registry), mock.patch.object(Path, "replace", side_effect=OSError("synthetic write failure")), mock.patch.object(approval_record, "verify_clinician_reply", return_value=approval_record.ReplyVerification("verified", "synthetic transcript", 1.0)), mock.patch.object(approval_record, "verify_shown_text", return_value=approval_record.ReplyVerification("verified", "synthetic transcript", 1.0)), mock.patch.object(approval_record.reader_remarks, "verify", return_value=[]):
             with self.assertRaisesRegex(approval_record.ApprovalRecordError, "could not be written"):
                 approval_record.approve(self.run, skill="discussion-reply", submission="submission", sources=(self.run / "response-maren.md",), grader_args=(str(self.run),), content_approved=True, clinician_reply="Approve the synthetic reply.")
