@@ -33,6 +33,10 @@ and a hundred-point assignment in another, and the weight changes what the clini
 it. Where the live spec and the sheet disagree, the live spec wins and the disagreement is reported
 to the clinician.
 
+When the clinician asks to cite his own unpublished work, apply
+[sourcing.md's own-work bar admission](../_shared/reference/sourcing.md#the-clinicians-own-unpublished-work)
+at signing or by mid-run re-signing. `clinician's own work` is never a default template class.
+
 ## Inputs and private run state
 
 The inputs are one case-study discussion-topic URL and, where the LMS has assigned one, the peer

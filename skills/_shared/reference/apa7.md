@@ -1123,3 +1123,22 @@ their agreement name and signing or approval date.
 The chapter's abbreviation table is illustrative, not an exhaustive legal vocabulary. State rules
 can differ, a URL is ordinarily supplemental to the authoritative locator, and the Bluebook or an
 appropriate law-library source governs legal questions this distilled sheet does not resolve.
+
+## 42. The clinician's own unpublished manuscript
+
+Verified against APA Style's [How to cite unpublished works](https://apastyle.apa.org/blog/cite-unpublished-works)
+(August 7, 2025), the primary explanation of *Publication Manual* §10.8.
+Use author, year, italic sentence-case title, `[Unpublished manuscript]`, and the known institution
+or department as source. A local manuscript takes no URL or retrieval date in its reference entry;
+the private claim record retains its absolute path, byte fingerprint, and read date.
+
+```text
+Author, A. (Year). *Title* [Unpublished manuscript]. Institution or department.
+```
+
+A policy's identifying number may follow its title in parentheses. For the clinician's policy set:
+`Shamblin, J. (2025). *Title* (Rural Health Clinic Policy No. 0NN) [Unpublished manuscript]. Rural Health Clinic, Welch Community Hospital.`
+Use ordinary author-date citations. Verify the year against the document's statement first,
+then its internal last-modified metadata, then the clinician's answer; name the source in
+`PAGE-YEAR` under [sourcing.md](sourcing.md). File-system dates never date the work.
+The fixed version is why `clinician's own work` settles retrieval-date absence in `reference_scan`.

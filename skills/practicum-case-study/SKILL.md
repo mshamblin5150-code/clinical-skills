@@ -50,6 +50,10 @@ refusal; the signed bar still decides whether a pointer body is allowed.
 
 The signed bar also carries the research policy exactly once:
 
+When the clinician asks to cite his own unpublished work, apply
+[sourcing.md's own-work bar admission](../_shared/reference/sourcing.md#the-clinicians-own-unpublished-work)
+at signing or by mid-run re-signing. `clinician's own work` is never a default template class.
+
 ```text
 SOURCE-CLASSES: society guideline | peer-reviewed | government | tertiary reference
 RECENCY-WINDOW-YEARS: 5

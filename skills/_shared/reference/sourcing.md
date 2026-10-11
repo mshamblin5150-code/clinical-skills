@@ -14,10 +14,39 @@ response status is not verification: a near-miss address and a login form can bo
 sourced claim record's `RESOLVED` field therefore names the address confirmed as the work's own,
 never a bare status.
 
+## The clinician's own unpublished work
+
+`clinician's own work` is admitted only by the assignment's signed `SOURCE-CLASSES`.
+No bar template includes it by default. Add it only when the clinician allows it for that
+assignment, at signing or by amending and re-signing `bar.md` when he asks mid-run. His request
+authorizes that re-signing; retain it with the bar. Where no bar exists, write one with `SIGNED`,
+the assignment's permitted `SOURCE-CLASSES`, and `RECENCY-WINDOW-YEARS` before using the class.
+A record outside the signed classes fails `unknown-source-class`; stop to ask the clinician.
+Keep a full sourced claim record and independent refutation. Use APA's unpublished-manuscript
+form in [apa7.md](apa7.md) §42. The ordinary recency window still applies: older work needs
+`nothing newer` or `guideline in force` with a reason.
+
+```text
+RESOLVED: <absolute document path> | SHA256: <lowercase SHA-256 of the bytes read> - read <ISO date>
+PAGE-YEAR: <year> - document statement: <where the document dates itself>
+PAGE-YEAR: <year> - internal metadata last-modified: <Word core properties or PDF modification date>
+PAGE-YEAR: <year> - clinician's answer: <recorded answer>
+SECOND-ROUTE: <author's reading route> -> refuter opened <same absolute document path> | SHA256: <digest the refuter read>
+```
+
+Choose one `PAGE-YEAR` line, taking the first available source in the order shown. Never use the
+file-system modified date. The refuter opens that exact path, hashes the bytes it read, and tests
+the heading and restatement against the document. Its digest must agree with `RESOLVED`.
+Every other class retains the URL-or-DOI locator. The ledger rehashes local bytes at grading;
+an absent or changed file is shared unread remainder, exit 2, while a finding still wins.
+The existing `unresolvable-locator` row also refuses a malformed local locator or a refuter path
+or digest that differs; `page-year-form` refuses an own-work year without one of these sources.
+
 ## A record is read at the source's width
 
 - **Every field is copied from the work as a reader sees it rendered.** A web title is the rendered
-  page heading, never the browser tab text or a backing dataset's record. A year or date comes from
+  page heading, never the browser tab text or a backing dataset's record. For the clinician's own
+  unpublished work, use the ordered year sources above; for online works a year or date comes from
   visible text, never an HTML comment. An online reference entry is dated by the publisher's citation
   form or its last content revision, never by a link-only history row. `PAGE-YEAR` holds only the
   page's own year or says the page states none. A year in 1900–2099 opens the field; no second,

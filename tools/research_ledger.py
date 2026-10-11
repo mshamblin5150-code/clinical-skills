@@ -26,10 +26,11 @@ import sys
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import date
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import NamedTuple
 
 import run_grader
+from file_digest import sha256
 from run_grader import NOT_GRADED
 import coursework_run
 import uptodate_store
@@ -129,13 +130,54 @@ YEAR = re.compile(r"\((\d{4})[a-z]?(?:,[^)]*)?\)")
 # The closed vocabulary spans both coursework pipelines. Which members a run
 # permits is signed in its own bar, so admitting market evidence for a deck does
 # not make it sourceable for a clinical paper.
-SOURCE_CLASS_VOCABULARY = (
+DEFAULT_SOURCE_CLASSES = (
     "society guideline",
     "peer-reviewed",
     "government",
     "tertiary reference",
-    "market source",
 )
+OWN_WORK = "clinician's own work"
+SOURCE_CLASS_VOCABULARY = (*DEFAULT_SOURCE_CLASSES, "market source", OWN_WORK)
+OWN_WORK_YEAR_SOURCES = (
+    "document statement", "internal metadata last-modified", "clinician's answer",
+)
+LOCAL_LOCATOR = re.compile(
+    r"(?P<path>.+?) \| SHA256: (?P<digest>[0-9a-f]{64})"
+    r"(?: - read \d{4}-\d{2}-\d{2})?"
+)
+
+
+def local_locator(value: str) -> tuple[Path, str] | None:
+    """Read ADR 0322's absolute path and exact lowercase byte fingerprint."""
+    matched = LOCAL_LOCATOR.fullmatch(value.strip())
+    if matched is None:
+        return None
+    path = matched.group("path")
+    if not (Path(path).is_absolute() or PureWindowsPath(path).is_absolute()):
+        return None
+    return Path(path), matched.group("digest")
+
+
+def is_own_work(record: Record) -> bool:
+    return normalize(record.value("SOURCE")) == normalize(OWN_WORK)
+
+
+def local_documents_unread(records: Iterable[Record]) -> int:
+    """Count unavailable or changed local sources without inventing a finding."""
+    unread = 0
+    for record in records:
+        if not is_own_work(record):
+            continue
+        locator = local_locator(record.value("RESOLVED"))
+        if locator is None:
+            continue  # Malformed locators belong to the finding row.
+        path, digest = locator
+        try:
+            matches = sha256(path) == digest
+        except OSError:
+            matches = False
+        unread += not matches
+    return unread
 
 # #215's four dispositions. The last two are the ones that excuse an old source,
 # and both have to say why.
@@ -448,6 +490,17 @@ def read_bar(text: str) -> LedgerBar:
         raise run_grader.SourceError(
             f"bar.md SOURCE-CLASSES has an unknown value; accepted values are {accepted}"
         )
+    if any(normalize(name) == normalize(OWN_WORK) for name in classes):
+        signatures = re.findall(r"(?mi)^SIGNED:[ \t]*([^\n]*)$", text)
+        signed = False
+        if len(signatures) == 1 and re.fullmatch(r"\d{4}-\d{2}-\d{2}", signatures[0].strip()):
+            try:
+                date.fromisoformat(signatures[0].strip())
+                signed = True
+            except ValueError:
+                pass
+        if not signed:
+            classes = tuple(name for name in classes if normalize(name) != normalize(OWN_WORK))
     window = fields["RECENCY-WINDOW-YEARS"]
     if not window.isdigit() or int(window) < 1:
         raise run_grader.SourceError("bar.md RECENCY-WINDOW-YEARS must be a positive integer")
@@ -672,6 +725,7 @@ class Scan:
     uptodate_mastheads: MastheadScan | None
     evidence_at_fault: int
     findings: tuple[Finding, ...]
+    local_documents_unread: int = 0
 
 
 # The title element of [apa7.md](skills/_shared/reference/apa7.md)
@@ -1069,7 +1123,8 @@ def _citation_findings(record: Record, as_of: date | None) -> list[Finding]:
     # and when.
     resolved = record.value("RESOLVED")
     if SUBSTANCE.search(resolved):
-        if not LOCATOR.search(resolved):
+        valid_locator = local_locator(resolved) if is_own_work(record) else LOCATOR.search(resolved)
+        if not valid_locator:
             found.append(Finding(UNRESOLVABLE_LOCATOR, claim, resolved))
         read = record.read_date
         if read is None:
@@ -1080,12 +1135,26 @@ def _citation_findings(record: Record, as_of: date | None) -> list[Finding]:
             # is a record describing something that had not happened yet.
             found.append(Finding(READ_AFTER_DATE, claim, f"read {read.isoformat()}, DATE {as_of}"))
 
+    if is_own_work(record) and SUBSTANCE.search(record.value("SECOND-ROUTE")):
+        second = record.value("SECOND-ROUTE").partition("->")[2]
+        original = local_locator(resolved)
+        reread = local_locator(second.strip().removeprefix("refuter opened "))
+        if original is None or reread is None or reread != original:
+            found.append(Finding(UNRESOLVABLE_LOCATOR, claim, "SECOND-ROUTE: " + second))
+
     # **One rule in three rows: the page and the entry agree about the year.** An
     # ``n.d.`` entry beside a page that states no year is the agreeing case and
     # passes -- refusing it would refuse legitimate APA, which is the mistake
     # ``UNDATED_REFERENCE`` was already corrected for once.
     stated = record.value("PAGE-YEAR")
     if SUBSTANCE.search(stated):
+        if is_own_work(record):
+            year_source = re.fullmatch(
+                r"\d{4}\s*-\s*(" + "|".join(re.escape(s) for s in OWN_WORK_YEAR_SOURCES)
+                + r"):\s*(.+)", stated, re.I | re.S,
+            )
+            if year_source is None or not SUBSTANCE.search(year_source.group(2)):
+                found.append(Finding(PAGE_YEAR_FORM, claim, stated))
         page_year = record.page_year
         entry_year = record.reference_year
         cited = bool(SUBSTANCE.search(record.value("REFERENCE")))
@@ -1251,7 +1320,7 @@ def record_findings(
     found: list[Finding] = []
     claim = record.claim
     if source_classes is None:
-        source_classes = SOURCE_CLASS_VOCABULARY[:-1]
+        source_classes = DEFAULT_SOURCE_CLASSES
     if recency_window_years is None:
         recency_window_years = 5
 
@@ -1732,7 +1801,7 @@ def survey(
     sibling prints a run directory's -- the name, never the path.
     """
     if source_classes is None:
-        source_classes = SOURCE_CLASS_VOCABULARY[:-1]
+        source_classes = DEFAULT_SOURCE_CLASSES
     if recency_window_years is None:
         recency_window_years = 5
     graded = [
@@ -1860,6 +1929,7 @@ def survey(
         uptodate_mastheads=mastheads,
         evidence_at_fault=len(on_the_evidence),
         findings=tuple(found),
+        local_documents_unread=local_documents_unread(sourced),
     )
 
 
@@ -2152,6 +2222,8 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
         ),
     )
     diagnostics: list[str] = []
+    if scan.local_documents_unread:
+        diagnostics.append(run_grader.format_unread_remainder(scan.local_documents_unread))
     if not source.records:
         diagnostics.append(f"no claim records found in {source.path.name}")
     if source.evidence_not_filed:
@@ -2221,6 +2293,7 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
     )
     coverage_failed = bool(
         not source.records
+        or scan.local_documents_unread
         or source.as_of is None
         or source.evidence_not_filed
         or source.stated_expiry_unscanned

@@ -89,7 +89,10 @@ submission type, and precedence are right. Only then write `SIGNED:` and
 continue. A missing field is not a default: both graders exit 2 because the run was not scanned.
 
 The source-class vocabulary is `society guideline`, `peer-reviewed`, `government`,
-`tertiary reference`, and `market source`. The bar selects the subset this artifact permits. A
+`tertiary reference`, `market source`, and `clinician's own work`. The bar selects the subset this artifact permits.
+When the clinician asks to cite his own unpublished work, apply
+[sourcing.md's own-work bar admission](../_shared/reference/sourcing.md#the-clinicians-own-unpublished-work)
+at signing or by mid-run re-signing; never add that class to a default template list. A
 clinical claim does not become sourceable from a commercial listing merely because a deck in
 another run signed `market source`. `FONT-DIRECTION` is a signed reading of the professor's rule;
 the grader does not decide whether that reading was correct.

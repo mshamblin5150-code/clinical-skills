@@ -69,6 +69,10 @@ For this skill, the canonical artifacts governed by [standing rule 6](../../AGEN
 
 ## 1. Read and rank the whole board
 
+When the clinician asks to cite his own unpublished work, apply
+[sourcing.md's own-work bar admission](../_shared/reference/sourcing.md#the-clinicians-own-unpublished-work)
+at signing or by mid-run re-signing. `clinician's own work` is never a default template class.
+
 Read all classmate posts before recommending any. Return one numbered ranking covering every
 classmate, with:
 
@@ -106,7 +110,7 @@ header and one question-form claim heading per factual point to research. Start 
 target slug, for example
 `## CLAIM: [REPLY: maren] What improvement did the combined program report?` This is the join that
 keeps the same number in another reply's record from tracing the wrong assertion. Each research
-worker takes one claim and returns a reputable source from one of
+worker takes one claim and returns a source admitted by the signed bar, or otherwise one of
 four classes, `society guideline`, `peer-reviewed`, `government`, or `tertiary reference`, plus a
 full APA 7 reference, a restatement in the source's own terms, the URL or DOI actually opened and
 the read date, where in the source the supporting language sits, the page's stated year and where
