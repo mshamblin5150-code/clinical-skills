@@ -114,6 +114,7 @@ SOURCE: <one class signed in bar.md>
 REFERENCE: <full reference entry>
 RESTATEMENT: <what the source says, including a number for a numeric claim>
 PASSAGE: <where in the source the supporting language sits>
+QUALIFIERS: "<limiting qualifier quoted from PASSAGE>" | "<next qualifier>" | none
 RECENCY: current | within five | nothing newer - <reason> | guideline in force - <reason>
 RESOLVED: <URL or DOI> - read <ISO date>
 PAGE-YEAR: <year and where the page states it>
@@ -129,6 +130,8 @@ also required for `REFUTATION: unreadable` and forbidden elsewhere. Research pro
 This **Fan-out brief** applies [standing rule 6](../../AGENTS.md). Every research and refutation
 brief first reads and applies
 [sourcing.md](../_shared/reference/sourcing.md).
+The research return includes `QUALIFIERS`; the refutation brief checks its completeness
+under that shared rule.
 Each refutation leg attacks the reference, locator, year, bibliographic details, heading, and restatement. It returns
 `stands`, `refuted`, `paywalled`, or `unreadable` with a reason and a genuinely different second route. The
 route requirement is a local narrowing.

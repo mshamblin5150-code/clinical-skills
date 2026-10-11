@@ -1454,6 +1454,9 @@ class TheSkillSaysWhatThisChecks(unittest.TestCase):
     # scanner knows. ``AGENTS.md`` classes this as a Required command because the
     # skill requires its clean exit before submission.
     ROW_PHRASES = {
+        checks.heading_read.QUALIFIER_COUNT: "a heading-read-qualifier-count finding",
+        checks.heading_read.ITEM_COUNT: "a heading-read-item-count finding",
+        checks.heading_read.UNOPENED_ITEM: "a heading-read-unopened-item finding",
         checks.MISSING_CHECK: "a heading the table names that is not in the file",
         checks.DUPLICATE_CHECK: "two records under one check",
         checks.MISSING_VERDICT: "a heading with no `VERDICT`",

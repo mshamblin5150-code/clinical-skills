@@ -138,7 +138,9 @@ clinician authored in this run's input, exclude faculty, classmate, and source l
 explicit `none`.
 
 First write and confirm `project-context.md`, then retrieve every place owed by
-[sourcing.md](../_shared/reference/sourcing.md). The project-context command must exit 0. An
+[sourcing.md](../_shared/reference/sourcing.md).
+The research return includes `QUALIFIERS`; the refutation brief checks its completeness
+under that shared rule. The project-context command must exit 0. An
 unregistered project stops for the clinician's answer; an unreachable place stops until it is
 readable or the clinician confirms its waiver. A later search direction amends and re-confirms the
 record before prose resumes.
@@ -202,6 +204,7 @@ SOURCE: society guideline | peer-reviewed | government | tertiary reference
 REFERENCE: <full APA 7 entry>
 RESTATEMENT: <what the source says, including the draft's exact numeric token where applicable>
 PASSAGE: <where in the source the supporting language sits>
+QUALIFIERS: "<limiting qualifier quoted from PASSAGE>" | "<next qualifier>" | none
 RECENCY: current | within five | nothing newer - <reason> | guideline in force - <reason>
 RESOLVED: <URL or DOI> - read <ISO date>
 PAGE-YEAR: <year and where the page states it>

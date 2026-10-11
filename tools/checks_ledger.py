@@ -833,6 +833,7 @@ class BoundChecksSource:
     claims: tuple[research_ledger.Record, ...]
     readings: tuple[PostedReading, ...]
     composer_run: bool = False
+    claims_text: str = ""
 
 
 def _submission_document(submission: str) -> Path:
@@ -938,6 +939,7 @@ def _load(parsed: run_grader.Parsed) -> BoundChecksSource:
         tuple(research_ledger.read_records(claims_text)),
         readings,
         composer_run,
+        claims_text,
     )
 
 
@@ -980,6 +982,8 @@ def _grade(
                     source.document_bytes,
                     source.claims,
                     project_context.recorded_digest(source.path.parent),
+                    as_of=research_ledger.ledger_date(source.claims_text),
+                    opened_items=project_context.recorded_opened_items(source.path.parent),
                 ),
             ),
         )
@@ -1114,6 +1118,7 @@ def _grade(
         coverage_failed=not source.records or bool(heading.unread),
         diagnostics=tuple(diagnostics),
         reports=(
+            heading_read.protocol_coverage(source.claims_text, source.text),
             heading_read.format_coverage(heading),
             rendered_report,
             aar_report,

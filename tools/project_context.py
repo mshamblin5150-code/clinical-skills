@@ -432,6 +432,21 @@ def _integer(entry: Entry, name: str, errors: list[str]) -> int | None:
     return number
 
 
+def recorded_opened_items(run: Path) -> tuple[str, ...]:
+    """Identifiers of opened items, using the same parser as the context gate."""
+    try:
+        record = read_record((run / RECORD_NAME).read_text(encoding="utf-8"))
+    except OSError:
+        return ()
+    return tuple(
+        _opened(value).item
+        for entry in record.entries
+        if entry.value("STATE").casefold() in ("read", "searched")
+        for value in entry.values("OPENED")
+        if value.casefold() != "none"
+    )
+
+
 def _opened(value: str) -> Opened:
     match = _OPENED.fullmatch(value)
     return (

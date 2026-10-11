@@ -10,6 +10,7 @@ pairing boundary; the project-context row's ceiling belongs to
 from __future__ import annotations
 
 import re
+from datetime import date
 from dataclasses import dataclass, field
 from typing import NamedTuple
 
@@ -26,6 +27,8 @@ class DeclaredLimit(NamedTuple):
 
 
 DECLARED_LIMITS = (
+    DeclaredLimit("qualifier-count-correctness-unverified", "A complete qualifier count cannot establish that the reader judged the sentence's qualifiers correctly.", EvidenceDisposition.DECLARED_READING),
+    DeclaredLimit("item-comparison-unverified", "An ITEM line names an opened item but cannot establish that the reader compared its claims correctly.", EvidenceDisposition.DECLARED_READING),
     DeclaredLimit(
         "pairing-correctness-unverified",
         "The record cannot prove that a reader paired each factual sentence correctly or judged that it claims no more than its heading.",
@@ -69,13 +72,14 @@ HEADER = re.compile(r"(?mi)^[ \t]*##[ \t]+HEADING-READ[ \t]*:[ \t]*(.*?)[ \t]*$"
 HEADING_CANDIDATE = re.compile(r"(?mi)^[ \t]*##[ \t]+HEADING-READ\b.*$")
 OTHER_HEADER = re.compile(r"^[ \t]*#{1,6}[ \t]+")
 FIELD = re.compile(
-    r"(?i)^[ \t]*(DRAFT|ROUTE|SENTENCES|PAIR|CONTEXT-DIGEST|CONTEXT-VERDICT|VERDICT|FINDINGS)[ \t]*:[ \t]*(.*?)[ \t]*$"
+    r"(?i)^[ \t]*(DRAFT|ROUTE|SENTENCES|PAIR|ITEM|CONTEXT-DIGEST|CONTEXT-VERDICT|VERDICT|FINDINGS)[ \t]*:[ \t]*(.*?)[ \t]*$"
 )
 SENTENCES = re.compile(
-    r"(?i)^(?P<factual>[0-9]+)[ \t]+factual,[ \t]*(?P<own>[0-9]+)[ \t]+clinician's own$",
+    r"(?i)^(?P<factual>[0-9]+)[ \t]+factual,[ \t]*(?P<own>[0-9]+)[ \t]+clinician's own(?:,[ \t]*(?P<item>[0-9]+)[ \t]+item)?$",
     re.ASCII,
 )
-PAIR = re.compile(r"^(?P<location>.+?)[ \t]+->[ \t]+(?P<prefix>[0-9a-fA-F]{8})$", re.ASCII)
+PAIR = re.compile(r"^(?P<location>.+?)[ \t]+->[ \t]+(?P<prefix>[0-9a-fA-F]{8})(?:[ \t]+\|[ \t]+qualifiers (?P<read>[0-9]+) of (?P<total>[0-9]+))?$", re.ASCII)
+ITEM = re.compile(r"^(?P<location>.+?)[ \t]+->[ \t]+(?P<item>.+)$")
 ROUTES = frozenset(("separate context", "orchestrator walk"))
 
 MISSING_RECORD = "missing-heading-read"
@@ -91,7 +95,13 @@ REPORTED_FINDING = "heading-read-finding"
 CONTEXT_DIGEST_MISMATCH = "heading-read-context-digest"
 CONTEXT_VERDICT_SHAPE = "heading-read-context-verdict-shape"
 CONTEXT_DEFECT_VERDICT = "heading-read-context-defect"
+QUALIFIER_COUNT = "heading-read-qualifier-count"
+ITEM_COUNT = "heading-read-item-count"
+UNOPENED_ITEM = "heading-read-unopened-item"
 KINDS = (
+    QUALIFIER_COUNT,
+    ITEM_COUNT,
+    UNOPENED_ITEM,
     MISSING_RECORD,
     DUPLICATE_RECORD,
     UNKNOWN_ROUTE,
@@ -114,6 +124,7 @@ class Record:
     fields: dict[str, str] = field(default_factory=dict)
     pairs: tuple[str, ...] = ()
     findings: tuple[str, ...] = ()
+    items: tuple[str, ...] = ()
 
     def value(self, name: str) -> str:
         return self.fields.get(name, "")
@@ -125,6 +136,8 @@ class Binding:
     draft: bytes
     claims: tuple[research_ledger.Record, ...]
     context_digest: str
+    as_of: date | None = None
+    opened_items: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -147,21 +160,22 @@ def read_records(text: str) -> tuple[Record, ...]:
     fields: dict[str, str] = {}
     pairs: list[str] = []
     findings: list[str] = []
+    items: list[str] = []
 
     def close() -> None:
         if artifact is not None:
-            records.append(Record(artifact, dict(fields), tuple(pairs), tuple(findings)))
+            records.append(Record(artifact, dict(fields), tuple(pairs), tuple(findings), tuple(items)))
 
     for line in text.splitlines():
         heading = HEADER.match(line)
         if heading:
             close()
             artifact = heading.group(1).strip()
-            fields, pairs, findings = {}, [], []
+            fields, pairs, findings, items = {}, [], [], []
             continue
         if artifact is not None and OTHER_HEADER.match(line):
             close()
-            artifact, fields, pairs, findings = None, {}, [], []
+            artifact, fields, pairs, findings, items = None, {}, [], [], []
             continue
         if artifact is None:
             continue
@@ -171,6 +185,8 @@ def read_records(text: str) -> tuple[Record, ...]:
         name, value = named.group(1).upper(), named.group(2).strip()
         if name == "PAIR":
             pairs.append(value)
+        elif name == "ITEM":
+            items.append(value)
         elif name == "FINDINGS":
             findings.append(value)
         else:
@@ -186,8 +202,27 @@ def _record_findings(record: Record, binding: Binding) -> list[Finding]:
         found.append(Finding(UNKNOWN_ROUTE, artifact, record.value("ROUTE") or "ROUTE is missing"))
 
     sentence_match = SENTENCES.fullmatch(record.value("SENTENCES"))
+    current = research_ledger.qualifiers_required(binding.as_of)
+    if current and (sentence_match is None or sentence_match.group("item") is None):
+        found.append(Finding(ITEM_COUNT, artifact, "SENTENCES must count item descriptions"))
+    item_count = int(sentence_match.group("item") or 0) if sentence_match else 0
+    if current or record.items or item_count:
+        if len(record.items) != item_count:
+            found.append(Finding(ITEM_COUNT, artifact, f"{len(record.items)} ITEM lines for {item_count} item sentences"))
+        locations = set()
+        for line in record.items:
+            parsed_item = ITEM.fullmatch(line)
+            if parsed_item is None or parsed_item.group("item").strip() not in binding.opened_items:
+                found.append(Finding(UNOPENED_ITEM, artifact, line))
+            if parsed_item:
+                location = parsed_item.group("location").strip()
+                if location in locations:
+                    found.append(Finding(ITEM_COUNT, artifact, f"duplicate item location: {location}"))
+                locations.add(location)
     factual = int(sentence_match.group("factual")) if sentence_match else -1
-    if factual < 0 or len(record.pairs) + len(record.findings) != factual:
+    paired_locations = {match.group("location").strip() for pair in record.pairs for match in (PAIR.fullmatch(pair),) if match}
+    unpaired_findings = sum(not any(re.match(rf"(?i)drifted[ \t]+-[ \t]+{re.escape(location)},", detail) for location in paired_locations) for detail in record.findings)
+    if factual < 0 or len(record.pairs) + unpaired_findings != factual:
         found.append(
             Finding(
                 SENTENCE_COUNT_MISMATCH,
@@ -208,6 +243,18 @@ def _record_findings(record: Record, binding: Binding) -> list[Finding]:
             found.append(Finding(UNKNOWN_HEADING, artifact, pair))
         elif any("DROPPED" in claim.fields for claim in matches):
             found.append(Finding(DROPPED_HEADING, artifact, pair))
+        else:
+            for claim in matches:
+                if "QUALIFIERS" not in claim.fields:
+                    continue
+                values = research_ledger.qualifiers(claim.value("QUALIFIERS"))
+                read, total = parsed.group("read"), parsed.group("total")
+                if values is None or total is None or int(total) != len(values) or int(read) > int(total):
+                    found.append(Finding(QUALIFIER_COUNT, artifact, pair))
+                elif int(read) < int(total):
+                    location = parsed.group("location").strip()
+                    if not any(re.match(rf"(?i)drifted[ \t]+-[ \t]+{re.escape(location)},[ \t]+\S", detail) for detail in record.findings):
+                        found.append(Finding(QUALIFIER_COUNT, artifact, f"shortfall without a drifted finding: {pair}"))
 
     current_digest = file_digest.sha256_bytes(binding.draft)
     if record.value("DRAFT").casefold() != current_digest:
@@ -315,3 +362,24 @@ def format_coverage(result: Scan) -> str:
             run_grader.format_unread_remainder(result.unread),
         )
     )
+
+
+def protocol_coverage(claims_text: str, heading_text: str) -> str:
+    """Report the ungraded legacy populations without implying a clean zero."""
+    claims = research_ledger.read_records(claims_text)
+    headings = {research_ledger.heading_digest(claim.claim)[:8]: claim for claim in claims}
+    records = read_records(heading_text)
+    unread_pairs = sum(
+        parsed is not None and (
+            parsed.group("prefix").casefold() not in headings
+            or "QUALIFIERS" not in headings[parsed.group("prefix").casefold()].fields
+        )
+        for record in records for pair in record.pairs
+        for parsed in (PAIR.fullmatch(pair),)
+    )
+    lines = []
+    if not research_ledger.qualifiers_required(research_ledger.ledger_date(claims_text)):
+        lines.append(f"item-description comparisons: {run_grader.NOT_GRADED} - unread {len(records)} heading-read records")
+    if unread_pairs:
+        lines.append(f"qualifier pair counts: {run_grader.NOT_GRADED} - unread {unread_pairs}")
+    return "\n".join(lines)

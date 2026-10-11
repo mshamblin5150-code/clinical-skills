@@ -582,6 +582,10 @@ usable, collect one returned record per claim before the orchestrator composes t
 
 **One record per claim**, filled in under its heading:
 
+The research return includes `QUALIFIERS: "<limiting qualifier quoted from PASSAGE>" | "<next qualifier>"`
+or `QUALIFIERS: none`; its refutation brief checks completeness under
+[sourcing.md](../_shared/reference/sourcing.md). The dated example below predates that field.
+
 ```
 DATE: 2026-08-19
 
@@ -698,6 +702,10 @@ can be several of them at once:
 | a `SOURCE` outside the four | a returned source outside the classes is a finding, not an answer |
 | a `RECENCY` outside the four | it gates the window below, so a fifth word is a record the window never read |
 | a `RESTATEMENT` that is the claim pasted back | the whole point is the source's own terms |
+| a `QUALIFIERS` field missing or outside its quoted-list or `none` form | required on sourced, non-`DROPPED` records dated on or after 2026-10-11; earlier records are not graded and report unread coverage |
+| a named qualifier absent from `PASSAGE` | each listed phrase is quoted from the passage |
+| a named qualifier absent from the heading | the heading keeps the passage's named limitations |
+| a named qualifier absent from `RESTATEMENT` | the restatement keeps the same named limitations |
 | a claim carrying a number whose restatement carries none | *"the source discusses leukocytosis in pregnancy"* against a claim about 15,000 cells |
 | a reference stating no year | `n.d.` is legitimate APA and cannot be measured for recency — unless an excuse with a reason stands in for the year |
 | a reference more than five years before `DATE` with no excuse | the amended rule above |
@@ -1453,7 +1461,10 @@ be several of them at once:
 | a duplicate-heading-read record | more than one record names the expected draft, so no single final reading is authoritative |
 | an unread-heading-read record | a heading-read-shaped candidate was not read as the expected record, so the reported coverage is partial |
 | an unknown-heading-read-route record | `ROUTE` is neither `separate context` nor `orchestrator walk` |
-| a heading-read-sentence-count mismatch | `PAIR` lines plus `FINDINGS` lines do not equal the factual count in `SENTENCES` |
+| a heading-read-sentence-count mismatch | `PAIR` lines plus findings at unpaired locations do not equal the factual count in `SENTENCES` |
+| a heading-read-qualifier-count finding | the paired record's qualifier total differs, its count is absent or impossible, or a shortfall has no finding at that location |
+| a heading-read-item-count finding | the third sentence class is absent, or `ITEM` lines do not cover its count with distinct locations |
+| a heading-read-unopened-item finding | an `ITEM` line names no opened project-context item |
 | a heading-read-unknown-heading pair | its eight-hex prefix names no current claim heading, including a heading edited after the read |
 | a heading-read-dropped-heading pair | the draft claims a record that says it was `DROPPED` |
 | a heading-read-draft-mismatch | `DRAFT` is absent or differs from the output Markdown bytes |

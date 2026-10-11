@@ -1325,6 +1325,8 @@ def survey(source: RunSource) -> Scan:
                 source.draft_bytes,
                 tuple(research_ledger.read_records(source.claims)),
                 project_context.recorded_digest(source.path),
+                as_of=research_ledger.ledger_date(source.claims),
+                opened_items=project_context.recorded_opened_items(source.path),
             ),
         ),
     )
@@ -1676,7 +1678,7 @@ def grade(source: RunSource, _parsed: run_grader.Parsed) -> run_grader.Grade[Sca
             if source.refused_label is not None
             else ()
         ),
-        reports=(aar_report,),
+        reports=(heading_read.protocol_coverage(source.claims, source.heading_read_text), aar_report),
     )
     grade = voice_model_identity.apply_completion_gate(
         grade, source.path, _parsed.value("--submission")

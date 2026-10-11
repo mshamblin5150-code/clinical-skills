@@ -452,6 +452,8 @@ def survey(source: Source) -> Scan:
                 source.docx_bytes,
                 tuple(research_ledger.read_records(source.claims)),
                 project_context.recorded_digest(source.root),
+                as_of=research_ledger.ledger_date(source.claims),
+                opened_items=project_context.recorded_opened_items(source.root),
             ),
         ),
     )
@@ -562,7 +564,7 @@ def grade(source: Source, parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
         findings_failed=bool(scan.findings) or aar_failed or gate_failed,
         coverage_failed=not source.paragraphs or bool(scan.heading_read_unread),
         diagnostics=("DOCX findings require review",) if scan.findings else (),
-        reports=(heading_read.format_coverage(heading_read.Scan(scan.heading_reads, scan.heading_read_unread, ())), gate_report, aar_report),
+        reports=(heading_read.protocol_coverage(source.claims, source.heading_read_text), heading_read.format_coverage(heading_read.Scan(scan.heading_reads, scan.heading_read_unread, ())), gate_report, aar_report),
     )
     grade = voice_model_identity.apply_completion_gate(
         grade, source.root, submission

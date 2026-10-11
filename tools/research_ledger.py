@@ -21,6 +21,7 @@ and exit 2 means a required input or mechanically readable population was absent
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 import sys
 from collections.abc import Iterable
@@ -57,6 +58,8 @@ class DeclaredLimit(NamedTuple):
 
 
 DECLARED_LIMITS = (
+    DeclaredLimit("qualifier-completeness-unverified", "Presence checks cannot establish that the researcher and refuter listed every limiting qualifier.", EvidenceDisposition.DECLARED_READING),
+    DeclaredLimit("added-condition-unverified", "Presence of named qualifiers cannot detect a condition added to the heading or restatement.", EvidenceDisposition.DECLARED_READING),
     DeclaredLimit("execution-order-unobservable", "The ledger cannot show whether claim research ran concurrently or serially.", EvidenceDisposition.DECLARED_READING),
     DeclaredLimit("record-population-unbounded", "The grader has no expected claim-record population to detect omitted records.", EvidenceDisposition.BEHAVIOR),
     DeclaredLimit("reason-substance-unverified", "Alphanumeric substance cannot prove that a stated search or reason happened.", EvidenceDisposition.DECLARED_READING),
@@ -111,7 +114,7 @@ NOT_REACHED = tuple(row.limit for row in DECLARED_LIMITS)
 # under a document heading without the parser caring.
 CLAIM = re.compile(r"(?mi)^[ \t]*#+[ \t]*CLAIM[ \t]*:[ \t]*(.*?)[ \t]*$")
 FIELD = re.compile(
-    r"(?mi)^[ \t]*(STATUS|SOURCE|REFERENCE|RESTATEMENT|PASSAGE|RECENCY"
+    r"(?mi)^[ \t]*(STATUS|SOURCE|REFERENCE|RESTATEMENT|PASSAGE|QUALIFIERS|RECENCY"
     r"|RESOLVED|PAGE-YEAR|REFUTATION|TESTED-HEADING|SECOND-ROUTE|INSTRUMENTS|STATED-EXPIRY|DROPPED)"
     r"[ \t]*:[ \t]*(.*?)[ \t]*$"
 )
@@ -122,6 +125,44 @@ BAR_FIELD = re.compile(
 # The day the paper is written. Recency is measured against it and never against
 # the clock -- a ledger graded twice a year apart has to grade the same both times.
 DATE_HEADER = re.compile(r"(?mi)^[ \t]*DATE[ \t]*:[ \t]*(\d{4})-(\d{2})-(\d{2})[ \t]*$")
+QUALIFIER_CUTOFF = date(2026, 10, 11)
+QUOTED_QUALIFIER = r'"(?:[^"\\]|\\.)+"'
+QUALIFIER_LIST = re.compile(rf'{QUOTED_QUALIFIER}(?:\s*\|\s*{QUOTED_QUALIFIER})*')
+
+
+def ledger_date(text: str) -> date | None:
+    stamp = DATE_HEADER.search(text)
+    if stamp is None:
+        return None
+    try:
+        return date(*(int(part) for part in stamp.groups()))
+    except ValueError:
+        return None
+
+
+def qualifiers(value: str) -> tuple[str, ...] | None:
+    """An explicit none or a pipe-separated list of JSON-quoted passage text."""
+    if value.strip().casefold() == "none":
+        return ()
+    if QUALIFIER_LIST.fullmatch(value.strip()) is None:
+        return None
+    try:
+        values = tuple(json.loads(part) for part in re.findall(QUOTED_QUALIFIER, value))
+    except ValueError:
+        return None
+    return values if all(part.strip() for part in values) else None
+
+
+def qualifiers_required(as_of: date | None) -> bool:
+    return isinstance(as_of, date) and as_of >= QUALIFIER_CUTOFF
+
+
+QUALIFIER_KINDS = ("qualifier-field", "qualifier-passage-missing", "qualifier-heading-missing", "qualifier-restatement-missing")
+QUALIFIER_PRESENCE_FIELDS = {
+    "qualifier-passage-missing": "PASSAGE",
+    "qualifier-heading-missing": "CLAIM",
+    "qualifier-restatement-missing": "RESTATEMENT",
+}
 
 # An APA entry states its year in parentheses. ``2019a`` is the a/b disambiguation
 # form ``reference/apa7.md`` section 3 requires, so the letter is allowed and dropped.
@@ -318,6 +359,7 @@ UNREADABLE_DRUG_ROW = "unreadable-drug-row"
 
 # Which ruling each row belongs to, so a reader knows which ticket to go and read.
 ROWS = {
+    **{kind: "#1494" for kind in QUALIFIER_KINDS},
     CITED_TOPIC_NOT_IN_EVIDENCE: "#298",
     UPTODATE_REREAD_DUE: "#901",
     UPTODATE_MASTHEAD_DISAGREES: "#1021",
@@ -397,7 +439,7 @@ REFUTATION_EVIDENCE_COMPLEMENT = tuple(
 # Every required sourced field makes a claim about a source. Deriving this
 # population prevents a later sourced-field addition from silently escaping the
 # sourceless-record rule.
-SOURCE_FIELDS = REQUIRED_WHEN_SOURCED
+SOURCE_FIELDS = (*REQUIRED_WHEN_SOURCED, "QUALIFIERS")
 
 # The #289 report group, held once so report ordering and optional-run display
 # share one population.
@@ -726,6 +768,23 @@ class Scan:
     evidence_at_fault: int
     findings: tuple[Finding, ...]
     local_documents_unread: int = 0
+    qualifier_unread: int = 0
+
+
+def _qualifier_findings(record: Record, as_of: date | None) -> list[Finding]:
+    if not qualifiers_required(as_of) or "DROPPED" in record.fields:
+        return []
+    values = qualifiers(record.value("QUALIFIERS"))
+    if values is None:
+        return [Finding("qualifier-field", record.claim, 'QUALIFIERS needs quoted text separated by |, or none')]
+    found = []
+    for kind, name in QUALIFIER_PRESENCE_FIELDS.items():
+        text = record.claim if name == "CLAIM" else record.value(name)
+        normalized = " ".join(text.casefold().split())
+        for value in values:
+            if " ".join(value.casefold().split()) not in normalized:
+                found.append(Finding(kind, record.claim, value))
+    return found
 
 
 # The title element of [apa7.md](skills/_shared/reference/apa7.md)
@@ -1338,6 +1397,7 @@ def record_findings(
         found += _sourceless_findings(record)
     else:
         found += _contract_findings(record, source_classes)
+        found += _qualifier_findings(record, as_of)
         found += _recency_findings(record, as_of, recency_window_years)
         found += _citation_findings(record, as_of)
         found += _tested_heading_findings(record)
@@ -1930,6 +1990,7 @@ def survey(
         evidence_at_fault=len(on_the_evidence),
         findings=tuple(found),
         local_documents_unread=local_documents_unread(sourced),
+        qualifier_unread=sum("DROPPED" not in record.fields for record in sourced) if not qualifiers_required(as_of) else 0,
     )
 
 
@@ -2022,6 +2083,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
             " (APA Surname, initials / masthead Name, degree)"
         )
     lines.append("")
+    qualifier_graded = qualifiers_required(scan.as_of)
     for kind, count in scan.counts:
         # Wide enough for the longest kind, so the count column stays a column.
         # ``refutation-echoes-restatement`` is 29 and overflowed 28 on the day it
@@ -2030,6 +2092,8 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         # A #289 row that did not run prints as such rather than as a zero,
         # for the reason ``Scan.prescriptions`` is not an ``int``.
         shown = count
+        if kind in QUALIFIER_KINDS and not qualifier_graded:
+            shown = f"{NOT_GRADED} - unread {scan.qualifier_unread}"
         if scan.prescriptions is None and (
             kind in DRAFT_ROWS or kind == SOURCED_RECORD_NOT_LISTED
         ):
@@ -2177,8 +2241,7 @@ def _load(parsed: run_grader.Parsed) -> Source:
                 ) from error
             uptodate_has_account = clinician_has_uptodate_account()
 
-    stamp = DATE_HEADER.search(text)
-    as_of = date(int(stamp.group(1)), int(stamp.group(2)), int(stamp.group(3))) if stamp else None
+    as_of = ledger_date(text)
     stated_expiry_unscanned = _stated_expiry_unscanned(records)
     return Source(
         path,
