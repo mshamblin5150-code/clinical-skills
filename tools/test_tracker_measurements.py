@@ -25,6 +25,69 @@ STALE = "b" * 40
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
+class CommittedBodyReadFailuresRetainGitEvidence(unittest.TestCase):
+    def test_long_object_path_reads_exact_blob_without_filesystem_disambiguation(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            def git(*args, body=None):
+                return subprocess.run(
+                    ["git", *args], cwd=root,
+                    input=None if body is None else body.encode("utf-8"),
+                    capture_output=True, check=True,
+                ).stdout.decode("utf-8", errors="replace").strip()
+            git("init", "--initial-branch=main")
+            git("config", "user.name", "Fixture Writer")
+            git("config", "user.email", "fixture@example.invalid")
+            git("config", "core.longpaths", "false")
+            name = "0121-" + "long-object-name-" * 13 + ".md"
+            relative = f"docs/adr/{name}"
+            body = "# Immutable public fixture\n\nExact blob words.\n"
+            blob = git("hash-object", "-w", "--stdin", body=body)
+            adr = git("mktree", body=f"100644 blob {blob}\t{name}\n")
+            docs = git("mktree", body=f"040000 tree {adr}\tadr\n")
+            tree = git("mktree", body=f"040000 tree {docs}\tdocs\n")
+            commit = git("commit-tree", tree, body="Public fixture\n")
+            self.assertGreater(len(f"{commit}:{relative}"), 260)
+            with mock.patch.object(measurements.subprocess, "run", wraps=subprocess.run) as run:
+                self.assertEqual(body, measurements._committed_text(root, commit, relative))
+            run.assert_called_once_with(
+                ["git", "show", "--end-of-options", f"{commit}:{relative}", "--"],
+                cwd=root, capture_output=True,
+            )
+
+    def test_nonzero_git_show_refuses_with_commit_status_and_bounded_stderr(self):
+        relative = "docs/adr/0121-example.md"
+        result = subprocess.CompletedProcess(
+            ["git", "show"], 128, stdout=b"partial body",
+            stderr=b"fatal: missing blob\n\xff" + b"x" * 2000,
+        )
+        with mock.patch.object(measurements.subprocess, "run", return_value=result) as run:
+            with self.assertRaises(measurements.SourceError) as raised:
+                measurements._committed_text(REPO_ROOT, CURRENT, relative)
+        run.assert_called_once_with(
+            ["git", "show", "--end-of-options", f"{CURRENT}:{relative}", "--"],
+            cwd=REPO_ROOT, capture_output=True,
+        )
+        message = str(raised.exception)
+        self.assertTrue(message.startswith(f"ADR body unreadable: {relative};"))
+        self.assertIn(f"commit={CURRENT}; git show exit=128;", message)
+        detail = message.split("stderr=", 1)[1]
+        self.assertTrue(detail.startswith("fatal: missing blob \ufffd"))
+        self.assertEqual(1000, len(detail))
+        self.assertNotIn("partial body", message)
+
+    def test_git_launch_error_preserves_refusal_and_exception_context(self):
+        error = FileNotFoundError("git executable missing\n" + "x" * 2000)
+        with mock.patch.object(measurements.subprocess, "run", side_effect=error):
+            with self.assertRaises(measurements.SourceError) as raised:
+                measurements._committed_text(REPO_ROOT, STALE, "docs/adr/0121-example.md")
+        message = str(raised.exception)
+        self.assertIn(f"commit={STALE};", message)
+        self.assertIn("git show could not start (FileNotFoundError):", message)
+        self.assertEqual(1000, len(message.split("FileNotFoundError): ", 1)[1]))
+        self.assertIs(error, raised.exception.__cause__)
+
+
 class ThePublicTextGrade(unittest.TestCase):
     def test_a_declaration_directly_after_a_quote_line_is_refused(self):
         for quote in ("> quoted scope", ">"):
