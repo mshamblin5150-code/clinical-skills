@@ -935,7 +935,7 @@ class TheSourceClassComesFromTheVocabulary(unittest.TestCase):
     reader can see rather than a silent miss."""
 
     def test_every_declared_class_passes(self):
-        for name in ledger.SOURCE_CLASS_VOCABULARY[:-1]:
+        for name in ledger.DEFAULT_SOURCE_CLASSES:
             with self.subTest(source=name):
                 self.assertEqual(kinds(ledger_text(replace_field(CLEAN, "SOURCE", name))), [])
 
@@ -1887,6 +1887,7 @@ class EveryRuledFanOutReadsTheSharedSourcingRules(unittest.TestCase):
             [
                 "A pointer is not a source",
                 "A resolving locator is not verification",
+                "The clinician's own unpublished work",
                 "A record is read at the source's width",
                 "A failed read is not a negative",
                 "A wall counts only after the Authenticated route is tried",
@@ -2387,7 +2388,7 @@ class TheSkillSaysWhatThisChecks(ProseBind, unittest.TestCase):
                 self.assertIn(self.ROW_PHRASES[kind], self.skill)
 
     def test_the_skill_declares_the_source_vocabulary(self):
-        for name in ledger.SOURCE_CLASS_VOCABULARY[:-1]:
+        for name in ledger.DEFAULT_SOURCE_CLASSES:
             with self.subTest(source=name):
                 self.assertIn(f"`{name}`", self.skill)
 

@@ -693,6 +693,8 @@ SOURCE_CLASS_SETTLES_RETRIEVAL_DATE = {
     "tertiary reference": False,
     # A live listing changes and takes one; a dated vendor quote is archived and does not.
     "market source": False,
+    # APA's unpublished-manuscript form cites the fixed version read (section 42).
+    "clinician's own work": True,
 }
 
 NOT_REACHED = (

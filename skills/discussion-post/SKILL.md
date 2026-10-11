@@ -88,6 +88,10 @@ conflict rather than silently choosing when a new shape makes the rule ambiguous
 
 ## 2. Write and sign `bar.md`
 
+When the clinician asks to cite his own unpublished work, apply
+[sourcing.md's own-work bar admission](../_shared/reference/sourcing.md#the-clinicians-own-unpublished-work)
+at signing or by mid-run re-signing. `clinician's own work` is never a default template class.
+
 Transcribe the relevant topic and syllabus language verbatim as block quotes, each with the page
 it came from. Above the quotes write the mechanical fields exactly once:
 
