@@ -18,6 +18,8 @@ import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
+from unittest import mock
+from dataclasses import replace
 
 import peer_critique_scan as scan
 import coursework_run
@@ -724,6 +726,24 @@ class TheCommandRefusesAnUnscannableRun(unittest.TestCase):
 
 
 class TheCommandLineIsLive(unittest.TestCase):
+    def test_submission_names_each_reader_coverage_limb(self):
+        # These shared gates already own their coverage rules. Exercise the
+        # terminal command's classification of each reported coverage state.
+        gates = (
+            (scan.voice_read, scan.voice_read.CompletionGate(False, True, ("voice unread", "profanity unread")), "voice read unverified"),
+            (scan.project_context, scan.project_context.CompletionGate(False, True, "context unread"), "project context unverified"),
+        )
+        for gate, result, limb in gates:
+            with self.subTest(limb=limb):
+                stdout, stderr = io.StringIO(), io.StringIO()
+                with mock.patch.object(gate, "completion_gate", return_value=result), mock.patch.object(
+                    scan.approval_record, "apply_completion_gate",
+                    side_effect=lambda grade, *args: replace(grade, findings_failed=False),
+                ), redirect_stdout(stdout), redirect_stderr(stderr):
+                    status = scan.main([str(build_run()), "--submission", "critique.md"])
+                self.assertEqual(2, status)
+                self.assertIn(result.report if gate is scan.project_context else "voice unread", stdout.getvalue())
+
     def test_a_clean_run_exits_zero_through_the_command_path(self):
         result = subprocess.run(
             [sys.executable, str(Path(__file__).with_name("peer_critique_scan.py")), str(build_run())],

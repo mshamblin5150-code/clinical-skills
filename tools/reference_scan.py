@@ -698,6 +698,10 @@ SOURCE_CLASS_SETTLES_RETRIEVAL_DATE = {
 }
 
 NOT_REACHED = (
+    (
+        "whether an opted-in bold reference label marks the real list boundary",
+        "The bold-label switch opens the list at that line but cannot determine whether the writer placed it correctly.",
+    ),
     *(
         (subject, reason)
         for subject, reason, _disposition in CITATION_RESOLUTION_NOT_REACHED[3:6]
@@ -1782,7 +1786,7 @@ def read_citations(
     return tuple(seen.values())
 
 
-def read_document(text: str) -> Document:
+def read_document(text: str, *, bold_references: bool = False) -> Document:
     """Split a draft at its rendered reference heading and read its entries.
 
     ``docx_write.blocks`` is the renderer's one reading of the Markdown subset.
@@ -1790,6 +1794,8 @@ def read_document(text: str) -> Document:
     and source line numbers the same facts the rendered document consumes. The
     reference list runs to the end of the file or to the next **rendered** heading;
     levels five and six are paragraphs because they are outside that subset.
+    ``bold_references`` also opens at a bold-only Reference(s) label for a draft
+    whose destination does not apply the Word renderer's hanging indent.
 
     **This read a deeper heading as a note inside the list until the sweep on #137
     caught it**, and the divergence was the exact silent-layout failure the heading
@@ -1803,7 +1809,10 @@ def read_document(text: str) -> Document:
     start: int | None = None
     heading: str | None = None
     for index, block in enumerate(parsed):
-        if block.kind == "heading" and _is_reference_heading(block.text):
+        bold_label = bold_references and re.fullmatch(
+            r"[ \t]*\*\*(?:References|Reference)\*\*[ \t]*", lines[block.line - 1], re.IGNORECASE
+        )
+        if (block.kind == "heading" and _is_reference_heading(block.text)) or bold_label:
             start, heading = index, block.text.strip().strip("*_").strip()
             break
 
@@ -2213,7 +2222,10 @@ def _load(parsed: run_grader.Parsed) -> Source:
     # the case and often the patient.
     if not path.is_file():
         raise run_grader.SourceError(f"no draft named {path.name}")
-    document = read_document(path.read_text(encoding="utf-8", errors="replace"))
+    document = read_document(
+        path.read_text(encoding="utf-8", errors="replace"),
+        bold_references=parsed.enabled("--bold-references"),
+    )
     return Source(path, document, as_of)
 
 
@@ -2249,9 +2261,10 @@ def _grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]
 
 
 GRADER = run_grader.Grader(
-    usage="usage: reference_scan.py <a draft .md> --as-of <YYYY-MM-DD> [--show]",
+    usage="usage: reference_scan.py <a draft .md> --as-of <YYYY-MM-DD> [--show] [--bold-references]",
     options=(
         run_grader.Option("--show"),
+        run_grader.Option("--bold-references"),
         run_grader.Option(
             "--as-of",
             takes_value=True,

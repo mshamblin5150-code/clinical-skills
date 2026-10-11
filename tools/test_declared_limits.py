@@ -110,6 +110,7 @@ NO_LIMITS = {
 # These names look like limits objects to the warning pattern but are not new
 # authored objects. Reasons are declarations; this walk does not verify them.
 NOT_LIMITS = {
+    "aar_scan.MEMORY_INDEX_LIMITS": "measured Claude Code load thresholds and release, not a scanner coverage boundary",
     "apa7_coverage.MEDIA_LIMITS": "historical per-section image and table counts",
     "apa7_coverage.SECTION_LIMITS": "historical last-section numbers by chapter",
     "deck_scan.SLIDE_LIMIT_SCOPES": "the two signed populations to which the slide maximum can apply",

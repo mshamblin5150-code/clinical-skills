@@ -411,6 +411,7 @@ class CommandModes(SyntheticSnapshotCase):
             "  findings                        1\n"
             "unread remainder: not measured (extract unavailable or invalid)\n\n"
             "  declared limits:\n"
+            "    memory index outside the sitting\n"
             "    reasoning-only correction\n"
             "    last-prompt-only text\n"
             "    wrong unread reason\n"
@@ -1158,6 +1159,71 @@ class ScanBasedSittingDiscovery(SyntheticSnapshotCase):
 
 
 class SubmissionRecord(SyntheticSnapshotCase):
+    def test_missing_measurement_fails_a_new_round_but_not_an_old_round(self):
+        self.write_clean()
+        aar_scan.memory_measurement_path(self.run, self.submission).unlink()
+        argv = [str(self.run), "--submission", self.submission]
+        status, stdout, stderr = invoke_main(argv)
+        self.assertEqual(status, 1, stdout + stderr)
+        self.assertIn("measurement missing or invalid", stdout)
+        extract = aar_scan.extract_path(self.run, self.submission)
+        text = extract.read_text(encoding="utf-8")
+        fields, _ = aar_scan._extract_metadata(extract)
+        extract.write_text(text.replace(fields["EXTRACTED-AT"], "2026-10-10T12:00:00Z"), encoding="utf-8")
+        status, stdout, stderr = invoke_main(argv)
+        self.assertEqual(status, 0, stdout + stderr)
+        self.assertIn("not graded - extract predates the measurement", stdout)
+
+    def test_release_mismatch_is_nonfailing_and_named_once(self):
+        with self.transcript.open("a", encoding="utf-8") as stream:
+            stream.write(json.dumps(row("user", "release-row", {"content": "Review this release."}, version="2.1.999")) + "\n")
+        self.write_clean()
+        status, stdout, stderr = invoke_main([str(self.run), "--submission", self.submission])
+        self.assertEqual(status, 0, stdout + stderr)
+        self.assertEqual(stdout.count("re-measure memory index limits"), 1)
+        self.assertIn("2.1.999", stdout)
+        self.assertIn("2.1.284", stdout)
+
+    def test_an_unreadable_index_refuses_measurement_and_a_changed_record_fails(self):
+        self.write_clean()
+        argv = [str(self.run), "--submission", self.submission]
+        self.memory.unlink()
+        status, stdout, stderr = invoke_main([*argv, "--measure-memory"])
+        self.assertEqual(status, 2, stdout + stderr)
+        status, stdout, stderr = invoke_main(argv)
+        self.assertEqual(status, 0, stdout + stderr)
+        path = aar_scan.memory_measurement_path(self.run, self.submission)
+        record = json.loads(path.read_text(encoding="utf-8"))
+        record["lines"] = 201
+        path.write_text(json.dumps(record), encoding="utf-8")
+        status, stdout, stderr = invoke_main(argv)
+        self.assertEqual(status, 1, stdout + stderr)
+
+    def test_memory_measurement_grades_both_limits_and_retains_the_sitting(self):
+        self.write_clean()
+        argv = [str(self.run), "--submission", self.submission]
+        for text, expected, counts in (
+            ("x\n" * 201, 1, "201/200 lines; 401/25000 characters"),
+            ("x" * 25001, 1, "1/200 lines; 25001/25000 characters"),
+            ("x\n" * 200, 0, "200/200 lines; 399/25000 characters"),
+            ("x" * 25000, 0, "1/200 lines; 25000/25000 characters"),
+            ("\ufeff" + "x" * 25000, 0, "1/200 lines; 25000/25000 characters"),
+            ("\x1c" + "x" * 25000, 1, "1/200 lines; 25001/25000 characters"),
+            ("😀" * 12501, 1, "1/200 lines; 25002/25000 characters"),
+            ("  é\n", 0, "1/200 lines; 1/25000 characters"),
+        ):
+            with self.subTest(counts=counts):
+                self.memory.write_text(text, encoding="utf-8", newline="")
+                status, stdout, stderr = invoke_main([*argv, "--measure-memory"])
+                self.assertEqual(status, 0, stdout + stderr)
+                status, stdout, stderr = invoke_main(argv)
+                self.assertEqual(status, expected, stdout + stderr)
+                self.assertIn(counts, stdout)
+        self.memory.write_text("x\n" * 201, encoding="utf-8")
+        status, stdout, stderr = invoke_main(argv)
+        self.assertEqual(status, 0, stdout + stderr)
+        self.assertIn("1/200 lines; 1/25000 characters", stdout)
+
     def setUp(self) -> None:
         super().setUp()
         self.temporary = tempfile.TemporaryDirectory()
@@ -1249,6 +1315,7 @@ class SubmissionRecord(SyntheticSnapshotCase):
             for line in text.splitlines() if not line.startswith("UNREAD-REMAINDER:")
         )
         path.write_text(text, encoding="utf-8")
+        aar_scan.memory_measurement_path(self.run, self.submission).unlink()
         status, stdout, stderr = invoke_main([str(self.run), "--submission", self.submission])
         self.assertEqual((status, stderr), (0, ""), stdout)
         self.assertIn("unread remainder: not measured (extract predates the count)", stdout)
@@ -1530,6 +1597,8 @@ class SubmissionRecord(SyntheticSnapshotCase):
             self.run, self.transcript, self.submission, self.memory
         )
         fields, _identifiers = aar_scan._extract_metadata(destination)
+        measured, report, errors = invoke_main([str(self.run), "--submission", self.submission, "--measure-memory"])
+        self.assertEqual(measured, 0, report + errors)
         refused = destination.read_text(encoding="utf-8")
         for identifier in identifiers:
             refused = refused.replace(
@@ -2457,6 +2526,11 @@ class SubmissionRecord(SyntheticSnapshotCase):
         aar_scan.review_path(self.run, self.submission, round_number).write_text(
             record, encoding="utf-8"
         )
+        status, stdout, stderr = invoke_main([
+            str(self.run), "--submission", self.submission,
+            "--measure-memory", "--round", str(round_number),
+        ])
+        self.assertEqual(status, 0, stdout + stderr)
 
     def test_extract_refuses_before_the_submission_has_a_posted_reading(self) -> None:
         (self.run / "reread.md").unlink()
@@ -2852,6 +2926,8 @@ class SubmissionRecord(SyntheticSnapshotCase):
         aar_scan.review_path(run, submission).write_text(
             "\n".join([*lines, ""]), encoding="utf-8"
         )
+        status, stdout, stderr = invoke_main([str(run), "--submission", submission, "--measure-memory"])
+        self.assertEqual(status, 0, stdout + stderr)
 
     def check_landing_findings(
         self, target_git_state: CheckTargetGitState

@@ -48,6 +48,31 @@ from grader_conformance import (
 
 GraderConformance = for_module(scan)
 
+
+class BoldReferenceLabelCommand(unittest.TestCase):
+    def test_a_label_is_a_line_boundary_without_surrounding_blank_lines(self):
+        text = "A finding (Ross, 2025).\n**References**\nRoss, J. (2025). A topic. https://example.org/topic\n"
+        document = scan.read_document(text, bold_references=True)
+        self.assertEqual(len(document.entries), 1)
+        self.assertEqual(scan.survey(document, date(2026, 10, 11)).findings, ())
+
+    def test_only_the_opt_in_opens_a_bold_label_list(self):
+        for label in ("**References**", "**Reference**"):
+            for opted_in in (False, True):
+                with self.subTest(label=label, opted_in=opted_in), tempfile.TemporaryDirectory() as directory:
+                    path = Path(directory) / "draft.md"
+                    path.write_text(f"A finding (Ross, 2025).\n\n{label}\n\nRoss, J. (2025). A topic. https://example.org/topic\n", encoding="utf-8")
+                    args = [str(path), "--as-of", "2026-10-11"]
+                    if opted_in:
+                        args.append("--bold-references")
+                    stdout, stderr = io.StringIO(), io.StringIO()
+                    with redirect_stdout(stdout), redirect_stderr(stderr):
+                        status = scan.main(args)
+                    # The singular opens the list, then retains APA's label finding.
+                    self.assertEqual(1 if label == "**Reference**" or not opted_in else 0, status, stdout.getvalue() + stderr.getvalue())
+                    self.assertEqual(not opted_in, "no reference list found" in stderr.getvalue())
+
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SKILL = REPO_ROOT / "skills" / "practicum-case-study" / "SKILL.md"
 APA7 = REPO_ROOT / "skills" / "_shared" / "reference" / "apa7.md"
@@ -2394,6 +2419,7 @@ class EveryDeclaredLimitIsReDerivedAtTheScannerSeam(unittest.TestCase):
 
     def test_every_declared_limit_has_one_behavior_measurement(self):
         handlers = {
+            "whether an opted-in bold reference label marks the real list boundary": self.bold_label_boundary,
             "whether a shortened title resolves against more than one reference entry": self.shortened_title_ambiguity,
             "whether a citation naming part of a group author's name resolves": self.partial_group_name,
             "whether a citation stopping mid-word resolves": self.mid_word_prefix,
@@ -2416,6 +2442,11 @@ class EveryDeclaredLimitIsReDerivedAtTheScannerSeam(unittest.TestCase):
         for key, handler in handlers.items():
             with self.subTest(key=key):
                 handler()
+
+    def bold_label_boundary(self):
+        text = "A misplaced label follows.\n\n**References**\n\nRoss, J. (2025). A topic. https://example.org/topic\n"
+        document = scan.read_document(text, bold_references=True)
+        self.assertFalse(any(f.kind == scan.HEADING_NOT_APA for f in scan.survey(document, date(2026, 10, 11)).findings))
 
     def shortened_title_ambiguity(self):
         body = "# Case\n\n(The History, 2020) discusses both works.\n"
