@@ -157,6 +157,7 @@ DECLARED_SECTIONS = {
     "voice_corpus": "The corpus a voice model is built from",
     "voice_model_identity": "Coursework voice-model identity",
     "voice_model_scan": "Voice model shape",
+    "voice_read": "Coursework voice read",
 }
 
 

@@ -223,6 +223,9 @@ in that paragraph is historical.
 **Correction, 2026-10-11:** `post_text.py` is a direct command; its command path calls
 `use_utf8()` and then `require_python_floor()` before building a plain Canvas comment.
 
+**Correction, 2026-10-11:** `voice_read.py` now has a direct quote-check command; its command path
+calls `use_utf8()` and then `require_python_floor()` before parsing or reading inputs.
+
 **Correction, 2026-09-08:** `post_html.py` is now the most recent direct command and calls
 `use_utf8` from that path. The preceding order remains historical.
 
@@ -1225,6 +1228,10 @@ half, or moved identities are findings. A recorded no-subagent run and an unread
 incomplete coverage rather than clean.
 
 The complete ceiling belongs to `voice_read.DECLARED_LIMITS`; this section copies no row from it.
+
+`tools/voice_read.py` also exposes the reader's quote-check command. Its inputs and exit statuses
+are defined in [the Voice reader protocol](skills/_shared/reference/voice-read.md#3-the-voice-reader).
+It uses the completion grader's sentence predicate without reading the planter's answer key.
 
 Covered by `tools/test_voice_read.py`.
 

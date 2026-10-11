@@ -74,7 +74,8 @@ bind to the real draft as well as the planted copy.
 Send a separate fresh **Voice reader** only `voice-read-planted.txt`, `supplied-voice.json`, and the
 canonical model. The brief explicitly includes both model sections headed `Seen in the samples, never reproduce` and
 `Seen in the corpus, never reproduce`; it does not include the real draft or
-`voice-read-planter.json`. The reader answers every discriminating pair derived from the model at
+`voice-read-planter.json`. Supply the real draft's UTF-8 voice-surface path only as an input to the
+quote-check command below; the reader does not open it for comparison. The reader answers every discriminating pair derived from the model at
 grading time. It also answers every captured item as `kept whole`, `shrunk`, or `dropped`. A
 surviving item quotes the exact complete draft sentence; a dropped item uses `null`. Removing
 profanity for graded copy is not shrinkage. It writes `voice-read.json`, exactly:
@@ -109,7 +110,23 @@ A verdict answers only the voice question. Put outside problems in `remarks`, on
 per problem, and follow [Reader remarks at the go-ahead](sourcing.md#reader-remarks-at-the-go-ahead).
 
 `resemblance` is `generic`, `his`, or `no counterpart`. `no counterpart` requires `quote: null`;
-the other two require a verbatim quote from the planted copy. A missed plant voids the read. A real
+the other two require a verbatim quote from the planted copy. Before writing the final record,
+save a provisional `voice-read.json` and run:
+
+```bash
+python tools/voice_read.py --check-quotes <voice-read.json> --planted <voice-read-planted.txt> --draft <draft-voice-surface.txt>
+```
+
+The command checks pair quotes and `suspected_plant_quote` against the planted copy and supplied-item
+quotes against the real draft's grader-owned UTF-8 voice surface, using the completion grader's
+sentence predicate. It accepts no planter record, reports fields and answer identifiers rather
+than quote text, and gives no plant-detection verdict. Replace every refused quote and rerun before
+returning the final record. Exit 0 means all quotes pass, 1 means a refused quote, and 2 means an
+unreadable input or no recognizable answers. With no shell, check by eye that each quote is exactly
+one complete sentence of its source, not only a substring; a question and its answer are two
+sentences. The completion grader remains the backstop.
+
+A missed plant voids the read. A real
 sentence placed on `generic` returns the draft to its author. After either outcome, revise when
 needed and repeat both contexts on a fresh plant because the draft digest has moved.
 
