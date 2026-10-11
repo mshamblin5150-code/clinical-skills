@@ -217,6 +217,9 @@ explicit `none`.
 
 First write and confirm `project-context.md`, then retrieve every place owed by
 [sourcing.md](../_shared/reference/sourcing.md).
+Write the selected classmate's keyed declarations under `critique.md`, following that
+reference's header rules. Compare descriptions of the classmate's work under
+[Draft order](../_shared/reference/sourcing.md#draft-order).
 The research return includes `QUALIFIERS`; the refutation brief checks its completeness
 under that shared rule. The project-context command must exit 0. An
 unregistered project stops for the clinician's answer; an unreachable place stops until it is
@@ -333,8 +336,9 @@ tool, write the two not-run records exactly as the shared sheet requires. The co
 enforces both the voice read and the model-owned profanity row. Its complete ceiling is
 `voice_read.DECLARED_LIMITS`; this skill copies no row.
 
-Before the go-ahead, this fresh **Second reader** under [standing rule 6](../../AGENTS.md) receives only `critique.md`, `claims.md`, and the printed
-heading digests. Do not give it sources. It writes the shared `## HEADING-READ: critique.md` record
+Before the go-ahead, this fresh **Second reader** under [standing rule 6](../../AGENTS.md) receives only `critique.md`, `claims.md`, the printed
+heading digests, and every item pointer recorded in `project-context.md`. It opens those items
+itself. Do not give it research sources. It writes the shared `## HEADING-READ: critique.md` record
 from [sourcing.md](../_shared/reference/sourcing.md) to `<run-directory>/heading-read.md`. Repair
 every `unrecorded` or `drifted` finding and repeat the read after any repair; with no second context,
 write `ROUTE: orchestrator walk`. Rerun `peer_critique_scan.py`, which refuses a missing or stale

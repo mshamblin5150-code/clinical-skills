@@ -1,0 +1,23 @@
+PROJECT-CONTEXT: Atlas
+OWN-SUBMISSION: none - no earlier synthetic submission
+CASE-MATERIAL: none - no case
+CASE-RESEARCH: none - no research
+CLASSMATE-POST: response-maren.md -> {post}
+CLASSMATE-BOARD: response-maren.md -> {board}
+CLASSMATE-ATTACHMENT: response-maren.md -> {attachment}
+CLASSMATE-POST: response-quill.md -> {other_post}
+CLASSMATE-BOARD: response-quill.md -> {board}
+CLASSMATE-ATTACHMENT: response-quill.md -> none - no files attached
+PROJECT-SEARCH: {run} - "selected classmates"
+CONFIRMED: 2026-10-11
+
+## PLACE: {memory}
+STATE: read
+OPENED: {memory}
+
+## PLACE: {run}
+STATE: read
+OPENED: {post}
+OPENED: {board}
+OPENED: {attachment}
+OPENED: {other_post}

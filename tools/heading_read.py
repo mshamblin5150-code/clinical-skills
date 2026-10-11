@@ -141,6 +141,7 @@ class Binding:
     context_digest: str
     as_of: date | None = None
     opened_items: tuple[str, ...] = ()
+    other_classmate_items: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -230,7 +231,8 @@ def _record_findings(record: Record, binding: Binding) -> list[Finding]:
         locations = set()
         for line in record.items:
             parsed_item = ITEM.fullmatch(line)
-            if parsed_item is None or parsed_item.group("item").strip() not in binding.opened_items:
+            if (parsed_item is None or parsed_item.group("item").strip() not in binding.opened_items
+                    or parsed_item.group("item").strip() in binding.other_classmate_items):
                 found.append(Finding(UNOPENED_ITEM, artifact, line))
             if parsed_item:
                 location = parsed_item.group("location").strip()
