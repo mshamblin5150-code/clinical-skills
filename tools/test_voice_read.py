@@ -808,6 +808,66 @@ class PublicCompletionCommand(unittest.TestCase):
         reader["suspected_plant_quote"] = "No plant identified."
         self.write_payload(voice_read.READER_RECORD_NAME, reader)
         self.assert_public_finding("planted sentence was not flagged")
+        _status, output = self.command()
+        self.assertNotIn("planted sentence was named but placed on no generic pair answer", output)
+
+    def test_caught_plant_on_another_pair_is_clean(self) -> None:
+        reader = self.payload(voice_read.READER_RECORD_NAME)
+        reader["answers"] = [
+            {"pair_id": "1a", "quote": None, "resemblance": "no counterpart"},
+            {"pair_id": "1b", "quote": self.replacement, "resemblance": "generic"},
+        ]
+        self.write_payload(voice_read.READER_RECORD_NAME, reader)
+
+        status, output = self.command()
+
+        self.assertEqual(0, status, output)
+        self.assertIn(f"{voice_read.EXPECTED_ROW}: clean", output)
+
+    def test_behavior_limits_have_public_command_controls(self) -> None:
+        controls = {
+            "plant-detection-not-pair-identity": (
+                self.test_caught_plant_on_another_pair_is_clean,
+                self.test_missed_plant_is_public,
+            ),
+        }
+        behavior_keys = {
+            row.key for row in voice_read.DECLARED_LIMITS
+            if row.evidence is voice_read.run_grader.EvidenceDisposition.BEHAVIOR
+        }
+        self.assertEqual(set(controls), behavior_keys)
+        for key in sorted(behavior_keys):
+            for control in controls[key]:
+                with self.subTest(limit=key, control=control.__name__):
+                    self.setUp()
+                    control()
+
+    def test_caught_plant_also_labeled_his_on_another_pair_is_clean(self) -> None:
+        reader = self.payload(voice_read.READER_RECORD_NAME)
+        reader["answers"] = [
+            {"pair_id": "1a", "quote": self.replacement, "resemblance": "his"},
+            {"pair_id": "1b", "quote": self.replacement, "resemblance": "generic"},
+        ]
+        self.write_payload(voice_read.READER_RECORD_NAME, reader)
+
+        status, output = self.command()
+
+        self.assertEqual(0, status, output)
+        self.assertIn(f"{voice_read.EXPECTED_ROW}: clean", output)
+
+    def test_named_plant_without_generic_placement_has_its_own_finding(self) -> None:
+        reader = self.payload(voice_read.READER_RECORD_NAME)
+        reader["answers"] = [
+            {"pair_id": "1a", "quote": self.replacement, "resemblance": "his"},
+            {"pair_id": "1b", "quote": None, "resemblance": "no counterpart"},
+        ]
+        self.write_payload(voice_read.READER_RECORD_NAME, reader)
+
+        status, output = self.command()
+
+        self.assertEqual(1, status, output)
+        self.assertIn("planted sentence was named but placed on no generic pair answer", output)
+        self.assertNotIn("planted sentence was not flagged", output)
 
     def test_real_generic_sentence_is_public(self) -> None:
         reader = self.payload(voice_read.READER_RECORD_NAME)
