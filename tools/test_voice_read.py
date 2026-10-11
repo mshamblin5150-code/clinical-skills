@@ -56,6 +56,106 @@ def digest(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
+class QuoteCheck(unittest.TestCase):
+    def setUp(self) -> None:
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.reader = self.root / "voice-read.json"
+        self.planted = self.root / "voice-read-planted.txt"
+        self.draft = self.root / "draft.txt"
+        self.quote = "Surname et al. (2025) describe the approach."
+        self.planted.write_text(self.quote, encoding="utf-8")
+        self.draft.write_text("The supplied image survives.", encoding="utf-8")
+        self.record = {
+            "answers": [{"pair_id": "1a", "quote": self.quote}],
+            "suspected_plant_quote": self.quote,
+            "supplied_voice_answers": [{"item_id": "input-1", "quote": "The supplied image survives."}],
+        }
+
+    def check(self, extra: list[str] | None = None) -> tuple[int, str]:
+        self.reader.write_text(json.dumps(self.record), encoding="utf-8")
+        output = io.StringIO()
+        with redirect_stdout(output), redirect_stderr(output):
+            status = voice_read.main([
+                "--check-quotes", str(self.reader), "--planted", str(self.planted),
+                "--draft", str(self.draft), *(extra or []),
+            ])
+        return status, output.getvalue()
+
+    def test_checks_all_quote_sources_without_reading_the_planter(self) -> None:
+        original_read = Path.read_text
+        opened = []
+
+        def read(path, *args, **kwargs):
+            opened.append(path)
+            if path.name == voice_read.PLANTER_RECORD_NAME:
+                raise AssertionError("answer key was opened")
+            return original_read(path, *args, **kwargs)
+
+        (self.root / voice_read.PLANTER_RECORD_NAME).write_text("hidden answer key", encoding="utf-8")
+        with mock.patch.object(Path, "read_text", read):
+            status, output = self.check()
+        self.assertEqual(0, status, output)
+        self.assertEqual({self.reader, self.planted, self.draft}, set(opened))
+
+    def test_refuses_two_sentences_and_a_sentence_fragment_without_echoing_quotes(self) -> None:
+        self.planted.write_text("Does this work? Yes. Another sentence remains.", encoding="utf-8")
+        self.record["answers"] = [
+            {"pair_id": "1a", "quote": "Does this work? Yes."},
+            {"pair_id": "1b", "quote": "sentence remains."},
+            {"pair_id": "1c", "quote": None},
+        ]
+        self.record["suspected_plant_quote"] = "Yes."
+        status, output = self.check()
+        self.assertEqual(1, status)
+        self.assertIn("answers.quote pair_id=1a", output)
+        self.assertIn("answers.quote pair_id=1b", output)
+        self.assertNotIn("pair_id=1c", output)
+        self.assertNotIn("Does this work", output)
+        self.assertNotIn("sentence remains", output)
+
+    def test_suspected_and_supplied_quotes_use_their_own_sources(self) -> None:
+        self.record["suspected_plant_quote"] = "The supplied image survives."
+        self.record["supplied_voice_answers"] = [{"item_id": "input-1", "quote": self.quote}]
+        status, output = self.check()
+        self.assertEqual(1, status)
+        self.assertIn("suspected_plant_quote", output)
+        self.assertIn("supplied_voice_answers.quote item_id=input-1", output)
+
+    def test_null_answers_are_recognizable_and_need_no_quote(self) -> None:
+        self.record["answers"] = [{"pair_id": "1a", "quote": None}]
+        self.record["supplied_voice_answers"] = [{"item_id": "input-1", "quote": None}]
+        self.assertEqual(0, self.check()[0])
+
+    def test_unreadable_input_and_unrecognizable_records_exit_two(self) -> None:
+        self.draft.unlink()
+        self.assertEqual(2, self.check()[0])
+        self.draft.write_text("The supplied image survives.", encoding="utf-8")
+        for record in ({}, {"answers": ["not an answer"]}, [], {"answers": []}):
+            with self.subTest(record=record):
+                self.record = record
+                self.assertEqual(2, self.check()[0])
+
+    def test_planter_option_and_planter_path_are_refused_before_reading(self) -> None:
+        with self.assertRaises(SystemExit) as failure:
+            self.check(["--planter", str(self.root / voice_read.PLANTER_RECORD_NAME)])
+        self.assertEqual(2, failure.exception.code)
+        self.reader = self.root / voice_read.PLANTER_RECORD_NAME
+        with mock.patch.object(Path, "read_text", side_effect=AssertionError("opened input")):
+            self.assertEqual(2, self.check()[0])
+
+    def test_invalid_json_and_non_utf8_sources_exit_two(self) -> None:
+        self.reader.write_text("not JSON", encoding="utf-8")
+        with redirect_stdout(io.StringIO()):
+            self.assertEqual(2, voice_read.main([
+                "--check-quotes", str(self.reader), "--planted", str(self.planted),
+                "--draft", str(self.draft),
+            ]))
+        self.planted.write_bytes(b"\xff")
+        self.assertEqual(2, self.check()[0])
+
+
 class CompletionGate(unittest.TestCase):
     def setUp(self) -> None:
         self._temporary = tempfile.TemporaryDirectory()
@@ -603,6 +703,16 @@ class CompletionGate(unittest.TestCase):
         text = "Dr. Smith arrived. Another sentence follows."
         self.assertTrue(voice_read._verbatim_sentence(text, "Dr. Smith arrived."))
         self.assertFalse(voice_read._verbatim_sentence(text, "Smith arrived."))
+
+    def test_narrative_et_al_citation_is_one_verbatim_sentence(self) -> None:
+        quote = "Surname et al. (2025) describe the approach."
+        self.assertTrue(voice_read._one_sentence(quote))
+        self.assertTrue(voice_read._verbatim_sentence(quote + " Another follows.", quote))
+
+    def test_question_and_answer_are_two_sentences(self) -> None:
+        quote = "Does this work? Yes."
+        self.assertFalse(voice_read._one_sentence(quote))
+        self.assertFalse(voice_read._verbatim_sentence(quote, quote))
 
     def test_sentence_boundaries_accept_a_complete_quoted_sentence(self) -> None:
         text = '“This works.” Another sentence follows.'

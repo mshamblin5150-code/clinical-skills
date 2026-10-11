@@ -8,9 +8,11 @@ no row.
 
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
 import re
+import sys
 from dataclasses import dataclass, replace
 from enum import Enum
 from pathlib import Path
@@ -22,6 +24,7 @@ import reader_remarks
 import repo_root
 import run_grader
 import voice_model_identity
+from console_codec import require_python_floor, use_utf8
 
 
 PLANTED_COPY_NAME = "voice-read-planted.txt"
@@ -106,7 +109,7 @@ _PROFANITY_SECTION = re.compile(
 _BACKTICK = re.compile(r"`([^`\n]+)`")
 _WORD = re.compile(r"[^\W_]+(?:['’][^\W_]+)*", re.UNICODE)
 _ABBREVIATION = re.compile(
-    r"(?:\b(?:mr|mrs|ms|dr|prof|sr|jr|st|vs|etc|e\.g|i\.e)|\b[A-Z])\.$",
+    r"(?:\b(?:mr|mrs|ms|dr|prof|sr|jr|st|vs|etc|al|e\.g|i\.e)|\b[A-Z])\.$",
     re.IGNORECASE,
 )
 _MARKDOWN_PREFIX = re.compile(r"\s*(?:(?:[-*+>]|\d+[.)]|#+)\s*)?")
@@ -832,3 +835,60 @@ def apply_completion_gate(
         coverage_limbs=limbs,
         reports=grade.reports + gate.reports + (reader_remarks.report(gate.remarks),),
     )
+
+
+def main(argv: list[str]) -> int:
+    """Check quote boundaries only, using no model, capture, or answer key."""
+    parser = argparse.ArgumentParser(description="Check reader quotes as exact source sentences; no plant-detection verdict.")
+    parser.add_argument("--check-quotes", required=True, type=Path, metavar="READER")
+    parser.add_argument("--planted", required=True, type=Path)
+    parser.add_argument("--draft", required=True, type=Path, help="UTF-8 grader-owned draft voice surface")
+    args = parser.parse_args(argv)
+    paths = (args.check_quotes, args.planted, args.draft)
+    if any(path.name == PLANTER_RECORD_NAME for path in paths):
+        print("quote check: planter records are not accepted")
+        return 2
+    try:
+        reader = json.loads(args.check_quotes.read_text(encoding="utf-8"))
+        planted = args.planted.read_text(encoding="utf-8")
+        draft = args.draft.read_text(encoding="utf-8")
+    except (OSError, UnicodeError, ValueError):
+        print("quote check: input is unreadable or invalid JSON")
+        return 2
+    if not isinstance(reader, dict):
+        print("quote check: no recognizable answers")
+        return 2
+    quotes: list[tuple[str, str, object]] = []
+    for field, identifier, source in (
+        ("answers", "pair_id", planted),
+        ("supplied_voice_answers", "item_id", draft),
+    ):
+        answers = reader.get(field)
+        if not isinstance(answers, list):
+            continue
+        for answer in answers:
+            if not isinstance(answer, dict) or not isinstance(answer.get(identifier), str) or "quote" not in answer:
+                continue
+            label = f"{field}.quote {identifier}={answer[identifier]}"
+            quotes.append((label, source, answer["quote"]))
+    if not quotes:
+        print("quote check: no recognizable answers")
+        return 2
+    quotes.append(("suspected_plant_quote", planted, reader.get("suspected_plant_quote")))
+    failed = False
+    for field, source, quote in quotes:
+        if quote is None and field != "suspected_plant_quote":
+            continue
+        if not isinstance(quote, str) or not _verbatim_sentence(source, quote):
+            print(f"quote check: {field}: not a verbatim sentence of its source")
+            failed = True
+    if failed:
+        return 1
+    print("quote check: every quote is a verbatim sentence of its source")
+    return 0
+
+
+if __name__ == "__main__":
+    use_utf8()
+    require_python_floor()
+    raise SystemExit(main(sys.argv[1:]))
