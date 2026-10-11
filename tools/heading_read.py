@@ -10,8 +10,8 @@ pairing boundary; the project-context row's ceiling belongs to
 from __future__ import annotations
 
 import re
-from datetime import date
 from dataclasses import dataclass, field
+from datetime import date
 from typing import NamedTuple
 
 import file_digest
@@ -195,6 +195,11 @@ def read_records(text: str) -> tuple[Record, ...]:
     return tuple(records)
 
 
+def _drifted_at(detail: str, location: str) -> bool:
+    """A substantive drift finding attached to exactly this pair location."""
+    return re.match(rf"(?i)drifted[ \t]+-[ \t]+{re.escape(location)},[ \t]+\S", detail) is not None
+
+
 def _record_findings(record: Record, binding: Binding) -> list[Finding]:
     found: list[Finding] = []
     artifact = record.artifact
@@ -206,7 +211,7 @@ def _record_findings(record: Record, binding: Binding) -> list[Finding]:
     if current and (sentence_match is None or sentence_match.group("item") is None):
         found.append(Finding(ITEM_COUNT, artifact, "SENTENCES must count item descriptions"))
     item_count = int(sentence_match.group("item") or 0) if sentence_match else 0
-    if current or record.items or item_count:
+    if current:
         if len(record.items) != item_count:
             found.append(Finding(ITEM_COUNT, artifact, f"{len(record.items)} ITEM lines for {item_count} item sentences"))
         locations = set()
@@ -221,7 +226,10 @@ def _record_findings(record: Record, binding: Binding) -> list[Finding]:
                 locations.add(location)
     factual = int(sentence_match.group("factual")) if sentence_match else -1
     paired_locations = {match.group("location").strip() for pair in record.pairs for match in (PAIR.fullmatch(pair),) if match}
-    unpaired_findings = sum(not any(re.match(rf"(?i)drifted[ \t]+-[ \t]+{re.escape(location)},", detail) for location in paired_locations) for detail in record.findings)
+    unpaired_findings = sum(
+        not any(_drifted_at(detail, location) for location in paired_locations)
+        for detail in record.findings
+    )
     if factual < 0 or len(record.pairs) + unpaired_findings != factual:
         found.append(
             Finding(
@@ -253,7 +261,7 @@ def _record_findings(record: Record, binding: Binding) -> list[Finding]:
                     found.append(Finding(QUALIFIER_COUNT, artifact, pair))
                 elif int(read) < int(total):
                     location = parsed.group("location").strip()
-                    if not any(re.match(rf"(?i)drifted[ \t]+-[ \t]+{re.escape(location)},[ \t]+\S", detail) for detail in record.findings):
+                    if not any(_drifted_at(detail, location) for detail in record.findings):
                         found.append(Finding(QUALIFIER_COUNT, artifact, f"shortfall without a drifted finding: {pair}"))
 
     current_digest = file_digest.sha256_bytes(binding.draft)

@@ -155,7 +155,7 @@ SOURCE: society guideline | peer-reviewed | government | tertiary reference
 REFERENCE: <full APA 7 entry>
 RESTATEMENT: <what the source says, including the critique's exact numeric token where applicable>
 PASSAGE: <where in the source the supporting language sits>
-QUALIFIERS: "<limiting qualifier quoted from PASSAGE>" | "<next qualifier>" | none
+QUALIFIERS: "<limiting qualifier quoted from PASSAGE>" | "<next qualifier>"
 RECENCY: current | within five | nothing newer - <reason> | guideline in force - <reason>
 RESOLVED: <URL or DOI> - read <ISO date>
 PAGE-YEAR: <year and where the page states it>
@@ -165,6 +165,8 @@ SECOND-ROUTE: <research route> -> <refutation route>
 INSTRUMENTS: <first instrument> -> <second instrument>
 STATED-EXPIRY: none stated | <ISO date> - <where the document states it> | <ISO date>, superseded cited deliberately - <reason>
 ```
+
+When the passage has no limiting qualifiers, write `QUALIFIERS: none` instead of the list.
 
 `INSTRUMENTS` is required for `REFUTATION: unreadable` and forbidden elsewhere. Transcribe only an
 expiry the document states; do not infer one from a publication cadence.

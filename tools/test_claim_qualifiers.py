@@ -156,6 +156,11 @@ class HeadingQualifiersAndItems(unittest.TestCase):
         self.assertEqual(1, status)
         self.assertIn("heading-read-qualifier-count: 1", report)
 
+    def test_legacy_item_lines_are_not_graded(self):
+        status, report = self.reply(stamp="2026-10-10", qualifier=False, count=None, items=("unopened",))
+        self.assertEqual(0, status, report)
+        self.assertIn("item-description comparisons: not graded - unread 1", report)
+
 
 if __name__ == "__main__":
     unittest.main()
