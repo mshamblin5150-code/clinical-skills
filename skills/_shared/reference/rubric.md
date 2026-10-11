@@ -203,3 +203,13 @@ it away is correct differential practice, not a defect.
 In the term this was captured from it was worth 5 points as a rubric line. **In at least one other
 course it is a 100-point assignment of its own**, which is why it is named here rather than folded
 in. Check which before assuming the weight.
+
+## Applicable orders
+
+**This repository's reading rule, rather than the course's words.** An applicable order
+applies to the patient the case actually presents, including a conditional whose branches
+cover that patient. Only an applicable order is what the classmate decided and can be listed
+as something the clinician can agree with. An order for a hypothetical other patient, an
+order put off until later, or a treatment class with no drug, dose or duration is not an
+applicable order. The missing treatment decision is itself a finding about the plan. Whether
+an order applies remains a reading; no tool checks it.

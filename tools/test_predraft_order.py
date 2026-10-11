@@ -22,7 +22,7 @@ class FirstObservation(unittest.TestCase):
             run = Path(directory) / "atlas-discussion"
             run.mkdir()
             (run / "project-context.md").write_text(
-                "PROJECT-CONTEXT: none - no project material applies\nCONFIRMED: 2026-10-03\n",
+                "PROJECT-CONTEXT: none - no project material applies\nOWN-SUBMISSION: none - no earlier synthetic submission\nCONFIRMED: 2026-10-03\n",
                 encoding="utf-8",
             )
             (run / "post.md").write_text("draft", encoding="utf-8")
@@ -62,7 +62,7 @@ class CourseworkFixture(unittest.TestCase):
 
     def reset(self):
         (self.run / "project-context.md").write_text(
-            "PROJECT-CONTEXT: none - no project material applies\nCONFIRMED: 2026-10-03\n", encoding="utf-8")
+            "PROJECT-CONTEXT: none - no project material applies\nOWN-SUBMISSION: none - no earlier synthetic submission\nCONFIRMED: 2026-10-03\n", encoding="utf-8")
         (self.run / "voice-model-identity.json").unlink(missing_ok=True)
 
     def supplied(self, key):

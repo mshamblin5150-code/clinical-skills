@@ -78,8 +78,12 @@ classmate, with:
 
 1. the exact roster name;
 2. the current nested-reply count, prominently flagging two or more;
-3. what the clinician can agree with; and
-4. what new substance the clinician can add.
+3. what the clinician can agree with, reading orders under
+   [Applicable orders](../_shared/reference/rubric.md#applicable-orders); and
+4. the questions the reply would research, carried unchanged into step 2's claim headings.
+
+The fourth column may credit the clinician ("your case study argued ...") only with a
+quotation from his own submission.
 
 Rank for the strongest opportunity to add useful substance, not randomly and not merely for the
 shortest post. Ask the clinician to answer with two ranking numbers. Do not draft until the two
@@ -380,7 +384,7 @@ the already graded response artifact. A board repair is available only when the 
 that live coursework edit; no repair is automatic. Do not capture or diff the board against the
 artifact. Rerun `discussion_reply_scan.py` after writing the record; its exit must now be 0.
 
-Compute the fingerprint with `python -c "from pathlib import Path; from tools.file_digest import sha256; print(sha256(Path(r'<response-<name>.md>')))"` and write it before
+Compute the fingerprint with `python tools/file_digest.py "<response-<name>.md>"` and write it before
 `/AAR` extracts the record; adding or changing the line afterwards makes that review stale because
 `aar_scan` fingerprints the whole block. That
 posted reply is one submission. Invoke `/AAR` with its response filename as the submission key, then rerun `discussion_reply_scan.py <run-directory> --submission <response-filename>`. The report must include `the after-action review: clean` before reply two begins.

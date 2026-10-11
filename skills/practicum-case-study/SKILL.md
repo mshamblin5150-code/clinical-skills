@@ -1132,7 +1132,7 @@ row of the table below and nothing under them yet. Every row uses `## CHECK:` ex
 read`, which uses the shared `## HEADING-READ: <draft file>` record from
 [sourcing.md](../_shared/reference/sourcing.md). A heading whose verdict never arrived is visible,
 and a check that was never run is not. Immediately before dispatching each reader, the parent runs
-`python -c "from pathlib import Path; from tools.file_digest import sha256; print(sha256(Path(r'<the output Markdown>')))"`
+`python tools/file_digest.py "<the output Markdown>"`
 and names that fingerprint in the brief. The parent is the one writer and records that exact value as `DRAFT:` on the returned row, including
 rows whose verdict comes from a command.
 
@@ -1674,7 +1674,7 @@ VERDICT: matches - <what was compared with the submitted artifact>
 ```
 
 Use `diverges - <what differs>` when the posted entry does not match and stop for clinician
-direction. Compute the fingerprint with `python -c "from pathlib import Path; from tools.file_digest import sha256; print(sha256(Path(r'<output Markdown>')))"` and write it
+direction. Compute the fingerprint with `python tools/file_digest.py "<output Markdown>"` and write it
 before `/AAR` extracts the record; adding or changing the line afterwards makes that review stale
 because `aar_scan` fingerprints the whole block.
 Then invoke `/AAR` with the dated output Markdown stem as the submission key. After

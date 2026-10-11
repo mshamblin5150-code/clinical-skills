@@ -216,7 +216,7 @@ class FinishedWordPapersAreTheMeasuredControls(unittest.TestCase):
             (run / "heading-read.md").write_text(
                 f"## HEADING-READ: {artifact.name}\nDRAFT: {digest}\n"
                 "ROUTE: separate context\nSENTENCES: 0 factual, 0 clinician's own\n"
-                "CONTEXT-DIGEST: none\nCONTEXT-VERDICT: none\nVERDICT: clean\n",
+                "CONTEXT-DIGEST: 67d55228f3d5d679eb597e38d220b591803ef13085d57f1176ec0b6302c5fc8f\nCONTEXT-VERDICT: agrees\nVERDICT: clean\n",
                 encoding="utf-8",
             )
             output = io.StringIO()
@@ -396,8 +396,8 @@ def empty_population_input(root: Path) -> EmptyPopulationInput:
     )
     (run / "claims.md").write_text("DATE: 2026-09-13\n", encoding="utf-8")
     (run / "project-context.md").write_text(
-        "PROJECT-CONTEXT: none - synthetic assignment\n"
-        "CONFIRMED: 2026-09-23\nCONTEXT-DIGEST: none\n",
+        "PROJECT-CONTEXT: none - synthetic assignment\nOWN-SUBMISSION: none - no earlier synthetic submission\n"
+        "CONFIRMED: 2001-01-01\nCONTEXT-DIGEST: 67d55228f3d5d679eb597e38d220b591803ef13085d57f1176ec0b6302c5fc8f\n",
         encoding="utf-8",
     )
     (run / "heading-read.md").write_text(
@@ -405,8 +405,8 @@ def empty_population_input(root: Path) -> EmptyPopulationInput:
         f"DRAFT: {file_digest.sha256(artifact)}\n"
         "ROUTE: separate context\n"
         "SENTENCES: 0 factual, 0 clinician's own\n"
-        "CONTEXT-DIGEST: none\n"
-        "CONTEXT-VERDICT: none\n"
+        "CONTEXT-DIGEST: 67d55228f3d5d679eb597e38d220b591803ef13085d57f1176ec0b6302c5fc8f\n"
+        "CONTEXT-VERDICT: agrees\n"
         "VERDICT: clean\n",
         encoding="utf-8",
     )

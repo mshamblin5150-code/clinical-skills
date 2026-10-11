@@ -89,7 +89,7 @@ _OPENED = re.compile(
     re.IGNORECASE,
 )
 _HEADER_FIELDS = frozenset(
-    {"PROJECT-CONTEXT", "PROJECT-SEARCH", "PROJECT-WAIVE", "CONFIRMED", "CONTEXT-DIGEST", "ORDER-WAIVE", "ORDER-OBSERVATION"}
+    {"PROJECT-CONTEXT", "OWN-SUBMISSION", "PROJECT-SEARCH", "PROJECT-WAIVE", "CONFIRMED", "CONTEXT-DIGEST", "ORDER-WAIVE", "ORDER-OBSERVATION"}
 )
 _ENTRY_FIELDS = frozenset(
     {
@@ -326,6 +326,34 @@ def _declaration(record: Record) -> tuple[str | None, str | None]:
     return declaration, None
 
 
+def _own_submission_error(record: Record) -> str | None:
+    values = record.values("OWN-SUBMISSION")
+    if len(values) != 1 or not values[0]:
+        return "OWN-SUBMISSION is missing or duplicated"
+    value = values[0]
+    if value.casefold().startswith("none"):
+        prefix, separator, reason = value.partition(" - ")
+        if prefix.casefold() != "none" or not separator or not reason.strip():
+            return "OWN-SUBMISSION none needs a reason"
+        return None
+    path = Path(value).expanduser()
+    if not path.is_absolute():
+        return "OWN-SUBMISSION needs an absolute file path"
+    for entry in record.entries:
+        if entry.value("STATE").casefold() != "read":
+            continue
+        for opened_value in entry.values("OPENED"):
+            opened = _opened(opened_value)
+            if opened.item.casefold() == "none":
+                continue
+            item = Path(opened.item).expanduser()
+            if not item.is_absolute():
+                item = Path(entry.value("ROOT") or entry.place).expanduser() / item
+            if item.resolve() == path.resolve():
+                return None
+    return "OWN-SUBMISSION path is not OPENED in a read PLACE"
+
+
 def _searches(record: Record) -> tuple[dict[str, str], list[str]]:
     searches: dict[str, str] = {}
     errors: list[str] = []
@@ -501,8 +529,9 @@ def _hash_service(
     return sha256(payload).hexdigest(), None
 
 
-def _context_digest(triples: list[tuple[str, str, str]]) -> str:
-    payload = "".join("\0".join(triple) + "\n" for triple in sorted(triples))
+def _context_digest(triples: list[tuple[str, str, str]], record: Record) -> str:
+    payload = "OWN-SUBMISSION\0" + record.value("OWN-SUBMISSION") + "\n"
+    payload += "".join("\0".join(triple) + "\n" for triple in sorted(triples))
     return sha256(payload.encode("utf-8")).hexdigest()
 
 
@@ -513,6 +542,7 @@ def _render(
     digest: str,
 ) -> str:
     lines = [f"PROJECT-CONTEXT: {record.value('PROJECT-CONTEXT')}"]
+    lines.append(f"OWN-SUBMISSION: {record.value('OWN-SUBMISSION')}")
     lines.extend(f"PROJECT-SEARCH: {value}" for value in record.values("PROJECT-SEARCH"))
     lines.extend(f"PROJECT-WAIVE: {value}" for value in record.values("PROJECT-WAIVE"))
     lines.extend(f"ORDER-WAIVE: {value}" for value in record.values("ORDER-WAIVE"))
@@ -555,6 +585,8 @@ def _write_context_record(
     except (OSError, UnicodeError, ValueError):
         return GateResult(1, "project context: finding - record shape is invalid")
     errors = _duplicates(record)
+    if own_error := _own_submission_error(record):
+        errors.append(own_error)
     project_name, declaration_error = _declaration(record)
     if declaration_error:
         errors.append(declaration_error)
@@ -573,8 +605,9 @@ def _write_context_record(
     if project_name == "none":
         if searches or waivers or record.entries:
             return GateResult(1, "project context: finding - a none run cannot owe places")
-        record_path.write_text(_render(record, (), {}, "none"), encoding="utf-8")
-        return GateResult(0, "project context: clean; waived places: 0", digest="none")
+        digest = _context_digest([], record)
+        record_path.write_text(_render(record, (), {}, digest), encoding="utf-8")
+        return GateResult(0, "project context: clean; waived places: 0", digest=digest)
 
     registry_path = repo_root.project_registry()
     if not registry_path.is_file():
@@ -650,7 +683,7 @@ def _write_context_record(
         hashed[item.place] = tuple(opened_rows)
     if errors:
         return GateResult(1, "project context: finding - " + "; ".join(errors))
-    digest = _context_digest(triples)
+    digest = _context_digest(triples, record)
     record_path.write_text(_render(record, tuple(entries), hashed, digest), encoding="utf-8")
     return GateResult(
         0,
@@ -748,6 +781,8 @@ def _context_completion_gate(run: Path, submission: str | None) -> CompletionGat
     digest = record.value("CONTEXT-DIGEST")
     declaration, error = _declaration(record)
     shape_errors = _duplicates(record)
+    if own_error := _own_submission_error(record):
+        shape_errors.append(own_error)
     confirmed = record.values("CONFIRMED")
     if error:
         shape_errors.append(error)
@@ -762,7 +797,7 @@ def _context_completion_gate(run: Path, submission: str | None) -> CompletionGat
     if shape_errors:
         return CompletionGate(True, False, f"{EXPECTED_ROW}: finding - record shape is invalid")
     if declaration == "none":
-        clean = digest == "none" and not record.entries
+        clean = digest == _context_digest([], record) and not record.entries
         return CompletionGate(
             not clean,
             False,
@@ -846,7 +881,7 @@ def _context_completion_gate(run: Path, submission: str | None) -> CompletionGat
                 shape_errors.append(file_error)
             if file_error or current != opened.digest:
                 moved = True
-    if not malformed and _context_digest(triples) != digest:
+    if not malformed and _context_digest(triples, record) != digest:
         malformed = True
     states: list[str] = []
     if shape_errors:

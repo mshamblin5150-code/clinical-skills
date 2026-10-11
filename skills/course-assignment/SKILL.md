@@ -459,7 +459,7 @@ VERDICT: matches - <whether the submitted filename population, carrier bytes, an
 Use `diverges - <what differs>` when the posted artifact does not match. A divergence stops the
 completion path for clinician direction.
 
-Compute the fingerprint with `python -c "from pathlib import Path; from tools.file_digest import sha256; print(sha256(Path(r'<output .pptx>')))"` and write it before `/AAR`
+Compute the fingerprint with `python tools/file_digest.py "<output .pptx>"` and write it before `/AAR`
 extracts the record; adding or changing the line afterwards makes that review stale because
 `aar_scan` fingerprints the whole block. Invoke `/AAR`
 with the output deck stem as the submission key. Its completion report must say
