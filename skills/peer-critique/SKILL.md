@@ -116,9 +116,8 @@ never stated — is not the classmate's omission, and a finding against them for
 against the assignment. Grade the reasoning applied to what was given. This rule is the one most
 easily broken by a reader working from a required-components list rather than from the case.
 
-**The clinician's own post is a comparison, not a standard.** Where the classmate did something
-better, that goes in the critique and it goes in early. Where the clinician's own post shares a gap,
-say so rather than charging it to the classmate alone.
+Read [The clinician's own position](../_shared/reference/rubric.md#the-clinicians-own-position)
+before deciding which points to fault; resolve a disagreement with his submission before drafting.
 
 ## 2. Find what is clinically at stake before writing anything
 
@@ -167,6 +166,7 @@ Each record uses the full research-ledger shape:
 ```text
 ## CLAIM: <the claim, including any number the critique will state>
 STATUS: sourced | unsourced | unreadable - <what was searched or what prevented the read>
+SEARCHED-FIRST: store "<clinical question>" -> 0; guidelines "<clinical question>" -> 0
 SOURCE: society guideline | peer-reviewed | government | tertiary reference
 REFERENCE: <full APA 7 entry>
 RESTATEMENT: <what the source says, including the critique's exact numeric token where applicable>

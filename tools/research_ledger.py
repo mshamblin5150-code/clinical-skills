@@ -59,6 +59,7 @@ class DeclaredLimit(NamedTuple):
 
 
 DECLARED_LIMITS = (
+    DeclaredLimit("first-search-unobserved", "A SEARCHED-FIRST line written without either search having run passes the shape check.", EvidenceDisposition.DECLARED_READING),
     DeclaredLimit("reader-remark-free-text", "A claim's folded continuation or substance-only refutation reason cannot distinguish a concealed remark from source-reading text.", EvidenceDisposition.DECLARED_READING),
     DeclaredLimit("qualifier-completeness-unverified", "Presence checks cannot establish that the researcher and refuter listed every limiting qualifier.", EvidenceDisposition.DECLARED_READING),
     DeclaredLimit("added-condition-unverified", "Presence of named qualifiers cannot detect a condition added to the heading or restatement.", EvidenceDisposition.DECLARED_READING),
@@ -116,7 +117,7 @@ NOT_REACHED = tuple(row.limit for row in DECLARED_LIMITS)
 # under a document heading without the parser caring.
 CLAIM = re.compile(r"(?mi)^[ \t]*#+[ \t]*CLAIM[ \t]*:[ \t]*(.*?)[ \t]*$")
 FIELD = re.compile(
-    r"(?mi)^[ \t]*(STATUS|SOURCE|REFERENCE|RESTATEMENT|PASSAGE|QUALIFIERS|RECENCY"
+    r"(?mi)^[ \t]*(STATUS|SEARCHED-FIRST|SOURCE|REFERENCE|RESTATEMENT|PASSAGE|QUALIFIERS|RECENCY"
     r"|RESOLVED|PAGE-YEAR|REFUTATION|TESTED-HEADING|SECOND-ROUTE|INSTRUMENTS|STATED-EXPIRY|DROPPED|REMARK)"
     r"[ \t]*:[ \t]*(.*?)[ \t]*$"
 )
@@ -1405,6 +1406,13 @@ def record_findings(
 
     if not SUBSTANCE.search(claim):
         found.append(Finding(MISSING_FIELD, claim, "CLAIM"))
+
+    searches = record.value("SEARCHED-FIRST")
+    if not re.fullmatch(
+        r'store "[^"\n]+" -> [0-9]+; guidelines "[^"\n]+" -> [0-9]+(?:; .+)?',
+        searches,
+    ):
+        found.append(Finding(MISSING_FIELD, claim, "SEARCHED-FIRST needs both store and guidelines queries and hit counts"))
 
     status = record.status
     found += _dropped_findings(record)

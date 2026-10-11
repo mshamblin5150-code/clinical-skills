@@ -94,7 +94,7 @@ def a_clean_record(name: str) -> str:
             f"DRAFT: {DRAFT_SHA}\n"
             "ROUTE: separate context\n"
             "SENTENCES: 0 factual, 0 clinician's own\n"
-            "CONTEXT-DIGEST: 67d55228f3d5d679eb597e38d220b591803ef13085d57f1176ec0b6302c5fc8f\n"
+            "CONTEXT-DIGEST: e9480117c1477001f65666233ed4ef160c1544873d6184ff730a83380429f1bf\n"
             "CONTEXT-VERDICT: agrees\n"
             "VERDICT: clean\n"
         )
@@ -178,8 +178,8 @@ def run(argv: list[str], *, bind: bool = True) -> tuple[int, str, str]:
     if bind and arguments and Path(arguments[0]).is_file():
         checks_path = Path(arguments[0])
         (checks_path.parent / "project-context.md").write_text(
-            "PROJECT-CONTEXT: none - synthetic case study\nOWN-SUBMISSION: none - no earlier synthetic submission\n"
-            "CONFIRMED: 2001-01-01\nCONTEXT-DIGEST: 67d55228f3d5d679eb597e38d220b591803ef13085d57f1176ec0b6302c5fc8f\n",
+            "PROJECT-CONTEXT: none - synthetic case study\nOWN-SUBMISSION: none - no earlier synthetic submission\nCASE-MATERIAL: none - no synthetic case material\nCASE-RESEARCH: none - no synthetic case research\n"
+            "CONFIRMED: 2001-01-01\nCONTEXT-DIGEST: e9480117c1477001f65666233ed4ef160c1544873d6184ff730a83380429f1bf\n",
             encoding="utf-8",
         )
         retained = checks_path.parent / "render" / "pass-1"

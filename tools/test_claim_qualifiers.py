@@ -107,7 +107,7 @@ class HeadingQualifiersAndItems(unittest.TestCase):
                 + f"SENTENCES: {sentences}\n"
                 + f"PAIR: paragraph 1 -> fd25d4de{suffix}\n"
                 + "".join(f"ITEM: paragraph {index + 2} -> {item}\n" for index, item in enumerate(items))
-                + "CONTEXT-DIGEST: 67d55228f3d5d679eb597e38d220b591803ef13085d57f1176ec0b6302c5fc8f\nCONTEXT-VERDICT: agrees\nVERDICT: clean\n"
+                + "CONTEXT-DIGEST: e9480117c1477001f65666233ed4ef160c1544873d6184ff730a83380429f1bf\nCONTEXT-VERDICT: agrees\nVERDICT: clean\n"
                 + (f"FINDINGS: {finding}\n" if finding else ""), encoding="utf-8")
             return command(discussion_reply_scan.main, folder)
 
