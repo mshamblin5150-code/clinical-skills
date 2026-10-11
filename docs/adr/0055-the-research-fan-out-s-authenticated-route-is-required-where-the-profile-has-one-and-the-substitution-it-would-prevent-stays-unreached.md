@@ -114,6 +114,8 @@ with a zero base rate, which is the datum every ruling below turns on.
    same three files. **Exactly one site per skill holds the tool string**, and this ticket's sentence
    refers to *the authenticated route* that paragraph establishes.
 
+*Superseded 2026-10-03.* The words "This ruling puts a research-side sentence in the same three files." are superseded by [ADR 0286](0286-the-authenticated-route-has-one-home-in-the-shared-sourcing-rules-and-binds-every-research-skill.md) ruling 6. The one shared route replaces the per-skill copies and profile condition. Rulings 1, 2, 3 and 7, the authenticated attempt, and the giving-up trigger survive.
+
    The restriction is not tidiness. A tool rename with two naming sites is
    [#220](https://github.com/mshamblin5150-code/clinical-skills/issues/220)'s two-copies shape, whose
    recorded instance in this repository — `docx_write.NOT_APPLIED` — is precisely *a prose edit to
@@ -127,6 +129,8 @@ with a zero base rate, which is the datum every ruling below turns on.
    `prose_bind.normalized` block and never a line, because every sentence in these skills is
    hard-wrapped. **Assert existence per skill; do not assert the three texts match.**
 
+*Superseded 2026-10-03.* The words "Assert existence per skill; do not assert the three texts match." are superseded by [ADR 0286](0286-the-authenticated-route-has-one-home-in-the-shared-sourcing-rules-and-binds-every-research-skill.md) ruling 6. The one shared route replaces the per-skill copies and profile condition. Rulings 1, 2, 3 and 7, the authenticated attempt, and the giving-up trigger survive.
+
    That is ruling 8's own split applied one level down: it binds the *template* derivedly and refuses
    to bind the *declaration text* three ways, because the surrounding prose differs per skill and
    [#253](https://github.com/mshamblin5150-code/clinical-skills/issues/253) already ruled that
@@ -136,6 +140,8 @@ with a zero base rate, which is the datum every ruling below turns on.
 6. **Required where the profile records that the browser tool is available, and silent where it does
    not.** The modality is a separate choice from the trigger, because ruling 5 is required *before a
    specific word may be written* and ruling 2 widened the trigger to a moment with no word attached.
+
+*Superseded 2026-10-03.* The words "Required where the profile records that the browser tool is available, and silent where it does not." are superseded by [ADR 0286](0286-the-authenticated-route-has-one-home-in-the-shared-sourcing-rules-and-binds-every-research-skill.md) ruling 6. The one shared route replaces the per-skill copies and profile condition. Rulings 1, 2, 3 and 7, the authenticated attempt, and the giving-up trigger survive.
 
    Unconditional requirement writes a rule the environment can falsify, **which is #540's defect
    exactly** — a stated ground that is false of the account it is stated for, one artifact over.

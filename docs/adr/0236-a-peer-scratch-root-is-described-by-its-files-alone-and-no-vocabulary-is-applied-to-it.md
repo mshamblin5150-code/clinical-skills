@@ -55,6 +55,9 @@ discards cited and uncited material alike, and it would buy that nothing with a 
 The unaccounted figure was the only part of a peer's line that depended on anything but the
 filesystem, so removing it removes the defect rather than documenting or maintaining it.
 
+*Superseded 2026-09-15.* The words "has no authorized
+**Drain**" are superseded by [ADR 0238](0238-a-worktree-is-removed-only-after-the-census-holds-nothing-back.md) ruling 5. The quoted absence of an authorized drain falls. The no-peer-vocabulary refusal stands: draining discards cited and uncited material alike, so an accounted split remains unactionable.
+
 ### 2. A peer earns a line by holding a file or by being unreadable
 
 The peer predicate is **at least one file**, or a root that cannot be read. An empty top-level
@@ -104,3 +107,9 @@ including a peer holding an uncited empty directory and no file printing no line
 `--worktrees`.
 
 **Whether a link's target is at risk.** Ruling 4 declares the boundary and does not follow a link.
+
+## Supersedes
+
+- [ADR 0185](0185-the-scratch-census-counts-peer-roots-and-names-only-the-exceptions.md) ruling 2, the words "any file, or any unaccounted entry". Unreadable peers named; peers remain report-only and material hazard remains reason.
+
+- [ADR 0185](0185-the-scratch-census-counts-peer-roots-and-names-only-the-exceptions.md) ruling 6, the words "with the predicate degraded to files alone and the report saying so.". Failure branch remains collapsed; gating lines and verdict remain.

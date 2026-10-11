@@ -144,6 +144,8 @@ two.**
 **It is a finding whenever the run has a prior watermark**, so a resumed review cannot silently fall
 back to an unmarked population.
 
+*Superseded 2026-09-23.* The words "The record now carries the extract identifier of the entry holding its classifier's return, and the next extract labels that one entry `prior-review` **by identity, not by matching its body**." are superseded by [ADR 0271](0271-a-notification-entry-is-named-by-its-row-and-a-refused-round-is-rebuilt-against-its-own-entries.md) ruling 2. Every copy remains in population and is labeled prior-review; fresh reader re-derives rather than adopts the return.
+
 ### 7. Launch-versus-result accounting is reported and never graded
 
 Over the extract's own population: launches, launches joined to a result, the unjoined remainder, and

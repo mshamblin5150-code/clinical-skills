@@ -70,3 +70,7 @@ because the gate cannot tell coincidence from copying; republishing text already
 nothing new. A paraphrase of run material still passes, as ADR 0109 ruling 13 already declares. A
 template reformatted on `main` after the run copied it no longer matches and is refused; the remedy
 is the same rewrite the gate already asks for.
+
+## Supersedes
+
+- [ADR 0109](0109-the-after-action-review-s-signal-is-an-observed-correction-and-its-findings-land-or-the-run-is-not-done.md) ruling 13, the words "any span of the run directory's own text reappearing in the ticket body.". Private run material remains refused; the exact proposed diff and paraphrase boundary survive.

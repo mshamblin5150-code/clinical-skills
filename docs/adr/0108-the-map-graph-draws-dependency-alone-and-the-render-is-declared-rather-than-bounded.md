@@ -76,6 +76,8 @@ a graph's worst one.
 A packet with no dependency and no collision is a true and useful fact — *this one is free-standing*
 — and dropping it would leave a picture of only the entangled work.
 
+*Superseded 2026-09-09.* The words "The 10 isolated nodes stay drawn" are superseded by [ADR 0155](0155-the-map-render-stamps-its-producer-and-the-graph-draws-only-what-carries-an-edge.md) ruling 2. Free-standing packets remain visible in the packet table; the graph draws only nodes with an edge.
+
 ### 3. The 8 duplicate emissions are a defect and are fixed in `publish`
 
 Deduplicating drawn edges requires no judgment, so it belongs on the rendering side of ADR 0106's
@@ -88,6 +90,8 @@ edge or a known directive; every state packet has a node. Offline, deterministic
 have caught decision 3's defect**, and it is the extractor-coverage discipline applied to the
 emitter: derive the population, report the denominator and the remainder, refuse to present a
 partial read as clean.
+
+*Superseded 2026-09-09.* The words "every state packet has a node." are superseded by [ADR 0155](0155-the-map-render-stamps-its-producer-and-the-graph-draws-only-what-carries-an-edge.md) ruling 3. The emitter still accounts for every packet, now as drawn or counted omitted; its other self-checks remain.
 
 ### 5. No bound on drawn edges or nodes is adopted, and this is the decision to read before proposing one
 
@@ -112,6 +116,8 @@ Checking the live render after publishing was considered and is unavailable rath
 taste: no tool in `tools/` opens a socket, CI has no browser, and the failure was declared
 intermittent — a tracker sweep had already recorded that its own single clean load could not
 falsify an intermittent timeout.
+
+*Superseded 2026-09-09.* The words "A row in `map_scan.DECLARED_LIMITS` carries the difference" are superseded by [ADR 0155](0155-the-map-render-stamps-its-producer-and-the-graph-draws-only-what-carries-an-edge.md) ruling 6. GitHub renderability remains declared and ungraded; the emitter's limit resides in implementation_map while map_scan declares its stamp-specific limit.
 
 ### 7. The timeout is recorded as resolved and unexplained
 

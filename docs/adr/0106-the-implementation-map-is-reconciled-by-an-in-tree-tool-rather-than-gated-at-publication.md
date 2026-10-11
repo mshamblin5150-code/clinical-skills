@@ -140,6 +140,8 @@ fresh anchor while a ready ticket is still unmapped has published a map assertin
 it is not — the repository's recurring shape landing on the one field whose entire job is to say how
 stale the page is.
 
+*Superseded 2026-09-10.* The words "a delta advances it only when nothing is left unmapped" are superseded by [ADR 0168](0168-a-map-obligation-belongs-to-whoever-incurred-it-and-the-producer-stamp-hashes-the-emitter.md) ruling 1. A publish never advances the anchor; each session may discharge its own ADR obligations without waiting for another session's unmapped ticket.
+
 ### 5. A delta refuses to place a packet with a blank `outcome`
 
 The clinician ruled this directly. A packet's `outcome` is authored judgment and a guessed one is
@@ -186,6 +188,8 @@ The finding has been printed inside a green check on every push. A detector whos
 invisible is the written instruction this repository keeps ruling insufficient, wearing a scanner's
 clothes.
 
+*Superseded 2026-10-03.* The words "`unmapped-ready` leaves `--advisory`" are superseded by [ADR 0279](0279-the-map-check-fails-only-on-new-debt-and-the-debt-it-inherited-is-frozen-and-drained.md) ruling 1. New unmapped-ready debt still refuses; grandfathered debt prints without refusing and is drained by an owned ticket.
+
 ## What this does not reach
 
 The lock is local, so two machines remain uncoordinated; the hash is what covers them, and it
@@ -196,3 +200,8 @@ requiring it to be non-empty, so a stock sentence satisfies it, which is `specif
 substance limit inherited whole. And the routes remain uncovered in the sense the gate would have
 covered them: a ready ticket is unmapped from the moment of the flip until the next reconciliation,
 and the map says so through its anchor rather than being prevented from entering that state.
+
+## Supersedes
+
+- [ADR 0089](0089-the-map-gate-is-an-offline-grader-over-a-harvest-and-the-reconciliation-obligation-is-anchored-on-a-field-the-delta-sets.md) ruling 1, the words "Every mutation stays in the out-of-tree helper". The offline grader remains distinct; the helper moves into tools with its existing operations.
+- [ADR 0089](0089-the-map-gate-is-an-offline-grader-over-a-harvest-and-the-reconciliation-obligation-is-anchored-on-a-field-the-delta-sets.md) ruling 5, the words "Failing on a finding is refused because it fails correct work.". Only unmapped-ready leaves advisory treatment; the other findings remain advisory and inability to scan still fails.

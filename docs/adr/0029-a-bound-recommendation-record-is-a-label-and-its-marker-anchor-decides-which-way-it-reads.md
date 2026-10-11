@@ -24,10 +24,16 @@ So the question was never *how long should a snippet be*. It was *is this text a
 2. **On a bound source the drafter emits no snippet.** `tools/threshold_draft.py` leaves the `snippet` cell blank and the label moves to the `Candidate set` table, which is already a table of labels. The seeded-row containment test stops running on bound sources. `exact` sources are untouched — their record text is a real ruled-table cell or a curated USPSTF statement, so seeding and containment both stay.
 3. **A label reads from whichever end its marker sits on.** `recommendation` and `practice-point` sit at the start of a recommendation and read forward from the match start, as today. `grade-spelled-out` and `grade-terse` are the GRADE parenthetical at the *end* of one and read backward from the match end.
 4. **Both ends back off to a whole word**, and the 160 becomes a named constant with its reason written beside it and a test pinning it.
+
+*Superseded 2026-08-27.* The words "the 160 becomes a named constant with its reason written beside it and a test pinning it." are superseded by [ADR 0058](0058-a-bound-label-reads-to-its-own-recommendation-and-every-window-adr-0029-measured-was-forward.md) ruling 10. Bound remains a label rather than reading evidence; separate statement and document windows are now recorded.
+
 5. **The window fix and the direction fix land in one build.** They are the same slice expression, and two branches editing one expression in one window is this repo's recorded failure at `anchor_scan` against #150 and at the byte-identical figure git merged in silence.
 6. **The changelog shape is declared and censused, never filtered.** `tools/guidelines_recs.py` gains a declared limit naming the ADA front-matter changelog, and an editorial-verb probe runs on every extraction and prints a per-document count into the record metadata and the run summary — explicitly a floor, explicitly never a gate.
 7. **`CITATION tier 0 NOT RUN` names the consequence and the count**, not only the mode: the rows keep tier 1 and tier 2 and lose the membership pin to their named recommendation, and their `class` cell is ungraded.
 8. **The 46 `blocked on #436` cells in `reference/thresholds/coverage.md` are corrected** to the reason the other 122 rows use. Those topics stay `unread`; only the stated reason changes.
+
+*Superseded 2026-08-27.* The words "to the reason the other 122 rows use." are superseded by [ADR 0058](0058-a-bound-label-reads-to-its-own-recommendation-and-every-window-adr-0029-measured-was-forward.md) ruling 1. Other three named reasons survive; additional reason is explicit.
+
 9. **This build does not wait on [#446](https://github.com/mshamblin5150-code/clinical-skills/issues/446) or [#438](https://github.com/mshamblin5150-code/clinical-skills/issues/438).** It declares which of its figures #446 will move.
 
 ## What was measured before anything was ruled

@@ -163,6 +163,10 @@ ruling is written the way it is: a pointer-keyed walk reports a clean 50 of 50 w
 15 and missing `adr_next`, one of the two defects it was chosen to catch. A matcher that could not
 have worked, reading as coverage, arriving inside the mechanism proposed to prevent it.
 
+*Superseded 2026-09-10.* The words "Candidacy is a `tools/` module with a top-level constant named `DECLARED_LIMITS`." are superseded by [ADR 0167](0167-the-limits-walk-reads-a-declared-name-list-and-a-module-without-limits-is-declared.md) ruling 1. Candidacy still reads declared names rather than row shapes; it uses the shared name list.
+
+*Superseded 2026-09-10.* The words "Assertion 1 — a test names the object — lands now." are superseded by [ADR 0167](0167-the-limits-walk-reads-a-declared-name-list-and-a-module-without-limits-is-declared.md) ruling 6. The no-copy-bind obligation replaces the weaker mention test; the prose-pointer walk remains separate.
+
 ### 5. The two surviving enum copies declare themselves at the code point
 
 **Not in either module's `DECLARED_LIMITS`.** *This module defines its own because it is not

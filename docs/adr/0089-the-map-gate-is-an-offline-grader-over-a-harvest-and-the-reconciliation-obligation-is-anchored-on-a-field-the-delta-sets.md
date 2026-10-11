@@ -98,6 +98,8 @@ The cost is named rather than discovered: **the in-tree gate grades one family o
 the map.** Edge agreement, gate targets, packet status and every frontier claim stay unreachable from
 CI and continue to need a session running the full helper.
 
+*Superseded 2026-09-01.* The words "Every mutation stays in the out-of-tree helper" are superseded by [ADR 0106](0106-the-implementation-map-is-reconciled-by-an-in-tree-tool-rather-than-gated-at-publication.md) ruling 1. The offline grader remains distinct; the helper moves into tools with its existing operations.
+
 ### 2. The harvest carries issues, plus dependencies for the tickets carrying `blocked`, in two passes
 
 **Narrowed by ruling 10.** The third direction is withdrawn and this ruling's harvest collapses to
@@ -156,6 +158,9 @@ reconciliation, which is the map's own business, and mirrors nothing the tracker
 This ruling reopens the out-of-tree helper: the split of ruling 1 holds, and the helper gains a field
 it must write.
 
+*Superseded 2026-09-10.* The words "The
+in-tree grader compares it against `git log <that sha>..HEAD -- docs/adr/`." are superseded by [ADR 0168](0168-a-map-obligation-belongs-to-whoever-incurred-it-and-the-producer-stamp-hashes-the-emitter.md) ruling 2. The anchor remains reconciliation-owned, but advances over reviewed ADR units and the row names each unreviewed ADR rather than counting commits.
+
 ### 4. The surface is `checks.yml`, on `push: main` and `workflow_dispatch`
 
 It is the only surface holding a full git history and a token at once, it is where
@@ -207,6 +212,8 @@ this job knowingly treats findings as advisory, and a local run gets the un-laun
 The weakness is named rather than argued away: **an advisory finding on a page nobody opens is #214
 one level up.** What distinguishes it from the map's own ignored self-declaration is where it lands —
 the summary of the merge whose session owed the reconciliation, rather than an issue nobody re-read.
+
+*Superseded 2026-09-01.* The words "Failing on a finding is refused because it fails correct work." are superseded by [ADR 0106](0106-the-implementation-map-is-reconciled-by-an-in-tree-tool-rather-than-gated-at-publication.md) ruling 8. Only unmapped-ready leaves advisory treatment; the other findings remain advisory and inability to scan still fails.
 
 ### 6. Nothing attaches in session; the map's prose gains a pointer, and the hook is a follow-on
 

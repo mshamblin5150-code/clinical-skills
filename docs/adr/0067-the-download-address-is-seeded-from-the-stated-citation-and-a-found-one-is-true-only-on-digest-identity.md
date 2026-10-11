@@ -183,3 +183,7 @@ is ADR 0047's own closing sentence and is unchanged here.
 A `gated` row is the weakest that ships: a title matched behind a wall, with the authenticated route
 attempted and no bytes compared. It is recorded as its own value precisely so a reader cannot mistake
 it for a `digest`.
+
+## Supersedes
+
+- [ADR 0057](0057-the-corpus-sweep-is-comprehensive-and-every-ruling-it-needs-is-already-ruled.md) ruling 6, the words "The guideline catalog gains a `url` column". Stated citation remains separate and is not bound to sheet URL; corpus identity policy survives.

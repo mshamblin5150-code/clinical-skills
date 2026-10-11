@@ -169,4 +169,4 @@ discharged (`CONTEXT.md`'s entries carried the sheet-local wording from ADR 0057
 anchors are replaced with symbol-level ones. Cross-reference comments on #587 and #565 record the
 collision.
 
-*(Corrected in place 2026-09-01, on [ADR 0016](0016-an-adr-number-is-claimed-when-it-is-handed-out-and-a-ratified-records-facts-may-be-corrected-in-place.md)'s terms. ADR 0102 and #689 added the registry's authored `subject` column after this row was ratified. Ruling 3's quoted reader contract now includes the column, its group-expansion walk, and the meaning of `?`; the row name, reader, population judgment, and other rulings are unchanged.)*
+*Superseded 2026-09-01.* *(Corrected in place 2026-09-01, on [ADR 0016](0016-an-adr-number-is-claimed-when-it-is-handed-out-and-a-ratified-records-facts-may-be-corrected-in-place.md)'s terms. ADR 0102 and #689 added the registry's authored `subject` column after this row was ratified. Ruling 3's quoted reader contract now includes the column, its group-expansion walk, and the meaning of `?`; the row name, reader, population judgment, and other rulings are unchanged.)*

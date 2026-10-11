@@ -113,6 +113,8 @@ elsewhere that no interval is established), and the statement names a period tha
 dose. The header is the only place a consumer meets this column, so it says that a dose or
 supplement frequency is not a recurrence and is deliberately outside the column.
 
+*Superseded 2026-08-29.* The words "The header is the only place a consumer meets this column" are superseded by [ADR 0068](0068-a-stated-evidence-absence-is-read-into-the-uspstf-artifact-and-the-class-is-named-for-what-the-source-says.md) ruling 8. The quoted ground falls; the recurrence-of-service ruling and dose exclusion stand. Consumers also encounter the generated absence section.
+
 A distinct sentinel for the four was declined on a measurement: after the change **all 43
 non-screening rows read `not stated` uniformly**, the four joining 39 that already did.
 Telling them apart requires the service classification deferred in ruling 2, and marking

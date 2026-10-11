@@ -144,6 +144,13 @@ measured differently* without anything contradicting it. `CONTEXT.md` gains **re
 term beside **render pass**, defining the reader's claim joined to the retained evidence and holding
 it apart from coverage, which is what a page count establishes. No module is named.
 
+*Superseded 2026-09-10.* The words "that module has no limits object at all" are superseded by [ADR 0162](0162-render-scan-earns-its-limits-object-on-a-measurement-and-counts-exactly-one-image-per-page.md) ruling 1. The pointer moves to an earned DECLARED_LIMITS object; refusal of an object added for symmetry remains. The original dated account is retained: **Superseded in part 2026-09-10 by
+[ADR 0162](0162-render-scan-earns-its-limits-object-on-a-measurement-and-counts-exactly-one-image-per-page.md),
+and left as written.** Where ruling 2 places `render_scan`'s pointer in the module docstring *because
+that module has no limits object at all*, the pointer now sits in `render_scan.DECLARED_LIMITS`,
+which ADR 0162 ruling 1 found earned on a measurement. Ruling 2's refusal of an object added for
+symmetry stands. Ruling 3's unbound-limits defect is the question ADR 0162 rules.
+
 ### 3. The three defects the measurement found are new tickets, not this one
 
 **The post's gate key.** `rendered-pages` is gated on an input it does not read, and the flag is
@@ -188,6 +195,14 @@ refused.** That one is for a collision unknowable on the day the earlier record 
 0022 drew the line explicitly. ADR 0124 read all four render sites in detail at `e61d96f` and did not
 compare what their rows grade; the comparison was available to it.
 
+*Superseded 2026-09-10.* The words "`deck_scan` gains no render row" are superseded by [ADR 0161](0161-the-deck-and-case-study-render-records-name-the-final-pass-and-route.md) ruling 1. One terminal record row is added; coverage and record remain distinct properties. The original dated account is retained: **Superseded in part 2026-09-10 by
+[ADR 0161](0161-the-deck-and-case-study-render-records-name-the-final-pass-and-route.md), and left as
+written.** Where this record says ADR 0124 ruling 4's *"`deck_scan` gains no render row"* stands — in
+ruling 4 and under *What this does not reach* — that now carries ADR 0161's one exception: a render
+record row graded only at the terminal `--submission` run. Ruling 3's reachability defect was filed
+as [#866](https://github.com/mshamblin5150-code/clinical-skills/issues/866), which ADR 0161 rules.
+Ruling 1's placement is untouched.
+
 ## What this does not reach
 
 **Whether either arrangement is adequate.** Ruling 1 settles which command holds the row and says
@@ -205,18 +220,3 @@ for the post, the deck has neither, and a clean run of any of them is not a chec
 graded gap, *no row in `deck_scan`* and #803's untouched decision 1 all stand.
 
 ---
-
-**Superseded in part 2026-09-10 by
-[ADR 0161](0161-the-deck-and-case-study-render-records-name-the-final-pass-and-route.md), and left as
-written.** Where this record says ADR 0124 ruling 4's *"`deck_scan` gains no render row"* stands — in
-ruling 4 and under *What this does not reach* — that now carries ADR 0161's one exception: a render
-record row graded only at the terminal `--submission` run. Ruling 3's reachability defect was filed
-as [#866](https://github.com/mshamblin5150-code/clinical-skills/issues/866), which ADR 0161 rules.
-Ruling 1's placement is untouched.
-
-**Superseded in part 2026-09-10 by
-[ADR 0162](0162-render-scan-earns-its-limits-object-on-a-measurement-and-counts-exactly-one-image-per-page.md),
-and left as written.** Where ruling 2 places `render_scan`'s pointer in the module docstring *because
-that module has no limits object at all*, the pointer now sits in `render_scan.DECLARED_LIMITS`,
-which ADR 0162 ruling 1 found earned on a measurement. Ruling 2's refusal of an object added for
-symmetry stands. Ruling 3's unbound-limits defect is the question ADR 0162 rules.

@@ -140,6 +140,8 @@ every run. It also makes the widening **measurable without a hand-kept list**: a
 `finding` → `undecidable` → `clean` as sections land, so the gate's own output tracks its own
 closure.
 
+*Superseded 2026-09-04.* The words "no spanned class has a form — **finding**, and the remedy is unambiguous;" are superseded by [ADR 0130](0130-the-reference-coverage-vocabulary-contracts-to-two-states.md) ruling 1. The clean and undecidable states remain, still calculated from per-class has_form.
+
 ### 4. #241's join reopens in one direction, and its closure is **confirmed** in the other
 
 This is the ruling the two tickets were worked together to reach, and it is not either verdict #717
@@ -209,6 +211,8 @@ lands.** That flag exists where a finding still reaches a human who owed the wor
 caller would pass it**, so the flag would record nothing while the row never fired and the
 machinery was still paid for.
 
+*Superseded 2026-09-04.* The words "So the row prints and never touches the exit status" are superseded by [ADR 0130](0130-the-reference-coverage-vocabulary-contracts-to-two-states.md) ruling 1. A repository gap still must not fail coursework; the retired uncovered-class report disappears while bucket populations and undecidable remainder still print.
+
 ### 7. The sheet stays at `skills/practicum-case-study/reference/apa7.md`
 
 #715 decision 4 asks whether the sheet moves. Measuring it shows **the sheet is not the anomaly, the
@@ -225,6 +229,8 @@ move rather than on a new file.
 The sheet gains a statement of its readers, bound by a test in both directions — which skills link
 it against which skills it names. **Moving the whole shared set is a real question and is filed
 separately**; nothing in #715's finding depends on it.
+
+*Superseded 2026-09-05.* The words "The sheet stays at `skills/practicum-case-study/reference/apa7.md`" are superseded by [ADR 0131](0131-the-shared-sheet-directory-moves-whole-and-the-mirror-gains-a-non-skill-rule.md) ruling 1. The sheet remains inside the skills-rooted grading population; the whole reference cluster moves together and practicum keeps no reference directory.
 
 ### 8. The census reads `scratch/` across every registered checkout and `output/` from the main checkout
 
@@ -360,3 +366,7 @@ run, which is what ruling 2's second reader exists to make possible.
 **2026-09-05 correction.** [#759](https://github.com/mshamblin5150-code/clinical-skills/issues/759)
 and [ADR 0133](0133-a-ruling-is-identified-by-its-ordinal-and-an-empty-parse-is-declared-rather-than-guessed-at.md)
 record the widened ruling declaration grammar and why the quotations above remain unchanged.
+
+## Supersedes
+
+- [ADR 0088](0088-a-legal-reference-is-read-by-its-section-and-never-refused-for-its-name-and-the-sheet-s-authority-is-apa-s-own-page.md) ruling 7, the words "The widening is scoped to APA's whole published set, not to the classes already written". Published authority rather than observed local corpus continues to determine coverage.

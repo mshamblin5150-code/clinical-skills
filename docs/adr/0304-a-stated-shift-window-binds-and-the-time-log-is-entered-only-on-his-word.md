@@ -111,3 +111,7 @@ shown. The Time Log entry form's fields beyond date and duration, such as the co
 against, were not measured in this session; the build reads the live form view only before writing
 its first row. The `Confirmed` column decides nothing here. No check establishes that a step read
 ruling 4's record before asking.
+
+## Supersedes
+
+- [ADR 0223](0223-a-shift-is-entered-into-medatrax-after-one-go-ahead-and-confirmed-by-one-posted-reading.md) ruling 4, the words "the end is that start plus the hours the Time Log holds for that date.". A stated shift start and duration now set the window without a Time Log read. Every encounter remains inside that window and its timing is shown at review.

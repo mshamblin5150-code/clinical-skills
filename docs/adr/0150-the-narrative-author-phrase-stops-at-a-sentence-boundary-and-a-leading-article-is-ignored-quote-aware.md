@@ -152,3 +152,7 @@ Recorded as comments on [#942](https://github.com/mshamblin5150-code/clinical-sk
 **Whether the two modules' boundary rules agree.** They now hold two different ones deliberately, and nothing binds them. That is the residue ruling 1 accepts in exchange for not importing a measured defect.
 
 **A capitalized common noun before a parenthesis.** `PARTICLES`' recorded residue is unchanged — the key is still the first significant word, so a wider phrase does not widen what counts as an author, but it does not narrow it either.
+
+## Supersedes
+
+- [ADR 0088](0088-a-legal-reference-is-read-by-its-section-and-never-refused-for-its-name-and-the-sheet-s-authority-is-apa-s-own-page.md) ruling 2, the words "Resolving it needs ADR 0039's reverse key walk, which requires a whole-phrase key this module does not have.". Legal entries remain excluded from uncited-entry because section citations resolve on resolution_keys which that row does not read.

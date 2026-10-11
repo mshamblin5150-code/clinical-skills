@@ -317,3 +317,9 @@ after the build, and *full-document read pending* would be false of a `sheet` ro
 
 Correction, 2026-08-30: the second addendum's two rulings formerly restarted at 1–2. They now
 continue the record's sequence at 12–13 under ADR 0075 ruling 3; the ruling text is unchanged.
+
+## Supersedes
+
+- [ADR 0029](0029-a-bound-recommendation-record-is-a-label-and-its-marker-anchor-decides-which-way-it-reads.md) ruling 4, the words "the 160 becomes a named constant with its reason written beside it and a test pinning it.". Bound remains a label rather than reading evidence; separate statement and document windows are now recorded.
+
+- [ADR 0029](0029-a-bound-recommendation-record-is-a-label-and-its-marker-anchor-decides-which-way-it-reads.md) ruling 8, the words "to the reason the other 122 rows use.". Other three named reasons survive; additional reason is explicit.

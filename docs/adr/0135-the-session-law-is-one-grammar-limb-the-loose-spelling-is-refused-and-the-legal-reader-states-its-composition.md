@@ -39,6 +39,8 @@ Splitting one equality across two tickets is the move ADR 0085 records as sendin
 
 **The evidence transfers with it.** #816 records the symptom as `uncited-entry`; the same root also produces `intext-year-mismatch` when the in-text year parses, which is a second symptom row it does not know about. The form recurs: 13 parenthetical slash-year spans across 4 corpus documents, including `(Benner, 1984/2001)` in three drafts, beside `(4.8 percent in the 2013/2014 data)` — a non-citation parenthetical of the same shape that any candidate rule must clear.
 
+*Superseded 2026-09-07.* The words "The symptom is #816's; #771 keeps *read the session law*" are superseded by [ADR 0145](0145-the-republished-date-element-is-shared-grammar-keyed-on-its-second-element.md) ruling 5. The republished root stays #816's; the comma-year statute root receives its separate convention ruling instead of being built in #816.
+
 ## Ruling 2 — the session law is a grammar limb and never a Source-vocabulary row
 
 #771 decision 3 asks *what the Source rule would be*. There is no Source rule. ADR 0100's vocabulary feeds a slot that must sit adjacent to `§`, and the session-law form puts the public-law number in between:

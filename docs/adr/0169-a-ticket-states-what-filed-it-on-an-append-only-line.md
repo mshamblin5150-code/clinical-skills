@@ -114,14 +114,14 @@ Cited record state block, or the body's first line when there is none. It opens 
 is missing takes no judgment of wording. *Amended before merge: the first draft named only the Branch
 state block, and the sweep's measurement above showed the other qualifier must also stay first.*
 
-*Corrected 2026-09-14.* **The position this ruling names, *"the first line after any record-level scope
+*Superseded 2026-09-14.* **The position this ruling names, *"the first line after any record-level scope
 block"*, is made exact by
 [ADR 0228](0228-the-filed-from-line-sits-one-blank-line-below-the-whole-scope-block.md) rulings 1 to 3,
 and the sentence is left as written**, being the dated record of what was decided on 2026-09-10. The
 build read it as the very next physical line, which GitHub renders inside the scope block's quote. ADR
 0228 puts the label after the whole quote and exactly one blank line, and reads the retired adjacent
 position only to protect an existing line during an edit. The fixed label, the single exact position
-and the absence of any search are unchanged.
+and the absence of any search are unchanged. The words "the first line after any record-level scope block" are superseded by [ADR 0228](0228-the-filed-from-line-sits-one-blank-line-below-the-whole-scope-block.md) ruling 1. The dated position is narrowed to follow the whole scope block and one blank line; the provenance label and append-only rule survive.
 
 ### 4. The label is Filed from and the term is Filed-from line
 
@@ -167,7 +167,7 @@ A bottom footer was ruled first and then refused, for the reason
 refused correcting a figure by annotation only: a reader who acts on the line does not scroll to the
 footer. *Amended before merge.*
 
-*Corrected 2026-09-12.* **The third sentence above — *"Other corrections of the body may go anywhere
+*Superseded 2026-09-12.* **The third sentence above — *"Other corrections of the body may go anywhere
 below the line, never above it."* — is superseded by
 [ADR 0191](0191-a-carried-claim-is-corrected-where-it-stands-and-436-never-ruled-it.md) ruling 3 and
 is left as written**, being the dated record of what was decided on 2026-09-10. Every other

@@ -96,6 +96,8 @@ same failure #258 describes arriving more quietly.
 A peer earns a line when its root holds **anything at all** — any file, or any unaccounted entry — or
 when it could not be read. Not when its unaccounted count is above zero.
 
+*Superseded 2026-09-14.* The words "any file, or any unaccounted entry" are superseded by [ADR 0236](0236-a-peer-scratch-root-is-described-by-its-files-alone-and-no-vocabulary-is-applied-to-it.md) ruling 2. Unreadable peers named; peers remain report-only and material hazard remains reason.
+
 **A peer is never graded, so the ratchet number is not why its line exists.** The only reason to print
 a peer at all is ADR 0059 ruling 4's worktree-root hazard, and that hazard is measured in files that
 vanish on `git worktree remove`, not in entries that fail a rule nobody applies to them. The case
@@ -173,6 +175,8 @@ the counted category with no instruction anywhere a reader will meet it.
 
 The second peer loop takes ruling 1 and ruling 2, with the predicate degraded to files alone and the
 report saying so.
+
+*Superseded 2026-09-14.* The words "with the predicate degraded to files alone and the report saying so." are superseded by [ADR 0236](0236-a-peer-scratch-root-is-described-by-its-files-alone-and-no-vocabulary-is-applied-to-it.md) ruling 3. Failure branch remains collapsed; gating lines and verdict remain.
 
 **More strongly than on the ordinary path, not less.** On a clean run the collapse is about attention;
 here it is about a reader finding why the commit was refused, which is what the ticket was filed

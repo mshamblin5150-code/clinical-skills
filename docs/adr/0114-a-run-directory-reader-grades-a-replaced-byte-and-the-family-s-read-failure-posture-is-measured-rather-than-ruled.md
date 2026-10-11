@@ -158,6 +158,9 @@ two-limb vocabulary in prose that nothing holds, which is
 [#220](https://github.com/mshamblin5150-code/clinical-skills/issues/220)'s shape; it goes on the
 read-failure ticket, where it can be ruled against the family rather than against one module.
 
+*Superseded 2026-09-02.* The words "Ruling 1 means it raises
+none, so the antecedent is gone" are superseded by [ADR 0116](0116-the-read-failure-posture-is-keyed-on-the-input-s-role-and-only-the-crash-is-ruled-family-wide.md) ruling 6. refusal_scan still gains no exit-2 vocabulary, now because adopting one would be a seam change and its informal docstring becomes accurate.
+
 ## What this does not reach, declared rather than left to be found
 
 **The residue, in ten members including this one.** A real file `open()` refuses still exits 1 --

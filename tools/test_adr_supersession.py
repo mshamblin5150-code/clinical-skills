@@ -4,47 +4,62 @@ Grammar: an optional exact ``## Supersedes`` section contains hyphen bullets,
 each beginning with a relative ``[ADR NNNN](NNNN-slug.md)`` link followed by
 ``ruling N,`` and explanatory prose. Indented continuation lines are joined.
 A marker is a paragraph beginning ``*Superseded YYYY-MM-DD.*`` beneath a
-``## Ruling N`` heading, or beneath a ``### N.`` heading inside a ``## Ruled``
-section of an older record. It contains a quoted span, the same relative ADR link
+recognized ruling heading or numbered ruling item using ``adr_read``'s grammar.
+It contains a quoted span, the same relative ADR link
 followed by ``ruling N``, and an account of what survives. The account's truth
 is read at review, not inferred from supersession verbs.
 """
 
 from __future__ import annotations
 
+import json
 import re
 import unittest
 from datetime import date
 from pathlib import Path
+from unittest import mock
 
-from adr_read import RULING_SECTION, ruling_ordinals
-from markdown_read import unfenced_lines
+from adr_read import ruling_attributions, ruling_ordinals
+from adr_supersession_population import classification_findings, derive_population, derive_records, legacy_marker_findings
+from markdown_read import paragraphs, unfenced_lines
 from prose_bind import NAMING, bind
 
 
-CUTOFF = 280
+CUTOFF = 0
+CLASSIFICATION_REPORT = Path(__file__).resolve().parent.parent / "docs" / "adr" / "supersession-classification-1518.json"
+
+
+def unsure_remainder(path=CLASSIFICATION_REPORT, *, legacy=False) -> int | None:
+    """Read the historical reader remainder instead of copying a prose count."""
+    try:
+        report = json.loads(path.read_text(encoding="utf-8"))
+        if legacy:
+            return len(report.get("unresolved_legacy_markers", []))
+        return sum(pair["classification"] == "unsure" for pair in report["pairs"])
+    except (OSError, ValueError, TypeError, KeyError):
+        return None
+
+
 DECLARED_LIMITS = (
     "An overturning the author never declared is outside this binding.",
     "Whether a marker's account of what survives is true is a review reading.",
-    "Markers linked to overturning records below the cutoff are not bound until #1518 lowers it; target records below the cutoff are read for in-scope declarations.",
-    "The unsure-pair remainder has not been derived; #1518 fills it in.",
-    "Only the documented relative-link, bullet, paragraph, Ruling-heading, and numbered ruling-subheading grammar is read; alternative Markdown forms are not certified.",
+    f"The historical classification's unsure-pair unread remainder is {unsure_remainder()}; its source is supersession-classification-1518.json, not a completed supersession reading.",
+    "Only the documented relative-link, bullet, paragraph, and adr_read ruling grammar is read; alternative Markdown forms are not certified.",
+    f"The unattributed legacy-marker unread remainder is {unsure_remainder(legacy=True)}; exact retained source and the committed manifest bind these exceptions, and available Git history independently verifies them.",
 )
 LINK = r"\[ADR (\d{4})\]\((\d{4}-[^()\s]+\.md)\)"
 DECLARATION = re.compile(r"^- " + LINK + r"\s+ruling (\d+),\s+(.+)$")
 MARKER_LINK = re.compile(LINK + r"\s+ruling (\d+)\b")
 OPENING = re.compile(r"^\*Superseded (\d{4}-\d{2}-\d{2})\.\*\s+(.+)$")
-RULING = re.compile(r"^## Ruling (\d+)\b")
-NUMBERED_RULING = re.compile(r"^#{3,4}\s+(\d+)\.\s")
 
 
-def supersession_findings(records: dict[str, str]) -> tuple[str, ...]:
+def supersession_findings(records: dict[str, str], report: dict | None = None, *, root: Path | None = None) -> tuple[str, ...]:
     """Grade an independently supplied complete ADR filename/text population.
 
     The cutoff belongs to the overturning record, so an old target can still
     owe a marker for a new declaration. This seam writes nothing.
     """
-    findings = []
+    findings, unresolved = legacy_marker_findings(report or {}, records, root=root)
     declarations: set[tuple[str, str, int]] = set()
     markers: set[tuple[str, str, int]] = set()
     for name, text in sorted(records.items()):
@@ -65,20 +80,12 @@ def supersession_findings(records: dict[str, str]) -> tuple[str, ...]:
 
     for name, text in sorted(records.items()):
         text = "\n".join(unfenced_lines(text))
-        ruling = None
-        in_ruling_section = False
-        for paragraph in re.split(r"\n\s*\n", text):
-            heading = RULING.match(paragraph)
-            numbered = NUMBERED_RULING.match(paragraph)
-            if heading:
-                ruling = int(heading.group(1))
-                in_ruling_section = False
-            elif paragraph.startswith("## "):
-                ruling = None
-                in_ruling_section = bool(RULING_SECTION.match(paragraph[3:].strip()))
-            elif in_ruling_section and numbered:
-                ruling = int(numbered.group(1))
+        contexts = {row.line: row.number for row in ruling_attributions(text)}
+        for line_number, paragraph in paragraphs(text):
+            ruling = contexts.get(line_number)
             if not paragraph.startswith("*Superseded"):
+                continue
+            if (name, paragraph) in unresolved:
                 continue
             links = list(MARKER_LINK.finditer(paragraph))
             # Old targets with only old links belong to the repair, not this rule.
@@ -113,6 +120,53 @@ def supersession_findings(records: dict[str, str]) -> tuple[str, ...]:
 
 
 class SupersessionBindingTests(unittest.TestCase):
+    def legacy_fixture(self):
+        original = '*Superseded grounding marked 2026-09-12.* The ground "Old words." was replaced by [ADR 0280](0280-new.md) ruling 1. The verdict stands.'
+        normalized = original.replace('Superseded grounding marked', 'Superseded')
+        source = '# Record\n\n## Ground\n\n' + original + '\n'
+        report = derive_records([('0039-old.md', source.encode('utf-8'))])
+        report['revision'] = 'a' * 40
+        report['unresolved_legacy_markers'] = [{
+            'record': '0039-old.md', 'original_marker': original,
+            'normalized_marker': normalized, 'reason': 'No ratified ruling ordinal.',
+            'follow_up': 12, 'source_text': source, 'source_sha256': report['records'][0]['sha256'],
+        }]
+        return {'0039-old.md': source.replace(original, normalized)}, report
+
+    def test_exact_unattributed_legacy_marker_remains_unread_without_inventing_a_ruling(self):
+        records, report = self.legacy_fixture()
+        self.assertEqual(supersession_findings(records, report), ())
+        self.assertTrue(supersession_findings(records))
+
+    def test_unresolved_legacy_readback_refuses_forged_or_changed_evidence(self):
+        import copy
+        for mutation in ('forged_marker', 'source_hash', 'body_change', 'follow_up', 'missing_live', 'live_quote', 'extra_entry', 'numbered'):
+            with self.subTest(mutation=mutation):
+                records, report = self.legacy_fixture()
+                row = report['unresolved_legacy_markers'][0]
+                if mutation == 'forged_marker':
+                    row['original_marker'] = row['original_marker'].replace('Old words.', 'Invented words.')
+                    row['normalized_marker'] = row['normalized_marker'].replace('Old words.', 'Invented words.')
+                    records['0039-old.md'] = records['0039-old.md'].replace('Old words.', 'Invented words.')
+                elif mutation == 'source_hash':
+                    row['source_text'] += 'New text.\n'
+                elif mutation == 'body_change':
+                    row['normalized_marker'] += ' Altered body.'
+                    records['0039-old.md'] += ' Altered body.'
+                elif mutation == 'follow_up':
+                    del row['follow_up']
+                elif mutation == 'missing_live':
+                    records.clear()
+                elif mutation == 'live_quote':
+                    records['0039-old.md'] = records['0039-old.md'].replace('Old words.', 'Changed words.')
+                elif mutation == 'extra_entry':
+                    extra = copy.deepcopy(row)
+                    extra['record'] = '0040-absent.md'
+                    report['unresolved_legacy_markers'].append(extra)
+                elif mutation == 'numbered':
+                    records['0039-old.md'] = records['0039-old.md'].replace('## Ground', '## Ruling 1 — ground')
+                self.assertTrue(legacy_marker_findings(report, records)[0])
+
     def test_declared_limits_are_named_without_copying_rows(self) -> None:
         self.assertEqual(bind(DECLARED_LIMITS, __doc__, mode=NAMING), ())
 
@@ -129,7 +183,8 @@ class SupersessionBindingTests(unittest.TestCase):
         directory = Path(__file__).resolve().parent.parent / "docs" / "adr"
         records = {path.name: path.read_text(encoding="utf-8") for path in directory.glob("[0-9][0-9][0-9][0-9]-*.md")}
         self.assertTrue(any(int(name[:4]) >= CUTOFF for name in records))
-        self.assertEqual(supersession_findings(records), ())
+        report = json.loads(CLASSIFICATION_REPORT.read_text(encoding="utf-8"))
+        self.assertEqual(supersession_findings(records, report, root=directory.parents[1]), ())
 
     def test_declaration_without_marker_is_red(self) -> None:
         records = {
@@ -162,7 +217,43 @@ class SupersessionBindingTests(unittest.TestCase):
 
     def test_the_cutoff_excludes_old_overturnings_but_not_old_targets(self) -> None:
         records = {name.replace("0280", "0279"): text.replace("0280", "0279") for name, text in self.paired_records().items()}
-        self.assertEqual(supersession_findings(records), ())
+        with mock.patch(__name__ + ".CUTOFF", 280):
+            self.assertEqual(supersession_findings(records), ())
+
+    def test_old_records_are_bound_after_the_cutoff_is_lowered(self) -> None:
+        records = {name.replace("0280", "0020"): text.replace("0280", "0020") for name, text in self.paired_records().items()}
+        records["0135-old.md"] = records["0135-old.md"].replace("*Superseded", "*Corrected")
+        self.assertTrue(any("no matching marker" in row for row in supersession_findings(records)))
+
+    def test_historical_classification_covers_its_live_pair_population(self) -> None:
+        report = json.loads(CLASSIFICATION_REPORT.read_text(encoding="utf-8"))
+        live = derive_population(CLASSIFICATION_REPORT.parent)
+        self.assertEqual(classification_findings(live, report, historical_coverage=True), [])
+
+    def test_numbered_and_bold_ruling_items_carry_markers_in_declared_sections(self) -> None:
+        for heading in ("## The decisions\n\n8. Practice", "## Ruled\n\n**8. Practice.**", "## Ruled\n\n**Ruling 8. Practice.**", "## Decision 8 — practice"):
+            with self.subTest(heading=heading):
+                records = self.paired_records()
+                records["0135-old.md"] = records["0135-old.md"].replace("## Ruling 8 — practice", heading)
+                self.assertEqual(supersession_findings(records), ())
+
+    def test_numbered_items_in_a_measured_section_are_not_rulings(self) -> None:
+        records = self.paired_records()
+        records["0135-old.md"] = records["0135-old.md"].replace("## Ruling 8 — practice", "## Measured before ruling\n\n**8. Practice.**")
+        self.assertTrue(any("unread supersession marker" in row for row in supersession_findings(records)))
+
+    def test_each_shared_ruling_form_attributes_ruling_two_and_not_before_it(self) -> None:
+        marker = '*Superseded 2026-10-03.* "Old words." is replaced by [ADR 0280](0280-new.md) ruling 1. The verdict stands.'
+        for form in ("## Ruling 2 — practice", "## Decision 2 — practice", "## Ruled\n\n### 2. Practice", "## The decisions\n\n2. Practice", "## Ruled\n\n**2. Practice.**", "## Ruled\n\n**Ruling 2. Practice.**"):
+            with self.subTest(form=form):
+                records = self.paired_records()
+                records["0280-new.md"] = records["0280-new.md"].replace("ruling 8,", "ruling 2,")
+                first = form.replace("2", "1")
+                second = form.split("\n\n", 1)[-1] if form.startswith(("## Ruled\n", "## The decisions\n")) else form
+                records["0135-old.md"] = first + "\n\nUnrelated first ruling text.\n\n" + second + "\n\nOld words.\n\n" + marker + "\n"
+                self.assertEqual(supersession_findings(records), ())
+                records["0135-old.md"] = "## Ruled\n\n" + marker + "\n\n" + form + "\n\nOld words.\n"
+                self.assertTrue(any("unread supersession marker" in row for row in supersession_findings(records)))
 
     def test_a_numbered_subheading_in_a_ruled_section_carries_a_marker(self) -> None:
         records = self.paired_records()

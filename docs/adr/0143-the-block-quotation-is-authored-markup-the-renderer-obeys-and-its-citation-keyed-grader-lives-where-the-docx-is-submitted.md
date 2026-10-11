@@ -205,6 +205,10 @@ capturing the wording with a read date is a build prerequisite**, and it is why 
 rather than `ready-for-agent`. ADR 0129 ruling 6 exists precisely to stop a later session inventing
 a read date for a read nobody performed.
 
+*Superseded 2026-09-07.* The words "It inserts as section 30 and the reference-example index moves to section 31." are superseded by [ADR 0146](0146-both-apa7-sections-append-and-the-translation-rule-lives-once-at-section-31.md) ruling 1. The index stays section30; the block-quotation section appends as32 while the republished date-element rule appends as31.
+
+*Superseded 2026-09-07.* The words "a translation carries both years earliest first and slashed." are superseded by [ADR 0146](0146-both-apa7-sections-append-and-the-translation-rule-lives-once-at-section-31.md) ruling 3. The translation rule itself remains, but section32 points to section31 instead of restating it.
+
 ## Ruling 6 — citation placement is declared rather than graded
 
 APA moves the parenthetical by form: inside the sentence for an inline quotation, after the final

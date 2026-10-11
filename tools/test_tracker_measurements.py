@@ -155,6 +155,150 @@ class StagedAdrsUseTheCheckoutHead(unittest.TestCase):
         )
 
 
+class SupersessionOnlyAdrProof(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        (self.root / "docs/adr").mkdir(parents=True)
+        self.git("init", "--initial-branch=main")
+        self.git("config", "user.name", "Fixture Writer")
+        self.git("config", "user.email", "fixture@example.invalid")
+        self.old_path = "docs/adr/0197-old.md"
+        self.new_path = "docs/adr/0280-new.md"
+        self.original = f"# Old record\n\n**Measured at:** {STALE}\n\n## Ruling 1 — original\n\nOld words.\n\nMeasured population: 44 records.\n"
+        self.overturner = "# Later record\n\n## Ruling 1 — replacement\n\nReplacement words.\n"
+        self.marker = '*Superseded 2099-04-17.* The words "Old words." are replaced by [ADR 0280](0280-new.md) ruling 1. The measurement remains historical.'
+        self.binding = "\n## Supersedes\n\n- [ADR 0197](0197-old.md) ruling 1, the original wording is replaced.\n"
+        self.write(self.old_path, self.original)
+        self.write(self.new_path, self.overturner)
+        self.write("docs/adr/supersession-classification-1518.json", "{}\n")
+        self.commit("original historical records")
+
+    def git(self, *args):
+        return StagedAdrsUseTheCheckoutHead._git(self.root, *args)
+
+    def write(self, path, text):
+        (self.root / path).write_text(text, encoding="utf-8")
+
+    def commit(self, message):
+        self.git("add", ".")
+        self.git("commit", "-m", message)
+
+    def annotate(self, body=None, binding=None):
+        self.write(self.old_path, self.original + "\n" + self.marker + "\n" if body is None else body)
+        self.write(self.new_path, self.overturner + self.binding if binding is None else binding)
+        self.git("add", ".")
+
+    def test_staged_and_committed_annotation_keeps_historical_declaration(self):
+        self.annotate()
+        self.assertEqual((), measurements.grade_staged_adrs(self.root).findings)
+        self.assertIn(f"**Measured at:** {STALE}", (self.root / self.old_path).read_text(encoding="utf-8"))
+        self.commit("supersession annotations")
+        self.assertEqual((), measurements.grade_adrs(self.root).findings)
+        # Tracker publications retain their existing current-base check.
+        self.assertEqual([measurements.STALE_BASE],
+                         [row.rule for row in measurements.grade(self.original, "issue", CURRENT)])
+
+    def test_changed_measurement_declaration_or_arbitrary_body_is_refused(self):
+        for body in (
+            self.original.replace("44 records", "45 records"),
+            self.original.replace(STALE, "c" * 40),
+            self.original + "\nA new body claim.\n",
+        ):
+            with self.subTest(body=body):
+                self.annotate(body + "\n" + self.marker + "\n")
+                self.assertTrue(measurements.grade_staged_adrs(self.root).findings)
+
+    def test_malformed_unbound_invented_or_unattributed_annotation_is_refused(self):
+        for marker in (
+            self.marker.replace("2099-04-17", "2099-99-99"),
+            self.marker.replace("ruling 1", "ruling 2"),
+            self.marker.replace("Old words.", "Invented words."),
+        ):
+            with self.subTest(marker=marker):
+                self.annotate(self.original + "\n" + marker + "\n")
+                self.assertTrue(measurements.grade_staged_adrs(self.root).findings)
+        self.annotate(self.marker + "\n\n" + self.original)
+        self.assertTrue(measurements.grade_staged_adrs(self.root).findings)
+        self.annotate(binding=self.overturner)
+        self.assertTrue(measurements.grade_staged_adrs(self.root).findings)
+
+    def test_new_adr_and_unreadable_git_proof_cannot_be_exempted(self):
+        self.annotate()
+        self.write("docs/adr/0199-brand-new.md", self.original + "\n" + self.marker + "\n")
+        self.git("add", ".")
+        self.assertTrue(measurements.grade_staged_adrs(self.root).findings)
+        with mock.patch.object(measurements, "_adr_snapshot", side_effect=measurements.SourceError("unreadable")):
+            self.assertFalse(measurements._annotation_only_proof(
+                self.root, self.old_path, self.git("rev-parse", "HEAD").stdout.strip(),
+                ":", self.original + "\n" + self.marker + "\n"))
+
+    def test_existing_invalid_declaration_and_inside_quote_findings_survive(self):
+        for original in (
+            self.original.replace(STALE, "short"),
+            self.original.replace("**Measured at:**", "> Quote\n**Measured at:**"),
+        ):
+            with self.subTest(original=original):
+                self.annotate(original + "\n" + self.marker + "\n")
+                rules = [row.rule for row in measurements.grade_staged_adrs(self.root).findings]
+                self.assertTrue(set(rules) & {measurements.INVALID_DECLARATION, measurements.INSIDE_QUOTE})
+
+    def test_closed_legacy_normalization_preserves_all_original_body_words(self):
+        legacy = '*Superseded grounding marked 2099-04-17.* The words "Old words." were replaced by [ADR 0280](0280-new.md) ruling 1. The measurement remains historical.'
+        original = self.original + "\n" + legacy + "\n"
+        self.write(self.old_path, original)
+        self.commit("historical legacy marker")
+        normalized = legacy.replace("Superseded grounding marked", "Superseded")
+        self.annotate(self.original + "\n" + normalized + "\n")
+        self.assertEqual((), measurements.grade_staged_adrs(self.root).findings)
+        self.annotate(self.original + "\n" + normalized.replace("remains historical", "is freshly measured") + "\n")
+        self.assertTrue(measurements.grade_staged_adrs(self.root).findings)
+
+    def test_fenced_examples_and_tables_cannot_be_changed_or_laundered(self):
+        for addition, old, new in (
+            ("\n```text\n\n## Supersedes\n\n- Existing example: 44 findings.\n\n```\n", "44 findings", "45 findings"),
+            ("\n| property | value |\n| --- | --- |\n| findings | 44 |\n", "| findings | 44 |", "| findings | 45 |"),
+            ("\n```text\n\n" + self.marker + "\n\n```\n", "measurement remains historical", "measurement is current"),
+        ):
+            with self.subTest(addition=addition):
+                baseline = self.original + addition
+                self.write(self.old_path, baseline)
+                self.commit("retain original examples")
+                self.annotate(baseline.replace(old, new) + "\n" + self.marker + "\n")
+                self.assertTrue(measurements.grade_staged_adrs(self.root).findings)
+
+    def test_literal_whitespace_change_refuses_staged_and_committed_reads(self):
+        for addition in (
+            '\n```python\nmeasured = "a  b"\n\nprint(measured)\n```\n',
+            '\nThe measured literal is `a  b`.\n',
+            '\n| measured string | value |\n| --- | --- |\n| literal | a  b |\n',
+        ):
+            with self.subTest(addition=addition):
+                baseline = self.original + addition
+                self.write(self.old_path, baseline)
+                self.commit("retain exact measured literal")
+                self.annotate(baseline.replace("a  b", "a b") + "\n" + self.marker + "\n")
+                self.assertTrue(measurements.grade_staged_adrs(self.root).findings)
+                self.commit("changed literal must remain a finding")
+                self.assertTrue(measurements.grade_adrs(self.root).findings)
+
+    def test_corrected_opening_normalizes_only_with_exact_body_and_date(self):
+        legacy = '*Corrected 2099-04-17.* The words "Old words." were replaced by [ADR 0280](0280-new.md) ruling 1. The measurement remains historical.'
+        self.write(self.old_path, self.original + "\n" + legacy + "\n")
+        self.commit("dated historical correction")
+        normalized = legacy.replace("*Corrected ", "*Superseded ", 1)
+        self.annotate(self.original + "\n" + normalized + "\n")
+        self.assertEqual((), measurements.grade_staged_adrs(self.root).findings)
+        for changed in (
+            normalized.replace("2099-04-17", "2098-04-17"),
+            normalized.replace("remains historical", "is current"),
+        ):
+            with self.subTest(changed=changed):
+                self.annotate(self.original + "\n" + changed + "\n")
+                self.assertTrue(measurements.grade_staged_adrs(self.root).findings)
+
+
 class TheForwardOnlyAdrAudit(unittest.TestCase):
     def test_only_last_touches_at_or_after_the_cutoff_are_graded(self):
         with tempfile.TemporaryDirectory() as temporary:

@@ -9,7 +9,9 @@ Two layers, and the difference between them is the whole design:
   gitignored corpus under ``scratch/``. Parseable dates are recognized in US
   numeric, written English and ISO renderings; an unparseable date-shaped
   literal retains exact matching. This is the layer that catches real PHI, and
-  **nothing can exempt a file from it.**
+  **nothing can exempt a file from it.** Public ADR date metadata is read through
+  a date-only view with exact Git proof for historical annotations; patient
+  names, shape checks, and unattested dates still read the original surface.
 - **Shape layer.** Things that look like PHI whatever the corpus says: a ``dob``
   token followed by a date, an SSN, a phone number, an MRN followed by digits, a
   US-style ``M-D-YY`` short date. A file may exempt itself from this layer only,
@@ -97,12 +99,14 @@ scans, so it is the one mode that always exits 0.
 from __future__ import annotations
 
 import json
+import hashlib
 import re
 import subprocess
 import sys
 from dataclasses import dataclass
 from datetime import date as CalendarDate
 from pathlib import Path
+from functools import lru_cache
 from typing import NamedTuple, Sequence
 
 from console_codec import require_python_floor, use_utf8
@@ -815,6 +819,220 @@ def declares_synthetic(text: str) -> bool:
     return SYNTHETIC_PRAGMA_LINE.search(_pragma_window(text)) is not None
 
 
+PUBLIC_ADR_REPORT = "docs/adr/supersession-classification-1518.json"
+PUBLIC_ADR_PATH = re.compile(r"docs/adr/\d{4}-[^/]+\.md\Z")
+CANONICAL_OPENING = re.compile(r"(?m)^\*Superseded (\d{4}-\d{2}-\d{2})\.\*")
+# Closed governance metadata retained within a canonical supersession account.
+# Each complete matched token must also exist literally in this same record's
+# independently attested public blob. These are not date-value allowlists.
+PUBLIC_LEGACY_DATE_METADATA = tuple(re.compile(pattern) for pattern in (
+    r"\*\*Point 3 is narrowed rather than overruled[^*]*? (?P<date>\d{4}-\d{2}-\d{2})\.\*\*",
+    r"dated record of what was decided on (?P<date>\d{4}-\d{2}-\d{2})",
+    r"\*\*Corrected in place on (?P<date>\d{4}-\d{2}-\d{2}):\*\*",
+    r"Correction, (?P<date>\d{4}-\d{2}-\d{2}), on \[#\d+\]\(https://github\.com/mshamblin5150-code/clinical-skills/issues/\d+\)'s",
+))
+
+
+def _json_string_values(text: str):
+    """Yield decoded string values, their structural paths and literal offsets.
+
+    Keys never become values. JSON escaping is decoded for proof, but only
+    literal ISO spans in the original token can be masked.
+    """
+    decoder = json.JSONDecoder()
+
+    def space(pos):
+        while pos < len(text) and text[pos].isspace():
+            pos += 1
+        return pos
+
+    def value(pos, path):
+        pos = space(pos)
+        if text[pos] == "{":
+            pos = space(pos + 1)
+            while text[pos] != "}":
+                key, end = decoder.raw_decode(text, pos)
+                if not isinstance(key, str):
+                    raise ValueError("object key is not a string")
+                pos = space(end)
+                if text[pos] != ":":
+                    raise ValueError("missing colon")
+                pos = yield from value(pos + 1, path + (key,))
+                pos = space(pos)
+                if text[pos] == "}":
+                    break
+                if text[pos] != ",":
+                    raise ValueError("missing comma")
+                pos = space(pos + 1)
+            return pos + 1
+        if text[pos] == "[":
+            pos = space(pos + 1)
+            number = 0
+            while text[pos] != "]":
+                pos = yield from value(pos, path + (number,))
+                number += 1
+                pos = space(pos)
+                if text[pos] == "]":
+                    break
+                if text[pos] != ",":
+                    raise ValueError("missing comma")
+                pos = space(pos + 1)
+            return pos + 1
+        decoded, end = decoder.raw_decode(text, pos)
+        if isinstance(decoded, str):
+            yield path, decoded, pos, end
+        return end
+
+    yield from value(0, ())
+
+
+@lru_cache(maxsize=2048)
+def _immutable_adr_blob(root: Path, revision: str, name: str) -> bytes | None:
+    """Reuse immutable objects within one scan, never the mutable report proof."""
+    result = subprocess.run(
+        ["git", "show", f"{revision}:docs/adr/{name}"],
+        cwd=root, capture_output=True, check=False,
+    )
+    return result.stdout if result.returncode == 0 else None
+
+
+def _public_adr_sources(report: dict, root: Path) -> dict[str, str]:
+    """Attest raw immutable blobs, with an independently public Git ancestor.
+
+    An absent remote, inaccessible revision, malformed manifest or bad digest
+    provides no date exemption. Report prose alone is never public proof.
+    """
+    if not isinstance(report, dict):
+        return {}
+    revision = report.get("revision", "")
+    if not isinstance(revision, str) or not re.fullmatch(r"[0-9a-f]{40}", revision):
+        return {}
+    try:
+        ancestry = subprocess.run(
+            ["git", "merge-base", "--is-ancestor", revision, "origin/main"],
+            cwd=root, capture_output=True, check=False,
+        )
+        if ancestry.returncode:
+            return {}
+        sources = {}
+        for row in report.get("records", []):
+            name = row["path"]
+            if not isinstance(name, str) or not re.fullmatch(r"\d{4}-[^/]+\.md", name):
+                return {}
+            raw = _immutable_adr_blob(root, revision, name)
+            if raw is None or hashlib.sha256(raw).hexdigest() != row["sha256"]:
+                return {}
+            sources[name] = raw.decode("utf-8")
+        return sources
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
+        return {}
+
+
+def public_adr_date_text(text: str, path: str, *, root: Path | None = None,
+                         report: dict | None = None) -> str:
+    """A same-length date-only view; names and shape checks keep original bytes.
+
+    Only numbered ADR opening metadata and exact, publicly attested historical
+    quote spans qualify. In particular a date matching a public date by value
+    alone establishes nothing about the surrounding patient text.
+    """
+    root = REPO_ROOT if root is None else root
+    spans = []
+
+    def dates(start, end):
+        for match in ISO_CORPUS_DATE.finditer(text, start, end):
+            if _parse_iso_date(match.group()) is not None:
+                spans.append(match.span())
+
+    numbered = PUBLIC_ADR_PATH.fullmatch(path) is not None
+    if numbered:
+        for match in CANONICAL_OPENING.finditer(text):
+            if _parse_iso_date(match.group(1)) is not None:
+                spans.append(match.span(1))
+    if not numbered and path != PUBLIC_ADR_REPORT:
+        return text
+    try:
+        if path == PUBLIC_ADR_REPORT:
+            report = json.loads(text)
+        elif report is None:
+            report = json.loads((root / PUBLIC_ADR_REPORT).read_text(encoding="utf-8"))
+        sources = _public_adr_sources(report, root)
+        from adr_supersession_population import normalize_legacy_opening
+        attested = {}
+        for number, row in enumerate(report.get("unresolved_legacy_markers", [])):
+            source = sources.get(row.get("record"))
+            original = row.get("original_marker")
+            if (source is None or row.get("source_text") != source
+                    or row.get("source_sha256") != hashlib.sha256(source.encode("utf-8")).hexdigest()
+                    or not isinstance(original, str)
+                    or original not in source.replace("\r\n", "\n")):
+                continue
+            normalized = normalize_legacy_opening(original, source.replace("\r\n", "\n"))
+            if not normalized or row.get("normalized_marker") != normalized:
+                continue
+            attested[number] = (source, original, normalized, row["record"])
+        if numbered:
+            source = sources.get(path.removeprefix("docs/adr/"), "").replace("\r\n", "\n")
+            for opening in CANONICAL_OPENING.finditer(text):
+                end = re.search(r"\n\s*\n", text[opening.end():])
+                end = opening.end() + end.start() if end else len(text)
+                for pattern in PUBLIC_LEGACY_DATE_METADATA:
+                    for metadata in pattern.finditer(text, opening.end(), end):
+                        if metadata.group() in source and _parse_iso_date(metadata.group("date")) is not None:
+                            spans.append(metadata.span("date"))
+            for original in re.split(r"\n\s*\n", source):
+                normalized = normalize_legacy_opening(original, source)
+                if normalized:
+                    start = text.find(normalized)
+                    if start >= 0 and text.count(normalized) == 1:
+                        dates(start, start + len(normalized))
+                # Relocated legacy accounts may retain their entire original
+                # opening after the new quote. Require the exact old paragraph,
+                # the same public record, and its canonical enclosing paragraph.
+                if original.startswith(("*Superseded", "*Corrected", "*(Corrected",
+                                        "> **Reconciled", "> **Ruling")):
+                    start = text.find(original)
+                    if start >= 0 and text.count(original) == 1:
+                        previous = text.rfind("\n\n", 0, start)
+                        boundary = previous + 2 if previous >= 0 else 0
+                        if CANONICAL_OPENING.match(text, boundary):
+                            dates(start, start + len(original))
+            for source, original, normalized, name in attested.values():
+                if path != "docs/adr/" + name:
+                    continue
+                start = text.find(normalized)
+                if start >= 0 and text.count(normalized) == 1:
+                    # This is an exact immutable paragraph after the closed
+                    # opening transformation, not any following patient line.
+                    dates(start, start + len(normalized))
+        else:
+            for location, decoded, start, end in _json_string_values(text):
+                valid = False
+                if (len(location) == 3 and location[0] == "unresolved_legacy_markers"
+                        and location[1] in attested):
+                    source, original, normalized, _name = attested[location[1]]
+                    valid = decoded == {
+                        "source_text": source, "original_marker": original,
+                        "normalized_marker": normalized,
+                    }.get(location[2])
+                elif (len(location) == 4 and location[0] == "pairs"
+                      and location[2] == "evidence"):
+                    row = report["pairs"][location[1]]
+                    quotes = [sources.get(row.get(field, "").removeprefix("docs/adr/"), "")
+                              for field in ("later_path", "earlier_path")]
+                    # A lone date is only a value match, not a source quote.
+                    context = ISO_CORPUS_DATE.sub("", decoded).strip(" \t\r\n.,;:\"'`*()[]{}")
+                    valid = bool(context) and any(decoded in source for source in quotes)
+                if valid:
+                    dates(start, end)
+    except (OSError, ValueError, TypeError, KeyError, IndexError, AttributeError):
+        pass  # malformed/unavailable proof retains the original date surface
+    masked = list(text)
+    for start, end in spans:
+        masked[start:end] = " " * (end - start)
+    return "".join(masked)
+
+
 def scan_lines(
     text: str, path: str, index: CorpusIndex, shapes: bool
 ) -> list[Finding]:
@@ -832,8 +1050,10 @@ def scan_lines(
     it off.
     """
     findings: list[Finding] = []
+    date_lines = public_adr_date_text(text, path).splitlines()
     for number, line in enumerate(text.splitlines(), start=1):
-        findings.extend(_scan_line(line, path, number, index, shapes))
+        findings.extend(_scan_line(line, path, number, index, shapes,
+                                   date_text=date_lines[number - 1]))
     return findings
 
 
@@ -910,13 +1130,16 @@ def scan_staged(index: CorpusIndex) -> list[Finding]:
             continue  # already reported, and its contents must not be echoed
         whole = _git("show", f":{path}")
         shapes_apply = not declares_synthetic(whole)
+        date_lines = public_adr_date_text(whole, path).splitlines()
         for number, text in added:
-            findings.extend(_scan_line(text, path, number, index, shapes_apply))
+            findings.extend(_scan_line(text, path, number, index, shapes_apply,
+                                       date_text=date_lines[number - 1]))
     return findings
 
 
 def _scan_line(
-    text: str, path: str, number: int, index: CorpusIndex, shapes: bool
+    text: str, path: str, number: int, index: CorpusIndex, shapes: bool,
+    *, date_text: str | None = None
 ) -> list[Finding]:
     findings: list[Finding] = []
     for name, pattern in index.candidates(text):
@@ -925,7 +1148,7 @@ def _scan_line(
     # The APA registry's checked cell records when a public manual page was read.
     # A patient visit on that day does not turn this metadata into a patient date.
     # Keep scanning every other cell, and keep the shape layer on the whole line.
-    date_text = text
+    date_text = text if date_text is None else date_text
     if path == "skills/_shared/reference/apa7-coverage.md":
         date_text = re.sub(
             r"^(\|\s*[^|]+\|\s*[^|]+\|\s*read-root\s*\|\s*)"

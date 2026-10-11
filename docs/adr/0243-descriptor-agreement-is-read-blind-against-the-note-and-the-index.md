@@ -77,7 +77,7 @@ the drug table and the external-cause index stay out. Reading the zip on the mai
 declined because a consumer clone has no zip and would fall back to descriptor words; recalling the
 index was declined as ruling 1's rejected option again.
 
-*Corrected 2026-09-15.* **The second sentence above — *"The neoplasm table, the drug table and the
+*Superseded 2026-09-15.* **The second sentence above — *"The neoplasm table, the drug table and the
 external-cause index stay out."* — is superseded by
 [ADR 0248](0248-the-index-tables-ship-and-an-index-path-carries-only-a-code-s-stem.md) ruling 5 and
 is left as written**, being the dated record of what was decided before #1310. All three parts now
@@ -217,6 +217,8 @@ level is rendered as a proposed code the clinician verifies. This coincides with
 rulings 11 and 12, whose build on #1205 already carries the step-5 edit, so #1139's build does not
 repeat it. Rendering elements instead of a level was declined for reversing row 34's terse line.
 
+*Superseded 2026-09-15.* The words "the level is rendered as a proposed code the clinician verifies." are superseded by [ADR 0250](0250-a-review-sheet-carries-final-coding-only-after-the-batch-is-fresh.md) ruling 3. The visible worksheet now carries a final, explanatory E/M selection; direct icd10-cpt runs retain only-if-asked, and the private anchored worksheet and descriptor-agreement evidence remain.
+
 ## Ruling 17 — E/M lines are excluded from agreement, declared and counted
 
 An E/M descriptor names a place of service, a patient status and a decision-making level that its words
@@ -224,6 +226,8 @@ cannot settle. E/M lines leave the agreement brief, `anchor_scan.DECLARED_LIMITS
 report prints the excluded count. Grading the level from the rendered CPT book was declined because every
 note carries an E/M line and a run without the book would exit 2 permanently; grading place and status
 alone was declined because the note often cannot say new or established.
+
+*Superseded 2026-09-15.* The words "E/M lines leave the agreement brief" are superseded by [ADR 0250](0250-a-review-sheet-carries-final-coding-only-after-the-batch-is-fresh.md) ruling 3. The visible E/M surface is final and explanatory rather than terse and excluded. The private anchored worksheet and descriptor-agreement obligations remain; descriptor words alone still cannot settle the E/M level.
 
 ## Ruling 18 — the note's codes and the rendered lines are bound to the saved worksheet
 

@@ -134,16 +134,22 @@ A classification miss is a **silent pass**; a classification false hit is a **re
 one retype**. A reproduction miss is a wrong value published as though it were read. The two
 therefore take opposite safe directions, and the module holds two anchors rather than one:
 
+*Superseded 2026-09-14.* The words "the module holds two anchors rather than one" are superseded by [ADR 0231](0231-an-unreproduced-publication-is-refused-unread-and-every-gh-command-reaches-the-hook.md) ruling 5. One anchor-free loose classifier now serves both paths; precise reproduction still grades modeled publications where it reaches them, and unreproduced publications are refused. The classification/reproduction distinction and route bounds stand.
+
 - **The modeled path classifies precisely and grades**, because a hit there means text predicates
   run. Its anchor is untouched by this record.
 - **The unmodeled path classifies loosely and refuses**, because a hit there means a retype. Its
   anchor admits `{`, `(` and a preceding compound keyword, and reaches **54 of 54** measured
   publications.
 
+*Superseded 2026-09-14.* The words "The modeled path classifies precisely and grades" are superseded by [ADR 0231](0231-an-unreproduced-publication-is-refused-unread-and-every-gh-command-reaches-the-hook.md) ruling 1. The precise reader still grades reproduced publications, while an anchor-free loose classifier now refuses unreproduced ones on the modeled path. Unmodeled-shell refusal and route bounds stand.
+
 **The two are not copies of one rule and a test asserts they disagree** in the documented direction.
 This repository's recorded failure is a second copy of one rule drifting from the first; two rules
 encoding different decisions is a different thing, and the way to keep it different is to pin the
 disagreement rather than the agreement.
+
+*Superseded 2026-09-14.* The words "The two are not copies of one rule and a test asserts they disagree" are superseded by [ADR 0231](0231-an-unreproduced-publication-is-refused-unread-and-every-gh-command-reaches-the-hook.md) ruling 5. One classifier now serves both paths; the classification/reproduction distinction and the precise reproduction reader survive.
 
 **Loosening the modeled path's anchor is out of scope and belongs to #1107**, whose *Order of repair*
 states that repairing its finding 2 widens its finding 1 and that the two must be settled together.
@@ -242,6 +248,8 @@ brace group is unmeasured, which is exactly where the dominant unmodeled idiom p
 
 The cost of dropping it is 1,016 `PowerShell` and 38 `Monitor` measured command blocks over 82 days —
 about twelve seconds a day. `Bash`'s 72,607 keep their guard.
+
+*Superseded 2026-09-14.* The words "`Bash`'s 72,607 keep their guard." are superseded by [ADR 0231](0231-an-unreproduced-publication-is-refused-unread-and-every-gh-command-reaches-the-hook.md) ruling 2. PowerShell and Monitor still carry no if; Bash also drops its if and uses a decoded-text gh stub.
 
 **The consequence is accepted rather than discovered**: the hook now runs on every `PowerShell` and
 `Monitor` call, including a `Get-ChildItem` and a `ws` `Monitor`, which is why ruling 7's branch is a

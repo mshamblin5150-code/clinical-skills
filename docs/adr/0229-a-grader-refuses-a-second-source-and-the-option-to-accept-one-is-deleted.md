@@ -136,3 +136,7 @@ measures one.
 **Multi-source grading.** Grading several sources to one status is a runner feature `threshold_sheet`
 and `tracker_bodies` are refused on under ADR 0174; a future need for it is a feature with its own
 ruling, never a parser setting restored.
+
+## Supersedes
+
+- [ADR 0117](0117-a-member-s-obligations-outside-the-graded-path-stay-in-main-and-the-crash-posture-gains-a-finding-sibling.md) ruling 4, the words "`allow_extra_positionals` stays `True`". source_error_to_stdout stays False; session-end arrangement and per-member vocabulary remain.

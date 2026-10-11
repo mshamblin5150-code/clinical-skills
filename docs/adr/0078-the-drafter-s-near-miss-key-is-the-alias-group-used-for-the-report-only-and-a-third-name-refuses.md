@@ -80,6 +80,10 @@ are draft-only** — none of the four committed sheets carries either heading.
    that was typed.** Keying on the seeded rows' own topic instead was refused — it kills typed-string
    dependence, which is the ticket's title, and leaves the ticket's worst case standing, because
    neither hypertension name reaches a row carrying no `blood pressure` string.
+
+*Superseded 2026-09-01.* The words "The report is keyed on every name in the drafted topic's alias group, not on the typed string." are superseded by [ADR 0102](0102-the-clinical-subject-grouping-is-a-registry-column-and-a-refutable-merge-read-from-the-guideline-is-authored-rather-than-inferred.md) ruling 11. The report remains report-only; the subject column replaces the alias-group key. The original dated account is retained: *(Corrected in place 2026-09-01, on [ADR 0016](0016-an-adr-number-is-claimed-when-it-is-handed-out-and-a-ratified-records-facts-may-be-corrected-in-place.md)'s terms. The Consequences originally said `TOPIC_ALIASES` stayed at one entry and was load-bearing in two directions. ADR 0102 and #689 superseded rulings 1, 2, and 5: `artifact` now owns the seed join, `subject` owns the report key, and the third-name refusal retired with the dict. Rulings 3, 4, and 6 stand.)*
+
+
 2. **The report states that bound unconditionally, in the draft, and the figures are derived.** A
    sentence under `## Rejected candidates` above the table, printed on every run and not only when
    the list fires, on [#258](https://github.com/mshamblin5150-code/clinical-skills/issues/258)'s
@@ -93,6 +97,10 @@ are draft-only** — none of the four committed sheets carries either heading.
    bound to it**: that one says no gate checks source membership, this one says this report's key is
    narrow, so this ticket does not wait on
    [#645](https://github.com/mshamblin5150-code/clinical-skills/issues/645)'s merge.
+
+*Superseded 2026-09-01.* The words "The count of named subjects is read off `TOPIC_ALIASES` and
+   the topic count off the parsed catalog rather than typed" are superseded by [ADR 0102](0102-the-clinical-subject-grouping-is-a-registry-column-and-a-refutable-merge-read-from-the-guideline-is-authored-rather-than-inferred.md) ruling 11. The bound remains unconditional and derived; its numerator now comes from the registry column.
+
 3. **The group governs the report key only. `_topic` stays one-way and canonical.** Today the two
    answers are unobservable — the seed is identical under both — which is why it is ruled rather than
    left to the build. The day a catalog refresh lands a row whose topic cell is `hypertension`, a
@@ -121,6 +129,8 @@ are draft-only** — none of the four committed sheets carries either heading.
    hand-kept synonym list this repo refuses, one entry at a time, with the authored grouping never
    built — and each single addition looks like the cheapest correct move. **Pinned by a test on a
    synthetic three-name alias set**, since one real entry cannot distinguish the two.
+
+*Superseded 2026-09-01.* The words "A third name in `TOPIC_ALIASES` refuses rather than working." are superseded by [ADR 0102](0102-the-clinical-subject-grouping-is-a-registry-column-and-a-refutable-merge-read-from-the-guideline-is-authored-rather-than-inferred.md) ruling 11. Rulings 3, 4, and 6 remain binding, including one-way seed canonicalization, already-cited source exclusion, and the module-level template.
 
 6. **The floor sentence is a module-level constant that `render` prints, and no limits object is
    started here.**
@@ -206,5 +216,3 @@ it awkward.
 **Reading the widened report as coverage.** ADR 0064's Consequences stand: nothing in this repo
 derives which catalog cells are one clinical topic, and widening a string match to a second authored
 name changes that for one subject and for nothing else.
-
-*(Corrected in place 2026-09-01, on [ADR 0016](0016-an-adr-number-is-claimed-when-it-is-handed-out-and-a-ratified-records-facts-may-be-corrected-in-place.md)'s terms. The Consequences originally said `TOPIC_ALIASES` stayed at one entry and was load-bearing in two directions. ADR 0102 and #689 superseded rulings 1, 2, and 5: `artifact` now owns the seed join, `subject` owns the report key, and the third-name refusal retired with the dict. Rulings 3, 4, and 6 stand.)*

@@ -201,3 +201,9 @@ for a person, and nothing ruled here moves it to a machine.
 
 **A change to the floor walk's grading.** Ruling 8's test reuses its population and leaves its report
 and exit status alone.
+
+## Supersedes
+
+- [ADR 0181](0181-a-day-file-reaches-the-corpus-through-one-command-and-a-rendered-page-waits-for-a-reading.md) ruling 15, the words "`batch-shift` is not moved into the depends-on-a-tool group, because the notes are still written without it". day_file_text declaration and firewall cost remain word for word.
+
+- [ADR 0187](0187-the-python-floor-is-two-numbers-held-equal-and-a-job-on-the-floor-settles-it.md) ruling 3, the words "Forcing the declaration to cover every invocation would legislate that distinction away.". Consumer population remains every invoked module closed over imports; ruling11 count prints ungraded.

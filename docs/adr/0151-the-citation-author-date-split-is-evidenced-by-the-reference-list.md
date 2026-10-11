@@ -156,3 +156,7 @@ The corpus contains **0 instances**, entry or body. The form is latent and rests
 **Whether the two modules' boundary rules agree.** ADR 0150 accepted that residue deliberately. This record closes it by repairing `discussion_artifact`'s side, and states no rule binding them mechanically thereafter.
 
 **A case name's italics.** §11.3 requires italic in-text and standard in the entry. `discussion_artifact.PAREN_PAIR` anchors on an uppercase class, so an italicised in-text legal citation is invisible to it; the build repairs the reading and grades nothing about whether the italics are present.
+
+## Supersedes
+
+- [ADR 0039](0039-a-legal-reference-entry-keys-on-both-its-name-and-its-section-and-a-narrative-citation-is-read-against-the-reference-set.md) ruling 3, the words "For each `(YYYY)` in the body not already covered by a citation span". The reader remains reference-aware and derives resolving keys from the reference set; the evidenced split becomes primary and grammar fallback remains for unlisted citations.

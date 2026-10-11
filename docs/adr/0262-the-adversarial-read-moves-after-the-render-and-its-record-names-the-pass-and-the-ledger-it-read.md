@@ -119,3 +119,7 @@ the adversarial job.
 - **Whether the reader found every unsupported assertion.** `adversarial-completeness-unverified`.
 - **The DOCX branch.** It has no adversarial reader, so nothing here applies to it.
 - **The run that already exists.** It is not re-graded under the new row.
+
+## Supersedes
+
+- [ADR 0210](0210-a-render-pass-and-a-check-record-carry-the-fingerprint-of-what-they-graded.md) ruling 8, the words "A declared limit says a record is bound to the draft alone.". The adversarial reader also binds the claims.md fingerprint; other readers stay unbound to the ledger.

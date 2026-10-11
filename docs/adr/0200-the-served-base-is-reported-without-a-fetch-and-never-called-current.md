@@ -237,3 +237,7 @@ by a step — is outside the derived set and is counted only in the raw distance
 
 **It says nothing about the tracker.** A checkout current on commits may cite tracker records that
 have moved, which is **Base freshness**'s declared boundary and is unchanged by this record.
+
+## Supersedes
+
+- [ADR 0152](0152-the-skills-mirror-is-repaired-at-session-start-and-its-orphans-are-drained.md) ruling 7, the words "Folding a currency check into this hook was refused on cost rather than on relevance.". No fetch/socket, advisory posture and consistent-never-current boundary stand.

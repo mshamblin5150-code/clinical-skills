@@ -66,6 +66,12 @@ excludes tier blocks, Medatrax fields, and technical receipts. A successful priv
 retains those encounter records, URLs, fingerprints, and database hashes; the Review sheet renders
 only `Coding freshness: PASS`.
 
+*Superseded 2026-09-16.* The words "it expires when that boundary passes" are superseded by [ADR 0251](0251-the-cpt-mdm-table-is-a-committed-two-reader-sheet-and-the-cpt-edition-is-judged-by-service-date.md) ruling 7. The CPT edition boundary follows encounter service date; fingerprint changes still invalidate the receipt. The original dated account is retained: **Superseded in part 2026-09-16 by
+[ADR 0251](0251-the-cpt-mdm-table-is-a-committed-two-reader-sheet-and-the-cpt-edition-is-judged-by-service-date.md), and left as
+written.** Ruling 5's CPT receipt expiry, *"it expires when that boundary passes"*, is judged by the
+encounter's service date rather than the day the gate runs. A fingerprint change still invalidates the
+receipt, and every other ruling here stands.
+
 ## Ruling 6 — one blocked encounter blocks the batch
 
 The Review sheet is batch-atomic. Every confirmed encounter appears exactly once and every
@@ -96,8 +102,9 @@ until the procedure and the ticket's supervised-entry record both exist.
 
 ---
 
-**Superseded in part 2026-09-16 by
-[ADR 0251](0251-the-cpt-mdm-table-is-a-committed-two-reader-sheet-and-the-cpt-edition-is-judged-by-service-date.md), and left as
-written.** Ruling 5's CPT receipt expiry, *"it expires when that boundary passes"*, is judged by the
-encounter's service date rather than the day the gate runs. A fingerprint change still invalidates the
-receipt, and every other ruling here stands.
+## Supersedes
+
+- [ADR 0223](0223-a-shift-is-entered-into-medatrax-after-one-go-ahead-and-confirmed-by-one-posted-reading.md) ruling 11, the words "The clinician verifies it at the go-ahead review, which keeps codes proposed rather than asserted.". The visible worksheet now carries final, explanatory selections backed by coding freshness; the private anchored worksheet and descriptor-agreement evidence remain.
+- [ADR 0223](0223-a-shift-is-entered-into-medatrax-after-one-go-ahead-and-confirmed-by-one-posted-reading.md) ruling 12, the words "The agent reads that from the shorthand.". Status must be account-backed; unknown status blocks finalization and the whole Review sheet. The CPT status definition stands.
+- [ADR 0243](0243-descriptor-agreement-is-read-blind-against-the-note-and-the-index.md) ruling 16, the words "the level is rendered as a proposed code the clinician verifies.". The visible worksheet now carries a final, explanatory E/M selection; direct icd10-cpt runs retain only-if-asked, and the private anchored worksheet and descriptor-agreement evidence remain.
+- [ADR 0243](0243-descriptor-agreement-is-read-blind-against-the-note-and-the-index.md) ruling 17, the words "E/M lines leave the agreement brief". The visible E/M surface is final and explanatory rather than terse and excluded. The private anchored worksheet and descriptor-agreement obligations remain; descriptor words alone still cannot settle the E/M level.

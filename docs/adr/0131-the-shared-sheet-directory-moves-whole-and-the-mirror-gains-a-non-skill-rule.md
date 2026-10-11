@@ -208,3 +208,7 @@ mechanism.
 
 **Whether a second non-skill directory under `skills/` should ever exist.** This ruling creates one
 and says nothing about the next.
+
+## Supersedes
+
+- [ADR 0097](0097-the-apa-sheet-s-class-vocabulary-is-apa-s-nursing-set-and-coverage-is-decided-per-bucket-while-the-gate-is-a-bind-test.md) ruling 7, the words "The sheet stays at `skills/practicum-case-study/reference/apa7.md`". The sheet remains inside the skills-rooted grading population; the whole reference cluster moves together and practicum keeps no reference directory.

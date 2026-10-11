@@ -200,6 +200,17 @@ looking like an oversight.
    captures.
 4. The clinician is shown the captures **and told the box is loaded and unsubmitted**, so he can
    look at the live page rather than at an image the agent produced.
+
+*Superseded 2026-09-12.* The ground "A reply is short and typed, and a deck upload shows a filename" is falsified by [ADR 0190](0190-the-canvas-editor-surface-is-one-shared-route-and-the-reply-prefers-the-raw-editor.md) ruling 2. Reply and course-assignment keep one gate; post keeps two gates and nonclean reading returns to clinician. The original dated account is retained: *(Corrected in place 2026-09-12, on [ADR 0016](0016-an-adr-number-is-claimed-when-it-is-handed-out-and-a-ratified-records-facts-may-be-corrected-in-place.md)'s
+terms, by [#948](https://github.com/mshamblin5150-code/clinical-skills/issues/948) and
+[ADR 0190](0190-the-canvas-editor-surface-is-one-shared-route-and-the-reply-prefers-the-raw-editor.md)
+ruling 2. `discussion-reply` no longer types, so **and typed** describes the route at the time of
+ruling and not the current one. The exemption stands on length alone. ADR 0190 ruling 2 put the
+second gate to the clinician on that changed premise and he declined it, ruling instead that the
+reply's pre-submit readback becomes a graded comparison of the editor's serialized HTML against the
+built `.html`, with a non-clean comparison returning to him. The residue — that no reader who is not
+the author sees the loaded box before submit — is declared in that record rather than closed.)*
+
 5. **Gate 2** authorizes submit, and nothing else does.
 
 The clinician's ground, in his words: *"i need to see what i am asking you to do before i ever agree
@@ -221,15 +232,7 @@ fifteen thousand characters of clipboard work is not.
 upload shows a filename; neither loads fifteen kilobytes of markup into a box where a silent drop is
 invisible.
 
-*(Corrected in place 2026-09-12, on [ADR 0016](0016-an-adr-number-is-claimed-when-it-is-handed-out-and-a-ratified-records-facts-may-be-corrected-in-place.md)'s
-terms, by [#948](https://github.com/mshamblin5150-code/clinical-skills/issues/948) and
-[ADR 0190](0190-the-canvas-editor-surface-is-one-shared-route-and-the-reply-prefers-the-raw-editor.md)
-ruling 2. `discussion-reply` no longer types, so **and typed** describes the route at the time of
-ruling and not the current one. The exemption stands on length alone. ADR 0190 ruling 2 put the
-second gate to the clinician on that changed premise and he declined it, ruling instead that the
-reply's pre-submit readback becomes a graded comparison of the editor's serialized HTML against the
-built `.html`, with a non-clean comparison returning to him. The residue — that no reader who is not
-the author sees the loaded box before submit — is declared in that record rather than closed.)*
+
 
 ## Ruling 7 — the fallback is declared at gate 1, the route never switches after a bad reading, and there is no third rung
 
@@ -370,3 +373,11 @@ posted entry, and it is text.
 about its outcome. If `<blockquote>` survives, ADR 0143 ruling 4's declared limit is stale and its
 instruction never to write a `> ` marker is wrong; if it does not, ruling 4 stands on a measurement
 instead of on a derivation. Either result is worth more than the current state.
+
+## Supersedes
+
+- [ADR 0036](0036-a-references-label-is-a-per-pipeline-source-spelling-for-one-rendered-outcome.md) ruling 3, the words "renders bold with no named heading style in the `.docx`.". The Markdown References form, bold label outcome, and per-pipeline recognizer and resolution contracts stand; HTML takes the submission gates and the archival document takes text parity only.
+- [ADR 0084](0084-an-own-line-html-comment-is-markup-and-the-renderer-drops-it.md) ruling 5, the words "with it, a hit is exit 1.". The parser strip, coverage declaration and count-only diagnostics stand; the rendered comment row gates HTML rather than the archival docx.
+- [ADR 0087](0087-the-rendered-page-check-names-a-spawned-word-route-and-its-verdict-is-a-counted-record-backed-by-kept-pixels.md) ruling 2, the words "The row is gated on `--docx`". The required substantive record stands; the Canvas submission reading replaces Word-page gating on discussion-post.
+- [ADR 0087](0087-the-rendered-page-check-names-a-spawned-word-route-and-its-verdict-is-a-counted-record-backed-by-kept-pixels.md) ruling 4, the words "Word is authoritative for how many pages there are". Independent denominator derivation stands; HTML block count supplies the discussion-post Canvas denominator.
+- [ADR 0087](0087-the-rendered-page-check-names-a-spawned-word-route-and-its-verdict-is-a-counted-record-backed-by-kept-pixels.md) ruling 5, the words "The named route is a freshly spawned Word instance, then PyMuPDF". The measured Word export route remains historical and available to Word artifacts; discussion-post checks Canvas pixels instead.

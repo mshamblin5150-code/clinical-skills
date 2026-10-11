@@ -35,8 +35,8 @@ Exit status distinguishes not having run from having found nothing:
 0 clean, 1 findings or a refused claim, 2 for every way of not having run
 (no map where one is expected, several maps, malformed or duplicated state
 markers, an unreadable tracker, a delta that does not validate). A failed
-read-back after a write is 1, not 2 -- the mutation DID happen, and 2 would
-claim it had not. Callers keying "continue normally" on exit 2 must key on
+read-back after a write attempt is 1, not 2 -- the tracker may have changed,
+and its write result is unconfirmed. Callers keying "continue normally" on exit 2 must key on
 the `no implementation map` message, never the bare status: every other 2 is
 corruption to stop on, not absence to skip.
 
@@ -352,8 +352,7 @@ def require_well_formed(state: dict) -> None:
             raise MapError(f"malformed ADR review {row!r}: needs a full commit")
 
 
-def state_block(state: dict) -> str:
-    payload = json.dumps(state, indent=2, sort_keys=True, ensure_ascii=False)
+def _wrap_state_payload(payload: str) -> str:
     return (
         "<details><summary>Machine state (do not hand-edit; "
         "use implementation_map.py)</summary>\n\n"
@@ -361,9 +360,23 @@ def state_block(state: dict) -> str:
     )
 
 
+def state_block(state: dict) -> str:
+    """Render every state field without JSON formatting whitespace."""
+    return _wrap_state_payload(json.dumps(
+        state, sort_keys=True, ensure_ascii=False, separators=(",", ":")
+    ))
+
+
+def _canonical_state_block(state: dict) -> str:
+    """Keep the historical fingerprint bytes independent of display formatting."""
+    return _wrap_state_payload(json.dumps(
+        state, indent=2, sort_keys=True, ensure_ascii=False
+    ))
+
+
 def state_hash(body: str) -> str:
     """Hash only canonical machine state, never the volatile derived views."""
-    canonical = state_block(extract_state(body)).encode("utf-8")
+    canonical = _canonical_state_block(extract_state(body)).encode("utf-8")
     return hashlib.sha256(canonical).hexdigest()
 
 
@@ -1743,8 +1756,8 @@ def render(state: dict, live: Live, snapshot: dict) -> str:
         )
     parts.append("## Collision groups\n\n" + "\n".join(collision_rows))
     rows = [
-        "| Packet | Tickets | Status | Blocked by | Outcome | Collisions |",
-        "| --- | --- | --- | --- | --- | --- |",
+        "|Packet|Tickets|Status|Blocked by|Outcome|Collisions|",
+        "|---|---|---|---|---|---|",
     ]
     group_index: dict[str, list[str]] = {}
     for group in state.get("collision_groups", []):
@@ -1753,10 +1766,10 @@ def render(state: dict, live: Live, snapshot: dict) -> str:
     for p in packets(state):
         pid = p["id"]
         rows.append(
-            f"| {pid} | {ticket_label(p)} "
-            f"| {status[pid]} | {', '.join(open_blockers(state, live, p)) or '-'} "
-            f"| {p.get('outcome', p.get('title', ''))} "
-            f"| {', '.join(sorted(group_index.get(pid, []))) or '-'} |"
+            f"|{pid}|{ticket_label(p)}"
+            f"|{status[pid]}|{', '.join(open_blockers(state, live, p)) or '-'}"
+            f"|{p.get('outcome', p.get('title', ''))}"
+            f"|{', '.join(sorted(group_index.get(pid, []))) or '-'}|"
         )
     parts.append("## Packet table\n\n" + "\n".join(rows))
     waiting: list[str] = []
@@ -2378,17 +2391,23 @@ def publish_body(
         return PublishResult(0, PublishOutcome.NO_CHANGE)
     tracker.update_issue_body(number, body)
     written = tracker.get_issue(number)
-    # A failed read-back is 1, not 2: the write already happened, and 2
-    # would claim the run never mutated anything.
+    # A failed read-back is 1, not 2: a write was attempted and may have
+    # changed the tracker, but its result is unconfirmed.
     try:
         round_tripped = extract_state(written["body"])
     except MapError as err:
-        print(f"READ-BACK FAILED (the write DID happen; inspect issue #{number}): {err}")
+        print(f"READ-BACK FAILED (write result is unconfirmed; inspect issue #{number}): {err}")
         return PublishResult(1, PublishOutcome.READ_BACK_FAILED, True)
     if round_tripped != state:
         print(
             "READ-BACK FAILED: state on the tracker differs from what was "
-            f"sent (the write DID happen; inspect issue #{number})"
+            f"sent (write result is unconfirmed; inspect issue #{number})"
+        )
+        return PublishResult(1, PublishOutcome.READ_BACK_FAILED, True)
+    if written["body"] != body:
+        print(
+            "READ-BACK FAILED: full body on the tracker differs from what was "
+            f"sent (inspect issue #{number})"
         )
         return PublishResult(1, PublishOutcome.READ_BACK_FAILED, True)
     history_reader = getattr(tracker, "user_content_edits", None)
@@ -2695,14 +2714,17 @@ def _init_under_lock(tracker, args) -> int:
         number = tracker.create_issue(
             args.title, body, [l for l in (args.label or []) if l]
         )
-        written = tracker.get_issue(number)
         try:
+            written = tracker.get_issue(number)
             if extract_state(written["body"]) != state:
-                print("READ-BACK FAILED: created issue's state differs")
-                return 2
+                print(f"READ-BACK FAILED: created issue's state differs (write result is unconfirmed; inspect issue #{number})")
+                return 1
+            if written["body"] != body:
+                print(f"READ-BACK FAILED: created issue's full body differs (write result is unconfirmed; inspect issue #{number})")
+                return 1
         except MapError as err:
-            print(f"READ-BACK FAILED: {err}")
-            return 2
+            print(f"READ-BACK FAILED (write result is unconfirmed; inspect issue #{number}): {err}")
+            return 1
         result = PublishResult(0, PublishOutcome.CREATED, True)
         print(f"created: issue #{number}, state intact on read-back")
     if result.exit_status == 0:

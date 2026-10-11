@@ -359,3 +359,8 @@ term exists to retire.
   reference list belongs.
 - **That the composer discriminator is stable.** It is one institution, one Canvas instance, one
   theme, one date — the disclosure ADR 0013 made about itself, unchanged.
+
+## Supersedes
+
+- [ADR 0036](0036-a-references-label-is-a-per-pipeline-source-spelling-for-one-rendered-outcome.md) ruling 1, the ground "Nothing renders a reply, so the artifact's spelling is the board's spelling". Reply accepts bold literal References and rejects headings/plain form; post pattern and recognizer/refusal remain.
+- [ADR 0147](0147-the-post-loads-as-html-through-the-raw-editor-and-the-submit-gate-moves-to-the-rendered-box.md) ruling 6, the ground "A reply is short and typed, and a deck upload shows a filename". Reply and course-assignment keep one gate; post keeps two gates and nonclean reading returns to clinician.

@@ -133,3 +133,7 @@ A cold build goes from roughly 9 minutes to roughly 65. Warm builds are unchange
 - **Three open tickets now touch `bind_recs` and `_record_path`**: #438's shared trust reader, #518's naming, and ruling 2's resolve-by-document. Two green branches there produce a red merge.
 
 *(Corrected in place 2026-08-28, on [ADR 0016](0016-an-adr-number-is-claimed-when-it-is-handed-out-and-a-ratified-records-facts-may-be-corrected-in-place.md)'s terms. The ADR 0044 link named a remembered title rather than that record's tracked filename; its target now matches the index. No ruling changed.)*
+
+## Supersedes
+
+- [ADR 0030](0030-a-recommendation-record-is-owned-like-every-other-artifact-its-trust-floor-is-keyed-on-the-limb-that-built-it-and-the-drafter-takes-no-escape-hatch.md) ruling 3, the words "It does not become a third stage of `guidelines_build`'s content-addressed cache; that needs a batch producer this repo does not have.". Per-record input ownership and content-changing membership floor stand.

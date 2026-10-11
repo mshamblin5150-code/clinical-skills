@@ -68,6 +68,10 @@ The sweep of ADR 0145's own branch found four defects in it within the hour. Thr
 
 **ADR 0145 is not edited**, on this repository's practice of superseding ratified prose rather than rewriting it — ADR 0100 ruling 3, ADR 0134 and ADR 0135 ruling 8 — because a rewrite points its merge receipt at text that no longer exists.
 
+## Supersedes
+
+- [ADR 0143](0143-the-block-quotation-is-authored-markup-the-renderer-obeys-and-its-citation-keyed-grader-lives-where-the-docx-is-submitted.md) ruling 5, the words "It inserts as section 30 and the reference-example index moves to section 31." and "a translation carries both years earliest first and slashed." The block-quotation section appends as section 32 and points to the translation rule in section 31; the index remains section 30.
+
 ## What none of this reaches
 
 **Whether §32's content is right.** Ruling 5 orders a re-derivation and does not perform it. #815 stays `blocked` on that read plus [#817](https://github.com/mshamblin5150-code/clinical-skills/issues/817) and [#828](https://github.com/mshamblin5150-code/clinical-skills/issues/828), which are untouched here.

@@ -310,3 +310,7 @@ complete**, which is this repository's own recurring shape arriving in a record 
 claim nobody re-derived. Every one of the six comments was a tracker sweep, which is the mechanism
 built to catch exactly what this session missed — and two of them had already found findings this
 session re-derived independently, hours of work that reading them first would have saved.
+
+## Supersedes
+
+- [ADR 0145](0145-the-republished-date-element-is-shared-grammar-keyed-on-its-second-element.md) ruling 5, the words "APA publishes no legal reference examples". The statute-root separation and the corrected precision figure stand.

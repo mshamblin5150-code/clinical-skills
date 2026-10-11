@@ -211,6 +211,8 @@ command ran while still proving nothing. **Not recording it was refused**: it di
 producer already computes, and with it what ADR 0087 ruling 7 cares about — whether a run fell back to
 the clinician's export.
 
+*Superseded 2026-09-13.* The words "it changes what a render pass holds" are superseded by [ADR 0210](0210-a-render-pass-and-a-check-record-carry-the-fingerprint-of-what-they-graded.md) ruling 2. The declared route remains outside the pass and unproven. A producer-computed source fingerprint now lives inside each retained pass.
+
 ### 6. The case study's record gains `SOURCE` and `PASS`, and a misplaced known field is a finding
 
 On `the rendered document` only, `checks_ledger` recognizes `SOURCE` — `word-pdf`, `word-xps` or
@@ -386,3 +388,13 @@ to lack. It enters this record only through the completion-grader pairing.
 **`deck_scan`'s coverage limb and `render_scan`'s limits object.** #922 is answered here only for the
 render record row, and [#867](https://github.com/mshamblin5150-code/clinical-skills/issues/867) is
 untouched.
+
+## Supersedes
+
+- [ADR 0098](0098-the-case-study-s-rendered-document-coverage-is-derived-from-kept-evidence-and-owned-by-its-own-run-directory-grader.md) ruling 2, the words "the record gains no fields". SOURCE and PASS join the rendered-document record; PAGES and UNSEEN stay retired.
+
+- [ADR 0098](0098-the-case-study-s-rendered-document-coverage-is-derived-from-kept-evidence-and-owned-by-its-own-run-directory-grader.md) ruling 3, the words "it reads exactly one file and nothing else". checks_ledger now lists render/ at submission; render_scan retains the page count.
+
+- [ADR 0124](0124-the-render-pass-is-one-shared-reader-and-a-gap-is-counted-rather-than-graded.md) ruling 4, the words "`deck_scan` gains no render row". One terminal render-record row is added; the refusal of an export-reading coverage row and placement divergence remain.
+
+- [ADR 0125](0125-render-coverage-and-the-render-record-are-two-properties-and-each-artifact-wires-them-its-own-way.md) ruling 4, the words "`deck_scan` gains no render row". One terminal record row is added; coverage and record remain distinct properties.

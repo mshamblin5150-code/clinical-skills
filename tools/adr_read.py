@@ -32,21 +32,38 @@ RULING_EXEMPT_MARKER = re.compile(
 )
 
 
-def ruling_ordinals(text: str) -> list[int]:
-    """Ruling ordinals in document order, across the record and its addenda."""
+class RulingAttribution(NamedTuple):
+    """A line's ruling context and whether that line declares the ordinal.
+
+    ``line`` counts the unfenced lines, as used by the reader's consumers.
+    A section before its first ruling has ``number=None``.
+    """
+
+    line: int
+    number: int | None
+    declares: bool
+
+
+def ruling_attributions(text: str) -> Iterator[RulingAttribution]:
+    """Read ruling positions and inherited context with one declaration grammar."""
     ordinals = []
+    ruling = None
     in_ruling_section = True
     accepts_items = True
-    for line in unfenced_lines(text):
+    for line_number, line in enumerate(unfenced_lines(text), 1):
+        declares = False
         heading = ADR_HEADING.match(line)
         if heading:
             level, title = len(heading.group(1)), heading.group(2)
             numbered = RULING_HEADING.match(title)
             if level == 2 and numbered:
-                ordinals.append(int(numbered.group(1)))
+                ruling = int(numbered.group(1))
+                ordinals.append(ruling)
+                declares = True
                 in_ruling_section = False
                 accepts_items = False
             elif level == 2:
+                ruling = None
                 in_ruling_section = bool(RULING_SECTION.match(title))
                 accepts_items = in_ruling_section
             elif in_ruling_section:
@@ -54,19 +71,28 @@ def ruling_ordinals(text: str) -> list[int]:
                 if numbered_item and (
                     accepts_items or int(numbered_item.group(1)) == len(ordinals) + 1
                 ):
-                    ordinals.append(int(numbered_item.group(1)))
+                    ruling = int(numbered_item.group(1))
+                    ordinals.append(ruling)
+                    declares = True
                     accepts_items = True
-                    continue
-                accepts_items = bool(RULING_SECTION.match(title))
+                else:
+                    ruling = None
+                    accepts_items = bool(RULING_SECTION.match(title))
             else:
                 accepts_items = False
-            continue
-        if in_ruling_section:
+        elif in_ruling_section:
             numbered = RULING_ITEM.match(line)
             if numbered and (accepts_items or int(numbered.group(1)) == len(ordinals) + 1):
-                ordinals.append(int(numbered.group(1)))
+                ruling = int(numbered.group(1))
+                ordinals.append(ruling)
+                declares = True
                 accepts_items = True
-    return ordinals
+        yield RulingAttribution(line_number, ruling, declares)
+
+
+def ruling_ordinals(text: str) -> list[int]:
+    """Ruling ordinals in document order, across the record and its addenda."""
+    return [row.number for row in ruling_attributions(text) if row.declares]
 
 
 class RulingCitation(NamedTuple):

@@ -171,6 +171,8 @@ A worktree deleted without `git worktree prune` stays in `git worktree list --po
 line among roots that could not be read. **It is not unreadable. It is not there, and the fix is
 `git worktree prune`.**
 
+*Superseded 2026-09-15.* The words "A worktree deleted without `git worktree prune` stays in `git worktree list --porcelain`" are superseded by [ADR 0237](0237-a-missing-worktree-git-reports-as-locked-is-a-locked-registration-and-the-prune-remedy-is-qualified.md) ruling 1. An unlocked missing root remains a counted, report-only stale registration. A locked missing root has a separate state and no prune remedy; pruning also requires confirmed deletion. No age threshold or new refusal is added.
+
 The report distinguishes it; the gate still pools it. That is exactly the arrangement `:331-333`
 already uses for `absent` versus `unreadable`, applied one state over, and it changes no exit status —
 the condition can only reach a peer, since the committing checkout is the one you are standing in and
@@ -231,6 +233,8 @@ nothing about how many modules comply; `CONTEXT.md` is a glossary and not a conf
 
 The five are filed rather than fixed here, because whether every `run_grader` member must declare a
 coverage limb is a decision and not a repair.
+
+*Superseded 2026-09-10.* The words "It is not ruled repo-wide, and the refusal is recorded because it is the obvious next proposal." are superseded by [ADR 0170](0170-every-grader-declares-the-posture-its-empty-population-takes.md) ruling 2. The empty-population discriminator and refusal outside run_grader.MEMBERS stand; the family now declares a posture for every member.
 
 ### 10. There is no end-to-end test, and that limit is declared where the substring search lives
 

@@ -284,3 +284,12 @@ Re-derived at `origin/main` `b8d3936`, freshness gate `FRESH`:
 5. **The park's-instrument finding said those lists were *gone*.** No aggregate list was preserved, which is the finding; but each per-topic list regenerates in one command from committed inputs, so *gone* claimed more than the measurement. The ruling is unaffected — the sheet directory was always the stronger evidence.
 
 **Three of the five are a count of the wrong unit**, which is the defect this repository names most often, arriving inside the record that rules on it — and it is the *second* time on this ticket, its own 2026-09-01 footer having recorded the same species one record earlier. **All five survived the drafting, the ruling and the first read**, and were found only by a pass briefed to attack rather than to confirm — which is ruling 4's argument holding on the record that makes it.
+
+## Supersedes
+
+- [ADR 0078](0078-the-drafter-s-near-miss-key-is-the-alias-group-used-for-the-report-only-and-a-third-name-refuses.md) ruling 1, the words "The report is keyed on every name in the drafted topic's alias group, not on the typed string.". The report remains report-only; the subject column replaces the alias-group key.
+
+- [ADR 0078](0078-the-drafter-s-near-miss-key-is-the-alias-group-used-for-the-report-only-and-a-third-name-refuses.md) ruling 2, the words "The count of named subjects is read off `TOPIC_ALIASES` and
+   the topic count off the parsed catalog rather than typed". The bound remains unconditional and derived; its numerator now comes from the registry column.
+
+- [ADR 0078](0078-the-drafter-s-near-miss-key-is-the-alias-group-used-for-the-report-only-and-a-third-name-refuses.md) ruling 5, the words "A third name in `TOPIC_ALIASES` refuses rather than working.". Rulings 3, 4, and 6 remain binding, including one-way seed canonicalization, already-cited source exclusion, and the module-level template.

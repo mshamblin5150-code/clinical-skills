@@ -318,3 +318,7 @@ test module supplies.
 declared where only a matcher saw the absence.
 
 **A widened `SPECIFICITY` pattern** offered as the fix for the unread remainder.
+
+## Supersedes
+
+- [ADR 0138](0138-an-absent-committing-scratch-root-is-nothing-to-grade-and-the-empty-population-rule-is-not-generalized.md) ruling 9, the words "It is not ruled repo-wide, and the refusal is recorded because it is the obvious next proposal.". The empty-population discriminator and refusal outside run_grader.MEMBERS stand; the family now declares a posture for every member.

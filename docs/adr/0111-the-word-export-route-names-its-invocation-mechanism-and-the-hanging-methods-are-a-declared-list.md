@@ -196,3 +196,7 @@ ADR 0087's subject and are unchanged by this record.
 **`practicum-case-study`'s bounded export route**, which lives as prose in its skill with no
 command implementing it. That is a separate finding, already filed, and folding it in here would
 put a second skill's missing mechanism inside a record about one call site's invocation.
+
+## Supersedes
+
+- [ADR 0087](0087-the-rendered-page-check-names-a-spawned-word-route-and-its-verdict-is-a-counted-record-backed-by-kept-pixels.md) ruling 5, the words "freshly spawned is load-bearing rather than hygiene". A fresh process survives as hygiene; typed late binding completes the route and the original route decision stands.

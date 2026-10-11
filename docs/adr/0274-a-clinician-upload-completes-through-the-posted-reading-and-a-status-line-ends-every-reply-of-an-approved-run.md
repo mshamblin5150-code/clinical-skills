@@ -72,6 +72,12 @@ Skill wording alone was refused: it is what failed. A report at the start of the
 refused because the clinician would still have been told *submitted* in the session where it was
 false.
 
+*Superseded 2026-09-26.* The words "exactly one line" are superseded by [ADR 0277](0277-the-run-status-check-covers-every-posting-skill-through-one-approval-record.md) ruling 4. One status line per touched run carries its key; pending approved items still govern status. The original dated account is retained: **Superseded in part 2026-09-26 by
+[ADR 0277](0277-the-run-status-check-covers-every-posting-skill-through-one-approval-record.md), and left as
+written.** Ruling 2's status `awaiting upload` is `awaiting posting`, and its *exactly one line* is
+exactly one line per touched run, each naming its run key. The glossary term **Clinician upload** is
+**Clinician posting**. Every other ruling here stands.
+
 ## Ruling 3 — a stopped run says so and stays open
 
 `stopped - <reason>` is the status for every point where the skill hands the run back to the
@@ -94,6 +100,9 @@ Keeping every scratch workspace until the terminal grade passes was refused: it 
 reading the same run directory with the records still elsewhere, and adds days of clutter while the
 clinician reviews.
 
+*Superseded 2026-09-26.* The words "**Recording the clinician's approval is refused unless the pre-upload grade is
+clean against the run directory**" are superseded by [ADR 0277](0277-the-run-status-check-covers-every-posting-skill-through-one-approval-record.md) ruling 7. A pre-posting finding still blocks approval; incomplete coverage is shown and does not block. Review records remain in the owning run directory.
+
 ## Ruling 5 — course-assignment now, with the open-run rule read from a per-skill table
 
 The check covers `course-assignment`'s deck and DOCX branches, which already share the durable
@@ -113,9 +122,3 @@ reading was written, or a thin reason, is read by the clinician and not by the c
 `awaiting upload` after he submitted elsewhere stays open until a session touches it again.
 
 ---
-
-**Superseded in part 2026-09-26 by
-[ADR 0277](0277-the-run-status-check-covers-every-posting-skill-through-one-approval-record.md), and left as
-written.** Ruling 2's status `awaiting upload` is `awaiting posting`, and its *exactly one line* is
-exactly one line per touched run, each naming its run key. The glossary term **Clinician upload** is
-**Clinician posting**. Every other ruling here stands.

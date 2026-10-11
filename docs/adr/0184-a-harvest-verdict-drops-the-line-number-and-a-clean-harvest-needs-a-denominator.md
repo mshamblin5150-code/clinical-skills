@@ -355,3 +355,7 @@ digest is computed at `:675-677`, not `:674-677`, whose first line is `finding.m
 wrong when written rather than gone stale, which is the
 [#928](https://github.com/mshamblin5150-code/clinical-skills/issues/928) class and not the #1121
 one. Corrected in place above.
+
+## Supersedes
+
+- [ADR 0077](0077-a-digest-is-a-redaction-only-where-its-keyspace-is-large-and-a-date-literal-s-is-not.md) ruling 2, the words "A ruling on a PHI-layer finding is keyed on the record and the containing line, never on the match.". Whole-line digest, content expiry and four-field commit key stand; only mutable harvest line-number coordinate is removed.

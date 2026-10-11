@@ -112,3 +112,7 @@ broken; each would then report `Opening (2027)` twice, as a number and as a cita
 - **Sibling coverage beyond the one control each.** Ruling 3 drives one shape per sibling.
 - **Whether a stripped citation's source supports the slide.** That stays the adversarial reader's
   agreement job under ADR 0218 ruling 1.
+
+## Supersedes
+
+- [ADR 0218](0218-a-slide-s-agreement-with-its-record-is-read-and-every-deck-number-is-traced.md) ruling 3, the words "stripping `discussion_post_scan` applies before it". The shared number reader and the remaining trace requirements survive.

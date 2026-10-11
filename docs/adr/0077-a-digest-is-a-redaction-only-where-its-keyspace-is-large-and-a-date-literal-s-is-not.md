@@ -72,6 +72,8 @@ own-line pragma requirement both exist to refuse.
 **The digest unit is the whole of this ruling and it is where a rebuild will go wrong.** Digesting the
 *match* looks equivalent to digesting the line and is not, which is ruling 3.
 
+*Superseded 2026-09-11.* The words "A ruling on a PHI-layer finding is keyed on the record and the containing line, never on the match." are superseded by [ADR 0184](0184-a-harvest-verdict-drops-the-line-number-and-a-clean-harvest-needs-a-denominator.md) ruling 3. Whole-line digest, content expiry and four-field commit key stand; only mutable harvest line-number coordinate is removed.
+
 **3. A digest is a redaction only where its keyspace is large, and a date literal's is not.**
 
 An unsalted SHA-256 of a value drawn from an enumerable set is an index into that set, not a

@@ -156,3 +156,7 @@ delivered notification, which ADR 0193 ruling 11 accepts and this record does no
 it reach whether a `queue-operation` remove row ever carries text the delivering row lacks; the
 2,812 byte-identical tasks say that is rare, and the 128 with distinct bodies were not broken down
 by row type.
+
+## Supersedes
+
+- [ADR 0193](0193-an-extract-entry-s-kind-names-its-envelope-and-a-matcher-may-label-where-it-may-not-reduce.md) ruling 6, the words "The record now carries the extract identifier of the entry holding its classifier's return, and the next extract labels that one entry `prior-review` **by identity, not by matching its body**.". Every copy remains in population and is labeled prior-review; fresh reader re-derives rather than adopts the return.

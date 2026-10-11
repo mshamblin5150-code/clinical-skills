@@ -227,3 +227,7 @@ Seven documents, contributing 13 rows to `## Recommendations`, all 13 reading `I
 The two withdrawn documents also contributed rows reading `not stated` — which is why the cell check
 seven sweeps ran agreed with the wrong set and the right one alike, and is the transferable finding
 here: **a re-derivation that confirms an index cannot confirm a claim about the documents behind it.**
+
+## Supersedes
+
+- [ADR 0027](0027-the-uspstf-interval-column-names-the-recurrence-of-a-service.md) ruling 6, the words "The header is the only place a consumer meets this column". The quoted ground falls; the recurrence-of-service ruling and dose exclusion stand. Consumers also encounter the generated absence section.

@@ -125,3 +125,10 @@ it.
 
 **The standalone `clinical-note` run directory's name.** The skill states none; the build names one
 under `scratch/runs/` and writes it into the skill.
+
+## Supersedes
+
+- [ADR 0274](0274-a-clinician-upload-completes-through-the-posted-reading-and-a-status-line-ends-every-reply-of-an-approved-run.md) ruling 2, the words "exactly one line". One status line per touched run carries its key; pending approved items still govern status.
+
+- [ADR 0274](0274-a-clinician-upload-completes-through-the-posted-reading-and-a-status-line-ends-every-reply-of-an-approved-run.md) ruling 4, the words "**Recording the clinician's approval is refused unless the pre-upload grade is
+clean against the run directory**". A pre-posting finding still blocks approval; incomplete coverage is shown and does not block. Review records remain in the owning run directory.

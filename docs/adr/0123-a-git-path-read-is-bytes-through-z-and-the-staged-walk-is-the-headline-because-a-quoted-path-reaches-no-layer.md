@@ -288,3 +288,9 @@ it proves to matter the C-unquoter is the option that was refused on shape rathe
 **The `startswith` repair's own boundary.** Ruling 2 requires the path layer to test a canonical path;
 it does not settle whether that test should become a path-relative comparison rather than a string
 prefix, which is a question about `PHI_DIRECTORIES` rather than about how the path was read.
+
+## Supersedes
+
+- [ADR 0122](0122-the-tracked-path-set-is-the-bytes-git-stores-and-the-cited-path-is-the-bytes-the-author-wrote-so-the-citation-join-normalizes-both-sides.md) ruling 2, the words "Bytes were refused because they buy no correctness.". -z and surrogateescape remain; bytes are split before decoding.
+
+- [ADR 0122](0122-the-tracked-path-set-is-the-bytes-git-stores-and-the-cited-path-is-the-bytes-the-author-wrote-so-the-citation-join-normalizes-both-sides.md) ruling 9, the words "Order is not something either branch controls". The brief correction remains; the three tickets are one implementation unit rather than separately ordered branches.

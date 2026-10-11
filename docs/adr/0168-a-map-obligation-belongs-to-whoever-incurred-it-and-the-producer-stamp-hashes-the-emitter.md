@@ -228,3 +228,13 @@ rules an hourly scheduled refresh, and a stale view reported by `check` without 
   Reconciliation stays the judgment `CONTEXT.md` defines.
 - **A relaxed gate.** `map_scan` keeps failing on both rows. What changes is that each red row names
   the one session able to clear it.
+
+## Supersedes
+
+- [ADR 0089](0089-the-map-gate-is-an-offline-grader-over-a-harvest-and-the-reconciliation-obligation-is-anchored-on-a-field-the-delta-sets.md) ruling 3, the words "The
+in-tree grader compares it against `git log <that sha>..HEAD -- docs/adr/`.". The anchor remains reconciliation-owned, but advances over reviewed ADR units and the row names each unreviewed ADR rather than counting commits.
+
+- [ADR 0106](0106-the-implementation-map-is-reconciled-by-an-in-tree-tool-rather-than-gated-at-publication.md) ruling 4, the words "a delta advances it only when nothing is left unmapped". A publish never advances the anchor; each session may discharge its own ADR obligations without waiting for another session's unmapped ticket.
+
+- [ADR 0155](0155-the-map-render-stamps-its-producer-and-the-graph-draws-only-what-carries-an-edge.md) ruling 1, the words "The body carries the repository-relative path of the helper that rendered it and the commit that
+helper was at". The repository-relative path and derived Snapshot placement remain; the stamp compares the emitter digest and the commit may remain informational.

@@ -95,6 +95,9 @@ stale, and it is exactly co-extensive with what ruling 1 leaves the prose claimi
 not permanent — four arrived in one commit — and a refactor could remove the last of them, leaving
 two tracked files asserting a 3.10 floor with nothing behind it and nothing red.
 
+*Superseded 2026-09-12.* The words "The committed check asserts the evidence exists, never how much of it there is" are superseded by [ADR 0187](0187-the-python-floor-is-two-numbers-held-equal-and-a-job-on-the-floor-settles-it.md) ruling 10. The repository walk now derives the floor; API-and-symbol citation and coordinate ratchet remain. The original dated account is retained: Superseded in part, 2026-09-12: ADR 0187 ruling 10 replaces ruling 3's evidence-only floor check
+with the repository walk and discharges ruling 4.
+
 ### 4. The wider floor derivation is filed rather than folded in
 
 A walk that derives the minimum interpreter from a declared vocabulary of version-gated features,
@@ -104,6 +107,8 @@ separate ticket. It grades what the floor **is** rather than whether the stated 
 
 Its ceiling is `spelling_scan.py`'s and must be declared in the object rather than in prose: it
 holds a vocabulary, not the language, so a clean run means no *listed* feature was used.
+
+*Superseded 2026-09-12.* The words "The wider floor derivation is filed rather than folded in" are superseded by [ADR 0187](0187-the-python-floor-is-two-numbers-held-equal-and-a-job-on-the-floor-settles-it.md) ruling 10. The separately filed derivation is now supplied; its declared vocabulary ceiling remains.
 
 ### 5. A coordinate citation is ratcheted to zero outside `docs/adr/`
 
@@ -155,6 +160,3 @@ than closing it.
 
 **Whether a pin exists that neither walk can see.** Both instruments are floors on literal shapes,
 stated in the measurement above.
-
-Superseded in part, 2026-09-12: ADR 0187 ruling 10 replaces ruling 3's evidence-only floor check
-with the repository walk and discharges ruling 4.

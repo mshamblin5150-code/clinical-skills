@@ -172,3 +172,7 @@ unruled; nothing waits on it until a migration of `tracker_bodies` is proposed.
 test.
 
 **A refusal reclassified as a deferral.** ADR 0112 ruling 3.
+
+## Supersedes
+
+- [ADR 0112](0112-the-grader-membership-ratchet-grades-adoption-rather-than-source-shape-and-not-members-distinguishes-refused-from-deferred.md) ruling 2, the words "A **refused** module is a permanent verdict: the runner cannot express what it does.". Separate refusal and deferral mappings; ruling3 no-owner/no-queue distinction and adoption contract stand.

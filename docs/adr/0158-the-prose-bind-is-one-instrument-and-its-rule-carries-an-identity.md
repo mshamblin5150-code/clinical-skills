@@ -193,6 +193,8 @@ has a bind — so it lands on
 precisely this blindness, with ruling 2's lift as its prerequisite. `test_prose_bind`'s walk stays
 untouched: it grades a wider population than the limits objects.
 
+*Superseded 2026-09-10.* The words "Every authored limits object carries exactly one no-copy bind, through the shared detector." are superseded by [ADR 0167](0167-the-limits-walk-reads-a-declared-name-list-and-a-module-without-limits-is-declared.md) ruling 5. Every object must have a bind through the shared detector; additional binds remain when they cover additional prose surfaces.
+
 ## What none of this reaches
 
 A bind assembled at run time, or a needle built by concatenation, is invisible to any walk here, which
