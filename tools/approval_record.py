@@ -441,6 +441,26 @@ def _matching_item(
     return matches[0] if len(matches) == 1 else None
 
 
+@dataclass(frozen=True)
+class PostedReadingState:
+    submission: str
+    posted: bool
+    has_reading: bool
+
+    @property
+    def unrecorded_reading(self) -> bool:
+        return self.has_reading and not self.posted
+
+
+def posting_route(run: Path, *, skill: str, submission: str) -> str | None:
+    """Read one item's recorded route; absent or ambiguous items have no route."""
+    if skill not in SKILLS:
+        raise ApprovalRecordError(f"unsupported posting skill: {skill}")
+    item = _matching_item(_read(Path(run), missing_ok=True), skill, submission)
+    route = item.get("posting_route") if item is not None else None
+    return route if isinstance(route, str) else None
+
+
 def _record_posting(
     run: Path, *, skill: str, submission: str, route: PostingRoute
 ) -> None:

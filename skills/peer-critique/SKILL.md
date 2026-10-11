@@ -33,6 +33,19 @@ and a hundred-point assignment in another, and the weight changes what the clini
 it. Where the live spec and the sheet disagree, the live spec wins and the disagreement is reported
 to the clinician.
 
+At this spec-signing stop, before researching any claim, write `bar.md` with these lines,
+taking the source classes and recency window from the live spec where it states them and
+using these defaults otherwise:
+
+```text
+SIGNED: <leave blank until the clinician answers>
+SOURCE-CLASSES: society guideline | peer-reviewed | government | tertiary reference
+RECENCY-WINDOW-YEARS: 5
+```
+
+Show these lines beside the spec reading. The clinician's answer signs the bar; only then
+replace the blank `SIGNED:` value with the ISO date and begin research.
+
 When the clinician asks to cite his own unpublished work, apply
 [sourcing.md's own-work bar admission](../_shared/reference/sourcing.md#the-clinicians-own-unpublished-work)
 at signing or by mid-run re-signing. `clinician's own work` is never a default template class.
@@ -53,6 +66,7 @@ configure course names or module names elsewhere. Write only under the gitignore
 scratch/runs/<course>-<module>-peer-critique/
     board-<date>.md
     spec-<date>.md
+    bar.md
     posts/
     claims.md
     critique.md
@@ -78,7 +92,7 @@ and get no PHI detection layer, count, or report. They remain gitignored working
 classmate's name is private working material that is never pasted into a ticket.
 
 For this skill, the canonical artifacts governed by [standing rule 6](../../AGENTS.md) are
-`board-<date>.md`, `spec-<date>.md`, `claims.md`, `reread.md`, `critique.md`, and
+`board-<date>.md`, `spec-<date>.md`, `bar.md`, `claims.md`, `reread.md`, `critique.md`, and
 `critique.txt`, `critique-stored-comment-readback.txt`, and `voice-status.md`; each worker's
 temporary path is separate and run-unique.
 
@@ -339,6 +353,11 @@ proposed image is approved. Apply the record and draft changes in
 [imagery-proposals.md](../_shared/reference/imagery-proposals.md) and rerun the grader. Only an
 explicit go-ahead authorizes posting.
 Set `clinician_reply` to the clinician's whole approval message, including any conditions.
+Before posting, the posted-reading rows are not graded and the go-ahead grade is expected to
+pass. Once the approval record carries an `agent` or `clinician` posting route, a missing or
+failing reading is a finding; a reading without recorded posting is incomplete coverage.
+Leave the historical runs filed in #1495 as they stand. When touching one that posted without
+an approval record, report `stopped - posted before the approval recorder could record it (#1495)`.
 At that go-ahead call `approval_record.approve(run, skill="peer-critique",
 submission="critique.md", sources=(run / "critique.md",), grader_args=(str(run),),
 content_approved=True, clinician_reply=clinician_reply)`. Show its `pregrade_report`; incomplete coverage does not block, while a
