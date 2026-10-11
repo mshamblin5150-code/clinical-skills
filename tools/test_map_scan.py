@@ -307,6 +307,39 @@ class ReconciliationObligation(ScannerCase):
         self.assertIn("ticket #596", stdout)
         self.assertIn("ADR 0001", stdout)
 
+    def test_json_sidecars_do_not_create_unrecordable_adr_obligations(self):
+        self.add_adr_commit()
+        for name in ("supersession-classification-1518.json", "0002-data.json", "README.md"):
+            (self.root / "docs" / "adr" / name).write_text("{}\n", encoding="utf-8")
+        subprocess.run(["git", "add", "."], cwd=self.root, check=True)
+        subprocess.run(["git", "commit", "-qm", "add ADR evidence sidecars"], cwd=self.root, check=True)
+
+        value = state(self.anchor)
+        owed = map_scan.implementation_map.unreconciled_adrs(value, self.root)
+        self.assertEqual(owed, ("docs/adr/0001-decision.md",))
+        code, stdout, _ = self.run_scan([self.map_issue(value)])
+        self.assertEqual(code, map_scan.FOUND, stdout)
+        self.assertIn("ADR 0001", stdout)
+        self.assertNotIn("ADR supe", stdout)
+
+        value["adr_reviews"] = [{
+            "adr": "docs/adr/0001-decision.md", "commit": self.head(),
+            "no_work": "No packet changes.",
+        }]
+        code, stdout, _ = self.run_scan([self.map_issue(value)])
+        self.assertEqual(code, map_scan.CLEAN, stdout)
+        advanced = map_scan.implementation_map.advance_reconciliation_floor(value, self.root)
+        self.assertEqual(advanced["reconciled_through"], self.head())
+
+    def test_sidecar_only_commit_has_no_adr_debt(self):
+        (self.root / "docs" / "adr" / "supersession-classification-1518.json").write_text("{}\n", encoding="utf-8")
+        subprocess.run(["git", "add", "."], cwd=self.root, check=True)
+        subprocess.run(["git", "commit", "-qm", "add ADR evidence"], cwd=self.root, check=True)
+        value = state(self.anchor)
+        self.assertEqual(map_scan.implementation_map.unreconciled_adrs(value, self.root), ())
+        code, stdout, _ = self.run_scan([self.map_issue(value)])
+        self.assertEqual(code, map_scan.CLEAN, stdout)
+
     def test_a_reviewed_adr_after_the_floor_is_clean(self):
         self.add_adr_commit()
         value = state(self.anchor)

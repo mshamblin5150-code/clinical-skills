@@ -414,9 +414,17 @@ def _committed_text(root: Path, commit: str, relative: str) -> str:
             ["git", "show", f"{commit}:{relative}"], cwd=root, capture_output=True
         )
     except OSError as error:
-        raise SourceError(f"ADR body unreadable: {relative}") from error
+        detail = " ".join(str(error).split())[:1000]
+        raise SourceError(
+            f"ADR body unreadable: {relative}; commit={commit}; "
+            f"git show could not start ({type(error).__name__}): {detail}"
+        ) from error
     if completed.returncode != 0:
-        raise SourceError(f"ADR body unreadable: {relative}")
+        detail = " ".join(completed.stderr.decode("utf-8", errors="replace").split())[:1000]
+        raise SourceError(
+            f"ADR body unreadable: {relative}; commit={commit}; "
+            f"git show exit={completed.returncode}; stderr={detail or '(empty)'}"
+        )
     return completed.stdout.decode("utf-8", errors="replace")
 
 

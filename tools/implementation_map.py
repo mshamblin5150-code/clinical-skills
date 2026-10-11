@@ -73,6 +73,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 REVISION_LEDGER = REPO_ROOT / "reference" / "implementation-map-revision-breaks.md"
 STATE_BEGIN = "<!-- implementation-map:v1:state:begin -->"
 STATE_END = "<!-- implementation-map:v1:state:end -->"
+ADR_PATH = re.compile(r"docs/adr/\d{4}[^/]*\.md")
 
 EDGE_TYPES = ("HARD", "REBUILD-SAVING", "EXTERNAL-GATE")
 COLLISION_KINDS = ("sequence", "unordered", "unclassified")
@@ -421,7 +422,10 @@ def adr_commits_after(
             raise MapError(
                 f"git diff could not read ADRs at {commit[:7]}: {error}"
             ) from error
-        paths = tuple(sorted(Path(record).as_posix() for record in records))
+        paths = tuple(sorted(
+            path for record in records
+            if ADR_PATH.fullmatch(path := Path(record).as_posix())
+        ))
         result.append((commit, paths))
     return tuple(result)
 
@@ -1067,7 +1071,7 @@ def validate_shape(state: dict) -> list[Finding]:
     for adr in review_paths:
         if review_paths.count(adr) > 1:
             findings.append(Finding("duplicate-adr-review", f"{adr} is reviewed twice"))
-        if not re.fullmatch(r"docs/adr/\d{4}[^/]*\.md", adr):
+        if not ADR_PATH.fullmatch(adr):
             findings.append(Finding("bad-adr-review", f"{adr!r} is not an ADR path"))
     findings.extend(cycle_findings(state))
     return findings
