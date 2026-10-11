@@ -190,7 +190,7 @@ One ticket's working material, at `scratch/sessions/ticket-<n>/`. Keyed by the t
 _Avoid_: session directory, temp directory, workspace
 
 **Accounted**:
-Said of a top-level entry in a **scratch root**: some tracked file names it as `scratch/<name>`. Derived on every run and never a hand-kept list. The property is about the *name* alone — nothing reads what an entry contains, and an accounted entry is not thereby known to be harmless.
+Said of a top-level entry in a **scratch root**: some tracked file names it as `scratch/<name>`, or it is on `repo_root`'s list of the paths code resolves under a scratch root. Those are the only two sources. The document half is derived on every run; the code half is the resolver list itself, so a name on it is one some code cannot run without, never a name kept by hand ([#1511](https://github.com/mshamblin5150-code/clinical-skills/issues/1511)). An entry the committing branch cannot account for but the local copy of `main` can is not counted against that branch; the branch is behind, and the entry is never offered for a **Drain**. The property is about the *name* alone — nothing reads what an entry contains, and an accounted entry is not thereby known to be harmless.
 _Avoid_: known, allowed, whitelisted, exempt
 
 **Unaccounted entry**:
@@ -198,7 +198,7 @@ A top-level entry in a **scratch root** that no tracked file names. Its own two 
 _Avoid_: orphan, stray, litter, junk
 
 **Standing artifact**:
-One of the documented top-level entries a tool or a skill writes at a named path, or that the PHI firewall reads as an input. Asserted as a **floor** on the accounted set and never as the set, so a legitimate new one does not go red and a rename that orphans an old one does.
+One of the documented top-level entries a tool or a skill writes at a named path, or that the PHI firewall reads as an input. The ones code reaches are accounted by the resolver list; the ones only a skill names are accounted by the skill's own `scratch/<name>` text. Asserted as a **floor** on the accounted set and never as the set, so a legitimate new one does not go red and a rename that orphans an old one does.
 _Avoid_: known-good list, allowlist, the exempt set
 
 **Ratchet**:

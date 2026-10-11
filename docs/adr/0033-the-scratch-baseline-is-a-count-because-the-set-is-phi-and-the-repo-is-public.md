@@ -72,6 +72,8 @@ silently reclassifying a standing account file as litter.
 the derived set forbids exactly the divergence the tuple exists to permit, and would fail the suite
 on the day a legitimate tenth artifact lands.
 
+*Superseded 2026-10-11.* The words "A top-level entry is accounted for iff some tracked file names it as `scratch/<name>`." are superseded by [ADR 0338](0338-a-scratch-path-code-resolves-is-accounted-by-the-resolver-list-and-an-entry-main-accounts-is-never-drained.md) ruling 1. A name on `repo_root`'s list of code-resolved scratch paths is a second source; the derived document half, its floor assertion and the refusal of a typed tuple remain.
+
 **3. The check refuses on a rise and the baseline is 19.** Twenty-one entries are unaccounted for today
 and clearing them needs a person's word on PHI, so refusing from day one would produce a check
 people learn to `--no-verify` around, which `CLAUDE.md` warns about by name. A ratchet holds at the
