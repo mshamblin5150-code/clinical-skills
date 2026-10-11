@@ -652,7 +652,7 @@ def main(argv: list[str]) -> int:
             if topic_count == 0:
                 print(
                     "uptodate-store: index holds no topic; "
-                    "deliberately file a Case research dump in the Evidence store first",
+                    "deliberately file a Case research dump in the Evidence store with ingest first",
                     file=sys.stderr,
                 )
                 return 2

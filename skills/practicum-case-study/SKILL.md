@@ -1014,8 +1014,8 @@ sorted.
 | A misspelled month | check every one |
 
 **A citation year is looked up, never recalled.** UpToDate revises topics continuously and the same
-topic appears in one clinician's corpus under three different years. The companion document states
-each topic's own revision date — use it.
+topic appears in one clinician's corpus under three different years. The stored topic in the Evidence store states
+its own revision date — use it.
 
 **This Grader handoff under [standing rule 6](../../AGENTS.md) receives the list:**
 
