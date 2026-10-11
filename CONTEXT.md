@@ -590,6 +590,14 @@ _Avoid_: philosophy, creed, value, belief system, worldview
 An instruction the writer has given about their own writing, quoted and dated. It binds on one clear statement, unlike an observed feature, which needs two samples, and it is retired only by a later statement that replaces it. It is neither a trait read from the writing nor a [[Stated principle]] argued from; one that is house style by kind belongs to the style sheet rather than the voice model.
 _Avoid_: preference, stated preference, standing order, word rule
 
+**Invoked attribution**:
+A person, school, or work the voice brings into a paper from the writer's stated principles or invoked sources (see [[Stated principle]] and [[Invoked source]]), attached to an idea or a line: a philosopher, a school of thought, a historical figure, or a fictional character. It is recognized by where the name came from, never by what kind of name it is. It is researched rather than cut, and a failed or contrary finding about it goes to the clinician; a named attribution the run's own research introduced is not one.
+_Avoid_: philosophical attribution, philosopher quote, council reference
+
+**Attribution library**:
+The account's saved record of where each [[Invoked attribution]]'s source was found and what the clinician has ruled about it. It saves the search and never the check: it directs a paper's research, which still reopens and refutes the source before the line carries a sentence.
+_Avoid_: attribution cache, quote bank, saved sources
+
 **Publish**:
 Writing bytes to a durable place other people read — a path inside a git checkout, or a tracker record. It is the irreversible step a gate attaches to, which is why the trust rules on build artifacts and the PHI and branch-scope rules on tracker text both attach here and nowhere else; writing the same bytes to a build directory outside every checkout is not one, because nothing there reaches a reader. The two destinations are not equally retractable and the difference is not cosmetic: a checkout path can be rewritten before the commit that carries it, while a tracker publication cannot be withdrawn at all, since GitHub retains a pre-edit revision the API exposes no way to read or delete. This entry read *a path inside a git checkout* alone until 2026-09-01, which made **Publish route** — one command form that puts text on the tracker — a compound whose head term excluded it.
 _Avoid_: write, output, emit, save
