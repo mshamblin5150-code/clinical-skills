@@ -1132,9 +1132,8 @@ def _citation_findings(record: Record, as_of: date | None) -> list[Finding]:
                     # ``RESTATEMENT_ECHOES_CLAIM``'s trick, one level up.
                     found.append(Finding(REFUTATION_ECHOES_RESTATEMENT, claim, refutation))
             if verdict == REFUTATION_REFUTED:
-                # A **failure**, unlike ``unsourced``, which the skill routes to
-                # ``PROPOSED`` honestly. This is a false citation sitting in the
-                # ledger: the run rewrites the record or writes ``unsourced``.
+                # Remedy: see the shared sourcing rule at
+                # skills/_shared/reference/sourcing.md#a-refuted-record-fails-the-citation-not-the-claim
                 found.append(Finding(REFUTED_CITATION, claim, refutation))
 
     return found
