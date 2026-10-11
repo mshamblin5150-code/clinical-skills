@@ -15,6 +15,7 @@ import file_digest
 import discussion_reply_scan
 from test_discussion_reply_scan import Run
 from test_research_ledger import CLEAN, write_bar, replace_field, bind_tested_heading
+from prose_bind import ProseBind
 
 
 def command(main, *args):
@@ -42,6 +43,30 @@ class ClaimQualifiers(unittest.TestCase):
         status, report = self.ledger(bind_tested_heading(text))
         self.assertEqual(1, status)
         self.assertIn("qualifier-heading-missing", report)
+
+    def test_a_stated_requirement_must_remain_in_the_heading(self):
+        text = replace_field(CLEAN, "PASSAGE", 'Table 1: "all three are required" for the synthetic criteria.')
+        text = replace_field(text, "RESTATEMENT", "For the synthetic criteria, all three are required; the range includes 15,000.")
+        text += 'QUALIFIERS: "all three are required"\n'
+        status, report = self.ledger(text)
+        self.assertEqual(1, status, report)
+        self.assertRegex(report, r"qualifier-heading-missing\s+1")
+        self.assertRegex(report, r"qualifier-restatement-missing\s+0")
+        text = text.replace("## CLAIM: ", "## CLAIM: All three are required; ", 1)
+        status, report = self.ledger(bind_tested_heading(text))
+        self.assertEqual(0, status, report)
+
+    def test_the_uncompared_transcription_limit_is_declared_and_reported(self):
+        row = next((row for row in research_ledger.DECLARED_LIMITS
+                    if row.key == "researcher-return-uncompared"), None)
+        self.assertIsNotNone(row)
+        self.assertEqual(
+            "The grader cannot compare a ledger copy with the researcher's return, because the return is not retained.",
+            row.limit,
+        )
+        status, report = self.ledger(CLEAN + "QUALIFIERS: none\n")
+        self.assertEqual(0, status, report)
+        self.assertIn(row.limit, report)
 
     def test_a_dropped_restatement_or_passage_qualifier_fails(self):
         for field, kind in (("RESTATEMENT", "restatement"), ("PASSAGE", "passage")):
@@ -84,6 +109,42 @@ class ClaimQualifiers(unittest.TestCase):
 
     def test_a_dropped_record_owes_no_qualifier_field(self):
         self.assertEqual(0, self.ledger(CLEAN + "DROPPED: draft no longer claims it\n")[0])
+
+
+class SourcingCarriesADR0337(ProseBind, unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.sheet = (Path(__file__).resolve().parents[1] / "skills/_shared/reference/sourcing.md").read_text(encoding="utf-8")
+
+    def test_transcription_and_corrected_restatement_return_through_refutation(self):
+        self.assertProseIn(
+            "Correcting PASSAGE or RESTATEMENT changes the claim record's evidence and requires a fresh REFUTATION and SECOND-ROUTE before the record can certify a value.",
+            self.sheet,
+        )
+        self.assertProseIn(
+            "The orchestrator writes a researcher's returned RESTATEMENT and PASSAGE into the ledger verbatim.",
+            self.sheet,
+        )
+        self.assertProseIn(
+            "Wording the orchestrator adds is a change to the record's evidence and returns through refutation before the record can certify a value.",
+            self.sheet,
+        )
+
+    def test_stated_requirements_quantifiers_and_exclusivities_are_qualifiers(self):
+        self.assertProseIn(
+            'a requirement, a quantifier and an exclusivity the passage states (for example "all three are required", "most", "only")',
+            self.sheet,
+        )
+        self.assertProseIn(
+            "A requirement, quantifier, or exclusivity the draft attributes to the source is an added condition unless the heading itself states it, even when the record's restatement does.",
+            self.sheet,
+        )
+
+    def test_clean_verdict_requires_context_agreement_or_legacy_none(self):
+        self.assertProseIn(
+            "`VERDICT: clean` is legal only beside `CONTEXT-VERDICT: agrees`, or beside `none` on a legacy `none` run.",
+            self.sheet,
+        )
 
 
 class HeadingQualifiersAndItems(unittest.TestCase):

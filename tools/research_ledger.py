@@ -59,6 +59,7 @@ class DeclaredLimit(NamedTuple):
 
 
 DECLARED_LIMITS = (
+    DeclaredLimit("researcher-return-uncompared", "The grader cannot compare a ledger copy with the researcher's return, because the return is not retained.", EvidenceDisposition.DECLARED_READING),
     DeclaredLimit("first-search-unobserved", "A SEARCHED-FIRST line written without either search having run passes the shape check.", EvidenceDisposition.DECLARED_READING),
     DeclaredLimit("reader-remark-free-text", "A claim's folded continuation or substance-only refutation reason cannot distinguish a concealed remark from source-reading text.", EvidenceDisposition.DECLARED_READING),
     DeclaredLimit("qualifier-completeness-unverified", "Presence checks cannot establish that the researcher and refuter listed every limiting qualifier.", EvidenceDisposition.DECLARED_READING),
@@ -112,6 +113,7 @@ DECLARED_LIMITS = (
     DeclaredLimit("reply-reference-label-unchecked", "The discussion-reply path omits draft grading and cannot reject a misspelled references label.", EvidenceDisposition.BEHAVIOR),
 )
 NOT_REACHED = tuple(row.limit for row in DECLARED_LIMITS)
+RESEARCHER_RETURN_UNCOMPARED = DECLARED_LIMITS[0]
 
 # A record opens on a heading. The heading level is free, so the ledger can sit
 # under a document heading without the parser caring.
@@ -2115,6 +2117,8 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
         )
     lines.append("")
     qualifier_graded = qualifiers_required(scan.as_of)
+    lines.append(RESEARCHER_RETURN_UNCOMPARED.limit)
+    lines.append("")
     for kind, count in scan.counts:
         # Wide enough for the longest kind, so the count column stays a column.
         # ``refutation-echoes-restatement`` is 29 and overflowed 28 on the day it
