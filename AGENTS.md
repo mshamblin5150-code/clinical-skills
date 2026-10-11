@@ -173,6 +173,14 @@ bytes and supplied service text, and writes the context digest. Their completion
 file items and their shared heading read binds the draft to that digest. Without a clean pre-draft
 exit, drafting stops; without the completion row, the run is not mechanically verified.
 
+**`tools/lms_attachments.py` is a Required command for the five coursework skills.**
+Their first live-page steps follow [LMS attachments](skills/_shared/reference/lms-attachments.md).
+The command grades the sitting snapshot's keyed attachment appendix against its retained local
+copies, including an explicit `ATTACHMENTS: none` when no files were linked. Its clean exit is
+required before handoff; each scoped completion grader enables the same row with `--submission`.
+Without a clean required run, attachment identity is not mechanically verified. The complete
+ceiling belongs to `lms_attachments.DECLARED_LIMITS`.
+
 **`vitalsource-chrome` depends on its committed Codex Chrome patcher.**
 `skills/vitalsource-chrome/scripts/patch_codex_chrome.py` installs the reviewed stable top-level
 attachment and XHTML document classification into both the bundled Chrome cache and active desktop browser runtime. It preserves the
