@@ -241,6 +241,10 @@ _Avoid_: context file, memory read, background, project notes
 The account's standing statement of the clinician's projects and, for each, the places and services holding what he has said about it, plus the one memory index owed whatever the project. It changes only on his word; a run's one-off direction to search somewhere else belongs to that run's **Project context record**, not here.
 _Avoid_: project list, profile, locations file
 
+**Account profile**:
+One clinician's standing answers that no other clinician shares: their name, sites, preceptors, payer mapping, and whether and how credentials appear on a title page or a signature. A shared skill reads these and never carries them; a value the profile is silent on is asked once and recorded, never defaulted. Distinct from the **Project registry**, which records the clinician's projects and where their words about them live.
+_Avoid_: settings, config, house rule
+
 **Late gate**:
 A pre-draft gate that runs when the draft it was meant to precede already exists where that sitting's first prose lands. The gate still retrieves and records, and the late order is a finding only the clinician's confirmed word clears, never a reason to delete the draft. A draft removed before the gate ran, written somewhere else, or held in the conversation is not seen, so a gate that is not late is not proof the run looked first.
 _Avoid_: out-of-order run, backfilled record, retroactive gate
