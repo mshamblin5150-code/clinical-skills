@@ -44,7 +44,7 @@ Send a fresh **Planter** context the final artifact and only the canonical model
 pairs. It must not be the artifact's author or the Voice reader. The brief says to rewrite exactly
 one sentence toward one pair's generic half without copying that half verbatim. It writes:
 
-- `voice-read-planted.txt`: the full grader-owned voice surface as UTF-8 with LF line endings and
+- `voice-read-planted.txt`: the full grader-owned voice surface as UTF-8 with LF line endings by convention and
   only that sentence changed.
   Markdown uses the complete file text. A Word assignment uses its nonempty document paragraphs in
   document order, joined by line feeds. A deck uses every slide's readable face text in slide order,
@@ -64,7 +64,8 @@ one sentence toward one pair's generic half without copying that half verbatim. 
 ```
 
 Keep this record from the Voice reader. The grader reconstructs the planted copy from the real
-surface and these two sentence strings; any other byte change fails.
+surface and these two sentence strings; any other text change fails.
+The comparison ignores line endings while every digest binds raw bytes.
 The planter does not change a sentence quoted for a supplied item; the supplied-item verdict must
 bind to the real draft as well as the planted copy.
 

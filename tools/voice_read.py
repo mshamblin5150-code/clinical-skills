@@ -205,6 +205,10 @@ class ReadResult(NamedTuple):
     report: str
 
 
+def _normalize_line_endings(text: str) -> str:
+    return text.replace("\r\n", "\n").replace("\r", "\n")
+
+
 def draft_surface(
     artifacts: tuple[tuple[Path, str], ...],
     *,
@@ -218,8 +222,8 @@ def draft_surface(
         digest = _digest_text(text)
     return DraftSurface(
         sha256=digest,
-        text=text,
-        plantable_text=text if plantable_text is None else plantable_text,
+        text=_normalize_line_endings(text),
+        plantable_text=_normalize_line_endings(text if plantable_text is None else plantable_text),
     )
 
 
@@ -527,7 +531,7 @@ def _voice_result(
     planted_path = records / PLANTED_COPY_NAME
     try:
         planted_bytes = planted_path.read_bytes()
-        planted = planted_bytes.decode("utf-8")
+        planted = _normalize_line_endings(planted_bytes.decode("utf-8"))
     except (OSError, UnicodeError):
         return ReadResult(True, False, "finding - planted copy is missing or unreadable")
     planted_digest = hashlib.sha256(planted_bytes).hexdigest()
