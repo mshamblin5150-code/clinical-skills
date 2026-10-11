@@ -30,7 +30,7 @@ function Border-LineStyle($Borders, [int]$Index) {
     }
 }
 
-function Paragraph-Record($Paragraph, [int]$Index) {
+function Paragraph-Record($Paragraph, [int]$Index, [bool]$MeasurePosition = $false) {
     $range = $Paragraph.Range
     $format = $Paragraph.Format
     $style = $range.Style
@@ -50,6 +50,8 @@ function Paragraph-Record($Paragraph, [int]$Index) {
         outline_level = [int]$format.OutlineLevel
         font_name = $range.Font.Name
         font_size_points = [double]$range.Font.Size
+        font_color = [int]$range.Font.Color
+        vertical_position_points = $(if ($MeasurePosition) { [double]$range.Information(6) } else { $null })
         bold = [int]$range.Font.Bold
         italic = [int]$range.Font.Italic
     }
@@ -106,12 +108,22 @@ try {
             $document.Repaginate()
             $paragraphs = @()
             for ($i = 1; $i -le $document.Paragraphs.Count; $i++) {
-                $paragraphs += Paragraph-Record $document.Paragraphs.Item($i) $i
+                $paragraphs += Paragraph-Record $document.Paragraphs.Item($i) $i ($file.BaseName -like "assignment-*")
             }
 
             $tables = @()
             for ($i = 1; $i -le $document.Tables.Count; $i++) {
                 $tables += Table-Record $document.Tables.Item($i) $i
+            }
+
+            $inlineShapes = @()
+            foreach ($shape in $document.InlineShapes) {
+                $inlineShapes += [pscustomobject]@{
+                    width_points = [double]$shape.Width
+                    height_points = [double]$shape.Height
+                    alt_text = $shape.AlternativeText
+                    page = [int]$shape.Range.Information($WdActiveEndPageNumber)
+                }
             }
 
             $section = $document.Sections.Item(1)
@@ -136,6 +148,7 @@ try {
                 }
                 paragraphs = $paragraphs
                 tables = $tables
+                inline_shapes = $inlineShapes
                 header = [pscustomobject]@{
                     exists = [int]$header.Exists
                     alignment = [int]$header.Range.ParagraphFormat.Alignment

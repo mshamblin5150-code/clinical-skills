@@ -54,6 +54,20 @@ standing rule 6 governs independent checks and cleanup.
 
 Before searching for or reading a Faculty file or Classmate file, follow [LMS attachments](../_shared/reference/lms-attachments.md) and record the sitting's attachment appendix, including when no files are linked.
 
+Before either branch builds a title page or title slide, read `TITLE-PAGE-CREDENTIALS` from
+the account's `scratch/medatrax-profile.md`; `python tools/title_page_credentials.py` reads that
+setting. A silent or ambiguous profile stops title-page production: ask once whether to include
+credentials and their exact text, then record the answer with that command's `--record` option
+(use `none` to omit the line). Reuse the saved answer for both DOCX and deck metadata. This
+account choice governs credentials beside the APA rule in [apa7.md](../_shared/reference/apa7.md).
+If duplicate setting lines made the profile ambiguous, resolve those lines to one answered
+`TITLE-PAGE-CREDENTIALS` line before rerunning the command; `--record` refuses duplicates rather
+than choosing which prior answer to replace.
+
+When a Word artifact carries a figure, the run chooses how to make its image and records the
+method. The [DOCX branch](references/docx.md) owns the supplied-image fields, generative-image
+credit, and the visual reader's exact label comparison.
+
 Read the assignment prompt, point value, due date, submission type, upload types, linked examples, rubric, and every
 stated artifact rule. Follow links and report access failures rather than treating an unread link
 as evidence. Open the course syllabus and read any assignment-wide requirements. The assignment

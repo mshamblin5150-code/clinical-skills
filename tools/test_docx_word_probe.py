@@ -6,10 +6,83 @@ import contextlib
 import io
 import json
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 import docx_word_probe
 import docx_write
+import assignment_docx
+
+
+class AssignmentWordCalibration(unittest.TestCase):
+    RECORD = Path(__file__).resolve().parents[1] / "skills/course-assignment/references/assignment-word-calibration.json"
+
+    def test_current_assignment_shapes_remain_inside_the_dated_word_measurement(self):
+        record = json.loads(self.RECORD.read_text(encoding="utf-8"))
+        self.assertEqual(set(record["rows"]), set(docx_word_probe.ASSIGNMENT_KEYS))
+        self.assertEqual(docx_word_probe.assignment_renderer_shapes(),
+                         {key: row["renderer_shape"] for key, row in record["rows"].items()},
+                         "assignment shapes left the measured set; retake docx_word_probe.py --assignment-word")
+        for row in record["rows"].values():
+            self.assertEqual(row["instrument"], "Microsoft Word COM")
+            self.assertTrue(row["measured_on"])
+            self.assertTrue(row["word_version"])
+            self.assertTrue(row["word_build"])
+
+    def test_word_observed_title_caption_and_supplied_image_as_required(self):
+        rows = json.loads(self.RECORD.read_text(encoding="utf-8"))["rows"]
+        for key in ("assignment-title-page", "assignment-title-page-no-credentials"):
+            reading = rows[key]["word_observation"]
+            paragraphs = reading["paragraphs"]
+            titles = [p for p in paragraphs if p["style"] == "Title"]
+            self.assertEqual(len(titles), 2)
+            self.assertEqual([p["page"] for p in titles], [1, 2])
+            for title in titles:
+                self.assertEqual((title["font_size_points"], title["font_color"], title["bold"]), (12, 0, -1))
+            self.assertEqual([p["text"] for p in paragraphs[:3]], ["", "", ""])
+            self.assertGreater(titles[0]["vertical_position_points"], reading["margins_points"]["top"])
+            author = next(p for p in paragraphs if p["style"] == "Subtitle")
+            self.assertEqual((author["font_size_points"], author["font_color"], author["bold"]), (12, 0, 0))
+        omitted = rows["assignment-title-page-no-credentials"]["word_observation"]["paragraphs"]
+        self.assertFalse(any("CREDENTIAL ONE" in p["text"] for p in omitted))
+        captions = rows["assignment-caption"]["word_observation"]["paragraphs"]
+        self.assertEqual([p["text"] for p in captions], ["Figure 1", "Intent, Coordination, and Feedback"])
+        self.assertEqual([(p["bold"], p["italic"]) for p in captions], [(-1, 0), (0, -1)])
+        self.assertTrue(all(p["font_size_points"] == 12 and p["font_color"] == 0 for p in captions))
+        image, = rows["assignment-figure"]["word_observation"]["inline_shapes"]
+        self.assertEqual(image["width_points"], 468)
+        self.assertAlmostEqual(image["height_points"], 135.2, places=3)
+        self.assertEqual(image["alt_text"], "Generic system relationship diagram")
+        note = rows["assignment-figure-note"]["word_observation"]["paragraphs"][-1]
+        self.assertEqual(note["text"], "Note. Synthetic figure created with Example Tool (Example, 2026).")
+        self.assertEqual((note["font_size_points"], note["font_color"]), (12, 0))
+
+    def test_typography_mutation_leaves_the_measured_set(self):
+        expected = docx_word_probe.assignment_renderer_shapes()
+        original = assignment_docx.parts
+        def changed(spec):
+            package = original(spec)
+            package["word/styles.xml"] = package["word/styles.xml"].replace(
+                '<w:color w:val="000000"/>', '<w:color w:val="30343B"/>')
+            return package
+        with patch.object(assignment_docx, "parts", side_effect=changed):
+            mutated = docx_word_probe.assignment_renderer_shapes()
+        self.assertNotEqual(expected["assignment-title-page"], mutated["assignment-title-page"])
+        self.assertNotEqual(expected["assignment-caption"], mutated["assignment-caption"])
+
+    def test_a_mutation_confined_to_figure_notes_leaves_the_measured_set(self):
+        expected = docx_word_probe.assignment_renderer_shapes()
+        original = assignment_docx.parts
+        def changed(spec):
+            package = original(spec)
+            if spec.figure_note:
+                package["word/document.xml"] = package["word/document.xml"].replace(
+                    '<w:rPr><w:i/></w:rPr><w:t xml:space="preserve">Note.',
+                    '<w:t xml:space="preserve">Note.')
+            return package
+        with patch.object(assignment_docx, "parts", side_effect=changed):
+            mutated = docx_word_probe.assignment_renderer_shapes()
+        self.assertNotEqual(expected["assignment-figure-note"], mutated["assignment-figure-note"])
 
 
 class EverySectionSixRowHasACalibrationIdentity(unittest.TestCase):

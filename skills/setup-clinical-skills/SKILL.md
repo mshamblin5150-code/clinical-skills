@@ -107,6 +107,14 @@ absent answer never manufactures the waiver.
 
 ### 3. Program and hours
 
+**Title-page credentials.** Ask whether Word title pages and deck title slides should carry a
+credential line and, if yes, its exact text. APA ordinarily omits degrees and licenses from the
+byline; this account choice is a deliberate departure. Record `TITLE-PAGE-CREDENTIALS: none` or
+`TITLE-PAGE-CREDENTIALS: <exact line>` in `scratch/medatrax-profile.md`. Reuse a saved answer on
+later runs. This choice governs title pages only; clinical signature and prescribing roles have
+their own settings. `python tools/title_page_credentials.py --record "<answer>"` records the
+choice without changing other profile fields; `none` is the explicit omission answer.
+
 Ask, and record the answers rather than deriving them:
 
 - Which courses, and the documented hour requirement for each. **Medatrax's own Objectives page is not authoritative** — it was stale by 100 hours on one account. The program's own hours breakdown is.

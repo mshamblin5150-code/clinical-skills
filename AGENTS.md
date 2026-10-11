@@ -144,6 +144,12 @@ the current dump to that accumulated manifest population and applies the signed 
 window, waived only by the account answer in the profile.
 
 **`course-assignment` depends on committed artifact adapters and graders.**
+`tools/title_page_credentials.py` is a Named command for the shared account title-page choice:
+it reads the saved line or records the clinician's answer; the skill owns asking when the profile
+is silent. `tools/docx_word_probe.py` is a Named maintainer-only calibration command, never a
+consumer Word dependency. Its assignment mode measures the producer's title, caption, figure,
+and figure-note shapes once; the suite compares those shapes with the dated record without Office.
+
 `tools/course_assignment_scan.py` dispatches the signed artifact to `tools/deck_scan.py` or
 `tools/assignment_docx_scan.py`. `tools/deck_render.py` retains PowerPoint's page-faithful export
 and slide pixels; `tools/assignment_docx.py` produces the rich Word package and

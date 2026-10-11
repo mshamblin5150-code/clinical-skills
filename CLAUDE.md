@@ -1348,6 +1348,19 @@ Covered by `tools/test_peer_critique_scan.py` and `tools/test_peer_critique_skil
 
 ### Course assignment artifact grading
 
+`title_page_credentials.py` reads or records the account's `TITLE-PAGE-CREDENTIALS` choice in the
+owning checkout's profile. Run `python tools/title_page_credentials.py` to read it or
+`python tools/title_page_credentials.py --record "<answer>"` after the clinician answers; `none`
+omits the line. Exit 0 means a unique saved answer was read, and exit 2 means an unread profile,
+silent or duplicate setting, or invalid answer. It preserves other profile fields, refuses
+duplicates instead of selecting one, and applies no APA default. The course-assignment workflow
+uses the answer for Word title pages and deck title slides.
+
+The assignment family in `docx_word_probe.py --assignment-word` measures the producer's title,
+caption, embedded figure, and figure-note shapes with installed Word. Its dated record is
+`skills/course-assignment/references/assignment-word-calibration.json`, guarded by the Word-free
+shape equality tests in `test_docx_word_probe.py`; full `--word` includes the same family.
+
 `course-assignment` produces one PowerPoint deck or rich Word document under a discriminated signed
 bar. `course_assignment_scan.py` reads the common envelope once and dispatches to the deep deck or
 DOCX grader; direct deck commands remain accepted for existing runs.

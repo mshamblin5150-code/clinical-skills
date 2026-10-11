@@ -42,18 +42,34 @@ Before drafting, complete the main skill's supplied-voice capture and both pre-d
 `--submission <submission-key>`. Read only the
 canonical path that command records under the main skill's voice rule. Build the document with
 `tools/assignment_docx.py` or its narrow `AssignmentSpec` interface, supplying title-page metadata
-from the signed run rather than source-code constants. The title page supports a long credential
-line as one fitted line and instructor credentials without embedding personal data in a fixture.
+from the signed run rather than source-code constants. Set `title_page.credentials` to the
+account's `TITLE-PAGE-CREDENTIALS` answer, or an empty string for `none`; a silent profile stops
+once under the main skill's title-page rule. APA omits credentials from the byline, and the
+account setting records the clinician's deliberate departure. A long chosen line fits on one
+line. Instructor metadata comes from the signed run.
 The document uses native Word `Title`, heading, caption, and reference styles; running page numbers;
-restrained graphite and blue accents; and, only where the assignment warrants them, narrative
+black text at text size; and, only where the assignment warrants them, narrative
 command relationships and an inline figure with a caption and alt text. A spec that omits
-`command_rows`, or both `relationship_labels` and `figure_alt_text`, writes no Command Matrix or no
-System Relationships figure; supplying one figure field without the other is refused. The graded body follows the shared `narrative-body` rule in
+`command_rows`, or all of `figure_image`, `figure_title`, and `figure_alt_text`, writes no Command
+Matrix or figure. Supply all three figure fields together, with a PNG or JPEG file at its own
+proportions and a title-case figure title. A relative image path resolves beside the JSON spec.
+`relationship_labels` is retired and refused with the replacement field names. The run's own
+prose calls out the figure; the producer adds no explanation. The caption is a bold number line
+then an italic title line above the image. The graded body follows the shared `narrative-body` rule in
 [style.md](../../_shared/reference/style.md). The visual direction is APA-dominant: no trademarked insignia, brochure
 treatment, or invented organizational identity.
 
-Write the selected metadata, sections, command rows, relationship labels, references, and figure
-alt text to a private run-unique JSON specification under
+**Record the image method** in the run's `rendered.md`: image generation, a script, an application
+export, or a clinician-supplied drawing. Whatever made the image, the DOCX visual reader confirms
+every label in the image matches the caption and the text exactly. For a generatively made image,
+read [APA's published AI reference guidance](https://apastyle.apa.org/blog/cite-generative-ai-references)
+at build time, record that reading, and supply `figure_note` with the required disclosure and
+credit below the image, plus the matching reference. APA's guidance read 2026-10-11 says to
+disclose AI use in a figure note and cite the tool; the run words its credit from its current
+reading rather than recalling a template. `figure_note` is optional for other methods.
+
+Write the selected metadata, sections, command rows, supplied image path and title, references,
+figure alt text, and any figure note to a private run-unique JSON specification under
 `<run-directory>/writer/<submission-key>/`, then run:
 
 ```bash
@@ -66,6 +82,13 @@ sources stay under the run directory. The raw `.docx` is canonical after it is w
 edit changes its identity and requires a new retained render pass and a fresh review.
 The producer refuses an existing document unless `--force` is explicit; recover any human edit
 into the authoritative specification before forcing a replacement.
+
+The maintainer-only `python tools/docx_word_probe.py --assignment-word` measures the assignment
+title pages, caption, and supplied image with installed Word. The dated observations and covered
+shapes are retained in [assignment-word-calibration.json](assignment-word-calibration.json);
+`test_docx_word_probe.py` compares the producer's current shapes with that record without opening
+Office. A changed shape requires a new Word measurement under ADR 0008. This calibration supports
+the producer's formatting, and the per-run visual reader still checks each supplied image.
 
 ## Grade the DOCX package
 
