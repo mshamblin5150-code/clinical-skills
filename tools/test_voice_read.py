@@ -207,6 +207,64 @@ class CompletionGate(unittest.TestCase):
             ),
         )
 
+    def line_ending_artifacts(self, draft_ending: str, planted_ending: str) -> Path:
+        self.draft = "# Draft\n\n- This is the original sentence.\n- Another sentence remains.\n"
+        self.planted = "# Draft\n\n- This is a generic sentence.\n- Another sentence remains.\n"
+        draft_path = self.root / "draft.md"
+        draft_path.write_bytes(self.draft.replace("\n", draft_ending).encode("utf-8"))
+        planted_path = self.records / voice_read.PLANTED_COPY_NAME
+        planted_path.write_bytes(self.planted.replace("\n", planted_ending).encode("utf-8"))
+        for name in (voice_read.PLANTER_RECORD_NAME, voice_read.READER_RECORD_NAME):
+            payload = self.payload(name)
+            payload["draft_sha256"] = hashlib.sha256(draft_path.read_bytes()).hexdigest()
+            payload["planted_sha256"] = hashlib.sha256(planted_path.read_bytes()).hexdigest()
+            self.write_payload(name, payload)
+        reader = self.payload(voice_read.READER_RECORD_NAME)
+        reader["answers"][1] = {  # type: ignore[index]
+            "pair_id": "1b", "quote": "Another sentence remains.", "resemblance": "his",
+        }
+        self.write_payload(voice_read.READER_RECORD_NAME, reader)
+        return draft_path
+
+    def grade_artifact(self, draft_path: Path, *, decode_bytes: bool) -> voice_read.CompletionGate:
+        text = (
+            draft_path.read_bytes().decode("utf-8", errors="replace")
+            if decode_bytes else draft_path.read_text(encoding="utf-8")
+        )
+        surface = voice_read.draft_surface(((draft_path, text),), plantable_text=text)
+        with mock.patch.object(repo_root, "canonical_voice_model", return_value=self.resolved):
+            return voice_read.completion_gate(self.run, "submission", surface)
+
+    def test_crlf_or_cr_draft_with_lf_plant_is_clean_through_both_read_shapes(self) -> None:
+        for ending in ("\r\n", "\r"):
+            for decode_bytes in (False, True):
+                with self.subTest(ending=repr(ending), decode_bytes=decode_bytes):
+                    draft_path = self.line_ending_artifacts(ending, "\n")
+                    result = self.grade_artifact(draft_path, decode_bytes=decode_bytes)
+                    self.assertFalse(result.finding, result.reports)
+                    self.assertFalse(result.coverage, result.reports)
+
+    def test_crlf_or_cr_plant_with_lf_draft_is_clean(self) -> None:
+        for ending in ("\r\n", "\r"):
+            with self.subTest(ending=repr(ending)):
+                draft_path = self.line_ending_artifacts("\n", ending)
+                result = self.grade_artifact(draft_path, decode_bytes=True)
+                self.assertFalse(result.finding, result.reports)
+                self.assertFalse(result.coverage, result.reports)
+
+    def test_draft_byte_changes_after_the_read_expire_it(self) -> None:
+        for changed in (
+            self.draft.replace("original", "revised"),
+            "# Draft\r\n\r\n- This is the original sentence.\r\n- Another sentence remains.\r\n",
+        ):
+            with self.subTest(changed=changed):
+                draft_path = self.line_ending_artifacts("\n", "\n")
+                self.assertFalse(self.grade_artifact(draft_path, decode_bytes=True).finding)
+                draft_path.write_bytes(changed.encode("utf-8"))
+                result = self.grade_artifact(draft_path, decode_bytes=True)
+                self.assertTrue(result.finding, result.reports)
+                self.assertIn("draft digest moved since the read", result.reports[0])
+
     def test_a_supplied_image_kept_whole_grades_clean(self) -> None:
         self.record_supplied_item(
             source_quote="They bounce until they bounce off the cliff.",
