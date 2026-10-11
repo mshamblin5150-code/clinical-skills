@@ -329,6 +329,9 @@ A sentence stating what the classmate wrote, found, or planned is an **Item desc
 **Draft order**. Its `ITEM:` may name its own key's classmate files or other opened items;
 naming a classmate file declared only under another submission key is a finding, on the
 heading read's existing Item-description cutoff.
+When `PROJECT-CONTEXT` is `none`, these declarations still owe their opened files: add
+their read locations through `PROJECT-SEARCH`. No registered project places are owed in
+that branch; file hashing and the go-ahead recheck apply to the declared retrieval.
 
 The memory index and every registered project place are owed. Each `PROJECT-SEARCH` adds or
 constrains one owed place; a direction given later amends and re-confirms the header before drafting.

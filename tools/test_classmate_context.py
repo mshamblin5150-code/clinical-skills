@@ -48,6 +48,19 @@ class ClassmateContextCommand(ProjectContextFixture):
         self.assertEqual(status, 1, report)
         self.assertIn("CLASSMATE-POST", report)
 
+    def test_no_project_still_opens_and_rechecks_classmate_sources(self):
+        self.change("PROJECT-CONTEXT: Atlas", "PROJECT-CONTEXT: none - classmate critique concerns no registered project")
+        self.change(f"## PLACE: {self.memory}\nSTATE: read\nOPENED: {self.memory}\n")
+        self.registry.unlink()
+        status, report = self.command()
+        self.assertEqual(status, 0, report)
+        status, report = self.command("--go-ahead", "response-maren.md")
+        self.assertEqual(status, 0, report)
+        self.post.write_text("Changed classmate post.\n", encoding="utf-8")
+        status, report = self.command("--go-ahead", "response-maren.md")
+        self.assertEqual(status, 2, report)
+        self.assertIn("file item moved", report)
+
     def test_positive_control_writes_and_rechecks_both_keys(self):
         for key in ("response-maren.md", "response-quill.md"):
             status, report = self.command("--write", "--submission", key)

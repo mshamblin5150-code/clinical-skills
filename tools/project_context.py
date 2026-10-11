@@ -430,10 +430,11 @@ def other_classmate_items(run: Path, submission: str) -> tuple[str, ...]:
             continue
         path = Path(target).expanduser().resolve()
         (own if key == submission else other).add(path)
-    return tuple(_opened(value).item for entry in record.entries
-                 for value in entry.values("OPENED")
-                 if _opened(value).item.casefold() != "none"
-                 and _file_path(entry, _opened(value)) in other - own)
+    excluded = other - own
+    return tuple(opened.item for entry in record.entries
+                 for value in entry.values("OPENED") for opened in (_opened(value),)
+                 if opened.item.casefold() != "none"
+                 and _file_path(entry, opened) in excluded)
 
 
 def _case_research_error(record: Record, *, recheck_files: bool) -> str | None:
@@ -511,16 +512,18 @@ def _waivers(record: Record) -> tuple[set[str], list[str]]:
 def _owed_places(
     registry: Registry, project_name: str, searches: Mapping[str, str]
 ) -> tuple[OwedPlace, ...]:
-    project = registry.projects.get(project_name)
-    if project is None:
-        raise RegistryCoverage(
-            "declared project is not registered; ask the clinician to register it or confirm none"
-        )
-    ordered: dict[str, OwedPlace] = {
-        registry.memory_index: OwedPlace(registry.memory_index, "location"),
-        **{path: OwedPlace(path, "location") for path in project.locations},
-        **{service: OwedPlace(service, "service") for service in project.services},
-    }
+    ordered: dict[str, OwedPlace] = {}
+    if project_name != "none":
+        project = registry.projects.get(project_name)
+        if project is None:
+            raise RegistryCoverage(
+                "declared project is not registered; ask the clinician to register it or confirm none"
+            )
+        ordered.update({
+            registry.memory_index: OwedPlace(registry.memory_index, "location"),
+            **{path: OwedPlace(path, "location") for path in project.locations},
+            **{service: OwedPlace(service, "service") for service in project.services},
+        })
     for target, terms in searches.items():
         if _URL.match(target):
             raise RegistryFinding("a service route must be named, never written as a URL")
@@ -741,7 +744,7 @@ def _write_context_record(
     if errors:
         return GateResult(1, "project context: finding - " + "; ".join(errors))
     assert project_name is not None
-    if project_name == "none":
+    if project_name == "none" and not any(record.values(name) for name in CLASSMATE_FIELDS):
         if searches or waivers or record.entries:
             return GateResult(1, "project context: finding - a none run cannot owe places")
         digest = _context_digest([], record)
@@ -749,10 +752,10 @@ def _write_context_record(
         return GateResult(0, "; ".join(filter(None, ("project context: clean; waived places: 0", classmate_report))), digest=digest)
 
     registry_path = repo_root.project_registry()
-    if not registry_path.is_file():
+    if project_name != "none" and not registry_path.is_file():
         return GateResult(2, "project context NOT SCANNED - project registry is unavailable")
     try:
-        registry = read_registry(registry_path.read_text(encoding="utf-8"))
+        registry = Registry("", MappingProxyType({})) if project_name == "none" else read_registry(registry_path.read_text(encoding="utf-8"))
         owed = _owed_places(registry, project_name, searches)
     except RegistryCoverage as failure:
         return GateResult(2, f"project context NOT SCANNED - {failure}")
@@ -979,7 +982,7 @@ def _context_completion_gate(run: Path, submission: str | None, *, recheck_files
     shape_errors.extend(waiver_errors)
     if shape_errors:
         return CompletionGate(True, False, "; ".join(filter(None, (f"{EXPECTED_ROW}: finding - record shape is invalid", classmate_report))))
-    if declaration == "none":
+    if declaration == "none" and not any(record.values(name) for name in CLASSMATE_FIELDS):
         clean = digest == _context_digest([], record) and not record.entries
         return CompletionGate(
             not clean,
@@ -988,14 +991,14 @@ def _context_completion_gate(run: Path, submission: str | None, *, recheck_files
         )
     assert declaration is not None
     registry_path = repo_root.project_registry()
-    if not registry_path.is_file():
+    if declaration != "none" and not registry_path.is_file():
         return CompletionGate(
             False,
             True,
             f"{EXPECTED_ROW}: not scanned - project registry is unavailable",
         )
     try:
-        registry = read_registry(registry_path.read_text(encoding="utf-8"))
+        registry = Registry("", MappingProxyType({})) if declaration == "none" else read_registry(registry_path.read_text(encoding="utf-8"))
         owed = _owed_places(registry, declaration, searches)
     except RegistryCoverage:
         return CompletionGate(
