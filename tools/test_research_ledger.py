@@ -2456,10 +2456,10 @@ class TheSkillSaysWhatThisChecks(ProseBind, unittest.TestCase):
         self.assertNotIn("A clean scan is not a sourced document", self._flat())
 
     def test_the_skill_scopes_the_evidence_row_to_uptodate(self):
-        """The scope is companion-evidence membership, so a reader who loses it
+        """The scope is Evidence store membership, so a reader who loses it
         reads the row as firing on any source the dump lacks, which is
         ``skills/practicum-case-study/SKILL.md`` step 3's ordinary case."""
-        self.assertIn("required supplied-source set", self._flat())
+        self.assertIn("Evidence store", self._flat())
         self.assertIn("is left alone", self._flat())
 
     def test_the_skill_says_a_referred_to_topic_is_not_a_defect(self):
@@ -3993,7 +3993,7 @@ STATED-EXPIRY: none stated
 class AnUpToDateEntryNamesItsTopic(unittest.TestCase):
     """The title element of §2's published form, and nothing looser.
 
-    Scoped to UpToDate because supplied topics belong in the companion evidence;
+    Scoped to UpToDate because cited topics must belong in the Evidence store;
     opening one through another route does not put it in that set. A journal
     article the dump lacks is
     ``skills/practicum-case-study/SKILL.md`` step 3's ordinary case.

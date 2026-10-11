@@ -532,7 +532,7 @@ body is drafted.** List the clinical claims
 the document is going to rest on — every differential's discriminator, every threshold, every dose,
 every number said out loud to the patient; read the canonical voice model's stated principles and invoked sources
 for the [invoked-attribution look-ahead](../_shared/reference/sourcing.md#invoked-attributions),
-and strike the ones the companion evidence, the USPSTF
+and strike the ones the Case research, the USPSTF
 table, the threshold sheets or the guideline corpus already cover. **What is left is the work of
 this step**, and *What none of that reaches gets researched, not deferred* above is the rule it
 applies.
@@ -540,7 +540,7 @@ applies.
 **Every drug you are going to prescribe is one of those claims, and since
 [#289](https://github.com/mshamblin5150-code/clinical-skills/issues/289) that is a rule rather than
 a reading.** The run that produced the Module 1 submission recorded in its own ledger that the
-treatment topic was missing from the companion evidence, and then wrote a specific dose into a
+treatment topic was missing from the Case research, and then wrote a specific dose into a
 prescription table citing it. **A prescription is a dose**, and it was the one claim in that
 document nothing sourced: this command graded the six records that existed, `tools/reference_scan.py`
 checked that the entry was well formed and that the citation resolved to it, `tools/checks_ledger.py`
@@ -784,7 +784,7 @@ precedent is that a cut point is grounded where the corpus offers one and refuse
 actually handed** -- #298's row, ruled by
 the clinician 2026-08-20, grades what the run says it read:
 
-First ingest that deliberately supplied file into the shared account-owned store. Use a stable
+First ingest that deliberately filed file into the shared account-owned store. Use a stable
 lowercase dump id naming the course, module, and receipt date; never point the ingest command at a
 directory or let the reporting sweep choose a file:
 
@@ -808,16 +808,17 @@ python tools/research_ledger.py <claims-ledger> --evidence <the evidence dump>
 
 | The citation | Why |
 | --- | --- |
-| an UpToDate topic cited here that no accumulated manifest carries | the filed store is the required source set; ingest a used account topic as a supplement dump before drafting; opening it alone does not put it in that set |
+| an UpToDate topic cited here that no accumulated manifest carries | file the cited topic in the Evidence store so its masthead, last-update year, and review currency can be checked against the stored copy; ingest a used account topic as a supplement dump before drafting |
 | an UpToDate topic whose literature-review month has left the signed two-year window | re-read it while the profile says the clinician has an account; `UPTODATE-ACCOUNT: no` waives this row without pretending the old date became current |
 | an UpToDate entry whose author surnames, author order, author count, or year disagrees with the stored topic masthead and last-updated date | the accumulated manifest already holds the authoritative masthead fields; initials are not compared, and the entry's surname decides a multi-word trailing match |
 | an entry whose locator names an UpToDate topic and that states no database element | the row above reads a topic only from the database element, so without this one an entry missing it escapes the check and the coverage count together |
 
-**The grounding is companion-evidence membership, not whether some route can open the page.** The
+**The grounding is checkability in the Evidence store.** A cited UpToDate topic must be filed so
+its masthead, last-update year, and review currency can be checked against the stored copy. The
 Authenticated route may reach an UpToDate topic outside the accumulated manifests. File each topic
 used as a supplement dump through `uptodate_store.py ingest` before drafting; opening it alone does
-not put it in the source set. Supplied compilations and these supplement dumps accumulate across
-courses. This accumulated manifest population is the **required supplied-source set**. **A journal article, a society guideline or a government page the
+not put it in the store. The clinician's Case research and his account's pulls accumulate across
+courses in the **Evidence store**. **A journal article, a society guideline or a government page the
 dump lacks is left alone**, because that is this step's ordinary case: a claim record only exists
 because the evidence did *not* cover the claim, and a row firing on those would refuse the correct
 outcome.
@@ -1032,7 +1033,7 @@ It cannot carry a sentence of the draft: every finding it prints is a reference 
 date, or a cited author's surname and year. A test pins that rather than the docstring asserting it.
 
 `reference_scan.py` reaches every row in the table above except one: it cannot tell whether an
-UpToDate year is the topic's last-update year because it never sees the companion evidence.
+UpToDate year is the topic's last-update year because it never sees the Case research.
 `research_ledger.py --evidence` now grades that year, and the entry's author count, order, and
 surnames, against the stored topic manifest. Neither command establishes whether a source exists or
 says what the sentence citing it says. **A clean scan is not a checked reference list.**
@@ -1157,7 +1158,7 @@ rows whose verdict comes from a command.
 | --- | --- | --- | --- |
 | the house style | the whole draft, section by section | `tools/case_study_scan.py` below — mechanical, so it is a command and not an agent | no |
 | the reference list | the list, and every citation in the body | `tools/reference_scan.py`, step 7 — mechanical, so it is a command and not an agent | no |
-| the reference list, the part no command reaches | the entries against the companion evidence | `research_ledger.py` grades a stored UpToDate topic's author surnames, author order, author count, and last-update year; a reader checks authors and years for every other source, whether any entry carries a **retrieval date that does not belong** — a guideline, a statement or a textbook takes none and `reference_scan.py` catches that only on a DOI — the rule is [apa7.md](../_shared/reference/apa7.md) §4 and how far the commands reach is §7 — whether each source exists and says what the sentence citing it says, and, under [sourcing.md](../_shared/reference/sourcing.md), whether opening each locator confirms that it identifies the work the entry describes, including whole book versus chapter and advance article versus final issue | no |
+| the reference list, the part no command reaches | the entries against the Case research | `research_ledger.py` grades a stored UpToDate topic's author surnames, author order, author count, and last-update year; a reader checks authors and years for every other source, whether any entry carries a **retrieval date that does not belong** — a guideline, a statement or a textbook takes none and `reference_scan.py` catches that only on a DOI — the rule is [apa7.md](../_shared/reference/apa7.md) §4 and how far the commands reach is §7 — whether each source exists and says what the sentence citing it says, and, under [sourcing.md](../_shared/reference/sourcing.md), whether opening each locator confirms that it identifies the work the entry describes, including whole book versus chapter and advance article versus final issue | no |
 | differential ordering | the numbered differential and the intake block | a reader: is `1.` defensible as what would kill first, and does a patient of childbearing age with abdominal or pelvic pain have the pregnancy-related emergencies ranked first — *Ordering is the graded axis* above | yes |
 | MDM completeness | every MDM entry | a reader: does each entry name a discriminator from **this** case rather than summarizing the disease, and does each carry a citation | yes |
 | the Rx blocks | the Plan and every prescription table | a reader: every drug in the Plan has a table — **including any drug row that welds a second drug into it**, which is a drug in the Plan without its own table and is a shape no command here reaches — every `Sig` ends in an indication, and every table has the prose block under it carrying class, contraindications, monitoring, adverse effects and guideline support | no |

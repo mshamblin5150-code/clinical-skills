@@ -362,7 +362,7 @@ contraindications, monitoring, adverse effects, and the guideline supporting the
 
 **The guideline sentence carries a placeholder rather than a citation, and that is the one thing in
 this example that is not a style choice.** It named a specific CDC guideline until
-[#289](https://github.com/mshamblin5150-code/clinical-skills/issues/289), and the companion evidence
+[#289](https://github.com/mshamblin5150-code/clinical-skills/issues/289), and the Case research
 does not carry that topic — it cross-references it repeatedly and carries none of its body — so the
 worked example was teaching a run to cite a source it had never read. **How many times is measured
 on #289 and deliberately not restated here**: it is a count over a dump under `scratch/`, so nothing
