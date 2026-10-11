@@ -3,13 +3,11 @@
 
 from __future__ import annotations
 
-import binascii
 import json
 import os
 import struct
 import sys
 import zipfile
-import zlib
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -51,14 +49,16 @@ class AssignmentSpec:
     title_page: TitlePage
     sections: tuple[Section, ...]
     command_rows: tuple[CommandRow, ...]
-    relationship_labels: tuple[str, ...]
+    figure_image: str
     references: tuple[str, ...]
     figure_alt_text: str
+    figure_title: str = ""
+    figure_note: str = ""
 
     @property
     def has_figure(self) -> bool:
-        """The relationship figure is optional; a spec either carries all of it or none."""
-        return bool(self.relationship_labels)
+        """A figure is supplied by the run, or omitted."""
+        return bool(self.figure_image)
 
 
 def fixture_spec() -> AssignmentSpec:
@@ -88,11 +88,12 @@ def fixture_spec() -> AssignmentSpec:
             CommandRow("Coordinator", "Aligns work", "Resolves dependencies"),
             CommandRow("Team", "Executes work", "Escalates constraints"),
         ),
-        relationship_labels=("Intent", "Coordination", "Feedback"),
+        figure_image=str(Path(__file__).resolve().parent.parent / "fixtures/assignment-figure.png"),
         references=(
             "Example Agency. (2025). *Systems coordination brief*. https://example.invalid/brief",
         ),
         figure_alt_text="Generic system relationship diagram",
+        figure_title="Intent, Coordination, and Feedback",
     )
 
 
@@ -137,109 +138,97 @@ def _command_narrative(rows: tuple[CommandRow, ...]) -> tuple[str, ...]:
     )
 
 
-def _chunk(kind: bytes, payload: bytes) -> bytes:
-    return (
-        struct.pack(">I", len(payload))
-        + kind
-        + payload
-        + struct.pack(">I", binascii.crc32(kind + payload) & 0xFFFFFFFF)
-    )
+def image_dimensions(data: bytes) -> tuple[str, int, int]:
+    """Read PNG or JPEG dimensions without a consumer imaging dependency."""
+    if data.startswith(b"\x89PNG\r\n\x1a\n") and len(data) >= 33 and data[12:16] == b"IHDR":
+        width, height = struct.unpack(">II", data[16:24])
+        if width and height:
+            return "png", width, height
+    if data.startswith(b"\xff\xd8"):
+        offset = 2
+        while offset + 4 <= len(data):
+            if data[offset] != 0xFF:
+                break
+            while offset < len(data) and data[offset] == 0xFF:
+                offset += 1
+            if offset >= len(data):
+                break
+            marker = data[offset]
+            offset += 1
+            if marker in (0xD8, 0x01) or 0xD0 <= marker <= 0xD7:
+                continue
+            if marker in (0xD9, 0xDA) or offset + 2 > len(data):
+                break
+            size = int.from_bytes(data[offset:offset + 2], "big")
+            if size < 2 or offset + size > len(data):
+                break
+            if marker in (0xC0, 0xC1, 0xC2, 0xC3, 0xC5, 0xC6, 0xC7, 0xC9, 0xCA, 0xCB, 0xCD, 0xCE, 0xCF) and size >= 8:
+                height, width = struct.unpack(">HH", data[offset + 3:offset + 7])
+                if width and height:
+                    return "jpeg", width, height
+            offset += size
+    raise ValueError("figure_image must be a PNG or JPEG with readable positive dimensions")
 
 
-def _relationship_png() -> bytes:
-    """Return a deterministic three-node relationship diagram."""
-
-    width, height = 640, 220
-    pixels = [bytearray([255, 255, 255] * width) for _ in range(height)]
-
-    def rect(left: int, top: int, right: int, bottom: int, color: tuple[int, int, int]) -> None:
-        for y in range(top, bottom):
-            row = pixels[y]
-            for x in range(left, right):
-                row[x * 3 : x * 3 + 3] = bytes(color)
-
-    def line(x1: int, y1: int, x2: int, y2: int, color: tuple[int, int, int]) -> None:
-        steps = max(abs(x2 - x1), abs(y2 - y1), 1)
-        for step in range(steps + 1):
-            x = round(x1 + (x2 - x1) * step / steps)
-            y = round(y1 + (y2 - y1) * step / steps)
-            rect(max(0, x - 2), max(0, y - 2), min(width, x + 3), min(height, y + 3), color)
-
-    node = (35, 78, 112)
-    accent = (90, 151, 197)
-    for left in (40, 240, 440):
-        rect(left, 60, left + 160, 160, node)
-        rect(left + 8, 68, left + 152, 152, (234, 242, 248))
-    line(200, 110, 240, 110, accent)
-    line(400, 110, 440, 110, accent)
-    line(436, 106, 440, 110, accent)
-    line(436, 114, 440, 110, accent)
-    line(236, 106, 240, 110, accent)
-    line(236, 114, 240, 110, accent)
-    raw = b"".join(b"\x00" + bytes(row) for row in pixels)
-    return (
-        b"\x89PNG\r\n\x1a\n"
-        + _chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0))
-        + _chunk(b"IDAT", zlib.compress(raw, 9))
-        + _chunk(b"IEND", b"")
-    )
-
-
-def _drawing(alt_text: str) -> str:
+def _drawing(alt_text: str, extension: str, width: int, height: int) -> str:
+    cx = 5943600  # 6.5 inch text width at one inch margins.
+    cy = round(cx * height / width)
     return (
         '<w:p><w:pPr><w:keepNext/><w:jc w:val="center"/></w:pPr><w:r><w:drawing>'
         '<wp:inline distT="0" distB="0" distL="0" distR="0">'
-        '<wp:extent cx="5486400" cy="1885950"/><wp:effectExtent l="0" t="0" r="0" b="0"/>'
+        '<wp:extent cx="{cx}" cy="{cy}"/><wp:effectExtent l="0" t="0" r="0" b="0"/>'
         '<wp:docPr id="1" name="System relationship figure" descr="{alt}"/>'
         '<wp:cNvGraphicFramePr/><a:graphic><a:graphicData '
         'uri="http://schemas.openxmlformats.org/drawingml/2006/picture">'
-        '<pic:pic><pic:nvPicPr><pic:cNvPr id="0" name="relationship.png"/>'
+        '<pic:pic><pic:nvPicPr><pic:cNvPr id="0" name="figure.{extension}"/>'
         '<pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="rId4"/>'
         '<a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr>'
-        '<a:xfrm><a:off x="0" y="0"/><a:ext cx="5486400" cy="1885950"/></a:xfrm>'
+        '<a:xfrm><a:off x="0" y="0"/><a:ext cx="{cx}" cy="{cy}"/></a:xfrm>'
         '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic>'
         '</a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>'
-    ).format(alt=docx_write.esc(alt_text))
+    ).format(alt=docx_write.esc(alt_text), cx=cx, cy=cy, extension=extension)
 
 
 def _styles() -> str:
     additions = (
         '<w:style w:type="paragraph" w:styleId="Title"><w:name w:val="Title"/>'
         '<w:basedOn w:val="Normal"/><w:pPr><w:keepNext/><w:jc w:val="center"/>'
-        '<w:spacing w:before="0" w:after="240"/></w:pPr><w:rPr><w:b/>'
-        '<w:color w:val="000000"/><w:sz w:val="32"/><w:szCs w:val="32"/></w:rPr></w:style>'
+        '<w:spacing w:before="0" w:after="0"/></w:pPr><w:rPr><w:b/>'
+        '<w:color w:val="000000"/></w:rPr></w:style>'
         '<w:style w:type="paragraph" w:styleId="Subtitle"><w:name w:val="Subtitle"/>'
         '<w:basedOn w:val="Normal"/><w:pPr><w:keepNext/><w:jc w:val="center"/></w:pPr>'
-        '<w:rPr><w:color w:val="30343B"/></w:rPr></w:style>'
+        '<w:rPr><w:color w:val="000000"/></w:rPr></w:style>'
         '<w:style w:type="paragraph" w:styleId="Caption"><w:name w:val="Caption"/>'
-        '<w:basedOn w:val="Normal"/><w:pPr><w:keepNext/><w:spacing w:before="80" '
-        'w:after="200"/><w:jc w:val="center"/></w:pPr><w:rPr><w:i/>'
-        '<w:color w:val="30343B"/><w:sz w:val="20"/></w:rPr></w:style>'
+        '<w:basedOn w:val="Normal"/><w:pPr><w:keepNext/><w:spacing w:before="0" '
+        'w:after="0"/></w:pPr><w:rPr>'
+        '<w:color w:val="000000"/></w:rPr></w:style>'
     )
     return docx_write.STYLES.replace("</w:styles>", additions + "</w:styles>")
 
 
-def _body(spec: AssignmentSpec) -> str:
+def _body(spec: AssignmentSpec, image: tuple[str, int, int] | None = None) -> str:
     title = spec.title_page
     out = [
+        *(_xml_paragraph("", keep_next=True) for _ in range(3)),
         _xml_paragraph(title.title, style="Title"),
+        _xml_paragraph("", keep_next=True),
         _xml_paragraph(title.author, style="Subtitle"),
-        _xml_paragraph(
+        *([_xml_paragraph(
             title.credentials,
             align="center",
             fit_text=len(title.credentials) > 55,
-        ),
+        )] if title.credentials else []),
         _xml_paragraph(title.institution, align="center"),
         _xml_paragraph(title.course, align="center"),
         _xml_paragraph(title.instructor, align="center"),
         _xml_paragraph(title.due_date, align="center"),
+        _xml_paragraph(title.title, style="Title", page_break_before=True),
     ]
     for index, section in enumerate(spec.sections):
         out.append(
             _xml_paragraph(
                 section.heading,
                 style="Heading1",
-                page_break_before=index == 0,
             )
         )
         out.extend(_xml_paragraph(text, first_line=True) for text in section.paragraphs)
@@ -252,24 +241,22 @@ def _body(spec: AssignmentSpec) -> str:
     if spec.has_figure:
         out.extend(
             (
-                _xml_paragraph("System Relationships", style="Heading1"),
-                _xml_paragraph(
-                    "Figure 1 " + " to ".join(spec.relationship_labels), style="Caption"
-                ),
-                _drawing(spec.figure_alt_text),
-                _xml_paragraph(
-                    "The figure connects " + ", ".join(spec.relationship_labels) + ".",
-                    first_line=True,
-                ),
+                _xml_paragraph("**Figure 1**", style="Caption"),
+                _xml_paragraph("*" + spec.figure_title + "*", style="Caption"),
+                _drawing(spec.figure_alt_text, *image),
             )
         )
+        if spec.figure_note:
+            out.append(_xml_paragraph("*Note.* " + spec.figure_note, style="Caption"))
     out.append(_xml_paragraph("References", style="Heading1", page_break_before=True))
     out.extend(_xml_paragraph(reference, style="Reference") for reference in spec.references)
     return "".join(out)
 
 
 def parts(spec: AssignmentSpec) -> dict[str, str | bytes]:
-    body = _body(spec)
+    image_bytes = Path(spec.figure_image).read_bytes() if spec.has_figure else None
+    image = image_dimensions(image_bytes) if image_bytes is not None else None
+    body = _body(spec, image)
     document = (
         '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
         '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" '
@@ -284,8 +271,8 @@ def parts(spec: AssignmentSpec) -> dict[str, str | bytes]:
     )
     content_types = docx_write.CONTENT_TYPES.replace(
         '<Default Extension="xml" ContentType="application/xml"/>',
-        '<Default Extension="xml" ContentType="application/xml"/>'
-        '<Default Extension="png" ContentType="image/png"/>'
+        '<Default Extension="xml" ContentType="application/xml"/>' +
+        (f'<Default Extension="{image[0]}" ContentType="image/{image[0]}"/>' if image else '') +
         '<Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>'
         '<Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>',
     )
@@ -299,7 +286,7 @@ def parts(spec: AssignmentSpec) -> dict[str, str | bytes]:
     if spec.has_figure:
         doc_rels = doc_rels.replace(
             "</Relationships>",
-            '<Relationship Id="rId4" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/relationship.png"/>'
+            f'<Relationship Id="rId4" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/figure.{image[0]}"/>'
             "</Relationships>",
         )
     core = (
@@ -328,7 +315,7 @@ def parts(spec: AssignmentSpec) -> dict[str, str | bytes]:
         "word/document.xml": document,
     }
     if spec.has_figure:
-        package["word/media/relationship.png"] = _relationship_png()
+        package[f"word/media/figure.{image[0]}"] = image_bytes
     return package
 
 
@@ -367,6 +354,11 @@ def from_mapping(value: object) -> AssignmentSpec:
 
     if not isinstance(value, dict):
         raise ValueError("assignment specification must be an object")
+    if "relationship_labels" in value:
+        raise ValueError("relationship_labels is retired; supply figure_image, figure_title, and figure_alt_text")
+    figure_keys = ("figure_image", "figure_title", "figure_alt_text")
+    if any(key in value for key in figure_keys) and not all(key in value for key in figure_keys):
+        raise ValueError("figure_image, figure_title, and figure_alt_text are supplied together or not at all")
     try:
         title = TitlePage(**value["title_page"])
         sections = tuple(
@@ -374,37 +366,39 @@ def from_mapping(value: object) -> AssignmentSpec:
             for item in value["sections"]
         )
         command_rows = tuple(CommandRow(**item) for item in value.get("command_rows", ()))
-        relationship_labels = tuple(value.get("relationship_labels", ()))
+        figure_image = value.get("figure_image", "")
         references = tuple(value["references"])
         figure_alt_text = value.get("figure_alt_text", "")
+        figure_title = value.get("figure_title", "")
+        figure_note = value.get("figure_note", "")
     except (KeyError, TypeError) as failure:
         raise ValueError(f"invalid assignment specification: {failure}") from failure
-    if bool(relationship_labels) != ("figure_alt_text" in value):
-        raise ValueError(
-            "relationship_labels and figure_alt_text are supplied together or not at all"
-        )
-    if relationship_labels and len(relationship_labels) != 3:
-        raise ValueError("relationship_labels must contain exactly three labels")
+    if "figure_note" in value and "figure_image" not in value:
+        raise ValueError("figure_note requires figure_image, figure_title, and figure_alt_text")
     string_values = (
-        *title.__dict__.values(),
+        *(text for key, text in title.__dict__.items() if key != "credentials"),
         *(section.heading for section in sections),
         *(paragraph for section in sections for paragraph in section.paragraphs),
         *(field for row in command_rows for field in row.__dict__.values()),
-        *relationship_labels,
         *references,
-        *((figure_alt_text,) if relationship_labels else ()),
+        *((figure_image, figure_title, figure_alt_text) if "figure_image" in value else ()),
+        *((figure_note,) if "figure_note" in value else ()),
     )
     if not all(isinstance(item, str) and item.strip() for item in string_values):
         raise ValueError("every assignment specification text value must be nonempty")
+    if not isinstance(title.credentials, str):
+        raise ValueError("title_page credentials must be text; an empty string omits the line")
     if not sections or not references:
         raise ValueError("sections and references must be nonempty")
     return AssignmentSpec(
         title,
         sections,
         command_rows,
-        relationship_labels,
+        figure_image,
         references,
         figure_alt_text,
+        figure_title,
+        figure_note,
     )
 
 
@@ -428,7 +422,11 @@ def main(argv: list[str]) -> int:
         print("output must end in .docx", file=sys.stderr)
         return 2
     try:
-        spec = from_mapping(json.loads(source.read_text(encoding="utf-8")))
+        value = json.loads(source.read_text(encoding="utf-8"))
+        spec = from_mapping(value)
+        if spec.has_figure and not Path(spec.figure_image).is_absolute():
+            from dataclasses import replace
+            spec = replace(spec, figure_image=str(source.parent / spec.figure_image))
         build(spec, destination, force=force)
     except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as failure:
         print(f"document was not written: {failure}", file=sys.stderr)

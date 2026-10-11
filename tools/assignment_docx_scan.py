@@ -282,9 +282,26 @@ def _package(
             package_target = str(PurePosixPath("word") / target)
             if not target or package_target not in names:
                 defects.append("a figure relationship has no readable media target")
-    captions = [paragraph.text for paragraph in paragraphs if paragraph.style == "Caption"]
-    if drawings and not any(text.casefold().startswith("figure ") for text in captions):
-        defects.append("no figure caption was found")
+    body_paragraphs = document_root.findall(f"{W}body/{W}p")
+    for index, paragraph in enumerate(body_paragraphs):
+        if paragraph.find(f".//{WP}docPr") is None:
+            continue
+        pair = body_paragraphs[max(0, index - 2):index]
+        valid = len(pair) == 2
+        for caption_index, node in enumerate(pair):
+            style = node.find(f"{W}pPr/{W}pStyle")
+            text = "".join(item.text or "" for item in node.iter(W + "t"))
+            runs = [run for run in node.findall(W + "r") if run.find(W + "t") is not None]
+            emphasis = "b" if caption_index == 0 else "i"
+            valid = valid and style is not None and style.get(W + "val") == "Caption"
+            valid = valid and bool(runs) and all(
+                run.find(f"{W}rPr/{W}{emphasis}") is not None
+                and run.find(f"{W}rPr/{W}{emphasis}").get(W + "val", "1") not in ("0", "false", "off")
+                for run in runs
+            )
+            valid = valid and (bool(re.fullmatch(r"Figure [1-9][0-9]*", text)) if caption_index == 0 else bool(text.strip()))
+        if not valid:
+            defects.append("every figure needs a bold number line and italic title line immediately above the image")
     if "word/header1.xml" in names and 'w:instr="PAGE"' not in archive.read("word/header1.xml").decode("utf-8"):
         defects.append("the running page-number field is missing")
     if "docProps/core.xml" in names:

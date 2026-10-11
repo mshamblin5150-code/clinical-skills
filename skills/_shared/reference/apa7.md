@@ -31,7 +31,7 @@ instruction needs a written rule behind it, or *"fix the reference list"* is a w
 check. **Ruled 2026-08-18**, and the words that settled it were the clinician's: *ordering the
 differential is very important, but that shouldn't take the place of tidiness.*
 
-**Readers:** the `practicum-case-study`, `discussion-post`, `discussion-reply` and `peer-critique`
+**Readers:** the `practicum-case-study`, `discussion-post`, `discussion-reply`, `peer-critique`, and `course-assignment`
 skills. They link the APA rule at the points where their reference readers apply it.
 
 ---
@@ -986,7 +986,21 @@ unless the instructor requires them. Repeat the paper title at the start of the 
 adding an `Introduction` heading.
 
 Use a concise, informative title in bold title case; preserve authors' chosen names without
-credentials and map affiliations unambiguously. Put the automatic page number at top right on every
+credentials and map affiliations unambiguously. For course-assignment Word title pages and deck
+title slides, `TITLE-PAGE-CREDENTIALS` in the account's `scratch/medatrax-profile.md` records an
+explicit choice: `none` follows APA, or the saved line is the clinician's deliberate departure.
+Setup asks; a silent profile stops a title-page run once to ask and persist the answer. This setting
+does not govern clinical signatures or prescribing roles.
+
+The title block begins three or four lines below the top margin, in the paper's font and size,
+in black. The title is bold; the author line is roman. Leave one blank double-spaced line between
+the title and the author. These placement and byline rules were read in the authenticated
+*Publication Manual*, seventh edition, §2.4–2.5, printed page 32, on 2026-10-11. The assignment
+producer leaves three empty double-spaced paragraphs before the title and repeats the title at
+the start of the text. Its dated Word calibration and shape tripwire are maintained by
+`tools/docx_word_probe.py` under ADR 0008.
+
+Put the automatic page number at top right on every
 page. Use one permitted accessible font consistently, 1-inch margins, a ragged right edge, and
 ordinary 0.5-inch first-line indents. Do not manually hyphenate line endings or insert breaks into
 DOIs and URLs. Double-space except where the manual expressly allows a different display, note, or

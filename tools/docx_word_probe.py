@@ -13,11 +13,14 @@ import sys
 import tempfile
 import zipfile
 from dataclasses import dataclass
+from dataclasses import replace
+from hashlib import sha256
 from datetime import date
 from pathlib import Path
 from xml.etree import ElementTree
 
 import docx_write
+import assignment_docx
 from console_codec import require_python_floor, use_utf8
 
 
@@ -88,6 +91,91 @@ PAD_CALIBRATIONS = (
         "observed",
     ),
 )
+
+ASSIGNMENT_KEYS = (
+    "assignment-title-page",
+    "assignment-title-page-no-credentials",
+    "assignment-caption",
+    "assignment-figure",
+    "assignment-figure-note",
+)
+
+
+def assignment_probe_parts() -> dict[str, dict[str, str | bytes]]:
+    """Synthetic assignment probes exercise supplied media and both credential choices."""
+    spec = assignment_docx.fixture_spec()
+    omitted = replace(spec, title_page=replace(spec.title_page, credentials=""))
+    credited = replace(spec, figure_note="Synthetic figure created with Example Tool (Example, 2026).")
+    return {
+        "assignment-rich": assignment_docx.parts(spec),
+        "assignment-no-credentials": assignment_docx.parts(omitted),
+        "assignment-with-note": assignment_docx.parts(credited),
+    }
+
+
+def assignment_renderer_shapes() -> dict:
+    """Bind all title, caption, media, and inherited typography shapes to Word's reading."""
+    probes = assignment_probe_parts()
+    rich = probes["assignment-rich"]
+    document = ElementTree.fromstring(rich["word/document.xml"])
+    styles = ElementTree.fromstring(rich["word/styles.xml"])
+    xml = lambda node: ElementTree.tostring(node, encoding="unicode")
+    typography = [xml(styles.find(W + "docDefaults"))] + [
+        xml(node) for node in styles.findall(W + "style")
+        if node.get(W + "styleId") in ("Normal", "Title", "Subtitle", "Caption")
+    ]
+    paragraphs = document.findall(f"{W}body/{W}p")
+    def title_shape(package):
+        root = ElementTree.fromstring(package["word/document.xml"])
+        title_paragraphs = []
+        for paragraph in root.findall(f"{W}body/{W}p"):
+            style = paragraph.find(f"{W}pPr/{W}pStyle")
+            if style is not None and style.get(W + "val") == "Heading1":
+                break
+            title_paragraphs.append(xml(paragraph))
+        return {"typography": typography, "paragraphs": title_paragraphs,
+                "section": xml(root.find(f"{W}body/{W}sectPr"))}
+    captions = [xml(p) for p in paragraphs
+                if p.find(f"{W}pPr/{W}pStyle") is not None
+                and p.find(f"{W}pPr/{W}pStyle").get(W + "val") == "Caption"]
+    return {
+        "assignment-title-page": title_shape(rich),
+        "assignment-title-page-no-credentials": title_shape(probes["assignment-no-credentials"]),
+        "assignment-caption": {"typography": typography, "paragraphs": captions},
+        "assignment-figure-note": {
+            "typography": typography,
+            "document": probes["assignment-with-note"]["word/document.xml"],
+        },
+        "assignment-figure": {
+            "drawing": [xml(p) for p in paragraphs if p.find(f".//{W}drawing") is not None],
+            "media_sha256": sha256(rich["word/media/figure.png"]).hexdigest(),
+            "relationships": rich["word/_rels/document.xml.rels"],
+            "content_types": rich["[Content_Types].xml"],
+        },
+    }
+
+
+def assignment_word_measurement(report: dict) -> dict:
+    """Retain Word's measurements separately from the XML tripwire."""
+    documents = {item["key"]: item for item in report["documents"]}
+    rich = documents["assignment-rich"]
+    omitted = documents["assignment-no-credentials"]
+    credited = documents["assignment-with-note"]
+    shapes = assignment_renderer_shapes()
+    readings = {
+        "assignment-title-page": {"paragraphs": rich["paragraphs"], "margins_points": rich["margins_points"]},
+        "assignment-title-page-no-credentials": {"paragraphs": omitted["paragraphs"], "margins_points": omitted["margins_points"]},
+        "assignment-caption": {"paragraphs": [p for p in rich["paragraphs"] if p["style"] == "Caption"]},
+        "assignment-figure": {"inline_shapes": rich["inline_shapes"]},
+        "assignment-figure-note": {"paragraphs": [p for p in credited["paragraphs"] if p["style"] == "Caption"],
+                                   "inline_shapes": credited["inline_shapes"]},
+    }
+    return {key: {
+        "measured_on": date.today().isoformat(),
+        "word_version": report["word_version"], "word_build": report["word_build"],
+        "instrument": "Microsoft Word COM", "word_observation": readings[key],
+        "renderer_shape": shapes[key],
+    } for key in ASSIGNMENT_KEYS}
 
 
 W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
@@ -660,18 +748,21 @@ def pad_word_measurement(report: dict) -> dict[str, dict]:
     }
 
 
-def word_report() -> dict:
+def word_report(*, assignment_only: bool = False) -> dict:
     """Render one probe per row, ask installed Word what it draws, and return JSON data."""
 
     script = Path(__file__).with_suffix(".ps1")
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
-        for key, markdown in PROBES.items():
-            docx_write.write_docx(markdown, root / (key + ".docx"))
-        for key, mode in PASTE_PROBES.items():
-            _write_parts(_paste_probe_parts(mode), root / (key + ".docx"))
-        for key, parts in pad_probe_parts().items():
-            _write_parts(parts, root / (key + ".docx"))
+        if not assignment_only:
+            for key, markdown in PROBES.items():
+                docx_write.write_docx(markdown, root / (key + ".docx"))
+            for key, mode in PASTE_PROBES.items():
+                _write_parts(_paste_probe_parts(mode), root / (key + ".docx"))
+            for key, parts in pad_probe_parts().items():
+                _write_parts(parts, root / (key + ".docx"))
+        for key, package in assignment_probe_parts().items():
+            _write_parts(package, root / (key + ".docx"))
         docx_write.write_docx(TITLE, root / "word-saved.docx")
         completed = subprocess.run(
             [
@@ -696,7 +787,9 @@ def word_report() -> dict:
             raise RuntimeError("Word COM probe exited {n}".format(n=completed.returncode))
         report = json.loads(completed.stdout)
         saved_copy = Path(report.pop("saved_copy"))
-        report["pad_rows"] = pad_word_measurement(report)
+        if not assignment_only:
+            report["pad_rows"] = pad_word_measurement(report)
+        report["assignment_rows"] = assignment_word_measurement(report)
         report["documents"] = [
             document
             for document in report["documents"]
@@ -729,20 +822,21 @@ def main(argv=None) -> int:
                     "rows": renderer_shapes(),
                     "paste_rows": paste_renderer_shapes(),
                     "pad_rows": pad_renderer_shapes(),
+                    "assignment_rows": assignment_renderer_shapes(),
                 },
                 indent=2,
                 sort_keys=True,
             )
         )
         return 0
-    if args in ([], ["--word"]):
+    if args in ([], ["--word"], ["--assignment-word"]):
         try:
-            print(json.dumps(word_report(), indent=2, sort_keys=True))
+            print(json.dumps(word_report(assignment_only=True) if args == ["--assignment-word"] else word_report(), indent=2, sort_keys=True))
         except (OSError, RuntimeError, json.JSONDecodeError) as error:
             print("word probe: {e}".format(e=error), file=sys.stderr)
             return 2
         return 0
-    print("usage: docx_word_probe.py [--word | --shapes]", file=sys.stderr)
+    print("usage: docx_word_probe.py [--word | --assignment-word | --shapes]", file=sys.stderr)
     return 2
 
 

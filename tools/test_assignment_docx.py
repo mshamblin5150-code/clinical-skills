@@ -8,6 +8,8 @@ import json
 import tempfile
 import unittest
 import zipfile
+from dataclasses import replace
+from xml.etree import ElementTree as ET
 from pathlib import Path
 
 import assignment_docx
@@ -48,13 +50,64 @@ def _payload(spec: assignment_docx.AssignmentSpec) -> dict:
             }
             for row in spec.command_rows
         ],
-        "relationship_labels": list(spec.relationship_labels),
+        "figure_image": spec.figure_image,
+        "figure_title": spec.figure_title,
         "references": list(spec.references),
         "figure_alt_text": spec.figure_alt_text,
     }
 
 
 class RichPackage(unittest.TestCase):
+    def test_supplied_image_bytes_and_proportions_survive_with_a_two_line_caption(self):
+        spec = assignment_docx.fixture_spec()
+        package = assignment_docx.parts(spec)
+        self.assertEqual(package["word/media/figure.png"], Path(spec.figure_image).read_bytes())
+        root = ET.fromstring(package["word/document.xml"])
+        w = assignment_docx_scan.W
+        wp = assignment_docx_scan.WP
+        extent = root.find(f".//{wp}extent")
+        self.assertEqual(extent.attrib, {"cx": "5943600", "cy": "1717040"})
+        paragraphs = root.findall(f"{w}body/{w}p")
+        index = next(i for i, p in enumerate(paragraphs) if p.find(f".//{w}drawing") is not None)
+        number, title = paragraphs[index - 2:index]
+        self.assertEqual("".join(number.itertext()), "Figure 1")
+        self.assertIsNotNone(number.find(f"{w}r/{w}rPr/{w}b"))
+        self.assertEqual("".join(title.itertext()), spec.figure_title)
+        self.assertIsNotNone(title.find(f"{w}r/{w}rPr/{w}i"))
+        self.assertNotIn("The figure connects", package["word/document.xml"])
+
+    def test_retired_figure_fields_name_the_replacement_interface(self):
+        payload = _payload(assignment_docx.fixture_spec())
+        payload["relationship_labels"] = ["Intent", "Coordination", "Feedback"]
+        with self.assertRaisesRegex(ValueError, "figure_image, figure_title, and figure_alt_text"):
+            assignment_docx.from_mapping(payload)
+
+    def test_title_repeats_and_an_explicit_omission_writes_no_credential_paragraph(self):
+        spec = assignment_docx.fixture_spec()
+        payload = _payload(spec)
+        payload["title_page"]["credentials"] = ""
+        root = ET.fromstring(assignment_docx.parts(assignment_docx.from_mapping(payload))["word/document.xml"])
+        w = assignment_docx_scan.W
+        texts = ["".join(p.itertext()) for p in root.findall(f"{w}body/{w}p")]
+        self.assertEqual(texts[:6], ["", "", "", spec.title_page.title, "", spec.title_page.author])
+        self.assertEqual(texts.count(spec.title_page.title), 2)
+        self.assertNotIn(spec.title_page.credentials, texts)
+
+    def test_figure_note_is_below_the_supplied_image_and_not_generated_by_the_producer(self):
+        spec = replace(assignment_docx.fixture_spec(), figure_note="Image generated using Example Tool (Example, 2026).")
+        document = assignment_docx.parts(spec)["word/document.xml"]
+        self.assertGreater(document.index(spec.figure_note), document.index("</w:drawing>"))
+
+    def test_invalid_image_refuses_before_replacing_the_destination(self):
+        with tempfile.TemporaryDirectory() as directory:
+            image = Path(directory) / "bad.png"
+            image.write_bytes(b"not an image")
+            path = Path(directory) / "assignment.docx"
+            path.write_bytes(b"previous document")
+            with self.assertRaisesRegex(ValueError, "PNG or JPEG"):
+                assignment_docx.build(replace(assignment_docx.fixture_spec(), figure_image=str(image)), path, force=True)
+            self.assertEqual(path.read_bytes(), b"previous document")
+
     def test_the_generic_fixture_has_the_required_rich_word_structure(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "generic-assignment.docx"
@@ -67,7 +120,7 @@ class RichPackage(unittest.TestCase):
                 header = archive.read("word/header1.xml").decode("utf-8")
                 core = archive.read("docProps/core.xml").decode("utf-8")
 
-        self.assertIn("word/media/relationship.png", names)
+        self.assertIn("word/media/figure.png", names)
         self.assertIn('w:styleId="Title"', styles)
         self.assertIn('w:styleId="Heading1"', styles)
         self.assertIn('w:styleId="Caption"', styles)
@@ -110,7 +163,7 @@ class RichPackage(unittest.TestCase):
 
     def test_a_spec_without_a_matrix_or_figure_writes_neither(self):
         payload = _payload(assignment_docx.fixture_spec())
-        for key in ("command_rows", "relationship_labels", "figure_alt_text"):
+        for key in ("command_rows", "figure_image", "figure_title", "figure_alt_text"):
             del payload[key]
         spec = assignment_docx.from_mapping(payload)
         with tempfile.TemporaryDirectory() as directory:
@@ -123,8 +176,8 @@ class RichPackage(unittest.TestCase):
                 rels = archive.read("word/_rels/document.xml.rels").decode("utf-8")
                 types = archive.read("[Content_Types].xml").decode("utf-8")
 
-        self.assertNotIn("word/media/relationship.png", names)
-        self.assertNotIn("media/relationship.png", rels)
+        self.assertNotIn("word/media/figure.png", names)
+        self.assertNotIn("media/figure.png", rels)
         self.assertNotIn("<w:drawing>", document)
         self.assertNotIn("Command Matrix", document)
         self.assertNotIn("System Relationships", document)
@@ -133,7 +186,8 @@ class RichPackage(unittest.TestCase):
 
     def test_a_matrix_may_stand_without_a_figure(self):
         payload = _payload(assignment_docx.fixture_spec())
-        del payload["relationship_labels"]
+        del payload["figure_image"]
+        del payload["figure_title"]
         del payload["figure_alt_text"]
         spec = assignment_docx.from_mapping(payload)
         with tempfile.TemporaryDirectory() as directory:
@@ -145,14 +199,14 @@ class RichPackage(unittest.TestCase):
 
         self.assertIn("Command Matrix", document)
         self.assertNotIn("System Relationships", document)
-        self.assertNotIn("word/media/relationship.png", names)
+        self.assertNotIn("word/media/figure.png", names)
 
     def test_a_half_specified_figure_is_refused(self):
-        for missing in ("relationship_labels", "figure_alt_text"):
+        for missing in ("figure_image", "figure_title", "figure_alt_text"):
             payload = _payload(assignment_docx.fixture_spec())
             del payload[missing]
             with self.subTest(missing=missing), self.assertRaisesRegex(
-                ValueError, "relationship_labels and figure_alt_text"
+                ValueError, "figure_image, figure_title, and figure_alt_text"
             ):
                 assignment_docx.from_mapping(payload)
 
@@ -175,7 +229,8 @@ class RichPackage(unittest.TestCase):
                 }
                 for row in spec.command_rows
             ],
-            "relationship_labels": list(spec.relationship_labels),
+            "figure_image": spec.figure_image,
+            "figure_title": spec.figure_title,
             "references": list(spec.references),
             "figure_alt_text": spec.figure_alt_text,
         }
@@ -212,7 +267,7 @@ class DocxGrader(unittest.TestCase):
 
     def test_a_document_without_a_figure_owes_no_figure_alt_text_or_caption(self):
         payload = _payload(assignment_docx.fixture_spec())
-        for key in ("command_rows", "relationship_labels", "figure_alt_text"):
+        for key in ("command_rows", "figure_image", "figure_title", "figure_alt_text"):
             del payload[key]
         with tempfile.TemporaryDirectory() as directory:
             run = Path(directory) / "generic-course-assignment"

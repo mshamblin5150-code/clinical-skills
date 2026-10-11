@@ -29,6 +29,26 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 class PackageTest(unittest.TestCase):
+    def test_the_old_single_line_caption_is_a_finding(self) -> None:
+        package = assignment_docx.parts(assignment_docx.fixture_spec())
+        document = ElementTree.fromstring(package["word/document.xml"])
+        body = document.find(scan.W + "body")
+        captions = [p for p in body.findall(scan.W + "p")
+                    if p.find(f"{scan.W}pPr/{scan.W}pStyle") is not None
+                    and p.find(f"{scan.W}pPr/{scan.W}pStyle").get(scan.W + "val") == "Caption"]
+        body.remove(captions[1])
+        number = captions[0]
+        number.find(f"{scan.W}r/{scan.W}t").text = "Figure 1 Intent to Coordination to Feedback"
+        package["word/document.xml"] = ElementTree.tostring(document)
+        with tempfile.TemporaryDirectory() as directory:
+            artifact = Path(directory) / "old-caption.docx"
+            with zipfile.ZipFile(artifact, "w") as archive:
+                for name, value in package.items():
+                    archive.writestr(name, value)
+            with zipfile.ZipFile(artifact) as archive:
+                findings = scan._package(archive, scan._paragraphs(document))
+        self.assertTrue(any("bold number line and italic title line" in finding.detail for finding in findings))
+
     def test_every_figure_needs_alt_text(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             artifact = Path(directory) / "assignment.docx"
@@ -78,7 +98,7 @@ class PackageTest(unittest.TestCase):
                 parts = {
                     name: archive.read(name)
                     for name in archive.namelist()
-                    if name != "word/media/relationship.png"
+                    if name != "word/media/figure.png"
                 }
             with zipfile.ZipFile(artifact, "w") as archive:
                 for name, payload in parts.items():
