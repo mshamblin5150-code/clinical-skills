@@ -486,7 +486,7 @@ The clinician's word, given after he has looked at a contribution loaded and uns
 _Avoid_: Gate 2, submit gate, in-box approval, second approval, click approval
 
 **Evidence dump**:
-One handover of complete tertiary-source topic bodies, supplied wholesale for a module rather than found by searching. It is the unit of provenance and no longer the unit of entitlement: dumps accumulate into the **Evidence store**, so a later paper may cite a topic an earlier dump carried.
+One filing of complete tertiary-source topic bodies into the **Evidence store**: the clinician's own **Case research**, or a topic a run pulled through his account. It is never faculty-supplied, and its own contents cannot show who compiled it. It is the unit of provenance and no longer the unit of entitlement: dumps accumulate into the **Evidence store**, so a later paper may cite a topic an earlier dump carried.
 _Avoid_: sources, corpus, articles
 
 **Evidence store**:
@@ -498,7 +498,7 @@ The committed distillation of one supplied topic: the source's own summary secti
 _Avoid_: summary, digest, extract, article, evidence sheet
 
 **Dump manifest**:
-The gitignored record of one **Evidence dump** -- which topics arrived, for which module, on what date, and the fingerprint of the file actually filed. Provenance for the sheets a dump produced, and what the evidence-membership join reads for a run of the account that was handed it; it establishes when a topic arrived, never who may cite it. For a handover that carried no topic titles, the file filed is its **Titled copy**, not the handover.
+The gitignored record of one **Evidence dump** -- which topics arrived, for which module, on what date, and the fingerprint of the file actually filed. Provenance for the sheets a dump produced, and what the evidence-membership join reads so a cited topic can be checked against its stored copy; it establishes when a topic arrived, never who may cite it. For a dump that carried no topic titles, the file filed is its **Titled copy**, not the original.
 _Avoid_: index, inventory, log, catalog
 
 **Titled copy**:

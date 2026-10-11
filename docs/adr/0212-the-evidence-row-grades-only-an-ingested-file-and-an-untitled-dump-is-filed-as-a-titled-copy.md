@@ -1,6 +1,10 @@
 # The evidence row grades only an ingested file and an untitled dump is filed as a titled copy
 
-**Measured at:** 038024fcb6a245f2946004ff1cb3158abad4864a
+**Measured at:** f20dd5b9718c6b0e6401a5fa3ceabeaa0c26d44d
+
+*Re-declared from `038024f` on 2026-10-11, for the dated correction at the end of this record alone.
+`tools/research_ledger.py` and `tools/uptodate_store.py`, which the measured section describes, have
+changed since; that section was not re-derived and describes the tree at `038024f`.*
 
 [#1022](https://github.com/mshamblin5150-code/clinical-skills/issues/1022) was filed by the
 after-action review of one `practicum-case-study` run (NUR 5144 Module 2). Its UpToDate dump arrived
@@ -127,6 +131,11 @@ observed.
 ## What none of this reaches
 
 Whether a titled copy's titles are correct. Whether the file named in `--evidence` is the dump the
-clinician handed over, rather than some other ingested file. Whether a filed dump is the whole of what
-the faculty supplied for the module. A dump carrying none of the three topic markers remains outside
+clinician handed over, rather than some other ingested file. Whether a filed dump is the whole of the
+clinician's research for the module. A dump carrying none of the three topic markers remains outside
 ingest's population floor, as `uptodate_store` already declares.
+
+**Correction, 2026-10-11, on [#1505](https://github.com/mshamblin5150-code/clinical-skills/issues/1505):**
+*What none of this reaches* formerly named *what the faculty supplied for the module*. No dump was
+ever faculty-supplied; every dump is the clinician's own **Case research**, as [ADR 0335](0335-the-clinician-s-evidence-dumps-are-his-own-research-and-the-store-membership-rule-stands-on-checkability.md) records. This
+record's rulings stand.

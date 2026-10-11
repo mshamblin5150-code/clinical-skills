@@ -17,7 +17,7 @@ manifest validation refuses a topic missing either. `tools/research_ledger.py` a
 cited UpToDate title to that accumulated manifest (`cited_uptodate_entries`, `evidence_findings`).
 So the check is one more comparison at an existing join, and no dump is parsed again.
 
-**`reference_scan` is the wrong home.** Its limits say the companion evidence is a document it never
+**`reference_scan` is the wrong home.** Its limits say the clinician's evidence dump is a document it never
 sees, and it assigns source authenticity to `research_ledger`.
 
 **A last-word surname rule fails a correct entry.** A subagent read the private store's manifests and
@@ -126,3 +126,7 @@ entry can fail.
 - A fabricated author on a source other than an UpToDate topic the store holds.
 - Whether a `DROPPED` reason is true, or whether the draft in fact still makes the claim.
 - A relied-on work that has no claim record at all.
+
+**Correction, 2026-10-11, on [#1505](https://github.com/mshamblin5150-code/clinical-skills/issues/1505):**
+the `reference_scan` paragraph formerly called the dump *the companion evidence*. Every dump is the
+clinician's own **Case research**, as [ADR 0335](0335-the-clinician-s-evidence-dumps-are-his-own-research-and-the-store-membership-rule-stands-on-checkability.md) records. This record's rulings stand.
