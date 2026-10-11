@@ -1229,6 +1229,10 @@ incomplete coverage rather than clean.
 
 The complete ceiling belongs to `voice_read.DECLARED_LIMITS`; this section copies no row from it.
 
+`tools/voice_read.py` also exposes the reader's quote-check command. Its inputs and exit statuses
+are defined in [the Voice reader protocol](skills/_shared/reference/voice-read.md#3-the-voice-reader).
+It uses the completion grader's sentence predicate without reading the planter's answer key.
+
 Covered by `tools/test_voice_read.py`.
 
 ### Coursework imagery proposals
