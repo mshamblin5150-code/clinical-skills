@@ -1199,6 +1199,10 @@ _Avoid_: fan out, parallel research, worker pool, batch dispatch
 A **Briefing surface** handing one artifact to one context that did not author it, to read what its author cannot see. Where a **Fan-out brief** degrades to serial work honestly, this one cannot: a self-authored second read is not a second read, so the surface does not complete rather than completing with a declaration.
 _Avoid_: reviewer, verifier, double check, second pass
 
+**Reader remark**:
+A problem a reader notices outside the question it was asked, written beside its verdict and never changing it. Every one is shown to the clinician at the go-ahead with what was changed or a proposal to leave it, and one is left only on the clinician's word naming it. Distinct from a **Coverage qualifier**, which states what a run could not establish and is shown rather than waived.
+_Avoid_: advisory, aside, side finding, observation, note
+
 **Grader handoff**:
 A **Briefing surface** giving a non-authoring context a completed artifact and a committed command. It writes no record and returns a result, which is why it takes neither the prewrite rule nor the one-writer rule, and why its result survives being produced by the author so long as it is reported verbatim rather than summarized.
 _Avoid_: check, independent check, grading pass, review step
