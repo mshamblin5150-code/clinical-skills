@@ -157,13 +157,14 @@ def _left_numbers(reply: str, population: int) -> set[int]:
 
 
 def verify(run: Path, skill: str, key: str, sources: tuple[Path, ...], report_text: str,
-           reply: str, reply_at: float | None, outcomes: tuple[Outcome, ...]) -> list[dict]:
+           reply: str, reply_at: float | None, outcomes: tuple[Outcome, ...],
+           *, accepted: list[dict] | None = None) -> list[dict]:
     import approval_record
     try:
         receipt = json.loads(_receipt_path(run, skill, key).read_text(encoding="utf-8"))
         boundary = max(path.stat().st_mtime for path in sources)
         prepared_at = receipt["prepared_at"]
-        if receipt["source_digest"] != _digest(sources) or receipt["grader_report"] != report_text:
+        if receipt["source_digest"] != _digest(sources) or (accepted is None and receipt["grader_report"] != report_text):
             raise RemarkError("the prepared grade or source changed; prepare and show the approval again")
         if reply_at is None or not boundary < prepared_at < reply_at:
             raise RemarkError("the paired grader must run after the last source change and before the approval reply")
@@ -171,15 +172,23 @@ def verify(run: Path, skill: str, key: str, sources: tuple[Path, ...], report_te
         if isinstance(failure, RemarkError):
             raise
         raise RemarkError("approval needs a readable pre-ask grade receipt") from failure
-    complete_report = receipt["report"]
-    prepared = Prepared(complete_report, read_report(complete_report), coverage_lines(complete_report))
+    prepared = Prepared(receipt["report"], read_report(receipt["report"]), coverage_lines(report_text))
+    inherited_leaves = set()
+    if accepted is not None:
+        stored = tuple(Remark(row["origin"], row["text"]) for row in accepted)
+        if any(remark not in stored for remark in read_report(report_text)):
+            raise RemarkError("reader remarks changed; prepare and show the content approval again")
+        prepared = Prepared(report_text, stored, coverage_lines(report_text))
+        outcomes = tuple(Outcome("fixed" if row["outcome"] == "fixed" else "leave", row["detail"])
+                         for row in accepted)
+        inherited_leaves = {n for n, row in enumerate(accepted, 1) if row["outcome"] == "left on clinician's word"}
     required = surface(prepared, outcomes).splitlines()
-    shown, unread = approval_record.assistant_text(run, after=prepared_at, before=reply_at)
+    shown, unread = approval_record.assistant_text(run, after=boundary if accepted is not None else prepared_at, before=reply_at)
     shown_lines = {" ".join(line.split()) for message in shown for line in message.splitlines()}
     missing = [line for line in required if " ".join(line.split()) not in shown_lines]
     if missing:
         raise RemarkError("reader remarks or coverage lines were not shown before approval" + ("; transcript unreadable" if unread else "") + ": " + " | ".join(missing))
-    leaves = _left_numbers(reply, len(prepared.remarks))
+    leaves = _left_numbers(reply, len(prepared.remarks)) | inherited_leaves
     open_remarks = [str(n) for n, outcome in enumerate(outcomes, 1) if outcome.status == "leave" and n not in leaves]
     if open_remarks:
         raise RemarkError("unanswered leave proposals for reader remarks: " + ", ".join(open_remarks))

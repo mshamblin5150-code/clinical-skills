@@ -64,6 +64,10 @@ instructions or whether the encounter earns the code.
 
 **`tools/cpt_mdm_sheet.py` is a Required command for the committed CPT E/M MDM sheet.** Its comparison mode requires distinct transcript paths and records exact two-reader agreement, printed-page locators, date, and per-entry SHA-256; its ordinary and `--staged` modes refuse missing coverage or changed entries. The pre-commit hook runs the staged mode when an edition sheet changes. Its `--write-receipt` mode derives the private CPT source identity and edition boundary from the procedure database into this checkout's `scratch/sessions/<key>/`. The sheet in `reference/cpt-em-mdm-2026.md` supplies the licensed MDM grid and dependent definitions, not other CPT instructions. `coding_freshness.py` requires a passing sheet whose line-ending-normalized content matches `HEAD` and whose edition covers the service date for a finalized ED or office E/M selection.
 
+**`tools/post_text.py` is a Required command for `peer-critique`.** It builds the plain
+Canvas comment from the approved Markdown; a refusal stops loading. The completion grader
+rebuilds `critique.txt` and requires its exact bytes.
+
 **`tools/peer_critique_scan.py` and `tools/voice_model_scan.py` are Required commands for `peer-critique`.** The first is its completion grader; after an install has been tried, a consumer without it can walk the same rows by eye but cannot call the run mechanically verified. The second is required before drafting against the clinician's model; without it the draft is not written against the model. `tools/voice_model_scan.py` is a Required command for `discussion-reply` and `setup-clinical-skills` on the same terms.
 
 **`tools/voice_model_identity.py` is a Required command for the scoped coursework readers.**

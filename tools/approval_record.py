@@ -15,6 +15,7 @@ import re
 from pathlib import Path
 import subprocess
 import sys
+import time
 from typing import Iterable
 
 import aar_scan
@@ -44,6 +45,10 @@ SKILLS = frozenset(
 )
 
 REPLY_UNREADABLE = "approval reply transcript unreadable"
+# UTC build boundary; legacy records use the matched content reply time.
+POSTING_GO_AHEAD_CUTOFF = datetime(2026, 10, 11, 18, 33, 40, tzinfo=timezone.utc).timestamp()
+POSTING_GO_AHEAD_SKILLS = frozenset({"discussion-post", "discussion-reply", "peer-critique", "practicum-case-study"})
+
 SHOWN_TEXT_SKILLS = frozenset({"discussion-post", "discussion-reply", "peer-critique"})
 
 
@@ -374,10 +379,13 @@ def approve(
     content_approved: bool,
     clinician_reply: str,
     remark_outcomes: tuple[reader_remarks.Outcome, ...] = (),
+    approval_kind: str = "content",
 ) -> ApprovalRecord:
-    """Record one content go-ahead after its paired pre-post grader finds nothing."""
+    """Record an explicitly named content or posting go-ahead after a clean paired grade."""
 
     root = Path(run).resolve()
+    if approval_kind not in {"content", "posting"}:
+        raise ApprovalRecordError("approval kind must be content or posting")
     if not content_approved:
         raise ApprovalRecordError("content approval is required")
     if not isinstance(clinician_reply, str) or not clinician_reply.strip():
@@ -426,6 +434,10 @@ def approve(
         raise ApprovalRecordError(f"the pre-post grade has a finding: {safe_report}")
 
     digest = source_sha256(resolved_sources)
+    content = next((row for row in reversed(history)
+                    if row.get("approval_kind") == "content" and row.get("sha256") == digest), None)
+    if approval_kind == "posting" and (content is None or previous.get("sha256") != digest):
+        raise ApprovalRecordError("posting go-ahead needs a content go-ahead for the same fingerprint")
     shown = ReplyVerification("exempt", "unchanged fingerprint or other skill")
     already_approved = previous and (
         previous.get("sha256") == digest or any(row.get("sha256") == digest for row in history)
@@ -454,12 +466,15 @@ def approve(
     if skill in reader_remarks.SCOPED_SKILLS:
         try:
             remark_records = reader_remarks.verify(root, skill, submission, resolved_sources, grade_report,
-                clinician_reply, verification.matched_at, remark_outcomes)
+                clinician_reply, verification.matched_at, remark_outcomes,
+                accepted=previous.get("reader_remarks", []) if approval_kind == "posting" else None)
         except reader_remarks.RemarkError as failure:
             raise ApprovalRecordError(str(failure)) from failure
     for reply in (clinician_reply, *(row["clinician_reply"] for row in history)):
         grade_report = _without_reply(grade_report, reply)
     item = {
+        "approval_kind": approval_kind,
+        "recorded_at": time.time(),
         "reader_remarks": remark_records,
         "coverage_lines": list(reader_remarks.coverage_lines(grade_report)),
         "pregrade_report": grade_report,
@@ -483,6 +498,7 @@ def approve(
     history.append({name: item[name] for name in (
         "clinician_reply", "reply_verification", "reply_reason", "reply_matched_at",
         "reply_after", "approval_revision", "source_modified_at", "sha256", "shown_text_verification",
+        "approval_kind", "recorded_at",
     )})
     item["approvals"] = history
     current_items = payload.get("items", [])
@@ -661,6 +677,23 @@ def completion_gate(
         outcomes = check_posted_reading(reading, expected)
         if outcomes:
             return True, f"{label}: finding - {outcomes[0].message}"
+        if skill in POSTING_GO_AHEAD_SKILLS and item.get("posting_route") == PostingRoute.AGENT.value:
+            approvals = item.get("approvals", [item])
+            if not isinstance(approvals, list) or not all(isinstance(row, dict) for row in approvals):
+                return True, f"{label}: finding - unreadable approval reply history"
+            contents = [row for row in approvals if row.get("approval_kind") == "content"
+                        and row.get("sha256") == expected]
+            # Old unmarked records predate this build. A missing timestamp is
+            # grandfathered only for that old format, never for marked records.
+            first = contents[-1] if contents else approvals[0] if approvals else item
+            boundary = first.get("recorded_at", first.get("reply_matched_at"))
+            historical = (isinstance(boundary, (int, float)) and boundary < POSTING_GO_AHEAD_CUTOFF
+                          or boundary is None and "approval_kind" not in first)
+            if not historical:
+                content_index = approvals.index(contents[-1]) if contents else len(approvals)
+                if not any(row.get("approval_kind") == "posting" and row.get("sha256") == expected
+                           for row in approvals[content_index + 1:]):
+                    return True, f"{label}: finding - {key} has no Posting go-ahead after its content go-ahead"
     if incomplete:
         return CompletionResult(False, f"{label}: incomplete coverage - {REPLY_UNREADABLE}", True)
     return False, f"{label}: clean"

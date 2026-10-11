@@ -48,6 +48,7 @@ from discussion_artifact import (
     strip_discussion_markers,
 )
 import reader_remarks
+import post_text
 import run_grader
 import file_digest
 from run_grader import NOT_GRADED, EvidenceDisposition
@@ -659,8 +660,27 @@ def load(parsed: run_grader.Parsed) -> RunSource:
     )
 
 
+def plain_text_gate(run: Path) -> tuple[bool, str]:
+    """A built comment, whenever present, must exactly match its Markdown source."""
+    target = run / "critique.txt"
+    if not target.exists():
+        posted = approval_record.posting_route(run, skill="peer-critique", submission="critique.md")
+        if posted == "agent":
+            return True, "plain-text-build: finding - critique.txt is missing"
+        return False, "plain-text-build: NOT GRADED - critique.txt has not been built"
+    try:
+        expected = post_text.render((run / "critique.md").read_text(encoding="utf-8"))
+        matches = target.read_bytes() == expected.encode("utf-8")
+    except (OSError, UnicodeError) as failure:
+        raise run_grader.SourceError(f"plain-text build could not be read: {failure}") from failure
+    except ValueError as failure:
+        return True, f"plain-text-build: finding - {failure}"
+    return (False, "plain-text-build: clean") if matches else (True, "plain-text-build: finding - critique.txt differs from the rebuilt source")
+
+
 def grade(source: RunSource, parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
     scanned = survey(source)
+    text_failed, text_report = plain_text_gate(source.path)
     aar_failed, aar_report = aar_scan.completion_gate(source.path, parsed.value("--submission"))
     grade = run_grader.Grade(
         scan=scanned,
@@ -672,7 +692,7 @@ def grade(source: RunSource, parsed: run_grader.Parsed) -> run_grader.Grade[Scan
             )
             for finding in scanned.findings
         )
-        or aar_failed,
+        or aar_failed or text_failed,
         coverage_failed=(
             not scanned.reference_boundary_graded
             or scanned.heading_read_unread > 0
@@ -694,7 +714,7 @@ def grade(source: RunSource, parsed: run_grader.Parsed) -> run_grader.Grade[Scan
             if source.refused_label is not None
             else ()
         ),
-        reports=(heading_read.protocol_coverage(source.claims, source.heading_read_text), aar_report),
+        reports=(heading_read.protocol_coverage(source.claims, source.heading_read_text), aar_report, text_report),
     )
     grade = voice_model_identity.apply_completion_gate(
         grade,

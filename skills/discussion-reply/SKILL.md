@@ -365,7 +365,7 @@ showing that gate, inspect the threaded Canvas Composer and read
 [canvas-editor.md](../_shared/reference/canvas-editor.md). Choose its first supported **Load route**
 before loading, and tell the clinician which route will be used and what that route costs as part of
 the same approval. When `voice-status.md` exists, show its unmodeled-voice declaration alongside the
-reply. Only an explicit go-ahead for this reply authorizes posting.
+reply. Only an explicit content go-ahead for this reply authorizes loading.
 Apply [Reader remarks at the go-ahead](../_shared/reference/sourcing.md#reader-remarks-at-the-go-ahead) before each approval question: prepare the paired grade, show its numbered remarks with proposed outcomes and every coverage line verbatim, then pass `remark_outcomes=outcomes` with the whole reply.
 
 Before asking for each reply's go-ahead, run `python tools/project_context.py <run-directory>
@@ -394,8 +394,15 @@ result is the reply omitting the `INVOKED` comments. Load it by the route alread
 `canvas-editor.md`, then write the Composer's serialized HTML to
 `response-<name>-readback.html`. Rerun `discussion_reply_scan.py` before posting. A non-clean
 `editor-readback` comparison stops and returns to the clinician; do not switch routes or retry the
-load. A clean comparison authorizes no posting by itself: the clinician's existing go-ahead is
-the single posting gate. If the submit click shows a message-size refusal, read the board for a
+load. Follow the loaded-box stop in `canvas-editor.md`. Record the **Posting go-ahead** before Submit
+with a second `approval_record.approve(run, skill="discussion-reply",
+submission=response_path.name, sources=(response_path,), grader_args=(str(run),),
+content_approved=True, clinician_reply=clinician_reply, approval_kind="posting")` call,
+using the clinician's whole reply. On unchanged text, carry forward the content approval's
+reader-remark outcomes; its display remains in the remark-list and coverage-line windows, and
+approved leave proposals need no repeated naming. Show a changed project-context notice and
+renew approval before clicking. A changed reply requires a new content approval shown in full,
+then a reload and the same stop. If the submit click shows a message-size refusal, read the board for a
 created entry, report the outcome, and stop at the clinician; this Reply has no attachment
 fallback. Submit it, then call `approval_record.record_agent_posting(run,
 skill="discussion-reply", submission=response_path.name)`. If the clinician says he posted the
@@ -435,7 +442,8 @@ artificial delay.
 
 Run the same independent ledger and discussion-reply checks over the completed run. The grader
 compares every response file, so a repeated source now fails. Show reply two and wait for a new,
-explicit posting go-ahead. Then build and load it, submit, record, and grade its posted reading on the
+explicit content go-ahead. Then build and load it, take the same loaded-box stop, record its
+Posting go-ahead, submit, record, and grade its posted reading on the
 same terms as reply one. Invoke `/AAR` for reply two's response filename after its posted reading. The terminal grader is then `python tools/discussion_reply_scan.py <run-directory> --submission <reply-one-filename>,<reply-two-filename>`; both submission-keyed reviews must be clean.
 
 ## Completion

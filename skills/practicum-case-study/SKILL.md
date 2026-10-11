@@ -1671,12 +1671,22 @@ incomplete coverage does not block, while a finding refuses the record. From thi
 every reply touching the run ends with `Run status: <run-key> — <awaiting posting|awaiting posted
 reading|awaiting AAR|complete|stopped - reason>`. Several touched runs each get their own keyed
 line, and no classmate or patient name enters it.
-`file-upload` branch posts the `.docx`. On `canvas-composer`, build the `.html` from the checked
+Read the shared `canvas-editor.md` sheet for either posting branch.
+The `file-upload` branch stages the `.docx` and reads its displayed filename and size. On `canvas-composer`, build the `.html` from the checked
 Markdown with `python tools/post_html.py <output Markdown> <same-stem .html>`, load it by the
 declared route, and compare the serialized Composer HTML with that build under the shared sheet.
-The existing go-ahead authorizes the full-body submit click. Follow the shared sheet's observed
+Take the shared loaded-box stop on either branch. Before clicking Submit, record the
+**Posting go-ahead** with a second `approval_record.approve(run, skill="practicum-case-study",
+submission=output_markdown.stem, sources=(output_markdown,), grader_args=(str(checks_ledger),
+"--document", str(output_markdown)), content_approved=True, clinician_reply=clinician_reply,
+approval_kind="posting")` call using the clinician's whole reply. On unchanged text, carry forward
+the content approval's reader-remark outcomes; its display remains in the remark-list and
+coverage-line windows and approved leave proposals need no repeated naming. Show any changed
+project-context notice and renew approval before clicking. A changed draft needs a new content
+approval shown in full, then a reload and the same stop. Follow the shared sheet's observed
 outcome procedure. A message-size refusal alone permits the fixed pointer and checked `.docx`;
-show its body and displayed attachment filename and size, then get the fresh explicit go-ahead.
+show its pointer body and displayed attachment filename and size at the same loaded-box stop,
+then record a fresh Posting go-ahead through the same call before submitting.
 The existing `the rendered document` check remains required on both outcomes. Download an
 attached document from the posted entry's own link into `<run-directory>/posted/` before grading.
 Once either branch has a posted entry, call `approval_record.record_agent_posting(run,

@@ -532,7 +532,7 @@ Set `clinician_reply` to the clinician's whole Gate 2 reply, including any condi
 `approval_record.approve(run, skill="discussion-post", submission=output_markdown.stem,
 sources=(output_markdown,), grader_args=(str(run), "--draft", str(output_markdown), "--html",
 str(output_html), "--docx", str(output_docx)),
-content_approved=True, clinician_reply=clinician_reply, remark_outcomes=outcomes)` again for the same item, retaining both
+content_approved=True, clinician_reply=clinician_reply, approval_kind="posting")` again for the same item, retaining both
 gates' replies and updating its approval revision and fingerprint before the click.
 
 Click Reply on the full body after Gate 2 and follow the shared sheet's observed outcome procedure.

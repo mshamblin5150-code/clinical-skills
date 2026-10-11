@@ -135,6 +135,52 @@ class ApprovalSurfaces(unittest.TestCase):
             patch.start()
             self.addCleanup(patch.stop)
 
+    def test_unchanged_posting_reply_carries_the_content_leave_without_renaming_it(self):
+        self.graders()
+        self.outcomes = (remarks.Outcome('leave', 'Keep this synthetic wording.'),)
+        prepared = self.prepare()
+        self.show('Synthetic approved content.\n' + remarks.surface(prepared, self.outcomes), 'go, leave 1')
+        self.approve(reply='go, leave 1')
+        row = {'type': 'user', 'timestamp': datetime.fromtimestamp(time.time() + 30, timezone.utc).isoformat(),
+               'message': {'content': 'Post the loaded box.'}}
+        with self.transcript.open('a', encoding='utf-8') as stream:
+            stream.write(json.dumps(row) + '\n')
+        approvals.approve(self.run, skill='discussion-post', submission='draft', sources=(self.source,),
+                          grader_args=(str(self.run),), content_approved=True,
+                          clinician_reply='Post the loaded box.', approval_kind='posting')
+        item = json.loads((self.run / approvals.RECORD).read_text(encoding='utf-8'))['items'][0]
+        self.assertEqual("left on clinician's word", item['reader_remarks'][0]['outcome'])
+        self.assertEqual('exempt', item['shown_text_verification'])
+        self.assertEqual(['content', 'posting'], [row['approval_kind'] for row in item['approvals']])
+
+    def test_posting_preserves_stored_order_when_a_fixed_remark_disappears(self):
+        first = remarks.Remark('HEADING-READ: draft.md', 'First observation.')
+        second = remarks.Remark('HEADING-READ: draft.md', 'Second observation.')
+        self.grade = 'paired grade: clean\nunread remainder 1\n' + remarks.report((first, second))
+        self.graders()
+        self.outcomes = (remarks.Outcome('fixed', 'First repaired.'), remarks.Outcome('leave', 'Keep second.'))
+        prepared = self.prepare()
+        self.show('Synthetic approved content.\n' + remarks.surface(prepared, self.outcomes), 'go, leave 2')
+        self.approve(reply='go, leave 2')
+        row = {'type': 'user', 'timestamp': datetime.fromtimestamp(time.time() + 30, timezone.utc).isoformat(),
+               'message': {'content': 'Post the loaded box.'}}
+        with self.transcript.open('a', encoding='utf-8') as stream:
+            stream.write(json.dumps(row) + '\n')
+        with mock.patch.object(approvals, '_pre_post_grade', return_value=(2, 'paired grade: clean\nunread remainder 1\n' + remarks.report((second,)))):
+            approvals.approve(self.run, skill='discussion-post', submission='draft', sources=(self.source,),
+                              grader_args=(str(self.run),), content_approved=True,
+                              clinician_reply='Post the loaded box.', approval_kind='posting')
+        item = json.loads((self.run / approvals.RECORD).read_text(encoding='utf-8'))['items'][0]
+        self.assertEqual(['First observation.', 'Second observation.'], [r['text'] for r in item['reader_remarks']])
+        with mock.patch.object(approvals, '_pre_post_grade', return_value=(2, self.grade + '\n' + remarks.report((remarks.Remark('new', 'New observation.'),)))):
+            row['timestamp'] = datetime.fromtimestamp(time.time() + 60, timezone.utc).isoformat()
+            with self.transcript.open('a', encoding='utf-8') as stream:
+                stream.write(json.dumps(row) + '\n')
+            with self.assertRaisesRegex(approvals.ApprovalRecordError, 'reader remarks changed'):
+                approvals.approve(self.run, skill='discussion-post', submission='draft', sources=(self.source,),
+                                  grader_args=(str(self.run),), content_approved=True,
+                                  clinician_reply='Post the loaded box.', approval_kind='posting')
+
     def test_both_seams_refuse_each_missing_approval_part(self):
         self.graders()
         for course in (False, True):

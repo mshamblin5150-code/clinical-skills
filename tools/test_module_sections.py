@@ -114,6 +114,7 @@ DECLARED_SECTIONS = {
     "name_index": "PHI pre-commit hook",
     "pdf_engine": "Console codec",
     "phi_scan": "PHI pre-commit hook",
+    "post_text": "Peer critique grading",
     "post_html": "Discussion post grading",
     "project_context": "Coursework project context",
     "procedure_codes_build": "Procedure-code database",

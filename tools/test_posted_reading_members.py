@@ -109,6 +109,7 @@ class PostedReadingMembers(unittest.TestCase):
             write_none_context(run)
             with mock.patch.object(approval_record.reader_remarks, "verify", return_value=[]):
                 approval_record.approve(run, skill='discussion-post', submission='post', sources=(note,), grader_args=(str(run),), content_approved=True, clinician_reply='Approve the synthetic post.')
+                approval_record.approve(run, skill='discussion-post', submission='post', sources=(note,), grader_args=(str(run),), content_approved=True, clinician_reply='Post the synthetic loaded box.', approval_kind='posting')
             approval_record.record_agent_posting(run, skill='discussion-post', submission='post')
             record = run / 'reread.md'
             record.write_text('## REREAD: post\nSUBMISSION-SHA256: ' + file_digest.sha256(note) + '\n', encoding='utf-8')
