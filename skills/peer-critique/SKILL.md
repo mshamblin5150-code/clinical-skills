@@ -318,7 +318,7 @@ and [style.md](../_shared/reference/style.md); do not restate a second list rule
 Then run the reference list through the shared APA grader:
 
 ```bash
-python tools/reference_scan.py scratch/runs/<run-key>/critique.md --as-of <the sitting's ISO date>
+python tools/reference_scan.py scratch/runs/<run-key>/critique.md --as-of <the sitting's ISO date> --bold-references
 ```
 
 Its exit must be 0. Walk `peer_critique_scan.NOT_REACHED` after a clean scan; it is the single

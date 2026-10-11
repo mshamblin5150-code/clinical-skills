@@ -6,6 +6,8 @@
     python tools/aar_scan.py <run-directory> --submission <submission-key> \
         --memory-index <MEMORY.md> --extract --rebuild-round <number>
     python tools/aar_scan.py <run-directory> --submission <submission-key> [--show]
+    python tools/aar_scan.py <run-directory> --submission <submission-key> \
+        --measure-memory [--round <number>]
 
 The first form writes a reduced, private review packet under ``<run>/aar/``.
 It keeps human turns, assistant text, subagent result bodies, and tool names and
@@ -18,6 +20,8 @@ The rebuild form repairs a refused round only when its recorded entries match.
 The final form grades the record. Counts are safe to paste; ``--show`` names
 private findings and must not be pasted. A run directory and every artifact
 under ``aar/`` are private working material.
+The measuring form retains the newest round's memory index counts after memory
+writes. Grading reads the retained measurement rather than the live index.
 
 The complete coverage boundary is ``DECLARED_LIMITS``. This docstring points at
 that object and does not maintain a second copy of its rows. #814.
@@ -51,6 +55,13 @@ REVIEW_CLASSIFIER_ENTRY_CUTOFF = datetime(2026, 9, 12, tzinfo=timezone.utc)
 POSTED_READING_FINGERPRINT_CUTOFF = datetime(2026, 9, 13, tzinfo=timezone.utc)
 UNREAD_REMAINDER_CUTOFF = datetime(2026, 10, 3, 17, 57, tzinfo=timezone.utc)
 LANDING_OUTPUT_CUTOFF = datetime(2026, 10, 8, tzinfo=timezone.utc)
+MEMORY_MEASUREMENT_CUTOFF = datetime(2026, 10, 11, 20, 16, 17, tzinfo=timezone.utc)
+MEMORY_INDEX_LIMITS = MappingProxyType({"lines": 200, "characters": 25000, "release": "2.1.284"})
+# ECMAScript WhiteSpace and LineTerminator characters used by String.trim().
+JS_TRIM_WHITESPACE = (
+    "\t\n\v\f\r \u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005"
+    "\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff"
+)
 
 
 SCOPED_SKILLS = frozenset(
@@ -229,6 +240,8 @@ NAMED_UNREAD_TYPES: Mapping[str, str] = MappingProxyType(
 ROWS: Mapping[str, str] = MappingProxyType(
     {
         "missing-review": "the submission has no review record",
+        "memory-index-measurement": "the round has no valid memory-index measurement",
+        "memory-index-overflow": "the recorded memory index exceeds its load limits",
         "unscannable-review": "the review record or its evidence cannot be scanned",
         "unscannable-extract": "the extract cannot be scanned",
         "posted-reading-mismatch": "the extract has no current fingerprint of its posted reading",
@@ -262,6 +275,10 @@ ROWS: Mapping[str, str] = MappingProxyType(
 KINDS = tuple(ROWS)
 
 DECLARED_LIMITS = (
+    (
+        "memory index outside the sitting",
+        "Only the recorded Claude Code index measurement is graded; later growth, other memory mechanisms, and limit changes without a release change are outside this row.",
+    ),
     (
         "reasoning-only correction",
         "A correction that appears only in Codex reasoning or Claude thinking is outside the population by ADR 0285 ruling 3.",
@@ -465,6 +482,7 @@ class Scan:
     browser: BrowserDiagnostics = BrowserDiagnostics()
     unread_remainder: int | None = None
     unmeasured_rounds: int = 0
+    memory_reports: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -846,6 +864,82 @@ def extract_path(run: Path, submission: str, round_number: int = 1) -> Path:
 
 def baseline_path(run: Path, submission: str, round_number: int = 1) -> Path:
     return run / "aar" / f"{_round_stem(submission, round_number)}.baseline.json"
+
+
+def memory_measurement_path(run: Path, submission: str, round_number: int = 1) -> Path:
+    return run / "aar" / f"{_round_stem(submission, round_number)}.memory-index.json"
+
+
+def measure_memory(run: Path, submission: str, round_number: int) -> Path:
+    """Retain this round's index counts after its memory writes have landed."""
+    extract = extract_path(run, submission, round_number)
+    fields, _identifiers = _extract_metadata(extract)
+    value = fields.get("MEMORY-INDEX", "")
+    if not value.strip():
+        raise ValueError("extract has no MEMORY-INDEX path")
+    index = Path(value).expanduser()
+    if not index.is_absolute():
+        raise ValueError("extract MEMORY-INDEX must be absolute")
+    # Claude Code measures the trimmed JavaScript string, including UTF-16
+    # code units rather than UTF-8 bytes. Preserve interior CRLF characters.
+    text = index.read_bytes().decode("utf-8").strip(JS_TRIM_WHITESPACE)
+    lines = len(text.split("\n")) if text else 0
+    characters = len(text.encode("utf-16-le")) // 2
+    limits = dict(MEMORY_INDEX_LIMITS)
+    record = {
+        "submission": submission, "round": round_number,
+        "extracted_at": fields.get("EXTRACTED-AT", ""),
+        "memory_index": value, "measured_at": datetime.now(timezone.utc).isoformat(),
+        "lines": lines, "characters": characters, "limits": limits,
+        "verdict": "fail" if lines > limits["lines"] or characters > limits["characters"] else "pass",
+    }
+    destination = memory_measurement_path(run, submission, round_number)
+    destination.write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
+    return destination
+
+
+def _memory_index_grade(
+    run: Path, submission: str, round_number: int, fields: Mapping[str, str]
+) -> tuple[tuple[str, ...], tuple[Finding, ...]]:
+    prefix = f"memory index round {round_number}"
+    extracted_at = fields.get("EXTRACTED-AT", "")
+    required = bool(extracted_at) and _utc_timestamp(extracted_at, "EXTRACTED-AT") >= MEMORY_MEASUREMENT_CUTOFF
+    path = memory_measurement_path(run, submission, round_number)
+    if not path.is_file() and not required:
+        return (f"{prefix}: {NOT_GRADED} - extract predates the measurement",), ()
+    try:
+        record = json.loads(path.read_text(encoding="utf-8"))
+        limits = record["limits"]
+        for counts in (record, limits):
+            for name in ("lines", "characters"):
+                if type(counts[name]) is not int or counts[name] < (1 if counts is limits else 0):
+                    raise ValueError("invalid index counts or limits")
+        if not isinstance(limits["release"], str) or not re.fullmatch(r"\d+\.\d+\.\d+", limits["release"]):
+            raise ValueError("invalid measured release")
+        overflow = record["lines"] > limits["lines"] or record["characters"] > limits["characters"]
+        if (
+            record["submission"] != submission or record["round"] != round_number
+            or record["memory_index"] != fields.get("MEMORY-INDEX")
+            or record["extracted_at"] != extracted_at
+            or record["verdict"] != ("fail" if overflow else "pass")
+        ):
+            raise ValueError("measurement does not match the round or its verdict")
+        if not isinstance(record["measured_at"], str):
+            raise ValueError("invalid measurement timestamp")
+        _utc_timestamp(record["measured_at"], "memory measured-at")
+    except (OSError, UnicodeError, ValueError, KeyError, TypeError) as exc:
+        return (f"{prefix}: measurement missing or invalid",), (Finding("memory-index-measurement", str(exc)),)
+    reports = [
+        f"{prefix}: {record['lines']}/{limits['lines']} lines; "
+        f"{record['characters']}/{limits['characters']} characters; "
+        f"Claude Code {limits['release']}; {record['verdict']}"
+    ]
+    versions = tuple(value.strip() for value in fields.get("HARNESS-VERSIONS", "").split(","))
+    mismatched = tuple(value for value in versions if re.fullmatch(r"\d+\.\d+\.\d+", value) and value != limits["release"])
+    if mismatched:
+        reports.append(f"Claude Code {', '.join(mismatched)} differs from measured release {limits['release']}; re-measure memory index limits.")
+    findings = (Finding("memory-index-overflow", f"round {round_number}"),) if overflow else ()
+    return tuple(reports), findings
 
 
 def _review_round_numbers(run: Path, submission: str) -> tuple[int, ...]:
@@ -1899,6 +1993,8 @@ def _survey_round(
         if not present:
             findings.append(Finding("missing-header-field", field))
     extracted_at = extract_fields.get("EXTRACTED-AT", "")
+    memory_reports, memory_findings = _memory_index_grade(run, submission, round_number, extract_fields)
+    findings.extend(memory_findings)
     later_sittings = (
         count_later_sittings(run, _utc_timestamp(extracted_at, "EXTRACTED-AT"))
         if extracted_at
@@ -2077,6 +2173,7 @@ def _survey_round(
         browser=browser,
         unread_remainder=unread_remainder,
         unmeasured_rounds=int(not remainder_cutoff),
+        memory_reports=memory_reports,
         **diagnostic_counts,
     )
 
@@ -2139,6 +2236,7 @@ def survey(run: Path, submission: str) -> Scan:
             else None
         ),
         unmeasured_rounds=sum(scan.unmeasured_rounds for scan in scans),
+        memory_reports=tuple(dict.fromkeys(report for scan in scans for report in scan.memory_reports)),
     )
 
 
@@ -2164,6 +2262,7 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
     ]
     if scan.unread_remainder is not None:
         lines.append(run_grader.format_unread_remainder(scan.unread_remainder))
+    lines.extend(scan.memory_reports)
     if scan.unmeasured_rounds:
         lines.append("unread remainder: not measured (extract predates the count)")
     elif scan.unread_remainder is None:
@@ -2381,13 +2480,21 @@ def count_later_sittings(run: Path, extracted_at: datetime) -> int:
 USAGE = (
     "usage: aar_scan.py <run-directory> --submission <key> "
     "[--transcript <jsonl> --memory-index <path> --extract "
-    "[--rebuild-round <number>]] [--show]"
+    "[--rebuild-round <number>]] [--measure-memory [--round <number>]] [--show]"
 )
 
 
 def validate(parsed: run_grader.Parsed) -> str | None:
     if not parsed.value("--submission"):
         return "--submission is required"
+    if parsed.enabled("--measure-memory") and parsed.enabled("--extract"):
+        return "--measure-memory and --extract are separate steps"
+    measured_round = parsed.value("--round")
+    if measured_round:
+        if not parsed.enabled("--measure-memory"):
+            return "--round requires --measure-memory"
+        if not measured_round.isdecimal() or int(measured_round) < 1:
+            return "--round needs a positive round number"
     if parsed.enabled("--extract") and not parsed.value("--memory-index"):
         return "--extract requires --memory-index"
     rebuild = parsed.value("--rebuild-round")
@@ -2413,6 +2520,14 @@ def load(parsed: run_grader.Parsed) -> Path:
 def grade(run: Path, parsed: run_grader.Parsed) -> run_grader.Grade[Scan] | run_grader.EarlyExit:
     submission = parsed.value("--submission")
     assert submission is not None  # validate owns this invocation requirement
+    if parsed.enabled("--measure-memory"):
+        try:
+            round_value = parsed.value("--round")
+            round_number = int(round_value) if round_value else max(_review_round_numbers(run, submission), default=1)
+            destination = measure_memory(run, submission, round_number)
+        except (OSError, UnicodeError, ValueError) as exc:
+            return run_grader.EarlyExit(2, stderr=(f"memory index NOT MEASURED: {exc}",))
+        return run_grader.EarlyExit(0, stdout=(f"private memory index measurement written: {destination.name}",))
     try:
         retire_orphan_pointers(run)
     except OSError as exc:
@@ -2503,6 +2618,8 @@ GRADER = run_grader.Grader(
         run_grader.Option("--transcript", takes_value=True),
         run_grader.Option("--memory-index", takes_value=True),
         run_grader.Option("--extract"),
+        run_grader.Option("--measure-memory"),
+        run_grader.Option("--round", takes_value=True),
         run_grader.Option(
             "--rebuild-round",
             takes_value=True,

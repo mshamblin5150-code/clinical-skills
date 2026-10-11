@@ -354,6 +354,7 @@ reaches` and `tools/checks_ledger.py` expects it, so a run that returns no verdi
 
 | What stays a reading | Why no command reaches it |
 | --- | --- |
+| **whether an opted-in bold reference label marks the real list boundary** | The switch opens the list at that line; a reader checks whether the label was placed correctly |
 | **whether a shortened title resolves against more than one reference entry** | A citation ending before two title proper keys diverge can resolve against both; the prefix relation has no ambiguity threshold |
 | **whether a citation naming part of a group author's name resolves** | Group authors share the no-surname branch with titles, so a partial organization name can satisfy the prefix relation |
 | **whether a citation stopping mid-word resolves** | The normalized relation has no word-boundary check, so a citation ending within a title word can resolve |

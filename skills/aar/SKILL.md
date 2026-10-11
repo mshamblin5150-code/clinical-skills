@@ -114,7 +114,15 @@ Rounds before `aar_scan.LANDING_OUTPUT_CUTOFF` keep their historical evidence ru
 
 The grader refuses a correction resting on an entry whose text the extractor wrote rather than copied, and it counts every record's corrector against the kind of entry it names without grading that count.
 
-Run:
+After this round's memory writes land, measure the index at the extract's `MEMORY-INDEX:` path:
+
+```bash
+python tools/aar_scan.py <run-directory> --submission <submission-key> --measure-memory
+```
+
+The command writes the newest round's `.memory-index.json` beside its review record.
+Use `--round <number>` only to remeasure a named earlier round. A measurement refusal stops
+grading; repair the unreadable index or extract and measure again. Then run:
 
 ```bash
 python tools/aar_scan.py <run-directory> --submission <submission-key>
@@ -125,5 +133,13 @@ its own baseline, and the newest round's Posted-reading fingerprint remains curr
 Exit 1 is a finding in any round. Exit 2 means the population was not scanned. The report prints
 each round's correction and unlanded counts on every run. `--show` names private findings and must
 not be pasted.
+
+The memory-index row reads only each round's recorded measurement, never the live index.
+It prints lines and characters against the limits in `aar_scan.MEMORY_INDEX_LIMITS` on every grade.
+An oversized index or a missing or invalid measurement for a round extracted since
+`aar_scan.MEMORY_MEASUREMENT_CUTOFF` fails with exit 1. Compact the index, measure that round again,
+then re-run the grade. Earlier rounds without a measurement report `not graded`. A different
+Claude Code release in `HARNESS-VERSIONS:` prints a non-failing instruction to re-measure the
+limits. Later memory writes do not change the recorded grade of a finished run.
 
 Return to the invoking skill's completion grader only after exit 0. Report correction and sustain counts, or say in two lines that the fixed population held neither; do not turn a zero-correction review into praise.

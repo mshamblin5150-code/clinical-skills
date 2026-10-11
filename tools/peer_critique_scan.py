@@ -159,6 +159,8 @@ NO_ROSTER = "no roster post carries an AUTHOR line"
 REFUSED_LABEL = "critique reference label refused"
 UNREAD_REMAINDER = "unread remainder"
 VOICE_MODEL_IDENTITY_UNVERIFIED = "canonical voice model identity unverified"
+VOICE_READ_UNVERIFIED = "voice read unverified"
+PROJECT_CONTEXT_UNVERIFIED = "project context unverified"
 INVALID_INVOCATION = "invalid invocation"
 UNRECORDED_POSTING = "posted reading without recorded posting"
 EXIT_2_LIMBS = (
@@ -169,6 +171,8 @@ EXIT_2_LIMBS = (
     REFUSED_LABEL,
     UNREAD_REMAINDER,
     VOICE_MODEL_IDENTITY_UNVERIFIED,
+    VOICE_READ_UNVERIFIED,
+    PROJECT_CONTEXT_UNVERIFIED,
     approval_record.REPLY_UNREADABLE,
     UNRECORDED_POSTING,
 )
@@ -729,6 +733,7 @@ def grade(source: RunSource, parsed: run_grader.Parsed) -> run_grader.Grade[Scan
         voice_read.draft_surface(
             ((source.path / "critique.md", source.critique),)
         ),
+        coverage_limb=VOICE_READ_UNVERIFIED,
     )
     submission = parsed.value("--submission")
     grade = imagery_proposals.apply_completion_gate(
@@ -740,6 +745,7 @@ def grade(source: RunSource, parsed: run_grader.Parsed) -> run_grader.Grade[Scan
         grade,
         source.path,
         parsed.value("--submission"),
+        coverage_limb=PROJECT_CONTEXT_UNVERIFIED,
     )
     grade = lms_attachments.apply_completion_gate(grade, source.path, parsed.value("--submission"))
     grade = reader_remarks.apply_readers(grade, research_ledger.read_records(source.claims), heading_read.read_records(source.heading_read_text), ("critique.md",), coverage_limb=UNREAD_REMAINDER)
