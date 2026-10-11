@@ -41,7 +41,13 @@ element: *"the date element is the year of the topic's last update. Not the year
 
 **The gate this collides with.** `research_ledger.CITED_TOPIC_NOT_IN_EVIDENCE` joins every cited
 UpToDate topic against the set the **current dump** carries and refuses anything outside it, exit 1.
-Its ground is that the companion evidence is the required supplied-source set.
+Its ground is that a cited topic must be filed so its masthead and dates can be checked against the
+stored copy.
+
+**Correction, 2026-10-11, on [#1505](https://github.com/mshamblin5150-code/clinical-skills/issues/1505):**
+the sentence above formerly read *"Its ground is that the companion evidence is the required
+supplied-source set."* No dump was ever faculty-supplied; every dump is the clinician's own **Case
+research**. [ADR 0335](0335-the-clinician-s-evidence-dumps-are-his-own-research-and-the-store-membership-rule-stands-on-checkability.md) ruling 1 restates the ground. This record's rulings stand.
 
 **The quoting posture that already exists.**
 [#223](https://github.com/mshamblin5150-code/clinical-skills/issues/223), re-ruled on
@@ -139,8 +145,12 @@ all of its topics. A file on disk that has not been handed over is **reported an
 **Mining was refused with a recorded failure behind it.** `voice_corpus.py`'s lesson is that a
 matcher over heterogeneous material turns a partial read into a clean-looking whole, and the twelve
 `scratch/` files carrying UpToDate markers already show mismatched marker counts. Worse, mining
-would break ruling 4: a topic pasted into a conversation was never *supplied as faculty material*,
-so filing it would manufacture a citation entitlement out of a chat.
+would break ruling 4: a topic pasted into a conversation was never *deliberately filed*, so filing it
+would manufacture a citation entitlement out of a chat.
+
+**Correction, 2026-10-11, on [#1505](https://github.com/mshamblin5150-code/clinical-skills/issues/1505):**
+the sentence above formerly said such a topic was never *supplied as faculty material*. No dump was
+ever faculty material; [ADR 0335](0335-the-clinician-s-evidence-dumps-are-his-own-research-and-the-store-membership-rule-stands-on-checkability.md) ruling 1 records that. The refusal of mining stands.
 
 **Reporting rather than silence is `name_index.py`'s arrangement** — state the shortfall, name the
 remedy, write nothing.
