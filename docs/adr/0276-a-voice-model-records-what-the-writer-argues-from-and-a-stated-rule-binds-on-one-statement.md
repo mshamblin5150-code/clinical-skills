@@ -165,3 +165,7 @@ model is built.
 proposed-and-approved, and how a run records what the clinician supplied are build choices for the
 filed tickets. What the marks must achieve is ruled: an approved proposal is never read back by a
 harvest as attested writing, and a supplied image or principle is checked whole at completion.
+
+## Supersedes
+
+- [ADR 0038](0038-a-figure-marker-names-what-it-spends-and-the-domain-stays-open.md) ruling 8, the words "the skill is licensed to add none". A run may propose an image from a recorded model domain and publish it only on the clinician's separate yes; the proposal remains excluded from attested writing. The domain/property form and magnitude restraint stand.

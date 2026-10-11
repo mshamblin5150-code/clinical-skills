@@ -144,3 +144,9 @@ comparison.** It is a different question in the same function and stays open.
 
 **[#1066](https://github.com/mshamblin5150-code/clinical-skills/issues/1066)'s family-wide remainder
 obligation.** Ruling 3 rules one gate in one family and is a precedent there, not an answer.
+
+## Supersedes
+
+- [ADR 0080](0080-a-gated-row-set-is-declared-per-gate-and-guarded-by-an-opt-in-walk-in-the-shared-conformance-kit.md) ruling 5, the words "asserts that every declared kind and field reads `not graded` in the first and a count in the second". Voiding gates retain not graded; partial gates retain already computed findings and report their qualified count. The refusal of a shared status assertion stands.
+
+- [ADR 0036](0036-a-references-label-is-a-per-pipeline-source-spelling-for-one-rendered-outcome.md) ruling 2, the words "The house rule that **1 wins over 2** does not apply". The refused label still voids its declared dependent kinds; every other computed finding counts. The original reason and other rulings stand.

@@ -17,6 +17,10 @@ clinician ruled the term and the sweep on 2026-08-22.
    is in state `sheet`, `none`, or `unread`, and the registry auditor re-derives both
    the population and the state counts. A separate optional artifact column can name
    partial work; an artifact does not change an `unread` topic's state.
+
+*Superseded 2026-08-29.* The words "Each row
+    is in state `sheet`, `none`, or `unread`" are superseded by [ADR 0061](0061-a-declared-non-source-is-an-enumerated-class-and-it-earns-a-fourth-sweep-state.md) ruling 3. Catalog-derived denominator, artifact column and derived state counts stand.
+
 4. **A method-dependent value names the method in its quantity key.** Quantity keys
    are declared under `## Quantities` on the same terms that population keys are
    declared under `## Populations`. This represents alternatives without pretending

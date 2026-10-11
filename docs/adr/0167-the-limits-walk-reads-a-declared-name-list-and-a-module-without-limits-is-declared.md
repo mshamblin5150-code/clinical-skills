@@ -276,3 +276,9 @@ folds into its module's object.
 
 **A repository-wide limits-object count in prose without its instrument.** The walk owns the
 population; `CLAUDE.md` and ticket text point at it.
+
+## Supersedes
+
+- [ADR 0119](0119-the-limit-row-type-stays-per-module-the-evidence-disposition-moves-to-the-grader-runner-and-the-declarer-walk-is-candidacy-derived.md) ruling 4, the words "Candidacy is a `tools/` module with a top-level constant named `DECLARED_LIMITS`.". Candidacy still reads declared names rather than row shapes; it uses the shared name list.
+
+- [ADR 0158](0158-the-prose-bind-is-one-instrument-and-its-rule-carries-an-identity.md) ruling 7, the words "Every authored limits object carries exactly one no-copy bind, through the shared detector.". Every object must have a bind through the shared detector; additional binds remain when they cover additional prose surfaces.

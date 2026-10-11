@@ -180,3 +180,7 @@ as ruling 5 reversed.
   support is not proposed, and no refusal records it.
 - **A real poisoning note**, which ruling 10 declares.
 - **Cross-references ruling 8 still cannot follow**, which are unread rather than graded.
+
+## Supersedes
+
+- [ADR 0243](0243-descriptor-agreement-is-read-blind-against-the-note-and-the-index.md) ruling 2, the words "The neoplasm table, the drug table and the external-cause index stay out.". The official alphabetic index remains committed and agreement still follows the official path.

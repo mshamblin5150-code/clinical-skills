@@ -177,3 +177,11 @@ the checks reach the sentence and nothing reaches the behavior.
 **A restatement in other words**, by ruling 4's declared limit.
 
 **ADR 0055's markers until the filed reader ticket is built**, by ruling 6.
+
+## Supersedes
+
+- [ADR 0055](0055-the-research-fan-out-s-authenticated-route-is-required-where-the-profile-has-one-and-the-substitution-it-would-prevent-stays-unreached.md) ruling 4, the words "This ruling puts a research-side sentence in the same three files.". The one shared route replaces the per-skill copies and profile condition. Rulings 1, 2, 3 and 7, the authenticated attempt, and the giving-up trigger survive.
+
+- [ADR 0055](0055-the-research-fan-out-s-authenticated-route-is-required-where-the-profile-has-one-and-the-substitution-it-would-prevent-stays-unreached.md) ruling 5, the words "Assert existence per skill; do not assert the three texts match.". The one shared route replaces the per-skill copies and profile condition. Rulings 1, 2, 3 and 7, the authenticated attempt, and the giving-up trigger survive.
+
+- [ADR 0055](0055-the-research-fan-out-s-authenticated-route-is-required-where-the-profile-has-one-and-the-substitution-it-would-prevent-stays-unreached.md) ruling 6, the words "Required where the profile records that the browser tool is available, and silent where it does not.". The one shared route replaces the per-skill copies and profile condition. Rulings 1, 2, 3 and 7, the authenticated attempt, and the giving-up trigger survive.

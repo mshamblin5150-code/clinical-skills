@@ -195,6 +195,14 @@ arrangement reads one shared pass reader, so no divergence about **what a pass i
 the rows themselves grade is a separate question this record did not measure. It is declared here
 and filed as its own ticket.
 
+*Superseded 2026-09-10.* The words "`deck_scan` gains no render row" are superseded by [ADR 0161](0161-the-deck-and-case-study-render-records-name-the-final-pass-and-route.md) ruling 1. One terminal render-record row is added; the refusal of an export-reading coverage row and placement divergence remain. The original dated account is retained: **Superseded in part 2026-09-10 by
+[ADR 0161](0161-the-deck-and-case-study-render-records-name-the-final-pass-and-route.md), and left as
+written.** Ruling 4's *"`deck_scan` gains no render row"* is superseded for one row only: a render
+record row graded at the terminal `--submission` run, which ADR 0161 rules for the deck. The refusal
+of a coverage row that reads the retained export stands on this record's grounds, and so does the
+declared placement divergence. ADR 0161 states where its record row's slide-count comparison
+overlaps coverage and why that overlap was accepted.
+
 ### 5. #803's decision 1 is untouched
 
 The shared helper gives #803's missing case-study producer a home for numbering, staging, retention
@@ -242,11 +250,3 @@ that `deck_scan` gains no render row and the placement divergence is declared an
 carries the measurement and the placement ruling.
 
 ---
-
-**Superseded in part 2026-09-10 by
-[ADR 0161](0161-the-deck-and-case-study-render-records-name-the-final-pass-and-route.md), and left as
-written.** Ruling 4's *"`deck_scan` gains no render row"* is superseded for one row only: a render
-record row graded at the terminal `--submission` run, which ADR 0161 rules for the deck. The refusal
-of a coverage row that reads the retained export stands on this record's grounds, and so does the
-declared placement divergence. ADR 0161 states where its record row's slide-count comparison
-overlaps coverage and why that overlap was accepted.

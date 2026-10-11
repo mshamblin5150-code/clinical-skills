@@ -54,6 +54,7 @@ DECLARED_SECTIONS = {
     "scanner_pipe_hook": "Scanner pipe guard",
     "install_scanner_pipe_guard": "Scanner pipe guard",
     "adr_next": "ADR number allocation",
+    "adr_supersession_population": "ADR supersession binding",
     "aar_scan": "After-action review",
     "anchor_scan": "Anchor scan",
     "artifact_repairs": "Artifact repair chain",

@@ -220,6 +220,8 @@ out of this* forbids. The pre-commit limb **fires on branch drift**, giving the 
 want it gone. And **neither limb reaches a docstring or `CLAUDE.md` prose**, where most of the
 recorded incidents landed; rules 1 and 2 bind that surface and no gate does.
 
+*Superseded 2026-10-11.* The words "The pre-commit limb **fires on branch drift**" no longer force rederivation for an edit confined to supersession annotations that preserves the historical declaration and findings; [ADR 0334](0334-supersession-only-adr-edits-preserve-the-historical-measurement-base.md) ruling 1 permits that narrow exception. Other edits and tracker publications keep the existing grade.
+
 ## Ruling 7. The declaration is label-anchored and record-level
 
 `**Measured at:** ` followed by a full commit SHA, on its own line, found by the label at line start
@@ -248,6 +250,8 @@ express that and must re-derive to one before publishing. That is a forcing func
 
 **The block is a claim about the base and never about the re-derivation**, restated here so a reader
 of the block does not have to find ruling 6 to learn it.
+
+*Superseded 2026-10-11.* The words "**It binds the record, not the figure.**" no longer demand rederivation of unchanged historical findings solely because supersession annotations change the record; [ADR 0334](0334-supersession-only-adr-edits-preserve-the-historical-measurement-base.md) ruling 1 preserves their original base. New measurements and other edits remain record-level.
 
 ## Ruling 8. The sweep narrowing is scoped to the discrimination rule alone
 

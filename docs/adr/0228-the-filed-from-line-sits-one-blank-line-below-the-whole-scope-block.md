@@ -172,3 +172,7 @@ The build is one ticket, #1092:
 **Rewriting existing bodies to the new shape** outside their next respec.
 
 **The retired position accepted on a create or in a proposed body.**
+
+## Supersedes
+
+- [ADR 0169](0169-a-ticket-states-what-filed-it-on-an-append-only-line.md) ruling 3, the words "the first line after any record-level scope block". Fixed label, single exact position and absence of search remain.

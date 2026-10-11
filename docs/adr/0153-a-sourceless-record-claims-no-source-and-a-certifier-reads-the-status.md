@@ -134,6 +134,12 @@ arrives.
 **No new finding kind.** A disbelieved record contributes nothing, so a body number falls through to
 the existing `UNTRACED_NUMBER`, which is already the correct refusal.
 
+*Superseded 2026-09-12.* The words "The 48 live records missing a `REFUTATION` are a field-completeness defect that the ledger grader already owns, and having a certifier re-derive it is the rejected option through a side door." are superseded by [ADR 0198](0198-a-number-is-certified-only-by-a-record-whose-refutation-pass-ran.md) ruling 4. Three disbelieved states, paywalled eligibility, reference keys, existing refusal kinds and no live-record rewrite remain. The original dated account is retained: **Ruling 3's narrower clause is superseded.** *"The 48 live records missing a `REFUTATION` are a
+field-completeness defect that the ledger grader already owns, and having a certifier re-derive it is
+the rejected option through a side door"* is replaced by ADR 0198 ruling 1: a record certifies a figure
+only when it carries both the refutation verdict and the differing route it was reached by. Everything
+else in ruling 3 stands, and so do rulings 1, 2, 4 and 5.
+
 ## Correction, 2026-09-08. Ruling 3's certifier set was named from the modules this grilling had open
 
 **There are three number certifiers, not two.** `deck_scan._claim_costs` builds its trace set from
@@ -193,11 +199,7 @@ under the default source-class vocabulary a `market source` record fires `unknow
 such a certifier would disbelieve exactly the records a deck is built on. The refusal survives on that
 measurement.
 
-**Ruling 3's narrower clause is superseded.** *"The 48 live records missing a `REFUTATION` are a
-field-completeness defect that the ledger grader already owns, and having a certifier re-derive it is
-the rejected option through a side door"* is replaced by ADR 0198 ruling 1: a record certifies a figure
-only when it carries both the refutation verdict and the differing route it was reached by. Everything
-else in ruling 3 stands, and so do rulings 1, 2, 4 and 5.
+
 
 **And ruling 3's "No new finding kind" left a false message behind.** A figure traced only to a
 disbelieved record is reported as *absent from `claims.md`* while sitting on that file's page. The kind

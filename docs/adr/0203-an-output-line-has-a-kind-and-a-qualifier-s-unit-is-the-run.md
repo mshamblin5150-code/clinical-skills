@@ -260,3 +260,7 @@ and #986's absent-declaration finding refuses before and after.
 
 **Whether a reader acts on a qualifier they can now see.** Ruling 2 makes 1,879 lines readable; it
 does not make anybody read them.
+
+## Supersedes
+
+- [ADR 0154](0154-the-apa-sheet-rests-on-the-manual-and-its-coverage-is-a-digest-bound-registry.md) ruling 8, the words "The counts print through `--quiet`.". The reporting half stands for never-checked and gone-stale; manual items, read-to-root, and ruled-out are suppressible state.

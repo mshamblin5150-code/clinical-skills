@@ -177,3 +177,13 @@ carry no text a static classifier can see.
 **The rate of refused mentions.** It is reported and never gated, per ADR 0188 ruling 6; the census
 could identify only 17 of the 219 commands without a publication in command position as echoed or
 grepped mentions, and did not classify the rest.
+
+## Supersedes
+
+- [ADR 0188](0188-a-publication-in-an-unmodeled-shell-is-refused-and-the-tool-roster-is-keyed-by-shell.md) ruling 2, the words "the module holds two anchors rather than one". One anchor-free loose classifier serves both paths, while precise reproduction still grades modeled publications where it reaches them. The classification/reproduction distinction stands.
+
+- [ADR 0188](0188-a-publication-in-an-unmodeled-shell-is-refused-and-the-tool-roster-is-keyed-by-shell.md) ruling 2, the words "The modeled path classifies precisely and grades". The precise reader still grades reproduced publications, while an anchor-free loose classifier now refuses unreproduced ones on the modeled path. Unmodeled-shell refusal and route bounds stand.
+
+- [ADR 0188](0188-a-publication-in-an-unmodeled-shell-is-refused-and-the-tool-roster-is-keyed-by-shell.md) ruling 8, the words "`Bash`'s 72,607 keep their guard.". PowerShell and Monitor still carry no if; Bash also drops its if and uses a decoded-text gh stub.
+
+- [ADR 0188](0188-a-publication-in-an-unmodeled-shell-is-refused-and-the-tool-roster-is-keyed-by-shell.md) ruling 2, the words "The two are not copies of one rule and a test asserts they disagree". One classifier serves both paths; the classification/reproduction distinction survives.

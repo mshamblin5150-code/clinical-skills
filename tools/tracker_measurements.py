@@ -11,6 +11,7 @@ body-only.
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import json
 from pathlib import Path
 from typing import NamedTuple
 import re
@@ -46,6 +47,7 @@ DECLARED_LIMITS = (
     "The declaration is opt-in; a record with no own-line Measured at label is not graded.",
     "The staged-ADR reader compares with branch HEAD and therefore fires on branch drift.",
     "Docstrings and CLAUDE.md prose are outside the tracker-record and staged-ADR readers.",
+    "The ADR annotation-only exception proves preservation and supersession binding, not the semantic truth of an annotation's account.",
 )
 
 FULL_SHA = re.compile(rf"^{re.escape(LABEL)} ([0-9a-fA-F]{{40}})$")
@@ -163,6 +165,187 @@ def _staged_text(root: Path, relative: str) -> str:
     return completed.stdout.decode("utf-8", errors="replace")
 
 
+def _adr_snapshot(root: Path, revision: str) -> dict[str, str]:
+    """Read tracked numbered ADR files in the selected index or Git revision.
+
+    A successful read covers that tracked population; untracked files remain
+    invisible. Index mode reads staged blobs and excludes unstaged worktree
+    edits. Read errors provide no proof of an annotation-only change.
+    """
+    names = (read_path_records(root, "ls-files", "--cached", "-z", "--", "docs/adr/*.md")
+             if revision == ":" else
+             read_path_records(root, "ls-tree", "-r", "--name-only", "-z", revision, "--", "docs/adr"))
+    names = tuple(name for name in names if re.fullmatch(r"docs/adr/\d{4}-[^/\r\n]+\.md", name))
+    queries = "".join((":" if revision == ":" else revision + ":") + name + "\n" for name in names)
+    result = subprocess.run(["git", "cat-file", "--batch"], cwd=root,
+                            input=queries.encode("utf-8"), capture_output=True, check=False)
+    if result.returncode:
+        raise SourceError("annotation population unreadable")
+    offset = 0
+    records = {}
+    for name in names:
+        end = result.stdout.find(b"\n", offset)
+        header = result.stdout[offset:end].split()
+        if end < 0 or len(header) != 3 or header[1] != b"blob":
+            raise SourceError("annotation population unreadable")
+        size = int(header[2])
+        offset = end + 1
+        raw = result.stdout[offset:offset + size]
+        if len(raw) != size or result.stdout[offset + size:offset + size + 1] != b"\n":
+            raise SourceError("annotation population unreadable")
+        records[Path(name).name] = raw.decode("utf-8")
+        offset += size + 1
+    return records
+
+
+def _annotation_report(root: Path, revision: str) -> dict:
+    relative = "docs/adr/supersession-classification-1518.json"
+    body = _staged_text(root, relative) if revision == ":" else _committed_text(root, revision, relative)
+    report = json.loads(body)
+    if not isinstance(report, dict):
+        raise ValueError("annotation proof is not an object")
+    return report
+
+
+def _preserves_annotated_record(before: str, after: str) -> bool:
+    """Remove only read annotations and literal retained legacy paragraphs.
+
+    Original declarations and every retained nonblank line must agree exactly;
+    paragraph separators may move outside code as annotations are placed. Legacy
+    paragraphs may relocate only when their whole original body survives.
+    """
+    from adr_supersession_population import normalize_legacy_opening
+    from markdown_read import CODE_FENCE, paragraphs
+    from prose_bind import _is_closing_fence, _opening_fence, prose_outside_code
+    from test_adr_supersession import OPENING
+
+    before = before.replace("\r\n", "\n")
+    after = after.replace("\r\n", "\n")
+    if "\ufffd" in before or "\ufffd" in after:
+        return False
+    declarations = lambda text: tuple(line for line in text.splitlines() if line.startswith(LABEL))
+    if declarations(before) != declarations(after):
+        return False
+    visible_lines = prose_outside_code(after).splitlines()
+    original_lines = prose_outside_code(before).splitlines()
+    original_visible = {block for line, block in paragraphs(before)
+                        if original_lines[line - 1].strip()}
+    markers = [block for line, block in paragraphs(after)
+               if visible_lines[line - 1].startswith("*Superseded")
+               and not any(CODE_FENCE.match(row) or row.lstrip().startswith("|") for row in block.splitlines())
+               and OPENING.match(" ".join(block.splitlines()))]
+    if not markers and "\n## Supersedes\n" not in after:
+        return False
+    def remove_visible_block(text, wanted):
+        lines = text.splitlines(keepends=True)
+        visible = prose_outside_code(text).splitlines()
+        for line, block in paragraphs(text):
+            if block == wanted and visible[line - 1].strip():
+                start = sum(len(row) for row in lines[:line - 1])
+                return text[:start] + text[start + len(block):]
+        return text
+    clean_before, clean_after = before, after
+    for marker in markers:
+        if marker not in before:
+            normalized = " ".join(marker.split())
+            quotes = re.findall(r'"([^"\n]+)"', normalized)
+            if quotes and any(" ".join(quote.split()) not in " ".join(before.split()) for quote in quotes):
+                return False
+        if marker in clean_before:
+            clean_before = remove_visible_block(clean_before, marker)
+        clean_after = remove_visible_block(clean_after, marker)
+    # Supersedes is a closed list checked against real markers separately.
+    section = re.compile(r"(?m)^## Supersedes[ \t]*\n.*?(?=^## |\Z)", re.S)
+    def section_match(text):
+        match = section.search(prose_outside_code(text))
+        if match and any(CODE_FENCE.match(line) or line.lstrip().startswith("|")
+                         for line in text[match.start():match.end()].splitlines()):
+            raise ValueError("fenced or tabular material is not a Supersedes annotation")
+        return match
+    old_section = section_match(before)
+    new_section = section_match(after)
+    if old_section:
+        if not new_section:
+            return False
+        old_entries = re.split(r"\n(?=- )", before[old_section.start():old_section.end()].split("\n", 1)[1].strip("\n"))
+        new_entries = {tuple(line for line in entry.splitlines() if line.strip())
+                       for entry in re.split(r"\n(?=- )", after[new_section.start():new_section.end()].split("\n", 1)[1].strip("\n"))}
+        if any(tuple(line for line in entry.splitlines() if line.strip()) not in new_entries
+               for entry in old_entries if entry.strip()):
+            return False
+    old_clean_section = section_match(clean_before)
+    new_clean_section = section_match(clean_after)
+    if old_clean_section:
+        clean_before = clean_before[:old_clean_section.start()] + clean_before[old_clean_section.end():]
+    if new_clean_section:
+        clean_after = clean_after[:new_clean_section.start()] + clean_after[new_clean_section.end():]
+    for _line, original in paragraphs(clean_before):
+        if original not in original_visible:
+            continue
+        normalized = normalize_legacy_opening(original, before)
+        old_opening = re.match(r"^\*(?:Superseded|Corrected)[^*\n]*\.\*\s*", original)
+        legacy = normalized is not None or re.match(r"^\*Corrected \d{4}-\d{2}-\d{2}\.\*\s+", original) is not None or original.startswith((
+            "Superseded by", "**Superseded", "**Point 3 is narrowed", "> **Reconciled",
+            "> **Ruling 5's rationale", "Correction, ",
+        ))
+        if not legacy:
+            continue
+        retained = original[old_opening.end():] if old_opening else original
+        original_date = re.search(r"\b\d{4}-\d{2}-\d{2}\b", old_opening.group() if old_opening else "")
+        if any(original in marker or (normalized and normalized in marker)
+               or (retained and retained in marker and original_date
+                   and marker.startswith(f"*Superseded {original_date.group()}.*"))
+               for marker in markers):
+            clean_before = remove_visible_block(clean_before, original)
+    def retained_lines(text):
+        # Use the existing Markdown reader's fence attribution; no second fence
+        # grammar. Blank lines inside code are literal evidence too. Inline
+        # literals and tables retain their entire line, including every space.
+        result = []
+        fence = None
+        for line in text.splitlines():
+            if fence is not None:
+                result.append(line)
+                if _is_closing_fence(line, fence):
+                    fence = None
+            else:
+                opening = _opening_fence(line)
+                if opening is not None:
+                    fence = opening
+                    result.append(line)
+                elif line.strip():
+                    result.append(line)
+        return tuple(result)
+    return retained_lines(clean_before) == retained_lines(clean_after)
+
+
+def _annotation_only_proof(root: Path, relative: str, base: str, revision: str,
+                           body: str) -> bool:
+    """Exempt existing ADR annotations only after independent Git preservation proof."""
+    try:
+        if not re.fullmatch(r"docs/adr/\d{4}-[^/]+\.md", relative):
+            return False
+        before = _committed_text(root, base, relative)  # absent/new ADR fails closed
+        if not _preserves_annotated_record(before, body):
+            return False
+        from test_adr_supersession import supersession_findings
+        records = _adr_snapshot(root, revision)
+        if records.get(Path(relative).name) != body:
+            return False
+        report = _annotation_report(root, revision)
+        return not supersession_findings(records, report, root=root)
+    except (OSError, SourceError, GitPathError, ValueError, KeyError, TypeError):
+        return False
+
+
+def _grade_adr(root: Path, relative: str, body: str, base: str, revision: str) -> tuple[Finding, ...]:
+    findings = grade(body, relative, base)
+    if (findings and all(finding.rule == STALE_BASE for finding in findings)
+            and _annotation_only_proof(root, relative, base, revision, body)):
+        return ()
+    return findings
+
+
 def grade_staged_adrs(root: Path = REPO_ROOT) -> AdrScan:
     """Grade each added, copied, modified, or renamed ADR in Git's index.
 
@@ -195,7 +378,7 @@ def grade_staged_adrs(root: Path = REPO_ROOT) -> AdrScan:
         body = _staged_text(root, relative)
         if any(line.startswith(LABEL) for line in body.splitlines()):
             declarations += 1
-        findings.extend(grade(body, relative, expected))
+        findings.extend(_grade_adr(root, relative, body, expected, ":"))
     return AdrScan(len(relatives), declarations, tuple(findings))
 
 
@@ -271,7 +454,7 @@ def grade_adrs(root: Path = REPO_ROOT) -> CommittedAdrScan:
         if not parent:
             findings.append(Finding(CURRENT_BASE_UNREADABLE, relative, "", ""))
             continue
-        findings.extend(grade(body, relative, parent))
+        findings.extend(_grade_adr(root, relative, body, parent, commit))
     return CommittedAdrScan(len(relatives), eligible, declarations, tuple(findings))
 
 

@@ -131,6 +131,8 @@ command does, beside the one `extract` makes of the real command, and could disa
 Only the hook route writes `scratch/runs/tracker-publish-hook.json`. The marker keeps one meaning:
 Claude Code invoked the hook on a publication.
 
+*Superseded 2026-09-15.* The words "The marker keeps one meaning: Claude Code invoked the hook on a publication." are superseded by [ADR 0246](0246-the-publish-marker-records-a-hook-run-per-checkout.md) ruling 8. A pre-grade still writes no marker. The marker now records every registered hook invocation for its checkout, including ungraded and read-only calls.
+
 **Writing it from a pre-grade is declined.** A checkout whose hook never registered — which
 `NOT_REACHED` names under workspace trust — would show a fresh marker from a hand-run check, hiding the
 one failure the marker exists to expose.
@@ -207,3 +209,7 @@ whatever the hook route grades of such a command, and adds no divergence of its 
 
 **Whether a file `gh` reads is the file the pre-grade read** is the existing rewritten-after-scan row
 and is unchanged; a pre-grade is one more moment before publication at which the file can change.
+
+## Supersedes
+
+- [ADR 0179](0179-a-body-file-absent-when-the-hook-ran-is-one-condition-and-its-remedy-names-both-causes.md) ruling 2, the words "then run `python tools/tracker_publish_hook.py --text <path>` before retrying". Rest of missing-file remedy, both repairs and rulings1,3,4 remain.

@@ -245,3 +245,7 @@ That is #1038.
 
 **Whether the pointer sentences stay true.** Ruling 4's tests assert that the pointers exist and copy
 no row; a row that is wrong about the tree is caught only where ruling 5 gives it a control.
+
+## Supersedes
+
+- [ADR 0125](0125-render-coverage-and-the-render-record-are-two-properties-and-each-artifact-wires-them-its-own-way.md) ruling 2, the words "that module has no limits object at all". The pointer moves to an earned DECLARED_LIMITS object; refusal of an object added for symmetry remains.

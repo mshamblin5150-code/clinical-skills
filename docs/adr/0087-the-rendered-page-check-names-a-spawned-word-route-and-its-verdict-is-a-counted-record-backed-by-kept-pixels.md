@@ -1,27 +1,8 @@
 # The rendered-page check names a spawned-Word route and its verdict is a counted record backed by kept pixels
 
-> **Reconciled during #676 implementation, 2026-09-01.** The repository-wide **Render pass**
-> definition introduced with ADR 0098 now governs this site too. One pass keeps one page-faithful
-> PDF or XPS and only images rasterized from that export; a failed route contributes no pixels to
-> the next route. The clinician escalation supplies an export rather than replacement page images.
-> Every record and retained export remains graded, but only the last pass must be complete, carry
-> `UNSEEN: none`, and end clean. This supersedes rulings 3, 6, 7, and 8 where their original text
-> conflicts. The original record below is preserved as the decision history.
 
-> **Ruling 5's rationale is falsified, 2026-09-02.** Its route stands and is now measured working;
-> its stated reason does not. Ruling 5 says in bold that *"freshly spawned is load-bearing rather
-> than hygiene"* and that what differed between hanging and working calls *"was the process they
-> were made in."* Measured on [#768](https://github.com/mshamblin5150-code/clinical-skills/issues/768):
-> a freshly spawned process with no Word on the machine hangs, and the variable is the **invocation
-> mechanism** — PowerShell's dynamic binder against `ExportAsFixedFormat2` and `SaveAs2`, where a
-> typed late-bound `InvokeMember` call to the same method exports in about a second. Freshly spawned
-> survives as hygiene: it keeps the automation off an open document and keeps `Quit` off a shared
-> instance. **Ruling 5 also names only a method and its arguments**, so an implementer who follows
-> it exactly writes the dynamic call and reproduces the defect. The missing half of the route is
-> ruled in
-> [ADR 0111](0111-the-word-export-route-names-its-invocation-mechanism-and-the-hanging-methods-are-a-declared-list.md),
-> which completes ruling 5 rather than superseding it. The original text below is preserved as the
-> decision history.
+
+
 
 [#676](https://github.com/mshamblin5150-code/clinical-skills/issues/676) was filed over
 `skills/discussion-post/SKILL.md` step 7 requiring *"a vision-capable, non-authoring context"* to
@@ -147,6 +128,8 @@ it: at step 6 the document does not exist yet. With `--docx` present, an absent 
 **finding**, exit 1 — the set is fixed by the step, so this is `checks_ledger`'s missing-check
 shape and not `research_ledger`'s empty-file shape.
 
+*Superseded 2026-09-07.* The words "The row is gated on `--docx`" are superseded by [ADR 0147](0147-the-post-loads-as-html-through-the-raw-editor-and-the-submit-gate-moves-to-the-rendered-box.md) ruling 5. The required substantive record stands; the Canvas submission reading replaces Word-page gating on discussion-post.
+
 ### 3. The count is backed by kept files, not taken on the reviewer's word
 
 The route writes page images to `scratch/runs/<course>-<module>-discussion/render/pass-N/`, they
@@ -164,6 +147,14 @@ verdict in the skill that nobody could ever go back and check.
 **The render directory is run evidence and survives step 7's cleanup line**, joining the keep-list
 beside `post.md` and `reread.md`. It is not a temporary per-agent path.
 
+*Superseded 2026-09-01.* The words "the grader counts them against that pass's `PAGES:` line." are superseded by [ADR 0098](0098-the-case-study-s-rendered-document-coverage-is-derived-from-kept-evidence-and-owned-by-its-own-run-directory-grader.md) ruling 1. Kept pixels remain required; the retained export now supplies the denominator. The original dated account is retained: > **Reconciled during #676 implementation, 2026-09-01.** The repository-wide **Render pass**
+> definition introduced with ADR 0098 now governs this site too. One pass keeps one page-faithful
+> PDF or XPS and only images rasterized from that export; a failed route contributes no pixels to
+> the next route. The clinician escalation supplies an export rather than replacement page images.
+> Every record and retained export remains graded, but only the last pass must be complete, carry
+> `UNSEEN: none`, and end clean. This supersedes rulings 3, 6, 7, and 8 where their original text
+> conflicts. The original record below is preserved as the decision history.
+
 ### 4. The denominator is Word's pagination, and PyMuPDF's direct `.docx` reader may not supply it
 
 `SOURCE:` names where the page count came from — `word-pdf` for the ruled route, `word-xps` for the
@@ -174,6 +165,8 @@ what a page looks like and not from counting them. **PyMuPDF opened on the `.doc
 refused as a `SOURCE:`** on the measurement above — 5.56×8.33 in and 10 pages against Word's 11.
 It is the obvious one-liner and it silently answers a different question, which is why the refusal
 is ruled rather than left to be rediscovered.
+
+*Superseded 2026-09-07.* The words "Word is authoritative for how many pages there are" are superseded by [ADR 0147](0147-the-post-loads-as-html-through-the-raw-editor-and-the-submit-gate-moves-to-the-rendered-box.md) ruling 5. Independent denominator derivation stands; HTML block count supplies the discussion-post Canvas denominator.
 
 ### 5. The named route is a freshly spawned Word instance, then PyMuPDF
 
@@ -194,6 +187,23 @@ was the process they were made in.
 second format is not the same check, because it does not exercise the renderer under test — which
 #676 itself says.
 
+*Superseded 2026-09-02.* The words "freshly spawned is load-bearing rather than hygiene" are superseded by [ADR 0111](0111-the-word-export-route-names-its-invocation-mechanism-and-the-hanging-methods-are-a-declared-list.md) ruling 7. A fresh process survives as hygiene; typed late binding completes the route and the original route decision stands. The original dated account is retained: > **Ruling 5's rationale is falsified, 2026-09-02.** Its route stands and is now measured working;
+> its stated reason does not. Ruling 5 says in bold that *"freshly spawned is load-bearing rather
+> than hygiene"* and that what differed between hanging and working calls *"was the process they
+> were made in."* Measured on [#768](https://github.com/mshamblin5150-code/clinical-skills/issues/768):
+> a freshly spawned process with no Word on the machine hangs, and the variable is the **invocation
+> mechanism** — PowerShell's dynamic binder against `ExportAsFixedFormat2` and `SaveAs2`, where a
+> typed late-bound `InvokeMember` call to the same method exports in about a second. Freshly spawned
+> survives as hygiene: it keeps the automation off an open document and keeps `Quit` off a shared
+> instance. **Ruling 5 also names only a method and its arguments**, so an implementer who follows
+> it exactly writes the dynamic call and reproduces the defect. The missing half of the route is
+> ruled in
+> [ADR 0111](0111-the-word-export-route-names-its-invocation-mechanism-and-the-hanging-methods-are-a-declared-list.md),
+> which completes ruling 5 rather than superseding it. The original text below is preserved as the
+> decision history.
+
+*Superseded 2026-09-07.* The words "The named route is a freshly spawned Word instance, then PyMuPDF" are superseded by [ADR 0147](0147-the-post-loads-as-html-through-the-raw-editor-and-the-submit-gate-moves-to-the-rendered-box.md) ruling 5. The measured Word export route remains historical and available to Word artifacts; discussion-post checks Canvas pixels instead.
+
 ### 6. Re-renders append; each pass keeps its own pixels
 
 A defect found at step 7 is fixed through the drafting context and the document is rendered again,
@@ -206,6 +216,8 @@ clean.
 **Appending records while overwriting pixels was refused** as the worse of the two: the records
 would say two passes happened while the directory holds one, so ruling 3's countable numerator
 quietly stops matching the record it verifies.
+
+*Superseded 2026-09-01.* The words "each pass's files are counted against its own `PAGES:` line" are superseded by [ADR 0098](0098-the-case-study-s-rendered-document-coverage-is-derived-from-kept-evidence-and-owned-by-its-own-run-directory-grader.md) ruling 7. Passes still append and preserve evidence; only the final pass must be complete.
 
 ### 7. The clinician is the named escalation, not an equal route and not excluded
 
@@ -221,6 +233,8 @@ approval he was giving anyway, and a check that reads as agreement is worse than
 
 **Excluding him was refused** because it would have to record a page he can settle in ten seconds
 as permanently unseen. He is vision-capable and non-authoring, which is what the step asks for.
+
+*Superseded 2026-09-01.* The words "the clinician's read covers a remainder and never replaces the comparison." are superseded by [ADR 0098](0098-the-case-study-s-rendered-document-coverage-is-derived-from-kept-evidence-and-owned-by-its-own-run-directory-grader.md) ruling 6. Escalation now supplies an exported file and the agent performs the comparison; automated-first route order remains.
 
 ### 8. An unimaged page fails, exit 1
 
@@ -240,6 +254,8 @@ pixels to close.
 **It does not trap the clinician.** A direction to post with a page unchecked is an override and
 stays visible as one; it is not encoded as a grader exemption that makes the row pass. These rules
 bind the agent.
+
+*Superseded 2026-09-01.* The words "`PAGES: 2 of 3`, or anything left in `UNSEEN:`, is a finding." are superseded by [ADR 0098](0098-the-case-study-s-rendered-document-coverage-is-derived-from-kept-evidence-and-owned-by-its-own-run-directory-grader.md) ruling 7. Incomplete earlier passes are counted rather than failed; the final pass must be complete.
 
 ### 9. Scope is `discussion-post`, and the case study is filed rather than folded in
 

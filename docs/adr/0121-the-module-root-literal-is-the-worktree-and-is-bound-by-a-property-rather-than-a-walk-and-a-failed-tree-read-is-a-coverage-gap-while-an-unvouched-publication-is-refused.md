@@ -145,6 +145,8 @@ cannot fix, which is the check that gets learned around with `--no-verify`.
 so an absent input must not masquerade as a passing count — and must not masquerade as a finding
 either.
 
+*Superseded 2026-09-03.* The words "`_default_branch_paths` takes `check=False` and `errors="replace"`" are superseded by [ADR 0122](0122-the-tracked-path-set-is-the-bytes-git-stores-and-the-cited-path-is-the-bytes-the-author-wrote-so-the-citation-join-normalizes-both-sides.md) ruling 3. check=False and returning None on failed reads remain; the decode uses surrogateescape through -z instead of replace.
+
 ### 4. An `analyze` that raises denies, and that is not ruling 3 contradicting itself
 
 `tracker_publish_hook`'s `except Exception` stops returning a decision-free response. An exception

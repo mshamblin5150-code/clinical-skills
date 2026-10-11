@@ -157,6 +157,8 @@ undeclared line differs between them**. That second half is what makes the decla
 both directions: without it a gate could suppress a row nobody declared and the walk would pass on
 the declared subset.
 
+*Superseded 2026-09-14.* The words "asserts that every declared kind and field reads `not graded` in the first and a count in the second" are superseded by [ADR 0225](0225-a-refused-reference-label-voids-only-its-declared-kinds-and-a-partial-gate-keeps-what-it-read.md) ruling 4. Voiding gates retain not graded; partial gates retain already computed findings and report their qualified count. The refusal of a shared status assertion stands.
+
 It must not reuse the kit's existing generic builder, which constructs gate-off alongside zeros and
 would leave the walk asserting against the very shape it forbids.
 

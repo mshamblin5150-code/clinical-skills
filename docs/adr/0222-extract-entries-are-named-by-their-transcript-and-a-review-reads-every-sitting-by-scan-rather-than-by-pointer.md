@@ -138,3 +138,9 @@ and 5 and folds into it.
 **Not reached here:** eight top-level Claude row types observed in real transcripts are absent from
 `CLAUDE_ROW_TYPES`, and the undeclared-row count is taken only when a Codex row is present, so a pure
 Claude extract reports 0. Filed separately rather than widened into this record.
+
+## Supersedes
+
+- [ADR 0109](0109-the-after-action-review-s-signal-is-an-observed-correction-and-its-findings-land-or-the-run-is-not-done.md) ruling 14, the words "`SessionEnd` writes the orphaned transcript's path and the run key under `scratch/runs/`". Abandoned sittings corrections are still reviewed alongside resumed work; transcripts are kept and watermarks drain reviewed entries.
+
+- [ADR 0109](0109-the-after-action-review-s-signal-is-an-observed-correction-and-its-findings-land-or-the-run-is-not-done.md) ruling 4, the words "**A `SessionEnd` pointer** for the sitting that never reaches a terminal step, per ruling 14.". Terminal invocation and completion-grader obligation remain.

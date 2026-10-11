@@ -82,6 +82,8 @@ stripping `discussion_post_scan` applies before it, rather than writing a third 
 number absent from every record and one present only in a disbelieved record stay distinguished, as
 they are for costs today. The ADRs that name the old row keep its name as historical record.
 
+*Superseded 2026-10-03.* The words "stripping `discussion_post_scan` applies before it" are superseded by [ADR 0284](0284-a-deck-strips-a-citation-year-only-when-a-claim-record-names-the-source.md) ruling 1. The shared number reader and the remaining trace requirements survive.
+
 ### 4. Only the claim heading certifies a deck number
 
 `deck_scan` keeps taking numbers from a believed record's heading line alone. ADR 0208 ruling 1 makes

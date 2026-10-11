@@ -5,6 +5,9 @@
 The clinician ruled on 2026-08-23.
 
 1. **Trust is content identity, not session identity.** An artifact records the sha256 of the code that produced it, and a reader compares hashes rather than inferring from a commit.
+
+*Superseded 2026-08-24.* The words "An artifact records the sha256 of the code that produced it" are superseded by [ADR 0030](0030-a-recommendation-record-is-owned-like-every-other-artifact-its-trust-floor-is-keyed-on-the-limb-that-built-it-and-the-drafter-takes-no-escape-hatch.md) ruling 1. Content identity rather than session identity and the content-changing file membership test stand; committed content data participates too.
+
 2. **There are two lists per artifact kind and they are named apart.** `CACHE_IDENTITY` decides whether a content-addressed build hits or misses; `TRUST_FLOOR` decides whether a found artifact may be believed. The superset relation between them is asserted rather than left to hold by luck.
 3. **`TRUST_FLOOR`'s membership rule is: files that change what the artifact contains.** A file that changes only how an artifact is *stamped* is excluded.
 4. **A refusal says which condition it is.** An artifact recording no producer-file identity at all is named as predating the scheme; a difference that is uncommitted in the working tree is named as such.

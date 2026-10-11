@@ -236,3 +236,7 @@ Correction, 2026-09-12: ruling 3 formerly attributed the seven-of-eight worktree
 quoted removal hazard to ADR 0059 ruling 5. They appear in ADR 0059's *The measurement that reopened
 it* section; ruling 5 addresses subprocess cost. The hazard and this record's ruling are unchanged.
 [#1136](https://github.com/mshamblin5150-code/clinical-skills/issues/1136).
+
+## Supersedes
+
+- [ADR 0059](0059-the-scratch-census-walks-every-checkout-that-owns-a-scratch-root-and-the-worktree-half-is-held-at-zero.md) ruling 7, the words "A producer owning the fetch". All-owning-checkout census, integer PHI baseline and zero worktree floor remain.

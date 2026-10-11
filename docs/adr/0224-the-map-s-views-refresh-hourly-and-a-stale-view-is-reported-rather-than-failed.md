@@ -173,3 +173,7 @@ it also removes the sentence explaining why a closed blocker leaves the graph st
 - **A publish from an unverified population.** #993's short-read refusal stays in front of every
   render the job makes.
 - **A red `check` for a view nobody owns.**
+
+## Supersedes
+
+- [ADR 0155](0155-the-map-render-stamps-its-producer-and-the-graph-draws-only-what-carries-an-edge.md) ruling 5, the words "**Folding the diff into `check` was refused.**". Walked population disclosure and limits row stand in substance, now saying views were compared; audit still grades stale views.

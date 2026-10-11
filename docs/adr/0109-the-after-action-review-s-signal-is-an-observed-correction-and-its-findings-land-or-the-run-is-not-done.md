@@ -135,6 +135,8 @@ Finding 1 disqualifies it. What replaces it is three layers, each doing only wha
   **the layer that fails**, and unskippable because the grader is what declares the run done.
 - **A `SessionEnd` pointer** for the sitting that never reaches a terminal step, per ruling 14.
 
+*Superseded 2026-09-13.* The words "**A `SessionEnd` pointer** for the sitting that never reaches a terminal step, per ruling 14." are superseded by [ADR 0222](0222-extract-entries-are-named-by-their-transcript-and-a-review-reads-every-sitting-by-scan-rather-than-by-pointer.md) ruling 7. Terminal invocation and completion-grader obligation remain.
+
 **An advisory hook was refused rather than kept as a belt.** A nag on a hot path is a check that gets
 learned around, and this repository has already paid for one: `spelling_scan` crashed inside the
 pre-commit hook, its status was OR-ed away, and *an advisory check that crashed is indistinguishable
@@ -259,6 +261,8 @@ material**, and it is enforced rather than stated: `tracker_publish_hook.py` alr
 `gh` command, and for an AAR-sourced publication it additionally refuses **any span of the run
 directory's own text reappearing in the ticket body.**
 
+*Superseded 2026-10-08.* The words "any span of the run directory's own text reappearing in the ticket body." are superseded by [ADR 0305](0305-an-aar-quotation-stretch-already-on-main-is-not-run-material.md) ruling 1. Private run material remains refused; the exact proposed diff and paraphrase boundary survive.
+
 **It is a quotation scan and not a PHI scan**, which is what makes it reach where finding 11 says the
 shape layer does not: it needs no notion of a patient, a classmate or a site, only of what the source
 was. *"Reported material recalled from a memory store as the clinician's own authored words"* copies
@@ -277,6 +281,8 @@ expensive corrections cluster, because work is parked when something has gone wr
 
 `SessionEnd` writes the orphaned transcript's path and the run key under `scratch/runs/`, and the next
 review on that run **reads it, drains it, and disposes of its corrections alongside its own.**
+
+*Superseded 2026-09-13.* The words "`SessionEnd` writes the orphaned transcript's path and the run key under `scratch/runs/`" are superseded by [ADR 0222](0222-extract-entries-are-named-by-their-transcript-and-a-review-reads-every-sitting-by-scan-rather-than-by-pointer.md) ruling 7. Abandoned sittings corrections are still reviewed alongside resumed work; transcripts are kept and watermarks drain reviewed entries.
 
 **It is a pointer and not a log** — two fields, no findings, no prose. The ticket's prohibition is
 against *an accreting prose log nothing reads*, and this is consumed and cleared. **A marker left

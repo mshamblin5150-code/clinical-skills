@@ -114,6 +114,15 @@ image files, so ruling 3's count already fails for those pages while ruling 7 bl
 conflict is in ADR 0087 unreconciled; deriving the count surfaces it instead of leaving it in the
 gap between two fields. Ruling 6 below is where it lands.
 
+*Superseded 2026-09-10.* The words "the record gains no fields" are superseded by [ADR 0161](0161-the-deck-and-case-study-render-records-name-the-final-pass-and-route.md) ruling 6. SOURCE and PASS join the rendered-document record; PAGES and UNSEEN stay retired. The original dated account is retained: **Superseded in part 2026-09-10 by
+[ADR 0161](0161-the-deck-and-case-study-render-records-name-the-final-pass-and-route.md), and left as
+written.** Ruling 2's *"the record gains no fields"* is superseded for two fields on
+`the rendered document`: `SOURCE`, because ADR 0142 found that a kept file's extension does not name
+the route that produced it, and `PASS`, naming the retained pass a verdict was read against. `PAGES`
+and `UNSEEN` stay retired on this record's grounds. Ruling 3's refusal of `checks_ledger` is superseded
+for one act: listing `render/` at `--submission` to confirm that `PASS` names the highest retained
+pass. The count stays `render_scan`'s, and the other rulings stand.
+
 ### 3. A new run-directory grader owns the count, and `checks_ledger` keeps the verdict
 
 `tools/render_scan.py`, taking `<a run directory>`, cited in step 9's table as a command row the way
@@ -129,9 +138,13 @@ sibling directory is a filesystem contract it has never had. **`case_study_scan`
 because its subject is the draft body's house style, it opens no run evidence, and it runs before
 the render exists — so it would need a gate to avoid failing a correct pre-render pass.
 
+*Superseded 2026-09-13.* The words "it reads exactly one file and nothing else; counting a sibling directory is a filesystem contract it has never had." are superseded by [ADR 0210](0210-a-render-pass-and-a-check-record-carry-the-fingerprint-of-what-they-graded.md) ruling 2. The page count remains render_scan's; checks_ledger now reads one newest-pass fingerprint file to bind the retained render to the Markdown.
+
 **The cost is named.** It is a fourteenth grader in a directory that tracks its own count, and it is
 the thing #676 would most want to reuse against ADR 0087 ruling 9's *two implementation sites, not a
 second call to one function*. That ruling is not revisited here; the tension is recorded on #676.
+
+*Superseded 2026-09-10.* The words "it reads exactly one file and nothing else" and "`checks_ledger` was refused" are superseded by [ADR 0161](0161-the-deck-and-case-study-render-records-name-the-final-pass-and-route.md) ruling 7. checks_ledger may list render/ to identify the highest pass, but does not count or decode retained files; render_scan still owns coverage.
 
 ### 4. A short count is exit 1, absent evidence is exit 2, and 1 wins where both hold
 
@@ -240,11 +253,14 @@ finding for the clinician rather than applied.
 
 ---
 
-**Superseded in part 2026-09-10 by
-[ADR 0161](0161-the-deck-and-case-study-render-records-name-the-final-pass-and-route.md), and left as
-written.** Ruling 2's *"the record gains no fields"* is superseded for two fields on
-`the rendered document`: `SOURCE`, because ADR 0142 found that a kept file's extension does not name
-the route that produced it, and `PASS`, naming the retained pass a verdict was read against. `PAGES`
-and `UNSEEN` stay retired on this record's grounds. Ruling 3's refusal of `checks_ledger` is superseded
-for one act: listing `render/` at `--submission` to confirm that `PASS` names the highest retained
-pass. The count stays `render_scan`'s, and the other rulings stand.
+
+
+## Supersedes
+
+- [ADR 0087](0087-the-rendered-page-check-names-a-spawned-word-route-and-its-verdict-is-a-counted-record-backed-by-kept-pixels.md) ruling 3, the words "the grader counts them against that pass's `PAGES:` line.". Kept pixels remain required; the retained export now supplies the denominator.
+
+- [ADR 0087](0087-the-rendered-page-check-names-a-spawned-word-route-and-its-verdict-is-a-counted-record-backed-by-kept-pixels.md) ruling 6, the words "each pass's files are counted against its own `PAGES:` line". Passes still append and preserve evidence; only the final pass must be complete.
+
+- [ADR 0087](0087-the-rendered-page-check-names-a-spawned-word-route-and-its-verdict-is-a-counted-record-backed-by-kept-pixels.md) ruling 7, the words "the clinician's read covers a remainder and never replaces the comparison.". Escalation now supplies an exported file and the agent performs the comparison; automated-first route order remains.
+
+- [ADR 0087](0087-the-rendered-page-check-names-a-spawned-word-route-and-its-verdict-is-a-counted-record-backed-by-kept-pixels.md) ruling 8, the words "`PAGES: 2 of 3`, or anything left in `UNSEEN:`, is a finding.". Incomplete earlier passes are counted rather than failed; the final pass must be complete.

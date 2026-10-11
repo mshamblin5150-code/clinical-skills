@@ -275,3 +275,8 @@ rather than refuse is untouched** — it is discharged by
 [ADR 0063](0063-a-draft-backed-citation-is-caught-per-row-by-the-parser-the-module-already-shares-and-the-class-set-is-draft-alone.md),
 which also narrows the deferred option from *sole source* to per row and from *non-`guideline`* to
 `{draft}`. Those are a later ruling rather than a correction, and are recorded there.)*
+
+## Supersedes
+
+- [ADR 0009](0009-a-topic-is-swept-on-what-the-guideline-states-and-the-sweep-records-its-own-coverage.md) ruling 3, the words "Each row
+    is in state `sheet`, `none`, or `unread`". Catalog-derived denominator, artifact column and derived state counts stand.

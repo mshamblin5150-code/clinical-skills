@@ -125,3 +125,7 @@ serve 2026 service dates.
 - `icd10-cpt`, `clinical-note`, `reference/procedure-codes-2026.md`, `tools/coding_freshness.py`, the
   new `tools/cpt_mdm_sheet.py`, and the pre-commit hook change together.
 - ADR 0250 ruling 5's expiry wording is superseded in part by ruling 7; its other rulings stand.
+
+## Supersedes
+
+- [ADR 0250](0250-a-review-sheet-carries-final-coding-only-after-the-batch-is-fresh.md) ruling 5, the words "it expires when that boundary passes". The CPT edition boundary follows encounter service date; fingerprint changes still invalidate the receipt.

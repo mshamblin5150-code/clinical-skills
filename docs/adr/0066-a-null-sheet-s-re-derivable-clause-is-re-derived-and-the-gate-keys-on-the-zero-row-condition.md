@@ -199,3 +199,7 @@ waits on the mechanism, on ADR 0035 ruling 7.
 
 **#587's own build.** Ruling 2 hands it the span gate; its declaration literal, its `source class`
 cell and its fourth state remain its own.
+
+## Supersedes
+
+- [ADR 0035](0035-a-none-topic-is-a-null-threshold-sheet-and-the-state-is-derived-from-its-span-table.md) ruling 2, the words "Any span `read: no` → `unread`". Complete zero-row artifacts still derive none; page arithmetic and row-positive cases stand.

@@ -137,6 +137,8 @@ fail is a line that costs a test, which is ADR 0121 ruling 5's own argument.
 `--name-only`, `splitlines()` silently splits one tracked path into two members — a fresh instance of
 this defect, introduced by the fix for it. `-z` removes that question rather than reporting it.
 
+*Superseded 2026-09-03.* The words "Bytes were refused because they buy no correctness." are superseded by [ADR 0123](0123-a-git-path-read-is-bytes-through-z-and-the-staged-walk-is-the-headline-because-a-quoted-path-reaches-no-layer.md) ruling 3. -z and surrogateescape remain; bytes are split before decoding.
+
 ### 3. ADR 0121 ruling 3's `errors=` limb is superseded; its `check=` limb stands
 
 Ruling 3 has two limbs on one call and they part company here.
@@ -268,6 +270,8 @@ is wrong, against a brief that says otherwise, which is the load the merge is wo
 moment*. The annotation is where ruling 3's supersession becomes operative rather than recorded: an
 ADR states it, and a ticket comment is what an agent reads before editing the function.
 
+*Superseded 2026-09-03.* The words "Order is not something either branch controls" are superseded by [ADR 0123](0123-a-git-path-read-is-bytes-through-z-and-the-staged-walk-is-the-headline-because-a-quoted-path-reaches-no-layer.md) ruling 8. The brief correction remains; the three tickets are one implementation unit rather than separately ordered branches.
+
 ## What this record does not settle
 
 **Whether the corpus will ever contain such a path.** It does not today, on any of the three
@@ -283,3 +287,7 @@ rather than taken from #858's body, and neither gains an obligation here.
 **Whether a normalized path may appear in a report.** No `Result` in `tracker_branch_scope` names a
 path today, so the question is not live; a future diagnostic that printed one would have to answer
 for a surrogate reaching stdout or a JSON hook response.
+
+## Supersedes
+
+- [ADR 0121](0121-the-module-root-literal-is-the-worktree-and-is-bound-by-a-property-rather-than-a-walk-and-a-failed-tree-read-is-a-coverage-gap-while-an-unvouched-publication-is-refused.md) ruling 3, the words "`_default_branch_paths` takes `check=False` and `errors="replace"`". check=False and returning None on failed reads remain; the decode uses surrogateescape through -z instead of replace.

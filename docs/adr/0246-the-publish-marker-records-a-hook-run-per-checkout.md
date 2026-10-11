@@ -152,3 +152,7 @@ record only ages, as ADR 0083 already names.
 checkout can register, commit, and later lose its trust acceptance.
 
 **A moved or renamed checkout**, which derives a new identity and reads never until its hook runs.
+
+## Supersedes
+
+- [ADR 0216](0216-a-pre-grade-grades-the-exact-publication-command-and-the-aar-quotation-gate-runs-on-it.md) ruling 7, the words "The marker keeps one meaning: Claude Code invoked the hook on a publication.". A pre-grade still writes no marker. The marker now records every registered hook invocation for its checkout, including ungraded and read-only calls.

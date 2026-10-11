@@ -195,3 +195,7 @@ ticket instead.
   edited after refutation, and ADR 0210 ruling 8. Whether a ratified record is edited to carry one is
   [#1201](https://github.com/mshamblin5150-code/clinical-skills/issues/1201)'s open question, so
   neither record is edited here.
+
+## Supersedes
+
+- [ADR 0210](0210-a-render-pass-and-a-check-record-carry-the-fingerprint-of-what-they-graded.md) ruling 8, the words "A declared limit says a record is bound to the draft alone.". Other check records remain draft-bound only; the heading-read record also binds claims.md heading digests.

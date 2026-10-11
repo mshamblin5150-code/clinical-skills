@@ -91,3 +91,7 @@ ADR 0025 point 10's sequencing dependency is discharged when this record's build
 ADR 0007 point 3 keeps its text with a forward pointer rather than being amended, on ADR 0025's arrangement with ADR 0009 point 5 and for its reason: the collision was not known on the day it was ruled, and rewriting the sentence would make the original ruling look wider than it was.
 
 `reference/thresholds/README.md`'s `rec` specification is rewritten by the build, and `diabetes.md`'s 332 rows become documented rather than tolerated.
+
+## Supersedes
+
+- [ADR 0007](0007-a-threshold-sheet-is-drafted-per-topic-and-its-snippets-are-gated-against-the-record.md) ruling 3, the words "A new `CITATION tier 0` gates every snippet against its own recommendation record". Tier 0 still refuses on exact recommendation rows; narrative rows use their distinct provenance gates.

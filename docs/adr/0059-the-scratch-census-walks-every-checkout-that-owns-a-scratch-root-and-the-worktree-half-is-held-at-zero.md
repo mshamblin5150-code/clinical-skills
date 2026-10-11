@@ -118,6 +118,8 @@ call it, and the sessions #466 recorded left the checkout entirely. **The census
 — a name at the top level refuses whatever it is called, and a name inside the namespace is accounted
 for whatever it is called, so the count of naming schemes stops being a thing anyone has to police.
 
+*Superseded 2026-08-31.* The words "A producer owning the fetch" are superseded by [ADR 0091](0091-the-scratch-ratchet-refuses-only-roots-the-committing-session-can-write-into-and-the-session-directory-is-ticket-keyed-and-produced.md) ruling 6. All-owning-checkout census, integer PHI baseline and zero worktree floor remain.
+
 **8. `docs/agents/scratch.md`'s "cite it" remedy takes a qualifier, and this is a defect found in the
 ratified rule rather than a clarification of it.** That document closes by recommending citation as
 the cheap remedy for an entry that deserves to stay, *"needs no PHI judgment"* — and citation writes
@@ -156,3 +158,7 @@ because `ready-for-agent` cannot sit over an `rm` on unrecoverable patient mater
 move and is authorized; disposal remains the clinician's, per file, and no work list may schedule it.
 
 *Corrected in place 2026-09-12, from [#932](https://github.com/mshamblin5150-code/clinical-skills/issues/932)'s grilling.* Ruling 6 quoted `EXEMPT_CEILING`'s comment as asking that *the next one* be argued for in a diff. That was off by one and had been since both were written on 2026-08-19: the ceiling is `4`, the declared sum is `3`, and the assertion is `assertLessEqual`, so the next exemption is typed freely and only the one past the ceiling is refused. The comment it drew on has been reworded to name the relationship rather than an ordinal, so the clause here paraphrases that principle instead of quoting a sentence the module no longer contains. **The ruling is unchanged** — a drain loosens the ratchet visibly and in a diff, which is what the sentence was reaching for and what the corrected clause says. Ruling 3's quotation is untouched and needed no correction: it was accurate as a transcription, and the two bare prose restatements that made it false as a claim about the tree were deleted under #932, so it is now true as well.
+
+## Supersedes
+
+- [ADR 0033](0033-the-scratch-baseline-is-a-count-because-the-set-is-phi-and-the-repo-is-public.md) ruling 3, the words "The check refuses on a rise and the baseline is 19.". Integer-only PHI baseline and historical owning-root ratchet remain; live baseline no longer appears in prose.

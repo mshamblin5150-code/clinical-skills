@@ -49,6 +49,8 @@ So `reference_scan` cannot see that spelling and therefore can never honestly pr
 
 **This is what makes ADR 0039 ruling 1's two blessed spellings equally usable**, which ADR 0085 records they are not. It is the constraint that record handed to this ticket.
 
+*Superseded 2026-09-08.* The words "Resolving it needs ADR 0039's reverse key walk, which requires a whole-phrase key this module does not have." are superseded by [ADR 0150](0150-the-narrative-author-phrase-stops-at-a-sentence-boundary-and-a-leading-article-is-ignored-quote-aware.md) ruling 7. Legal entries remain excluded from uncited-entry because section citations resolve on resolution_keys which that row does not read.
+
 ## Ruling 3 — a legal entry with no regulation name is a reported defect here too
 
 `discussion_artifact.legal_reference_lacks_name` is imported, not reinvented. The predicate exists, is ruled under ADR 0039 ruling 5, and is already correct.
@@ -123,6 +125,8 @@ Measured minutes after the read above, when the same walk returned 161 entries: 
 So 77% of every entry written is written from recall, against a sheet whose own opening forbids it: *an APA rule is looked up, never recalled.* The sheet's other six sections are rules *about* a list rather than forms for an entry.
 
 **The widening is scoped to APA's whole published set, not to the classes already written** — scoping the sheet to what has been written is scoping it to the assumption. And it is **gated**: the sheet declares which classes it carries a form for, and a census reports any class appearing in a run's reference list that the sheet names no form for. A prose declaration alone is [#220](https://github.com/mshamblin5150-code/clinical-skills/issues/220)'s finding — a prose edit to a claim fails nothing.
+
+*Superseded 2026-09-01.* The words "The widening is scoped to APA's whole published set, not to the classes already written" are superseded by [ADR 0097](0097-the-apa-sheet-s-class-vocabulary-is-apa-s-nursing-set-and-coverage-is-decided-per-bucket-while-the-gate-is-a-bind-test.md) ruling 1. Published authority rather than observed local corpus continues to determine coverage.
 
 **[#223](https://github.com/mshamblin5150-code/clinical-skills/issues/223) is not an obstacle and was checked rather than assumed.** It forbids reproducing APA's prose in a public repository. Covering APA's classes in this repository's own words is what §2 already does.
 

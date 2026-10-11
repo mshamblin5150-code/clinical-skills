@@ -72,6 +72,8 @@ On a shift ending at 2100, a 20-minute visit starts no later than 2040. **Readin
 from the Time Log alone was refused on measurement 1**, and **re-reading the Time Log before entry
 was refused** as a check the clinician makes at review, where every visit's times are shown.
 
+*Superseded 2026-10-08.* The words "the end is that start plus the hours the Time Log holds for that date." are superseded by [ADR 0304](0304-a-stated-shift-window-binds-and-the-time-log-is-entered-only-on-his-word.md) ruling 1. A stated shift start and duration now set the window without a Time Log read. Every encounter remains inside that window and its timing is shown at review.
+
 ### 5. The preceptor comes from the day file's title and the private profile
 
 The agent reads the preceptor named in the day file's title and resolves it through the tables in
@@ -126,6 +128,8 @@ verifies it at the go-ahead review, which keeps codes proposed rather than asser
 `icd10-cpt`'s *"Do not select an E/M level unprompted."* for the note. **Proposing only the
 new-or-established family, and a code only on request, were both refused.**
 
+*Superseded 2026-09-15.* The words "The clinician verifies it at the go-ahead review, which keeps codes proposed rather than asserted." are superseded by [ADR 0250](0250-a-review-sheet-carries-final-coding-only-after-the-batch-is-fresh.md) ruling 3. The visible worksheet now carries final, explanatory selections backed by coding freshness; the private anchored worksheet and descriptor-agreement evidence remain.
+
 ### 12. New or established follows CPT, read from the shorthand
 
 A patient is established when the clinician, or another clinician of the same specialty in the same
@@ -135,6 +139,8 @@ map match reading as established, and marks the line `new/established assumed fr
 **The identity map alone was refused** because it disagrees with CPT when a preceptor saw the patient
 first or when a patient from an earlier site arrives at another group. **Asking at review for every
 unsettled patient was refused.**
+
+*Superseded 2026-09-15.* The words "The agent reads that from the shorthand." are superseded by [ADR 0250](0250-a-review-sheet-carries-final-coding-only-after-the-batch-is-fresh.md) ruling 4. Status must be account-backed; unknown status blocks finalization and the whole Review sheet. The CPT status definition stands.
 
 ### 13. One posted reading per shift, with a line per visit
 

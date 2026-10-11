@@ -166,3 +166,7 @@ The tracked half — this record, the two terms, the paragraph, the advisory row
 **GitHub's retained revisions.** Every corrected body and comment keeps its pre-repair text, readable by anyone with read access and unreachable by the API — ruled acceptable on 2026-08-19 and unchanged here. Pre-repair text therefore remains copyable, which is the reason the advisory row exists at all rather than trusting the repair to be self-sealing.
 
 **Whether a carried claim is true.** This rules where a correction goes, never that anybody noticed the thing needed correcting.
+
+## Supersedes
+
+- [ADR 0169](0169-a-ticket-states-what-filed-it-on-an-append-only-line.md) ruling 7, the words "Other corrections of the body may go anywhere below the line, never above it.". The append-only Filed-from line and its own correction directly beneath it stand.

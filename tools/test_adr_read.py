@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 
 import adr_read
-from adr_read import ruling_citations, ruling_ordinals, unresolved_ruling_citations
+from adr_read import ruling_attributions, ruling_citations, ruling_ordinals, unresolved_ruling_citations
 from prose_bind import NAMING, bind
 
 
@@ -65,6 +65,25 @@ ruling 5. **The sharp reason is #545's own consequence 2 rather than the precede
             if ruling_ordinals(text) != ruling_ordinals(without_alternates):
                 found.add(int(record.name[:4]))
         self.assertEqual(found, {94, 96, 126, 127})
+
+    def test_attribution_and_ordinal_views_read_one_population(self) -> None:
+        for form in ("## Ruling 2 — chosen", "## Decision 2 — chosen", "## Ruled\n\n### 2. Chosen", "## The decisions\n\n2. Chosen", "## Ruled\n\n**2. Chosen.**", "## Ruled\n\n**Ruling 2. Chosen.**"):
+            with self.subTest(form=form):
+                text = "## Measured before ruling\n\nUnattributed.\n\n" + form + "\n\nChosen words.\n\n## Consequences\n\nUnattributed again."
+                rows = list(ruling_attributions(text))
+                self.assertEqual([2], ruling_ordinals(text))
+                self.assertEqual([2], [row.number for row in rows if row.declares])
+                contexts = {line: row.number for line, row in zip(text.splitlines(), rows)}
+                self.assertIsNone(contexts["Unattributed."])
+                self.assertEqual(2, contexts["Chosen words."])
+                self.assertIsNone(contexts["Unattributed again."])
+
+    def test_attribution_before_first_ruling_and_fenced_specimens(self) -> None:
+        text = "## Ruled\n\nBefore first.\n\n```markdown\n## Ruling 99\n```\n\n**2. Chosen.**\n\nAfter second."
+        rows = list(ruling_attributions(text))
+        self.assertIsNone(rows[2].number)
+        self.assertEqual([2], ruling_ordinals(text))
+        self.assertEqual(2, rows[-1].number)
 
 
 class TheRulingCitationResolverIsLive(unittest.TestCase):

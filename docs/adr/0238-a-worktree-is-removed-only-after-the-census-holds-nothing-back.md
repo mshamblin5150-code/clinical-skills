@@ -173,3 +173,8 @@ qualifier on the prune remedy. The subsection does not direct anyone to prune.
 **A separate clone's worktrees**, already declared in `scratch_census.DECLARED_LIMITS`.
 
 **Material outside every checkout**, likewise already declared.
+
+## Supersedes
+
+- [ADR 0236](0236-a-peer-scratch-root-is-described-by-its-files-alone-and-no-vocabulary-is-applied-to-it.md) ruling 1, the words "has no authorized
+**Drain**". The quoted absence of an authorized drain falls. The no-peer-vocabulary refusal stands: draining discards cited and uncited material alike, so an accounted split remains unactionable.

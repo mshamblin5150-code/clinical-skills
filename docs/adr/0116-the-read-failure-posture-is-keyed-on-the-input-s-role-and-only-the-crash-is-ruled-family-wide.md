@@ -274,3 +274,8 @@ detection.
 outside both tickets, being a deferral whose migration is
 [#840](https://github.com/mshamblin5150-code/clinical-skills/issues/840). Ruling 3 says what it owes;
 nothing here schedules it.
+
+## Supersedes
+
+- [ADR 0114](0114-a-run-directory-reader-grades-a-replaced-byte-and-the-family-s-read-failure-posture-is-measured-rather-than-ruled.md) ruling 4, the words "Ruling 1 means it raises
+none, so the antecedent is gone". refusal_scan still gains no exit-2 vocabulary, now because adopting one would be a seam change and its informal docstring becomes accurate.

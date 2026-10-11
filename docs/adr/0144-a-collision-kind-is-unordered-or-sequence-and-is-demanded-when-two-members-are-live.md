@@ -191,3 +191,12 @@ declines to report them until they are live.
 Nothing here re-derives whether the kind a group is given is the kind its `why` prose describes.
 The prose is the input to a reading, not a matcher's ground truth, and ADR 0107's 9 / 5 / 7 keyword
 floor established only that both kinds exist.
+
+## Supersedes
+
+- [ADR 0107](0107-a-collision-group-is-a-sequence-or-an-exclusion-and-an-unclassified-one-over-constrains.md) ruling 1, the words "`sequence`, `exclusion`, or `unclassified`.". Exclusion obligations remain; the unordered kind has a distinct name.
+
+
+- [ADR 0107](0107-a-collision-group-is-a-sequence-or-an-exclusion-and-an-unclassified-one-over-constrains.md) ruling 3, the words "An exclusion group's members are emitted sorted". Sorting now occurs when reconciliation sets the kind; member identity and concurrency obligations survive.
+
+- [ADR 0107](0107-a-collision-group-is-a-sequence-or-an-exclusion-and-an-unclassified-one-over-constrains.md) ruling 6, the words "The ticket carrying this work does not get `ready-for-agent`.". Classification remains the clinician's; it is demanded at the reconciliation where two members are live.

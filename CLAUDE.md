@@ -148,10 +148,17 @@ by the live probe recorded in `docs/agents/scanner-pipe-codex-probe.md`.
 
 `tools/test_adr_supersession.py` owns the `## Supersedes` and dated marker
 grammars and binds declarations to markers in both directions under
-`python tools/suite.py`. Its committed cutoff starts at ADR 0280; it refuses
-no commit and has no hook. The complete boundary belongs to the module's
-`DECLARED_LIMITS`. [ADR 0280](docs/adr/0280-an-overturned-ruling-carries-a-dated-supersession-marker-written-by-the-record-that-overturns-it.md)
-records the rule; #1518 owns the historical repair and cutoff lowering.
+`python tools/suite.py`. Its cutoff binds the whole log; it refuses no commit
+and has no hook. `tools/adr_supersession_population.py` derives the citation-pair
+population and checks the committed historical classification in
+`docs/adr/supersession-classification-1518.json`. Use `--revision` with the
+report's immutable revision to bind its source bytes; `--historical-coverage`
+checks current pair coverage through its last ADR. The complete boundaries
+belong to `adr_supersession_population.DECLARED_LIMITS` and
+`test_adr_supersession.DECLARED_LIMITS`. The binding module derives its unsure
+and unattributed-legacy unread remainders from that report.
+[ADR 0280](docs/adr/0280-an-overturned-ruling-carries-a-dated-supersession-marker-written-by-the-record-that-overturns-it.md)
+records the rule; #1518 applies it to the historical log.
 
 ### Claim ledger census
 
@@ -2082,7 +2089,9 @@ pre-commit hook runs `python tools/tracker_measurements.py --staged-adrs` and
 refuses a staged ADR whose declaration differs from that checkout's `HEAD`.
 With no arguments, the command audits committed ADRs at or after its cutoff
 against each record's last-touch parent so CI can reproduce the publication
-decision. Exit 0 is clean, 1 is a finding, and 2 means the requested population
+decision. ADR 0334 permits supersession-only maintenance that preserves the
+historical declaration and findings, proved against the actual prior Git bytes
+at both ADR seams; tracker publications keep their existing grade. Exit 0 is clean, 1 is a finding, and 2 means the requested population
 was not scanned completely.
 
 The complete boundary belongs to `tracker_measurements.DECLARED_LIMITS`; this

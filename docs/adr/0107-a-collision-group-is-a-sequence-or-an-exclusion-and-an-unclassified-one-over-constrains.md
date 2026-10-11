@@ -58,51 +58,7 @@ groups with each other.
 violating it destroys work. An exclusion group's members must not be in flight together and carry no
 order at all.
 
-### 2. An unclassified group renders as a sequence
-
-Twenty-one groups need classifying and seven need a genuine read. That is authored judgment, so an
-unread group takes a blank kind rather than a keyword guess — but a blank has to render as
-something, and the two errors are not symmetric. Rendering an exclusion group as ordered costs a
-delay. Rendering a sequence group as unordered costs a destroyed rebuild, which is the outcome the
-groups exist to prevent. **Over-constrain.**
-
-### 3. An exclusion group's members are emitted sorted
-
-The field stays a JSON list and will keep looking ordered. Sorting exclusion members by packet id
-removes the only signal a reader could mistake for sequence, and the glossary entry says so. This is
-a rendering rule, not a schema one: the authored order of an unclassified group is preserved until
-somebody rules it.
-
-### 4. `Startable packet` gains an unmet **sequence** predecessor and never an exclusion peer
-
-An exclusion peer bears on concurrency, not on startability, and folding it in would make the
-frontier refuse work that is genuinely startable. A sequence predecessor is the same kind of thing
-as the unmet rebuild-saving predecessor already in the definition, and only this decision lets
-*"don't start P757 until P716 lands"* be derived rather than read out of prose.
-
-### 5. Two glossary terms are added and one is amended
-
-**Collision group** is used throughout the map, the state block and this ADR series and appears
-nowhere in `CONTEXT.md`. It enters with its two kinds beneath it, and **Startable packet** is
-amended per decision 4.
-
-### 6. Classification is a grilling job, not an agent's
-
-The ticket carrying this work does not get `ready-for-agent`. Seven of the 21 groups need a reading
-of the `why` prose against what the packets actually touch, and an unattended agent would guess —
-which decision 2 exists to prevent one level down.
-
-## What this does not reach
-
-The kind is authored, so nothing establishes that a group classified `exclusion` genuinely carries
-no order — a wrong classification in that direction is the destroyed-rebuild outcome decision 2
-protects against everywhere except where somebody has actively ruled it. Nothing here grades whether
-a group's membership is complete: a packet that touches a shared file and was never added to its
-group is invisible to every rule above, and remains what the reconciliation's semantic judgment is
-for. And the floor of 9 / 5 / 7 is a keyword read of prose, not a classification; it establishes
-that both kinds exist and nothing about which group is which.
-
-## Superseded in part by ADR 0144, 2026-09-06
+*Superseded 2026-09-06.* The words "`sequence`, `exclusion`, or `unclassified`." are superseded by [ADR 0144](0144-a-collision-kind-is-unordered-or-sequence-and-is-demanded-when-two-members-are-live.md) ruling 1. Exclusion obligations remain; the unordered kind has a distinct name. The original dated account is retained: ## Superseded in part by ADR 0144, 2026-09-06
 
 [ADR 0144](0144-a-collision-kind-is-unordered-or-sequence-and-is-demanded-when-two-members-are-live.md)
 measured the map's live state while grilling
@@ -123,3 +79,55 @@ Decision 4 stands, with `claim` refusing a ruled sequence and warning an unclass
 5's glossary entries are amended rather than replaced. **Decision 6 is narrowed, not superseded**:
 classification is still the clinician's, and what moves is when it is demanded — at the
 reconciliation that makes it matter, rather than as a batch on one ticket.
+
+### 2. An unclassified group renders as a sequence
+
+Twenty-one groups need classifying and seven need a genuine read. That is authored judgment, so an
+unread group takes a blank kind rather than a keyword guess — but a blank has to render as
+something, and the two errors are not symmetric. Rendering an exclusion group as ordered costs a
+delay. Rendering a sequence group as unordered costs a destroyed rebuild, which is the outcome the
+groups exist to prevent. **Over-constrain.**
+
+
+### 3. An exclusion group's members are emitted sorted
+
+The field stays a JSON list and will keep looking ordered. Sorting exclusion members by packet id
+removes the only signal a reader could mistake for sequence, and the glossary entry says so. This is
+a rendering rule, not a schema one: the authored order of an unclassified group is preserved until
+somebody rules it.
+
+*Superseded 2026-09-06.* The words "An exclusion group's members are emitted sorted" are superseded by [ADR 0144](0144-a-collision-kind-is-unordered-or-sequence-and-is-demanded-when-two-members-are-live.md) ruling 3. Sorting now occurs when reconciliation sets the kind; member identity and concurrency obligations survive.
+
+*Superseded 2026-09-06.* The words "This is
+a rendering rule, not a schema one" are superseded by [ADR 0144](0144-a-collision-kind-is-unordered-or-sequence-and-is-demanded-when-two-members-are-live.md) ruling 3. Unordered members remain sorted, now stored sorted by set_collision_kind, while permutation-only reordering preserves membership.
+
+### 4. `Startable packet` gains an unmet **sequence** predecessor and never an exclusion peer
+
+An exclusion peer bears on concurrency, not on startability, and folding it in would make the
+frontier refuse work that is genuinely startable. A sequence predecessor is the same kind of thing
+as the unmet rebuild-saving predecessor already in the definition, and only this decision lets
+*"don't start P757 until P716 lands"* be derived rather than read out of prose.
+
+### 5. Two glossary terms are added and one is amended
+
+**Collision group** is used throughout the map, the state block and this ADR series and appears
+nowhere in `CONTEXT.md`. It enters with its two kinds beneath it, and **Startable packet** is
+amended per decision 4.
+
+### 6. Classification is a grilling job, not an agent's
+
+The ticket carrying this work does not get `ready-for-agent`. Seven of the 21 groups need a reading
+of the `why` prose against what the packets actually touch, and an unattended agent would guess —
+which decision 2 exists to prevent one level down.
+
+*Superseded 2026-09-06.* The words "The ticket carrying this work does not get `ready-for-agent`." are superseded by [ADR 0144](0144-a-collision-kind-is-unordered-or-sequence-and-is-demanded-when-two-members-are-live.md) ruling 7. Classification remains the clinician's; it is demanded at the reconciliation where two members are live.
+
+## What this does not reach
+
+The kind is authored, so nothing establishes that a group classified `exclusion` genuinely carries
+no order — a wrong classification in that direction is the destroyed-rebuild outcome decision 2
+protects against everywhere except where somebody has actively ruled it. Nothing here grades whether
+a group's membership is complete: a packet that touches a shared file and was never added to its
+group is invisible to every rule above, and remains what the reconciliation's semantic judgment is
+for. And the floor of 9 / 5 / 7 is a keyword read of prose, not a classification; it establishes
+that both kinds exist and nothing about which group is which.

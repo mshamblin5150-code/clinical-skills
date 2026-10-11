@@ -221,8 +221,18 @@ reaching the PHI name check. That consequence is what separates this command fro
 `batch-shift` is not moved into the depends-on-a-tool group, because the notes are still written
 without it.
 
+*Superseded 2026-09-14.* The words "`batch-shift` is not moved into the depends-on-a-tool group, because the notes are still written without it" are superseded by [ADR 0232](0232-every-skill-command-is-named-in-agents-md-and-its-tier-is-what-skipping-it-costs.md) ruling 3. day_file_text declaration and firewall cost remain word for word.
+
 Declined: no change at all, which leaves a consumer knowing `batch-shift` needs the engine and never
 what runs it.
+
+*Superseded 2026-09-14.* The words "`batch-shift` is not moved into the depends-on-a-tool group, because
+the notes are still written without it," are superseded by [ADR 0232](0232-every-skill-command-is-named-in-agents-md-and-its-tier-is-what-skipping-it-costs.md) ruling 3. The terminal command is required; day_file_text.py and its firewall consequence stand. The original dated account is retained: Ruling 15's final sentence, *"`batch-shift` is not moved into the depends-on-a-tool group, because
+the notes are still written without it,"* is superseded by
+[ADR 0232](0232-every-skill-command-is-named-in-agents-md-and-its-tier-is-what-skipping-it-costs.md)
+ruling 3. #814 had already made `batch-shift`'s completion exit required on 2026-09-02, so the
+skill's run is not complete without `tools/filled_vitals_census.py` whether or not the notes are
+written. The ruling's clause naming `day_file_text.py` and its firewall cost stands word for word.
 
 ## Ruling 16. The command prints counts and paths only
 
@@ -300,10 +310,3 @@ the question with no ticket and names the condition that reopens it: the first m
 caller reading one meaning of exit 1 as another. Ruling 9 of this record is unaffected.
 
 ## Correction, 2026-09-14, from #1130's grilling
-
-Ruling 15's final sentence, *"`batch-shift` is not moved into the depends-on-a-tool group, because
-the notes are still written without it,"* is superseded by
-[ADR 0232](0232-every-skill-command-is-named-in-agents-md-and-its-tier-is-what-skipping-it-costs.md)
-ruling 3. #814 had already made `batch-shift`'s completion exit required on 2026-09-02, so the
-skill's run is not complete without `tools/filled_vitals_census.py` whether or not the notes are
-written. The ruling's clause naming `day_file_text.py` and its firewall cost stands word for word.

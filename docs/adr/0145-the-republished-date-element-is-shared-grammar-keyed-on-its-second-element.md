@@ -100,7 +100,7 @@ The earlier record is not edited, on the practice ADR 0135 ruling 8 states for i
 *Superseded 2026-10-03.* **The ground *"The earlier record is not edited, on the practice ADR 0135 ruling 8 states for itself"* is superseded by [ADR 0280](0280-an-overturned-ruling-carries-a-dated-supersession-marker-written-by-the-record-that-overturns-it.md) ruling 1 and is left as written.** An overturned ruling now carries a dated marker beneath its words, which adds text and replaces none, so the practice this sentence rests on is retired. Ruling 5's separation of the statute root and its correction of ADR 0135's precision figure stand unchanged.
 
 
-*Corrected 2026-09-12.* **The statements *"APA publishes no legal reference examples"* and *"There is no rule to check the scanner against"* are superseded by [ADR 0201](0201-a-grounding-claim-names-what-was-read-and-a-falsified-record-is-marked.md) ruling 5 and are left as written.** *Publication Manual* §11.5 — `read-root` in `apa7-coverage.md`, checked 2026-09-08 — supplies the rule; [#941](https://github.com/mshamblin5150-code/clinical-skills/issues/941) read it and closed on it at 2026-09-08T21:52:41Z, so the earlier revival of ADR 0039's guide caveat falls with that premise. The ruling's separation of the statute root from this ticket survives unchanged.
+*Superseded 2026-09-12.* **The statements *"APA publishes no legal reference examples"* and *"There is no rule to check the scanner against"* are superseded by [ADR 0201](0201-a-grounding-claim-names-what-was-read-and-a-falsified-record-is-marked.md) ruling 5 and are left as written.** *Publication Manual* §11.5 — `read-root` in `apa7-coverage.md`, checked 2026-09-08 — supplies the rule; [#941](https://github.com/mshamblin5150-code/clinical-skills/issues/941) read it and closed on it at 2026-09-08T21:52:41Z, so the earlier revival of ADR 0039's guide caveat falls with that premise. The ruling's separation of the statute root from this ticket survives unchanged.
 
 ## Ruling 6 — both graders are repaired together, from one shared grammar object
 
@@ -142,6 +142,8 @@ Into `reference_scan.NOT_REACHED`, which is inside `test_declared_limits.declare
 
 **The convention problem is deliberately not settled here.** `discussion_artifact` holds `LEGAL_READER_NOT_REACHED`, which ADR 0135 ruling 5 recorded as *"a third naming convention and the one convention no walk sees"* and deferred to [#867](https://github.com/mshamblin5150-code/clinical-skills/issues/867)/[#875](https://github.com/mshamblin5150-code/clinical-skills/issues/875). A fourth object beside it would settle that in passing from a ticket about a translated work. The shared **grammar** lives in `discussion_artifact`; its **limits** live in the two graders' walked objects.
 
+*Superseded 2026-09-12.* The words "The shared **grammar** lives in `discussion_artifact`; its **limits** live in the two graders' walked objects." are superseded by [ADR 0195](0195-citation-resolution-is-a-named-directional-relation-and-the-no-surname-branch-keys-on-the-title-proper.md) ruling 8. Each grader still exposes complete limits to reader; original-half and noncitation residues remain; only authoring home changes.
+
 ## Ruling 10 — the pasteable guarantee does not widen
 
 The fix adds no `BODY_ROWS` member: it touches `INTEXT_YEAR_MISMATCH` and `UNLISTED_CITATION`, both already members. `citation.year` carries **the second element only** — the original element is parsed and discarded, never emitted. `--show` stays the one output in `tools/` that may be pasted whole, on the terms ruled 2026-08-19, rather than being quietly widened by a grammar change.
@@ -157,3 +159,7 @@ The fix adds no `BODY_ROWS` member: it touches `INTEXT_YEAR_MISMATCH` and `UNLIS
 **An unread citation-shaped span.** Neither module reports one; `reference_scan` prints `in-text citations read` with no denominator, which is why this bug surfaced as `uncited-entry` two rows from its cause. That is CLAUDE.md's extractor rule — *a matcher never gets to turn a partial read into a clean whole* — unapplied at this seam. Filed separately, because it is a coverage-reporting change across two grader families rather than a citation-grammar fix.
 
 **Whether the corpus figures survive the next draft.** Three live instances ground the republished root and zero ground the narrative limb; APA's page grounds the latter instead. The measurement moves the next time the clinician writes a case study.
+
+## Supersedes
+
+- [ADR 0135](0135-the-session-law-is-one-grammar-limb-the-loose-spelling-is-refused-and-the-legal-reader-states-its-composition.md) ruling 1, the words "The symptom is #816's; #771 keeps *read the session law*". The republished root stays #816's; the comma-year statute root receives its separate convention ruling instead of being built in #816.

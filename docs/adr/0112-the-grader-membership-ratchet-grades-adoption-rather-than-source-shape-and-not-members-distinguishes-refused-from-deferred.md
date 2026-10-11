@@ -75,6 +75,8 @@ limit going stale in the direction nobody notices, which is
 [#241](https://github.com/mshamblin5150-code/clinical-skills/issues/241)'s subject, arriving on a
 membership roster.
 
+*Superseded 2026-09-11.* The words "A **refused** module is a permanent verdict: the runner cannot express what it does." are superseded by [ADR 0174](0174-a-refusal-is-bounded-by-the-runner-s-contract-and-a-grader-lookalike-is-its-own-kind.md) ruling 2. Separate refusal and deferral mappings; ruling3 no-owner/no-queue distinction and adoption contract stand.
+
 ### 3. `aar_scan` is deferred, not refused, and its entry must say what migration would take
 
 Its graded path fits the runner. What does not fit is a second entry point and a side effect:

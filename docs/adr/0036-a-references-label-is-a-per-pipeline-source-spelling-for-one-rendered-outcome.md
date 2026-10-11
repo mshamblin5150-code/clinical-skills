@@ -67,21 +67,15 @@ That is [#137](https://github.com/mshamblin5150-code/clinical-skills/issues/137)
 Not one vocabulary, and not one object. The **rule** is shared and written into both modules; the **pattern** is not.
 
 - `discussion_reply_scan.REFERENCE_LABEL` accepts `**References**` and rejects plain `References` and `## References`. Nothing renders a reply, so the artifact's spelling is the board's spelling; `*References*` is italic and is rejected; trailing whitespace stays accepted, as today.
-*(Corrected in place 2026-09-12, on ADR 0016's terms, by
-[#948](https://github.com/mshamblin5150-code/clinical-skills/issues/948) and
-[ADR 0190](0190-the-canvas-editor-surface-is-one-shared-route-and-the-reply-prefers-the-raw-editor.md)
-ruling 8. **"Nothing renders a reply" is spent** — the reply renders through `tools/post_html.py`,
-which emits byte-identical `<p><strong>References</strong></p>` for `**References**` and for
-`## References`. So this ruling's own criterion, applied to the current tree, would accept the second
-spelling, and the grader rejects it. **No pattern moves.** The rejection's live ground is
-`skills/discussion-reply/SKILL.md:204`, **"Do not add a heading"** — `## References` is a heading in
-the source whatever it renders as, so the grader enforces that instruction rather than a rendering
-fact. The refusal of *accept both* above is untouched: it is about plain `References`, which still
-arrives unbolded.)*
+
 
 - `discussion_post_scan.REFERENCE_HEADING` is **unchanged**. `## References` is correct on two independent grounds — it is what renders bold, and it is the only form `reference_scan.py` can read.
 
 **The only pattern that changes in this ruling is `tools/discussion_reply_scan.py:53`.**
+
+> REFERENCE_LABEL = re.compile(r"(?mi)^References\s*$")
+>
+> [Historical source](https://github.com/mshamblin5150-code/clinical-skills/blob/d13f8186c6f0754a00dc6471613329927fca2137/tools/discussion_reply_scan.py#L53-L53).
 
 This makes the ticket's option 1 — *accept both, leave two spellings live forever* — wrong rather than merely cheap: on a path with no renderer, blessing plain forever blesses the one form that arrives unbolded. It selects option 2, and re-prices the cost option 2 was declined over.
 
@@ -93,6 +87,18 @@ Measured above. It relocates the defect onto `discussion-post` and breaks `refer
 
 Both render bold, so the invariant appears to admit it. `reference_scan.py` exits 2 on it and the APA hanging indent is lost. The post path's accepted set is the intersection of *renders bold* and *`reference_scan` can read it*, and that intersection is `## References` alone.
 
+*Superseded 2026-09-12.* The ground "Nothing renders a reply, so the artifact's spelling is the board's spelling" is falsified by [ADR 0190](0190-the-canvas-editor-surface-is-one-shared-route-and-the-reply-prefers-the-raw-editor.md) ruling 8. Reply accepts bold literal References and rejects headings/plain form; post pattern and recognizer/refusal remain. The original dated account is retained: *(Corrected in place 2026-09-12, on ADR 0016's terms, by
+[#948](https://github.com/mshamblin5150-code/clinical-skills/issues/948) and
+[ADR 0190](0190-the-canvas-editor-surface-is-one-shared-route-and-the-reply-prefers-the-raw-editor.md)
+ruling 8. **"Nothing renders a reply" is spent** — the reply renders through `tools/post_html.py`,
+which emits byte-identical `<p><strong>References</strong></p>` for `**References**` and for
+`## References`. So this ruling's own criterion, applied to the current tree, would accept the second
+spelling, and the grader rejects it. **No pattern moves.** The rejection's live ground is
+`skills/discussion-reply/SKILL.md:204`, **"Do not add a heading"** — `## References` is a heading in
+the source whatever it renders as, so the grader enforces that instruction rather than a rendering
+fact. The refusal of *accept both* above is untouched: it is about plain `References`, which still
+arrives unbolded.)*
+
 ## Ruling 2 — a label the grader refuses is a not-scanned condition, and its dependent rows report `not graded`
 
 `discussion_artifact.py` gains a **recognizer**: a broad pattern matching any line that is plainly a `References` label in some spelling. It encodes no policy, so it is genuinely shared; the accepted sets stay per module, which is ruling 1.
@@ -103,6 +109,8 @@ Both render bold, so the invariant appears to admit it. `reference_scan.py` exit
 The two cases are separated **exactly**, with no heuristic about whether the document's tail looks reference-shaped. The recognizer is a declared superset of each accepted pattern and a test asserts the containment, so the pair cannot drift into a state where an accepted form is unrecognized.
 
 `not graded` rather than `0` is `research_ledger.py`'s arrangement and its reason: *a zero beside a row that never ran is indistinguishable from a row that passed.* The house rule that **1 wins over 2** does not apply, because the findings that would have outranked the 2 are exactly the ones that could not be computed.
+
+*Superseded 2026-09-14.* The words "The house rule that **1 wins over 2** does not apply" are superseded by [ADR 0225](0225-a-refused-reference-label-voids-only-its-declared-kinds-and-a-partial-gate-keeps-what-it-read.md) ruling 1. The refused label still voids its declared dependent kinds; every other computed finding counts. The original reason and other rulings stand.
 
 **This preserves `tools/test_discussion_reply_scan.py:144`'s asserted contract.** `test_a_reply_without_its_own_reference_list_fails` writes a reply with no label at all and asserts exit 1 with `reference-minimum`. That case has no recognizer match and is unaffected.
 
@@ -124,6 +132,8 @@ Every measurement in this record becomes a test.
 Parsing the form out of each `SKILL.md` and asserting the grader's pattern matches it is cheaper and catches a prose edit. It is too weak on the post path, where **three** consumers depend on one stated form: a string bind to any one of them passes while the other two disagree, which is the state the tree is in right now. [#218](https://github.com/mshamblin5150-code/clinical-skills/issues/218)'s lesson is exactly this — *an identity test passed while two implementations still disagreed*.
 
 It also fails to defend the ruling. The reason the post grader stays `##`-only is a rendering fact and a `reference_scan` fact; only the pipeline bind goes red when either stops being true, and only it stops a later author "unifying" the two patterns and going green.
+
+*Superseded 2026-09-07.* The words "renders bold with no named heading style in the `.docx`." are superseded by [ADR 0147](0147-the-post-loads-as-html-through-the-raw-editor-and-the-submit-gate-moves-to-the-rendered-box.md) ruling 2. The Markdown References form, bold label outcome, and per-pipeline recognizer and resolution contracts stand; HTML takes the submission gates and the archival document takes text parity only.
 
 ## Ruling 4 — `skills/discussion-post/SKILL.md` states its label form
 

@@ -134,3 +134,7 @@ it.
 name, `docs/agents/scratch.md`'s account of unavailable roots, which describes the census as built
 and so moves with the code rather than ahead of it, and the tests: a locked and missing worktree
 fixture, and a stale registration on the accounted-set failure branch, which no test drives today.
+
+## Supersedes
+
+- [ADR 0138](0138-an-absent-committing-scratch-root-is-nothing-to-grade-and-the-empty-population-rule-is-not-generalized.md) ruling 6, the words "A worktree deleted without `git worktree prune` stays in `git worktree list --porcelain`". An unlocked missing root remains a counted, report-only stale registration. A locked missing root has a separate state and no prune remedy; pruning also requires confirmed deletion. No age threshold or new refusal is added.

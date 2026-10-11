@@ -216,6 +216,8 @@ telling a committer the check has never run is the line a committer never sees. 
 was deliberately built to survive `--quiet`; this grader's counts go where the banner goes, or
 ruling 8's reporting half never reaches anybody positioned to act on it.
 
+*Superseded 2026-09-12.* The words "The counts print through `--quiet`." are superseded by [ADR 0203](0203-an-output-line-has-a-kind-and-a-qualifier-s-unit-is-the-run.md) ruling 7. The reporting half stands for never-checked and gone-stale; manual items, read-to-root, and ruled-out are suppressible state.
+
 ## What this record does not settle
 
 **A reader who opens the page and misreads it.** Ruling 6 narrows that and nothing closes it,

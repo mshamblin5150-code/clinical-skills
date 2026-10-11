@@ -89,6 +89,11 @@ Every one of the 79 is `was` followed by a participle. ADR 0029's probe caught *
 
 `tools/threshold_sheet.py:967` refuses a row with no snippet. On a drafted bound sheet that fires on every row until the page read fills them, which is what makes ADR 0029 point 1's *snippets on a bound source are read off the page* mandatory rather than advisory. **#436 states it so a non-zero on a fresh scaffold is not read as breakage.**
 
+>         if not row.snippet:
+>             failures.append(f"{where}  no snippet, so tier 1 citation cannot run on this row")
+>
+> [Historical source](https://github.com/mshamblin5150-code/clinical-skills/blob/f4b868c304bbd271daf078c6c5aaa9382800d1cb/tools/threshold_sheet.py#L967-L968).
+
 **4. Tier 0's bound line names both denominators and derives every figure.**
 
 ```
@@ -123,6 +128,10 @@ Neither ships a one-row version, and **both rows are unconditional** — never *
 `TEXT_MARKERS` entries carry `anchor` as a **required positional**, so a fifth marker written the old way is a `TypeError` when the module is defined and cannot be papered over; the value is validated against a declared set. `read_marker_recommendations` **dispatches with no reading `else`** — leading and trailing are two named branches and anything else raises. *"Never a default"* is a statement about the code's shape: `if trailing: … else: forward` is a default wearing a conditional.
 
 The blast radius is stated rather than discovered: `tools/threshold_sheet.py:230` imports this module, so a malformed marker refuses every commit through the pre-commit hook. That is correct for a code defect and the suite goes red in the same breath.
+
+> from guidelines_recs import MODE_BOUND, MODE_EXACT
+>
+> [Historical source](https://github.com/mshamblin5150-code/clinical-skills/blob/f4b868c304bbd271daf078c6c5aaa9382800d1cb/tools/threshold_sheet.py#L230-L230).
 
 A test-only walk was declined. It is the right instrument where a property **cannot** be made structural — `test_console_codec.py`'s and `test_ls_files_coverage.py`'s AST walks each declare a floor on the shapes they recognize — and a required constructor argument has no floor to declare.
 
@@ -317,3 +326,9 @@ after the build, and *full-document read pending* would be false of a `sheet` ro
 
 Correction, 2026-08-30: the second addendum's two rulings formerly restarted at 1–2. They now
 continue the record's sequence at 12–13 under ADR 0075 ruling 3; the ruling text is unchanged.
+
+## Supersedes
+
+- [ADR 0029](0029-a-bound-recommendation-record-is-a-label-and-its-marker-anchor-decides-which-way-it-reads.md) ruling 4, the words "the 160 becomes a named constant with its reason written beside it and a test pinning it.". Bound remains a label rather than reading evidence; separate statement and document windows are now recorded.
+
+- [ADR 0029](0029-a-bound-recommendation-record-is-a-label-and-its-marker-anchor-decides-which-way-it-reads.md) ruling 8, the words "to the reason the other 122 rows use.". Other three named reasons survive; additional reason is explicit.

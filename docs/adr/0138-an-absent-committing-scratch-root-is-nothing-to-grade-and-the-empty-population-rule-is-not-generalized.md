@@ -171,6 +171,8 @@ A worktree deleted without `git worktree prune` stays in `git worktree list --po
 line among roots that could not be read. **It is not unreadable. It is not there, and the fix is
 `git worktree prune`.**
 
+*Superseded 2026-09-15.* The words "A worktree deleted without `git worktree prune` stays in `git worktree list --porcelain`" are superseded by [ADR 0237](0237-a-missing-worktree-git-reports-as-locked-is-a-locked-registration-and-the-prune-remedy-is-qualified.md) ruling 1. An unlocked missing root remains a counted, report-only stale registration. A locked missing root has a separate state and no prune remedy; pruning also requires confirmed deletion. No age threshold or new refusal is added.
+
 The report distinguishes it; the gate still pools it. That is exactly the arrangement `:331-333`
 already uses for `absent` versus `unreadable`, applied one state over, and it changes no exit status —
 the condition can only reach a peer, since the committing checkout is the one you are standing in and
@@ -184,6 +186,25 @@ and `CLAUDE.md:2156` — and `scratch.md:89` stops being the whole story.
 demonstration rather than a hypothesis: two hand-kept copies, a prose edit to either fails nothing,
 and here they go wrong together, which is the case where drift is invisible because the copies still
 agree with each other.
+
+> - **0** clean, **1** when the owning checkout's unaccounted count has risen above the recorded
+>   baseline or the committing checkout's count has risen above zero, and **2** when either gating
+>   root was not scanned. A clone with no owning scratch root says *did not scan*, never *clean*.
+>   **Where a finding and a not-scanned limb both hold, 1 wins**, on `differential_scan.py`'s
+>   ordering.
+>
+> [Historical source](https://github.com/mshamblin5150-code/clinical-skills/blob/4b8e884f71ef14e72ffde465dde888998a8df20a/docs/agents/scratch.md#L71-L75).
+>
+> **Exit status** — 0 clean, 1 for a rise in the owning or committing checkout, 2 when a gating root
+> or the accounted set was not scanned. A peer root never changes status.
+>
+> [Historical source](https://github.com/mshamblin5150-code/clinical-skills/blob/4b8e884f71ef14e72ffde465dde888998a8df20a/CLAUDE.md#L2156-L2157).
+>
+>   could not read. An unreadable owning or committing root is not scanned; an unreadable peer is
+>   report-only and never changes status. This is coverage of the Git registry, not disclosure of a
+>   scratch-entry path; the count-only rule above still governs every entry under the root.
+>
+> [Historical source](https://github.com/mshamblin5150-code/clinical-skills/blob/4b8e884f71ef14e72ffde465dde888998a8df20a/docs/agents/scratch.md#L89-L91).
 
 `scratch_census.py` owns the contract; both documents point at it and reproduce no limb; **a test
 asserts they point and do not copy.** `EXIT_2_LIMBS` in `differential_scan.py`, `render_scan.py` and
@@ -231,6 +252,8 @@ nothing about how many modules comply; `CONTEXT.md` is a glossary and not a conf
 
 The five are filed rather than fixed here, because whether every `run_grader` member must declare a
 coverage limb is a decision and not a repair.
+
+*Superseded 2026-09-10.* The words "It is not ruled repo-wide, and the refusal is recorded because it is the obvious next proposal." are superseded by [ADR 0170](0170-every-grader-declares-the-posture-its-empty-population-takes.md) ruling 2. The empty-population discriminator and refusal outside run_grader.MEMBERS stand; the family now declares a posture for every member.
 
 ### 10. There is no end-to-end test, and that limit is declared where the substring search lives
 

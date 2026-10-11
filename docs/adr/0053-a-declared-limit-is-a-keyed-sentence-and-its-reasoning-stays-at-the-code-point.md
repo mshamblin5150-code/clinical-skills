@@ -266,6 +266,10 @@ module. A ratified record is a dated statement of what was true when it was rule
 practice is to date a citation rather than rewrite it, so a no-copy bind on six would forbid the
 going-stale a record is entitled to do.
 
+*Superseded 2026-09-03.* The words "The
+surfaces are the module docstring, `CLAUDE.md`'s section, and all three skills that publish this
+module's ledger template." are superseded by [ADR 0120](0120-the-claude-md-limits-pointer-walk-is-name-keyed-section-scoped-and-shape-blind-and-an-unreadable-object-is-not-a-clean-one.md) ruling 8. The module docstring and three skill surfaces keep their existing binds; CLAUDE.md receives the shared section-scoped walk.
+
 **11. [ADR 0047](0047-a-corpus-document-s-stated-citation-is-read-off-its-own-page-and-a-link-is-not-one.md)'s two citations are converted from coordinates to names, in this change.**
 
 That record's *why not `locator`* section refuses this repository's own word **because**
@@ -352,6 +356,12 @@ for.
 **A fourth item was drafted here and does not survive checking.** It read that *ADR 0042 ruling 8
 ordered `skills/practicum-case-study/SKILL.md:727` corrected and the edit never landed*, calling it
 a ratified ruling with an unbuilt limb.
+
+> claims it says, or whether the refutation came from a second agent at all.
+> **A clean scan is not a checked claim** — the refutation pass is what checks a claim, and this
+> command only grades that the pass answered.
+>
+> [Historical source](https://github.com/mshamblin5150-code/clinical-skills/blob/13ebd2014b9eeb378f59e248cef0aa054e8470a0/skills/practicum-case-study/SKILL.md#L727-L729).
 
 **ADR 0042 is [#500](https://github.com/mshamblin5150-code/clinical-skills/issues/500)'s record**,
 and #500 is open, `ready-for-agent` and unbuilt. So that edit is unlanded because the ticket it

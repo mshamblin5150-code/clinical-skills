@@ -228,3 +228,9 @@ It does not establish that the section describes the limit well, that the pointe
 pointer, that a section without a pointer is free of copies, or that a limit held as something other
 than a string is uncopied. Those are ruling 5's floor and ruling 3's ceiling, and both are stated
 where the walk states its own coverage rather than only here.
+
+## Supersedes
+
+- [ADR 0053](0053-a-declared-limit-is-a-keyed-sentence-and-its-reasoning-stays-at-the-code-point.md) ruling 10, the words "The
+surfaces are the module docstring, `CLAUDE.md`'s section, and all three skills that publish this
+module's ledger template.". The module docstring and three skill surfaces keep their existing binds; CLAUDE.md receives the shared section-scoped walk.

@@ -131,6 +131,9 @@ currently hold the emitter and not all are at head. A session publishing from on
 legitimate-looking body from an older in-tree renderer, which is this defect with a shorter fuse and
 no foreign file involved.
 
+*Superseded 2026-09-10.* The words "The body carries the repository-relative path of the helper that rendered it and the commit that
+helper was at" are superseded by [ADR 0168](0168-a-map-obligation-belongs-to-whoever-incurred-it-and-the-producer-stamp-hashes-the-emitter.md) ruling 5. The repository-relative path and derived Snapshot placement remain; the stamp compares the emitter digest and the commit may remain informational.
+
 ## Ruling 2. The graph draws only nodes that carry an edge
 
 The 77 packets touching no `HARD`, `GATE` or `REBUILD-SAVING` edge are not drawn. They remain in
@@ -218,8 +221,8 @@ establish — not two copies of one.
 over two minutes against the live tracker in this session. Making `check` cost that is how it stops
 being run.
 
-**Correction, 2026-09-14, on [#1058](https://github.com/mshamblin5150-code/clinical-skills/issues/1058)'s
-grilling:** the refusal's ground did not measure the fold. `check` builds the same live tracker read
+*Superseded 2026-09-14.* The words "**Folding the diff into `check` was refused.**" are superseded by [ADR 0224](0224-the-map-s-views-refresh-hourly-and-a-stale-view-is-reported-rather-than-failed.md) ruling 1. Correction, 2026-09-14, on [#1058](https://github.com/mshamblin5150-code/clinical-skills/issues/1058)'s
+grilling: the refusal's ground did not measure the fold. `check` builds the same live tracker read
 `audit` does; measured at `ac2fa385`, `check` took 1m35.5s and `audit` 1m34.8s, so the two minutes
 were the read and the comparison adds nothing material.
 [ADR 0224](0224-the-map-s-views-refresh-hourly-and-a-stale-view-is-reported-rather-than-failed.md)
@@ -298,3 +301,11 @@ consequence detectable; it does not make the instruction checkable.
 #756's history were recorded as three readings of one artifact and were three readings of a
 republished one. Any count of the published body is a measurement of a moment, and this record's
 tracker figures are dated for that reason.
+
+## Supersedes
+
+- [ADR 0108](0108-the-map-graph-draws-dependency-alone-and-the-render-is-declared-rather-than-bounded.md) ruling 2, the words "The 10 isolated nodes stay drawn". Free-standing packets remain visible in the packet table; the graph draws only nodes with an edge.
+
+- [ADR 0108](0108-the-map-graph-draws-dependency-alone-and-the-render-is-declared-rather-than-bounded.md) ruling 4, the words "every state packet has a node.". The emitter still accounts for every packet, now as drawn or counted omitted; its other self-checks remain.
+
+- [ADR 0108](0108-the-map-graph-draws-dependency-alone-and-the-render-is-declared-rather-than-bounded.md) ruling 6, the words "A row in `map_scan.DECLARED_LIMITS` carries the difference". GitHub renderability remains declared and ungraded; the emitter's limit resides in implementation_map while map_scan declares its stamp-specific limit.

@@ -157,6 +157,8 @@ closure where they belong.
 depends-on-a-tool group."* Forcing the declaration to cover every invocation would legislate that
 distinction away. The divergence is reported instead, under ruling 11.
 
+*Superseded 2026-09-14.* The words "Forcing the declaration to cover every invocation would legislate that distinction away." are superseded by [ADR 0232](0232-every-skill-command-is-named-in-agents-md-and-its-tier-is-what-skipping-it-costs.md) ruling 8. Consumer population remains every invoked module closed over imports; ruling11 count prints ungraded.
+
 ## Ruling 4. An interpreter runs, and the floor stops being inferred
 
 ADR 0002 records that *"only a job that runs on it can settle it, and that is a second decision rather
@@ -381,3 +383,9 @@ lets any tier satisfy a declaration and adds a suite test that every skill comma
 `AGENTS.md`, so that premise no longer holds. Ruling 3's population and ruling 11's printed,
 ungraded count are unchanged, and the section above naming #1130 as the open judgment is answered
 there.
+
+## Supersedes
+
+- [ADR 0139](0139-a-floor-is-cited-by-api-and-symbol-and-coordinates-are-ratcheted-to-zero.md) ruling 3, the words "The committed check asserts the evidence exists, never how much of it there is". The repository walk now derives the floor; API-and-symbol citation and coordinate ratchet remain.
+
+- [ADR 0139](0139-a-floor-is-cited-by-api-and-symbol-and-coordinates-are-ratcheted-to-zero.md) ruling 4, the words "The wider floor derivation is filed rather than folded in". The separately filed derivation is now supplied; its declared vocabulary ceiling remains.

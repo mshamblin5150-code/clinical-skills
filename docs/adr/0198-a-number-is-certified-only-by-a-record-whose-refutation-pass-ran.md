@@ -244,3 +244,7 @@ rather than fixed here.
 **Whether the seven fields outside the pair ever matter to a certifier.** They are excluded by ruling
 1's reason, not deferred. Reopening one means showing its absence leaves the second agent's check
 unrecorded, which is a different argument from showing it is required.
+
+## Supersedes
+
+- [ADR 0153](0153-a-sourceless-record-claims-no-source-and-a-certifier-reads-the-status.md) ruling 3, the words "The 48 live records missing a `REFUTATION` are a field-completeness defect that the ledger grader already owns, and having a certifier re-derive it is the rejected option through a side door.". Three disbelieved states, paywalled eligibility, reference keys, existing refusal kinds and no live-record rewrite remain.

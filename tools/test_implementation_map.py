@@ -1678,7 +1678,7 @@ class PublishReadsItselfBack(unittest.TestCase):
         # 1, not 2: the write DID happen, and 2 would claim it had not.
         self.assertEqual(rc, 1)
         self.assertIn("READ-BACK FAILED", out)
-        self.assertIn("DID happen", out)
+        self.assertIn("write result is unconfirmed", out)
 
     def test_state_hash_ignores_derived_render_changes(self):
         first = "first render\n" + imap.state_block(self.state) + "\nold graph"
@@ -2904,8 +2904,13 @@ class TheRenderedViews(unittest.TestCase):
     def test_packet_table_lists_open_blockers(self):
         body = imap.render(self.state, self.live, {"commit": "c", "date": "d"})
         table = body.split("## Packet table")[1].split("##")[0]
-        row = next(line for line in table.splitlines() if "| PB |" in line)
-        self.assertIn("#497", row)
+        rows = [
+            [cell.strip() for cell in line.strip().strip("|").split("|")]
+            for line in table.splitlines() if line.strip().startswith("|")
+        ]
+        row = next(cells for cells in rows if cells[0] == "PB")
+        self.assertEqual(len(row), 6)
+        self.assertIn("#497", [blocker.strip() for blocker in row[3].split(",")])
 
     def test_snapshot_counts_ready_labels_live(self):
         rows = [issue(497, labels=["ready"]), issue(532), issue(2)]
@@ -3080,7 +3085,13 @@ class TheRenderedViews(unittest.TestCase):
         table = body.split("## Packet table", 1)[1].split("##", 1)[0]
 
         self.assertNotIn('PC["PC: #3"]', graph)
-        self.assertIn("| PC | #3 |", table)
+        rows = [
+            [cell.strip() for cell in line.strip().strip("|").split("|")]
+            for line in table.splitlines() if line.strip().startswith("|")
+        ]
+        row = next(cells for cells in rows if cells[0] == "PC")
+        self.assertEqual(len(row), 6)
+        self.assertEqual(row[1], "#3")
 
     def test_graph_packet_coverage_is_a_complete_partition(self):
         state = state_with(

@@ -183,3 +183,7 @@ None widens this ticket: #959's fix is correct without every one of them, and ev
 **Whether `reference_scan` and `discussion_artifact` agree after this lands.** They agree less, not more: a citation naming a different work with the same first word now fires correctly in three graders and still resolves clean in `reference_scan`. That is ruling 3's accepted cost and ruling 10 item 3 is where it is stated.
 
 **Whether the population survives the next draft.** One live instance grounds the shape today, and §31 exists to teach the next run to write it. The measurement moves the first time the clinician cites a translated work.
+
+## Supersedes
+
+- [ADR 0145](0145-the-republished-date-element-is-shared-grammar-keyed-on-its-second-element.md) ruling 9, the words "The shared **grammar** lives in `discussion_artifact`; its **limits** live in the two graders' walked objects.". Each grader still exposes complete limits to reader; original-half and noncitation residues remain; only authoring home changes.

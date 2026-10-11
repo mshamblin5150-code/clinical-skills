@@ -78,6 +78,10 @@ people learn to `--no-verify` around, which `CLAUDE.md` warns about by name. A r
 recorded figure and refuses the entry that would raise it — deployable with no cleanup, and it
 prevents the only thing this ticket can prevent, which is the next one.
 
+*Superseded 2026-08-27.* The words "The check refuses on a rise and the baseline is 19." are superseded by [ADR 0059](0059-the-scratch-census-walks-every-checkout-that-owns-a-scratch-root-and-the-worktree-half-is-held-at-zero.md) ruling 2. Ruling 3 is superseded by ADR 0059 and is left as written, being the
+dated record of what was decided on 2026-08-25; the figure it states is not the live baseline and
+ADR 0059 rules that no prose states one. Every other ruling here is unchanged.
+
 ## Why the baseline is a count, which is this record's subject
 
 **A set baseline is unavailable and that is a firewall constraint, not a design preference.** The
@@ -139,6 +143,4 @@ Correction, 2026-08-27: the sentence at the end of *What this does not do* forme
 the checkout that owns the tree." True about resolution and false about coverage — measured at
 `19cc19f`, eight of nineteen worktrees owned a scratch root, holding more files between them than
 the walked root did, and one of them carried a double-digit unaccounted top level the check would
-never have opened. [#466]. **Ruling 3 is superseded by ADR 0059 and is left as written**, being the
-dated record of what was decided on 2026-08-25; the figure it states is not the live baseline and
-ADR 0059 rules that no prose states one. Every other ruling here is unchanged.
+never have opened. [#466].

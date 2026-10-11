@@ -291,3 +291,7 @@ This record clears the `EXTERNAL-GATE` on `issue:828` that packet P815 carries, 
 quotation build can proceed once the build behind this record lands. Until it does, a correctly
 formed block quotation still ships with the quadruple gap, in the case study, where the `.docx` is
 the graded artifact.
+
+## Supersedes
+
+- [ADR 0084](0084-an-own-line-html-comment-is-markup-and-the-renderer-drops-it.md) ruling 3, the words "It is the narrowest rule that produces a correct page". The dropped comment still consumes one adjacent blank, now to keep the parser record faithful for HTML consumers; general blank collapsing remains refused.

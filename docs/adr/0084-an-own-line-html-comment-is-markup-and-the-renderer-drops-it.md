@@ -114,6 +114,8 @@ shipped and the clinician already accepted.
 comment fix as a disguise: a draft deliberately carrying two blank lines would silently gain one
 paragraph less, in documents this ticket has nothing to do with.
 
+*Superseded 2026-09-08.* The words "It is the narrowest rule that produces a correct page" are superseded by [ADR 0148](0148-a-markdown-blank-line-renders-nothing-and-a-heading-has-one-declaration.md) ruling 7. The dropped comment still consumes one adjacent blank, now to keep the parser record faithful for HTML consumers; general blank collapsing remains refused.
+
 ### 4. The command states what it did and warns about what it left, and never refuses
 
 Two limbs. stdout gains one line beside `wrote`, printed only when the count is non-zero, saying how
@@ -152,6 +154,8 @@ arrangement; with it, a hit is exit 1. Default output stays a count.
 
 `_docx_heading_styles` already opens the archive and parses `word/document.xml`, so the row costs one
 more pass over a tree already in memory.
+
+*Superseded 2026-09-07.* The words "with it, a hit is exit 1." are superseded by [ADR 0147](0147-the-post-loads-as-html-through-the-raw-editor-and-the-submit-gate-moves-to-the-rendered-box.md) ruling 2. The parser strip, coverage declaration and count-only diagnostics stand; the rendered comment row gates HTML rather than the archival docx.
 
 ### 6. The skill prose states the mechanism, and `discussion-reply` is deliberately untouched
 

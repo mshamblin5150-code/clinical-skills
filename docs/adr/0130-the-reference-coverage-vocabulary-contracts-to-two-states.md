@@ -195,3 +195,9 @@ about coverage, and it is not asked here.
 [#143](https://github.com/mshamblin5150-code/clinical-skills/issues/143); those figures belong to
 `reference_scan.APA_SOURCE_CLASSES`, `reference_scan.REFERENCE_BUCKETS` and the commands that read
 them.
+
+## Supersedes
+
+- [ADR 0097](0097-the-apa-sheet-s-class-vocabulary-is-apa-s-nursing-set-and-coverage-is-decided-per-bucket-while-the-gate-is-a-bind-test.md) ruling 3, the words "no spanned class has a form — **finding**, and the remedy is unambiguous;". The clean and undecidable states remain, still calculated from per-class has_form.
+
+- [ADR 0097](0097-the-apa-sheet-s-class-vocabulary-is-apa-s-nursing-set-and-coverage-is-decided-per-bucket-while-the-gate-is-a-bind-test.md) ruling 6, the words "So the row prints and never touches the exit status". A repository gap still must not fail coursework; the retired uncovered-class report disappears while bucket populations and undecidable remainder still print.

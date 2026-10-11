@@ -152,6 +152,8 @@ existing is a source question and belongs in `load` raising `SourceError`. `sour
 stays `False` and `allow_extra_positionals` stays `True`, both preserving measured behavior rather
 than choosing.
 
+*Superseded 2026-09-14.* The words "`allow_extra_positionals` stays `True`" are superseded by [ADR 0229](0229-a-grader-refuses-a-second-source-and-the-option-to-accept-one-is-deleted.md) ruling 1. source_error_to_stdout stays False; session-end arrangement and per-member vocabulary remain.
+
 `--extract` becomes an `EarlyExit`, which `run_grader`'s own docstring names as *a declared
 non-grader mode*.
 

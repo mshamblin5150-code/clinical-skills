@@ -141,6 +141,10 @@ public file-digest helper serves this, ruling 2 and ruling 9, and replaces the t
 in a record. A declared limit says a record is bound to the draft alone. The one plausible stale path,
 a ledger correction to a dose, ends in a draft edit that ruling 6 already catches.
 
+*Superseded 2026-09-13.* The words "A declared limit says a record is bound to the draft alone." are superseded by [ADR 0219](0219-a-refutation-fingerprints-its-heading-and-a-reader-pairs-the-draft.md) ruling 11. Other check records remain draft-bound only; the heading-read record also binds claims.md heading digests.
+
+*Superseded 2026-09-18.* The words "A declared limit says a record is bound to the draft alone." are superseded by [ADR 0262](0262-the-adversarial-read-moves-after-the-render-and-its-record-names-the-pass-and-the-ledger-it-read.md) ruling 3. The adversarial reader also binds the claims.md fingerprint; other readers stay unbound to the ledger.
+
 ### 9. The deck gets the render binding on the `.pptx` bytes
 
 `deck_render.py` writes the SHA-256 of the `.pptx` into each pass as ruling 2 describes, and
@@ -187,3 +191,9 @@ verdict went stale through `claims.md` or the evidence alone. Whether the LMS ho
 fingerprinted; the posted-upload readback is
 [#1154](https://github.com/mshamblin5150-code/clinical-skills/issues/1154)'s. Whether a draft changed and
 changed back to identical bytes during one read, which leaves the reader's draft the final one.
+
+## Supersedes
+
+- [ADR 0098](0098-the-case-study-s-rendered-document-coverage-is-derived-from-kept-evidence-and-owned-by-its-own-run-directory-grader.md) ruling 3, the words "it reads exactly one file and nothing else; counting a sibling directory is a filesystem contract it has never had.". The page count remains render_scan's; checks_ledger now reads one newest-pass fingerprint file to bind the retained render to the Markdown.
+
+- [ADR 0161](0161-the-deck-and-case-study-render-records-name-the-final-pass-and-route.md) ruling 5, the words "it changes what a render pass holds". The declared route remains outside the pass and unproven. A producer-computed source fingerprint now lives inside each retained pass.

@@ -144,3 +144,7 @@ work is unknown until they are read, and no prediction is stated.
 **A push carrying several merges.** Every ADR its range lands is treated as landed by that push.
 Whether that leaves a missed review unrefused for one push longer than ruling 3 intends is not
 measured.
+
+## Supersedes
+
+- [ADR 0106](0106-the-implementation-map-is-reconciled-by-an-in-tree-tool-rather-than-gated-at-publication.md) ruling 8, the words "`unmapped-ready` leaves `--advisory`". New unmapped-ready debt still refuses; grandfathered debt prints without refusing and is drained by an owned ticket.
