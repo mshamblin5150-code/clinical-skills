@@ -456,7 +456,7 @@ def write_database(
     cpt_complete: bool = False,
     cpt_evidence: CptEvidence | None = None,
     cpt_reference: Path | None = None,
-) -> None:
+) -> cpt_population.Coverage:
     """Write the database; a verified build passes ``verify_cpt_agreement``'s evidence.
 
     ``cpt_reference`` is the database being replaced, whose CPT code population a verified
@@ -556,6 +556,7 @@ def write_database(
         connection.execute("VACUUM")
     finally:
         connection.close()
+    return population
 
 
 def main(argv: list[str]) -> int:
@@ -618,7 +619,7 @@ def main(argv: list[str]) -> int:
             else:
                 cpt_evidence = checked
                 descriptor_state = "verified"
-        write_database(
+        population = write_database(
             args.out,
             entries,
             args.hcpcs,
@@ -635,7 +636,7 @@ def main(argv: list[str]) -> int:
     print(f"HCPCS modifiers  {sum(e.system == 'HCPCS' and e.kind == 'modifier' for e in entries):,}")
     print(f"CPT codes        {sum(e.system == 'CPT' for e in entries):,}")
     if args.cpt is not None:
-        print(cpt_population.coverage({e.code for e in entries if e.system == "CPT"}).report())
+        print(population.report())
         print(f"CPT descriptors  {descriptor_state}")
     print(f"written          {args.out}")
     return 0
