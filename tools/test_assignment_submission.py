@@ -126,11 +126,18 @@ class TwoGateUpload(unittest.TestCase):
             root = Path(directory)
             docx = root / "assignment.docx"
             docx.write_bytes(b"canonical Word artifact")
+            write_none_context(root)
+            replace_file = assignment_submission.os.replace
+
+            def fail_approval_write(source, destination):
+                if Path(destination).name == assignment_submission.RECORD:
+                    raise OSError("busy")
+                return replace_file(source, destination)
 
             with mock.patch.object(
-                assignment_submission.os, "replace", side_effect=OSError("busy")
+                assignment_submission.os, "replace", side_effect=fail_approval_write
             ):
-                with self.assertRaises(assignment_submission.GateError):
+                with self.assertRaises(OSError):
                     self.stage(root, docx, artifact_approved=True)
 
             self.assertEqual((), tuple(root.glob("*.building")))
