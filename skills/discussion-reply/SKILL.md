@@ -308,7 +308,9 @@ Its heading-read rows are `missing-heading-read`, `duplicate-heading-read`, `unr
 `heading-read-finding`, plus `heading-read-context-digest`,
 `heading-read-context-verdict-shape`, and `heading-read-context-defect`.
 
-Show the clean reply and an invoked-source table to the clinician. For every retained invoked
+Every approval ask, including one repeated after a revision, shows the complete final text
+with its full reference list before the approval question. Show the clean reply and an invoked-source
+table to the clinician. For every retained invoked
 source, the table shows the invoked source, its domain, and the property it spends. If the run
 proposed imagery, also show this table from `imagery-proposals.json`:
 

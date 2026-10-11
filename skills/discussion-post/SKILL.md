@@ -422,7 +422,8 @@ because the live assignment accepts the initial post through the topic-level Com
 This skill opts in to the shared sheet's Initial-post attachment fallback when the signed bar
 allows a pointer body.
 
-Show the final post and clean source-check summary to the clinician. If the run proposed imagery,
+Every Gate 1 approval ask, including one repeated after a revision, shows the complete final text
+with its full reference list before the approval question. Show the clean source-check summary too. If the run proposed imagery,
 also show this table from `imagery-proposals.json`:
 
 | Proposed image | Recorded domain | Real behavior it spends | Approve this image? |
@@ -433,6 +434,7 @@ Ask the proposed-image question separately from whether the post's substance is 
 yes or no under [imagery-proposals.md](../_shared/reference/imagery-proposals.md) and rerun the
 carrier producers `post_html.py` and `docx_write.py` after every ruling. Before loading, regenerate
 both `.html` and `.docx` from the checked Markdown and rerun the grader with both carriers.
+Exit 1 stops the load; exit 2 is disclosed as incomplete coverage and does not block the load.
 **Gate 1** is the clinician's explicit approval of the post and authorizes
 loading it into the box, not submission. That approval
 also confirms that every edit implicated by a destination-guard refusal was recovered into the
@@ -537,8 +539,9 @@ approved item himself, call `approval_record.record_clinician_posting(...)` with
 That clinician-posting route skips the second read of the loaded Canvas box before Submit, so an
 error is found only after the board stores it and may have to remain there; the posted reading below
 is still required.
-Then read the initial entry's Copy Link and the board's posted timestamp. Add `POST-URL:` and
-`POSTED:` fields to the private `post.md`; this working record is not the graded output artifact.
+Then read the initial entry's Copy Link and the board's posted timestamp. Append a
+`## POSTING: post.md` block holding `POST-URL:` and `POSTED:` to the private `post.md`;
+this working record is not the graded output artifact.
 Append this record to the run's one `reread.md`, preserving any reply records:
 
 ```text

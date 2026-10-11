@@ -311,7 +311,8 @@ record before the go-ahead.
 ## 6. Show, then post to the peer-review comment
 
 Show the clean critique to the clinician with the word count, the grader exits, and a short list of
-what the critique credits the classmate for. If the run proposed imagery, also show this table from
+what the critique credits the classmate for. Every approval ask, including one repeated after a revision,
+shows the complete final text with its full reference list before the approval question. If the run proposed imagery, also show this table from
 `imagery-proposals.json`:
 
 | Proposed image | Recorded domain | Real behavior it spends | Approve this image? |

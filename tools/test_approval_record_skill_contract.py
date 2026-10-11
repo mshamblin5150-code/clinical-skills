@@ -19,6 +19,13 @@ SKILLS = (
 
 
 class PostingSkillContract(unittest.TestCase):
+    def test_text_posting_approval_asks_show_every_revision_and_reference(self):
+        for skill in ("discussion-post", "discussion-reply", "peer-critique"):
+            text = (ROOT / "skills" / skill / "SKILL.md").read_text(encoding="utf-8")
+            self.assertIn("including one repeated after a revision", text)
+            self.assertIn("complete final text", text)
+            self.assertIn("with its full reference list before the approval question", text)
+
     def test_every_approval_call_including_both_discussion_post_gates_carries_the_reply(self):
         for skill in SKILLS:
             with self.subTest(skill=skill):

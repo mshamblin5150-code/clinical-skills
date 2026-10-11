@@ -417,6 +417,40 @@ class AnEmptyBodyIsStillAFindingUnderAZeroBar(unittest.TestCase):
 
 
 class CanvasSubmissionRows(unittest.TestCase):
+    def test_first_load_is_incomplete_but_retained_pass_requires_a_record(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            html, document = self.rendered(run)
+            args = ("--html", str(html), "--docx", str(document))
+            status, report, _ = run.grade(*args)
+            self.assertEqual(2, status, report)
+            self.assertIn("rendered-pages: not graded", report)
+            run.record_canvas_render(html)
+            (run.root / "post.md").write_text(BODY, encoding="utf-8")
+            status, report, _ = run.grade(*args)
+            self.assertEqual(1, status, report)
+            self.assertIn("rendered-pages: 1", report)
+
+    def test_posting_heading_ends_render_record_and_posting_requires_render(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run = Run(Path(temp))
+            html, document = self.rendered(run)
+            run.record_canvas_render(html)
+            post = run.root / "post.md"
+            posting = "\n## POSTING: post.md\nPOST-URL: https://example.org/courses/1/discussion_topics/2?entry_id=41\nPOSTED: 2026-10-11\n"
+            post.write_text(post.read_text(encoding="utf-8") + posting, encoding="utf-8")
+            (run.root / "reread.md").write_text(
+                f"## REREAD: {run.draft.stem}\nPOST-URL: https://example.org/courses/1/discussion_topics/2?entry_id=41\nPOSTED: 2026-10-11\n"
+                f"READ: 2026-10-11\nSUBMISSION-SHA256: {hashlib.sha256(run.draft.read_bytes()).hexdigest()}\n"
+                f"COMPOSER-OUTCOME: inline\nHTML-BYTES: {len(html.read_bytes())}\n"
+                "VERDICT: matches - full stored entry read\n", encoding="utf-8")
+            status, report, error = run.grade("--html", str(html), "--docx", str(document))
+            self.assertEqual(0, status, report + error)
+            post.write_text(BODY + posting, encoding="utf-8")
+            status, report, _ = run.grade("--html", str(html), "--docx", str(document))
+            self.assertEqual(1, status, report)
+            self.assertIn("rendered-pages: 1", report)
+
     def rendered(self, run: Run) -> tuple[Path, Path]:
         html = run.root / "post.html"
         html.write_text(post_html.render(BODY), encoding="utf-8", newline="")
