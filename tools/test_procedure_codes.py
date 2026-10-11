@@ -23,6 +23,10 @@ from code_set_database_test_support import (
     assert_code_set_database_digest,
 )
 
+assert_code_set_database_digest(
+    lookup.DEFAULT_DATABASE, PROCEDURE_CODES_DATABASE_SHA256, "procedure-code Code-set database"
+)
+
 
 class CptPopulation(unittest.TestCase):
     def test_book_reference_covers_issue_omissions_and_all_code_families(self):
@@ -30,9 +34,6 @@ class CptPopulation(unittest.TestCase):
         self.assertTrue({"36415", "51702", "52000", "34001", "36000", "81161"} <= codes)
         self.assertTrue({"99202", "00100", "10030", "70010", "80047", "90281"} <= codes)
         self.assertTrue({"0001F", "0002M", "0054T", "0001U"} <= codes)
-        assert_code_set_database_digest(
-            lookup.DEFAULT_DATABASE, PROCEDURE_CODES_DATABASE_SHA256, "procedure-code database"
-        )
         with closing(lookup.open_database()) as connection:
             for code in codes:
                 self.assertIsNotNone(lookup.describe(connection, code), code)
