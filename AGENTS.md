@@ -176,7 +176,10 @@ every approved item's artifact-aware `--submission` grade. Its complete ceiling 
 their purpose-named `project-context.md` before first prose. The command expands the account-owned
 registry resolved by `repo_root.project_registry()`, grades every owed place, hashes opened file
 bytes and supplied service text, and writes the context digest. Their completion graders rehash
-file items and their shared heading read binds the draft to that digest. Without a clean pre-draft
+file items only while a key is unposted; after recorded posting they carry forward its go-ahead
+result and name any move approved over by the clinician. At each go-ahead, the approval path
+rechecks opened files, records the keyed result, and reports a move as incomplete coverage.
+The shared heading read binds the draft to that digest. Without a clean pre-draft
 exit, drafting stops; without the completion row, the run is not mechanically verified.
 
 **`tools/lms_attachments.py` is a Required command for the five coursework skills.**

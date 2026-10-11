@@ -800,6 +800,9 @@ def completion_gate(run: Path, submission: str | None) -> CompletionGate:
                     rows.append(CompletionGate(False, False, f"{EXPECTED_ROW}: {key} not checked at the go-ahead because approval predates the check; pre-check approvals: 1"))
                 continue
             integrity = _context_completion_gate(run, key, recheck_files=False)
+            if row.get("approval_revision") != state.approval_revision:
+                rows.append(CompletionGate(True, False, f"{EXPECTED_ROW}: finding - go-ahead approval revision differs for {key}"))
+                continue
             if row["digest"] != recorded_digest(run):
                 rows.append(CompletionGate(True, False, f"{EXPECTED_ROW}: finding - go-ahead context digest changed"))
                 continue
@@ -1009,21 +1012,35 @@ def _go_ahead_records(run: Path) -> dict[str, dict]:
                 or any(type(row.get(name)) is not bool for name in ("finding", "coverage"))
                 or any(not isinstance(row.get(name), list) or any(not isinstance(value, str) for value in row[name]) for name in ("moved_places", "added_lines"))):
             raise ValueError("invalid go-ahead result fields")
+        revision = row.get("approval_revision")
+        if revision is not None and (type(revision) is not int or revision < 1):
+            raise ValueError("invalid go-ahead approval revision")
         rows[key] = row
     return rows
 
 
-def go_ahead(run: Path, submission: str) -> CompletionGate:
+def inspect_go_ahead(run: Path, submission: str) -> CompletionGate:
+    """Show the live notice before approval without replacing approval evidence."""
+    if len(coursework_run.submission_keys(submission)) != 1:
+        raise ValueError("check one go-ahead at a time")
+    return _context_completion_gate(run, submission, compare_memory_lines=True)
+
+
+def go_ahead(run: Path, submission: str, *, approval_revision: int | None = None) -> CompletionGate:
     """Recheck opened files and replace this key's machine-written go-ahead result."""
     keys = coursework_run.submission_keys(submission)
     if len(keys) != 1:
         raise ValueError("check one go-ahead at a time")
-    result = _context_completion_gate(run, submission, compare_memory_lines=True)
+    import approval_record
+    state = approval_record.project_context_posting(run, submission)
+    if state.posted and (approval_revision is None or approval_revision <= (state.approval_revision or 0)):
+        raise ValueError("a posted go-ahead result requires a new approval revision")
+    result = inspect_go_ahead(run, submission)
     rows = _go_ahead_records(run)
     rows[submission] = dict(submission=submission, digest=recorded_digest(run),
                             finding=result.finding, coverage=result.coverage,
                             report=result.report, moved_places=list(result.moved_places),
-                            added_lines=list(result.added_lines))
+                            added_lines=list(result.added_lines), approval_revision=approval_revision)
     path = run / RECORD_NAME
     lines = [line for line in path.read_text(encoding="utf-8").splitlines() if not line.startswith("GO-AHEAD:")]
     position = next((index for index, line in enumerate(lines) if line.startswith("## PLACE:")), len(lines))
@@ -1077,7 +1094,7 @@ def _service_payloads(arguments: list[str]) -> Mapping[str, Mapping[str, str]]:
 def main(argv: list[str]) -> int:
     if len(argv) == 3 and argv[1] == "--go-ahead":
         try:
-            result = go_ahead(Path(argv[0]).expanduser().resolve(), argv[2])
+            result = inspect_go_ahead(Path(argv[0]).expanduser().resolve(), argv[2])
         except (OSError, UnicodeError, ValueError):
             print("project context NOT WRITTEN - go-ahead result is unreadable", file=sys.stderr)
             return 2

@@ -512,13 +512,14 @@ class GoAheadRechecks(ProjectContextFixture):
 
     def check(self, key="submission"):
         with mock.patch.object(repo_root, "project_registry", return_value=self.registry):
-            return context.go_ahead(self.run, key)
+            return context.go_ahead(self.run, key, approval_revision=1)
 
     def record_posting(self, *, required=True):
         # A pre-check durable record uses the historical public reader contract.
         (self.run / approval_record.RECORD).write_text(json.dumps({
             "items": [{"skill": "discussion-post", "submission": "submission",
-                       "posting_route": "agent", "project_context_check": required}]
+                       "posting_route": "agent", "project_context_check": required,
+                       "approval_revision": 1}]
         }), encoding="utf-8")
 
     def test_an_added_memory_line_is_shown_without_moving_the_index(self):
@@ -604,6 +605,32 @@ class GoAheadRechecks(ProjectContextFixture):
         path.write_text(path.read_text(encoding="utf-8").replace('"finding": false', '"finding": "false"'), encoding="utf-8")
         self.record_posting()
         self.assertTrue(self.complete().finding)
+
+    def test_a_later_notice_preserves_the_result_approved_before_posting(self):
+        self.check()
+        self.record_posting()
+        before = (self.run / context.RECORD_NAME).read_bytes()
+        self.plan.write_bytes(b"changed after posting\n")
+        output = io.StringIO()
+        with mock.patch.object(repo_root, "project_registry", return_value=self.registry), redirect_stdout(output):
+            status = context.main([str(self.run), "--go-ahead", "submission"])
+        self.assertEqual(status, 2)
+        self.assertIn(str(self.plan), output.getvalue())
+        self.assertEqual(before, (self.run / context.RECORD_NAME).read_bytes())
+        result = self.complete()
+        self.assertFalse(result.coverage, result.report)
+        self.assertNotIn("approved over moved", result.report)
+        with self.assertRaisesRegex(ValueError, "new approval revision"):
+            context.go_ahead(self.run, "submission")
+
+    def test_a_result_for_an_unrecorded_approval_revision_cannot_clear_a_move(self):
+        self.check()
+        self.record_posting()
+        with mock.patch.object(repo_root, "project_registry", return_value=self.registry):
+            context.go_ahead(self.run, "submission", approval_revision=2)
+        result = self.complete()
+        self.assertTrue(result.finding, result.report)
+        self.assertIn("approval revision differs", result.report)
 
     def test_public_go_ahead_command_prints_every_added_line_and_exits_zero(self):
         self.memory.write_text("memory index\nnew pointer\nsecond pointer\n", encoding="utf-8")

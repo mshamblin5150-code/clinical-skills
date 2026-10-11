@@ -1255,11 +1255,12 @@ places are findings. An unavailable registry or unregistered project is incomple
 stops for the clinician's answer.
 
 Before each go-ahead, `python tools/project_context.py <run-directory> --go-ahead <submission-key>`
-rechecks opened files and records that key's result. Show every moved place and added memory-index
+rechecks opened files for a read-only notice. Show every moved place and added memory-index
 line before asking for approval. The memory index compares a multiset of nonblank line fingerprints
 with trailing whitespace stripped; added lines are shown, while edits and removals are moves.
 Other files retain whole-file comparisons. Both coursework approval paths repeat the check and
-record a move as an incomplete pre-post grade.
+record a move as an incomplete pre-post grade. The saved result is bound to that approval revision;
+showing a later notice preserves the result the clinician approved.
 The same five completion graders enable the shared row with `--submission`. After recorded posting,
 they carry forward the go-ahead result and name moves approved over by the clinician. A posted
 approval predating the check is named, counted, and passes on this row. An unposted key keeps the

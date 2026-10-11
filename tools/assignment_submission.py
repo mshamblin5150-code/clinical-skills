@@ -153,8 +153,9 @@ def stage(
     if not any(item.path == path for item in carriers):
         raise GateError("the canonical artifact must be in the approved carrier set")
     digest = file_digest.sha256(path)
+    revision = _next_approval_revision(root)
     try:
-        context = project_context.go_ahead(root, path.stem)
+        context = project_context.go_ahead(root, path.stem, approval_revision=revision)
     except (OSError, UnicodeError, ValueError) as failure:
         raise GateError("project-context go-ahead result could not be written") from failure
     if context.finding:
@@ -170,7 +171,7 @@ def stage(
             "uploaded_files": [],
             "gate1_approved": True,
             "upload_route": UploadRoute.AWAITING.value,
-            "approval_revision": _next_approval_revision(root),
+            "approval_revision": revision,
             "project_context_check": True,
             "pregrade_status": "incomplete" if context.coverage else "clean",
             "project_context_report": context.report,
@@ -196,7 +197,10 @@ def project_context_posting(run: Path, submission: str):
     artifact = payload.get("artifact")
     if not isinstance(artifact, str) or Path(artifact).stem != submission:
         return ProjectContextPosting(False)
-    return ProjectContextPosting(_upload_route(payload) in {UploadRoute.AGENT, UploadRoute.CLINICIAN}, payload.get("project_context_check") is True)
+    revision = payload.get("approval_revision")
+    if revision is not None and (type(revision) is not int or revision < 1):
+        raise GateError("invalid assignment approval revision")
+    return ProjectContextPosting(_upload_route(payload) in {UploadRoute.AGENT, UploadRoute.CLINICIAN}, payload.get("project_context_check") is True, revision)
 
 
 def upload_is_allowed(staged: StagedUpload, candidate: Path) -> bool:
