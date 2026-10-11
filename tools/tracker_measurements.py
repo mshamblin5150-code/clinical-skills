@@ -411,7 +411,8 @@ def _last_touch(root: Path, relative: str) -> tuple[str, datetime, str]:
 def _committed_text(root: Path, commit: str, relative: str) -> str:
     try:
         completed = subprocess.run(
-            ["git", "show", f"{commit}:{relative}"], cwd=root, capture_output=True
+            ["git", "show", "--end-of-options", f"{commit}:{relative}", "--"],
+            cwd=root, capture_output=True
         )
     except OSError as error:
         detail = " ".join(str(error).split())[:1000]

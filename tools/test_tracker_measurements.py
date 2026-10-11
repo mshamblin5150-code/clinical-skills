@@ -26,6 +26,35 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
 class CommittedBodyReadFailuresRetainGitEvidence(unittest.TestCase):
+    def test_long_object_path_reads_exact_blob_without_filesystem_disambiguation(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            def git(*args, body=None):
+                return subprocess.run(
+                    ["git", *args], cwd=root,
+                    input=None if body is None else body.encode("utf-8"),
+                    capture_output=True, check=True,
+                ).stdout.decode("utf-8", errors="replace").strip()
+            git("init", "--initial-branch=main")
+            git("config", "user.name", "Fixture Writer")
+            git("config", "user.email", "fixture@example.invalid")
+            git("config", "core.longpaths", "false")
+            name = "0121-" + "long-object-name-" * 13 + ".md"
+            relative = f"docs/adr/{name}"
+            body = "# Immutable public fixture\n\nExact blob words.\n"
+            blob = git("hash-object", "-w", "--stdin", body=body)
+            adr = git("mktree", body=f"100644 blob {blob}\t{name}\n")
+            docs = git("mktree", body=f"040000 tree {adr}\tadr\n")
+            tree = git("mktree", body=f"040000 tree {docs}\tdocs\n")
+            commit = git("commit-tree", tree, body="Public fixture\n")
+            self.assertGreater(len(f"{commit}:{relative}"), 260)
+            with mock.patch.object(measurements.subprocess, "run", wraps=subprocess.run) as run:
+                self.assertEqual(body, measurements._committed_text(root, commit, relative))
+            run.assert_called_once_with(
+                ["git", "show", "--end-of-options", f"{commit}:{relative}", "--"],
+                cwd=root, capture_output=True,
+            )
+
     def test_nonzero_git_show_refuses_with_commit_status_and_bounded_stderr(self):
         relative = "docs/adr/0121-example.md"
         result = subprocess.CompletedProcess(
@@ -36,7 +65,7 @@ class CommittedBodyReadFailuresRetainGitEvidence(unittest.TestCase):
             with self.assertRaises(measurements.SourceError) as raised:
                 measurements._committed_text(REPO_ROOT, CURRENT, relative)
         run.assert_called_once_with(
-            ["git", "show", f"{CURRENT}:{relative}"],
+            ["git", "show", "--end-of-options", f"{CURRENT}:{relative}", "--"],
             cwd=REPO_ROOT, capture_output=True,
         )
         message = str(raised.exception)
