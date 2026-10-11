@@ -32,6 +32,9 @@ class ApprovalRecordContract(unittest.TestCase):
         os.utime(self.artifact, (1, 1))
         self.transcript = self.root / "session.jsonl"
         self.transcript.write_text(json.dumps({
+            "type": "assistant", "timestamp": "2100-10-09T11:59:59Z",
+            "message": {"content": "approved post"},
+        }) + "\n" + json.dumps({
             "type": "user", "timestamp": "2100-10-09T12:00:00Z",
             "message": {"content": "Approve this entire post."},
         }) + "\n", encoding="utf-8")
@@ -179,6 +182,7 @@ class ApprovalRecordContract(unittest.TestCase):
 
     def test_coursework_approval_does_not_check_note_grammar(self) -> None:
         self.artifact.write_text("Confirm medication before entry.\n", encoding="utf-8")
+        self.transcript.write_text(self.transcript.read_text(encoding="utf-8").replace("approved post", "Confirm medication before entry."), encoding="utf-8")
         with mock.patch.object(approval_record, "_pre_post_grade", return_value=(0, "clean")):
             approval_record.approve(
                 self.run, skill="discussion-post", submission="post-key",

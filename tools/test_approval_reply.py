@@ -55,14 +55,17 @@ class WholeReplyApproval(unittest.TestCase):
         stack.enter_context(mock.patch.object(approvals, "_pre_post_grade", return_value=(0, "pregrade clean")))
         self.write(human())
 
-    def write(self, *rows, path=None):
+    def write(self, *rows, path=None, shown=True):
         # Real discovery must find the run in a main transcript's tool input.
         reference = {"type": "assistant", "message": {"content": [{
             "type": "tool_use", "id": "read-run", "name": "Read",
             "input": {"path": str(self.run / "post.md")},
         }]}}
+        shown_at = datetime.fromtimestamp(max(101, self.source.stat().st_mtime + 1), tz=datetime.fromisoformat(LATER.replace("Z", "+00:00")).tzinfo).isoformat()
+        presentation = ({"type": "assistant", "timestamp": shown_at,
+                         "message": {"content": self.source.read_text(encoding="utf-8")}},) if shown else ()
         (path or self.transcript).write_text(
-            "\n".join(json.dumps(row) for row in (reference, *rows)) + "\n",
+            "\n".join(json.dumps(row) for row in (reference, *presentation, *rows)) + "\n",
             encoding="utf-8",
         )
 
@@ -176,6 +179,73 @@ class WholeReplyApproval(unittest.TestCase):
         self.write(human(), human(later_reply, NEXT))
         self.approve(later_reply)
         self.assertEqual([REPLY, later_reply], [row["clinician_reply"] for row in self.record()["items"][0]["approvals"]])
+
+    def test_summarized_ask_refuses_all_three_skills_without_quoting_blocks(self):
+        self.source.write_text("# Synthetic heading\n\nFull synthetic paragraph.\n\n## References\n\nSynthetic reference.\n", encoding="utf-8")
+        os.utime(self.source, (100, 100))
+        for skill in approvals.SHOWN_TEXT_SKILLS:
+            with self.subTest(skill=skill):
+                self.write({"type": "assistant", "timestamp": "2100-10-09T11:59:59Z",
+                            "message": {"content": "Summary only."}}, human(), shown=False)
+                with self.assertRaisesRegex(approvals.ApprovalRecordError, "4 missing blocks") as error:
+                    self.approve(skill=skill)
+                self.assertNotIn("Full synthetic", str(error.exception))
+                self.assertFalse((self.run / approvals.RECORD).exists())
+
+    def test_verbatim_codex_ask_and_unchanged_gate_two_pass(self):
+        self.write({"type": "response_item", "timestamp": "2100-10-09T11:59:59Z",
+                    "payload": {"type": "message", "role": "assistant", "content": [
+                        {"type": "output_text", "text": "Synthetic   approved\ncontent."}]}}, human(), shown=False)
+        self.approve()
+        self.assertEqual("verified", self.record()["items"][0]["shown_text_verification"])
+        self.write(human(), human(timestamp=NEXT), shown=False)
+        self.approve()
+        self.assertEqual("exempt", self.record()["items"][0]["shown_text_verification"])
+
+    def test_bare_reask_after_revision_refuses(self):
+        self.approve()
+        self.source.write_text("Revised synthetic content.\n", encoding="utf-8")
+        os.utime(self.source, (datetime.fromisoformat(LATER.replace("Z", "+00:00")).timestamp() + 1,) * 2)
+        self.write(human(), human(timestamp=NEXT), shown=False)
+        with self.assertRaisesRegex(approvals.ApprovalRecordError, "1 missing blocks"):
+            self.approve()
+        self.assertEqual(1, self.record()["approval_revision"])
+
+    def test_unreadable_shown_text_is_incomplete_without_completion_recheck(self):
+        self.transcript.write_text("{unreadable\n", encoding="utf-8")
+        result = self.approve()
+        self.assertIn("shown-text transcript unreadable", result.pregrade_report)
+        self.assertEqual("incomplete", self.record()["items"][0]["pregrade_status"])
+
+    def test_committed_post_requires_its_full_reference_list(self):
+        controls = Path(__file__).resolve().parents[1] / "fixtures" / "coursework-style"
+        for skill in approvals.SHOWN_TEXT_SKILLS:
+            with self.subTest(skill=skill):
+                text = (controls / f"{skill}.md").read_text(encoding="utf-8")
+                self.source.write_text(text, encoding="utf-8")
+                os.utime(self.source, (100, 100))
+                self.write(human())
+                self.approve(skill=skill)
+                (self.run / approvals.RECORD).unlink()
+                self.write({"type": "assistant", "timestamp": "2100-10-09T11:59:59Z",
+                            "message": {"content": text.rsplit("\n", 2)[0]}}, human(), shown=False)
+                with self.assertRaisesRegex(approvals.ApprovalRecordError, "1 missing blocks"):
+                    self.approve(skill=skill)
+
+    def test_shown_text_must_be_main_assistant_text_inside_the_window(self):
+        text = self.source.read_text(encoding="utf-8")
+        cases = (
+            {"type": "assistant", "timestamp": "1970-01-01T00:00:01Z", "message": {"content": text}},
+            {"type": "assistant", "timestamp": NEXT, "message": {"content": text}},
+            {"type": "assistant", "timestamp": "2100-10-09T11:59:59Z", "isSidechain": True, "message": {"content": text}},
+            {"type": "user", "timestamp": "2100-10-09T11:59:59Z", "message": {"content": text}},
+            {"type": "response_item", "timestamp": "2100-10-09T11:59:59Z", "payload": {"type": "function_call_output", "output": text}},
+        )
+        for row in cases:
+            with self.subTest(row=row):
+                self.write(row, human(), shown=False)
+                with self.assertRaisesRegex(approvals.ApprovalRecordError, "1 missing blocks"):
+                    self.approve()
 
     def test_unreadable_approval_is_rechecked_as_found_absent_or_incomplete(self):
         self.transcript.write_text("{unreadable\n", encoding="utf-8")

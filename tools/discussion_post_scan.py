@@ -452,6 +452,7 @@ class Scan:
     heading_reads: int
     heading_read_unread: int
     posted_reading_unread: int
+    rendered_pages_state: str = "graded"
     findings: tuple[Finding, ...] = ()
     citation_coverage: CitationCoverage = CitationCoverage()
 
@@ -1114,11 +1115,19 @@ def _submission_findings(source: RunSource) -> tuple[Finding, ...]:
 class RenderedPageSurvey:
     findings: tuple[Finding, ...]
     engine_available: bool = True
+    waiting_for_load: bool = False
 
 
 def _rendered_page_findings(source: RunSource) -> RenderedPageSurvey:
     if source.html is None:
         return RenderedPageSurvey(())
+    canvas_pass_exists = any(
+        any(export.suffix.lower() == ".html" for export in retained.exports)
+        or any(pixel.name.startswith("capture-") for pixel in retained.pixels)
+        for _, retained in source.render_passes
+    )
+    if not canvas_pass_exists and source.post_url is None and source.post_posted is None and not source.readings:
+        return RenderedPageSurvey((), engine_available=False, waiting_for_load=True)
     if not source.rendered_readings:
         return RenderedPageSurvey(
             (
@@ -1346,6 +1355,7 @@ def survey(source: RunSource) -> Scan:
             html_graded=source.html is not None and not attachment,
             render_route="attachment" if attachment else "inline",
             rendered_pages_graded=rendered_pages.engine_available,
+            rendered_pages_state="waiting" if rendered_pages.waiting_for_load else "graded",
             docx_graded=source.docx is not None,
             reference_boundary_graded=False,
             posted_reading_graded=posted_reading_graded,
@@ -1492,6 +1502,7 @@ def survey(source: RunSource) -> Scan:
         html_graded=source.html is not None and not attachment,
         render_route="attachment" if attachment else "inline",
         rendered_pages_graded=rendered_pages.engine_available,
+        rendered_pages_state="waiting" if rendered_pages.waiting_for_load else "graded",
         docx_graded=source.docx is not None,
         reference_boundary_graded=True,
         posted_reading_graded=posted_reading_graded,
@@ -1596,6 +1607,8 @@ def format_report(scan: Scan, source: str, show: bool = False) -> str:
             POSTED_ATTACHMENT,
         } and not scan.reference_boundary_graded:
             lines.append(f"{kind}: {NOT_GRADED}")
+        elif kind == RENDERED_PAGES and scan.rendered_pages_state == "waiting":
+            lines.append(f"{kind}: {NOT_GRADED} - awaiting a Canvas-box load")
         elif kind == RENDERED_PAGES and not scan.rendered_pages_graded:
             lines.append(
                 f"{kind}: {sum(finding.kind == kind for finding in scan.findings)} - "

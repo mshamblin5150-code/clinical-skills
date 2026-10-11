@@ -18,6 +18,7 @@ import sys
 from typing import Iterable
 
 import aar_scan
+import docx_write
 import entry_copy
 from discussion_artifact import read_posted_readings
 import run_grader
@@ -41,6 +42,58 @@ SKILLS = frozenset(
 )
 
 REPLY_UNREADABLE = "approval reply transcript unreadable"
+SHOWN_TEXT_SKILLS = frozenset({"discussion-post", "discussion-reply", "peer-critique"})
+
+
+def verify_shown_text(run: Path, sources: tuple[Path, ...], reply_at: float | None) -> ReplyVerification:
+    """Read assistant text in the source-change-to-reply window, without quoting it.
+
+    Recognition ceiling: only Claude assistant text and Codex output_text messages
+    with timezone-qualified timestamps in discoverable main-session transcripts
+    are read. The blocks are docx_write's Markdown subset, compared as collapsed
+    text substrings inside individual messages; this proves neither visual
+    formatting nor clinician attention, and cannot see text shown outside chat.
+    """
+    if reply_at is None:
+        return ReplyVerification("unreadable", "shown-text transcript unreadable")
+    try:
+        boundary = max(path.stat().st_mtime for path in sources)
+        required = [" ".join((block.source if block.kind == "table" else block.text).split())
+                    for path in sources for block in docx_write.blocks(path.read_text(encoding="utf-8"))
+                    if block.kind != "blank"]
+    except (OSError, UnicodeError, ValueError):
+        return ReplyVerification("unreadable", "shown-text transcript unreadable")
+    shown: list[str] = []
+    transcripts, unread = _main_transcripts(run)
+    for rows in transcripts:
+        for row in rows:
+            if row.get("isSidechain") or row.get("isMeta"):
+                continue
+            value = ""
+            if row.get("type") == "assistant":
+                content = row.get("message", {}).get("content", [])
+                value = content if isinstance(content, str) else "\n".join(
+                    block.get("text", "") for block in content
+                    if isinstance(block, dict) and block.get("type") == "text")
+            elif row.get("type") == "response_item":
+                payload = aar_scan._codex_payload(row)
+                if payload.get("type") == "message" and payload.get("role") == "assistant":
+                    value = aar_scan._codex_content_text(payload, "output_text")
+            if not value:
+                continue
+            try:
+                written_at = _message_time(row)
+            except (ValueError, OverflowError):
+                unread = True
+                continue
+            if boundary < written_at < reply_at:
+                shown.append(" ".join(value.split()))
+    missing = sum(bool(block) and not any(block in message for message in shown) for block in required)
+    if not missing:
+        return ReplyVerification("verified", "whole approved text shown")
+    if unread:
+        return ReplyVerification("unreadable", "shown-text transcript unreadable")
+    return ReplyVerification("not found", f"approved text was not shown: {missing} missing blocks")
 
 
 @dataclass(frozen=True)
@@ -48,6 +101,33 @@ class ReplyVerification:
     state: str
     reason: str
     matched_at: float | None = None
+
+
+def _message_time(row: dict) -> float:
+    timestamp = datetime.fromisoformat(str(row.get("timestamp", "")).replace("Z", "+00:00"))
+    if timestamp.tzinfo is None:
+        raise ValueError("timestamp has no timezone")
+    return timestamp.astimezone(timezone.utc).timestamp()
+
+
+def _main_transcripts(run: Path) -> tuple[list[list[dict]], bool]:
+    try:
+        discovery = aar_scan.discover_transcripts(run)
+    except (OSError, ValueError):
+        return [], True
+    transcripts = []
+    unread = bool(discovery.unread) or not discovery.paths
+    for path in discovery.paths:
+        if "subagents" in {part.casefold() for part in path.parts}:
+            continue
+        try:
+            rows = aar_scan.read_transcript(path)
+        except (OSError, ValueError):
+            unread = True
+            continue
+        if not aar_scan._is_codex_subagent(rows):
+            transcripts.append(rows)
+    return transcripts, unread
 
 
 def verify_clinician_reply(
@@ -64,30 +144,17 @@ def verify_clinician_reply(
                     if source_modified_at is None else source_modified_at)
         if after is not None:
             boundary = max(boundary, after)
-        discovery = aar_scan.discover_transcripts(run)
     except (OSError, ValueError):
         return ReplyVerification("unreadable", "transcript discovery or source time unavailable")
-    unread = bool(discovery.unread)
+    transcripts, unread = _main_transcripts(run)
     matches: list[float] = []
-    for path in discovery.paths:
-        if "subagents" in {part.casefold() for part in path.parts}:
-            continue
-        try:
-            rows = aar_scan.read_transcript(path)
-        except (OSError, ValueError):
-            unread = True
-            continue
-        if aar_scan._is_codex_subagent(rows):
-            continue
+    for rows in transcripts:
         for row in rows:
             value = aar_scan.clinician_text(row)
             if " ".join(value.split()) != normalized:
                 continue
             try:
-                timestamp = datetime.fromisoformat(str(row.get("timestamp", "")).replace("Z", "+00:00"))
-                if timestamp.tzinfo is None:
-                    raise ValueError("timestamp has no timezone")
-                written_at = timestamp.astimezone(timezone.utc).timestamp()
+                written_at = _message_time(row)
             except (ValueError, OverflowError):
                 unread = True
                 continue
@@ -95,7 +162,7 @@ def verify_clinician_reply(
                 matches.append(written_at)
     if matches:
         return ReplyVerification("verified", "whole clinician message matched", min(matches))
-    if unread or not discovery.paths:
+    if unread:
         return ReplyVerification("unreadable", "no complete readable transcript population")
     return ReplyVerification("not found", "no later whole clinician message matches")
 
@@ -297,9 +364,21 @@ def approve(
     if grade_status not in {0, 2}:
         raise ApprovalRecordError(f"the pre-post grade has a finding: {grade_report}")
 
+    digest = source_sha256(resolved_sources)
+    shown = ReplyVerification("exempt", "unchanged fingerprint or other skill")
+    already_approved = previous and (
+        previous.get("sha256") == digest or any(row.get("sha256") == digest for row in history)
+    )
+    if skill in SHOWN_TEXT_SKILLS and not already_approved:
+        shown = verify_shown_text(root, resolved_sources, verification.matched_at)
+        if shown.state == "not found":
+            raise ApprovalRecordError(shown.reason)
+        if shown.state == "unreadable":
+            grade_status = 2
+            grade_report += "\n" + shown.reason
+
     previous_revision = payload.get("approval_revision", 0)
     revision = previous_revision + 1 if isinstance(previous_revision, int) else 1
-    digest = source_sha256(resolved_sources)
     item = {
         "skill": skill,
         "submission": submission,
@@ -309,6 +388,7 @@ def approve(
         "posting_route": PostingRoute.AWAITING.value,
         "approval_revision": revision,
         "pregrade_status": "clean" if grade_status == 0 else "incomplete",
+        "shown_text_verification": shown.state,
         "clinician_reply": clinician_reply,
         "reply_verification": "verified" if verification.state == "verified" else "not verified",
         "reply_reason": verification.reason,
@@ -318,7 +398,7 @@ def approve(
     }
     history.append({name: item[name] for name in (
         "clinician_reply", "reply_verification", "reply_reason", "reply_matched_at",
-        "reply_after", "approval_revision", "source_modified_at",
+        "reply_after", "approval_revision", "source_modified_at", "sha256", "shown_text_verification",
     )})
     item["approvals"] = history
     current_items = payload.get("items", [])
