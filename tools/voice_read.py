@@ -42,6 +42,11 @@ class DeclaredLimit(NamedTuple):
 
 DECLARED_LIMITS = (
     DeclaredLimit(
+        "plant-detection-not-pair-identity",
+        "the read tests detection of the planted sentence, not which model pair it imitates; the catch counts on whichever pair the reader judges closest",
+        run_grader.EvidenceDisposition.BEHAVIOR,
+    ),
+    DeclaredLimit(
         "consistency-is-not-identity",
         "a clean voice read establishes consistency with the model's samples, not that the draft sounds like its clinician",
         run_grader.EvidenceDisposition.DECLARED_READING,
@@ -603,8 +608,13 @@ def _voice_result(
                 planted_flagged = True
             else:
                 real_generic = True
-    if reader.get("suspected_plant_quote") != replacement or not planted_flagged:
+    if reader.get("suspected_plant_quote") != replacement:
         return ReadResult(True, False, "finding - planted sentence was not flagged")
+    if not planted_flagged:
+        return ReadResult(
+            True, False,
+            "finding - planted sentence was named but placed on no generic pair answer",
+        )
     if real_generic:
         return ReadResult(True, False, "finding - a real draft sentence was placed on a generic half")
     return ReadResult(False, False, "clean")

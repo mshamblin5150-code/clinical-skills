@@ -108,6 +108,11 @@ the other two require a verbatim quote from the planted copy. A missed plant voi
 sentence placed on `generic` returns the draft to its author. After either outcome, revise when
 needed and repeat both contexts on a fresh plant because the draft digest has moved.
 
+A caught plant is the sentence named in `suspected_plant_quote` and also quoted, character for
+character, as the `generic` answer on the pair whose generic half it most resembles in the reader's
+judgment. `suspected_plant_quote` alone does not record the catch. The pair need not be the one the
+planter wrote toward.
+
 Every captured item is answered exactly once. `kept whole` is clean. `shrunk` and `dropped` are
 findings and return the draft to its author. A missing capture is a finding; an unanswered captured
 item is incomplete coverage, never clean. When a finding and an unanswered item coexist, the
