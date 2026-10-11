@@ -709,6 +709,8 @@ class PublicCompletionCommand(unittest.TestCase):
             path=self.model, sha256=digest(MODEL), exists=True
         )
         self.draft_path = self.run / "critique.md"
+        (self.run / "lms-attachments").mkdir()
+        (self.run / "lms-attachments" / "critique.md").write_text("ATTACHMENTS: none\n", encoding="utf-8")
         self.draft = self.draft_path.read_text(encoding="utf-8")
         self.original = "A unique closing sentence."
         self.replacement = "This is a generic sentence."

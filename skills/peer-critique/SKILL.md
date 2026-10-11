@@ -84,6 +84,8 @@ temporary path is separate and run-unique.
 
 ## 1. Read the spec, the classmate, and the clinician's own post
 
+Before searching for or reading a Faculty file or Classmate file, follow [LMS attachments](../_shared/reference/lms-attachments.md) and record the sitting's attachment appendix, including when no files are linked.
+
 Read the master spec topic first and write `spec-<date>.md`. Report to the clinician, before
 drafting: the eight headings and their sub-questions as the live spec states them, the word range,
 the reference floor, and the point weight. Where the LMS has assigned a specific classmate for peer

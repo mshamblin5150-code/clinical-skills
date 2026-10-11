@@ -386,6 +386,9 @@ class Run:
                 final_confirmation=True,
             )
         scan.voice_model_identity.write_record(self.root)
+        attachments = self.root / "lms-attachments"
+        attachments.mkdir(exist_ok=True)
+        (attachments / f"{self.deck.stem}.md").write_text("ATTACHMENTS: none\n", encoding="utf-8")
         identity_path = self.root / scan.voice_model_identity.RECORD_NAME
         identity = json.loads(identity_path.read_text(encoding="utf-8"))
         identity["observations"] = {self.deck.stem: {"paths": []}}

@@ -71,6 +71,8 @@ create a discussion run directory, read the classmate contributions, write a sna
 bar, or accept any patient material here. The clinical skill derives the `case-study` run key and
 owns those patient-bearing reads and writes.
 
+Before searching for or reading a Faculty file or Classmate file for a nonpatient prompt, follow [LMS attachments](../_shared/reference/lms-attachments.md) and record the sitting's attachment appendix, including when no files are linked.
+
 For a nonpatient prompt, continue in this skill. Read the point value, due dates, the clinician's
 existing contribution if any, every classmate initial post, and every nested reply. The live board
 is authoritative, including edits. Write the complete state to `board-<date>.md` and split the

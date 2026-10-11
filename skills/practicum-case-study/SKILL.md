@@ -500,6 +500,8 @@ or blinding that narrows the shared rule.
 
 ### 1. Read the faculty material
 
+Before searching for or reading a Faculty file or Classmate file, follow [LMS attachments](../_shared/reference/lms-attachments.md) and record the sitting's attachment appendix, including when no files are linked.
+
 ```bash
 python tools/docx_read.py "<the case study document>"
 ```

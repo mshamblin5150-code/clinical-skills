@@ -1230,6 +1230,15 @@ ceiling belongs to `imagery_proposals.DECLARED_LIMITS`; this section copies no r
 
 Covered by `tools/test_imagery_proposals.py`.
 
+### LMS attachment identity
+
+`tools/lms_attachments.py <run> --submission <key[,key]>` checks the attachment appendix of
+the sitting snapshot against its retained local copies. Exit 0 is clean, 1 is a record or
+identity finding, and 2 is an invocation or run-directory refusal. Without `--submission`,
+the row is not graded. The five coursework completion graders inherit the same row.
+Before retrieving files, read [LMS attachments](skills/_shared/reference/lms-attachments.md).
+The complete ceiling belongs to `lms_attachments.DECLARED_LIMITS`; this section copies no row.
+
 ### Coursework project context
 
 Before first prose, the five coursework skills write and confirm the purpose-named

@@ -77,6 +77,7 @@ import voice_model_identity
 import voice_read
 import imagery_proposals
 import project_context
+import lms_attachments
 import approval_record
 import coursework_style
 import heading_read
@@ -89,6 +90,7 @@ EXPECTED_COMPLETION_CHECKS = (
     voice_read.PROFANITY_EXPECTED_ROW,
     imagery_proposals.EXPECTED_ROW,
     project_context.EXPECTED_ROW,
+    lms_attachments.EXPECTED_ROW,
 )
 import coursework_run
 from run_grader import EvidenceDisposition
@@ -1694,6 +1696,7 @@ def grade(source: RunSource, _parsed: run_grader.Parsed) -> run_grader.Grade[Sca
     grade = project_context.apply_completion_gate(
         grade, source.path, _parsed.value("--submission")
     )
+    grade = lms_attachments.apply_completion_gate(grade, source.path, _parsed.value("--submission"))
     return approval_record.apply_completion_gate(
         grade, source.path, "discussion-post", _parsed.value("--submission")
     )

@@ -52,6 +52,8 @@ standing rule 6 governs independent checks and cleanup.
 
 ## 1. Read the live assignment and establish the bar
 
+Before searching for or reading a Faculty file or Classmate file, follow [LMS attachments](../_shared/reference/lms-attachments.md) and record the sitting's attachment appendix, including when no files are linked.
+
 Read the assignment prompt, point value, due date, submission type, upload types, linked examples, rubric, and every
 stated artifact rule. Follow links and report access failures rather than treating an unread link
 as evidence. Open the course syllabus and read any assignment-wide requirements. The assignment

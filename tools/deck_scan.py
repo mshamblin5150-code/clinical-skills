@@ -39,6 +39,7 @@ import voice_model_identity
 import voice_read
 import imagery_proposals
 import project_context
+import lms_attachments
 from discussion_artifact import (
     CLAIM_BLOCK,
     PostedReading,
@@ -117,6 +118,7 @@ EXPECTED_COMPLETION_CHECKS = (
     voice_read.PROFANITY_EXPECTED_ROW,
     imagery_proposals.EXPECTED_ROW,
     project_context.EXPECTED_ROW,
+    lms_attachments.EXPECTED_ROW,
 )
 
 REQUIRED_BAR_FIELDS = (
@@ -1336,9 +1338,10 @@ def grade(source: Source, _parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
         source.root,
         {submission: voice_text} if submission is not None else None,
     )
-    return project_context.apply_completion_gate(
+    grade = project_context.apply_completion_gate(
         grade, source.root, _parsed.value("--submission")
     )
+    return lms_attachments.apply_completion_gate(grade, source.root, submission)
 
 
 GRADER = run_grader.Grader(
