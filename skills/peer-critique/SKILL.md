@@ -288,7 +288,8 @@ The final-draft reading adds `missing-heading-read`, `duplicate-heading-read`,
 `heading-read-draft-mismatch`, `heading-read-defect`, `heading-read-verdict-shape`
 (a malformed verdict line), `heading-read-finding`,
 `heading-read-context-digest`, `heading-read-context-verdict-shape`, and
-`heading-read-context-defect`.
+`heading-read-context-defect`, plus `heading-read-qualifier-count`,
+`heading-read-item-count`, and `heading-read-unopened-item` under the shared sourcing rule.
 
 The word count excludes the reference list. The 750-word expectation is **reported and never
 graded**, on the no-stated-maximum rule in step 4, and the count of literal ampersands is reported

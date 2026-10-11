@@ -235,7 +235,8 @@ The rows are:
   `heading-read-draft-mismatch`, `heading-read-defect`, `heading-read-verdict-shape`
   (a malformed verdict line), `heading-read-finding`,
   `heading-read-context-digest`, `heading-read-context-verdict-shape`, and
-  `heading-read-context-defect`.
+  `heading-read-context-defect`, plus `heading-read-qualifier-count`,
+  `heading-read-item-count`, and `heading-read-unopened-item` under the shared sourcing rule.
 
 The default report prints counts only. `--show` exposes artifact text and remains private. Exit 0
 is clean, 1 means a finding, and 2 means the command did not completely scan the run, bar, or deck.
