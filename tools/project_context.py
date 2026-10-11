@@ -50,6 +50,11 @@ DECLARED_LIMITS = (
         "A clean shape cannot establish that an agrees verdict is substantively true.",
     ),
     (
+        "agreement-inherits-item-errors",
+        "An agrees verdict measures the draft against the opened items only, so an error "
+        "an item carries about itself is agreed with.",
+    ),
+    (
         "semantic-search-ranked-tail-unseen",
         "A semantic search cannot show which items ranked below its returned cutoff.",
     ),

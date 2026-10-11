@@ -528,13 +528,27 @@ class ScopedCompletionGraders(unittest.TestCase):
             for module_name in context.COMPLETION_GRADERS.values()
         ]
         readers.append(root / "CLAUDE.md")
+        readers.append(root / "skills" / "_shared" / "reference" / "sourcing.md")
         for path in readers:
             with self.subTest(path=path.name):
                 text = path.read_text(encoding="utf-8")
                 self.assertIn("project_context.DECLARED_LIMITS", text)
                 for key, reason in context.DECLARED_LIMITS:
-                    self.assertNotIn(key, text)
+                    if path.name != "sourcing.md":
+                        self.assertNotIn(key, text)
                     self.assertNotIn(reason, text)
+
+    def test_the_shared_draft_rule_points_at_an_existing_limits_row(self) -> None:
+        root = Path(__file__).resolve().parent.parent
+        text = (root / "skills" / "_shared" / "reference" / "sourcing.md").read_text(
+            encoding="utf-8"
+        )
+        keys = dict(context.DECLARED_LIMITS)
+        self.assertIn("agreement-is-a-reading", keys)
+        self.assertIn("agreement-inherits-item-errors", keys)
+        self.assertIn(
+            "`project_context.DECLARED_LIMITS`, row `agreement-inherits-item-errors`", text
+        )
 
 
 if __name__ == "__main__":
