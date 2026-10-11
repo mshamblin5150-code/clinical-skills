@@ -219,6 +219,9 @@ record explicit `none`.
 
 First write and confirm `project-context.md`, then retrieve every place owed by
 [sourcing.md](../_shared/reference/sourcing.md).
+Write both replies' keyed classmate declarations before reply one's first prose, following
+that reference's header rules. Compare descriptions of each classmate's work under
+[Draft order](../_shared/reference/sourcing.md#draft-order).
 The research return includes `QUALIFIERS`; the refutation brief checks its completeness
 under that shared rule. The project-context command must exit 0. An
 unregistered project stops for the clinician's answer; an unreachable place stops until it is
@@ -339,7 +342,8 @@ completion grader enforces both keyed voice reads and the model-owned profanity 
 ceiling is `voice_read.DECLARED_LIMITS`; this skill copies no row.
 
 Before each reply's go-ahead, this fresh **Second reader** under [standing rule 6](../../AGENTS.md) receives only that final
-`response-<name>.md`, `claims.md`, and the printed heading digests. Do not give it sources. Pairs may
+`response-<name>.md`, `claims.md`, the printed heading digests, and every item pointer recorded
+in `project-context.md`. It opens those items itself. Do not give it research sources. Pairs may
 resolve only to `[REPLY: <name>]` records. Write one shared `## HEADING-READ:` record per response
 file in `<run-directory>/heading-read.md`, repair every `unrecorded` or `drifted` finding under
 [sourcing.md](../_shared/reference/sourcing.md), and repeat the read after any repair. With no second

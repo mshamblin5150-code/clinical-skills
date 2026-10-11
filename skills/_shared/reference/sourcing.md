@@ -280,6 +280,9 @@ PROJECT-CONTEXT: <project> | none - <reason>
 OWN-SUBMISSION: <path> | none - <reason>
 CASE-MATERIAL: <path> | none - <reason>
 CASE-RESEARCH: <dump id> | none - <reason>
+CLASSMATE-POST: <submission key> -> <absolute path to the selected classmate's post>
+CLASSMATE-BOARD: <submission key> -> <absolute path to the board snapshot>
+CLASSMATE-ATTACHMENT: <submission key> -> <absolute path to a retained attachment copy> | <submission key> -> none - <reason>
 PROJECT-SEARCH: <location or service> - "<terms>"
 PROJECT-WAIVE: <location or service> - <what failed and when>; proceed without, per the clinician
 CONFIRMED: <ISO date>
@@ -312,6 +315,23 @@ five coursework skills. The gate requires each line exactly once, refuses a reas
 an unopened declared item, and refuses a research dump without a manifest or with a filed-copy
 fingerprint that disagrees with its manifest. The go-ahead recheck covers both declared items,
 including the research manifest and filed-copy identity.
+
+In `discussion-reply` and `peer-critique`, confirm the three `CLASSMATE-` lines for each
+submission key with the header. Declare exactly one post and board snapshot per key. Repeat
+the attachment line for every file the selected classmate attached, or write one `none` with
+a reason. Open every declared absolute path as an item of a `read` place, adding its location
+through `PROJECT-SEARCH` when needed. The gate refuses missing or duplicated post or board
+lines, missing attachments, reasonless `none`, `none` beside a path, and unopened paths for
+the gated key. Another key's declarations cannot satisfy it. Both replies' lines are confirmed
+before reply one's first prose; their board lines may name the same snapshot. Records confirmed
+before 2026-10-11 report this check as `not graded` with a pre-cutoff record count.
+A sentence stating what the classmate wrote, found, or planned is an **Item description** under
+**Draft order**. Its `ITEM:` may name its own key's classmate files or other opened items;
+naming a classmate file declared only under another submission key is a finding, on the
+heading read's existing Item-description cutoff.
+When `PROJECT-CONTEXT` is `none`, these declarations still owe their opened files: add
+their read locations through `PROJECT-SEARCH`. No registered project places are owed in
+that branch; file hashing and the go-ahead recheck apply to the declared retrieval.
 
 The memory index and every registered project place are owed. Each `PROJECT-SEARCH` adds or
 constrains one owed place; a direction given later amends and re-confirms the header before drafting.

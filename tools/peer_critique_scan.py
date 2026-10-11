@@ -475,6 +475,7 @@ def survey(source: RunSource) -> Scan:
                 project_context.recorded_digest(source.path),
                 as_of=research_ledger.ledger_date(source.claims),
                 opened_items=project_context.recorded_opened_items(source.path),
+                other_classmate_items=project_context.other_classmate_items(source.path, "critique.md"),
             ),
         ),
     )

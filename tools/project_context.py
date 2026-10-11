@@ -40,7 +40,14 @@ SCOPED_SKILLS = frozenset(
 COMPLETION_GRADERS = MappingProxyType(
     {skill: aar_scan.COMPLETION_GRADERS[skill] for skill in SCOPED_SKILLS}
 )
+CLASSMATE_CUTOFF = date(2026, 10, 11)
+CLASSMATE_SKILLS = MappingProxyType({
+    "discussion-reply": re.compile(r"response-.+\.md"),
+    "peer-critique": re.compile(r"critique\.md"),
+})
+CLASSMATE_FIELDS = ("CLASSMATE-POST", "CLASSMATE-BOARD", "CLASSMATE-ATTACHMENT")
 DECLARED_LIMITS = (
+    ("classmate-identity-unverified", "The gate checks that declared classmate files were opened, never that they belong to the selected classmate."),
     ("approval-notice-unverified", "Approval verifies the shown draft, not whether the clinician saw the moved-item notice."),
     ("added-memory-lines-ungraded", "Added memory-index lines are shown for the clinician's reading; their bearing on the draft is not graded."),
     ("pre-check-approvals", "Posted approvals predating the go-ahead check are named and counted, and pass without a recorded check."),
@@ -95,7 +102,7 @@ _OPENED = re.compile(
 )
 _HEADER_FIELDS = frozenset(
     {"PROJECT-CONTEXT", "OWN-SUBMISSION", "CASE-MATERIAL", "CASE-RESEARCH", "PROJECT-SEARCH", "PROJECT-WAIVE", "CONFIRMED", "CONTEXT-DIGEST", "ORDER-WAIVE", "ORDER-OBSERVATION", "GO-AHEAD"}
-)
+) | frozenset(CLASSMATE_FIELDS)
 _ENTRY_FIELDS = frozenset(
     {
         "STATE",
@@ -110,7 +117,7 @@ _ENTRY_FIELDS = frozenset(
         "MEMORY-LINES",
     }
 )
-_REPEATABLE_HEADER = frozenset({"PROJECT-SEARCH", "PROJECT-WAIVE", "ORDER-WAIVE", "ORDER-OBSERVATION", "GO-AHEAD"})
+_REPEATABLE_HEADER = frozenset({"PROJECT-SEARCH", "PROJECT-WAIVE", "ORDER-WAIVE", "ORDER-OBSERVATION", "GO-AHEAD", *CLASSMATE_FIELDS})
 _REPEATABLE_ENTRY = frozenset({"QUERY", "OPENED"})
 TScan = TypeVar("TScan")
 
@@ -344,6 +351,10 @@ def _file_declaration_error(record: Record, name: str, value: str | None = None)
         if prefix.casefold() != "none" or not separator or not reason.strip():
             return f"{name} none needs a reason"
         return None
+    return _opened_file_error(record, name, value)
+
+
+def _opened_file_error(record: Record, name: str, value: str) -> str | None:
     path = Path(value).expanduser()
     if not path.is_absolute():
         return f"{name} needs an absolute file path"
@@ -360,6 +371,70 @@ def _file_declaration_error(record: Record, name: str, value: str | None = None)
             if item.resolve() == path.resolve():
                 return None
     return f"{name} path is not OPENED in a read PLACE"
+
+
+def _classmate_lines(record: Record, name: str) -> tuple[tuple[str, str], ...]:
+    rows = []
+    for value in record.values(name):
+        key, separator, target = value.partition(" -> ")
+        if not separator or not target.strip() or len(coursework_run.submission_keys(key)) != 1:
+            raise ValueError(f"{name} needs a submission key -> file path or attachment none")
+        rows.append((key, target.strip()))
+    return tuple(rows)
+
+
+def _classmate_gate(record: Record, submission: str | None) -> tuple[list[str], str]:
+    if submission is None or not any(pattern.fullmatch(submission) for pattern in CLASSMATE_SKILLS.values()):
+        return [], ""
+    try:
+        confirmed = date.fromisoformat(record.value("CONFIRMED"))
+    except ValueError:
+        return [], ""  # The confirmation shape check owns this refusal.
+    if confirmed < CLASSMATE_CUTOFF:
+        return [], "classmate declarations: not graded; pre-cutoff records: 1"
+    errors = []
+    for name in CLASSMATE_FIELDS:
+        try:
+            targets = tuple(target for key, target in _classmate_lines(record, name) if key == submission)
+        except ValueError as failure:
+            errors.append(str(failure))
+            continue
+        if not targets or (name != "CLASSMATE-ATTACHMENT" and len(targets) != 1):
+            errors.append(f"{name} for {submission} is missing or duplicated")
+            continue
+        none = tuple(target for target in targets if target.casefold().startswith("none"))
+        if none:
+            if name != "CLASSMATE-ATTACHMENT":
+                errors.append(f"{name} for {submission} needs an absolute file path")
+            elif len(targets) != 1:
+                errors.append(f"{name} for {submission} cannot put none beside another attachment")
+            elif not re.fullmatch(r"(?i)none - \S.*", none[0]):
+                errors.append(f"{name} for {submission} none needs a reason")
+        for target in targets:
+            if target not in none:
+                if error := _opened_file_error(record, name, target):
+                    errors.append(error)
+    return errors, "classmate declarations: " + ("finding - " + "; ".join(errors) if errors else "clean")
+
+
+def other_classmate_items(run: Path, submission: str) -> tuple[str, ...]:
+    """Opened identifiers declared only under another submission's classmate lines."""
+    try:
+        record = read_record((run / RECORD_NAME).read_text(encoding="utf-8"))
+        declarations = tuple(row for name in CLASSMATE_FIELDS for row in _classmate_lines(record, name))
+    except (OSError, UnicodeError, ValueError):
+        return ()
+    own, other = set(), set()
+    for key, target in declarations:
+        if target.casefold().startswith("none"):
+            continue
+        path = Path(target).expanduser().resolve()
+        (own if key == submission else other).add(path)
+    excluded = other - own
+    return tuple(opened.item for entry in record.entries
+                 for value in entry.values("OPENED") for opened in (_opened(value),)
+                 if opened.item.casefold() != "none"
+                 and _file_path(entry, opened) in excluded)
 
 
 def _case_research_error(record: Record, *, recheck_files: bool) -> str | None:
@@ -437,16 +512,18 @@ def _waivers(record: Record) -> tuple[set[str], list[str]]:
 def _owed_places(
     registry: Registry, project_name: str, searches: Mapping[str, str]
 ) -> tuple[OwedPlace, ...]:
-    project = registry.projects.get(project_name)
-    if project is None:
-        raise RegistryCoverage(
-            "declared project is not registered; ask the clinician to register it or confirm none"
-        )
-    ordered: dict[str, OwedPlace] = {
-        registry.memory_index: OwedPlace(registry.memory_index, "location"),
-        **{path: OwedPlace(path, "location") for path in project.locations},
-        **{service: OwedPlace(service, "service") for service in project.services},
-    }
+    ordered: dict[str, OwedPlace] = {}
+    if project_name != "none":
+        project = registry.projects.get(project_name)
+        if project is None:
+            raise RegistryCoverage(
+                "declared project is not registered; ask the clinician to register it or confirm none"
+            )
+        ordered.update({
+            registry.memory_index: OwedPlace(registry.memory_index, "location"),
+            **{path: OwedPlace(path, "location") for path in project.locations},
+            **{service: OwedPlace(service, "service") for service in project.services},
+        })
     for target, terms in searches.items():
         if _URL.match(target):
             raise RegistryFinding("a service route must be named, never written as a URL")
@@ -588,6 +665,8 @@ def _hash_service(
 def _context_digest(triples: list[tuple[str, str, str]], record: Record) -> str:
     payload = "".join(name + "\0" + record.value(name) + "\n"
                       for name in ("OWN-SUBMISSION", "CASE-MATERIAL", "CASE-RESEARCH"))
+    payload += "".join(name + "\0" + value + "\n"
+                       for name in CLASSMATE_FIELDS for value in record.values(name))
     payload += "".join("\0".join(triple) + "\n" for triple in sorted(triples))
     return sha256(payload.encode("utf-8")).hexdigest()
 
@@ -601,6 +680,7 @@ def _render(
     lines = [f"PROJECT-CONTEXT: {record.value('PROJECT-CONTEXT')}"]
     lines.extend(f"{name}: {record.value(name)}"
                  for name in ("OWN-SUBMISSION", "CASE-MATERIAL", "CASE-RESEARCH"))
+    lines.extend(f"{name}: {value}" for name in CLASSMATE_FIELDS for value in record.values(name))
     lines.extend(f"PROJECT-SEARCH: {value}" for value in record.values("PROJECT-SEARCH"))
     lines.extend(f"PROJECT-WAIVE: {value}" for value in record.values("PROJECT-WAIVE"))
     lines.extend(f"ORDER-WAIVE: {value}" for value in record.values("ORDER-WAIVE"))
@@ -635,6 +715,7 @@ def _write_context_record(
     run: Path,
     *,
     service_payloads: Mapping[str, Mapping[str, str | bytes]] | None = None,
+    submission: str | None = None,
 ) -> GateResult:
     """Validate retrieval, write hashes and the context digest, and report the gate."""
     record_path = run / RECORD_NAME
@@ -646,6 +727,8 @@ def _write_context_record(
         return GateResult(1, "project context: finding - record shape is invalid")
     errors = _duplicates(record)
     errors.extend(_context_declaration_errors(record))
+    classmate_errors, classmate_report = _classmate_gate(record, submission)
+    errors.extend(classmate_errors)
     project_name, declaration_error = _declaration(record)
     if declaration_error:
         errors.append(declaration_error)
@@ -661,18 +744,18 @@ def _write_context_record(
     if errors:
         return GateResult(1, "project context: finding - " + "; ".join(errors))
     assert project_name is not None
-    if project_name == "none":
+    if project_name == "none" and not any(record.values(name) for name in CLASSMATE_FIELDS):
         if searches or waivers or record.entries:
             return GateResult(1, "project context: finding - a none run cannot owe places")
         digest = _context_digest([], record)
         record_path.write_text(_render(record, (), {}, digest), encoding="utf-8")
-        return GateResult(0, "project context: clean; waived places: 0", digest=digest)
+        return GateResult(0, "; ".join(filter(None, ("project context: clean; waived places: 0", classmate_report))), digest=digest)
 
     registry_path = repo_root.project_registry()
-    if not registry_path.is_file():
+    if project_name != "none" and not registry_path.is_file():
         return GateResult(2, "project context NOT SCANNED - project registry is unavailable")
     try:
-        registry = read_registry(registry_path.read_text(encoding="utf-8"))
+        registry = Registry("", MappingProxyType({})) if project_name == "none" else read_registry(registry_path.read_text(encoding="utf-8"))
         owed = _owed_places(registry, project_name, searches)
     except RegistryCoverage as failure:
         return GateResult(2, f"project context NOT SCANNED - {failure}")
@@ -757,7 +840,7 @@ def _write_context_record(
     record_path.write_text(_render(record, tuple(entries), hashed, digest), encoding="utf-8")
     return GateResult(
         0,
-        f"project context: clean; owed places: {len(owed)}; waived places: {waived}",
+        "; ".join(filter(None, (f"project context: clean; owed places: {len(owed)}; waived places: {waived}", classmate_report))),
         waived=waived,
         digest=digest,
     )
@@ -804,7 +887,7 @@ def write_record(run: Path, *, service_payloads=None, submission: str | None = N
         lines = [line for line in text.splitlines() if not line.startswith("ORDER-OBSERVATION:")]
         lines.insert(0, "ORDER-OBSERVATION: " + json.dumps(observations))
         path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    result = _write_context_record(run, service_payloads=service_payloads)
+    result = _write_context_record(run, service_payloads=service_payloads, submission=submission)
     if submission is None:
         return result
     order = coursework_run.grade_order(order_observations(run), submission, lambda key, path: order_waived(run, key, path))
@@ -884,6 +967,8 @@ def _context_completion_gate(run: Path, submission: str | None, *, recheck_files
     declaration, error = _declaration(record)
     shape_errors = _duplicates(record)
     shape_errors.extend(_context_declaration_errors(record, recheck_files=recheck_files))
+    classmate_errors, classmate_report = _classmate_gate(record, submission)
+    shape_errors.extend(classmate_errors)
     confirmed = record.values("CONFIRMED")
     if error:
         shape_errors.append(error)
@@ -896,24 +981,24 @@ def _context_completion_gate(run: Path, submission: str | None, *, recheck_files
     shape_errors.extend(search_errors)
     shape_errors.extend(waiver_errors)
     if shape_errors:
-        return CompletionGate(True, False, f"{EXPECTED_ROW}: finding - record shape is invalid")
-    if declaration == "none":
+        return CompletionGate(True, False, "; ".join(filter(None, (f"{EXPECTED_ROW}: finding - record shape is invalid", classmate_report))))
+    if declaration == "none" and not any(record.values(name) for name in CLASSMATE_FIELDS):
         clean = digest == _context_digest([], record) and not record.entries
         return CompletionGate(
             not clean,
             False,
-            f"{EXPECTED_ROW}: {'clean' if clean else 'finding - record fingerprint is invalid'}",
+            "; ".join(filter(None, (f"{EXPECTED_ROW}: {'clean' if clean else 'finding - record fingerprint is invalid'}", classmate_report))),
         )
     assert declaration is not None
     registry_path = repo_root.project_registry()
-    if not registry_path.is_file():
+    if declaration != "none" and not registry_path.is_file():
         return CompletionGate(
             False,
             True,
             f"{EXPECTED_ROW}: not scanned - project registry is unavailable",
         )
     try:
-        registry = read_registry(registry_path.read_text(encoding="utf-8"))
+        registry = Registry("", MappingProxyType({})) if declaration == "none" else read_registry(registry_path.read_text(encoding="utf-8"))
         owed = _owed_places(registry, declaration, searches)
     except RegistryCoverage:
         return CompletionGate(
@@ -1017,7 +1102,8 @@ def _context_completion_gate(run: Path, submission: str | None, *, recheck_files
         moved,
         f"{EXPECTED_ROW}: "
         + ("; ".join(states) if states else "clean")
-        + f"; owed places: {len(owed)}; waived places: {len(waivers & failed_places)}",
+        + f"; owed places: {len(owed)}; waived places: {len(waivers & failed_places)}"
+        + (f"; {classmate_report}" if classmate_report else ""),
         tuple(moved_places),
         tuple(added_lines),
     )
