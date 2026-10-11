@@ -117,7 +117,9 @@ existing approval before each post still applies.
 
 ## 2. Build and verify the claim ledger
 
-List every new factual claim the replies may add. A paraphrase of the classmate's post, a statement
+List every new factual claim the replies may add; read the canonical voice model's stated principles and invoked sources
+for the [invoked-attribution look-ahead](../_shared/reference/sourcing.md#invoked-attributions).
+A paraphrase of the classmate's post, a statement
 of agreement, and the clinician's own argument need no record. A number, threshold, factual
 comparison, or empirical assertion does. A source already verified in this board's `claims.md`
 may discharge another page-level read, but the new claim does not inherit the earlier claim's

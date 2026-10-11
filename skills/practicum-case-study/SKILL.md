@@ -526,7 +526,9 @@ than what sounds right.
 **This is a Fan-out brief under [standing rule 6](../../AGENTS.md), and it runs before a word of the
 body is drafted.** List the clinical claims
 the document is going to rest on — every differential's discriminator, every threshold, every dose,
-every number said out loud to the patient — and strike the ones the companion evidence, the USPSTF
+every number said out loud to the patient; read the canonical voice model's stated principles and invoked sources
+for the [invoked-attribution look-ahead](../_shared/reference/sourcing.md#invoked-attributions),
+and strike the ones the companion evidence, the USPSTF
 table, the threshold sheets or the guideline corpus already cover. **What is left is the work of
 this step**, and *What none of that reaches gets researched, not deferred* above is the rule it
 applies.

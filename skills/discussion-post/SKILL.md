@@ -189,7 +189,9 @@ Markdown; `docx_write.py` drops own-line HTML comments when it renders the Word 
 
 Write a prompt-shaped blind argument outline to `outline.md`, in the clinician's voice and
 reasoning, carrying no citation, number or source fact. Derive research questions from its factual
-points. Create `claims.md` with a `DATE:` header and one question-form `## CLAIM:` heading per
+points; read the canonical voice model's stated principles and invoked sources
+for the [invoked-attribution look-ahead](../_shared/reference/sourcing.md#invoked-attributions).
+Create `claims.md` with a `DATE:` header and one question-form `## CLAIM:` heading per
 question. Research answers those questions; when each record returns, rewrite its heading as the
 source-backed claim under [sourcing.md](../_shared/reference/sourcing.md), before refutation
 dispatch. Only the rewritten heading reaches refutation or drafting. Write each

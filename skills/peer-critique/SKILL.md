@@ -151,7 +151,9 @@ statement of agreement, and the clinician's own clinical argument need none. A n
 guideline requirement, drug regimen, screening grade, or empirical assertion does.
 
 This **Fan-out brief** applies [standing rule 6](../../AGENTS.md). Create `claims.md` with a `DATE:`
-header and one question-form `## CLAIM:` heading per factual point to research. Each research worker
+header and one question-form `## CLAIM:` heading per factual point to research; read the canonical voice model's stated principles and invoked sources
+for the [invoked-attribution look-ahead](../_shared/reference/sourcing.md#invoked-attributions).
+Each research worker
 takes one question. When its record returns, rewrite the heading as the source-backed claim under
 [sourcing.md](../_shared/reference/sourcing.md), before each sourced record gets its refutation leg.
 Every research and refutation brief first reads
