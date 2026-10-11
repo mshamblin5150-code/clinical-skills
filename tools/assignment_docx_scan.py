@@ -40,6 +40,7 @@ import voice_model_identity
 import voice_read
 import imagery_proposals
 import project_context
+import lms_attachments
 import coursework_style
 from run_grader import NOT_GRADED
 
@@ -88,6 +89,7 @@ EXPECTED_COMPLETION_CHECKS = (
     voice_read.PROFANITY_EXPECTED_ROW,
     imagery_proposals.EXPECTED_ROW,
     project_context.EXPECTED_ROW,
+    lms_attachments.EXPECTED_ROW,
 )
 
 
@@ -580,7 +582,8 @@ def grade(source: Source, parsed: run_grader.Parsed) -> run_grader.Grade[Scan]:
         if submission is not None
         else None,
     )
-    return project_context.apply_completion_gate(grade, source.root, submission)
+    grade = project_context.apply_completion_gate(grade, source.root, submission)
+    return lms_attachments.apply_completion_gate(grade, source.root, submission)
 
 
 GRADER = run_grader.Grader(

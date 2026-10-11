@@ -15,6 +15,7 @@ import voice_model_identity as identity
 import voice_read
 import imagery_proposals
 import project_context
+import lms_attachments
 
 
 class RecordWriter(unittest.TestCase):
@@ -213,6 +214,7 @@ class ScopedCompletionGraders(unittest.TestCase):
                         voice_read.PROFANITY_EXPECTED_ROW,
                         imagery_proposals.EXPECTED_ROW,
                         project_context.EXPECTED_ROW,
+                        lms_attachments.EXPECTED_ROW,
                     ),
                 )
 

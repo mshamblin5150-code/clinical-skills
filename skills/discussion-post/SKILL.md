@@ -65,6 +65,8 @@ For this skill, the canonical artifacts governed by [standing rule 6](../../AGEN
 
 ## 1. Route from the prompt, then snapshot the nonpatient board
 
+Before searching for or reading a Faculty file or Classmate file, follow [LMS attachments](../_shared/reference/lms-attachments.md) and record the sitting's attachment appendix, including when no files are linked.
+
 Open the topic live and first read only its breadcrumbs and prompt. **If the prompt asks for a
 worked clinical case, stop this skill now.** Hand the board URL to `practicum-case-study`; do not
 create a discussion run directory, read the classmate contributions, write a snapshot, derive a

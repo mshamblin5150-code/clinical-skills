@@ -189,6 +189,9 @@ def run(argv: list[str], *, bind: bool = True) -> tuple[int, str, str]:
         )
         if "--submission" in arguments:
             submission = arguments[arguments.index("--submission") + 1]
+            attachments = checks_path.parent / "lms-attachments"
+            attachments.mkdir(exist_ok=True)
+            (attachments / f"{submission}.md").write_text("ATTACHMENTS: none\n", encoding="utf-8")
             checks.voice_model_identity.write_record(checks_path.parent)
             identity_path = checks_path.parent / checks.voice_model_identity.RECORD_NAME
             identity = json.loads(identity_path.read_text(encoding="utf-8"))

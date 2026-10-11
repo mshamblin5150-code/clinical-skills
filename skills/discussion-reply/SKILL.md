@@ -69,6 +69,8 @@ For this skill, the canonical artifacts governed by [standing rule 6](../../AGEN
 
 ## 1. Read and rank the whole board
 
+Before searching for or reading a Faculty file or Classmate file, follow [LMS attachments](../_shared/reference/lms-attachments.md) and record the sitting's attachment appendix, including when no files are linked.
+
 When the clinician asks to cite his own unpublished work, apply
 [sourcing.md's own-work bar admission](../_shared/reference/sourcing.md#the-clinicians-own-unpublished-work)
 at signing or by mid-run re-signing. `clinician's own work` is never a default template class.
