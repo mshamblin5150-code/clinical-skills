@@ -19,6 +19,9 @@ patients/
 # Public CDC reference data committed for the pediatric BMI calculator (#123).
 !reference/cdc-bmi-for-age-2022.csv
 
+# Fixed CPT book identities and page locators; no patient data or descriptors (#1413).
+!reference/cpt-population-2026.csv
+
 # Local Claude state is default-denied. The retrieval log is written by
 # machinery outside this repository's control, so this is a publication
 # boundary rather than a claim about what that file contains. Project hook

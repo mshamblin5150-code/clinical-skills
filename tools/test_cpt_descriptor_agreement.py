@@ -20,6 +20,7 @@ from unittest import mock
 
 import cpt_descriptor_agreement as agreement
 import procedure_codes_build as build
+import cpt_population
 from run_grader import format_unread_remainder
 
 
@@ -256,9 +257,10 @@ class TheBuildConsumesTheRecord(Run):
             "97169": "Example evaluation • First • Second",
             "45825": "Example closure; with colostomy",
         }
+        rows.update({code: f"Synthetic procedure {code}" for code in cpt_population.reference_codes()})
         write_reading(self.root / "reader-1.csv", rows)
         write_reading(self.root / "reader-2.csv", rows)
-        controls = {code: hashlib.sha256(text.encode("utf-8")).hexdigest() for code, text in rows.items() if code != "12345"}
+        controls = {code: hashlib.sha256(text.encode("utf-8")).hexdigest() for code, text in rows.items() if code in build.CPT_CONTROL_SHA256}
         with mock.patch.object(build, "CPT_CONTROL_SHA256", controls):
             status, out, err = self.run_command("--write")
         self.assertEqual(0, status, out + err)

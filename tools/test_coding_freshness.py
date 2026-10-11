@@ -8,6 +8,7 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
@@ -124,7 +125,7 @@ class CodingFreshnessMain(ProseBind, unittest.TestCase):
         self.manifest.write_text(json.dumps(value), encoding="utf-8")
 
     def run_gate(self, pages: tuple[str, str] = (ICD_PAGE, HCPCS_PAGE),
-                 committed_error: bool = False) -> tuple[int, str]:
+                 committed_error: bool = False, procedure_database: Path | None = None) -> tuple[int, str]:
         stdout = io.StringIO()
         with (
             patch.object(gate, "read_url", side_effect=pages),
@@ -141,9 +142,26 @@ class CodingFreshnessMain(ProseBind, unittest.TestCase):
                     str(self.cpt_receipt),
                     "--receipt",
                     str(self.output),
-                ]
+                ] + (["--procedure-database", str(procedure_database)] if procedure_database else [])
             )
         return status, stdout.getvalue()
+
+    def test_incomplete_cpt_miss_is_unread_rather_than_a_code_refusal(self):
+        database = self.directory / "procedure.sqlite"
+        database.write_bytes(gate.procedure_codes_lookup.DEFAULT_DATABASE.read_bytes())
+        with contextlib.closing(sqlite3.connect(database)) as connection:
+            connection.execute("DELETE FROM code WHERE system='CPT' AND code='51702'")
+            connection.commit()
+        value = self.load_manifest()
+        value["encounters"][0]["codes"]["cpt"] = ["51702"]
+        self.save_manifest(value)
+        status, output = self.run_gate(procedure_database=database)
+        self.assertEqual(1, status)
+        self.assertIn("CPT code set is incomplete", output)
+        self.assertIn("CPT 51702 miss is unread", output)
+        self.assertIn("rendered VitalSource page", output)
+        self.assertNotIn("51702 is absent", output)
+        self.assertFalse(self.output.exists())
 
     def test_pass_binds_order_content_status_codes_and_sources(self):
         status, output = self.run_gate()

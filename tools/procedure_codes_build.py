@@ -36,6 +36,7 @@ from pathlib import Path
 
 from console_codec import require_python_floor, use_utf8
 from cpt_identity import CPT_CODE
+import cpt_population
 from repo_root import scratch_root
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -455,12 +456,15 @@ def write_database(
     cpt_complete: bool = False,
     cpt_evidence: CptEvidence | None = None,
     cpt_reference: Path | None = None,
-) -> None:
+) -> cpt_population.Coverage:
     """Write the database; a verified build passes ``verify_cpt_agreement``'s evidence.
 
     ``cpt_reference`` is the database being replaced, whose CPT code population a verified
     set must contain; it defaults to the committed database.
     """
+    population = cpt_population.coverage({entry.code for entry in entries if entry.system == "CPT"})
+    if cpt_complete and population.missing:
+        raise ValueError("--cpt-complete refused: " + population.report())
     if cpt_evidence is not None:
         if not cpt_complete:
             raise ValueError("verified CPT descriptors require --cpt-complete")
@@ -552,6 +556,7 @@ def write_database(
         connection.execute("VACUUM")
     finally:
         connection.close()
+    return population
 
 
 def main(argv: list[str]) -> int:
@@ -565,7 +570,7 @@ def main(argv: list[str]) -> int:
     parser.add_argument(
         "--cpt-complete",
         action="store_true",
-        help="assert that --cpt contains the complete licensed 2026 CPT code set",
+        help="request complete status; requires the independent CPT 2026 reference population",
     )
     parser.add_argument("--out", type=Path, default=DEFAULT_OUT)
     parser.add_argument("--cpt-agreement", type=Path, help="agreement JSON in the owning checkout's scratch/cpt-2026")
@@ -614,7 +619,7 @@ def main(argv: list[str]) -> int:
             else:
                 cpt_evidence = checked
                 descriptor_state = "verified"
-        write_database(
+        population = write_database(
             args.out,
             entries,
             args.hcpcs,
@@ -631,6 +636,7 @@ def main(argv: list[str]) -> int:
     print(f"HCPCS modifiers  {sum(e.system == 'HCPCS' and e.kind == 'modifier' for e in entries):,}")
     print(f"CPT codes        {sum(e.system == 'CPT' for e in entries):,}")
     if args.cpt is not None:
+        print(population.report())
         print(f"CPT descriptors  {descriptor_state}")
     print(f"written          {args.out}")
     return 0

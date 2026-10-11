@@ -21,6 +21,7 @@ from pathlib import Path
 
 from console_codec import require_python_floor, use_utf8
 from cpt_identity import CPT_CODE
+import cpt_population
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_DATABASE = REPO_ROOT / "reference" / "procedure-codes-2026.sqlite"
@@ -95,7 +96,17 @@ def complete(connection: sqlite3.Connection, system: str) -> bool:
     row = connection.execute(
         "SELECT value FROM meta WHERE key = ?", (f"{system.lower()}_complete",)
     ).fetchone()
-    return row is not None and row[0] == "yes"
+    if row is None or row[0] != "yes":
+        return False
+    if system == "CPT":
+        try:
+            codes = {row[0] for row in connection.execute(
+                "SELECT code FROM code WHERE system = 'CPT' AND kind = 'code'"
+            )}
+            return not cpt_population.coverage(codes).missing
+        except (OSError, ValueError):
+            return False
+    return True
 
 
 def cpt_descriptors_verified(connection: sqlite3.Connection) -> bool:
@@ -112,8 +123,8 @@ def _report(
         system = infer_system(requested.strip().upper())
         if not complete(connection, system):
             print(
-                f"{requested}  {system} SET NOT FULLY LOADED - "
-                "verify in the licensed live book"
+                f"{requested}  {system} SET NOT FULLY LOADED - miss is unread; "
+                "verify on the rendered VitalSource page in the licensed live book"
             )
             return 2
         print(f"{requested}  NOT IN THE {system} CODE SET - do not propose this number")

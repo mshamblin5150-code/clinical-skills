@@ -346,12 +346,19 @@ def validate_procedures(
         sheet_digest = None
 
     for system, population in (("CPT", cpt), ("HCPCS", hcpcs)):
-        if population and not procedure_codes_lookup.complete(connection, system):
+        is_complete = procedure_codes_lookup.complete(connection, system) if population else True
+        if population and not is_complete:
             findings.append(f"{system} code set is incomplete")
         for requested in sorted(population):
             entry = procedure_codes_lookup.describe(connection, requested)
             if entry is None:
-                findings.append(f"{system} {requested} is absent from the verified code set")
+                if is_complete:
+                    findings.append(f"{system} {requested} is absent from the verified code set")
+                else:
+                    findings.append(
+                        f"{system} {requested} miss is unread in the incomplete code set; "
+                        "verify on the rendered VitalSource page"
+                    )
             elif entry.system != system:
                 findings.append(f"{requested} resolves as {entry.system}, not {system}")
             elif not procedure_codes_lookup.valid_on(entry, service_date):
