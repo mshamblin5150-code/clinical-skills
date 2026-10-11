@@ -128,6 +128,15 @@ class QuoteCheck(unittest.TestCase):
         self.record["supplied_voice_answers"] = [{"item_id": "input-1", "quote": None}]
         self.assertEqual(0, self.check()[0])
 
+    def test_mixed_recognizable_and_unread_answers_cannot_pass(self) -> None:
+        self.record["answers"].append({"quote": "Does this work? Yes."})
+        status, output = self.check()
+        self.assertEqual(2, status)
+        self.assertIn("unrecognizable answer members 1", output)
+        self.assertNotIn("every quote", output)
+        self.record["answers"][0]["quote"] = "Absent sentence."
+        self.assertEqual(1, self.check()[0])
+
     def test_unreadable_input_and_unrecognizable_records_exit_two(self) -> None:
         self.draft.unlink()
         self.assertEqual(2, self.check()[0])

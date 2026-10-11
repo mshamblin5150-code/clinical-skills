@@ -859,15 +859,18 @@ def main(argv: list[str]) -> int:
         print("quote check: no recognizable answers")
         return 2
     quotes: list[tuple[str, str, object]] = []
+    unread = 0
     for field, identifier, source in (
         ("answers", "pair_id", planted),
         ("supplied_voice_answers", "item_id", draft),
     ):
         answers = reader.get(field)
         if not isinstance(answers, list):
+            unread += field in reader
             continue
         for answer in answers:
             if not isinstance(answer, dict) or not isinstance(answer.get(identifier), str) or "quote" not in answer:
+                unread += 1
                 continue
             label = f"{field}.quote {identifier}={answer[identifier]}"
             quotes.append((label, source, answer["quote"]))
@@ -884,6 +887,9 @@ def main(argv: list[str]) -> int:
             failed = True
     if failed:
         return 1
+    if unread:
+        print(f"quote check: unrecognizable answer members {unread}; no complete quote check")
+        return 2
     print("quote check: every quote is a verbatim sentence of its source")
     return 0
 
