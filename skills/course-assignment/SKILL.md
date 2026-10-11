@@ -161,7 +161,8 @@ python tools/voice_model_identity.py scratch/runs/<course>-<module>-course-assig
 
 Use the terminal submission key: the dated output deck or document stem.
 Use the [shared draft-order procedure](../_shared/reference/sourcing.md#draft-order)
-for keyed staging, retained observations, clinician waivers, and the pre-approval reading.
+for applying retrieved context while drafting, keyed staging, retained observations,
+clinician waivers, and the pre-approval reading.
 At the go-ahead, show any late gate and its waived-observation count.
 
 

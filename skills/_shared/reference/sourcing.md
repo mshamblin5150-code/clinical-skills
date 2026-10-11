@@ -184,6 +184,14 @@ service items again.
 
 ### Draft order
 
+While drafting, every statement the draft makes about the clinician, his history, or his own
+projects agrees with the opened project-context items: it neither narrows nor contradicts them.
+Check each such sentence against those items as it is written, not after the draft is final.
+Where opened items disagree with each other, stop before writing that sentence and ask the
+clinician, naming both sources and what differs; his ruling lands as a memory write. The heading
+read's context verdict re-checks this agreement and remains the backstop; nothing grades the
+drafting-time check.
+
 Capture `voice-reads/<submission-key>/supplied-voice.json` before the gates. The identity gate
 requires that file before writing its record. Use the terminal submission key for both commands;
 when staging a coursework draft under standing rule 6, use that key as the pass folder's name.

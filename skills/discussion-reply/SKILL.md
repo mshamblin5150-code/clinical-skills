@@ -198,7 +198,8 @@ python tools/voice_model_scan.py
 
 Use the terminal submission key: that reply's `response-<name>.md` filename; run both gates separately before each reply.
 Use the [shared draft-order procedure](../_shared/reference/sourcing.md#draft-order)
-for keyed staging, retained observations, clinician waivers, and the pre-approval reading.
+for applying retrieved context while drafting, keyed staging, retained observations,
+clinician waivers, and the pre-approval reading.
 At the go-ahead, show any late gate and its waived-observation count.
 
 Read only the canonical path the identity command reports, especially the confirmed reflective and argumentative register. Use
